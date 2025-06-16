@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 
-const ColorScheme lightColorScheme = ColorScheme.fromSeed(
+ColorScheme lightColorScheme = ColorScheme.fromSeed(
   seedColor: Colors.deepPurple,
   brightness: Brightness.light,
 );
 
-const ColorScheme darkColorScheme = ColorScheme.fromSeed(
+ColorScheme darkColorScheme = ColorScheme.fromSeed(
   seedColor: Colors.deepPurple,
   brightness: Brightness.dark,
 );

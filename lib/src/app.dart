@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:jokes/src/common_widgets/main_navigation_widget.dart';
-import 'package:jokes/src/core/theme/app_theme.dart';
+import 'package:snickerdoodle/src/common_widgets/main_navigation_widget.dart';
+import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 
 class App extends ConsumerWidget {
   const App({super.key});

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:jokes/src/features/jokes/application/providers.dart';
-import 'package:jokes/src/features/jokes/data/models/joke_model.dart';
+import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
+import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 
 class JokeViewerScreen extends ConsumerWidget {
   const JokeViewerScreen({super.key});

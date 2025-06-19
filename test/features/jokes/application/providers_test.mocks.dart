@@ -5,8 +5,8 @@
 // ignore_for_file: no_leading_underscores_for_library_prefixes
 import 'dart:async' as _i3;
 
-import 'package:jokes/src/features/jokes/data/models/joke_model.dart' as _i4;
-import 'package:jokes/src/features/jokes/data/repositories/joke_repository.dart'
+import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart' as _i4;
+import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart'
     as _i2;
 import 'package:mockito/mockito.dart' as _i1;
 

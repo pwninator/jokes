@@ -1,5 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:jokes/src/features/jokes/data/models/joke_model.dart';
+import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 
 class JokeRepository {
   final FirebaseFirestore _firestore;

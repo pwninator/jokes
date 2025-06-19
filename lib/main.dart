@@ -1,13 +1,28 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:jokes/src/app.dart';
-// Note: Removed 'package:jokes/src/core/theme/app_theme.dart'; as it's not directly used here anymore.
-// It will be used in app.dart
+import 'package:snickerdoodle/src/app.dart';
 
-void main() {
-  runApp(
-    const ProviderScope(
-      child: App(),
-    ),
-  );
+import 'firebase_options.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize Firebase (required before any UI that uses auth)
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  if (kDebugMode) {
+    try {
+      FirebaseFirestore.instance.useFirestoreEmulator('localhost', 8080);
+      await FirebaseAuth.instance.useAuthEmulator('localhost', 9099);
+    } catch (e) {
+      // ignore: avoid_print
+      print(e);
+    }
+  }
+
+  runApp(const ProviderScope(child: App()));
 }

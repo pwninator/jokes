@@ -8,7 +8,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart'; // Import ProviderScope
 import 'package:flutter_test/flutter_test.dart';
-import 'package:jokes/src/app.dart'; // App widget is already imported
+import 'package:snickerdoodle/src/app.dart'; // App widget is already imported
 
 void main() {
   testWidgets('App smoke test - checks for Jokes screen title', (WidgetTester tester) async {

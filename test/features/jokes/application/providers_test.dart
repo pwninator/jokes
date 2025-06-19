@@ -1,9 +1,9 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart'; // Ensure flutter_test is before flutter_riverpod
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:jokes/src/features/jokes/application/providers.dart';
-import 'package:jokes/src/features/jokes/data/models/joke_model.dart';
-import 'package:jokes/src/features/jokes/data/repositories/joke_repository.dart';
+import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
+import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
+import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
 import 'package:mockito/mockito.dart';
 import 'package:mockito/annotations.dart'; // Import GenerateMocks
 

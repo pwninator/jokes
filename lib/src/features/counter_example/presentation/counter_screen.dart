@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:jokes/src/features/counter_example/application/counter_provider.dart';
+import 'package:snickerdoodle/src/features/counter_example/application/counter_provider.dart';
 
 class CounterScreen extends ConsumerWidget {
   const CounterScreen({super.key});

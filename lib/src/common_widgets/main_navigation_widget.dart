@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:jokes/src/features/admin/presentation/joke_admin_screen.dart';
-import 'package:jokes/src/features/jokes/presentation/joke_viewer_screen.dart';
-import 'package:jokes/src/features/settings/presentation/user_settings_screen.dart';
+import 'package:snickerdoodle/src/features/admin/presentation/joke_admin_screen.dart';
+import 'package:snickerdoodle/src/features/jokes/presentation/joke_viewer_screen.dart';
+import 'package:snickerdoodle/src/features/settings/presentation/user_settings_screen.dart';
 
 class MainNavigationWidget extends StatefulWidget {
   const MainNavigationWidget({super.key});

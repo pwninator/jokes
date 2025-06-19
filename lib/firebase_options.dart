@@ -51,7 +51,7 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyDPsuA2aY0pAUCHbESz1gLSs5F_7i4dfOk',
-    appId: '1:416102166155:android:e714617729a062aa3dee8e',
+    appId: '1:416102166155:android:d4795126baf917373dee8e',
     messagingSenderId: '416102166155',
     projectId: 'storyteller-450807',
     storageBucket: 'storyteller-450807.firebasestorage.app',
@@ -67,5 +67,4 @@ class DefaultFirebaseOptions {
     iosClientId: '416102166155-7l4e28v989gh40nguahlk32objen1qqo.apps.googleusercontent.com',
     iosBundleId: 'com.example.jokes',
   );
-
 }

@@ -1,4 +1,4 @@
-package com.example.jokes
+package com.builtwithporpoise.jokes
 
 import io.flutter.embedding.android.FlutterActivity
 

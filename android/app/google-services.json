@@ -7,9 +7,9 @@
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:416102166155:android:e714617729a062aa3dee8e",
+        "mobilesdk_app_id": "1:416102166155:android:d4795126baf917373dee8e",
         "android_client_info": {
-          "package_name": "com.example.jokes"
+          "package_name": "com.builtwithporpoise.jokes"
         }
       },
       "oauth_client": [

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:snickerdoodle/src/common_widgets/main_navigation_widget.dart';
+import 'package:snickerdoodle/src/features/auth/presentation/auth_wrapper.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 
 class App extends ConsumerWidget {
@@ -9,10 +9,10 @@ class App extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return MaterialApp(
-      title: 'Flutter Demo', // This can be updated later
+      title: 'Snickerdoodle Jokes',
       theme: lightTheme,
       darkTheme: darkTheme,
-      home: const MainNavigationWidget(), // Changed from placeholder
+      home: const AuthWrapper(), // Use AuthWrapper instead of MainNavigationWidget
     );
   }
 }

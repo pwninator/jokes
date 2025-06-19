@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
-import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 
 class JokeViewerScreen extends ConsumerWidget {
   const JokeViewerScreen({super.key});
@@ -11,9 +10,7 @@ class JokeViewerScreen extends ConsumerWidget {
     final jokesAsyncValue = ref.watch(jokesProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Jokes'),
-      ),
+      appBar: AppBar(title: const Text('Jokes')),
       body: jokesAsyncValue.when(
         data: (jokes) {
           if (jokes.isEmpty) {
@@ -49,9 +46,11 @@ class JokeViewerScreen extends ConsumerWidget {
           );
         },
         loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, stackTrace) => Center(
-          child: Text('Error loading jokes: $error'),
-        ),
+        error: (error, stackTrace) {
+          debugPrint('Error loading jokes: $error');
+          debugPrint('Stack trace: $stackTrace');
+          return Center(child: Text('Error loading jokes: $error'));
+        },
       ),
     );
   }

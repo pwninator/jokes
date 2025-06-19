@@ -20,7 +20,7 @@ void main() async {
       await FirebaseAuth.instance.useAuthEmulator('localhost', 9099);
     } catch (e) {
       // ignore: avoid_print
-      print(e);
+      debugPrint('Firebase emulator connection error: $e');
     }
   }
 

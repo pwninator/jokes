@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
+import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
 import 'package:mockito/mockito.dart';
 import 'package:mockito/annotations.dart'; // Import GenerateMocks
 
@@ -75,10 +76,10 @@ void main() {
         ]);
 
         // act
-        final resultStream = container.read(jokesProvider.stream);
+        final result = await container.read(jokesProvider.future);
 
         // assert
-        await expectLater(resultStream, emits(tJokesList));
+        expect(result, equals(tJokesList));
         verify(mockJokeRepository.getJokes()).called(1);
       });
 
@@ -92,11 +93,8 @@ void main() {
           jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
         ]);
 
-        // act
-        final resultStream = container.read(jokesProvider.stream);
-
-        // assert
-        await expectLater(resultStream, emitsError(exception));
+        // act & assert
+        expect(() => container.read(jokesProvider.future), throwsA(exception));
         verify(mockJokeRepository.getJokes()).called(1);
       });
 
@@ -110,10 +108,10 @@ void main() {
         ]);
 
         // act
-        final resultStream = container.read(jokesProvider.stream);
+        final result = await container.read(jokesProvider.future);
 
         // assert
-        await expectLater(resultStream, emits([]));
+        expect(result, equals([]));
         verify(mockJokeRepository.getJokes()).called(1);
       });
     });

@@ -1,13 +1,200 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
+import 'package:snickerdoodle/src/features/auth/data/models/app_user.dart';
+import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 
-class UserSettingsScreen extends StatelessWidget {
+class UserSettingsScreen extends ConsumerWidget {
   const UserSettingsScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(
-        child: Text('User Settings Screen'),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final currentUser = ref.watch(currentUserProvider);
+    final authController = ref.watch(authControllerProvider);
+
+    return Scaffold(
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // User Info Section
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'User Information',
+                      style: Theme.of(context).textTheme.headlineSmall,
+                    ),
+                    const SizedBox(height: 8),
+                    if (currentUser != null) ...[
+                      _buildInfoRow('Status', currentUser.isAnonymous ? 'Guest User' : 'Signed In'),
+                      if (!currentUser.isAnonymous) ...[
+                        _buildInfoRow('Email', currentUser.email ?? 'Not provided'),
+                        _buildInfoRow('Display Name', currentUser.displayName ?? 'Not set'),
+                      ],
+                      _buildInfoRow('Role', _getRoleDisplay(currentUser.role)),
+                      _buildInfoRow('User ID', currentUser.id),
+                    ] else
+                      const Text('No user information available'),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            
+            // Authentication Actions Section
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Authentication',
+                      style: Theme.of(context).textTheme.headlineSmall,
+                    ),
+                    const SizedBox(height: 16),
+                    
+                    if (currentUser?.isAnonymous == true) ...[
+                      // Show Google sign-in option for anonymous users
+                      ElevatedButton.icon(
+                        onPressed: () => _signInWithGoogle(context, authController),
+                        icon: const Icon(Icons.login),
+                        label: const Text('Sign in with Google'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Theme.of(context).appColors.googleBlue,
+                          foregroundColor: Colors.white,
+                        ),
+                      ),
+                    ] else ...[
+                      // Show sign out option for authenticated users
+                      ElevatedButton.icon(
+                        onPressed: () => _confirmSignOut(context, authController),
+                        icon: const Icon(Icons.logout),
+                        label: const Text('Sign Out'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Theme.of(context).appColors.authError,
+                          foregroundColor: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInfoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 100,
+            child: Text(
+              '$label:',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+          Expanded(
+            child: Text(value),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _getRoleDisplay(UserRole role) {
+    switch (role) {
+      case UserRole.admin:
+        return 'Administrator';
+      case UserRole.user:
+        return 'User';
+      case UserRole.anonymous:
+        return 'Anonymous';
+    }
+  }
+
+  Future<void> _signInWithGoogle(BuildContext context, AuthController authController) async {
+    try {
+      debugPrint('DEBUG: Settings screen - starting Google sign-in...');
+      await authController.signInWithGoogle();
+      debugPrint('DEBUG: Settings screen - Google sign-in completed successfully');
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Successfully signed in with Google!'),
+            backgroundColor: Theme.of(context).appColors.success,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('DEBUG: Settings screen - Google sign-in failed: $e');
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to sign in: ${e.toString()}'),
+            backgroundColor: Theme.of(context).appColors.authError,
+            duration: const Duration(seconds: 8), // Longer duration for errors
+            action: SnackBarAction(
+              label: 'Details',
+              textColor: Colors.white,
+              onPressed: () {
+                debugPrint('ERROR DETAILS: $e');
+                // Show dialog with full error
+                showDialog(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('Sign-in Error'),
+                    content: SingleChildScrollView(
+                      child: Text(e.toString()),
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: const Text('OK'),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ),
+        );
+      }
+    }
+  }
+
+  void _confirmSignOut(BuildContext context, AuthController authController) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Sign Out'),
+        content: const Text('Are you sure you want to sign out? You will be signed in as a guest.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              authController.signOut();
+            },
+            child: const Text('Sign Out'),
+          ),
+        ],
       ),
     );
   }

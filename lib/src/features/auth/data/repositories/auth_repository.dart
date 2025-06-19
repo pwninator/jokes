@@ -1,15 +1,13 @@
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:snickerdoodle/src/features/auth/data/models/app_user.dart';
 
 class AuthRepository {
   final FirebaseAuth _firebaseAuth;
-  final FirebaseFirestore _firestore;
   final GoogleSignIn _googleSignIn;
 
-  AuthRepository(this._firebaseAuth, this._firestore, this._googleSignIn);
+  AuthRepository(this._firebaseAuth, this._googleSignIn);
 
   /// Stream of authentication state changes
   Stream<AppUser?> get authStateChanges {
@@ -41,7 +39,7 @@ class AuthRepository {
     }
   }
 
-  /// Sign in with Google
+    /// Sign in with Google
   Future<AppUser> signInWithGoogle() async {
     try {
       debugPrint('DEBUG: Starting Google sign-in flow...');
@@ -49,17 +47,17 @@ class AuthRepository {
       // Trigger the authentication flow
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
       
-              if (googleUser == null) {
-          debugPrint('DEBUG: Google sign-in was cancelled by user');
-          throw AuthException('Google sign-in was cancelled');
-        }
+      if (googleUser == null) {
+        debugPrint('DEBUG: Google sign-in was cancelled by user');
+        throw AuthException('Google sign-in was cancelled');
+      }
 
-        debugPrint('DEBUG: Google user selected: ${googleUser.email}');
+      debugPrint('DEBUG: Google user selected: ${googleUser.email}');
 
-        // Obtain the auth details from the request
-        final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
-        
-        debugPrint('DEBUG: Google auth tokens obtained - accessToken: ${googleAuth.accessToken != null ? 'present' : 'null'}, idToken: ${googleAuth.idToken != null ? 'present' : 'null'}');
+      // Obtain the auth details from the request
+      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
+      
+      debugPrint('DEBUG: Google auth tokens obtained - accessToken: ${googleAuth.accessToken != null ? 'present' : 'null'}, idToken: ${googleAuth.idToken != null ? 'present' : 'null'}');
 
       // Create a new credential
       final credential = GoogleAuthProvider.credential(
@@ -67,39 +65,38 @@ class AuthRepository {
         idToken: googleAuth.idToken,
       );
 
-              debugPrint('DEBUG: Firebase credential created, signing in...');
+      debugPrint('DEBUG: Firebase credential created, signing in...');
 
-        // Sign in to Firebase with the Google credential
-        final userCredential = await _firebaseAuth.signInWithCredential(credential);
-        final firebaseUser = userCredential.user!;
+      // Sign in to Firebase with the Google credential
+      final userCredential = await _firebaseAuth.signInWithCredential(credential);
+      final firebaseUser = userCredential.user!;
 
-        debugPrint('DEBUG: Firebase sign-in successful. User: ${firebaseUser.uid}, Email: ${firebaseUser.email}');
+      debugPrint('DEBUG: Firebase sign-in successful. User: ${firebaseUser.uid}, Email: ${firebaseUser.email}');
 
-        // Create user document in Firestore if this is a new user
-        if (userCredential.additionalUserInfo?.isNewUser == true) {
-          debugPrint('DEBUG: New user detected, creating user document...');
-          await _createUserDocument(firebaseUser, firebaseUser.displayName);
-        } else {
-          debugPrint('DEBUG: Existing user, skipping document creation');
-        }
-
-        final appUser = await _createAppUser(firebaseUser);
-        debugPrint('DEBUG: AppUser created successfully: ${appUser.email}, Role: ${appUser.role}');
-        
-        return appUser;
-      } catch (e, stackTrace) {
-        debugPrint('DEBUG: Google sign-in failed with error: $e');
-        debugPrint('DEBUG: Stack trace: $stackTrace');
+      final appUser = await _createAppUser(firebaseUser);
+      debugPrint('DEBUG: AppUser created successfully: ${appUser.email}, Role: ${appUser.role}');
+      
+      return appUser;
+    } catch (e, stackTrace) {
+      debugPrint('DEBUG: Google sign-in failed with error: $e');
+      debugPrint('DEBUG: Stack trace: $stackTrace');
       throw AuthException('Failed to sign in with Google: $e');
     }
   }
 
-  /// Sign out
+  /// Sign out and automatically sign in anonymously
   Future<void> signOut() async {
     try {
+      debugPrint('DEBUG: Starting sign out process...');
       await _googleSignIn.signOut();
       await _firebaseAuth.signOut();
+      debugPrint('DEBUG: Sign out successful, signing in anonymously...');
+      
+      // Automatically sign in anonymously after signing out
+      await signInAnonymously();
+      debugPrint('DEBUG: Switched to anonymous authentication');
     } catch (e) {
+      debugPrint('DEBUG: Sign out failed: $e');
       throw AuthException('Failed to sign out: $e');
     }
   }
@@ -110,8 +107,8 @@ class AuthRepository {
       return AppUser.anonymous(firebaseUser.uid);
     }
 
-    // Get user role from Firestore
-    final userRole = await _getUserRole(firebaseUser.uid);
+    // Get user role from Firebase Auth custom claims
+    final userRole = await _getUserRoleFromClaims(firebaseUser);
 
     return AppUser.authenticated(
       id: firebaseUser.uid,
@@ -121,39 +118,23 @@ class AuthRepository {
     );
   }
 
-  /// Get user role from Firestore
-  Future<UserRole> _getUserRole(String uid) async {
+  /// Get user role from Firebase Auth custom claims
+  Future<UserRole> _getUserRoleFromClaims(User firebaseUser) async {
     try {
-      debugPrint('DEBUG: Getting user role for UID: $uid');
-      final doc = await _firestore.collection('users').doc(uid).get();
-      if (doc.exists) {
-        final data = doc.data()!;
-        final roleString = data['role'] as String?;
-        debugPrint('DEBUG: User role found in Firestore: $roleString');
-        return _parseUserRole(roleString);
-      }
-      debugPrint('DEBUG: User document not found, defaulting to user role');
-      return UserRole.user; // Default role
+      debugPrint('DEBUG: Getting user role from custom claims for UID: ${firebaseUser.uid}');
+      
+      // Get the ID token to access custom claims
+      final idTokenResult = await firebaseUser.getIdTokenResult();
+      final claims = idTokenResult.claims;
+      
+      // Extract role from custom claims
+      final roleString = claims?['role'] as String?;
+      debugPrint('DEBUG: User role found in custom claims: $roleString');
+      
+      return _parseUserRole(roleString);
     } catch (e) {
-      debugPrint('DEBUG: Error getting user role: $e, defaulting to user role');
+      debugPrint('DEBUG: Error getting user role from claims: $e, defaulting to user role');
       return UserRole.user; // Default role on error
-    }
-  }
-
-  /// Create user document in Firestore
-  Future<void> _createUserDocument(User firebaseUser, String? displayName) async {
-    try {
-      await _firestore.collection('users').doc(firebaseUser.uid).set({
-        'email': firebaseUser.email,
-        'displayName': displayName ?? firebaseUser.displayName,
-        'role': 'user',
-        'createdAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
-    } catch (e) {
-      // Log error but don't throw - user creation succeeded even if document creation failed
-      // In production, consider using a proper logging solution like logger package
-      debugPrint('DEBUG: Failed to create user document: $e');
     }
   }
 

@@ -1,5 +1,4 @@
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:snickerdoodle/src/features/auth/data/models/app_user.dart';
@@ -18,9 +17,8 @@ final googleSignInProvider = Provider<GoogleSignIn>((ref) {
 /// Provider for AuthRepository
 final authRepositoryProvider = Provider<AuthRepository>((ref) {
   final firebaseAuth = ref.watch(firebaseAuthProvider);
-  final firestore = ref.watch(firebaseFirestoreProvider);
   final googleSignIn = ref.watch(googleSignInProvider);
-  return AuthRepository(firebaseAuth, firestore, googleSignIn);
+  return AuthRepository(firebaseAuth, googleSignIn);
 });
 
 /// StreamProvider for authentication state
@@ -89,7 +87,4 @@ class AuthController {
   }
 }
 
-// Re-export the firestore provider from jokes feature for consistency
-final firebaseFirestoreProvider = Provider<FirebaseFirestore>((ref) {
-  return FirebaseFirestore.instance;
-}); 
+ 

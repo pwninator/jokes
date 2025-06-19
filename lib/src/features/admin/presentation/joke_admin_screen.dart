@@ -5,9 +5,66 @@ class JokeAdminScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      body: Center(
-        child: Text('Joke Admin Screen'),
+    return Scaffold(
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Admin Panel',
+              style: Theme.of(context).textTheme.headlineMedium,
+            ),
+            const SizedBox(height: 24),
+            
+            // Info Card - Custom Claims
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.info_outline),
+                title: const Text('User Role Management'),
+                subtitle: const Text('User roles are managed via Firebase Auth custom claims'),
+                trailing: const Icon(Icons.admin_panel_settings),
+                onTap: () {
+                  showDialog(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      title: const Text('User Role Management'),
+                      content: const Text(
+                        'User roles are managed using Firebase Auth custom claims. '
+                        'To assign admin roles, use the Firebase Admin SDK or '
+                        'Firebase Cloud Functions.',
+                      ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.of(context).pop(),
+                          child: const Text('OK'),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+            
+            const SizedBox(height: 8),
+            
+            // Joke Management Card (placeholder)
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.mood),
+                title: const Text('Joke Management'),
+                subtitle: const Text('Add, edit, and moderate jokes'),
+                trailing: const Icon(Icons.arrow_forward_ios),
+                onTap: () {
+                  // TODO: Navigate to joke management screen
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Joke management coming soon!')),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

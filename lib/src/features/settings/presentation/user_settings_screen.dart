@@ -76,7 +76,7 @@ class UserSettingsScreen extends ConsumerWidget {
                       ElevatedButton.icon(
                         onPressed: () => _confirmSignOut(context, authController),
                         icon: const Icon(Icons.logout),
-                        label: const Text('Sign Out'),
+                        label: const Text('Switch to Guest Mode'),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Theme.of(context).appColors.authError,
                           foregroundColor: Colors.white,
@@ -180,19 +180,40 @@ class UserSettingsScreen extends ConsumerWidget {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Sign Out'),
-        content: const Text('Are you sure you want to sign out? You will be signed in as a guest.'),
+        title: const Text('Switch to Guest Mode'),
+        content: const Text('Are you sure you want to switch to guest mode? You will still be able to view jokes, but you\'ll lose access to your personalized features.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(),
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.of(context).pop();
-              authController.signOut();
+              try {
+                await authController.signOut();
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: const Text('Switched to guest mode'),
+                      backgroundColor: Theme.of(context).appColors.success,
+                      duration: const Duration(seconds: 3),
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Failed to switch to guest mode: $e'),
+                      backgroundColor: Theme.of(context).appColors.authError,
+                      duration: const Duration(seconds: 5),
+                    ),
+                  );
+                }
+              }
             },
-            child: const Text('Sign Out'),
+            child: const Text('Switch to Guest'),
           ),
         ],
       ),

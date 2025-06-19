@@ -6,24 +6,25 @@
 // tree, read text, and verify that the values of widget properties are correct.
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart'; // Import ProviderScope
 import 'package:flutter_test/flutter_test.dart';
-import 'package:jokes/src/app.dart';
+import 'package:jokes/src/app.dart'; // App widget is already imported
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
+  testWidgets('App smoke test - checks for Jokes screen title', (WidgetTester tester) async {
     // Build our app and trigger a frame.
-    await tester.pumpWidget(const App());
+    // Wrap the App widget with a ProviderScope
+    await tester.pumpWidget(
+      const ProviderScope(
+        child: App(),
+      ),
+    );
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    // Verify that the initial screen (JokeViewerScreen via MainNavigationWidget)
+    // shows the "Jokes" title in the AppBar.
+    // It might take a frame or two for the stream provider to settle.
+    await tester.pumpAndSettle(); // Allow time for async operations like providers to settle
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
-
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    expect(find.widgetWithText(AppBar, 'Jokes'), findsOneWidget);
   });
 }

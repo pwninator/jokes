@@ -32,7 +32,6 @@ This project follows a feature-first directory structure, organized to work well
     - **`application/`**: Business logic and state management (e.g., Riverpod providers).
     - **`domain/`**: Core business models and entities for the feature (optional, depending on complexity).
     - **`presentation/`**: UI layer for the feature (widgets, screens).
-    - *Example*: `features/counter_example/` shows a simple counter implementation.
   - **`providers/`**: For application-wide Riverpod providers that are not tied to a specific feature. *(Currently contains a .gitkeep file)*
   - **`utils/`**: General utility functions or classes. *(Currently contains a .gitkeep file)*
 - **`lib/main.dart`**: The main entry point of the application, responsible for initializing the app and setting up the `ProviderScope` for Riverpod.

@@ -13,6 +13,7 @@ void main() {
     const tJokeMap = {
       'setup_text': 'Why did the scarecrow win an award?',
       'punchline_text': 'Because he was outstanding in his field!',
+      'image_url': null,
     };
 
     test('should be a subclass of Joke entity', () {
@@ -74,6 +75,38 @@ void main() {
       final joke3 = const Joke(id: '2', setupText: 'a', punchlineText: 'b');
       expect(joke1.hashCode, joke2.hashCode);
       expect(joke1.hashCode, isNot(joke3.hashCode));
+    });
+
+    test('should handle imageUrl field correctly', () {
+      // arrange
+      const jokeWithImage = Joke(
+        id: '1',
+        setupText: 'Why did the scarecrow win an award?',
+        punchlineText: 'Because he was outstanding in his field!',
+        imageUrl: 'https://example.com/image.jpg',
+      );
+
+      // act
+      final result = jokeWithImage.toMap();
+
+      // assert
+      expect(result['image_url'], 'https://example.com/image.jpg');
+      expect(jokeWithImage.imageUrl, 'https://example.com/image.jpg');
+    });
+
+    test('should create joke from map with imageUrl', () {
+      // arrange
+      final Map<String, dynamic> jsonMap = {
+        'setup_text': 'Why did the scarecrow win an award?',
+        'punchline_text': 'Because he was outstanding in his field!',
+        'image_url': 'https://example.com/image.jpg',
+      };
+
+      // act
+      final result = Joke.fromMap(jsonMap, '1');
+
+      // assert
+      expect(result.imageUrl, 'https://example.com/image.jpg');
     });
   });
 }

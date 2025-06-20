@@ -5,22 +5,26 @@ class Joke {
   final String id;
   final String setupText;
   final String punchlineText;
+  final String? imageUrl;
 
   const Joke({
     required this.id,
     required this.setupText,
     required this.punchlineText,
+    this.imageUrl,
   });
 
   Joke copyWith({
     String? id,
     String? setupText,
     String? punchlineText,
+    String? imageUrl,
   }) {
     return Joke(
       id: id ?? this.id,
       setupText: setupText ?? this.setupText,
       punchlineText: punchlineText ?? this.punchlineText,
+      imageUrl: imageUrl ?? this.imageUrl,
     );
   }
 
@@ -28,6 +32,7 @@ class Joke {
     return {
       'setup_text': setupText,
       'punchline_text': punchlineText,
+      'image_url': imageUrl,
     };
   }
 
@@ -36,6 +41,7 @@ class Joke {
       id: documentId,
       setupText: map['setup_text'] ?? '',
       punchlineText: map['punchline_text'] ?? '',
+      imageUrl: map['image_url'],
     );
   }
 
@@ -46,7 +52,7 @@ class Joke {
 
   @override
   String toString() =>
-      'Joke(id: $id, setupText: $setupText, punchlineText: $punchlineText)';
+      'Joke(id: $id, setupText: $setupText, punchlineText: $punchlineText, imageUrl: $imageUrl)';
 
   @override
   bool operator ==(Object other) {
@@ -55,10 +61,11 @@ class Joke {
     return other is Joke &&
         other.id == id &&
         other.setupText == setupText &&
-        other.punchlineText == punchlineText;
+        other.punchlineText == punchlineText &&
+        other.imageUrl == imageUrl;
   }
 
   @override
   int get hashCode =>
-      id.hashCode ^ setupText.hashCode ^ punchlineText.hashCode;
+      id.hashCode ^ setupText.hashCode ^ punchlineText.hashCode ^ imageUrl.hashCode;
 }

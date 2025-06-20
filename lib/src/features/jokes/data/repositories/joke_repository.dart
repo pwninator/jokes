@@ -13,9 +13,4 @@ class JokeRepository {
       }).toList();
     });
   }
-
-  // Example of how you might add a joke - not required by current plan
-  // Future<void> addJoke(Joke joke) {
-  //   return _firestore.collection('jokes').add(joke.toMap());
-  // }
 }

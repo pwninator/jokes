@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:snickerdoodle/src/common_widgets/joke_card.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_editor_screen.dart';
 import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
 
@@ -58,52 +59,10 @@ class JokeManagementScreen extends ConsumerWidget {
                       itemCount: jokes.length,
                       itemBuilder: (context, index) {
                         final joke = jokes[index];
-                        return Card(
-                          margin: const EdgeInsets.symmetric(vertical: 4.0),
-                          child: ListTile(
-                            leading: CircleAvatar(
-                              backgroundColor:
-                                  Theme.of(context).colorScheme.primary,
-                              child: Text(
-                                '${index + 1}',
-                                style: TextStyle(
-                                  color:
-                                      Theme.of(context).colorScheme.onPrimary,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ),
-                            title: Text(
-                              joke.setupText,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w500,
-                              ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            subtitle: Text(
-                              joke.punchlineText,
-                              style: TextStyle(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onSurface.withOpacity(0.7),
-                                fontStyle: FontStyle.italic,
-                              ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            trailing: Icon(
-                              Icons.arrow_forward_ios,
-                              size: 16,
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.onSurface.withOpacity(0.4),
-                            ),
-                            onTap: () {
-                              // TODO: Navigate to joke details/edit screen
-                              _showJokeDetails(context, joke);
-                            },
-                          ),
+                        return JokeCard(
+                          joke: joke,
+                          index: index,
+                          onTap: () => _showJokeDetails(context, joke),
                         );
                       },
                     ),

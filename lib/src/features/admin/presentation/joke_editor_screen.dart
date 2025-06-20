@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
+import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
 
 class JokeEditorScreen extends ConsumerStatefulWidget {
   const JokeEditorScreen({super.key});
@@ -42,7 +42,7 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
                 style: TextStyle(fontSize: 16),
               ),
               const SizedBox(height: 24),
-              
+
               // Setup Text Field
               TextFormField(
                 controller: _setupController,
@@ -63,9 +63,9 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
                   return null;
                 },
               ),
-              
+
               const SizedBox(height: 16),
-              
+
               // Punchline Text Field
               TextFormField(
                 controller: _punchlineController,
@@ -86,9 +86,9 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
                   return null;
                 },
               ),
-              
+
               const SizedBox(height: 24),
-              
+
               // Save Button
               ElevatedButton(
                 onPressed: _isLoading ? null : _saveJoke,
@@ -98,28 +98,29 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
                     borderRadius: BorderRadius.circular(8),
                   ),
                 ),
-                child: _isLoading
-                    ? const SizedBox(
-                        height: 20,
-                        width: 20,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
+                child:
+                    _isLoading
+                        ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                        : const Text(
+                          'Save Joke',
+                          style: TextStyle(fontSize: 16),
                         ),
-                      )
-                    : const Text(
-                        'Save Joke',
-                        style: TextStyle(fontSize: 16),
-                      ),
               ),
-              
+
               const SizedBox(height: 16),
-              
+
               // Info text
               Text(
                 'Your joke will be reviewed and added to the collection.',
                 style: TextStyle(
                   fontSize: 12,
-                  color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withOpacity(0.6),
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -134,7 +135,7 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
     if (!_formKey.currentState!.validate()) {
       return;
     }
-    
+
     setState(() {
       _isLoading = true;
     });
@@ -142,7 +143,7 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
     try {
       final setup = _setupController.text.trim();
       final punchline = _punchlineController.text.trim();
-      
+
       // Call the Firebase Cloud Function using the service
       final jokeService = ref.read(jokeCloudFunctionServiceProvider);
       final result = await jokeService.createJokeWithResponse(
@@ -166,11 +167,11 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
               ),
             ),
           );
-          
+
           // Clear the form
           _setupController.clear();
           _punchlineController.clear();
-          
+
           // Navigate back after a short delay
           Future.delayed(const Duration(seconds: 1), () {
             if (mounted) {
@@ -180,7 +181,7 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
         } else {
           // Error
           final errorMessage = result?['error'] ?? 'Failed to save joke';
-          
+
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('Error: $errorMessage'),
@@ -208,4 +209,4 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
       }
     }
   }
-} 
+}

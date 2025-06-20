@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
 import 'package:snickerdoodle/src/common_widgets/main_navigation_widget.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
+import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
 
 class AuthWrapper extends ConsumerWidget {
   const AuthWrapper({super.key});
@@ -38,10 +38,11 @@ class AuthWrapper extends ConsumerWidget {
         }
       },
       loading: () => const _LoadingScreen(),
-      error: (error, stackTrace) => _ErrorScreen(
-        error: error.toString(),
-        onRetry: () => authController.signInAnonymously(),
-      ),
+      error:
+          (error, stackTrace) => _ErrorScreen(
+            error: error.toString(),
+            onRetry: () => authController.signInAnonymously(),
+          ),
     );
   }
 }
@@ -58,10 +59,7 @@ class _LoadingScreen extends StatelessWidget {
           children: [
             CircularProgressIndicator(),
             SizedBox(height: 16),
-            Text(
-              'Initializing...',
-              style: TextStyle(fontSize: 16),
-            ),
+            Text('Initializing...', style: TextStyle(fontSize: 16)),
           ],
         ),
       ),
@@ -73,10 +71,7 @@ class _ErrorScreen extends StatelessWidget {
   final String error;
   final VoidCallback onRetry;
 
-  const _ErrorScreen({
-    required this.error,
-    required this.onRetry,
-  });
+  const _ErrorScreen({required this.error, required this.onRetry});
 
   @override
   Widget build(BuildContext context) {
@@ -95,10 +90,7 @@ class _ErrorScreen extends StatelessWidget {
               const SizedBox(height: 16),
               const Text(
                 'Authentication Error',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
               Text(
@@ -107,14 +99,11 @@ class _ErrorScreen extends StatelessWidget {
                 style: const TextStyle(fontSize: 14),
               ),
               const SizedBox(height: 24),
-              ElevatedButton(
-                onPressed: onRetry,
-                child: const Text('Retry'),
-              ),
+              ElevatedButton(onPressed: onRetry, child: const Text('Retry')),
             ],
           ),
         ),
       ),
     );
   }
-} 
+}

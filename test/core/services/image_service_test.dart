@@ -1,5 +1,4 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter/services.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
 
 void main() {
@@ -24,23 +23,34 @@ void main() {
 
         // act & assert
         for (final url in validUrls) {
-          expect(imageService.isValidImageUrl(url), true, reason: 'URL: $url should be valid');
+          expect(
+            imageService.isValidImageUrl(url),
+            true,
+            reason: 'URL: $url should be valid',
+          );
         }
       });
 
-      test('should return true for dynamic image URLs with query parameters', () {
-        // arrange
-        const dynamicUrls = [
-          'https://example.com/api/image?id=123&format=jpg',
-          'https://example.com/images/dynamic-image?size=large',
-          'https://example.com/cdn/image/12345',
-        ];
+      test(
+        'should return true for dynamic image URLs with query parameters',
+        () {
+          // arrange
+          const dynamicUrls = [
+            'https://example.com/api/image?id=123&format=jpg',
+            'https://example.com/images/dynamic-image?size=large',
+            'https://example.com/cdn/image/12345',
+          ];
 
-        // act & assert
-        for (final url in dynamicUrls) {
-          expect(imageService.isValidImageUrl(url), true, reason: 'URL: $url should be valid');
-        }
-      });
+          // act & assert
+          for (final url in dynamicUrls) {
+            expect(
+              imageService.isValidImageUrl(url),
+              true,
+              reason: 'URL: $url should be valid',
+            );
+          }
+        },
+      );
 
       test('should return false for null or empty URLs', () {
         // act & assert
@@ -62,7 +72,11 @@ void main() {
 
         // act & assert
         for (final url in invalidUrls) {
-          expect(imageService.isValidImageUrl(url), false, reason: 'URL: $url should be invalid');
+          expect(
+            imageService.isValidImageUrl(url),
+            false,
+            reason: 'URL: $url should be invalid',
+          );
         }
       });
 
@@ -77,7 +91,11 @@ void main() {
 
         // act & assert
         for (final url in malformedUrls) {
-          expect(imageService.isValidImageUrl(url), false, reason: 'URL: $url should be invalid');
+          expect(
+            imageService.isValidImageUrl(url),
+            false,
+            reason: 'URL: $url should be invalid',
+          );
         }
       });
     });
@@ -178,7 +196,10 @@ void main() {
     group('constants', () {
       test('should have correct default cache duration', () {
         // assert
-        expect(ImageService.defaultCacheDuration, equals(const Duration(days: 30)));
+        expect(
+          ImageService.defaultCacheDuration,
+          equals(const Duration(days: 30)),
+        );
       });
 
       test('should have correct max cache size', () {
@@ -187,4 +208,4 @@ void main() {
       });
     });
   });
-} 
+}

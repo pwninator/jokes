@@ -1,5 +1,5 @@
-import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:snickerdoodle/src/core/providers/image_providers.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
 
@@ -50,7 +50,10 @@ void main() {
         final config = container.read(imageCacheConfigProvider);
 
         // assert
-        expect(config['cacheDuration'], equals(ImageService.defaultCacheDuration));
+        expect(
+          config['cacheDuration'],
+          equals(ImageService.defaultCacheDuration),
+        );
       });
 
       test('should provide correct max cache size', () {
@@ -71,4 +74,4 @@ void main() {
       });
     });
   });
-} 
+}

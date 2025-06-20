@@ -1,24 +1,29 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/common_widgets/cached_joke_image.dart';
+import 'package:snickerdoodle/src/core/theme/app_theme.dart';
+import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 
-class JokeImageCarousel extends StatefulWidget {
+class JokeImageCarousel extends ConsumerStatefulWidget {
   final Joke joke;
   final int? index;
   final VoidCallback? onTap;
+  final bool isAdminMode;
 
   const JokeImageCarousel({
     super.key,
     required this.joke,
     this.index,
     this.onTap,
+    this.isAdminMode = false,
   });
 
   @override
-  State<JokeImageCarousel> createState() => _JokeImageCarouselState();
+  ConsumerState<JokeImageCarousel> createState() => _JokeImageCarouselState();
 }
 
-class _JokeImageCarouselState extends State<JokeImageCarousel> {
+class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
   late PageController _pageController;
   int _currentIndex = 0;
 
@@ -58,6 +63,9 @@ class _JokeImageCarouselState extends State<JokeImageCarousel> {
 
   @override
   Widget build(BuildContext context) {
+    final populationState = ref.watch(jokePopulationProvider);
+    final isPopulating = populationState.populatingJokes.contains(widget.joke.id);
+
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 4.0),
       child: Column(
@@ -108,6 +116,110 @@ class _JokeImageCarouselState extends State<JokeImageCarousel> {
               ],
             ),
           ),
+
+          // Regenerate button (only shown in admin mode)
+          if (widget.isAdminMode)
+            Padding(
+              padding: const EdgeInsets.only(
+                left: 16.0,
+                right: 16.0,
+                bottom: 16.0,
+              ),
+              child: SizedBox(
+                width: double.infinity,
+                child: ElevatedButton.icon(
+                  onPressed:
+                      isPopulating
+                          ? null
+                          : () async {
+                            final notifier = ref.read(
+                              jokePopulationProvider.notifier,
+                            );
+                            await notifier.populateJoke(widget.joke.id);
+                          },
+                  icon:
+                      isPopulating
+                          ? SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              valueColor: AlwaysStoppedAnimation<Color>(
+                                Theme.of(
+                                  context,
+                                ).colorScheme.onSurface.withValues(alpha: 0.6),
+                              ),
+                            ),
+                          )
+                          : const Icon(Icons.refresh),
+                  label: Text(
+                    isPopulating ? 'Regenerating Images...' : 'Regenerate Images',
+                  ),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor:
+                        Theme.of(context).colorScheme.primaryContainer,
+                    foregroundColor:
+                        Theme.of(context).colorScheme.onPrimaryContainer,
+                  ),
+                ),
+              ),
+            ),
+
+          // Error display (only shown in admin mode)
+          if (widget.isAdminMode && populationState.error != null)
+            Padding(
+              padding: const EdgeInsets.only(
+                left: 16.0,
+                right: 16.0,
+                bottom: 8.0,
+              ),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12.0),
+                decoration: BoxDecoration(
+                  color: Theme.of(
+                    context,
+                  ).appColors.authError.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8.0),
+                  border: Border.all(
+                    color: Theme.of(
+                      context,
+                    ).appColors.authError.withValues(alpha: 0.3),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.error_outline,
+                      size: 16,
+                      color: Theme.of(context).appColors.authError,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        populationState.error!,
+                        style: TextStyle(
+                          color: Theme.of(context).appColors.authError,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () {
+                        ref.read(jokePopulationProvider.notifier).clearError();
+                      },
+                      icon: Icon(
+                        Icons.close,
+                        size: 16,
+                        color: Theme.of(context).appColors.authError,
+                      ),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
+                  ],
+                ),
+              ),
+            ),
         ],
       ),
     );

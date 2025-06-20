@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:snickerdoodle/src/common_widgets/joke_card.dart';
 import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
 
 class JokeViewerScreen extends ConsumerWidget {
@@ -22,25 +23,10 @@ class JokeViewerScreen extends ConsumerWidget {
             itemCount: jokes.length,
             itemBuilder: (context, index) {
               final joke = jokes[index];
-              return Card(
-                margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        joke.setupText,
-                        style: Theme.of(context).textTheme.titleMedium,
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        joke.punchlineText,
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                    ],
-                  ),
-                ),
+              return JokeCard(
+                joke: joke,
+                index: index,
+                isAdminMode: false,
               );
             },
           );

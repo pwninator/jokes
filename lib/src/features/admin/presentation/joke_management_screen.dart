@@ -62,6 +62,7 @@ class JokeManagementScreen extends ConsumerWidget {
                         return JokeCard(
                           joke: joke,
                           index: index,
+                          isAdminMode: true,
                         );
                       },
                     ),

@@ -8,15 +8,8 @@ class JokeTextCard extends ConsumerWidget {
   final Joke joke;
   final int? index;
   final VoidCallback? onTap;
-  final bool showTrailingIcon;
 
-  const JokeTextCard({
-    super.key,
-    required this.joke,
-    this.index,
-    this.onTap,
-    this.showTrailingIcon = true,
-  });
+  const JokeTextCard({super.key, required this.joke, this.index, this.onTap});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -49,7 +42,7 @@ class JokeTextCard extends ConsumerWidget {
                       ),
                     ),
                   ),
-                
+
                 // Joke content
                 Expanded(
                   child: GestureDetector(
@@ -69,9 +62,9 @@ class JokeTextCard extends ConsumerWidget {
                           maxLines: 3,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        
+
                         const SizedBox(height: 12),
-                        
+
                         // Punchline text
                         Text(
                           joke.punchlineText,
@@ -89,17 +82,6 @@ class JokeTextCard extends ConsumerWidget {
                     ),
                   ),
                 ),
-                
-                // Trailing icon
-                if (showTrailingIcon)
-                  Padding(
-                    padding: const EdgeInsets.only(left: 8.0, top: 8.0),
-                    child: Icon(
-                      Icons.arrow_forward_ios,
-                      size: 16,
-                      color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
-                    ),
-                  ),
               ],
             ),
           ),

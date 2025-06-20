@@ -155,7 +155,6 @@ void main() {
           joke: joke,
           index: 5,
           onTap: () => tapCalled = true,
-          showTrailingIcon: false,
         );
 
         // act
@@ -165,7 +164,6 @@ void main() {
         final jokeTextCard = tester.widget<JokeTextCard>(find.byType(JokeTextCard));
         expect(jokeTextCard.joke, equals(joke));
         expect(jokeTextCard.index, equals(5));
-        expect(jokeTextCard.showTrailingIcon, isFalse);
         expect(jokeTextCard.onTap, isNotNull);
       });
 
@@ -194,6 +192,30 @@ void main() {
         expect(jokeImageCarousel.joke, equals(joke));
         expect(jokeImageCarousel.index, equals(3));
         expect(jokeImageCarousel.onTap, isNotNull);
+      });
+
+      testWidgets('should pass isAdminMode to JokeImageCarousel when enabled', (tester) async {
+        // arrange
+        const joke = Joke(
+          id: '1',
+          setupText: 'Test setup',
+          punchlineText: 'Test punchline',
+          setupImageUrl: 'https://example.com/setup.jpg',
+          punchlineImageUrl: 'https://example.com/punchline.jpg',
+        );
+
+        const widget = JokeCard(
+          joke: joke,
+          index: 3,
+          isAdminMode: true,
+        );
+
+        // act
+        await tester.pumpWidget(createTestWidget(child: widget));
+
+        // assert
+        final jokeImageCarousel = tester.widget<JokeImageCarousel>(find.byType(JokeImageCarousel));
+        expect(jokeImageCarousel.isAdminMode, isTrue);
       });
     });
 
@@ -236,12 +258,14 @@ void main() {
         expect(jokeTextCard.onTap, isNull);
       });
 
-      testWidgets('should use default showTrailingIcon value', (tester) async {
+      testWidgets('should use default isAdminMode value', (tester) async {
         // arrange
         const joke = Joke(
           id: '1',
           setupText: 'Test setup',
           punchlineText: 'Test punchline',
+          setupImageUrl: 'https://example.com/setup.jpg',
+          punchlineImageUrl: 'https://example.com/punchline.jpg',
         );
 
         const widget = JokeCard(joke: joke);
@@ -250,8 +274,8 @@ void main() {
         await tester.pumpWidget(createTestWidget(child: widget));
 
         // assert
-        final jokeTextCard = tester.widget<JokeTextCard>(find.byType(JokeTextCard));
-        expect(jokeTextCard.showTrailingIcon, isTrue); // default value
+        final jokeImageCarousel = tester.widget<JokeImageCarousel>(find.byType(JokeImageCarousel));
+        expect(jokeImageCarousel.isAdminMode, isFalse); // default value
       });
     });
 

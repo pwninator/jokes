@@ -7,12 +7,19 @@ class JokeCloudFunctionService {
   Future<bool> createJoke({
     required String setupText,
     required String punchlineText,
+    String? setupImageUrl,
+    String? punchlineImageUrl,
   }) async {
     try {
       final callable = _functions.httpsCallable('create-joke');
 
       final result = await callable.call({
-        'joke_data': {'setup_text': setupText, 'punchline_text': punchlineText},
+        'joke_data': {
+          'setup_text': setupText, 
+          'punchline_text': punchlineText,
+          'setup_image_url': setupImageUrl,
+          'punchline_image_url': punchlineImageUrl,
+        },
       });
 
       debugPrint('Joke created successfully: ${result.data}');
@@ -26,12 +33,19 @@ class JokeCloudFunctionService {
   Future<Map<String, dynamic>?> createJokeWithResponse({
     required String setupText,
     required String punchlineText,
+    String? setupImageUrl,
+    String? punchlineImageUrl,
   }) async {
     try {
       final callable = _functions.httpsCallable('create_joke');
 
       final result = await callable.call({
-        'joke_data': {'setup_text': setupText, 'punchline_text': punchlineText},
+        'joke_data': {
+          'setup_text': setupText, 
+          'punchline_text': punchlineText,
+          'setup_image_url': setupImageUrl,
+          'punchline_image_url': punchlineImageUrl,
+        },
       });
 
       debugPrint('Joke created successfully: ${result.data}');

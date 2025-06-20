@@ -2,32 +2,41 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 
 void main() {
-  group('Joke Model', () {
+  group('Joke Model Tests', () {
     const tJokeModel = Joke(
       id: '1',
       setupText: 'Why did the scarecrow win an award?',
       punchlineText: 'Because he was outstanding in his field!',
     );
 
-    // This map should reflect the output of toMap(), which uses snake_case for Firestore.
-    const tJokeMap = {
-      'setup_text': 'Why did the scarecrow win an award?',
-      'punchline_text': 'Because he was outstanding in his field!',
-      'image_url': null,
-    };
-
-    test('should be a subclass of Joke entity', () {
-      // This test might be more relevant if you have an abstract Joke entity.
-      // For now, it's just a class, so this test is trivial.
-      expect(tJokeModel, isA<Joke>());
+    test('should create a valid model', () {
+      expect(tJokeModel.id, '1');
+      expect(tJokeModel.setupText, 'Why did the scarecrow win an award?');
+      expect(tJokeModel.punchlineText, 'Because he was outstanding in his field!');
+      expect(tJokeModel.setupImageUrl, null);
+      expect(tJokeModel.punchlineImageUrl, null);
     });
 
-    test('fromMap should return a valid model', () {
+    test('should correctly serialize to map', () {
+      // act
+      final result = tJokeModel.toMap();
+      // assert
+      final expected = {
+        'setup_text': 'Why did the scarecrow win an award?',
+        'punchline_text': 'Because he was outstanding in his field!',
+        'setup_image_url': null,
+        'punchline_image_url': null,
+      };
+      expect(result, expected);
+    });
+
+    test('should correctly deserialize from map', () {
       // arrange
-      // This map should reflect what Firestore sends, which is snake_case.
       final Map<String, dynamic> jsonMap = {
         'setup_text': 'Why did the scarecrow win an award?',
         'punchline_text': 'Because he was outstanding in his field!',
+        'setup_image_url': null,
+        'punchline_image_url': null,
       };
       // act
       final result = Joke.fromMap(jsonMap, '1');
@@ -35,20 +44,16 @@ void main() {
       expect(result, tJokeModel);
     });
 
-    test('toMap should return a JSON map containing the proper data', () {
+    test('should return a valid model with updated parameters', () {
       // act
-      final result = tJokeModel.toMap();
-      // assert
-      expect(result, tJokeMap);
-    });
-
-    test('copyWith should return a new model with updated data', () {
-      // act
-      final result = tJokeModel.copyWith(punchlineText: 'He was just too good.');
+      final result = tJokeModel.copyWith(
+        setupText: 'Updated setup',
+        punchlineText: 'Updated punchline',
+      );
       // assert
       expect(result.id, '1');
-      expect(result.setupText, 'Why did the scarecrow win an award?');
-      expect(result.punchlineText, 'He was just too good.');
+      expect(result.setupText, 'Updated setup');
+      expect(result.punchlineText, 'Updated punchline');
     });
 
     test('copyWith should return the same model if no parameters are provided', () {
@@ -77,36 +82,58 @@ void main() {
       expect(joke1.hashCode, isNot(joke3.hashCode));
     });
 
-    test('should handle imageUrl field correctly', () {
+    test('should handle image URL fields correctly', () {
       // arrange
-      const jokeWithImage = Joke(
+      const jokeWithImages = Joke(
         id: '1',
         setupText: 'Why did the scarecrow win an award?',
         punchlineText: 'Because he was outstanding in his field!',
-        imageUrl: 'https://example.com/image.jpg',
+        setupImageUrl: 'https://example.com/setup.jpg',
+        punchlineImageUrl: 'https://example.com/punchline.jpg',
       );
 
       // act
-      final result = jokeWithImage.toMap();
+      final result = jokeWithImages.toMap();
 
       // assert
-      expect(result['image_url'], 'https://example.com/image.jpg');
-      expect(jokeWithImage.imageUrl, 'https://example.com/image.jpg');
+      expect(result['setup_image_url'], 'https://example.com/setup.jpg');
+      expect(result['punchline_image_url'], 'https://example.com/punchline.jpg');
+      expect(jokeWithImages.setupImageUrl, 'https://example.com/setup.jpg');
+      expect(jokeWithImages.punchlineImageUrl, 'https://example.com/punchline.jpg');
     });
 
-    test('should create joke from map with imageUrl', () {
+    test('should create joke from map with image URLs', () {
       // arrange
       final Map<String, dynamic> jsonMap = {
         'setup_text': 'Why did the scarecrow win an award?',
         'punchline_text': 'Because he was outstanding in his field!',
-        'image_url': 'https://example.com/image.jpg',
+        'setup_image_url': 'https://example.com/setup.jpg',
+        'punchline_image_url': 'https://example.com/punchline.jpg',
       };
 
       // act
       final result = Joke.fromMap(jsonMap, '1');
 
       // assert
-      expect(result.imageUrl, 'https://example.com/image.jpg');
+      expect(result.setupImageUrl, 'https://example.com/setup.jpg');
+      expect(result.punchlineImageUrl, 'https://example.com/punchline.jpg');
+    });
+
+    test('should handle partial image URLs', () {
+      // arrange
+      final Map<String, dynamic> jsonMap = {
+        'setup_text': 'Why did the scarecrow win an award?',
+        'punchline_text': 'Because he was outstanding in his field!',
+        'setup_image_url': 'https://example.com/setup.jpg',
+        // punchline_image_url is null
+      };
+
+      // act
+      final result = Joke.fromMap(jsonMap, '1');
+
+      // assert
+      expect(result.setupImageUrl, 'https://example.com/setup.jpg');
+      expect(result.punchlineImageUrl, null);
     });
   });
 }

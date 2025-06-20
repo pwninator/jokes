@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
-import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 
 class JokeCard extends StatelessWidget {
   final Joke joke;

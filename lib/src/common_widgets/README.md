@@ -7,16 +7,23 @@ This directory contains the image infrastructure for the jokes app. Here's how t
 The main widget for displaying joke images with caching:
 
 ```dart
-// Basic usage
+// Basic usage for setup image
 CachedJokeImage(
-  imageUrl: joke.imageUrl,
+  imageUrl: joke.setupImageUrl,
+  width: 200,
+  height: 150,
+)
+
+// Basic usage for punchline image
+CachedJokeImage(
+  imageUrl: joke.punchlineImageUrl,
   width: 200,
   height: 150,
 )
 
 // With custom styling
 CachedJokeImage(
-  imageUrl: joke.imageUrl,
+  imageUrl: joke.setupImageUrl,
   width: 300,
   height: 200,
   fit: BoxFit.cover,
@@ -31,8 +38,15 @@ CachedJokeImage(
 For small thumbnail images:
 
 ```dart
+// Setup thumbnail
 CachedJokeThumbnail(
-  imageUrl: joke.imageUrl,
+  imageUrl: joke.setupImageUrl,
+  size: 80, // Both width and height
+)
+
+// Punchline thumbnail
+CachedJokeThumbnail(
+  imageUrl: joke.punchlineImageUrl,
   size: 80, // Both width and height
 )
 ```
@@ -42,9 +56,21 @@ CachedJokeThumbnail(
 For full-size images with hero animations:
 
 ```dart
+// Setup image with hero animation
 CachedJokeHeroImage(
-  imageUrl: joke.imageUrl,
-  heroTag: 'joke-${joke.id}',
+  imageUrl: joke.setupImageUrl,
+  heroTag: 'joke-setup-${joke.id}',
+  width: double.infinity,
+  height: 300,
+  onTap: () {
+    // Handle tap - maybe show full screen
+  },
+)
+
+// Punchline image with hero animation
+CachedJokeHeroImage(
+  imageUrl: joke.punchlineImageUrl,
+  heroTag: 'joke-punchline-${joke.id}',
   width: double.infinity,
   height: 300,
   onTap: () {

@@ -5,26 +5,30 @@ class Joke {
   final String id;
   final String setupText;
   final String punchlineText;
-  final String? imageUrl;
+  final String? setupImageUrl;
+  final String? punchlineImageUrl;
 
   const Joke({
     required this.id,
     required this.setupText,
     required this.punchlineText,
-    this.imageUrl,
+    this.setupImageUrl,
+    this.punchlineImageUrl,
   });
 
   Joke copyWith({
     String? id,
     String? setupText,
     String? punchlineText,
-    String? imageUrl,
+    String? setupImageUrl,
+    String? punchlineImageUrl,
   }) {
     return Joke(
       id: id ?? this.id,
       setupText: setupText ?? this.setupText,
       punchlineText: punchlineText ?? this.punchlineText,
-      imageUrl: imageUrl ?? this.imageUrl,
+      setupImageUrl: setupImageUrl ?? this.setupImageUrl,
+      punchlineImageUrl: punchlineImageUrl ?? this.punchlineImageUrl,
     );
   }
 
@@ -32,7 +36,8 @@ class Joke {
     return {
       'setup_text': setupText,
       'punchline_text': punchlineText,
-      'image_url': imageUrl,
+      'setup_image_url': setupImageUrl,
+      'punchline_image_url': punchlineImageUrl,
     };
   }
 
@@ -41,7 +46,8 @@ class Joke {
       id: documentId,
       setupText: map['setup_text'] ?? '',
       punchlineText: map['punchline_text'] ?? '',
-      imageUrl: map['image_url'],
+      setupImageUrl: map['setup_image_url'],
+      punchlineImageUrl: map['punchline_image_url'],
     );
   }
 
@@ -52,7 +58,7 @@ class Joke {
 
   @override
   String toString() =>
-      'Joke(id: $id, setupText: $setupText, punchlineText: $punchlineText, imageUrl: $imageUrl)';
+      'Joke(id: $id, setupText: $setupText, punchlineText: $punchlineText, setupImageUrl: $setupImageUrl, punchlineImageUrl: $punchlineImageUrl)';
 
   @override
   bool operator ==(Object other) {
@@ -62,10 +68,15 @@ class Joke {
         other.id == id &&
         other.setupText == setupText &&
         other.punchlineText == punchlineText &&
-        other.imageUrl == imageUrl;
+        other.setupImageUrl == setupImageUrl &&
+        other.punchlineImageUrl == punchlineImageUrl;
   }
 
   @override
   int get hashCode =>
-      id.hashCode ^ setupText.hashCode ^ punchlineText.hashCode ^ imageUrl.hashCode;
+      id.hashCode ^ 
+      setupText.hashCode ^ 
+      punchlineText.hashCode ^ 
+      setupImageUrl.hashCode ^ 
+      punchlineImageUrl.hashCode;
 }

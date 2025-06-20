@@ -120,7 +120,7 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
                   fontSize: 12,
                   color: Theme.of(
                     context,
-                  ).colorScheme.onSurface.withOpacity(0.6),
+                  ).colorScheme.onSurface.withValues(alpha: 0.6),
                 ),
                 textAlign: TextAlign.center,
               ),

@@ -42,7 +42,7 @@ class JokeCard extends StatelessWidget {
         subtitle: Text(
           joke.punchlineText,
           style: TextStyle(
-            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
             fontStyle: FontStyle.italic,
           ),
           maxLines: 2,
@@ -55,7 +55,7 @@ class JokeCard extends StatelessWidget {
                   size: 16,
                   color: Theme.of(
                     context,
-                  ).colorScheme.onSurface.withOpacity(0.4),
+                  ).colorScheme.onSurface.withValues(alpha: 0.4),
                 )
                 : null,
         onTap: onTap,

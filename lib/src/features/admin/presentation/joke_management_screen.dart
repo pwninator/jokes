@@ -29,7 +29,7 @@ class JokeManagementScreen extends ConsumerWidget {
                             size: 64,
                             color: Theme.of(
                               context,
-                            ).colorScheme.onSurface.withOpacity(0.4),
+                            ).colorScheme.onSurface.withValues(alpha: 0.4),
                           ),
                           SizedBox(height: 16),
                           Text(
@@ -38,7 +38,7 @@ class JokeManagementScreen extends ConsumerWidget {
                               fontSize: 18,
                               color: Theme.of(
                                 context,
-                              ).colorScheme.onSurface.withOpacity(0.6),
+                              ).colorScheme.onSurface.withValues(alpha: 0.6),
                             ),
                           ),
                           SizedBox(height: 8),
@@ -48,7 +48,7 @@ class JokeManagementScreen extends ConsumerWidget {
                               fontSize: 14,
                               color: Theme.of(
                                 context,
-                              ).colorScheme.onSurface.withOpacity(0.5),
+                              ).colorScheme.onSurface.withValues(alpha: 0.5),
                             ),
                           ),
                         ],

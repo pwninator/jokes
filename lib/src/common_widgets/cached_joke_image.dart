@@ -101,7 +101,7 @@ class CachedJokeImage extends ConsumerWidget {
               child: Icon(
                 Icons.image_not_supported_outlined,
                 size: 32,
-                                 color: Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                                 color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
               ),
             )
           : null,

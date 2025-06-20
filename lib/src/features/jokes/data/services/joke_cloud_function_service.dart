@@ -2,7 +2,10 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/foundation.dart';
 
 class JokeCloudFunctionService {
-  final FirebaseFunctions _functions = FirebaseFunctions.instance;
+  JokeCloudFunctionService({FirebaseFunctions? functions})
+    : _functions = functions ?? FirebaseFunctions.instance;
+
+  final FirebaseFunctions _functions;
 
   Future<bool> createJoke({
     required String setupText,
@@ -15,7 +18,7 @@ class JokeCloudFunctionService {
 
       final result = await callable.call({
         'joke_data': {
-          'setup_text': setupText, 
+          'setup_text': setupText,
           'punchline_text': punchlineText,
           'setup_image_url': setupImageUrl,
           'punchline_image_url': punchlineImageUrl,
@@ -41,7 +44,7 @@ class JokeCloudFunctionService {
 
       final result = await callable.call({
         'joke_data': {
-          'setup_text': setupText, 
+          'setup_text': setupText,
           'punchline_text': punchlineText,
           'setup_image_url': setupImageUrl,
           'punchline_image_url': punchlineImageUrl,
@@ -59,6 +62,30 @@ class JokeCloudFunctionService {
       };
     } catch (e) {
       debugPrint('Error creating joke: $e');
+      return {'success': false, 'error': 'Unexpected error: $e'};
+    }
+  }
+
+  Future<Map<String, dynamic>?> populateJoke(String jokeId) async {
+    try {
+      final callable = _functions.httpsCallable(
+        'populate_joke',
+        options: HttpsCallableOptions(timeout: const Duration(seconds: 300)),
+      );
+
+      final result = await callable.call({'joke_id': jokeId});
+
+      debugPrint('Joke populated successfully: ${result.data}');
+      return {'success': true, 'data': result.data};
+    } on FirebaseFunctionsException catch (e) {
+      debugPrint('Firebase Functions error: ${e.code} - ${e.message}');
+      return {
+        'success': false,
+        'error': 'Function error: ${e.message}',
+        'code': e.code,
+      };
+    } catch (e) {
+      debugPrint('Error populating joke: $e');
       return {'success': false, 'error': 'Unexpected error: $e'};
     }
   }

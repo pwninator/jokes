@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:snickerdoodle/src/common_widgets/joke_image_carousel.dart';
+import 'package:snickerdoodle/src/common_widgets/joke_text_card.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 
 class JokeCard extends StatelessWidget {
@@ -17,49 +19,24 @@ class JokeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 4.0),
-      child: ListTile(
-        leading:
-            index != null
-                ? CircleAvatar(
-                  backgroundColor: Theme.of(context).colorScheme.primary,
-                  child: Text(
-                    '${index! + 1}',
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.onPrimary,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                )
-                : null,
-        title: Text(
-          joke.setupText,
-          style: const TextStyle(fontWeight: FontWeight.w500),
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-        ),
-        subtitle: Text(
-          joke.punchlineText,
-          style: TextStyle(
-            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
-            fontStyle: FontStyle.italic,
-          ),
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-        ),
-        trailing:
-            showTrailingIcon
-                ? Icon(
-                  Icons.arrow_forward_ios,
-                  size: 16,
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.onSurface.withValues(alpha: 0.4),
-                )
-                : null,
+    // Determine which state to show based on image URLs
+    // Check for non-null, non-empty, and non-whitespace URLs
+    final hasSetupImage = joke.setupImageUrl != null && 
+        joke.setupImageUrl!.trim().isNotEmpty;
+    final hasPunchlineImage = joke.punchlineImageUrl != null && 
+        joke.punchlineImageUrl!.trim().isNotEmpty;
+
+    if (hasSetupImage && hasPunchlineImage) {
+      // Both images available - show carousel
+      return JokeImageCarousel(joke: joke, index: index, onTap: onTap);
+    } else {
+      // No images or incomplete images - show text with populate button
+      return JokeTextCard(
+        joke: joke,
+        index: index,
         onTap: onTap,
-      ),
-    );
+        showTrailingIcon: showTrailingIcon,
+      );
+    }
   }
 }

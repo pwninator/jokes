@@ -1,8 +1,7 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:snickerdoodle/src/core/providers/image_providers.dart';
-import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 
 class CachedJokeImage extends ConsumerWidget {
   const CachedJokeImage({
@@ -27,35 +26,34 @@ class CachedJokeImage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final imageService = ref.read(imageServiceProvider);
-    
+
     // Handle null or invalid URLs
     if (imageUrl == null || !imageService.isValidImageUrl(imageUrl)) {
       return _buildErrorWidget(context);
     }
 
     final processedUrl = imageService.processImageUrl(imageUrl!);
-    
+
     Widget imageWidget = CachedNetworkImage(
       imageUrl: processedUrl,
       width: width,
       height: height,
       fit: fit,
-      placeholder: showLoadingIndicator 
-          ? (context, url) => _buildLoadingWidget(context)
-          : null,
-      errorWidget: showErrorIcon 
-          ? (context, url, error) => _buildErrorWidget(context)
-          : (context, url, error) => const SizedBox.shrink(),
+      placeholder:
+          showLoadingIndicator
+              ? (context, url) => _buildLoadingWidget(context)
+              : null,
+      errorWidget:
+          showErrorIcon
+              ? (context, url, error) => _buildErrorWidget(context)
+              : (context, url, error) => const SizedBox.shrink(),
       fadeInDuration: const Duration(milliseconds: 300),
       fadeOutDuration: const Duration(milliseconds: 100),
     );
 
     // Apply border radius if specified
     if (borderRadius != null) {
-      imageWidget = ClipRRect(
-        borderRadius: borderRadius!,
-        child: imageWidget,
-      );
+      imageWidget = ClipRRect(borderRadius: borderRadius!, child: imageWidget);
     }
 
     return imageWidget;
@@ -65,19 +63,19 @@ class CachedJokeImage extends ConsumerWidget {
     return Container(
       width: width,
       height: height,
-             decoration: BoxDecoration(
-         color: Theme.of(context).colorScheme.surface,
-         borderRadius: borderRadius,
-       ),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: borderRadius,
+      ),
       child: Center(
         child: SizedBox(
           width: 24,
           height: 24,
           child: CircularProgressIndicator(
             strokeWidth: 2,
-                         valueColor: AlwaysStoppedAnimation<Color>(
-               Theme.of(context).colorScheme.primary,
-             ),
+            valueColor: AlwaysStoppedAnimation<Color>(
+              Theme.of(context).colorScheme.primary,
+            ),
           ),
         ),
       ),
@@ -88,23 +86,26 @@ class CachedJokeImage extends ConsumerWidget {
     return Container(
       width: width,
       height: height,
-             decoration: BoxDecoration(
-         color: Theme.of(context).colorScheme.surface,
-         borderRadius: borderRadius,
-         border: Border.all(
-           color: Theme.of(context).colorScheme.outline,
-           width: 1,
-         ),
-       ),
-      child: showErrorIcon
-          ? Center(
-              child: Icon(
-                Icons.image_not_supported_outlined,
-                size: 32,
-                                 color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
-              ),
-            )
-          : null,
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: borderRadius,
+        border: Border.all(
+          color: Theme.of(context).colorScheme.outline,
+          width: 1,
+        ),
+      ),
+      child:
+          showErrorIcon
+              ? Center(
+                child: Icon(
+                  Icons.image_not_supported_outlined,
+                  size: 32,
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withValues(alpha: 0.6),
+                ),
+              )
+              : null,
     );
   }
 }
@@ -123,9 +124,10 @@ class CachedJokeThumbnail extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final imageService = ref.read(imageServiceProvider);
-    final thumbnailUrl = imageUrl != null && imageService.isValidImageUrl(imageUrl)
-        ? imageService.getThumbnailUrl(imageUrl!)
-        : null;
+    final thumbnailUrl =
+        imageUrl != null && imageService.isValidImageUrl(imageUrl)
+            ? imageService.getThumbnailUrl(imageUrl!)
+            : null;
 
     return CachedJokeImage(
       imageUrl: thumbnailUrl,
@@ -166,10 +168,7 @@ class CachedJokeHeroImage extends ConsumerWidget {
 
     return Hero(
       tag: heroTag,
-      child: GestureDetector(
-        onTap: onTap,
-        child: imageWidget,
-      ),
+      child: GestureDetector(onTap: onTap, child: imageWidget),
     );
   }
-} 
+}

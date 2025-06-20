@@ -1,153 +1,258 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart'; // Ensure flutter_test is before flutter_riverpod
-import 'package:mockito/annotations.dart'; // Import GenerateMocks
 import 'package:mockito/mockito.dart';
+import 'package:mockito/annotations.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
+import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
 
 // Generate mocks for JokeRepository
-@GenerateMocks([JokeRepository])
-import 'providers_test.mocks.dart'; // Import generated mocks
-
-// We'll keep MockFirebaseFirestore as a simple manual mock for now,
-// as it's only used to satisfy the JokeRepositoryProvider dependency.
-class MockFirebaseFirestore extends Mock implements FirebaseFirestore {}
+@GenerateMocks([JokeRepository, JokeCloudFunctionService])
+import 'providers_test.mocks.dart';
 
 void main() {
-  group('Jokes Riverpod Providers', () {
+  group('Joke Providers', () {
+    late MockJokeRepository mockJokeRepository;
     late ProviderContainer container;
-    late MockJokeRepository mockJokeRepository; // Will use generated mock
-    late MockFirebaseFirestore mockFirebaseFirestore;
 
     setUp(() {
-      // mockJokeRepository will be set up in the group below or per test
-      mockFirebaseFirestore = MockFirebaseFirestore();
+      mockJokeRepository = MockJokeRepository();
+      container = ProviderContainer(
+        overrides: [
+          jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
+        ],
+      );
     });
-
-    // Helper to create a container with overrides
-    ProviderContainer createContainer({List<Override> overrides = const []}) {
-      return ProviderContainer(overrides: overrides);
-    }
 
     tearDown(() {
       container.dispose();
     });
 
-    // Removed the direct test for firebaseFirestoreProvider as it causes Firebase initialization issues
-    // in a pure unit test environment. We'll test its usage by overriding it in dependent providers.
-
-    group('jokeRepositoryProvider', () {
-      test(
-        'should correctly instantiate JokeRepository using a mock FirebaseFirestore',
-        () {
-          // arrange
-          container = createContainer(
-            overrides: [
-              firebaseFirestoreProvider.overrideWithValue(
-                mockFirebaseFirestore,
-              ),
-            ],
-          );
-          // act
-          final repository = container.read(jokeRepositoryProvider);
-          // assert
-          expect(repository, isA<JokeRepository>());
-          // We can't easily verify the mockFirestore was passed without deeper changes to JokeRepository
-          // or making _firestore public, which is not ideal. Trusting the wiring for now.
-        },
-      );
+    test('jokeRepositoryProvider should provide JokeRepository instance', () {
+      final repository = container.read(jokeRepositoryProvider);
+      expect(repository, isA<JokeRepository>());
     });
 
-    group('jokesProvider', () {
-      // Specific setUp for this group to ensure mockJokeRepository is fresh for these tests
-      setUp(() {
-        mockJokeRepository = MockJokeRepository(); // Use generated mock
-      });
+    test('jokesProvider should return stream of jokes', () async {
+      // arrange
+      const mockJokes = [
+        Joke(
+          id: '1',
+          setupText: 'Setup 1',
+          punchlineText: 'Punchline 1',
+        ),
+        Joke(
+          id: '2',
+          setupText: 'Setup 2',
+          punchlineText: 'Punchline 2',
+        ),
+      ];
 
-      const tJoke1 = Joke(
-        id: '1',
-        setupText: 'Setup 1',
-        punchlineText: 'Punchline 1',
-      );
-      const tJoke2 = Joke(
-        id: '2',
-        setupText: 'Setup 2',
-        punchlineText: 'Punchline 2',
-      );
-      final tJokesList = [tJoke1, tJoke2];
+      when(mockJokeRepository.getJokes())
+          .thenAnswer((_) => Stream.value(mockJokes));
 
-      test('should return a stream of jokes from JokeRepository', () async {
+      // act
+      final asyncValue = await container.read(jokesProvider.future);
+
+      // assert
+      expect(asyncValue, equals(mockJokes));
+      verify(mockJokeRepository.getJokes()).called(1);
+    });
+  });
+
+  group('JokePopulationNotifier', () {
+    late MockJokeCloudFunctionService mockCloudFunctionService;
+    late ProviderContainer container;
+    late JokePopulationNotifier notifier;
+
+    setUp(() {
+      mockCloudFunctionService = MockJokeCloudFunctionService();
+      container = ProviderContainer(
+        overrides: [
+          jokeCloudFunctionServiceProvider.overrideWithValue(mockCloudFunctionService),
+        ],
+      );
+      notifier = container.read(jokePopulationProvider.notifier);
+    });
+
+    tearDown(() {
+      container.dispose();
+    });
+
+    group('populateJoke', () {
+      test('should add joke to populating set and remove on success', () async {
         // arrange
-        // Ensure a fresh mock for this specific test interaction if needed, though setUp should handle it.
-        // Re-stubbing getJokes for this specific test case.
-        when(
-          mockJokeRepository.getJokes(),
-        ).thenAnswer((_) => Stream.value(tJokesList));
+        const jokeId = 'test-joke-id';
+        when(mockCloudFunctionService.populateJoke(jokeId))
+            .thenAnswer((_) async => {'success': true, 'data': 'some-data'});
 
-        container = createContainer(
-          overrides: [
-            jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
-          ],
-        );
+        // assert initial state
+        expect(notifier.state.populatingJokes, isEmpty);
+        expect(notifier.state.error, isNull);
 
         // act
-        final result = await container.read(jokesProvider.future);
+        final result = notifier.populateJoke(jokeId);
 
-        // assert
-        expect(result, equals(tJokesList));
-        verify(mockJokeRepository.getJokes()).called(1);
+        // assert joke is in populating set during operation
+        expect(notifier.state.populatingJokes, contains(jokeId));
+        expect(notifier.state.error, isNull);
+
+        // wait for completion
+        final success = await result;
+
+        // assert final state
+        expect(success, isTrue);
+        expect(notifier.state.populatingJokes, isEmpty);
+        expect(notifier.state.error, isNull);
+        verify(mockCloudFunctionService.populateJoke(jokeId)).called(1);
       });
 
-      test(
-        'should emit an error when JokeRepository stream emits an error',
-        () async {
-          // arrange
-          final exception = Exception('Test error from repository');
-          // Re-stubbing getJokes for this specific test case.
-          when(
-            mockJokeRepository.getJokes(),
-          ).thenAnswer((_) => Stream.error(exception));
+      test('should handle service error and remove joke from populating set', () async {
+        // arrange
+        const jokeId = 'test-joke-id';
+        const errorMessage = 'Service error';
+        when(mockCloudFunctionService.populateJoke(jokeId))
+            .thenAnswer((_) async => {'success': false, 'error': errorMessage});
 
-          container = createContainer(
-            overrides: [
-              jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
-            ],
-          );
+        // act
+        final success = await notifier.populateJoke(jokeId);
 
-          // act & assert
-          expect(
-            () => container.read(jokesProvider.future),
-            throwsA(exception),
-          );
-          verify(mockJokeRepository.getJokes()).called(1);
-        },
+        // assert
+        expect(success, isFalse);
+        expect(notifier.state.populatingJokes, isEmpty);
+        expect(notifier.state.error, equals(errorMessage));
+        verify(mockCloudFunctionService.populateJoke(jokeId)).called(1);
+      });
+
+      test('should handle service returning null and set generic error', () async {
+        // arrange
+        const jokeId = 'test-joke-id';
+        when(mockCloudFunctionService.populateJoke(jokeId))
+            .thenAnswer((_) async => null);
+
+        // act
+        final success = await notifier.populateJoke(jokeId);
+
+        // assert
+        expect(success, isFalse);
+        expect(notifier.state.populatingJokes, isEmpty);
+        expect(notifier.state.error, equals('Unknown error occurred'));
+        verify(mockCloudFunctionService.populateJoke(jokeId)).called(1);
+      });
+
+      test('should handle exception and set error message', () async {
+        // arrange
+        const jokeId = 'test-joke-id';
+        const exceptionMessage = 'Network error';
+        when(mockCloudFunctionService.populateJoke(jokeId))
+            .thenThrow(Exception(exceptionMessage));
+
+        // act
+        final success = await notifier.populateJoke(jokeId);
+
+        // assert
+        expect(success, isFalse);
+        expect(notifier.state.populatingJokes, isEmpty);
+        expect(notifier.state.error, contains('Failed to populate joke'));
+        expect(notifier.state.error, contains(exceptionMessage));
+        verify(mockCloudFunctionService.populateJoke(jokeId)).called(1);
+      });
+    });
+
+    group('clearError', () {
+      test('should clear error state', () async {
+        // arrange - set error state first
+        const jokeId = 'test-joke-id';
+        when(mockCloudFunctionService.populateJoke(jokeId))
+            .thenAnswer((_) async => {'success': false, 'error': 'Some error'});
+        
+        await notifier.populateJoke(jokeId);
+        expect(notifier.state.error, isNotNull);
+
+        // act
+        notifier.clearError();
+
+        // assert
+        expect(notifier.state.error, isNull);
+      });
+    });
+
+    group('isJokePopulating', () {
+      test('should return true when joke is being populated', () async {
+        // arrange
+        const jokeId = 'test-joke-id';
+        when(mockCloudFunctionService.populateJoke(jokeId))
+            .thenAnswer((_) async {
+          await Future.delayed(const Duration(milliseconds: 100));
+          return {'success': true, 'data': 'data'};
+        });
+
+        // act
+        final future = notifier.populateJoke(jokeId);
+
+        // assert
+        expect(notifier.isJokePopulating(jokeId), isTrue);
+        expect(notifier.isJokePopulating('other-joke'), isFalse);
+
+        // wait for completion
+        await future;
+
+        // assert
+        expect(notifier.isJokePopulating(jokeId), isFalse);
+      });
+    });
+  });
+
+  group('JokePopulationState', () {
+    test('should create state with default values', () {
+      const state = JokePopulationState();
+      
+      expect(state.isLoading, isFalse);
+      expect(state.error, isNull);
+      expect(state.populatingJokes, isEmpty);
+    });
+
+    test('should copy state with new values', () {
+      const originalState = JokePopulationState(
+        isLoading: false,
+        error: 'old error',
+        populatingJokes: {'joke1'},
       );
 
-      test(
-        'should emit an empty list when JokeRepository stream emits an empty list',
-        () async {
-          // arrange
-          // Re-stubbing getJokes for this specific test case.
-          when(
-            mockJokeRepository.getJokes(),
-          ).thenAnswer((_) => Stream.value([]));
-
-          container = createContainer(
-            overrides: [
-              jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
-            ],
-          );
-
-          // act
-          final result = await container.read(jokesProvider.future);
-
-          // assert
-          expect(result, equals([]));
-          verify(mockJokeRepository.getJokes()).called(1);
-        },
+      final newState = originalState.copyWith(
+        isLoading: true,
+        error: 'new error',
+        populatingJokes: {'joke2'},
       );
+
+      expect(newState.isLoading, isTrue);
+      expect(newState.error, equals('new error'));
+      expect(newState.populatingJokes, equals({'joke2'}));
+      
+      // Original should be unchanged
+      expect(originalState.isLoading, isFalse);
+      expect(originalState.error, equals('old error'));
+      expect(originalState.populatingJokes, equals({'joke1'}));
+    });
+
+    test('should copy state preserving existing values when not specified', () {
+      const originalState = JokePopulationState(
+        isLoading: true,
+        error: 'some error',
+        populatingJokes: {'joke1'},
+      );
+
+      final newState = originalState.copyWith(isLoading: false);
+
+      expect(newState.isLoading, isFalse);
+      expect(newState.error, equals('some error')); // preserved
+      expect(newState.populatingJokes, equals({'joke1'})); // preserved
     });
   });
 }
+
+// Mock FirebaseFirestore is needed for container initialization
+// as it's only used to satisfy the JokeRepositoryProvider dependency.
+class MockFirebaseFirestore extends Mock implements FirebaseFirestore {}

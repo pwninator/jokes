@@ -62,7 +62,6 @@ class JokeManagementScreen extends ConsumerWidget {
                         return JokeCard(
                           joke: joke,
                           index: index,
-                          onTap: () => _showJokeDetails(context, joke),
                         );
                       },
                     ),
@@ -117,38 +116,5 @@ class JokeManagementScreen extends ConsumerWidget {
     );
   }
 
-  void _showJokeDetails(BuildContext context, dynamic joke) {
-    showDialog(
-      context: context,
-      builder:
-          (context) => AlertDialog(
-            title: const Text('Joke Details'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Setup:',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 4),
-                Text(joke.setupText),
-                const SizedBox(height: 16),
-                const Text(
-                  'Punchline:',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 4),
-                Text(joke.punchlineText),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Close'),
-              ),
-            ],
-          ),
-    );
-  }
+
 }

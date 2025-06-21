@@ -21,6 +21,19 @@ final jokesProvider = StreamProvider<List<Joke>>((ref) {
   return repository.getJokes();
 });
 
+// StreamProvider for jokes that have both image URLs
+final jokesWithImagesProvider = StreamProvider<List<Joke>>((ref) {
+  final repository = ref.watch(jokeRepositoryProvider);
+  return repository.getJokes().map((jokes) => 
+    jokes.where((joke) => 
+      joke.setupImageUrl != null && 
+      joke.setupImageUrl!.isNotEmpty &&
+      joke.punchlineImageUrl != null && 
+      joke.punchlineImageUrl!.isNotEmpty
+    ).toList(),
+  );
+});
+
 // Provider for JokeCloudFunctionService
 final jokeCloudFunctionServiceProvider = Provider<JokeCloudFunctionService>((
   ref,

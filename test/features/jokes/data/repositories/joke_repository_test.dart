@@ -9,6 +9,7 @@ import 'package:mockito/annotations.dart';
 @GenerateMocks([
   FirebaseFirestore,
   CollectionReference,
+  Query,
   QuerySnapshot,
   QueryDocumentSnapshot,
   DocumentChange,
@@ -23,17 +24,22 @@ void main() {
   late JokeRepository repository;
   late MockFirebaseFirestore mockFirestore;
   late MockCollectionReference<Map<String, dynamic>> mockCollectionReference;
+  late MockQuery<Map<String, dynamic>> mockQuery;
   late MockQuerySnapshot<Map<String, dynamic>> mockQuerySnapshot;
 
   setUp(() {
     mockFirestore = MockFirebaseFirestore();
     mockCollectionReference = MockCollectionReference<Map<String, dynamic>>();
+    mockQuery = MockQuery<Map<String, dynamic>>();
     mockQuerySnapshot = MockQuerySnapshot<Map<String, dynamic>>();
 
     // Setup default stub for collection()
     when(mockFirestore.collection(any)).thenReturn(mockCollectionReference);
-    // Setup default stub for snapshots() on collectionReference
-    when(mockCollectionReference.snapshots()).thenAnswer((_) => Stream.value(mockQuerySnapshot));
+    // Setup stub for orderBy() to return mockQuery
+    when(mockCollectionReference.orderBy(any, descending: anyNamed('descending')))
+        .thenReturn(mockQuery);
+    // Setup default stub for snapshots() on the ordered query
+    when(mockQuery.snapshots()).thenAnswer((_) => Stream.value(mockQuerySnapshot));
 
     repository = JokeRepository(mockFirestore);
   });
@@ -59,6 +65,7 @@ void main() {
       repository.getJokes();
       // assert
       verify(mockFirestore.collection('jokes')).called(1);
+      verify(mockCollectionReference.orderBy('creation_time', descending: true)).called(1);
     });
 
     test('getJokes should return a stream of list of jokes when Firestore returns data', () async {
@@ -67,33 +74,33 @@ void main() {
       final mockDoc2 = createMockDoc(tJoke2Map, '2');
 
       when(mockQuerySnapshot.docs).thenReturn([mockDoc1, mockDoc2]);
-      when(mockCollectionReference.snapshots()).thenAnswer((_) => Stream.value(mockQuerySnapshot));
 
       // act
       final resultStream = repository.getJokes();
 
       // assert
       expect(resultStream, emits([tJoke1, tJoke2]));
-      // Verify that snapshots() was called on the collection.
-      verify(mockCollectionReference.snapshots()).called(1);
+      // Verify that orderBy and snapshots() were called
+      verify(mockCollectionReference.orderBy('creation_time', descending: true)).called(1);
+      verify(mockQuery.snapshots()).called(1);
     });
 
     test('getJokes should return a stream of an empty list when Firestore returns no data', () async {
       // arrange
       when(mockQuerySnapshot.docs).thenReturn([]);
-      when(mockCollectionReference.snapshots()).thenAnswer((_) => Stream.value(mockQuerySnapshot));
 
       // act
       final resultStream = repository.getJokes();
 
       // assert
       expect(resultStream, emits([]));
-       verify(mockCollectionReference.snapshots()).called(1);
+      verify(mockCollectionReference.orderBy('creation_time', descending: true)).called(1);
+      verify(mockQuery.snapshots()).called(1);
     });
 
     test('getJokes should map Firestore exceptions to stream error', () {
       // arrange
-      when(mockCollectionReference.snapshots()).thenAnswer((_) => Stream.error(FirebaseException(plugin: 'firestore', message: 'Test error')));
+      when(mockQuery.snapshots()).thenAnswer((_) => Stream.error(FirebaseException(plugin: 'firestore', message: 'Test error')));
 
       // act
       final resultStream = repository.getJokes();

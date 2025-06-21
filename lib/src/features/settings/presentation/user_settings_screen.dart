@@ -1,12 +1,17 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:snickerdoodle/src/common_widgets/app_bar_widget.dart';
+import 'package:snickerdoodle/src/common_widgets/titled_screen.dart';
 import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
 import 'package:snickerdoodle/src/features/auth/data/models/app_user.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 
-class UserSettingsScreen extends ConsumerWidget {
+class UserSettingsScreen extends ConsumerWidget implements TitledScreen {
   const UserSettingsScreen({super.key});
+
+  @override
+  String get title => 'Settings';
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -14,6 +19,9 @@ class UserSettingsScreen extends ConsumerWidget {
     final authController = ref.watch(authControllerProvider);
 
     return Scaffold(
+      appBar: const AppBarWidget(
+        title: 'Settings',
+      ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(

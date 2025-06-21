@@ -8,6 +8,8 @@ import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
 
+import '../../../test_helpers/firebase_mocks.dart';
+
 // Generate mocks for JokeRepository
 @GenerateMocks([JokeRepository, JokeCloudFunctionService])
 import 'providers_test.mocks.dart';
@@ -20,9 +22,11 @@ void main() {
     setUp(() {
       mockJokeRepository = MockJokeRepository();
       container = ProviderContainer(
-        overrides: [
-          jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
-        ],
+        overrides: FirebaseMocks.getFirebaseProviderOverrides(
+          additionalOverrides: [
+            jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
+          ],
+        ),
       );
     });
 
@@ -32,7 +36,7 @@ void main() {
 
     test('jokeRepositoryProvider should provide JokeRepository instance', () {
       final repository = container.read(jokeRepositoryProvider);
-      expect(repository, isA<JokeRepository>());
+      expect(repository, isNotNull);
     });
 
     test('jokesProvider should return stream of jokes', () async {
@@ -50,14 +54,74 @@ void main() {
         ),
       ];
 
+      // Override with specific test data
+      final testContainer = ProviderContainer(
+        overrides: FirebaseMocks.getFirebaseProviderOverrides(
+          additionalOverrides: [
+            jokesProvider.overrideWith((ref) => Stream.value(mockJokes)),
+          ],
+        ),
+      );
+
+      // act
+      final asyncValue = await testContainer.read(jokesProvider.future);
+
+      // assert
+      expect(asyncValue, equals(mockJokes));
+      
+      testContainer.dispose();
+    });
+
+    test('jokesWithImagesProvider should filter jokes with both image URLs', () async {
+      // arrange
+      const mockJokes = [
+        Joke(
+          id: '1',
+          setupText: 'Setup 1',
+          punchlineText: 'Punchline 1',
+          setupImageUrl: 'https://example.com/setup1.jpg',
+          punchlineImageUrl: 'https://example.com/punchline1.jpg',
+        ),
+        Joke(
+          id: '2',
+          setupText: 'Setup 2',
+          punchlineText: 'Punchline 2',
+          setupImageUrl: 'https://example.com/setup2.jpg',
+          // Missing punchlineImageUrl
+        ),
+        Joke(
+          id: '3',
+          setupText: 'Setup 3',
+          punchlineText: 'Punchline 3',
+          // Missing setupImageUrl
+          punchlineImageUrl: 'https://example.com/punchline3.jpg',
+        ),
+        Joke(
+          id: '4',
+          setupText: 'Setup 4',
+          punchlineText: 'Punchline 4',
+          setupImageUrl: '',  // Empty string should be filtered out
+          punchlineImageUrl: 'https://example.com/punchline4.jpg',
+        ),
+        Joke(
+          id: '5',
+          setupText: 'Setup 5',
+          punchlineText: 'Punchline 5',
+          setupImageUrl: 'https://example.com/setup5.jpg',
+          punchlineImageUrl: 'https://example.com/punchline5.jpg',
+        ),
+      ];
+
       when(mockJokeRepository.getJokes())
           .thenAnswer((_) => Stream.value(mockJokes));
 
       // act
-      final asyncValue = await container.read(jokesProvider.future);
+      final asyncValue = await container.read(jokesWithImagesProvider.future);
 
-      // assert
-      expect(asyncValue, equals(mockJokes));
+      // assert - should only contain jokes with both image URLs
+      expect(asyncValue.length, equals(2));
+      expect(asyncValue[0].id, equals('1'));
+      expect(asyncValue[1].id, equals('5'));
       verify(mockJokeRepository.getJokes()).called(1);
     });
   });

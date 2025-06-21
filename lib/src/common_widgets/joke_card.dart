@@ -6,14 +6,16 @@ import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 class JokeCard extends StatelessWidget {
   final Joke joke;
   final int? index;
-  final VoidCallback? onTap;
+  final VoidCallback? onSetupTap;
+  final VoidCallback? onPunchlineTap;
   final bool isAdminMode;
 
   const JokeCard({
     super.key,
     required this.joke,
     this.index,
-    this.onTap,
+    this.onSetupTap,
+    this.onPunchlineTap,
     this.isAdminMode = false,
   });
 
@@ -32,12 +34,13 @@ class JokeCard extends StatelessWidget {
       return JokeImageCarousel(
         joke: joke,
         index: index,
-        onTap: onTap,
+        onSetupTap: onSetupTap,
+        onPunchlineTap: onPunchlineTap,
         isAdminMode: isAdminMode,
       );
     } else {
       // No images or incomplete images - show text with populate button
-      return JokeTextCard(joke: joke, index: index, onTap: onTap);
+      return JokeTextCard(joke: joke, index: index, onTap: onSetupTap);
     }
   }
 }

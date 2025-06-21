@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:snickerdoodle/src/common_widgets/app_bar_widget.dart';
 import 'package:snickerdoodle/src/common_widgets/joke_card.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_editor_screen.dart';
 import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
@@ -12,9 +13,8 @@ class JokeManagementScreen extends ConsumerWidget {
     final jokesAsync = ref.watch(jokesProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Joke Management'),
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+      appBar: const AppBarWidget(
+        title: 'Joke Management',
       ),
       body: jokesAsync.when(
         data:
@@ -116,6 +116,4 @@ class JokeManagementScreen extends ConsumerWidget {
       ),
     );
   }
-
-
 }

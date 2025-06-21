@@ -1,6 +1,8 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/common_widgets/cached_joke_image.dart';
+import 'package:snickerdoodle/src/core/providers/image_providers.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
@@ -8,14 +10,16 @@ import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 class JokeImageCarousel extends ConsumerStatefulWidget {
   final Joke joke;
   final int? index;
-  final VoidCallback? onTap;
+  final VoidCallback? onSetupTap;
+  final VoidCallback? onPunchlineTap;
   final bool isAdminMode;
 
   const JokeImageCarousel({
     super.key,
     required this.joke,
     this.index,
-    this.onTap,
+    this.onSetupTap,
+    this.onPunchlineTap,
     this.isAdminMode = false,
   });
 
@@ -31,6 +35,44 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
   void initState() {
     super.initState();
     _pageController = PageController();
+    _preloadImages();
+  }
+
+  void _preloadImages() {
+    // Preload both images to ensure smooth navigation
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final imageService = ref.read(imageServiceProvider);
+
+      // Preload setup image
+      if (widget.joke.setupImageUrl != null &&
+          imageService.isValidImageUrl(widget.joke.setupImageUrl)) {
+        final processedSetupUrl = imageService.processImageUrl(
+          widget.joke.setupImageUrl!,
+        );
+        precacheImage(
+          CachedNetworkImageProvider(processedSetupUrl),
+          context,
+        ).catchError((error) {
+          // Silently handle preload errors - the actual image widget will show error state
+          debugPrint('Failed to preload setup image: $error');
+        });
+      }
+
+      // Preload punchline image
+      if (widget.joke.punchlineImageUrl != null &&
+          imageService.isValidImageUrl(widget.joke.punchlineImageUrl)) {
+        final processedPunchlineUrl = imageService.processImageUrl(
+          widget.joke.punchlineImageUrl!,
+        );
+        precacheImage(
+          CachedNetworkImageProvider(processedPunchlineUrl),
+          context,
+        ).catchError((error) {
+          // Silently handle preload errors - the actual image widget will show error state
+          debugPrint('Failed to preload punchline image: $error');
+        });
+      }
+    });
   }
 
   @override
@@ -47,24 +89,36 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
 
   void _onImageTap() {
     if (_currentIndex == 0) {
-      // Currently showing setup image, go to punchline
-      _pageController.nextPage(
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-      );
+      // Currently showing setup image
+      if (widget.onSetupTap != null) {
+        widget.onSetupTap!();
+      } else {
+        // Default behavior: go to punchline
+        _pageController.nextPage(
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+        );
+      }
     } else {
-      // Currently showing punchline image, go back to setup
-      _pageController.previousPage(
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-      );
+      // Currently showing punchline image
+      if (widget.onPunchlineTap != null) {
+        widget.onPunchlineTap!();
+      } else {
+        // Default behavior: go back to setup
+        _pageController.previousPage(
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+        );
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final populationState = ref.watch(jokePopulationProvider);
-    final isPopulating = populationState.populatingJokes.contains(widget.joke.id);
+    final isPopulating = populationState.populatingJokes.contains(
+      widget.joke.id,
+    );
 
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 4.0),
@@ -74,7 +128,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
           // Image carousel
           Flexible(
             child: GestureDetector(
-              onTap: widget.onTap ?? _onImageTap,
+              onTap: _onImageTap,
               child: ConstrainedBox(
                 constraints: BoxConstraints(
                   maxHeight:
@@ -153,7 +207,9 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
                           )
                           : const Icon(Icons.refresh),
                   label: Text(
-                    isPopulating ? 'Regenerating Images...' : 'Regenerate Images',
+                    isPopulating
+                        ? 'Regenerating Images...'
+                        : 'Regenerate Images',
                   ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor:
@@ -226,31 +282,34 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
   }
 
   Widget _buildImagePage({required String? imageUrl}) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: const BorderRadius.vertical(
-          top: Radius.circular(8),
-          bottom: Radius.circular(8),
-        ),
-      ),
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          // Image
-          ClipRRect(
-            borderRadius: const BorderRadius.vertical(
-              top: Radius.circular(8),
-              bottom: Radius.circular(8),
-            ),
-            child: CachedJokeImage(
-              imageUrl: imageUrl,
-              fit: BoxFit.cover,
-              showLoadingIndicator: true,
-              showErrorIcon: true,
-            ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.surface,
+          borderRadius: const BorderRadius.vertical(
+            top: Radius.circular(8),
+            bottom: Radius.circular(8),
           ),
-        ],
+        ),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // Image
+            ClipRRect(
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(8),
+                bottom: Radius.circular(8),
+              ),
+              child: CachedJokeImage(
+                imageUrl: imageUrl,
+                fit: BoxFit.cover,
+                showLoadingIndicator: true,
+                showErrorIcon: true,
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

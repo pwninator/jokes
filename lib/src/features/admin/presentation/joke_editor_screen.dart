@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:snickerdoodle/src/common_widgets/app_bar_widget.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
+import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 
 class JokeEditorScreen extends ConsumerStatefulWidget {
-  const JokeEditorScreen({super.key});
+  const JokeEditorScreen({super.key, this.joke});
+
+  final Joke? joke; // null for creating new joke, non-null for editing
 
   @override
   ConsumerState<JokeEditorScreen> createState() => _JokeEditorScreenState();
@@ -16,6 +20,18 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
   final _punchlineController = TextEditingController();
   bool _isLoading = false;
 
+  bool get _isEditMode => widget.joke != null;
+
+  @override
+  void initState() {
+    super.initState();
+    // Pre-populate fields if editing an existing joke
+    if (_isEditMode) {
+      _setupController.text = widget.joke!.setupText;
+      _punchlineController.text = widget.joke!.punchlineText;
+    }
+  }
+
   @override
   void dispose() {
     _setupController.dispose();
@@ -26,10 +42,7 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Add New Joke'),
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-      ),
+      appBar: AppBarWidget(title: _isEditMode ? 'Edit Joke' : 'Add New Joke'),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Form(
@@ -37,9 +50,11 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text(
-                'Create a new joke by filling out the setup and punchline below:',
-                style: TextStyle(fontSize: 16),
+              Text(
+                _isEditMode
+                    ? 'Edit the joke setup and punchline below:'
+                    : 'Create a new joke by filling out the setup and punchline below:',
+                style: const TextStyle(fontSize: 16),
               ),
               const SizedBox(height: 24),
 
@@ -105,9 +120,9 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
                           width: 20,
                           child: CircularProgressIndicator(strokeWidth: 2),
                         )
-                        : const Text(
-                          'Save Joke',
-                          style: TextStyle(fontSize: 16),
+                        : Text(
+                          _isEditMode ? 'Update Joke' : 'Save Joke',
+                          style: const TextStyle(fontSize: 16),
                         ),
               ),
 
@@ -115,7 +130,9 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
 
               // Info text
               Text(
-                'Your joke will be reviewed and added to the collection.',
+                _isEditMode
+                    ? 'Changes will be updated immediately.'
+                    : 'Your joke will be reviewed and added to the collection.',
                 style: TextStyle(
                   fontSize: 12,
                   color: Theme.of(
@@ -144,52 +161,12 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
       final setup = _setupController.text.trim();
       final punchline = _punchlineController.text.trim();
 
-      // Call the Firebase Cloud Function using the service
-      final jokeService = ref.read(jokeCloudFunctionServiceProvider);
-      final result = await jokeService.createJokeWithResponse(
-        setupText: setup,
-        punchlineText: punchline,
-      );
-
-      if (mounted) {
-        if (result != null && result['success'] == true) {
-          // Success
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('Joke saved successfully!'),
-              backgroundColor: Theme.of(context).appColors.success,
-              action: SnackBarAction(
-                label: 'View',
-                textColor: Colors.white,
-                onPressed: () {
-                  Navigator.of(context).pop(); // Go back to management screen
-                },
-              ),
-            ),
-          );
-
-          // Clear the form
-          _setupController.clear();
-          _punchlineController.clear();
-
-          // Navigate back after a short delay
-          Future.delayed(const Duration(seconds: 1), () {
-            if (mounted) {
-              Navigator.of(context).pop();
-            }
-          });
-        } else {
-          // Error
-          final errorMessage = result?['error'] ?? 'Failed to save joke';
-
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Error: $errorMessage'),
-              backgroundColor: Theme.of(context).appColors.authError,
-              duration: const Duration(seconds: 5),
-            ),
-          );
-        }
+      if (_isEditMode) {
+        // Update existing joke
+        await _updateJoke(setup, punchline);
+      } else {
+        // Create new joke
+        await _createJoke(setup, punchline);
       }
     } catch (e) {
       if (mounted) {
@@ -206,6 +183,99 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
         setState(() {
           _isLoading = false;
         });
+      }
+    }
+  }
+
+  Future<void> _createJoke(String setup, String punchline) async {
+    // Call the Firebase Cloud Function using the service
+    final jokeService = ref.read(jokeCloudFunctionServiceProvider);
+    final result = await jokeService.createJokeWithResponse(
+      setupText: setup,
+      punchlineText: punchline,
+    );
+
+    if (mounted) {
+      if (result != null && result['success'] == true) {
+        // Success - show message, clear form, stay on page
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Joke saved successfully!'),
+            backgroundColor: Theme.of(context).appColors.success,
+            action: SnackBarAction(
+              label: 'OK',
+              textColor: Colors.white,
+              onPressed: () {
+                ScaffoldMessenger.of(context).hideCurrentSnackBar();
+              },
+            ),
+          ),
+        );
+
+        // Clear the form for next joke
+        _setupController.clear();
+        _punchlineController.clear();
+
+        // Reset form validation state after clearing controllers
+        if (mounted) {
+          setState(() {
+            // Force UI update after clearing
+          });
+        }
+      } else {
+        // Error
+        final errorMessage = result?['error'] ?? 'Failed to save joke';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $errorMessage'),
+            backgroundColor: Theme.of(context).appColors.authError,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _updateJoke(String setup, String punchline) async {
+    // Call the Firebase Cloud Function to update the joke
+    final jokeService = ref.read(jokeCloudFunctionServiceProvider);
+    final result = await jokeService.updateJoke(
+      jokeId: widget.joke!.id,
+      setupText: setup,
+      punchlineText: punchline,
+      setupImageUrl: widget.joke!.setupImageUrl,
+      punchlineImageUrl: widget.joke!.punchlineImageUrl,
+    );
+
+    if (mounted) {
+      if (result != null && result['success'] == true) {
+        // Success - show message and navigate back
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Joke updated successfully!'),
+            backgroundColor: Theme.of(context).appColors.success,
+            action: SnackBarAction(
+              label: 'OK',
+              textColor: Colors.white,
+              onPressed: () {
+                ScaffoldMessenger.of(context).hideCurrentSnackBar();
+              },
+            ),
+          ),
+        );
+
+        // Navigate back to previous screen
+        Navigator.of(context).pop();
+      } else {
+        // Error
+        final errorMessage = result?['error'] ?? 'Failed to update joke';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $errorMessage'),
+            backgroundColor: Theme.of(context).appColors.authError,
+            duration: const Duration(seconds: 5),
+          ),
+        );
       }
     }
   }

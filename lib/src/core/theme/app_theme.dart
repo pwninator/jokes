@@ -6,34 +6,24 @@ ColorScheme lightColorScheme = ColorScheme.fromSeed(
 );
 
 ColorScheme darkColorScheme = ColorScheme.fromSeed(
-  seedColor: Colors.deepPurple,
+  // seedColor: Colors.deepPurple,
+  seedColor: Color(0xFFC59B6D),
   brightness: Brightness.dark,
 );
 
 const TextTheme textTheme = TextTheme(
-  headlineMedium: TextStyle(
-    fontSize: 24,
-    fontWeight: FontWeight.bold,
-  ),
+  headlineMedium: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
 );
 
 final ThemeData lightTheme = ThemeData.from(
   colorScheme: lightColorScheme,
   textTheme: textTheme,
-).copyWith(
-  extensions: [
-    AppColorExtension.light,
-  ],
-);
+).copyWith(extensions: [AppColorExtension.light]);
 
 final ThemeData darkTheme = ThemeData.from(
   colorScheme: darkColorScheme,
   textTheme: textTheme,
-).copyWith(
-  extensions: [
-    AppColorExtension.dark,
-  ],
-);
+).copyWith(extensions: [AppColorExtension.dark]);
 
 @immutable
 class AppColorExtension extends ThemeExtension<AppColorExtension> {

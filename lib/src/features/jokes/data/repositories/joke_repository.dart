@@ -7,7 +7,11 @@ class JokeRepository {
   JokeRepository(this._firestore);
 
   Stream<List<Joke>> getJokes() {
-    return _firestore.collection('jokes').snapshots().map((snapshot) {
+    return _firestore
+        .collection('jokes')
+        .orderBy('creation_time', descending: true)
+        .snapshots()
+        .map((snapshot) {
       return snapshot.docs.map((doc) {
         return Joke.fromMap(doc.data(), doc.id);
       }).toList();

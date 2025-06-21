@@ -1,37 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:mockito/mockito.dart';
-import 'package:mockito/annotations.dart';
 import 'package:snickerdoodle/src/common_widgets/joke_card.dart';
 import 'package:snickerdoodle/src/common_widgets/joke_text_card.dart';
 import 'package:snickerdoodle/src/common_widgets/joke_image_carousel.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
-import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
-import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 
-// Generate mocks
-@GenerateMocks([JokeCloudFunctionService])
-import 'joke_card_test.mocks.dart';
+import '../test_helpers/firebase_mocks.dart';
 
 void main() {
   group('JokeCard Widget Tests', () {
-    late MockJokeCloudFunctionService mockCloudFunctionService;
-
-    setUp(() {
-      mockCloudFunctionService = MockJokeCloudFunctionService();
-    });
-
     Widget createTestWidget({
       required Widget child,
-      List<Override> overrides = const [],
+      List<Override> additionalOverrides = const [],
     }) {
       return ProviderScope(
-        overrides: [
-          jokeCloudFunctionServiceProvider.overrideWithValue(mockCloudFunctionService),
-          ...overrides,
-        ],
+        overrides: FirebaseMocks.getFirebaseProviderOverrides(
+          additionalOverrides: additionalOverrides,
+        ),
         child: MaterialApp(
           theme: lightTheme,
           home: Scaffold(body: child),
@@ -150,11 +137,11 @@ void main() {
           punchlineText: 'Test punchline',
         );
 
-        bool tapCalled = false;
+        bool setupTapCalled = false;
         final widget = JokeCard(
           joke: joke,
           index: 5,
-          onTap: () => tapCalled = true,
+          onSetupTap: () => setupTapCalled = true,
         );
 
         // act
@@ -177,11 +164,13 @@ void main() {
           punchlineImageUrl: 'https://example.com/punchline.jpg',
         );
 
-        bool tapCalled = false;
+        bool setupTapCalled = false;
+        bool punchlineTapCalled = false;
         final widget = JokeCard(
           joke: joke,
           index: 3,
-          onTap: () => tapCalled = true,
+          onSetupTap: () => setupTapCalled = true,
+          onPunchlineTap: () => punchlineTapCalled = true,
         );
 
         // act
@@ -191,7 +180,8 @@ void main() {
         final jokeImageCarousel = tester.widget<JokeImageCarousel>(find.byType(JokeImageCarousel));
         expect(jokeImageCarousel.joke, equals(joke));
         expect(jokeImageCarousel.index, equals(3));
-        expect(jokeImageCarousel.onTap, isNotNull);
+        expect(jokeImageCarousel.onSetupTap, isNotNull);
+        expect(jokeImageCarousel.onPunchlineTap, isNotNull);
       });
 
       testWidgets('should pass isAdminMode to JokeImageCarousel when enabled', (tester) async {
@@ -239,7 +229,7 @@ void main() {
         expect(jokeTextCard.index, isNull);
       });
 
-      testWidgets('should handle joke without onTap callback', (tester) async {
+      testWidgets('should handle joke without onSetupTap callback', (tester) async {
         // arrange
         const joke = Joke(
           id: '1',

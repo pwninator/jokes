@@ -83,6 +83,13 @@ class FirebaseMocks {
     when(
       mock.populateJoke(any),
     ).thenAnswer((_) async => {'success': true, 'data': 'populated'});
+
+    when(
+      mock.critiqueJokes(
+        instructions: anyNamed('instructions'),
+        additionalParameters: anyNamed('additionalParameters'),
+      ),
+    ).thenAnswer((_) async => {'success': true, 'data': {'jokes': []}});
   }
 
   static void _setupImageServiceDefaults(MockImageService mock) {

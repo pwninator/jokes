@@ -116,4 +116,18 @@ class MockJokeCloudFunctionService extends _i1.Mock
             returnValue: _i3.Future<Map<String, dynamic>?>.value(),
           )
           as _i3.Future<Map<String, dynamic>?>);
+
+  @override
+  _i3.Future<Map<String, dynamic>?> critiqueJokes({
+    required String? instructions,
+    Map<String, dynamic>? additionalParameters,
+  }) =>
+      (super.noSuchMethod(
+            Invocation.method(#critiqueJokes, [], {
+              #instructions: instructions,
+              #additionalParameters: additionalParameters,
+            }),
+            returnValue: _i3.Future<Map<String, dynamic>?>.value(),
+          )
+          as _i3.Future<Map<String, dynamic>?>);
 }

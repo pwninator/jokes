@@ -16,19 +16,19 @@ void main() async {
   // Initialize Firebase (required before any UI that uses auth)
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
-  if (kDebugMode) {
-    bool isPhysicalDevice = await DeviceUtils.isPhysicalDevice;
-    if (!isPhysicalDevice) {
-      debugPrint("DEBUG: Using Firebase emulator");
-      try {
-        FirebaseFirestore.instance.useFirestoreEmulator('localhost', 8080);
-        FirebaseFunctions.instance.useFunctionsEmulator('localhost', 5001);
-        await FirebaseAuth.instance.useAuthEmulator('localhost', 9099);
-      } catch (e) {
-        debugPrint('Firebase emulator connection error: $e');
-      }
-    }
-  }
+  // if (kDebugMode) {
+  //   bool isPhysicalDevice = await DeviceUtils.isPhysicalDevice;
+  //   if (!isPhysicalDevice) {
+  //     debugPrint("DEBUG: Using Firebase emulator");
+  //     try {
+  //       FirebaseFirestore.instance.useFirestoreEmulator('localhost', 8080);
+  //       FirebaseFunctions.instance.useFunctionsEmulator('localhost', 5001);
+  //       await FirebaseAuth.instance.useAuthEmulator('localhost', 9099);
+  //     } catch (e) {
+  //       debugPrint('Firebase emulator connection error: $e');
+  //     }
+  //   }
+  // }
 
   runApp(const ProviderScope(child: App()));
 }

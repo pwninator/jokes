@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 
 ColorScheme lightColorScheme = ColorScheme.fromSeed(
-  seedColor: Colors.deepPurple,
+  // seedColor: Colors.deepPurple,
+  seedColor: Color(0xFFC59B6D),
   brightness: Brightness.light,
 );
 

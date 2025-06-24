@@ -183,5 +183,130 @@ void main() {
         },
       );
     });
+
+    group('critiqueJokes', () {
+      test('should return success when cloud function succeeds', () async {
+        // arrange
+        const instructions = 'Test instructions for joke generation';
+        const mockResponseData = {'generated_jokes': []};
+        const expectedData = {'success': true, 'data': mockResponseData};
+
+        when(mockResult.data).thenReturn(mockResponseData);
+        when(
+          mockCallable.call({'instructions': instructions}),
+        ).thenAnswer((_) async => mockResult);
+        when(
+          mockFunctions.httpsCallable(
+            'critique_jokes',
+            options: anyNamed('options'),
+          ),
+        ).thenReturn(mockCallable);
+
+        // act
+        final result = await service.critiqueJokes(instructions: instructions);
+
+        // assert
+        expect(result, equals(expectedData));
+        verify(mockFunctions.httpsCallable(
+          'critique_jokes',
+          options: anyNamed('options'),
+        )).called(1);
+        verify(mockCallable.call({'instructions': instructions})).called(1);
+      });
+
+      test('should include additional parameters when provided', () async {
+        // arrange
+        const instructions = 'Test instructions';
+        const additionalParams = {'param1': 'value1', 'param2': 'value2'};
+        const mockResponseData = {'generated_jokes': []};
+
+        when(mockResult.data).thenReturn(mockResponseData);
+        when(
+          mockCallable.call({
+            'instructions': instructions,
+            'param1': 'value1',
+            'param2': 'value2',
+          }),
+        ).thenAnswer((_) async => mockResult);
+        when(
+          mockFunctions.httpsCallable(
+            'critique_jokes',
+            options: anyNamed('options'),
+          ),
+        ).thenReturn(mockCallable);
+
+        // act
+        final result = await service.critiqueJokes(
+          instructions: instructions,
+          additionalParameters: additionalParams,
+        );
+
+        // assert
+        expect(result!['success'], isTrue);
+        verify(mockCallable.call({
+          'instructions': instructions,
+          'param1': 'value1',
+          'param2': 'value2',
+        })).called(1);
+      });
+
+      test(
+        'should return error when FirebaseFunctionsException is thrown',
+        () async {
+          // arrange
+          const instructions = 'Test instructions';
+          final exception = FirebaseFunctionsException(
+            code: 'test-error',
+            message: 'Test error message',
+          );
+
+          when(
+            mockFunctions.httpsCallable(
+              'critique_jokes',
+              options: anyNamed('options'),
+            ),
+          ).thenReturn(mockCallable);
+          when(mockCallable.call({'instructions': instructions}))
+              .thenThrow(exception);
+
+          // act
+          final result = await service.critiqueJokes(instructions: instructions);
+
+          // assert
+          expect(result, isNotNull);
+          expect(result!['success'], isFalse);
+          expect(
+            result['error'],
+            contains('Function error: Test error message'),
+          );
+        },
+      );
+
+      test(
+        'should return error with generic message when unexpected error occurs',
+        () async {
+          // arrange
+          const instructions = 'Test instructions';
+
+          when(
+            mockFunctions.httpsCallable(
+              'critique_jokes',
+              options: anyNamed('options'),
+            ),
+          ).thenReturn(mockCallable);
+          when(
+            mockCallable.call({'instructions': instructions}),
+          ).thenThrow(Exception('Generic error'));
+
+          // act
+          final result = await service.critiqueJokes(instructions: instructions);
+
+          // assert
+          expect(result, isNotNull);
+          expect(result!['success'], isFalse);
+          expect(result['error'], contains('Unexpected error'));
+        },
+      );
+    });
   });
 }

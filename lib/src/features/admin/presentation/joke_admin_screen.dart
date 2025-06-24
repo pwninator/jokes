@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:snickerdoodle/src/common_widgets/app_bar_widget.dart';
 import 'package:snickerdoodle/src/common_widgets/titled_screen.dart';
+import 'package:snickerdoodle/src/features/admin/presentation/joke_creator_screen.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_management_screen.dart';
 
 class JokeAdminScreen extends StatelessWidget implements TitledScreen {
@@ -21,6 +22,10 @@ class JokeAdminScreen extends StatelessWidget implements TitledScreen {
           case '/joke-management':
             return MaterialPageRoute(
               builder: (context) => const JokeManagementScreen(),
+            );
+          case '/joke-creator':
+            return MaterialPageRoute(
+              builder: (context) => const JokeCreatorScreen(),
             );
           default:
             return MaterialPageRoute(
@@ -74,6 +79,21 @@ class _AdminHomeScreen extends StatelessWidget {
                           ],
                         ),
                   );
+                },
+              ),
+            ),
+
+            const SizedBox(height: 8),
+
+            // Joke Creator Card
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.auto_awesome),
+                title: const Text('Joke Creator'),
+                subtitle: const Text('Generate jokes using AI with custom instructions'),
+                trailing: const Icon(Icons.arrow_forward_ios),
+                onTap: () {
+                  Navigator.of(context).pushNamed('/joke-creator');
                 },
               ),
             ),

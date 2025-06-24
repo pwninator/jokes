@@ -124,4 +124,36 @@ class JokeCloudFunctionService {
       return {'success': false, 'error': 'Unexpected error: $e'};
     }
   }
+
+  Future<Map<String, dynamic>?> critiqueJokes({
+    required String instructions,
+    Map<String, dynamic>? additionalParameters,
+  }) async {
+    try {
+      final callable = _functions.httpsCallable(
+        'critique_jokes',
+        options: HttpsCallableOptions(timeout: const Duration(seconds: 300)),
+      );
+
+      final requestData = {
+        'instructions': instructions,
+        if (additionalParameters != null) ...additionalParameters,
+      };
+
+      final result = await callable.call(requestData);
+
+      debugPrint('Jokes critiqued successfully: ${result.data}');
+      return {'success': true, 'data': result.data};
+    } on FirebaseFunctionsException catch (e) {
+      debugPrint('Firebase Functions error: ${e.code} - ${e.message}');
+      return {
+        'success': false,
+        'error': 'Function error: ${e.message}',
+        'code': e.code,
+      };
+    } catch (e) {
+      debugPrint('Error critiquing jokes: $e');
+      return {'success': false, 'error': 'Unexpected error: $e'};
+    }
+  }
 }

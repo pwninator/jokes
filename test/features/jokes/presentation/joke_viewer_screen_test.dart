@@ -8,10 +8,31 @@ import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/presentation/joke_viewer_screen.dart';
+import 'package:image_test_utils/image_test_utils.dart';
+import 'package:mockito/mockito.dart';
+import 'package:snickerdoodle/src/core/providers/image_providers.dart';
+// Assuming MockImageService is generated in this shared location
+import '../../../common_widgets/joke_image_carousel_test.mocks.dart';
+
 
 import '../../../test_helpers/firebase_mocks.dart';
 
+
 void main() {
+  late MockImageService mockImageService;
+
+  setUp(() {
+    mockImageService = MockImageService();
+    when(mockImageService.isValidImageUrl(any)).thenAnswer((realInvocation) {
+      final url = realInvocation.positionalArguments.first as String?;
+      return url != null && url.startsWith('http');
+    });
+    when(mockImageService.processImageUrl(any)).thenAnswer((realInvocation) {
+      final url = realInvocation.positionalArguments.first as String;
+      return 'processed_$url';
+    });
+  });
+
   group('JokeViewerScreen', () {
     // Simple test data
     final testJoke = const Joke(
@@ -42,6 +63,7 @@ void main() {
         overrides: [
           ...FirebaseMocks.getFirebaseProviderOverrides(),
           jokesWithImagesProvider.overrideWith((ref) => jokesStream),
+          imageServiceProvider.overrideWithValue(mockImageService),
         ],
         child: MaterialApp(theme: lightTheme, home: const JokeViewerScreen()),
       );
@@ -237,33 +259,37 @@ void main() {
       testWidgets('should display single joke without page indicator', (
         tester,
       ) async {
-        await tester.pumpWidget(
-          createTestWidget(
-            jokesStream: Stream.value([testJoke]),
-            key: const Key('single_joke_test'),
-          ),
-        );
+        provideMockedNetworkImages(() async {
+          await tester.pumpWidget(
+            createTestWidget(
+              jokesStream: Stream.value([testJoke]),
+              key: const Key('single_joke_test'),
+            ),
+          );
 
-        await tester.pump();
+          await tester.pumpAndSettle();
 
-        expect(find.byType(JokeCard), findsOneWidget);
-        expect(find.textContaining('of'), findsNothing);
+          expect(find.byType(JokeCard), findsOneWidget);
+          expect(find.textContaining('of'), findsNothing);
+        });
       });
 
       testWidgets('should display multiple jokes with page indicator', (
         tester,
       ) async {
-        await tester.pumpWidget(
-          createTestWidget(
-            jokesStream: Stream.value(testJokes),
-            key: const Key('multiple_jokes_test'),
-          ),
-        );
+        provideMockedNetworkImages(() async {
+          await tester.pumpWidget(
+            createTestWidget(
+              jokesStream: Stream.value(testJokes),
+              key: const Key('multiple_jokes_test'),
+            ),
+          );
 
-        await tester.pump();
+          await tester.pumpAndSettle();
 
-        expect(find.byType(JokeCard), findsOneWidget);
-        expect(find.textContaining('1 of 2'), findsOneWidget);
+          expect(find.byType(JokeCard), findsOneWidget);
+          expect(find.textContaining('1 of 2'), findsOneWidget);
+        });
       });
     });
 
@@ -271,188 +297,205 @@ void main() {
       testWidgets('should provide onPunchlineTap callback to JokeCard', (
         tester,
       ) async {
-        await tester.pumpWidget(
-          createTestWidget(
-            jokesStream: Stream.value(testJokes),
-            key: const Key('punchline_callback_test'),
-          ),
-        );
-        await tester.pump();
+        provideMockedNetworkImages(() async {
+          await tester.pumpWidget(
+            createTestWidget(
+              jokesStream: Stream.value(testJokes),
+              key: const Key('punchline_callback_test'),
+            ),
+          );
+          await tester.pumpAndSettle();
 
-        final jokeCard = tester.widget<JokeCard>(find.byType(JokeCard));
-        expect(jokeCard.onPunchlineTap, isNotNull);
-        expect(jokeCard.onSetupTap, isNull);
-        expect(jokeCard.isAdminMode, isFalse);
+          final jokeCard = tester.widget<JokeCard>(find.byType(JokeCard));
+          expect(jokeCard.onPunchlineTap, isNotNull);
+          expect(jokeCard.onSetupTap, isNull);
+          expect(jokeCard.isAdminMode, isFalse);
+        });
       });
 
       testWidgets('should call onPunchlineTap without throwing', (
         tester,
       ) async {
-        await tester.pumpWidget(
-          createTestWidget(
-            jokesStream: Stream.value(testJokes),
-            key: const Key('punchline_call_test'),
-          ),
-        );
-        await tester.pump();
+        provideMockedNetworkImages(() async {
+          await tester.pumpWidget(
+            createTestWidget(
+              jokesStream: Stream.value(testJokes),
+              key: const Key('punchline_call_test'),
+            ),
+          );
+          await tester.pumpAndSettle();
 
-        final jokeCard = tester.widget<JokeCard>(find.byType(JokeCard));
+          final jokeCard = tester.widget<JokeCard>(find.byType(JokeCard));
 
-        // Should not throw when called
-        expect(() => jokeCard.onPunchlineTap!(), returnsNormally);
-        await tester.pump();
+          // Should not throw when called
+          expect(() => jokeCard.onPunchlineTap!(), returnsNormally);
+          await tester.pumpAndSettle();
 
-        // Widget should still be functional
-        expect(find.byType(JokeCard), findsOneWidget);
-        expect(tester.takeException(), isNull);
+          // Widget should still be functional
+          expect(find.byType(JokeCard), findsOneWidget);
+          expect(tester.takeException(), isNull);
+        });
       });
     });
 
     group('Stream State Changes', () {
       testWidgets('should handle stream state transitions', (tester) async {
-        final controller = StreamController<List<Joke>>();
+        provideMockedNetworkImages(() async {
+          final controller = StreamController<List<Joke>>();
 
-        await tester.pumpWidget(
-          createTestWidget(
-            jokesStream: controller.stream,
-            key: const Key('stream_transitions_test'),
-          ),
-        );
-        await tester.pump();
+          await tester.pumpWidget(
+            createTestWidget(
+              jokesStream: controller.stream,
+              key: const Key('stream_transitions_test'),
+            ),
+          );
+          await tester.pump(); // Initial pump for loading
 
-        // Initially loading
-        expect(find.byType(CircularProgressIndicator), findsOneWidget);
+          // Initially loading
+          expect(find.byType(CircularProgressIndicator), findsOneWidget);
 
-        // Add empty list
-        controller.add(<Joke>[]);
-        await tester.pump();
-        expect(find.text('No jokes found! Try adding some.'), findsOneWidget);
-        expect(find.byType(CircularProgressIndicator), findsNothing);
+          // Add empty list
+          controller.add(<Joke>[]);
+          await tester.pumpAndSettle();
+          expect(find.text('No jokes found! Try adding some.'), findsOneWidget);
+          expect(find.byType(CircularProgressIndicator), findsNothing);
 
-        // Add jokes
-        controller.add(testJokes);
-        await tester.pump();
-        expect(find.byType(JokeCard), findsOneWidget);
-        expect(find.textContaining('1 of 2'), findsOneWidget);
+          // Add jokes
+          controller.add(testJokes);
+          await tester.pumpAndSettle();
+          expect(find.byType(JokeCard), findsOneWidget);
+          expect(find.textContaining('1 of 2'), findsOneWidget);
 
-        await controller.close();
+          await controller.close();
+        });
       });
     });
 
     group('Widget Lifecycle', () {
       testWidgets('should handle disposal correctly', (tester) async {
-        await tester.pumpWidget(
-          createTestWidget(
-            jokesStream: Stream.value(testJokes),
-            key: const Key('disposal_test'),
-          ),
-        );
-        await tester.pump();
+        provideMockedNetworkImages(() async {
+          await tester.pumpWidget(
+            createTestWidget(
+              jokesStream: Stream.value(testJokes),
+              key: const Key('disposal_test'),
+            ),
+          );
+          await tester.pumpAndSettle();
 
-        // Navigate away to trigger disposal
-        await tester.pumpWidget(const MaterialApp(home: Text('Other Screen')));
+          // Navigate away to trigger disposal
+          await tester.pumpWidget(const MaterialApp(home: Text('Other Screen')));
+          await tester.pumpAndSettle();
 
-        // Should not throw exceptions
-        expect(tester.takeException(), isNull);
+          // Should not throw exceptions
+          expect(tester.takeException(), isNull);
+        });
       });
 
       testWidgets('should handle widget recreation', (tester) async {
-        await tester.pumpWidget(
-          createTestWidget(
-            jokesStream: Stream.value([testJoke]),
-            key: const Key('first_widget'),
-          ),
-        );
-        await tester.pump();
+        provideMockedNetworkImages(() async {
+          await tester.pumpWidget(
+            createTestWidget(
+              jokesStream: Stream.value([testJoke]),
+              key: const Key('first_widget'),
+            ),
+          );
+          await tester.pumpAndSettle();
 
-        expect(find.byType(JokeCard), findsOneWidget);
+          expect(find.byType(JokeCard), findsOneWidget);
 
-        // Recreate with different data and unique key to force provider recreation
-        await tester.pumpWidget(
-          createTestWidget(
-            jokesStream: Stream.value(testJokes),
-            key: const Key('second_widget'),
-          ),
-        );
-        await tester.pump();
+          // Recreate with different data and unique key to force provider recreation
+          await tester.pumpWidget(
+            createTestWidget(
+              jokesStream: Stream.value(testJokes),
+              key: const Key('second_widget'),
+            ),
+          );
+          await tester.pumpAndSettle();
 
-        expect(find.byType(JokeCard), findsOneWidget);
-        expect(find.textContaining('1 of 2'), findsOneWidget);
-        expect(tester.takeException(), isNull);
+          expect(find.byType(JokeCard), findsOneWidget);
+          expect(find.textContaining('1 of 2'), findsOneWidget);
+          expect(tester.takeException(), isNull);
+        });
       });
     });
 
     group('Edge Cases', () {
       testWidgets('should handle rapid stream updates', (tester) async {
-        final controller = StreamController<List<Joke>>();
+        provideMockedNetworkImages(() async {
+          final controller = StreamController<List<Joke>>();
 
-        await tester.pumpWidget(
-          createTestWidget(
-            jokesStream: controller.stream,
-            key: const Key('rapid_updates_test'),
-          ),
-        );
-        await tester.pump();
+          await tester.pumpWidget(
+            createTestWidget(
+              jokesStream: controller.stream,
+              key: const Key('rapid_updates_test'),
+            ),
+          );
+          await tester.pump(); // Initial pump
 
-        // Rapid updates
-        for (int i = 0; i < 5; i++) {
-          controller.add(i.isEven ? <Joke>[] : testJokes);
-          await tester.pump();
-        }
+          // Rapid updates
+          for (int i = 0; i < 5; i++) {
+            controller.add(i.isEven ? <Joke>[] : testJokes);
+            await tester.pumpAndSettle();
+          }
 
-        // Should handle without throwing
-        expect(tester.takeException(), isNull);
+          // Should handle without throwing
+          expect(tester.takeException(), isNull);
 
-        await controller.close();
+          await controller.close();
+        });
       });
 
       testWidgets('should handle null safety correctly', (tester) async {
-        // Test with jokes that have null image URLs
-        final jokesWithNulls = [
-          const Joke(
-            id: '1',
-            setupText: 'Setup',
-            punchlineText: 'Punchline',
-            setupImageUrl: null,
-            punchlineImageUrl: null,
-          ),
-        ];
+        provideMockedNetworkImages(() async {
+          // Test with jokes that have null image URLs
+          final jokesWithNulls = [
+            const Joke(
+              id: '1',
+              setupText: 'Setup',
+              punchlineText: 'Punchline',
+              setupImageUrl: null,
+              punchlineImageUrl: null,
+            ),
+          ];
 
-        await tester.pumpWidget(
-          createTestWidget(
-            jokesStream: Stream.value(jokesWithNulls),
-            key: const Key('null_urls_test'),
-          ),
-        );
-        await tester.pump();
+          await tester.pumpWidget(
+            createTestWidget(
+              jokesStream: Stream.value(jokesWithNulls),
+              key: const Key('null_urls_test'),
+            ),
+          );
+          await tester.pumpAndSettle();
 
-        // Should still build without throwing
-        expect(tester.takeException(), isNull);
-        expect(find.byType(Scaffold), findsOneWidget);
+          // Should still build without throwing
+          expect(tester.takeException(), isNull);
+          expect(find.byType(Scaffold), findsOneWidget);
+        });
       });
 
       testWidgets('should handle empty string image URLs', (tester) async {
-        final jokesWithEmptyUrls = [
-          const Joke(
-            id: '1',
-            setupText: 'Setup',
-            punchlineText: 'Punchline',
-            setupImageUrl: '',
-            punchlineImageUrl: '',
-          ),
-        ];
+        provideMockedNetworkImages(() async {
+          final jokesWithEmptyUrls = [
+            const Joke(
+              id: '1',
+              setupText: 'Setup',
+              punchlineText: 'Punchline',
+              setupImageUrl: '',
+              punchlineImageUrl: '',
+            ),
+          ];
 
-        await tester.pumpWidget(
-          createTestWidget(
-            jokesStream: Stream.value(jokesWithEmptyUrls),
-            key: const Key('empty_urls_test'),
-          ),
-        );
-        await tester.pump();
+          await tester.pumpWidget(
+            createTestWidget(
+              jokesStream: Stream.value(jokesWithEmptyUrls),
+              key: const Key('empty_urls_test'),
+            ),
+          );
+          await tester.pumpAndSettle();
 
-        // Should still build without throwing
-        expect(tester.takeException(), isNull);
-        expect(find.byType(Scaffold), findsOneWidget);
+          // Should still build without throwing
+          expect(tester.takeException(), isNull);
+          expect(find.byType(Scaffold), findsOneWidget);
+        });
       });
     });
   });

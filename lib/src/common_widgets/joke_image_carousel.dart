@@ -13,6 +13,7 @@ class JokeImageCarousel extends ConsumerStatefulWidget {
   final VoidCallback? onSetupTap;
   final VoidCallback? onPunchlineTap;
   final bool isAdminMode;
+  final List<Joke>? jokesToPreload;
 
   const JokeImageCarousel({
     super.key,
@@ -21,6 +22,7 @@ class JokeImageCarousel extends ConsumerStatefulWidget {
     this.onSetupTap,
     this.onPunchlineTap,
     this.isAdminMode = false,
+    this.jokesToPreload,
   });
 
   @override
@@ -39,40 +41,54 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
   }
 
   void _preloadImages() {
-    // Preload both images to ensure smooth navigation
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return; // Ensure the widget is still in the tree
       final imageService = ref.read(imageServiceProvider);
 
-      // Preload setup image
-      if (widget.joke.setupImageUrl != null &&
-          imageService.isValidImageUrl(widget.joke.setupImageUrl)) {
-        final processedSetupUrl = imageService.processImageUrl(
-          widget.joke.setupImageUrl!,
-        );
-        precacheImage(
-          CachedNetworkImageProvider(processedSetupUrl),
-          context,
-        ).catchError((error) {
-          // Silently handle preload errors - the actual image widget will show error state
-          debugPrint('Failed to preload setup image: $error');
-        });
-      }
+      // Preload images for the current joke
+      _precacheJokeImages(widget.joke, imageService, context);
 
-      // Preload punchline image
-      if (widget.joke.punchlineImageUrl != null &&
-          imageService.isValidImageUrl(widget.joke.punchlineImageUrl)) {
-        final processedPunchlineUrl = imageService.processImageUrl(
-          widget.joke.punchlineImageUrl!,
-        );
-        precacheImage(
-          CachedNetworkImageProvider(processedPunchlineUrl),
-          context,
-        ).catchError((error) {
-          // Silently handle preload errors - the actual image widget will show error state
-          debugPrint('Failed to preload punchline image: $error');
-        });
+      // Preload images for the next jokes
+      if (widget.jokesToPreload != null) {
+        for (final jokeToPreload in widget.jokesToPreload!) {
+          _precacheJokeImages(jokeToPreload, imageService, context);
+        }
       }
     });
+  }
+
+  void _precacheJokeImages(Joke joke, ImageService imageService, BuildContext context) {
+    // Preload setup image
+    if (joke.setupImageUrl != null &&
+        imageService.isValidImageUrl(joke.setupImageUrl)) {
+      final processedSetupUrl = imageService.processImageUrl(
+        joke.setupImageUrl!,
+      );
+      debugPrint("Preloading setup image (JokeImageCarousel) for joke ${joke.id}: $processedSetupUrl");
+      precacheImage(
+        CachedNetworkImageProvider(processedSetupUrl),
+        context,
+      ).catchError((error, stackTrace) {
+        // Silently handle preload errors - the actual image widget will show error state
+        debugPrint('Failed to preload setup image for joke ${joke.id}: $error\n$stackTrace');
+      });
+    }
+
+    // Preload punchline image
+    if (joke.punchlineImageUrl != null &&
+        imageService.isValidImageUrl(joke.punchlineImageUrl)) {
+      final processedPunchlineUrl = imageService.processImageUrl(
+        joke.punchlineImageUrl!,
+      );
+      debugPrint("Preloading punchline image (JokeImageCarousel) for joke ${joke.id}: $processedPunchlineUrl");
+      precacheImage(
+        CachedNetworkImageProvider(processedPunchlineUrl),
+        context,
+      ).catchError((error, stackTrace) {
+        // Silently handle preload errors - the actual image widget will show error state
+        debugPrint('Failed to preload punchline image for joke ${joke.id}: $error\n$stackTrace');
+      });
+    }
   }
 
   @override

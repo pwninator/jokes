@@ -1,10 +1,10 @@
-# jokes
+# Snickerdoodle - A Jokes App
 
-A jokes app
+Snickerdoodle is a mobile application built with Flutter that allows users to browse, laugh at, and manage a collection of jokes. It features user authentication, joke submissions (admin-only), and personalized user settings.
 
 ## Getting Started
 
-This project is a starting point for a Flutter application.
+This project serves as a demonstration of building a Flutter application with a feature-first architecture and Riverpod for state management.
 
 A few resources to get you started if this is your first Flutter project:
 
@@ -15,6 +15,26 @@ For help getting started with Flutter development, view the
 [online documentation](https://docs.flutter.dev/), which offers tutorials,
 samples, guidance on mobile development, and a full API reference.
 
+## Tech Stack
+
+- **Flutter**: For building the cross-platform mobile application.
+- **Dart**: The programming language used for Flutter development.
+- **Riverpod**: For state management, providing a robust and scalable way to manage application state.
+- **Firebase**:
+    - **Firebase Auth**: For user authentication (Google Sign-In).
+    - **Cloud Firestore**: As the NoSQL database for storing joke data.
+    - **Cloud Functions**: For backend logic, such as admin-privileged actions.
+- **shared_preferences**: For storing simple key-value user settings locally on the device.
+- **http**: For making HTTP requests (e.g., to Cloud Functions).
+- **cached_network_image**: For displaying and caching network images.
+- **flutter_cache_manager**: For more advanced cache management.
+
+## Design Patterns & Architecture
+
+- **Feature-First Architecture**: The project is organized by features, promoting modularity and separation of concerns. Each feature (e.g., `auth`, `jokes`, `settings`) resides in its own directory within `lib/src/features/`.
+- **Riverpod for State Management**: Leverages Riverpod for dependency injection and state management. Providers are used to expose services, manage application state, and rebuild widgets efficiently.
+- **Repository Pattern**: While not explicitly enforced in all areas yet, the intention is to use repositories for abstracting data sources (e.g., Firestore, local cache). This can be seen in the `jokes` feature.
+- **Service Layer**: Application logic that isn't directly related to UI or data persistence is encapsulated in services (e.g., `SettingsService`, `ImageService`). These services are typically provided via Riverpod.
 
 ## Directory Structure
 

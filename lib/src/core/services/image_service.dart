@@ -1,5 +1,4 @@
 import 'package:flutter/foundation.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 
 class ImageService {
@@ -16,7 +15,7 @@ class ImageService {
     try {
       final uri = Uri.parse(url);
       if (!uri.hasAbsolutePath) return false;
-      
+
       // Check if it's a valid HTTP/HTTPS URL
       if (!uri.scheme.startsWith('http')) {
         return false;
@@ -24,11 +23,20 @@ class ImageService {
 
       // Check for common image extensions
       final path = uri.path.toLowerCase();
-      final imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.bmp'];
-      
+      final imageExtensions = [
+        '.jpg',
+        '.jpeg',
+        '.png',
+        '.gif',
+        '.webp',
+        '.bmp',
+      ];
+
       return imageExtensions.any((ext) => path.endsWith(ext)) ||
-             path.contains('image') || // For dynamic image URLs
-             uri.queryParameters.containsKey('format'); // For URLs with format query
+          path.contains('image') || // For dynamic image URLs
+          uri.queryParameters.containsKey(
+            'format',
+          ); // For URLs with format query
     } catch (e) {
       debugPrint('Invalid image URL: $url, Error: $e');
       return false;
@@ -37,7 +45,12 @@ class ImageService {
 
   /// Processes the image URL for optimization
   /// This can be extended to handle different image sizes, CDN optimization, etc.
-  String processImageUrl(String url, {int? width, int? height, String? quality}) {
+  String processImageUrl(
+    String url, {
+    int? width,
+    int? height,
+    String? quality,
+  }) {
     if (!isValidImageUrl(url)) {
       throw ArgumentError('Invalid image URL provided: $url');
     }
@@ -45,7 +58,7 @@ class ImageService {
     // For now, return the URL as-is
     // In the future, you could add logic to:
     // - Add query parameters for resizing
-    // - Transform URLs for CDN optimization  
+    // - Transform URLs for CDN optimization
     // - Add cache-busting parameters if needed
     return url;
   }
@@ -86,4 +99,4 @@ class ImageService {
       return {};
     }
   }
-} 
+}

@@ -27,7 +27,7 @@ class _JokeCreatorScreenState extends ConsumerState<JokeCreatorScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: const AppBarWidget(title: 'Joke Creator'),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Form(
           key: _formKey,
@@ -110,9 +110,7 @@ class _JokeCreatorScreenState extends ConsumerState<JokeCreatorScreen> {
                   style: Theme.of(context).textTheme.headlineSmall,
                 ),
                 const SizedBox(height: 12),
-                Expanded(
-                  child: _buildResultsSection(),
-                ),
+                _buildResultsSection(),
               ],
             ],
           ),
@@ -124,53 +122,51 @@ class _JokeCreatorScreenState extends ConsumerState<JokeCreatorScreen> {
   Widget _buildResultsSection() {
     if (_generationResult == null) return const SizedBox.shrink();
 
-    return SingleChildScrollView(
-      child: Card(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Success/Error indicator
-              Row(
-                children: [
-                  Icon(
-                    _generationResult!['success'] == true
-                        ? Icons.check_circle
-                        : Icons.error,
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Success/Error indicator
+            Row(
+              children: [
+                Icon(
+                  _generationResult!['success'] == true
+                      ? Icons.check_circle
+                      : Icons.error,
+                  color: _generationResult!['success'] == true
+                      ? Theme.of(context).appColors.success
+                      : Theme.of(context).appColors.authError,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  _generationResult!['success'] == true
+                      ? 'Generation Successful'
+                      : 'Generation Failed',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
                     color: _generationResult!['success'] == true
                         ? Theme.of(context).appColors.success
                         : Theme.of(context).appColors.authError,
                   ),
-                  const SizedBox(width: 8),
-                  Text(
-                    _generationResult!['success'] == true
-                        ? 'Generation Successful'
-                        : 'Generation Failed',
-                    style: TextStyle(
-                      fontWeight: FontWeight.bold,
-                      color: _generationResult!['success'] == true
-                          ? Theme.of(context).appColors.success
-                          : Theme.of(context).appColors.authError,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-
-              // Result content
-              if (_generationResult!['success'] == true) ...[
-                _buildSuccessContent(_generationResult!['data']),
-              ] else ...[
-                Text(
-                  'Error: ${_generationResult!['error'] ?? 'Unknown error occurred'}',
-                  style: TextStyle(
-                    color: Theme.of(context).appColors.authError,
-                  ),
                 ),
               ],
+            ),
+            const SizedBox(height: 12),
+
+            // Result content
+            if (_generationResult!['success'] == true) ...[
+              _buildSuccessContent(_generationResult!['data']),
+            ] else ...[
+              Text(
+                'Error: ${_generationResult!['error'] ?? 'Unknown error occurred'}',
+                style: TextStyle(
+                  color: Theme.of(context).appColors.authError,
+                ),
+              ),
             ],
-          ),
+          ],
         ),
       ),
     );

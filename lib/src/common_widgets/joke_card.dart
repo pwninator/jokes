@@ -9,6 +9,7 @@ class JokeCard extends StatelessWidget {
   final VoidCallback? onSetupTap;
   final VoidCallback? onPunchlineTap;
   final bool isAdminMode;
+  final List<Joke>? jokesToPreload;
 
   const JokeCard({
     super.key,
@@ -17,6 +18,7 @@ class JokeCard extends StatelessWidget {
     this.onSetupTap,
     this.onPunchlineTap,
     this.isAdminMode = false,
+    this.jokesToPreload,
   });
 
   @override

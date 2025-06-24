@@ -33,6 +33,7 @@ class CachedJokeImage extends ConsumerWidget {
     }
 
     final processedUrl = imageService.processImageUrl(imageUrl!);
+    debugPrint("Loading image (CachedJokeImage): $processedUrl");
 
     Widget imageWidget = CachedNetworkImage(
       imageUrl: processedUrl,

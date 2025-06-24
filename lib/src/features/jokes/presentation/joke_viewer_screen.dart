@@ -84,6 +84,14 @@ class _JokeViewerScreenState extends ConsumerState<JokeViewerScreen> {
                 },
                 itemBuilder: (context, index) {
                   final joke = jokes[index];
+                  final List<Joke> jokesToPreload = [];
+                  if (index + 1 < jokes.length) {
+                    jokesToPreload.add(jokes[index + 1]);
+                  }
+                  if (index + 2 < jokes.length) {
+                    jokesToPreload.add(jokes[index + 2]);
+                  }
+
                   return Center(
                     child: Padding(
                       padding: const EdgeInsets.all(16.0),
@@ -92,6 +100,7 @@ class _JokeViewerScreenState extends ConsumerState<JokeViewerScreen> {
                         index: index,
                         onPunchlineTap: () => _goToNextJoke(jokes.length),
                         isAdminMode: false,
+                        jokesToPreload: jokesToPreload,
                       ),
                     ),
                   );

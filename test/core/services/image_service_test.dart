@@ -201,5 +201,101 @@ void main() {
         expect(ImageService.maxCacheSize, equals(100 * 1024 * 1024)); // 100MB
       });
     });
+
+    group('Cloudflare URL optimization', () {
+      test(
+        'should optimize Cloudflare Images URL with webp format and quality',
+        () {
+          // arrange
+          const cloudflareUrl =
+              'https://images.quillsstorybook.com/cdn-cgi/image/width=1024,format=auto/pun_agent_image_20250623_014533_483036.png';
+
+          // act
+          final result = imageService.processImageUrl(cloudflareUrl);
+
+          // assert
+          expect(result, contains('format=webp'));
+          expect(result, contains('quality=85'));
+          expect(result, contains('width=1024'));
+        },
+      );
+
+      test('should handle Cloudflare URLs with custom quality', () {
+        // arrange
+        const cloudflareUrl =
+            'https://images.quillsstorybook.com/cdn-cgi/image/width=1024,format=auto/test.png';
+
+        // act
+        final result = imageService.processImageUrl(
+          cloudflareUrl,
+          quality: '70',
+        );
+
+        // assert
+        expect(result, contains('format=webp'));
+        expect(result, contains('quality=70'));
+      });
+
+      test('should add dimensions to Cloudflare URLs', () {
+        // arrange
+        const cloudflareUrl =
+            'https://images.quillsstorybook.com/cdn-cgi/image/format=auto/test.png';
+
+        // act
+        final result = imageService.processImageUrl(
+          cloudflareUrl,
+          width: 512,
+          height: 384,
+        );
+
+        // assert
+        expect(result, contains('width=512'));
+        expect(result, contains('height=384'));
+        expect(result, contains('format=webp'));
+      });
+
+      test('should return original URL if not Cloudflare Images', () {
+        // arrange
+        const regularUrl = 'https://example.com/image.jpg';
+
+        // act
+        final result = imageService.processImageUrl(regularUrl);
+
+        // assert
+        expect(result, equals(regularUrl));
+      });
+    });
+
+    group('getThumbnailUrl with quality', () {
+      test('should return Cloudflare URL with thumbnail size and quality', () {
+        // arrange
+        const cloudflareUrl =
+            'https://images.quillsstorybook.com/cdn-cgi/image/width=1024,format=auto/test.png';
+
+        // act
+        final result = imageService.getThumbnailUrl(cloudflareUrl, size: 200);
+
+        // assert
+        expect(result, contains('width=200'));
+        expect(result, contains('height=200'));
+        expect(result, contains('quality=75'));
+        expect(result, contains('format=webp'));
+      });
+    });
+
+    group('getFullSizeUrl with quality', () {
+      test('should return Cloudflare URL with quality optimization', () {
+        // arrange
+        const cloudflareUrl =
+            'https://images.quillsstorybook.com/cdn-cgi/image/width=1024,format=auto/test.png';
+
+        // act
+        final result = imageService.getFullSizeUrl(cloudflareUrl);
+
+        // assert
+        expect(result, contains('quality=85'));
+        expect(result, contains('format=webp'));
+      });
+    });
   });
 }

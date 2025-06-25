@@ -1,6 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:snickerdoodle/src/core/providers/image_providers.dart';
 
 class CachedJokeImage extends ConsumerWidget {
@@ -33,13 +34,16 @@ class CachedJokeImage extends ConsumerWidget {
     }
 
     final processedUrl = imageService.processImageUrl(imageUrl!);
-    debugPrint("Loading image (CachedJokeImage): $processedUrl");
 
     Widget imageWidget = CachedNetworkImage(
       imageUrl: processedUrl,
       width: width,
       height: height,
       fit: fit,
+      httpHeaders: const {
+        'Accept': 'image/webp,image/avif,image/apng,image/*,*/*;q=0.8',
+        'Accept-Encoding': 'gzip, deflate, br',
+      },
       placeholder:
           showLoadingIndicator
               ? (context, url) => _buildLoadingWidget(context)
@@ -52,12 +56,30 @@ class CachedJokeImage extends ConsumerWidget {
       fadeOutDuration: const Duration(milliseconds: 100),
     );
 
+    // Log image info with size
+    _logImageInfo(processedUrl);
+
     // Apply border radius if specified
     if (borderRadius != null) {
       imageWidget = ClipRRect(borderRadius: borderRadius!, child: imageWidget);
     }
 
     return imageWidget;
+  }
+
+  void _logImageInfo(String url) async {
+    try {
+      final fileInfo = await DefaultCacheManager().getFileFromCache(url);
+      if (fileInfo != null) {
+        final sizeInBytes = await fileInfo.file.length();
+        final sizeInKB = (sizeInBytes / 1024).toStringAsFixed(1);
+        debugPrint("Loading image (CachedJokeImage): $url (${sizeInKB}KB)");
+      } else {
+        debugPrint("Loading image (CachedJokeImage): $url (size unknown - not cached)");
+      }
+    } catch (e) {
+      debugPrint("Loading image (CachedJokeImage): $url (size error: $e)");
+    }
   }
 
   Widget _buildLoadingWidget(BuildContext context) {

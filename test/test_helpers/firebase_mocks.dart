@@ -1,14 +1,15 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:mockito/annotations.dart';
-import 'package:mockito/mockito.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:snickerdoodle/src/core/providers/image_providers.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
 import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
 
-// Generate mocks for Firebase services
-@GenerateMocks([JokeCloudFunctionService, ImageService])
-import 'firebase_mocks.mocks.dart';
+// Mock classes using mocktail
+class MockJokeCloudFunctionService extends Mock
+    implements JokeCloudFunctionService {}
+
+class MockImageService extends Mock implements ImageService {}
 
 /// Common Firebase service mocks for all unit tests
 class FirebaseMocks {
@@ -63,31 +64,31 @@ class FirebaseMocks {
   ) {
     // Setup default behaviors that won't throw
     when(
-      mock.createJoke(
-        setupText: anyNamed('setupText'),
-        punchlineText: anyNamed('punchlineText'),
-        setupImageUrl: anyNamed('setupImageUrl'),
-        punchlineImageUrl: anyNamed('punchlineImageUrl'),
+      () => mock.createJoke(
+        setupText: any(named: 'setupText'),
+        punchlineText: any(named: 'punchlineText'),
+        setupImageUrl: any(named: 'setupImageUrl'),
+        punchlineImageUrl: any(named: 'punchlineImageUrl'),
       ),
     ).thenAnswer((_) async => true);
 
     when(
-      mock.createJokeWithResponse(
-        setupText: anyNamed('setupText'),
-        punchlineText: anyNamed('punchlineText'),
-        setupImageUrl: anyNamed('setupImageUrl'),
-        punchlineImageUrl: anyNamed('punchlineImageUrl'),
+      () => mock.createJokeWithResponse(
+        setupText: any(named: 'setupText'),
+        punchlineText: any(named: 'punchlineText'),
+        setupImageUrl: any(named: 'setupImageUrl'),
+        punchlineImageUrl: any(named: 'punchlineImageUrl'),
       ),
     ).thenAnswer((_) async => {'success': true, 'joke_id': 'test-id'});
 
     when(
-      mock.populateJoke(any),
+      () => mock.populateJoke(any()),
     ).thenAnswer((_) async => {'success': true, 'data': 'populated'});
 
     when(
-      mock.critiqueJokes(
-        instructions: anyNamed('instructions'),
-        additionalParameters: anyNamed('additionalParameters'),
+      () => mock.critiqueJokes(
+        instructions: any(named: 'instructions'),
+        additionalParameters: any(named: 'additionalParameters'),
       ),
     ).thenAnswer(
       (_) async => {
@@ -99,20 +100,20 @@ class FirebaseMocks {
 
   static void _setupImageServiceDefaults(MockImageService mock) {
     // Setup default behaviors that won't throw
-    when(mock.isValidImageUrl(any)).thenReturn(true);
-    when(mock.processImageUrl(any)).thenAnswer((invocation) {
+    when(() => mock.isValidImageUrl(any())).thenReturn(true);
+    when(() => mock.processImageUrl(any())).thenAnswer((invocation) {
       final url = invocation.positionalArguments[0] as String?;
       return url ?? 'https://example.com/default.jpg';
     });
-    when(mock.getThumbnailUrl(any)).thenAnswer((invocation) {
+    when(() => mock.getThumbnailUrl(any())).thenAnswer((invocation) {
       final url = invocation.positionalArguments[0] as String?;
       return url ?? 'https://example.com/default-thumb.jpg';
     });
-    when(mock.getFullSizeUrl(any)).thenAnswer((invocation) {
+    when(() => mock.getFullSizeUrl(any())).thenAnswer((invocation) {
       final url = invocation.positionalArguments[0] as String?;
       return url ?? 'https://example.com/default-full.jpg';
     });
-    when(mock.clearCache()).thenAnswer((_) async {});
+    when(() => mock.clearCache()).thenAnswer((_) async {});
   }
 }
 

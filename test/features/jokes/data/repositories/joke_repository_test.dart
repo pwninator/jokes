@@ -1,112 +1,135 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
-import 'package:mockito/mockito.dart';
-import 'package:mockito/annotations.dart';
 
-// Generate mocks for Firestore classes
-@GenerateMocks([
-  FirebaseFirestore,
-  CollectionReference,
-  Query,
-  QuerySnapshot,
-  QueryDocumentSnapshot,
-  DocumentChange,
-], customMocks: [
-  // Mocking QueryDocumentSnapshot specifically to handle data() and id
-  MockSpec<QueryDocumentSnapshot<Map<String, dynamic>>>(
-      as: #MockMapQueryDocumentSnapshot), // Removed returnNullOnMissingStub
-])
-import 'joke_repository_test.mocks.dart'; // Import generated mocks
+// Mock classes using mocktail
+class MockFirebaseFirestore extends Mock implements FirebaseFirestore {}
+
+class MockCollectionReference extends Mock
+    implements CollectionReference<Map<String, dynamic>> {}
+
+class MockQuery extends Mock implements Query<Map<String, dynamic>> {}
+
+class MockQuerySnapshot extends Mock
+    implements QuerySnapshot<Map<String, dynamic>> {}
+
+class MockDocumentSnapshot extends Mock
+    implements QueryDocumentSnapshot<Map<String, dynamic>> {}
 
 void main() {
-  late JokeRepository repository;
-  late MockFirebaseFirestore mockFirestore;
-  late MockCollectionReference<Map<String, dynamic>> mockCollectionReference;
-  late MockQuery<Map<String, dynamic>> mockQuery;
-  late MockQuerySnapshot<Map<String, dynamic>> mockQuerySnapshot;
-
-  setUp(() {
-    mockFirestore = MockFirebaseFirestore();
-    mockCollectionReference = MockCollectionReference<Map<String, dynamic>>();
-    mockQuery = MockQuery<Map<String, dynamic>>();
-    mockQuerySnapshot = MockQuerySnapshot<Map<String, dynamic>>();
-
-    // Setup default stub for collection()
-    when(mockFirestore.collection(any)).thenReturn(mockCollectionReference);
-    // Setup stub for orderBy() to return mockQuery
-    when(mockCollectionReference.orderBy(any, descending: anyNamed('descending')))
-        .thenReturn(mockQuery);
-    // Setup default stub for snapshots() on the ordered query
-    when(mockQuery.snapshots()).thenAnswer((_) => Stream.value(mockQuerySnapshot));
-
-    repository = JokeRepository(mockFirestore);
-  });
-
-  const tJoke1 = Joke(id: '1', setupText: 'Setup 1', punchlineText: 'Punchline 1');
-  final tJoke1Map = {'setup_text': 'Setup 1', 'punchline_text': 'Punchline 1'}; // snake_case keys
-  const tJoke2 = Joke(id: '2', setupText: 'Setup 2', punchlineText: 'Punchline 2');
-  final tJoke2Map = {'setup_text': 'Setup 2', 'punchline_text': 'Punchline 2'}; // snake_case keys
-
-
-  MockMapQueryDocumentSnapshot createMockDoc(Map<String, dynamic> data, String id) { // Removed generic type
-    final mockDoc = MockMapQueryDocumentSnapshot(); // Removed generic type
-    when(mockDoc.data()).thenReturn(data);
-    when(mockDoc.id).thenReturn(id);
-    return mockDoc;
-  }
-
   group('JokeRepository', () {
-    test('should call firestore.collection with "jokes"', () async {
-      // arrange
-      when(mockQuerySnapshot.docs).thenReturn([]); // Empty list of docs
-      // act
-      repository.getJokes();
-      // assert
-      verify(mockFirestore.collection('jokes')).called(1);
-      verify(mockCollectionReference.orderBy('creation_time', descending: true)).called(1);
+    late JokeRepository repository;
+    late MockFirebaseFirestore mockFirestore;
+    late MockCollectionReference mockCollectionReference;
+    late MockQuery mockQuery;
+    late MockQuerySnapshot mockQuerySnapshot;
+
+    setUp(() {
+      mockFirestore = MockFirebaseFirestore();
+      mockCollectionReference = MockCollectionReference();
+      mockQuery = MockQuery();
+      mockQuerySnapshot = MockQuerySnapshot();
+      repository = JokeRepository(mockFirestore);
+
+      // Set up the default behavior for the collection and query chain
+      when(
+        () => mockFirestore.collection(any()),
+      ).thenReturn(mockCollectionReference);
+      when(
+        () => mockCollectionReference.orderBy(
+          any(),
+          descending: any(named: 'descending'),
+        ),
+      ).thenReturn(mockQuery);
+      when(
+        () => mockQuery.snapshots(),
+      ).thenAnswer((_) => Stream.value(mockQuerySnapshot));
     });
 
-    test('getJokes should return a stream of list of jokes when Firestore returns data', () async {
-      // arrange
-      final mockDoc1 = createMockDoc(tJoke1Map, '1');
-      final mockDoc2 = createMockDoc(tJoke2Map, '2');
+    group('getJokes', () {
+      test(
+        'should return stream of jokes when collection is not empty',
+        () async {
+          // Create mock documents
+          final mockDoc1 = MockDocumentSnapshot();
+          final mockDoc2 = MockDocumentSnapshot();
 
-      when(mockQuerySnapshot.docs).thenReturn([mockDoc1, mockDoc2]);
+          final joke1Data = {
+            'setup_text': 'Setup 1',
+            'punchline_text': 'Punchline 1',
+            'setup_image_url': 'https://example.com/setup1.jpg',
+            'punchline_image_url': 'https://example.com/punchline1.jpg',
+          };
 
-      // act
-      final resultStream = repository.getJokes();
+          final joke2Data = {
+            'setup_text': 'Setup 2',
+            'punchline_text': 'Punchline 2',
+            'setup_image_url': 'https://example.com/setup2.jpg',
+            'punchline_image_url': 'https://example.com/punchline2.jpg',
+          };
 
-      // assert
-      expect(resultStream, emits([tJoke1, tJoke2]));
-      // Verify that orderBy and snapshots() were called
-      verify(mockCollectionReference.orderBy('creation_time', descending: true)).called(1);
-      verify(mockQuery.snapshots()).called(1);
-    });
+          when(() => mockDoc1.data()).thenReturn(joke1Data);
+          when(() => mockDoc1.id).thenReturn('1');
+          when(() => mockDoc2.data()).thenReturn(joke2Data);
+          when(() => mockDoc2.id).thenReturn('2');
 
-    test('getJokes should return a stream of an empty list when Firestore returns no data', () async {
-      // arrange
-      when(mockQuerySnapshot.docs).thenReturn([]);
+          when(() => mockQuerySnapshot.docs).thenReturn([mockDoc1, mockDoc2]);
 
-      // act
-      final resultStream = repository.getJokes();
+          final jokesStream = repository.getJokes();
+          final jokes = await jokesStream.first;
 
-      // assert
-      expect(resultStream, emits([]));
-      verify(mockCollectionReference.orderBy('creation_time', descending: true)).called(1);
-      verify(mockQuery.snapshots()).called(1);
-    });
+          expect(jokes, hasLength(2));
+          expect(jokes[0].id, '1');
+          expect(jokes[0].setupText, 'Setup 1');
+          expect(jokes[1].id, '2');
+          expect(jokes[1].setupText, 'Setup 2');
 
-    test('getJokes should map Firestore exceptions to stream error', () {
-      // arrange
-      when(mockQuery.snapshots()).thenAnswer((_) => Stream.error(FirebaseException(plugin: 'firestore', message: 'Test error')));
+          verify(() => mockFirestore.collection('jokes')).called(1);
+          verify(
+            () => mockCollectionReference.orderBy(
+              'creation_time',
+              descending: true,
+            ),
+          ).called(1);
+          verify(() => mockQuery.snapshots()).called(1);
+        },
+      );
 
-      // act
-      final resultStream = repository.getJokes();
+      test('should return empty stream when collection is empty', () async {
+        when(() => mockQuerySnapshot.docs).thenReturn([]); // Empty list of docs
 
-      // assert
-      expect(resultStream, emitsError(isA<FirebaseException>()));
+        final jokesStream = repository.getJokes();
+        final jokes = await jokesStream.first;
+
+        expect(jokes, isEmpty);
+        verify(
+          () => mockCollectionReference.orderBy(
+            'creation_time',
+            descending: true,
+          ),
+        ).called(1);
+        verify(() => mockQuery.snapshots()).called(1);
+      });
+
+      test('should handle FirebaseException', () async {
+        when(() => mockQuery.snapshots()).thenAnswer(
+          (_) => Stream.error(
+            FirebaseException(plugin: 'firestore', message: 'Test error'),
+          ),
+        );
+
+        final jokesStream = repository.getJokes();
+
+        expect(jokesStream, emitsError(isA<FirebaseException>()));
+        verify(
+          () => mockCollectionReference.orderBy(
+            'creation_time',
+            descending: true,
+          ),
+        ).called(1);
+        verify(() => mockQuery.snapshots()).called(1);
+      });
     });
   });
 }

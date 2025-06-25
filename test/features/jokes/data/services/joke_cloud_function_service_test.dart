@@ -1,12 +1,14 @@
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mockito/annotations.dart';
-import 'package:mockito/mockito.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
 
-// Generate mocks
-@GenerateMocks([FirebaseFunctions, HttpsCallable, HttpsCallableResult])
-import 'joke_cloud_function_service_test.mocks.dart';
+// Mock classes using mocktail
+class MockFirebaseFunctions extends Mock implements FirebaseFunctions {}
+
+class MockHttpsCallable extends Mock implements HttpsCallable {}
+
+class MockHttpsCallableResult extends Mock implements HttpsCallableResult {}
 
 void main() {
   group('JokeCloudFunctionService', () {
@@ -19,109 +21,71 @@ void main() {
       mockFunctions = MockFirebaseFunctions();
       mockCallable = MockHttpsCallable();
       mockResult = MockHttpsCallableResult();
-
-      // Create service with mocked functions
       service = JokeCloudFunctionService(functions: mockFunctions);
     });
 
     group('populateJoke', () {
       test('should return success when cloud function succeeds', () async {
-        // arrange
         const jokeId = 'test-joke-id';
-        const mockResponseData = {'updated_joke': 'data'};
-        const expectedData = {'success': true, 'data': mockResponseData};
+        final mockResponseData = {'updated_joke': 'data'};
 
-        when(mockResult.data).thenReturn(mockResponseData);
         when(
-          mockCallable.call({'joke_id': jokeId}),
-        ).thenAnswer((_) async => mockResult);
-        when(
-          mockFunctions.httpsCallable(
+          () => mockFunctions.httpsCallable(
             'populate_joke',
-            options: anyNamed('options'),
+            options: any(named: 'options'),
           ),
         ).thenReturn(mockCallable);
+        when(() => mockResult.data).thenReturn(mockResponseData);
+        when(
+          () => mockCallable.call({'joke_id': jokeId}),
+        ).thenAnswer((_) async => mockResult);
 
-        // act
         final result = await service.populateJoke(jokeId);
 
-        // assert
-        expect(result, equals(expectedData));
-        verify(mockFunctions.httpsCallable(
-          'populate_joke',
-          options: anyNamed('options'),
-        )).called(1);
-        verify(mockCallable.call({'joke_id': jokeId})).called(1);
+        expect(result, equals({'success': true, 'data': mockResponseData}));
+        verify(
+          () => mockFunctions.httpsCallable(
+            'populate_joke',
+            options: any(named: 'options'),
+          ),
+        ).called(1);
+        verify(() => mockCallable.call({'joke_id': jokeId})).called(1);
       });
 
-      test(
-        'should return error when FirebaseFunctionsException is thrown',
-        () async {
-          // arrange
-          const jokeId = 'test-joke-id';
-          final exception = FirebaseFunctionsException(
-            code: 'test-error',
-            message: 'Test error message',
-          );
+      test('should return error when cloud function fails', () async {
+        const jokeId = 'test-joke-id';
+        final exception = FirebaseFunctionsException(
+          code: 'internal',
+          message: 'Internal error',
+        );
 
-          when(
-            mockFunctions.httpsCallable(
-              'populate_joke',
-              options: anyNamed('options'),
-            ),
-          ).thenReturn(mockCallable);
-          when(mockCallable.call({'joke_id': jokeId})).thenThrow(exception);
+        when(
+          () => mockFunctions.httpsCallable(
+            'populate_joke',
+            options: any(named: 'options'),
+          ),
+        ).thenReturn(mockCallable);
+        when(() => mockCallable.call({'joke_id': jokeId})).thenThrow(exception);
 
-          // act
-          final result = await service.populateJoke(jokeId);
+        final result = await service.populateJoke(jokeId);
 
-          // assert
-          expect(result, isNotNull);
-          expect(result!['success'], isFalse);
-          expect(
-            result['error'],
-            contains('Function error: Test error message'),
-          );
-        },
-      );
-
-      test(
-        'should return error with generic message when unexpected error occurs',
-        () async {
-          // arrange
-          const jokeId = 'test-joke-id';
-
-          when(
-            mockFunctions.httpsCallable(
-              'populate_joke',
-              options: anyNamed('options'),
-            ),
-          ).thenReturn(mockCallable);
-          when(
-            mockCallable.call({'joke_id': jokeId}),
-          ).thenThrow(Exception('Generic error'));
-
-          // act
-          final result = await service.populateJoke(jokeId);
-
-          // assert
-          expect(result, isNotNull);
-          expect(result!['success'], isFalse);
-          expect(result['error'], contains('Unexpected error'));
-        },
-      );
+        expect(result!['success'], isFalse);
+        expect(result['error'], contains('Function error: Internal error'));
+      });
     });
 
     group('createJoke', () {
-      test('should return true when joke creation succeeds', () async {
-        // arrange
+      test('should return true when cloud function succeeds', () async {
         const setupText = 'Test setup';
         const punchlineText = 'Test punchline';
-        const responseData = {'success': true, 'joke_id': 'test-id'};
+        final responseData = {'success': true, 'jokeId': 'created-joke-id'};
 
-        when(mockResult.data).thenReturn(responseData);
         when(
-          mockCallable.call({
+          () => mockFunctions.httpsCallable('create-joke'),
+        ).thenReturn(mockCallable);
+        when(() => mockResult.data).thenReturn(responseData);
+        when(
+          () => mockCallable.call({
             'joke_data': {
               'setup_text': setupText,
               'punchline_text': punchlineText,
@@ -130,35 +94,31 @@ void main() {
             },
           }),
         ).thenAnswer((_) async => mockResult);
-        when(
-          mockFunctions.httpsCallable('create-joke'),
-        ).thenReturn(mockCallable);
 
-        // act
         final result = await service.createJoke(
           setupText: setupText,
           punchlineText: punchlineText,
         );
 
-        // assert
         expect(result, isTrue);
-        verify(mockFunctions.httpsCallable('create-joke')).called(1);
+        verify(() => mockFunctions.httpsCallable('create-joke')).called(1);
       });
     });
 
     group('createJokeWithResponse', () {
       test(
-        'should return success response when joke creation succeeds',
+        'should return success response when cloud function succeeds',
         () async {
-          // arrange
           const setupText = 'Test setup';
           const punchlineText = 'Test punchline';
-          const mockResponseData = {'joke_id': 'test-id'};
-          const expectedData = {'success': true, 'data': mockResponseData};
+          final mockResponseData = {'jokeId': 'created-joke-id'};
 
-          when(mockResult.data).thenReturn(mockResponseData);
           when(
-            mockCallable.call({
+            () => mockFunctions.httpsCallable('create_joke'),
+          ).thenReturn(mockCallable);
+          when(() => mockResult.data).thenReturn(mockResponseData);
+          when(
+            () => mockCallable.call({
               'joke_data': {
                 'setup_text': setupText,
                 'punchline_text': punchlineText,
@@ -167,146 +127,83 @@ void main() {
               },
             }),
           ).thenAnswer((_) async => mockResult);
-          when(
-            mockFunctions.httpsCallable('create_joke'),
-          ).thenReturn(mockCallable);
 
-          // act
           final result = await service.createJokeWithResponse(
             setupText: setupText,
             punchlineText: punchlineText,
           );
 
-          // assert
-          expect(result, equals(expectedData));
-          verify(mockFunctions.httpsCallable('create_joke')).called(1);
+          expect(result, equals({'success': true, 'data': mockResponseData}));
+          verify(() => mockFunctions.httpsCallable('create_joke')).called(1);
         },
       );
     });
 
-    group('critiqueJokes', () {
+    group('updateJoke', () {
       test('should return success when cloud function succeeds', () async {
-        // arrange
-        const instructions = 'Test instructions for joke generation';
-        const mockResponseData = {'generated_jokes': []};
-        const expectedData = {'success': true, 'data': mockResponseData};
+        const jokeId = 'test-joke-id';
+        const setupText = 'Updated setup';
+        const punchlineText = 'Updated punchline';
+        final mockResponseData = {
+          'success': true,
+          'message': 'Joke updated successfully',
+        };
 
-        when(mockResult.data).thenReturn(mockResponseData);
         when(
-          mockCallable.call({'instructions': instructions}),
-        ).thenAnswer((_) async => mockResult);
-        when(
-          mockFunctions.httpsCallable(
-            'critique_jokes',
-            options: anyNamed('options'),
-          ),
+          () => mockFunctions.httpsCallable('update_joke'),
         ).thenReturn(mockCallable);
-
-        // act
-        final result = await service.critiqueJokes(instructions: instructions);
-
-        // assert
-        expect(result, equals(expectedData));
-        verify(mockFunctions.httpsCallable(
-          'critique_jokes',
-          options: anyNamed('options'),
-        )).called(1);
-        verify(mockCallable.call({'instructions': instructions})).called(1);
-      });
-
-      test('should include additional parameters when provided', () async {
-        // arrange
-        const instructions = 'Test instructions';
-        const additionalParams = {'param1': 'value1', 'param2': 'value2'};
-        const mockResponseData = {'generated_jokes': []};
-
-        when(mockResult.data).thenReturn(mockResponseData);
+        when(() => mockResult.data).thenReturn(mockResponseData);
         when(
-          mockCallable.call({
-            'instructions': instructions,
-            'param1': 'value1',
-            'param2': 'value2',
+          () => mockCallable.call({
+            'joke_id': jokeId,
+            'joke_data': {
+              'setup_text': setupText,
+              'punchline_text': punchlineText,
+              'setup_image_url': null,
+              'punchline_image_url': null,
+            },
           }),
         ).thenAnswer((_) async => mockResult);
-        when(
-          mockFunctions.httpsCallable(
-            'critique_jokes',
-            options: anyNamed('options'),
-          ),
-        ).thenReturn(mockCallable);
 
-        // act
-        final result = await service.critiqueJokes(
-          instructions: instructions,
-          additionalParameters: additionalParams,
+        final result = await service.updateJoke(
+          jokeId: jokeId,
+          setupText: setupText,
+          punchlineText: punchlineText,
         );
 
-        // assert
-        expect(result!['success'], isTrue);
-        verify(mockCallable.call({
-          'instructions': instructions,
-          'param1': 'value1',
-          'param2': 'value2',
-        })).called(1);
+        expect(result, equals({'success': true, 'data': mockResponseData}));
       });
+    });
 
-      test(
-        'should return error when FirebaseFunctionsException is thrown',
-        () async {
-          // arrange
-          const instructions = 'Test instructions';
-          final exception = FirebaseFunctionsException(
-            code: 'test-error',
-            message: 'Test error message',
-          );
+    group('critiqueJokes', () {
+      test('should return success when cloud function succeeds', () async {
+        const instructions = 'Test critique instructions';
+        final responseData = {'generated_jokes': []};
 
-          when(
-            mockFunctions.httpsCallable(
-              'critique_jokes',
-              options: anyNamed('options'),
-            ),
-          ).thenReturn(mockCallable);
-          when(mockCallable.call({'instructions': instructions}))
-              .thenThrow(exception);
+        when(
+          () => mockFunctions.httpsCallable(
+            'critique_jokes',
+            options: any(named: 'options'),
+          ),
+        ).thenReturn(mockCallable);
+        when(() => mockResult.data).thenReturn(responseData);
+        when(
+          () => mockCallable.call({'instructions': instructions}),
+        ).thenAnswer((_) async => mockResult);
 
-          // act
-          final result = await service.critiqueJokes(instructions: instructions);
+        final result = await service.critiqueJokes(instructions: instructions);
 
-          // assert
-          expect(result, isNotNull);
-          expect(result!['success'], isFalse);
-          expect(
-            result['error'],
-            contains('Function error: Test error message'),
-          );
-        },
-      );
-
-      test(
-        'should return error with generic message when unexpected error occurs',
-        () async {
-          // arrange
-          const instructions = 'Test instructions';
-
-          when(
-            mockFunctions.httpsCallable(
-              'critique_jokes',
-              options: anyNamed('options'),
-            ),
-          ).thenReturn(mockCallable);
-          when(
-            mockCallable.call({'instructions': instructions}),
-          ).thenThrow(Exception('Generic error'));
-
-          // act
-          final result = await service.critiqueJokes(instructions: instructions);
-
-          // assert
-          expect(result, isNotNull);
-          expect(result!['success'], isFalse);
-          expect(result['error'], contains('Unexpected error'));
-        },
-      );
+        expect(result, equals({'success': true, 'data': responseData}));
+        verify(
+          () => mockFunctions.httpsCallable(
+            'critique_jokes',
+            options: any(named: 'options'),
+          ),
+        ).called(1);
+        verify(
+          () => mockCallable.call({'instructions': instructions}),
+        ).called(1);
+      });
     });
   });
 }

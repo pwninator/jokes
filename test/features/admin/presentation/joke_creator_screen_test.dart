@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mockito/mockito.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_creator_screen.dart';
 
@@ -112,7 +112,7 @@ void main() {
 
           final mockService = FirebaseMocks.mockCloudFunctionService;
           when(
-            mockService.critiqueJokes(instructions: instructions),
+            () => mockService.critiqueJokes(instructions: instructions),
           ).thenAnswer(
             (_) async => {
               'success': true,
@@ -131,7 +131,7 @@ void main() {
 
           // Verify cloud function was called
           verify(
-            mockService.critiqueJokes(instructions: instructions),
+            () => mockService.critiqueJokes(instructions: instructions),
           ).called(1);
         },
       );
@@ -151,7 +151,7 @@ void main() {
 
           final mockService = FirebaseMocks.mockCloudFunctionService;
           when(
-            mockService.critiqueJokes(instructions: instructions),
+            () => mockService.critiqueJokes(instructions: instructions),
           ).thenAnswer((_) async => {'success': true, 'data': mockData});
 
           await tester.pumpWidget(createTestWidget());
@@ -186,7 +186,9 @@ void main() {
 
         final mockService = FirebaseMocks.mockCloudFunctionService;
         // First successful generation
-        when(mockService.critiqueJokes(instructions: instructions)).thenAnswer(
+        when(
+          () => mockService.critiqueJokes(instructions: instructions),
+        ).thenAnswer(
           (_) async => {
             'success': true,
             'data': {'first': 'result'},
@@ -202,7 +204,9 @@ void main() {
         expect(find.text('Generation Results:'), findsOneWidget);
 
         // Second generation with different result
-        when(mockService.critiqueJokes(instructions: instructions)).thenAnswer(
+        when(
+          () => mockService.critiqueJokes(instructions: instructions),
+        ).thenAnswer(
           (_) async => {
             'success': true,
             'data': {'second': 'result'},

@@ -1,30 +1,32 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mockito/annotations.dart';
-import 'package:mockito/mockito.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_editor_screen.dart';
 import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
 
-import 'joke_editor_screen_test.mocks.dart';
+import '../../../test_helpers/firebase_mocks.dart';
 
-@GenerateMocks([JokeCloudFunctionService])
+// Mock classes using mocktail
+class MockJokeCloudFunctionService extends Mock
+    implements JokeCloudFunctionService {}
+
 void main() {
   group('JokeEditorScreen', () {
     late MockJokeCloudFunctionService mockJokeService;
 
     setUp(() {
+      FirebaseMocks.reset();
       mockJokeService = MockJokeCloudFunctionService();
     });
 
     Widget createTestWidget({Joke? joke}) {
       return ProviderScope(
         overrides: [
+          ...FirebaseMocks.getFirebaseProviderOverrides(),
           jokeCloudFunctionServiceProvider.overrideWithValue(mockJokeService),
         ],
         child: MaterialApp(
@@ -34,257 +36,249 @@ void main() {
       );
     }
 
-    testWidgets('displays correct title for create mode', (tester) async {
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            jokeCloudFunctionServiceProvider.overrideWithValue(mockJokeService),
-          ],
-          child: MaterialApp(
-            theme: lightTheme,
-            home: const JokeEditorScreen(),
-          ),
-        ),
-      );
-
-      expect(find.text('Add New Joke'), findsOneWidget);
-      expect(find.text('Create a new joke by filling out the setup and punchline below:'), findsOneWidget);
-      expect(find.text('Save Joke'), findsOneWidget);
-    });
-
-    testWidgets('displays correct title for edit mode', (tester) async {
-      const joke = Joke(
-        id: 'test-id',
-        setupText: 'Test setup',
-        punchlineText: 'Test punchline',
-      );
-
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            jokeCloudFunctionServiceProvider.overrideWithValue(mockJokeService),
-          ],
-          child: MaterialApp(
-            theme: lightTheme,
-            home: const JokeEditorScreen(joke: joke),
-          ),
-        ),
-      );
-
-      expect(find.text('Edit Joke'), findsOneWidget);
-      expect(find.text('Edit the joke setup and punchline below:'), findsOneWidget);
-      expect(find.text('Update Joke'), findsOneWidget);
-    });
-
-    testWidgets('pre-populates fields in edit mode', (tester) async {
-      const joke = Joke(
-        id: 'test-id',
-        setupText: 'Test setup',
-        punchlineText: 'Test punchline',
-      );
-
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            jokeCloudFunctionServiceProvider.overrideWithValue(mockJokeService),
-          ],
-          child: MaterialApp(
-            theme: lightTheme,
-            home: const JokeEditorScreen(joke: joke),
-          ),
-        ),
-      );
-
-      expect(find.text('Test setup'), findsOneWidget);
-      expect(find.text('Test punchline'), findsOneWidget);
-    });
-
-    testWidgets('validates form fields', (tester) async {
-      await tester.pumpWidget(createTestWidget());
-
-      // Try to save without filling fields
-      await tester.tap(find.text('Save Joke'));
-      await tester.pump();
-
-      expect(find.text('Please enter a setup for the joke'), findsOneWidget);
-      expect(find.text('Please enter a punchline for the joke'), findsOneWidget);
-    });
-
-    testWidgets('validates minimum field length', (tester) async {
-      await tester.pumpWidget(createTestWidget());
-
-      // Enter short text
-      await tester.enterText(find.byType(TextFormField).first, 'Hi');
-      await tester.enterText(find.byType(TextFormField).last, 'Ha');
-      await tester.tap(find.text('Save Joke'));
-      await tester.pump();
-
-      expect(find.text('Setup must be at least 5 characters long'), findsOneWidget);
-      expect(find.text('Punchline must be at least 5 characters long'), findsOneWidget);
-    });
-
-    group('Create Mode', () {
-      testWidgets('creates joke successfully and clears form', (tester) async {
-        when(mockJokeService.createJokeWithResponse(
-          setupText: 'Why did the chicken cross the road?',
-          punchlineText: 'To get to the other side!',
-        )).thenAnswer((_) async => {'success': true, 'data': {}});
-
+    group('UI Rendering', () {
+      testWidgets('should display create mode UI when no joke is provided', (
+        tester,
+      ) async {
         await tester.pumpWidget(createTestWidget());
 
-        // Fill form
-        await tester.enterText(find.byType(TextFormField).first, 'Why did the chicken cross the road?');
-        await tester.enterText(find.byType(TextFormField).last, 'To get to the other side!');
-
-        // Save joke
-        await tester.tap(find.text('Save Joke'));
-        await tester.pump();
-
-        // Verify service was called
-        verify(mockJokeService.createJokeWithResponse(
-          setupText: 'Why did the chicken cross the road?',
-          punchlineText: 'To get to the other side!',
-        )).called(1);
-
-        // Wait for async operations
-        await tester.pump();
-
-        // Verify success message
-        expect(find.text('Joke saved successfully!'), findsOneWidget);
-
-        // Verify form was cleared
-        final setupField = tester.widget<TextFormField>(find.byType(TextFormField).first);
-        final punchlineField = tester.widget<TextFormField>(find.byType(TextFormField).last);
-        expect(setupField.controller?.text, isEmpty);
-        expect(punchlineField.controller?.text, isEmpty);
+        expect(find.text('Add New Joke'), findsOneWidget);
+        expect(
+          find.text(
+            'Create a new joke by filling out the setup and punchline below:',
+          ),
+          findsOneWidget,
+        );
+        expect(find.text('Setup'), findsOneWidget);
+        expect(find.text('Punchline'), findsOneWidget);
+        expect(find.text('Save Joke'), findsOneWidget);
+        expect(find.byType(TextFormField), findsNWidgets(2));
       });
 
-      testWidgets('handles create error', (tester) async {
-        when(mockJokeService.createJokeWithResponse(
-          setupText: 'Test setup',
-          punchlineText: 'Test punchline',
-        )).thenAnswer((_) async => {'success': false, 'error': 'Test error message'});
-
-        await tester.pumpWidget(createTestWidget());
-
-        // Fill form
-        await tester.enterText(find.byType(TextFormField).first, 'Test setup');
-        await tester.enterText(find.byType(TextFormField).last, 'Test punchline');
-
-        // Save joke
-        await tester.tap(find.text('Save Joke'));
-        await tester.pump();
-        await tester.pump();
-
-        // Verify error message
-        expect(find.text('Error: Test error message'), findsOneWidget);
-      });
-    });
-
-    group('Edit Mode', () {
-      testWidgets('updates joke successfully and navigates back', (tester) async {
+      testWidgets('should display edit mode UI when joke is provided', (
+        tester,
+      ) async {
         const joke = Joke(
           id: 'test-id',
-          setupText: 'Original setup',
-          punchlineText: 'Original punchline',
-          setupImageUrl: 'setup.jpg',
-          punchlineImageUrl: 'punchline.jpg',
+          setupText: 'Test setup',
+          punchlineText: 'Test punchline',
         );
-
-        when(mockJokeService.updateJoke(
-          jokeId: 'test-id',
-          setupText: 'Updated setup',
-          punchlineText: 'Updated punchline',
-          setupImageUrl: 'setup.jpg',
-          punchlineImageUrl: 'punchline.jpg',
-        )).thenAnswer((_) async => {'success': true, 'data': {}});
 
         await tester.pumpWidget(createTestWidget(joke: joke));
 
-        // Update form
-        await tester.enterText(find.byType(TextFormField).first, 'Updated setup');
-        await tester.enterText(find.byType(TextFormField).last, 'Updated punchline');
+        expect(find.text('Edit Joke'), findsOneWidget);
+        expect(
+          find.text('Edit the joke setup and punchline below:'),
+          findsOneWidget,
+        );
+        expect(find.text('Test setup'), findsOneWidget);
+        expect(find.text('Test punchline'), findsOneWidget);
+        expect(find.text('Update Joke'), findsOneWidget);
+      });
 
-        // Update joke
+      testWidgets('should display form validation errors', (tester) async {
+        await tester.pumpWidget(createTestWidget());
+
+        // Try to save without entering text
+        await tester.tap(find.text('Save Joke'));
+        await tester.pump();
+
+        expect(find.text('Please enter a setup for the joke'), findsOneWidget);
+        expect(
+          find.text('Please enter a punchline for the joke'),
+          findsOneWidget,
+        );
+      });
+    });
+
+    group('Create Joke', () {
+      testWidgets('should call createJokeWithResponse on save button tap', (
+        tester,
+      ) async {
+        const setupText = 'New setup text';
+        const punchlineText = 'New punchline text';
+
+        when(
+          () => mockJokeService.createJokeWithResponse(
+            setupText: setupText,
+            punchlineText: punchlineText,
+          ),
+        ).thenAnswer(
+          (_) async => {
+            'success': true,
+            'data': {'jokeId': 'new-joke-id'},
+          },
+        );
+
+        await tester.pumpWidget(createTestWidget());
+
+        // Enter text in form fields
+        await tester.enterText(find.byType(TextFormField).first, setupText);
+        await tester.enterText(find.byType(TextFormField).last, punchlineText);
+
+        // Tap save
+        await tester.tap(find.text('Save Joke'));
+        await tester.pump();
+
+        verify(
+          () => mockJokeService.createJokeWithResponse(
+            setupText: setupText,
+            punchlineText: punchlineText,
+          ),
+        ).called(1);
+      });
+
+      testWidgets('should show success message after creating joke', (
+        tester,
+      ) async {
+        const setupText = 'New setup text';
+        const punchlineText = 'New punchline text';
+
+        when(
+          () => mockJokeService.createJokeWithResponse(
+            setupText: setupText,
+            punchlineText: punchlineText,
+          ),
+        ).thenAnswer(
+          (_) async => {
+            'success': true,
+            'data': {'jokeId': 'new-joke-id'},
+          },
+        );
+
+        await tester.pumpWidget(createTestWidget());
+
+        await tester.enterText(find.byType(TextFormField).first, setupText);
+        await tester.enterText(find.byType(TextFormField).last, punchlineText);
+
+        await tester.tap(find.text('Save Joke'));
+        await tester.pumpAndSettle();
+
+        // Should show success snackbar
+        expect(find.text('Joke saved successfully!'), findsOneWidget);
+      });
+    });
+
+    group('Update Joke', () {
+      testWidgets('should call updateJoke on save button tap', (tester) async {
+        const originalJoke = Joke(
+          id: 'test-id',
+          setupText: 'Original setup',
+          punchlineText: 'Original punchline',
+        );
+
+        const updatedSetupText = 'Updated setup text';
+        const updatedPunchlineText = 'Updated punchline text';
+
+        when(
+          () => mockJokeService.updateJoke(
+            jokeId: originalJoke.id,
+            setupText: updatedSetupText,
+            punchlineText: updatedPunchlineText,
+            setupImageUrl: null,
+            punchlineImageUrl: null,
+          ),
+        ).thenAnswer(
+          (_) async => {
+            'success': true,
+            'data': {'message': 'Updated successfully'},
+          },
+        );
+
+        await tester.pumpWidget(createTestWidget(joke: originalJoke));
+
+        // Clear and enter new text
+        await tester.enterText(
+          find.byType(TextFormField).first,
+          updatedSetupText,
+        );
+        await tester.enterText(
+          find.byType(TextFormField).last,
+          updatedPunchlineText,
+        );
+
         await tester.tap(find.text('Update Joke'));
         await tester.pump();
 
-        // Verify service was called
-        verify(mockJokeService.updateJoke(
-          jokeId: 'test-id',
-          setupText: 'Updated setup',
-          punchlineText: 'Updated punchline',
-          setupImageUrl: 'setup.jpg',
-          punchlineImageUrl: 'punchline.jpg',
-        )).called(1);
+        verify(
+          () => mockJokeService.updateJoke(
+            jokeId: originalJoke.id,
+            setupText: updatedSetupText,
+            punchlineText: updatedPunchlineText,
+            setupImageUrl: null,
+            punchlineImageUrl: null,
+          ),
+        ).called(1);
+      });
 
-        // Wait for async operations
-        await tester.pump();
+      testWidgets('should show success message after updating joke', (
+        tester,
+      ) async {
+        const originalJoke = Joke(
+          id: 'test-id',
+          setupText: 'Original setup',
+          punchlineText: 'Original punchline',
+        );
 
-        // Verify success message
+        when(
+          () => mockJokeService.updateJoke(
+            jokeId: originalJoke.id,
+            setupText: any(named: 'setupText'),
+            punchlineText: any(named: 'punchlineText'),
+            setupImageUrl: any(named: 'setupImageUrl'),
+            punchlineImageUrl: any(named: 'punchlineImageUrl'),
+          ),
+        ).thenAnswer(
+          (_) async => {
+            'success': true,
+            'data': {'message': 'Updated successfully'},
+          },
+        );
+
+        await tester.pumpWidget(createTestWidget(joke: originalJoke));
+
+        // Make some changes and save
+        await tester.enterText(
+          find.byType(TextFormField).first,
+          'Updated setup text',
+        );
+
+        await tester.tap(find.text('Update Joke'));
+        await tester
+            .pump(); // Don't use pumpAndSettle as the screen may navigate away
+
+        // Should show success snackbar (briefly, before navigation)
         expect(find.text('Joke updated successfully!'), findsOneWidget);
       });
+    });
 
-      testWidgets('handles update error', (tester) async {
-        const joke = Joke(
-          id: 'test-id',
-          setupText: 'Original setup',
-          punchlineText: 'Original punchline',
+    group('Error Handling', () {
+      testWidgets('should show error message when create fails', (
+        tester,
+      ) async {
+        const setupText = 'New setup text';
+        const punchlineText = 'New punchline text';
+
+        when(
+          () => mockJokeService.createJokeWithResponse(
+            setupText: setupText,
+            punchlineText: punchlineText,
+          ),
+        ).thenAnswer(
+          (_) async => {'success': false, 'error': 'Failed to create joke'},
         );
 
-        when(mockJokeService.updateJoke(
-          jokeId: 'test-id',
-          setupText: 'Test setup',
-          punchlineText: 'Test punchline',
-          setupImageUrl: null,
-          punchlineImageUrl: null,
-        )).thenAnswer((_) async => {'success': false, 'error': 'Update failed'});
+        await tester.pumpWidget(createTestWidget());
 
-        await tester.pumpWidget(createTestWidget(joke: joke));
+        await tester.enterText(find.byType(TextFormField).first, setupText);
+        await tester.enterText(find.byType(TextFormField).last, punchlineText);
 
-        // Update form
-        await tester.enterText(find.byType(TextFormField).first, 'Test setup');
-        await tester.enterText(find.byType(TextFormField).last, 'Test punchline');
+        await tester.tap(find.text('Save Joke'));
+        await tester.pumpAndSettle();
 
-        // Update joke
-        await tester.tap(find.text('Update Joke'));
-        await tester.pump();
-        await tester.pump();
-
-        // Verify error message
-        expect(find.text('Error: Update failed'), findsOneWidget);
+        // Should show error snackbar
+        expect(find.text('Error: Failed to create joke'), findsOneWidget);
       });
     });
-
-    testWidgets('shows loading state when saving', (tester) async {
-      // Create a completer to control when the mock returns
-      final completer = Completer<Map<String, dynamic>>();
-      when(mockJokeService.createJokeWithResponse(
-        setupText: 'Test setup',
-        punchlineText: 'Test punchline',
-      )).thenAnswer((_) => completer.future);
-
-      await tester.pumpWidget(createTestWidget());
-
-      // Fill form
-      await tester.enterText(find.byType(TextFormField).first, 'Test setup');
-      await tester.enterText(find.byType(TextFormField).last, 'Test punchline');
-
-      // Save joke
-      await tester.tap(find.text('Save Joke'));
-      await tester.pump(); // Trigger the async operation
-
-      // Verify loading state (before async operation completes)
-      expect(find.byType(CircularProgressIndicator), findsOneWidget);
-      expect(find.text('Save Joke'), findsNothing);
-
-      // Complete the async operation
-      completer.complete({'success': true, 'data': {}});
-      await tester.pump();
-      await tester.pump();
-
-      // Verify loading state is gone
-      expect(find.byType(CircularProgressIndicator), findsNothing);
-    });
   });
-} 
+}

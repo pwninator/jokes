@@ -14,4 +14,4 @@ final imageCacheConfigProvider = Provider<Map<String, dynamic>>((ref) {
     'cacheDuration': ImageService.defaultCacheDuration,
     'maxCacheSize': ImageService.maxCacheSize,
   };
-}); 
+});

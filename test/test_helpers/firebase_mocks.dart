@@ -89,7 +89,12 @@ class FirebaseMocks {
         instructions: anyNamed('instructions'),
         additionalParameters: anyNamed('additionalParameters'),
       ),
-    ).thenAnswer((_) async => {'success': true, 'data': {'jokes': []}});
+    ).thenAnswer(
+      (_) async => {
+        'success': true,
+        'data': {'jokes': []},
+      },
+    );
   }
 
   static void _setupImageServiceDefaults(MockImageService mock) {
@@ -108,7 +113,6 @@ class FirebaseMocks {
       return url ?? 'https://example.com/default-full.jpg';
     });
     when(mock.clearCache()).thenAnswer((_) async {});
-    when(mock.getCacheInfo()).thenAnswer((_) async => <String, dynamic>{});
   }
 }
 

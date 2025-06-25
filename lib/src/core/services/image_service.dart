@@ -83,20 +83,5 @@ class ImageService {
     }
   }
 
-  /// Gets cache information
-  Future<Map<String, dynamic>> getCacheInfo() async {
-    try {
-      final cacheManager = DefaultCacheManager();
-      // Note: This is a simplified version. In a real app, you might want
-      // to implement more detailed cache statistics
-      return {
-        'cacheKey': 'default',
-        'maxCacheSize': maxCacheSize,
-        'cacheDuration': defaultCacheDuration.inDays,
-      };
-    } catch (e) {
-      debugPrint('Error getting cache info: $e');
-      return {};
-    }
-  }
+
 }

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/common_widgets/cached_joke_image.dart';
 import 'package:snickerdoodle/src/core/providers/image_providers.dart';
+import 'package:snickerdoodle/src/core/services/image_service.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
@@ -57,20 +58,28 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
     });
   }
 
-  void _precacheJokeImages(Joke joke, ImageService imageService, BuildContext context) {
+  void _precacheJokeImages(
+    Joke joke,
+    ImageService imageService,
+    BuildContext context,
+  ) {
     // Preload setup image
     if (joke.setupImageUrl != null &&
         imageService.isValidImageUrl(joke.setupImageUrl)) {
       final processedSetupUrl = imageService.processImageUrl(
         joke.setupImageUrl!,
       );
-      debugPrint("Preloading setup image (JokeImageCarousel) for joke ${joke.id}: $processedSetupUrl");
+      debugPrint(
+        "Preloading setup image (JokeImageCarousel) for joke ${joke.id}: $processedSetupUrl",
+      );
       precacheImage(
         CachedNetworkImageProvider(processedSetupUrl),
         context,
       ).catchError((error, stackTrace) {
         // Silently handle preload errors - the actual image widget will show error state
-        debugPrint('Failed to preload setup image for joke ${joke.id}: $error\n$stackTrace');
+        debugPrint(
+          'Failed to preload setup image for joke ${joke.id}: $error\n$stackTrace',
+        );
       });
     }
 
@@ -80,13 +89,17 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
       final processedPunchlineUrl = imageService.processImageUrl(
         joke.punchlineImageUrl!,
       );
-      debugPrint("Preloading punchline image (JokeImageCarousel) for joke ${joke.id}: $processedPunchlineUrl");
+      debugPrint(
+        "Preloading punchline image (JokeImageCarousel) for joke ${joke.id}: $processedPunchlineUrl",
+      );
       precacheImage(
         CachedNetworkImageProvider(processedPunchlineUrl),
         context,
       ).catchError((error, stackTrace) {
         // Silently handle preload errors - the actual image widget will show error state
-        debugPrint('Failed to preload punchline image for joke ${joke.id}: $error\n$stackTrace');
+        debugPrint(
+          'Failed to preload punchline image for joke ${joke.id}: $error\n$stackTrace',
+        );
       });
     }
   }

@@ -185,12 +185,6 @@ void main() {
         expect(ImageService.maxCacheSize, isA<int>());
         expect(ImageService.maxCacheSize, greaterThan(0));
       });
-
-      test('should provide methods for cache management', () {
-        // assert
-        expect(imageService.clearCache, isA<Function>());
-        expect(imageService.getCacheInfo, isA<Function>());
-      });
     });
 
     group('constants', () {

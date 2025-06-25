@@ -4,6 +4,7 @@ import 'package:snickerdoodle/src/common_widgets/app_bar_widget.dart';
 import 'package:snickerdoodle/src/common_widgets/joke_card.dart';
 import 'package:snickerdoodle/src/common_widgets/titled_screen.dart';
 import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
+import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 
 class JokeViewerScreen extends ConsumerStatefulWidget implements TitledScreen {
   const JokeViewerScreen({super.key});
@@ -46,9 +47,7 @@ class _JokeViewerScreenState extends ConsumerState<JokeViewerScreen> {
     final jokesAsyncValue = ref.watch(jokesWithImagesProvider);
 
     return Scaffold(
-      appBar: const AppBarWidget(
-        title: 'Jokes',
-      ),
+      appBar: const AppBarWidget(title: 'Jokes'),
       body: jokesAsyncValue.when(
         data: (jokes) {
           if (jokes.isEmpty) {

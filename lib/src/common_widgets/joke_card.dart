@@ -39,6 +39,7 @@ class JokeCard extends StatelessWidget {
         onSetupTap: onSetupTap,
         onPunchlineTap: onPunchlineTap,
         isAdminMode: isAdminMode,
+        jokesToPreload: jokesToPreload,
       );
     } else {
       // No images or incomplete images - show text with populate button

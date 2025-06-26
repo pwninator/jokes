@@ -22,110 +22,115 @@ class UserSettingsScreen extends ConsumerWidget implements TitledScreen {
       appBar: const AppBarWidget(title: 'Settings'),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Theme Settings Section
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Theme Settings',
-                      style: Theme.of(context).textTheme.headlineSmall,
-                    ),
-                    const SizedBox(height: 16),
-                    _buildThemeSettings(context, ref),
-                  ],
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Theme Settings Section
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Theme Settings',
+                        style: Theme.of(context).textTheme.headlineSmall,
+                      ),
+                      const SizedBox(height: 16),
+                      _buildThemeSettings(context, ref),
+                    ],
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: 16),
+              const SizedBox(height: 16),
 
-            // User Info Section
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'User Information',
-                      style: Theme.of(context).textTheme.headlineSmall,
-                    ),
-                    const SizedBox(height: 8),
-                    if (currentUser != null) ...[
-                      _buildInfoRow(
-                        'Status',
-                        currentUser.isAnonymous ? 'Guest User' : 'Signed In',
+              // User Info Section
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'User Information',
+                        style: Theme.of(context).textTheme.headlineSmall,
                       ),
-                      if (!currentUser.isAnonymous) ...[
+                      const SizedBox(height: 8),
+                      if (currentUser != null) ...[
                         _buildInfoRow(
-                          'Email',
-                          currentUser.email ?? 'Not provided',
+                          'Status',
+                          currentUser.isAnonymous ? 'Guest User' : 'Signed In',
                         ),
+                        if (!currentUser.isAnonymous) ...[
+                          _buildInfoRow(
+                            'Email',
+                            currentUser.email ?? 'Not provided',
+                          ),
+                          _buildInfoRow(
+                            'Display Name',
+                            currentUser.displayName ?? 'Not set',
+                          ),
+                        ],
                         _buildInfoRow(
-                          'Display Name',
-                          currentUser.displayName ?? 'Not set',
+                          'Role',
+                          _getRoleDisplay(currentUser.role),
+                        ),
+                        _buildInfoRow('User ID', currentUser.id),
+                      ] else
+                        const Text('No user information available'),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Authentication Actions Section
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Authentication',
+                        style: Theme.of(context).textTheme.headlineSmall,
+                      ),
+                      const SizedBox(height: 16),
+
+                      if (currentUser?.isAnonymous == true) ...[
+                        // Show Google sign-in option for anonymous users
+                        ElevatedButton.icon(
+                          onPressed:
+                              () => _signInWithGoogle(context, authController),
+                          icon: const Icon(Icons.login),
+                          label: const Text('Sign in with Google'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor:
+                                Theme.of(context).appColors.googleBlue,
+                            foregroundColor: Colors.white,
+                          ),
+                        ),
+                      ] else ...[
+                        // Show sign out option for authenticated users
+                        ElevatedButton.icon(
+                          onPressed:
+                              () => _confirmSignOut(context, authController),
+                          icon: const Icon(Icons.logout),
+                          label: const Text('Switch to Guest Mode'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor:
+                                Theme.of(context).appColors.authError,
+                            foregroundColor: Colors.white,
+                          ),
                         ),
                       ],
-                      _buildInfoRow('Role', _getRoleDisplay(currentUser.role)),
-                      _buildInfoRow('User ID', currentUser.id),
-                    ] else
-                      const Text('No user information available'),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Authentication Actions Section
-            Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Authentication',
-                      style: Theme.of(context).textTheme.headlineSmall,
-                    ),
-                    const SizedBox(height: 16),
-
-                    if (currentUser?.isAnonymous == true) ...[
-                      // Show Google sign-in option for anonymous users
-                      ElevatedButton.icon(
-                        onPressed:
-                            () => _signInWithGoogle(context, authController),
-                        icon: const Icon(Icons.login),
-                        label: const Text('Sign in with Google'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor:
-                              Theme.of(context).appColors.googleBlue,
-                          foregroundColor: Colors.white,
-                        ),
-                      ),
-                    ] else ...[
-                      // Show sign out option for authenticated users
-                      ElevatedButton.icon(
-                        onPressed:
-                            () => _confirmSignOut(context, authController),
-                        icon: const Icon(Icons.logout),
-                        label: const Text('Switch to Guest Mode'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor:
-                              Theme.of(context).appColors.authError,
-                          foregroundColor: Colors.white,
-                        ),
-                      ),
                     ],
-                  ],
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/common_widgets/app_bar_widget.dart';
 import 'package:snickerdoodle/src/common_widgets/titled_screen.dart';
+import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
 import 'package:snickerdoodle/src/features/auth/data/models/app_user.dart';
@@ -39,6 +40,25 @@ class UserSettingsScreen extends ConsumerWidget implements TitledScreen {
                       ),
                       const SizedBox(height: 16),
                       _buildThemeSettings(context, ref),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Notification Settings Section
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Notifications',
+                        style: Theme.of(context).textTheme.headlineSmall,
+                      ),
+                      const SizedBox(height: 16),
+                      _buildNotificationSettings(context, ref),
                     ],
                   ),
                 ),
@@ -170,6 +190,91 @@ class UserSettingsScreen extends ConsumerWidget implements TitledScreen {
           () => themeModeNotifier.setThemeMode(ThemeMode.dark),
         ),
       ],
+    );
+  }
+
+  Widget _buildNotificationSettings(BuildContext context, WidgetRef ref) {
+    final subscriptionService = ref.watch(dailyJokeSubscriptionServiceProvider);
+    
+    return FutureBuilder<bool>(
+      future: subscriptionService.isSubscribed(),
+      builder: (context, snapshot) {
+        final isSubscribed = snapshot.data ?? false;
+        final isLoading = snapshot.connectionState == ConnectionState.waiting;
+
+        return Column(
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.notifications,
+                  color:
+                      isSubscribed
+                          ? Theme.of(context).colorScheme.primary
+                          : Theme.of(
+                            context,
+                          ).colorScheme.onSurface.withValues(alpha: 0.6),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Daily Joke Notifications',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w500,
+                          color:
+                              isSubscribed
+                                  ? Theme.of(context).colorScheme.primary
+                                  : Theme.of(context).colorScheme.onSurface,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        isSubscribed
+                            ? 'Receive daily joke notifications'
+                            : 'Get notified when new jokes are available',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onSurface.withValues(alpha: 0.6),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (isLoading)
+                  const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                else
+                  Switch(
+                    value: isSubscribed,
+                                         onChanged: (value) => _toggleNotifications(context, ref, value),
+                    activeColor: Theme.of(context).colorScheme.primary,
+                  ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            // Test notification button
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                                 onPressed: () => _testNotification(context, ref),
+                icon: const Icon(Icons.send),
+                label: const Text('Test Notification'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Theme.of(context).colorScheme.primary,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -373,5 +478,100 @@ class UserSettingsScreen extends ConsumerWidget implements TitledScreen {
             ],
           ),
     );
+  }
+
+  Future<void> _toggleNotifications(BuildContext context, WidgetRef ref, bool enable) async {
+    final subscriptionService = ref.read(dailyJokeSubscriptionServiceProvider);
+    
+    try {
+      bool success;
+      if (enable) {
+        success = await subscriptionService.subscribe();
+      } else {
+        success = await subscriptionService.unsubscribe();
+      }
+
+      if (context.mounted) {
+        if (success) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                enable
+                    ? 'Successfully subscribed to daily jokes!'
+                    : 'Successfully unsubscribed from daily jokes',
+              ),
+              backgroundColor: Theme.of(context).appColors.success,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+          // Widget will rebuild automatically when user returns to this screen
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                enable
+                    ? 'Failed to subscribe to notifications'
+                    : 'Failed to unsubscribe from notifications',
+              ),
+              backgroundColor: Theme.of(context).appColors.authError,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error updating notification settings: $e'),
+            backgroundColor: Theme.of(context).appColors.authError,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _testNotification(BuildContext context, WidgetRef ref) async {
+    final subscriptionService = ref.read(dailyJokeSubscriptionServiceProvider);
+    
+    try {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Sending test notification...'),
+          backgroundColor: Theme.of(context).colorScheme.primary,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+
+      final success = await subscriptionService.testDailyJoke();
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              success
+                  ? 'Test notification sent! Check your notifications.'
+                  : 'Failed to send test notification',
+            ),
+            backgroundColor:
+                success
+                    ? Theme.of(context).appColors.success
+                    : Theme.of(context).appColors.authError,
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error sending test notification: $e'),
+            backgroundColor: Theme.of(context).appColors.authError,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+    }
   }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:snickerdoodle/src/core/providers/image_providers.dart';
+import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
 import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
 
@@ -9,10 +10,14 @@ class MockImageService extends Mock implements ImageService {}
 
 class MockSettingsService extends Mock implements SettingsService {}
 
+class MockDailyJokeSubscriptionService extends Mock
+    implements DailyJokeSubscriptionService {}
+
 /// Core service mocks for unit tests
 class CoreMocks {
   static MockImageService? _mockImageService;
   static MockSettingsService? _mockSettingsService;
+  static MockDailyJokeSubscriptionService? _mockSubscriptionService;
 
   /// Get or create mock image service
   static MockImageService get mockImageService {
@@ -28,10 +33,18 @@ class CoreMocks {
     return _mockSettingsService!;
   }
 
+  /// Get or create mock subscription service
+  static MockDailyJokeSubscriptionService get mockSubscriptionService {
+    _mockSubscriptionService ??= MockDailyJokeSubscriptionService();
+    _setupSubscriptionServiceDefaults(_mockSubscriptionService!);
+    return _mockSubscriptionService!;
+  }
+
   /// Reset all core mocks (call this in setUp if needed)
   static void reset() {
     _mockImageService = null;
     _mockSettingsService = null;
+    _mockSubscriptionService = null;
   }
 
   /// Get core service provider overrides
@@ -44,6 +57,11 @@ class CoreMocks {
 
       // Mock settings service
       settingsServiceProvider.overrideWithValue(mockSettingsService),
+
+      // Mock subscription service
+      dailyJokeSubscriptionServiceProvider.overrideWithValue(
+        mockSubscriptionService,
+      ),
 
       // Add any additional overrides
       ...additionalOverrides,
@@ -84,5 +102,16 @@ class CoreMocks {
     when(() => mock.setInt(any(), any())).thenAnswer((_) async => {});
     when(() => mock.getDouble(any())).thenAnswer((_) async => null);
     when(() => mock.setDouble(any(), any())).thenAnswer((_) async => {});
+  }
+
+  static void _setupSubscriptionServiceDefaults(
+    MockDailyJokeSubscriptionService mock,
+  ) {
+    // Setup default behaviors for subscription service
+    when(() => mock.isSubscribed()).thenAnswer((_) async => false);
+    when(() => mock.subscribe()).thenAnswer((_) async => true);
+    when(() => mock.unsubscribe()).thenAnswer((_) async => true);
+    when(() => mock.toggleSubscription()).thenAnswer((_) async => true);
+    when(() => mock.testDailyJoke()).thenAnswer((_) async => true);
   }
 }

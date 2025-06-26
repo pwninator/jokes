@@ -38,7 +38,10 @@ void main() {
     group('Theme Settings UI', () {
       testWidgets('displays theme settings section', (tester) async {
         await tester.pumpWidget(createTestWidget());
-        await tester.pumpAndSettle();
+        await tester.pump();
+
+        // Allow time for async operations but don't wait indefinitely
+        await tester.pump(const Duration(milliseconds: 100));
 
         expect(find.text('Theme Settings'), findsOneWidget);
         expect(find.text('Use System Setting'), findsOneWidget);
@@ -48,7 +51,8 @@ void main() {
 
       testWidgets('displays theme option descriptions', (tester) async {
         await tester.pumpWidget(createTestWidget());
-        await tester.pumpAndSettle();
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 100));
 
         expect(
           find.text(
@@ -68,7 +72,8 @@ void main() {
 
       testWidgets('displays correct icons for theme options', (tester) async {
         await tester.pumpWidget(createTestWidget());
-        await tester.pumpAndSettle();
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 100));
 
         expect(find.byIcon(Icons.brightness_auto), findsOneWidget);
         expect(find.byIcon(Icons.light_mode), findsOneWidget);

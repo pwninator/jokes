@@ -69,9 +69,6 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
       final processedSetupUrl = imageService.processImageUrl(
         joke.setupImageUrl!,
       );
-      debugPrint(
-        "Preloading setup image (JokeImageCarousel) for joke ${joke.id}: $processedSetupUrl",
-      );
       precacheImage(
         CachedNetworkImageProvider(processedSetupUrl),
         context,
@@ -88,9 +85,6 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
         imageService.isValidImageUrl(joke.punchlineImageUrl)) {
       final processedPunchlineUrl = imageService.processImageUrl(
         joke.punchlineImageUrl!,
-      );
-      debugPrint(
-        "Preloading punchline image (JokeImageCarousel) for joke ${joke.id}: $processedPunchlineUrl",
       );
       precacheImage(
         CachedNetworkImageProvider(processedPunchlineUrl),

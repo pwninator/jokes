@@ -30,7 +30,9 @@ class AuthRepository {
       debugPrint('DEBUG: Starting anonymous sign-in...');
       final credential = await _firebaseAuth.signInAnonymously();
       final firebaseUser = credential.user!;
-      debugPrint('DEBUG: Anonymous sign-in successful. User ID: ${firebaseUser.uid}');
+      debugPrint(
+        'DEBUG: Anonymous sign-in successful. User ID: ${firebaseUser.uid}',
+      );
       return AppUser.anonymous(firebaseUser.uid);
     } catch (e, stackTrace) {
       debugPrint('DEBUG: Anonymous sign-in failed: $e');
@@ -39,43 +41,53 @@ class AuthRepository {
     }
   }
 
-    /// Sign in with Google
   Future<AppUser> signInWithGoogle() async {
     try {
       debugPrint('DEBUG: Starting Google sign-in flow...');
-      
-      // Trigger the authentication flow
-      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
-      
-      if (googleUser == null) {
-        debugPrint('DEBUG: Google sign-in was cancelled by user');
-        throw AuthException('Google sign-in was cancelled');
-      }
 
-      debugPrint('DEBUG: Google user selected: ${googleUser.email}');
+      // Authenticate with Google (replaces signIn())
+      final GoogleSignInAccount googleUser = await _googleSignIn.authenticate();
 
-      // Obtain the auth details from the request
-      final GoogleSignInAuthentication googleAuth = await googleUser.authentication;
-      
-      debugPrint('DEBUG: Google auth tokens obtained - accessToken: ${googleAuth.accessToken != null ? 'present' : 'null'}, idToken: ${googleAuth.idToken != null ? 'present' : 'null'}');
+      debugPrint('DEBUG: Google user authenticated: ${googleUser.email}');
+
+      // Get the authentication object for idToken
+      final GoogleSignInAuthentication googleAuth = googleUser.authentication;
+      final String? idToken = googleAuth.idToken;
+
+      // Get authorization for Firebase scopes to get accessToken
+      const scopes = ['openid', 'email', 'profile'];
+      final authorization = await googleUser.authorizationClient
+          .authorizeScopes(scopes);
+
+      final String accessToken = authorization.accessToken;
+
+      debugPrint(
+        'DEBUG: Google auth tokens obtained - accessToken: $accessToken, idToken: $idToken',
+      );
 
       // Create a new credential
       final credential = GoogleAuthProvider.credential(
-        accessToken: googleAuth.accessToken,
-        idToken: googleAuth.idToken,
+        accessToken: accessToken,
+        idToken: idToken,
       );
 
       debugPrint('DEBUG: Firebase credential created, signing in...');
 
       // Sign in to Firebase with the Google credential
-      final userCredential = await _firebaseAuth.signInWithCredential(credential);
+      final userCredential = await _firebaseAuth.signInWithCredential(
+        credential,
+      );
       final firebaseUser = userCredential.user!;
 
-      debugPrint('DEBUG: Firebase sign-in successful. User: ${firebaseUser.uid}, Email: ${firebaseUser.email}');
+      debugPrint(
+        'DEBUG: Firebase sign-in successful. User: ${firebaseUser.uid}, Email: ${firebaseUser.email}',
+      );
 
       final appUser = await _createAppUser(firebaseUser);
-      debugPrint('DEBUG: AppUser created successfully: ${appUser.email}, Role: ${appUser.role}');
-      
+      debugPrint(
+        'DEBUG: AppUser created successfully: ${appUser.email}, Role: ${appUser.role}',
+      );
+
       return appUser;
     } catch (e, stackTrace) {
       debugPrint('DEBUG: Google sign-in failed with error: $e');
@@ -84,14 +96,16 @@ class AuthRepository {
     }
   }
 
-  /// Sign out and automatically sign in anonymously
+  /// Sign out and automatically sign in anonymously - Updated for v7.0.0
   Future<void> signOut() async {
     try {
       debugPrint('DEBUG: Starting sign out process...');
-      await _googleSignIn.signOut();
+
+      // Disconnect from Google (replaces signOut())
+      await _googleSignIn.disconnect();
       await _firebaseAuth.signOut();
       debugPrint('DEBUG: Sign out successful, signing in anonymously...');
-      
+
       // Automatically sign in anonymously after signing out
       await signInAnonymously();
       debugPrint('DEBUG: Switched to anonymous authentication');
@@ -121,19 +135,23 @@ class AuthRepository {
   /// Get user role from Firebase Auth custom claims
   Future<UserRole> _getUserRoleFromClaims(User firebaseUser) async {
     try {
-      debugPrint('DEBUG: Getting user role from custom claims for UID: ${firebaseUser.uid}');
-      
+      debugPrint(
+        'DEBUG: Getting user role from custom claims for UID: ${firebaseUser.uid}',
+      );
+
       // Get the ID token to access custom claims
       final idTokenResult = await firebaseUser.getIdTokenResult();
       final claims = idTokenResult.claims;
-      
+
       // Extract role from custom claims
       final roleString = claims?['role'] as String?;
       debugPrint('DEBUG: User role found in custom claims: $roleString');
-      
+
       return _parseUserRole(roleString);
     } catch (e) {
-      debugPrint('DEBUG: Error getting user role from claims: $e, defaulting to user role');
+      debugPrint(
+        'DEBUG: Error getting user role from claims: $e, defaulting to user role',
+      );
       return UserRole.user; // Default role on error
     }
   }
@@ -159,4 +177,4 @@ class AuthException implements Exception {
 
   @override
   String toString() => 'AuthException: $message';
-} 
+}

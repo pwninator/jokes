@@ -1,4 +1,6 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
 import 'package:snickerdoodle/src/features/auth/data/models/app_user.dart';
@@ -8,6 +10,16 @@ import 'package:snickerdoodle/src/features/auth/data/repositories/auth_repositor
 class MockAuthRepository extends Mock implements AuthRepository {}
 
 class MockAuthController extends Mock implements AuthController {}
+
+// Mock classes for GoogleSignIn v7.0.0 types (if needed for future tests)
+class MockGoogleSignIn extends Mock implements GoogleSignIn {}
+
+class MockGoogleSignInAccount extends Mock implements GoogleSignInAccount {}
+
+class MockGoogleSignInAuthentication extends Mock
+    implements GoogleSignInAuthentication {}
+
+class MockFirebaseAuth extends Mock implements FirebaseAuth {}
 
 /// Authentication-specific mocks for unit tests
 class AuthMocks {

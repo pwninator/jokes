@@ -11,7 +11,19 @@ final firebaseAuthProvider = Provider<FirebaseAuth>((ref) {
 
 /// Provider for GoogleSignIn instance
 final googleSignInProvider = Provider<GoogleSignIn>((ref) {
-  return GoogleSignIn();
+  return GoogleSignIn.instance;
+});
+
+/// Provider for GoogleSignIn initialization
+final googleSignInInitProvider = FutureProvider<void>((ref) async {
+  final googleSignIn = ref.watch(googleSignInProvider);
+
+  // Initialize GoogleSignIn with configuration
+  await googleSignIn.initialize(
+    // Configuration can be added here if needed
+    // clientId: 'your-client-id',
+    // serverClientId: 'your-server-client-id',
+  );
 });
 
 /// Provider for AuthRepository
@@ -30,10 +42,7 @@ final authStateProvider = StreamProvider<AppUser?>((ref) {
 /// Provider to check if user is authenticated
 final isAuthenticatedProvider = Provider<bool>((ref) {
   final authState = ref.watch(authStateProvider);
-  return authState.maybeWhen(
-    data: (user) => user != null,
-    orElse: () => false,
-  );
+  return authState.maybeWhen(data: (user) => user != null, orElse: () => false);
 });
 
 /// Provider to check if user is admin
@@ -57,10 +66,7 @@ final isAnonymousProvider = Provider<bool>((ref) {
 /// Provider for the current user
 final currentUserProvider = Provider<AppUser?>((ref) {
   final authState = ref.watch(authStateProvider);
-  return authState.maybeWhen(
-    data: (user) => user,
-    orElse: () => null,
-  );
+  return authState.maybeWhen(data: (user) => user, orElse: () => null);
 });
 
 /// Auth controller for managing authentication actions
@@ -86,5 +92,3 @@ class AuthController {
     await _authRepository.signOut();
   }
 }
-
- 

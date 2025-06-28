@@ -560,39 +560,23 @@ class UserSettingsScreen extends ConsumerWidget implements TitledScreen {
     final statusNotifier = ref.read(subscriptionStatusProvider.notifier);
 
     try {
-      bool success;
-      if (enable) {
-        success = await subscriptionService.subscribe();
-      } else {
-        success = await subscriptionService.unsubscribe();
-      }
+      // Save preference immediately (fast local operation)
+      final prefSaved = await subscriptionService.setSubscriptionPreference(
+        enable,
+      );
 
-      if (success) {
-        // Update the reactive state immediately
+      if (prefSaved) {
+        // Update UI state immediately since preference is saved
         statusNotifier.state = AsyncValue.data(enable);
-      }
 
-      if (context.mounted) {
-        if (success) {
+        // Sync with FCM in background (don't await)
+        _syncSubscriptionInBackground(subscriptionService, enable);
+      } else {
+        // Failed to save preference, show error
+        if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text(
-                enable
-                    ? 'Successfully subscribed to daily jokes!'
-                    : 'Successfully unsubscribed from daily jokes',
-              ),
-              backgroundColor: Theme.of(context).appColors.success,
-              duration: const Duration(seconds: 3),
-            ),
-          );
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                enable
-                    ? 'Failed to subscribe to notifications'
-                    : 'Failed to unsubscribe from notifications',
-              ),
+              content: const Text('Failed to save notification preference'),
               backgroundColor: Theme.of(context).appColors.authError,
               duration: const Duration(seconds: 3),
             ),
@@ -609,6 +593,24 @@ class UserSettingsScreen extends ConsumerWidget implements TitledScreen {
           ),
         );
       }
+    }
+  }
+
+  void _syncSubscriptionInBackground(
+    DailyJokeSubscriptionService subscriptionService,
+    bool enable,
+  ) async {
+    try {
+      await subscriptionService.ensureSubscriptionSync();
+      debugPrint(
+        enable
+            ? 'Successfully synced subscription to FCM'
+            : 'Successfully synced unsubscription to FCM',
+      );
+    } catch (e) {
+      debugPrint(
+        'Failed to sync subscription with FCM: $e. Will retry on next app start.',
+      );
     }
   }
 

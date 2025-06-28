@@ -9,20 +9,14 @@ abstract class DailyJokeSubscriptionService {
   /// Check if user is subscribed to daily jokes
   Future<bool> isSubscribed();
 
-  /// Subscribe to daily joke notifications
-  Future<bool> subscribe();
+  /// Ensure subscription is synced with FCM server (call on app startup)
+  Future<bool> ensureSubscriptionSync();
 
-  /// Unsubscribe from daily joke notifications
-  Future<bool> unsubscribe();
-
-  /// Toggle subscription status
-  Future<bool> toggleSubscription();
+  /// Save subscription preference immediately (for UI responsiveness)
+  Future<bool> setSubscriptionPreference(bool subscribed);
 
   /// Test function to manually trigger a daily joke notification
   Future<bool> testDailyJoke();
-
-  /// Ensure subscription is synced with FCM server (call on app startup)
-  Future<bool> ensureSubscriptionSync();
 }
 
 /// Concrete implementation of the daily joke subscription service
@@ -36,73 +30,47 @@ class DailyJokeSubscriptionServiceImpl implements DailyJokeSubscriptionService {
     return prefs.getBool(_subscriptionKey) ?? false;
   }
 
-  /// Ensure subscription is active on FCM server
-  /// Call this on app startup to handle stale subscription cleanup
+  /// Ensure subscription is synced with FCM server
+  /// Call this on app startup or after preference changes to handle sync
   @override
   Future<bool> ensureSubscriptionSync() async {
     final isLocallySubscribed = await isSubscribed();
-    
-    if (isLocallySubscribed) {
-      try {
-        // Re-subscribe to ensure server-side subscription is active
+
+    try {
+      if (isLocallySubscribed) {
+        // Subscribe to ensure server-side subscription is active
         await FirebaseMessaging.instance.subscribeToTopic(_topicName);
-        debugPrint('Re-confirmed subscription to $_topicName on startup');
-        return true;
-      } catch (e) {
-        debugPrint('Failed to re-confirm subscription: $e');
-        // Keep local state as-is, but log the issue
-        return false;
+        debugPrint('Ensured subscription to $_topicName');
+      } else {
+        // Unsubscribe to ensure server-side subscription is inactive
+        await FirebaseMessaging.instance.unsubscribeFromTopic(_topicName);
+        debugPrint('Ensured unsubscription from $_topicName');
       }
-    }
-    
-    return true; // Not subscribed, nothing to sync
-  }
-
-  @override
-  Future<bool> subscribe() async {
-    try {
-      // Subscribe directly to FCM topic
-      await FirebaseMessaging.instance.subscribeToTopic(_topicName);
-
-      // Store subscription status locally
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool(_subscriptionKey, true);
-
-      debugPrint('Successfully subscribed to daily jokes topic: $_topicName');
       return true;
     } catch (e) {
-      debugPrint('Failed to subscribe to daily jokes: $e');
+      debugPrint('Failed to sync subscription state: $e');
+      // Keep local state as-is, but log the issue
       return false;
     }
   }
 
-  @override
-  Future<bool> unsubscribe() async {
+  /// Save subscription preference locally
+  Future<bool> _saveSubscriptionPreference(bool subscribed) async {
     try {
-      // Unsubscribe directly from FCM topic
-      await FirebaseMessaging.instance.unsubscribeFromTopic(_topicName);
-
-      // Store subscription status locally
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool(_subscriptionKey, false);
-
-      debugPrint('Successfully unsubscribed from daily jokes topic: $_topicName');
+      await prefs.setBool(_subscriptionKey, subscribed);
       return true;
     } catch (e) {
-      debugPrint('Failed to unsubscribe from daily jokes: $e');
+      debugPrint('Failed to save subscription preference: $e');
       return false;
     }
   }
 
+  /// Save subscription preference immediately (for UI responsiveness)
+  /// Call ensureSubscriptionSync afterward to handle FCM operations
   @override
-  Future<bool> toggleSubscription() async {
-    final isCurrentlySubscribed = await isSubscribed();
-
-    if (isCurrentlySubscribed) {
-      return await unsubscribe();
-    } else {
-      return await subscribe();
-    }
+  Future<bool> setSubscriptionPreference(bool subscribed) async {
+    return await _saveSubscriptionPreference(subscribed);
   }
 
   @override
@@ -137,7 +105,7 @@ final subscriptionStatusProvider = StateProvider<AsyncValue<bool>>((ref) {
 final subscriptionRefreshProvider = Provider<Future<void>>((ref) async {
   final subscriptionService = ref.watch(dailyJokeSubscriptionServiceProvider);
   final statusNotifier = ref.read(subscriptionStatusProvider.notifier);
-  
+
   try {
     final isSubscribed = await subscriptionService.isSubscribed();
     statusNotifier.state = AsyncValue.data(isSubscribed);

@@ -20,11 +20,15 @@ abstract class DailyJokeSubscriptionService {
 
   /// Test function to manually trigger a daily joke notification
   Future<bool> testDailyJoke();
+
+  /// Ensure subscription is synced with FCM server (call on app startup)
+  Future<bool> ensureSubscriptionSync();
 }
 
 /// Concrete implementation of the daily joke subscription service
 class DailyJokeSubscriptionServiceImpl implements DailyJokeSubscriptionService {
   static const String _subscriptionKey = 'daily_jokes_subscribed';
+  static const String _topicName = 'daily-jokes';
 
   @override
   Future<bool> isSubscribed() async {
@@ -32,27 +36,39 @@ class DailyJokeSubscriptionServiceImpl implements DailyJokeSubscriptionService {
     return prefs.getBool(_subscriptionKey) ?? false;
   }
 
+  /// Ensure subscription is active on FCM server
+  /// Call this on app startup to handle stale subscription cleanup
+  @override
+  Future<bool> ensureSubscriptionSync() async {
+    final isLocallySubscribed = await isSubscribed();
+    
+    if (isLocallySubscribed) {
+      try {
+        // Re-subscribe to ensure server-side subscription is active
+        await FirebaseMessaging.instance.subscribeToTopic(_topicName);
+        debugPrint('Re-confirmed subscription to $_topicName on startup');
+        return true;
+      } catch (e) {
+        debugPrint('Failed to re-confirm subscription: $e');
+        // Keep local state as-is, but log the issue
+        return false;
+      }
+    }
+    
+    return true; // Not subscribed, nothing to sync
+  }
+
   @override
   Future<bool> subscribe() async {
     try {
-      // Get FCM token
-      final token = await FirebaseMessaging.instance.getToken();
-      if (token == null) {
-        debugPrint('Failed to get FCM token');
-        return false;
-      }
-
-      // Call Cloud Function to subscribe to topic
-      final functions = FirebaseFunctions.instance;
-      final callable = functions.httpsCallable('subscribeToDailyJokes');
-
-      await callable.call({'token': token});
+      // Subscribe directly to FCM topic
+      await FirebaseMessaging.instance.subscribeToTopic(_topicName);
 
       // Store subscription status locally
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool(_subscriptionKey, true);
 
-      debugPrint('Successfully subscribed to daily jokes');
+      debugPrint('Successfully subscribed to daily jokes topic: $_topicName');
       return true;
     } catch (e) {
       debugPrint('Failed to subscribe to daily jokes: $e');
@@ -63,24 +79,14 @@ class DailyJokeSubscriptionServiceImpl implements DailyJokeSubscriptionService {
   @override
   Future<bool> unsubscribe() async {
     try {
-      // Get FCM token
-      final token = await FirebaseMessaging.instance.getToken();
-      if (token == null) {
-        debugPrint('Failed to get FCM token');
-        return false;
-      }
-
-      // Call Cloud Function to unsubscribe from topic
-      final functions = FirebaseFunctions.instance;
-      final callable = functions.httpsCallable('unsubscribeFromDailyJokes');
-
-      await callable.call({'token': token});
+      // Unsubscribe directly from FCM topic
+      await FirebaseMessaging.instance.unsubscribeFromTopic(_topicName);
 
       // Store subscription status locally
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool(_subscriptionKey, false);
 
-      debugPrint('Successfully unsubscribed from daily jokes');
+      debugPrint('Successfully unsubscribed from daily jokes topic: $_topicName');
       return true;
     } catch (e) {
       debugPrint('Failed to unsubscribe from daily jokes: $e');
@@ -121,3 +127,21 @@ final dailyJokeSubscriptionServiceProvider =
     Provider<DailyJokeSubscriptionService>((ref) {
       return DailyJokeSubscriptionServiceImpl();
     });
+
+/// Simple state provider for subscription status with manual refresh
+final subscriptionStatusProvider = StateProvider<AsyncValue<bool>>((ref) {
+  return const AsyncValue.loading();
+});
+
+/// Provider to refresh subscription status
+final subscriptionRefreshProvider = Provider<Future<void>>((ref) async {
+  final subscriptionService = ref.watch(dailyJokeSubscriptionServiceProvider);
+  final statusNotifier = ref.read(subscriptionStatusProvider.notifier);
+  
+  try {
+    final isSubscribed = await subscriptionService.isSubscribed();
+    statusNotifier.state = AsyncValue.data(isSubscribed);
+  } catch (error, stackTrace) {
+    statusNotifier.state = AsyncValue.error(error, stackTrace);
+  }
+});

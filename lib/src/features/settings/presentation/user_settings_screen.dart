@@ -194,87 +194,158 @@ class UserSettingsScreen extends ConsumerWidget implements TitledScreen {
   }
 
   Widget _buildNotificationSettings(BuildContext context, WidgetRef ref) {
-    final subscriptionService = ref.watch(dailyJokeSubscriptionServiceProvider);
-    
-    return FutureBuilder<bool>(
-      future: subscriptionService.isSubscribed(),
-      builder: (context, snapshot) {
-        final isSubscribed = snapshot.data ?? false;
-        final isLoading = snapshot.connectionState == ConnectionState.waiting;
+    // Initialize subscription status on first build
+    ref.read(subscriptionRefreshProvider);
 
-        return Column(
-          children: [
-            Row(
-              children: [
-                Icon(
-                  Icons.notifications,
-                  color:
-                      isSubscribed
-                          ? Theme.of(context).colorScheme.primary
-                          : Theme.of(
-                            context,
-                          ).colorScheme.onSurface.withValues(alpha: 0.6),
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Daily Joke Notifications',
-                        style: TextStyle(
-                          fontWeight: FontWeight.w500,
-                          color:
-                              isSubscribed
-                                  ? Theme.of(context).colorScheme.primary
-                                  : Theme.of(context).colorScheme.onSurface,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
+    final subscriptionState = ref.watch(subscriptionStatusProvider);
+
+    return subscriptionState.when(
+      data:
+          (isSubscribed) => Column(
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    Icons.notifications,
+                    color:
                         isSubscribed
-                            ? 'Receive daily joke notifications'
-                            : 'Get notified when new jokes are available',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.onSurface.withValues(alpha: 0.6),
+                            ? Theme.of(context).colorScheme.primary
+                            : Theme.of(
+                              context,
+                            ).colorScheme.onSurface.withValues(alpha: 0.6),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Daily Joke Notifications',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w500,
+                            color:
+                                isSubscribed
+                                    ? Theme.of(context).colorScheme.primary
+                                    : Theme.of(context).colorScheme.onSurface,
+                          ),
                         ),
-                      ),
-                    ],
+                        const SizedBox(height: 2),
+                        Text(
+                          isSubscribed
+                              ? 'Receive daily joke notifications'
+                              : 'Get notified when new jokes are available',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurface.withValues(alpha: 0.6),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Switch(
+                    value: isSubscribed,
+                    onChanged:
+                        (value) => _toggleNotifications(context, ref, value),
+                    activeColor: Theme.of(context).colorScheme.primary,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              // Test notification button
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: () => _testNotification(context, ref),
+                  icon: const Icon(Icons.send),
+                  label: const Text('Test Notification'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Theme.of(context).colorScheme.primary,
                   ),
                 ),
-                if (isLoading)
+              ),
+            ],
+          ),
+      loading:
+          () => Column(
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    Icons.notifications,
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withValues(alpha: 0.6),
+                  ),
+                  const SizedBox(width: 16),
+                  const Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Daily Joke Notifications',
+                          style: TextStyle(fontWeight: FontWeight.w500),
+                        ),
+                        SizedBox(height: 2),
+                        Text(
+                          'Loading notification settings...',
+                          style: TextStyle(fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ),
                   const SizedBox(
                     width: 20,
                     height: 20,
                     child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                else
-                  Switch(
-                    value: isSubscribed,
-                                         onChanged: (value) => _toggleNotifications(context, ref, value),
-                    activeColor: Theme.of(context).colorScheme.primary,
                   ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            // Test notification button
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton.icon(
-                                 onPressed: () => _testNotification(context, ref),
-                icon: const Icon(Icons.send),
-                label: const Text('Test Notification'),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: Theme.of(context).colorScheme.primary,
+                ],
+              ),
+              const SizedBox(height: 16),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: null, // Disabled while loading
+                  icon: const Icon(Icons.send),
+                  label: const Text('Test Notification'),
                 ),
               ),
-            ),
-          ],
-        );
-      },
+            ],
+          ),
+      error:
+          (error, stackTrace) => Column(
+            children: [
+              Row(
+                children: [
+                  Icon(Icons.error, color: Theme.of(context).colorScheme.error),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Notification Settings',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w500,
+                            color: Theme.of(context).colorScheme.error,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Error loading settings: ${error.toString()}',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Theme.of(context).colorScheme.error,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
     );
   }
 
@@ -480,15 +551,25 @@ class UserSettingsScreen extends ConsumerWidget implements TitledScreen {
     );
   }
 
-  Future<void> _toggleNotifications(BuildContext context, WidgetRef ref, bool enable) async {
+  Future<void> _toggleNotifications(
+    BuildContext context,
+    WidgetRef ref,
+    bool enable,
+  ) async {
     final subscriptionService = ref.read(dailyJokeSubscriptionServiceProvider);
-    
+    final statusNotifier = ref.read(subscriptionStatusProvider.notifier);
+
     try {
       bool success;
       if (enable) {
         success = await subscriptionService.subscribe();
       } else {
         success = await subscriptionService.unsubscribe();
+      }
+
+      if (success) {
+        // Update the reactive state immediately
+        statusNotifier.state = AsyncValue.data(enable);
       }
 
       if (context.mounted) {
@@ -504,7 +585,6 @@ class UserSettingsScreen extends ConsumerWidget implements TitledScreen {
               duration: const Duration(seconds: 3),
             ),
           );
-          // Widget will rebuild automatically when user returns to this screen
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -534,7 +614,7 @@ class UserSettingsScreen extends ConsumerWidget implements TitledScreen {
 
   Future<void> _testNotification(BuildContext context, WidgetRef ref) async {
     final subscriptionService = ref.read(dailyJokeSubscriptionServiceProvider);
-    
+
     try {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

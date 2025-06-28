@@ -5,6 +5,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
 
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
@@ -15,15 +16,80 @@ class NotificationService {
       FlutterLocalNotificationsPlugin();
 
   bool _isInitialized = false;
+  bool _localNotificationsInitialized = false;
 
-  /// Initialize the notification service
+  /// Initialize notification service (non-blocking)
+  /// Now ultra-fast since everything is background/on-demand
   Future<void> initialize() async {
     if (_isInitialized) return;
 
-    await _initializeLocalNotifications();
-    await _initializeFCM();
+    // Start background initialization (non-blocking)
+    _initializeBackgroundServices();
 
     _isInitialized = true;
+  }
+
+  /// Initialize background services (non-blocking)
+  /// These can happen after UI loads without affecting user experience
+  void _initializeBackgroundServices() {
+    // Run in background without awaiting
+    _requestFCMPermissions().catchError((e) {
+      debugPrint('Background FCM permission request failed: $e');
+    });
+
+    _initializeFCMListeners().catchError((e) {
+      debugPrint('Background FCM initialization failed: $e');
+    });
+
+    _syncSubscriptions().catchError((e) {
+      debugPrint('Background subscription sync failed: $e');
+    });
+  }
+
+  /// Request FCM permissions (blocking - user needs to respond)
+  Future<void> _requestFCMPermissions() async {
+    try {
+      await FirebaseMessaging.instance.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+        provisional: false,
+      );
+      debugPrint('FCM permissions requested');
+    } catch (e) {
+      debugPrint('Failed to request FCM permissions: $e');
+    }
+  }
+
+  /// Initialize FCM listeners and token (background)
+  Future<void> _initializeFCMListeners() async {
+    try {
+      // Get FCM token for debugging
+      final token = await FirebaseMessaging.instance.getToken();
+      debugPrint('FCM Token: $token');
+
+      // Handle foreground messages
+      FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
+
+      // Handle notification taps when app is in background/terminated
+      FirebaseMessaging.onMessageOpenedApp.listen(_handleMessageOpenedApp);
+
+      debugPrint('FCM listeners initialized');
+    } catch (e) {
+      debugPrint('Failed to initialize FCM listeners: $e');
+    }
+  }
+
+  /// Sync subscription state with FCM server (background)
+  Future<void> _syncSubscriptions() async {
+    try {
+      final subscriptionService = DailyJokeSubscriptionServiceImpl();
+      await subscriptionService.ensureSubscriptionSync();
+      debugPrint('Subscription sync completed in background');
+    } catch (e) {
+      debugPrint('Failed to sync subscriptions in background: $e');
+      // Non-critical error, app continues normally
+    }
   }
 
   /// Initialize local notifications
@@ -61,27 +127,6 @@ class NotificationService {
           AndroidFlutterLocalNotificationsPlugin
         >()
         ?.createNotificationChannel(androidChannel);
-  }
-
-  /// Initialize Firebase Cloud Messaging
-  Future<void> _initializeFCM() async {
-    // Request permission for iOS
-    await FirebaseMessaging.instance.requestPermission(
-      alert: true,
-      badge: true,
-      sound: true,
-      provisional: false,
-    );
-
-    // Get FCM token for debugging
-    final token = await FirebaseMessaging.instance.getToken();
-    debugPrint('FCM Token: $token');
-
-    // Handle foreground messages
-    FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
-
-    // Handle notification taps when app is in background/terminated
-    FirebaseMessaging.onMessageOpenedApp.listen(_handleMessageOpenedApp);
   }
 
   /// Handle foreground FCM messages
@@ -146,12 +191,15 @@ class NotificationService {
     }
   }
 
-  /// Show local notification
+  /// Show local notification (with lazy initialization)
   Future<void> _showJokeNotification({
     required String title,
     required String body,
     String? payload,
   }) async {
+    // Ensure local notifications are initialized (lazy initialization)
+    await _ensureLocalNotificationsInitialized();
+
     const androidDetails = AndroidNotificationDetails(
       'daily_jokes',
       'Daily Jokes',
@@ -182,6 +230,20 @@ class NotificationService {
     );
 
     debugPrint('Showed local notification: $title - $body');
+  }
+
+  /// Ensure local notifications are initialized (lazy/on-demand)
+  Future<void> _ensureLocalNotificationsInitialized() async {
+    if (_localNotificationsInitialized) return;
+
+    try {
+      await _initializeLocalNotifications();
+      _localNotificationsInitialized = true;
+      debugPrint('Local notifications initialized on-demand');
+    } catch (e) {
+      debugPrint('Failed to initialize local notifications on-demand: $e');
+      rethrow; // Let caller handle the error
+    }
   }
 
   /// Get FCM token for server-side targeting (if needed)

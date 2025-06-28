@@ -63,6 +63,9 @@ class CoreMocks {
         mockSubscriptionService,
       ),
 
+      // Mock subscription status provider
+      subscriptionStatusProvider.overrideWith((ref) => const AsyncValue.data(false)),
+
       // Add any additional overrides
       ...additionalOverrides,
     ];
@@ -113,5 +116,6 @@ class CoreMocks {
     when(() => mock.unsubscribe()).thenAnswer((_) async => true);
     when(() => mock.toggleSubscription()).thenAnswer((_) async => true);
     when(() => mock.testDailyJoke()).thenAnswer((_) async => true);
+    when(() => mock.ensureSubscriptionSync()).thenAnswer((_) async => true);
   }
 }

@@ -112,7 +112,6 @@ class CoreMocks {
   ) {
     // Setup default behaviors for subscription service
     when(() => mock.isSubscribed()).thenAnswer((_) async => false);
-    when(() => mock.testDailyJoke()).thenAnswer((_) async => true);
     when(() => mock.ensureSubscriptionSync()).thenAnswer((_) async => true);
     when(() => mock.setSubscriptionPreference(any())).thenAnswer((_) async => true);
   }

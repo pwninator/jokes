@@ -252,19 +252,7 @@ class UserSettingsScreen extends ConsumerWidget implements TitledScreen {
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
-              // Test notification button
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: () => _testNotification(context, ref),
-                  icon: const Icon(Icons.send),
-                  label: const Text('Test Notification'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Theme.of(context).colorScheme.primary,
-                  ),
-                ),
-              ),
+
             ],
           ),
       loading:
@@ -302,15 +290,7 @@ class UserSettingsScreen extends ConsumerWidget implements TitledScreen {
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: null, // Disabled while loading
-                  icon: const Icon(Icons.send),
-                  label: const Text('Test Notification'),
-                ),
-              ),
+
             ],
           ),
       error:
@@ -614,46 +594,5 @@ class UserSettingsScreen extends ConsumerWidget implements TitledScreen {
     }
   }
 
-  Future<void> _testNotification(BuildContext context, WidgetRef ref) async {
-    final subscriptionService = ref.read(dailyJokeSubscriptionServiceProvider);
 
-    try {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Sending test notification...'),
-          backgroundColor: Theme.of(context).colorScheme.primary,
-          duration: const Duration(seconds: 2),
-        ),
-      );
-
-      final success = await subscriptionService.testDailyJoke();
-
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              success
-                  ? 'Test notification sent! Check your notifications.'
-                  : 'Failed to send test notification',
-            ),
-            backgroundColor:
-                success
-                    ? Theme.of(context).appColors.success
-                    : Theme.of(context).appColors.authError,
-            duration: const Duration(seconds: 4),
-          ),
-        );
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error sending test notification: $e'),
-            backgroundColor: Theme.of(context).appColors.authError,
-            duration: const Duration(seconds: 5),
-          ),
-        );
-      }
-    }
-  }
 }

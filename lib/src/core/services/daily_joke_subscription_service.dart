@@ -1,4 +1,3 @@
-import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -15,8 +14,7 @@ abstract class DailyJokeSubscriptionService {
   /// Save subscription preference immediately (for UI responsiveness)
   Future<bool> setSubscriptionPreference(bool subscribed);
 
-  /// Test function to manually trigger a daily joke notification
-  Future<bool> testDailyJoke();
+
 }
 
 /// Concrete implementation of the daily joke subscription service
@@ -73,21 +71,7 @@ class DailyJokeSubscriptionServiceImpl implements DailyJokeSubscriptionService {
     return await _saveSubscriptionPreference(subscribed);
   }
 
-  @override
-  Future<bool> testDailyJoke() async {
-    try {
-      final functions = FirebaseFunctions.instance;
-      final callable = functions.httpsCallable('sendDailyJokeManual');
 
-      final result = await callable.call();
-      debugPrint('Test notification result: ${result.data}');
-
-      return true;
-    } catch (e) {
-      debugPrint('Failed to send test notification: $e');
-      return false;
-    }
-  }
 }
 
 /// Riverpod provider for the daily joke subscription service

@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:snickerdoodle/src/core/providers/app_version_provider.dart';
 import 'package:snickerdoodle/src/core/providers/image_providers.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
@@ -65,6 +66,9 @@ class CoreMocks {
 
       // Mock subscription status provider
       subscriptionStatusProvider.overrideWith((ref) => const AsyncValue.data(false)),
+
+      // Mock app version provider with test data
+      appVersionProvider.overrideWith((ref) => Future.value('Snickerdoodle v0.0.1+1')),
 
       // Add any additional overrides
       ...additionalOverrides,

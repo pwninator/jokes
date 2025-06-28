@@ -2,20 +2,93 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/common_widgets/app_bar_widget.dart';
 import 'package:snickerdoodle/src/common_widgets/titled_screen.dart';
+import 'package:snickerdoodle/src/core/providers/app_version_provider.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
 import 'package:snickerdoodle/src/features/auth/data/models/app_user.dart';
 import 'package:snickerdoodle/src/features/settings/application/theme_settings_service.dart';
 
-class UserSettingsScreen extends ConsumerWidget implements TitledScreen {
+class UserSettingsScreen extends ConsumerStatefulWidget
+    implements TitledScreen {
   const UserSettingsScreen({super.key});
 
   @override
   String get title => 'Settings';
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<UserSettingsScreen> createState() => _UserSettingsScreenState();
+}
+
+class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
+  // Developer mode state (resets on app restart)
+  bool _developerModeEnabled = false;
+
+  // Secret sequence tracking
+  final List<String> _tapSequence = [];
+  DateTime? _lastTap;
+
+  // Expected sequence: Theme(2x), Version(2x), Notifications(4x) = 8 taps total
+  static const List<String> _secretSequence = [
+    'theme',
+    'theme',
+    'version',
+    'version',
+    'notifications',
+    'notifications',
+    'notifications',
+    'notifications',
+  ];
+
+  void _handleSecretTap(String tapType) {
+    final now = DateTime.now();
+
+    // Reset sequence if more than 2 seconds passed since last tap
+    if (_lastTap != null && now.difference(_lastTap!).inSeconds > 2) {
+      _tapSequence.clear();
+    }
+
+    _tapSequence.add(tapType);
+    _lastTap = now;
+
+    // Check if sequence matches expected pattern so far
+    bool sequenceValid = true;
+    for (int i = 0; i < _tapSequence.length; i++) {
+      if (i >= _secretSequence.length ||
+          _tapSequence[i] != _secretSequence[i]) {
+        sequenceValid = false;
+        break;
+      }
+    }
+
+    if (!sequenceValid) {
+      // Reset on wrong sequence
+      _tapSequence.clear();
+      return;
+    }
+
+    // Check if complete sequence achieved
+    if (_tapSequence.length == _secretSequence.length) {
+      setState(() {
+        _developerModeEnabled = true;
+      });
+
+      // Show success message
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text("Congrats! You've unlocked dev mode!"),
+          backgroundColor: Theme.of(context).appColors.success,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+
+      // Reset sequence
+      _tapSequence.clear();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final currentUser = ref.watch(currentUserProvider);
     final authController = ref.watch(authControllerProvider);
 
@@ -34,9 +107,12 @@ class UserSettingsScreen extends ConsumerWidget implements TitledScreen {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'Theme Settings',
-                        style: Theme.of(context).textTheme.headlineSmall,
+                      GestureDetector(
+                        onTap: () => _handleSecretTap('theme'),
+                        child: Text(
+                          'Theme Settings',
+                          style: Theme.of(context).textTheme.headlineSmall,
+                        ),
                       ),
                       const SizedBox(height: 16),
                       _buildThemeSettings(context, ref),
@@ -53,9 +129,12 @@ class UserSettingsScreen extends ConsumerWidget implements TitledScreen {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        'Notifications',
-                        style: Theme.of(context).textTheme.headlineSmall,
+                      GestureDetector(
+                        onTap: () => _handleSecretTap('notifications'),
+                        child: Text(
+                          'Notifications',
+                          style: Theme.of(context).textTheme.headlineSmall,
+                        ),
                       ),
                       const SizedBox(height: 16),
                       _buildNotificationSettings(context, ref),
@@ -63,89 +142,125 @@ class UserSettingsScreen extends ConsumerWidget implements TitledScreen {
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
 
-              // User Info Section
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'User Information',
-                        style: Theme.of(context).textTheme.headlineSmall,
-                      ),
-                      const SizedBox(height: 8),
-                      if (currentUser != null) ...[
-                        _buildInfoRow(
-                          'Status',
-                          currentUser.isAnonymous ? 'Guest User' : 'Signed In',
+              // Developer mode sections (only show when unlocked)
+              if (_developerModeEnabled) ...[
+                const SizedBox(height: 16),
+
+                // User Info Section
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'User Information',
+                          style: Theme.of(context).textTheme.headlineSmall,
                         ),
-                        if (!currentUser.isAnonymous) ...[
+                        const SizedBox(height: 8),
+                        if (currentUser != null) ...[
                           _buildInfoRow(
-                            'Email',
-                            currentUser.email ?? 'Not provided',
+                            'Status',
+                            currentUser.isAnonymous
+                                ? 'Guest User'
+                                : 'Signed In',
                           ),
+                          if (!currentUser.isAnonymous) ...[
+                            _buildInfoRow(
+                              'Email',
+                              currentUser.email ?? 'Not provided',
+                            ),
+                            _buildInfoRow(
+                              'Display Name',
+                              currentUser.displayName ?? 'Not set',
+                            ),
+                          ],
                           _buildInfoRow(
-                            'Display Name',
-                            currentUser.displayName ?? 'Not set',
+                            'Role',
+                            _getRoleDisplay(currentUser.role),
                           ),
-                        ],
-                        _buildInfoRow(
-                          'Role',
-                          _getRoleDisplay(currentUser.role),
-                        ),
-                        _buildInfoRow('User ID', currentUser.id),
-                      ] else
-                        const Text('No user information available'),
-                    ],
+                          _buildInfoRow('User ID', currentUser.id),
+                        ] else
+                          const Text('No user information available'),
+                      ],
+                    ),
                   ),
                 ),
-              ),
+                const SizedBox(height: 16),
+
+                // Authentication Actions Section
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Authentication',
+                          style: Theme.of(context).textTheme.headlineSmall,
+                        ),
+                        const SizedBox(height: 16),
+
+                        if (currentUser?.isAnonymous == true) ...[
+                          // Show Google sign-in option for anonymous users
+                          ElevatedButton.icon(
+                            onPressed:
+                                () =>
+                                    _signInWithGoogle(context, authController),
+                            icon: const Icon(Icons.login),
+                            label: const Text('Sign in with Google'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor:
+                                  Theme.of(context).appColors.googleBlue,
+                              foregroundColor: Colors.white,
+                            ),
+                          ),
+                        ] else ...[
+                          // Show sign out option for authenticated users
+                          ElevatedButton.icon(
+                            onPressed:
+                                () => _confirmSignOut(context, authController),
+                            icon: const Icon(Icons.logout),
+                            label: const Text('Switch to Guest Mode'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor:
+                                  Theme.of(context).appColors.authError,
+                              foregroundColor: Colors.white,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+              ],
               const SizedBox(height: 16),
 
-              // Authentication Actions Section
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Authentication',
-                        style: Theme.of(context).textTheme.headlineSmall,
-                      ),
-                      const SizedBox(height: 16),
-
-                      if (currentUser?.isAnonymous == true) ...[
-                        // Show Google sign-in option for anonymous users
-                        ElevatedButton.icon(
-                          onPressed:
-                              () => _signInWithGoogle(context, authController),
-                          icon: const Icon(Icons.login),
-                          label: const Text('Sign in with Google'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor:
-                                Theme.of(context).appColors.googleBlue,
-                            foregroundColor: Colors.white,
+              // Version text (for secret sequence)
+              Center(
+                child: GestureDetector(
+                  onTap: () => _handleSecretTap('version'),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 16.0),
+                    child: Consumer(
+                      builder: (context, ref, child) {
+                        final appVersionAsync = ref.watch(appVersionProvider);
+                        return Text(
+                          appVersionAsync.when(
+                            data: (version) => version,
+                            loading: () => 'Loading version...',
+                            error: (error, stack) => 'Snickerdoodle',
                           ),
-                        ),
-                      ] else ...[
-                        // Show sign out option for authenticated users
-                        ElevatedButton.icon(
-                          onPressed:
-                              () => _confirmSignOut(context, authController),
-                          icon: const Icon(Icons.logout),
-                          label: const Text('Switch to Guest Mode'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor:
-                                Theme.of(context).appColors.authError,
-                            foregroundColor: Colors.white,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurface.withValues(alpha: 0.6),
                           ),
-                        ),
-                      ],
-                    ],
+                        );
+                      },
+                    ),
                   ),
                 ),
               ),
@@ -252,7 +367,6 @@ class UserSettingsScreen extends ConsumerWidget implements TitledScreen {
                   ),
                 ],
               ),
-
             ],
           ),
       loading:
@@ -290,7 +404,6 @@ class UserSettingsScreen extends ConsumerWidget implements TitledScreen {
                   ),
                 ],
               ),
-
             ],
           ),
       error:
@@ -593,6 +706,4 @@ class UserSettingsScreen extends ConsumerWidget implements TitledScreen {
       );
     }
   }
-
-
 }

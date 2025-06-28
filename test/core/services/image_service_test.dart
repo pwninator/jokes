@@ -215,7 +215,10 @@ void main() {
 
           // assert
           expect(result, contains('format=webp'));
-          expect(result, contains('quality=85'));
+          expect(
+            result,
+            contains('quality=${ImageService.defaultFullSizeQuality}'),
+          );
           expect(result, contains('width=1024'));
         },
       );
@@ -278,7 +281,10 @@ void main() {
         // assert
         expect(result, contains('width=200'));
         expect(result, contains('height=200'));
-        expect(result, contains('quality=75'));
+        expect(
+          result,
+          contains('quality=${ImageService.defaultThumbnailQuality}'),
+        );
         expect(result, contains('format=webp'));
       });
     });
@@ -293,7 +299,10 @@ void main() {
         final result = imageService.getFullSizeUrl(cloudflareUrl);
 
         // assert
-        expect(result, contains('quality=85'));
+        expect(
+          result,
+          contains('quality=${ImageService.defaultFullSizeQuality}'),
+        );
         expect(result, contains('format=webp'));
       });
     });

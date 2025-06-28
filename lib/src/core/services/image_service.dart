@@ -6,7 +6,8 @@ class ImageService {
   static const Duration defaultCacheDuration = Duration(days: 30);
   static const int maxCacheSize = 100 * 1024 * 1024; // 100MB
 
-  static const int defaultQuality = 75;
+  static const int defaultThumbnailQuality = 50;
+  static const int defaultFullSizeQuality = 75;
 
   /// Validates if the provided URL is a valid image URL
   bool isValidImageUrl(String? url) {
@@ -109,7 +110,7 @@ class ImageService {
 
       // Apply optimizations
       paramMap['format'] = 'webp';
-      paramMap['quality'] = quality ?? defaultQuality.toString();
+      paramMap['quality'] = quality ?? defaultFullSizeQuality.toString();
 
       // Set dimensions if provided
       if (width != null) {
@@ -137,12 +138,17 @@ class ImageService {
 
   /// Gets a thumbnail version of the image URL
   String getThumbnailUrl(String url, {int size = 150}) {
-    return processImageUrl(url, width: size, height: size, quality: '75');
+    return processImageUrl(
+      url,
+      width: size,
+      height: size,
+      quality: defaultThumbnailQuality.toString(),
+    );
   }
 
   /// Gets a full-size version of the image URL
   String getFullSizeUrl(String url) {
-    return processImageUrl(url, quality: '85');
+    return processImageUrl(url, quality: defaultFullSizeQuality.toString());
   }
 
   /// Clears the image cache

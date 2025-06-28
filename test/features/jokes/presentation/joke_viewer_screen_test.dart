@@ -52,6 +52,12 @@ void main() {
       when(
         () => mockImageService.processImageUrl(any()),
       ).thenReturn('https://example.com/image.jpg');
+      when(
+        () => mockImageService.processImageUrl(
+          any(),
+          quality: any(named: 'quality'),
+        ),
+      ).thenReturn('https://example.com/image.jpg');
       when(() => mockImageService.clearCache()).thenAnswer((_) async {});
     });
 

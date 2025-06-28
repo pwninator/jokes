@@ -83,7 +83,12 @@ void main() {
           () => mockImageService.processImageUrl(validUrl),
         ).thenReturn(validUrl);
         when(
-          () => mockImageService.processImageUrl(validUrl, quality: any(named: 'quality')),
+          () => mockImageService.processImageUrl(
+            validUrl,
+            width: any(named: 'width'),
+            height: any(named: 'height'),
+            quality: any(named: 'quality'),
+          ),
         ).thenReturn(validUrl);
 
         const widget = CachedJokeImage(imageUrl: validUrl);
@@ -108,7 +113,12 @@ void main() {
           () => mockImageService.processImageUrl(validUrl),
         ).thenReturn(validUrl);
         when(
-          () => mockImageService.processImageUrl(validUrl, quality: any(named: 'quality')),
+          () => mockImageService.processImageUrl(
+            validUrl,
+            width: any(named: 'width'),
+            height: any(named: 'height'),
+            quality: any(named: 'quality'),
+          ),
         ).thenReturn(validUrl);
 
         const widget = CachedJokeImage(
@@ -149,7 +159,12 @@ void main() {
           () => mockImageService.processImageUrl(validUrl),
         ).thenReturn(validUrl);
         when(
-          () => mockImageService.processImageUrl(validUrl, quality: any(named: 'quality')),
+          () => mockImageService.processImageUrl(
+            validUrl,
+            width: any(named: 'width'),
+            height: any(named: 'height'),
+            quality: any(named: 'quality'),
+          ),
         ).thenReturn(validUrl);
 
         final widget = CachedJokeImage(
@@ -185,7 +200,12 @@ void main() {
           () => mockImageService.processImageUrl(thumbnailUrl),
         ).thenReturn(thumbnailUrl);
         when(
-          () => mockImageService.processImageUrl(thumbnailUrl, quality: any(named: 'quality')),
+          () => mockImageService.processImageUrl(
+            thumbnailUrl,
+            width: any(named: 'width'),
+            height: any(named: 'height'),
+            quality: any(named: 'quality'),
+          ),
         ).thenReturn(thumbnailUrl);
 
         const widget = CachedJokeThumbnail(imageUrl: validUrl);
@@ -217,7 +237,12 @@ void main() {
           () => mockImageService.processImageUrl(thumbnailUrl),
         ).thenReturn(thumbnailUrl);
         when(
-          () => mockImageService.processImageUrl(thumbnailUrl, quality: any(named: 'quality')),
+          () => mockImageService.processImageUrl(
+            thumbnailUrl,
+            width: any(named: 'width'),
+            height: any(named: 'height'),
+            quality: any(named: 'quality'),
+          ),
         ).thenReturn(thumbnailUrl);
 
         const widget = CachedJokeThumbnail(

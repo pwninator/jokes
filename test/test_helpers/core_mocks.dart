@@ -86,6 +86,19 @@ class CoreMocks {
       final url = invocation.positionalArguments[0] as String?;
       return url ?? transparentImageDataUrl;
     });
+    when(() => mock.processImageUrl(
+      any(),
+      width: any(named: 'width'),
+      height: any(named: 'height'),
+      quality: any(named: 'quality'),
+    )).thenAnswer((invocation) {
+      final url = invocation.positionalArguments[0] as String?;
+      return url ?? transparentImageDataUrl;
+    });
+    when(() => mock.getThumbnailUrl(any())).thenAnswer((invocation) {
+      final url = invocation.positionalArguments[0] as String?;
+      return url ?? transparentImageDataUrl;
+    });
     when(
       () => mock.getThumbnailUrl(any(), size: any(named: 'size')),
     ).thenAnswer((invocation) {

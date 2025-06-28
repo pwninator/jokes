@@ -1,8 +1,10 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/core/providers/image_providers.dart';
+import 'package:snickerdoodle/src/core/services/image_service.dart';
+import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 
 class CachedJokeImage extends ConsumerWidget {
   const CachedJokeImage({
@@ -24,26 +26,95 @@ class CachedJokeImage extends ConsumerWidget {
   final bool showLoadingIndicator;
   final bool showErrorIcon;
 
+  // Because of the sketchy style of the joke images, lower quality is ok
+  static const int imageQuality = 50;
+
+  // Shared HTTP headers used for both widget display and precaching
+  static const Map<String, String> httpHeaders = {
+    'Accept': 'image/webp,image/avif,image/apng,image/*,*/*;q=0.8',
+    'Accept-Encoding': 'gzip, deflate, br',
+  };
+
+  /// Returns the processed image URL using shared configuration, or null if invalid
+  static String? _getProcessedImageUrl(
+    String? imageUrl,
+    ImageService imageService,
+  ) {
+    if (imageUrl == null || !imageService.isValidImageUrl(imageUrl)) {
+      return null;
+    }
+
+    return imageService.processImageUrl(
+      imageUrl,
+      quality: imageQuality.toString(),
+    );
+  }
+
+  /// Precaches a single joke image with the same configuration as the widget
+  static Future<void> precacheJokeImage(
+    String? imageUrl,
+    BuildContext context,
+    ImageService imageService,
+  ) async {
+    final processedUrl = _getProcessedImageUrl(imageUrl, imageService);
+    if (processedUrl == null) return;
+
+    try {
+      await precacheImage(
+        CachedNetworkImageProvider(processedUrl, headers: httpHeaders),
+        context,
+      );
+    } catch (error, stackTrace) {
+      // Silently handle preload errors - the actual image widget will show error state
+      debugPrint('Failed to precache image $imageUrl: $error\n$stackTrace');
+    }
+  }
+
+  /// Precaches both setup and punchline images for a joke
+  static Future<void> precacheJokeImages(
+    Joke joke,
+    BuildContext context,
+    ImageService imageService,
+  ) async {
+    // Precache both images in parallel
+    await Future.wait([
+      precacheJokeImage(joke.setupImageUrl, context, imageService),
+      precacheJokeImage(joke.punchlineImageUrl, context, imageService),
+    ]);
+  }
+
+  /// Precaches images for multiple jokes
+  static Future<void> precacheMultipleJokeImages(
+    List<Joke> jokes,
+    BuildContext context,
+    ImageService imageService,
+  ) async {
+    // Precache all jokes sequentially to avoid context issues
+    for (final joke in jokes) {
+      try {
+        await precacheJokeImages(joke, context, imageService);
+      } catch (e) {
+        debugPrint('Failed to precache images for joke ${joke.id}: $e');
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final imageService = ref.read(imageServiceProvider);
 
-    // Handle null or invalid URLs
-    if (imageUrl == null || !imageService.isValidImageUrl(imageUrl)) {
+    // Use shared URL processing logic
+    final processedUrl = _getProcessedImageUrl(imageUrl, imageService);
+    if (processedUrl == null) {
       return _buildErrorWidget(context);
     }
-
-    final processedUrl = imageService.processImageUrl(imageUrl!);
 
     Widget imageWidget = CachedNetworkImage(
       imageUrl: processedUrl,
       width: width,
       height: height,
       fit: fit,
-      httpHeaders: const {
-        'Accept': 'image/webp,image/avif,image/apng,image/*,*/*;q=0.8',
-        'Accept-Encoding': 'gzip, deflate, br',
-      },
+      httpHeaders: httpHeaders,
       placeholder:
           showLoadingIndicator
               ? (context, url) => _buildLoadingWidget(context)
@@ -75,7 +146,9 @@ class CachedJokeImage extends ConsumerWidget {
         final sizeInKB = (sizeInBytes / 1024).toStringAsFixed(1);
         debugPrint("Loading image (CachedJokeImage): $url (${sizeInKB}KB)");
       } else {
-        debugPrint("Loading image (CachedJokeImage): $url (size unknown - not cached)");
+        debugPrint(
+          "Loading image (CachedJokeImage): $url (size unknown - not cached)",
+        );
       }
     } catch (e) {
       debugPrint("Loading image (CachedJokeImage): $url (size error: $e)");

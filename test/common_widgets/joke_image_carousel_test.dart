@@ -31,6 +31,9 @@ void main() {
       () => mockImageService.processImageUrl(any()),
     ).thenReturn(transparentImageDataUrl);
     when(
+      () => mockImageService.processImageUrl(any(), quality: any(named: 'quality')),
+    ).thenReturn(transparentImageDataUrl);
+    when(
       () => mockImageService.getThumbnailUrl(any()),
     ).thenReturn(transparentImageDataUrl);
     when(
@@ -200,8 +203,10 @@ void main() {
 
         // assert
         verify(
-          () =>
-              mockImageService.processImageUrl('https://example.com/setup.jpg'),
+          () => mockImageService.processImageUrl(
+            'https://example.com/setup.jpg',
+            quality: '50',
+          ),
         ).called(greaterThan(0));
       });
 
@@ -228,6 +233,7 @@ void main() {
         verify(
           () => mockImageService.processImageUrl(
             'https://example.com/punchline.jpg',
+            quality: '50',
           ),
         ).called(greaterThan(0));
       });
@@ -261,26 +267,31 @@ void main() {
         await tester.pumpWidget(createTestWidget(child: widget));
         await tester.pump();
         await tester.pump(); // Extra pump for post-frame callbacks
+        await tester.pump(const Duration(milliseconds: 100)); // Allow async precaching to complete
 
         // assert
         verify(
           () => mockImageService.processImageUrl(
             'https://example.com/current_setup.jpg',
+            quality: '50',
           ),
         ).called(greaterThan(0));
         verify(
           () => mockImageService.processImageUrl(
             'https://example.com/current_punchline.jpg',
+            quality: '50',
           ),
         ).called(greaterThan(0));
         verify(
           () => mockImageService.processImageUrl(
             'https://example.com/preload_setup.jpg',
+            quality: '50',
           ),
         ).called(greaterThan(0));
         verify(
           () => mockImageService.processImageUrl(
             'https://example.com/preload_punchline.jpg',
+            quality: '50',
           ),
         ).called(greaterThan(0));
       });

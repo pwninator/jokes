@@ -1,9 +1,7 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/common_widgets/cached_joke_image.dart';
 import 'package:snickerdoodle/src/core/providers/image_providers.dart';
-import 'package:snickerdoodle/src/core/services/image_service.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
@@ -51,60 +49,31 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
   }
 
   void _preloadImages() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return; // Ensure the widget is still in the tree
       final imageService = ref.read(imageServiceProvider);
 
-      // Preload images for the current joke
-      _precacheJokeImages(widget.joke, imageService, context);
+      try {
+        // Preload images for the current joke
+        await CachedJokeImage.precacheJokeImages(
+          widget.joke,
+          context,
+          imageService,
+        );
 
-      // Preload images for the next jokes
-      if (widget.jokesToPreload != null) {
-        for (final jokeToPreload in widget.jokesToPreload!) {
-          _precacheJokeImages(jokeToPreload, imageService, context);
+        // Preload images for the next jokes
+        if (widget.jokesToPreload != null && mounted) {
+          await CachedJokeImage.precacheMultipleJokeImages(
+            widget.jokesToPreload!,
+            context,
+            imageService,
+          );
         }
+      } catch (e) {
+        // Silently handle any precaching errors
+        debugPrint('Error during image precaching: $e');
       }
     });
-  }
-
-  void _precacheJokeImages(
-    Joke joke,
-    ImageService imageService,
-    BuildContext context,
-  ) {
-    // Preload setup image
-    if (joke.setupImageUrl != null &&
-        imageService.isValidImageUrl(joke.setupImageUrl)) {
-      final processedSetupUrl = imageService.processImageUrl(
-        joke.setupImageUrl!,
-      );
-      precacheImage(
-        CachedNetworkImageProvider(processedSetupUrl),
-        context,
-      ).catchError((error, stackTrace) {
-        // Silently handle preload errors - the actual image widget will show error state
-        debugPrint(
-          'Failed to preload setup image for joke ${joke.id}: $error\n$stackTrace',
-        );
-      });
-    }
-
-    // Preload punchline image
-    if (joke.punchlineImageUrl != null &&
-        imageService.isValidImageUrl(joke.punchlineImageUrl)) {
-      final processedPunchlineUrl = imageService.processImageUrl(
-        joke.punchlineImageUrl!,
-      );
-      precacheImage(
-        CachedNetworkImageProvider(processedPunchlineUrl),
-        context,
-      ).catchError((error, stackTrace) {
-        // Silently handle preload errors - the actual image widget will show error state
-        debugPrint(
-          'Failed to preload punchline image for joke ${joke.id}: $error\n$stackTrace',
-        );
-      });
-    }
   }
 
   @override

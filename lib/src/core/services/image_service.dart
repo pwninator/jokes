@@ -6,6 +6,8 @@ class ImageService {
   static const Duration defaultCacheDuration = Duration(days: 30);
   static const int maxCacheSize = 100 * 1024 * 1024; // 100MB
 
+  static const int defaultQuality = 75;
+
   /// Validates if the provided URL is a valid image URL
   bool isValidImageUrl(String? url) {
     if (url == null || url.trim().isEmpty) {
@@ -106,8 +108,8 @@ class ImageService {
       }
 
       // Apply optimizations
-      paramMap['format'] = 'webp'; // Force WebP instead of auto
-      paramMap['quality'] = quality ?? '85'; // Good balance of quality/size
+      paramMap['format'] = 'webp';
+      paramMap['quality'] = quality ?? defaultQuality.toString();
 
       // Set dimensions if provided
       if (width != null) {

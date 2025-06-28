@@ -82,6 +82,9 @@ void main() {
         when(
           () => mockImageService.processImageUrl(validUrl),
         ).thenReturn(validUrl);
+        when(
+          () => mockImageService.processImageUrl(validUrl, quality: any(named: 'quality')),
+        ).thenReturn(validUrl);
 
         const widget = CachedJokeImage(imageUrl: validUrl);
 
@@ -103,6 +106,9 @@ void main() {
         when(() => mockImageService.isValidImageUrl(validUrl)).thenReturn(true);
         when(
           () => mockImageService.processImageUrl(validUrl),
+        ).thenReturn(validUrl);
+        when(
+          () => mockImageService.processImageUrl(validUrl, quality: any(named: 'quality')),
         ).thenReturn(validUrl);
 
         const widget = CachedJokeImage(
@@ -142,6 +148,9 @@ void main() {
         when(
           () => mockImageService.processImageUrl(validUrl),
         ).thenReturn(validUrl);
+        when(
+          () => mockImageService.processImageUrl(validUrl, quality: any(named: 'quality')),
+        ).thenReturn(validUrl);
 
         final widget = CachedJokeImage(
           imageUrl: validUrl,
@@ -175,6 +184,9 @@ void main() {
         when(
           () => mockImageService.processImageUrl(thumbnailUrl),
         ).thenReturn(thumbnailUrl);
+        when(
+          () => mockImageService.processImageUrl(thumbnailUrl, quality: any(named: 'quality')),
+        ).thenReturn(thumbnailUrl);
 
         const widget = CachedJokeThumbnail(imageUrl: validUrl);
 
@@ -203,6 +215,9 @@ void main() {
         ).thenReturn(true);
         when(
           () => mockImageService.processImageUrl(thumbnailUrl),
+        ).thenReturn(thumbnailUrl);
+        when(
+          () => mockImageService.processImageUrl(thumbnailUrl, quality: any(named: 'quality')),
         ).thenReturn(thumbnailUrl);
 
         const widget = CachedJokeThumbnail(

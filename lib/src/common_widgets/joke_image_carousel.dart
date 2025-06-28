@@ -289,7 +289,12 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
 
   Widget _buildImagePage({required String? imageUrl}) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+      padding: const EdgeInsets.only(
+        left: 16.0,
+        right: 16.0,
+        top: 16.0,
+        bottom: 0.0,
+      ),
       child: Container(
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.surface,

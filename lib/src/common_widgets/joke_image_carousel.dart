@@ -288,39 +288,31 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
   }
 
   Widget _buildImagePage({required String? imageUrl}) {
-    return Padding(
-      padding: const EdgeInsets.only(
-        left: 0.0,
-        right: 0.0,
-        top: 0.0,
-        bottom: 0.0,
+    return Container(
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: const BorderRadius.vertical(
+          top: Radius.circular(8),
+          bottom: Radius.circular(8),
+        ),
       ),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.surface,
-          borderRadius: const BorderRadius.vertical(
-            top: Radius.circular(8),
-            bottom: Radius.circular(8),
-          ),
-        ),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            // Image
-            ClipRRect(
-              borderRadius: const BorderRadius.vertical(
-                top: Radius.circular(8),
-                bottom: Radius.circular(0),
-              ),
-              child: CachedJokeImage(
-                imageUrl: imageUrl,
-                fit: BoxFit.cover,
-                showLoadingIndicator: true,
-                showErrorIcon: true,
-              ),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          // Image
+          ClipRRect(
+            borderRadius: const BorderRadius.vertical(
+              top: Radius.circular(8),
+              bottom: Radius.circular(0),
             ),
-          ],
-        ),
+            child: CachedJokeImage(
+              imageUrl: imageUrl,
+              fit: BoxFit.cover,
+              showLoadingIndicator: true,
+              showErrorIcon: true,
+            ),
+          ),
+        ],
       ),
     );
   }

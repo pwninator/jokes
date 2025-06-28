@@ -290,9 +290,9 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
   Widget _buildImagePage({required String? imageUrl}) {
     return Padding(
       padding: const EdgeInsets.only(
-        left: 16.0,
-        right: 16.0,
-        top: 16.0,
+        left: 0.0,
+        right: 0.0,
+        top: 0.0,
         bottom: 0.0,
       ),
       child: Container(
@@ -310,7 +310,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
             ClipRRect(
               borderRadius: const BorderRadius.vertical(
                 top: Radius.circular(8),
-                bottom: Radius.circular(8),
+                bottom: Radius.circular(0),
               ),
               child: CachedJokeImage(
                 imageUrl: imageUrl,

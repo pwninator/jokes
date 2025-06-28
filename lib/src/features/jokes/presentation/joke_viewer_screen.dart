@@ -19,26 +19,128 @@ class JokeViewerScreen extends ConsumerStatefulWidget implements TitledScreen {
 class _JokeViewerScreenState extends ConsumerState<JokeViewerScreen> {
   int _currentPage = 0;
   late PageController _pageController;
+  double _hintOpacity = 1.0;
+
+  // Track user learning progress
+  static bool _hasSeenSetupToPunchline = false;
+  static bool _hasSeenPunchlineToNextJoke = false;
+
+  // Track current image state for each joke (joke index -> image index: 0=setup, 1=punchline)
+  final Map<int, int> _currentImageStates = {};
 
   @override
   void initState() {
     super.initState();
-    _pageController = PageController();
+    _pageController = PageController(viewportFraction: 0.77);
+    _pageController.addListener(_onScrollChanged);
   }
 
   @override
   void dispose() {
+    _pageController.removeListener(_onScrollChanged);
     _pageController.dispose();
     super.dispose();
   }
 
+  void _onScrollChanged() {
+    if (!_pageController.hasClients) return;
+
+    final position = _pageController.page ?? _currentPage.toDouble();
+    final currentPageDouble = _currentPage.toDouble();
+    final distanceFromCurrentPage = (position - currentPageDouble).abs();
+
+    _updateHintOpacity(distanceFromCurrentPage);
+  }
+
+  void _updateHintOpacity([double? scrollDistance]) {
+    if (!_shouldShowHint()) {
+      if (_hintOpacity != 0.0) {
+        setState(() => _hintOpacity = 0.0);
+      }
+      return;
+    }
+
+    final newOpacity =
+        scrollDistance != null ? _calculateScrollOpacity(scrollDistance) : 1.0;
+
+    if (_hintOpacity != newOpacity) {
+      setState(() => _hintOpacity = newOpacity);
+    }
+  }
+
+  double _calculateScrollOpacity(double distanceFromCurrentPage) {
+    const stepSize = 0.01;
+    const opacityReduction = 0.2;
+    const maxDistance = (1 / opacityReduction) * stepSize;
+
+    final quantizedDistance =
+        (distanceFromCurrentPage / stepSize).round() * stepSize;
+
+    return quantizedDistance >= maxDistance
+        ? 0.0
+        : 1.0 - (quantizedDistance / stepSize) * opacityReduction;
+  }
+
+  void _markGestureLearned({bool? setupToPunchline, bool? punchlineToNext}) {
+    bool shouldUpdate = false;
+
+    if (setupToPunchline == true && !_hasSeenSetupToPunchline) {
+      _hasSeenSetupToPunchline = true;
+      shouldUpdate = true;
+    }
+
+    if (punchlineToNext == true && !_hasSeenPunchlineToNextJoke) {
+      _hasSeenPunchlineToNextJoke = true;
+      shouldUpdate = true;
+    }
+
+    if (shouldUpdate) {
+      setState(() {}); // Trigger rebuild for hint visibility
+      _updateHintOpacity();
+    }
+  }
+
+  void _onSetupToPunchlineTransition() {
+    _markGestureLearned(setupToPunchline: true);
+  }
+
+  void _onImageStateChanged(int jokeIndex, int imageIndex) {
+    setState(() {
+      _currentImageStates[jokeIndex] = imageIndex;
+    });
+
+    // Only update hint if it's the current page
+    if (jokeIndex == _currentPage) {
+      _updateHintOpacity();
+    }
+  }
+
+  String _getHintText() {
+    final currentImageIndex = _currentImageStates[_currentPage] ?? 0;
+    return currentImageIndex == 0 ? 'Tap for punchline!' : 'Tap for next joke!';
+  }
+
   void _goToNextJoke(int totalJokes) {
+    _markGestureLearned(punchlineToNext: true);
+
     final nextPage = _currentPage + 1;
     if (nextPage < totalJokes) {
       _pageController.nextPage(
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
       );
+    }
+  }
+
+  bool _shouldShowHint() {
+    final currentImageIndex = _currentImageStates[_currentPage] ?? 0;
+
+    if (currentImageIndex == 0) {
+      // Showing setup image - only show hint if user hasn't learned setup->punchline
+      return !_hasSeenSetupToPunchline;
+    } else {
+      // Showing punchline image - only show hint if user hasn't learned punchline->next joke
+      return !_hasSeenPunchlineToNextJoke;
     }
   }
 
@@ -79,6 +181,8 @@ class _JokeViewerScreenState extends ConsumerState<JokeViewerScreen> {
                     setState(() {
                       _currentPage = index;
                     });
+                    // Update hint for new page
+                    _updateHintOpacity();
                   }
                 },
                 itemBuilder: (context, index) {
@@ -97,7 +201,11 @@ class _JokeViewerScreenState extends ConsumerState<JokeViewerScreen> {
                       child: JokeCard(
                         joke: joke,
                         index: index,
+                        onSetupTap: _onSetupToPunchlineTransition,
                         onPunchlineTap: () => _goToNextJoke(jokes.length),
+                        onImageStateChanged:
+                            (imageIndex) =>
+                                _onImageStateChanged(index, imageIndex),
                         isAdminMode: false,
                         jokesToPreload: jokesToPreload,
                       ),
@@ -105,27 +213,30 @@ class _JokeViewerScreenState extends ConsumerState<JokeViewerScreen> {
                   );
                 },
               ),
-              // Page indicator at the bottom
-              if (jokes.length > 1)
+
+              // Static hint overlay that doesn't scroll
+              if (_shouldShowHint())
                 Positioned(
                   bottom: 20,
                   left: 0,
                   right: 0,
                   child: Center(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 6,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.6),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        '${safeCurrentPage + 1} of ${jokes.length}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
+                    child: Opacity(
+                      opacity: _hintOpacity,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
+                        ),
+                        child: Text(
+                          _getHintText(),
+                          style: TextStyle(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurface.withValues(alpha: 0.6),
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                       ),
                     ),

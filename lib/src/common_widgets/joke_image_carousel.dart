@@ -13,6 +13,7 @@ class JokeImageCarousel extends ConsumerStatefulWidget {
   final int? index;
   final VoidCallback? onSetupTap;
   final VoidCallback? onPunchlineTap;
+  final Function(int)? onImageStateChanged;
   final bool isAdminMode;
   final List<Joke>? jokesToPreload;
 
@@ -22,6 +23,7 @@ class JokeImageCarousel extends ConsumerStatefulWidget {
     this.index,
     this.onSetupTap,
     this.onPunchlineTap,
+    this.onImageStateChanged,
     this.isAdminMode = false,
     this.jokesToPreload,
   });
@@ -39,6 +41,13 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
     super.initState();
     _pageController = PageController();
     _preloadImages();
+
+    // Initialize image state (starts at setup image = index 0)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (widget.onImageStateChanged != null) {
+        widget.onImageStateChanged!(0);
+      }
+    });
   }
 
   void _preloadImages() {
@@ -108,20 +117,25 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
     setState(() {
       _currentIndex = index;
     });
+
+    // Notify parent about image state change
+    if (widget.onImageStateChanged != null) {
+      widget.onImageStateChanged!(index);
+    }
   }
 
   void _onImageTap() {
     if (_currentIndex == 0) {
       // Currently showing setup image
+      // Call callback if provided (for tracking)
       if (widget.onSetupTap != null) {
         widget.onSetupTap!();
-      } else {
-        // Default behavior: go to punchline
-        _pageController.nextPage(
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
-        );
       }
+      // Always do default behavior: go to punchline
+      _pageController.nextPage(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
     } else {
       // Currently showing punchline image
       if (widget.onPunchlineTap != null) {

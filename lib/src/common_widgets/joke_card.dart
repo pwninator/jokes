@@ -8,6 +8,7 @@ class JokeCard extends StatelessWidget {
   final int? index;
   final VoidCallback? onSetupTap;
   final VoidCallback? onPunchlineTap;
+  final Function(int)? onImageStateChanged;
   final bool isAdminMode;
   final List<Joke>? jokesToPreload;
 
@@ -17,6 +18,7 @@ class JokeCard extends StatelessWidget {
     this.index,
     this.onSetupTap,
     this.onPunchlineTap,
+    this.onImageStateChanged,
     this.isAdminMode = false,
     this.jokesToPreload,
   });
@@ -38,6 +40,7 @@ class JokeCard extends StatelessWidget {
         index: index,
         onSetupTap: onSetupTap,
         onPunchlineTap: onPunchlineTap,
+        onImageStateChanged: onImageStateChanged,
         isAdminMode: isAdminMode,
         jokesToPreload: jokesToPreload,
       );

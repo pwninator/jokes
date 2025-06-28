@@ -4,7 +4,7 @@ ColorScheme lightColorScheme = ColorScheme.fromSeed(
   // seedColor: Colors.deepPurple,
   seedColor: Color(0xFFC59B6D),
   brightness: Brightness.light,
-);
+).copyWith(primary: Color.fromARGB(255, 193, 122, 45));
 
 ColorScheme darkColorScheme = ColorScheme.fromSeed(
   // seedColor: Colors.deepPurple,

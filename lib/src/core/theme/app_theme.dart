@@ -16,15 +16,40 @@ const TextTheme textTheme = TextTheme(
   headlineMedium: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
 );
 
+const AppBarTheme appBarTheme = AppBarTheme(
+  backgroundColor: Colors.transparent,
+  elevation: 0,
+);
+
 final ThemeData lightTheme = ThemeData.from(
   colorScheme: lightColorScheme,
   textTheme: textTheme,
-).copyWith(extensions: [AppColorExtension.light]);
+).copyWith(
+  extensions: [AppColorExtension.light],
+  appBarTheme: appBarTheme,
+  cardTheme: CardThemeData(
+    color: lightColorScheme.surfaceContainerHigh,
+    elevation: 4,
+  ),
+);
 
 final ThemeData darkTheme = ThemeData.from(
   colorScheme: darkColorScheme,
   textTheme: textTheme,
-).copyWith(extensions: [AppColorExtension.dark]);
+).copyWith(
+  extensions: [AppColorExtension.dark],
+  cardTheme: CardThemeData(
+    color: darkColorScheme.surfaceContainerHigh,
+    elevation: 1,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(12),
+      side: BorderSide(
+        color: darkColorScheme.outline.withValues(alpha: 0.2),
+        width: 0.5,
+      ),
+    ),
+  ),
+);
 
 @immutable
 class AppColorExtension extends ThemeExtension<AppColorExtension> {

@@ -31,7 +31,7 @@ class _JokeViewerScreenState extends ConsumerState<JokeViewerScreen> {
   @override
   void initState() {
     super.initState();
-    _pageController = PageController(viewportFraction: 0.77);
+    _pageController = PageController(viewportFraction: 0.9);
     _pageController.addListener(_onScrollChanged);
   }
 
@@ -173,6 +173,7 @@ class _JokeViewerScreenState extends ConsumerState<JokeViewerScreen> {
           return Stack(
             children: [
               PageView.builder(
+                key: const Key('joke_viewer_page_view'),
                 controller: _pageController,
                 scrollDirection: Axis.vertical,
                 itemCount: jokes.length,
@@ -238,6 +239,46 @@ class _JokeViewerScreenState extends ConsumerState<JokeViewerScreen> {
                             fontWeight: FontWeight.w500,
                           ),
                         ),
+                      ),
+                    ),
+                  ),
+                ),
+
+              // Up arrow indicator (when not at first joke)
+              if (_currentPage > 0)
+                Positioned(
+                  top: 40,
+                  left: 0,
+                  right: 0,
+                  child: Center(
+                    child: Opacity(
+                      opacity: 0.4,
+                      child: Icon(
+                        Icons.keyboard_arrow_up,
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.onSurface.withValues(alpha: 0.6),
+                        size: 24,
+                      ),
+                    ),
+                  ),
+                ),
+
+              // Down arrow indicator (when not at last joke)
+              if (_currentPage < jokes.length - 1)
+                Positioned(
+                  bottom: 40,
+                  left: 0,
+                  right: 0,
+                  child: Center(
+                    child: Opacity(
+                      opacity: 0.4,
+                      child: Icon(
+                        Icons.keyboard_arrow_down,
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.onSurface.withValues(alpha: 0.6),
+                        size: 24,
                       ),
                     ),
                   ),

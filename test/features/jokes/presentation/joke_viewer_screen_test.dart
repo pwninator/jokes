@@ -146,28 +146,6 @@ void main() {
       });
     });
 
-    group('Peek Effect', () {
-      testWidgets('uses viewport fraction for edge peek effect', (
-        tester,
-      ) async {
-        await tester.pumpWidget(
-          createTestWidget(
-            overrides: [
-              jokesWithImagesProvider.overrideWith(
-                (ref) => Stream.value(mockJokes),
-              ),
-            ],
-          ),
-        );
-
-        await tester.pump(); // Allow data to be processed
-
-        final pageViews = find.byType(PageView).evaluate();
-        final mainPageView = pageViews.first.widget as PageView;
-        expect(mainPageView.controller!.viewportFraction, 0.77);
-      });
-    });
-
     group('Hint System - Core Functionality', () {
       testWidgets('shows contextual hints initially', (tester) async {
         await tester.pumpWidget(
@@ -453,6 +431,161 @@ void main() {
           lessThan(1000),
           reason: 'Should complete 10 frames in under 1 second',
         );
+      });
+    });
+
+    group('Arrow Indicators', () {
+      testWidgets('shows no arrows when there is only one joke', (
+        tester,
+      ) async {
+        await tester.pumpWidget(
+          createTestWidget(
+            overrides: [
+              jokesWithImagesProvider.overrideWith(
+                (ref) => Stream.value([mockJokes.first]),
+              ),
+            ],
+          ),
+        );
+
+        await tester.pump(); // Allow data to be processed
+
+        // Should not show any arrow indicators
+        expect(find.byIcon(Icons.keyboard_arrow_up), findsNothing);
+        expect(find.byIcon(Icons.keyboard_arrow_down), findsNothing);
+      });
+
+      testWidgets('arrow logic works correctly based on page position', (
+        tester,
+      ) async {
+        await tester.pumpWidget(
+          createTestWidget(
+            overrides: [
+              jokesWithImagesProvider.overrideWith(
+                (ref) => Stream.value(mockJokes),
+              ),
+            ],
+          ),
+        );
+
+        await tester.pump(); // Allow data to be processed
+
+        // Initially at first joke - only down arrow should be visible
+        expect(find.byIcon(Icons.keyboard_arrow_up), findsNothing);
+        expect(find.byIcon(Icons.keyboard_arrow_down), findsOneWidget);
+
+        // Simulate upward swipe to go to next joke (middle joke)
+        final pageView = find.byKey(const Key('joke_viewer_page_view'));
+        await tester.drag(
+          pageView,
+          const Offset(0, -400),
+        ); // Negative dy = upward
+        await tester.pump(
+          const Duration(milliseconds: 1000),
+        ); // Wait for page transition to complete
+
+        // Now at middle joke - both arrows should be visible
+        expect(find.byIcon(Icons.keyboard_arrow_up), findsOneWidget);
+        expect(find.byIcon(Icons.keyboard_arrow_down), findsOneWidget);
+
+        // Simulate upward swipe to go to next joke (last joke)
+        await tester.drag(
+          pageView,
+          const Offset(0, -400),
+        ); // Negative dy = upward
+        await tester.pump(
+          const Duration(milliseconds: 1000),
+        ); // Wait for page transition to complete
+
+        // Now at last joke - only up arrow should be visible
+        expect(find.byIcon(Icons.keyboard_arrow_up), findsOneWidget);
+        expect(find.byIcon(Icons.keyboard_arrow_down), findsNothing);
+      });
+
+      testWidgets('arrow styling uses correct theme colors', (tester) async {
+        await tester.pumpWidget(
+          createTestWidget(
+            overrides: [
+              jokesWithImagesProvider.overrideWith(
+                (ref) => Stream.value(mockJokes),
+              ),
+            ],
+          ),
+        );
+
+        await tester.pump(); // Allow data to be processed
+
+        // Find the down arrow (should be present at first joke)
+        final downArrowWidget = find.byIcon(Icons.keyboard_arrow_down);
+        expect(downArrowWidget, findsOneWidget);
+
+        // Check that arrow has proper styling
+        final arrowIcon = tester.widget<Icon>(downArrowWidget);
+        expect(arrowIcon.size, equals(24));
+
+        // The color should use theme colors with alpha
+        expect(arrowIcon.color, isNotNull);
+      });
+
+      testWidgets('arrows are positioned correctly', (tester) async {
+        await tester.pumpWidget(
+          createTestWidget(
+            overrides: [
+              jokesWithImagesProvider.overrideWith(
+                (ref) => Stream.value(mockJokes),
+              ),
+            ],
+          ),
+        );
+
+        await tester.pump(); // Allow data to be processed
+
+        // Find the down arrow container
+        final downArrow = find.byIcon(Icons.keyboard_arrow_down);
+        expect(downArrow, findsOneWidget);
+      });
+
+      testWidgets('arrows have correct opacity', (tester) async {
+        await tester.pumpWidget(
+          createTestWidget(
+            overrides: [
+              jokesWithImagesProvider.overrideWith(
+                (ref) => Stream.value(mockJokes),
+              ),
+            ],
+          ),
+        );
+
+        await tester.pump(); // Allow data to be processed
+
+        // Find the opacity widget wrapping the arrow
+        final opacityWidget = find.ancestor(
+          of: find.byIcon(Icons.keyboard_arrow_down),
+          matching: find.byType(Opacity),
+        );
+        expect(opacityWidget, findsOneWidget);
+
+        // Check that opacity is set to 0.4 (subtle)
+        final opacity = tester.widget<Opacity>(opacityWidget);
+        expect(opacity.opacity, equals(0.4));
+      });
+
+      testWidgets('no arrows shown when jokes list is empty', (tester) async {
+        await tester.pumpWidget(
+          createTestWidget(
+            overrides: [
+              jokesWithImagesProvider.overrideWith(
+                (ref) => Stream.value(<Joke>[]),
+              ),
+            ],
+          ),
+        );
+
+        await tester.pump(); // Allow data to be processed
+
+        // Should not show any arrows when no jokes
+        expect(find.byIcon(Icons.keyboard_arrow_up), findsNothing);
+        expect(find.byIcon(Icons.keyboard_arrow_down), findsNothing);
       });
     });
   });

@@ -126,32 +126,40 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
       widget.joke.id,
     );
 
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 4.0),
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 14.0),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           // Image carousel
           Flexible(
-            child: GestureDetector(
-              onTap: _onImageTap,
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxHeight:
-                      400, // Prevent infinite height in test environments
-                  minHeight: 200, // Ensure minimum usable height
-                ),
-                child: AspectRatio(
-                  aspectRatio: 1.0,
-                  child: PageView(
-                    controller: _pageController,
-                    onPageChanged: _onPageChanged,
-                    children: [
-                      // Setup image
-                      _buildImagePage(imageUrl: widget.joke.setupImageUrl),
-                      // Punchline image
-                      _buildImagePage(imageUrl: widget.joke.punchlineImageUrl),
-                    ],
+            child: Card(
+              child: GestureDetector(
+                onTap: _onImageTap,
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    minHeight: 200, // Ensure minimum usable height
+                  ),
+                  child: ClipRRect(
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(16),
+                      bottom: Radius.circular(16),
+                    ),
+                    child: AspectRatio(
+                      aspectRatio: 1.0,
+                      child: PageView(
+                        controller: _pageController,
+                        onPageChanged: _onPageChanged,
+                        children: [
+                          // Setup image
+                          _buildImagePage(imageUrl: widget.joke.setupImageUrl),
+                          // Punchline image
+                          _buildImagePage(
+                            imageUrl: widget.joke.punchlineImageUrl,
+                          ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -288,32 +296,11 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
   }
 
   Widget _buildImagePage({required String? imageUrl}) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: const BorderRadius.vertical(
-          top: Radius.circular(8),
-          bottom: Radius.circular(8),
-        ),
-      ),
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          // Image
-          ClipRRect(
-            borderRadius: const BorderRadius.vertical(
-              top: Radius.circular(8),
-              bottom: Radius.circular(0),
-            ),
-            child: CachedJokeImage(
-              imageUrl: imageUrl,
-              fit: BoxFit.cover,
-              showLoadingIndicator: true,
-              showErrorIcon: true,
-            ),
-          ),
-        ],
-      ),
+    return CachedJokeImage(
+      imageUrl: imageUrl,
+      fit: BoxFit.cover,
+      showLoadingIndicator: true,
+      showErrorIcon: true,
     );
   }
 

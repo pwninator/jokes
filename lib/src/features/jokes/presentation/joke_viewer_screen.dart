@@ -117,7 +117,9 @@ class _JokeViewerScreenState extends ConsumerState<JokeViewerScreen> {
 
   String _getHintText() {
     final currentImageIndex = _currentImageStates[_currentPage] ?? 0;
-    return currentImageIndex == 0 ? 'Tap for punchline!' : 'Tap for next joke!';
+    return currentImageIndex == 0
+        ? 'Tap image for punchline!'
+        : 'Tap image for next joke!';
   }
 
   void _goToNextJoke(int totalJokes) {

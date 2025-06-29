@@ -103,18 +103,18 @@ class NotificationService {
   Future<void> _processJokeNotification(RemoteMessage message) async {
     try {
       final jokeData = message.data;
-      final jokeId = jokeData['jokeId'];
+      final jokeId = jokeData['joke_id'];
 
       debugPrint('Processing joke notification for joke: $jokeId');
 
       // Pre-cache images in parallel so they load instantly when user opens the app
       final List<Future<void>> cachingFutures = [];
 
-      if (jokeData.containsKey('setupImageUrl')) {
-        cachingFutures.add(_cacheImage(jokeData['setupImageUrl']));
+      if (jokeData.containsKey('setup_image_url')) {
+        cachingFutures.add(_cacheImage(jokeData['setup_image_url']));
       }
-      if (jokeData.containsKey('punchlineImageUrl')) {
-        cachingFutures.add(_cacheImage(jokeData['punchlineImageUrl']));
+      if (jokeData.containsKey('punchline_image_url')) {
+        cachingFutures.add(_cacheImage(jokeData['punchline_image_url']));
       }
 
       if (cachingFutures.isNotEmpty) {

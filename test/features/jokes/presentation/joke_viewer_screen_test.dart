@@ -164,7 +164,10 @@ void main() {
         ); // Allow hints to appear
 
         // Should show some kind of hint text (exact text may vary based on state)
-        final hintTexts = ['Tap for punchline!', 'Tap for next joke!'];
+        final hintTexts = [
+          'Tap image for punchline!',
+          'Tap image for next joke!',
+        ];
         bool foundHint = false;
         for (final hint in hintTexts) {
           if (find.text(hint).evaluate().isNotEmpty) {

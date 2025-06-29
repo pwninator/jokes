@@ -45,21 +45,20 @@ class AuthRepository {
     try {
       debugPrint('DEBUG: Starting Google sign-in flow...');
 
-      // Authenticate with Google (replaces signIn())
-      final GoogleSignInAccount googleUser = await _googleSignIn.authenticate();
+      // Sign in with Google (v6.2.1 API)
+      final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
 
-      debugPrint('DEBUG: Google user authenticated: ${googleUser.email}');
+      if (googleUser == null) {
+        throw AuthException('Google sign-in was cancelled by user');
+      }
 
-      // Get the authentication object for idToken
-      final GoogleSignInAuthentication googleAuth = googleUser.authentication;
+      debugPrint('DEBUG: Google user signed in: ${googleUser.email}');
+
+      // Get the authentication object (requires await in v6.2.1)
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
       final String? idToken = googleAuth.idToken;
-
-      // Get authorization for Firebase scopes to get accessToken
-      const scopes = ['openid', 'email', 'profile'];
-      final authorization = await googleUser.authorizationClient
-          .authorizeScopes(scopes);
-
-      final String accessToken = authorization.accessToken;
+      final String? accessToken = googleAuth.accessToken;
 
       debugPrint(
         'DEBUG: Google auth tokens obtained - accessToken: $accessToken, idToken: $idToken',
@@ -96,13 +95,13 @@ class AuthRepository {
     }
   }
 
-  /// Sign out and automatically sign in anonymously - Updated for v7.0.0
+  /// Sign out and automatically sign in anonymously - Updated for v6.2.1
   Future<void> signOut() async {
     try {
       debugPrint('DEBUG: Starting sign out process...');
 
-      // Disconnect from Google (replaces signOut())
-      await _googleSignIn.disconnect();
+      // Sign out from Google (v6.2.1 API)
+      await _googleSignIn.signOut();
       await _firebaseAuth.signOut();
       debugPrint('DEBUG: Sign out successful, signing in anonymously...');
 

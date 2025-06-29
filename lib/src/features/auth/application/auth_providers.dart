@@ -11,18 +11,8 @@ final firebaseAuthProvider = Provider<FirebaseAuth>((ref) {
 
 /// Provider for GoogleSignIn instance
 final googleSignInProvider = Provider<GoogleSignIn>((ref) {
-  return GoogleSignIn.instance;
-});
-
-/// Provider for GoogleSignIn initialization
-final googleSignInInitProvider = FutureProvider<void>((ref) async {
-  final googleSignIn = ref.watch(googleSignInProvider);
-
-  // Initialize GoogleSignIn with configuration
-  await googleSignIn.initialize(
-    // Configuration can be added here if needed
-    // clientId: 'your-client-id',
-    // serverClientId: 'your-server-client-id',
+  return GoogleSignIn(
+    scopes: ['email', 'profile'],
   );
 });
 

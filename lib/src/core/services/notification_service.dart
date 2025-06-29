@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
+import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
@@ -95,7 +96,8 @@ class NotificationService {
   /// Initialize local notifications
   Future<void> _initializeLocalNotifications() async {
     const androidSettings = AndroidInitializationSettings(
-      '@mipmap/ic_launcher',
+      // Default icon to show in notification
+      '@drawable/ic_notification',
     );
     const iosSettings = DarwinInitializationSettings(
       requestAlertPermission: true,
@@ -207,7 +209,8 @@ class NotificationService {
       importance: Importance.high,
       priority: Priority.high,
       showWhen: true,
-      icon: '@mipmap/ic_launcher',
+      icon: '@drawable/ic_notification',
+      color: primaryColor,
     );
 
     const iosDetails = DarwinNotificationDetails(
@@ -249,6 +252,15 @@ class NotificationService {
   /// Get FCM token for server-side targeting (if needed)
   Future<String?> getFCMToken() async {
     return await FirebaseMessaging.instance.getToken();
+  }
+
+  /// Test notification (for admin/development purposes)
+  Future<void> showTestNotification() async {
+    await _showJokeNotification(
+      title: 'Test Notification',
+      body: 'This is a test notification from the admin panel!',
+      payload: '{"jokeId": "test", "isTest": true}',
+    );
   }
 }
 

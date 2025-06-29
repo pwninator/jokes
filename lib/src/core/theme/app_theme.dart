@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 
+const Color primaryColor = Color.fromARGB(255, 193, 122, 45);
+
 ColorScheme lightColorScheme = ColorScheme.fromSeed(
   // seedColor: Colors.deepPurple,
   seedColor: Color(0xFFC59B6D),
   brightness: Brightness.light,
-).copyWith(primary: Color.fromARGB(255, 193, 122, 45));
+).copyWith(primary: primaryColor);
 
 ColorScheme darkColorScheme = ColorScheme.fromSeed(
   // seedColor: Colors.deepPurple,

@@ -4,6 +4,7 @@ import 'package:snickerdoodle/src/common_widgets/app_bar_widget.dart';
 import 'package:snickerdoodle/src/common_widgets/titled_screen.dart';
 import 'package:snickerdoodle/src/core/providers/app_version_provider.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
+import 'package:snickerdoodle/src/core/services/notification_service.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
 import 'package:snickerdoodle/src/features/auth/data/models/app_user.dart';
@@ -45,9 +46,11 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
 
     // Reset sequence if more than 2 seconds passed since last tap
     if (_lastTap != null && now.difference(_lastTap!).inSeconds > 2) {
+      debugPrint('DEBUG: Settings screen - sequence reset due to timeout');
       _tapSequence.clear();
     }
 
+    debugPrint('DEBUG: Settings screen - adding tap: $tapType');
     _tapSequence.add(tapType);
     _lastTap = now;
 
@@ -64,6 +67,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
     if (!sequenceValid) {
       // Reset on wrong sequence
       _tapSequence.clear();
+      debugPrint('DEBUG: Settings screen - sequence invalid');
       return;
     }
 
@@ -313,6 +317,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
     ref.read(subscriptionRefreshProvider);
 
     final subscriptionState = ref.watch(subscriptionStatusProvider);
+    final currentUser = ref.watch(currentUserProvider);
 
     return subscriptionState.when(
       data:
@@ -367,6 +372,24 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                   ),
                 ],
               ),
+              // Test notification button for admin users in developer mode
+              if (_developerModeEnabled && currentUser?.role == UserRole.admin) ...[
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: () => _testNotification(context),
+                    icon: const Icon(Icons.bug_report),
+                    label: const Text('Test Notification'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Theme.of(context).colorScheme.primary,
+                      side: BorderSide(
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
       loading:
@@ -704,6 +727,34 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
       debugPrint(
         'Failed to sync subscription with FCM: $e. Will retry on next app start.',
       );
+    }
+  }
+
+  Future<void> _testNotification(BuildContext context) async {
+    try {
+      final notificationService = NotificationService();
+      await notificationService.showTestNotification();
+      
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('Test notification sent!'),
+            backgroundColor: Theme.of(context).appColors.success,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Failed to send test notification: $e');
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to send test notification: $e'),
+            backgroundColor: Theme.of(context).appColors.authError,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
     }
   }
 }

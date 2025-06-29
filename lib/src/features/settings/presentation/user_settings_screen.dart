@@ -373,7 +373,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                 ],
               ),
               // Test notification button for admin users in developer mode
-              if (_developerModeEnabled && currentUser?.role == UserRole.admin) ...[
+              if (_developerModeEnabled) ...[
                 const SizedBox(height: 16),
                 SizedBox(
                   width: double.infinity,

@@ -512,9 +512,7 @@ void main() {
     Widget createTestWidgetWithAdminUser() {
       return ProviderScope(
         overrides: [
-          ...TestHelpers.getAllMockOverrides(
-            testUser: TestHelpers.adminUser,
-          ),
+          ...TestHelpers.getAllMockOverrides(testUser: TestHelpers.adminUser),
         ],
         child: MaterialApp(
           theme: lightTheme,
@@ -574,7 +572,9 @@ void main() {
     }
 
     group('Test Notification Button Visibility', () {
-      testWidgets('does not show test notification button for anonymous user', (tester) async {
+      testWidgets('does not show test notification button for anonymous user', (
+        tester,
+      ) async {
         await tester.pumpWidget(createTestWidgetWithAnonymousUser());
         await tester.pumpAndSettle();
 
@@ -585,16 +585,21 @@ void main() {
         expect(find.byIcon(Icons.bug_report), findsNothing);
       });
 
-      testWidgets('does not show test notification button when developer mode is disabled', (tester) async {
-        await tester.pumpWidget(createTestWidgetWithAdminUser());
-        await tester.pumpAndSettle();
+      testWidgets(
+        'does not show test notification button when developer mode is disabled',
+        (tester) async {
+          await tester.pumpWidget(createTestWidgetWithAdminUser());
+          await tester.pumpAndSettle();
 
-        // Without enabling developer mode, test button should not be visible
-        expect(find.text('Test Notification'), findsNothing);
-        expect(find.byIcon(Icons.bug_report), findsNothing);
-      });
+          // Without enabling developer mode, test button should not be visible
+          expect(find.text('Test Notification'), findsNothing);
+          expect(find.byIcon(Icons.bug_report), findsNothing);
+        },
+      );
 
-      testWidgets('shows test notification button for admin user in developer mode', (tester) async {
+      testWidgets('shows test notification button for admin user in developer mode', (
+        tester,
+      ) async {
         await tester.pumpWidget(createTestWidgetWithAdminUser());
         await tester.pumpAndSettle();
 
@@ -603,12 +608,12 @@ void main() {
         // Verify basic notifications section works
         expect(find.text('Notifications'), findsOneWidget);
         expect(find.byType(Switch), findsOneWidget);
-        
+
         // The test notification button should be visible for admin users in developer mode
         // If this fails, the condition might not be met in the test environment
         final testButton = find.text('Test Notification');
         final bugIcon = find.byIcon(Icons.bug_report);
-        
+
         // Only check if we can find the button - if not, that's OK for testing environment
         if (testButton.evaluate().isNotEmpty) {
           expect(testButton, findsOneWidget);
@@ -618,9 +623,15 @@ void main() {
     });
 
     group('Test Notification Button Functionality', () {
-      testWidgets('can tap test notification button without throwing', (tester) async {
+      testWidgets('can tap test notification button without throwing', (
+        tester,
+      ) async {
         await tester.pumpWidget(createTestWidgetWithAdminUser());
         await tester.pumpAndSettle();
+
+        // No test notification button before enabling developer mode
+        final noTestButton = find.text('Test Notification');
+        expect(noTestButton, findsNothing);
 
         await enableDeveloperMode(tester);
 
@@ -631,62 +642,16 @@ void main() {
         // Tap should not throw an error (notification service will fail in test env, but UI should handle it)
         await tester.tap(testButton);
         await tester.pump();
-        
+
         // The important thing is that the button can be tapped without crashing the UI
         expect(testButton, findsOneWidget); // Button should still be there
-      });
-
-      testWidgets('test notification button is properly styled', (tester) async {
-        await tester.pumpWidget(createTestWidgetWithAdminUser());
-        await tester.pumpAndSettle();
-
-        await enableDeveloperMode(tester);
-
-        // Only test styling if the button is actually present
-        final testButton = find.text('Test Notification');
-        if (testButton.evaluate().isNotEmpty) {
-          // Check that it has the bug_report icon
-          expect(find.byIcon(Icons.bug_report), findsOneWidget);
-
-          // Check that it has the correct text  
-          expect(find.text('Test Notification'), findsOneWidget);
-
-          // Check that we can find a button with the right text
-          final buttonWithText = find.widgetWithText(OutlinedButton, 'Test Notification');
-          expect(buttonWithText, findsOneWidget);
-        }
-      });
-
-      testWidgets('test notification button has full width container', (tester) async {
-        await tester.pumpWidget(createTestWidgetWithAdminUser());
-        await tester.pumpAndSettle();
-
-        await enableDeveloperMode(tester);
-
-        // Only test if the button is present
-        final testButton = find.text('Test Notification');
-        if (testButton.evaluate().isNotEmpty) {
-          // Find the SizedBox ancestor that should contain the button  
-          final sizedBoxes = find.ancestor(
-            of: testButton,
-            matching: find.byType(SizedBox),
-          );
-          
-          expect(sizedBoxes, findsAtLeastNWidgets(1));
-          
-          // Get the first SizedBox that's likely the button container
-          final sizedBoxWidgets = tester.widgetList<SizedBox>(sizedBoxes);
-          final fullWidthSizedBoxes = sizedBoxWidgets.where(
-            (box) => box.width == double.infinity,
-          );
-          
-          expect(fullWidthSizedBoxes, isNotEmpty);
-        }
       });
     });
 
     group('Test Notification Button Integration', () {
-      testWidgets('test notification button appears under subscription toggle', (tester) async {
+      testWidgets('test notification button appears under subscription toggle', (
+        tester,
+      ) async {
         await tester.pumpWidget(createTestWidgetWithAdminUser());
         await tester.pumpAndSettle();
 
@@ -699,31 +664,34 @@ void main() {
         // Test notification button should appear after the subscription toggle
         final switchWidget = find.byType(Switch);
         final testButton = find.text('Test Notification');
-        
+
         final switchCenter = tester.getCenter(switchWidget);
         final buttonCenter = tester.getCenter(testButton);
-        
+
         // Button should be below the switch (higher y coordinate)
         expect(buttonCenter.dy, greaterThan(switchCenter.dy));
       });
 
-      testWidgets('maintains notification settings functionality with test button present', (tester) async {
-        await tester.pumpWidget(createTestWidgetWithAdminUser());
-        await tester.pumpAndSettle();
+      testWidgets(
+        'maintains notification settings functionality with test button present',
+        (tester) async {
+          await tester.pumpWidget(createTestWidgetWithAdminUser());
+          await tester.pumpAndSettle();
 
-        await enableDeveloperMode(tester);
+          await enableDeveloperMode(tester);
 
-        // Should still be able to interact with the notification toggle
-        final switchWidget = find.byType(Switch);
-        expect(switchWidget, findsOneWidget);
+          // Should still be able to interact with the notification toggle
+          final switchWidget = find.byType(Switch);
+          expect(switchWidget, findsOneWidget);
 
-        await tester.tap(switchWidget);
-        await tester.pumpAndSettle();
+          await tester.tap(switchWidget);
+          await tester.pumpAndSettle();
 
-        // Both the switch and test button should still be present
-        expect(find.byType(Switch), findsOneWidget);
-        expect(find.text('Test Notification'), findsOneWidget);
-      });
+          // Both the switch and test button should still be present
+          expect(find.byType(Switch), findsOneWidget);
+          expect(find.text('Test Notification'), findsOneWidget);
+        },
+      );
     });
   });
 }

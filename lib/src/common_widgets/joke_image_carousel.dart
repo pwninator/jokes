@@ -55,17 +55,12 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
 
       try {
         // Preload images for the current joke
-        await CachedJokeImage.precacheJokeImages(
-          widget.joke,
-          context,
-          imageService,
-        );
+        await CachedJokeImage.precacheJokeImages(widget.joke, imageService);
 
         // Preload images for the next jokes
         if (widget.jokesToPreload != null && mounted) {
           await CachedJokeImage.precacheMultipleJokeImages(
             widget.jokesToPreload!,
-            context,
             imageService,
           );
         }

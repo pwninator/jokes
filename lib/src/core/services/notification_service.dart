@@ -1,23 +1,16 @@
-import 'dart:convert';
-
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_cache_manager/flutter_cache_manager.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:snickerdoodle/src/common_widgets/cached_joke_image.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
-import 'package:snickerdoodle/src/core/theme/app_theme.dart';
+import 'package:snickerdoodle/src/core/services/image_service.dart';
 
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
   factory NotificationService() => _instance;
   NotificationService._internal();
 
-  final FlutterLocalNotificationsPlugin _localNotifications =
-      FlutterLocalNotificationsPlugin();
-
   bool _isInitialized = false;
-  bool _localNotificationsInitialized = false;
 
   /// Initialize notification service (non-blocking)
   /// Now ultra-fast since everything is background/on-demand
@@ -93,44 +86,6 @@ class NotificationService {
     }
   }
 
-  /// Initialize local notifications
-  Future<void> _initializeLocalNotifications() async {
-    const androidSettings = AndroidInitializationSettings(
-      // Default icon to show in notification
-      '@drawable/ic_notification',
-    );
-    const iosSettings = DarwinInitializationSettings(
-      requestAlertPermission: true,
-      requestBadgePermission: true,
-      requestSoundPermission: true,
-    );
-
-    const settings = InitializationSettings(
-      android: androidSettings,
-      iOS: iosSettings,
-    );
-
-    await _localNotifications.initialize(
-      settings,
-      onDidReceiveNotificationResponse: _handleNotificationTap,
-    );
-
-    // Create notification channel for Android
-    const androidChannel = AndroidNotificationChannel(
-      'daily_jokes',
-      'Daily Jokes',
-      description: 'Daily joke notifications',
-      importance: Importance.high,
-      playSound: true,
-    );
-
-    await _localNotifications
-        .resolvePlatformSpecificImplementation<
-          AndroidFlutterLocalNotificationsPlugin
-        >()
-        ?.createNotificationChannel(androidChannel);
-  }
-
   /// Handle foreground FCM messages
   Future<void> _handleForegroundMessage(RemoteMessage message) async {
     debugPrint('Received foreground FCM message: ${message.messageId}');
@@ -143,124 +98,49 @@ class NotificationService {
     // App is already opening, no additional action needed
   }
 
-  /// Handle local notification tap
-  void _handleNotificationTap(NotificationResponse response) {
-    debugPrint('Local notification tapped: ${response.payload}');
-    // App is already opening, no additional action needed
-  }
-
-  /// Process joke notification and show local notification
+  /// Process joke notification - pre-cache images for faster app loading
+  /// FCM handles displaying the notification with images automatically
   Future<void> _processJokeNotification(RemoteMessage message) async {
     try {
       final jokeData = message.data;
       final jokeId = jokeData['jokeId'];
-      final setup = jokeData['setup'] ?? 'Daily Joke Available!';
 
       debugPrint('Processing joke notification for joke: $jokeId');
 
-      // Pre-cache images if URLs are provided
+      // Pre-cache images in parallel so they load instantly when user opens the app
+      final List<Future<void>> cachingFutures = [];
+
       if (jokeData.containsKey('setupImageUrl')) {
-        await _cacheImage(jokeData['setupImageUrl']);
+        cachingFutures.add(_cacheImage(jokeData['setupImageUrl']));
       }
       if (jokeData.containsKey('punchlineImageUrl')) {
-        await _cacheImage(jokeData['punchlineImageUrl']);
+        cachingFutures.add(_cacheImage(jokeData['punchlineImageUrl']));
       }
 
-      // Show local notification
-      await _showJokeNotification(
-        title: 'Daily Joke',
-        body: setup,
-        payload: jsonEncode({'jokeId': jokeId}),
-      );
+      if (cachingFutures.isNotEmpty) {
+        await Future.wait(cachingFutures);
+      }
+
+      debugPrint('Images pre-cached for joke: $jokeId');
     } catch (e) {
       debugPrint('Error processing joke notification: $e');
-      // Show fallback notification
-      await _showJokeNotification(
-        title: 'Daily Joke',
-        body: 'Tap to see today\'s joke!',
-        payload: jsonEncode({'jokeId': 'fallback'}),
-      );
+      // FCM will still show the notification even if image caching fails
     }
   }
 
-  /// Cache image for faster loading
+  /// Cache image for faster loading using CachedJokeImage logic
   Future<void> _cacheImage(String imageUrl) async {
     try {
-      await DefaultCacheManager().downloadFile(imageUrl);
-      debugPrint('Cached image: $imageUrl');
+      final imageService = ImageService();
+      await CachedJokeImage.precacheJokeImage(imageUrl, imageService);
     } catch (e) {
       debugPrint('Failed to cache image $imageUrl: $e');
-    }
-  }
-
-  /// Show local notification (with lazy initialization)
-  Future<void> _showJokeNotification({
-    required String title,
-    required String body,
-    String? payload,
-  }) async {
-    // Ensure local notifications are initialized (lazy initialization)
-    await _ensureLocalNotificationsInitialized();
-
-    const androidDetails = AndroidNotificationDetails(
-      'daily_jokes',
-      'Daily Jokes',
-      channelDescription: 'Daily joke notifications',
-      importance: Importance.high,
-      priority: Priority.high,
-      showWhen: true,
-      icon: '@drawable/ic_notification',
-      color: primaryColor,
-    );
-
-    const iosDetails = DarwinNotificationDetails(
-      presentAlert: true,
-      presentBadge: true,
-      presentSound: true,
-    );
-
-    const details = NotificationDetails(
-      android: androidDetails,
-      iOS: iosDetails,
-    );
-
-    await _localNotifications.show(
-      0, // notification id
-      title,
-      body,
-      details,
-      payload: payload,
-    );
-
-    debugPrint('Showed local notification: $title - $body');
-  }
-
-  /// Ensure local notifications are initialized (lazy/on-demand)
-  Future<void> _ensureLocalNotificationsInitialized() async {
-    if (_localNotificationsInitialized) return;
-
-    try {
-      await _initializeLocalNotifications();
-      _localNotificationsInitialized = true;
-      debugPrint('Local notifications initialized on-demand');
-    } catch (e) {
-      debugPrint('Failed to initialize local notifications on-demand: $e');
-      rethrow; // Let caller handle the error
     }
   }
 
   /// Get FCM token for server-side targeting (if needed)
   Future<String?> getFCMToken() async {
     return await FirebaseMessaging.instance.getToken();
-  }
-
-  /// Test notification (for admin/development purposes)
-  Future<void> showTestNotification() async {
-    await _showJokeNotification(
-      title: 'Test Notification',
-      body: 'This is a test notification from the admin panel!',
-      payload: '{"jokeId": "test", "isTest": true}',
-    );
   }
 }
 

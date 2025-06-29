@@ -51,19 +51,19 @@ class CachedJokeImage extends ConsumerWidget {
   }
 
   /// Precaches a single joke image with the same configuration as the widget
+  /// Uses disk caching for efficiency and works in both foreground and background
   static Future<void> precacheJokeImage(
     String? imageUrl,
-    BuildContext context,
     ImageService imageService,
   ) async {
     final processedUrl = _getProcessedImageUrl(imageUrl, imageService);
     if (processedUrl == null) return;
 
     try {
-      await precacheImage(
-        CachedNetworkImageProvider(processedUrl, headers: httpHeaders),
-        context,
-      );
+      // Download and cache to disk using DefaultCacheManager
+      // CachedNetworkImage will find this in disk cache and load instantly
+      await DefaultCacheManager().downloadFile(processedUrl);
+      debugPrint('Precached image: $processedUrl');
     } catch (error, stackTrace) {
       // Silently handle preload errors - the actual image widget will show error state
       debugPrint('Failed to precache image $imageUrl: $error\n$stackTrace');
@@ -73,26 +73,24 @@ class CachedJokeImage extends ConsumerWidget {
   /// Precaches both setup and punchline images for a joke
   static Future<void> precacheJokeImages(
     Joke joke,
-    BuildContext context,
     ImageService imageService,
   ) async {
     // Precache both images in parallel
     await Future.wait([
-      precacheJokeImage(joke.setupImageUrl, context, imageService),
-      precacheJokeImage(joke.punchlineImageUrl, context, imageService),
+      precacheJokeImage(joke.setupImageUrl, imageService),
+      precacheJokeImage(joke.punchlineImageUrl, imageService),
     ]);
   }
 
   /// Precaches images for multiple jokes
   static Future<void> precacheMultipleJokeImages(
     List<Joke> jokes,
-    BuildContext context,
     ImageService imageService,
   ) async {
-    // Precache all jokes sequentially to avoid context issues
+    // Precache all jokes sequentially to avoid overwhelming the cache
     for (final joke in jokes) {
       try {
-        await precacheJokeImages(joke, context, imageService);
+        await precacheJokeImages(joke, imageService);
       } catch (e) {
         debugPrint('Failed to precache images for joke ${joke.id}: $e');
       }

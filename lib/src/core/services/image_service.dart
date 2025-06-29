@@ -6,6 +6,7 @@ class ImageService {
   static const Duration defaultCacheDuration = Duration(days: 30);
   static const int maxCacheSize = 100 * 1024 * 1024; // 100MB
 
+  static const String defaultImageFormat = 'webp';
   static const int defaultThumbnailQuality = 50;
   static const int defaultFullSizeQuality = 75;
 
@@ -109,7 +110,7 @@ class ImageService {
       }
 
       // Apply optimizations
-      paramMap['format'] = 'webp';
+      paramMap['format'] = defaultImageFormat;
       paramMap['quality'] = quality ?? defaultFullSizeQuality.toString();
 
       // Set dimensions if provided
@@ -128,7 +129,6 @@ class ImageService {
       // Reconstruct the optimized URL
       final optimizedUrl = '$baseUrl$newParams$remainingPath';
 
-      debugPrint('Cloudflare URL optimized: $existingParams -> $newParams');
       return optimizedUrl;
     } catch (e) {
       debugPrint('Error optimizing Cloudflare URL: $e');

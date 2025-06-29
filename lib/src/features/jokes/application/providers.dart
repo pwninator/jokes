@@ -24,13 +24,17 @@ final jokesProvider = StreamProvider<List<Joke>>((ref) {
 // StreamProvider for jokes that have both image URLs
 final jokesWithImagesProvider = StreamProvider<List<Joke>>((ref) {
   final repository = ref.watch(jokeRepositoryProvider);
-  return repository.getJokes().map((jokes) => 
-    jokes.where((joke) => 
-      joke.setupImageUrl != null && 
-      joke.setupImageUrl!.isNotEmpty &&
-      joke.punchlineImageUrl != null && 
-      joke.punchlineImageUrl!.isNotEmpty
-    ).toList(),
+  return repository.getJokes().map(
+    (jokes) =>
+        jokes
+            .where(
+              (joke) =>
+                  joke.setupImageUrl != null &&
+                  joke.setupImageUrl!.isNotEmpty &&
+                  joke.punchlineImageUrl != null &&
+                  joke.punchlineImageUrl!.isNotEmpty,
+            )
+            .toList(),
   );
 });
 
@@ -69,11 +73,12 @@ class JokePopulationState {
 
 // Notifier for managing joke population
 class JokePopulationNotifier extends StateNotifier<JokePopulationState> {
-  JokePopulationNotifier(this._cloudFunctionService) : super(const JokePopulationState());
+  JokePopulationNotifier(this._cloudFunctionService)
+    : super(const JokePopulationState());
 
   final JokeCloudFunctionService _cloudFunctionService;
 
-  Future<bool> populateJoke(String jokeId) async {
+  Future<bool> populateJoke(String jokeId, {bool imagesOnly = false}) async {
     // Add joke to populating set
     state = state.copyWith(
       populatingJokes: {...state.populatingJokes, jokeId},
@@ -81,19 +86,21 @@ class JokePopulationNotifier extends StateNotifier<JokePopulationState> {
     );
 
     try {
-      final result = await _cloudFunctionService.populateJoke(jokeId);
-      
+      final result = await _cloudFunctionService.populateJoke(
+        jokeId,
+        imagesOnly: imagesOnly,
+      );
+
       if (result != null && result['success'] == true) {
         // Remove joke from populating set
-        final updatedSet = Set<String>.from(state.populatingJokes)..remove(jokeId);
-        state = state.copyWith(
-          populatingJokes: updatedSet,
-          error: null,
-        );
+        final updatedSet = Set<String>.from(state.populatingJokes)
+          ..remove(jokeId);
+        state = state.copyWith(populatingJokes: updatedSet, error: null);
         return true;
       } else {
         // Remove joke from populating set and set error
-        final updatedSet = Set<String>.from(state.populatingJokes)..remove(jokeId);
+        final updatedSet = Set<String>.from(state.populatingJokes)
+          ..remove(jokeId);
         state = state.copyWith(
           populatingJokes: updatedSet,
           error: result?['error'] ?? 'Unknown error occurred',
@@ -102,7 +109,8 @@ class JokePopulationNotifier extends StateNotifier<JokePopulationState> {
       }
     } catch (e) {
       // Remove joke from populating set and set error
-      final updatedSet = Set<String>.from(state.populatingJokes)..remove(jokeId);
+      final updatedSet = Set<String>.from(state.populatingJokes)
+        ..remove(jokeId);
       state = state.copyWith(
         populatingJokes: updatedSet,
         error: 'Failed to populate joke: $e',
@@ -121,7 +129,8 @@ class JokePopulationNotifier extends StateNotifier<JokePopulationState> {
 }
 
 // Provider for joke population notifier
-final jokePopulationProvider = StateNotifierProvider<JokePopulationNotifier, JokePopulationState>((ref) {
-  final cloudFunctionService = ref.watch(jokeCloudFunctionServiceProvider);
-  return JokePopulationNotifier(cloudFunctionService);
-});
+final jokePopulationProvider =
+    StateNotifierProvider<JokePopulationNotifier, JokePopulationState>((ref) {
+      final cloudFunctionService = ref.watch(jokeCloudFunctionServiceProvider);
+      return JokePopulationNotifier(cloudFunctionService);
+    });

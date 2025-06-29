@@ -66,7 +66,7 @@ class FirebaseMocks {
     ).thenAnswer((_) async => {'success': true, 'joke_id': 'test-id'});
 
     when(
-      () => mock.populateJoke(any()),
+      () => mock.populateJoke(any(), imagesOnly: any(named: 'imagesOnly')),
     ).thenAnswer((_) async => {'success': true, 'data': 'populated'});
 
     when(
@@ -89,7 +89,7 @@ class TestJokePopulationNotifier extends JokePopulationNotifier {
   TestJokePopulationNotifier() : super(FirebaseMocks.mockCloudFunctionService);
 
   @override
-  Future<bool> populateJoke(String jokeId) async {
+  Future<bool> populateJoke(String jokeId, {bool imagesOnly = false}) async {
     // Don't change state to avoid timing issues in tests
     // Just return success
     return true;

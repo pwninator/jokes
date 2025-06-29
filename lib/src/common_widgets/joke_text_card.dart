@@ -101,7 +101,7 @@ class JokeTextCard extends ConsumerWidget {
                           final notifier = ref.read(
                             jokePopulationProvider.notifier,
                           );
-                          await notifier.populateJoke(joke.id);
+                                                      await notifier.populateJoke(joke.id, imagesOnly: false);
                         },
                 icon:
                     isPopulating

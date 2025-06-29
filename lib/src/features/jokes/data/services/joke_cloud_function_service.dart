@@ -66,14 +66,22 @@ class JokeCloudFunctionService {
     }
   }
 
-  Future<Map<String, dynamic>?> populateJoke(String jokeId) async {
+  Future<Map<String, dynamic>?> populateJoke(
+    String jokeId, {
+    bool imagesOnly = false,
+  }) async {
     try {
       final callable = _functions.httpsCallable(
         'populate_joke',
         options: HttpsCallableOptions(timeout: const Duration(seconds: 300)),
       );
 
-      final result = await callable.call({'joke_id': jokeId});
+      final requestData = <String, dynamic>{'joke_id': jokeId};
+      if (imagesOnly) {
+        requestData['images_only'] = true;
+      }
+
+      final result = await callable.call(requestData);
 
       debugPrint('Joke populated successfully: ${result.data}');
       return {'success': true, 'data': result.data};

@@ -185,7 +185,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
             ),
           ),
 
-          // Regenerate button (only shown in admin mode)
+          // Regenerate buttons (only shown in admin mode)
           if (widget.isAdminMode)
             Padding(
               padding: const EdgeInsets.only(
@@ -193,45 +193,92 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
                 right: 16.0,
                 bottom: 16.0,
               ),
-              child: SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed:
-                      isPopulating
-                          ? null
-                          : () async {
-                            final notifier = ref.read(
-                              jokePopulationProvider.notifier,
-                            );
-                            await notifier.populateJoke(widget.joke.id);
-                          },
-                  icon:
-                      isPopulating
-                          ? SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                Theme.of(
-                                  context,
-                                ).colorScheme.onSurface.withValues(alpha: 0.6),
-                              ),
-                            ),
-                          )
-                          : const Icon(Icons.refresh),
-                  label: Text(
-                    isPopulating
-                        ? 'Regenerating Images...'
-                        : 'Regenerate Images',
+              child: Row(
+                children: [
+                  // Regenerate All button (left)
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      key: const Key('regenerate-all-button'),
+                      onPressed:
+                          isPopulating
+                              ? null
+                              : () async {
+                                final notifier = ref.read(
+                                  jokePopulationProvider.notifier,
+                                );
+                                await notifier.populateJoke(
+                                  widget.joke.id,
+                                  imagesOnly: false,
+                                );
+                              },
+                      icon:
+                          isPopulating
+                              ? SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    Theme.of(context).colorScheme.onSurface
+                                        .withValues(alpha: 0.6),
+                                  ),
+                                ),
+                              )
+                              : const Icon(Icons.refresh),
+                      label: Text(
+                        isPopulating ? 'Regenerating...' : 'Redo All',
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor:
+                            Theme.of(context).colorScheme.primaryContainer,
+                        foregroundColor:
+                            Theme.of(context).colorScheme.onPrimaryContainer,
+                      ),
+                    ),
                   ),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor:
-                        Theme.of(context).colorScheme.primaryContainer,
-                    foregroundColor:
-                        Theme.of(context).colorScheme.onPrimaryContainer,
+                  const SizedBox(width: 8.0),
+                  // Regenerate Images button (right)
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      key: const Key('regenerate-images-button'),
+                      onPressed:
+                          isPopulating
+                              ? null
+                              : () async {
+                                final notifier = ref.read(
+                                  jokePopulationProvider.notifier,
+                                );
+                                await notifier.populateJoke(
+                                  widget.joke.id,
+                                  imagesOnly: true,
+                                );
+                              },
+                      icon:
+                          isPopulating
+                              ? SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    Theme.of(context).colorScheme.onSurface
+                                        .withValues(alpha: 0.6),
+                                  ),
+                                ),
+                              )
+                              : const Icon(Icons.image),
+                      label: Text(
+                        isPopulating ? 'Regenerating...' : 'Redo Images',
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor:
+                            Theme.of(context).colorScheme.secondaryContainer,
+                        foregroundColor:
+                            Theme.of(context).colorScheme.onSecondaryContainer,
+                      ),
+                    ),
                   ),
-                ),
+                ],
               ),
             ),
 

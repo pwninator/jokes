@@ -68,7 +68,7 @@ void main() {
         };
 
         when(
-          () => mockCloudFunctionService.populateJoke(jokeId),
+          () => mockCloudFunctionService.populateJoke(jokeId, imagesOnly: any(named: 'imagesOnly')),
         ).thenAnswer((_) async => successResponse);
 
         // act
@@ -90,7 +90,7 @@ void main() {
         expect(state.populatingJokes, isEmpty);
         expect(state.error, isNull);
 
-        verify(() => mockCloudFunctionService.populateJoke(jokeId)).called(1);
+        verify(() => mockCloudFunctionService.populateJoke(jokeId, imagesOnly: any(named: 'imagesOnly'))).called(1);
 
         container.dispose();
       });
@@ -101,7 +101,7 @@ void main() {
         final errorResponse = {'success': false, 'error': 'Test error'};
 
         when(
-          () => mockCloudFunctionService.populateJoke(jokeId),
+          () => mockCloudFunctionService.populateJoke(jokeId, imagesOnly: any(named: 'imagesOnly')),
         ).thenAnswer((_) async => errorResponse);
 
         // act
@@ -123,7 +123,7 @@ void main() {
         expect(state.populatingJokes, isEmpty);
         expect(state.error, 'Test error');
 
-        verify(() => mockCloudFunctionService.populateJoke(jokeId)).called(1);
+        verify(() => mockCloudFunctionService.populateJoke(jokeId, imagesOnly: any(named: 'imagesOnly'))).called(1);
 
         container.dispose();
       });
@@ -133,7 +133,7 @@ void main() {
         const jokeId = 'test-joke-id';
 
         when(
-          () => mockCloudFunctionService.populateJoke(jokeId),
+          () => mockCloudFunctionService.populateJoke(jokeId, imagesOnly: any(named: 'imagesOnly')),
         ).thenAnswer((_) async => null);
 
         // act
@@ -155,7 +155,7 @@ void main() {
         expect(state.populatingJokes, isEmpty);
         expect(state.error, 'Unknown error occurred');
 
-        verify(() => mockCloudFunctionService.populateJoke(jokeId)).called(1);
+        verify(() => mockCloudFunctionService.populateJoke(jokeId, imagesOnly: any(named: 'imagesOnly'))).called(1);
 
         container.dispose();
       });
@@ -166,7 +166,7 @@ void main() {
         final responseWithoutSuccess = {'data': 'some data'};
 
         when(
-          () => mockCloudFunctionService.populateJoke(jokeId),
+          () => mockCloudFunctionService.populateJoke(jokeId, imagesOnly: any(named: 'imagesOnly')),
         ).thenAnswer((_) async => responseWithoutSuccess);
 
         // act
@@ -188,7 +188,7 @@ void main() {
         expect(state.populatingJokes, isEmpty);
         expect(state.error, 'Unknown error occurred');
 
-        verify(() => mockCloudFunctionService.populateJoke(jokeId)).called(1);
+        verify(() => mockCloudFunctionService.populateJoke(jokeId, imagesOnly: any(named: 'imagesOnly'))).called(1);
 
         container.dispose();
       });
@@ -198,7 +198,7 @@ void main() {
         const jokeId = 'test-joke-id';
 
         when(
-          () => mockCloudFunctionService.populateJoke(jokeId),
+          () => mockCloudFunctionService.populateJoke(jokeId, imagesOnly: any(named: 'imagesOnly')),
         ).thenThrow(Exception('Network error'));
 
         // act
@@ -223,7 +223,7 @@ void main() {
           contains('Failed to populate joke: Exception: Network error'),
         );
 
-        verify(() => mockCloudFunctionService.populateJoke(jokeId)).called(1);
+        verify(() => mockCloudFunctionService.populateJoke(jokeId, imagesOnly: any(named: 'imagesOnly'))).called(1);
 
         container.dispose();
       });
@@ -234,7 +234,7 @@ void main() {
         final errorResponse = {'success': false, 'error': 'Test error'};
 
         when(
-          () => mockCloudFunctionService.populateJoke(jokeId),
+          () => mockCloudFunctionService.populateJoke(jokeId, imagesOnly: any(named: 'imagesOnly')),
         ).thenAnswer((_) async => errorResponse);
 
         final container = ProviderContainer(

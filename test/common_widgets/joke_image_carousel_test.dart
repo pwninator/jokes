@@ -99,11 +99,11 @@ void main() {
       await tester.pump();
 
       // assert
-      expect(find.text('Regenerate Images'), findsNothing);
-      expect(find.byIcon(Icons.refresh), findsNothing);
+      expect(find.byKey(const Key('regenerate-all-button')), findsNothing);
+      expect(find.byKey(const Key('regenerate-images-button')), findsNothing);
     });
 
-    testWidgets('shows regenerate button when in admin mode', (tester) async {
+    testWidgets('shows regenerate buttons when in admin mode', (tester) async {
       // arrange
       const joke = Joke(
         id: 'test-joke-1',
@@ -120,8 +120,8 @@ void main() {
       await tester.pump();
 
       // assert
-      expect(find.textContaining('Regenerate'), findsOneWidget);
-      expect(find.byIcon(Icons.refresh), findsOneWidget);
+      expect(find.byKey(const Key('regenerate-all-button')), findsOneWidget);
+      expect(find.byKey(const Key('regenerate-images-button')), findsOneWidget);
     });
 
     testWidgets('page indicators work correctly', (tester) async {
@@ -290,7 +290,7 @@ void main() {
             quality: '50',
           ),
         ).called(greaterThan(0));
-        
+
         // Note: Preload joke image verification is not reliable in test environment
         // due to async timing, but the consolidation logic is the same for all images
       });

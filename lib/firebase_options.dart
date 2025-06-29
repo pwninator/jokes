@@ -17,16 +17,16 @@ import 'package:flutter/foundation.dart'
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
     if (kIsWeb) {
-      throw UnsupportedError(
-        'DefaultFirebaseOptions have not been configured for web - '
-        'you can reconfigure this by running the FlutterFire CLI again.',
-      );
+      return web;
     }
     switch (defaultTargetPlatform) {
       case TargetPlatform.android:
         return android;
       case TargetPlatform.iOS:
-        return ios;
+        throw UnsupportedError(
+          'DefaultFirebaseOptions have not been configured for ios - '
+          'you can reconfigure this by running the FlutterFire CLI again.',
+        );
       case TargetPlatform.macOS:
         throw UnsupportedError(
           'DefaultFirebaseOptions have not been configured for macos - '
@@ -57,14 +57,14 @@ class DefaultFirebaseOptions {
     storageBucket: 'storyteller-450807.firebasestorage.app',
   );
 
-  static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyASCSOf2YvPq_nt_Nyjf0b2pFakmqXVQR4',
-    appId: '1:416102166155:ios:71a6d1cf00acaa373dee8e',
+  static const FirebaseOptions web = FirebaseOptions(
+    apiKey: 'AIzaSyDvr_hRrKkHVw7x0AkRaRMNOuFd8e5P3Vo',
+    appId: '1:416102166155:web:7030e554efae8e3e3dee8e',
     messagingSenderId: '416102166155',
     projectId: 'storyteller-450807',
+    authDomain: 'storyteller-450807.firebaseapp.com',
     storageBucket: 'storyteller-450807.firebasestorage.app',
-    androidClientId: '416102166155-2ncg39pfonu4jtjq5443vu4sp82nfu5f.apps.googleusercontent.com',
-    iosClientId: '416102166155-7l4e28v989gh40nguahlk32objen1qqo.apps.googleusercontent.com',
-    iosBundleId: 'com.example.jokes',
+    measurementId: 'G-4KQFXXRSJY',
   );
+
 }

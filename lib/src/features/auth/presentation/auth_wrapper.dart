@@ -16,7 +16,7 @@ class AuthWrapper extends ConsumerWidget {
       data: (user) {
         if (user != null) {
           // User is authenticated (either anonymous or signed in)
-          return const MainNavigationWidget();
+          return MainNavigationWidget(key: MainNavigationWidget.navigationKey);
         } else {
           // No user, attempt anonymous sign-in
           return FutureBuilder(

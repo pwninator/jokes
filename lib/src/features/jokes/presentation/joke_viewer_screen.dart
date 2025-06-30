@@ -7,7 +7,9 @@ import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 
 class JokeViewerScreen extends ConsumerStatefulWidget implements TitledScreen {
-  const JokeViewerScreen({super.key});
+  const JokeViewerScreen({super.key, this.onResetCallback});
+
+  final Function(VoidCallback)? onResetCallback;
 
   @override
   String get title => 'Jokes';
@@ -33,6 +35,9 @@ class _JokeViewerScreenState extends ConsumerState<JokeViewerScreen> {
     super.initState();
     _pageController = PageController(viewportFraction: 0.9);
     _pageController.addListener(_onScrollChanged);
+
+    // Register reset callback if provided
+    widget.onResetCallback?.call(_resetToFirstJoke);
   }
 
   @override
@@ -40,6 +45,24 @@ class _JokeViewerScreenState extends ConsumerState<JokeViewerScreen> {
     _pageController.removeListener(_onScrollChanged);
     _pageController.dispose();
     super.dispose();
+  }
+
+  /// Reset to the first joke (called from outside)
+  void _resetToFirstJoke() {
+    if (mounted && _pageController.hasClients) {
+      setState(() {
+        _currentPage = 0;
+        _currentImageStates.clear(); // Reset all image states
+      });
+
+      _pageController.animateToPage(
+        0,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+
+      _updateHintOpacity();
+    }
   }
 
   void _onScrollChanged() {

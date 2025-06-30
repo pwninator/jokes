@@ -1,9 +1,12 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
+import 'package:snickerdoodle/src/app.dart';
 import 'package:snickerdoodle/src/common_widgets/cached_joke_image.dart';
+import 'package:snickerdoodle/src/common_widgets/main_navigation_widget.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
+import 'package:snickerdoodle/src/features/auth/presentation/auth_wrapper.dart';
 
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
@@ -95,7 +98,37 @@ class NotificationService {
   /// Handle FCM message when app is opened from notification
   Future<void> _handleMessageOpenedApp(RemoteMessage message) async {
     debugPrint('App opened from FCM notification: ${message.messageId}');
-    // App is already opening, no additional action needed
+
+    // Navigate to jokes screen and scroll to top
+    _navigateToJokesScreen();
+  }
+
+  /// Navigate to jokes screen and reset to first joke
+  void _navigateToJokesScreen() {
+    try {
+      final navigatorContext = App.navigatorKey.currentContext;
+      if (navigatorContext == null) {
+        debugPrint('Navigator context not available');
+        return;
+      }
+
+      // Try to access the MainNavigationWidget state
+      final mainNavState = MainNavigationWidget.navigationKey.currentState;
+      if (mainNavState != null) {
+        // We can access the navigation widget, navigate to jokes tab and reset
+        mainNavState.navigateToJokesAndReset();
+        debugPrint('Navigated to jokes screen via MainNavigationWidget');
+      } else {
+        // MainNavigationWidget not available, do a full navigation reset
+        Navigator.of(navigatorContext).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (context) => const AuthWrapper()),
+          (route) => false,
+        );
+        debugPrint('Navigated to jokes screen via full navigation reset');
+      }
+    } catch (e) {
+      debugPrint('Failed to navigate to jokes screen: $e');
+    }
   }
 
   /// Process joke notification - pre-cache images for faster app loading

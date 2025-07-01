@@ -131,5 +131,7 @@ class CoreMocks {
     when(() => mock.isSubscribed()).thenAnswer((_) async => false);
     when(() => mock.ensureSubscriptionSync()).thenAnswer((_) async => true);
     when(() => mock.setSubscriptionPreference(any())).thenAnswer((_) async => true);
+    when(() => mock.hasBeenPromptedForSubscription()).thenAnswer((_) async => false);
+    when(() => mock.markUserPromptedForSubscription()).thenAnswer((_) async => true);
   }
 }

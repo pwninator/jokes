@@ -114,6 +114,218 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
     }
   }
 
+  void _onImageLongPress() {
+    if (!widget.isAdminMode) return;
+
+    _showGenerationMetadataDialog();
+  }
+
+  void _showGenerationMetadataDialog() {
+    final metadata = widget.joke.generationMetadata;
+
+    showDialog(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: Row(
+              children: [
+                const Icon(Icons.info_outline, size: 20),
+                const SizedBox(width: 8),
+                const Text('Generation Metadata'),
+              ],
+            ),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: SingleChildScrollView(
+                child:
+                    metadata != null && metadata.isNotEmpty
+                        ? Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color:
+                                Theme.of(
+                                  context,
+                                ).colorScheme.surfaceContainerHighest,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.outline.withValues(alpha: 0.3),
+                            ),
+                          ),
+                          child: Text(
+                            _formatMetadata(metadata),
+                            style: const TextStyle(
+                              fontFamily: 'monospace',
+                              fontSize: 12,
+                            ),
+                          ),
+                        )
+                        : Text(
+                          'No generation metadata available for this joke.',
+                          style: TextStyle(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurface.withValues(alpha: 0.6),
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Close'),
+              ),
+            ],
+          ),
+    );
+  }
+
+  String _formatMetadata(Map<String, dynamic> metadata) {
+    final buffer = StringBuffer();
+
+    // Check if this has the expected structure with generations
+    final generations = metadata['generations'] as List<dynamic>?;
+    if (generations == null || generations.isEmpty) {
+      // Fallback to raw metadata display if structure is unexpected
+      return _formatRawMetadata(metadata);
+    }
+
+    // Group generations by label, then by model_name
+    final Map<String, Map<String, List<Map<String, dynamic>>>> grouped = {};
+    final Map<String, Map<String, double>> totalCosts = {};
+    final Map<String, Map<String, int>> counts = {};
+
+    for (final generation in generations) {
+      if (generation is! Map<String, dynamic>) continue;
+
+      final label = generation['label']?.toString() ?? 'unknown';
+      final modelName = generation['model_name']?.toString() ?? 'unknown';
+      final cost = (generation['cost'] as num?)?.toDouble() ?? 0.0;
+
+      // Initialize nested maps if needed
+      grouped[label] ??= {};
+      grouped[label]![modelName] ??= [];
+      totalCosts[label] ??= {};
+      totalCosts[label]![modelName] ??= 0.0;
+      counts[label] ??= {};
+      counts[label]![modelName] ??= 0;
+
+      // Add to collections
+      grouped[label]![modelName]!.add(generation);
+      totalCosts[label]![modelName] = totalCosts[label]![modelName]! + cost;
+      counts[label]![modelName] = counts[label]![modelName]! + 1;
+    }
+
+    // Write summary
+    buffer.writeln('SUMMARY:');
+    for (final label in grouped.keys) {
+      // Label at top level (no indent)
+      buffer.writeln(label);
+
+      // Model names under each label (2 space indent)
+      for (final modelName in grouped[label]!.keys) {
+        final totalCost = totalCosts[label]![modelName]!;
+        final count = counts[label]![modelName]!;
+        buffer.writeln(
+          '  $modelName: \$${totalCost.toStringAsFixed(4)} ($count)',
+        );
+      }
+    }
+    buffer.writeln();
+
+    // Write detailed generations
+    buffer.writeln('DETAILS:');
+    for (final label in grouped.keys) {
+      for (final modelName in grouped[label]!.keys) {
+        final generationList = grouped[label]![modelName]!;
+
+        for (int i = 0; i < generationList.length; i++) {
+          final generation = generationList[i];
+
+          // Label (no indent)
+          if (i == 0 || generationList.length == 1) {
+            buffer.writeln(label);
+          } else {
+            buffer.writeln('$label (${i + 1})');
+          }
+
+          // Model name (2 space indent)
+          buffer.writeln('  model_name: $modelName');
+
+          // Cost (2 space indent, formatted)
+          final cost = (generation['cost'] as num?)?.toDouble() ?? 0.0;
+          buffer.writeln('  cost: \$${cost.toStringAsFixed(4)}');
+
+          // Generation time (2 space indent, only if > 0)
+          final genTime =
+              (generation['generation_time_sec'] as num?)?.toDouble() ?? 0.0;
+          if (genTime > 0) {
+            buffer.writeln('  time: ${genTime.toStringAsFixed(2)}s');
+          }
+
+          // Other fields (2 space indent, excluding retry_count and fields we already handled)
+          final excludedFields = {
+            'label',
+            'model_name',
+            'cost',
+            'generation_time_sec',
+            'retry_count',
+          };
+          for (final key in generation.keys) {
+            if (!excludedFields.contains(key)) {
+              final value = generation[key];
+              // Handle nested objects like token_counts
+              if (value is Map<String, dynamic>) {
+                buffer.writeln('  $key:');
+                for (final nestedKey in value.keys) {
+                  buffer.writeln('    $nestedKey: ${value[nestedKey]}');
+                }
+              } else {
+                buffer.writeln('  $key: $value');
+              }
+            }
+          }
+
+          // Add spacing between entries (except for the last one)
+          if (i < generationList.length - 1 ||
+              label != grouped.keys.last ||
+              modelName != grouped[label]!.keys.last) {
+            buffer.writeln();
+          }
+        }
+      }
+    }
+
+    return buffer.toString().trim();
+  }
+
+  String _formatRawMetadata(Map<String, dynamic> metadata) {
+    // Fallback method for unexpected metadata structure
+    final buffer = StringBuffer();
+
+    void writeKeyValue(String key, dynamic value, {int indent = 0}) {
+      final indentStr = '  ' * indent;
+
+      if (value is Map<String, dynamic>) {
+        buffer.writeln('$indentStr$key:');
+        value.forEach((k, v) => writeKeyValue(k, v, indent: indent + 1));
+      } else if (value is List) {
+        buffer.writeln('$indentStr$key: [${value.length} items]');
+        for (int i = 0; i < value.length; i++) {
+          writeKeyValue('[$i]', value[i], indent: indent + 1);
+        }
+      } else {
+        buffer.writeln('$indentStr$key: $value');
+      }
+    }
+
+    metadata.forEach((key, value) => writeKeyValue(key, value));
+
+    return buffer.toString().trim();
+  }
+
   @override
   Widget build(BuildContext context) {
     final populationState = ref.watch(jokePopulationProvider);
@@ -131,6 +343,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
             child: Card(
               child: GestureDetector(
                 onTap: _onImageTap,
+                onLongPress: widget.isAdminMode ? _onImageLongPress : null,
                 child: ConstrainedBox(
                   constraints: BoxConstraints(
                     minHeight: 200, // Ensure minimum usable height

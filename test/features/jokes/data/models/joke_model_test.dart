@@ -15,6 +15,7 @@ void main() {
       expect(tJokeModel.punchlineText, 'Because he was outstanding in his field!');
       expect(tJokeModel.setupImageUrl, null);
       expect(tJokeModel.punchlineImageUrl, null);
+      expect(tJokeModel.generationMetadata, null);
     });
 
     test('should correctly serialize to map', () {
@@ -26,6 +27,7 @@ void main() {
         'punchline_text': 'Because he was outstanding in his field!',
         'setup_image_url': null,
         'punchline_image_url': null,
+        'generation_metadata': null,
       };
       expect(result, expected);
     });
@@ -37,6 +39,7 @@ void main() {
         'punchline_text': 'Because he was outstanding in his field!',
         'setup_image_url': null,
         'punchline_image_url': null,
+        'generation_metadata': null,
       };
       // act
       final result = Joke.fromMap(jsonMap, '1');
@@ -54,6 +57,7 @@ void main() {
       expect(result.id, '1');
       expect(result.setupText, 'Updated setup');
       expect(result.punchlineText, 'Updated punchline');
+      expect(result.generationMetadata, null);
     });
 
     test('copyWith should return the same model if no parameters are provided', () {
@@ -134,6 +138,88 @@ void main() {
       // assert
       expect(result.setupImageUrl, 'https://example.com/setup.jpg');
       expect(result.punchlineImageUrl, null);
+    });
+
+    test('should handle generation metadata correctly', () {
+      // arrange
+      final testMetadata = {
+        'model': 'gpt-4',
+        'timestamp': '2024-01-01T00:00:00Z',
+        'parameters': {
+          'temperature': 0.7,
+          'max_tokens': 150,
+        },
+      };
+
+      final jokeWithMetadata = Joke(
+        id: '1',
+        setupText: 'Why did the scarecrow win an award?',
+        punchlineText: 'Because he was outstanding in his field!',
+        generationMetadata: testMetadata,
+      );
+
+      // act
+      final result = jokeWithMetadata.toMap();
+
+      // assert
+      expect(result['generation_metadata'], testMetadata);
+      expect(jokeWithMetadata.generationMetadata, testMetadata);
+    });
+
+    test('should create joke from map with generation metadata', () {
+      // arrange
+      final testMetadata = {
+        'model': 'gpt-4',
+        'timestamp': '2024-01-01T00:00:00Z',
+      };
+
+      final Map<String, dynamic> jsonMap = {
+        'setup_text': 'Why did the scarecrow win an award?',
+        'punchline_text': 'Because he was outstanding in his field!',
+        'generation_metadata': testMetadata,
+      };
+
+      // act
+      final result = Joke.fromMap(jsonMap, '1');
+
+      // assert
+      expect(result.generationMetadata, testMetadata);
+    });
+
+    test('should handle copyWith with generation metadata', () {
+      // arrange
+      final testMetadata = {
+        'model': 'gpt-4',
+        'timestamp': '2024-01-01T00:00:00Z',
+      };
+
+      // act
+      final result = tJokeModel.copyWith(
+        generationMetadata: testMetadata,
+      );
+
+      // assert
+      expect(result.generationMetadata, testMetadata);
+      expect(result.id, tJokeModel.id);
+      expect(result.setupText, tJokeModel.setupText);
+      expect(result.punchlineText, tJokeModel.punchlineText);
+    });
+
+    test('should compare jokes with generation metadata correctly', () {
+      // arrange
+      const metadata1 = {'model': 'gpt-4'};
+      const metadata2 = {'model': 'gpt-4'};
+      const metadata3 = {'model': 'gpt-3.5'};
+
+      final joke1 = tJokeModel.copyWith(generationMetadata: metadata1);
+      final joke2 = tJokeModel.copyWith(generationMetadata: metadata2);
+      final joke3 = tJokeModel.copyWith(generationMetadata: metadata3);
+
+      // assert
+      expect(joke1, joke2); // Same metadata content
+      expect(joke1, isNot(joke3)); // Different metadata content
+      expect(joke1.hashCode, joke2.hashCode);
+      expect(joke1.hashCode, isNot(joke3.hashCode));
     });
   });
 }

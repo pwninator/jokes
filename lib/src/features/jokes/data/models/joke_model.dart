@@ -7,6 +7,7 @@ class Joke {
   final String punchlineText;
   final String? setupImageUrl;
   final String? punchlineImageUrl;
+  final Map<String, dynamic>? generationMetadata;
 
   const Joke({
     required this.id,
@@ -14,6 +15,7 @@ class Joke {
     required this.punchlineText,
     this.setupImageUrl,
     this.punchlineImageUrl,
+    this.generationMetadata,
   });
 
   Joke copyWith({
@@ -22,6 +24,7 @@ class Joke {
     String? punchlineText,
     String? setupImageUrl,
     String? punchlineImageUrl,
+    Map<String, dynamic>? generationMetadata,
   }) {
     return Joke(
       id: id ?? this.id,
@@ -29,6 +32,7 @@ class Joke {
       punchlineText: punchlineText ?? this.punchlineText,
       setupImageUrl: setupImageUrl ?? this.setupImageUrl,
       punchlineImageUrl: punchlineImageUrl ?? this.punchlineImageUrl,
+      generationMetadata: generationMetadata ?? this.generationMetadata,
     );
   }
 
@@ -38,6 +42,7 @@ class Joke {
       'punchline_text': punchlineText,
       'setup_image_url': setupImageUrl,
       'punchline_image_url': punchlineImageUrl,
+      'generation_metadata': generationMetadata,
     };
   }
 
@@ -48,6 +53,7 @@ class Joke {
       punchlineText: map['punchline_text'] ?? '',
       setupImageUrl: map['setup_image_url'],
       punchlineImageUrl: map['punchline_image_url'],
+      generationMetadata: map['generation_metadata'] as Map<String, dynamic>?,
     );
   }
 
@@ -58,7 +64,7 @@ class Joke {
 
   @override
   String toString() =>
-      'Joke(id: $id, setupText: $setupText, punchlineText: $punchlineText, setupImageUrl: $setupImageUrl, punchlineImageUrl: $punchlineImageUrl)';
+      'Joke(id: $id, setupText: $setupText, punchlineText: $punchlineText, setupImageUrl: $setupImageUrl, punchlineImageUrl: $punchlineImageUrl, generationMetadata: $generationMetadata)';
 
   @override
   bool operator ==(Object other) {
@@ -69,14 +75,16 @@ class Joke {
         other.setupText == setupText &&
         other.punchlineText == punchlineText &&
         other.setupImageUrl == setupImageUrl &&
-        other.punchlineImageUrl == punchlineImageUrl;
+        other.punchlineImageUrl == punchlineImageUrl &&
+        mapEquals(other.generationMetadata, generationMetadata);
   }
 
   @override
   int get hashCode =>
-      id.hashCode ^ 
-      setupText.hashCode ^ 
-      punchlineText.hashCode ^ 
-      setupImageUrl.hashCode ^ 
-      punchlineImageUrl.hashCode;
+      id.hashCode ^
+      setupText.hashCode ^
+      punchlineText.hashCode ^
+      setupImageUrl.hashCode ^
+      punchlineImageUrl.hashCode ^
+      generationMetadata.hashCode;
 }

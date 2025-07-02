@@ -310,3 +310,68 @@ final userReactionsForJokeProvider = Provider.family<Set<JokeReactionType>, Stri
   final reactionsState = ref.watch(jokeReactionsProvider);
   return reactionsState.userReactions[jokeId] ?? <JokeReactionType>{};
 });
+
+// State class for joke filter
+class JokeFilterState {
+  final bool showUnratedOnly;
+
+  const JokeFilterState({
+    this.showUnratedOnly = false,
+  });
+
+  JokeFilterState copyWith({
+    bool? showUnratedOnly,
+  }) {
+    return JokeFilterState(
+      showUnratedOnly: showUnratedOnly ?? this.showUnratedOnly,
+    );
+  }
+}
+
+// Notifier for managing joke filter
+class JokeFilterNotifier extends StateNotifier<JokeFilterState> {
+  JokeFilterNotifier() : super(const JokeFilterState());
+
+  void toggleUnratedOnly() {
+    state = state.copyWith(showUnratedOnly: !state.showUnratedOnly);
+  }
+
+  void setUnratedOnly(bool value) {
+    state = state.copyWith(showUnratedOnly: value);
+  }
+}
+
+// Provider for joke filter notifier
+final jokeFilterProvider = StateNotifierProvider<JokeFilterNotifier, JokeFilterState>((ref) {
+  return JokeFilterNotifier();
+});
+
+// Provider for filtered jokes (used in joke management screen)
+final filteredJokesProvider = Provider<AsyncValue<List<Joke>>>((ref) {
+  final jokesAsync = ref.watch(jokesProvider);
+  final filterState = ref.watch(jokeFilterProvider);
+
+  return jokesAsync.when(
+    data: (jokes) {
+      if (!filterState.showUnratedOnly) {
+        return AsyncValue.data(jokes);
+      }
+
+      // Filter for unrated jokes: have images AND num_thumbs_up == 0 AND num_thumbs_down == 0
+      final filteredJokes = jokes.where((joke) {
+        final hasImages = joke.setupImageUrl != null &&
+            joke.setupImageUrl!.isNotEmpty &&
+            joke.punchlineImageUrl != null &&
+            joke.punchlineImageUrl!.isNotEmpty;
+
+        final isUnrated = joke.numThumbsUp == 0 && joke.numThumbsDown == 0;
+
+        return hasImages && isUnrated;
+      }).toList();
+
+      return AsyncValue.data(filteredJokes);
+    },
+    loading: () => const AsyncValue.loading(),
+    error: (error, stackTrace) => AsyncValue.error(error, stackTrace),
+  );
+});

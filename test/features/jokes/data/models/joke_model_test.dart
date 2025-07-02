@@ -21,6 +21,8 @@ void main() {
       expect(tJokeModel.setupImageDescription, null);
       expect(tJokeModel.punchlineImageDescription, null);
       expect(tJokeModel.generationMetadata, null);
+      expect(tJokeModel.numThumbsUp, 0);
+      expect(tJokeModel.numThumbsDown, 0);
     });
 
     test('should correctly serialize to map', () {
@@ -35,6 +37,8 @@ void main() {
         'setup_image_description': null,
         'punchline_image_description': null,
         'generation_metadata': null,
+        'num_thumbs_up': 0,
+        'num_thumbs_down': 0,
       };
       expect(result, expected);
     });
@@ -49,11 +53,33 @@ void main() {
         'setup_image_description': null,
         'punchline_image_description': null,
         'generation_metadata': null,
+        'num_thumbs_up': 0,
+        'num_thumbs_down': 0,
       };
       // act
       final result = Joke.fromMap(jsonMap, '1');
       // assert
       expect(result, tJokeModel);
+    });
+
+    test('should correctly deserialize from map without reaction counts', () {
+      // arrange - simulating old data without reaction counts
+      final Map<String, dynamic> jsonMap = {
+        'setup_text': 'Why did the scarecrow win an award?',
+        'punchline_text': 'Because he was outstanding in his field!',
+        'setup_image_url': null,
+        'punchline_image_url': null,
+        'setup_image_description': null,
+        'punchline_image_description': null,
+        'generation_metadata': null,
+        // num_thumbs_up and num_thumbs_down are missing
+      };
+      // act
+      final result = Joke.fromMap(jsonMap, '1');
+      // assert
+      expect(result, tJokeModel); // Should default to 0
+      expect(result.numThumbsUp, 0);
+      expect(result.numThumbsDown, 0);
     });
 
     test('should return a valid model with updated parameters', () {
@@ -67,6 +93,8 @@ void main() {
       expect(result.setupText, 'Updated setup');
       expect(result.punchlineText, 'Updated punchline');
       expect(result.generationMetadata, null);
+      expect(result.numThumbsUp, 0);
+      expect(result.numThumbsDown, 0);
     });
 
     test(
@@ -94,6 +122,89 @@ void main() {
       final joke1 = const Joke(id: '1', setupText: 'a', punchlineText: 'b');
       final joke2 = const Joke(id: '1', setupText: 'a', punchlineText: 'b');
       final joke3 = const Joke(id: '2', setupText: 'a', punchlineText: 'b');
+      expect(joke1.hashCode, joke2.hashCode);
+      expect(joke1.hashCode, isNot(joke3.hashCode));
+    });
+
+    test('should handle reaction count fields correctly', () {
+      // arrange
+      const jokeWithReactions = Joke(
+        id: '1',
+        setupText: 'Why did the scarecrow win an award?',
+        punchlineText: 'Because he was outstanding in his field!',
+        numThumbsUp: 5,
+        numThumbsDown: 2,
+      );
+
+      // act
+      final result = jokeWithReactions.toMap();
+
+      // assert
+      expect(result['num_thumbs_up'], 5);
+      expect(result['num_thumbs_down'], 2);
+      expect(jokeWithReactions.numThumbsUp, 5);
+      expect(jokeWithReactions.numThumbsDown, 2);
+    });
+
+    test('should create joke from map with reaction counts', () {
+      // arrange
+      final Map<String, dynamic> jsonMap = {
+        'setup_text': 'Why did the scarecrow win an award?',
+        'punchline_text': 'Because he was outstanding in his field!',
+        'num_thumbs_up': 10,
+        'num_thumbs_down': 3,
+      };
+
+      // act
+      final result = Joke.fromMap(jsonMap, '1');
+
+      // assert
+      expect(result.numThumbsUp, 10);
+      expect(result.numThumbsDown, 3);
+    });
+
+    test('should handle copyWith with reaction counts', () {
+      // act
+      final result = tJokeModel.copyWith(
+        numThumbsUp: 7,
+        numThumbsDown: 1,
+      );
+
+      // assert
+      expect(result.numThumbsUp, 7);
+      expect(result.numThumbsDown, 1);
+      expect(result.id, tJokeModel.id);
+      expect(result.setupText, tJokeModel.setupText);
+      expect(result.punchlineText, tJokeModel.punchlineText);
+    });
+
+    test('should compare jokes with reaction counts correctly', () {
+      // arrange
+      const joke1 = Joke(
+        id: '1',
+        setupText: 'test',
+        punchlineText: 'test',
+        numThumbsUp: 5,
+        numThumbsDown: 2,
+      );
+      const joke2 = Joke(
+        id: '1',
+        setupText: 'test',
+        punchlineText: 'test',
+        numThumbsUp: 5,
+        numThumbsDown: 2,
+      );
+      const joke3 = Joke(
+        id: '1',
+        setupText: 'test',
+        punchlineText: 'test',
+        numThumbsUp: 3,
+        numThumbsDown: 2,
+      );
+
+      // assert
+      expect(joke1, joke2); // Same reaction counts
+      expect(joke1, isNot(joke3)); // Different reaction counts
       expect(joke1.hashCode, joke2.hashCode);
       expect(joke1.hashCode, isNot(joke3.hashCode));
     });

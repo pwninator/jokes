@@ -505,4 +505,235 @@ void main() {
       });
     });
   });
+
+  // Add new test group for joke filter functionality
+  group('JokeFilter Tests', () {
+    test('JokeFilterState should have correct initial values', () {
+      const state = JokeFilterState();
+      expect(state.showUnratedOnly, false);
+    });
+
+    test('JokeFilterState copyWith should work correctly', () {
+      const state = JokeFilterState();
+      final newState = state.copyWith(showUnratedOnly: true);
+      
+      expect(newState.showUnratedOnly, true);
+      expect(state.showUnratedOnly, false); // Original unchanged
+    });
+
+    test('JokeFilterNotifier should toggle unrated filter', () {
+      final container = ProviderContainer();
+      final notifier = container.read(jokeFilterProvider.notifier);
+      
+      expect(container.read(jokeFilterProvider).showUnratedOnly, false);
+      
+      notifier.toggleUnratedOnly();
+      expect(container.read(jokeFilterProvider).showUnratedOnly, true);
+      
+      notifier.toggleUnratedOnly();
+      expect(container.read(jokeFilterProvider).showUnratedOnly, false);
+      
+      container.dispose();
+    });
+
+    test('JokeFilterNotifier should set unrated filter value', () {
+      final container = ProviderContainer();
+      final notifier = container.read(jokeFilterProvider.notifier);
+      
+      expect(container.read(jokeFilterProvider).showUnratedOnly, false);
+      
+      notifier.setUnratedOnly(true);
+      expect(container.read(jokeFilterProvider).showUnratedOnly, true);
+      
+      notifier.setUnratedOnly(false);
+      expect(container.read(jokeFilterProvider).showUnratedOnly, false);
+      
+      container.dispose();
+    });
+
+    group('filteredJokesProvider', () {
+      late MockJokeRepository mockJokeRepository;
+      
+      setUp(() {
+        mockJokeRepository = MockJokeRepository();
+      });
+
+      test('should return all jokes when filter is off', () async {
+        // arrange
+        final testJokes = [
+          const Joke(id: '1', setupText: 'setup1', punchlineText: 'punchline1'),
+          const Joke(
+            id: '2', 
+            setupText: 'setup2', 
+            punchlineText: 'punchline2',
+            setupImageUrl: 'url1',
+            punchlineImageUrl: 'url2',
+            numThumbsUp: 5,
+            numThumbsDown: 2,
+          ),
+        ];
+        
+        when(() => mockJokeRepository.getJokes())
+            .thenAnswer((_) => Stream.value(testJokes));
+
+        // act
+        final container = ProviderContainer(
+          overrides: [
+            jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
+          ],
+        );
+
+        // Wait for the stream provider to emit data
+        await container.read(jokesProvider.future);
+
+        final result = container.read(filteredJokesProvider);
+        
+        // assert
+        expect(result.hasValue, true);
+        expect(result.value, testJokes);
+        
+        container.dispose();
+      });
+
+      test('should filter to unrated jokes with images when filter is on', () async {
+        // arrange
+        final testJokes = [
+          // No images - should be filtered out
+          const Joke(
+            id: '1', 
+            setupText: 'setup1', 
+            punchlineText: 'punchline1',
+            numThumbsUp: 0,
+            numThumbsDown: 0,
+          ),
+          // Has images and unrated - should be included
+          const Joke(
+            id: '2', 
+            setupText: 'setup2', 
+            punchlineText: 'punchline2',
+            setupImageUrl: 'url1',
+            punchlineImageUrl: 'url2',
+            numThumbsUp: 0,
+            numThumbsDown: 0,
+          ),
+          // Has images but rated - should be filtered out
+          const Joke(
+            id: '3', 
+            setupText: 'setup3', 
+            punchlineText: 'punchline3',
+            setupImageUrl: 'url3',
+            punchlineImageUrl: 'url4',
+            numThumbsUp: 5,
+            numThumbsDown: 0,
+          ),
+          // Has images but rated (thumbs down) - should be filtered out
+          const Joke(
+            id: '4', 
+            setupText: 'setup4', 
+            punchlineText: 'punchline4',
+            setupImageUrl: 'url5',
+            punchlineImageUrl: 'url6',
+            numThumbsUp: 0,
+            numThumbsDown: 3,
+          ),
+          // Has only one image - should be filtered out
+          const Joke(
+            id: '5', 
+            setupText: 'setup5', 
+            punchlineText: 'punchline5',
+            setupImageUrl: 'url7',
+            numThumbsUp: 0,
+            numThumbsDown: 0,
+          ),
+          // Empty image URLs - should be filtered out
+          const Joke(
+            id: '6', 
+            setupText: 'setup6', 
+            punchlineText: 'punchline6',
+            setupImageUrl: '',
+            punchlineImageUrl: '',
+            numThumbsUp: 0,
+            numThumbsDown: 0,
+          ),
+        ];
+        
+        when(() => mockJokeRepository.getJokes())
+            .thenAnswer((_) => Stream.value(testJokes));
+
+        // act
+        final container = ProviderContainer(
+          overrides: [
+            jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
+          ],
+        );
+
+        // Wait for the stream provider to emit data
+        await container.read(jokesProvider.future);
+
+        // Turn on the filter
+        container.read(jokeFilterProvider.notifier).setUnratedOnly(true);
+
+        final result = container.read(filteredJokesProvider);
+        
+        // assert
+        expect(result.hasValue, true);
+        expect(result.value?.length, 1);
+        expect(result.value?.first.id, '2'); // Only joke 2 should pass the filter
+        
+        container.dispose();
+      });
+
+          test('should handle loading state correctly', () async {
+      // arrange
+      when(() => mockJokeRepository.getJokes())
+          .thenAnswer((_) => Stream<List<Joke>>.empty()); // Empty stream simulates loading
+
+      // act
+      final container = ProviderContainer(
+        overrides: [
+          jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
+        ],
+      );
+
+      final asyncValue = container.read(jokesProvider);
+      final result = container.read(filteredJokesProvider);
+      
+      // assert
+      expect(asyncValue.isLoading, true);
+      expect(result.isLoading, true);
+      
+      container.dispose();
+    });
+
+    test('should handle error state correctly', () async {
+      // arrange
+      const error = 'Test error';
+      
+      when(() => mockJokeRepository.getJokes())
+          .thenAnswer((_) => Stream<List<Joke>>.error(error));
+
+      // act
+      final container = ProviderContainer(
+        overrides: [
+          jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
+        ],
+      );
+
+      // Try to read the jokesProvider to trigger the error
+      try {
+        await container.read(jokesProvider.future);
+      } catch (e) {
+        // Expected to fail
+      }
+
+      final result = container.read(filteredJokesProvider);
+      
+      // assert
+      expect(result.hasError, true);
+      expect(result.error, error);
+      
+      container.dispose();
+    });
+    });
+  });
 }

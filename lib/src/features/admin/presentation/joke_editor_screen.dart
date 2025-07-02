@@ -18,6 +18,8 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
   final _formKey = GlobalKey<FormState>();
   final _setupController = TextEditingController();
   final _punchlineController = TextEditingController();
+  final _setupImageDescriptionController = TextEditingController();
+  final _punchlineImageDescriptionController = TextEditingController();
   bool _isLoading = false;
 
   bool get _isEditMode => widget.joke != null;
@@ -29,6 +31,10 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
     if (_isEditMode) {
       _setupController.text = widget.joke!.setupText;
       _punchlineController.text = widget.joke!.punchlineText;
+      _setupImageDescriptionController.text =
+          widget.joke!.setupImageDescription ?? '';
+      _punchlineImageDescriptionController.text =
+          widget.joke!.punchlineImageDescription ?? '';
     }
   }
 
@@ -36,6 +42,8 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
   void dispose() {
     _setupController.dispose();
     _punchlineController.dispose();
+    _setupImageDescriptionController.dispose();
+    _punchlineImageDescriptionController.dispose();
     super.dispose();
   }
 
@@ -47,101 +55,167 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
         padding: const EdgeInsets.all(16.0),
         child: Form(
           key: _formKey,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                _isEditMode
-                    ? 'Edit the joke setup and punchline below:'
-                    : 'Create a new joke by filling out the setup and punchline below:',
-                style: const TextStyle(fontSize: 16),
-              ),
-              const SizedBox(height: 24),
-
-              // Setup Text Field
-              TextFormField(
-                controller: _setupController,
-                decoration: const InputDecoration(
-                  labelText: 'Setup',
-                  hintText: 'Enter the joke setup...',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.lightbulb_outline),
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  _isEditMode
+                      ? 'Edit the joke setup and punchline below:'
+                      : 'Create a new joke by filling out the setup and punchline below:',
+                  style: const TextStyle(fontSize: 16),
                 ),
-                maxLines: 3,
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Please enter a setup for the joke';
-                  }
-                  if (value.trim().length < 5) {
-                    return 'Setup must be at least 5 characters long';
-                  }
-                  return null;
-                },
-              ),
+                const SizedBox(height: 24),
 
-              const SizedBox(height: 16),
-
-              // Punchline Text Field
-              TextFormField(
-                controller: _punchlineController,
-                decoration: const InputDecoration(
-                  labelText: 'Punchline',
-                  hintText: 'Enter the punchline...',
-                  border: OutlineInputBorder(),
-                  prefixIcon: Icon(Icons.mood),
-                ),
-                maxLines: 3,
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Please enter a punchline for the joke';
-                  }
-                  if (value.trim().length < 5) {
-                    return 'Punchline must be at least 5 characters long';
-                  }
-                  return null;
-                },
-              ),
-
-              const SizedBox(height: 24),
-
-              // Save Button
-              ElevatedButton(
-                onPressed: _isLoading ? null : _saveJoke,
-                style: ElevatedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
+                // Setup Text Field
+                TextFormField(
+                  key: const Key('setupTextField'),
+                  controller: _setupController,
+                  decoration: const InputDecoration(
+                    labelText: 'Setup',
+                    hintText: 'Enter the joke setup...',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.lightbulb_outline),
                   ),
+                  maxLines: 3,
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Please enter a setup for the joke';
+                    }
+                    if (value.trim().length < 5) {
+                      return 'Setup must be at least 5 characters long';
+                    }
+                    return null;
+                  },
                 ),
-                child:
-                    _isLoading
-                        ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                        : Text(
-                          _isEditMode ? 'Update Joke' : 'Save Joke',
-                          style: const TextStyle(fontSize: 16),
-                        ),
-              ),
 
-              const SizedBox(height: 16),
+                const SizedBox(height: 16),
 
-              // Info text
-              Text(
-                _isEditMode
-                    ? 'Changes will be updated immediately.'
-                    : 'Your joke will be reviewed and added to the collection.',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.onSurface.withValues(alpha: 0.6),
+                // Punchline Text Field
+                TextFormField(
+                  key: const Key('punchlineTextField'),
+                  controller: _punchlineController,
+                  decoration: const InputDecoration(
+                    labelText: 'Punchline',
+                    hintText: 'Enter the punchline...',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.mood),
+                  ),
+                  maxLines: 3,
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Please enter a punchline for the joke';
+                    }
+                    if (value.trim().length < 5) {
+                      return 'Punchline must be at least 5 characters long';
+                    }
+                    return null;
+                  },
                 ),
-                textAlign: TextAlign.center,
-              ),
-            ],
+
+                // Image Description Fields (only show in edit mode)
+                if (_isEditMode) ...[
+                  const SizedBox(height: 24),
+                  const Divider(),
+                  const SizedBox(height: 16),
+
+                  Text(
+                    'Image Descriptions',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Setup Image Description Field
+                  TextFormField(
+                    key: const Key('setupImageDescriptionTextField'),
+                    controller: _setupImageDescriptionController,
+                    decoration: const InputDecoration(
+                      labelText: 'Setup Image Description',
+                      hintText: 'Describe the setup image...',
+                      border: OutlineInputBorder(),
+                      alignLabelWithHint: true,
+                    ),
+                    maxLines: 15,
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Please enter a description for the setup image';
+                      }
+                      if (value.trim().length < 10) {
+                        return 'Description must be at least 10 characters long';
+                      }
+                      return null;
+                    },
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  // Punchline Image Description Field
+                  TextFormField(
+                    key: const Key('punchlineImageDescriptionTextField'),
+                    controller: _punchlineImageDescriptionController,
+                    decoration: const InputDecoration(
+                      labelText: 'Punchline Image Description',
+                      hintText: 'Describe the punchline image...',
+                      border: OutlineInputBorder(),
+                      alignLabelWithHint: true,
+                    ),
+                    maxLines: 15,
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Please enter a description for the punchline image';
+                      }
+                      if (value.trim().length < 10) {
+                        return 'Description must be at least 10 characters long';
+                      }
+                      return null;
+                    },
+                  ),
+                ],
+
+                const SizedBox(height: 24),
+
+                // Save Button
+                ElevatedButton(
+                  key: Key(_isEditMode ? 'updateJokeButton' : 'saveJokeButton'),
+                  onPressed: _isLoading ? null : _saveJoke,
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child:
+                      _isLoading
+                          ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                          : Text(
+                            _isEditMode ? 'Update Joke' : 'Save Joke',
+                            style: const TextStyle(fontSize: 16),
+                          ),
+                ),
+
+                const SizedBox(height: 16),
+
+                // Info text
+                Text(
+                  _isEditMode
+                      ? 'Changes will be updated immediately.'
+                      : 'Your joke will be reviewed and added to the collection.',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withValues(alpha: 0.6),
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -163,7 +237,16 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
 
       if (_isEditMode) {
         // Update existing joke
-        await _updateJoke(setup, punchline);
+        final setupImageDescription =
+            _setupImageDescriptionController.text.trim();
+        final punchlineImageDescription =
+            _punchlineImageDescriptionController.text.trim();
+        await _updateJoke(
+          setup,
+          punchline,
+          setupImageDescription,
+          punchlineImageDescription,
+        );
       } else {
         // Create new joke
         await _createJoke(setup, punchline);
@@ -236,47 +319,43 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
     }
   }
 
-  Future<void> _updateJoke(String setup, String punchline) async {
-    // Call the Firebase Cloud Function to update the joke
-    final jokeService = ref.read(jokeCloudFunctionServiceProvider);
-    final result = await jokeService.updateJoke(
+  Future<void> _updateJoke(
+    String setup,
+    String punchline,
+    String setupImageDescription,
+    String punchlineImageDescription,
+  ) async {
+    // Update the joke directly in Firestore using the repository
+    final jokeRepository = ref.read(jokeRepositoryProvider);
+
+    await jokeRepository.updateJoke(
       jokeId: widget.joke!.id,
       setupText: setup,
       punchlineText: punchline,
       setupImageUrl: widget.joke!.setupImageUrl,
       punchlineImageUrl: widget.joke!.punchlineImageUrl,
+      setupImageDescription: setupImageDescription,
+      punchlineImageDescription: punchlineImageDescription,
     );
 
     if (mounted) {
-      if (result != null && result['success'] == true) {
-        // Success - show message and navigate back
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Joke updated successfully!'),
-            backgroundColor: Theme.of(context).appColors.success,
-            action: SnackBarAction(
-              label: 'OK',
-              textColor: Colors.white,
-              onPressed: () {
-                ScaffoldMessenger.of(context).hideCurrentSnackBar();
-              },
-            ),
+      // Success - show message and navigate back
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Joke updated successfully!'),
+          backgroundColor: Theme.of(context).appColors.success,
+          action: SnackBarAction(
+            label: 'OK',
+            textColor: Colors.white,
+            onPressed: () {
+              ScaffoldMessenger.of(context).hideCurrentSnackBar();
+            },
           ),
-        );
+        ),
+      );
 
-        // Navigate back to previous screen
-        Navigator.of(context).pop();
-      } else {
-        // Error
-        final errorMessage = result?['error'] ?? 'Failed to update joke';
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $errorMessage'),
-            backgroundColor: Theme.of(context).appColors.authError,
-            duration: const Duration(seconds: 5),
-          ),
-        );
-      }
+      // Navigate back to previous screen
+      Navigator.of(context).pop();
     }
   }
 }

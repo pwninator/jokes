@@ -7,6 +7,8 @@ class Joke {
   final String punchlineText;
   final String? setupImageUrl;
   final String? punchlineImageUrl;
+  final String? setupImageDescription;
+  final String? punchlineImageDescription;
   final Map<String, dynamic>? generationMetadata;
 
   const Joke({
@@ -15,6 +17,8 @@ class Joke {
     required this.punchlineText,
     this.setupImageUrl,
     this.punchlineImageUrl,
+    this.setupImageDescription,
+    this.punchlineImageDescription,
     this.generationMetadata,
   });
 
@@ -24,6 +28,8 @@ class Joke {
     String? punchlineText,
     String? setupImageUrl,
     String? punchlineImageUrl,
+    String? setupImageDescription,
+    String? punchlineImageDescription,
     Map<String, dynamic>? generationMetadata,
   }) {
     return Joke(
@@ -32,6 +38,10 @@ class Joke {
       punchlineText: punchlineText ?? this.punchlineText,
       setupImageUrl: setupImageUrl ?? this.setupImageUrl,
       punchlineImageUrl: punchlineImageUrl ?? this.punchlineImageUrl,
+      setupImageDescription:
+          setupImageDescription ?? this.setupImageDescription,
+      punchlineImageDescription:
+          punchlineImageDescription ?? this.punchlineImageDescription,
       generationMetadata: generationMetadata ?? this.generationMetadata,
     );
   }
@@ -42,6 +52,8 @@ class Joke {
       'punchline_text': punchlineText,
       'setup_image_url': setupImageUrl,
       'punchline_image_url': punchlineImageUrl,
+      'setup_image_description': setupImageDescription,
+      'punchline_image_description': punchlineImageDescription,
       'generation_metadata': generationMetadata,
     };
   }
@@ -53,6 +65,8 @@ class Joke {
       punchlineText: map['punchline_text'] ?? '',
       setupImageUrl: map['setup_image_url'],
       punchlineImageUrl: map['punchline_image_url'],
+      setupImageDescription: map['setup_image_description'],
+      punchlineImageDescription: map['punchline_image_description'],
       generationMetadata: map['generation_metadata'] as Map<String, dynamic>?,
     );
   }
@@ -64,7 +78,7 @@ class Joke {
 
   @override
   String toString() =>
-      'Joke(id: $id, setupText: $setupText, punchlineText: $punchlineText, setupImageUrl: $setupImageUrl, punchlineImageUrl: $punchlineImageUrl, generationMetadata: $generationMetadata)';
+      'Joke(id: $id, setupText: $setupText, punchlineText: $punchlineText, setupImageUrl: $setupImageUrl, punchlineImageUrl: $punchlineImageUrl, setupImageDescription: $setupImageDescription, punchlineImageDescription: $punchlineImageDescription, generationMetadata: $generationMetadata)';
 
   @override
   bool operator ==(Object other) {
@@ -76,6 +90,8 @@ class Joke {
         other.punchlineText == punchlineText &&
         other.setupImageUrl == setupImageUrl &&
         other.punchlineImageUrl == punchlineImageUrl &&
+        other.setupImageDescription == setupImageDescription &&
+        other.punchlineImageDescription == punchlineImageDescription &&
         mapEquals(other.generationMetadata, generationMetadata);
   }
 
@@ -86,5 +102,7 @@ class Joke {
       punchlineText.hashCode ^
       setupImageUrl.hashCode ^
       punchlineImageUrl.hashCode ^
+      setupImageDescription.hashCode ^
+      punchlineImageDescription.hashCode ^
       generationMetadata.hashCode;
 }

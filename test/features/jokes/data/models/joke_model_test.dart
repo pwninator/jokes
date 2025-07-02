@@ -12,9 +12,14 @@ void main() {
     test('should create a valid model', () {
       expect(tJokeModel.id, '1');
       expect(tJokeModel.setupText, 'Why did the scarecrow win an award?');
-      expect(tJokeModel.punchlineText, 'Because he was outstanding in his field!');
+      expect(
+        tJokeModel.punchlineText,
+        'Because he was outstanding in his field!',
+      );
       expect(tJokeModel.setupImageUrl, null);
       expect(tJokeModel.punchlineImageUrl, null);
+      expect(tJokeModel.setupImageDescription, null);
+      expect(tJokeModel.punchlineImageDescription, null);
       expect(tJokeModel.generationMetadata, null);
     });
 
@@ -27,6 +32,8 @@ void main() {
         'punchline_text': 'Because he was outstanding in his field!',
         'setup_image_url': null,
         'punchline_image_url': null,
+        'setup_image_description': null,
+        'punchline_image_description': null,
         'generation_metadata': null,
       };
       expect(result, expected);
@@ -39,6 +46,8 @@ void main() {
         'punchline_text': 'Because he was outstanding in his field!',
         'setup_image_url': null,
         'punchline_image_url': null,
+        'setup_image_description': null,
+        'punchline_image_description': null,
         'generation_metadata': null,
       };
       // act
@@ -60,12 +69,15 @@ void main() {
       expect(result.generationMetadata, null);
     });
 
-    test('copyWith should return the same model if no parameters are provided', () {
-      // act
-      final result = tJokeModel.copyWith();
-      // assert
-      expect(result, tJokeModel);
-    });
+    test(
+      'copyWith should return the same model if no parameters are provided',
+      () {
+        // act
+        final result = tJokeModel.copyWith();
+        // assert
+        expect(result, tJokeModel);
+      },
+    );
 
     test('should implement props for value comparison', () {
       expect(
@@ -101,9 +113,15 @@ void main() {
 
       // assert
       expect(result['setup_image_url'], 'https://example.com/setup.jpg');
-      expect(result['punchline_image_url'], 'https://example.com/punchline.jpg');
+      expect(
+        result['punchline_image_url'],
+        'https://example.com/punchline.jpg',
+      );
       expect(jokeWithImages.setupImageUrl, 'https://example.com/setup.jpg');
-      expect(jokeWithImages.punchlineImageUrl, 'https://example.com/punchline.jpg');
+      expect(
+        jokeWithImages.punchlineImageUrl,
+        'https://example.com/punchline.jpg',
+      );
     });
 
     test('should create joke from map with image URLs', () {
@@ -140,15 +158,127 @@ void main() {
       expect(result.punchlineImageUrl, null);
     });
 
+    test('should handle image description fields correctly', () {
+      // arrange
+      const jokeWithImageDescriptions = Joke(
+        id: '1',
+        setupText: 'Why did the scarecrow win an award?',
+        punchlineText: 'Because he was outstanding in his field!',
+        setupImageDescription: 'A scarecrow standing in a field',
+        punchlineImageDescription: 'The scarecrow receiving an award',
+      );
+
+      // act
+      final result = jokeWithImageDescriptions.toMap();
+
+      // assert
+      expect(
+        result['setup_image_description'],
+        'A scarecrow standing in a field',
+      );
+      expect(
+        result['punchline_image_description'],
+        'The scarecrow receiving an award',
+      );
+      expect(
+        jokeWithImageDescriptions.setupImageDescription,
+        'A scarecrow standing in a field',
+      );
+      expect(
+        jokeWithImageDescriptions.punchlineImageDescription,
+        'The scarecrow receiving an award',
+      );
+    });
+
+    test('should create joke from map with image descriptions', () {
+      // arrange
+      final Map<String, dynamic> jsonMap = {
+        'setup_text': 'Why did the scarecrow win an award?',
+        'punchline_text': 'Because he was outstanding in his field!',
+        'setup_image_description': 'A scarecrow standing in a field',
+        'punchline_image_description': 'The scarecrow receiving an award',
+      };
+
+      // act
+      final result = Joke.fromMap(jsonMap, '1');
+
+      // assert
+      expect(result.setupImageDescription, 'A scarecrow standing in a field');
+      expect(
+        result.punchlineImageDescription,
+        'The scarecrow receiving an award',
+      );
+    });
+
+    test('should handle partial image descriptions', () {
+      // arrange
+      final Map<String, dynamic> jsonMap = {
+        'setup_text': 'Why did the scarecrow win an award?',
+        'punchline_text': 'Because he was outstanding in his field!',
+        'setup_image_description': 'A scarecrow standing in a field',
+        // punchline_image_description is null
+      };
+
+      // act
+      final result = Joke.fromMap(jsonMap, '1');
+
+      // assert
+      expect(result.setupImageDescription, 'A scarecrow standing in a field');
+      expect(result.punchlineImageDescription, null);
+    });
+
+    test('should handle copyWith with image descriptions', () {
+      // act
+      final result = tJokeModel.copyWith(
+        setupImageDescription: 'Updated setup description',
+        punchlineImageDescription: 'Updated punchline description',
+      );
+
+      // assert
+      expect(result.setupImageDescription, 'Updated setup description');
+      expect(result.punchlineImageDescription, 'Updated punchline description');
+      expect(result.id, tJokeModel.id);
+      expect(result.setupText, tJokeModel.setupText);
+      expect(result.punchlineText, tJokeModel.punchlineText);
+    });
+
+    test('should compare jokes with image descriptions correctly', () {
+      // arrange
+      const joke1 = Joke(
+        id: '1',
+        setupText: 'test',
+        punchlineText: 'test',
+        setupImageDescription: 'desc1',
+        punchlineImageDescription: 'desc2',
+      );
+      const joke2 = Joke(
+        id: '1',
+        setupText: 'test',
+        punchlineText: 'test',
+        setupImageDescription: 'desc1',
+        punchlineImageDescription: 'desc2',
+      );
+      const joke3 = Joke(
+        id: '1',
+        setupText: 'test',
+        punchlineText: 'test',
+        setupImageDescription: 'different',
+        punchlineImageDescription: 'desc2',
+      );
+
+      // assert
+      expect(joke1, joke2); // Same descriptions
+      expect(joke1, isNot(joke3)); // Different descriptions
+      expect(joke1.hashCode, joke2.hashCode);
+      expect(joke1.hashCode, isNot(joke3.hashCode));
+    });
+
     test('should handle generation metadata correctly', () {
       // arrange
       final testMetadata = {
         'model': 'gpt-4',
         'timestamp': '2024-01-01T00:00:00Z',
-        'parameters': {
-          'temperature': 0.7,
-          'max_tokens': 150,
-        },
+        'parameters': {'temperature': 0.7, 'max_tokens': 150},
       };
 
       final jokeWithMetadata = Joke(
@@ -194,9 +324,7 @@ void main() {
       };
 
       // act
-      final result = tJokeModel.copyWith(
-        generationMetadata: testMetadata,
-      );
+      final result = tJokeModel.copyWith(generationMetadata: testMetadata);
 
       // assert
       expect(result.generationMetadata, testMetadata);

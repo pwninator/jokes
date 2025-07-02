@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/common_widgets/cached_joke_image.dart';
 import 'package:snickerdoodle/src/core/providers/image_providers.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
+import 'package:snickerdoodle/src/features/admin/presentation/joke_editor_screen.dart';
 import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 
@@ -564,6 +565,29 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
                                 ),
                               )
                               : const Icon(Icons.refresh),
+                    ),
+                  ),
+                  const SizedBox(width: 8.0),
+                  // Edit button (middle)
+                  Expanded(
+                    child: ElevatedButton(
+                      key: const Key('edit-joke-button'),
+                      onPressed: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder:
+                                (context) =>
+                                    JokeEditorScreen(joke: widget.joke),
+                          ),
+                        );
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor:
+                            Theme.of(context).colorScheme.tertiaryContainer,
+                        foregroundColor:
+                            Theme.of(context).colorScheme.onTertiaryContainer,
+                      ),
+                      child: const Icon(Icons.edit),
                     ),
                   ),
                   const SizedBox(width: 8.0),

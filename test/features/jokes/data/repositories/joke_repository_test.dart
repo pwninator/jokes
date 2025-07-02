@@ -9,6 +9,9 @@ class MockFirebaseFirestore extends Mock implements FirebaseFirestore {}
 class MockCollectionReference extends Mock
     implements CollectionReference<Map<String, dynamic>> {}
 
+class MockDocumentReference extends Mock
+    implements DocumentReference<Map<String, dynamic>> {}
+
 class MockQuery extends Mock implements Query<Map<String, dynamic>> {}
 
 class MockQuerySnapshot extends Mock
@@ -22,12 +25,14 @@ void main() {
     late JokeRepository repository;
     late MockFirebaseFirestore mockFirestore;
     late MockCollectionReference mockCollectionReference;
+    late MockDocumentReference mockDocumentReference;
     late MockQuery mockQuery;
     late MockQuerySnapshot mockQuerySnapshot;
 
     setUp(() {
       mockFirestore = MockFirebaseFirestore();
       mockCollectionReference = MockCollectionReference();
+      mockDocumentReference = MockDocumentReference();
       mockQuery = MockQuery();
       mockQuerySnapshot = MockQuerySnapshot();
       repository = JokeRepository(mockFirestore);
@@ -129,6 +134,125 @@ void main() {
           ),
         ).called(1);
         verify(() => mockQuery.snapshots()).called(1);
+      });
+    });
+
+    group('updateJoke', () {
+      setUp(() {
+        // Set up document reference behavior
+        when(
+          () => mockCollectionReference.doc(any()),
+        ).thenReturn(mockDocumentReference);
+        when(
+          () => mockDocumentReference.update(any()),
+        ).thenAnswer((_) async => {});
+      });
+
+      test('should update joke with all fields', () async {
+        const jokeId = 'test-joke-id';
+        const setupText = 'Updated setup';
+        const punchlineText = 'Updated punchline';
+        const setupImageUrl = 'https://example.com/setup.jpg';
+        const punchlineImageUrl = 'https://example.com/punchline.jpg';
+        const setupImageDescription = 'Updated setup description';
+        const punchlineImageDescription = 'Updated punchline description';
+
+        await repository.updateJoke(
+          jokeId: jokeId,
+          setupText: setupText,
+          punchlineText: punchlineText,
+          setupImageUrl: setupImageUrl,
+          punchlineImageUrl: punchlineImageUrl,
+          setupImageDescription: setupImageDescription,
+          punchlineImageDescription: punchlineImageDescription,
+        );
+
+        final expectedUpdateData = {
+          'setup_text': setupText,
+          'punchline_text': punchlineText,
+          'setup_image_url': setupImageUrl,
+          'punchline_image_url': punchlineImageUrl,
+          'setup_image_description': setupImageDescription,
+          'punchline_image_description': punchlineImageDescription,
+        };
+
+        verify(() => mockFirestore.collection('jokes')).called(1);
+        verify(() => mockCollectionReference.doc(jokeId)).called(1);
+        verify(
+          () => mockDocumentReference.update(expectedUpdateData),
+        ).called(1);
+      });
+
+      test('should update joke with only required fields', () async {
+        const jokeId = 'test-joke-id';
+        const setupText = 'Updated setup';
+        const punchlineText = 'Updated punchline';
+
+        await repository.updateJoke(
+          jokeId: jokeId,
+          setupText: setupText,
+          punchlineText: punchlineText,
+        );
+
+        final expectedUpdateData = {
+          'setup_text': setupText,
+          'punchline_text': punchlineText,
+        };
+
+        verify(() => mockFirestore.collection('jokes')).called(1);
+        verify(() => mockCollectionReference.doc(jokeId)).called(1);
+        verify(
+          () => mockDocumentReference.update(expectedUpdateData),
+        ).called(1);
+      });
+
+      test('should update joke with partial optional fields', () async {
+        const jokeId = 'test-joke-id';
+        const setupText = 'Updated setup';
+        const punchlineText = 'Updated punchline';
+        const setupImageDescription = 'Only setup description';
+
+        await repository.updateJoke(
+          jokeId: jokeId,
+          setupText: setupText,
+          punchlineText: punchlineText,
+          setupImageDescription: setupImageDescription,
+        );
+
+        final expectedUpdateData = {
+          'setup_text': setupText,
+          'punchline_text': punchlineText,
+          'setup_image_description': setupImageDescription,
+        };
+
+        verify(() => mockFirestore.collection('jokes')).called(1);
+        verify(() => mockCollectionReference.doc(jokeId)).called(1);
+        verify(
+          () => mockDocumentReference.update(expectedUpdateData),
+        ).called(1);
+      });
+
+      test('should propagate FirebaseException when update fails', () async {
+        const jokeId = 'test-joke-id';
+        const setupText = 'Updated setup';
+        const punchlineText = 'Updated punchline';
+
+        when(() => mockDocumentReference.update(any())).thenThrow(
+          FirebaseException(plugin: 'firestore', message: 'Update failed'),
+        );
+
+        expect(
+          () => repository.updateJoke(
+            jokeId: jokeId,
+            setupText: setupText,
+            punchlineText: punchlineText,
+          ),
+          throwsA(isA<FirebaseException>()),
+        );
+
+        verify(() => mockFirestore.collection('jokes')).called(1);
+        verify(() => mockCollectionReference.doc(jokeId)).called(1);
+        verify(() => mockDocumentReference.update(any())).called(1);
       });
     });
   });

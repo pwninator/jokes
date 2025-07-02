@@ -530,7 +530,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
                 children: [
                   // Regenerate All button (left)
                   Expanded(
-                    child: ElevatedButton.icon(
+                    child: ElevatedButton(
                       key: const Key('regenerate-all-button'),
                       onPressed:
                           isPopulating
@@ -544,7 +544,13 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
                                   imagesOnly: false,
                                 );
                               },
-                      icon:
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor:
+                            Theme.of(context).colorScheme.primaryContainer,
+                        foregroundColor:
+                            Theme.of(context).colorScheme.onPrimaryContainer,
+                      ),
+                      child:
                           isPopulating
                               ? SizedBox(
                                 width: 16,
@@ -558,21 +564,12 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
                                 ),
                               )
                               : const Icon(Icons.refresh),
-                      label: Text(
-                        isPopulating ? 'Regenerating...' : 'Redo All',
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor:
-                            Theme.of(context).colorScheme.primaryContainer,
-                        foregroundColor:
-                            Theme.of(context).colorScheme.onPrimaryContainer,
-                      ),
                     ),
                   ),
                   const SizedBox(width: 8.0),
                   // Regenerate Images button (right)
                   Expanded(
-                    child: ElevatedButton.icon(
+                    child: ElevatedButton(
                       key: const Key('regenerate-images-button'),
                       onPressed:
                           isPopulating
@@ -586,7 +583,13 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
                                   imagesOnly: true,
                                 );
                               },
-                      icon:
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor:
+                            Theme.of(context).colorScheme.secondaryContainer,
+                        foregroundColor:
+                            Theme.of(context).colorScheme.onSecondaryContainer,
+                      ),
+                      child:
                           isPopulating
                               ? SizedBox(
                                 width: 16,
@@ -600,15 +603,6 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
                                 ),
                               )
                               : const Icon(Icons.image),
-                      label: Text(
-                        isPopulating ? 'Regenerating...' : 'Redo Images',
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor:
-                            Theme.of(context).colorScheme.secondaryContainer,
-                        foregroundColor:
-                            Theme.of(context).colorScheme.onSecondaryContainer,
-                      ),
                     ),
                   ),
                 ],

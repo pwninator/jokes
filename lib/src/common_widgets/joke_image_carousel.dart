@@ -455,13 +455,14 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final populationState = ref.watch(jokePopulationProvider);
     final isPopulating = populationState.populatingJokes.contains(
       widget.joke.id,
     );
 
-    return Container(
-      margin: const EdgeInsets.symmetric(vertical: 14.0),
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 14.0),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -472,7 +473,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
                 onTap: _onImageTap,
                 onLongPress: widget.isAdminMode ? _onImageLongPress : null,
                 child: ConstrainedBox(
-                  constraints: BoxConstraints(
+                  constraints: const BoxConstraints(
                     minHeight: 200, // Ensure minimum usable height
                   ),
                   child: ClipRRect(
@@ -516,9 +517,9 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        _buildPageIndicator(0),
+                        _buildPageIndicator(0, theme),
                         const SizedBox(width: 8),
-                        _buildPageIndicator(1),
+                        _buildPageIndicator(1, theme),
                       ],
                     ),
                     // Right spacer and save button
@@ -561,10 +562,8 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
                                 );
                               },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor:
-                            Theme.of(context).colorScheme.primaryContainer,
-                        foregroundColor:
-                            Theme.of(context).colorScheme.onPrimaryContainer,
+                        backgroundColor: theme.colorScheme.primaryContainer,
+                        foregroundColor: theme.colorScheme.onPrimaryContainer,
                       ),
                       child:
                           isPopulating
@@ -574,8 +573,9 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
                                   valueColor: AlwaysStoppedAnimation<Color>(
-                                    Theme.of(context).colorScheme.onSurface
-                                        .withValues(alpha: 0.6),
+                                    theme.colorScheme.onSurface.withValues(
+                                      alpha: 0.6,
+                                    ),
                                   ),
                                 ),
                               )
@@ -597,10 +597,8 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
                         );
                       },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor:
-                            Theme.of(context).colorScheme.tertiaryContainer,
-                        foregroundColor:
-                            Theme.of(context).colorScheme.onTertiaryContainer,
+                        backgroundColor: theme.colorScheme.tertiaryContainer,
+                        foregroundColor: theme.colorScheme.onTertiaryContainer,
                       ),
                       child: const Icon(Icons.edit),
                     ),
@@ -623,10 +621,8 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
                                 );
                               },
                       style: ElevatedButton.styleFrom(
-                        backgroundColor:
-                            Theme.of(context).colorScheme.secondaryContainer,
-                        foregroundColor:
-                            Theme.of(context).colorScheme.onSecondaryContainer,
+                        backgroundColor: theme.colorScheme.secondaryContainer,
+                        foregroundColor: theme.colorScheme.onSecondaryContainer,
                       ),
                       child:
                           isPopulating
@@ -636,8 +632,9 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
                                   valueColor: AlwaysStoppedAnimation<Color>(
-                                    Theme.of(context).colorScheme.onSurface
-                                        .withValues(alpha: 0.6),
+                                    theme.colorScheme.onSurface.withValues(
+                                      alpha: 0.6,
+                                    ),
                                   ),
                                 ),
                               )
@@ -660,14 +657,10 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(12.0),
                 decoration: BoxDecoration(
-                  color: Theme.of(
-                    context,
-                  ).appColors.authError.withValues(alpha: 0.1),
+                  color: theme.appColors.authError.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8.0),
                   border: Border.all(
-                    color: Theme.of(
-                      context,
-                    ).appColors.authError.withValues(alpha: 0.3),
+                    color: theme.appColors.authError.withValues(alpha: 0.3),
                   ),
                 ),
                 child: Row(
@@ -675,14 +668,14 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
                     Icon(
                       Icons.error_outline,
                       size: 16,
-                      color: Theme.of(context).appColors.authError,
+                      color: theme.appColors.authError,
                     ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         populationState.error!,
                         style: TextStyle(
-                          color: Theme.of(context).appColors.authError,
+                          color: theme.appColors.authError,
                           fontSize: 12,
                         ),
                       ),
@@ -694,7 +687,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
                       icon: Icon(
                         Icons.close,
                         size: 16,
-                        color: Theme.of(context).appColors.authError,
+                        color: theme.appColors.authError,
                       ),
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
@@ -717,7 +710,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
     );
   }
 
-  Widget _buildPageIndicator(int index) {
+  Widget _buildPageIndicator(int index, ThemeData theme) {
     final isActive = index == _currentIndex;
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
@@ -726,10 +719,8 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
       decoration: BoxDecoration(
         color:
             isActive
-                ? Theme.of(context).colorScheme.primary
-                : Theme.of(
-                  context,
-                ).colorScheme.onSurface.withValues(alpha: 0.3),
+                ? theme.colorScheme.primary
+                : theme.colorScheme.onSurface.withValues(alpha: 0.3),
         borderRadius: BorderRadius.circular(4),
       ),
     );

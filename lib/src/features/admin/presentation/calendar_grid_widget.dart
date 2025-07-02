@@ -77,7 +77,7 @@ class _CalendarGridWidgetState extends ConsumerState<CalendarGridWidget> {
     return Column(
       children: [
         // Weekday headers
-        Container(
+        SizedBox(
           height: 32,
           child: Row(
             children:
@@ -135,6 +135,13 @@ class _CalendarGridWidgetState extends ConsumerState<CalendarGridWidget> {
     final hasJoke = joke != null;
     final theme = Theme.of(context);
 
+    // Check if this cell represents today's date
+    final now = DateTime.now();
+    final isToday =
+        widget.monthDate.year == now.year &&
+        widget.monthDate.month == now.month &&
+        dayNumber == now.day;
+
     return Builder(
       builder: (cellContext) {
         return GestureDetector(
@@ -148,13 +155,16 @@ class _CalendarGridWidgetState extends ConsumerState<CalendarGridWidget> {
                       ? theme.colorScheme.primary.withValues(alpha: 0.8)
                       : theme.colorScheme.error.withValues(alpha: 0.8),
               borderRadius: BorderRadius.circular(6),
-              border: Border.all(
-                color:
-                    hasJoke
-                        ? theme.colorScheme.primary
-                        : theme.colorScheme.error,
-                width: 1,
-              ),
+              border:
+                  isToday
+                      ? Border.all(color: Colors.blue, width: 5)
+                      : Border.all(
+                        color:
+                            hasJoke
+                                ? theme.colorScheme.primary
+                                : theme.colorScheme.error,
+                        width: 1,
+                      ),
             ),
             child: Center(
               child: Text(

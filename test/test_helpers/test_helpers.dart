@@ -7,10 +7,12 @@ import 'package:snickerdoodle/src/features/auth/data/models/app_user.dart';
 import 'auth_mocks.dart';
 import 'core_mocks.dart';
 import 'firebase_mocks.dart';
+import 'joke_schedule_mocks.dart';
 
 export 'auth_mocks.dart';
 export 'core_mocks.dart';
 export 'firebase_mocks.dart';
+export 'joke_schedule_mocks.dart';
 
 /// Comprehensive test helpers that combine all mock categories
 class TestHelpers {
@@ -33,6 +35,9 @@ class TestHelpers {
       // Auth mocks
       ...AuthMocks.getAuthProviderOverrides(testUser: testUser),
 
+      // Joke scheduler mocks
+      ...JokeScheduleMocks.getJokeScheduleProviderOverrides(),
+
       // Additional custom overrides
       ...additionalOverrides,
     ];
@@ -43,6 +48,7 @@ class TestHelpers {
     AuthMocks.reset();
     CoreMocks.reset();
     FirebaseMocks.reset();
+    JokeScheduleMocks.reset();
   }
 
   /// Create common test users

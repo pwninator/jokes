@@ -3,6 +3,7 @@ import 'package:snickerdoodle/src/common_widgets/app_bar_widget.dart';
 import 'package:snickerdoodle/src/common_widgets/titled_screen.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_creator_screen.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_management_screen.dart';
+import 'package:snickerdoodle/src/features/admin/presentation/joke_scheduler_screen.dart';
 
 class JokeAdminScreen extends StatelessWidget implements TitledScreen {
   const JokeAdminScreen({super.key});
@@ -26,6 +27,10 @@ class JokeAdminScreen extends StatelessWidget implements TitledScreen {
           case '/joke-creator':
             return MaterialPageRoute(
               builder: (context) => const JokeCreatorScreen(),
+            );
+          case '/joke-scheduler':
+            return MaterialPageRoute(
+              builder: (context) => const JokeSchedulerScreen(),
             );
           default:
             return MaterialPageRoute(
@@ -109,6 +114,21 @@ class _AdminHomeScreen extends StatelessWidget {
                 trailing: const Icon(Icons.arrow_forward_ios),
                 onTap: () {
                   Navigator.of(context).pushNamed('/joke-management');
+                },
+              ),
+            ),
+
+            const SizedBox(height: 8),
+
+            // Joke Scheduler Card
+            Card(
+              child: ListTile(
+                leading: const Icon(Icons.schedule),
+                title: const Text('Joke Scheduler'),
+                subtitle: const Text('Schedule jokes for daily delivery'),
+                trailing: const Icon(Icons.arrow_forward_ios),
+                onTap: () {
+                  Navigator.of(context).pushNamed('/joke-scheduler');
                 },
               ),
             ),

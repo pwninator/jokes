@@ -153,13 +153,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
                               ).colorScheme.outline.withValues(alpha: 0.3),
                             ),
                           ),
-                          child: Text(
-                            _formatMetadata(metadata),
-                            style: const TextStyle(
-                              fontFamily: 'monospace',
-                              fontSize: 12,
-                            ),
-                          ),
+                          child: _buildFormattedMetadata(metadata),
                         )
                         : Text(
                           'No generation metadata available for this joke.',
@@ -182,14 +176,40 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
     );
   }
 
-  String _formatMetadata(Map<String, dynamic> metadata) {
+  String _formatRawMetadata(Map<String, dynamic> metadata) {
+    // Fallback method for unexpected metadata structure
     final buffer = StringBuffer();
 
+    void writeKeyValue(String key, dynamic value, {int indent = 0}) {
+      final indentStr = '  ' * indent;
+
+      if (value is Map<String, dynamic>) {
+        buffer.writeln('$indentStr$key:');
+        value.forEach((k, v) => writeKeyValue(k, v, indent: indent + 1));
+      } else if (value is List) {
+        buffer.writeln('$indentStr$key: [${value.length} items]');
+        for (int i = 0; i < value.length; i++) {
+          writeKeyValue('[$i]', value[i], indent: indent + 1);
+        }
+      } else {
+        buffer.writeln('$indentStr$key: $value');
+      }
+    }
+
+    metadata.forEach((key, value) => writeKeyValue(key, value));
+
+    return buffer.toString().trim();
+  }
+
+  Widget _buildFormattedMetadata(Map<String, dynamic> metadata) {
     // Check if this has the expected structure with generations
     final generations = metadata['generations'] as List<dynamic>?;
     if (generations == null || generations.isEmpty) {
       // Fallback to raw metadata display if structure is unexpected
-      return _formatRawMetadata(metadata);
+      return Text(
+        _formatRawMetadata(metadata),
+        style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+      );
     }
 
     // Group generations by label, then by model_name
@@ -218,25 +238,107 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
       counts[label]![modelName] = counts[label]![modelName]! + 1;
     }
 
-    // Write summary
-    buffer.writeln('SUMMARY:');
+    // Calculate grand total cost
+    double grandTotal = 0.0;
+    for (final labelCosts in totalCosts.values) {
+      for (final cost in labelCosts.values) {
+        grandTotal += cost;
+      }
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // SUMMARY section
+        Text(
+          'SUMMARY',
+          style: TextStyle(
+            fontFamily: 'monospace',
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: Theme.of(context).colorScheme.primary,
+          ),
+        ),
+        const SizedBox(height: 8),
+        // Total cost (most prominent)
+        Text(
+          'Total Cost: \$${grandTotal.toStringAsFixed(4)}',
+          style: TextStyle(
+            fontFamily: 'monospace',
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: Theme.of(context).colorScheme.tertiary,
+          ),
+        ),
+        const SizedBox(height: 12),
+        ..._buildSummarySection(grouped, totalCosts, counts),
+        const SizedBox(height: 16),
+
+        // Divider
+        Divider(
+          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.5),
+        ),
+        const SizedBox(height: 16),
+
+        // DETAILS section
+        Text(
+          'DETAILS',
+          style: TextStyle(
+            fontFamily: 'monospace',
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: Theme.of(context).colorScheme.primary,
+          ),
+        ),
+        const SizedBox(height: 8),
+        ..._buildDetailsSection(grouped),
+      ],
+    );
+  }
+
+  List<Widget> _buildSummarySection(
+    Map<String, Map<String, List<Map<String, dynamic>>>> grouped,
+    Map<String, Map<String, double>> totalCosts,
+    Map<String, Map<String, int>> counts,
+  ) {
+    final List<Widget> widgets = [];
+
     for (final label in grouped.keys) {
-      // Label at top level (no indent)
-      buffer.writeln(label);
+      // Label (bold, no indent)
+      widgets.add(
+        Text(
+          label,
+          style: const TextStyle(
+            fontFamily: 'monospace',
+            fontSize: 12,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      );
 
       // Model names under each label (2 space indent)
       for (final modelName in grouped[label]!.keys) {
         final totalCost = totalCosts[label]![modelName]!;
         final count = counts[label]![modelName]!;
-        buffer.writeln(
-          '  $modelName: \$${totalCost.toStringAsFixed(4)} ($count)',
+        widgets.add(
+          Text(
+            '  $modelName: \$${totalCost.toStringAsFixed(4)} ($count)',
+            style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+          ),
         );
       }
+      widgets.add(const SizedBox(height: 4));
     }
-    buffer.writeln();
 
-    // Write detailed generations
-    buffer.writeln('DETAILS:');
+    return widgets;
+  }
+
+  List<Widget> _buildDetailsSection(
+    Map<String, Map<String, List<Map<String, dynamic>>>> grouped,
+  ) {
+    final List<Widget> widgets = [];
+
     for (final label in grouped.keys) {
       for (final modelName in grouped[label]!.keys) {
         final generationList = grouped[label]![modelName]!;
@@ -244,25 +346,49 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
         for (int i = 0; i < generationList.length; i++) {
           final generation = generationList[i];
 
-          // Label (no indent)
-          if (i == 0 || generationList.length == 1) {
-            buffer.writeln(label);
-          } else {
-            buffer.writeln('$label (${i + 1})');
-          }
+          // Label (bold, no indent)
+          final labelText =
+              i == 0 || generationList.length == 1
+                  ? label
+                  : '$label (${i + 1})';
+          widgets.add(
+            Text(
+              labelText,
+              style: const TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 12,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          );
 
           // Model name (2 space indent)
-          buffer.writeln('  model_name: $modelName');
+          widgets.add(
+            Text(
+              '  model_name: $modelName',
+              style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+            ),
+          );
 
           // Cost (2 space indent, formatted)
           final cost = (generation['cost'] as num?)?.toDouble() ?? 0.0;
-          buffer.writeln('  cost: \$${cost.toStringAsFixed(4)}');
+          widgets.add(
+            Text(
+              '  cost: \$${cost.toStringAsFixed(4)}',
+              style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+            ),
+          );
 
           // Generation time (2 space indent, only if > 0)
           final genTime =
               (generation['generation_time_sec'] as num?)?.toDouble() ?? 0.0;
           if (genTime > 0) {
-            buffer.writeln('  time: ${genTime.toStringAsFixed(2)}s');
+            widgets.add(
+              Text(
+                '  time: ${genTime.toStringAsFixed(2)}s',
+                style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+              ),
+            );
           }
 
           // Other fields (2 space indent, excluding retry_count and fields we already handled)
@@ -278,12 +404,36 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
               final value = generation[key];
               // Handle nested objects like token_counts
               if (value is Map<String, dynamic>) {
-                buffer.writeln('  $key:');
+                widgets.add(
+                  Text(
+                    '  $key:',
+                    style: const TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 12,
+                    ),
+                  ),
+                );
                 for (final nestedKey in value.keys) {
-                  buffer.writeln('    $nestedKey: ${value[nestedKey]}');
+                  widgets.add(
+                    Text(
+                      '    $nestedKey: ${value[nestedKey]}',
+                      style: const TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 12,
+                      ),
+                    ),
+                  );
                 }
               } else {
-                buffer.writeln('  $key: $value');
+                widgets.add(
+                  Text(
+                    '  $key: $value',
+                    style: const TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 12,
+                    ),
+                  ),
+                );
               }
             }
           }
@@ -292,38 +442,13 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
           if (i < generationList.length - 1 ||
               label != grouped.keys.last ||
               modelName != grouped[label]!.keys.last) {
-            buffer.writeln();
+            widgets.add(const SizedBox(height: 8));
           }
         }
       }
     }
 
-    return buffer.toString().trim();
-  }
-
-  String _formatRawMetadata(Map<String, dynamic> metadata) {
-    // Fallback method for unexpected metadata structure
-    final buffer = StringBuffer();
-
-    void writeKeyValue(String key, dynamic value, {int indent = 0}) {
-      final indentStr = '  ' * indent;
-
-      if (value is Map<String, dynamic>) {
-        buffer.writeln('$indentStr$key:');
-        value.forEach((k, v) => writeKeyValue(k, v, indent: indent + 1));
-      } else if (value is List) {
-        buffer.writeln('$indentStr$key: [${value.length} items]');
-        for (int i = 0; i < value.length; i++) {
-          writeKeyValue('[$i]', value[i], indent: indent + 1);
-        }
-      } else {
-        buffer.writeln('$indentStr$key: $value');
-      }
-    }
-
-    metadata.forEach((key, value) => writeKeyValue(key, value));
-
-    return buffer.toString().trim();
+    return widgets;
   }
 
   @override

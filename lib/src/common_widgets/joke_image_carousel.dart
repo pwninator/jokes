@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/common_widgets/cached_joke_image.dart';
+import 'package:snickerdoodle/src/common_widgets/joke_reaction_button.dart';
 import 'package:snickerdoodle/src/core/providers/image_providers.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_editor_screen.dart';
@@ -506,13 +507,27 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Page indicators
+                // Page indicators and save button row
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    _buildPageIndicator(0),
-                    const SizedBox(width: 8),
-                    _buildPageIndicator(1),
+                    // Left spacer
+                    const Expanded(child: SizedBox()),
+                    // Page indicators (centered)
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _buildPageIndicator(0),
+                        const SizedBox(width: 8),
+                        _buildPageIndicator(1),
+                      ],
+                    ),
+                    // Right spacer and save button
+                    Expanded(
+                      child: Align(
+                        alignment: Alignment.centerRight,
+                        child: SaveJokeButton(jokeId: widget.joke.id),
+                      ),
+                    ),
                   ],
                 ),
               ],

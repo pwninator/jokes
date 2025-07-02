@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
+import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_service.dart';
+import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
 
 // Provider for FirebaseFirestore instance (local to jokes feature)
 final firebaseFirestoreProvider = Provider<FirebaseFirestore>((ref) {
@@ -134,3 +136,152 @@ final jokePopulationProvider =
       final cloudFunctionService = ref.watch(jokeCloudFunctionServiceProvider);
       return JokePopulationNotifier(cloudFunctionService);
     });
+
+// State class for joke reactions
+class JokeReactionsState {
+  final Map<String, Set<JokeReactionType>> userReactions;
+  final bool isLoading;
+  final String? error;
+
+  const JokeReactionsState({
+    this.userReactions = const {},
+    this.isLoading = false,
+    this.error,
+  });
+
+  JokeReactionsState copyWith({
+    Map<String, Set<JokeReactionType>>? userReactions,
+    bool? isLoading,
+    String? error,
+    bool clearError = false,
+  }) {
+    return JokeReactionsState(
+      userReactions: userReactions ?? this.userReactions,
+      isLoading: isLoading ?? this.isLoading,
+      error: clearError ? null : (error ?? this.error),
+    );
+  }
+}
+
+// Notifier for managing joke reactions
+class JokeReactionsNotifier extends StateNotifier<JokeReactionsState> {
+  JokeReactionsNotifier(this._reactionsService, this._jokeRepository)
+      : super(const JokeReactionsState()) {
+    _loadUserReactions();
+  }
+
+  final JokeReactionsService _reactionsService;
+  final JokeRepository _jokeRepository;
+
+  /// Load user reactions from SharedPreferences on initialization
+  Future<void> _loadUserReactions() async {
+    state = state.copyWith(isLoading: true, clearError: true);
+    
+    try {
+      final reactions = await _reactionsService.getAllUserReactions();
+      state = state.copyWith(
+        userReactions: reactions,
+        isLoading: false,
+      );
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        error: 'Failed to load user reactions: $e',
+      );
+    }
+  }
+
+  /// Toggle a user's reaction to a joke
+  Future<void> toggleReaction(
+    String jokeId,
+    JokeReactionType reactionType,
+  ) async {
+    final hadReaction = hasUserReaction(jokeId, reactionType);
+    
+    // Optimistic update
+    final newUserReactions = Map<String, Set<JokeReactionType>>.from(state.userReactions);
+    newUserReactions[jokeId] ??= <JokeReactionType>{};
+    
+    if (hadReaction) {
+      newUserReactions[jokeId]!.remove(reactionType);
+      if (newUserReactions[jokeId]!.isEmpty) {
+        newUserReactions.remove(jokeId);
+      }
+    } else {
+      newUserReactions[jokeId]!.add(reactionType);
+    }
+    
+    state = state.copyWith(userReactions: newUserReactions, clearError: true);
+
+    try {
+      // Update SharedPreferences and Firestore
+      final wasAdded = await _reactionsService.toggleUserReaction(jokeId, reactionType);
+      
+      if (wasAdded) {
+        await _jokeRepository.incrementReaction(jokeId, reactionType);
+      } else {
+        await _jokeRepository.decrementReaction(jokeId, reactionType);
+      }
+    } catch (e) {
+      // Revert optimistic update on error
+      await _loadUserReactions(); // Reload from source of truth
+      state = state.copyWith(
+        error: 'Failed to ${hadReaction ? 'remove' : 'add'} ${reactionType.label}: $e',
+      );
+    }
+  }
+
+  /// Check if user has reacted to a joke with a specific reaction type
+  bool hasUserReaction(String jokeId, JokeReactionType reactionType) {
+    return state.userReactions[jokeId]?.contains(reactionType) ?? false;
+  }
+
+  /// Get all reactions for a specific joke
+  Set<JokeReactionType> getUserReactionsForJoke(String jokeId) {
+    return state.userReactions[jokeId] ?? <JokeReactionType>{};
+  }
+
+  /// Clear any error state
+  void clearError() {
+    state = state.copyWith(clearError: true);
+  }
+
+  /// Clear all user reactions
+  Future<void> clearAllUserReactions() async {
+    state = state.copyWith(isLoading: true);
+    
+    try {
+      await _reactionsService.clearAllUserReactions();
+      state = state.copyWith(
+        userReactions: <String, Set<JokeReactionType>>{},
+        isLoading: false,
+        clearError: true,
+      );
+    } catch (e) {
+      state = state.copyWith(
+        isLoading: false,
+        error: 'Failed to clear user reactions: $e',
+      );
+    }
+  }
+}
+
+// Provider for joke reactions notifier
+final jokeReactionsProvider =
+    StateNotifierProvider<JokeReactionsNotifier, JokeReactionsState>((ref) {
+  final reactionsService = ref.watch(jokeReactionsServiceProvider);
+  final jokeRepository = ref.watch(jokeRepositoryProvider);
+  return JokeReactionsNotifier(reactionsService, jokeRepository);
+});
+
+// Family provider to check if a user has reacted to a joke with a specific reaction type
+final hasUserReactionProvider = Provider.family<bool, ({String jokeId, JokeReactionType reactionType})>((ref, params) {
+  final reactionsState = ref.watch(jokeReactionsProvider);
+  return reactionsState.userReactions[params.jokeId]?.contains(params.reactionType) ?? false;
+});
+
+// Family provider to get all user reactions for a specific joke
+final userReactionsForJokeProvider = Provider.family<Set<JokeReactionType>, String>((ref, jokeId) {
+  final reactionsState = ref.watch(jokeReactionsProvider);
+  return reactionsState.userReactions[jokeId] ?? <JokeReactionType>{};
+});

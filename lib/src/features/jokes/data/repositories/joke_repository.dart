@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
+import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
 
 class JokeRepository {
   final FirebaseFirestore _firestore;
@@ -46,5 +47,36 @@ class JokeRepository {
     }
 
     await _firestore.collection('jokes').doc(jokeId).update(updateData);
+  }
+
+  /// Generic method to increment any reaction count
+  Future<void> incrementReaction(
+    String jokeId,
+    JokeReactionType reactionType,
+  ) async {
+    await _firestore.collection('jokes').doc(jokeId).update({
+      reactionType.firestoreField: FieldValue.increment(1),
+    });
+  }
+
+  /// Generic method to decrement any reaction count
+  Future<void> decrementReaction(
+    String jokeId,
+    JokeReactionType reactionType,
+  ) async {
+    await _firestore.collection('jokes').doc(jokeId).update({
+      reactionType.firestoreField: FieldValue.increment(-1),
+    });
+  }
+
+  // Legacy methods for backward compatibility (can be removed later)
+  @Deprecated('Use incrementReaction(jokeId, JokeReactionType.save) instead')
+  Future<void> incrementSaves(String jokeId) async {
+    await incrementReaction(jokeId, JokeReactionType.save);
+  }
+
+  @Deprecated('Use decrementReaction(jokeId, JokeReactionType.save) instead')
+  Future<void> decrementSaves(String jokeId) async {
+    await decrementReaction(jokeId, JokeReactionType.save);
   }
 }

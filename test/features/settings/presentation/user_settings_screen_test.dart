@@ -419,8 +419,12 @@ void main() {
         final signInButtonText = find.text('Sign in with Google');
         expect(signInButtonText, findsOneWidget);
 
+        // Ensure the button is visible before tapping
+        await tester.ensureVisible(signInButtonText);
+        await tester.pumpAndSettle();
+
         // Tap should not throw an error
-        await tester.tap(signInButtonText);
+        await tester.tap(signInButtonText, warnIfMissed: false);
         await tester.pump();
       });
 

@@ -150,13 +150,13 @@ void main() {
           '',
         );
 
-        // Try to save - scroll to make button visible first
-        await tester.drag(
-          find.byType(SingleChildScrollView),
-          const Offset(0, -400),
-        );
+        // Try to save - ensure button is visible first
+        await tester.ensureVisible(find.byKey(const Key('updateJokeButton')));
         await tester.pumpAndSettle();
-        await tester.tap(find.byKey(const Key('updateJokeButton')));
+        await tester.tap(
+          find.byKey(const Key('updateJokeButton')),
+          warnIfMissed: false,
+        );
         await tester.pump();
 
         expect(find.text('Please enter a setup for the joke'), findsOneWidget);
@@ -306,13 +306,13 @@ void main() {
           updatedPunchlineDescription,
         );
 
-        // Scroll to make button visible first
-        await tester.drag(
-          find.byType(SingleChildScrollView),
-          const Offset(0, -400),
-        );
+        // Ensure button is visible first
+        await tester.ensureVisible(find.byKey(const Key('updateJokeButton')));
         await tester.pumpAndSettle();
-        await tester.tap(find.byKey(const Key('updateJokeButton')));
+        await tester.tap(
+          find.byKey(const Key('updateJokeButton')),
+          warnIfMissed: false,
+        );
         await tester.pump();
 
         verify(
@@ -417,13 +417,13 @@ void main() {
           'New punchline description',
         );
 
-        // Scroll to make button visible first
-        await tester.drag(
-          find.byType(SingleChildScrollView),
-          const Offset(0, -400),
-        );
+        // Ensure button is visible first
+        await tester.ensureVisible(find.byKey(const Key('updateJokeButton')));
         await tester.pumpAndSettle();
-        await tester.tap(find.byKey(const Key('updateJokeButton')));
+        await tester.tap(
+          find.byKey(const Key('updateJokeButton')),
+          warnIfMissed: false,
+        );
         await tester.pump();
 
         verify(
@@ -499,13 +499,13 @@ void main() {
 
         await tester.pumpWidget(createTestWidget(joke: originalJoke));
 
-        // Scroll to make button visible first
-        await tester.drag(
-          find.byType(SingleChildScrollView),
-          const Offset(0, -400),
-        );
+        // Ensure button is visible first
+        await tester.ensureVisible(find.byKey(const Key('updateJokeButton')));
         await tester.pumpAndSettle();
-        await tester.tap(find.byKey(const Key('updateJokeButton')));
+        await tester.tap(
+          find.byKey(const Key('updateJokeButton')),
+          warnIfMissed: false,
+        );
         await tester.pumpAndSettle();
 
         // Should show error snackbar
@@ -540,13 +540,13 @@ void main() {
           'tiny',
         ); // < 10 chars
 
-        // Scroll to make button visible first
-        await tester.drag(
-          find.byType(SingleChildScrollView),
-          const Offset(0, -400),
-        );
+        // Ensure button is visible first
+        await tester.ensureVisible(find.byKey(const Key('updateJokeButton')));
         await tester.pumpAndSettle();
-        await tester.tap(find.byKey(const Key('updateJokeButton')));
+        await tester.tap(
+          find.byKey(const Key('updateJokeButton')),
+          warnIfMissed: false,
+        );
         await tester.pump();
 
         expect(

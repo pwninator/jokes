@@ -63,6 +63,8 @@ class JokeManagementScreen extends ConsumerWidget {
                           joke: joke,
                           index: index,
                           isAdminMode: true,
+                          showSaveButton: false,
+                          showThumbsButtons: true,
                         );
                       },
                     ),

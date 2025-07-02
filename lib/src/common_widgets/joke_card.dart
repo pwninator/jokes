@@ -11,6 +11,8 @@ class JokeCard extends StatelessWidget {
   final Function(int)? onImageStateChanged;
   final bool isAdminMode;
   final List<Joke>? jokesToPreload;
+  final bool showSaveButton;
+  final bool showThumbsButtons;
 
   const JokeCard({
     super.key,
@@ -21,6 +23,8 @@ class JokeCard extends StatelessWidget {
     this.onImageStateChanged,
     this.isAdminMode = false,
     this.jokesToPreload,
+    this.showSaveButton = true,
+    this.showThumbsButtons = false,
   });
 
   @override
@@ -43,6 +47,8 @@ class JokeCard extends StatelessWidget {
         onImageStateChanged: onImageStateChanged,
         isAdminMode: isAdminMode,
         jokesToPreload: jokesToPreload,
+        showSaveButton: showSaveButton,
+        showThumbsButtons: showThumbsButtons,
       );
     } else {
       // No images or incomplete images - show text with populate button

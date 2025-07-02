@@ -234,6 +234,8 @@ class _JokeViewerScreenState extends ConsumerState<JokeViewerScreen> {
                                 _onImageStateChanged(index, imageIndex),
                         isAdminMode: false,
                         jokesToPreload: jokesToPreload,
+                        showSaveButton: true,
+                        showThumbsButtons: false,
                       ),
                     ),
                   );

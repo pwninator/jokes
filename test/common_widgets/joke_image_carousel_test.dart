@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:snickerdoodle/src/common_widgets/joke_image_carousel.dart';
+import 'package:snickerdoodle/src/common_widgets/joke_reaction_button.dart';
 import 'package:snickerdoodle/src/core/providers/image_providers.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
@@ -450,6 +451,160 @@ void main() {
       // testWidgets('can close metadata dialog', (tester) async {
       //   // Test implementation skipped due to Flutter test framework dialog timing issues
       // });
+    });
+
+    group('Button visibility controls', () {
+      testWidgets('shows save button when showSaveButton is true', (tester) async {
+        // arrange
+        const joke = Joke(
+          id: 'test-joke-1',
+          setupText: 'Setup text',
+          punchlineText: 'Punchline text',
+          setupImageUrl: 'https://example.com/setup.jpg',
+          punchlineImageUrl: 'https://example.com/punchline.jpg',
+        );
+
+        const widget = JokeImageCarousel(
+          joke: joke,
+          showSaveButton: true,
+          showThumbsButtons: false,
+        );
+
+        // act
+        await tester.pumpWidget(createTestWidget(child: widget));
+        await tester.pump();
+
+        // assert
+        expect(find.byType(SaveJokeButton), findsOneWidget);
+        expect(find.byType(ThumbsUpJokeButton), findsNothing);
+        expect(find.byType(ThumbsDownJokeButton), findsNothing);
+      });
+
+      testWidgets('hides save button when showSaveButton is false', (tester) async {
+        // arrange
+        const joke = Joke(
+          id: 'test-joke-1',
+          setupText: 'Setup text',
+          punchlineText: 'Punchline text',
+          setupImageUrl: 'https://example.com/setup.jpg',
+          punchlineImageUrl: 'https://example.com/punchline.jpg',
+        );
+
+        const widget = JokeImageCarousel(
+          joke: joke,
+          showSaveButton: false,
+          showThumbsButtons: false,
+        );
+
+        // act
+        await tester.pumpWidget(createTestWidget(child: widget));
+        await tester.pump();
+
+        // assert
+        expect(find.byType(SaveJokeButton), findsNothing);
+        expect(find.byType(ThumbsUpJokeButton), findsNothing);
+        expect(find.byType(ThumbsDownJokeButton), findsNothing);
+      });
+
+      testWidgets('shows thumbs buttons when showThumbsButtons is true', (tester) async {
+        // arrange
+        const joke = Joke(
+          id: 'test-joke-1',
+          setupText: 'Setup text',
+          punchlineText: 'Punchline text',
+          setupImageUrl: 'https://example.com/setup.jpg',
+          punchlineImageUrl: 'https://example.com/punchline.jpg',
+        );
+
+        const widget = JokeImageCarousel(
+          joke: joke,
+          showSaveButton: false,
+          showThumbsButtons: true,
+        );
+
+        // act
+        await tester.pumpWidget(createTestWidget(child: widget));
+        await tester.pump();
+
+        // assert
+        expect(find.byType(SaveJokeButton), findsNothing);
+        expect(find.byType(ThumbsUpJokeButton), findsOneWidget);
+        expect(find.byType(ThumbsDownJokeButton), findsOneWidget);
+      });
+
+      testWidgets('hides thumbs buttons when showThumbsButtons is false', (tester) async {
+        // arrange
+        const joke = Joke(
+          id: 'test-joke-1',
+          setupText: 'Setup text',
+          punchlineText: 'Punchline text',
+          setupImageUrl: 'https://example.com/setup.jpg',
+          punchlineImageUrl: 'https://example.com/punchline.jpg',
+        );
+
+        const widget = JokeImageCarousel(
+          joke: joke,
+          showSaveButton: true,
+          showThumbsButtons: false,
+        );
+
+        // act
+        await tester.pumpWidget(createTestWidget(child: widget));
+        await tester.pump();
+
+        // assert
+        expect(find.byType(SaveJokeButton), findsOneWidget);
+        expect(find.byType(ThumbsUpJokeButton), findsNothing);
+        expect(find.byType(ThumbsDownJokeButton), findsNothing);
+      });
+
+      testWidgets('save button takes precedence when both flags are true', (tester) async {
+        // arrange
+        const joke = Joke(
+          id: 'test-joke-1',
+          setupText: 'Setup text',
+          punchlineText: 'Punchline text',
+          setupImageUrl: 'https://example.com/setup.jpg',
+          punchlineImageUrl: 'https://example.com/punchline.jpg',
+        );
+
+        const widget = JokeImageCarousel(
+          joke: joke,
+          showSaveButton: true,
+          showThumbsButtons: true,
+        );
+
+        // act
+        await tester.pumpWidget(createTestWidget(child: widget));
+        await tester.pump();
+
+        // assert - save button takes precedence over thumbs buttons
+        expect(find.byType(SaveJokeButton), findsOneWidget);
+        expect(find.byType(ThumbsUpJokeButton), findsNothing);
+        expect(find.byType(ThumbsDownJokeButton), findsNothing);
+      });
+
+      testWidgets('uses default values when not specified', (tester) async {
+        // arrange
+        const joke = Joke(
+          id: 'test-joke-1',
+          setupText: 'Setup text',
+          punchlineText: 'Punchline text',
+          setupImageUrl: 'https://example.com/setup.jpg',
+          punchlineImageUrl: 'https://example.com/punchline.jpg',
+        );
+
+        const widget = JokeImageCarousel(joke: joke);
+
+        // act
+        await tester.pumpWidget(createTestWidget(child: widget));
+        await tester.pump();
+
+        // assert - defaults should be showSaveButton: true, showThumbsButtons: false
+        expect(find.byType(SaveJokeButton), findsOneWidget);
+        expect(find.byType(ThumbsUpJokeButton), findsNothing);
+        expect(find.byType(ThumbsDownJokeButton), findsNothing);
+      });
     });
   });
 }

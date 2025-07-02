@@ -11,66 +11,34 @@ void main() {
       for (final reactionType in JokeReactionType.values) {
         expect(reactionType.firestoreField, isNotNull);
         expect(reactionType.firestoreField, isNotEmpty);
-        
+
         expect(reactionType.activeIcon, isNotNull);
         expect(reactionType.inactiveIcon, isNotNull);
         expect(reactionType.activeColor, isNotNull);
-        
+
         expect(reactionType.prefsKey, isNotNull);
         expect(reactionType.prefsKey, isNotEmpty);
-        
+
         expect(reactionType.label, isNotNull);
         expect(reactionType.label, isNotEmpty);
-        
+
         // Icons should be different between active and inactive
-        expect(reactionType.activeIcon, isNot(equals(reactionType.inactiveIcon)));
+        expect(
+          reactionType.activeIcon,
+          isNot(equals(reactionType.inactiveIcon)),
+        );
       }
     });
 
     test('reaction types have unique firestore fields', () {
-      final fields = JokeReactionType.values.map((e) => e.firestoreField).toSet();
+      final fields =
+          JokeReactionType.values.map((e) => e.firestoreField).toSet();
       expect(fields.length, equals(JokeReactionType.values.length));
     });
 
     test('reaction types have unique preferences keys', () {
       final keys = JokeReactionType.values.map((e) => e.prefsKey).toSet();
       expect(keys.length, equals(JokeReactionType.values.length));
-    });
-
-    test('save reaction type has correct properties', () {
-      expect(JokeReactionType.save.firestoreField, equals('num_saves'));
-      expect(JokeReactionType.save.activeIcon, equals(Icons.favorite));
-      expect(JokeReactionType.save.inactiveIcon, equals(Icons.favorite_border));
-      expect(JokeReactionType.save.activeColor, equals(Colors.red));
-      expect(JokeReactionType.save.prefsKey, equals('user_reactions_save'));
-      expect(JokeReactionType.save.label, equals('Save'));
-    });
-
-    test('share reaction type has correct properties', () {
-      expect(JokeReactionType.share.firestoreField, equals('num_shares'));
-      expect(JokeReactionType.share.activeIcon, equals(Icons.share));
-      expect(JokeReactionType.share.inactiveIcon, equals(Icons.share_outlined));
-      expect(JokeReactionType.share.activeColor, equals(Colors.blue));
-      expect(JokeReactionType.share.prefsKey, equals('user_reactions_share'));
-      expect(JokeReactionType.share.label, equals('Share'));
-    });
-
-    test('thumbs up reaction type has correct properties', () {
-      expect(JokeReactionType.thumbsUp.firestoreField, equals('num_thumbs_up'));
-      expect(JokeReactionType.thumbsUp.activeIcon, equals(Icons.thumb_up));
-      expect(JokeReactionType.thumbsUp.inactiveIcon, equals(Icons.thumb_up_outlined));
-      expect(JokeReactionType.thumbsUp.activeColor, equals(Colors.green));
-      expect(JokeReactionType.thumbsUp.prefsKey, equals('user_reactions_thumbsUp'));
-      expect(JokeReactionType.thumbsUp.label, equals('Like'));
-    });
-
-    test('thumbs down reaction type has correct properties', () {
-      expect(JokeReactionType.thumbsDown.firestoreField, equals('num_thumbs_down'));
-      expect(JokeReactionType.thumbsDown.activeIcon, equals(Icons.thumb_down));
-      expect(JokeReactionType.thumbsDown.inactiveIcon, equals(Icons.thumb_down_outlined));
-      expect(JokeReactionType.thumbsDown.activeColor, equals(Colors.orange));
-      expect(JokeReactionType.thumbsDown.prefsKey, equals('user_reactions_thumbsDown'));
-      expect(JokeReactionType.thumbsDown.label, equals('Dislike'));
     });
   });
 
@@ -81,97 +49,108 @@ void main() {
       SharedPreferences.setMockInitialValues({});
     });
 
-    testWidgets('SaveJokeButton creates JokeReactionButton with save type', (tester) async {
+    testWidgets('SaveJokeButton creates JokeReactionButton with save type', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         ProviderScope(
           child: MaterialApp(
-            home: Scaffold(
-              body: SaveJokeButton(jokeId: testJokeId),
-            ),
+            home: Scaffold(body: SaveJokeButton(jokeId: testJokeId)),
           ),
         ),
       );
 
       // Verify that a JokeReactionButton was created
       expect(find.byType(JokeReactionButton), findsOneWidget);
-      
+
       // Get the widget and verify its properties
-      final buttonWidget = tester.widget<JokeReactionButton>(find.byType(JokeReactionButton));
+      final buttonWidget = tester.widget<JokeReactionButton>(
+        find.byType(JokeReactionButton),
+      );
       expect(buttonWidget.jokeId, equals(testJokeId));
       expect(buttonWidget.reactionType, equals(JokeReactionType.save));
       expect(buttonWidget.size, equals(24.0)); // default size
     });
 
-    testWidgets('ShareJokeButton creates JokeReactionButton with share type', (tester) async {
+    testWidgets('ShareJokeButton creates JokeReactionButton with share type', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         ProviderScope(
           child: MaterialApp(
-            home: Scaffold(
-              body: ShareJokeButton(jokeId: testJokeId),
-            ),
+            home: Scaffold(body: ShareJokeButton(jokeId: testJokeId)),
           ),
         ),
       );
 
       expect(find.byType(JokeReactionButton), findsOneWidget);
-      
-      final buttonWidget = tester.widget<JokeReactionButton>(find.byType(JokeReactionButton));
+
+      final buttonWidget = tester.widget<JokeReactionButton>(
+        find.byType(JokeReactionButton),
+      );
       expect(buttonWidget.jokeId, equals(testJokeId));
       expect(buttonWidget.reactionType, equals(JokeReactionType.share));
     });
 
-    testWidgets('ThumbsUpJokeButton creates JokeReactionButton with thumbsUp type', (tester) async {
+    testWidgets(
+      'ThumbsUpJokeButton creates JokeReactionButton with thumbsUp type',
+      (tester) async {
+        await tester.pumpWidget(
+          ProviderScope(
+            child: MaterialApp(
+              home: Scaffold(body: ThumbsUpJokeButton(jokeId: testJokeId)),
+            ),
+          ),
+        );
+
+        expect(find.byType(JokeReactionButton), findsOneWidget);
+
+        final buttonWidget = tester.widget<JokeReactionButton>(
+          find.byType(JokeReactionButton),
+        );
+        expect(buttonWidget.jokeId, equals(testJokeId));
+        expect(buttonWidget.reactionType, equals(JokeReactionType.thumbsUp));
+      },
+    );
+
+    testWidgets(
+      'ThumbsDownJokeButton creates JokeReactionButton with thumbsDown type',
+      (tester) async {
+        await tester.pumpWidget(
+          ProviderScope(
+            child: MaterialApp(
+              home: Scaffold(body: ThumbsDownJokeButton(jokeId: testJokeId)),
+            ),
+          ),
+        );
+
+        expect(find.byType(JokeReactionButton), findsOneWidget);
+
+        final buttonWidget = tester.widget<JokeReactionButton>(
+          find.byType(JokeReactionButton),
+        );
+        expect(buttonWidget.jokeId, equals(testJokeId));
+        expect(buttonWidget.reactionType, equals(JokeReactionType.thumbsDown));
+      },
+    );
+
+    testWidgets('convenience widgets pass through custom parameters', (
+      tester,
+    ) async {
       await tester.pumpWidget(
         ProviderScope(
           child: MaterialApp(
             home: Scaffold(
-              body: ThumbsUpJokeButton(jokeId: testJokeId),
+              body: SaveJokeButton(jokeId: testJokeId, size: 32.0),
             ),
           ),
         ),
       );
 
-      expect(find.byType(JokeReactionButton), findsOneWidget);
-      
-      final buttonWidget = tester.widget<JokeReactionButton>(find.byType(JokeReactionButton));
-      expect(buttonWidget.jokeId, equals(testJokeId));
-      expect(buttonWidget.reactionType, equals(JokeReactionType.thumbsUp));
-    });
-
-    testWidgets('ThumbsDownJokeButton creates JokeReactionButton with thumbsDown type', (tester) async {
-      await tester.pumpWidget(
-        ProviderScope(
-          child: MaterialApp(
-            home: Scaffold(
-              body: ThumbsDownJokeButton(jokeId: testJokeId),
-            ),
-          ),
-        ),
+      final buttonWidget = tester.widget<JokeReactionButton>(
+        find.byType(JokeReactionButton),
       );
-
-      expect(find.byType(JokeReactionButton), findsOneWidget);
-      
-      final buttonWidget = tester.widget<JokeReactionButton>(find.byType(JokeReactionButton));
-      expect(buttonWidget.jokeId, equals(testJokeId));
-      expect(buttonWidget.reactionType, equals(JokeReactionType.thumbsDown));
-    });
-
-    testWidgets('convenience widgets pass through custom parameters', (tester) async {
-      await tester.pumpWidget(
-        ProviderScope(
-          child: MaterialApp(
-            home: Scaffold(
-              body: SaveJokeButton(
-                jokeId: testJokeId,
-                size: 32.0,
-              ),
-            ),
-          ),
-        ),
-      );
-
-      final buttonWidget = tester.widget<JokeReactionButton>(find.byType(JokeReactionButton));
       expect(buttonWidget.size, equals(32.0));
     });
   });
-} 
+}

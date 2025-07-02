@@ -16,6 +16,8 @@ class JokeImageCarousel extends ConsumerStatefulWidget {
   final Function(int)? onImageStateChanged;
   final bool isAdminMode;
   final List<Joke>? jokesToPreload;
+  final bool showSaveButton;
+  final bool showThumbsButtons;
 
   const JokeImageCarousel({
     super.key,
@@ -26,6 +28,8 @@ class JokeImageCarousel extends ConsumerStatefulWidget {
     this.onImageStateChanged,
     this.isAdminMode = false,
     this.jokesToPreload,
+    this.showSaveButton = true,
+    this.showThumbsButtons = false,
   });
 
   @override
@@ -508,7 +512,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Page indicators and save button row
+                // Page indicators and reaction buttons row
                 Row(
                   children: [
                     // Left spacer
@@ -522,12 +526,29 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
                         _buildPageIndicator(1, theme),
                       ],
                     ),
-                    // Right spacer and save button
+                    // Right save button, thumbs buttons, or spacer
                     Expanded(
-                      child: Align(
-                        alignment: Alignment.centerRight,
-                        child: SaveJokeButton(jokeId: widget.joke.id),
-                      ),
+                      child:
+                          widget.showSaveButton
+                              ? Align(
+                                alignment: Alignment.centerRight,
+                                child: SaveJokeButton(jokeId: widget.joke.id),
+                              )
+                              : widget.showThumbsButtons
+                              ? Align(
+                                alignment: Alignment.centerRight,
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    ThumbsUpJokeButton(jokeId: widget.joke.id),
+                                    const SizedBox(width: 8),
+                                    ThumbsDownJokeButton(
+                                      jokeId: widget.joke.id,
+                                    ),
+                                  ],
+                                ),
+                              )
+                              : const SizedBox(),
                     ),
                   ],
                 ),

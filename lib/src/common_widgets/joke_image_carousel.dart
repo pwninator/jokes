@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/common_widgets/cached_joke_image.dart';
+import 'package:snickerdoodle/src/common_widgets/holdable_button.dart';
 import 'package:snickerdoodle/src/common_widgets/joke_reaction_button.dart';
 import 'package:snickerdoodle/src/core/providers/image_providers.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
@@ -581,63 +582,30 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
               ),
               child: Row(
                 children: [
-                  // Regenerate All button (left)
-                  Expanded(
-                    child: ElevatedButton(
-                      key: const Key('regenerate-all-button'),
-                      onPressed:
-                          isPopulating
-                              ? null
-                              : () async {
-                                final notifier = ref.read(
-                                  jokePopulationProvider.notifier,
-                                );
-                                await notifier.populateJoke(
-                                  widget.joke.id,
-                                  imagesOnly: false,
-                                );
-                              },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: theme.colorScheme.primaryContainer,
-                        foregroundColor: theme.colorScheme.onPrimaryContainer,
-                      ),
-                      child:
-                          isPopulating
-                              ? SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                    theme.colorScheme.onSurface.withValues(
-                                      alpha: 0.6,
-                                    ),
-                                  ),
-                                ),
-                              )
-                              : const Icon(Icons.refresh),
-                    ),
-                  ),
-                  const SizedBox(width: 8.0),
-                  // Edit button (middle)
-                  Expanded(
-                    child: ElevatedButton(
-                      key: const Key('edit-joke-button'),
-                      onPressed: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder:
-                                (context) =>
-                                    JokeEditorScreen(joke: widget.joke),
-                          ),
-                        );
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: theme.colorScheme.tertiaryContainer,
-                        foregroundColor: theme.colorScheme.onTertiaryContainer,
-                      ),
-                      child: const Icon(Icons.edit),
-                    ),
+                  // Hold to Regenerate Edit button (left)
+                  HoldableButton(
+                    key: const Key('edit-joke-button'),
+                    icon: Icons.edit,
+                    holdCompleteIcon: Icons.refresh,
+                    onTap: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder:
+                              (context) => JokeEditorScreen(joke: widget.joke),
+                        ),
+                      );
+                    },
+                    onHoldComplete: () async {
+                      final notifier = ref.read(
+                        jokePopulationProvider.notifier,
+                      );
+                      await notifier.populateJoke(
+                        widget.joke.id,
+                        imagesOnly: false,
+                      );
+                    },
+                    isEnabled: !isPopulating,
+                    theme: theme,
                   ),
                   const SizedBox(width: 8.0),
                   // Regenerate Images button (right)

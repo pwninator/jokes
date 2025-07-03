@@ -75,7 +75,7 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
                     labelText: 'Setup',
                     hintText: 'Enter the joke setup...',
                     border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.lightbulb_outline),
+                    prefixIcon: Icon(Icons.question_mark),
                   ),
                   maxLines: 3,
                   validator: (value) {
@@ -137,7 +137,7 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
                       border: OutlineInputBorder(),
                       alignLabelWithHint: true,
                     ),
-                    maxLines: 15,
+                    maxLines: 10,
                     validator: (value) {
                       if (value == null || value.trim().isEmpty) {
                         return 'Please enter a description for the setup image';
@@ -161,7 +161,7 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
                       border: OutlineInputBorder(),
                       alignLabelWithHint: true,
                     ),
-                    maxLines: 15,
+                    maxLines: 10,
                     validator: (value) {
                       if (value == null || value.trim().isEmpty) {
                         return 'Please enter a description for the punchline image';
@@ -197,22 +197,6 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
                             _isEditMode ? 'Update Joke' : 'Save Joke',
                             style: const TextStyle(fontSize: 16),
                           ),
-                ),
-
-                const SizedBox(height: 16),
-
-                // Info text
-                Text(
-                  _isEditMode
-                      ? 'Edit the joke fields and save to update the joke.'
-                      : 'Fill out the joke fields and save to add a new joke.',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.onSurface.withValues(alpha: 0.6),
-                  ),
-                  textAlign: TextAlign.center,
                 ),
               ],
             ),

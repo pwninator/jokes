@@ -121,7 +121,6 @@ void main() {
       await tester.pump();
 
       // assert
-      expect(find.byKey(const Key('regenerate-all-button')), findsOneWidget);
       expect(find.byKey(const Key('regenerate-images-button')), findsOneWidget);
     });
 

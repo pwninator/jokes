@@ -9,6 +9,7 @@ class HoldableButton extends StatefulWidget {
   final IconData icon;
   final IconData? holdCompleteIcon;
   final Duration holdDuration;
+  final Color? color;
 
   const HoldableButton({
     super.key,
@@ -20,6 +21,7 @@ class HoldableButton extends StatefulWidget {
     this.tooltip,
     this.holdCompleteIcon,
     this.holdDuration = const Duration(seconds: 2),
+    this.color,
   });
 
   @override
@@ -99,6 +101,24 @@ class _HoldableButtonState extends State<HoldableButton>
     _animationController.reset();
   }
 
+  Color _getBaseColor() {
+    final baseColor =
+        widget.color ?? widget.theme.colorScheme.tertiaryContainer;
+    if (!widget.isEnabled) {
+      return baseColor.withValues(alpha: 0.5);
+    }
+    return baseColor.withValues(alpha: 0.8);
+  }
+
+  Color _getFillColor() {
+    final baseColor =
+        widget.color ?? widget.theme.colorScheme.tertiaryContainer;
+    if (!widget.isEnabled) {
+      return baseColor.withValues(alpha: 0.5);
+    }
+    return baseColor.withValues(alpha: 1.0);
+  }
+
   @override
   Widget build(BuildContext context) {
     return Expanded(
@@ -118,11 +138,7 @@ class _HoldableButtonState extends State<HoldableButton>
                 Container(
                   width: double.infinity,
                   height: 40,
-                  color:
-                      widget.isEnabled
-                          ? widget.theme.colorScheme.tertiaryContainer
-                          : widget.theme.colorScheme.tertiaryContainer
-                              .withValues(alpha: 0.5),
+                  color: _getBaseColor(),
                 ),
 
                 // Animated fill overlay (fills from bottom to top, no icon)
@@ -136,16 +152,7 @@ class _HoldableButtonState extends State<HoldableButton>
                         height:
                             40 *
                             _fillAnimation.value, // Height grows from 0 to 40
-                        // Slightly brighter version of the tertiary container
-                        color:
-                            widget.isEnabled
-                                ? Color.lerp(
-                                  widget.theme.colorScheme.tertiaryContainer,
-                                  widget.theme.colorScheme.tertiary,
-                                  0.3,
-                                )
-                                : widget.theme.colorScheme.tertiaryContainer
-                                    .withValues(alpha: 0.5),
+                        color: _getFillColor(),
                       ),
                     );
                   },

@@ -89,7 +89,7 @@ class TestJokePopulationNotifier extends JokePopulationNotifier {
   TestJokePopulationNotifier() : super(FirebaseMocks.mockCloudFunctionService);
 
   @override
-  Future<bool> populateJoke(String jokeId, {bool imagesOnly = false}) async {
+  Future<bool> populateJoke(String jokeId, {bool imagesOnly = false, Map<String, dynamic>? additionalParams}) async {
     // Don't change state to avoid timing issues in tests
     // Just return success
     return true;

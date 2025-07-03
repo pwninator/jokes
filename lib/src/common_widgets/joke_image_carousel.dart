@@ -606,6 +606,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
                     },
                     isEnabled: !isPopulating,
                     theme: theme,
+                    color: theme.colorScheme.tertiaryContainer,
                   ),
                   const SizedBox(width: 8.0),
                   // Regenerate Images button (right)
@@ -635,6 +636,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
                     },
                     isEnabled: !isPopulating,
                     theme: theme,
+                    color: theme.colorScheme.secondaryContainer,
                   ),
                 ],
               ),

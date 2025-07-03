@@ -387,8 +387,16 @@ final filteredJokesProvider = Provider<AsyncValue<List<Joke>>>((ref) {
   );
 });
 
-// NEW: Monthly jokes provider that loads from joke_schedule_batches
-final monthlyJokesProvider = StreamProvider<List<Joke>>((ref) {
+// Data class to hold a joke with its associated date
+class JokeWithDate {
+  final Joke joke;
+  final DateTime date;
+
+  const JokeWithDate({required this.joke, required this.date});
+}
+
+// NEW: Monthly jokes provider that loads from joke_schedule_batches with dates
+final monthlyJokesWithDateProvider = StreamProvider<List<JokeWithDate>>((ref) {
   final repository = ref.watch(jokeScheduleRepositoryProvider);
 
   return repository.watchBatchesForSchedule('tester_jokes').map((batches) {
@@ -412,21 +420,24 @@ final monthlyJokesProvider = StreamProvider<List<Joke>>((ref) {
           );
         }).toList();
 
-    // Convert batches to chronological joke list
-    final jokes = <Joke>[];
+    // Convert batches to chronological joke list with dates
+    final jokesWithDates = <JokeWithDate>[];
 
-    // Sort batches chronologically
+    // Sort batches in reverse chronological order (newest first)
     relevantBatches.sort((a, b) {
       final aDate = DateTime(a.year, a.month);
       final bDate = DateTime(b.year, b.month);
-      return aDate.compareTo(bDate);
+      return bDate.compareTo(aDate); // Reversed for newest first
     });
 
-        // Extract jokes from each batch in chronological order
+    // Extract jokes from each batch in reverse chronological order
     for (final batch in relevantBatches) {
-      // Get all days in the batch and sort them
-      final sortedDays = batch.jokes.keys.toList()..sort();
-      
+      // Get all days in the batch and sort them in descending order
+      final sortedDays =
+          batch.jokes.keys.toList()..sort(
+            (a, b) => b.compareTo(a),
+          ); // Reverse sort for newest day first
+
       // Add jokes in day order, but only for dates that are not in the future
       for (final day in sortedDays) {
         final joke = batch.jokes[day];
@@ -437,25 +448,22 @@ final monthlyJokesProvider = StreamProvider<List<Joke>>((ref) {
             final jokeDate = DateTime(batch.year, batch.month, dayInt);
             final today = DateTime.now();
             final todayDate = DateTime(today.year, today.month, today.day);
-            
+
             // Only include jokes for today or past dates
             if (!jokeDate.isAfter(todayDate)) {
-              jokes.add(joke);
+              // Filter for jokes with images
+              if (joke.setupImageUrl != null &&
+                  joke.setupImageUrl!.isNotEmpty &&
+                  joke.punchlineImageUrl != null &&
+                  joke.punchlineImageUrl!.isNotEmpty) {
+                jokesWithDates.add(JokeWithDate(joke: joke, date: jokeDate));
+              }
             }
           }
         }
       }
     }
 
-    // Filter for jokes with images (same logic as original jokesWithImagesProvider)
-    return jokes
-        .where(
-          (joke) =>
-              joke.setupImageUrl != null &&
-              joke.setupImageUrl!.isNotEmpty &&
-              joke.punchlineImageUrl != null &&
-              joke.punchlineImageUrl!.isNotEmpty,
-        )
-        .toList();
+    return jokesWithDates;
   });
 });

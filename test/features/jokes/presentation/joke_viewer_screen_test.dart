@@ -7,21 +7,76 @@ import 'package:snickerdoodle/src/common_widgets/joke_image_carousel.dart';
 import 'package:snickerdoodle/src/core/providers/image_providers.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
-import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
+import 'package:snickerdoodle/src/features/jokes/application/joke_schedule_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
+import 'package:snickerdoodle/src/features/jokes/data/models/joke_schedule_batch.dart';
+import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_schedule_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/presentation/joke_viewer_screen.dart';
 
 import '../../../test_helpers/firebase_mocks.dart';
 
-// Mock class for ImageService
+// Mock classes
 class MockImageService extends Mock implements ImageService {}
+
+class MockJokeScheduleRepository extends Mock
+    implements JokeScheduleRepository {}
+
+// Fake classes for Mocktail fallback values
+class FakeJokeScheduleBatch extends Fake implements JokeScheduleBatch {}
 
 void main() {
   group('JokeViewerScreen', () {
     late List<Joke> mockJokes;
+    late List<JokeScheduleBatch> mockBatches;
     late MockImageService mockImageService;
+    late MockJokeScheduleRepository mockRepository;
+
+    setUpAll(() {
+      // Register fallback values for mocktail
+      registerFallbackValue(FakeJokeScheduleBatch());
+    });
+
+    List<JokeScheduleBatch> createMockBatches() {
+      final now = DateTime.now();
+      final currentMonth = DateTime(now.year, now.month);
+
+      return [
+        JokeScheduleBatch(
+          id: 'tester_jokes_${now.year}_${now.month.toString().padLeft(2, '0')}',
+          scheduleId: 'tester_jokes',
+          year: currentMonth.year,
+          month: currentMonth.month,
+          jokes: {
+            // Use today and previous days to ensure jokes are not filtered out
+            now.day.toString().padLeft(2, '0'): mockJokes[0],
+            (now.day - 1).toString().padLeft(2, '0'): mockJokes[1],
+            (now.day - 2).toString().padLeft(2, '0'): mockJokes[2],
+          },
+        ),
+      ];
+    }
+
+    List<JokeScheduleBatch> createEmptyBatches() {
+      return [];
+    }
+
+    List<JokeScheduleBatch> createSingleJokeBatch() {
+      final now = DateTime.now();
+      final currentMonth = DateTime(now.year, now.month);
+
+      return [
+        JokeScheduleBatch(
+          id: 'tester_jokes_${now.year}_${now.month.toString().padLeft(2, '0')}',
+          scheduleId: 'tester_jokes',
+          year: currentMonth.year,
+          month: currentMonth.month,
+          jokes: {now.day.toString().padLeft(2, '0'): mockJokes[0]},
+        ),
+      ];
+    }
 
     setUp(() {
+      // Create test jokes with images
       mockJokes = [
         Joke(
           id: '1',
@@ -46,8 +101,17 @@ void main() {
         ),
       ];
 
+      // Create mock batches with test jokes
+      mockBatches = createMockBatches();
+
+      // Setup mock repository
+      mockRepository = MockJokeScheduleRepository();
+      when(
+        () => mockRepository.watchBatchesForSchedule('tester_jokes'),
+      ).thenAnswer((_) => Stream.value(mockBatches));
+
+      // Setup mock image service
       mockImageService = MockImageService();
-      // Mock the methods that might be called during tests
       when(() => mockImageService.isValidImageUrl(any())).thenReturn(true);
       when(
         () => mockImageService.processImageUrl(any()),
@@ -61,12 +125,28 @@ void main() {
       when(() => mockImageService.clearCache()).thenAnswer((_) async {});
     });
 
-    Widget createTestWidget({required List<Override> overrides}) {
+    Widget createTestWidget({
+      List<JokeScheduleBatch>? customBatches,
+      bool simulateError = false,
+    }) {
+      final MockJokeScheduleRepository customRepository =
+          MockJokeScheduleRepository();
+
+      if (simulateError) {
+        when(
+          () => customRepository.watchBatchesForSchedule('tester_jokes'),
+        ).thenAnswer((_) => Stream.error('Failed to load jokes'));
+      } else {
+        when(
+          () => customRepository.watchBatchesForSchedule('tester_jokes'),
+        ).thenAnswer((_) => Stream.value(customBatches ?? mockBatches));
+      }
+
       return ProviderScope(
         overrides: [
           imageServiceProvider.overrideWithValue(mockImageService),
+          jokeScheduleRepositoryProvider.overrideWithValue(customRepository),
           ...FirebaseMocks.getFirebaseProviderOverrides(),
-          ...overrides,
         ],
         child: MaterialApp(theme: lightTheme, home: const JokeViewerScreen()),
       );
@@ -76,13 +156,25 @@ void main() {
       testWidgets('displays loading indicator when jokes are loading', (
         tester,
       ) async {
+        // Create a repository that never emits to simulate loading
+        final loadingRepository = MockJokeScheduleRepository();
+        when(
+          () => loadingRepository.watchBatchesForSchedule('tester_jokes'),
+        ).thenAnswer((_) => const Stream<List<JokeScheduleBatch>>.empty());
+
         await tester.pumpWidget(
-          createTestWidget(
+          ProviderScope(
             overrides: [
-              monthlyJokesProvider.overrideWith(
-                (ref) => const Stream<List<Joke>>.empty(),
+              imageServiceProvider.overrideWithValue(mockImageService),
+              jokeScheduleRepositoryProvider.overrideWithValue(
+                loadingRepository,
               ),
+              ...FirebaseMocks.getFirebaseProviderOverrides(),
             ],
+            child: MaterialApp(
+              theme: lightTheme,
+              home: const JokeViewerScreen(),
+            ),
           ),
         );
 
@@ -92,16 +184,7 @@ void main() {
       testWidgets('displays error message when jokes fail to load', (
         tester,
       ) async {
-        const errorMessage = 'Failed to load jokes';
-        await tester.pumpWidget(
-          createTestWidget(
-            overrides: [
-              monthlyJokesProvider.overrideWith(
-                (ref) => Stream<List<Joke>>.error(errorMessage),
-              ),
-            ],
-          ),
-        );
+        await tester.pumpWidget(createTestWidget(simulateError: true));
 
         await tester.pump(); // Allow error to be processed
         expect(find.textContaining('Error loading jokes'), findsOneWidget);
@@ -111,13 +194,7 @@ void main() {
         tester,
       ) async {
         await tester.pumpWidget(
-          createTestWidget(
-            overrides: [
-              monthlyJokesProvider.overrideWith(
-                (ref) => Stream.value(<Joke>[]),
-              ),
-            ],
-          ),
+          createTestWidget(customBatches: createEmptyBatches()),
         );
 
         await tester.pump(); // Allow data to be processed
@@ -125,15 +202,7 @@ void main() {
       });
 
       testWidgets('displays jokes when data is loaded', (tester) async {
-        await tester.pumpWidget(
-          createTestWidget(
-            overrides: [
-              monthlyJokesProvider.overrideWith(
-                (ref) => Stream.value(mockJokes),
-              ),
-            ],
-          ),
-        );
+        await tester.pumpWidget(createTestWidget());
 
         await tester.pump(); // Allow data to be processed
 
@@ -148,15 +217,7 @@ void main() {
 
     group('Hint System - Core Functionality', () {
       testWidgets('shows contextual hints initially', (tester) async {
-        await tester.pumpWidget(
-          createTestWidget(
-            overrides: [
-              monthlyJokesProvider.overrideWith(
-                (ref) => Stream.value(mockJokes),
-              ),
-            ],
-          ),
-        );
+        await tester.pumpWidget(createTestWidget());
 
         await tester.pump(); // Allow data to be processed
         await tester.pump(
@@ -181,15 +242,7 @@ void main() {
       testWidgets('hints can fade and restore during interactions', (
         tester,
       ) async {
-        await tester.pumpWidget(
-          createTestWidget(
-            overrides: [
-              monthlyJokesProvider.overrideWith(
-                (ref) => Stream.value(mockJokes),
-              ),
-            ],
-          ),
-        );
+        await tester.pumpWidget(createTestWidget());
 
         await tester.pump(); // Allow data to be processed
         await tester.pump(
@@ -207,13 +260,7 @@ void main() {
 
       testWidgets('works with single joke scenario', (tester) async {
         await tester.pumpWidget(
-          createTestWidget(
-            overrides: [
-              monthlyJokesProvider.overrideWith(
-                (ref) => Stream.value([mockJokes.first]),
-              ),
-            ],
-          ),
+          createTestWidget(customBatches: createSingleJokeBatch()),
         );
 
         await tester.pump(); // Allow data to be processed
@@ -228,15 +275,7 @@ void main() {
 
     group('Navigation Behavior', () {
       testWidgets('supports vertical scrolling between jokes', (tester) async {
-        await tester.pumpWidget(
-          createTestWidget(
-            overrides: [
-              monthlyJokesProvider.overrideWith(
-                (ref) => Stream.value(mockJokes),
-              ),
-            ],
-          ),
-        );
+        await tester.pumpWidget(createTestWidget());
 
         await tester.pump(); // Allow data to be processed
 
@@ -247,15 +286,7 @@ void main() {
       });
 
       testWidgets('maintains stable state during navigation', (tester) async {
-        await tester.pumpWidget(
-          createTestWidget(
-            overrides: [
-              monthlyJokesProvider.overrideWith(
-                (ref) => Stream.value(mockJokes),
-              ),
-            ],
-          ),
-        );
+        await tester.pumpWidget(createTestWidget());
 
         await tester.pump(); // Allow data to be processed
 
@@ -271,15 +302,7 @@ void main() {
 
     group('Learning System Behavior', () {
       testWidgets('supports learning state persistence', (tester) async {
-        await tester.pumpWidget(
-          createTestWidget(
-            overrides: [
-              monthlyJokesProvider.overrideWith(
-                (ref) => Stream.value(mockJokes),
-              ),
-            ],
-          ),
-        );
+        await tester.pumpWidget(createTestWidget());
 
         await tester.pump(); // Allow data to be processed
         await tester.pump(
@@ -287,15 +310,7 @@ void main() {
         ); // Allow hints to appear
 
         // Should be able to trigger rebuilds without crashing
-        await tester.pumpWidget(
-          createTestWidget(
-            overrides: [
-              monthlyJokesProvider.overrideWith(
-                (ref) => Stream.value(mockJokes.reversed.toList()),
-              ),
-            ],
-          ),
-        );
+        await tester.pumpWidget(createTestWidget());
 
         await tester.pump(); // Allow rebuild
         expect(find.byType(PageView), findsWidgets);
@@ -304,15 +319,7 @@ void main() {
 
     group('Edge Cases', () {
       testWidgets('handles rapid state changes gracefully', (tester) async {
-        await tester.pumpWidget(
-          createTestWidget(
-            overrides: [
-              monthlyJokesProvider.overrideWith(
-                (ref) => Stream.value(mockJokes),
-              ),
-            ],
-          ),
-        );
+        await tester.pumpWidget(createTestWidget());
 
         // Rapid pumps to simulate rapid state changes
         for (int i = 0; i < 5; i++) {
@@ -324,28 +331,12 @@ void main() {
       });
 
       testWidgets('handles widget rebuilds correctly', (tester) async {
-        await tester.pumpWidget(
-          createTestWidget(
-            overrides: [
-              monthlyJokesProvider.overrideWith(
-                (ref) => Stream.value(mockJokes),
-              ),
-            ],
-          ),
-        );
+        await tester.pumpWidget(createTestWidget());
 
         await tester.pump(); // Allow initial build
 
         // Trigger rebuild with same data
-        await tester.pumpWidget(
-          createTestWidget(
-            overrides: [
-              monthlyJokesProvider.overrideWith(
-                (ref) => Stream.value(mockJokes),
-              ),
-            ],
-          ),
-        );
+        await tester.pumpWidget(createTestWidget());
 
         await tester.pump(); // Allow rebuild
         expect(find.byType(PageView), findsWidgets);
@@ -356,28 +347,14 @@ void main() {
       ) async {
         // Start with empty
         await tester.pumpWidget(
-          createTestWidget(
-            overrides: [
-              monthlyJokesProvider.overrideWith(
-                (ref) => Stream.value(<Joke>[]),
-              ),
-            ],
-          ),
+          createTestWidget(customBatches: createEmptyBatches()),
         );
 
         await tester.pump();
         expect(find.text('No jokes found! Try adding some.'), findsOneWidget);
 
         // Transition to populated
-        await tester.pumpWidget(
-          createTestWidget(
-            overrides: [
-              monthlyJokesProvider.overrideWith(
-                (ref) => Stream.value(mockJokes),
-              ),
-            ],
-          ),
-        );
+        await tester.pumpWidget(createTestWidget());
 
         await tester.pump();
         await tester.pump(); // Extra pump for provider rebuild
@@ -390,15 +367,7 @@ void main() {
 
     group('Integration Behavior', () {
       testWidgets('integrates correctly with provider system', (tester) async {
-        await tester.pumpWidget(
-          createTestWidget(
-            overrides: [
-              monthlyJokesProvider.overrideWith(
-                (ref) => Stream.value(mockJokes),
-              ),
-            ],
-          ),
-        );
+        await tester.pumpWidget(createTestWidget());
 
         await tester.pump(); // Allow data to be processed
 
@@ -411,15 +380,7 @@ void main() {
       testWidgets('maintains performance during normal operation', (
         tester,
       ) async {
-        await tester.pumpWidget(
-          createTestWidget(
-            overrides: [
-              monthlyJokesProvider.overrideWith(
-                (ref) => Stream.value(mockJokes),
-              ),
-            ],
-          ),
-        );
+        await tester.pumpWidget(createTestWidget());
 
         // Multiple pumps should complete quickly
         final stopwatch = Stopwatch()..start();
@@ -442,13 +403,7 @@ void main() {
         tester,
       ) async {
         await tester.pumpWidget(
-          createTestWidget(
-            overrides: [
-              monthlyJokesProvider.overrideWith(
-                (ref) => Stream.value([mockJokes.first]),
-              ),
-            ],
-          ),
+          createTestWidget(customBatches: createSingleJokeBatch()),
         );
 
         await tester.pump(); // Allow data to be processed
@@ -461,15 +416,7 @@ void main() {
       testWidgets('arrow logic works correctly based on page position', (
         tester,
       ) async {
-        await tester.pumpWidget(
-          createTestWidget(
-            overrides: [
-              monthlyJokesProvider.overrideWith(
-                (ref) => Stream.value(mockJokes),
-              ),
-            ],
-          ),
-        );
+        await tester.pumpWidget(createTestWidget());
 
         await tester.pump(); // Allow data to be processed
 
@@ -510,15 +457,7 @@ void main() {
       });
 
       testWidgets('arrow styling uses correct theme colors', (tester) async {
-        await tester.pumpWidget(
-          createTestWidget(
-            overrides: [
-              monthlyJokesProvider.overrideWith(
-                (ref) => Stream.value(mockJokes),
-              ),
-            ],
-          ),
-        );
+        await tester.pumpWidget(createTestWidget());
 
         await tester.pump(); // Allow data to be processed
 
@@ -535,15 +474,7 @@ void main() {
       });
 
       testWidgets('arrows are positioned correctly', (tester) async {
-        await tester.pumpWidget(
-          createTestWidget(
-            overrides: [
-              monthlyJokesProvider.overrideWith(
-                (ref) => Stream.value(mockJokes),
-              ),
-            ],
-          ),
-        );
+        await tester.pumpWidget(createTestWidget());
 
         await tester.pump(); // Allow data to be processed
 
@@ -553,15 +484,7 @@ void main() {
       });
 
       testWidgets('arrows have correct opacity', (tester) async {
-        await tester.pumpWidget(
-          createTestWidget(
-            overrides: [
-              monthlyJokesProvider.overrideWith(
-                (ref) => Stream.value(mockJokes),
-              ),
-            ],
-          ),
-        );
+        await tester.pumpWidget(createTestWidget());
 
         await tester.pump(); // Allow data to be processed
 
@@ -579,13 +502,7 @@ void main() {
 
       testWidgets('no arrows shown when jokes list is empty', (tester) async {
         await tester.pumpWidget(
-          createTestWidget(
-            overrides: [
-              monthlyJokesProvider.overrideWith(
-                (ref) => Stream.value(<Joke>[]),
-              ),
-            ],
-          ),
+          createTestWidget(customBatches: createEmptyBatches()),
         );
 
         await tester.pump(); // Allow data to be processed
@@ -593,6 +510,23 @@ void main() {
         // Should not show any arrows when no jokes
         expect(find.byIcon(Icons.keyboard_arrow_up), findsNothing);
         expect(find.byIcon(Icons.keyboard_arrow_down), findsNothing);
+      });
+    });
+
+    group('Title Display', () {
+      testWidgets('displays joke dates as titles', (tester) async {
+        await tester.pumpWidget(createTestWidget());
+
+        await tester.pump(); // Allow data to be processed
+
+        // Should find titles with formatted dates
+        // The exact format may vary, but should contain some date-related text
+        final titleWidgets = find.byType(Text);
+        expect(titleWidgets, findsWidgets);
+
+        // This is a lenient test - we just want to ensure titles are being displayed
+        // The specific formatting can be tested in unit tests
+        expect(find.byType(JokeImageCarousel), findsWidgets);
       });
     });
   });

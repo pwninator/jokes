@@ -18,6 +18,7 @@ class JokeImageCarousel extends ConsumerStatefulWidget {
   final List<Joke>? jokesToPreload;
   final bool showSaveButton;
   final bool showThumbsButtons;
+  final String? title;
 
   const JokeImageCarousel({
     super.key,
@@ -30,6 +31,7 @@ class JokeImageCarousel extends ConsumerStatefulWidget {
     this.jokesToPreload,
     this.showSaveButton = true,
     this.showThumbsButtons = false,
+    this.title,
   });
 
   @override
@@ -470,6 +472,19 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          // Title (if provided)
+          if (widget.title != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 12.0),
+              child: Text(
+                widget.title!,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  color: theme.colorScheme.onSurface,
+                  fontWeight: FontWeight.w500,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
           // Image carousel
           Flexible(
             child: Card(

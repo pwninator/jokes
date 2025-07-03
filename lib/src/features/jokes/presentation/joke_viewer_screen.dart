@@ -171,20 +171,23 @@ class _JokeViewerScreenState extends ConsumerState<JokeViewerScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final jokesAsyncValue = ref.watch(monthlyJokesProvider);
+    final jokesWithDateAsyncValue = ref.watch(monthlyJokesWithDateProvider);
 
     return AdaptiveAppBarScreen(
       title: 'Jokes',
-      body: jokesAsyncValue.when(
-        data: (jokes) {
-          if (jokes.isEmpty) {
+      body: jokesWithDateAsyncValue.when(
+        data: (jokesWithDates) {
+          if (jokesWithDates.isEmpty) {
             return const Center(
               child: Text('No jokes found! Try adding some.'),
             );
           }
 
           // Ensure current page is within bounds
-          final safeCurrentPage = _currentPage.clamp(0, jokes.length - 1);
+          final safeCurrentPage = _currentPage.clamp(
+            0,
+            jokesWithDates.length - 1,
+          );
           if (_currentPage != safeCurrentPage) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (mounted) {
@@ -201,7 +204,7 @@ class _JokeViewerScreenState extends ConsumerState<JokeViewerScreen> {
                 key: const Key('joke_viewer_page_view'),
                 controller: _pageController,
                 scrollDirection: Axis.vertical,
-                itemCount: jokes.length,
+                itemCount: jokesWithDates.length,
                 onPageChanged: (index) {
                   if (mounted) {
                     setState(() {
@@ -212,13 +215,20 @@ class _JokeViewerScreenState extends ConsumerState<JokeViewerScreen> {
                   }
                 },
                 itemBuilder: (context, index) {
-                  final joke = jokes[index];
+                  final jokeWithDate = jokesWithDates[index];
+                  final joke = jokeWithDate.joke;
+                  final date = jokeWithDate.date;
+
+                  // Format date as title
+                  final formattedDate =
+                      '${date.month}/${date.day}/${date.year}';
+
                   final List<Joke> jokesToPreload = [];
-                  if (index + 1 < jokes.length) {
-                    jokesToPreload.add(jokes[index + 1]);
+                  if (index + 1 < jokesWithDates.length) {
+                    jokesToPreload.add(jokesWithDates[index + 1].joke);
                   }
-                  if (index + 2 < jokes.length) {
-                    jokesToPreload.add(jokes[index + 2]);
+                  if (index + 2 < jokesWithDates.length) {
+                    jokesToPreload.add(jokesWithDates[index + 2].joke);
                   }
 
                   return Center(
@@ -227,8 +237,10 @@ class _JokeViewerScreenState extends ConsumerState<JokeViewerScreen> {
                       child: JokeCard(
                         joke: joke,
                         index: index,
+                        title: formattedDate,
                         onSetupTap: _onSetupToPunchlineTransition,
-                        onPunchlineTap: () => _goToNextJoke(jokes.length),
+                        onPunchlineTap:
+                            () => _goToNextJoke(jokesWithDates.length),
                         onImageStateChanged:
                             (imageIndex) =>
                                 _onImageStateChanged(index, imageIndex),
@@ -292,7 +304,7 @@ class _JokeViewerScreenState extends ConsumerState<JokeViewerScreen> {
                 ),
 
               // Down arrow indicator (when not at last joke)
-              if (_currentPage < jokes.length - 1)
+              if (_currentPage < jokesWithDates.length - 1)
                 Positioned(
                   bottom: 40,
                   left: 0,

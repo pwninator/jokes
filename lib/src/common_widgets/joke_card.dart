@@ -13,6 +13,7 @@ class JokeCard extends StatelessWidget {
   final List<Joke>? jokesToPreload;
   final bool showSaveButton;
   final bool showThumbsButtons;
+  final String? title;
 
   const JokeCard({
     super.key,
@@ -25,6 +26,7 @@ class JokeCard extends StatelessWidget {
     this.jokesToPreload,
     this.showSaveButton = true,
     this.showThumbsButtons = false,
+    this.title,
   });
 
   @override
@@ -49,6 +51,7 @@ class JokeCard extends StatelessWidget {
         jokesToPreload: jokesToPreload,
         showSaveButton: showSaveButton,
         showThumbsButtons: showThumbsButtons,
+        title: title,
       );
     } else {
       // No images or incomplete images - show text with populate button

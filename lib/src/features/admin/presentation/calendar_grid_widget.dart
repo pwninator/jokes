@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:snickerdoodle/src/common_widgets/cached_joke_image.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_schedule_widgets.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_schedule_batch.dart';
 
@@ -153,34 +154,79 @@ class _CalendarGridWidgetState extends ConsumerState<CalendarGridWidget> {
     return Builder(
       builder: (cellContext) {
         return GestureDetector(
-          onLongPressStart:
-              hasJoke ? (_) => _showPopup(cellContext, dayKey) : null,
-          onLongPressEnd: (_) => _hidePopup(),
+          onTapDown: hasJoke ? (_) => _showPopup(cellContext, dayKey) : null,
+          onTapUp: (_) => _hidePopup(),
+          onTapCancel: () => _hidePopup(),
           child: Container(
             decoration: BoxDecoration(
-              color:
-                  hasJoke
-                      ? theme.colorScheme.primary.withValues(alpha: 1.0)
-                      : theme.colorScheme.primary.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(6),
-              border:
-                  isToday
-                      ? Border.all(color: Colors.blue, width: 5)
-                      : Border.all(width: 0),
+              border: isToday ? Border.all(color: Colors.blue, width: 3) : null,
             ),
-            child: Center(
-              child: Text(
-                dayNumber.toString(),
-                style: TextStyle(
-                  color:
-                      hasJoke
-                          ? theme.colorScheme.onPrimary
-                          : theme.colorScheme.onPrimaryContainer.withValues(
-                            alpha: 0.3,
-                          ),
-                  fontWeight: FontWeight.bold,
-                  fontSize: 12,
-                ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(6),
+              child: Stack(
+                children: [
+                  // Background - either image thumbnail or solid color
+                  if (hasJoke && joke.setupImageUrl != null)
+                    // Show thumbnail image
+                    CachedJokeImage(
+                      imageUrl: joke.setupImageUrl,
+                      width: double.infinity,
+                      height: double.infinity,
+                      fit: BoxFit.cover,
+                      showLoadingIndicator: false,
+                      showErrorIcon: false,
+                    )
+                  else
+                    // Show solid color background for empty dates or jokes without images
+                    Container(
+                      width: double.infinity,
+                      height: double.infinity,
+                      color:
+                          hasJoke
+                              ? theme.colorScheme.primary.withValues(alpha: 1.0)
+                              : theme.colorScheme.primary.withValues(
+                                alpha: 0.2,
+                              ),
+                    ),
+
+                  // Semi-transparent overlay for better text readability on images
+                  if (hasJoke && joke.setupImageUrl != null)
+                    Container(
+                      width: double.infinity,
+                      height: double.infinity,
+                      color: Colors.black.withValues(alpha: 0.3),
+                    ),
+
+                  // Day number text
+                  Center(
+                    child: Text(
+                      dayNumber.toString(),
+                      style: TextStyle(
+                        color:
+                            hasJoke && joke.setupImageUrl != null
+                                ? Colors
+                                    .white // White text on image with dark overlay
+                                : hasJoke
+                                ? theme.colorScheme.onPrimary
+                                : theme.colorScheme.onPrimaryContainer
+                                    .withValues(alpha: 0.3),
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                        shadows:
+                            hasJoke && joke.setupImageUrl != null
+                                ? [
+                                  Shadow(
+                                    offset: const Offset(1, 1),
+                                    blurRadius: 2,
+                                    color: Colors.black.withValues(alpha: 0.8),
+                                  ),
+                                ]
+                                : null,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),

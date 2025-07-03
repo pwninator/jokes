@@ -74,6 +74,11 @@ class _CalendarGridWidgetState extends ConsumerState<CalendarGridWidget> {
         DateTime(widget.monthDate.year, widget.monthDate.month, 1).weekday %
         7; // 0=Sunday
 
+    // Calculate the actual number of rows needed for this month
+    final totalCells = firstWeekday + daysInMonth;
+    final numberOfRows = (totalCells / 7).ceil();
+    final itemCount = numberOfRows * 7;
+
     return Column(
       children: [
         // Weekday headers
@@ -105,7 +110,9 @@ class _CalendarGridWidgetState extends ConsumerState<CalendarGridWidget> {
 
         // Calendar grid
         AspectRatio(
-          aspectRatio: 7 / 6, // 7 columns, up to 6 rows
+          aspectRatio:
+              7 /
+              numberOfRows, // Dynamic aspect ratio based on actual rows needed
           child: GridView.builder(
             physics: const NeverScrollableScrollPhysics(),
             gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
@@ -114,7 +121,8 @@ class _CalendarGridWidgetState extends ConsumerState<CalendarGridWidget> {
               crossAxisSpacing: 2,
               mainAxisSpacing: 2,
             ),
-            itemCount: 42, // 6 weeks maximum
+            itemCount:
+                itemCount, // Dynamic item count based on actual rows needed
             itemBuilder: (context, index) {
               final dayNumber = index - firstWeekday + 1;
               if (dayNumber < 1 || dayNumber > daysInMonth) {

@@ -92,8 +92,8 @@ final batchDateRangeProvider = Provider<List<DateTime>>((ref) {
         current = DateTime(current.year, current.month + 1);
       }
 
-      // Sort chronologically with latest at top (reverse order)
-      months.sort((a, b) => b.compareTo(a));
+      // Sort chronologically with earliest at top (chronological order)
+      months.sort((a, b) => a.compareTo(b));
 
       return months;
     },

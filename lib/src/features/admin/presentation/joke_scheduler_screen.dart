@@ -5,15 +5,58 @@ import 'package:snickerdoodle/src/features/jokes/application/joke_schedule_provi
 import 'package:snickerdoodle/src/features/admin/presentation/joke_schedule_batch_widget.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_schedule_widgets.dart';
 
-class JokeSchedulerScreen extends ConsumerWidget {
+class JokeSchedulerScreen extends ConsumerStatefulWidget {
   const JokeSchedulerScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<JokeSchedulerScreen> createState() => _JokeSchedulerScreenState();
+}
+
+class _JokeSchedulerScreenState extends ConsumerState<JokeSchedulerScreen> {
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _scrollToCurrentMonth(List<DateTime> dateRange) {
+    if (dateRange.isEmpty) return;
+
+    final now = DateTime.now();
+    final currentMonth = DateTime(now.year, now.month);
+    
+    // Find the index of the current month in the list
+    final currentIndex = dateRange.indexWhere((date) => 
+      date.year == currentMonth.year && date.month == currentMonth.month);
+    
+    if (currentIndex != -1 && _scrollController.hasClients) {
+      // Calculate the approximate item height (card height + margin)
+      const estimatedItemHeight = 400.0; // Adjust based on your card height
+      final targetOffset = currentIndex * estimatedItemHeight;
+      
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _scrollController.animateTo(
+          targetOffset,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeInOut,
+        );
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final schedulesAsync = ref.watch(jokeSchedulesProvider);
     final selectedScheduleId = ref.watch(selectedScheduleProvider);
     final dateRange = ref.watch(batchDateRangeProvider);
     final showDialog = ref.watch(newScheduleDialogProvider);
+
+    // Scroll to current month when dateRange is loaded
+    if (dateRange.isNotEmpty) {
+      _scrollToCurrentMonth(dateRange);
+    }
 
     // Show dialog when needed
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -88,6 +131,7 @@ class JokeSchedulerScreen extends ConsumerWidget {
                 : dateRange.isEmpty
                     ? _buildLoadingState()
                     : ListView.builder(
+                        controller: _scrollController,
                         itemCount: dateRange.length,
                         itemBuilder: (context, index) {
                           return JokeScheduleBatchWidget(

@@ -9,6 +9,8 @@ class Joke {
   final String? punchlineImageUrl;
   final String? setupImageDescription;
   final String? punchlineImageDescription;
+  final List<String> allSetupImageUrls;
+  final List<String> allPunchlineImageUrls;
   final Map<String, dynamic>? generationMetadata;
   final int numThumbsUp;
   final int numThumbsDown;
@@ -21,6 +23,8 @@ class Joke {
     this.punchlineImageUrl,
     this.setupImageDescription,
     this.punchlineImageDescription,
+    this.allSetupImageUrls = const [],
+    this.allPunchlineImageUrls = const [],
     this.generationMetadata,
     this.numThumbsUp = 0,
     this.numThumbsDown = 0,
@@ -34,6 +38,8 @@ class Joke {
     String? punchlineImageUrl,
     String? setupImageDescription,
     String? punchlineImageDescription,
+    List<String>? allSetupImageUrls,
+    List<String>? allPunchlineImageUrls,
     Map<String, dynamic>? generationMetadata,
     int? numThumbsUp,
     int? numThumbsDown,
@@ -48,6 +54,8 @@ class Joke {
           setupImageDescription ?? this.setupImageDescription,
       punchlineImageDescription:
           punchlineImageDescription ?? this.punchlineImageDescription,
+      allSetupImageUrls: allSetupImageUrls ?? this.allSetupImageUrls,
+      allPunchlineImageUrls: allPunchlineImageUrls ?? this.allPunchlineImageUrls,
       generationMetadata: generationMetadata ?? this.generationMetadata,
       numThumbsUp: numThumbsUp ?? this.numThumbsUp,
       numThumbsDown: numThumbsDown ?? this.numThumbsDown,
@@ -62,6 +70,8 @@ class Joke {
       'punchline_image_url': punchlineImageUrl,
       'setup_image_description': setupImageDescription,
       'punchline_image_description': punchlineImageDescription,
+      'all_setup_image_urls': allSetupImageUrls,
+      'all_punchline_image_urls': allPunchlineImageUrls,
       'generation_metadata': generationMetadata,
       'num_thumbs_up': numThumbsUp,
       'num_thumbs_down': numThumbsDown,
@@ -77,6 +87,8 @@ class Joke {
       punchlineImageUrl: map['punchline_image_url'],
       setupImageDescription: map['setup_image_description'],
       punchlineImageDescription: map['punchline_image_description'],
+      allSetupImageUrls: List<String>.from(map['all_setup_image_urls'] ?? []),
+      allPunchlineImageUrls: List<String>.from(map['all_punchline_image_urls'] ?? []),
       generationMetadata: map['generation_metadata'] as Map<String, dynamic>?,
       numThumbsUp: (map['num_thumbs_up'] as num?)?.toInt() ?? 0,
       numThumbsDown: (map['num_thumbs_down'] as num?)?.toInt() ?? 0,
@@ -90,7 +102,7 @@ class Joke {
 
   @override
   String toString() =>
-      'Joke(id: $id, setupText: $setupText, punchlineText: $punchlineText, setupImageUrl: $setupImageUrl, punchlineImageUrl: $punchlineImageUrl, setupImageDescription: $setupImageDescription, punchlineImageDescription: $punchlineImageDescription, generationMetadata: $generationMetadata, numThumbsUp: $numThumbsUp, numThumbsDown: $numThumbsDown)';
+      'Joke(id: $id, setupText: $setupText, punchlineText: $punchlineText, setupImageUrl: $setupImageUrl, punchlineImageUrl: $punchlineImageUrl, setupImageDescription: $setupImageDescription, punchlineImageDescription: $punchlineImageDescription, allSetupImageUrls: $allSetupImageUrls, allPunchlineImageUrls: $allPunchlineImageUrls, generationMetadata: $generationMetadata, numThumbsUp: $numThumbsUp, numThumbsDown: $numThumbsDown)';
 
   @override
   bool operator ==(Object other) {
@@ -104,6 +116,8 @@ class Joke {
         other.punchlineImageUrl == punchlineImageUrl &&
         other.setupImageDescription == setupImageDescription &&
         other.punchlineImageDescription == punchlineImageDescription &&
+        listEquals(other.allSetupImageUrls, allSetupImageUrls) &&
+        listEquals(other.allPunchlineImageUrls, allPunchlineImageUrls) &&
         mapEquals(other.generationMetadata, generationMetadata) &&
         other.numThumbsUp == numThumbsUp &&
         other.numThumbsDown == numThumbsDown;
@@ -118,6 +132,8 @@ class Joke {
       punchlineImageUrl.hashCode ^
       setupImageDescription.hashCode ^
       punchlineImageDescription.hashCode ^
+      allSetupImageUrls.hashCode ^
+      allPunchlineImageUrls.hashCode ^
       generationMetadata.hashCode ^
       numThumbsUp.hashCode ^
       numThumbsDown.hashCode;

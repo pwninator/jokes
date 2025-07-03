@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/common_widgets/adaptive_app_bar_screen.dart';
+import 'package:snickerdoodle/src/common_widgets/image_selector_carousel.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
@@ -21,6 +22,10 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
   final _setupImageDescriptionController = TextEditingController();
   final _punchlineImageDescriptionController = TextEditingController();
   bool _isLoading = false;
+  
+  // Track selected images for carousels
+  String? _selectedSetupImageUrl;
+  String? _selectedPunchlineImageUrl;
 
   bool get _isEditMode => widget.joke != null;
 
@@ -35,6 +40,10 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
           widget.joke!.setupImageDescription ?? '';
       _punchlineImageDescriptionController.text =
           widget.joke!.punchlineImageDescription ?? '';
+      
+      // Set initial selected images
+      _selectedSetupImageUrl = widget.joke!.setupImageUrl;
+      _selectedPunchlineImageUrl = widget.joke!.punchlineImageUrl;
     }
   }
 
@@ -127,6 +136,24 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
                   ),
                   const SizedBox(height: 16),
 
+                  // Setup Image Carousel (if available)
+                  if (widget.joke!.allSetupImageUrls.isNotEmpty) ...[
+                    ImageSelectorCarousel(
+                      imageUrls: widget.joke!.allSetupImageUrls,
+                      selectedImageUrl: _selectedSetupImageUrl,
+                      title: 'Setup Images',
+                      onImageSelected: (imageUrl) {
+                        // Only update state if the selection actually changed
+                        if (_selectedSetupImageUrl != imageUrl) {
+                          setState(() {
+                            _selectedSetupImageUrl = imageUrl;
+                          });
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+
                   // Setup Image Description Field
                   TextFormField(
                     key: const Key('setupImageDescriptionTextField'),
@@ -150,6 +177,24 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
                   ),
 
                   const SizedBox(height: 16),
+
+                  // Punchline Image Carousel (if available)
+                  if (widget.joke!.allPunchlineImageUrls.isNotEmpty) ...[
+                    ImageSelectorCarousel(
+                      imageUrls: widget.joke!.allPunchlineImageUrls,
+                      selectedImageUrl: _selectedPunchlineImageUrl,
+                      title: 'Punchline Images',
+                      onImageSelected: (imageUrl) {
+                        // Only update state if the selection actually changed
+                        if (_selectedPunchlineImageUrl != imageUrl) {
+                          setState(() {
+                            _selectedPunchlineImageUrl = imageUrl;
+                          });
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                  ],
 
                   // Punchline Image Description Field
                   TextFormField(
@@ -310,8 +355,8 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
       jokeId: widget.joke!.id,
       setupText: setup,
       punchlineText: punchline,
-      setupImageUrl: widget.joke!.setupImageUrl,
-      punchlineImageUrl: widget.joke!.punchlineImageUrl,
+      setupImageUrl: _selectedSetupImageUrl,
+      punchlineImageUrl: _selectedPunchlineImageUrl,
       setupImageDescription: setupImageDescription,
       punchlineImageDescription: punchlineImageDescription,
     );

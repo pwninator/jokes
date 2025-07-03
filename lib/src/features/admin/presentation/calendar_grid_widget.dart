@@ -152,19 +152,13 @@ class _CalendarGridWidgetState extends ConsumerState<CalendarGridWidget> {
             decoration: BoxDecoration(
               color:
                   hasJoke
-                      ? theme.colorScheme.primary.withValues(alpha: 0.8)
-                      : theme.colorScheme.error.withValues(alpha: 0.8),
+                      ? theme.colorScheme.primary.withValues(alpha: 1.0)
+                      : theme.colorScheme.primary.withValues(alpha: 0.2),
               borderRadius: BorderRadius.circular(6),
               border:
                   isToday
                       ? Border.all(color: Colors.blue, width: 5)
-                      : Border.all(
-                        color:
-                            hasJoke
-                                ? theme.colorScheme.primary
-                                : theme.colorScheme.error,
-                        width: 1,
-                      ),
+                      : Border.all(width: 0),
             ),
             child: Center(
               child: Text(
@@ -173,7 +167,9 @@ class _CalendarGridWidgetState extends ConsumerState<CalendarGridWidget> {
                   color:
                       hasJoke
                           ? theme.colorScheme.onPrimary
-                          : theme.colorScheme.onError,
+                          : theme.colorScheme.onPrimaryContainer.withValues(
+                            alpha: 0.3,
+                          ),
                   fontWeight: FontWeight.bold,
                   fontSize: 12,
                 ),

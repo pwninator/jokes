@@ -36,6 +36,8 @@ void main() {
         'punchline_image_url': null,
         'setup_image_description': null,
         'punchline_image_description': null,
+        'all_setup_image_urls': [],
+        'all_punchline_image_urls': [],
         'generation_metadata': null,
         'num_thumbs_up': 0,
         'num_thumbs_down': 0,

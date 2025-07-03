@@ -69,6 +69,7 @@ class JokeCloudFunctionService {
   Future<Map<String, dynamic>?> populateJoke(
     String jokeId, {
     bool imagesOnly = false,
+    Map<String, dynamic>? additionalParams,
   }) async {
     try {
       final callable = _functions.httpsCallable(
@@ -79,6 +80,9 @@ class JokeCloudFunctionService {
       final requestData = <String, dynamic>{'joke_id': jokeId};
       if (imagesOnly) {
         requestData['images_only'] = true;
+      }
+      if (additionalParams != null) {
+        requestData.addAll(additionalParams);
       }
 
       final result = await callable.call(requestData);

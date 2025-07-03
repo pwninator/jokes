@@ -609,41 +609,32 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
                   ),
                   const SizedBox(width: 8.0),
                   // Regenerate Images button (right)
-                  Expanded(
-                    child: ElevatedButton(
-                      key: const Key('regenerate-images-button'),
-                      onPressed:
-                          isPopulating
-                              ? null
-                              : () async {
-                                final notifier = ref.read(
-                                  jokePopulationProvider.notifier,
-                                );
-                                await notifier.populateJoke(
-                                  widget.joke.id,
-                                  imagesOnly: true,
-                                );
-                              },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: theme.colorScheme.secondaryContainer,
-                        foregroundColor: theme.colorScheme.onSecondaryContainer,
-                      ),
-                      child:
-                          isPopulating
-                              ? SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                    theme.colorScheme.onSurface.withValues(
-                                      alpha: 0.6,
-                                    ),
-                                  ),
-                                ),
-                              )
-                              : const Icon(Icons.image),
-                    ),
+                  HoldableButton(
+                    key: const Key('regenerate-images-button'),
+                    icon: Icons.image,
+                    holdCompleteIcon: Icons.hd,
+                    onTap: () async {
+                      final notifier = ref.read(
+                        jokePopulationProvider.notifier,
+                      );
+                      await notifier.populateJoke(
+                        widget.joke.id,
+                        imagesOnly: true,
+                        additionalParams: {"image_quality": "medium"},
+                      );
+                    },
+                    onHoldComplete: () async {
+                      final notifier = ref.read(
+                        jokePopulationProvider.notifier,
+                      );
+                      await notifier.populateJoke(
+                        widget.joke.id,
+                        imagesOnly: true,
+                        additionalParams: {"image_quality": "high"},
+                      );
+                    },
+                    isEnabled: !isPopulating,
+                    theme: theme,
                   ),
                 ],
               ),

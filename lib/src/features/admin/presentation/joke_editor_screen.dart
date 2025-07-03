@@ -180,12 +180,12 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
                 ElevatedButton(
                   key: Key(_isEditMode ? 'updateJokeButton' : 'saveJokeButton'),
                   onPressed: _isLoading ? null : _saveJoke,
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
+                  // style: ElevatedButton.styleFrom(
+                  //   padding: const EdgeInsets.symmetric(vertical: 16),
+                  //   shape: RoundedRectangleBorder(
+                  //     borderRadius: BorderRadius.circular(8),
+                  //   ),
+                  // ),
                   child:
                       _isLoading
                           ? const SizedBox(

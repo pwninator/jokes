@@ -582,7 +582,25 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
               ),
               child: Row(
                 children: [
-                  // Hold to Regenerate Edit button (left)
+                  // Hold to Delete button (leftmost)
+                  HoldableButton(
+                    key: const Key('delete-joke-button'),
+                    icon: Icons.delete,
+                    holdCompleteIcon: Icons.delete_forever,
+                    onTap: () {
+                      // Do nothing on tap
+                    },
+                    onHoldComplete: () async {
+                      final repository = ref.read(jokeRepositoryProvider);
+                      await repository.deleteJoke(widget.joke.id);
+                    },
+                    isEnabled: !isPopulating,
+                    theme: theme,
+                    color: theme.colorScheme.error,
+                    holdDuration: const Duration(seconds: 3),
+                  ),
+                  const SizedBox(width: 8.0),
+                  // Hold to Regenerate Edit button (middle)
                   HoldableButton(
                     key: const Key('edit-joke-button'),
                     icon: Icons.edit,
@@ -609,7 +627,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
                     color: theme.colorScheme.tertiaryContainer,
                   ),
                   const SizedBox(width: 8.0),
-                  // Regenerate Images button (right)
+                  // Regenerate Images button (rightmost)
                   HoldableButton(
                     key: const Key('regenerate-images-button'),
                     icon: Icons.image,

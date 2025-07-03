@@ -79,4 +79,9 @@ class JokeRepository {
   Future<void> decrementSaves(String jokeId) async {
     await decrementReaction(jokeId, JokeReactionType.save);
   }
+
+  /// Delete a joke from Firestore
+  Future<void> deleteJoke(String jokeId) async {
+    await _firestore.collection('jokes').doc(jokeId).delete();
+  }
 }

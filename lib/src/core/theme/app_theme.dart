@@ -6,13 +6,13 @@ ColorScheme lightColorScheme = ColorScheme.fromSeed(
   // seedColor: Colors.deepPurple,
   seedColor: Color(0xFFC59B6D),
   brightness: Brightness.light,
-).copyWith(primary: primaryColor);
+).copyWith(primary: primaryColor, error: Color.fromARGB(255, 239, 118, 118));
 
 ColorScheme darkColorScheme = ColorScheme.fromSeed(
   // seedColor: Colors.deepPurple,
   seedColor: Color(0xFFC59B6D),
   brightness: Brightness.dark,
-);
+).copyWith(error: Color.fromARGB(255, 163, 34, 34));
 
 const TextTheme textTheme = TextTheme(
   headlineMedium: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
@@ -29,6 +29,12 @@ final ThemeData lightTheme = ThemeData.from(
 ).copyWith(
   extensions: [AppColorExtension.light],
   appBarTheme: appBarTheme,
+  elevatedButtonTheme: ElevatedButtonThemeData(
+    style: ElevatedButton.styleFrom(
+      backgroundColor: lightColorScheme.primary,
+      foregroundColor: lightColorScheme.onPrimary,
+    ),
+  ),
   cardTheme: CardThemeData(
     color: lightColorScheme.surfaceContainerHigh,
     elevation: 4,
@@ -40,6 +46,12 @@ final ThemeData darkTheme = ThemeData.from(
   textTheme: textTheme,
 ).copyWith(
   extensions: [AppColorExtension.dark],
+  elevatedButtonTheme: ElevatedButtonThemeData(
+    style: ElevatedButton.styleFrom(
+      backgroundColor: darkColorScheme.primary,
+      foregroundColor: darkColorScheme.onPrimary,
+    ),
+  ),
   cardTheme: CardThemeData(
     color: darkColorScheme.surfaceContainerHigh,
     elevation: 1,

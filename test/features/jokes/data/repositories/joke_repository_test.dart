@@ -255,5 +255,44 @@ void main() {
         verify(() => mockDocumentReference.update(any())).called(1);
       });
     });
+
+    group('deleteJoke', () {
+      setUp(() {
+        // Set up document reference behavior
+        when(
+          () => mockCollectionReference.doc(any()),
+        ).thenReturn(mockDocumentReference);
+        when(
+          () => mockDocumentReference.delete(),
+        ).thenAnswer((_) async => {});
+      });
+
+      test('should delete joke successfully', () async {
+        const jokeId = 'test-joke-id';
+
+        await repository.deleteJoke(jokeId);
+
+        verify(() => mockFirestore.collection('jokes')).called(1);
+        verify(() => mockCollectionReference.doc(jokeId)).called(1);
+        verify(() => mockDocumentReference.delete()).called(1);
+      });
+
+      test('should propagate FirebaseException when delete fails', () async {
+        const jokeId = 'test-joke-id';
+
+        when(() => mockDocumentReference.delete()).thenThrow(
+          FirebaseException(plugin: 'firestore', message: 'Delete failed'),
+        );
+
+        expect(
+          () => repository.deleteJoke(jokeId),
+          throwsA(isA<FirebaseException>()),
+        );
+
+        verify(() => mockFirestore.collection('jokes')).called(1);
+        verify(() => mockCollectionReference.doc(jokeId)).called(1);
+        verify(() => mockDocumentReference.delete()).called(1);
+      });
+    });
   });
 }

@@ -105,13 +105,12 @@ class JokeScheduleBatchWidget extends ConsumerWidget {
                             monthDate,
                           )
                           : null,
-                  child:
-                      ref
-                              .watch(autoFillProvider.notifier)
-                              .isMonthProcessing(
-                                selectedScheduleId ?? '',
-                                monthDate,
-                              )
+                                                        child:
+                       () {
+                         final state = ref.watch(autoFillProvider);
+                         final monthKey = '${selectedScheduleId ?? ''}_${monthDate.year}_${monthDate.month}';
+                         return state.processingMonths.contains(monthKey);
+                       }()
                           ? const SizedBox(
                             width: 16,
                             height: 16,

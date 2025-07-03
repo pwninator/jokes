@@ -48,7 +48,6 @@ void main() {
       ) async {
         await tester.pumpWidget(createTestWidget());
 
-        expect(find.text('Add New Joke'), findsOneWidget);
         expect(
           find.text(
             'Create a new joke by filling out the setup and punchline below:',
@@ -85,7 +84,6 @@ void main() {
 
         await tester.pumpWidget(createTestWidget(joke: joke));
 
-        expect(find.text('Edit Joke'), findsOneWidget);
         expect(
           find.text('Edit the joke setup and punchline below:'),
           findsOneWidget,

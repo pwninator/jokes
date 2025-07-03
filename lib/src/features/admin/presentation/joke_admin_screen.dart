@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:snickerdoodle/src/common_widgets/app_bar_widget.dart';
+import 'package:snickerdoodle/src/common_widgets/adaptive_app_bar_screen.dart';
 import 'package:snickerdoodle/src/common_widgets/titled_screen.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_creator_screen.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_management_screen.dart';
@@ -47,8 +47,8 @@ class _AdminHomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: const AppBarWidget(title: 'Admin'),
+    return AdaptiveAppBarScreen(
+      title: 'Admin',
       body: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.all(16.0),

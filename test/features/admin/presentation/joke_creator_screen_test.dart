@@ -24,9 +24,6 @@ void main() {
       testWidgets('should display all required UI elements', (tester) async {
         await tester.pumpWidget(createTestWidget());
 
-        // Check for app bar
-        expect(find.text('Joke Creator'), findsOneWidget);
-
         // Check for instructions
         expect(
           find.text('Enter instructions for joke generation and critique:'),

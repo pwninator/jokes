@@ -483,9 +483,11 @@ void main() {
           pageView,
           const Offset(0, -400),
         ); // Negative dy = upward
-        await tester.pump(
-          const Duration(milliseconds: 1000),
-        ); // Wait for page transition to complete
+        
+        // Wait for page transition to complete with multiple controlled pumps
+        for (int i = 0; i < 10; i++) {
+          await tester.pump(const Duration(milliseconds: 100));
+        }
 
         // Now at middle joke - both arrows should be visible
         expect(find.byIcon(Icons.keyboard_arrow_up), findsOneWidget);
@@ -496,9 +498,11 @@ void main() {
           pageView,
           const Offset(0, -400),
         ); // Negative dy = upward
-        await tester.pump(
-          const Duration(milliseconds: 1000),
-        ); // Wait for page transition to complete
+        
+        // Wait for page transition to complete with multiple controlled pumps
+        for (int i = 0; i < 10; i++) {
+          await tester.pump(const Duration(milliseconds: 100));
+        }
 
         // Now at last joke - only up arrow should be visible
         expect(find.byIcon(Icons.keyboard_arrow_up), findsOneWidget);

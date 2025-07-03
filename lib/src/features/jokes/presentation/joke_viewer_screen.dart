@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:snickerdoodle/src/common_widgets/app_bar_widget.dart';
+import 'package:snickerdoodle/src/common_widgets/adaptive_app_bar_screen.dart';
 import 'package:snickerdoodle/src/common_widgets/joke_card.dart';
 import 'package:snickerdoodle/src/common_widgets/titled_screen.dart';
 import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
@@ -173,8 +173,8 @@ class _JokeViewerScreenState extends ConsumerState<JokeViewerScreen> {
   Widget build(BuildContext context) {
     final jokesAsyncValue = ref.watch(jokesWithImagesProvider);
 
-    return Scaffold(
-      appBar: const AppBarWidget(title: 'Jokes'),
+    return AdaptiveAppBarScreen(
+      title: 'Jokes',
       body: jokesAsyncValue.when(
         data: (jokes) {
           if (jokes.isEmpty) {

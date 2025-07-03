@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:snickerdoodle/src/common_widgets/app_bar_widget.dart';
+import 'package:snickerdoodle/src/common_widgets/adaptive_app_bar_screen.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_schedule_providers.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_schedule_batch_widget.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_schedule_widgets.dart';
@@ -65,10 +65,8 @@ class _JokeSchedulerScreenState extends ConsumerState<JokeSchedulerScreen> {
       }
     });
 
-    return Scaffold(
-      appBar: const AppBarWidget(
-        title: 'Joke Scheduler',
-      ),
+    return AdaptiveAppBarScreen(
+      title: 'Joke Scheduler',
       body: Column(
         children: [
           // Schedule selector header

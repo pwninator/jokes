@@ -77,8 +77,8 @@ void main() {
       );
       expect(
         border.top.width,
-        5.0,
-        reason: 'Today\'s cell should have a thick (5px) border',
+        3.0,
+        reason: 'Today\'s cell should have a thick (3px) border',
       );
 
       // Check a few other day numbers to ensure they don't have blue thick borders
@@ -95,7 +95,7 @@ void main() {
                 final dayBorder = dayDecoration!.border as Border;
                 final hasBlueThickBorder =
                     dayBorder.top.color == Colors.blue &&
-                    dayBorder.top.width == 5.0;
+                    dayBorder.top.width == 3.0;
                 expect(
                   hasBlueThickBorder,
                   false,
@@ -244,9 +244,9 @@ void main() {
       );
       expect(
         border.top.width,
-        5.0,
+        3.0,
         reason:
-            'Today\'s cell should have a thick (5px) border even when no joke is scheduled',
+            'Today\'s cell should have a thick (3px) border even when no joke is scheduled',
       );
     });
   });

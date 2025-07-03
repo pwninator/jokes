@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:snickerdoodle/src/common_widgets/app_bar_widget.dart';
+import 'package:snickerdoodle/src/common_widgets/adaptive_app_bar_screen.dart';
 import 'package:snickerdoodle/src/common_widgets/titled_screen.dart';
 import 'package:snickerdoodle/src/core/providers/app_version_provider.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
@@ -95,8 +95,8 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
     final currentUser = ref.watch(currentUserProvider);
     final authController = ref.watch(authControllerProvider);
 
-    return Scaffold(
-      appBar: const AppBarWidget(title: 'Settings'),
+    return AdaptiveAppBarScreen(
+      title: 'Settings',
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: SingleChildScrollView(

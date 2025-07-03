@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:snickerdoodle/src/common_widgets/app_bar_widget.dart';
+import 'package:snickerdoodle/src/common_widgets/adaptive_app_bar_screen.dart';
 import 'package:snickerdoodle/src/common_widgets/joke_card.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_editor_screen.dart';
 import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
@@ -13,9 +13,16 @@ class JokeManagementScreen extends ConsumerWidget {
     final jokesAsync = ref.watch(filteredJokesProvider);
     final filterState = ref.watch(jokeFilterProvider);
 
-    return Scaffold(
-      appBar: const AppBarWidget(
-        title: 'Joke Management',
+    return AdaptiveAppBarScreen(
+      title: 'Joke Management',
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (context) => const JokeEditorScreen()),
+          );
+        },
+        tooltip: 'Add New Joke',
+        child: const Icon(Icons.add),
       ),
       body: Column(
         children: [
@@ -150,15 +157,6 @@ class JokeManagementScreen extends ConsumerWidget {
             ),
           ),
         ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(builder: (context) => const JokeEditorScreen()),
-          );
-        },
-        tooltip: 'Add New Joke',
-        child: const Icon(Icons.add),
       ),
     );
   }

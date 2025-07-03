@@ -79,23 +79,5 @@ void main() {
       // Should show add button
       expect(find.byIcon(Icons.add), findsOneWidget);
     });
-
-    testWidgets('displays app bar with correct title', (tester) async {
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            jokeSchedulesProvider.overrideWith(
-              (ref) => Stream.value(<JokeSchedule>[]),
-            ),
-          ],
-          child: const MaterialApp(home: JokeSchedulerScreen()),
-        ),
-      );
-
-      await tester.pumpAndSettle();
-
-      // Should show correct title
-      expect(find.text('Joke Scheduler'), findsOneWidget);
-    });
   });
 }

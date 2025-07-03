@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:snickerdoodle/src/common_widgets/app_bar_widget.dart';
+import 'package:snickerdoodle/src/common_widgets/adaptive_app_bar_screen.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
@@ -49,8 +49,8 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBarWidget(title: _isEditMode ? 'Edit Joke' : 'Add New Joke'),
+    return AdaptiveAppBarScreen(
+      title: _isEditMode ? 'Edit Joke' : 'Add New Joke',
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Form(
@@ -204,8 +204,8 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
                 // Info text
                 Text(
                   _isEditMode
-                      ? 'Changes will be updated immediately.'
-                      : 'Your joke will be reviewed and added to the collection.',
+                      ? 'Edit the joke fields and save to update the joke.'
+                      : 'Fill out the joke fields and save to add a new joke.',
                   style: TextStyle(
                     fontSize: 12,
                     color: Theme.of(

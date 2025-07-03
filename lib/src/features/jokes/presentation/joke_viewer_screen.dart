@@ -171,7 +171,7 @@ class _JokeViewerScreenState extends ConsumerState<JokeViewerScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final jokesAsyncValue = ref.watch(jokesWithImagesProvider);
+    final jokesAsyncValue = ref.watch(monthlyJokesProvider);
 
     return AdaptiveAppBarScreen(
       title: 'Jokes',

@@ -79,7 +79,7 @@ void main() {
         await tester.pumpWidget(
           createTestWidget(
             overrides: [
-              jokesWithImagesProvider.overrideWith(
+              monthlyJokesProvider.overrideWith(
                 (ref) => const Stream<List<Joke>>.empty(),
               ),
             ],
@@ -96,7 +96,7 @@ void main() {
         await tester.pumpWidget(
           createTestWidget(
             overrides: [
-              jokesWithImagesProvider.overrideWith(
+              monthlyJokesProvider.overrideWith(
                 (ref) => Stream<List<Joke>>.error(errorMessage),
               ),
             ],
@@ -113,7 +113,7 @@ void main() {
         await tester.pumpWidget(
           createTestWidget(
             overrides: [
-              jokesWithImagesProvider.overrideWith(
+              monthlyJokesProvider.overrideWith(
                 (ref) => Stream.value(<Joke>[]),
               ),
             ],
@@ -128,7 +128,7 @@ void main() {
         await tester.pumpWidget(
           createTestWidget(
             overrides: [
-              jokesWithImagesProvider.overrideWith(
+              monthlyJokesProvider.overrideWith(
                 (ref) => Stream.value(mockJokes),
               ),
             ],
@@ -151,7 +151,7 @@ void main() {
         await tester.pumpWidget(
           createTestWidget(
             overrides: [
-              jokesWithImagesProvider.overrideWith(
+              monthlyJokesProvider.overrideWith(
                 (ref) => Stream.value(mockJokes),
               ),
             ],
@@ -184,7 +184,7 @@ void main() {
         await tester.pumpWidget(
           createTestWidget(
             overrides: [
-              jokesWithImagesProvider.overrideWith(
+              monthlyJokesProvider.overrideWith(
                 (ref) => Stream.value(mockJokes),
               ),
             ],
@@ -209,7 +209,7 @@ void main() {
         await tester.pumpWidget(
           createTestWidget(
             overrides: [
-              jokesWithImagesProvider.overrideWith(
+              monthlyJokesProvider.overrideWith(
                 (ref) => Stream.value([mockJokes.first]),
               ),
             ],
@@ -231,7 +231,7 @@ void main() {
         await tester.pumpWidget(
           createTestWidget(
             overrides: [
-              jokesWithImagesProvider.overrideWith(
+              monthlyJokesProvider.overrideWith(
                 (ref) => Stream.value(mockJokes),
               ),
             ],
@@ -250,7 +250,7 @@ void main() {
         await tester.pumpWidget(
           createTestWidget(
             overrides: [
-              jokesWithImagesProvider.overrideWith(
+              monthlyJokesProvider.overrideWith(
                 (ref) => Stream.value(mockJokes),
               ),
             ],
@@ -274,7 +274,7 @@ void main() {
         await tester.pumpWidget(
           createTestWidget(
             overrides: [
-              jokesWithImagesProvider.overrideWith(
+              monthlyJokesProvider.overrideWith(
                 (ref) => Stream.value(mockJokes),
               ),
             ],
@@ -290,7 +290,7 @@ void main() {
         await tester.pumpWidget(
           createTestWidget(
             overrides: [
-              jokesWithImagesProvider.overrideWith(
+              monthlyJokesProvider.overrideWith(
                 (ref) => Stream.value(mockJokes.reversed.toList()),
               ),
             ],
@@ -307,7 +307,7 @@ void main() {
         await tester.pumpWidget(
           createTestWidget(
             overrides: [
-              jokesWithImagesProvider.overrideWith(
+              monthlyJokesProvider.overrideWith(
                 (ref) => Stream.value(mockJokes),
               ),
             ],
@@ -327,7 +327,7 @@ void main() {
         await tester.pumpWidget(
           createTestWidget(
             overrides: [
-              jokesWithImagesProvider.overrideWith(
+              monthlyJokesProvider.overrideWith(
                 (ref) => Stream.value(mockJokes),
               ),
             ],
@@ -340,7 +340,7 @@ void main() {
         await tester.pumpWidget(
           createTestWidget(
             overrides: [
-              jokesWithImagesProvider.overrideWith(
+              monthlyJokesProvider.overrideWith(
                 (ref) => Stream.value(mockJokes),
               ),
             ],
@@ -358,7 +358,7 @@ void main() {
         await tester.pumpWidget(
           createTestWidget(
             overrides: [
-              jokesWithImagesProvider.overrideWith(
+              monthlyJokesProvider.overrideWith(
                 (ref) => Stream.value(<Joke>[]),
               ),
             ],
@@ -372,7 +372,7 @@ void main() {
         await tester.pumpWidget(
           createTestWidget(
             overrides: [
-              jokesWithImagesProvider.overrideWith(
+              monthlyJokesProvider.overrideWith(
                 (ref) => Stream.value(mockJokes),
               ),
             ],
@@ -393,7 +393,7 @@ void main() {
         await tester.pumpWidget(
           createTestWidget(
             overrides: [
-              jokesWithImagesProvider.overrideWith(
+              monthlyJokesProvider.overrideWith(
                 (ref) => Stream.value(mockJokes),
               ),
             ],
@@ -414,7 +414,7 @@ void main() {
         await tester.pumpWidget(
           createTestWidget(
             overrides: [
-              jokesWithImagesProvider.overrideWith(
+              monthlyJokesProvider.overrideWith(
                 (ref) => Stream.value(mockJokes),
               ),
             ],
@@ -444,7 +444,7 @@ void main() {
         await tester.pumpWidget(
           createTestWidget(
             overrides: [
-              jokesWithImagesProvider.overrideWith(
+              monthlyJokesProvider.overrideWith(
                 (ref) => Stream.value([mockJokes.first]),
               ),
             ],
@@ -464,7 +464,7 @@ void main() {
         await tester.pumpWidget(
           createTestWidget(
             overrides: [
-              jokesWithImagesProvider.overrideWith(
+              monthlyJokesProvider.overrideWith(
                 (ref) => Stream.value(mockJokes),
               ),
             ],
@@ -483,7 +483,7 @@ void main() {
           pageView,
           const Offset(0, -400),
         ); // Negative dy = upward
-        
+
         // Wait for page transition to complete with multiple controlled pumps
         for (int i = 0; i < 10; i++) {
           await tester.pump(const Duration(milliseconds: 100));
@@ -498,7 +498,7 @@ void main() {
           pageView,
           const Offset(0, -400),
         ); // Negative dy = upward
-        
+
         // Wait for page transition to complete with multiple controlled pumps
         for (int i = 0; i < 10; i++) {
           await tester.pump(const Duration(milliseconds: 100));
@@ -513,7 +513,7 @@ void main() {
         await tester.pumpWidget(
           createTestWidget(
             overrides: [
-              jokesWithImagesProvider.overrideWith(
+              monthlyJokesProvider.overrideWith(
                 (ref) => Stream.value(mockJokes),
               ),
             ],
@@ -538,7 +538,7 @@ void main() {
         await tester.pumpWidget(
           createTestWidget(
             overrides: [
-              jokesWithImagesProvider.overrideWith(
+              monthlyJokesProvider.overrideWith(
                 (ref) => Stream.value(mockJokes),
               ),
             ],
@@ -556,7 +556,7 @@ void main() {
         await tester.pumpWidget(
           createTestWidget(
             overrides: [
-              jokesWithImagesProvider.overrideWith(
+              monthlyJokesProvider.overrideWith(
                 (ref) => Stream.value(mockJokes),
               ),
             ],
@@ -581,7 +581,7 @@ void main() {
         await tester.pumpWidget(
           createTestWidget(
             overrides: [
-              jokesWithImagesProvider.overrideWith(
+              monthlyJokesProvider.overrideWith(
                 (ref) => Stream.value(<Joke>[]),
               ),
             ],

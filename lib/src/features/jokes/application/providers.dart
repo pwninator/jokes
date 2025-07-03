@@ -1,9 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_service.dart';
+import 'package:snickerdoodle/src/features/jokes/application/joke_schedule_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
-import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_service.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
 
 // Provider for FirebaseFirestore instance (local to jokes feature)
@@ -166,7 +167,7 @@ class JokeReactionsState {
 // Notifier for managing joke reactions
 class JokeReactionsNotifier extends StateNotifier<JokeReactionsState> {
   JokeReactionsNotifier(this._reactionsService, this._jokeRepository)
-      : super(const JokeReactionsState()) {
+    : super(const JokeReactionsState()) {
     _loadUserReactions();
   }
 
@@ -176,13 +177,10 @@ class JokeReactionsNotifier extends StateNotifier<JokeReactionsState> {
   /// Load user reactions from SharedPreferences on initialization
   Future<void> _loadUserReactions() async {
     state = state.copyWith(isLoading: true, clearError: true);
-    
+
     try {
       final reactions = await _reactionsService.getAllUserReactions();
-      state = state.copyWith(
-        userReactions: reactions,
-        isLoading: false,
-      );
+      state = state.copyWith(userReactions: reactions, isLoading: false);
     } catch (e) {
       state = state.copyWith(
         isLoading: false,
@@ -197,11 +195,11 @@ class JokeReactionsNotifier extends StateNotifier<JokeReactionsState> {
     JokeReactionType reactionType,
   ) async {
     final hadReaction = hasUserReaction(jokeId, reactionType);
-    
+
     // Check if this is a thumbs reaction and handle exclusivity
     JokeReactionType? oppositeReaction;
     bool hadOppositeReaction = false;
-    
+
     if (reactionType == JokeReactionType.thumbsUp) {
       oppositeReaction = JokeReactionType.thumbsDown;
       hadOppositeReaction = hasUserReaction(jokeId, oppositeReaction);
@@ -209,11 +207,13 @@ class JokeReactionsNotifier extends StateNotifier<JokeReactionsState> {
       oppositeReaction = JokeReactionType.thumbsUp;
       hadOppositeReaction = hasUserReaction(jokeId, oppositeReaction);
     }
-    
+
     // Optimistic update
-    final newUserReactions = Map<String, Set<JokeReactionType>>.from(state.userReactions);
+    final newUserReactions = Map<String, Set<JokeReactionType>>.from(
+      state.userReactions,
+    );
     newUserReactions[jokeId] ??= <JokeReactionType>{};
-    
+
     if (hadReaction) {
       // Remove the current reaction
       newUserReactions[jokeId]!.remove(reactionType);
@@ -223,13 +223,13 @@ class JokeReactionsNotifier extends StateNotifier<JokeReactionsState> {
     } else {
       // Add the new reaction
       newUserReactions[jokeId]!.add(reactionType);
-      
+
       // If this is a thumbs reaction and user had the opposite reaction, remove it
       if (oppositeReaction != null && hadOppositeReaction) {
         newUserReactions[jokeId]!.remove(oppositeReaction);
       }
     }
-    
+
     state = state.copyWith(userReactions: newUserReactions, clearError: true);
 
     try {
@@ -238,10 +238,13 @@ class JokeReactionsNotifier extends StateNotifier<JokeReactionsState> {
         await _reactionsService.removeUserReaction(jokeId, oppositeReaction);
         await _jokeRepository.decrementReaction(jokeId, oppositeReaction);
       }
-      
+
       // Update SharedPreferences and Firestore for the main reaction
-      final wasAdded = await _reactionsService.toggleUserReaction(jokeId, reactionType);
-      
+      final wasAdded = await _reactionsService.toggleUserReaction(
+        jokeId,
+        reactionType,
+      );
+
       if (wasAdded) {
         await _jokeRepository.incrementReaction(jokeId, reactionType);
       } else {
@@ -251,7 +254,8 @@ class JokeReactionsNotifier extends StateNotifier<JokeReactionsState> {
       // Revert optimistic update on error
       await _loadUserReactions(); // Reload from source of truth
       state = state.copyWith(
-        error: 'Failed to ${hadReaction ? 'remove' : 'add'} ${reactionType.label}: $e',
+        error:
+            'Failed to ${hadReaction ? 'remove' : 'add'} ${reactionType.label}: $e',
       );
     }
   }
@@ -274,7 +278,7 @@ class JokeReactionsNotifier extends StateNotifier<JokeReactionsState> {
   /// Clear all user reactions
   Future<void> clearAllUserReactions() async {
     state = state.copyWith(isLoading: true);
-    
+
     try {
       await _reactionsService.clearAllUserReactions();
       state = state.copyWith(
@@ -294,34 +298,38 @@ class JokeReactionsNotifier extends StateNotifier<JokeReactionsState> {
 // Provider for joke reactions notifier
 final jokeReactionsProvider =
     StateNotifierProvider<JokeReactionsNotifier, JokeReactionsState>((ref) {
-  final reactionsService = ref.watch(jokeReactionsServiceProvider);
-  final jokeRepository = ref.watch(jokeRepositoryProvider);
-  return JokeReactionsNotifier(reactionsService, jokeRepository);
-});
+      final reactionsService = ref.watch(jokeReactionsServiceProvider);
+      final jokeRepository = ref.watch(jokeRepositoryProvider);
+      return JokeReactionsNotifier(reactionsService, jokeRepository);
+    });
 
 // Family provider to check if a user has reacted to a joke with a specific reaction type
-final hasUserReactionProvider = Provider.family<bool, ({String jokeId, JokeReactionType reactionType})>((ref, params) {
-  final reactionsState = ref.watch(jokeReactionsProvider);
-  return reactionsState.userReactions[params.jokeId]?.contains(params.reactionType) ?? false;
-});
+final hasUserReactionProvider =
+    Provider.family<bool, ({String jokeId, JokeReactionType reactionType})>((
+      ref,
+      params,
+    ) {
+      final reactionsState = ref.watch(jokeReactionsProvider);
+      return reactionsState.userReactions[params.jokeId]?.contains(
+            params.reactionType,
+          ) ??
+          false;
+    });
 
 // Family provider to get all user reactions for a specific joke
-final userReactionsForJokeProvider = Provider.family<Set<JokeReactionType>, String>((ref, jokeId) {
-  final reactionsState = ref.watch(jokeReactionsProvider);
-  return reactionsState.userReactions[jokeId] ?? <JokeReactionType>{};
-});
+final userReactionsForJokeProvider =
+    Provider.family<Set<JokeReactionType>, String>((ref, jokeId) {
+      final reactionsState = ref.watch(jokeReactionsProvider);
+      return reactionsState.userReactions[jokeId] ?? <JokeReactionType>{};
+    });
 
 // State class for joke filter
 class JokeFilterState {
   final bool showUnratedOnly;
 
-  const JokeFilterState({
-    this.showUnratedOnly = false,
-  });
+  const JokeFilterState({this.showUnratedOnly = false});
 
-  JokeFilterState copyWith({
-    bool? showUnratedOnly,
-  }) {
+  JokeFilterState copyWith({bool? showUnratedOnly}) {
     return JokeFilterState(
       showUnratedOnly: showUnratedOnly ?? this.showUnratedOnly,
     );
@@ -342,9 +350,10 @@ class JokeFilterNotifier extends StateNotifier<JokeFilterState> {
 }
 
 // Provider for joke filter notifier
-final jokeFilterProvider = StateNotifierProvider<JokeFilterNotifier, JokeFilterState>((ref) {
-  return JokeFilterNotifier();
-});
+final jokeFilterProvider =
+    StateNotifierProvider<JokeFilterNotifier, JokeFilterState>((ref) {
+      return JokeFilterNotifier();
+    });
 
 // Provider for filtered jokes (used in joke management screen)
 final filteredJokesProvider = Provider<AsyncValue<List<Joke>>>((ref) {
@@ -358,20 +367,95 @@ final filteredJokesProvider = Provider<AsyncValue<List<Joke>>>((ref) {
       }
 
       // Filter for unrated jokes: have images AND num_thumbs_up == 0 AND num_thumbs_down == 0
-      final filteredJokes = jokes.where((joke) {
-        final hasImages = joke.setupImageUrl != null &&
-            joke.setupImageUrl!.isNotEmpty &&
-            joke.punchlineImageUrl != null &&
-            joke.punchlineImageUrl!.isNotEmpty;
+      final filteredJokes =
+          jokes.where((joke) {
+            final hasImages =
+                joke.setupImageUrl != null &&
+                joke.setupImageUrl!.isNotEmpty &&
+                joke.punchlineImageUrl != null &&
+                joke.punchlineImageUrl!.isNotEmpty;
 
-        final isUnrated = joke.numThumbsUp == 0 && joke.numThumbsDown == 0;
+            final isUnrated = joke.numThumbsUp == 0 && joke.numThumbsDown == 0;
 
-        return hasImages && isUnrated;
-      }).toList();
+            return hasImages && isUnrated;
+          }).toList();
 
       return AsyncValue.data(filteredJokes);
     },
     loading: () => const AsyncValue.loading(),
     error: (error, stackTrace) => AsyncValue.error(error, stackTrace),
   );
+});
+
+// NEW: Monthly jokes provider that loads from joke_schedule_batches
+final monthlyJokesProvider = StreamProvider<List<Joke>>((ref) {
+  final repository = ref.watch(jokeScheduleRepositoryProvider);
+
+  return repository.watchBatchesForSchedule('tester_jokes').map((batches) {
+    // Get current date
+    final now = DateTime.now();
+
+    // Calculate 6-month window: 3 previous, current, 2 next
+    final targetMonths = <DateTime>[];
+    for (int i = -3; i <= 2; i++) {
+      targetMonths.add(DateTime(now.year, now.month + i));
+    }
+
+    // Filter batches for our target months
+    final relevantBatches =
+        batches.where((batch) {
+          final batchDate = DateTime(batch.year, batch.month);
+          return targetMonths.any(
+            (target) =>
+                target.year == batchDate.year &&
+                target.month == batchDate.month,
+          );
+        }).toList();
+
+    // Convert batches to chronological joke list
+    final jokes = <Joke>[];
+
+    // Sort batches chronologically
+    relevantBatches.sort((a, b) {
+      final aDate = DateTime(a.year, a.month);
+      final bDate = DateTime(b.year, b.month);
+      return aDate.compareTo(bDate);
+    });
+
+        // Extract jokes from each batch in chronological order
+    for (final batch in relevantBatches) {
+      // Get all days in the batch and sort them
+      final sortedDays = batch.jokes.keys.toList()..sort();
+      
+      // Add jokes in day order, but only for dates that are not in the future
+      for (final day in sortedDays) {
+        final joke = batch.jokes[day];
+        if (joke != null) {
+          // Parse day string to int and create full date
+          final dayInt = int.tryParse(day);
+          if (dayInt != null) {
+            final jokeDate = DateTime(batch.year, batch.month, dayInt);
+            final today = DateTime.now();
+            final todayDate = DateTime(today.year, today.month, today.day);
+            
+            // Only include jokes for today or past dates
+            if (!jokeDate.isAfter(todayDate)) {
+              jokes.add(joke);
+            }
+          }
+        }
+      }
+    }
+
+    // Filter for jokes with images (same logic as original jokesWithImagesProvider)
+    return jokes
+        .where(
+          (joke) =>
+              joke.setupImageUrl != null &&
+              joke.setupImageUrl!.isNotEmpty &&
+              joke.punchlineImageUrl != null &&
+              joke.punchlineImageUrl!.isNotEmpty,
+        )
+        .toList();
+  });
 });

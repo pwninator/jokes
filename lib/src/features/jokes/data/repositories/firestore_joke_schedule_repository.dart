@@ -31,8 +31,8 @@ class FirestoreJokeScheduleRepository implements JokeScheduleRepository {
     // Query batches that start with the schedule ID
     return _firestore
         .collection(_batchesCollection)
-        .where(FieldPath.documentId, isGreaterThanOrEqualTo: '${scheduleId}_')
-        .where(FieldPath.documentId, isLessThan: '${scheduleId}_\uf8ff')
+        .where(FieldPath.documentId, isGreaterThanOrEqualTo: '${scheduleId}_2000')
+        .where(FieldPath.documentId, isLessThan: '${scheduleId}_3000')
         .snapshots()
         .map((snapshot) {
       return snapshot.docs

@@ -22,6 +22,14 @@
           }
         },
         {
+          "client_id": "416102166155-i91n3vaobh193nfvvned8p5970hfau2q.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.builtwithporpoise.jokes",
+            "certificate_hash": "802fab6a4b026d7dafb94b23fc016c52c1dc08d2"
+          }
+        },
+        {
           "client_id": "416102166155-rkiqj2er1dlg9m8l7rtrbm33c0usk15a.apps.googleusercontent.com",
           "client_type": 1,
           "android_info": {

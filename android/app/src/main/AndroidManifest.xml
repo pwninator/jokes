@@ -2,6 +2,9 @@
     <!-- Required for Firebase Auth and network operations -->
     <uses-permission android:name="android.permission.INTERNET" />
     
+    <!-- Required for Play Store advertising ID declaration -->
+    <uses-permission android:name="com.google.android.gms.permission.AD_ID" />
+    
     <application
         android:label="Snickerdoodle Jokes"
         android:name="${applicationName}"

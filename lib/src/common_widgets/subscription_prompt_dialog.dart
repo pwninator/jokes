@@ -48,7 +48,7 @@ class _SubscriptionPromptDialogState
 
           // Persuasive subtitle
           Text(
-            "Enjoy that one? We'll deliver one perfectly punny joke to you each day. Allow notifications to get your daily dose of humor without lifting a finger.",
+            "Enjoyed that one? We'll deliver one perfectly punny joke to you each day. Allow notifications to get your daily dose of humor without lifting a finger.",
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
             ),

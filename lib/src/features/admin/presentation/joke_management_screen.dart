@@ -159,6 +159,7 @@ class _JokeManagementScreenState extends ConsumerState<JokeManagementScreen> {
                             itemBuilder: (context, index) {
                               final joke = jokes[index];
                               return JokeCard(
+                                key: Key(joke.id),
                                 joke: joke,
                                 index: index,
                                 isAdminMode: true,

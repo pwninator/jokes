@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/common_widgets/adaptive_app_bar_screen.dart';
+import 'package:snickerdoodle/src/common_widgets/subscription_prompt_dialog.dart';
 import 'package:snickerdoodle/src/common_widgets/titled_screen.dart';
 import 'package:snickerdoodle/src/core/providers/app_version_provider.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
@@ -233,6 +234,35 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                             ),
                           ),
                         ],
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Testing Section
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Testing',
+                          style: Theme.of(context).textTheme.headlineSmall,
+                        ),
+                        const SizedBox(height: 16),
+
+                        ElevatedButton.icon(
+                          onPressed: () => _testSubscribePrompt(context),
+                          icon: const Icon(Icons.notifications),
+                          label: const Text('Test Subscribe Prompt'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor:
+                                Theme.of(context).colorScheme.tertiary,
+                            foregroundColor: Colors.white,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -656,27 +686,62 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
     final statusNotifier = ref.read(subscriptionStatusProvider.notifier);
 
     try {
-      // Save preference immediately (fast local operation)
-      final prefSaved = await subscriptionService.setSubscriptionPreference(
-        enable,
-      );
+      bool success;
+      if (enable) {
+        // Subscribe with notification permission
+        success =
+            await subscriptionService.subscribeWithNotificationPermission();
+      } else {
+        // Unsubscribe (no permission needed)
+        success = await subscriptionService.unsubscribe();
+      }
 
-      if (prefSaved) {
-        // Update UI state immediately since preference is saved
+      // Update UI state based on the operation result
+      if (success) {
         statusNotifier.state = AsyncValue.data(enable);
 
-        // Sync with FCM in background (don't await)
-        _syncSubscriptionInBackground(subscriptionService, enable);
-      } else {
-        // Failed to save preference, show error
+        // Show success message
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: const Text('Failed to save notification preference'),
-              backgroundColor: Theme.of(context).appColors.authError,
+              content: Text(
+                enable
+                    ? 'Successfully subscribed to daily jokes! 🎉'
+                    : 'Successfully unsubscribed from daily jokes',
+              ),
+              backgroundColor: Theme.of(context).colorScheme.primary,
               duration: const Duration(seconds: 3),
             ),
           );
+        }
+      } else {
+        // Operation failed
+        if (enable) {
+          // Subscription failed (likely permission denied)
+          statusNotifier.state = AsyncValue.data(false); // Keep toggle off
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: const Text(
+                  'Notification permission is required for daily jokes. You can still enjoy jokes in the app anytime! 😊',
+                ),
+                backgroundColor: Theme.of(context).colorScheme.secondary,
+                duration: const Duration(seconds: 4),
+              ),
+            );
+          }
+        } else {
+          // Unsubscription failed
+          statusNotifier.state = AsyncValue.data(true); // Keep toggle on
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: const Text('Failed to unsubscribe. Please try again.'),
+                backgroundColor: Theme.of(context).appColors.authError,
+                duration: const Duration(seconds: 3),
+              ),
+            );
+          }
         }
       }
     } catch (e) {
@@ -692,21 +757,11 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
     }
   }
 
-  void _syncSubscriptionInBackground(
-    DailyJokeSubscriptionService subscriptionService,
-    bool enable,
-  ) async {
-    try {
-      await subscriptionService.ensureSubscriptionSync();
-      debugPrint(
-        enable
-            ? 'Successfully synced subscription to FCM'
-            : 'Successfully synced unsubscription to FCM',
-      );
-    } catch (e) {
-      debugPrint(
-        'Failed to sync subscription with FCM: $e. Will retry on next app start.',
-      );
-    }
+  void _testSubscribePrompt(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const SubscriptionPromptDialog(),
+    );
   }
 }

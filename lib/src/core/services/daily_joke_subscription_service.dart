@@ -4,6 +4,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:snickerdoodle/src/core/services/notification_service.dart';
 
 /// Abstract interface for daily joke subscription service
 abstract class DailyJokeSubscriptionService {
@@ -17,8 +18,13 @@ abstract class DailyJokeSubscriptionService {
   /// Ensure subscription is synced with FCM server (call on app startup)
   Future<bool> ensureSubscriptionSync();
 
-  /// Save subscription preference immediately (for UI responsiveness)
-  Future<bool> setSubscriptionPreference(bool subscribed);
+  /// Complete subscription flow with notification permission handling
+  /// Returns true if subscription was successful, false if failed or permission denied
+  Future<bool> subscribeWithNotificationPermission();
+
+  /// Unsubscribe from daily jokes (no permission required)
+  /// Returns true if unsubscription was successful
+  Future<bool> unsubscribe();
 }
 
 /// Concrete implementation of the daily joke subscription service
@@ -35,7 +41,6 @@ class DailyJokeSubscriptionServiceImpl implements DailyJokeSubscriptionService {
     if (_cachedSubscriptionState != null) {
       return _cachedSubscriptionState!;
     }
-
     final prefs = await SharedPreferences.getInstance();
     _cachedSubscriptionState = prefs.getBool(_subscriptionKey) ?? false;
     return _cachedSubscriptionState!;
@@ -71,27 +76,77 @@ class DailyJokeSubscriptionServiceImpl implements DailyJokeSubscriptionService {
     }
   }
 
-  /// Save subscription preference locally
-  Future<bool> _saveSubscriptionPreference(bool subscribed) async {
+  /// Complete subscription flow with notification permission handling
+  /// Returns true if subscription was successful, false if failed or permission denied
+  @override
+  Future<bool> subscribeWithNotificationPermission() async {
+    try {
+      // First, save the subscription preference
+      final prefSaved = await _setSubscriptionPreference(true);
+      if (!prefSaved) {
+        debugPrint('Failed to save subscription preference');
+        return false;
+      }
+
+      // Request notification permission
+      final notificationService = NotificationService();
+      final permissionGranted =
+          await notificationService.requestNotificationPermissions();
+
+      if (permissionGranted) {
+        // Permission granted, sync with FCM
+        debugPrint('Successfully subscribed with notification permission');
+        return true;
+      } else {
+        // Permission denied, rollback subscription
+        debugPrint('Notification permission denied, rolling back subscription');
+        await _setSubscriptionPreference(false);
+        return false;
+      }
+    } catch (e) {
+      debugPrint('Error in subscription flow: $e');
+      // Rollback on any error
+      await _setSubscriptionPreference(false);
+      return false;
+    } finally {
+      // Ensure subscription is synced after any operation
+      await ensureSubscriptionSync();
+    }
+  }
+
+  /// Unsubscribe from daily jokes (no permission required)
+  /// Returns true if unsubscription was successful
+  @override
+  Future<bool> unsubscribe() async {
+    try {
+      final prefSaved = await _setSubscriptionPreference(false);
+      if (prefSaved) {
+        debugPrint('Successfully unsubscribed');
+        return true;
+      } else {
+        debugPrint('Failed to save unsubscription preference');
+        return false;
+      }
+    } catch (e) {
+      debugPrint('Error unsubscribing: $e');
+      return false;
+    } finally {
+      // Ensure subscription is synced after any operation
+      await ensureSubscriptionSync();
+    }
+  }
+
+  // Save subscription preference locally and update cache
+  Future<bool> _setSubscriptionPreference(bool subscribed) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool(_subscriptionKey, subscribed);
+      _cachedSubscriptionState = subscribed;
       return true;
     } catch (e) {
       debugPrint('Failed to save subscription preference: $e');
       return false;
     }
-  }
-
-  /// Save subscription preference immediately (for UI responsiveness)
-  /// Call ensureSubscriptionSync afterward to handle FCM operations
-  @override
-  Future<bool> setSubscriptionPreference(bool subscribed) async {
-    final success = await _saveSubscriptionPreference(subscribed);
-    if (success) {
-      _cachedSubscriptionState = subscribed; // Update cache
-    }
-    return success;
   }
 }
 
@@ -207,11 +262,9 @@ class SubscriptionPromptNotifier
 
   /// Handle subscription (user clicked "Subscribe")
   Future<bool> subscribeUser() async {
-    final success = await _subscriptionService.setSubscriptionPreference(true);
+    final success =
+        await _subscriptionService.subscribeWithNotificationPermission();
     if (success) {
-      // Sync with FCM in background
-      _subscriptionService.ensureSubscriptionSync();
-
       state = state.copyWith(
         isSubscribed: true,
         hasUserMadeChoice: true,
@@ -225,8 +278,8 @@ class SubscriptionPromptNotifier
 
   /// Mark that prompt was actually shown to user
   Future<void> markPromptShown() async {
-    // Save subscription preference as false to ensure popup never shows again
-    await _subscriptionService.setSubscriptionPreference(false);
+    // Use unsubscribe to ensure popup never shows again (sets preference to false)
+    await _subscriptionService.unsubscribe();
 
     state = state.copyWith(hasUserMadeChoice: true);
   }

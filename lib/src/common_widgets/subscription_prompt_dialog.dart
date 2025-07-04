@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
-import 'package:snickerdoodle/src/core/services/notification_service.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 
 class SubscriptionPromptDialog extends ConsumerStatefulWidget {
@@ -170,9 +169,6 @@ class _SubscriptionPromptDialogState
           duration: const Duration(seconds: 3),
         ),
       );
-
-      // Request notification permission
-      await _requestNotificationPermission();
     } else if (mounted) {
       // Show error message
       ScaffoldMessenger.of(context).showSnackBar(
@@ -224,31 +220,6 @@ class _SubscriptionPromptDialogState
           duration: const Duration(seconds: 4),
         ),
       );
-    }
-  }
-
-  Future<void> _requestNotificationPermission() async {
-    try {
-      final notificationService = NotificationService();
-      final granted =
-          await notificationService.requestNotificationPermissions();
-
-      if (granted) {
-        debugPrint('Notification permission granted');
-      } else {
-        debugPrint('Notification permission denied');
-        // Show a non-intrusive message that they can still get jokes in the app
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('You can still enjoy jokes in the app anytime! 😊'),
-              duration: Duration(seconds: 2),
-            ),
-          );
-        }
-      }
-    } catch (e) {
-      debugPrint('Error requesting notification permission: $e');
     }
   }
 }

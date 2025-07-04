@@ -388,6 +388,28 @@ final filteredJokesProvider = Provider<AsyncValue<List<Joke>>>((ref) {
   );
 });
 
+// Provider for rating mode that loads jokes once and doesn't listen for changes
+final ratingModeJokesProvider = FutureProvider<List<Joke>>((ref) async {
+  // Use read instead of watch to avoid listening for changes
+  final repository = ref.read(jokeRepositoryProvider);
+  final jokes = await repository.getJokes().first;
+  
+  // Filter for unrated jokes: have images AND num_thumbs_up == 0 AND num_thumbs_down == 0
+  final filteredJokes = jokes.where((joke) {
+    final hasImages =
+        joke.setupImageUrl != null &&
+        joke.setupImageUrl!.isNotEmpty &&
+        joke.punchlineImageUrl != null &&
+        joke.punchlineImageUrl!.isNotEmpty;
+
+    final isUnrated = joke.numThumbsUp == 0 && joke.numThumbsDown == 0;
+
+    return hasImages && isUnrated;
+  }).toList();
+
+  return filteredJokes;
+});
+
 // Data class to hold a joke with its associated date
 class JokeWithDate {
   final Joke joke;

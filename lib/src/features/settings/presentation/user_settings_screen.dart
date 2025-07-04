@@ -686,6 +686,9 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
     final statusNotifier = ref.read(subscriptionStatusProvider.notifier);
 
     try {
+      // Update UI state immediately
+      statusNotifier.state = AsyncValue.data(enable);
+
       bool success;
       if (enable) {
         // Subscribe with notification permission
@@ -699,21 +702,6 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
       // Update UI state based on the operation result
       if (success) {
         statusNotifier.state = AsyncValue.data(enable);
-
-        // Show success message
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                enable
-                    ? 'Successfully subscribed to daily jokes! 🎉'
-                    : 'Successfully unsubscribed from daily jokes',
-              ),
-              backgroundColor: Theme.of(context).colorScheme.primary,
-              duration: const Duration(seconds: 3),
-            ),
-          );
-        }
       } else {
         // Operation failed
         if (enable) {

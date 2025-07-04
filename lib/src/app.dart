@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:snickerdoodle/src/common_widgets/subscription_prompt_overlay.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/auth/presentation/auth_wrapper.dart';
 import 'package:snickerdoodle/src/features/settings/application/theme_settings_service.dart';
@@ -17,11 +18,11 @@ class App extends ConsumerWidget {
 
     return MaterialApp(
       navigatorKey: navigatorKey,
-      title: 'Snickerdoodle',
+      title: 'Snickerdoodle Jokes',
       theme: lightTheme,
       darkTheme: darkTheme,
       themeMode: themeMode,
-      home: const AuthWrapper(),
+      home: SubscriptionPromptOverlay(child: const AuthWrapper()),
     );
   }
 }

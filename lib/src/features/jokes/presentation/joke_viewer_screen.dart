@@ -174,7 +174,7 @@ class _JokeViewerScreenState extends ConsumerState<JokeViewerScreen> {
     final jokesWithDateAsyncValue = ref.watch(monthlyJokesWithDateProvider);
 
     return AdaptiveAppBarScreen(
-      title: 'Jokes',
+      title: 'Daily Jokes',
       body: jokesWithDateAsyncValue.when(
         data: (jokesWithDates) {
           if (jokesWithDates.isEmpty) {

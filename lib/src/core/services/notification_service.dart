@@ -30,9 +30,7 @@ class NotificationService {
   /// These can happen after UI loads without affecting user experience
   void _initializeBackgroundServices() {
     // Run in background without awaiting
-    _requestFCMPermissions().catchError((e) {
-      debugPrint('Background FCM permission request failed: $e');
-    });
+    // Note: Permission request only happens when user subscribes
 
     _initializeFCMListeners().catchError((e) {
       debugPrint('Background FCM initialization failed: $e');
@@ -43,18 +41,23 @@ class NotificationService {
     });
   }
 
-  /// Request FCM permissions (blocking - user needs to respond)
-  Future<void> _requestFCMPermissions() async {
+  /// Request FCM permissions when user subscribes (blocking - user needs to respond)
+  Future<bool> requestNotificationPermissions() async {
     try {
-      await FirebaseMessaging.instance.requestPermission(
+      final settings = await FirebaseMessaging.instance.requestPermission(
         alert: true,
         badge: true,
         sound: true,
         provisional: false,
       );
-      debugPrint('FCM permissions requested');
+
+      final granted =
+          settings.authorizationStatus == AuthorizationStatus.authorized;
+      debugPrint('FCM permissions requested - granted: $granted');
+      return granted;
     } catch (e) {
       debugPrint('Failed to request FCM permissions: $e');
+      return false;
     }
   }
 

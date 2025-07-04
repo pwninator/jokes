@@ -4,6 +4,7 @@ import 'package:snickerdoodle/src/common_widgets/cached_joke_image.dart';
 import 'package:snickerdoodle/src/common_widgets/holdable_button.dart';
 import 'package:snickerdoodle/src/common_widgets/joke_reaction_button.dart';
 import 'package:snickerdoodle/src/core/providers/image_providers.dart';
+import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_editor_screen.dart';
 import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
@@ -94,6 +95,14 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
     // Notify parent about image state change
     if (widget.onImageStateChanged != null) {
       widget.onImageStateChanged!(index);
+    }
+
+    // Trigger subscription prompt when user views punchline (index 1)
+    if (index == 1) {
+      final subscriptionPromptNotifier = ref.read(
+        subscriptionPromptProvider.notifier,
+      );
+      subscriptionPromptNotifier.startPromptTimer();
     }
   }
 

@@ -65,10 +65,14 @@ class CoreMocks {
       ),
 
       // Mock subscription status provider
-      subscriptionStatusProvider.overrideWith((ref) => const AsyncValue.data(false)),
+      subscriptionStatusProvider.overrideWith(
+        (ref) => const AsyncValue.data(false),
+      ),
 
       // Mock app version provider with test data
-      appVersionProvider.overrideWith((ref) => Future.value('Snickerdoodle v0.0.1+1')),
+      appVersionProvider.overrideWith(
+        (ref) => Future.value('Snickerdoodle v0.0.1+1'),
+      ),
 
       // Add any additional overrides
       ...additionalOverrides,
@@ -86,12 +90,14 @@ class CoreMocks {
       final url = invocation.positionalArguments[0] as String?;
       return url ?? transparentImageDataUrl;
     });
-    when(() => mock.processImageUrl(
-      any(),
-      width: any(named: 'width'),
-      height: any(named: 'height'),
-      quality: any(named: 'quality'),
-    )).thenAnswer((invocation) {
+    when(
+      () => mock.processImageUrl(
+        any(),
+        width: any(named: 'width'),
+        height: any(named: 'height'),
+        quality: any(named: 'quality'),
+      ),
+    ).thenAnswer((invocation) {
       final url = invocation.positionalArguments[0] as String?;
       return url ?? transparentImageDataUrl;
     });
@@ -129,9 +135,12 @@ class CoreMocks {
   ) {
     // Setup default behaviors for subscription service
     when(() => mock.isSubscribed()).thenAnswer((_) async => false);
+    when(
+      () => mock.hasUserMadeSubscriptionChoice(),
+    ).thenAnswer((_) async => false);
     when(() => mock.ensureSubscriptionSync()).thenAnswer((_) async => true);
-    when(() => mock.setSubscriptionPreference(any())).thenAnswer((_) async => true);
-    when(() => mock.hasBeenPromptedForSubscription()).thenAnswer((_) async => false);
-    when(() => mock.markUserPromptedForSubscription()).thenAnswer((_) async => true);
+    when(
+      () => mock.setSubscriptionPreference(any()),
+    ).thenAnswer((_) async => true);
   }
 }

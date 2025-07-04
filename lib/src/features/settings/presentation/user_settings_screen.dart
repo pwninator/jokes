@@ -253,7 +253,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                           appVersionAsync.when(
                             data: (version) => version,
                             loading: () => 'Loading version...',
-                            error: (error, stack) => 'Snickerdoodle',
+                            error: (error, stack) => 'Snickerdoodle Jokes',
                           ),
                           style: TextStyle(
                             fontSize: 12,

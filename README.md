@@ -1,6 +1,6 @@
-# Snickerdoodle - A Jokes App
+# Snickerdoodle Jokes - A Jokes App
 
-Snickerdoodle is a mobile application built with Flutter that allows users to browse, laugh at, and manage a collection of jokes. It features user authentication, joke submissions (admin-only), and personalized user settings.
+Snickerdoodle Jokes is a mobile application built with Flutter that allows users to browse, laugh at, and manage a collection of jokes. It features user authentication, joke submissions (admin-only), and personalized user settings.
 
 ## Getting Started
 

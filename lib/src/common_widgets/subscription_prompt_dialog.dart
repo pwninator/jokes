@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
-import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 
 class SubscriptionPromptDialog extends ConsumerStatefulWidget {
   const SubscriptionPromptDialog({super.key});
@@ -170,18 +169,25 @@ class _SubscriptionPromptDialogState
         ),
       );
     } else if (mounted) {
+      // Close dialog
+      Navigator.of(context).pop();
+
       // Show error message
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Row(
+          content: Row(
             children: [
-              Icon(Icons.error, color: Colors.white),
-              SizedBox(width: 8),
-              Text('Failed to subscribe. Please try again.'),
+              const Icon(Icons.error, color: Colors.white),
+              const SizedBox(width: 8),
+              Expanded(
+                child: const Text(
+                  'Notification permission is required for daily jokes. If you change your mind, you can subscribe anytime in Settings! 😊',
+                ),
+              ),
             ],
           ),
-          backgroundColor: Theme.of(context).appColors.authError,
-          duration: const Duration(seconds: 3),
+          backgroundColor: Theme.of(context).colorScheme.primary,
+          duration: const Duration(seconds: 8),
         ),
       );
     }

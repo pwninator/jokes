@@ -246,7 +246,7 @@ class SubscriptionPromptNotifier
 
     state = state.copyWith(isTimerActive: true);
 
-    _promptTimer = Timer(const Duration(seconds: 5), () {
+    _promptTimer = Timer(const Duration(seconds: 4), () {
       // Double-check state hasn't changed during timer
       if (!state.shouldSkipPromptLogic && mounted) {
         state = state.copyWith(shouldShowPrompt: true, isTimerActive: false);

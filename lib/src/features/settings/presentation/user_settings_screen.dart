@@ -723,7 +723,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: const Text(
-                  'Notification permission is required for daily jokes. You can still enjoy jokes in the app anytime! 😊',
+                  'Notification permission is required for daily jokes.',
                 ),
                 backgroundColor: Theme.of(context).colorScheme.secondary,
                 duration: const Duration(seconds: 4),

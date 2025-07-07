@@ -23,21 +23,24 @@ class AdaptiveAppBarScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
-    
+    final isLandscape =
+        MediaQuery.of(context).orientation == Orientation.landscape;
+
     return Scaffold(
-      appBar: isLandscape 
-          ? PreferredSize(
-              preferredSize: const Size.fromHeight(8.0),
-              child: AppBar(
-                backgroundColor: Theme.of(context).colorScheme.surface,
-                elevation: 0,
-                automaticallyImplyLeading: false,
-              ),
-            )
-          : AppBarWidget(title: title),
+      appBar:
+          isLandscape
+              ? PreferredSize(
+                preferredSize: const Size.fromHeight(8.0),
+                child: AppBar(
+                  backgroundColor: Theme.of(context).colorScheme.surface,
+                  elevation: 0,
+                  automaticallyImplyLeading: false,
+                  scrolledUnderElevation: 0,
+                ),
+              )
+              : AppBarWidget(title: title),
       body: body,
       floatingActionButton: floatingActionButton,
     );
   }
-} 
+}

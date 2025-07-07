@@ -97,40 +97,41 @@ class MainNavigationWidgetState extends ConsumerState<MainNavigationWidget> {
           isLandscape
               ? Row(
                 children: [
-                  SizedBox(
-                    width:
-                        200, // Fixed width to accommodate icon + text horizontally
-                    child: NavigationRail(
-                      destinations: railDestinations,
-                      selectedIndex: _selectedIndex,
-                      onDestinationSelected: (index) {
-                        setState(() {
-                          _selectedIndex = index;
-                        });
-                      },
-                      backgroundColor: Theme.of(context).colorScheme.surface,
-                      selectedIconTheme: IconThemeData(
-                        color: Theme.of(context).colorScheme.primary,
+                  SafeArea(
+                    child: SizedBox(
+                      width: 160,
+                      child: NavigationRail(
+                        destinations: railDestinations,
+                        selectedIndex: _selectedIndex,
+                        onDestinationSelected: (index) {
+                          setState(() {
+                            _selectedIndex = index;
+                          });
+                        },
+                        backgroundColor: Theme.of(context).colorScheme.surface,
+                        selectedIconTheme: IconThemeData(
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                        unselectedIconTheme: IconThemeData(
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onSurface.withValues(alpha: 0.6),
+                        ),
+                        selectedLabelTextStyle: TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
+                        unselectedLabelTextStyle: TextStyle(
+                          fontWeight: FontWeight.normal,
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onSurface.withValues(alpha: 0.6),
+                        ),
+                        extended:
+                            true, // This ensures icon and text are on the same line
+                        useIndicator:
+                            false, // No background color on selected item
                       ),
-                      unselectedIconTheme: IconThemeData(
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.onSurface.withValues(alpha: 0.6),
-                      ),
-                      selectedLabelTextStyle: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                      unselectedLabelTextStyle: TextStyle(
-                        fontWeight: FontWeight.normal,
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.onSurface.withValues(alpha: 0.6),
-                      ),
-                      extended:
-                          true, // This ensures icon and text are on the same line
-                      useIndicator:
-                          false, // No background color on selected item
                     ),
                   ),
                   const VerticalDivider(thickness: 1, width: 1),

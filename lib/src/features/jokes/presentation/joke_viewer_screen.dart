@@ -33,7 +33,7 @@ class _JokeViewerScreenState extends ConsumerState<JokeViewerScreen> {
   @override
   void initState() {
     super.initState();
-    _pageController = PageController(viewportFraction: 0.9);
+    _pageController = PageController(viewportFraction: 1.0);
     _pageController.addListener(_onScrollChanged);
 
     // Register reset callback if provided
@@ -231,9 +231,14 @@ class _JokeViewerScreenState extends ConsumerState<JokeViewerScreen> {
                     jokesToPreload.add(jokesWithDates[index + 2].joke);
                   }
 
+                  // Determine orientation and apply appropriate sizing
+                  final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
+                  
                   return Center(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
+                    child: Container(
+                      width: isLandscape ? null : double.infinity,
+                      height: isLandscape ? double.infinity : null,
+                      padding: EdgeInsets.all(isLandscape ? 0.0 : 16.0),
                       child: JokeCard(
                         joke: joke,
                         index: index,
@@ -257,7 +262,7 @@ class _JokeViewerScreenState extends ConsumerState<JokeViewerScreen> {
               // Static hint overlay that doesn't scroll
               if (_shouldShowHint())
                 Positioned(
-                  bottom: 20,
+                  bottom: 12,
                   left: 0,
                   right: 0,
                   child: Center(

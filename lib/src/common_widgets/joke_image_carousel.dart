@@ -478,14 +478,14 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
     );
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 14.0),
+      padding: const EdgeInsets.only(bottom: 24.0),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           // Title (if provided)
           if (widget.title != null)
             Padding(
-              padding: const EdgeInsets.only(bottom: 12.0),
+              padding: const EdgeInsets.only(bottom: 8.0),
               child: Text(
                 widget.title!,
                 style: theme.textTheme.titleMedium?.copyWith(
@@ -531,54 +531,40 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
             ),
           ),
 
-          // Page indicators and navigation hints
-          Padding(
-            padding: const EdgeInsets.all(12.0),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Page indicators and reaction buttons row
-                Row(
-                  children: [
-                    // Left spacer
-                    const Expanded(child: SizedBox()),
-                    // Page indicators (centered)
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        _buildPageIndicator(0, theme),
-                        const SizedBox(width: 8),
-                        _buildPageIndicator(1, theme),
-                      ],
-                    ),
-                    // Right save button, thumbs buttons, or spacer
-                    Expanded(
-                      child:
-                          widget.showSaveButton
-                              ? Align(
-                                alignment: Alignment.centerRight,
-                                child: SaveJokeButton(jokeId: widget.joke.id),
-                              )
-                              : widget.showThumbsButtons
-                              ? Align(
-                                alignment: Alignment.centerRight,
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    ThumbsUpJokeButton(jokeId: widget.joke.id),
-                                    const SizedBox(width: 8),
-                                    ThumbsDownJokeButton(
-                                      jokeId: widget.joke.id,
-                                    ),
-                                  ],
-                                ),
-                              )
-                              : const SizedBox(),
-                    ),
-                  ],
-                ),
-              ],
-            ),
+          // Page indicators and reaction buttons row
+          Row(
+            children: [
+              // Left spacer
+              const Expanded(child: SizedBox()),
+
+              // Page indicators (centered)
+              _buildPageIndicator(0, theme),
+              const SizedBox(width: 8),
+              _buildPageIndicator(1, theme),
+
+              // Right save button, thumbs buttons, or spacer
+              Expanded(
+                child:
+                    widget.showSaveButton
+                        ? Align(
+                          alignment: Alignment.centerRight,
+                          child: SaveJokeButton(jokeId: widget.joke.id),
+                        )
+                        : widget.showThumbsButtons
+                        ? Align(
+                          alignment: Alignment.centerRight,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              ThumbsUpJokeButton(jokeId: widget.joke.id),
+                              const SizedBox(width: 8),
+                              ThumbsDownJokeButton(jokeId: widget.joke.id),
+                            ],
+                          ),
+                        )
+                        : const SizedBox(),
+              ),
+            ],
           ),
 
           // Regenerate buttons (only shown in admin mode)

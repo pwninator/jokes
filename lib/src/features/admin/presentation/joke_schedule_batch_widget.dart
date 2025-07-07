@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:snickerdoodle/src/common_widgets/holdable_button.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/calendar_grid_widget.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_schedule_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_schedule_batch.dart';
@@ -105,28 +106,51 @@ class JokeScheduleBatchWidget extends ConsumerWidget {
                             monthDate,
                           )
                           : null,
-                                                        child:
-                       () {
-                         final state = ref.watch(autoFillProvider);
-                         final monthKey = '${selectedScheduleId ?? ''}_${monthDate.year}_${monthDate.month}';
-                         return state.processingMonths.contains(monthKey);
-                       }()
-                          ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                              key: Key('auto-fill-loading'),
-                              strokeWidth: 2,
-                            ),
-                          )
-                          : const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.auto_awesome, size: 16),
-                              SizedBox(width: 4),
-                              Text('Auto Fill'),
-                            ],
+                  child: () {
+                    final state = ref.watch(autoFillProvider);
+                    final monthKey =
+                        '${selectedScheduleId ?? ''}_${monthDate.year}_${monthDate.month}';
+                    return state.processingMonths.contains(monthKey);
+                  }()
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            key: Key('auto-fill-loading'),
+                            strokeWidth: 2,
                           ),
+                        )
+                      : const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.auto_awesome, size: 16),
+                            SizedBox(width: 4),
+                            Text('Auto Fill'),
+                          ],
+                        ),
+                ),
+                const SizedBox(width: 8),
+                SizedBox(
+                  width: 40, // Constrain width for a circular-like button
+                  child: HoldableButton(
+                    theme: theme,
+                    icon: Icons.delete_outline,
+                    color: theme.colorScheme.errorContainer,
+                    onTap: () {
+                      // Do nothing on tap
+                    },
+                    onHoldComplete: () {
+                      if (selectedScheduleId != null) {
+                        _deleteBatch(
+                          context,
+                          ref,
+                          selectedScheduleId,
+                          monthDate,
+                        );
+                      }
+                    },
+                    tooltip: 'Delete this month\'s schedule',
+                  ),
                 ),
               ],
             ),
@@ -332,5 +356,41 @@ class JokeScheduleBatchWidget extends ConsumerWidget {
             ],
           ),
     );
+  }
+
+  Future<void> _deleteBatch(
+    BuildContext context,
+    WidgetRef ref,
+    String scheduleId, // Made non-nullable
+    DateTime monthDate,
+  ) async {
+    try {
+      final batchId = JokeScheduleBatch.generateId(
+        scheduleId,
+        monthDate.year,
+        monthDate.month,
+      );
+      await ref.read(jokeScheduleRepositoryProvider).deleteBatch(batchId);
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Successfully deleted schedule for ${monthNames[monthDate.month]} ${monthDate.year}',
+            ),
+            backgroundColor: Theme.of(context).colorScheme.primary,
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to delete batch: $e'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    }
   }
 }

@@ -17,15 +17,15 @@ abstract class AnalyticsService {
   /// Log when user views a joke setup
   Future<void> logJokeSetupViewed(
     String jokeId, {
-    DateTime? jokeCreationDate,
-    bool? hasImages,
+    required bool hasImages,
+    required String navigationMethod,
   });
 
   /// Log when user views a joke punchline
   Future<void> logJokePunchlineViewed(
     String jokeId, {
-    DateTime? jokeCreationDate,
-    bool? hasImages,
+    required bool hasImages,
+    required String navigationMethod,
   });
 
   /// Log when user navigates through jokes
@@ -129,15 +129,13 @@ class FirebaseAnalyticsService implements AnalyticsService {
   @override
   Future<void> logJokeSetupViewed(
     String jokeId, {
-    DateTime? jokeCreationDate,
-    bool? hasImages,
+    required bool hasImages,
+    required String navigationMethod,
   }) async {
     await _logEvent(AnalyticsEvent.jokeSetupViewed, {
       AnalyticsParameters.jokeId: jokeId,
-      if (jokeCreationDate != null)
-        AnalyticsParameters.jokeCreationDate:
-            jokeCreationDate.toIso8601String(),
-      if (hasImages != null) AnalyticsParameters.jokeHasImages: hasImages,
+      AnalyticsParameters.jokeHasImages: hasImages,
+      AnalyticsParameters.navigationMethod: navigationMethod,
       AnalyticsParameters.userType: _getUserType(_currentUser),
     });
   }
@@ -145,15 +143,13 @@ class FirebaseAnalyticsService implements AnalyticsService {
   @override
   Future<void> logJokePunchlineViewed(
     String jokeId, {
-    DateTime? jokeCreationDate,
-    bool? hasImages,
+    required bool hasImages,
+    required String navigationMethod,
   }) async {
     await _logEvent(AnalyticsEvent.jokePunchlineViewed, {
       AnalyticsParameters.jokeId: jokeId,
-      if (jokeCreationDate != null)
-        AnalyticsParameters.jokeCreationDate:
-            jokeCreationDate.toIso8601String(),
-      if (hasImages != null) AnalyticsParameters.jokeHasImages: hasImages,
+      AnalyticsParameters.jokeHasImages: hasImages,
+      AnalyticsParameters.navigationMethod: navigationMethod,
       AnalyticsParameters.userType: _getUserType(_currentUser),
     });
   }

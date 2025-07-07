@@ -5,6 +5,7 @@ import 'package:snickerdoodle/src/common_widgets/holdable_button.dart';
 import 'package:snickerdoodle/src/common_widgets/joke_reaction_button.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/providers/image_providers.dart';
+import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_editor_screen.dart';
@@ -45,6 +46,9 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
   late PageController _pageController;
   int _currentIndex = 0;
 
+  // Track the navigation method that triggered the current page change
+  String _lastNavigationMethod = AnalyticsNavigationMethod.swipe;
+
   @override
   void initState() {
     super.initState();
@@ -66,7 +70,11 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
           joke.punchlineImageUrl != null &&
           joke.punchlineImageUrl!.isNotEmpty;
 
-      analyticsService.logJokeSetupViewed(joke.id, hasImages: hasImages);
+      analyticsService.logJokeSetupViewed(
+        joke.id,
+        hasImages: hasImages,
+        navigationMethod: AnalyticsNavigationMethod.none,
+      );
     });
   }
 
@@ -120,10 +128,18 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
 
     if (index == 0) {
       // User is viewing setup image
-      analyticsService.logJokeSetupViewed(joke.id, hasImages: hasImages);
+      analyticsService.logJokeSetupViewed(
+        joke.id,
+        hasImages: hasImages,
+        navigationMethod: _lastNavigationMethod,
+      );
     } else if (index == 1) {
       // User is viewing punchline image
-      analyticsService.logJokePunchlineViewed(joke.id, hasImages: hasImages);
+      analyticsService.logJokePunchlineViewed(
+        joke.id,
+        hasImages: hasImages,
+        navigationMethod: _lastNavigationMethod,
+      );
 
       // Trigger subscription prompt when user views punchline (index 1)
       final subscriptionPromptNotifier = ref.read(
@@ -131,6 +147,9 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
       );
       subscriptionPromptNotifier.startPromptTimer();
     }
+
+    // Reset navigation method to swipe for next potential swipe gesture
+    _lastNavigationMethod = AnalyticsNavigationMethod.swipe;
   }
 
   void _onImageTap() {
@@ -140,6 +159,8 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
       if (widget.onSetupTap != null) {
         widget.onSetupTap!();
       }
+      // Set navigation method to tap before triggering page change
+      _lastNavigationMethod = AnalyticsNavigationMethod.tap;
       // Always do default behavior: go to punchline
       _pageController.nextPage(
         duration: const Duration(milliseconds: 300),
@@ -150,6 +171,8 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
       if (widget.onPunchlineTap != null) {
         widget.onPunchlineTap!();
       } else {
+        // Set navigation method to tap before triggering page change
+        _lastNavigationMethod = AnalyticsNavigationMethod.tap;
         // Default behavior: go back to setup
         _pageController.previousPage(
           duration: const Duration(milliseconds: 300),

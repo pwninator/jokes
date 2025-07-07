@@ -54,16 +54,16 @@ class AnalyticsMocks {
     when(
       () => mock.logJokeSetupViewed(
         any(),
-        jokeCreationDate: any(named: 'jokeCreationDate'),
         hasImages: any(named: 'hasImages'),
+        navigationMethod: any(named: 'navigationMethod'),
       ),
     ).thenAnswer((_) async {});
 
     when(
       () => mock.logJokePunchlineViewed(
         any(),
-        jokeCreationDate: any(named: 'jokeCreationDate'),
         hasImages: any(named: 'hasImages'),
+        navigationMethod: any(named: 'navigationMethod'),
       ),
     ).thenAnswer((_) async {});
 

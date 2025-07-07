@@ -50,6 +50,7 @@ class AnalyticsUserType {
 
 /// Navigation method values
 class AnalyticsNavigationMethod {
+  static const String none = 'none';
   static const String tap = 'tap';
   static const String swipe = 'swipe';
   static const String notification = 'notification';

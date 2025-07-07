@@ -2,6 +2,7 @@ import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:snickerdoodle/src/core/services/analytics_events.dart';
+import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/features/auth/data/models/app_user.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
@@ -146,6 +147,7 @@ void main() {
         await analyticsService.logJokeSetupViewed(
           'test-joke-id',
           hasImages: true,
+          navigationMethod: AnalyticsNavigationMethod.swipe,
         );
 
         // assert - in debug mode, we should see debug logging but no Firebase calls
@@ -165,6 +167,7 @@ void main() {
         await analyticsService.logJokePunchlineViewed(
           'test-joke-id',
           hasImages: false,
+          navigationMethod: AnalyticsNavigationMethod.tap,
         );
 
         // assert - in debug mode, we should see debug logging but no Firebase calls
@@ -309,7 +312,11 @@ void main() {
 
         // act & assert - should not throw
         await expectLater(
-          analyticsService.logJokeSetupViewed('test-joke-id'),
+          analyticsService.logJokeSetupViewed(
+            'test-joke-id',
+            hasImages: true,
+            navigationMethod: AnalyticsNavigationMethod.swipe,
+          ),
           completes,
         );
       });

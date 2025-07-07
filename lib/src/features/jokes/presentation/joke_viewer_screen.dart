@@ -279,6 +279,7 @@ class _JokeViewerScreenState extends ConsumerState<JokeViewerScreen> {
                       height: isLandscape ? double.infinity : null,
                       padding: EdgeInsets.all(isLandscape ? 0.0 : 16.0),
                       child: JokeCard(
+                        key: Key(joke.id),
                         joke: joke,
                         index: index,
                         title: formattedDate,

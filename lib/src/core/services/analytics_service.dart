@@ -33,7 +33,7 @@ abstract class AnalyticsService {
   /// Log when user navigates through jokes
   Future<void> logJokeNavigation(
     String jokeId,
-    int daysBack, {
+    int jokeScrollDepth, {
     required String method,
     required String jokeContext,
   });
@@ -165,13 +165,13 @@ class FirebaseAnalyticsService implements AnalyticsService {
   @override
   Future<void> logJokeNavigation(
     String jokeId,
-    int daysBack, {
+    int jokeScrollDepth, {
     required String method,
     required String jokeContext,
   }) async {
     await _logEvent(AnalyticsEvent.jokeNavigated, {
       AnalyticsParameters.jokeId: jokeId,
-      AnalyticsParameters.daysBack: daysBack,
+      AnalyticsParameters.jokeScrollDepth: jokeScrollDepth,
       AnalyticsParameters.navigationMethod: method,
       AnalyticsParameters.jokeContext: jokeContext,
       AnalyticsParameters.userType: _getUserType(_currentUser),

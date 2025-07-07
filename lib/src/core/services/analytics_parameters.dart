@@ -13,7 +13,7 @@ class AnalyticsParameters {
   static const String jokeContext = 'joke_context';
 
   // User interaction parameters
-  static const String daysBack = 'days_back';
+  static const String jokeScrollDepth = 'joke_scroll_depth';
   static const String reactionType = 'reaction_type';
   static const String reactionAdded = 'reaction_added';
   static const String userType = 'user_type';

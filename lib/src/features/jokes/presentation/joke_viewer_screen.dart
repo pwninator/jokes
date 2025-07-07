@@ -234,13 +234,13 @@ class _JokeViewerScreenState extends ConsumerState<JokeViewerScreen> {
                     // Track analytics for joke navigation
                     final jokeWithDate = jokesWithDates[index];
                     final joke = jokeWithDate.joke;
-                    final daysBack =
-                        index; // index 0 = today (0 days back), index 1 = yesterday (1 day back), etc.
+                    // index 0 = today (0 days back), index 1 = yesterday (1 day back), etc.
+                    final jokeScrollDepth = index;
 
                     final analyticsService = ref.read(analyticsServiceProvider);
                     analyticsService.logJokeNavigation(
                       joke.id,
-                      daysBack,
+                      jokeScrollDepth,
                       method: _lastNavigationMethod,
                       jokeContext: widget.jokeContext,
                     );

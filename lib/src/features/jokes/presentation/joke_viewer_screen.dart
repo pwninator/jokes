@@ -32,6 +32,9 @@ class _JokeViewerScreenState extends ConsumerState<JokeViewerScreen> {
   // Track current image state for each joke (joke index -> image index: 0=setup, 1=punchline)
   final Map<int, int> _currentImageStates = {};
 
+  // Track the navigation method that triggered the current page change
+  String _lastNavigationMethod = AnalyticsNavigationMethod.swipe;
+
   @override
   void initState() {
     super.initState();
@@ -152,11 +155,13 @@ class _JokeViewerScreenState extends ConsumerState<JokeViewerScreen> {
 
     final nextPage = _currentPage + 1;
     if (nextPage < totalJokes) {
+      // Set navigation method to tap before triggering page change
+      _lastNavigationMethod = AnalyticsNavigationMethod.tap;
       _pageController.nextPage(
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
       );
-      // Note: Analytics will be tracked in onPageChanged callback with method: 'swipe'
+      // Note: Analytics will be tracked in onPageChanged callback
       // which is triggered by the nextPage() call above
     }
   }
@@ -227,8 +232,11 @@ class _JokeViewerScreenState extends ConsumerState<JokeViewerScreen> {
                     analyticsService.logJokeNavigation(
                       joke.id,
                       daysBack,
-                      method: AnalyticsNavigationMethod.swipe,
+                      method: _lastNavigationMethod,
                     );
+
+                    // Reset navigation method to swipe for next potential swipe gesture
+                    _lastNavigationMethod = AnalyticsNavigationMethod.swipe;
                   }
                 },
                 itemBuilder: (context, index) {

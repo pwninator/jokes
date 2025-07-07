@@ -26,6 +26,12 @@ class JokeReactionsService {
     return allReactions;
   }
 
+  /// Get saved joke IDs in the order they were saved to SharedPreferences
+  Future<List<String>> getSavedJokeIds() async {
+    final prefs = await _prefs;
+    return prefs.getStringList(JokeReactionType.save.prefsKey) ?? [];
+  }
+
   /// Get user reactions for a specific joke
   Future<Set<JokeReactionType>> getUserReactionsForJoke(String jokeId) async {
     final prefs = await _prefs;
@@ -58,7 +64,7 @@ class JokeReactionsService {
   ) async {
     final prefs = await _prefs;
     final jokeIds = prefs.getStringList(reactionType.prefsKey) ?? [];
-    
+
     if (!jokeIds.contains(jokeId)) {
       jokeIds.add(jokeId);
       await prefs.setStringList(reactionType.prefsKey, jokeIds);
@@ -72,7 +78,7 @@ class JokeReactionsService {
   ) async {
     final prefs = await _prefs;
     final jokeIds = prefs.getStringList(reactionType.prefsKey) ?? [];
-    
+
     if (jokeIds.contains(jokeId)) {
       jokeIds.remove(jokeId);
       await prefs.setStringList(reactionType.prefsKey, jokeIds);
@@ -85,7 +91,7 @@ class JokeReactionsService {
     JokeReactionType reactionType,
   ) async {
     final hasReaction = await hasUserReaction(jokeId, reactionType);
-    
+
     if (hasReaction) {
       await removeUserReaction(jokeId, reactionType);
       return false; // Reaction was removed
@@ -114,4 +120,4 @@ class JokeReactionsService {
       await clearAllReactionsOfType(reactionType);
     }
   }
-} 
+}

@@ -31,6 +31,41 @@ class JokeRepository {
     }
   }
 
+  /// Get multiple jokes by their IDs in a single batch query
+  Future<List<Joke>> getJokesByIds(List<String> jokeIds) async {
+    if (jokeIds.isEmpty) {
+      return [];
+    }
+
+    try {
+      // Use 'in' query to fetch multiple documents in a single request
+      // Note: Firestore 'in' queries are limited to 10 items, so we need to batch them
+      const batchSize = 10;
+      final allJokes = <Joke>[];
+
+      for (int i = 0; i < jokeIds.length; i += batchSize) {
+        final batch = jokeIds.skip(i).take(batchSize).toList();
+
+        final querySnapshot =
+            await _firestore
+                .collection('jokes')
+                .where(FieldPath.documentId, whereIn: batch)
+                .get();
+
+        final jokes =
+            querySnapshot.docs.map((doc) {
+              return Joke.fromMap(doc.data(), doc.id);
+            }).toList();
+
+        allJokes.addAll(jokes);
+      }
+
+      return allJokes;
+    } catch (e) {
+      throw Exception('Failed to get jokes by IDs: $e');
+    }
+  }
+
   Future<void> updateJoke({
     required String jokeId,
     required String setupText,

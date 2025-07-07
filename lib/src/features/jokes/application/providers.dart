@@ -452,12 +452,12 @@ final ratingModeJokesProvider = FutureProvider<List<Joke>>((ref) async {
 // Data class to hold a joke with its associated date
 class JokeWithDate {
   final Joke joke;
-  final DateTime date;
+  final DateTime? date;
 
-  const JokeWithDate({required this.joke, required this.date});
+  const JokeWithDate({required this.joke, this.date});
 }
 
-// NEW: Monthly jokes provider that loads from joke_schedule_batches with dates
+// Monthly jokes provider that loads from joke_schedule_batches with dates
 final monthlyJokesWithDateProvider = StreamProvider<List<JokeWithDate>>((ref) {
   final repository = ref.watch(jokeScheduleRepositoryProvider);
 
@@ -530,18 +530,26 @@ final monthlyJokesWithDateProvider = StreamProvider<List<JokeWithDate>>((ref) {
   });
 });
 
-// NEW: Saved jokes provider that loads saved jokes from SharedPreferences
+// Saved jokes provider that loads saved jokes from SharedPreferences
 final savedJokesProvider = StreamProvider<List<JokeWithDate>>((ref) async* {
-  final reactionsState = ref.watch(jokeReactionsProvider);
   final jokeRepository = ref.watch(jokeRepositoryProvider);
+  final reactionsService = ref.watch(jokeReactionsServiceProvider);
 
-  // Get saved joke IDs (those with save reaction)
-  final savedJokeIds = <String>[];
-  for (final entry in reactionsState.userReactions.entries) {
-    if (entry.value.contains(JokeReactionType.save)) {
-      savedJokeIds.add(entry.key);
-    }
+  // Watch the reactions state to react to save/unsave changes
+  final reactionsState = ref.watch(jokeReactionsProvider);
+
+  // Check if there are any saved jokes in the reactions state
+  final hasSavedJokes = reactionsState.userReactions.values.any(
+    (reactions) => reactions.contains(JokeReactionType.save),
+  );
+
+  if (!hasSavedJokes) {
+    yield <JokeWithDate>[];
+    return;
   }
+
+  // Get saved joke IDs directly from SharedPreferences in the order they were saved
+  final savedJokeIds = await reactionsService.getSavedJokeIds();
 
   if (savedJokeIds.isEmpty) {
     yield <JokeWithDate>[];
@@ -549,31 +557,31 @@ final savedJokesProvider = StreamProvider<List<JokeWithDate>>((ref) async* {
   }
 
   try {
-    // Fetch full joke data for saved IDs
-    final savedJokes = <JokeWithDate>[];
+    // Fetch all jokes in a single batch query
+    final allJokes = await jokeRepository.getJokesByIds(savedJokeIds);
 
+    // Create a map for quick lookup while preserving order
+    final jokeMap = <String, Joke>{};
+    for (final joke in allJokes) {
+      jokeMap[joke.id] = joke;
+    }
+
+    // Build the result list in the same order as savedJokeIds
+    final savedJokes = <JokeWithDate>[];
     for (final jokeId in savedJokeIds) {
-      try {
-        final joke = await jokeRepository.getJokeById(jokeId);
-        if (joke != null) {
-          // Filter for jokes with images
-          if (joke.setupImageUrl != null &&
-              joke.setupImageUrl!.isNotEmpty &&
-              joke.punchlineImageUrl != null &&
-              joke.punchlineImageUrl!.isNotEmpty) {
-            // Use current date as placeholder since saved jokes don't have associated dates
-            savedJokes.add(JokeWithDate(joke: joke, date: DateTime.now()));
-          }
+      final joke = jokeMap[jokeId];
+      if (joke != null) {
+        // Filter for jokes with images
+        if (joke.setupImageUrl != null &&
+            joke.setupImageUrl!.isNotEmpty &&
+            joke.punchlineImageUrl != null &&
+            joke.punchlineImageUrl!.isNotEmpty) {
+          savedJokes.add(JokeWithDate(joke: joke));
         }
-      } catch (e) {
-        // Skip individual jokes that fail to load
-        debugPrint('Failed to load saved joke $jokeId: $e');
       }
     }
 
-    // Sort by joke ID (newest first, assuming IDs are chronological)
-    savedJokes.sort((a, b) => b.joke.id.compareTo(a.joke.id));
-
+    // Maintain the order from SharedPreferences (no sorting)
     yield savedJokes;
   } catch (e) {
     // Handle errors gracefully

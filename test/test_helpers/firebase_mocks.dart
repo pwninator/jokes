@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mocktail/mocktail.dart';
@@ -11,10 +12,17 @@ class MockJokeCloudFunctionService extends Mock
 
 class MockFirebaseAnalytics extends Mock implements FirebaseAnalytics {}
 
+class MockFirebaseFirestore extends Mock implements FirebaseFirestore {}
+
+class MockCollectionReference extends Mock implements CollectionReference {}
+
+class MockDocumentReference extends Mock implements DocumentReference {}
+
 /// Firebase-specific service mocks for unit tests
 class FirebaseMocks {
   static MockJokeCloudFunctionService? _mockCloudFunctionService;
   static MockFirebaseAnalytics? _mockFirebaseAnalytics;
+  static MockFirebaseFirestore? _mockFirebaseFirestore;
 
   /// Get or create mock cloud function service
   static MockJokeCloudFunctionService get mockCloudFunctionService {
@@ -30,10 +38,18 @@ class FirebaseMocks {
     return _mockFirebaseAnalytics!;
   }
 
+  /// Get or create mock Firebase Firestore
+  static MockFirebaseFirestore get mockFirebaseFirestore {
+    _mockFirebaseFirestore ??= MockFirebaseFirestore();
+    _setupFirebaseFirestoreDefaults(_mockFirebaseFirestore!);
+    return _mockFirebaseFirestore!;
+  }
+
   /// Reset all Firebase mocks (call this in setUp if needed)
   static void reset() {
     _mockCloudFunctionService = null;
     _mockFirebaseAnalytics = null;
+    _mockFirebaseFirestore = null;
   }
 
   /// Get Firebase-specific provider overrides
@@ -41,6 +57,9 @@ class FirebaseMocks {
     List<Override> additionalOverrides = const [],
   }) {
     return [
+      // Mock Firestore
+      firebaseFirestoreProvider.overrideWithValue(mockFirebaseFirestore),
+
       // Mock cloud function service
       jokeCloudFunctionServiceProvider.overrideWithValue(
         mockCloudFunctionService,
@@ -118,6 +137,10 @@ class FirebaseMocks {
         'data': {'jokes': []},
       },
     );
+  }
+
+  static void _setupFirebaseFirestoreDefaults(MockFirebaseFirestore mock) {
+    // Basic mock setup - methods will be mocked as needed in individual tests
   }
 }
 

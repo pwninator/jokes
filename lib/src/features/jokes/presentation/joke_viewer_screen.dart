@@ -256,7 +256,9 @@ class _JokeViewerScreenState extends ConsumerState<JokeViewerScreen> {
 
                   // Format date as title
                   final formattedDate =
-                      '${date.month}/${date.day}/${date.year}';
+                      date != null
+                          ? '${date.month}/${date.day}/${date.year}'
+                          : null;
 
                   final List<Joke> jokesToPreload = [];
                   if (index + 1 < jokesWithDates.length) {

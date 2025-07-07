@@ -294,5 +294,203 @@ void main() {
         verify(() => mockDocumentReference.delete()).called(1);
       });
     });
+
+    group('getJokeById', () {
+      setUp(() {
+        // Set up document reference behavior
+        when(
+          () => mockCollectionReference.doc(any()),
+        ).thenReturn(mockDocumentReference);
+      });
+
+      test('should return joke when document exists', () async {
+        const jokeId = 'test-joke-id';
+        final jokeData = {
+          'setup_text': 'Test setup',
+          'punchline_text': 'Test punchline',
+          'setup_image_url': 'https://example.com/setup.jpg',
+          'punchline_image_url': 'https://example.com/punchline.jpg',
+        };
+
+        final mockDocSnapshot = MockDocumentSnapshot();
+        when(() => mockDocSnapshot.exists).thenReturn(true);
+        when(() => mockDocSnapshot.data()).thenReturn(jokeData);
+        when(() => mockDocSnapshot.id).thenReturn(jokeId);
+        when(() => mockDocumentReference.get()).thenAnswer(
+          (_) async => mockDocSnapshot,
+        );
+
+        final result = await repository.getJokeById(jokeId);
+
+        expect(result, isNotNull);
+        expect(result!.id, jokeId);
+        expect(result.setupText, 'Test setup');
+        expect(result.punchlineText, 'Test punchline');
+
+        verify(() => mockFirestore.collection('jokes')).called(1);
+        verify(() => mockCollectionReference.doc(jokeId)).called(1);
+        verify(() => mockDocumentReference.get()).called(1);
+      });
+
+      test('should return null when document does not exist', () async {
+        const jokeId = 'non-existent-joke-id';
+
+        final mockDocSnapshot = MockDocumentSnapshot();
+        when(() => mockDocSnapshot.exists).thenReturn(false);
+        when(() => mockDocumentReference.get()).thenAnswer(
+          (_) async => mockDocSnapshot,
+        );
+
+        final result = await repository.getJokeById(jokeId);
+
+        expect(result, isNull);
+
+        verify(() => mockFirestore.collection('jokes')).called(1);
+        verify(() => mockCollectionReference.doc(jokeId)).called(1);
+        verify(() => mockDocumentReference.get()).called(1);
+      });
+
+      test('should throw exception when Firebase operation fails', () async {
+        const jokeId = 'test-joke-id';
+
+        when(() => mockDocumentReference.get()).thenThrow(
+          FirebaseException(plugin: 'firestore', message: 'Get failed'),
+        );
+
+        expect(
+          () => repository.getJokeById(jokeId),
+          throwsA(isA<Exception>()),
+        );
+
+        verify(() => mockFirestore.collection('jokes')).called(1);
+        verify(() => mockCollectionReference.doc(jokeId)).called(1);
+        verify(() => mockDocumentReference.get()).called(1);
+      });
+    });
+
+    group('getJokesByIds', () {
+      late MockQuery mockWhereQuery;
+
+      setUp(() {
+        mockWhereQuery = MockQuery();
+        when(() => mockCollectionReference.where(any(), whereIn: any(named: 'whereIn')))
+            .thenReturn(mockWhereQuery);
+        when(() => mockWhereQuery.get()).thenAnswer((_) async => mockQuerySnapshot);
+      });
+
+      test('should return empty list when jokeIds is empty', () async {
+        final result = await repository.getJokesByIds([]);
+
+        expect(result, isEmpty);
+        verifyNever(() => mockFirestore.collection('jokes'));
+      });
+
+      test('should return jokes when documents exist', () async {
+        final jokeIds = ['joke1', 'joke2'];
+        final mockDoc1 = MockDocumentSnapshot();
+        final mockDoc2 = MockDocumentSnapshot();
+
+        final joke1Data = {
+          'setup_text': 'Setup 1',
+          'punchline_text': 'Punchline 1',
+          'setup_image_url': 'https://example.com/setup1.jpg',
+          'punchline_image_url': 'https://example.com/punchline1.jpg',
+        };
+
+        final joke2Data = {
+          'setup_text': 'Setup 2',
+          'punchline_text': 'Punchline 2',
+          'setup_image_url': 'https://example.com/setup2.jpg',
+          'punchline_image_url': 'https://example.com/punchline2.jpg',
+        };
+
+        when(() => mockDoc1.data()).thenReturn(joke1Data);
+        when(() => mockDoc1.id).thenReturn('joke1');
+        when(() => mockDoc2.data()).thenReturn(joke2Data);
+        when(() => mockDoc2.id).thenReturn('joke2');
+
+        when(() => mockQuerySnapshot.docs).thenReturn([mockDoc1, mockDoc2]);
+
+        final result = await repository.getJokesByIds(jokeIds);
+
+        expect(result, hasLength(2));
+        expect(result[0].id, 'joke1');
+        expect(result[0].setupText, 'Setup 1');
+        expect(result[1].id, 'joke2');
+        expect(result[1].setupText, 'Setup 2');
+
+        verify(() => mockFirestore.collection('jokes')).called(1);
+        verify(() => mockCollectionReference.where(FieldPath.documentId, whereIn: jokeIds)).called(1);
+        verify(() => mockWhereQuery.get()).called(1);
+      });
+
+      test('should handle batches larger than 10 items', () async {
+        final jokeIds = List.generate(15, (i) => 'joke$i');
+        
+        // Create separate mock query snapshots for each batch
+        final firstBatchSnapshot = MockQuerySnapshot();
+        final secondBatchSnapshot = MockQuerySnapshot();
+        
+        final firstBatchDocs = List.generate(10, (i) {
+          final mockDoc = MockDocumentSnapshot();
+          when(() => mockDoc.data()).thenReturn({
+            'setup_text': 'Setup $i',
+            'punchline_text': 'Punchline $i',
+          });
+          when(() => mockDoc.id).thenReturn('joke$i');
+          return mockDoc;
+        });
+        
+        final secondBatchDocs = List.generate(5, (i) {
+          final mockDoc = MockDocumentSnapshot();
+          when(() => mockDoc.data()).thenReturn({
+            'setup_text': 'Setup ${i + 10}',
+            'punchline_text': 'Punchline ${i + 10}',
+          });
+          when(() => mockDoc.id).thenReturn('joke${i + 10}');
+          return mockDoc;
+        });
+
+        // First batch (10 items)
+        when(() => firstBatchSnapshot.docs).thenReturn(firstBatchDocs);
+        final firstBatchQuery = MockQuery();
+        when(() => mockCollectionReference.where(FieldPath.documentId, whereIn: jokeIds.take(10).toList()))
+            .thenReturn(firstBatchQuery);
+        when(() => firstBatchQuery.get()).thenAnswer((_) async => firstBatchSnapshot);
+
+        // Second batch (5 items)
+        when(() => secondBatchSnapshot.docs).thenReturn(secondBatchDocs);
+        final secondBatchQuery = MockQuery();
+        when(() => mockCollectionReference.where(FieldPath.documentId, whereIn: jokeIds.skip(10).take(5).toList()))
+            .thenReturn(secondBatchQuery);
+        when(() => secondBatchQuery.get()).thenAnswer((_) async => secondBatchSnapshot);
+
+        final result = await repository.getJokesByIds(jokeIds);
+
+        expect(result, hasLength(15));
+
+        // Verify both batches were called
+        verify(() => mockFirestore.collection('jokes')).called(2);
+        verify(() => mockCollectionReference.where(FieldPath.documentId, whereIn: jokeIds.take(10).toList())).called(1);
+        verify(() => mockCollectionReference.where(FieldPath.documentId, whereIn: jokeIds.skip(10).take(5).toList())).called(1);
+      });
+
+      test('should throw exception when Firebase operation fails', () async {
+        final jokeIds = ['joke1', 'joke2'];
+
+        when(() => mockWhereQuery.get()).thenThrow(
+          FirebaseException(plugin: 'firestore', message: 'Batch get failed'),
+        );
+
+        expect(
+          () => repository.getJokesByIds(jokeIds),
+          throwsA(isA<Exception>()),
+        );
+
+        verify(() => mockFirestore.collection('jokes')).called(1);
+        verify(() => mockCollectionReference.where(FieldPath.documentId, whereIn: jokeIds)).called(1);
+        verify(() => mockWhereQuery.get()).called(1);
+      });
+    });
   });
 }

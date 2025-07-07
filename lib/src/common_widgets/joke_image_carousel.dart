@@ -592,78 +592,85 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
               child: Row(
                 children: [
                   // Hold to Delete button (leftmost)
-                  HoldableButton(
-                    key: const Key('delete-joke-button'),
-                    icon: Icons.delete,
-                    holdCompleteIcon: Icons.delete_forever,
-                    onTap: () {
-                      // Do nothing on tap
-                    },
-                    onHoldComplete: () async {
-                      final repository = ref.read(jokeRepositoryProvider);
-                      await repository.deleteJoke(widget.joke.id);
-                    },
-                    isEnabled: !isPopulating,
-                    theme: theme,
-                    color: theme.colorScheme.error,
-                    holdDuration: const Duration(seconds: 3),
+                  Expanded(
+                    child: HoldableButton(
+                      key: const Key('delete-joke-button'),
+                      icon: Icons.delete,
+                      holdCompleteIcon: Icons.delete_forever,
+                      onTap: () {
+                        // Do nothing on tap
+                      },
+                      onHoldComplete: () async {
+                        final repository = ref.read(jokeRepositoryProvider);
+                        await repository.deleteJoke(widget.joke.id);
+                      },
+                      isEnabled: !isPopulating,
+                      theme: theme,
+                      color: theme.colorScheme.error,
+                      holdDuration: const Duration(seconds: 3),
+                    ),
                   ),
                   const SizedBox(width: 8.0),
                   // Hold to Regenerate Edit button (middle)
-                  HoldableButton(
-                    key: const Key('edit-joke-button'),
-                    icon: Icons.edit,
-                    holdCompleteIcon: Icons.refresh,
-                    onTap: () {
-                      Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder:
-                              (context) => JokeEditorScreen(joke: widget.joke),
-                        ),
-                      );
-                    },
-                    onHoldComplete: () async {
-                      final notifier = ref.read(
-                        jokePopulationProvider.notifier,
-                      );
-                      await notifier.populateJoke(
-                        widget.joke.id,
-                        imagesOnly: false,
-                      );
-                    },
-                    isEnabled: !isPopulating,
-                    theme: theme,
-                    color: theme.colorScheme.tertiaryContainer,
+                  Expanded(
+                    child: HoldableButton(
+                      key: const Key('edit-joke-button'),
+                      icon: Icons.edit,
+                      holdCompleteIcon: Icons.refresh,
+                      onTap: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder:
+                                (context) =>
+                                    JokeEditorScreen(joke: widget.joke),
+                          ),
+                        );
+                      },
+                      onHoldComplete: () async {
+                        final notifier = ref.read(
+                          jokePopulationProvider.notifier,
+                        );
+                        await notifier.populateJoke(
+                          widget.joke.id,
+                          imagesOnly: false,
+                        );
+                      },
+                      isEnabled: !isPopulating,
+                      theme: theme,
+                      color: theme.colorScheme.tertiaryContainer,
+                    ),
                   ),
                   const SizedBox(width: 8.0),
                   // Regenerate Images button (rightmost)
-                  HoldableButton(
-                    key: const Key('regenerate-images-button'),
-                    icon: Icons.image,
-                    holdCompleteIcon: Icons.hd,
-                    onTap: () async {
-                      final notifier = ref.read(
-                        jokePopulationProvider.notifier,
-                      );
-                      await notifier.populateJoke(
-                        widget.joke.id,
-                        imagesOnly: true,
-                        additionalParams: {"image_quality": "medium"},
-                      );
-                    },
-                    onHoldComplete: () async {
-                      final notifier = ref.read(
-                        jokePopulationProvider.notifier,
-                      );
-                      await notifier.populateJoke(
-                        widget.joke.id,
-                        imagesOnly: true,
-                        additionalParams: {"image_quality": "high"},
-                      );
-                    },
-                    isEnabled: !isPopulating,
-                    theme: theme,
-                    color: theme.colorScheme.secondaryContainer,
+                  Expanded(
+                    child: HoldableButton(
+                      key: const Key('regenerate-images-button'),
+                      icon: Icons.image,
+                      holdCompleteIcon: Icons.hd,
+                      onTap: () async {
+                        final notifier = ref.read(
+                          jokePopulationProvider.notifier,
+                        );
+                        await notifier.populateJoke(
+                          widget.joke.id,
+                          imagesOnly: true,
+                          additionalParams: {"image_quality": "medium"},
+                        );
+                      },
+                      onHoldComplete: () async {
+                        final notifier = ref.read(
+                          jokePopulationProvider.notifier,
+                        );
+                        await notifier.populateJoke(
+                          widget.joke.id,
+                          imagesOnly: true,
+                          additionalParams: {"image_quality": "high"},
+                        );
+                      },
+                      isEnabled: !isPopulating,
+                      theme: theme,
+                      color: theme.colorScheme.secondaryContainer,
+                    ),
                   ),
                 ],
               ),

@@ -106,51 +106,44 @@ class JokeScheduleBatchWidget extends ConsumerWidget {
                             monthDate,
                           )
                           : null,
-                  child: () {
-                    final state = ref.watch(autoFillProvider);
-                    final monthKey =
-                        '${selectedScheduleId ?? ''}_${monthDate.year}_${monthDate.month}';
-                    return state.processingMonths.contains(monthKey);
-                  }()
-                      ? const SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            key: Key('auto-fill-loading'),
-                            strokeWidth: 2,
+                  child:
+                      () {
+                            final state = ref.watch(autoFillProvider);
+                            final monthKey =
+                                '${selectedScheduleId ?? ''}_${monthDate.year}_${monthDate.month}';
+                            return state.processingMonths.contains(monthKey);
+                          }()
+                          ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                              key: Key('auto-fill-loading'),
+                              strokeWidth: 2,
+                            ),
+                          )
+                          : const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.auto_awesome, size: 16),
+                              SizedBox(width: 4),
+                              Text('Auto Fill'),
+                            ],
                           ),
-                        )
-                      : const Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.auto_awesome, size: 16),
-                            SizedBox(width: 4),
-                            Text('Auto Fill'),
-                          ],
-                        ),
                 ),
                 const SizedBox(width: 8),
-                SizedBox(
-                  width: 40, // Constrain width for a circular-like button
-                  child: HoldableButton(
-                    theme: theme,
-                    icon: Icons.delete_outline,
-                    color: theme.colorScheme.errorContainer,
-                    onTap: () {
-                      // Do nothing on tap
-                    },
-                    onHoldComplete: () {
-                      if (selectedScheduleId != null) {
-                        _deleteBatch(
-                          context,
-                          ref,
-                          selectedScheduleId,
-                          monthDate,
-                        );
-                      }
-                    },
-                    tooltip: 'Delete this month\'s schedule',
-                  ),
+                HoldableButton(
+                  theme: theme,
+                  icon: Icons.delete_outline,
+                  color: theme.colorScheme.errorContainer,
+                  onTap: () {
+                    // Do nothing on tap
+                  },
+                  onHoldComplete: () {
+                    if (selectedScheduleId != null) {
+                      _deleteBatch(context, ref, selectedScheduleId, monthDate);
+                    }
+                  },
+                  tooltip: "Delete this month's schedule",
                 ),
               ],
             ),
@@ -365,7 +358,7 @@ class JokeScheduleBatchWidget extends ConsumerWidget {
     DateTime monthDate,
   ) async {
     try {
-      final batchId = JokeScheduleBatch.generateId(
+      final batchId = JokeScheduleBatch.createBatchId(
         scheduleId,
         monthDate.year,
         monthDate.month,

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:snickerdoodle/src/common_widgets/holdable_button.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_schedule_batch_widget.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_schedule_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
@@ -226,50 +227,64 @@ void main() {
     });
 
     testWidgets(
-        'tapping delete button does nothing and holding delete button shows confirmation dialog',
-        (tester) async {
-      // arrange
-      final monthDate = DateTime(2024, 2);
-      const scheduleId = 'test_schedule';
+      'tapping delete button does nothing and holding delete button shows confirmation dialog',
+      (tester) async {
+        // arrange
+        final monthDate = DateTime(2024, 2);
+        const scheduleId = 'test_schedule';
 
-      when(() => mockScheduleRepository.deleteBatch(any()))
-          .thenAnswer((_) async {});
+        when(
+          () => mockScheduleRepository.deleteBatch(any()),
+        ).thenAnswer((_) async {});
 
-      await tester.pumpWidget(
-        createTestWidget(
-          overrides: [
-            jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
-            jokeScheduleRepositoryProvider.overrideWithValue(
-              mockScheduleRepository,
+        await tester.pumpWidget(
+          createTestWidget(
+            overrides: [
+              jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
+              jokeScheduleRepositoryProvider.overrideWithValue(
+                mockScheduleRepository,
+              ),
+              scheduleBatchesProvider.overrideWith((ref) => Stream.value([])),
+              selectedScheduleProvider.overrideWith((ref) => scheduleId),
+            ],
+            child: JokeScheduleBatchWidget(monthDate: monthDate),
+          ),
+        );
+
+        final deleteButtonFinder = find.byType(HoldableButton);
+        expect(deleteButtonFinder, findsOneWidget);
+
+        // act: tap (should do nothing)
+        await tester.tap(deleteButtonFinder);
+        await tester.pumpAndSettle(); // Allow time for dialog if any
+
+        // assert: no dialog
+        expect(find.text('Delete Schedule Batch'), findsNothing);
+
+        // act: hold for the full duration (2 seconds default)
+        await tester.startGesture(tester.getCenter(deleteButtonFinder));
+        await tester.pump(
+          const Duration(milliseconds: 2100),
+        ); // Slightly longer than 2 seconds to ensure completion
+        await tester.pumpAndSettle();
+
+        // assert: no dialog initially, and delete is called directly on long press
+        expect(find.text('Delete Schedule Batch'), findsNothing);
+        verify(
+          () => mockScheduleRepository.deleteBatch(
+            JokeScheduleBatch.createBatchId(
+              scheduleId,
+              monthDate.year,
+              monthDate.month,
             ),
-            scheduleBatchesProvider.overrideWith((ref) => Stream.value([])),
-            selectedScheduleProvider.overrideWith((ref) => scheduleId),
-          ],
-          child: JokeScheduleBatchWidget(monthDate: monthDate),
-        ),
-      );
-
-      final deleteButtonFinder = find.byIcon(Icons.delete_outline);
-      expect(deleteButtonFinder, findsOneWidget);
-
-      // act: tap (should do nothing)
-      await tester.tap(deleteButtonFinder);
-      await tester.pumpAndSettle(); // Allow time for dialog if any
-
-      // assert: no dialog
-      expect(find.text('Delete Schedule Batch'), findsNothing);
-
-      // act: long press
-      await tester.longPress(deleteButtonFinder);
-      await tester.pumpAndSettle();
-
-      // assert: no dialog initially, and delete is called directly on long press
-      expect(find.text('Delete Schedule Batch'), findsNothing);
-      verify(() => mockScheduleRepository.deleteBatch(
-          JokeScheduleBatch.generateId(scheduleId, monthDate.year, monthDate.month)))
-          .called(1);
-      expect(find.text('Successfully deleted schedule for February 2024'), findsOneWidget);
-    });
+          ),
+        ).called(1);
+        expect(
+          find.text('Successfully deleted schedule for February 2024'),
+          findsOneWidget,
+        );
+      },
+    );
 
     // Removed tests for confirmation dialog as it's no longer used for delete.
     // 'should delete batch when confirmation is given' - merged into the above.

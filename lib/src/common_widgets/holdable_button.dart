@@ -121,75 +121,74 @@ class _HoldableButtonState extends State<HoldableButton>
 
   @override
   Widget build(BuildContext context) {
-    return Expanded(
-      child: GestureDetector(
-        onTapDown: _onTapDown,
-        onTapUp: _onTapUp,
-        onTapCancel: _onTapCancel,
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(
-            20,
-          ), // Apply curved border to outer container
-          child: SizedBox(
-            height: 40, // Match ElevatedButton height
-            child: Stack(
-              children: [
-                // Base button (rectangular, no border radius, no icon)
-                Container(
-                  width: double.infinity,
-                  height: 40,
-                  color: _getBaseColor(),
-                ),
+    return GestureDetector(
+      onTapDown: _onTapDown,
+      onTapUp: _onTapUp,
+      onTapCancel: _onTapCancel,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(
+          20,
+        ), // Apply curved border to outer container
+        child: SizedBox(
+          width: 40, // Default width when not expanded
+          height: 40, // Match ElevatedButton height
+          child: Stack(
+            children: [
+              // Base button (rectangular, no border radius, no icon)
+              Container(
+                width: double.infinity,
+                height: 40,
+                color: _getBaseColor(),
+              ),
 
-                // Animated fill overlay (fills from bottom to top, no icon)
-                AnimatedBuilder(
+              // Animated fill overlay (fills from bottom to top, no icon)
+              AnimatedBuilder(
+                animation: _fillAnimation,
+                builder: (context, child) {
+                  return Align(
+                    alignment: Alignment.bottomCenter,
+                    child: Container(
+                      width: double.infinity,
+                      height:
+                          40 *
+                          _fillAnimation.value, // Height grows from 0 to 40
+                      color: _getFillColor(),
+                    ),
+                  );
+                },
+              ),
+
+              // Icon hovering above everything
+              Center(
+                child: AnimatedBuilder(
                   animation: _fillAnimation,
                   builder: (context, child) {
-                    return Align(
-                      alignment: Alignment.bottomCenter,
-                      child: Container(
-                        width: double.infinity,
-                        height:
-                            40 *
-                            _fillAnimation.value, // Height grows from 0 to 40
-                        color: _getFillColor(),
-                      ),
+                    // Show spinner when disabled (processing)
+                    if (!widget.isEnabled) {
+                      return SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            widget.theme.colorScheme.onTertiaryContainer
+                                .withValues(alpha: 0.6),
+                          ),
+                        ),
+                      );
+                    }
+
+                    // Show appropriate icon based on animation state
+                    return Icon(
+                      _fillAnimation.value >= 1.0
+                          ? (widget.holdCompleteIcon ?? Icons.refresh)
+                          : widget.icon,
+                      color: widget.theme.colorScheme.onTertiaryContainer,
                     );
                   },
                 ),
-
-                // Icon hovering above everything
-                Center(
-                  child: AnimatedBuilder(
-                    animation: _fillAnimation,
-                    builder: (context, child) {
-                      // Show spinner when disabled (processing)
-                      if (!widget.isEnabled) {
-                        return SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              widget.theme.colorScheme.onTertiaryContainer
-                                  .withValues(alpha: 0.6),
-                            ),
-                          ),
-                        );
-                      }
-
-                      // Show appropriate icon based on animation state
-                      return Icon(
-                        _fillAnimation.value >= 1.0
-                            ? (widget.holdCompleteIcon ?? Icons.refresh)
-                            : widget.icon,
-                        color: widget.theme.colorScheme.onTertiaryContainer,
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),

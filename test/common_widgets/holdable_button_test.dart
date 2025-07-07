@@ -343,23 +343,6 @@ void main() {
     });
 
     group('Widget Properties', () {
-      testWidgets('should contain Expanded widget', (tester) async {
-        // arrange
-        final widget = HoldableButton(
-          icon: Icons.edit,
-          onTap: () {},
-          onHoldComplete: () {},
-          theme: lightTheme,
-        );
-
-        // act
-        await tester.pumpWidget(createTestWidget(child: widget));
-
-        // assert
-        expect(find.byType(Expanded), findsOneWidget);
-        expect(find.byType(HoldableButton), findsOneWidget);
-      });
-
       testWidgets('should have correct height', (tester) async {
         // arrange
         final widget = HoldableButton(

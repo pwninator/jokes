@@ -8,6 +8,8 @@ import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_reposito
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
 
+import '../../../test_helpers/analytics_mocks.dart';
+
 // Mock classes using mocktail
 class MockJokeRepository extends Mock implements JokeRepository {}
 
@@ -20,6 +22,10 @@ void main() {
   group('Providers Tests', () {
     late MockJokeRepository mockJokeRepository;
     late MockJokeCloudFunctionService mockCloudFunctionService;
+
+    setUpAll(() {
+      registerAnalyticsFallbackValues();
+    });
 
     setUp(() {
       mockJokeRepository = MockJokeRepository();
@@ -72,7 +78,10 @@ void main() {
         };
 
         when(
-          () => mockCloudFunctionService.populateJoke(jokeId, imagesOnly: any(named: 'imagesOnly')),
+          () => mockCloudFunctionService.populateJoke(
+            jokeId,
+            imagesOnly: any(named: 'imagesOnly'),
+          ),
         ).thenAnswer((_) async => successResponse);
 
         // act
@@ -94,7 +103,12 @@ void main() {
         expect(state.populatingJokes, isEmpty);
         expect(state.error, isNull);
 
-        verify(() => mockCloudFunctionService.populateJoke(jokeId, imagesOnly: any(named: 'imagesOnly'))).called(1);
+        verify(
+          () => mockCloudFunctionService.populateJoke(
+            jokeId,
+            imagesOnly: any(named: 'imagesOnly'),
+          ),
+        ).called(1);
 
         container.dispose();
       });
@@ -105,7 +119,10 @@ void main() {
         final errorResponse = {'success': false, 'error': 'Test error'};
 
         when(
-          () => mockCloudFunctionService.populateJoke(jokeId, imagesOnly: any(named: 'imagesOnly')),
+          () => mockCloudFunctionService.populateJoke(
+            jokeId,
+            imagesOnly: any(named: 'imagesOnly'),
+          ),
         ).thenAnswer((_) async => errorResponse);
 
         // act
@@ -127,7 +144,12 @@ void main() {
         expect(state.populatingJokes, isEmpty);
         expect(state.error, 'Test error');
 
-        verify(() => mockCloudFunctionService.populateJoke(jokeId, imagesOnly: any(named: 'imagesOnly'))).called(1);
+        verify(
+          () => mockCloudFunctionService.populateJoke(
+            jokeId,
+            imagesOnly: any(named: 'imagesOnly'),
+          ),
+        ).called(1);
 
         container.dispose();
       });
@@ -137,7 +159,10 @@ void main() {
         const jokeId = 'test-joke-id';
 
         when(
-          () => mockCloudFunctionService.populateJoke(jokeId, imagesOnly: any(named: 'imagesOnly')),
+          () => mockCloudFunctionService.populateJoke(
+            jokeId,
+            imagesOnly: any(named: 'imagesOnly'),
+          ),
         ).thenAnswer((_) async => null);
 
         // act
@@ -159,7 +184,12 @@ void main() {
         expect(state.populatingJokes, isEmpty);
         expect(state.error, 'Unknown error occurred');
 
-        verify(() => mockCloudFunctionService.populateJoke(jokeId, imagesOnly: any(named: 'imagesOnly'))).called(1);
+        verify(
+          () => mockCloudFunctionService.populateJoke(
+            jokeId,
+            imagesOnly: any(named: 'imagesOnly'),
+          ),
+        ).called(1);
 
         container.dispose();
       });
@@ -170,7 +200,10 @@ void main() {
         final responseWithoutSuccess = {'data': 'some data'};
 
         when(
-          () => mockCloudFunctionService.populateJoke(jokeId, imagesOnly: any(named: 'imagesOnly')),
+          () => mockCloudFunctionService.populateJoke(
+            jokeId,
+            imagesOnly: any(named: 'imagesOnly'),
+          ),
         ).thenAnswer((_) async => responseWithoutSuccess);
 
         // act
@@ -192,7 +225,12 @@ void main() {
         expect(state.populatingJokes, isEmpty);
         expect(state.error, 'Unknown error occurred');
 
-        verify(() => mockCloudFunctionService.populateJoke(jokeId, imagesOnly: any(named: 'imagesOnly'))).called(1);
+        verify(
+          () => mockCloudFunctionService.populateJoke(
+            jokeId,
+            imagesOnly: any(named: 'imagesOnly'),
+          ),
+        ).called(1);
 
         container.dispose();
       });
@@ -202,7 +240,10 @@ void main() {
         const jokeId = 'test-joke-id';
 
         when(
-          () => mockCloudFunctionService.populateJoke(jokeId, imagesOnly: any(named: 'imagesOnly')),
+          () => mockCloudFunctionService.populateJoke(
+            jokeId,
+            imagesOnly: any(named: 'imagesOnly'),
+          ),
         ).thenThrow(Exception('Network error'));
 
         // act
@@ -227,7 +268,12 @@ void main() {
           contains('Failed to populate joke: Exception: Network error'),
         );
 
-        verify(() => mockCloudFunctionService.populateJoke(jokeId, imagesOnly: any(named: 'imagesOnly'))).called(1);
+        verify(
+          () => mockCloudFunctionService.populateJoke(
+            jokeId,
+            imagesOnly: any(named: 'imagesOnly'),
+          ),
+        ).called(1);
 
         container.dispose();
       });
@@ -238,7 +284,10 @@ void main() {
         final errorResponse = {'success': false, 'error': 'Test error'};
 
         when(
-          () => mockCloudFunctionService.populateJoke(jokeId, imagesOnly: any(named: 'imagesOnly')),
+          () => mockCloudFunctionService.populateJoke(
+            jokeId,
+            imagesOnly: any(named: 'imagesOnly'),
+          ),
         ).thenAnswer((_) async => errorResponse);
 
         final container = ProviderContainer(
@@ -268,58 +317,99 @@ void main() {
 
     group('jokeReactionsProvider', () {
       late MockJokeReactionsService mockReactionsService;
-      
+
       setUp(() {
         mockReactionsService = MockJokeReactionsService();
-        
+
         // Set up default mock responses
-        when(() => mockReactionsService.getAllUserReactions())
-            .thenAnswer((_) async => <String, Set<JokeReactionType>>{});
+        when(
+          () => mockReactionsService.getAllUserReactions(),
+        ).thenAnswer((_) async => <String, Set<JokeReactionType>>{});
       });
 
       test('thumbs up should remove existing thumbs down', () async {
         // arrange
         const jokeId = 'test-joke';
-        
+
         // Mock initial state: user has thumbs down
-        when(() => mockReactionsService.getAllUserReactions())
-            .thenAnswer((_) async => {
-              jokeId: {JokeReactionType.thumbsDown}
-            });
-        
+        when(() => mockReactionsService.getAllUserReactions()).thenAnswer(
+          (_) async => {
+            jokeId: {JokeReactionType.thumbsDown},
+          },
+        );
+
         // Mock service calls
-        when(() => mockReactionsService.removeUserReaction(jokeId, JokeReactionType.thumbsDown))
-            .thenAnswer((_) async {});
-        when(() => mockReactionsService.toggleUserReaction(jokeId, JokeReactionType.thumbsUp))
-            .thenAnswer((_) async => true); // returns true when adding
-        
+        when(
+          () => mockReactionsService.removeUserReaction(
+            jokeId,
+            JokeReactionType.thumbsDown,
+          ),
+        ).thenAnswer((_) async {});
+        when(
+          () => mockReactionsService.toggleUserReaction(
+            jokeId,
+            JokeReactionType.thumbsUp,
+          ),
+        ).thenAnswer((_) async => true); // returns true when adding
+
         // Mock repository calls
-        when(() => mockJokeRepository.decrementReaction(jokeId, JokeReactionType.thumbsDown))
-            .thenAnswer((_) async {});
-        when(() => mockJokeRepository.incrementReaction(jokeId, JokeReactionType.thumbsUp))
-            .thenAnswer((_) async {});
+        when(
+          () => mockJokeRepository.decrementReaction(
+            jokeId,
+            JokeReactionType.thumbsDown,
+          ),
+        ).thenAnswer((_) async {});
+        when(
+          () => mockJokeRepository.incrementReaction(
+            jokeId,
+            JokeReactionType.thumbsUp,
+          ),
+        ).thenAnswer((_) async {});
 
         // act
         final container = ProviderContainer(
           overrides: [
-            jokeReactionsServiceProvider.overrideWithValue(mockReactionsService),
+            jokeReactionsServiceProvider.overrideWithValue(
+              mockReactionsService,
+            ),
             jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
+            ...AnalyticsMocks.getAnalyticsProviderOverrides(),
           ],
         );
 
         final notifier = container.read(jokeReactionsProvider.notifier);
-        
+
         // Wait for initial load to complete
         await Future.delayed(const Duration(milliseconds: 10));
-        
+
         // Toggle thumbs up
         await notifier.toggleReaction(jokeId, JokeReactionType.thumbsUp);
 
         // assert
-        verify(() => mockReactionsService.removeUserReaction(jokeId, JokeReactionType.thumbsDown)).called(1);
-        verify(() => mockJokeRepository.decrementReaction(jokeId, JokeReactionType.thumbsDown)).called(1);
-        verify(() => mockReactionsService.toggleUserReaction(jokeId, JokeReactionType.thumbsUp)).called(1);
-        verify(() => mockJokeRepository.incrementReaction(jokeId, JokeReactionType.thumbsUp)).called(1);
+        verify(
+          () => mockReactionsService.removeUserReaction(
+            jokeId,
+            JokeReactionType.thumbsDown,
+          ),
+        ).called(1);
+        verify(
+          () => mockJokeRepository.decrementReaction(
+            jokeId,
+            JokeReactionType.thumbsDown,
+          ),
+        ).called(1);
+        verify(
+          () => mockReactionsService.toggleUserReaction(
+            jokeId,
+            JokeReactionType.thumbsUp,
+          ),
+        ).called(1);
+        verify(
+          () => mockJokeRepository.incrementReaction(
+            jokeId,
+            JokeReactionType.thumbsUp,
+          ),
+        ).called(1);
 
         container.dispose();
       });
@@ -327,179 +417,321 @@ void main() {
       test('thumbs down should remove existing thumbs up', () async {
         // arrange
         const jokeId = 'test-joke';
-        
+
         // Mock initial state: user has thumbs up
-        when(() => mockReactionsService.getAllUserReactions())
-            .thenAnswer((_) async => {
-              jokeId: {JokeReactionType.thumbsUp}
-            });
-        
+        when(() => mockReactionsService.getAllUserReactions()).thenAnswer(
+          (_) async => {
+            jokeId: {JokeReactionType.thumbsUp},
+          },
+        );
+
         // Mock service calls
-        when(() => mockReactionsService.removeUserReaction(jokeId, JokeReactionType.thumbsUp))
-            .thenAnswer((_) async {});
-        when(() => mockReactionsService.toggleUserReaction(jokeId, JokeReactionType.thumbsDown))
-            .thenAnswer((_) async => true); // returns true when adding
-        
+        when(
+          () => mockReactionsService.removeUserReaction(
+            jokeId,
+            JokeReactionType.thumbsUp,
+          ),
+        ).thenAnswer((_) async {});
+        when(
+          () => mockReactionsService.toggleUserReaction(
+            jokeId,
+            JokeReactionType.thumbsDown,
+          ),
+        ).thenAnswer((_) async => true); // returns true when adding
+
         // Mock repository calls
-        when(() => mockJokeRepository.decrementReaction(jokeId, JokeReactionType.thumbsUp))
-            .thenAnswer((_) async {});
-        when(() => mockJokeRepository.incrementReaction(jokeId, JokeReactionType.thumbsDown))
-            .thenAnswer((_) async {});
+        when(
+          () => mockJokeRepository.decrementReaction(
+            jokeId,
+            JokeReactionType.thumbsUp,
+          ),
+        ).thenAnswer((_) async {});
+        when(
+          () => mockJokeRepository.incrementReaction(
+            jokeId,
+            JokeReactionType.thumbsDown,
+          ),
+        ).thenAnswer((_) async {});
 
         // act
         final container = ProviderContainer(
           overrides: [
-            jokeReactionsServiceProvider.overrideWithValue(mockReactionsService),
+            jokeReactionsServiceProvider.overrideWithValue(
+              mockReactionsService,
+            ),
             jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
+            ...AnalyticsMocks.getAnalyticsProviderOverrides(),
           ],
         );
 
         final notifier = container.read(jokeReactionsProvider.notifier);
-        
+
         // Wait for initial load to complete
         await Future.delayed(const Duration(milliseconds: 10));
-        
+
         // Toggle thumbs down
         await notifier.toggleReaction(jokeId, JokeReactionType.thumbsDown);
 
         // assert
-        verify(() => mockReactionsService.removeUserReaction(jokeId, JokeReactionType.thumbsUp)).called(1);
-        verify(() => mockJokeRepository.decrementReaction(jokeId, JokeReactionType.thumbsUp)).called(1);
-        verify(() => mockReactionsService.toggleUserReaction(jokeId, JokeReactionType.thumbsDown)).called(1);
-        verify(() => mockJokeRepository.incrementReaction(jokeId, JokeReactionType.thumbsDown)).called(1);
+        verify(
+          () => mockReactionsService.removeUserReaction(
+            jokeId,
+            JokeReactionType.thumbsUp,
+          ),
+        ).called(1);
+        verify(
+          () => mockJokeRepository.decrementReaction(
+            jokeId,
+            JokeReactionType.thumbsUp,
+          ),
+        ).called(1);
+        verify(
+          () => mockReactionsService.toggleUserReaction(
+            jokeId,
+            JokeReactionType.thumbsDown,
+          ),
+        ).called(1);
+        verify(
+          () => mockJokeRepository.incrementReaction(
+            jokeId,
+            JokeReactionType.thumbsDown,
+          ),
+        ).called(1);
 
         container.dispose();
       });
 
-      test('save reaction should work independently of thumbs reactions', () async {
-        // arrange
-        const jokeId = 'test-joke';
-        
-        // Mock initial state: user has thumbs up
-        when(() => mockReactionsService.getAllUserReactions())
-            .thenAnswer((_) async => {
-              jokeId: {JokeReactionType.thumbsUp}
-            });
-        
-        // Mock service calls
-        when(() => mockReactionsService.toggleUserReaction(jokeId, JokeReactionType.save))
-            .thenAnswer((_) async => true); // returns true when adding
-        
-        // Mock repository calls
-        when(() => mockJokeRepository.incrementReaction(jokeId, JokeReactionType.save))
-            .thenAnswer((_) async {});
+      test(
+        'save reaction should work independently of thumbs reactions',
+        () async {
+          // arrange
+          const jokeId = 'test-joke';
 
-        // act
-        final container = ProviderContainer(
-          overrides: [
-            jokeReactionsServiceProvider.overrideWithValue(mockReactionsService),
-            jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
-          ],
-        );
+          // Mock initial state: user has thumbs up
+          when(() => mockReactionsService.getAllUserReactions()).thenAnswer(
+            (_) async => {
+              jokeId: {JokeReactionType.thumbsUp},
+            },
+          );
 
-        final notifier = container.read(jokeReactionsProvider.notifier);
-        
-        // Wait for initial load to complete
-        await Future.delayed(const Duration(milliseconds: 10));
-        
-        // Toggle save (should not affect thumbs up)
-        await notifier.toggleReaction(jokeId, JokeReactionType.save);
+          // Mock service calls
+          when(
+            () => mockReactionsService.toggleUserReaction(
+              jokeId,
+              JokeReactionType.save,
+            ),
+          ).thenAnswer((_) async => true); // returns true when adding
 
-        // assert - only save should be affected, thumbs up should remain untouched
-        verify(() => mockReactionsService.toggleUserReaction(jokeId, JokeReactionType.save)).called(1);
-        verify(() => mockJokeRepository.incrementReaction(jokeId, JokeReactionType.save)).called(1);
-        
-        // Verify thumbs up was NOT affected
-        verifyNever(() => mockReactionsService.removeUserReaction(jokeId, JokeReactionType.thumbsUp));
-        verifyNever(() => mockJokeRepository.decrementReaction(jokeId, JokeReactionType.thumbsUp));
+          // Mock repository calls
+          when(
+            () => mockJokeRepository.incrementReaction(
+              jokeId,
+              JokeReactionType.save,
+            ),
+          ).thenAnswer((_) async {});
 
-        container.dispose();
-      });
+          // act
+          final container = ProviderContainer(
+            overrides: [
+              jokeReactionsServiceProvider.overrideWithValue(
+                mockReactionsService,
+              ),
+              jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
+              ...AnalyticsMocks.getAnalyticsProviderOverrides(),
+            ],
+          );
 
-      test('thumbs up with no existing opposite reaction should work normally', () async {
-        // arrange
-        const jokeId = 'test-joke';
-        
-        // Mock initial state: no reactions
-        when(() => mockReactionsService.getAllUserReactions())
-            .thenAnswer((_) async => <String, Set<JokeReactionType>>{});
-        
-        // Mock service calls
-        when(() => mockReactionsService.toggleUserReaction(jokeId, JokeReactionType.thumbsUp))
-            .thenAnswer((_) async => true); // returns true when adding
-        
-        // Mock repository calls
-        when(() => mockJokeRepository.incrementReaction(jokeId, JokeReactionType.thumbsUp))
-            .thenAnswer((_) async {});
+          final notifier = container.read(jokeReactionsProvider.notifier);
 
-        // act
-        final container = ProviderContainer(
-          overrides: [
-            jokeReactionsServiceProvider.overrideWithValue(mockReactionsService),
-            jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
-          ],
-        );
+          // Wait for initial load to complete
+          await Future.delayed(const Duration(milliseconds: 10));
 
-        final notifier = container.read(jokeReactionsProvider.notifier);
-        
-        // Wait for initial load to complete
-        await Future.delayed(const Duration(milliseconds: 10));
-        
-        // Toggle thumbs up
-        await notifier.toggleReaction(jokeId, JokeReactionType.thumbsUp);
+          // Toggle save (should not affect thumbs up)
+          await notifier.toggleReaction(jokeId, JokeReactionType.save);
 
-        // assert - only thumbs up operations should happen
-        verify(() => mockReactionsService.toggleUserReaction(jokeId, JokeReactionType.thumbsUp)).called(1);
-        verify(() => mockJokeRepository.incrementReaction(jokeId, JokeReactionType.thumbsUp)).called(1);
-        
-        // Verify no thumbs down operations
-        verifyNever(() => mockReactionsService.removeUserReaction(jokeId, JokeReactionType.thumbsDown));
-        verifyNever(() => mockJokeRepository.decrementReaction(jokeId, JokeReactionType.thumbsDown));
+          // assert - only save should be affected, thumbs up should remain untouched
+          verify(
+            () => mockReactionsService.toggleUserReaction(
+              jokeId,
+              JokeReactionType.save,
+            ),
+          ).called(1);
+          verify(
+            () => mockJokeRepository.incrementReaction(
+              jokeId,
+              JokeReactionType.save,
+            ),
+          ).called(1);
 
-        container.dispose();
-      });
+          // Verify thumbs up was NOT affected
+          verifyNever(
+            () => mockReactionsService.removeUserReaction(
+              jokeId,
+              JokeReactionType.thumbsUp,
+            ),
+          );
+          verifyNever(
+            () => mockJokeRepository.decrementReaction(
+              jokeId,
+              JokeReactionType.thumbsUp,
+            ),
+          );
+
+          container.dispose();
+        },
+      );
+
+      test(
+        'thumbs up with no existing opposite reaction should work normally',
+        () async {
+          // arrange
+          const jokeId = 'test-joke';
+
+          // Mock initial state: no reactions
+          when(
+            () => mockReactionsService.getAllUserReactions(),
+          ).thenAnswer((_) async => <String, Set<JokeReactionType>>{});
+
+          // Mock service calls
+          when(
+            () => mockReactionsService.toggleUserReaction(
+              jokeId,
+              JokeReactionType.thumbsUp,
+            ),
+          ).thenAnswer((_) async => true); // returns true when adding
+
+          // Mock repository calls
+          when(
+            () => mockJokeRepository.incrementReaction(
+              jokeId,
+              JokeReactionType.thumbsUp,
+            ),
+          ).thenAnswer((_) async {});
+
+          // act
+          final container = ProviderContainer(
+            overrides: [
+              jokeReactionsServiceProvider.overrideWithValue(
+                mockReactionsService,
+              ),
+              jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
+              ...AnalyticsMocks.getAnalyticsProviderOverrides(),
+            ],
+          );
+
+          final notifier = container.read(jokeReactionsProvider.notifier);
+
+          // Wait for initial load to complete
+          await Future.delayed(const Duration(milliseconds: 10));
+
+          // Toggle thumbs up
+          await notifier.toggleReaction(jokeId, JokeReactionType.thumbsUp);
+
+          // assert - only thumbs up operations should happen
+          verify(
+            () => mockReactionsService.toggleUserReaction(
+              jokeId,
+              JokeReactionType.thumbsUp,
+            ),
+          ).called(1);
+          verify(
+            () => mockJokeRepository.incrementReaction(
+              jokeId,
+              JokeReactionType.thumbsUp,
+            ),
+          ).called(1);
+
+          // Verify no thumbs down operations
+          verifyNever(
+            () => mockReactionsService.removeUserReaction(
+              jokeId,
+              JokeReactionType.thumbsDown,
+            ),
+          );
+          verifyNever(
+            () => mockJokeRepository.decrementReaction(
+              jokeId,
+              JokeReactionType.thumbsDown,
+            ),
+          );
+
+          container.dispose();
+        },
+      );
 
       test('removing thumbs up should not affect thumbs down', () async {
         // arrange
         const jokeId = 'test-joke';
-        
+
         // Mock initial state: user has thumbs up
-        when(() => mockReactionsService.getAllUserReactions())
-            .thenAnswer((_) async => {
-              jokeId: {JokeReactionType.thumbsUp}
-            });
-        
+        when(() => mockReactionsService.getAllUserReactions()).thenAnswer(
+          (_) async => {
+            jokeId: {JokeReactionType.thumbsUp},
+          },
+        );
+
         // Mock service calls
-        when(() => mockReactionsService.toggleUserReaction(jokeId, JokeReactionType.thumbsUp))
-            .thenAnswer((_) async => false); // returns false when removing
-        
+        when(
+          () => mockReactionsService.toggleUserReaction(
+            jokeId,
+            JokeReactionType.thumbsUp,
+          ),
+        ).thenAnswer((_) async => false); // returns false when removing
+
         // Mock repository calls
-        when(() => mockJokeRepository.decrementReaction(jokeId, JokeReactionType.thumbsUp))
-            .thenAnswer((_) async {});
+        when(
+          () => mockJokeRepository.decrementReaction(
+            jokeId,
+            JokeReactionType.thumbsUp,
+          ),
+        ).thenAnswer((_) async {});
 
         // act
         final container = ProviderContainer(
           overrides: [
-            jokeReactionsServiceProvider.overrideWithValue(mockReactionsService),
+            jokeReactionsServiceProvider.overrideWithValue(
+              mockReactionsService,
+            ),
             jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
+            ...AnalyticsMocks.getAnalyticsProviderOverrides(),
           ],
         );
 
         final notifier = container.read(jokeReactionsProvider.notifier);
-        
+
         // Wait for initial load to complete
         await Future.delayed(const Duration(milliseconds: 10));
-        
+
         // Toggle thumbs up (remove it)
         await notifier.toggleReaction(jokeId, JokeReactionType.thumbsUp);
 
         // assert - only thumbs up removal should happen
-        verify(() => mockReactionsService.toggleUserReaction(jokeId, JokeReactionType.thumbsUp)).called(1);
-        verify(() => mockJokeRepository.decrementReaction(jokeId, JokeReactionType.thumbsUp)).called(1);
-        
+        verify(
+          () => mockReactionsService.toggleUserReaction(
+            jokeId,
+            JokeReactionType.thumbsUp,
+          ),
+        ).called(1);
+        verify(
+          () => mockJokeRepository.decrementReaction(
+            jokeId,
+            JokeReactionType.thumbsUp,
+          ),
+        ).called(1);
+
         // Verify no thumbs down operations
-        verifyNever(() => mockReactionsService.removeUserReaction(jokeId, JokeReactionType.thumbsDown));
-        verifyNever(() => mockJokeRepository.decrementReaction(jokeId, JokeReactionType.thumbsDown));
+        verifyNever(
+          () => mockReactionsService.removeUserReaction(
+            jokeId,
+            JokeReactionType.thumbsDown,
+          ),
+        );
+        verifyNever(
+          () => mockJokeRepository.decrementReaction(
+            jokeId,
+            JokeReactionType.thumbsDown,
+          ),
+        );
 
         container.dispose();
       });
@@ -516,7 +748,7 @@ void main() {
     test('JokeFilterState copyWith should work correctly', () {
       const state = JokeFilterState();
       final newState = state.copyWith(showUnratedOnly: true);
-      
+
       expect(newState.showUnratedOnly, true);
       expect(state.showUnratedOnly, false); // Original unchanged
     });
@@ -524,36 +756,36 @@ void main() {
     test('JokeFilterNotifier should toggle unrated filter', () {
       final container = ProviderContainer();
       final notifier = container.read(jokeFilterProvider.notifier);
-      
+
       expect(container.read(jokeFilterProvider).showUnratedOnly, false);
-      
+
       notifier.toggleUnratedOnly();
       expect(container.read(jokeFilterProvider).showUnratedOnly, true);
-      
+
       notifier.toggleUnratedOnly();
       expect(container.read(jokeFilterProvider).showUnratedOnly, false);
-      
+
       container.dispose();
     });
 
     test('JokeFilterNotifier should set unrated filter value', () {
       final container = ProviderContainer();
       final notifier = container.read(jokeFilterProvider.notifier);
-      
+
       expect(container.read(jokeFilterProvider).showUnratedOnly, false);
-      
+
       notifier.setUnratedOnly(true);
       expect(container.read(jokeFilterProvider).showUnratedOnly, true);
-      
+
       notifier.setUnratedOnly(false);
       expect(container.read(jokeFilterProvider).showUnratedOnly, false);
-      
+
       container.dispose();
     });
 
     group('filteredJokesProvider', () {
       late MockJokeRepository mockJokeRepository;
-      
+
       setUp(() {
         mockJokeRepository = MockJokeRepository();
       });
@@ -563,8 +795,8 @@ void main() {
         final testJokes = [
           const Joke(id: '1', setupText: 'setup1', punchlineText: 'punchline1'),
           const Joke(
-            id: '2', 
-            setupText: 'setup2', 
+            id: '2',
+            setupText: 'setup2',
             punchlineText: 'punchline2',
             setupImageUrl: 'url1',
             punchlineImageUrl: 'url2',
@@ -572,9 +804,10 @@ void main() {
             numThumbsDown: 2,
           ),
         ];
-        
-        when(() => mockJokeRepository.getJokes())
-            .thenAnswer((_) => Stream.value(testJokes));
+
+        when(
+          () => mockJokeRepository.getJokes(),
+        ).thenAnswer((_) => Stream.value(testJokes));
 
         // act
         final container = ProviderContainer(
@@ -587,78 +820,114 @@ void main() {
         await container.read(jokesProvider.future);
 
         final result = container.read(filteredJokesProvider);
-        
+
         // assert
         expect(result.hasValue, true);
         expect(result.value, testJokes);
-        
+
         container.dispose();
       });
 
-      test('should filter to unrated jokes with images when filter is on', () async {
+      test(
+        'should filter to unrated jokes with images when filter is on',
+        () async {
+          // arrange
+          final testJokes = [
+            // No images - should be filtered out
+            const Joke(
+              id: '1',
+              setupText: 'setup1',
+              punchlineText: 'punchline1',
+              numThumbsUp: 0,
+              numThumbsDown: 0,
+            ),
+            // Has images and unrated - should be included
+            const Joke(
+              id: '2',
+              setupText: 'setup2',
+              punchlineText: 'punchline2',
+              setupImageUrl: 'url1',
+              punchlineImageUrl: 'url2',
+              numThumbsUp: 0,
+              numThumbsDown: 0,
+            ),
+            // Has images but rated - should be filtered out
+            const Joke(
+              id: '3',
+              setupText: 'setup3',
+              punchlineText: 'punchline3',
+              setupImageUrl: 'url3',
+              punchlineImageUrl: 'url4',
+              numThumbsUp: 5,
+              numThumbsDown: 0,
+            ),
+            // Has images but rated (thumbs down) - should be filtered out
+            const Joke(
+              id: '4',
+              setupText: 'setup4',
+              punchlineText: 'punchline4',
+              setupImageUrl: 'url5',
+              punchlineImageUrl: 'url6',
+              numThumbsUp: 0,
+              numThumbsDown: 3,
+            ),
+            // Has only one image - should be filtered out
+            const Joke(
+              id: '5',
+              setupText: 'setup5',
+              punchlineText: 'punchline5',
+              setupImageUrl: 'url7',
+              numThumbsUp: 0,
+              numThumbsDown: 0,
+            ),
+            // Empty image URLs - should be filtered out
+            const Joke(
+              id: '6',
+              setupText: 'setup6',
+              punchlineText: 'punchline6',
+              setupImageUrl: '',
+              punchlineImageUrl: '',
+              numThumbsUp: 0,
+              numThumbsDown: 0,
+            ),
+          ];
+
+          when(
+            () => mockJokeRepository.getJokes(),
+          ).thenAnswer((_) => Stream.value(testJokes));
+
+          // act
+          final container = ProviderContainer(
+            overrides: [
+              jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
+            ],
+          );
+
+          // Wait for the stream provider to emit data
+          await container.read(jokesProvider.future);
+
+          // Turn on the filter
+          container.read(jokeFilterProvider.notifier).setUnratedOnly(true);
+
+          final result = container.read(filteredJokesProvider);
+
+          // assert
+          expect(result.hasValue, true);
+          expect(result.value?.length, 1);
+          expect(
+            result.value?.first.id,
+            '2',
+          ); // Only joke 2 should pass the filter
+
+          container.dispose();
+        },
+      );
+
+      test('should handle loading state correctly', () async {
         // arrange
-        final testJokes = [
-          // No images - should be filtered out
-          const Joke(
-            id: '1', 
-            setupText: 'setup1', 
-            punchlineText: 'punchline1',
-            numThumbsUp: 0,
-            numThumbsDown: 0,
-          ),
-          // Has images and unrated - should be included
-          const Joke(
-            id: '2', 
-            setupText: 'setup2', 
-            punchlineText: 'punchline2',
-            setupImageUrl: 'url1',
-            punchlineImageUrl: 'url2',
-            numThumbsUp: 0,
-            numThumbsDown: 0,
-          ),
-          // Has images but rated - should be filtered out
-          const Joke(
-            id: '3', 
-            setupText: 'setup3', 
-            punchlineText: 'punchline3',
-            setupImageUrl: 'url3',
-            punchlineImageUrl: 'url4',
-            numThumbsUp: 5,
-            numThumbsDown: 0,
-          ),
-          // Has images but rated (thumbs down) - should be filtered out
-          const Joke(
-            id: '4', 
-            setupText: 'setup4', 
-            punchlineText: 'punchline4',
-            setupImageUrl: 'url5',
-            punchlineImageUrl: 'url6',
-            numThumbsUp: 0,
-            numThumbsDown: 3,
-          ),
-          // Has only one image - should be filtered out
-          const Joke(
-            id: '5', 
-            setupText: 'setup5', 
-            punchlineText: 'punchline5',
-            setupImageUrl: 'url7',
-            numThumbsUp: 0,
-            numThumbsDown: 0,
-          ),
-          // Empty image URLs - should be filtered out
-          const Joke(
-            id: '6', 
-            setupText: 'setup6', 
-            punchlineText: 'punchline6',
-            setupImageUrl: '',
-            punchlineImageUrl: '',
-            numThumbsUp: 0,
-            numThumbsDown: 0,
-          ),
-        ];
-        
-        when(() => mockJokeRepository.getJokes())
-            .thenAnswer((_) => Stream.value(testJokes));
+        when(() => mockJokeRepository.getJokes()).thenAnswer(
+          (_) => Stream<List<Joke>>.empty(),
+        ); // Empty stream simulates loading
 
         // act
         final container = ProviderContainer(
@@ -667,73 +936,46 @@ void main() {
           ],
         );
 
-        // Wait for the stream provider to emit data
-        await container.read(jokesProvider.future);
-
-        // Turn on the filter
-        container.read(jokeFilterProvider.notifier).setUnratedOnly(true);
-
+        final asyncValue = container.read(jokesProvider);
         final result = container.read(filteredJokesProvider);
-        
+
         // assert
-        expect(result.hasValue, true);
-        expect(result.value?.length, 1);
-        expect(result.value?.first.id, '2'); // Only joke 2 should pass the filter
-        
+        expect(asyncValue.isLoading, true);
+        expect(result.isLoading, true);
+
         container.dispose();
       });
 
-          test('should handle loading state correctly', () async {
-      // arrange
-      when(() => mockJokeRepository.getJokes())
-          .thenAnswer((_) => Stream<List<Joke>>.empty()); // Empty stream simulates loading
+      test('should handle error state correctly', () async {
+        // arrange
+        const error = 'Test error';
 
-      // act
-      final container = ProviderContainer(
-        overrides: [
-          jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
-        ],
-      );
+        when(
+          () => mockJokeRepository.getJokes(),
+        ).thenAnswer((_) => Stream<List<Joke>>.error(error));
 
-      final asyncValue = container.read(jokesProvider);
-      final result = container.read(filteredJokesProvider);
-      
-      // assert
-      expect(asyncValue.isLoading, true);
-      expect(result.isLoading, true);
-      
-      container.dispose();
-    });
+        // act
+        final container = ProviderContainer(
+          overrides: [
+            jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
+          ],
+        );
 
-    test('should handle error state correctly', () async {
-      // arrange
-      const error = 'Test error';
-      
-      when(() => mockJokeRepository.getJokes())
-          .thenAnswer((_) => Stream<List<Joke>>.error(error));
+        // Try to read the jokesProvider to trigger the error
+        try {
+          await container.read(jokesProvider.future);
+        } catch (e) {
+          // Expected to fail
+        }
 
-      // act
-      final container = ProviderContainer(
-        overrides: [
-          jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
-        ],
-      );
+        final result = container.read(filteredJokesProvider);
 
-      // Try to read the jokesProvider to trigger the error
-      try {
-        await container.read(jokesProvider.future);
-      } catch (e) {
-        // Expected to fail
-      }
+        // assert
+        expect(result.hasError, true);
+        expect(result.error, error);
 
-      final result = container.read(filteredJokesProvider);
-      
-      // assert
-      expect(result.hasError, true);
-      expect(result.error, error);
-      
-      container.dispose();
-    });
+        container.dispose();
+      });
     });
   });
 }

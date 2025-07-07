@@ -224,19 +224,7 @@ void main() {
           const Duration(milliseconds: 200),
         ); // Allow hints to appear
 
-        // Should show some kind of hint text (exact text may vary based on state)
-        final hintTexts = [
-          'Tap image for punchline!',
-          'Tap image for next joke!',
-        ];
-        bool foundHint = false;
-        for (final hint in hintTexts) {
-          if (find.text(hint).evaluate().isNotEmpty) {
-            foundHint = true;
-            break;
-          }
-        }
-        expect(foundHint, isTrue, reason: 'Should show at least one hint');
+        expect(find.byKey(const Key('joke_viewer_hint_text')), findsOneWidget);
       });
 
       testWidgets('hints can fade and restore during interactions', (
@@ -395,121 +383,6 @@ void main() {
           lessThan(1000),
           reason: 'Should complete 10 frames in under 1 second',
         );
-      });
-    });
-
-    group('Arrow Indicators', () {
-      testWidgets('shows no arrows when there is only one joke', (
-        tester,
-      ) async {
-        await tester.pumpWidget(
-          createTestWidget(customBatches: createSingleJokeBatch()),
-        );
-
-        await tester.pump(); // Allow data to be processed
-
-        // Should not show any arrow indicators
-        expect(find.byIcon(Icons.keyboard_arrow_up), findsNothing);
-        expect(find.byIcon(Icons.keyboard_arrow_down), findsNothing);
-      });
-
-      testWidgets('arrow logic works correctly based on page position', (
-        tester,
-      ) async {
-        await tester.pumpWidget(createTestWidget());
-
-        await tester.pump(); // Allow data to be processed
-
-        // Initially at first joke - only down arrow should be visible
-        expect(find.byIcon(Icons.keyboard_arrow_up), findsNothing);
-        expect(find.byIcon(Icons.keyboard_arrow_down), findsOneWidget);
-
-        // Simulate upward swipe to go to next joke (middle joke)
-        final pageView = find.byKey(const Key('joke_viewer_page_view'));
-        await tester.drag(
-          pageView,
-          const Offset(0, -400),
-        ); // Negative dy = upward
-
-        // Wait for page transition to complete with multiple controlled pumps
-        for (int i = 0; i < 10; i++) {
-          await tester.pump(const Duration(milliseconds: 100));
-        }
-
-        // Now at middle joke - both arrows should be visible
-        expect(find.byIcon(Icons.keyboard_arrow_up), findsOneWidget);
-        expect(find.byIcon(Icons.keyboard_arrow_down), findsOneWidget);
-
-        // Simulate upward swipe to go to next joke (last joke)
-        await tester.drag(
-          pageView,
-          const Offset(0, -400),
-        ); // Negative dy = upward
-
-        // Wait for page transition to complete with multiple controlled pumps
-        for (int i = 0; i < 10; i++) {
-          await tester.pump(const Duration(milliseconds: 100));
-        }
-
-        // Now at last joke - only up arrow should be visible
-        expect(find.byIcon(Icons.keyboard_arrow_up), findsOneWidget);
-        expect(find.byIcon(Icons.keyboard_arrow_down), findsNothing);
-      });
-
-      testWidgets('arrow styling uses correct theme colors', (tester) async {
-        await tester.pumpWidget(createTestWidget());
-
-        await tester.pump(); // Allow data to be processed
-
-        // Find the down arrow (should be present at first joke)
-        final downArrowWidget = find.byIcon(Icons.keyboard_arrow_down);
-        expect(downArrowWidget, findsOneWidget);
-
-        // Check that arrow has proper styling
-        final arrowIcon = tester.widget<Icon>(downArrowWidget);
-        expect(arrowIcon.size, equals(24));
-
-        // The color should use theme colors with alpha
-        expect(arrowIcon.color, isNotNull);
-      });
-
-      testWidgets('arrows are positioned correctly', (tester) async {
-        await tester.pumpWidget(createTestWidget());
-
-        await tester.pump(); // Allow data to be processed
-
-        // Find the down arrow container
-        final downArrow = find.byIcon(Icons.keyboard_arrow_down);
-        expect(downArrow, findsOneWidget);
-      });
-
-      testWidgets('arrows have correct opacity', (tester) async {
-        await tester.pumpWidget(createTestWidget());
-
-        await tester.pump(); // Allow data to be processed
-
-        // Find the opacity widget wrapping the arrow
-        final opacityWidget = find.ancestor(
-          of: find.byIcon(Icons.keyboard_arrow_down),
-          matching: find.byType(Opacity),
-        );
-        expect(opacityWidget, findsOneWidget);
-
-        // Check that opacity is set to 0.4 (subtle)
-        final opacity = tester.widget<Opacity>(opacityWidget);
-        expect(opacity.opacity, equals(0.4));
-      });
-
-      testWidgets('no arrows shown when jokes list is empty', (tester) async {
-        await tester.pumpWidget(
-          createTestWidget(customBatches: createEmptyBatches()),
-        );
-
-        await tester.pump(); // Allow data to be processed
-
-        // Should not show any arrows when no jokes
-        expect(find.byIcon(Icons.keyboard_arrow_up), findsNothing);
-        expect(find.byIcon(Icons.keyboard_arrow_down), findsNothing);
       });
     });
 

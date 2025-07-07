@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/common_widgets/cached_joke_image.dart';
 import 'package:snickerdoodle/src/common_widgets/holdable_button.dart';
 import 'package:snickerdoodle/src/common_widgets/joke_reaction_button.dart';
+import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/providers/image_providers.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
@@ -55,6 +56,17 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
       if (widget.onImageStateChanged != null) {
         widget.onImageStateChanged!(0);
       }
+
+      // Track initial setup view
+      final analyticsService = ref.read(analyticsServiceProvider);
+      final joke = widget.joke;
+      final hasImages =
+          joke.setupImageUrl != null &&
+          joke.setupImageUrl!.isNotEmpty &&
+          joke.punchlineImageUrl != null &&
+          joke.punchlineImageUrl!.isNotEmpty;
+
+      analyticsService.logJokeSetupViewed(joke.id, hasImages: hasImages);
     });
   }
 
@@ -97,8 +109,23 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
       widget.onImageStateChanged!(index);
     }
 
-    // Trigger subscription prompt when user views punchline (index 1)
-    if (index == 1) {
+    // Track analytics for joke viewing
+    final analyticsService = ref.read(analyticsServiceProvider);
+    final joke = widget.joke;
+    final hasImages =
+        joke.setupImageUrl != null &&
+        joke.setupImageUrl!.isNotEmpty &&
+        joke.punchlineImageUrl != null &&
+        joke.punchlineImageUrl!.isNotEmpty;
+
+    if (index == 0) {
+      // User is viewing setup image
+      analyticsService.logJokeSetupViewed(joke.id, hasImages: hasImages);
+    } else if (index == 1) {
+      // User is viewing punchline image
+      analyticsService.logJokePunchlineViewed(joke.id, hasImages: hasImages);
+
+      // Trigger subscription prompt when user views punchline (index 1)
       final subscriptionPromptNotifier = ref.read(
         subscriptionPromptProvider.notifier,
       );

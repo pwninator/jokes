@@ -1,7 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:snickerdoodle/src/features/jokes/data/models/joke_schedule.dart';
-import 'package:snickerdoodle/src/features/jokes/data/models/joke_schedule_batch.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_schedule_repository.dart';
 
 import '../../../../test_helpers/test_helpers.dart';
@@ -19,8 +17,9 @@ void main() {
       test('returns stream of schedules', () async {
         // Arrange
         final testSchedules = JokeScheduleMocks.createTestSchedules();
-        when(() => repository.watchSchedules())
-            .thenAnswer((_) => Stream.value(testSchedules));
+        when(
+          () => repository.watchSchedules(),
+        ).thenAnswer((_) => Stream.value(testSchedules));
 
         // Act
         final stream = repository.watchSchedules();
@@ -35,8 +34,9 @@ void main() {
 
       test('handles empty schedules', () async {
         // Arrange
-        when(() => repository.watchSchedules())
-            .thenAnswer((_) => Stream.value([]));
+        when(
+          () => repository.watchSchedules(),
+        ).thenAnswer((_) => Stream.value([]));
 
         // Act
         final stream = repository.watchSchedules();
@@ -49,8 +49,9 @@ void main() {
 
       test('handles stream errors', () async {
         // Arrange
-        when(() => repository.watchSchedules())
-            .thenAnswer((_) => Stream.error(Exception('Test error')));
+        when(
+          () => repository.watchSchedules(),
+        ).thenAnswer((_) => Stream.error(Exception('Test error')));
 
         // Act
         final stream = repository.watchSchedules();
@@ -67,8 +68,9 @@ void main() {
         final testBatches = JokeScheduleMocks.createTestBatches(
           scheduleId: scheduleId,
         );
-        when(() => repository.watchBatchesForSchedule(scheduleId))
-            .thenAnswer((_) => Stream.value(testBatches));
+        when(
+          () => repository.watchBatchesForSchedule(scheduleId),
+        ).thenAnswer((_) => Stream.value(testBatches));
 
         // Act
         final stream = repository.watchBatchesForSchedule(scheduleId);
@@ -84,8 +86,9 @@ void main() {
       test('returns empty stream for schedule with no batches', () async {
         // Arrange
         const scheduleId = 'empty_schedule';
-        when(() => repository.watchBatchesForSchedule(scheduleId))
-            .thenAnswer((_) => Stream.value([]));
+        when(
+          () => repository.watchBatchesForSchedule(scheduleId),
+        ).thenAnswer((_) => Stream.value([]));
 
         // Act
         final stream = repository.watchBatchesForSchedule(scheduleId);
@@ -101,8 +104,9 @@ void main() {
       test('creates schedule successfully', () async {
         // Arrange
         const scheduleName = 'New Test Schedule';
-        when(() => repository.createSchedule(scheduleName))
-            .thenAnswer((_) async {});
+        when(
+          () => repository.createSchedule(scheduleName),
+        ).thenAnswer((_) async {});
 
         // Act
         await repository.createSchedule(scheduleName);
@@ -114,8 +118,9 @@ void main() {
       test('handles creation errors', () async {
         // Arrange
         const scheduleName = 'Error Schedule';
-        when(() => repository.createSchedule(scheduleName))
-            .thenThrow(Exception('Creation failed'));
+        when(
+          () => repository.createSchedule(scheduleName),
+        ).thenThrow(Exception('Creation failed'));
 
         // Act & Assert
         expect(
@@ -129,8 +134,7 @@ void main() {
       test('updates batch successfully', () async {
         // Arrange
         final testBatch = JokeScheduleMocks.createTestBatch();
-        when(() => repository.updateBatch(testBatch))
-            .thenAnswer((_) async {});
+        when(() => repository.updateBatch(testBatch)).thenAnswer((_) async {});
 
         // Act
         await repository.updateBatch(testBatch);
@@ -142,8 +146,9 @@ void main() {
       test('handles update errors', () async {
         // Arrange
         final testBatch = JokeScheduleMocks.createTestBatch();
-        when(() => repository.updateBatch(testBatch))
-            .thenThrow(Exception('Update failed'));
+        when(
+          () => repository.updateBatch(testBatch),
+        ).thenThrow(Exception('Update failed'));
 
         // Act & Assert
         expect(
@@ -157,8 +162,7 @@ void main() {
       test('deletes batch successfully', () async {
         // Arrange
         const batchId = 'test_batch_id';
-        when(() => repository.deleteBatch(batchId))
-            .thenAnswer((_) async {});
+        when(() => repository.deleteBatch(batchId)).thenAnswer((_) async {});
 
         // Act
         await repository.deleteBatch(batchId);
@@ -172,8 +176,9 @@ void main() {
       test('deletes schedule and related batches successfully', () async {
         // Arrange
         const scheduleId = 'test_schedule';
-        when(() => repository.deleteSchedule(scheduleId))
-            .thenAnswer((_) async {});
+        when(
+          () => repository.deleteSchedule(scheduleId),
+        ).thenAnswer((_) async {});
 
         // Act
         await repository.deleteSchedule(scheduleId);
@@ -185,8 +190,9 @@ void main() {
       test('handles deletion errors', () async {
         // Arrange
         const scheduleId = 'error_schedule';
-        when(() => repository.deleteSchedule(scheduleId))
-            .thenThrow(Exception('Deletion failed'));
+        when(
+          () => repository.deleteSchedule(scheduleId),
+        ).thenThrow(Exception('Deletion failed'));
 
         // Act & Assert
         expect(
@@ -196,4 +202,4 @@ void main() {
       });
     });
   });
-} 
+}

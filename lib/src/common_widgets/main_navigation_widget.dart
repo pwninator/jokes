@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
+import 'package:snickerdoodle/src/core/services/analytics_events.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_admin_screen.dart';
 import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/presentation/joke_viewer_screen.dart';
@@ -31,9 +33,41 @@ class MainNavigationWidgetState extends ConsumerState<MainNavigationWidget> {
           isAdmin ? 2 : 1; // 0=Jokes, 1=Settings, 2=Admin (if admin)
 
       final safeIndex = index.clamp(0, maxIndex);
+
+      // Track analytics for tab change
+      _trackTabChange(_selectedIndex, safeIndex, 'programmatic');
+
       setState(() {
         _selectedIndex = safeIndex;
       });
+    }
+  }
+
+  /// Track analytics for tab changes
+  void _trackTabChange(int previousIndex, int newIndex, String method) {
+    if (previousIndex == newIndex) return;
+
+    final analyticsService = ref.read(analyticsServiceProvider);
+    final previousTab = _indexToAppTab(previousIndex);
+    final newTab = _indexToAppTab(newIndex);
+
+    if (previousTab != null && newTab != null) {
+      analyticsService.logTabChanged(previousTab, newTab, method: method);
+    }
+  }
+
+  /// Convert tab index to AppTab enum
+  AppTab? _indexToAppTab(int index) {
+    final isAdmin = ref.read(isAdminProvider);
+    switch (index) {
+      case 0:
+        return AppTab.jokes;
+      case 1:
+        return AppTab.settings;
+      case 2:
+        return isAdmin ? AppTab.admin : null;
+      default:
+        return null;
     }
   }
 
@@ -104,6 +138,9 @@ class MainNavigationWidgetState extends ConsumerState<MainNavigationWidget> {
                         destinations: railDestinations,
                         selectedIndex: _selectedIndex,
                         onDestinationSelected: (index) {
+                          // Track analytics for tab change
+                          _trackTabChange(_selectedIndex, index, 'tap');
+
                           setState(() {
                             _selectedIndex = index;
                           });
@@ -162,6 +199,9 @@ class MainNavigationWidgetState extends ConsumerState<MainNavigationWidget> {
                 ),
                 backgroundColor: Theme.of(context).colorScheme.surface,
                 onTap: (index) {
+                  // Track analytics for tab change
+                  _trackTabChange(_selectedIndex, index, 'tap');
+
                   setState(() {
                     _selectedIndex = index;
                   });

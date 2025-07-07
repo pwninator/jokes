@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
+import 'package:snickerdoodle/src/core/services/analytics_events.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
 
 class SubscriptionPromptDialog extends ConsumerStatefulWidget {
@@ -145,10 +147,28 @@ class _SubscriptionPromptDialogState
       _isLoading = true;
     });
 
+    // Track analytics for subscription attempt
+    final analyticsService = ref.read(analyticsServiceProvider);
+    
     final subscriptionPromptNotifier = ref.read(
       subscriptionPromptProvider.notifier,
     );
     final success = await subscriptionPromptNotifier.subscribeUser();
+
+    // Track analytics for subscription result
+    if (success) {
+      await analyticsService.logSubscriptionEvent(
+        SubscriptionEventType.subscribed,
+        SubscriptionSource.popup,
+        permissionGranted: true,
+      );
+    } else {
+      await analyticsService.logSubscriptionEvent(
+        SubscriptionEventType.declined,
+        SubscriptionSource.popup,
+        permissionGranted: false,
+      );
+    }
 
     if (success && mounted) {
       // Close dialog
@@ -200,6 +220,13 @@ class _SubscriptionPromptDialogState
   }
 
   Future<void> _handleMaybeLater() async {
+    // Track analytics for maybe later choice
+    final analyticsService = ref.read(analyticsServiceProvider);
+    await analyticsService.logSubscriptionEvent(
+      SubscriptionEventType.maybeLater,
+      SubscriptionSource.popup,
+    );
+
     final subscriptionPromptNotifier = ref.read(
       subscriptionPromptProvider.notifier,
     );

@@ -1,5 +1,7 @@
+import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
 
@@ -7,9 +9,12 @@ import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_functi
 class MockJokeCloudFunctionService extends Mock
     implements JokeCloudFunctionService {}
 
+class MockFirebaseAnalytics extends Mock implements FirebaseAnalytics {}
+
 /// Firebase-specific service mocks for unit tests
 class FirebaseMocks {
   static MockJokeCloudFunctionService? _mockCloudFunctionService;
+  static MockFirebaseAnalytics? _mockFirebaseAnalytics;
 
   /// Get or create mock cloud function service
   static MockJokeCloudFunctionService get mockCloudFunctionService {
@@ -18,9 +23,17 @@ class FirebaseMocks {
     return _mockCloudFunctionService!;
   }
 
+  /// Get or create mock Firebase Analytics
+  static MockFirebaseAnalytics get mockFirebaseAnalytics {
+    _mockFirebaseAnalytics ??= MockFirebaseAnalytics();
+    _setupFirebaseAnalyticsDefaults(_mockFirebaseAnalytics!);
+    return _mockFirebaseAnalytics!;
+  }
+
   /// Reset all Firebase mocks (call this in setUp if needed)
   static void reset() {
     _mockCloudFunctionService = null;
+    _mockFirebaseAnalytics = null;
   }
 
   /// Get Firebase-specific provider overrides
@@ -33,6 +46,9 @@ class FirebaseMocks {
         mockCloudFunctionService,
       ),
 
+      // Mock Firebase Analytics
+      firebaseAnalyticsProvider.overrideWithValue(mockFirebaseAnalytics),
+
       // Mock joke population provider to avoid Firebase calls
       jokePopulationProvider.overrideWith(
         (ref) => TestJokePopulationNotifier(),
@@ -41,6 +57,24 @@ class FirebaseMocks {
       // Add any additional overrides
       ...additionalOverrides,
     ];
+  }
+
+  static void _setupFirebaseAnalyticsDefaults(MockFirebaseAnalytics mock) {
+    // Setup default behaviors that won't throw
+    when(() => mock.setDefaultEventParameters(any())).thenAnswer((_) async {});
+    when(() => mock.setUserId(id: any(named: 'id'))).thenAnswer((_) async {});
+    when(
+      () => mock.setUserProperty(
+        name: any(named: 'name'),
+        value: any(named: 'value'),
+      ),
+    ).thenAnswer((_) async {});
+    when(
+      () => mock.logEvent(
+        name: any(named: 'name'),
+        parameters: any(named: 'parameters'),
+      ),
+    ).thenAnswer((_) async {});
   }
 
   static void _setupCloudFunctionServiceDefaults(
@@ -66,7 +100,11 @@ class FirebaseMocks {
     ).thenAnswer((_) async => {'success': true, 'joke_id': 'test-id'});
 
     when(
-      () => mock.populateJoke(any(), imagesOnly: any(named: 'imagesOnly')),
+      () => mock.populateJoke(
+        any(),
+        imagesOnly: any(named: 'imagesOnly'),
+        additionalParams: any(named: 'additionalParams'),
+      ),
     ).thenAnswer((_) async => {'success': true, 'data': 'populated'});
 
     when(
@@ -89,7 +127,11 @@ class TestJokePopulationNotifier extends JokePopulationNotifier {
   TestJokePopulationNotifier() : super(FirebaseMocks.mockCloudFunctionService);
 
   @override
-  Future<bool> populateJoke(String jokeId, {bool imagesOnly = false, Map<String, dynamic>? additionalParams}) async {
+  Future<bool> populateJoke(
+    String jokeId, {
+    bool imagesOnly = false,
+    Map<String, dynamic>? additionalParams,
+  }) async {
     // Don't change state to avoid timing issues in tests
     // Just return success
     return true;

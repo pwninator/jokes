@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/common_widgets/subscription_prompt_dialog.dart';
+import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
 
 /// Global overlay that listens to subscription prompt state and shows dialog when needed
@@ -39,6 +40,10 @@ class _SubscriptionPromptOverlayState
     if (_isDialogShowing) return;
 
     _isDialogShowing = true;
+
+    // Track analytics for prompt shown
+    final analyticsService = ref.read(analyticsServiceProvider);
+    await analyticsService.logSubscriptionPromptShown();
 
     // Wait for the next frame to ensure UI is ready
     WidgetsBinding.instance.addPostFrameCallback((_) async {

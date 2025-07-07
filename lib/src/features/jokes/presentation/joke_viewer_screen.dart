@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/common_widgets/adaptive_app_bar_screen.dart';
 import 'package:snickerdoodle/src/common_widgets/joke_card.dart';
 import 'package:snickerdoodle/src/common_widgets/titled_screen.dart';
+import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
+import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
 import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 
@@ -154,6 +156,8 @@ class _JokeViewerScreenState extends ConsumerState<JokeViewerScreen> {
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
       );
+      // Note: Analytics will be tracked in onPageChanged callback with method: 'swipe'
+      // which is triggered by the nextPage() call above
     }
   }
 
@@ -212,6 +216,19 @@ class _JokeViewerScreenState extends ConsumerState<JokeViewerScreen> {
                     });
                     // Update hint for new page
                     _updateHintOpacity();
+
+                    // Track analytics for joke navigation
+                    final jokeWithDate = jokesWithDates[index];
+                    final joke = jokeWithDate.joke;
+                    final daysBack =
+                        index; // index 0 = today (0 days back), index 1 = yesterday (1 day back), etc.
+
+                    final analyticsService = ref.read(analyticsServiceProvider);
+                    analyticsService.logJokeNavigation(
+                      joke.id,
+                      daysBack,
+                      method: AnalyticsNavigationMethod.swipe,
+                    );
                   }
                 },
                 itemBuilder: (context, index) {
@@ -232,8 +249,10 @@ class _JokeViewerScreenState extends ConsumerState<JokeViewerScreen> {
                   }
 
                   // Determine orientation and apply appropriate sizing
-                  final isLandscape = MediaQuery.of(context).orientation == Orientation.landscape;
-                  
+                  final isLandscape =
+                      MediaQuery.of(context).orientation ==
+                      Orientation.landscape;
+
                   return Center(
                     child: Container(
                       width: isLandscape ? null : double.infinity,
@@ -274,6 +293,7 @@ class _JokeViewerScreenState extends ConsumerState<JokeViewerScreen> {
                           vertical: 8,
                         ),
                         child: Text(
+                          key: const Key('joke_viewer_hint_text'),
                           _getHintText(),
                           style: TextStyle(
                             color: Theme.of(

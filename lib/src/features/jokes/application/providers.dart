@@ -1,5 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
+import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_service.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_schedule_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
@@ -167,13 +169,14 @@ class JokeReactionsState {
 
 // Notifier for managing joke reactions
 class JokeReactionsNotifier extends StateNotifier<JokeReactionsState> {
-  JokeReactionsNotifier(this._reactionsService, this._jokeRepository)
+  JokeReactionsNotifier(this._reactionsService, this._jokeRepository, this._analyticsService)
     : super(const JokeReactionsState()) {
     _loadUserReactions();
   }
 
   final JokeReactionsService _reactionsService;
   final JokeRepository _jokeRepository;
+  final AnalyticsService _analyticsService;
 
   /// Load user reactions from SharedPreferences on initialization
   Future<void> _loadUserReactions() async {
@@ -238,6 +241,9 @@ class JokeReactionsNotifier extends StateNotifier<JokeReactionsState> {
       if (!hadReaction && oppositeReaction != null && hadOppositeReaction) {
         await _reactionsService.removeUserReaction(jokeId, oppositeReaction);
         await _jokeRepository.decrementReaction(jokeId, oppositeReaction);
+        
+        // Track analytics for opposite reaction removal
+        await _analyticsService.logJokeReaction(jokeId, oppositeReaction, false);
       }
 
       // Update SharedPreferences and Firestore for the main reaction
@@ -251,6 +257,9 @@ class JokeReactionsNotifier extends StateNotifier<JokeReactionsState> {
       } else {
         await _jokeRepository.decrementReaction(jokeId, reactionType);
       }
+
+      // Track analytics for reaction toggle
+      await _analyticsService.logJokeReaction(jokeId, reactionType, wasAdded);
     } catch (e) {
       // Revert optimistic update on error
       await _loadUserReactions(); // Reload from source of truth
@@ -301,7 +310,8 @@ final jokeReactionsProvider =
     StateNotifierProvider<JokeReactionsNotifier, JokeReactionsState>((ref) {
       final reactionsService = ref.watch(jokeReactionsServiceProvider);
       final jokeRepository = ref.watch(jokeRepositoryProvider);
-      return JokeReactionsNotifier(reactionsService, jokeRepository);
+      final analyticsService = ref.watch(analyticsServiceProvider);
+      return JokeReactionsNotifier(reactionsService, jokeRepository, analyticsService);
     });
 
 // Family provider to check if a user has reacted to a joke with a specific reaction type

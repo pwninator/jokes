@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/common_widgets/adaptive_app_bar_screen.dart';
 import 'package:snickerdoodle/src/common_widgets/subscription_prompt_dialog.dart';
 import 'package:snickerdoodle/src/common_widgets/titled_screen.dart';
+import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/providers/app_version_provider.dart';
+import 'package:snickerdoodle/src/core/services/analytics_events.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
@@ -697,6 +699,25 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
       } else {
         // Unsubscribe (no permission needed)
         success = await subscriptionService.unsubscribe();
+      }
+
+      // Track analytics for subscription toggle
+      final analyticsService = ref.read(analyticsServiceProvider);
+      if (success) {
+        await analyticsService.logSubscriptionEvent(
+          enable
+              ? SubscriptionEventType.subscribed
+              : SubscriptionEventType.unsubscribed,
+          SubscriptionSource.settings,
+          permissionGranted: enable ? success : null,
+        );
+      } else if (enable) {
+        // Track failed subscription attempt
+        await analyticsService.logSubscriptionEvent(
+          SubscriptionEventType.declined,
+          SubscriptionSource.settings,
+          permissionGranted: false,
+        );
       }
 
       // Update UI state based on the operation result

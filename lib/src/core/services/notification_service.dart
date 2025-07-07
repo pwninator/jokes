@@ -1,7 +1,10 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/app.dart';
+import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
+import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/common_widgets/cached_joke_image.dart';
 import 'package:snickerdoodle/src/common_widgets/main_navigation_widget.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
@@ -14,6 +17,12 @@ class NotificationService {
   NotificationService._internal();
 
   bool _isInitialized = false;
+  AnalyticsService? _analyticsService;
+
+  /// Set the analytics service (called after provider container is available)
+  void setAnalyticsService(AnalyticsService analyticsService) {
+    _analyticsService = analyticsService;
+  }
 
   /// Initialize notification service (non-blocking)
   /// Now ultra-fast since everything is background/on-demand
@@ -101,6 +110,15 @@ class NotificationService {
   /// Handle FCM message when app is opened from notification
   Future<void> _handleMessageOpenedApp(RemoteMessage message) async {
     debugPrint('App opened from FCM notification: ${message.messageId}');
+
+    // Track analytics for notification tap
+    if (_analyticsService != null) {
+      final jokeId = message.data['joke_id'];
+      await _analyticsService!.logNotificationTapped(
+        jokeId: jokeId,
+        notificationId: message.messageId,
+      );
+    }
 
     // Navigate to jokes screen and scroll to top
     _navigateToJokesScreen();

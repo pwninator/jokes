@@ -56,6 +56,7 @@ class AnalyticsMocks {
         any(),
         hasImages: any(named: 'hasImages'),
         navigationMethod: any(named: 'navigationMethod'),
+        jokeContext: any(named: 'jokeContext'),
       ),
     ).thenAnswer((_) async {});
 
@@ -64,15 +65,26 @@ class AnalyticsMocks {
         any(),
         hasImages: any(named: 'hasImages'),
         navigationMethod: any(named: 'navigationMethod'),
+        jokeContext: any(named: 'jokeContext'),
       ),
     ).thenAnswer((_) async {});
 
     when(
-      () => mock.logJokeNavigation(any(), any(), method: any(named: 'method')),
+      () => mock.logJokeNavigation(
+        any(),
+        any(),
+        method: any(named: 'method'),
+        jokeContext: any(named: 'jokeContext'),
+      ),
     ).thenAnswer((_) async {});
 
     when(
-      () => mock.logJokeReaction(any(), any(), any()),
+      () => mock.logJokeReaction(
+        any(),
+        any(),
+        any(),
+        jokeContext: any(named: 'jokeContext'),
+      ),
     ).thenAnswer((_) async {});
 
     when(
@@ -114,5 +126,5 @@ void registerAnalyticsFallbackValues() {
   registerFallbackValue(JokeReactionType.save);
   registerFallbackValue(SubscriptionEventType.subscribed);
   registerFallbackValue(SubscriptionSource.popup);
-  registerFallbackValue(AppTab.jokes);
+  registerFallbackValue(AppTab.dailyJokes);
 }

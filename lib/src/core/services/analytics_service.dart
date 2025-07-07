@@ -19,6 +19,7 @@ abstract class AnalyticsService {
     String jokeId, {
     required bool hasImages,
     required String navigationMethod,
+    required String jokeContext,
   });
 
   /// Log when user views a joke punchline
@@ -26,6 +27,7 @@ abstract class AnalyticsService {
     String jokeId, {
     required bool hasImages,
     required String navigationMethod,
+    required String jokeContext,
   });
 
   /// Log when user navigates through jokes
@@ -33,14 +35,16 @@ abstract class AnalyticsService {
     String jokeId,
     int daysBack, {
     required String method,
+    required String jokeContext,
   });
 
   /// Log joke reaction events (heart, thumbs up/down, etc.)
   Future<void> logJokeReaction(
     String jokeId,
     JokeReactionType reactionType,
-    bool isAdded,
-  );
+    bool isAdded, {
+    required String jokeContext,
+  });
 
   /// Log subscription-related events
   Future<void> logSubscriptionEvent(
@@ -131,11 +135,13 @@ class FirebaseAnalyticsService implements AnalyticsService {
     String jokeId, {
     required bool hasImages,
     required String navigationMethod,
+    required String jokeContext,
   }) async {
     await _logEvent(AnalyticsEvent.jokeSetupViewed, {
       AnalyticsParameters.jokeId: jokeId,
       AnalyticsParameters.jokeHasImages: hasImages,
       AnalyticsParameters.navigationMethod: navigationMethod,
+      AnalyticsParameters.jokeContext: jokeContext,
       AnalyticsParameters.userType: _getUserType(_currentUser),
     });
   }
@@ -145,11 +151,13 @@ class FirebaseAnalyticsService implements AnalyticsService {
     String jokeId, {
     required bool hasImages,
     required String navigationMethod,
+    required String jokeContext,
   }) async {
     await _logEvent(AnalyticsEvent.jokePunchlineViewed, {
       AnalyticsParameters.jokeId: jokeId,
       AnalyticsParameters.jokeHasImages: hasImages,
       AnalyticsParameters.navigationMethod: navigationMethod,
+      AnalyticsParameters.jokeContext: jokeContext,
       AnalyticsParameters.userType: _getUserType(_currentUser),
     });
   }
@@ -159,11 +167,13 @@ class FirebaseAnalyticsService implements AnalyticsService {
     String jokeId,
     int daysBack, {
     required String method,
+    required String jokeContext,
   }) async {
     await _logEvent(AnalyticsEvent.jokeNavigated, {
       AnalyticsParameters.jokeId: jokeId,
       AnalyticsParameters.daysBack: daysBack,
       AnalyticsParameters.navigationMethod: method,
+      AnalyticsParameters.jokeContext: jokeContext,
       AnalyticsParameters.userType: _getUserType(_currentUser),
     });
   }
@@ -172,12 +182,14 @@ class FirebaseAnalyticsService implements AnalyticsService {
   Future<void> logJokeReaction(
     String jokeId,
     JokeReactionType reactionType,
-    bool isAdded,
-  ) async {
+    bool isAdded, {
+    required String jokeContext,
+  }) async {
     await _logEvent(AnalyticsEvent.jokeReactionToggled, {
       AnalyticsParameters.jokeId: jokeId,
       AnalyticsParameters.reactionType: reactionType.name,
       AnalyticsParameters.reactionAdded: isAdded,
+      AnalyticsParameters.jokeContext: jokeContext,
       AnalyticsParameters.userType: _getUserType(_currentUser),
     });
   }

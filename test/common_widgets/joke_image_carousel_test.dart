@@ -80,7 +80,7 @@ void main() {
         punchlineImageUrl: 'https://example.com/punchline.jpg',
       );
 
-      const widget = JokeImageCarousel(joke: joke);
+      const widget = JokeImageCarousel(joke: joke, jokeContext: 'test');
 
       // act
       await tester.pumpWidget(createTestWidget(child: widget));
@@ -104,7 +104,7 @@ void main() {
         punchlineImageUrl: 'https://example.com/punchline.jpg',
       );
 
-              final widget = JokeImageCarousel(joke: joke, isAdminMode: false);
+              final widget = JokeImageCarousel(joke: joke, isAdminMode: false, jokeContext: 'test');
 
       // act
       await tester.pumpWidget(createTestWidget(child: widget));
@@ -125,7 +125,7 @@ void main() {
         punchlineImageUrl: 'https://example.com/punchline.jpg',
       );
 
-              final widget = JokeImageCarousel(joke: joke, isAdminMode: true);
+              final widget = JokeImageCarousel(joke: joke, isAdminMode: true, jokeContext: 'test');
 
       // act
       await tester.pumpWidget(createTestWidget(child: widget));
@@ -145,7 +145,7 @@ void main() {
         punchlineImageUrl: 'https://example.com/punchline.jpg',
       );
 
-      const widget = JokeImageCarousel(joke: joke);
+      const widget = JokeImageCarousel(joke: joke, jokeContext: 'test');
 
       // act
       await tester.pumpWidget(createTestWidget(child: widget));
@@ -166,7 +166,7 @@ void main() {
         punchlineImageUrl: null,
       );
 
-      const widget = JokeImageCarousel(joke: jokeWithNullImages);
+      const widget = JokeImageCarousel(joke: jokeWithNullImages, jokeContext: 'test');
 
       // act
       await tester.pumpWidget(createTestWidget(child: widget));
@@ -187,7 +187,7 @@ void main() {
         punchlineImageUrl: '',
       );
 
-      const widget = JokeImageCarousel(joke: jokeWithEmptyUrls);
+      const widget = JokeImageCarousel(joke: jokeWithEmptyUrls, jokeContext: 'test');
 
       // act
       await tester.pumpWidget(createTestWidget(child: widget));
@@ -210,7 +210,7 @@ void main() {
           punchlineImageUrl: null,
         );
 
-        const widget = JokeImageCarousel(joke: joke);
+        const widget = JokeImageCarousel(joke: joke, jokeContext: 'test');
 
         // act
         await tester.pumpWidget(createTestWidget(child: widget));
@@ -238,7 +238,7 @@ void main() {
           punchlineImageUrl: 'https://example.com/punchline.jpg',
         );
 
-        const widget = JokeImageCarousel(joke: joke);
+        const widget = JokeImageCarousel(joke: joke, jokeContext: 'test');
 
         // act
         await tester.pumpWidget(createTestWidget(child: widget));
@@ -277,6 +277,7 @@ void main() {
         const widget = JokeImageCarousel(
           joke: currentJoke,
           jokesToPreload: [preloadJoke],
+          jokeContext: 'test',
         );
 
         // act
@@ -319,7 +320,7 @@ void main() {
           generationMetadata: {'model': 'gpt-4', 'timestamp': '2024-01-01'},
         );
 
-        final widget = JokeImageCarousel(joke: joke, isAdminMode: false);
+        final widget = JokeImageCarousel(joke: joke, isAdminMode: false, jokeContext: 'test');
 
         // act
         await tester.pumpWidget(createTestWidget(child: widget));
@@ -371,7 +372,7 @@ void main() {
           },
         );
 
-        final widget = JokeImageCarousel(joke: joke, isAdminMode: true);
+        final widget = JokeImageCarousel(joke: joke, isAdminMode: true, jokeContext: 'test');
 
         // act
         await tester.pumpWidget(createTestWidget(child: widget));
@@ -403,7 +404,7 @@ void main() {
           generationMetadata: null,
         );
 
-        final widget = JokeImageCarousel(joke: joke, isAdminMode: true);
+        final widget = JokeImageCarousel(joke: joke, isAdminMode: true, jokeContext: 'test');
 
         // act
         await tester.pumpWidget(createTestWidget(child: widget));
@@ -435,7 +436,7 @@ void main() {
           },
         );
 
-        final widget = JokeImageCarousel(joke: joke, isAdminMode: true);
+        final widget = JokeImageCarousel(joke: joke, isAdminMode: true, jokeContext: 'test');
 
         // act
         await tester.pumpWidget(createTestWidget(child: widget));
@@ -478,6 +479,7 @@ void main() {
           joke: joke,
           showSaveButton: true,
           showThumbsButtons: false,
+          jokeContext: 'test',
         );
 
         // act
@@ -504,6 +506,7 @@ void main() {
           joke: joke,
           showSaveButton: false,
           showThumbsButtons: false,
+          jokeContext: 'test',
         );
 
         // act
@@ -530,6 +533,7 @@ void main() {
           joke: joke,
           showSaveButton: false,
           showThumbsButtons: true,
+          jokeContext: 'test',
         );
 
         // act
@@ -556,6 +560,7 @@ void main() {
           joke: joke,
           showSaveButton: true,
           showThumbsButtons: false,
+          jokeContext: 'test',
         );
 
         // act
@@ -582,6 +587,7 @@ void main() {
           joke: joke,
           showSaveButton: true,
           showThumbsButtons: true,
+          jokeContext: 'test',
         );
 
         // act
@@ -604,7 +610,7 @@ void main() {
           punchlineImageUrl: 'https://example.com/punchline.jpg',
         );
 
-        const widget = JokeImageCarousel(joke: joke);
+        const widget = JokeImageCarousel(joke: joke, jokeContext: 'test');
 
         // act
         await tester.pumpWidget(createTestWidget(child: widget));
@@ -628,7 +634,7 @@ void main() {
           punchlineImageUrl: 'https://example.com/punchline.jpg',
         );
 
-        const widget = JokeImageCarousel(joke: joke, isAdminMode: true);
+        const widget = JokeImageCarousel(joke: joke, isAdminMode: true, jokeContext: 'test');
 
         // act
         await tester.pumpWidget(createTestWidget(child: widget));
@@ -648,7 +654,7 @@ void main() {
           punchlineImageUrl: 'https://example.com/punchline.jpg',
         );
 
-        const widget = JokeImageCarousel(joke: joke, isAdminMode: false);
+        const widget = JokeImageCarousel(joke: joke, isAdminMode: false, jokeContext: 'test');
 
         // act
         await tester.pumpWidget(createTestWidget(child: widget));
@@ -668,7 +674,7 @@ void main() {
           punchlineImageUrl: 'https://example.com/punchline.jpg',
         );
 
-        const widget = JokeImageCarousel(joke: joke, isAdminMode: true);
+        const widget = JokeImageCarousel(joke: joke, isAdminMode: true, jokeContext: 'test');
 
         // act
         await tester.pumpWidget(createTestWidget(child: widget));
@@ -692,7 +698,7 @@ void main() {
           punchlineImageUrl: 'https://example.com/punchline.jpg',
         );
 
-        const widget = JokeImageCarousel(joke: joke, isAdminMode: true);
+        const widget = JokeImageCarousel(joke: joke, isAdminMode: true, jokeContext: 'test');
 
         // Create widget wrapped in Navigator for proper navigation testing
         final navigatorKey = GlobalKey<NavigatorState>();
@@ -734,7 +740,7 @@ void main() {
           punchlineImageUrl: 'https://example.com/punchline.jpg',
         );
 
-        const widget = JokeImageCarousel(joke: joke, isAdminMode: true);
+        const widget = JokeImageCarousel(joke: joke, isAdminMode: true, jokeContext: 'test');
 
         // act
         await tester.pumpWidget(createTestWidget(child: widget));
@@ -761,7 +767,7 @@ void main() {
           punchlineImageUrl: 'https://example.com/punchline.jpg',
         );
 
-        const widget = JokeImageCarousel(joke: joke, isAdminMode: true);
+        const widget = JokeImageCarousel(joke: joke, isAdminMode: true, jokeContext: 'test');
 
         // act
         await tester.pumpWidget(createTestWidget(child: widget));
@@ -785,7 +791,7 @@ void main() {
           punchlineImageUrl: 'https://example.com/punchline.jpg',
         );
 
-        const widget = JokeImageCarousel(joke: joke, isAdminMode: true);
+        const widget = JokeImageCarousel(joke: joke, isAdminMode: true, jokeContext: 'test');
 
         // act
         await tester.pumpWidget(createTestWidget(child: widget));

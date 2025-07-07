@@ -19,6 +19,18 @@ class JokeRepository {
         });
   }
 
+  Future<Joke?> getJokeById(String jokeId) async {
+    try {
+      final doc = await _firestore.collection('jokes').doc(jokeId).get();
+      if (doc.exists && doc.data() != null) {
+        return Joke.fromMap(doc.data()!, doc.id);
+      }
+      return null;
+    } catch (e) {
+      throw Exception('Failed to get joke by ID: $e');
+    }
+  }
+
   Future<void> updateJoke({
     required String jokeId,
     required String setupText,

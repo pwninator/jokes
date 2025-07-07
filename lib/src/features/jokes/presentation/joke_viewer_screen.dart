@@ -9,12 +9,21 @@ import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 
 class JokeViewerScreen extends ConsumerStatefulWidget implements TitledScreen {
-  const JokeViewerScreen({super.key, this.onResetCallback});
+  const JokeViewerScreen({
+    super.key,
+    this.onResetCallback,
+    this.jokesProvider,
+    required this.jokeContext,
+    required this.screenTitle,
+  });
 
   final Function(VoidCallback)? onResetCallback;
+  final StreamProvider<List<JokeWithDate>>? jokesProvider;
+  final String jokeContext;
+  final String screenTitle;
 
   @override
-  String get title => 'Daily Jokes';
+  String get title => screenTitle;
 
   @override
   ConsumerState<JokeViewerScreen> createState() => _JokeViewerScreenState();
@@ -180,10 +189,12 @@ class _JokeViewerScreenState extends ConsumerState<JokeViewerScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final jokesWithDateAsyncValue = ref.watch(monthlyJokesWithDateProvider);
+    final jokesWithDateAsyncValue = ref.watch(
+      widget.jokesProvider ?? monthlyJokesWithDateProvider,
+    );
 
     return AdaptiveAppBarScreen(
-      title: 'Daily Jokes',
+      title: widget.screenTitle,
       body: jokesWithDateAsyncValue.when(
         data: (jokesWithDates) {
           if (jokesWithDates.isEmpty) {
@@ -193,10 +204,8 @@ class _JokeViewerScreenState extends ConsumerState<JokeViewerScreen> {
           }
 
           // Ensure current page is within bounds
-          final safeCurrentPage = _currentPage.clamp(
-            0,
-            jokesWithDates.length - 1,
-          );
+          final safeCurrentPage =
+              _currentPage.clamp(0, jokesWithDates.length - 1).toInt();
           if (_currentPage != safeCurrentPage) {
             WidgetsBinding.instance.addPostFrameCallback((_) {
               if (mounted) {
@@ -233,6 +242,7 @@ class _JokeViewerScreenState extends ConsumerState<JokeViewerScreen> {
                       joke.id,
                       daysBack,
                       method: _lastNavigationMethod,
+                      jokeContext: widget.jokeContext,
                     );
 
                     // Reset navigation method to swipe for next potential swipe gesture
@@ -280,6 +290,7 @@ class _JokeViewerScreenState extends ConsumerState<JokeViewerScreen> {
                         jokesToPreload: jokesToPreload,
                         showSaveButton: true,
                         showThumbsButtons: false,
+                        jokeContext: widget.jokeContext,
                       ),
                     ),
                   );

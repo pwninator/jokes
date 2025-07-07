@@ -10,6 +10,7 @@ class AnalyticsParameters {
   static const String jokeId = 'joke_id';
   static const String jokeCreationDate = 'joke_creation_date';
   static const String jokeHasImages = 'joke_has_images';
+  static const String jokeContext = 'joke_context';
 
   // User interaction parameters
   static const String daysBack = 'days_back';
@@ -55,4 +56,10 @@ class AnalyticsNavigationMethod {
   static const String swipe = 'swipe';
   static const String notification = 'notification';
   static const String programmatic = 'programmatic';
+}
+
+/// Joke context values for analytics
+class AnalyticsJokeContext {
+  static const String dailyJokes = 'daily_jokes';
+  static const String savedJokes = 'saved_jokes';
 }

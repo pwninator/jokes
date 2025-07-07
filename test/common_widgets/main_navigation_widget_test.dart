@@ -177,8 +177,11 @@ class _TestableMainNavigationWidgetState
 void main() {
   group('TitledScreen Tests', () {
     testWidgets('JokeViewerScreen returns correct title', (tester) async {
-      const screen = JokeViewerScreen();
-      expect((screen as TitledScreen).title, equals('Daily Jokes'));
+      const screen = JokeViewerScreen(
+        jokeContext: 'test',
+        screenTitle: 'Test Jokes',
+      );
+      expect((screen as TitledScreen).title, equals('Test Jokes'));
     });
 
     testWidgets('UserSettingsScreen returns correct title', (tester) async {

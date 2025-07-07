@@ -148,6 +148,7 @@ void main() {
           'test-joke-id',
           hasImages: true,
           navigationMethod: AnalyticsNavigationMethod.swipe,
+          jokeContext: 'test',
         );
 
         // assert - in debug mode, we should see debug logging but no Firebase calls
@@ -168,6 +169,7 @@ void main() {
           'test-joke-id',
           hasImages: false,
           navigationMethod: AnalyticsNavigationMethod.tap,
+          jokeContext: 'test',
         );
 
         // assert - in debug mode, we should see debug logging but no Firebase calls
@@ -190,6 +192,7 @@ void main() {
           'test-joke-id',
           JokeReactionType.save,
           true,
+          jokeContext: 'test',
         );
 
         // assert - in debug mode, we should see debug logging but no Firebase calls
@@ -252,6 +255,7 @@ void main() {
           'test-joke-id',
           5,
           method: 'swipe',
+          jokeContext: 'test',
         );
 
         // assert - in debug mode, we should see debug logging but no Firebase calls
@@ -269,7 +273,7 @@ void main() {
 
         // act
         await analyticsService.logTabChanged(
-          AppTab.jokes,
+          AppTab.dailyJokes,
           AppTab.settings,
           method: 'tap',
         );
@@ -316,6 +320,7 @@ void main() {
             'test-joke-id',
             hasImages: true,
             navigationMethod: AnalyticsNavigationMethod.swipe,
+            jokeContext: 'test',
           ),
           completes,
         );

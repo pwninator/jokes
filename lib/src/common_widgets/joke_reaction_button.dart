@@ -7,12 +7,14 @@ class JokeReactionButton extends ConsumerWidget {
   final String jokeId;
   final JokeReactionType reactionType;
   final double size;
+  final String jokeContext;
 
   const JokeReactionButton({
     super.key,
     required this.jokeId,
     required this.reactionType,
     this.size = 24.0,
+    required this.jokeContext,
   });
 
   @override
@@ -27,7 +29,7 @@ class JokeReactionButton extends ConsumerWidget {
           // Provide haptic feedback
           await ref
               .read(jokeReactionsProvider.notifier)
-              .toggleReaction(jokeId, reactionType);
+              .toggleReaction(jokeId, reactionType, jokeContext: jokeContext);
         },
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
@@ -64,8 +66,14 @@ class JokeReactionButton extends ConsumerWidget {
 class SaveJokeButton extends StatelessWidget {
   final String jokeId;
   final double size;
+  final String jokeContext;
 
-  const SaveJokeButton({super.key, required this.jokeId, this.size = 24.0});
+  const SaveJokeButton({
+    super.key,
+    required this.jokeId,
+    this.size = 24.0,
+    required this.jokeContext,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -73,6 +81,7 @@ class SaveJokeButton extends StatelessWidget {
       jokeId: jokeId,
       reactionType: JokeReactionType.save,
       size: size,
+      jokeContext: jokeContext,
     );
   }
 }
@@ -81,8 +90,14 @@ class SaveJokeButton extends StatelessWidget {
 class ShareJokeButton extends StatelessWidget {
   final String jokeId;
   final double size;
+  final String jokeContext;
 
-  const ShareJokeButton({super.key, required this.jokeId, this.size = 24.0});
+  const ShareJokeButton({
+    super.key,
+    required this.jokeId,
+    this.size = 24.0,
+    required this.jokeContext,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -90,6 +105,7 @@ class ShareJokeButton extends StatelessWidget {
       jokeId: jokeId,
       reactionType: JokeReactionType.share,
       size: size,
+      jokeContext: jokeContext,
     );
   }
 }
@@ -98,8 +114,14 @@ class ShareJokeButton extends StatelessWidget {
 class ThumbsUpJokeButton extends StatelessWidget {
   final String jokeId;
   final double size;
+  final String jokeContext;
 
-  const ThumbsUpJokeButton({super.key, required this.jokeId, this.size = 24.0});
+  const ThumbsUpJokeButton({
+    super.key,
+    required this.jokeId,
+    this.size = 24.0,
+    required this.jokeContext,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -107,6 +129,7 @@ class ThumbsUpJokeButton extends StatelessWidget {
       jokeId: jokeId,
       reactionType: JokeReactionType.thumbsUp,
       size: size,
+      jokeContext: jokeContext,
     );
   }
 }
@@ -115,11 +138,13 @@ class ThumbsUpJokeButton extends StatelessWidget {
 class ThumbsDownJokeButton extends StatelessWidget {
   final String jokeId;
   final double size;
+  final String jokeContext;
 
   const ThumbsDownJokeButton({
     super.key,
     required this.jokeId,
     this.size = 24.0,
+    required this.jokeContext,
   });
 
   @override
@@ -128,6 +153,7 @@ class ThumbsDownJokeButton extends StatelessWidget {
       jokeId: jokeId,
       reactionType: JokeReactionType.thumbsDown,
       size: size,
+      jokeContext: jokeContext,
     );
   }
 }

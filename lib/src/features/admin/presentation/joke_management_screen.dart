@@ -165,6 +165,7 @@ class _JokeManagementScreenState extends ConsumerState<JokeManagementScreen> {
                                 isAdminMode: true,
                                 showSaveButton: false,
                                 showThumbsButtons: true,
+                                jokeContext: 'admin',
                               );
                             },
                           ),

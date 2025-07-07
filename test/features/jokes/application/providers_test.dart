@@ -383,7 +383,11 @@ void main() {
         await Future.delayed(const Duration(milliseconds: 10));
 
         // Toggle thumbs up
-        await notifier.toggleReaction(jokeId, JokeReactionType.thumbsUp);
+        await notifier.toggleReaction(
+          jokeId,
+          JokeReactionType.thumbsUp,
+          jokeContext: 'test',
+        );
 
         // assert
         verify(
@@ -470,7 +474,11 @@ void main() {
         await Future.delayed(const Duration(milliseconds: 10));
 
         // Toggle thumbs down
-        await notifier.toggleReaction(jokeId, JokeReactionType.thumbsDown);
+        await notifier.toggleReaction(
+          jokeId,
+          JokeReactionType.thumbsDown,
+          jokeContext: 'test',
+        );
 
         // assert
         verify(
@@ -547,7 +555,11 @@ void main() {
           await Future.delayed(const Duration(milliseconds: 10));
 
           // Toggle save (should not affect thumbs up)
-          await notifier.toggleReaction(jokeId, JokeReactionType.save);
+          await notifier.toggleReaction(
+            jokeId,
+            JokeReactionType.save,
+            jokeContext: 'test',
+          );
 
           // assert - only save should be affected, thumbs up should remain untouched
           verify(
@@ -625,7 +637,11 @@ void main() {
           await Future.delayed(const Duration(milliseconds: 10));
 
           // Toggle thumbs up
-          await notifier.toggleReaction(jokeId, JokeReactionType.thumbsUp);
+          await notifier.toggleReaction(
+            jokeId,
+            JokeReactionType.thumbsUp,
+            jokeContext: 'test',
+          );
 
           // assert - only thumbs up operations should happen
           verify(
@@ -703,7 +719,11 @@ void main() {
         await Future.delayed(const Duration(milliseconds: 10));
 
         // Toggle thumbs up (remove it)
-        await notifier.toggleReaction(jokeId, JokeReactionType.thumbsUp);
+        await notifier.toggleReaction(
+          jokeId,
+          JokeReactionType.thumbsUp,
+          jokeContext: 'test',
+        );
 
         // assert - only thumbs up removal should happen
         verify(

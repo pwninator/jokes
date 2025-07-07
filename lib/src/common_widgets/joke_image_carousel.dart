@@ -23,6 +23,7 @@ class JokeImageCarousel extends ConsumerStatefulWidget {
   final bool showSaveButton;
   final bool showThumbsButtons;
   final String? title;
+  final String jokeContext;
 
   const JokeImageCarousel({
     super.key,
@@ -36,6 +37,7 @@ class JokeImageCarousel extends ConsumerStatefulWidget {
     this.showSaveButton = true,
     this.showThumbsButtons = false,
     this.title,
+    required this.jokeContext,
   });
 
   @override
@@ -74,6 +76,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
         joke.id,
         hasImages: hasImages,
         navigationMethod: AnalyticsNavigationMethod.none,
+        jokeContext: widget.jokeContext,
       );
     });
   }
@@ -132,6 +135,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
         joke.id,
         hasImages: hasImages,
         navigationMethod: _lastNavigationMethod,
+        jokeContext: widget.jokeContext,
       );
     } else if (index == 1) {
       // User is viewing punchline image
@@ -139,6 +143,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
         joke.id,
         hasImages: hasImages,
         navigationMethod: _lastNavigationMethod,
+        jokeContext: widget.jokeContext,
       );
 
       // Trigger subscription prompt when user views punchline (index 1)
@@ -598,7 +603,10 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
                     widget.showSaveButton
                         ? Align(
                           alignment: Alignment.centerRight,
-                          child: SaveJokeButton(jokeId: widget.joke.id),
+                          child: SaveJokeButton(
+                            jokeId: widget.joke.id,
+                            jokeContext: widget.jokeContext,
+                          ),
                         )
                         : widget.showThumbsButtons
                         ? Align(
@@ -606,9 +614,15 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              ThumbsUpJokeButton(jokeId: widget.joke.id),
+                              ThumbsUpJokeButton(
+                                jokeId: widget.joke.id,
+                                jokeContext: widget.jokeContext,
+                              ),
                               const SizedBox(width: 8),
-                              ThumbsDownJokeButton(jokeId: widget.joke.id),
+                              ThumbsDownJokeButton(
+                                jokeId: widget.joke.id,
+                                jokeContext: widget.jokeContext,
+                              ),
                             ],
                           ),
                         )

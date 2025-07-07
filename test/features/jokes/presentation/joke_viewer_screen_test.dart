@@ -148,7 +148,13 @@ void main() {
           jokeScheduleRepositoryProvider.overrideWithValue(customRepository),
           ...FirebaseMocks.getFirebaseProviderOverrides(),
         ],
-        child: MaterialApp(theme: lightTheme, home: const JokeViewerScreen()),
+        child: MaterialApp(
+          theme: lightTheme,
+          home: const JokeViewerScreen(
+            jokeContext: 'test',
+            screenTitle: 'Test Jokes',
+          ),
+        ),
       );
     }
 
@@ -173,7 +179,10 @@ void main() {
             ],
             child: MaterialApp(
               theme: lightTheme,
-              home: const JokeViewerScreen(),
+              home: const JokeViewerScreen(
+                jokeContext: 'test',
+                screenTitle: 'Test Jokes',
+              ),
             ),
           ),
         );

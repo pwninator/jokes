@@ -57,7 +57,8 @@ enum SubscriptionSource {
 
 /// Tab names for navigation tracking
 enum AppTab {
-  jokes('jokes'),
+  dailyJokes('daily_jokes'),
+  savedJokes('saved_jokes'),
   settings('settings'),
   admin('admin');
 

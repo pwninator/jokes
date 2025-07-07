@@ -55,7 +55,9 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           child: MaterialApp(
-            home: Scaffold(body: SaveJokeButton(jokeId: testJokeId)),
+            home: Scaffold(
+              body: SaveJokeButton(jokeId: testJokeId, jokeContext: 'test'),
+            ),
           ),
         ),
       );
@@ -78,7 +80,9 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           child: MaterialApp(
-            home: Scaffold(body: ShareJokeButton(jokeId: testJokeId)),
+            home: Scaffold(
+              body: ShareJokeButton(jokeId: testJokeId, jokeContext: 'test'),
+            ),
           ),
         ),
       );
@@ -98,7 +102,12 @@ void main() {
         await tester.pumpWidget(
           ProviderScope(
             child: MaterialApp(
-              home: Scaffold(body: ThumbsUpJokeButton(jokeId: testJokeId)),
+              home: Scaffold(
+                body: ThumbsUpJokeButton(
+                  jokeId: testJokeId,
+                  jokeContext: 'test',
+                ),
+              ),
             ),
           ),
         );
@@ -119,7 +128,12 @@ void main() {
         await tester.pumpWidget(
           ProviderScope(
             child: MaterialApp(
-              home: Scaffold(body: ThumbsDownJokeButton(jokeId: testJokeId)),
+              home: Scaffold(
+                body: ThumbsDownJokeButton(
+                  jokeId: testJokeId,
+                  jokeContext: 'test',
+                ),
+              ),
             ),
           ),
         );
@@ -141,7 +155,11 @@ void main() {
         ProviderScope(
           child: MaterialApp(
             home: Scaffold(
-              body: SaveJokeButton(jokeId: testJokeId, size: 32.0),
+              body: SaveJokeButton(
+                jokeId: testJokeId,
+                size: 32.0,
+                jokeContext: 'test',
+              ),
             ),
           ),
         ),

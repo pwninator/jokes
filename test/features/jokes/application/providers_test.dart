@@ -326,6 +326,9 @@ void main() {
         when(
           () => mockReactionsService.getAllUserReactions(),
         ).thenAnswer((_) async => <String, Set<JokeReactionType>>{});
+        when(
+          () => mockReactionsService.getSavedJokeIds(),
+        ).thenAnswer((_) async => <String>[]);
       });
 
       test('thumbs up should remove existing thumbs down', () async {
@@ -338,6 +341,9 @@ void main() {
             jokeId: {JokeReactionType.thumbsDown},
           },
         );
+        when(
+          () => mockReactionsService.getSavedJokeIds(),
+        ).thenAnswer((_) async => <String>[]);
 
         // Mock service calls
         when(
@@ -429,6 +435,9 @@ void main() {
             jokeId: {JokeReactionType.thumbsUp},
           },
         );
+        when(
+          () => mockReactionsService.getSavedJokeIds(),
+        ).thenAnswer((_) async => <String>[]);
 
         // Mock service calls
         when(
@@ -522,6 +531,9 @@ void main() {
               jokeId: {JokeReactionType.thumbsUp},
             },
           );
+          when(
+            () => mockReactionsService.getSavedJokeIds(),
+          ).thenAnswer((_) async => <String>[]);
 
           // Mock service calls
           when(
@@ -604,6 +616,9 @@ void main() {
           when(
             () => mockReactionsService.getAllUserReactions(),
           ).thenAnswer((_) async => <String, Set<JokeReactionType>>{});
+          when(
+            () => mockReactionsService.getSavedJokeIds(),
+          ).thenAnswer((_) async => <String>[]);
 
           // Mock service calls
           when(
@@ -686,6 +701,9 @@ void main() {
             jokeId: {JokeReactionType.thumbsUp},
           },
         );
+        when(
+          () => mockReactionsService.getSavedJokeIds(),
+        ).thenAnswer((_) async => <String>[]);
 
         // Mock service calls
         when(
@@ -1006,49 +1024,67 @@ void main() {
       final mockJokeRepository = MockJokeRepository();
 
       // Setup mock to return saved joke IDs in specific order
-      when(() => mockReactionsService.getSavedJokeIds())
-          .thenAnswer((_) async => ['joke3', 'joke1', 'joke2']);
+      when(
+        () => mockReactionsService.getSavedJokeIds(),
+      ).thenAnswer((_) async => ['joke3', 'joke1', 'joke2']);
+      when(() => mockReactionsService.getAllUserReactions()).thenAnswer(
+        (_) async => {
+          'joke3': {JokeReactionType.save},
+          'joke1': {JokeReactionType.save},
+          'joke2': {JokeReactionType.save},
+        },
+      );
 
       // Setup mock repository to return jokes (one without images)
-      when(() => mockJokeRepository.getJokesByIds(['joke3', 'joke1', 'joke2']))
-          .thenAnswer((_) async => [
-                Joke(
-                  id: 'joke1',
-                  setupText: 'Setup 1',
-                  punchlineText: 'Punchline 1',
-                  setupImageUrl: 'setup1.jpg',
-                  punchlineImageUrl: 'punchline1.jpg',
-                  numThumbsUp: 0,
-                  numThumbsDown: 0,
-                ),
-                Joke(
-                  id: 'joke2',
-                  setupText: 'Setup 2',
-                  punchlineText: 'Punchline 2',
-                  setupImageUrl: 'setup2.jpg',
-                  punchlineImageUrl: 'punchline2.jpg',
-                  numThumbsUp: 0,
-                  numThumbsDown: 0,
-                ),
-                Joke(
-                  id: 'joke3',
-                  setupText: 'Setup 3',
-                  punchlineText: 'Punchline 3',
-                  setupImageUrl: 'setup3.jpg',
-                  punchlineImageUrl: 'punchline3.jpg',
-                  numThumbsUp: 0,
-                  numThumbsDown: 0,
-                ),
-              ]);
+      when(
+        () => mockJokeRepository.getJokesByIds(['joke3', 'joke1', 'joke2']),
+      ).thenAnswer(
+        (_) async => [
+          Joke(
+            id: 'joke1',
+            setupText: 'Setup 1',
+            punchlineText: 'Punchline 1',
+            setupImageUrl: 'setup1.jpg',
+            punchlineImageUrl: 'punchline1.jpg',
+            numThumbsUp: 0,
+            numThumbsDown: 0,
+          ),
+          Joke(
+            id: 'joke2',
+            setupText: 'Setup 2',
+            punchlineText: 'Punchline 2',
+            setupImageUrl: 'setup2.jpg',
+            punchlineImageUrl: 'punchline2.jpg',
+            numThumbsUp: 0,
+            numThumbsDown: 0,
+          ),
+          Joke(
+            id: 'joke3',
+            setupText: 'Setup 3',
+            punchlineText: 'Punchline 3',
+            setupImageUrl: 'setup3.jpg',
+            punchlineImageUrl: 'punchline3.jpg',
+            numThumbsUp: 0,
+            numThumbsDown: 0,
+          ),
+        ],
+      );
 
       final container = ProviderContainer(
         overrides: FirebaseMocks.getFirebaseProviderOverrides(
           additionalOverrides: [
-            jokeReactionsServiceProvider.overrideWithValue(mockReactionsService),
+            jokeReactionsServiceProvider.overrideWithValue(
+              mockReactionsService,
+            ),
             jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
           ],
         ),
       );
+
+      // Wait for jokeReactionsProvider to finish loading
+      while (container.read(jokeReactionsProvider).isLoading) {
+        await Future.delayed(const Duration(milliseconds: 10));
+      }
 
       final savedJokes = await container.read(savedJokesProvider.future);
 
@@ -1066,49 +1102,67 @@ void main() {
       final mockJokeRepository = MockJokeRepository();
 
       // Setup mock to return saved joke IDs
-      when(() => mockReactionsService.getSavedJokeIds())
-          .thenAnswer((_) async => ['joke1', 'joke2', 'joke3']);
+      when(
+        () => mockReactionsService.getSavedJokeIds(),
+      ).thenAnswer((_) async => ['joke1', 'joke2', 'joke3']);
+      when(() => mockReactionsService.getAllUserReactions()).thenAnswer(
+        (_) async => {
+          'joke1': {JokeReactionType.save},
+          'joke2': {JokeReactionType.save},
+          'joke3': {JokeReactionType.save},
+        },
+      );
 
       // Setup mock repository to return jokes (one without images)
-      when(() => mockJokeRepository.getJokesByIds(['joke1', 'joke2', 'joke3']))
-          .thenAnswer((_) async => [
-                Joke(
-                  id: 'joke1',
-                  setupText: 'Setup 1',
-                  punchlineText: 'Punchline 1',
-                  setupImageUrl: 'setup1.jpg',
-                  punchlineImageUrl: 'punchline1.jpg',
-                  numThumbsUp: 0,
-                  numThumbsDown: 0,
-                ),
-                Joke(
-                  id: 'joke2',
-                  setupText: 'Setup 2',
-                  punchlineText: 'Punchline 2',
-                  setupImageUrl: null, // No setup image
-                  punchlineImageUrl: 'punchline2.jpg',
-                  numThumbsUp: 0,
-                  numThumbsDown: 0,
-                ),
-                Joke(
-                  id: 'joke3',
-                  setupText: 'Setup 3',
-                  punchlineText: 'Punchline 3',
-                  setupImageUrl: 'setup3.jpg',
-                  punchlineImageUrl: null, // No punchline image
-                  numThumbsUp: 0,
-                  numThumbsDown: 0,
-                ),
-              ]);
+      when(
+        () => mockJokeRepository.getJokesByIds(['joke1', 'joke2', 'joke3']),
+      ).thenAnswer(
+        (_) async => [
+          Joke(
+            id: 'joke1',
+            setupText: 'Setup 1',
+            punchlineText: 'Punchline 1',
+            setupImageUrl: 'setup1.jpg',
+            punchlineImageUrl: 'punchline1.jpg',
+            numThumbsUp: 0,
+            numThumbsDown: 0,
+          ),
+          Joke(
+            id: 'joke2',
+            setupText: 'Setup 2',
+            punchlineText: 'Punchline 2',
+            setupImageUrl: null, // No setup image
+            punchlineImageUrl: 'punchline2.jpg',
+            numThumbsUp: 0,
+            numThumbsDown: 0,
+          ),
+          Joke(
+            id: 'joke3',
+            setupText: 'Setup 3',
+            punchlineText: 'Punchline 3',
+            setupImageUrl: 'setup3.jpg',
+            punchlineImageUrl: null, // No punchline image
+            numThumbsUp: 0,
+            numThumbsDown: 0,
+          ),
+        ],
+      );
 
       final container = ProviderContainer(
         overrides: FirebaseMocks.getFirebaseProviderOverrides(
           additionalOverrides: [
-            jokeReactionsServiceProvider.overrideWithValue(mockReactionsService),
+            jokeReactionsServiceProvider.overrideWithValue(
+              mockReactionsService,
+            ),
             jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
           ],
         ),
       );
+
+      // Wait for jokeReactionsProvider to finish loading
+      while (container.read(jokeReactionsProvider).isLoading) {
+        await Future.delayed(const Duration(milliseconds: 10));
+      }
 
       final savedJokes = await container.read(savedJokesProvider.future);
 
@@ -1123,16 +1177,27 @@ void main() {
       final mockReactionsService = MockJokeReactionsService();
 
       // Setup mock to return empty list
-      when(() => mockReactionsService.getSavedJokeIds())
-          .thenAnswer((_) async => <String>[]);
+      when(
+        () => mockReactionsService.getSavedJokeIds(),
+      ).thenAnswer((_) async => <String>[]);
+      when(
+        () => mockReactionsService.getAllUserReactions(),
+      ).thenAnswer((_) async => <String, Set<JokeReactionType>>{});
 
       final container = ProviderContainer(
         overrides: FirebaseMocks.getFirebaseProviderOverrides(
           additionalOverrides: [
-            jokeReactionsServiceProvider.overrideWithValue(mockReactionsService),
+            jokeReactionsServiceProvider.overrideWithValue(
+              mockReactionsService,
+            ),
           ],
         ),
       );
+
+      // Wait for jokeReactionsProvider to finish loading
+      while (container.read(jokeReactionsProvider).isLoading) {
+        await Future.delayed(const Duration(milliseconds: 10));
+      }
 
       final savedJokes = await container.read(savedJokesProvider.future);
 

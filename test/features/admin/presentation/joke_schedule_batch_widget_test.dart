@@ -202,5 +202,77 @@ void main() {
       // assert - dialog should be dismissed
       expect(find.text('Auto Fill Schedule'), findsNothing);
     });
+
+    testWidgets('should show delete button', (tester) async {
+      // arrange
+      final monthDate = DateTime(2024, 2);
+
+      await tester.pumpWidget(
+        createTestWidget(
+          overrides: [
+            jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
+            jokeScheduleRepositoryProvider.overrideWithValue(
+              mockScheduleRepository,
+            ),
+            scheduleBatchesProvider.overrideWith((ref) => Stream.value([])),
+            selectedScheduleProvider.overrideWith((ref) => 'test_schedule'),
+          ],
+          child: JokeScheduleBatchWidget(monthDate: monthDate),
+        ),
+      );
+
+      // assert
+      expect(find.byIcon(Icons.delete_outline), findsOneWidget);
+    });
+
+    testWidgets(
+        'tapping delete button does nothing and holding delete button shows confirmation dialog',
+        (tester) async {
+      // arrange
+      final monthDate = DateTime(2024, 2);
+      const scheduleId = 'test_schedule';
+
+      when(() => mockScheduleRepository.deleteBatch(any()))
+          .thenAnswer((_) async {});
+
+      await tester.pumpWidget(
+        createTestWidget(
+          overrides: [
+            jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
+            jokeScheduleRepositoryProvider.overrideWithValue(
+              mockScheduleRepository,
+            ),
+            scheduleBatchesProvider.overrideWith((ref) => Stream.value([])),
+            selectedScheduleProvider.overrideWith((ref) => scheduleId),
+          ],
+          child: JokeScheduleBatchWidget(monthDate: monthDate),
+        ),
+      );
+
+      final deleteButtonFinder = find.byIcon(Icons.delete_outline);
+      expect(deleteButtonFinder, findsOneWidget);
+
+      // act: tap (should do nothing)
+      await tester.tap(deleteButtonFinder);
+      await tester.pumpAndSettle(); // Allow time for dialog if any
+
+      // assert: no dialog
+      expect(find.text('Delete Schedule Batch'), findsNothing);
+
+      // act: long press
+      await tester.longPress(deleteButtonFinder);
+      await tester.pumpAndSettle();
+
+      // assert: no dialog initially, and delete is called directly on long press
+      expect(find.text('Delete Schedule Batch'), findsNothing);
+      verify(() => mockScheduleRepository.deleteBatch(
+          JokeScheduleBatch.generateId(scheduleId, monthDate.year, monthDate.month)))
+          .called(1);
+      expect(find.text('Successfully deleted schedule for February 2024'), findsOneWidget);
+    });
+
+    // Removed tests for confirmation dialog as it's no longer used for delete.
+    // 'should delete batch when confirmation is given' - merged into the above.
+    // 'should not delete batch when confirmation is cancelled' - no longer applicable.
   });
 }

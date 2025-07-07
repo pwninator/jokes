@@ -98,7 +98,7 @@ class MainNavigationWidgetState extends ConsumerState<MainNavigationWidget> {
 
     // Define navigation items based on user permissions
     final List<BottomNavigationBarItem> navItems = [
-      const BottomNavigationBarItem(icon: Icon(Icons.mood), label: 'Jokes'),
+      const BottomNavigationBarItem(icon: Icon(Icons.mood), label: 'Daily Jokes'),
       const BottomNavigationBarItem(
         icon: Icon(Icons.settings),
         label: 'Settings',

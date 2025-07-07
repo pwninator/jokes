@@ -12,7 +12,7 @@ class MockJokeViewerScreen extends StatelessWidget implements TitledScreen {
   const MockJokeViewerScreen({super.key});
 
   @override
-  String get title => 'Jokes';
+  String get title => 'Daily Jokes';
 
   @override
   Widget build(BuildContext context) {
@@ -72,7 +72,10 @@ class _TestableMainNavigationWidgetState
 
     // Define navigation items based on user permissions
     final List<BottomNavigationBarItem> navItems = [
-      const BottomNavigationBarItem(icon: Icon(Icons.mood), label: 'Jokes'),
+      const BottomNavigationBarItem(
+        icon: Icon(Icons.mood),
+        label: 'Daily Jokes',
+      ),
       const BottomNavigationBarItem(
         icon: Icon(Icons.settings),
         label: 'Settings',
@@ -175,7 +178,7 @@ void main() {
   group('TitledScreen Tests', () {
     testWidgets('JokeViewerScreen returns correct title', (tester) async {
       const screen = JokeViewerScreen();
-      expect((screen as TitledScreen).title, equals('Jokes'));
+      expect((screen as TitledScreen).title, equals('Daily Jokes'));
     });
 
     testWidgets('UserSettingsScreen returns correct title', (tester) async {
@@ -193,7 +196,7 @@ void main() {
       const settingsScreen = MockUserSettingsScreen();
       const adminScreen = MockJokeAdminScreen();
 
-      expect((jokeScreen as TitledScreen).title, equals('Jokes'));
+      expect((jokeScreen as TitledScreen).title, equals('Daily Jokes'));
       expect((settingsScreen as TitledScreen).title, equals('Settings'));
       expect((adminScreen as TitledScreen).title, equals('Admin'));
     });

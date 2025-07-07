@@ -14,7 +14,7 @@ class JokeViewerScreen extends ConsumerStatefulWidget implements TitledScreen {
   final Function(VoidCallback)? onResetCallback;
 
   @override
-  String get title => 'Jokes';
+  String get title => 'Daily Jokes';
 
   @override
   ConsumerState<JokeViewerScreen> createState() => _JokeViewerScreenState();

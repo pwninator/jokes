@@ -141,8 +141,8 @@ class _JokeViewerScreenState extends ConsumerState<JokeViewerScreen> {
   String _getHintText() {
     final currentImageIndex = _currentImageStates[_currentPage] ?? 0;
     return currentImageIndex == 0
-        ? 'Tap image for punchline!'
-        : 'Tap image for next joke!';
+        ? 'Tap or swipe left on image for punchline!'
+        : 'Tap or swipe up on image for next joke!';
   }
 
   void _goToNextJoke(int totalJokes) {
@@ -278,46 +278,6 @@ class _JokeViewerScreenState extends ConsumerState<JokeViewerScreen> {
                             fontWeight: FontWeight.w500,
                           ),
                         ),
-                      ),
-                    ),
-                  ),
-                ),
-
-              // Up arrow indicator (when not at first joke)
-              if (_currentPage > 0)
-                Positioned(
-                  top: 40,
-                  left: 0,
-                  right: 0,
-                  child: Center(
-                    child: Opacity(
-                      opacity: 0.4,
-                      child: Icon(
-                        Icons.keyboard_arrow_up,
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.onSurface.withValues(alpha: 0.6),
-                        size: 24,
-                      ),
-                    ),
-                  ),
-                ),
-
-              // Down arrow indicator (when not at last joke)
-              if (_currentPage < jokesWithDates.length - 1)
-                Positioned(
-                  bottom: 40,
-                  left: 0,
-                  right: 0,
-                  child: Center(
-                    child: Opacity(
-                      opacity: 0.4,
-                      child: Icon(
-                        Icons.keyboard_arrow_down,
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.onSurface.withValues(alpha: 0.6),
-                        size: 24,
                       ),
                     ),
                   ),

@@ -101,15 +101,6 @@ class FirebaseMocks {
   ) {
     // Setup default behaviors that won't throw
     when(
-      () => mock.createJoke(
-        setupText: any(named: 'setupText'),
-        punchlineText: any(named: 'punchlineText'),
-        setupImageUrl: any(named: 'setupImageUrl'),
-        punchlineImageUrl: any(named: 'punchlineImageUrl'),
-      ),
-    ).thenAnswer((_) async => true);
-
-    when(
       () => mock.createJokeWithResponse(
         setupText: any(named: 'setupText'),
         punchlineText: any(named: 'punchlineText'),

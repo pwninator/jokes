@@ -286,10 +286,10 @@ class FirebaseAnalyticsService implements AnalyticsService {
     Map<String, dynamic> parameters,
   ) async {
     try {
-      // if (_isDebugMode) {
-      //   debugPrint('ANALYTICS (DEBUG): ${event.eventName} - $parameters');
-      //   return;
-      // }
+      if (_isDebugMode) {
+        debugPrint('ANALYTICS (DEBUG): ${event.eventName} - $parameters');
+        return;
+      }
 
       // Convert parameters to Map<String, Object> and filter out null values
       // Also convert non-string/non-num values to strings for Firebase Analytics

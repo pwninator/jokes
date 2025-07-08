@@ -74,37 +74,6 @@ void main() {
       });
     });
 
-    group('createJoke', () {
-      test('should return true when cloud function succeeds', () async {
-        const setupText = 'Test setup';
-        const punchlineText = 'Test punchline';
-        final responseData = {'success': true, 'jokeId': 'created-joke-id'};
-
-        when(
-          () => mockFunctions.httpsCallable('create-joke'),
-        ).thenReturn(mockCallable);
-        when(() => mockResult.data).thenReturn(responseData);
-        when(
-          () => mockCallable.call({
-            'joke_data': {
-              'setup_text': setupText,
-              'punchline_text': punchlineText,
-              'setup_image_url': null,
-              'punchline_image_url': null,
-            },
-          }),
-        ).thenAnswer((_) async => mockResult);
-
-        final result = await service.createJoke(
-          setupText: setupText,
-          punchlineText: punchlineText,
-        );
-
-        expect(result, isTrue);
-        verify(() => mockFunctions.httpsCallable('create-joke')).called(1);
-      });
-    });
-
     group('createJokeWithResponse', () {
       test(
         'should return success response when cloud function succeeds',

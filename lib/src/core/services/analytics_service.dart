@@ -46,6 +46,14 @@ abstract class AnalyticsService {
     required String jokeContext,
   });
 
+  /// Log when user shares a joke
+  Future<void> logJokeShared(
+    String jokeId, {
+    required String shareMethod,
+    required bool shareSuccess,
+    required String jokeContext,
+  });
+
   /// Log subscription-related events
   Future<void> logSubscriptionEvent(
     SubscriptionEventType eventType,
@@ -189,6 +197,22 @@ class FirebaseAnalyticsService implements AnalyticsService {
       AnalyticsParameters.jokeId: jokeId,
       AnalyticsParameters.reactionType: reactionType.name,
       AnalyticsParameters.reactionAdded: isAdded,
+      AnalyticsParameters.jokeContext: jokeContext,
+      AnalyticsParameters.userType: _getUserType(_currentUser),
+    });
+  }
+
+  @override
+  Future<void> logJokeShared(
+    String jokeId, {
+    required String shareMethod,
+    required bool shareSuccess,
+    required String jokeContext,
+  }) async {
+    await _logEvent(AnalyticsEvent.jokeShared, {
+      AnalyticsParameters.jokeId: jokeId,
+      AnalyticsParameters.shareMethod: shareMethod,
+      AnalyticsParameters.shareSuccess: shareSuccess,
       AnalyticsParameters.jokeContext: jokeContext,
       AnalyticsParameters.userType: _getUserType(_currentUser),
     });

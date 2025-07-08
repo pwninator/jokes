@@ -3,7 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:snickerdoodle/src/common_widgets/joke_image_carousel.dart';
+import 'package:snickerdoodle/src/common_widgets/joke_reaction_button.dart'
+    as reaction_buttons;
 import 'package:snickerdoodle/src/common_widgets/joke_reaction_button.dart';
+import 'package:snickerdoodle/src/common_widgets/share_joke_button.dart';
 import 'package:snickerdoodle/src/core/providers/image_providers.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
@@ -104,7 +107,11 @@ void main() {
         punchlineImageUrl: 'https://example.com/punchline.jpg',
       );
 
-              final widget = JokeImageCarousel(joke: joke, isAdminMode: false, jokeContext: 'test');
+      final widget = JokeImageCarousel(
+        joke: joke,
+        isAdminMode: false,
+        jokeContext: 'test',
+      );
 
       // act
       await tester.pumpWidget(createTestWidget(child: widget));
@@ -125,7 +132,11 @@ void main() {
         punchlineImageUrl: 'https://example.com/punchline.jpg',
       );
 
-              final widget = JokeImageCarousel(joke: joke, isAdminMode: true, jokeContext: 'test');
+      final widget = JokeImageCarousel(
+        joke: joke,
+        isAdminMode: true,
+        jokeContext: 'test',
+      );
 
       // act
       await tester.pumpWidget(createTestWidget(child: widget));
@@ -166,7 +177,10 @@ void main() {
         punchlineImageUrl: null,
       );
 
-      const widget = JokeImageCarousel(joke: jokeWithNullImages, jokeContext: 'test');
+      const widget = JokeImageCarousel(
+        joke: jokeWithNullImages,
+        jokeContext: 'test',
+      );
 
       // act
       await tester.pumpWidget(createTestWidget(child: widget));
@@ -187,7 +201,10 @@ void main() {
         punchlineImageUrl: '',
       );
 
-      const widget = JokeImageCarousel(joke: jokeWithEmptyUrls, jokeContext: 'test');
+      const widget = JokeImageCarousel(
+        joke: jokeWithEmptyUrls,
+        jokeContext: 'test',
+      );
 
       // act
       await tester.pumpWidget(createTestWidget(child: widget));
@@ -309,119 +326,149 @@ void main() {
     });
 
     group('Long press functionality', () {
-      testWidgets('does not show metadata dialog on long press in non-admin mode', (tester) async {
-        // arrange
-        final joke = Joke(
-          id: 'test-joke-1',
-          setupText: 'Setup text',
-          punchlineText: 'Punchline text',
-          setupImageUrl: 'https://example.com/setup.jpg',
-          punchlineImageUrl: 'https://example.com/punchline.jpg',
-          generationMetadata: {'model': 'gpt-4', 'timestamp': '2024-01-01'},
-        );
+      testWidgets(
+        'does not show metadata dialog on long press in non-admin mode',
+        (tester) async {
+          // arrange
+          final joke = Joke(
+            id: 'test-joke-1',
+            setupText: 'Setup text',
+            punchlineText: 'Punchline text',
+            setupImageUrl: 'https://example.com/setup.jpg',
+            punchlineImageUrl: 'https://example.com/punchline.jpg',
+            generationMetadata: {'model': 'gpt-4', 'timestamp': '2024-01-01'},
+          );
 
-        final widget = JokeImageCarousel(joke: joke, isAdminMode: false, jokeContext: 'test');
+          final widget = JokeImageCarousel(
+            joke: joke,
+            isAdminMode: false,
+            jokeContext: 'test',
+          );
 
-        // act
-        await tester.pumpWidget(createTestWidget(child: widget));
-        await tester.pump();
+          // act
+          await tester.pumpWidget(createTestWidget(child: widget));
+          await tester.pump();
 
-        // Long press on the image
-        await tester.longPress(find.byType(JokeImageCarousel));
-        await tester.pump();
+          // Long press on the image
+          await tester.longPress(find.byType(JokeImageCarousel));
+          await tester.pump();
 
-        // assert
-        expect(find.byType(AlertDialog), findsNothing);
-        expect(find.text('Generation Metadata'), findsNothing);
-      });
+          // assert
+          expect(find.byType(AlertDialog), findsNothing);
+          expect(find.text('Generation Metadata'), findsNothing);
+        },
+      );
 
-      testWidgets('shows metadata dialog on long press in admin mode with metadata', (tester) async {
-        // arrange
-        final joke = Joke(
-          id: 'test-joke-1',
-          setupText: 'Setup text',
-          punchlineText: 'Punchline text',
-          setupImageUrl: 'https://example.com/setup.jpg',
-          punchlineImageUrl: 'https://example.com/punchline.jpg',
-          generationMetadata: const {
-            'generations': [
-              {
-                'label': 'Agent_CreativeBriefAgent',
-                'model_name': 'gemini-2.5-flash',
-                'cost': 0.001329,
-                'generation_time_sec': 0,
-                'retry_count': 0,
-                'token_counts': {
-                  'thought_tokens': 440,
-                  'output_tokens': 34,
-                  'input_tokens': 480,
-                }
-              },
-              {
-                'label': 'pun_agent_image_tool',
-                'model_name': 'gpt-4.1-mini',
-                'cost': 0.0014656000000000003,
-                'generation_time_sec': 29.48288367400528,
-                'retry_count': 0,
-                'token_counts': {
-                  'output_tokens': 231,
-                  'input_tokens': 2740,
-                }
-              }
-            ]
-          },
-        );
+      testWidgets(
+        'shows metadata dialog on long press in admin mode with metadata',
+        (tester) async {
+          // arrange
+          final joke = Joke(
+            id: 'test-joke-1',
+            setupText: 'Setup text',
+            punchlineText: 'Punchline text',
+            setupImageUrl: 'https://example.com/setup.jpg',
+            punchlineImageUrl: 'https://example.com/punchline.jpg',
+            generationMetadata: const {
+              'generations': [
+                {
+                  'label': 'Agent_CreativeBriefAgent',
+                  'model_name': 'gemini-2.5-flash',
+                  'cost': 0.001329,
+                  'generation_time_sec': 0,
+                  'retry_count': 0,
+                  'token_counts': {
+                    'thought_tokens': 440,
+                    'output_tokens': 34,
+                    'input_tokens': 480,
+                  },
+                },
+                {
+                  'label': 'pun_agent_image_tool',
+                  'model_name': 'gpt-4.1-mini',
+                  'cost': 0.0014656000000000003,
+                  'generation_time_sec': 29.48288367400528,
+                  'retry_count': 0,
+                  'token_counts': {'output_tokens': 231, 'input_tokens': 2740},
+                },
+              ],
+            },
+          );
 
-        final widget = JokeImageCarousel(joke: joke, isAdminMode: true, jokeContext: 'test');
+          final widget = JokeImageCarousel(
+            joke: joke,
+            isAdminMode: true,
+            jokeContext: 'test',
+          );
 
-        // act
-        await tester.pumpWidget(createTestWidget(child: widget));
-        await tester.pump();
+          // act
+          await tester.pumpWidget(createTestWidget(child: widget));
+          await tester.pump();
 
-        // Long press on the image carousel
-        await tester.longPress(find.byType(JokeImageCarousel));
-        await tester.pump(); // Allow dialog to show
-        await tester.pump(const Duration(milliseconds: 100)); // Allow dialog animation
+          // Long press on the image carousel
+          await tester.longPress(find.byType(JokeImageCarousel));
+          await tester.pump(); // Allow dialog to show
+          await tester.pump(
+            const Duration(milliseconds: 100),
+          ); // Allow dialog animation
 
-        // assert
-        expect(find.byType(AlertDialog), findsOneWidget);
-        expect(find.text('Generation Metadata'), findsOneWidget);
-        expect(find.text('Close'), findsOneWidget);
-        // Check that some metadata content is displayed (not empty message)
-        expect(find.text('No generation metadata available for this joke.'), findsNothing);
-        // Verify that there's a container with monospace text (formatted metadata)
-        expect(find.byType(Container), findsAtLeastNWidgets(1));
-      });
+          // assert
+          expect(find.byType(AlertDialog), findsOneWidget);
+          expect(find.text('Generation Metadata'), findsOneWidget);
+          expect(find.text('Close'), findsOneWidget);
+          // Check that some metadata content is displayed (not empty message)
+          expect(
+            find.text('No generation metadata available for this joke.'),
+            findsNothing,
+          );
+          // Verify that there's a container with monospace text (formatted metadata)
+          expect(find.byType(Container), findsAtLeastNWidgets(1));
+        },
+      );
 
-      testWidgets('shows no metadata message when metadata is null in admin mode', (tester) async {
-        // arrange
-        final joke = Joke(
-          id: 'test-joke-1',
-          setupText: 'Setup text',
-          punchlineText: 'Punchline text',
-          setupImageUrl: 'https://example.com/setup.jpg',
-          punchlineImageUrl: 'https://example.com/punchline.jpg',
-          generationMetadata: null,
-        );
+      testWidgets(
+        'shows no metadata message when metadata is null in admin mode',
+        (tester) async {
+          // arrange
+          final joke = Joke(
+            id: 'test-joke-1',
+            setupText: 'Setup text',
+            punchlineText: 'Punchline text',
+            setupImageUrl: 'https://example.com/setup.jpg',
+            punchlineImageUrl: 'https://example.com/punchline.jpg',
+            generationMetadata: null,
+          );
 
-        final widget = JokeImageCarousel(joke: joke, isAdminMode: true, jokeContext: 'test');
+          final widget = JokeImageCarousel(
+            joke: joke,
+            isAdminMode: true,
+            jokeContext: 'test',
+          );
 
-        // act
-        await tester.pumpWidget(createTestWidget(child: widget));
-        await tester.pump();
+          // act
+          await tester.pumpWidget(createTestWidget(child: widget));
+          await tester.pump();
 
-        // Long press on the image carousel
-        await tester.longPress(find.byType(JokeImageCarousel));
-        await tester.pump(); // Allow dialog to show
-        await tester.pump(const Duration(milliseconds: 100)); // Allow dialog animation
+          // Long press on the image carousel
+          await tester.longPress(find.byType(JokeImageCarousel));
+          await tester.pump(); // Allow dialog to show
+          await tester.pump(
+            const Duration(milliseconds: 100),
+          ); // Allow dialog animation
 
-        // assert
-        expect(find.byType(AlertDialog), findsOneWidget);
-        expect(find.text('Generation Metadata'), findsOneWidget);
-        expect(find.text('No generation metadata available for this joke.'), findsOneWidget);
-      });
+          // assert
+          expect(find.byType(AlertDialog), findsOneWidget);
+          expect(find.text('Generation Metadata'), findsOneWidget);
+          expect(
+            find.text('No generation metadata available for this joke.'),
+            findsOneWidget,
+          );
+        },
+      );
 
-      testWidgets('shows fallback format for unexpected metadata structure', (tester) async {
+      testWidgets('shows fallback format for unexpected metadata structure', (
+        tester,
+      ) async {
         // arrange
         final joke = Joke(
           id: 'test-joke-1',
@@ -432,11 +479,15 @@ void main() {
           generationMetadata: {
             'model': 'gpt-4',
             'timestamp': '2024-01-01T00:00:00Z',
-            'parameters': {'temperature': 0.7}
+            'parameters': {'temperature': 0.7},
           },
         );
 
-        final widget = JokeImageCarousel(joke: joke, isAdminMode: true, jokeContext: 'test');
+        final widget = JokeImageCarousel(
+          joke: joke,
+          isAdminMode: true,
+          jokeContext: 'test',
+        );
 
         // act
         await tester.pumpWidget(createTestWidget(child: widget));
@@ -445,14 +496,19 @@ void main() {
         // Long press on the image carousel
         await tester.longPress(find.byType(JokeImageCarousel));
         await tester.pump(); // Allow dialog to show
-        await tester.pump(const Duration(milliseconds: 100)); // Allow dialog animation
+        await tester.pump(
+          const Duration(milliseconds: 100),
+        ); // Allow dialog animation
 
         // assert
         expect(find.byType(AlertDialog), findsOneWidget);
         expect(find.text('Generation Metadata'), findsOneWidget);
         expect(find.text('Close'), findsOneWidget);
         // Check that some metadata content is displayed (not empty message)
-        expect(find.text('No generation metadata available for this joke.'), findsNothing);
+        expect(
+          find.text('No generation metadata available for this joke.'),
+          findsNothing,
+        );
         // Verify that there's a container with monospace text (formatted metadata)
         expect(find.byType(Container), findsAtLeastNWidgets(1));
       });
@@ -465,7 +521,9 @@ void main() {
     });
 
     group('Button visibility controls', () {
-      testWidgets('shows save button when showSaveButton is true', (tester) async {
+      testWidgets('shows save button when showSaveButton is true', (
+        tester,
+      ) async {
         // arrange
         const joke = Joke(
           id: 'test-joke-1',
@@ -492,7 +550,9 @@ void main() {
         expect(find.byType(ThumbsDownJokeButton), findsNothing);
       });
 
-      testWidgets('hides save button when showSaveButton is false', (tester) async {
+      testWidgets('hides save button when showSaveButton is false', (
+        tester,
+      ) async {
         // arrange
         const joke = Joke(
           id: 'test-joke-1',
@@ -514,12 +574,17 @@ void main() {
         await tester.pump();
 
         // assert
-        expect(find.byType(SaveJokeButton), findsNothing);
-        expect(find.byType(ThumbsUpJokeButton), findsNothing);
-        expect(find.byType(ThumbsDownJokeButton), findsNothing);
+        expect(find.byType(reaction_buttons.SaveJokeButton), findsNothing);
+        expect(find.byType(reaction_buttons.ThumbsUpJokeButton), findsNothing);
+        expect(
+          find.byType(reaction_buttons.ThumbsDownJokeButton),
+          findsNothing,
+        );
       });
 
-      testWidgets('shows thumbs buttons when showThumbsButtons is true', (tester) async {
+      testWidgets('shows thumbs buttons when showThumbsButtons is true', (
+        tester,
+      ) async {
         // arrange
         const joke = Joke(
           id: 'test-joke-1',
@@ -541,12 +606,20 @@ void main() {
         await tester.pump();
 
         // assert
-        expect(find.byType(SaveJokeButton), findsNothing);
-        expect(find.byType(ThumbsUpJokeButton), findsOneWidget);
-        expect(find.byType(ThumbsDownJokeButton), findsOneWidget);
+        expect(find.byType(reaction_buttons.SaveJokeButton), findsNothing);
+        expect(
+          find.byType(reaction_buttons.ThumbsUpJokeButton),
+          findsOneWidget,
+        );
+        expect(
+          find.byType(reaction_buttons.ThumbsDownJokeButton),
+          findsOneWidget,
+        );
       });
 
-      testWidgets('hides thumbs buttons when showThumbsButtons is false', (tester) async {
+      testWidgets('hides thumbs buttons when showThumbsButtons is false', (
+        tester,
+      ) async {
         // arrange
         const joke = Joke(
           id: 'test-joke-1',
@@ -573,32 +646,41 @@ void main() {
         expect(find.byType(ThumbsDownJokeButton), findsNothing);
       });
 
-      testWidgets('save button takes precedence when both flags are true', (tester) async {
-        // arrange
-        const joke = Joke(
-          id: 'test-joke-1',
-          setupText: 'Setup text',
-          punchlineText: 'Punchline text',
-          setupImageUrl: 'https://example.com/setup.jpg',
-          punchlineImageUrl: 'https://example.com/punchline.jpg',
-        );
+      testWidgets(
+        'shows both save and thumbs buttons when both flags are true',
+        (tester) async {
+          // arrange
+          const joke = Joke(
+            id: 'test-joke-1',
+            setupText: 'Setup text',
+            punchlineText: 'Punchline text',
+            setupImageUrl: 'https://example.com/setup.jpg',
+            punchlineImageUrl: 'https://example.com/punchline.jpg',
+          );
 
-        const widget = JokeImageCarousel(
-          joke: joke,
-          showSaveButton: true,
-          showThumbsButtons: true,
-          jokeContext: 'test',
-        );
+          const widget = JokeImageCarousel(
+            joke: joke,
+            showSaveButton: true,
+            showThumbsButtons: true,
+            jokeContext: 'test',
+          );
 
-        // act
-        await tester.pumpWidget(createTestWidget(child: widget));
-        await tester.pump();
+          // act
+          await tester.pumpWidget(createTestWidget(child: widget));
+          await tester.pump();
 
-        // assert - save button takes precedence over thumbs buttons
-        expect(find.byType(SaveJokeButton), findsOneWidget);
-        expect(find.byType(ThumbsUpJokeButton), findsNothing);
-        expect(find.byType(ThumbsDownJokeButton), findsNothing);
-      });
+          // assert - both save and thumbs buttons can be shown simultaneously
+          expect(find.byType(reaction_buttons.SaveJokeButton), findsOneWidget);
+          expect(
+            find.byType(reaction_buttons.ThumbsUpJokeButton),
+            findsOneWidget,
+          );
+          expect(
+            find.byType(reaction_buttons.ThumbsDownJokeButton),
+            findsOneWidget,
+          );
+        },
+      );
 
       testWidgets('uses default values when not specified', (tester) async {
         // arrange
@@ -616,10 +698,95 @@ void main() {
         await tester.pumpWidget(createTestWidget(child: widget));
         await tester.pump();
 
-        // assert - defaults should be showSaveButton: true, showThumbsButtons: false
+        // assert - defaults should be showSaveButton: true, showThumbsButtons: false, showShareButton: false
+        expect(find.byType(reaction_buttons.SaveJokeButton), findsOneWidget);
+        expect(find.byType(reaction_buttons.ThumbsUpJokeButton), findsNothing);
+        expect(
+          find.byType(reaction_buttons.ThumbsDownJokeButton),
+          findsNothing,
+        );
+        expect(find.byType(ShareJokeButton), findsNothing);
+      });
+
+      testWidgets('shows share button when showShareButton is true', (
+        tester,
+      ) async {
+        // arrange
+        const joke = Joke(
+          id: 'test-joke-1',
+          setupText: 'Setup text',
+          punchlineText: 'Punchline text',
+          setupImageUrl: 'https://example.com/setup.jpg',
+          punchlineImageUrl: 'https://example.com/punchline.jpg',
+        );
+
+        const widget = JokeImageCarousel(
+          joke: joke,
+          showShareButton: true,
+          jokeContext: 'test',
+        );
+
+        // act
+        await tester.pumpWidget(createTestWidget(child: widget));
+        await tester.pump();
+
+        // assert
+        expect(find.byType(ShareJokeButton), findsOneWidget);
+      });
+
+      testWidgets('hides share button when showShareButton is false', (
+        tester,
+      ) async {
+        // arrange
+        const joke = Joke(
+          id: 'test-joke-1',
+          setupText: 'Setup text',
+          punchlineText: 'Punchline text',
+          setupImageUrl: 'https://example.com/setup.jpg',
+          punchlineImageUrl: 'https://example.com/punchline.jpg',
+        );
+
+        const widget = JokeImageCarousel(
+          joke: joke,
+          showShareButton: false,
+          jokeContext: 'test',
+        );
+
+        // act
+        await tester.pumpWidget(createTestWidget(child: widget));
+        await tester.pump();
+
+        // assert
+        expect(find.byType(ShareJokeButton), findsNothing);
+      });
+
+      testWidgets('shows all buttons when all flags are true', (tester) async {
+        // arrange
+        const joke = Joke(
+          id: 'test-joke-1',
+          setupText: 'Setup text',
+          punchlineText: 'Punchline text',
+          setupImageUrl: 'https://example.com/setup.jpg',
+          punchlineImageUrl: 'https://example.com/punchline.jpg',
+        );
+
+        const widget = JokeImageCarousel(
+          joke: joke,
+          showSaveButton: true,
+          showShareButton: true,
+          showThumbsButtons: true,
+          jokeContext: 'test',
+        );
+
+        // act
+        await tester.pumpWidget(createTestWidget(child: widget));
+        await tester.pump();
+
+        // assert - all buttons should be visible
         expect(find.byType(SaveJokeButton), findsOneWidget);
-        expect(find.byType(ThumbsUpJokeButton), findsNothing);
-        expect(find.byType(ThumbsDownJokeButton), findsNothing);
+        expect(find.byType(ShareJokeButton), findsOneWidget);
+        expect(find.byType(ThumbsUpJokeButton), findsOneWidget);
+        expect(find.byType(ThumbsDownJokeButton), findsOneWidget);
       });
     });
 
@@ -634,7 +801,11 @@ void main() {
           punchlineImageUrl: 'https://example.com/punchline.jpg',
         );
 
-        const widget = JokeImageCarousel(joke: joke, isAdminMode: true, jokeContext: 'test');
+        const widget = JokeImageCarousel(
+          joke: joke,
+          isAdminMode: true,
+          jokeContext: 'test',
+        );
 
         // act
         await tester.pumpWidget(createTestWidget(child: widget));
@@ -654,7 +825,11 @@ void main() {
           punchlineImageUrl: 'https://example.com/punchline.jpg',
         );
 
-        const widget = JokeImageCarousel(joke: joke, isAdminMode: false, jokeContext: 'test');
+        const widget = JokeImageCarousel(
+          joke: joke,
+          isAdminMode: false,
+          jokeContext: 'test',
+        );
 
         // act
         await tester.pumpWidget(createTestWidget(child: widget));
@@ -674,7 +849,11 @@ void main() {
           punchlineImageUrl: 'https://example.com/punchline.jpg',
         );
 
-        const widget = JokeImageCarousel(joke: joke, isAdminMode: true, jokeContext: 'test');
+        const widget = JokeImageCarousel(
+          joke: joke,
+          isAdminMode: true,
+          jokeContext: 'test',
+        );
 
         // act
         await tester.pumpWidget(createTestWidget(child: widget));
@@ -688,7 +867,9 @@ void main() {
         verifyNever(() => mockJokeRepository.deleteJoke(any()));
       });
 
-      testWidgets('deletes joke and pops navigator on hold complete', (tester) async {
+      testWidgets('deletes joke and pops navigator on hold complete', (
+        tester,
+      ) async {
         // arrange
         const joke = Joke(
           id: 'test-joke-1',
@@ -698,7 +879,11 @@ void main() {
           punchlineImageUrl: 'https://example.com/punchline.jpg',
         );
 
-        const widget = JokeImageCarousel(joke: joke, isAdminMode: true, jokeContext: 'test');
+        const widget = JokeImageCarousel(
+          joke: joke,
+          isAdminMode: true,
+          jokeContext: 'test',
+        );
 
         // Create widget wrapped in Navigator for proper navigation testing
         final navigatorKey = GlobalKey<NavigatorState>();
@@ -721,7 +906,9 @@ void main() {
 
         // Simulate hold complete by directly triggering the onHoldComplete callback
         // Note: We can't easily test the 3-second hold behavior in unit tests due to timer complexity
-        final deleteButton = tester.widget(find.byKey(const Key('delete-joke-button')));
+        final deleteButton = tester.widget(
+          find.byKey(const Key('delete-joke-button')),
+        );
         // We would need to access the holdable button's onHoldComplete callback here
         // For now, we'll test the repository call directly in a separate test
 
@@ -740,7 +927,11 @@ void main() {
           punchlineImageUrl: 'https://example.com/punchline.jpg',
         );
 
-        const widget = JokeImageCarousel(joke: joke, isAdminMode: true, jokeContext: 'test');
+        const widget = JokeImageCarousel(
+          joke: joke,
+          isAdminMode: true,
+          jokeContext: 'test',
+        );
 
         // act
         await tester.pumpWidget(createTestWidget(child: widget));
@@ -753,7 +944,9 @@ void main() {
         // For this test, we verify the joke ID is correctly passed to the widget
         // The actual deleteJoke call would happen in the onHoldComplete callback
         // which is tested in the repository tests
-        final carousel = tester.widget<JokeImageCarousel>(find.byType(JokeImageCarousel));
+        final carousel = tester.widget<JokeImageCarousel>(
+          find.byType(JokeImageCarousel),
+        );
         expect(carousel.joke.id, equals(jokeId));
       });
 
@@ -767,7 +960,11 @@ void main() {
           punchlineImageUrl: 'https://example.com/punchline.jpg',
         );
 
-        const widget = JokeImageCarousel(joke: joke, isAdminMode: true, jokeContext: 'test');
+        const widget = JokeImageCarousel(
+          joke: joke,
+          isAdminMode: true,
+          jokeContext: 'test',
+        );
 
         // act
         await tester.pumpWidget(createTestWidget(child: widget));
@@ -775,7 +972,7 @@ void main() {
 
         // assert - verify the delete button exists
         expect(find.byKey(const Key('delete-joke-button')), findsOneWidget);
-        
+
         // Note: Testing the exact color in Flutter widget tests can be complex
         // The color is set to theme.colorScheme.error which should be red-ish
         // The visual appearance is more appropriately tested through integration tests
@@ -791,7 +988,11 @@ void main() {
           punchlineImageUrl: 'https://example.com/punchline.jpg',
         );
 
-        const widget = JokeImageCarousel(joke: joke, isAdminMode: true, jokeContext: 'test');
+        const widget = JokeImageCarousel(
+          joke: joke,
+          isAdminMode: true,
+          jokeContext: 'test',
+        );
 
         // act
         await tester.pumpWidget(createTestWidget(child: widget));
@@ -799,7 +1000,7 @@ void main() {
 
         // assert - verify the delete button exists
         expect(find.byKey(const Key('delete-joke-button')), findsOneWidget);
-        
+
         // Note: Testing the exact hold duration requires access to the HoldableButton's internal state
         // The duration is set in the widget constructor as const Duration(seconds: 3)
         // This is more appropriately tested through integration tests or by examining the widget properties

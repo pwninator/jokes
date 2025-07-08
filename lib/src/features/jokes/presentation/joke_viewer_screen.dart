@@ -292,6 +292,7 @@ class _JokeViewerScreenState extends ConsumerState<JokeViewerScreen> {
                         isAdminMode: false,
                         jokesToPreload: jokesToPreload,
                         showSaveButton: true,
+                        showShareButton: true,
                         showThumbsButtons: false,
                         jokeContext: widget.jokeContext,
                       ),

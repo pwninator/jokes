@@ -74,28 +74,6 @@ void main() {
       expect(buttonWidget.size, equals(24.0)); // default size
     });
 
-    testWidgets('ShareJokeButton creates JokeReactionButton with share type', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        ProviderScope(
-          child: MaterialApp(
-            home: Scaffold(
-              body: ShareJokeButton(jokeId: testJokeId, jokeContext: 'test'),
-            ),
-          ),
-        ),
-      );
-
-      expect(find.byType(JokeReactionButton), findsOneWidget);
-
-      final buttonWidget = tester.widget<JokeReactionButton>(
-        find.byType(JokeReactionButton),
-      );
-      expect(buttonWidget.jokeId, equals(testJokeId));
-      expect(buttonWidget.reactionType, equals(JokeReactionType.share));
-    });
-
     testWidgets(
       'ThumbsUpJokeButton creates JokeReactionButton with thumbsUp type',
       (tester) async {

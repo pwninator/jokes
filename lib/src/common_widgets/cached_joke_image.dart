@@ -52,34 +52,40 @@ class CachedJokeImage extends ConsumerWidget {
 
   /// Precaches a single joke image with the same configuration as the widget
   /// Uses disk caching for efficiency and works in both foreground and background
-  static Future<void> precacheJokeImage(
+  /// Returns the processed URL if successful, null otherwise
+  static Future<String?> precacheJokeImage(
     String? imageUrl,
     ImageService imageService,
   ) async {
     final processedUrl = _getProcessedImageUrl(imageUrl, imageService);
-    if (processedUrl == null) return;
+    if (processedUrl == null) return null;
 
     try {
       // Download and cache to disk using DefaultCacheManager
       // CachedNetworkImage will find this in disk cache and load instantly
       await DefaultCacheManager().downloadFile(processedUrl);
       debugPrint('Precached image: $processedUrl');
+      return processedUrl;
     } catch (error, stackTrace) {
       // Silently handle preload errors - the actual image widget will show error state
       debugPrint('Failed to precache image $imageUrl: $error\n$stackTrace');
+      return null;
     }
   }
 
   /// Precaches both setup and punchline images for a joke
-  static Future<void> precacheJokeImages(
+  /// Returns the processed URLs for both images
+  static Future<({String? setupUrl, String? punchlineUrl})> precacheJokeImages(
     Joke joke,
     ImageService imageService,
   ) async {
-    // Precache both images in parallel
-    await Future.wait([
+    // Precache both images in parallel and get their processed URLs
+    final results = await Future.wait([
       precacheJokeImage(joke.setupImageUrl, imageService),
       precacheJokeImage(joke.punchlineImageUrl, imageService),
     ]);
+    
+    return (setupUrl: results[0], punchlineUrl: results[1]);
   }
 
   /// Precaches images for multiple jokes

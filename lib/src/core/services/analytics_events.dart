@@ -14,6 +14,9 @@ enum AnalyticsEvent {
   // Joke reaction events
   jokeReactionToggled('joke_reaction_toggled'),
 
+  // Joke sharing events
+  jokeShared('joke_shared'),
+
   // Subscription events
   subscriptionPromptShown('subscription_prompt_shown'),
   subscriptionPromptAccepted('subscription_prompt_accepted'),

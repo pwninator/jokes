@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/common_widgets/cached_joke_image.dart';
 import 'package:snickerdoodle/src/common_widgets/holdable_button.dart';
-import 'package:snickerdoodle/src/common_widgets/joke_reaction_button.dart';
+import 'package:snickerdoodle/src/common_widgets/joke_reaction_button.dart'
+    as reaction_buttons;
+import 'package:snickerdoodle/src/common_widgets/share_joke_button.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/providers/image_providers.dart';
 import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
@@ -21,6 +23,7 @@ class JokeImageCarousel extends ConsumerStatefulWidget {
   final bool isAdminMode;
   final List<Joke>? jokesToPreload;
   final bool showSaveButton;
+  final bool showShareButton;
   final bool showThumbsButtons;
   final String? title;
   final String jokeContext;
@@ -35,6 +38,7 @@ class JokeImageCarousel extends ConsumerStatefulWidget {
     this.isAdminMode = false,
     this.jokesToPreload,
     this.showSaveButton = true,
+    this.showShareButton = false,
     this.showThumbsButtons = false,
     this.title,
     required this.jokeContext,
@@ -597,37 +601,8 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
               const SizedBox(width: 8),
               _buildPageIndicator(1, theme),
 
-              // Right save button, thumbs buttons, or spacer
-              Expanded(
-                child:
-                    widget.showSaveButton
-                        ? Align(
-                          alignment: Alignment.centerRight,
-                          child: SaveJokeButton(
-                            jokeId: widget.joke.id,
-                            jokeContext: widget.jokeContext,
-                          ),
-                        )
-                        : widget.showThumbsButtons
-                        ? Align(
-                          alignment: Alignment.centerRight,
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              ThumbsUpJokeButton(
-                                jokeId: widget.joke.id,
-                                jokeContext: widget.jokeContext,
-                              ),
-                              const SizedBox(width: 8),
-                              ThumbsDownJokeButton(
-                                jokeId: widget.joke.id,
-                                jokeContext: widget.jokeContext,
-                              ),
-                            ],
-                          ),
-                        )
-                        : const SizedBox(),
-              ),
+              // Right buttons (save, share, thumbs) or spacer
+              Expanded(child: _buildRightButtons()),
             ],
           ),
 
@@ -804,6 +779,60 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
                 : theme.colorScheme.onSurface.withValues(alpha: 0.3),
         borderRadius: BorderRadius.circular(4),
       ),
+    );
+  }
+
+  Widget _buildRightButtons() {
+    // Create a list of buttons to show
+    final List<Widget> buttons = [];
+
+    // Add thumbs buttons if enabled
+    if (widget.showThumbsButtons) {
+      if (buttons.isNotEmpty) {
+        buttons.add(const SizedBox(width: 8));
+      }
+      buttons.addAll([
+        reaction_buttons.ThumbsUpJokeButton(
+          jokeId: widget.joke.id,
+          jokeContext: widget.jokeContext,
+        ),
+        const SizedBox(width: 8),
+        reaction_buttons.ThumbsDownJokeButton(
+          jokeId: widget.joke.id,
+          jokeContext: widget.jokeContext,
+        ),
+      ]);
+    }
+
+    // Add share button if enabled
+    if (widget.showShareButton) {
+      if (buttons.isNotEmpty) {
+        buttons.add(const SizedBox(width: 8));
+      }
+      buttons.add(
+        ShareJokeButton(joke: widget.joke, jokeContext: widget.jokeContext),
+      );
+    }
+
+    // Add save button if enabled
+    if (widget.showSaveButton) {
+      buttons.add(
+        reaction_buttons.SaveJokeButton(
+          jokeId: widget.joke.id,
+          jokeContext: widget.jokeContext,
+        ),
+      );
+    }
+
+    // If no buttons, return empty space
+    if (buttons.isEmpty) {
+      return const SizedBox();
+    }
+
+    // Return aligned row of buttons
+    return Align(
+      alignment: Alignment.centerRight,
+      child: Row(mainAxisSize: MainAxisSize.min, children: buttons),
     );
   }
 }

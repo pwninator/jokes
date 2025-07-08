@@ -16,6 +16,8 @@ class AnalyticsParameters {
   static const String jokeScrollDepth = 'joke_scroll_depth';
   static const String reactionType = 'reaction_type';
   static const String reactionAdded = 'reaction_added';
+  static const String shareMethod = 'share_method';
+  static const String shareSuccess = 'share_success';
   static const String userType = 'user_type';
 
   // Navigation parameters
@@ -62,4 +64,12 @@ class AnalyticsNavigationMethod {
 class AnalyticsJokeContext {
   static const String dailyJokes = 'daily_jokes';
   static const String savedJokes = 'saved_jokes';
+}
+
+/// Share method values for analytics
+class AnalyticsShareMethod {
+  static const String images = 'images';
+  static const String text = 'text';
+  static const String merged = 'merged';
+  static const String watermarked = 'watermarked';
 }

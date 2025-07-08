@@ -86,30 +86,6 @@ class SaveJokeButton extends StatelessWidget {
   }
 }
 
-/// Convenience widget for sharing jokes
-class ShareJokeButton extends StatelessWidget {
-  final String jokeId;
-  final double size;
-  final String jokeContext;
-
-  const ShareJokeButton({
-    super.key,
-    required this.jokeId,
-    this.size = 24.0,
-    required this.jokeContext,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return JokeReactionButton(
-      jokeId: jokeId,
-      reactionType: JokeReactionType.share,
-      size: size,
-      jokeContext: jokeContext,
-    );
-  }
-}
-
 /// Convenience widget for thumbs up
 class ThumbsUpJokeButton extends StatelessWidget {
   final String jokeId;

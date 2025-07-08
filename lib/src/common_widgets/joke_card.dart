@@ -12,6 +12,7 @@ class JokeCard extends StatelessWidget {
   final bool isAdminMode;
   final List<Joke>? jokesToPreload;
   final bool showSaveButton;
+  final bool showShareButton;
   final bool showThumbsButtons;
   final String? title;
   final String jokeContext;
@@ -26,6 +27,7 @@ class JokeCard extends StatelessWidget {
     this.isAdminMode = false,
     this.jokesToPreload,
     this.showSaveButton = true,
+    this.showShareButton = true,
     this.showThumbsButtons = false,
     this.title,
     required this.jokeContext,
@@ -52,6 +54,7 @@ class JokeCard extends StatelessWidget {
         isAdminMode: isAdminMode,
         jokesToPreload: jokesToPreload,
         showSaveButton: showSaveButton,
+        showShareButton: showShareButton,
         showThumbsButtons: showThumbsButtons,
         title: title,
         jokeContext: jokeContext,

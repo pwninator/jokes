@@ -1,12 +1,11 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:snickerdoodle/src/app.dart';
-import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
-import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/common_widgets/cached_joke_image.dart';
 import 'package:snickerdoodle/src/common_widgets/main_navigation_widget.dart';
+import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
 import 'package:snickerdoodle/src/features/auth/presentation/auth_wrapper.dart';
@@ -92,9 +91,19 @@ class NotificationService {
   /// Sync subscription state with FCM server (background)
   Future<void> _syncSubscriptions() async {
     try {
-      final subscriptionService = DailyJokeSubscriptionServiceImpl();
+      // Initialize SharedPreferences directly since we can't use providers here
+      // This is a background sync during app startup
+      final sharedPreferences = await SharedPreferences.getInstance();
+
+      // Create subscription service directly
+      final subscriptionService = DailyJokeSubscriptionServiceImpl(
+        sharedPreferences: sharedPreferences,
+        notificationService: this,
+      );
+
+      // Sync subscription state
       await subscriptionService.ensureSubscriptionSync();
-      debugPrint('Subscription sync completed in background');
+      debugPrint('Background subscription sync completed');
     } catch (e) {
       debugPrint('Failed to sync subscriptions in background: $e');
       // Non-critical error, app continues normally

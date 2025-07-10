@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:snickerdoodle/src/core/providers/app_version_provider.dart';
 import 'package:snickerdoodle/src/core/providers/image_providers.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
@@ -79,6 +80,11 @@ class CoreMocks {
     ];
   }
 
+  /// Set up mock SharedPreferences with initial values
+  static void setupMockSharedPreferences([Map<String, Object>? values]) {
+    SharedPreferences.setMockInitialValues(values ?? {});
+  }
+
   /// Create optimized image URLs for testing
   static const String transparentImageDataUrl =
       'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
@@ -135,11 +141,14 @@ class CoreMocks {
   ) {
     // Setup default behaviors for subscription service
     when(() => mock.isSubscribed()).thenAnswer((_) async => false);
+    when(() => mock.getSubscriptionHour()).thenAnswer((_) async => -1);
     when(
       () => mock.hasUserMadeSubscriptionChoice(),
     ).thenAnswer((_) async => false);
     when(() => mock.ensureSubscriptionSync()).thenAnswer((_) async => true);
-    when(() => mock.subscribeWithNotificationPermission()).thenAnswer((_) async => true);
+    when(
+      () => mock.subscribeWithNotificationPermission(hour: any(named: 'hour')),
+    ).thenAnswer((_) async => true);
     when(() => mock.unsubscribe()).thenAnswer((_) async => true);
   }
 }

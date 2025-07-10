@@ -19,10 +19,10 @@ final analyticsServiceProvider = Provider<AnalyticsService>((ref) {
 final analyticsInitializationProvider = FutureProvider<void>((ref) async {
   final analyticsService = ref.watch(analyticsServiceProvider);
   final authState = ref.watch(authStateProvider);
-  
+
   // Initialize analytics service
   await analyticsService.initialize();
-  
+
   // Set user properties when auth state is available
   authState.whenData((user) async {
     await analyticsService.setUserProperties(user);
@@ -33,12 +33,11 @@ final analyticsInitializationProvider = FutureProvider<void>((ref) async {
 /// This ensures analytics always has the latest user information
 final analyticsUserTrackingProvider = Provider<void>((ref) {
   final analyticsService = ref.watch(analyticsServiceProvider);
-  final authState = ref.watch(authStateProvider);
-  
+
   // Update user properties whenever auth state changes
   ref.listen<AsyncValue<dynamic>>(authStateProvider, (previous, current) {
     current.whenData((user) async {
       await analyticsService.setUserProperties(user);
     });
   });
-}); 
+});

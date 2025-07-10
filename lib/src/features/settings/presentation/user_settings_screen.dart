@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/common_widgets/adaptive_app_bar_screen.dart';
+import 'package:snickerdoodle/src/common_widgets/notification_hour_widget.dart';
 import 'package:snickerdoodle/src/common_widgets/subscription_prompt_dialog.dart';
 import 'package:snickerdoodle/src/common_widgets/titled_screen.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
@@ -402,6 +403,10 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                   ),
                 ],
               ),
+              if (isSubscribed) ...[
+                const SizedBox(height: 16),
+                const HourDisplayWidget(),
+              ],
             ],
           ),
       loading:
@@ -692,8 +697,9 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
       statusNotifier.state = AsyncValue.data(enable);
 
       bool success;
+
       if (enable) {
-        // Subscribe with notification permission
+        // Subscribe with notification permission (uses existing hour or default)
         success =
             await subscriptionService.subscribeWithNotificationPermission();
       } else {

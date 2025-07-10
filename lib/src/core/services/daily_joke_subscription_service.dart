@@ -4,12 +4,17 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:snickerdoodle/src/core/providers/shared_preferences_provider.dart';
 import 'package:snickerdoodle/src/core/services/notification_service.dart';
 
 /// Abstract interface for daily joke subscription service
 abstract class DailyJokeSubscriptionService {
   /// Check if user is subscribed to daily jokes
   Future<bool> isSubscribed();
+
+  /// Get the user's preferred notification hour (0-23) in local time
+  /// Returns -1 if not set or not subscribed
+  Future<int> getSubscriptionHour();
 
   /// Check if user has ever made a subscription choice (true/false)
   /// Returns false if they've never been asked or made a choice
@@ -20,7 +25,7 @@ abstract class DailyJokeSubscriptionService {
 
   /// Complete subscription flow with notification permission handling
   /// Returns true if subscription was successful, false if failed or permission denied
-  Future<bool> subscribeWithNotificationPermission();
+  Future<bool> subscribeWithNotificationPermission({int? hour});
 
   /// Unsubscribe from daily jokes (no permission required)
   /// Returns true if unsubscription was successful
@@ -29,11 +34,23 @@ abstract class DailyJokeSubscriptionService {
 
 /// Concrete implementation of the daily joke subscription service
 class DailyJokeSubscriptionServiceImpl implements DailyJokeSubscriptionService {
-  static const String _subscriptionKey = 'daily_jokes_subscribed';
-  static const String _topicName = 'daily-jokes';
+  DailyJokeSubscriptionServiceImpl({
+    required SharedPreferences sharedPreferences,
+    NotificationService? notificationService,
+  }) : _sharedPreferences = sharedPreferences,
+       _notificationService = notificationService ?? NotificationService();
 
-  // Cache expensive SharedPreferences reads for performance
+  final SharedPreferences _sharedPreferences;
+  final NotificationService _notificationService;
+
+  static const String _subscriptionKey = 'daily_jokes_subscribed';
+  static const String _subscriptionHourKey = 'daily_jokes_subscribed_hour';
+  static const String _topicPrefix = 'tester_jokes';
+  static const int defaultHour = 9; // 9 AM default
+
+  // Cache expensive reads for performance
   bool? _cachedSubscriptionState;
+  int? _cachedSubscriptionHour;
 
   @override
   Future<bool> isSubscribed() async {
@@ -41,37 +58,111 @@ class DailyJokeSubscriptionServiceImpl implements DailyJokeSubscriptionService {
     if (_cachedSubscriptionState != null) {
       return _cachedSubscriptionState!;
     }
-    final prefs = await SharedPreferences.getInstance();
-    _cachedSubscriptionState = prefs.getBool(_subscriptionKey) ?? false;
+    _cachedSubscriptionState =
+        _sharedPreferences.getBool(_subscriptionKey) ?? false;
     return _cachedSubscriptionState!;
   }
 
   @override
+  Future<int> getSubscriptionHour() async {
+    // Use cache if available for performance
+    if (_cachedSubscriptionHour == null) {
+      int hour = _sharedPreferences.getInt(_subscriptionHourKey) ?? -1;
+      if (hour < 0 || hour > 23) {
+        // Migrate existing subscribers to default hour
+        hour = defaultHour;
+
+        // _setSubscriptionHour sets _cachedSubscriptionHour if successful
+        await _setSubscriptionHour(hour);
+      }
+
+      _cachedSubscriptionHour ??= hour;
+    }
+
+    return _cachedSubscriptionHour!;
+  }
+
+  @override
   Future<bool> hasUserMadeSubscriptionChoice() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.containsKey(_subscriptionKey);
+    return _sharedPreferences.containsKey(_subscriptionKey);
+  }
+
+  /// Convert local hour to UTC-12 hour and determine topic suffix
+  String _calculateTopicName(int localHour) {
+    if (localHour < 0 || localHour > 23) {
+      throw ArgumentError('Invalid hour: $localHour. Must be 0-23.');
+    }
+
+    // Get current timezone offset from UTC in hours
+    final now = DateTime.now();
+    final localOffset = now.timeZoneOffset;
+
+    // Handle timezone detection failure - fallback to PST (UTC-8)
+    double offsetHours;
+    try {
+      offsetHours = localOffset.inMinutes / 60.0;
+    } catch (e) {
+      debugPrint('Failed to get timezone offset, defaulting to PST: $e');
+      offsetHours = -8.0; // PST
+    }
+
+    // Create local time and UTC-12 time for the same moment
+    final localTime = DateTime(now.year, now.month, now.day, localHour);
+    final utcTime = localTime.subtract(
+      Duration(minutes: (offsetHours * 60).round()),
+    );
+    final utcMinus12Time = utcTime.subtract(const Duration(hours: 12));
+
+    final utcMinus12Hour = utcMinus12Time.hour;
+
+    // Determine suffix based on day relationship
+    String suffix = utcMinus12Time.day < localTime.day ? 'n' : 'c';
+
+    return '${_topicPrefix}_${utcMinus12Hour.toString().padLeft(2, '0')}$suffix';
+  }
+
+  /// Get all possible topic names (for unsubscribing)
+  List<String> _getAllPossibleTopics() {
+    final topics = <String>[_topicPrefix]; // Legacy topic
+
+    // Add all hour/suffix combinations
+    for (int hour = 0; hour < 24; hour++) {
+      final hourStr = hour.toString().padLeft(2, '0');
+      topics.add('${_topicPrefix}_${hourStr}c');
+      topics.add('${_topicPrefix}_${hourStr}n');
+    }
+
+    return topics;
   }
 
   /// Ensure subscription is synced with FCM server
   /// Call this on app startup or after preference changes to handle sync
   @override
   Future<bool> ensureSubscriptionSync() async {
-    final isLocallySubscribed = await isSubscribed();
-
     try {
+      String? topicToSubscribe;
+      final isLocallySubscribed = await isSubscribed();
+
       if (isLocallySubscribed) {
-        // Subscribe to ensure server-side subscription is active
-        await FirebaseMessaging.instance.subscribeToTopic(_topicName);
-        debugPrint('Ensured subscription to $_topicName');
-      } else {
-        // Unsubscribe to ensure server-side subscription is inactive
-        await FirebaseMessaging.instance.unsubscribeFromTopic(_topicName);
-        debugPrint('Ensured unsubscription from $_topicName');
+        final hour = await getSubscriptionHour();
+        topicToSubscribe = _calculateTopicName(hour);
       }
+
+      // Unsubscribe from all topics except the one we want to subscribe to
+      final allTopics = _getAllPossibleTopics();
+      for (final topic in allTopics) {
+        if (topicToSubscribe != null && topic == topicToSubscribe) {
+          await FirebaseMessaging.instance.subscribeToTopic(topic);
+          debugPrint('Subscribed to $topic');
+        } else {
+          await FirebaseMessaging.instance.unsubscribeFromTopic(topic);
+          debugPrint('Unsubscribed from $topic');
+        }
+      }
+
       return true;
     } catch (e) {
       debugPrint('Failed to sync subscription state: $e');
-      // Keep local state as-is, but log the issue
       return false;
     }
   }
@@ -79,23 +170,34 @@ class DailyJokeSubscriptionServiceImpl implements DailyJokeSubscriptionService {
   /// Complete subscription flow with notification permission handling
   /// Returns true if subscription was successful, false if failed or permission denied
   @override
-  Future<bool> subscribeWithNotificationPermission() async {
+  Future<bool> subscribeWithNotificationPermission({int? hour}) async {
     try {
-      // First, save the subscription preference
+      // First, save the subscription preferences
       final prefSaved = await _setSubscriptionPreference(true);
       if (!prefSaved) {
-        debugPrint('Failed to save subscription preference');
+        debugPrint('Failed to save subscription preferences');
         return false;
       }
 
+      // Then set the hour if given. If not, do nothing, and ensureSubscriptionSync
+      // will set to the default hour later.
+      if (hour != null && (hour >= 0 && hour <= 23)) {
+        final hourSaved = await _setSubscriptionHour(hour);
+        if (!hourSaved) {
+          debugPrint('Failed to save subscription hour');
+          return false;
+        }
+      }
+
       // Request notification permission
-      final notificationService = NotificationService();
       final permissionGranted =
-          await notificationService.requestNotificationPermissions();
+          await _notificationService.requestNotificationPermissions();
 
       if (permissionGranted) {
         // Permission granted, sync with FCM
-        debugPrint('Successfully subscribed with notification permission');
+        debugPrint(
+          'Successfully subscribed with notification permission at hour ${hour ?? "EXISTING"}',
+        );
         return true;
       } else {
         // Permission denied, rollback subscription
@@ -124,7 +226,7 @@ class DailyJokeSubscriptionServiceImpl implements DailyJokeSubscriptionService {
         debugPrint('Successfully unsubscribed');
         return true;
       } else {
-        debugPrint('Failed to save unsubscription preference');
+        debugPrint('Failed to save unsubscription preferences');
         return false;
       }
     } catch (e) {
@@ -139,12 +241,24 @@ class DailyJokeSubscriptionServiceImpl implements DailyJokeSubscriptionService {
   // Save subscription preference locally and update cache
   Future<bool> _setSubscriptionPreference(bool subscribed) async {
     try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool(_subscriptionKey, subscribed);
+      await _sharedPreferences.setBool(_subscriptionKey, subscribed);
       _cachedSubscriptionState = subscribed;
       return true;
     } catch (e) {
       debugPrint('Failed to save subscription preference: $e');
+      return false;
+    }
+  }
+
+  // Save subscription hour locally and update cache
+  Future<bool> _setSubscriptionHour(int hour) async {
+    try {
+      await _sharedPreferences.setInt(_subscriptionHourKey, hour);
+
+      _cachedSubscriptionHour = hour;
+      return true;
+    } catch (e) {
+      debugPrint('Failed to save subscription hour: $e');
       return false;
     }
   }
@@ -153,7 +267,10 @@ class DailyJokeSubscriptionServiceImpl implements DailyJokeSubscriptionService {
 /// Riverpod provider for the daily joke subscription service
 final dailyJokeSubscriptionServiceProvider =
     Provider<DailyJokeSubscriptionService>((ref) {
-      return DailyJokeSubscriptionServiceImpl();
+      final sharedPreferences = ref.watch(sharedPreferencesInstanceProvider);
+      return DailyJokeSubscriptionServiceImpl(
+        sharedPreferences: sharedPreferences,
+      );
     });
 
 /// Simple state provider for subscription status with manual refresh

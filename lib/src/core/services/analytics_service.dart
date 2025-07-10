@@ -60,6 +60,7 @@ abstract class AnalyticsService {
     SubscriptionSource source, {
     bool? hadPreviousChoice,
     bool? permissionGranted,
+    int? subscriptionHour,
   });
 
   /// Log when subscription prompt is shown
@@ -224,6 +225,7 @@ class FirebaseAnalyticsService implements AnalyticsService {
     SubscriptionSource source, {
     bool? hadPreviousChoice,
     bool? permissionGranted,
+    int? subscriptionHour,
   }) async {
     await _logEvent(AnalyticsEvent.subscriptionSettingsToggled, {
       AnalyticsParameters.subscriptionEventType: eventType.value,
@@ -232,6 +234,8 @@ class FirebaseAnalyticsService implements AnalyticsService {
         AnalyticsParameters.hadPreviousChoice: hadPreviousChoice,
       if (permissionGranted != null)
         AnalyticsParameters.permissionGranted: permissionGranted,
+      if (subscriptionHour != null)
+        AnalyticsParameters.subscriptionHour: subscriptionHour,
       AnalyticsParameters.userType: _getUserType(_currentUser),
     });
   }

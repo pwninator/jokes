@@ -149,7 +149,7 @@ class _SubscriptionPromptDialogState
 
     // Track analytics for subscription attempt
     final analyticsService = ref.read(analyticsServiceProvider);
-    
+
     final subscriptionPromptNotifier = ref.read(
       subscriptionPromptProvider.notifier,
     );

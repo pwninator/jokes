@@ -1,0 +1,354 @@
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
+import 'package:snickerdoodle/src/core/services/analytics_events.dart';
+import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
+
+/// Formats hour (0-23) to 12-hour format with AM/PM
+String _formatHour(int hour) {
+  if (hour == 0) {
+    return '12:00 AM';
+  } else if (hour < 12) {
+    return '${hour.toString().padLeft(2, '0')}:00 AM';
+  } else if (hour == 12) {
+    return '12:00 PM';
+  } else {
+    return '${(hour - 12).toString().padLeft(2, '0')}:00 PM';
+  }
+}
+
+/// A custom 24-hour picker widget using CupertinoPicker spinner
+///
+/// Displays hours in 24-hour format (0-23) with a native iOS-style spinner interface.
+/// Users can scroll/swipe to select the desired time.
+class HourPickerWidget extends StatefulWidget {
+  const HourPickerWidget({
+    super.key,
+    required this.selectedHour,
+    required this.onHourChanged,
+  });
+
+  /// Currently selected hour (0-23)
+  final int selectedHour;
+
+  /// Callback when hour is changed
+  final ValueChanged<int> onHourChanged;
+
+  @override
+  State<HourPickerWidget> createState() => _HourPickerWidgetState();
+}
+
+class _HourPickerWidgetState extends State<HourPickerWidget> {
+  late FixedExtentScrollController _scrollController;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController = FixedExtentScrollController(
+      initialItem: widget.selectedHour,
+    );
+  }
+
+  @override
+  void didUpdateWidget(HourPickerWidget oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.selectedHour != oldWidget.selectedHour) {
+      _scrollController.jumpToItem(widget.selectedHour);
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: theme.colorScheme.outline.withValues(alpha: 0.3),
+          width: 1,
+        ),
+        color: theme.colorScheme.surface,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.schedule, size: 20, color: theme.colorScheme.primary),
+              const SizedBox(width: 12),
+              Text(
+                'Notification time:',
+                style: theme.textTheme.titleSmall!.copyWith(
+                  color: theme.colorScheme.onSurface,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          SizedBox(
+            height: 200,
+            child: CupertinoPicker(
+              scrollController: _scrollController,
+              itemExtent: 40,
+              onSelectedItemChanged: (int index) {
+                widget.onHourChanged(index);
+              },
+              children: List.generate(24, (int index) {
+                return Center(
+                  child: Text(
+                    _formatHour(index),
+                    style: theme.textTheme.titleMedium!.copyWith(
+                      color: theme.colorScheme.onSurface,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                );
+              }),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A comprehensive hour display widget that manages notification hour selection
+///
+/// This widget encapsulates all logic for:
+/// - Displaying the current notification hour
+/// - Showing hour picker dialog on tap
+/// - Handling hour changes and re-subscription
+/// - Managing loading states and error handling
+/// - Analytics tracking
+class HourDisplayWidget extends ConsumerStatefulWidget {
+  const HourDisplayWidget({super.key});
+
+  @override
+  ConsumerState<HourDisplayWidget> createState() => _HourDisplayWidgetState();
+}
+
+class _HourDisplayWidgetState extends ConsumerState<HourDisplayWidget> {
+  bool _showingHourPicker = false;
+  int _rebuildKey = 0; // Trigger rebuilds when hour changes
+
+  Future<void> _showHourPickerDialog(int currentHour) async {
+    if (_showingHourPicker) return;
+
+    setState(() {
+      _showingHourPicker = true;
+    });
+
+    int selectedHour = currentHour;
+
+    final result = await showDialog<int>(
+      context: context,
+      builder:
+          (context) => AlertDialog(
+            title: const Text('Change Notification Time'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'When would you like to receive your daily joke notifications?',
+                ),
+                const SizedBox(height: 20),
+                HourPickerWidget(
+                  selectedHour: selectedHour,
+                  onHourChanged: (hour) {
+                    selectedHour = hour;
+                  },
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.of(context).pop(selectedHour),
+                child: const Text('Save'),
+              ),
+            ],
+          ),
+    );
+
+    setState(() {
+      _showingHourPicker = false;
+    });
+
+    if (result != null && result != currentHour) {
+      await _updateNotificationHour(result);
+    }
+  }
+
+  Future<void> _updateNotificationHour(int newHour) async {
+    final subscriptionService = ref.read(dailyJokeSubscriptionServiceProvider);
+
+    try {
+      // Re-subscribe with new hour
+      final success = await subscriptionService
+          .subscribeWithNotificationPermission(hour: newHour);
+
+      if (success) {
+        // Track analytics for hour change
+        final analyticsService = ref.read(analyticsServiceProvider);
+        await analyticsService.logSubscriptionEvent(
+          SubscriptionEventType.subscribed,
+          SubscriptionSource.settings,
+          permissionGranted: true,
+          subscriptionHour: newHour,
+        );
+
+        // Show success message
+        if (mounted) {
+          final hourDisplay = _formatHour(newHour);
+
+          // Trigger widget rebuild to show new hour
+          setState(() {
+            _rebuildKey++;
+          });
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                children: [
+                  const Icon(Icons.check_circle, color: Colors.white),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text('Notification time updated to $hourDisplay'),
+                  ),
+                ],
+              ),
+              backgroundColor: Theme.of(context).colorScheme.primary,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      } else {
+        // Show error message
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text(
+                'Failed to update notification time. Please try again.',
+              ),
+              backgroundColor: Theme.of(context).colorScheme.error,
+              duration: const Duration(seconds: 3),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error updating notification time: $e'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+            duration: const Duration(seconds: 5),
+          ),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final subscriptionService = ref.read(dailyJokeSubscriptionServiceProvider);
+
+    return FutureBuilder<int>(
+      key: ValueKey(_rebuildKey), // Force rebuild when key changes
+      future: subscriptionService.getSubscriptionHour(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Row(
+            children: [
+              const SizedBox(width: 40), // Align with icon above
+              Text(
+                'Loading notification time...',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withValues(alpha: 0.6),
+                ),
+              ),
+            ],
+          );
+        }
+
+        if (snapshot.hasError || !snapshot.hasData || snapshot.data! < 0) {
+          return const SizedBox.shrink();
+        }
+
+        final hour = snapshot.data!;
+        final theme = Theme.of(context);
+
+        return Row(
+          children: [
+            const SizedBox(width: 40), // Align with icon above
+            Expanded(
+              child: Material(
+                color: Colors.transparent,
+                child: InkWell(
+                  onTap: () => _showHourPickerDialog(hour),
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: theme.colorScheme.outline.withValues(alpha: 0.3),
+                        width: 1,
+                      ),
+                      color: theme.colorScheme.surfaceContainerHighest,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.schedule,
+                          size: 20,
+                          color: theme.colorScheme.primary,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          _formatHour(hour),
+                          style: theme.textTheme.titleSmall!.copyWith(
+                            color: theme.colorScheme.onSurface,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Icon(
+                          Icons.edit,
+                          size: 16,
+                          color: theme.colorScheme.onSurface.withValues(
+                            alpha: 0.7,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}

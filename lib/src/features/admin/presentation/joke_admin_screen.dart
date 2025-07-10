@@ -22,8 +22,7 @@ class JokeAdminScreen extends StatelessWidget implements TitledScreen {
             );
           case '/joke-management':
             return MaterialPageRoute(
-              builder:
-                  (context) => const JokeManagementScreen(ratingMode: false),
+              builder: (context) => const JokeManagementScreen(),
             );
           case '/joke-creator':
             return MaterialPageRoute(
@@ -32,11 +31,6 @@ class JokeAdminScreen extends StatelessWidget implements TitledScreen {
           case '/joke-scheduler':
             return MaterialPageRoute(
               builder: (context) => const JokeSchedulerScreen(),
-            );
-          case '/rate-jokes':
-            return MaterialPageRoute(
-              builder:
-                  (context) => const JokeManagementScreen(ratingMode: true),
             );
           default:
             return MaterialPageRoute(
@@ -61,7 +55,6 @@ class _AdminHomeScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-
               // Joke Creator Card
               Card(
                 child: ListTile(
@@ -88,21 +81,6 @@ class _AdminHomeScreen extends StatelessWidget {
                   trailing: const Icon(Icons.arrow_forward_ios),
                   onTap: () {
                     Navigator.of(context).pushNamed('/joke-management');
-                  },
-                ),
-              ),
-
-              const SizedBox(height: 8),
-
-              // Rate Jokes Card
-              Card(
-                child: ListTile(
-                  leading: const Icon(Icons.thumb_up),
-                  title: const Text('Rate Jokes'),
-                  subtitle: const Text('Rate unrated jokes with images'),
-                  trailing: const Icon(Icons.arrow_forward_ios),
-                  onTap: () {
-                    Navigator.of(context).pushNamed('/rate-jokes');
                   },
                 ),
               ),

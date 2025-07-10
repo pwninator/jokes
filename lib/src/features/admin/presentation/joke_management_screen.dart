@@ -6,9 +6,7 @@ import 'package:snickerdoodle/src/features/admin/presentation/joke_editor_screen
 import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
 
 class JokeManagementScreen extends ConsumerStatefulWidget {
-  final bool ratingMode;
-
-  const JokeManagementScreen({super.key, this.ratingMode = false});
+  const JokeManagementScreen({super.key});
 
   @override
   ConsumerState<JokeManagementScreen> createState() =>
@@ -16,17 +14,6 @@ class JokeManagementScreen extends ConsumerStatefulWidget {
 }
 
 class _JokeManagementScreenState extends ConsumerState<JokeManagementScreen> {
-  @override
-  void initState() {
-    super.initState();
-    // Set the filter state when the component mounts
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (widget.ratingMode) {
-        ref.read(jokeFilterProvider.notifier).setUnratedOnly(true);
-      }
-    });
-  }
-
   String _getEmptyStateTitle(JokeFilterState filterState) {
     if (filterState.showUnratedOnly && filterState.showUnscheduledOnly) {
       return 'No unrated and unscheduled jokes found!';
@@ -53,92 +40,75 @@ class _JokeManagementScreenState extends ConsumerState<JokeManagementScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final jokesAsync =
-        widget.ratingMode
-            ? ref
-                .watch(ratingModeJokesProvider)
-                .when(
-                  data: (jokes) => AsyncValue.data(jokes),
-                  loading: () => const AsyncValue.loading(),
-                  error:
-                      (error, stackTrace) =>
-                          AsyncValue.error(error, stackTrace),
-                )
-            : ref.watch(filteredJokesProvider);
+    final jokesAsync = ref.watch(filteredJokesProvider);
     final filterState = ref.watch(jokeFilterProvider);
 
     return AdaptiveAppBarScreen(
-      title: widget.ratingMode ? 'Rate Jokes' : 'Joke Management',
-      floatingActionButton:
-          widget.ratingMode
-              ? null
-              : FloatingActionButton(
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (context) => const JokeEditorScreen(),
-                    ),
-                  );
-                },
-                tooltip: 'Add New Joke',
-                child: const Icon(Icons.add),
-              ),
+      title: 'Joke Management',
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          Navigator.of(context).push(
+            MaterialPageRoute(builder: (context) => const JokeEditorScreen()),
+          );
+        },
+        tooltip: 'Add New Joke',
+        child: const Icon(Icons.add),
+      ),
       body: Column(
         children: [
-          // Filter bar - only show when not in rating mode
-          if (!widget.ratingMode)
-            Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 16.0,
-                vertical: 8.0,
-              ),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surface,
-                border: Border(
-                  bottom: BorderSide(
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.outline.withValues(alpha: 0.2),
-                    width: 1,
-                  ),
+          // Filter bar
+          Container(
+            padding: const EdgeInsets.symmetric(
+              horizontal: 16.0,
+              vertical: 8.0,
+            ),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surface,
+              border: Border(
+                bottom: BorderSide(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.outline.withValues(alpha: 0.2),
+                  width: 1,
                 ),
               ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      'Filters',
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.onSurface.withValues(alpha: 0.8),
-                      ),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Filters',
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withValues(alpha: 0.8),
                     ),
                   ),
-                  FilterChip(
-                    key: const Key('unrated-only-filter-chip'),
-                    label: const Text('Unrated only'),
-                    selected: filterState.showUnratedOnly,
-                    onSelected: (selected) {
-                      ref.read(jokeFilterProvider.notifier).toggleUnratedOnly();
-                    },
-                    showCheckmark: true,
-                  ),
-                  const SizedBox(width: 8),
-                  FilterChip(
-                    key: const Key('unscheduled-only-filter-chip'),
-                    label: const Text('Unscheduled only'),
-                    selected: filterState.showUnscheduledOnly,
-                    onSelected: (selected) {
-                      ref
-                          .read(jokeFilterProvider.notifier)
-                          .toggleUnscheduledOnly();
-                    },
-                    showCheckmark: true,
-                  ),
-                ],
-              ),
+                ),
+                FilterChip(
+                  key: const Key('unrated-only-filter-chip'),
+                  label: const Text('Unrated only'),
+                  selected: filterState.showUnratedOnly,
+                  onSelected: (selected) {
+                    ref.read(jokeFilterProvider.notifier).toggleUnratedOnly();
+                  },
+                  showCheckmark: true,
+                ),
+                const SizedBox(width: 8),
+                FilterChip(
+                  key: const Key('unscheduled-only-filter-chip'),
+                  label: const Text('Unscheduled only'),
+                  selected: filterState.showUnscheduledOnly,
+                  onSelected: (selected) {
+                    ref
+                        .read(jokeFilterProvider.notifier)
+                        .toggleUnscheduledOnly();
+                  },
+                  showCheckmark: true,
+                ),
+              ],
             ),
+          ),
           // Jokes list
           Expanded(
             child: jokesAsync.when(
@@ -157,9 +127,7 @@ class _JokeManagementScreenState extends ConsumerState<JokeManagementScreen> {
                                 ),
                                 const SizedBox(height: 16),
                                 Text(
-                                  widget.ratingMode
-                                      ? 'No unrated jokes with images found!'
-                                      : _getEmptyStateTitle(filterState),
+                                  _getEmptyStateTitle(filterState),
                                   style: TextStyle(
                                     fontSize: 18,
                                     color: Theme.of(context)
@@ -170,9 +138,7 @@ class _JokeManagementScreenState extends ConsumerState<JokeManagementScreen> {
                                 ),
                                 const SizedBox(height: 8),
                                 Text(
-                                  widget.ratingMode
-                                      ? 'All jokes have been rated or don\'t have images'
-                                      : _getEmptyStateSubtitle(filterState),
+                                  _getEmptyStateSubtitle(filterState),
                                   style: TextStyle(
                                     fontSize: 14,
                                     color: Theme.of(context)

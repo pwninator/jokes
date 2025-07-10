@@ -27,6 +27,30 @@ class _JokeManagementScreenState extends ConsumerState<JokeManagementScreen> {
     });
   }
 
+  String _getEmptyStateTitle(JokeFilterState filterState) {
+    if (filterState.showUnratedOnly && filterState.showUnscheduledOnly) {
+      return 'No unrated and unscheduled jokes found!';
+    } else if (filterState.showUnratedOnly) {
+      return 'No unrated jokes with images found!';
+    } else if (filterState.showUnscheduledOnly) {
+      return 'No unscheduled jokes found!';
+    } else {
+      return 'No jokes yet!';
+    }
+  }
+
+  String _getEmptyStateSubtitle(JokeFilterState filterState) {
+    if (filterState.showUnratedOnly && filterState.showUnscheduledOnly) {
+      return 'Try turning off the filters or add some jokes with images';
+    } else if (filterState.showUnratedOnly) {
+      return 'Try turning off the filter or add some jokes with images';
+    } else if (filterState.showUnscheduledOnly) {
+      return 'Try turning off the filter or add some jokes';
+    } else {
+      return 'Tap the + button to add your first joke';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final jokesAsync =
@@ -100,6 +124,18 @@ class _JokeManagementScreenState extends ConsumerState<JokeManagementScreen> {
                     },
                     showCheckmark: true,
                   ),
+                  const SizedBox(width: 8),
+                  FilterChip(
+                    key: const Key('unscheduled-only-filter-chip'),
+                    label: const Text('Unscheduled only'),
+                    selected: filterState.showUnscheduledOnly,
+                    onSelected: (selected) {
+                      ref
+                          .read(jokeFilterProvider.notifier)
+                          .toggleUnscheduledOnly();
+                    },
+                    showCheckmark: true,
+                  ),
                 ],
               ),
             ),
@@ -123,9 +159,7 @@ class _JokeManagementScreenState extends ConsumerState<JokeManagementScreen> {
                                 Text(
                                   widget.ratingMode
                                       ? 'No unrated jokes with images found!'
-                                      : filterState.showUnratedOnly
-                                      ? 'No unrated jokes with images found!'
-                                      : 'No jokes yet!',
+                                      : _getEmptyStateTitle(filterState),
                                   style: TextStyle(
                                     fontSize: 18,
                                     color: Theme.of(context)
@@ -138,9 +172,7 @@ class _JokeManagementScreenState extends ConsumerState<JokeManagementScreen> {
                                 Text(
                                   widget.ratingMode
                                       ? 'All jokes have been rated or don\'t have images'
-                                      : filterState.showUnratedOnly
-                                      ? 'Try turning off the filter or add some jokes with images'
-                                      : 'Tap the + button to add your first joke',
+                                      : _getEmptyStateSubtitle(filterState),
                                   style: TextStyle(
                                     fontSize: 14,
                                     color: Theme.of(context)

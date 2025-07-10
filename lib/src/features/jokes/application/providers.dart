@@ -365,12 +365,17 @@ final userReactionsForJokeProvider =
 // State class for joke filter
 class JokeFilterState {
   final bool showUnratedOnly;
+  final bool showUnscheduledOnly;
 
-  const JokeFilterState({this.showUnratedOnly = false});
+  const JokeFilterState({
+    this.showUnratedOnly = false,
+    this.showUnscheduledOnly = false,
+  });
 
-  JokeFilterState copyWith({bool? showUnratedOnly}) {
+  JokeFilterState copyWith({bool? showUnratedOnly, bool? showUnscheduledOnly}) {
     return JokeFilterState(
       showUnratedOnly: showUnratedOnly ?? this.showUnratedOnly,
+      showUnscheduledOnly: showUnscheduledOnly ?? this.showUnscheduledOnly,
     );
   }
 }
@@ -385,6 +390,14 @@ class JokeFilterNotifier extends StateNotifier<JokeFilterState> {
 
   void setUnratedOnly(bool value) {
     state = state.copyWith(showUnratedOnly: value);
+  }
+
+  void toggleUnscheduledOnly() {
+    state = state.copyWith(showUnscheduledOnly: !state.showUnscheduledOnly);
+  }
+
+  void setUnscheduledOnly(bool value) {
+    state = state.copyWith(showUnscheduledOnly: value);
   }
 }
 
@@ -401,23 +414,44 @@ final filteredJokesProvider = Provider<AsyncValue<List<Joke>>>((ref) {
 
   return jokesAsync.when(
     data: (jokes) {
-      if (!filterState.showUnratedOnly) {
-        return AsyncValue.data(jokes);
+      var filteredJokes = jokes;
+
+      // Apply unrated filter if enabled
+      if (filterState.showUnratedOnly) {
+        filteredJokes =
+            filteredJokes.where((joke) {
+              final hasImages =
+                  joke.setupImageUrl != null &&
+                  joke.setupImageUrl!.isNotEmpty &&
+                  joke.punchlineImageUrl != null &&
+                  joke.punchlineImageUrl!.isNotEmpty;
+
+              final isUnrated =
+                  joke.numThumbsUp == 0 && joke.numThumbsDown == 0;
+
+              return hasImages && isUnrated;
+            }).toList();
       }
 
-      // Filter for unrated jokes: have images AND num_thumbs_up == 0 AND num_thumbs_down == 0
-      final filteredJokes =
-          jokes.where((joke) {
-            final hasImages =
-                joke.setupImageUrl != null &&
-                joke.setupImageUrl!.isNotEmpty &&
-                joke.punchlineImageUrl != null &&
-                joke.punchlineImageUrl!.isNotEmpty;
-
-            final isUnrated = joke.numThumbsUp == 0 && joke.numThumbsDown == 0;
-
-            return hasImages && isUnrated;
-          }).toList();
+      // Apply unscheduled filter if enabled
+      if (filterState.showUnscheduledOnly) {
+        final scheduledJokesAsync = ref.watch(monthlyJokesWithDateProvider);
+        return scheduledJokesAsync.when(
+          data: (scheduledJokes) {
+            final scheduledJokeIds =
+                scheduledJokes
+                    .map((jokeWithDate) => jokeWithDate.joke.id)
+                    .toSet();
+            filteredJokes =
+                filteredJokes
+                    .where((joke) => !scheduledJokeIds.contains(joke.id))
+                    .toList();
+            return AsyncValue.data(filteredJokes);
+          },
+          loading: () => const AsyncValue.loading(),
+          error: (error, stackTrace) => AsyncValue.error(error, stackTrace),
+        );
+      }
 
       return AsyncValue.data(filteredJokes);
     },

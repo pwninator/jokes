@@ -151,14 +151,23 @@ abstract class DailyJokeSubscriptionService {
 class DailyJokeSubscriptionServiceImpl implements DailyJokeSubscriptionService {
   DailyJokeSubscriptionServiceImpl({
     required SharedPreferences sharedPreferences,
-  }) : _sharedPreferences = sharedPreferences;
+    required FirebaseMessaging firebaseMessaging,
+  }) : _sharedPreferences = sharedPreferences,
+       _firebaseMessaging = firebaseMessaging;
 
   final SharedPreferences _sharedPreferences;
+  final FirebaseMessaging _firebaseMessaging;
 
   static const String _subscriptionKey = 'daily_jokes_subscribed';
   static const String _subscriptionHourKey = 'daily_jokes_subscribed_hour';
   static const String _topicPrefix = 'tester_jokes';
   static const int defaultHour = 9; // 9 AM default
+
+  // Debouncing + Latest-Wins + Mutex implementation
+  Timer? _debounceTimer;
+  Completer<bool>? _currentCompleter;
+  int _currentOperationId = 0;
+  static const Duration _debounceDelay = Duration(milliseconds: 500);
 
   /// Convert local hour to UTC-12 hour and determine topic suffix
   String _calculateTopicName(int localHour) {
@@ -209,9 +218,49 @@ class DailyJokeSubscriptionServiceImpl implements DailyJokeSubscriptionService {
   }
 
   /// Ensure subscription is synced with FCM server
+  /// Uses debouncing + latest-wins + mutex to handle rapid changes efficiently
   @override
   Future<bool> ensureSubscriptionSync() async {
+    // 1. DEBOUNCING: Cancel any pending timer and complete previous operation
+    _debounceTimer?.cancel();
+
+    // Complete the previous completer with false (cancelled) if it exists
+    if (_currentCompleter != null && !_currentCompleter!.isCompleted) {
+      _currentCompleter!.complete(false);
+    }
+
+    // 2. LATEST-WINS: Increment operation ID (invalidates previous operations)
+    final operationId = ++_currentOperationId;
+    debugPrint('Starting subscription sync operation $operationId');
+
+    // 3. MUTEX: The operation ID acts as our mutex - only current operation proceeds
+    final completer = Completer<bool>();
+    _currentCompleter = completer;
+
+    _debounceTimer = Timer(_debounceDelay, () async {
+      debugPrint(
+        'Executing debounced subscription sync operation $operationId',
+      );
+      final result = await _performSync(operationId);
+
+      // Only complete if this completer is still current and not already completed
+      if (_currentCompleter == completer && !completer.isCompleted) {
+        completer.complete(result);
+      }
+    });
+
+    return completer.future;
+  }
+
+  /// Perform the actual sync operation with cancellation checks
+  Future<bool> _performSync(int operationId) async {
     try {
+      // Check if we're still the current operation
+      if (_currentOperationId != operationId) {
+        debugPrint('Sync operation $operationId cancelled before start');
+        return false;
+      }
+
       String? topicToSubscribe;
       final isLocallySubscribed =
           _sharedPreferences.getBool(_subscriptionKey) ?? false;
@@ -225,31 +274,44 @@ class DailyJokeSubscriptionServiceImpl implements DailyJokeSubscriptionService {
         topicToSubscribe = _calculateTopicName(hour);
       }
 
-      // Get all topics and process them in parallel
-      final allTopics = _getAllPossibleTopics();
-      final futures = <Future<void>>[];
+      // Check again after reading state
+      if (_currentOperationId != operationId) {
+        debugPrint('Sync operation $operationId cancelled during setup');
+        return false;
+      }
 
+      if (topicToSubscribe != null) {
+        await _firebaseMessaging.subscribeToTopic(topicToSubscribe);
+        debugPrint('Subscribed to $topicToSubscribe');
+      }
+
+      // Check after subscribe operation
+      if (_currentOperationId != operationId) {
+        debugPrint('Sync operation $operationId cancelled after subscribe');
+        return false;
+      }
+
+      // Get all topics and process them with cancellation checks
+      final allTopics = _getAllPossibleTopics();
       for (final topic in allTopics) {
-        if (topicToSubscribe != null && topic == topicToSubscribe) {
-          futures.add(
-            FirebaseMessaging.instance.subscribeToTopic(topic).then((_) {
-              debugPrint('Subscribed to $topic');
-            }),
+        // Check before each unsubscribe operation
+        if (_currentOperationId != operationId) {
+          debugPrint(
+            'Sync operation $operationId cancelled during unsubscribe loop',
           );
-        } else {
-          futures.add(
-            FirebaseMessaging.instance.unsubscribeFromTopic(topic).then((_) {
-              debugPrint('Unsubscribed from $topic');
-            }),
-          );
+          return false;
+        }
+
+        if (topicToSubscribe == null || topic != topicToSubscribe) {
+          await _firebaseMessaging.unsubscribeFromTopic(topic);
+          debugPrint('Unsubscribed from $topic');
         }
       }
 
-      // Wait for all operations to complete in parallel
-      await Future.wait(futures);
+      debugPrint('Sync operation $operationId completed successfully');
       return true;
     } catch (e) {
-      debugPrint('Failed to sync subscription state: $e');
+      debugPrint('Sync operation $operationId failed: $e');
       return false;
     }
   }
@@ -261,6 +323,7 @@ final dailyJokeSubscriptionServiceProvider =
       final sharedPreferences = ref.watch(sharedPreferencesInstanceProvider);
       return DailyJokeSubscriptionServiceImpl(
         sharedPreferences: sharedPreferences,
+        firebaseMessaging: FirebaseMessaging.instance,
       );
     });
 

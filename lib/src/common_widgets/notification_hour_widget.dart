@@ -139,7 +139,39 @@ class HourDisplayWidget extends ConsumerStatefulWidget {
 
 class _HourDisplayWidgetState extends ConsumerState<HourDisplayWidget> {
   bool _showingHourPicker = false;
-  int _rebuildKey = 0; // Trigger rebuilds when hour changes
+
+  @override
+  Widget build(BuildContext context) {
+    // Watch the reactive subscription state
+    final subscriptionState = ref.watch(subscriptionProvider);
+    final hour = subscriptionState.hour;
+
+    final hourDisplay = _formatHour(hour);
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          'Notification time: $hourDisplay',
+          style: TextStyle(
+            color: Theme.of(
+              context,
+            ).colorScheme.onSurface.withValues(alpha: 0.7),
+            fontSize: 14,
+          ),
+        ),
+        TextButton(
+          onPressed: () => _showHourPickerDialog(hour),
+          child: Text(
+            'Change',
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.primary,
+              fontSize: 14,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 
   Future<void> _showHourPickerDialog(int currentHour) async {
     if (_showingHourPicker) return;
@@ -193,162 +225,57 @@ class _HourDisplayWidgetState extends ConsumerState<HourDisplayWidget> {
   }
 
   Future<void> _updateNotificationHour(int newHour) async {
-    final subscriptionService = ref.read(dailyJokeSubscriptionServiceProvider);
+    final subscriptionNotifier = ref.read(subscriptionProvider.notifier);
 
     try {
-      // Re-subscribe with new hour
-      final success = await subscriptionService
-          .subscribeWithNotificationPermission(hour: newHour);
+      // Update hour using the reactive notifier (fast operation)
+      await subscriptionNotifier.setHour(newHour);
 
-      if (success) {
-        // Track analytics for hour change
-        final analyticsService = ref.read(analyticsServiceProvider);
-        await analyticsService.logSubscriptionEvent(
-          SubscriptionEventType.subscribed,
-          SubscriptionSource.settings,
-          permissionGranted: true,
-          subscriptionHour: newHour,
+      // Track analytics for hour change
+      final analyticsService = ref.read(analyticsServiceProvider);
+      await analyticsService.logSubscriptionEvent(
+        SubscriptionEventType.subscribed,
+        SubscriptionSource.settings,
+        permissionGranted: true,
+        subscriptionHour: newHour,
+      );
+
+      // Show success message
+      if (mounted) {
+        final hourDisplay = _formatHour(newHour);
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle, color: Colors.white),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text('Notification time updated to $hourDisplay'),
+                ),
+              ],
+            ),
+            backgroundColor: Theme.of(context).colorScheme.primary,
+            duration: const Duration(seconds: 3),
+          ),
         );
-
-        // Show success message
-        if (mounted) {
-          final hourDisplay = _formatHour(newHour);
-
-          // Trigger widget rebuild to show new hour
-          setState(() {
-            _rebuildKey++;
-          });
-
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  const Icon(Icons.check_circle, color: Colors.white),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text('Notification time updated to $hourDisplay'),
-                  ),
-                ],
-              ),
-              backgroundColor: Theme.of(context).colorScheme.primary,
-              duration: const Duration(seconds: 3),
-            ),
-          );
-        }
-      } else {
-        // Show error message
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text(
-                'Failed to update notification time. Please try again.',
-              ),
-              backgroundColor: Theme.of(context).colorScheme.error,
-              duration: const Duration(seconds: 3),
-            ),
-          );
-        }
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error updating notification time: $e'),
+            content: Row(
+              children: [
+                const Icon(Icons.error, color: Colors.white),
+                const SizedBox(width: 8),
+                Expanded(child: Text('Error updating notification time: $e')),
+              ],
+            ),
             backgroundColor: Theme.of(context).colorScheme.error,
-            duration: const Duration(seconds: 5),
+            duration: const Duration(seconds: 3),
           ),
         );
       }
     }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final subscriptionService = ref.read(dailyJokeSubscriptionServiceProvider);
-
-    return FutureBuilder<int>(
-      key: ValueKey(_rebuildKey), // Force rebuild when key changes
-      future: subscriptionService.getSubscriptionHour(),
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return Row(
-            children: [
-              const SizedBox(width: 40), // Align with icon above
-              Text(
-                'Loading notification time...',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.onSurface.withValues(alpha: 0.6),
-                ),
-              ),
-            ],
-          );
-        }
-
-        if (snapshot.hasError || !snapshot.hasData || snapshot.data! < 0) {
-          return const SizedBox.shrink();
-        }
-
-        final hour = snapshot.data!;
-        final theme = Theme.of(context);
-
-        return Row(
-          children: [
-            const SizedBox(width: 40), // Align with icon above
-            Expanded(
-              child: Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  onTap: () => _showHourPickerDialog(hour),
-                  borderRadius: BorderRadius.circular(8),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: theme.colorScheme.outline.withValues(alpha: 0.3),
-                        width: 1,
-                      ),
-                      color: theme.colorScheme.surfaceContainerHighest,
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.schedule,
-                          size: 20,
-                          color: theme.colorScheme.primary,
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          _formatHour(hour),
-                          style: theme.textTheme.titleSmall!.copyWith(
-                            color: theme.colorScheme.onSurface,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Icon(
-                          Icons.edit,
-                          size: 16,
-                          color: theme.colorScheme.onSurface.withValues(
-                            alpha: 0.7,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        );
-      },
-    );
   }
 }

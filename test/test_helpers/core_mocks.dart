@@ -3,6 +3,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:snickerdoodle/src/core/providers/app_version_provider.dart';
 import 'package:snickerdoodle/src/core/providers/image_providers.dart';
+import 'package:snickerdoodle/src/core/providers/shared_preferences_provider.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
 import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
@@ -15,11 +16,14 @@ class MockSettingsService extends Mock implements SettingsService {}
 class MockDailyJokeSubscriptionService extends Mock
     implements DailyJokeSubscriptionService {}
 
+class MockSharedPreferences extends Mock implements SharedPreferences {}
+
 /// Core service mocks for unit tests
 class CoreMocks {
   static MockImageService? _mockImageService;
   static MockSettingsService? _mockSettingsService;
   static MockDailyJokeSubscriptionService? _mockSubscriptionService;
+  static SharedPreferences? _mockSharedPreferences;
 
   /// Get or create mock image service
   static MockImageService get mockImageService {
@@ -35,11 +39,20 @@ class CoreMocks {
     return _mockSettingsService!;
   }
 
-  /// Get or create mock subscription service
+  /// Get or create mock subscription service (FCM sync only)
   static MockDailyJokeSubscriptionService get mockSubscriptionService {
     _mockSubscriptionService ??= MockDailyJokeSubscriptionService();
     _setupSubscriptionServiceDefaults(_mockSubscriptionService!);
     return _mockSubscriptionService!;
+  }
+
+  /// Get or create mock SharedPreferences
+  static Future<SharedPreferences> get mockSharedPreferences async {
+    if (_mockSharedPreferences == null) {
+      SharedPreferences.setMockInitialValues({});
+      _mockSharedPreferences = await SharedPreferences.getInstance();
+    }
+    return _mockSharedPreferences!;
   }
 
   /// Reset all core mocks (call this in setUp if needed)
@@ -47,12 +60,34 @@ class CoreMocks {
     _mockImageService = null;
     _mockSettingsService = null;
     _mockSubscriptionService = null;
+    _mockSharedPreferences = null;
   }
 
-  /// Get core service provider overrides
+  /// Get core service provider overrides (synchronous version for simple tests)
   static List<Override> getCoreProviderOverrides({
     List<Override> additionalOverrides = const [],
   }) {
+    // For synchronous tests, we need to provide a mock SharedPreferences directly
+    // to avoid the async loading issue
+    final mockSharedPrefs = MockSharedPreferences();
+
+    // Set up basic mock behavior
+    when(
+      () => mockSharedPrefs.getBool('daily_jokes_subscribed'),
+    ).thenReturn(false);
+    when(
+      () => mockSharedPrefs.getInt('daily_jokes_subscribed_hour'),
+    ).thenReturn(9);
+    when(
+      () => mockSharedPrefs.containsKey('daily_jokes_subscribed'),
+    ).thenReturn(false);
+    when(
+      () => mockSharedPrefs.setBool(any(), any()),
+    ).thenAnswer((_) async => true);
+    when(
+      () => mockSharedPrefs.setInt(any(), any()),
+    ).thenAnswer((_) async => true);
+
     return [
       // Mock image service
       imageServiceProvider.overrideWithValue(mockImageService),
@@ -60,22 +95,54 @@ class CoreMocks {
       // Mock settings service
       settingsServiceProvider.overrideWithValue(mockSettingsService),
 
-      // Mock subscription service
+      // Mock subscription service (FCM sync only)
       dailyJokeSubscriptionServiceProvider.overrideWithValue(
         mockSubscriptionService,
       ),
 
-      // Mock subscription status provider
-      subscriptionStatusProvider.overrideWith(
-        (ref) => const AsyncValue.data(false),
+      // Override SharedPreferences providers directly
+      sharedPreferencesInstanceProvider.overrideWithValue(mockSharedPrefs),
+      sharedPreferencesProvider.overrideWith((_) async => mockSharedPrefs),
+
+      // Mock app version provider
+      appVersionProvider.overrideWith((_) async => 'Snickerdoodle v0.0.1+1'),
+
+      // Include additional overrides
+      ...additionalOverrides,
+    ];
+  }
+
+  /// Get core service provider overrides (async version for complex tests)
+  static Future<List<Override>> getCoreProviderOverridesAsync({
+    List<Override> additionalOverrides = const [],
+  }) async {
+    // Set up mock SharedPreferences with proper async loading
+    SharedPreferences.setMockInitialValues({
+      'daily_jokes_subscribed': false,
+      'daily_jokes_subscribed_hour': 9,
+    });
+    final sharedPreferences = await SharedPreferences.getInstance();
+
+    return [
+      // Mock image service
+      imageServiceProvider.overrideWithValue(mockImageService),
+
+      // Mock settings service
+      settingsServiceProvider.overrideWithValue(mockSettingsService),
+
+      // Mock subscription service (FCM sync only)
+      dailyJokeSubscriptionServiceProvider.overrideWithValue(
+        mockSubscriptionService,
       ),
 
-      // Mock app version provider with test data
-      appVersionProvider.overrideWith(
-        (ref) => Future.value('Snickerdoodle v0.0.1+1'),
-      ),
+      // Override SharedPreferences providers with real instances
+      sharedPreferencesInstanceProvider.overrideWithValue(sharedPreferences),
+      sharedPreferencesProvider.overrideWith((_) async => sharedPreferences),
 
-      // Add any additional overrides
+      // Mock app version provider
+      appVersionProvider.overrideWith((_) async => 'Test App v1.0.0'),
+
+      // Include additional overrides
       ...additionalOverrides,
     ];
   }
@@ -83,6 +150,7 @@ class CoreMocks {
   /// Set up mock SharedPreferences with initial values
   static void setupMockSharedPreferences([Map<String, Object>? values]) {
     SharedPreferences.setMockInitialValues(values ?? {});
+    _mockSharedPreferences = null; // Reset to force recreation
   }
 
   /// Create optimized image URLs for testing
@@ -139,16 +207,7 @@ class CoreMocks {
   static void _setupSubscriptionServiceDefaults(
     MockDailyJokeSubscriptionService mock,
   ) {
-    // Setup default behaviors for subscription service
-    when(() => mock.isSubscribed()).thenAnswer((_) async => false);
-    when(() => mock.getSubscriptionHour()).thenAnswer((_) async => -1);
-    when(
-      () => mock.hasUserMadeSubscriptionChoice(),
-    ).thenAnswer((_) async => false);
+    // Setup default behaviors for FCM sync service
     when(() => mock.ensureSubscriptionSync()).thenAnswer((_) async => true);
-    when(
-      () => mock.subscribeWithNotificationPermission(hour: any(named: 'hour')),
-    ).thenAnswer((_) async => true);
-    when(() => mock.unsubscribe()).thenAnswer((_) async => true);
   }
 }

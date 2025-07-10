@@ -6,7 +6,6 @@ import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/settings/presentation/user_settings_screen.dart';
 
 import '../../../test_helpers/test_helpers.dart';
-import '../../../test_helpers/analytics_mocks.dart';
 
 void main() {
   setUpAll(() {
@@ -512,6 +511,4 @@ void main() {
       });
     });
   });
-
-
 }

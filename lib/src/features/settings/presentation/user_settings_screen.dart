@@ -345,140 +345,65 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
   }
 
   Widget _buildNotificationSettings(BuildContext context, WidgetRef ref) {
-    // Initialize subscription status on first build
-    ref.read(subscriptionRefreshProvider);
+    // Watch the reactive subscription state
+    final subscriptionState = ref.watch(subscriptionProvider);
+    final isSubscribed = subscriptionState.isSubscribed;
 
-    final subscriptionState = ref.watch(subscriptionStatusProvider);
-
-    return subscriptionState.when(
-      data:
-          (isSubscribed) => Column(
-            children: [
-              Row(
+    return Column(
+      children: [
+        Row(
+          children: [
+            Icon(
+              Icons.notifications,
+              color:
+                  isSubscribed
+                      ? Theme.of(context).colorScheme.primary
+                      : Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withValues(alpha: 0.6),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(
-                    Icons.notifications,
-                    color:
-                        isSubscribed
-                            ? Theme.of(context).colorScheme.primary
-                            : Theme.of(
-                              context,
-                            ).colorScheme.onSurface.withValues(alpha: 0.6),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Daily Joke Notifications',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w500,
-                            color:
-                                isSubscribed
-                                    ? Theme.of(context).colorScheme.primary
-                                    : Theme.of(context).colorScheme.onSurface,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
+                  Text(
+                    'Daily Joke Notifications',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w500,
+                      color:
                           isSubscribed
-                              ? 'Receive daily joke notifications'
-                              : 'Get notified when new jokes are available',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.onSurface.withValues(alpha: 0.6),
-                          ),
-                        ),
-                      ],
+                              ? Theme.of(context).colorScheme.primary
+                              : Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
-                  Switch(
-                    value: isSubscribed,
-                    onChanged:
-                        (value) => _toggleNotifications(context, ref, value),
-                    activeColor: Theme.of(context).colorScheme.primary,
-                  ),
-                ],
-              ),
-              if (isSubscribed) ...[
-                const SizedBox(height: 16),
-                const HourDisplayWidget(),
-              ],
-            ],
-          ),
-      loading:
-          () => Column(
-            children: [
-              Row(
-                children: [
-                  Icon(
-                    Icons.notifications,
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.onSurface.withValues(alpha: 0.6),
-                  ),
-                  const SizedBox(width: 16),
-                  const Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Daily Joke Notifications',
-                          style: TextStyle(fontWeight: FontWeight.w500),
-                        ),
-                        SizedBox(height: 2),
-                        Text(
-                          'Loading notification settings...',
-                          style: TextStyle(fontSize: 12),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                ],
-              ),
-            ],
-          ),
-      error:
-          (error, stackTrace) => Column(
-            children: [
-              Row(
-                children: [
-                  Icon(Icons.error, color: Theme.of(context).colorScheme.error),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Notification Settings',
-                          style: TextStyle(
-                            fontWeight: FontWeight.w500,
-                            color: Theme.of(context).colorScheme.error,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Error loading settings: ${error.toString()}',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Theme.of(context).colorScheme.error,
-                          ),
-                        ),
-                      ],
+                  const SizedBox(height: 2),
+                  Text(
+                    isSubscribed
+                        ? 'Receive daily joke notifications'
+                        : 'Get notified when new jokes are available',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withValues(alpha: 0.6),
                     ),
                   ),
                 ],
               ),
-            ],
-          ),
+            ),
+            Switch(
+              value: isSubscribed,
+              onChanged: (value) => _toggleNotifications(context, ref, value),
+              activeColor: Theme.of(context).colorScheme.primary,
+            ),
+          ],
+        ),
+        if (isSubscribed) ...[
+          const SizedBox(height: 16),
+          const HourDisplayWidget(),
+        ],
+      ],
     );
   }
 
@@ -689,22 +614,18 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
     WidgetRef ref,
     bool enable,
   ) async {
-    final subscriptionService = ref.read(dailyJokeSubscriptionServiceProvider);
-    final statusNotifier = ref.read(subscriptionStatusProvider.notifier);
+    final subscriptionNotifier = ref.read(subscriptionProvider.notifier);
 
     try {
-      // Update UI state immediately
-      statusNotifier.state = AsyncValue.data(enable);
-
       bool success;
 
       if (enable) {
         // Subscribe with notification permission (uses existing hour or default)
-        success =
-            await subscriptionService.subscribeWithNotificationPermission();
+        success = await subscriptionNotifier.subscribeWithPermission();
       } else {
         // Unsubscribe (no permission needed)
-        success = await subscriptionService.unsubscribe();
+        await subscriptionNotifier.unsubscribe();
+        success = true;
       }
 
       // Track analytics for subscription toggle
@@ -726,37 +647,19 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
         );
       }
 
-      // Update UI state based on the operation result
-      if (success) {
-        statusNotifier.state = AsyncValue.data(enable);
-      } else {
-        // Operation failed
-        if (enable) {
-          // Subscription failed (likely permission denied)
-          statusNotifier.state = AsyncValue.data(false); // Keep toggle off
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: const Text(
-                  'Notification permission is required for daily jokes.',
-                ),
-                backgroundColor: Theme.of(context).colorScheme.secondary,
-                duration: const Duration(seconds: 4),
+      // Show appropriate message based on result
+      if (!success && enable) {
+        // Subscription failed (likely permission denied)
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: const Text(
+                'Notification permission is required for daily jokes.',
               ),
-            );
-          }
-        } else {
-          // Unsubscription failed
-          statusNotifier.state = AsyncValue.data(true); // Keep toggle on
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: const Text('Failed to unsubscribe. Please try again.'),
-                backgroundColor: Theme.of(context).appColors.authError,
-                duration: const Duration(seconds: 3),
-              ),
-            );
-          }
+              backgroundColor: Theme.of(context).colorScheme.secondary,
+              duration: const Duration(seconds: 4),
+            ),
+          );
         }
       }
     } catch (e) {

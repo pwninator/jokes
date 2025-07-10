@@ -21,7 +21,9 @@ class _SubscriptionPromptOverlayState
 
   @override
   Widget build(BuildContext context) {
-    // Listen to subscription prompt state
+    // Listen to subscription prompt state.
+    // CRITICAL: Listening to subscriptionPromptProvider here is needed to trigger
+    // a notification sync in the background in SubscriptionNotifier's constructor.
     ref.listen<SubscriptionPromptState>(subscriptionPromptProvider, (
       previous,
       current,

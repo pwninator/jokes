@@ -7,85 +7,158 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:snickerdoodle/src/core/providers/shared_preferences_provider.dart';
 import 'package:snickerdoodle/src/core/services/notification_service.dart';
 
-/// Abstract interface for daily joke subscription service
-abstract class DailyJokeSubscriptionService {
-  /// Check if user is subscribed to daily jokes
-  Future<bool> isSubscribed();
+/// State class representing subscription status and hour
+class SubscriptionState {
+  final bool isSubscribed;
+  final int hour;
 
-  /// Get the user's preferred notification hour (0-23) in local time
-  /// Returns -1 if not set or not subscribed
-  Future<int> getSubscriptionHour();
+  const SubscriptionState({required this.isSubscribed, required this.hour});
 
-  /// Check if user has ever made a subscription choice (true/false)
-  /// Returns false if they've never been asked or made a choice
-  Future<bool> hasUserMadeSubscriptionChoice();
+  SubscriptionState copyWith({bool? isSubscribed, int? hour}) {
+    return SubscriptionState(
+      isSubscribed: isSubscribed ?? this.isSubscribed,
+      hour: hour ?? this.hour,
+    );
+  }
 
-  /// Ensure subscription is synced with FCM server (call on app startup)
-  Future<bool> ensureSubscriptionSync();
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    return other is SubscriptionState &&
+        other.isSubscribed == isSubscribed &&
+        other.hour == hour;
+  }
 
-  /// Complete subscription flow with notification permission handling
-  /// Returns true if subscription was successful, false if failed or permission denied
-  Future<bool> subscribeWithNotificationPermission({int? hour});
+  @override
+  int get hashCode => isSubscribed.hashCode ^ hour.hashCode;
 
-  /// Unsubscribe from daily jokes (no permission required)
-  /// Returns true if unsubscription was successful
-  Future<bool> unsubscribe();
+  @override
+  String toString() =>
+      'SubscriptionState(isSubscribed: $isSubscribed, hour: $hour)';
 }
 
-/// Concrete implementation of the daily joke subscription service
+/// Reactive StateNotifier that manages subscription state.
+/// Sets subscription values, notifies on changes, and triggers background sync.
+class SubscriptionNotifier extends StateNotifier<SubscriptionState> {
+  SubscriptionNotifier(this._sharedPreferences, this._syncService)
+    : super(_loadFromPrefs(_sharedPreferences)) {
+    // Trigger background sync on startup
+    _syncInBackground();
+  }
+
+  final SharedPreferences _sharedPreferences;
+  final DailyJokeSubscriptionService _syncService;
+
+  static const String _subscriptionKey = 'daily_jokes_subscribed';
+  static const String _subscriptionHourKey = 'daily_jokes_subscribed_hour';
+  static const int defaultHour = 9; // 9 AM default
+
+  /// Load initial state from SharedPreferences
+  static SubscriptionState _loadFromPrefs(SharedPreferences prefs) {
+    final isSubscribed = prefs.getBool(_subscriptionKey) ?? false;
+    int hour = prefs.getInt(_subscriptionHourKey) ?? -1;
+
+    // Apply default hour logic
+    if (hour < 0 || hour > 23) {
+      hour = defaultHour;
+    }
+
+    return SubscriptionState(isSubscribed: isSubscribed, hour: hour);
+  }
+
+  /// SETTER: Set subscription status (fast - only updates SharedPreferences + notifies)
+  Future<void> setSubscribed(bool subscribed) async {
+    try {
+      await _sharedPreferences.setBool(_subscriptionKey, subscribed);
+      state = state.copyWith(isSubscribed: subscribed);
+      _syncInBackground(); // Trigger background sync
+    } catch (e) {
+      debugPrint('Failed to save subscription preference: $e');
+    }
+  }
+
+  /// SETTER: Set subscription hour (fast - only updates SharedPreferences + notifies)
+  Future<void> setHour(int hour) async {
+    if (hour < 0 || hour > 23) {
+      debugPrint('Invalid hour: $hour. Must be 0-23.');
+      return;
+    }
+
+    try {
+      await _sharedPreferences.setInt(_subscriptionHourKey, hour);
+      state = state.copyWith(hour: hour);
+      _syncInBackground(); // Trigger background sync
+    } catch (e) {
+      debugPrint('Failed to save subscription hour: $e');
+    }
+  }
+
+  /// SETTER: Subscribe with permission handling
+  Future<bool> subscribeWithPermission({int? hour}) async {
+    try {
+      // Set hour first if provided
+      if (hour != null) {
+        await setHour(hour);
+      }
+
+      // Request permission
+      final notificationService = NotificationService();
+      final permissionGranted =
+          await notificationService.requestNotificationPermissions();
+
+      if (permissionGranted) {
+        await setSubscribed(true);
+        return true;
+      } else {
+        // Permission denied, don't subscribe
+        await setSubscribed(false);
+        return false;
+      }
+    } catch (e) {
+      debugPrint('Error in subscription flow: $e');
+      await setSubscribed(false);
+      return false;
+    }
+  }
+
+  /// SETTER: Unsubscribe (no permission needed)
+  Future<void> unsubscribe() async {
+    await setSubscribed(false);
+  }
+
+  /// Check if user has ever made a subscription choice
+  bool hasUserMadeChoice() {
+    return _sharedPreferences.containsKey(_subscriptionKey);
+  }
+
+  /// SYNCER: Background FCM sync (doesn't block UI)
+  void _syncInBackground() {
+    // Don't await - let it run in background
+    _syncService.ensureSubscriptionSync().catchError((e) {
+      debugPrint('Background sync failed: $e');
+      return false;
+    });
+  }
+}
+
+/// Abstract interface for FCM sync operations (kept for separation of concerns)
+abstract class DailyJokeSubscriptionService {
+  /// Ensure subscription is synced with FCM server (background operation)
+  Future<bool> ensureSubscriptionSync();
+}
+
+/// Concrete implementation of FCM sync service
 class DailyJokeSubscriptionServiceImpl implements DailyJokeSubscriptionService {
   DailyJokeSubscriptionServiceImpl({
     required SharedPreferences sharedPreferences,
-    NotificationService? notificationService,
-  }) : _sharedPreferences = sharedPreferences,
-       _notificationService = notificationService ?? NotificationService();
+  }) : _sharedPreferences = sharedPreferences;
 
   final SharedPreferences _sharedPreferences;
-  final NotificationService _notificationService;
 
   static const String _subscriptionKey = 'daily_jokes_subscribed';
   static const String _subscriptionHourKey = 'daily_jokes_subscribed_hour';
   static const String _topicPrefix = 'tester_jokes';
   static const int defaultHour = 9; // 9 AM default
-
-  // Cache expensive reads for performance
-  bool? _cachedSubscriptionState;
-  int? _cachedSubscriptionHour;
-
-  @override
-  Future<bool> isSubscribed() async {
-    // Use cache if available for performance
-    if (_cachedSubscriptionState != null) {
-      return _cachedSubscriptionState!;
-    }
-    _cachedSubscriptionState =
-        _sharedPreferences.getBool(_subscriptionKey) ?? false;
-    return _cachedSubscriptionState!;
-  }
-
-  @override
-  Future<int> getSubscriptionHour() async {
-    // Use cache if available for performance
-    if (_cachedSubscriptionHour == null) {
-      int hour = _sharedPreferences.getInt(_subscriptionHourKey) ?? -1;
-      if (hour < 0 || hour > 23) {
-        // Migrate existing subscribers to default hour
-        hour = defaultHour;
-
-        // _setSubscriptionHour sets _cachedSubscriptionHour if successful
-        await _setSubscriptionHour(hour);
-      }
-
-      _cachedSubscriptionHour ??= hour;
-    }
-
-    return _cachedSubscriptionHour!;
-  }
-
-  @override
-  Future<bool> hasUserMadeSubscriptionChoice() async {
-    return _sharedPreferences.containsKey(_subscriptionKey);
-  }
 
   /// Convert local hour to UTC-12 hour and determine topic suffix
   String _calculateTopicName(int localHour) {
@@ -136,135 +209,53 @@ class DailyJokeSubscriptionServiceImpl implements DailyJokeSubscriptionService {
   }
 
   /// Ensure subscription is synced with FCM server
-  /// Call this on app startup or after preference changes to handle sync
   @override
   Future<bool> ensureSubscriptionSync() async {
     try {
       String? topicToSubscribe;
-      final isLocallySubscribed = await isSubscribed();
+      final isLocallySubscribed =
+          _sharedPreferences.getBool(_subscriptionKey) ?? false;
 
       if (isLocallySubscribed) {
-        final hour = await getSubscriptionHour();
+        int hour =
+            _sharedPreferences.getInt(_subscriptionHourKey) ?? defaultHour;
+        if (hour < 0 || hour > 23) {
+          hour = defaultHour;
+        }
         topicToSubscribe = _calculateTopicName(hour);
       }
 
-      // Unsubscribe from all topics except the one we want to subscribe to
+      // Get all topics and process them in parallel
       final allTopics = _getAllPossibleTopics();
+      final futures = <Future<void>>[];
+
       for (final topic in allTopics) {
         if (topicToSubscribe != null && topic == topicToSubscribe) {
-          await FirebaseMessaging.instance.subscribeToTopic(topic);
-          debugPrint('Subscribed to $topic');
+          futures.add(
+            FirebaseMessaging.instance.subscribeToTopic(topic).then((_) {
+              debugPrint('Subscribed to $topic');
+            }),
+          );
         } else {
-          await FirebaseMessaging.instance.unsubscribeFromTopic(topic);
-          debugPrint('Unsubscribed from $topic');
+          futures.add(
+            FirebaseMessaging.instance.unsubscribeFromTopic(topic).then((_) {
+              debugPrint('Unsubscribed from $topic');
+            }),
+          );
         }
       }
 
+      // Wait for all operations to complete in parallel
+      await Future.wait(futures);
       return true;
     } catch (e) {
       debugPrint('Failed to sync subscription state: $e');
       return false;
     }
   }
-
-  /// Complete subscription flow with notification permission handling
-  /// Returns true if subscription was successful, false if failed or permission denied
-  @override
-  Future<bool> subscribeWithNotificationPermission({int? hour}) async {
-    try {
-      // First, save the subscription preferences
-      final prefSaved = await _setSubscriptionPreference(true);
-      if (!prefSaved) {
-        debugPrint('Failed to save subscription preferences');
-        return false;
-      }
-
-      // Then set the hour if given. If not, do nothing, and ensureSubscriptionSync
-      // will set to the default hour later.
-      if (hour != null && (hour >= 0 && hour <= 23)) {
-        final hourSaved = await _setSubscriptionHour(hour);
-        if (!hourSaved) {
-          debugPrint('Failed to save subscription hour');
-          return false;
-        }
-      }
-
-      // Request notification permission
-      final permissionGranted =
-          await _notificationService.requestNotificationPermissions();
-
-      if (permissionGranted) {
-        // Permission granted, sync with FCM
-        debugPrint(
-          'Successfully subscribed with notification permission at hour ${hour ?? "EXISTING"}',
-        );
-        return true;
-      } else {
-        // Permission denied, rollback subscription
-        debugPrint('Notification permission denied, rolling back subscription');
-        await _setSubscriptionPreference(false);
-        return false;
-      }
-    } catch (e) {
-      debugPrint('Error in subscription flow: $e');
-      // Rollback on any error
-      await _setSubscriptionPreference(false);
-      return false;
-    } finally {
-      // Ensure subscription is synced after any operation
-      await ensureSubscriptionSync();
-    }
-  }
-
-  /// Unsubscribe from daily jokes (no permission required)
-  /// Returns true if unsubscription was successful
-  @override
-  Future<bool> unsubscribe() async {
-    try {
-      final prefSaved = await _setSubscriptionPreference(false);
-      if (prefSaved) {
-        debugPrint('Successfully unsubscribed');
-        return true;
-      } else {
-        debugPrint('Failed to save unsubscription preferences');
-        return false;
-      }
-    } catch (e) {
-      debugPrint('Error unsubscribing: $e');
-      return false;
-    } finally {
-      // Ensure subscription is synced after any operation
-      await ensureSubscriptionSync();
-    }
-  }
-
-  // Save subscription preference locally and update cache
-  Future<bool> _setSubscriptionPreference(bool subscribed) async {
-    try {
-      await _sharedPreferences.setBool(_subscriptionKey, subscribed);
-      _cachedSubscriptionState = subscribed;
-      return true;
-    } catch (e) {
-      debugPrint('Failed to save subscription preference: $e');
-      return false;
-    }
-  }
-
-  // Save subscription hour locally and update cache
-  Future<bool> _setSubscriptionHour(int hour) async {
-    try {
-      await _sharedPreferences.setInt(_subscriptionHourKey, hour);
-
-      _cachedSubscriptionHour = hour;
-      return true;
-    } catch (e) {
-      debugPrint('Failed to save subscription hour: $e');
-      return false;
-    }
-  }
 }
 
-/// Riverpod provider for the daily joke subscription service
+/// Provider for the FCM sync service
 final dailyJokeSubscriptionServiceProvider =
     Provider<DailyJokeSubscriptionService>((ref) {
       final sharedPreferences = ref.watch(sharedPreferencesInstanceProvider);
@@ -273,22 +264,21 @@ final dailyJokeSubscriptionServiceProvider =
       );
     });
 
-/// Simple state provider for subscription status with manual refresh
-final subscriptionStatusProvider = StateProvider<AsyncValue<bool>>((ref) {
-  return const AsyncValue.loading();
+/// Main reactive subscription provider (combines Notifier + Setter + Syncer)
+final subscriptionProvider =
+    StateNotifierProvider<SubscriptionNotifier, SubscriptionState>((ref) {
+      final sharedPreferences = ref.watch(sharedPreferencesInstanceProvider);
+      final syncService = ref.watch(dailyJokeSubscriptionServiceProvider);
+      return SubscriptionNotifier(sharedPreferences, syncService);
+    });
+
+/// Convenience providers for specific parts of the state
+final isSubscribedProvider = Provider<bool>((ref) {
+  return ref.watch(subscriptionProvider).isSubscribed;
 });
 
-/// Provider to refresh subscription status
-final subscriptionRefreshProvider = Provider<Future<void>>((ref) async {
-  final subscriptionService = ref.watch(dailyJokeSubscriptionServiceProvider);
-  final statusNotifier = ref.read(subscriptionStatusProvider.notifier);
-
-  try {
-    final isSubscribed = await subscriptionService.isSubscribed();
-    statusNotifier.state = AsyncValue.data(isSubscribed);
-  } catch (error, stackTrace) {
-    statusNotifier.state = AsyncValue.error(error, stackTrace);
-  }
+final subscriptionHourProvider = Provider<int>((ref) {
+  return ref.watch(subscriptionProvider).hour;
 });
 
 /// State class for subscription prompt management
@@ -327,23 +317,22 @@ class SubscriptionPromptState {
 /// High-performance subscription prompt state manager
 class SubscriptionPromptNotifier
     extends StateNotifier<SubscriptionPromptState> {
-  SubscriptionPromptNotifier(this._subscriptionService)
+  SubscriptionPromptNotifier(this._subscriptionNotifier)
     : super(const SubscriptionPromptState()) {
     _initializeState();
   }
 
-  final DailyJokeSubscriptionService _subscriptionService;
+  final SubscriptionNotifier _subscriptionNotifier;
   Timer? _promptTimer;
 
   /// Initialize state by checking cached preferences (called once)
   Future<void> _initializeState() async {
     try {
-      final isSubscribed = await _subscriptionService.isSubscribed();
-      final hasUserMadeChoice =
-          await _subscriptionService.hasUserMadeSubscriptionChoice();
+      final subscriptionState = _subscriptionNotifier.state;
+      final hasUserMadeChoice = _subscriptionNotifier.hasUserMadeChoice();
 
       state = state.copyWith(
-        isSubscribed: isSubscribed,
+        isSubscribed: subscriptionState.isSubscribed,
         hasUserMadeChoice: hasUserMadeChoice,
       );
     } catch (e) {
@@ -379,8 +368,7 @@ class SubscriptionPromptNotifier
 
   /// Handle subscription (user clicked "Subscribe")
   Future<bool> subscribeUser() async {
-    final success =
-        await _subscriptionService.subscribeWithNotificationPermission();
+    final success = await _subscriptionNotifier.subscribeWithPermission();
     if (success) {
       state = state.copyWith(
         isSubscribed: true,
@@ -396,7 +384,7 @@ class SubscriptionPromptNotifier
   /// Mark that prompt was actually shown to user
   Future<void> markPromptShown() async {
     // Use unsubscribe to ensure popup never shows again (sets preference to false)
-    await _subscriptionService.unsubscribe();
+    await _subscriptionNotifier.unsubscribe();
 
     state = state.copyWith(hasUserMadeChoice: true);
   }
@@ -416,10 +404,10 @@ class SubscriptionPromptNotifier
 }
 
 /// Provider for subscription prompt state management
-final subscriptionPromptProvider = StateNotifierProvider<
-  SubscriptionPromptNotifier,
-  SubscriptionPromptState
->((ref) {
-  final subscriptionService = ref.watch(dailyJokeSubscriptionServiceProvider);
-  return SubscriptionPromptNotifier(subscriptionService);
-});
+final subscriptionPromptProvider =
+    StateNotifierProvider<SubscriptionPromptNotifier, SubscriptionPromptState>((
+      ref,
+    ) {
+      final subscriptionNotifier = ref.watch(subscriptionProvider.notifier);
+      return SubscriptionPromptNotifier(subscriptionNotifier);
+    });

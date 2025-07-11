@@ -82,7 +82,7 @@ abstract class AnalyticsService {
 
 /// Firebase Analytics implementation of the analytics service
 class FirebaseAnalyticsService implements AnalyticsService {
-  static const bool _isDebugMode = false; //kDebugMode;
+  static const bool _isDebugMode = kDebugMode;
 
   final FirebaseAnalytics _analytics;
   AppUser? _currentUser;

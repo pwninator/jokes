@@ -19,16 +19,16 @@ class JokeRepository {
         });
   }
 
-  Future<Joke?> getJokeById(String jokeId) async {
-    try {
-      final doc = await _firestore.collection('jokes').doc(jokeId).get();
-      if (doc.exists && doc.data() != null) {
-        return Joke.fromMap(doc.data()!, doc.id);
+  /// Get a real-time stream of a joke by ID
+  Stream<Joke?> getJokeByIdStream(String jokeId) {
+    return _firestore.collection('jokes').doc(jokeId).snapshots().map((
+      snapshot,
+    ) {
+      if (snapshot.exists && snapshot.data() != null) {
+        return Joke.fromMap(snapshot.data()!, snapshot.id);
       }
       return null;
-    } catch (e) {
-      throw Exception('Failed to get joke by ID: $e');
-    }
+    });
   }
 
   /// Get multiple jokes by their IDs in a single batch query

@@ -44,6 +44,12 @@ final jokesWithImagesProvider = StreamProvider<List<Joke>>((ref) {
   );
 });
 
+// Provider for getting a specific joke by ID
+final jokeByIdProvider = StreamProvider.family<Joke?, String>((ref, jokeId) {
+  final repository = ref.watch(jokeRepositoryProvider);
+  return repository.getJokeByIdStream(jokeId);
+});
+
 // Provider for JokeCloudFunctionService
 final jokeCloudFunctionServiceProvider = Provider<JokeCloudFunctionService>((
   ref,

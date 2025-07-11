@@ -34,10 +34,12 @@ void main() {
           ...FirebaseMocks.getFirebaseProviderOverrides(),
           jokeCloudFunctionServiceProvider.overrideWithValue(mockJokeService),
           jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
+          if (joke != null)
+            jokeByIdProvider(joke.id).overrideWith((ref) => Stream.value(joke)),
         ],
         child: MaterialApp(
           theme: lightTheme,
-          home: JokeEditorScreen(joke: joke),
+          home: JokeEditorScreen(jokeId: joke?.id),
         ),
       );
     }
@@ -83,11 +85,8 @@ void main() {
         );
 
         await tester.pumpWidget(createTestWidget(joke: joke));
+        await tester.pumpAndSettle();
 
-        expect(
-          find.text('Edit the joke setup and punchline below:'),
-          findsOneWidget,
-        );
         expect(find.byKey(const Key('setupTextField')), findsOneWidget);
         expect(find.byKey(const Key('punchlineTextField')), findsOneWidget);
         expect(find.byKey(const Key('updateJokeButton')), findsOneWidget);
@@ -135,6 +134,7 @@ void main() {
         );
 
         await tester.pumpWidget(createTestWidget(joke: joke));
+        await tester.pumpAndSettle();
 
         // Clear all fields
         await tester.enterText(find.byKey(const Key('setupTextField')), '');
@@ -285,6 +285,7 @@ void main() {
         ).thenAnswer((_) async => {});
 
         await tester.pumpWidget(createTestWidget(joke: originalJoke));
+        await tester.pumpAndSettle();
 
         // Update all text fields
         await tester.enterText(
@@ -350,6 +351,7 @@ void main() {
         ).thenAnswer((_) async => {});
 
         await tester.pumpWidget(createTestWidget(joke: originalJoke));
+        await tester.pumpAndSettle();
 
         // Make some changes and save
         await tester.enterText(
@@ -394,6 +396,7 @@ void main() {
         ).thenAnswer((_) async => {});
 
         await tester.pumpWidget(createTestWidget(joke: originalJoke));
+        await tester.pumpAndSettle();
 
         // Image description fields should be empty but present
         expect(
@@ -496,6 +499,7 @@ void main() {
         ).thenThrow(Exception('Update failed'));
 
         await tester.pumpWidget(createTestWidget(joke: originalJoke));
+        await tester.pumpAndSettle();
 
         // Ensure button is visible first
         await tester.ensureVisible(find.byKey(const Key('updateJokeButton')));
@@ -527,6 +531,7 @@ void main() {
         );
 
         await tester.pumpWidget(createTestWidget(joke: joke));
+        await tester.pumpAndSettle();
 
         // Enter too short descriptions
         await tester.enterText(

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:snickerdoodle/src/common_widgets/main_navigation_widget.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
 
@@ -15,8 +14,9 @@ class AuthWrapper extends ConsumerWidget {
     return authState.when(
       data: (user) {
         if (user != null) {
-          // User is authenticated (either anonymous or signed in)
-          return MainNavigationWidget(key: MainNavigationWidget.navigationKey);
+          // User is authenticated - GoRouter will handle navigation
+          // This screen shouldn't be shown when user is authenticated
+          return const _LoadingScreen();
         } else {
           // No user, attempt anonymous sign-in
           return FutureBuilder(

@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:snickerdoodle/src/common_widgets/adaptive_app_bar_screen.dart';
 import 'package:snickerdoodle/src/common_widgets/joke_card.dart';
-import 'package:snickerdoodle/src/features/admin/presentation/joke_editor_screen.dart';
+import 'package:snickerdoodle/src/config/router/route_names.dart';
 import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
 
 class JokeManagementScreen extends ConsumerStatefulWidget {
@@ -47,9 +48,7 @@ class _JokeManagementScreenState extends ConsumerState<JokeManagementScreen> {
       title: 'Joke Management',
       floatingActionButton: FloatingActionButton(
         onPressed: () {
-          Navigator.of(context).push(
-            MaterialPageRoute(builder: (context) => const JokeEditorScreen()),
-          );
+          context.push(AppRoutes.adminEditor);
         },
         tooltip: 'Add New Joke',
         child: const Icon(Icons.add),

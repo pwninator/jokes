@@ -1,12 +1,10 @@
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
-import 'package:snickerdoodle/src/app.dart';
+import 'package:go_router/go_router.dart';
 import 'package:snickerdoodle/src/common_widgets/cached_joke_image.dart';
-import 'package:snickerdoodle/src/common_widgets/main_navigation_widget.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
-import 'package:snickerdoodle/src/features/auth/presentation/auth_wrapper.dart';
 
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
@@ -15,6 +13,10 @@ class NotificationService {
 
   bool _isInitialized = false;
   AnalyticsService? _analyticsService;
+
+  // Global navigation key for notifications
+  static final GlobalKey<NavigatorState> navigatorKey =
+      GlobalKey<NavigatorState>();
 
   /// Set the analytics service (called after provider container is available)
   void setAnalyticsService(AnalyticsService analyticsService) {
@@ -127,26 +129,19 @@ class NotificationService {
   /// Navigate to jokes screen and reset to first joke
   void _navigateToJokesScreen() {
     try {
-      final navigatorContext = App.navigatorKey.currentContext;
-      if (navigatorContext == null) {
-        debugPrint('Navigator context not available');
-        return;
-      }
-
-      // Try to access the MainNavigationWidget state
-      final mainNavState = MainNavigationWidget.navigationKey.currentState;
-      if (mainNavState != null) {
-        // We can access the navigation widget, navigate to jokes tab and reset
-        mainNavState.navigateToJokesAndReset();
-        debugPrint('Navigated to jokes screen via MainNavigationWidget');
-      } else {
-        // MainNavigationWidget not available, do a full navigation reset
-        Navigator.of(navigatorContext).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (context) => const AuthWrapper()),
-          (route) => false,
-        );
-        debugPrint('Navigated to jokes screen via full navigation reset');
-      }
+      // Use a delayed call to ensure the app is fully initialized
+      Future.delayed(const Duration(milliseconds: 100), () {
+        final context = navigatorKey.currentContext;
+        if (context != null && context.mounted) {
+          // Use GoRouter to navigate to jokes screen
+          GoRouter.of(context).go('/jokes');
+          debugPrint('Navigated to jokes screen via GoRouter');
+        } else {
+          debugPrint(
+            'Navigator context not available for notification navigation',
+          );
+        }
+      });
     } catch (e) {
       debugPrint('Failed to navigate to jokes screen: $e');
     }

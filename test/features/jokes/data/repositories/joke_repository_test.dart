@@ -262,9 +262,7 @@ void main() {
         when(
           () => mockCollectionReference.doc(any()),
         ).thenReturn(mockDocumentReference);
-        when(
-          () => mockDocumentReference.delete(),
-        ).thenAnswer((_) async => {});
+        when(() => mockDocumentReference.delete()).thenAnswer((_) async => {});
       });
 
       test('should delete joke successfully', () async {
@@ -316,9 +314,9 @@ void main() {
         when(() => mockDocSnapshot.exists).thenReturn(true);
         when(() => mockDocSnapshot.data()).thenReturn(jokeData);
         when(() => mockDocSnapshot.id).thenReturn(jokeId);
-        when(() => mockDocumentReference.get()).thenAnswer(
-          (_) async => mockDocSnapshot,
-        );
+        when(
+          () => mockDocumentReference.get(),
+        ).thenAnswer((_) async => mockDocSnapshot);
 
         final result = await repository.getJokeById(jokeId);
 
@@ -337,9 +335,9 @@ void main() {
 
         final mockDocSnapshot = MockDocumentSnapshot();
         when(() => mockDocSnapshot.exists).thenReturn(false);
-        when(() => mockDocumentReference.get()).thenAnswer(
-          (_) async => mockDocSnapshot,
-        );
+        when(
+          () => mockDocumentReference.get(),
+        ).thenAnswer((_) async => mockDocSnapshot);
 
         final result = await repository.getJokeById(jokeId);
 
@@ -357,10 +355,7 @@ void main() {
           FirebaseException(plugin: 'firestore', message: 'Get failed'),
         );
 
-        expect(
-          () => repository.getJokeById(jokeId),
-          throwsA(isA<Exception>()),
-        );
+        expect(() => repository.getJokeById(jokeId), throwsA(isA<Exception>()));
 
         verify(() => mockFirestore.collection('jokes')).called(1);
         verify(() => mockCollectionReference.doc(jokeId)).called(1);
@@ -373,9 +368,15 @@ void main() {
 
       setUp(() {
         mockWhereQuery = MockQuery();
-        when(() => mockCollectionReference.where(any(), whereIn: any(named: 'whereIn')))
-            .thenReturn(mockWhereQuery);
-        when(() => mockWhereQuery.get()).thenAnswer((_) async => mockQuerySnapshot);
+        when(
+          () => mockCollectionReference.where(
+            any(),
+            whereIn: any(named: 'whereIn'),
+          ),
+        ).thenReturn(mockWhereQuery);
+        when(
+          () => mockWhereQuery.get(),
+        ).thenAnswer((_) async => mockQuerySnapshot);
       });
 
       test('should return empty list when jokeIds is empty', () async {
@@ -420,17 +421,22 @@ void main() {
         expect(result[1].setupText, 'Setup 2');
 
         verify(() => mockFirestore.collection('jokes')).called(1);
-        verify(() => mockCollectionReference.where(FieldPath.documentId, whereIn: jokeIds)).called(1);
+        verify(
+          () => mockCollectionReference.where(
+            FieldPath.documentId,
+            whereIn: jokeIds,
+          ),
+        ).called(1);
         verify(() => mockWhereQuery.get()).called(1);
       });
 
       test('should handle batches larger than 10 items', () async {
         final jokeIds = List.generate(15, (i) => 'joke$i');
-        
+
         // Create separate mock query snapshots for each batch
         final firstBatchSnapshot = MockQuerySnapshot();
         final secondBatchSnapshot = MockQuerySnapshot();
-        
+
         final firstBatchDocs = List.generate(10, (i) {
           final mockDoc = MockDocumentSnapshot();
           when(() => mockDoc.data()).thenReturn({
@@ -440,7 +446,7 @@ void main() {
           when(() => mockDoc.id).thenReturn('joke$i');
           return mockDoc;
         });
-        
+
         final secondBatchDocs = List.generate(5, (i) {
           final mockDoc = MockDocumentSnapshot();
           when(() => mockDoc.data()).thenReturn({
@@ -454,16 +460,28 @@ void main() {
         // First batch (10 items)
         when(() => firstBatchSnapshot.docs).thenReturn(firstBatchDocs);
         final firstBatchQuery = MockQuery();
-        when(() => mockCollectionReference.where(FieldPath.documentId, whereIn: jokeIds.take(10).toList()))
-            .thenReturn(firstBatchQuery);
-        when(() => firstBatchQuery.get()).thenAnswer((_) async => firstBatchSnapshot);
+        when(
+          () => mockCollectionReference.where(
+            FieldPath.documentId,
+            whereIn: jokeIds.take(10).toList(),
+          ),
+        ).thenReturn(firstBatchQuery);
+        when(
+          () => firstBatchQuery.get(),
+        ).thenAnswer((_) async => firstBatchSnapshot);
 
         // Second batch (5 items)
         when(() => secondBatchSnapshot.docs).thenReturn(secondBatchDocs);
         final secondBatchQuery = MockQuery();
-        when(() => mockCollectionReference.where(FieldPath.documentId, whereIn: jokeIds.skip(10).take(5).toList()))
-            .thenReturn(secondBatchQuery);
-        when(() => secondBatchQuery.get()).thenAnswer((_) async => secondBatchSnapshot);
+        when(
+          () => mockCollectionReference.where(
+            FieldPath.documentId,
+            whereIn: jokeIds.skip(10).take(5).toList(),
+          ),
+        ).thenReturn(secondBatchQuery);
+        when(
+          () => secondBatchQuery.get(),
+        ).thenAnswer((_) async => secondBatchSnapshot);
 
         final result = await repository.getJokesByIds(jokeIds);
 
@@ -471,8 +489,18 @@ void main() {
 
         // Verify both batches were called
         verify(() => mockFirestore.collection('jokes')).called(2);
-        verify(() => mockCollectionReference.where(FieldPath.documentId, whereIn: jokeIds.take(10).toList())).called(1);
-        verify(() => mockCollectionReference.where(FieldPath.documentId, whereIn: jokeIds.skip(10).take(5).toList())).called(1);
+        verify(
+          () => mockCollectionReference.where(
+            FieldPath.documentId,
+            whereIn: jokeIds.take(10).toList(),
+          ),
+        ).called(1);
+        verify(
+          () => mockCollectionReference.where(
+            FieldPath.documentId,
+            whereIn: jokeIds.skip(10).take(5).toList(),
+          ),
+        ).called(1);
       });
 
       test('should throw exception when Firebase operation fails', () async {
@@ -488,7 +516,12 @@ void main() {
         );
 
         verify(() => mockFirestore.collection('jokes')).called(1);
-        verify(() => mockCollectionReference.where(FieldPath.documentId, whereIn: jokeIds)).called(1);
+        verify(
+          () => mockCollectionReference.where(
+            FieldPath.documentId,
+            whereIn: jokeIds,
+          ),
+        ).called(1);
         verify(() => mockWhereQuery.get()).called(1);
       });
     });

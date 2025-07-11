@@ -38,6 +38,10 @@ class _ImageSelectorCarouselState extends ConsumerState<ImageSelectorCarousel> {
             : 0;
     _currentIndex = (initialIndex >= 0) ? initialIndex : 0;
 
+    debugPrint(
+      'INITIALIZED FIELDS for joke: ${widget.selectedImageUrl} ${widget.imageUrls}',
+    );
+
     // Create PageController with initial page
     _pageController = PageController(
       initialPage: _currentIndex,

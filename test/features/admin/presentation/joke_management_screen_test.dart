@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:snickerdoodle/src/core/providers/image_providers.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
@@ -87,13 +88,28 @@ void main() {
   });
 
   Widget createTestWidget() {
+    // Create a simple router that just shows the JokeManagementScreen
+    final router = GoRouter(
+      routes: [
+        GoRoute(
+          path: '/',
+          builder: (context, state) => const JokeManagementScreen(),
+        ),
+        GoRoute(
+          path: '/admin/editor',
+          builder:
+              (context, state) => const Scaffold(body: Text('Editor Screen')),
+        ),
+      ],
+    );
+
     return ProviderScope(
       overrides: [
         imageServiceProvider.overrideWithValue(mockImageService),
         jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
         ...FirebaseMocks.getFirebaseProviderOverrides(),
       ],
-      child: const MaterialApp(home: JokeManagementScreen()),
+      child: MaterialApp.router(routerConfig: router),
     );
   }
 
@@ -182,11 +198,15 @@ void main() {
       // Verify FAB is present and tappable
       expect(find.byType(FloatingActionButton), findsOneWidget);
 
-      await tester.tap(find.byType(FloatingActionButton));
-      await tester.pump(); // Let the navigation happen
+      // Verify we're on the management screen initially
+      expect(find.text('Filters'), findsOneWidget);
 
-      // Navigation test - just verify the tap doesn't crash
-      expect(find.byType(FloatingActionButton), findsOneWidget);
+      await tester.tap(find.byType(FloatingActionButton));
+      await tester.pumpAndSettle(); // Let the navigation animation complete
+
+      // After navigation, we should be on the editor screen
+      expect(find.text('Editor Screen'), findsOneWidget);
+      expect(find.text('Filters'), findsNothing);
     });
   });
 }

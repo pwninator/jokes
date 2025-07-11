@@ -7,9 +7,9 @@ import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 
 class JokeEditorScreen extends ConsumerStatefulWidget {
-  const JokeEditorScreen({super.key, this.joke});
+  const JokeEditorScreen({super.key, this.jokeId});
 
-  final Joke? joke; // null for creating new joke, non-null for editing
+  final String? jokeId;
 
   @override
   ConsumerState<JokeEditorScreen> createState() => _JokeEditorScreenState();
@@ -22,29 +22,16 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
   final _setupImageDescriptionController = TextEditingController();
   final _punchlineImageDescriptionController = TextEditingController();
   bool _isLoading = false;
-  
+
   // Track selected images for carousels
   String? _selectedSetupImageUrl;
   String? _selectedPunchlineImageUrl;
 
-  bool get _isEditMode => widget.joke != null;
+  bool get _isEditMode => widget.jokeId != null;
 
   @override
   void initState() {
     super.initState();
-    // Pre-populate fields if editing an existing joke
-    if (_isEditMode) {
-      _setupController.text = widget.joke!.setupText;
-      _punchlineController.text = widget.joke!.punchlineText;
-      _setupImageDescriptionController.text =
-          widget.joke!.setupImageDescription ?? '';
-      _punchlineImageDescriptionController.text =
-          widget.joke!.punchlineImageDescription ?? '';
-      
-      // Set initial selected images
-      _selectedSetupImageUrl = widget.joke!.setupImageUrl;
-      _selectedPunchlineImageUrl = widget.joke!.punchlineImageUrl;
-    }
   }
 
   @override
@@ -58,8 +45,85 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Handle different ways of getting the joke
+    if (widget.jokeId != null) {
+      // Joke ID provided - fetch joke from provider
+      final jokeAsync = ref.watch(jokeByIdProvider(widget.jokeId!));
+
+      return jokeAsync.when(
+        data: (joke) {
+          if (joke == null) {
+            return AdaptiveAppBarScreen(
+              title: 'Edit Joke',
+              body: const Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.error_outline, size: 64),
+                    SizedBox(height: 16),
+                    Text('Joke not found'),
+                  ],
+                ),
+              ),
+            );
+          }
+          return _buildEditorContent(joke);
+        },
+        loading:
+            () => AdaptiveAppBarScreen(
+              title: 'Edit Joke',
+              body: const Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    CircularProgressIndicator(),
+                    SizedBox(height: 16),
+                    Text('Loading joke...'),
+                  ],
+                ),
+              ),
+            ),
+        error:
+            (error, stackTrace) => AdaptiveAppBarScreen(
+              title: 'Edit Joke',
+              body: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Icon(Icons.error_outline, size: 64),
+                    const SizedBox(height: 16),
+                    Text('Error loading joke: $error'),
+                  ],
+                ),
+              ),
+            ),
+      );
+    } else {
+      // Creating new joke
+      return _buildEditorContent(null);
+    }
+  }
+
+  Widget _buildEditorContent(Joke? joke) {
+    final isEditMode = joke != null;
+
+    // Initialize form fields if this is the first time loading a joke via ID
+    if (joke != null &&
+        widget.jokeId != null &&
+        _setupController.text.isEmpty) {
+      _setupController.text = joke.setupText;
+      _punchlineController.text = joke.punchlineText;
+      _setupImageDescriptionController.text = joke.setupImageDescription ?? '';
+      _punchlineImageDescriptionController.text =
+          joke.punchlineImageDescription ?? '';
+
+      // Set initial selected images
+      _selectedSetupImageUrl = joke.setupImageUrl;
+      _selectedPunchlineImageUrl = joke.punchlineImageUrl;
+    }
+
     return AdaptiveAppBarScreen(
-      title: _isEditMode ? 'Edit Joke' : 'Add New Joke',
+      title: isEditMode ? 'Edit Joke' : 'Add New Joke',
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Form(
@@ -69,7 +133,7 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
-                  _isEditMode
+                  isEditMode
                       ? 'Edit the joke setup and punchline below:'
                       : 'Create a new joke by filling out the setup and punchline below:',
                   style: const TextStyle(fontSize: 16),
@@ -123,7 +187,7 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
                 ),
 
                 // Image Description Fields (only show in edit mode)
-                if (_isEditMode) ...[
+                if (isEditMode) ...[
                   const SizedBox(height: 24),
                   const Divider(),
                   const SizedBox(height: 16),
@@ -137,9 +201,9 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
                   const SizedBox(height: 16),
 
                   // Setup Image Carousel (if available)
-                  if (widget.joke!.allSetupImageUrls.isNotEmpty) ...[
+                  if (joke.allSetupImageUrls.isNotEmpty) ...[
                     ImageSelectorCarousel(
-                      imageUrls: widget.joke!.allSetupImageUrls,
+                      imageUrls: joke.allSetupImageUrls,
                       selectedImageUrl: _selectedSetupImageUrl,
                       title: 'Setup Images',
                       onImageSelected: (imageUrl) {
@@ -179,9 +243,9 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
                   const SizedBox(height: 16),
 
                   // Punchline Image Carousel (if available)
-                  if (widget.joke!.allPunchlineImageUrls.isNotEmpty) ...[
+                  if (joke.allPunchlineImageUrls.isNotEmpty) ...[
                     ImageSelectorCarousel(
-                      imageUrls: widget.joke!.allPunchlineImageUrls,
+                      imageUrls: joke.allPunchlineImageUrls,
                       selectedImageUrl: _selectedPunchlineImageUrl,
                       title: 'Punchline Images',
                       onImageSelected: (imageUrl) {
@@ -275,6 +339,7 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
         await _createJoke(setup, punchline);
       }
     } catch (e) {
+      debugPrint('Error saving joke (id=${widget.jokeId}): $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -352,7 +417,7 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
     final jokeRepository = ref.read(jokeRepositoryProvider);
 
     await jokeRepository.updateJoke(
-      jokeId: widget.joke!.id,
+      jokeId: widget.jokeId!,
       setupText: setup,
       punchlineText: punchline,
       setupImageUrl: _selectedSetupImageUrl,

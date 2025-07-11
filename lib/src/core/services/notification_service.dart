@@ -19,6 +19,9 @@ class NotificationService {
   /// Set the analytics service (called after provider container is available)
   void setAnalyticsService(AnalyticsService analyticsService) {
     _analyticsService = analyticsService;
+
+    // Now that analytics is ready, check for initial message from terminated state
+    _checkInitialMessage();
   }
 
   /// Initialize notification service (non-blocking)
@@ -60,6 +63,22 @@ class NotificationService {
     } catch (e) {
       debugPrint('Failed to request FCM permissions: $e');
       return false;
+    }
+  }
+
+  /// Check if app was launched from notification (terminated state)
+  Future<void> _checkInitialMessage() async {
+    try {
+      final initialMessage =
+          await FirebaseMessaging.instance.getInitialMessage();
+      if (initialMessage != null) {
+        debugPrint(
+          'App launched from notification: ${initialMessage.messageId}',
+        );
+        await _handleMessageOpenedApp(initialMessage);
+      }
+    } catch (e) {
+      debugPrint('Failed to check initial message: $e');
     }
   }
 

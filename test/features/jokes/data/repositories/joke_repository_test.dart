@@ -293,7 +293,7 @@ void main() {
       });
     });
 
-    group('getJokeById', () {
+    group('getJokeByIdStream', () {
       setUp(() {
         // Set up document reference behavior
         when(
@@ -301,7 +301,7 @@ void main() {
         ).thenReturn(mockDocumentReference);
       });
 
-      test('should return joke when document exists', () async {
+      test('should return stream of joke when document exists', () async {
         const jokeId = 'test-joke-id';
         final jokeData = {
           'setup_text': 'Test setup',
@@ -315,10 +315,11 @@ void main() {
         when(() => mockDocSnapshot.data()).thenReturn(jokeData);
         when(() => mockDocSnapshot.id).thenReturn(jokeId);
         when(
-          () => mockDocumentReference.get(),
-        ).thenAnswer((_) async => mockDocSnapshot);
+          () => mockDocumentReference.snapshots(),
+        ).thenAnswer((_) => Stream.value(mockDocSnapshot));
 
-        final result = await repository.getJokeById(jokeId);
+        final jokeStream = repository.getJokeByIdStream(jokeId);
+        final result = await jokeStream.first;
 
         expect(result, isNotNull);
         expect(result!.id, jokeId);
@@ -327,39 +328,47 @@ void main() {
 
         verify(() => mockFirestore.collection('jokes')).called(1);
         verify(() => mockCollectionReference.doc(jokeId)).called(1);
-        verify(() => mockDocumentReference.get()).called(1);
+        verify(() => mockDocumentReference.snapshots()).called(1);
       });
 
-      test('should return null when document does not exist', () async {
-        const jokeId = 'non-existent-joke-id';
+      test(
+        'should return stream of null when document does not exist',
+        () async {
+          const jokeId = 'non-existent-joke-id';
 
-        final mockDocSnapshot = MockDocumentSnapshot();
-        when(() => mockDocSnapshot.exists).thenReturn(false);
-        when(
-          () => mockDocumentReference.get(),
-        ).thenAnswer((_) async => mockDocSnapshot);
+          final mockDocSnapshot = MockDocumentSnapshot();
+          when(() => mockDocSnapshot.exists).thenReturn(false);
+          when(
+            () => mockDocumentReference.snapshots(),
+          ).thenAnswer((_) => Stream.value(mockDocSnapshot));
 
-        final result = await repository.getJokeById(jokeId);
+          final jokeStream = repository.getJokeByIdStream(jokeId);
+          final result = await jokeStream.first;
 
-        expect(result, isNull);
+          expect(result, isNull);
 
-        verify(() => mockFirestore.collection('jokes')).called(1);
-        verify(() => mockCollectionReference.doc(jokeId)).called(1);
-        verify(() => mockDocumentReference.get()).called(1);
-      });
+          verify(() => mockFirestore.collection('jokes')).called(1);
+          verify(() => mockCollectionReference.doc(jokeId)).called(1);
+          verify(() => mockDocumentReference.snapshots()).called(1);
+        },
+      );
 
-      test('should throw exception when Firebase operation fails', () async {
+      test('should emit error when Firebase operation fails', () async {
         const jokeId = 'test-joke-id';
 
-        when(() => mockDocumentReference.get()).thenThrow(
-          FirebaseException(plugin: 'firestore', message: 'Get failed'),
+        when(() => mockDocumentReference.snapshots()).thenAnswer(
+          (_) => Stream.error(
+            FirebaseException(plugin: 'firestore', message: 'Get failed'),
+          ),
         );
 
-        expect(() => repository.getJokeById(jokeId), throwsA(isA<Exception>()));
+        final jokeStream = repository.getJokeByIdStream(jokeId);
+
+        expect(jokeStream, emitsError(isA<FirebaseException>()));
 
         verify(() => mockFirestore.collection('jokes')).called(1);
         verify(() => mockCollectionReference.doc(jokeId)).called(1);
-        verify(() => mockDocumentReference.get()).called(1);
+        verify(() => mockDocumentReference.snapshots()).called(1);
       });
     });
 

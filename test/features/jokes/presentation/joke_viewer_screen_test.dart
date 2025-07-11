@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:snickerdoodle/src/common_widgets/joke_card.dart';
 import 'package:snickerdoodle/src/common_widgets/joke_image_carousel.dart';
+import 'package:snickerdoodle/src/config/router/route_names.dart';
 import 'package:snickerdoodle/src/core/providers/image_providers.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
@@ -142,19 +144,29 @@ void main() {
         ).thenAnswer((_) => Stream.value(customBatches ?? mockBatches));
       }
 
+      // Create a simple GoRouter for testing that routes directly to JokeViewerScreen
+      final router = GoRouter(
+        initialLocation: AppRoutes.jokes,
+        routes: [
+          GoRoute(
+            path: AppRoutes.jokes,
+            name: RouteNames.jokes,
+            builder:
+                (context, state) => const JokeViewerScreen(
+                  jokeContext: 'test',
+                  screenTitle: 'Test Jokes',
+                ),
+          ),
+        ],
+      );
+
       return ProviderScope(
         overrides: [
           imageServiceProvider.overrideWithValue(mockImageService),
           jokeScheduleRepositoryProvider.overrideWithValue(customRepository),
           ...FirebaseMocks.getFirebaseProviderOverrides(),
         ],
-        child: MaterialApp(
-          theme: lightTheme,
-          home: const JokeViewerScreen(
-            jokeContext: 'test',
-            screenTitle: 'Test Jokes',
-          ),
-        ),
+        child: MaterialApp.router(theme: lightTheme, routerConfig: router),
       );
     }
 
@@ -168,6 +180,22 @@ void main() {
           () => loadingRepository.watchBatchesForSchedule('tester_jokes'),
         ).thenAnswer((_) => const Stream<List<JokeScheduleBatch>>.empty());
 
+        // Create a simple GoRouter for testing
+        final router = GoRouter(
+          initialLocation: AppRoutes.jokes,
+          routes: [
+            GoRoute(
+              path: AppRoutes.jokes,
+              name: RouteNames.jokes,
+              builder:
+                  (context, state) => const JokeViewerScreen(
+                    jokeContext: 'test',
+                    screenTitle: 'Test Jokes',
+                  ),
+            ),
+          ],
+        );
+
         await tester.pumpWidget(
           ProviderScope(
             overrides: [
@@ -177,13 +205,7 @@ void main() {
               ),
               ...FirebaseMocks.getFirebaseProviderOverrides(),
             ],
-            child: MaterialApp(
-              theme: lightTheme,
-              home: const JokeViewerScreen(
-                jokeContext: 'test',
-                screenTitle: 'Test Jokes',
-              ),
-            ),
+            child: MaterialApp.router(theme: lightTheme, routerConfig: router),
           ),
         );
 

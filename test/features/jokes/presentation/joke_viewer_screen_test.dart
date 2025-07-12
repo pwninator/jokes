@@ -26,6 +26,8 @@ class MockJokeScheduleRepository extends Mock
 // Fake classes for Mocktail fallback values
 class FakeJokeScheduleBatch extends Fake implements JokeScheduleBatch {}
 
+class FakeJoke extends Fake implements Joke {}
+
 void main() {
   group('JokeViewerScreen', () {
     late List<Joke> mockJokes;
@@ -36,6 +38,7 @@ void main() {
     setUpAll(() {
       // Register fallback values for mocktail
       registerFallbackValue(FakeJokeScheduleBatch());
+      registerFallbackValue(FakeJoke());
     });
 
     List<JokeScheduleBatch> createMockBatches() {
@@ -125,6 +128,26 @@ void main() {
         ),
       ).thenReturn('https://example.com/image.jpg');
       when(() => mockImageService.clearCache()).thenAnswer((_) async {});
+      // Mock precacheJokeImages method that returns the expected record type
+      when(() => mockImageService.precacheJokeImages(any())).thenAnswer(
+        (_) async => (
+          setupUrl: 'https://example.com/setup.jpg',
+          punchlineUrl: 'https://example.com/punchline.jpg',
+        ),
+      );
+      // Mock other ImageService methods that might be called
+      when(
+        () => mockImageService.getProcessedJokeImageUrl(any()),
+      ).thenReturn('https://example.com/processed.jpg');
+      when(
+        () => mockImageService.getThumbnailUrl(any()),
+      ).thenReturn('https://example.com/thumbnail.jpg');
+      when(
+        () => mockImageService.precacheJokeImage(any()),
+      ).thenAnswer((_) async => 'https://example.com/cached.jpg');
+      when(
+        () => mockImageService.precacheMultipleJokeImages(any()),
+      ).thenAnswer((_) async {});
     });
 
     Widget createTestWidget({
@@ -151,11 +174,10 @@ void main() {
           GoRoute(
             path: AppRoutes.jokes,
             name: RouteNames.jokes,
-            builder:
-                (context, state) => const JokeViewerScreen(
-                  jokeContext: 'test',
-                  screenTitle: 'Test Jokes',
-                ),
+            builder: (context, state) => const JokeViewerScreen(
+              jokeContext: 'test',
+              screenTitle: 'Test Jokes',
+            ),
           ),
         ],
       );
@@ -187,11 +209,10 @@ void main() {
             GoRoute(
               path: AppRoutes.jokes,
               name: RouteNames.jokes,
-              builder:
-                  (context, state) => const JokeViewerScreen(
-                    jokeContext: 'test',
-                    screenTitle: 'Test Jokes',
-                  ),
+              builder: (context, state) => const JokeViewerScreen(
+                jokeContext: 'test',
+                screenTitle: 'Test Jokes',
+              ),
             ),
           ],
         );

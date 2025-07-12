@@ -4,7 +4,6 @@ import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/core/providers/image_providers.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
-import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 
 class CachedJokeImage extends ConsumerWidget {
   const CachedJokeImage({
@@ -26,89 +25,12 @@ class CachedJokeImage extends ConsumerWidget {
   final bool showLoadingIndicator;
   final bool showErrorIcon;
 
-  // Because of the sketchy style of the joke images, lower quality is ok
-  static const int imageQuality = 50;
-
-  // Shared HTTP headers used for both widget display and precaching
-  static const Map<String, String> httpHeaders = {
-    'Accept': 'image/webp,image/avif,image/apng,image/*,*/*;q=0.8',
-    'Accept-Encoding': 'gzip, deflate, br',
-  };
-
-  /// Returns the processed image URL using shared configuration, or null if invalid
-  static String? _getProcessedImageUrl(
-    String? imageUrl,
-    ImageService imageService,
-  ) {
-    if (imageUrl == null || !imageService.isValidImageUrl(imageUrl)) {
-      return null;
-    }
-
-    return imageService.processImageUrl(
-      imageUrl,
-      quality: imageQuality.toString(),
-    );
-  }
-
-  /// Precaches a single joke image with the same configuration as the widget
-  /// Uses disk caching for efficiency and works in both foreground and background
-  /// Returns the processed URL if successful, null otherwise
-  static Future<String?> precacheJokeImage(
-    String? imageUrl,
-    ImageService imageService,
-  ) async {
-    final processedUrl = _getProcessedImageUrl(imageUrl, imageService);
-    if (processedUrl == null) return null;
-
-    try {
-      // Download and cache to disk using DefaultCacheManager
-      // CachedNetworkImage will find this in disk cache and load instantly
-      await DefaultCacheManager().downloadFile(processedUrl);
-      debugPrint('Precached image: $processedUrl');
-      return processedUrl;
-    } catch (error, stackTrace) {
-      // Silently handle preload errors - the actual image widget will show error state
-      debugPrint('Failed to precache image $imageUrl: $error\n$stackTrace');
-      return null;
-    }
-  }
-
-  /// Precaches both setup and punchline images for a joke
-  /// Returns the processed URLs for both images
-  static Future<({String? setupUrl, String? punchlineUrl})> precacheJokeImages(
-    Joke joke,
-    ImageService imageService,
-  ) async {
-    // Precache both images in parallel and get their processed URLs
-    final results = await Future.wait([
-      precacheJokeImage(joke.setupImageUrl, imageService),
-      precacheJokeImage(joke.punchlineImageUrl, imageService),
-    ]);
-    
-    return (setupUrl: results[0], punchlineUrl: results[1]);
-  }
-
-  /// Precaches images for multiple jokes
-  static Future<void> precacheMultipleJokeImages(
-    List<Joke> jokes,
-    ImageService imageService,
-  ) async {
-    // Precache all jokes sequentially to avoid overwhelming the cache
-    for (final joke in jokes) {
-      try {
-        await precacheJokeImages(joke, imageService);
-      } catch (e) {
-        debugPrint('Failed to precache images for joke ${joke.id}: $e');
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final imageService = ref.read(imageServiceProvider);
 
-    // Use shared URL processing logic
-    final processedUrl = _getProcessedImageUrl(imageUrl, imageService);
+    // Use ImageService for URL processing
+    final processedUrl = imageService.getProcessedJokeImageUrl(imageUrl);
     if (processedUrl == null) {
       return _buildErrorWidget(context);
     }
@@ -118,15 +40,13 @@ class CachedJokeImage extends ConsumerWidget {
       width: width,
       height: height,
       fit: fit,
-      httpHeaders: httpHeaders,
-      placeholder:
-          showLoadingIndicator
-              ? (context, url) => _buildLoadingWidget(context)
-              : null,
-      errorWidget:
-          showErrorIcon
-              ? (context, url, error) => _buildErrorWidget(context)
-              : (context, url, error) => const SizedBox.shrink(),
+      httpHeaders: ImageService.jokeImageHttpHeaders,
+      placeholder: showLoadingIndicator
+          ? (context, url) => _buildLoadingWidget(context)
+          : null,
+      errorWidget: showErrorIcon
+          ? (context, url, error) => _buildErrorWidget(context)
+          : (context, url, error) => const SizedBox.shrink(),
       fadeInDuration: const Duration(milliseconds: 300),
       fadeOutDuration: const Duration(milliseconds: 100),
     );
@@ -194,18 +114,17 @@ class CachedJokeImage extends ConsumerWidget {
           width: 1,
         ),
       ),
-      child:
-          showErrorIcon
-              ? Center(
-                child: Icon(
-                  Icons.image_not_supported_outlined,
-                  size: 32,
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.onSurface.withValues(alpha: 0.6),
-                ),
-              )
-              : null,
+      child: showErrorIcon
+          ? Center(
+              child: Icon(
+                Icons.image_not_supported_outlined,
+                size: 32,
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withValues(alpha: 0.6),
+              ),
+            )
+          : null,
     );
   }
 }
@@ -226,8 +145,8 @@ class CachedJokeThumbnail extends ConsumerWidget {
     final imageService = ref.read(imageServiceProvider);
     final thumbnailUrl =
         imageUrl != null && imageService.isValidImageUrl(imageUrl)
-            ? imageService.getThumbnailUrl(imageUrl!)
-            : null;
+        ? imageService.getThumbnailUrl(imageUrl!)
+        : null;
 
     return CachedJokeImage(
       imageUrl: thumbnailUrl,

@@ -22,9 +22,17 @@ class MockImageService extends Mock implements ImageService {}
 // Mock class for JokeRepository
 class MockJokeRepository extends Mock implements JokeRepository {}
 
+// Fake class for Mocktail fallback values
+class FakeJoke extends Fake implements Joke {}
+
 void main() {
   late MockImageService mockImageService;
   late MockJokeRepository mockJokeRepository;
+
+  setUpAll(() {
+    // Register fallback values for mocktail
+    registerFallbackValue(FakeJoke());
+  });
 
   // 1x1 transparent PNG as base64 data URL that works with CachedNetworkImage
   const String transparentImageDataUrl =
@@ -57,6 +65,23 @@ void main() {
     ).thenReturn(transparentImageDataUrl);
     when(() => mockImageService.clearCache()).thenAnswer((_) async {});
 
+    // Mock the new precaching methods
+    when(
+      () => mockImageService.getProcessedJokeImageUrl(any()),
+    ).thenReturn(transparentImageDataUrl);
+    when(
+      () => mockImageService.precacheJokeImage(any()),
+    ).thenAnswer((_) async => transparentImageDataUrl);
+    when(() => mockImageService.precacheJokeImages(any())).thenAnswer(
+      (_) async => (
+        setupUrl: transparentImageDataUrl,
+        punchlineUrl: transparentImageDataUrl,
+      ),
+    );
+    when(
+      () => mockImageService.precacheMultipleJokeImages(any()),
+    ).thenAnswer((_) async {});
+
     // Mock joke repository
     when(() => mockJokeRepository.deleteJoke(any())).thenAnswer((_) async {});
   });
@@ -68,7 +93,10 @@ void main() {
         imageServiceProvider.overrideWithValue(mockImageService),
         jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
       ],
-      child: MaterialApp(theme: lightTheme, home: Scaffold(body: child)),
+      child: MaterialApp(
+        theme: lightTheme,
+        home: Scaffold(body: child),
+      ),
     );
   }
 
@@ -236,10 +264,12 @@ void main() {
 
         // assert
         verify(
-          () => mockImageService.processImageUrl(
+          () => mockImageService.getProcessedJokeImageUrl(
             'https://example.com/setup.jpg',
-            quality: '50',
           ),
+        ).called(greaterThan(0));
+        verify(
+          () => mockImageService.precacheJokeImages(any()),
         ).called(greaterThan(0));
       });
 
@@ -262,12 +292,12 @@ void main() {
         await tester.pump();
         await tester.pump(); // Extra pump for post-frame callbacks
 
-        // assert
+        // assert - the widget processes both image URLs (even null ones)
         verify(
-          () => mockImageService.processImageUrl(
-            'https://example.com/punchline.jpg',
-            quality: '50',
-          ),
+          () => mockImageService.getProcessedJokeImageUrl(null),
+        ).called(greaterThan(0));
+        verify(
+          () => mockImageService.precacheJokeImages(any()),
         ).called(greaterThan(0));
       });
 
@@ -302,26 +332,18 @@ void main() {
         await tester.pump();
         await tester.pump(); // Extra pump for post-frame callbacks
 
-        // assert - verify current joke images are processed using consolidated logic
+        // assert - verify current joke images are processed and preloaded
         verify(
-          () => mockImageService.processImageUrl(
+          () => mockImageService.getProcessedJokeImageUrl(
             'https://example.com/current_setup.jpg',
-            width: any(named: 'width'),
-            height: any(named: 'height'),
-            quality: '50',
           ),
         ).called(greaterThan(0));
         verify(
-          () => mockImageService.processImageUrl(
-            'https://example.com/current_punchline.jpg',
-            width: any(named: 'width'),
-            height: any(named: 'height'),
-            quality: '50',
-          ),
+          () => mockImageService.precacheJokeImages(any()),
         ).called(greaterThan(0));
-
-        // Note: Preload joke image verification is not reliable in test environment
-        // due to async timing, but the consolidation logic is the same for all images
+        verify(
+          () => mockImageService.precacheMultipleJokeImages(any()),
+        ).called(greaterThan(0));
       });
     });
 

@@ -1,7 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:snickerdoodle/src/common_widgets/cached_joke_image.dart';
 import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
@@ -50,10 +49,7 @@ class JokeShareServiceImpl implements JokeShareService {
       }
 
       // Get processed URLs and ensure images are cached
-      final urls = await CachedJokeImage.precacheJokeImages(
-        joke,
-        _imageService,
-      );
+      final urls = await _imageService.precacheJokeImages(joke);
       final List<XFile> files = [];
 
       // Only share images if both are available

@@ -93,14 +93,11 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
 
       try {
         // Preload images for the current joke
-        await CachedJokeImage.precacheJokeImages(widget.joke, imageService);
+        await imageService.precacheJokeImages(widget.joke);
 
         // Preload images for the next jokes
         if (widget.jokesToPreload != null && mounted) {
-          await CachedJokeImage.precacheMultipleJokeImages(
-            widget.jokesToPreload!,
-            imageService,
-          );
+          await imageService.precacheMultipleJokeImages(widget.jokesToPreload!);
         }
       } catch (e) {
         // Silently handle any precaching errors
@@ -203,54 +200,51 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
 
     showDialog(
       context: context,
-      builder:
-          (context) => AlertDialog(
-            title: Row(
-              children: [
-                const Icon(Icons.info_outline, size: 20),
-                const SizedBox(width: 8),
-                const Text('Generation Metadata'),
-              ],
-            ),
-            content: SizedBox(
-              width: double.maxFinite,
-              child: SingleChildScrollView(
-                child:
-                    metadata != null && metadata.isNotEmpty
-                        ? Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color:
-                                Theme.of(
-                                  context,
-                                ).colorScheme.surfaceContainerHighest,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.outline.withValues(alpha: 0.3),
-                            ),
-                          ),
-                          child: _buildFormattedMetadata(metadata),
-                        )
-                        : Text(
-                          'No generation metadata available for this joke.',
-                          style: TextStyle(
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.onSurface.withValues(alpha: 0.6),
-                            fontStyle: FontStyle.italic,
-                          ),
-                        ),
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Close'),
-              ),
-            ],
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: [
+            const Icon(Icons.info_outline, size: 20),
+            const SizedBox(width: 8),
+            const Text('Generation Metadata'),
+          ],
+        ),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: SingleChildScrollView(
+            child: metadata != null && metadata.isNotEmpty
+                ? Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.surfaceContainerHighest,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.outline.withValues(alpha: 0.3),
+                      ),
+                    ),
+                    child: _buildFormattedMetadata(metadata),
+                  )
+                : Text(
+                    'No generation metadata available for this joke.',
+                    style: TextStyle(
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withValues(alpha: 0.6),
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
           ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -425,10 +419,9 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
           final generation = generationList[i];
 
           // Label (bold, no indent)
-          final labelText =
-              i == 0 || generationList.length == 1
-                  ? label
-                  : '$label (${i + 1})';
+          final labelText = i == 0 || generationList.length == 1
+              ? label
+              : '$label (${i + 1})';
           widgets.add(
             Text(
               labelText,
@@ -771,10 +764,9 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
       width: isActive ? 24 : 8,
       height: 8,
       decoration: BoxDecoration(
-        color:
-            isActive
-                ? theme.colorScheme.primary
-                : theme.colorScheme.onSurface.withValues(alpha: 0.3),
+        color: isActive
+            ? theme.colorScheme.primary
+            : theme.colorScheme.onSurface.withValues(alpha: 0.3),
         borderRadius: BorderRadius.circular(4),
       ),
     );

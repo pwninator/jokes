@@ -2,7 +2,6 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:snickerdoodle/src/common_widgets/cached_joke_image.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
 
@@ -71,8 +70,8 @@ class NotificationService {
   /// Check if app was launched from notification (terminated state)
   Future<void> _checkInitialMessage() async {
     try {
-      final initialMessage =
-          await FirebaseMessaging.instance.getInitialMessage();
+      final initialMessage = await FirebaseMessaging.instance
+          .getInitialMessage();
       if (initialMessage != null) {
         debugPrint(
           'App launched from notification: ${initialMessage.messageId}',
@@ -177,11 +176,11 @@ class NotificationService {
     }
   }
 
-  /// Cache image for faster loading using CachedJokeImage logic
+  /// Cache image for faster loading
   Future<void> _cacheImage(String imageUrl) async {
     try {
       final imageService = ImageService();
-      await CachedJokeImage.precacheJokeImage(imageUrl, imageService);
+      await imageService.precacheJokeImage(imageUrl);
     } catch (e) {
       debugPrint('Failed to cache image $imageUrl: $e');
     }

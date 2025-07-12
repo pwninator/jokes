@@ -31,7 +31,10 @@ void main() {
             additionalOverrides: additionalOverrides,
           ),
         ],
-        child: MaterialApp(theme: lightTheme, home: Scaffold(body: child)),
+        child: MaterialApp(
+          theme: lightTheme,
+          home: Scaffold(body: child),
+        ),
       );
     }
 
@@ -41,6 +44,9 @@ void main() {
       ) async {
         // arrange
         when(() => mockImageService.isValidImageUrl(null)).thenReturn(false);
+        when(
+          () => mockImageService.getProcessedJokeImageUrl(null),
+        ).thenReturn(null);
         const widget = CachedJokeImage(imageUrl: null);
 
         // act
@@ -60,6 +66,9 @@ void main() {
         when(
           () => mockImageService.isValidImageUrl(invalidUrl),
         ).thenReturn(false);
+        when(
+          () => mockImageService.getProcessedJokeImageUrl(invalidUrl),
+        ).thenReturn(null);
 
         const widget = CachedJokeImage(imageUrl: invalidUrl);
 
@@ -79,6 +88,9 @@ void main() {
         const validUrl = 'https://example.com/image.jpg';
 
         when(() => mockImageService.isValidImageUrl(validUrl)).thenReturn(true);
+        when(
+          () => mockImageService.getProcessedJokeImageUrl(validUrl),
+        ).thenReturn(validUrl);
         when(
           () => mockImageService.processImageUrl(validUrl),
         ).thenReturn(validUrl);
@@ -110,6 +122,9 @@ void main() {
 
         when(() => mockImageService.isValidImageUrl(validUrl)).thenReturn(true);
         when(
+          () => mockImageService.getProcessedJokeImageUrl(validUrl),
+        ).thenReturn(validUrl);
+        when(
           () => mockImageService.processImageUrl(validUrl),
         ).thenReturn(validUrl);
         when(
@@ -138,6 +153,9 @@ void main() {
       testWidgets('should handle showErrorIcon parameter', (tester) async {
         // arrange
         when(() => mockImageService.isValidImageUrl(null)).thenReturn(false);
+        when(
+          () => mockImageService.getProcessedJokeImageUrl(null),
+        ).thenReturn(null);
         const widget = CachedJokeImage(imageUrl: null, showErrorIcon: false);
 
         // act
@@ -155,6 +173,9 @@ void main() {
         final borderRadius = BorderRadius.circular(12);
 
         when(() => mockImageService.isValidImageUrl(validUrl)).thenReturn(true);
+        when(
+          () => mockImageService.getProcessedJokeImageUrl(validUrl),
+        ).thenReturn(validUrl);
         when(
           () => mockImageService.processImageUrl(validUrl),
         ).thenReturn(validUrl);
@@ -197,6 +218,9 @@ void main() {
           () => mockImageService.isValidImageUrl(thumbnailUrl),
         ).thenReturn(true);
         when(
+          () => mockImageService.getProcessedJokeImageUrl(thumbnailUrl),
+        ).thenReturn(thumbnailUrl);
+        when(
           () => mockImageService.processImageUrl(thumbnailUrl),
         ).thenReturn(thumbnailUrl);
         when(
@@ -234,6 +258,9 @@ void main() {
           () => mockImageService.isValidImageUrl(thumbnailUrl),
         ).thenReturn(true);
         when(
+          () => mockImageService.getProcessedJokeImageUrl(thumbnailUrl),
+        ).thenReturn(thumbnailUrl);
+        when(
           () => mockImageService.processImageUrl(thumbnailUrl),
         ).thenReturn(thumbnailUrl);
         when(
@@ -262,6 +289,9 @@ void main() {
       testWidgets('should handle null imageUrl gracefully', (tester) async {
         // arrange
         when(() => mockImageService.isValidImageUrl(null)).thenReturn(false);
+        when(
+          () => mockImageService.getProcessedJokeImageUrl(null),
+        ).thenReturn(null);
         const widget = CachedJokeThumbnail(imageUrl: null);
 
         // act
@@ -279,6 +309,9 @@ void main() {
         when(
           () => mockImageService.isValidImageUrl(invalidUrl),
         ).thenReturn(false);
+        when(
+          () => mockImageService.getProcessedJokeImageUrl(invalidUrl),
+        ).thenReturn(null);
 
         const widget = CachedJokeThumbnail(imageUrl: invalidUrl);
 

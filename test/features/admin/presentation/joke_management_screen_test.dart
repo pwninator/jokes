@@ -16,21 +16,17 @@ class MockJokeRepository extends Mock implements JokeRepository {}
 
 class MockImageService extends Mock implements ImageService {}
 
+// Fake class for Mocktail fallback values
+class FakeJoke extends Fake implements Joke {}
+
 void main() {
   late MockJokeRepository mockJokeRepository;
   late MockImageService mockImageService;
   late List<Joke> testJokes;
 
   setUpAll(() {
-    registerFallbackValue(
-      Joke(
-        id: 'test',
-        setupText: 'Test setup',
-        punchlineText: 'Test punchline',
-        numThumbsUp: 0,
-        numThumbsDown: 0,
-      ),
-    );
+    // Register fallback values for mocktail
+    registerFallbackValue(FakeJoke());
   });
 
   setUp(() {
@@ -85,6 +81,26 @@ void main() {
       ),
     ).thenReturn('https://example.com/image.jpg');
     when(() => mockImageService.clearCache()).thenAnswer((_) async {});
+
+    // Mock the new ImageService precaching methods
+    when(
+      () => mockImageService.getProcessedJokeImageUrl(any()),
+    ).thenReturn('https://example.com/processed.jpg');
+    when(
+      () => mockImageService.getThumbnailUrl(any()),
+    ).thenReturn('https://example.com/thumbnail.jpg');
+    when(
+      () => mockImageService.precacheJokeImage(any()),
+    ).thenAnswer((_) async => 'https://example.com/cached.jpg');
+    when(() => mockImageService.precacheJokeImages(any())).thenAnswer(
+      (_) async => (
+        setupUrl: 'https://example.com/setup.jpg',
+        punchlineUrl: 'https://example.com/punchline.jpg',
+      ),
+    );
+    when(
+      () => mockImageService.precacheMultipleJokeImages(any()),
+    ).thenAnswer((_) async {});
   });
 
   Widget createTestWidget() {
@@ -97,8 +113,8 @@ void main() {
         ),
         GoRoute(
           path: '/admin/editor',
-          builder:
-              (context, state) => const Scaffold(body: Text('Editor Screen')),
+          builder: (context, state) =>
+              const Scaffold(body: Text('Editor Screen')),
         ),
       ],
     );
@@ -140,8 +156,10 @@ void main() {
 
       // The content area should be in some state (either loading or loaded)
       // For now, let's just verify that the basic UI structure is there
-      final hasLoading =
-          find.byType(CircularProgressIndicator).evaluate().isNotEmpty;
+      final hasLoading = find
+          .byType(CircularProgressIndicator)
+          .evaluate()
+          .isNotEmpty;
       final hasContent = find.text('Test setup 1').evaluate().isNotEmpty;
 
       // Either should be in loading state or showing content
@@ -162,8 +180,10 @@ void main() {
       expect(find.text('Unrated only'), findsOneWidget);
 
       // Should show either loading or content
-      final hasLoading =
-          find.byType(CircularProgressIndicator).evaluate().isNotEmpty;
+      final hasLoading = find
+          .byType(CircularProgressIndicator)
+          .evaluate()
+          .isNotEmpty;
       final hasAnyJokeContent =
           find.text('Test setup 1').evaluate().isNotEmpty ||
           find.text('Test setup 2').evaluate().isNotEmpty ||
@@ -183,8 +203,10 @@ void main() {
       await tester.pump(); // Let the providers resolve
 
       // Should show either loading or empty state message
-      final hasLoading =
-          find.byType(CircularProgressIndicator).evaluate().isNotEmpty;
+      final hasLoading = find
+          .byType(CircularProgressIndicator)
+          .evaluate()
+          .isNotEmpty;
       final hasEmptyMessage = find.text('No jokes yet!').evaluate().isNotEmpty;
 
       expect(hasLoading || hasEmptyMessage, isTrue);

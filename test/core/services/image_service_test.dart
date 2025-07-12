@@ -1,9 +1,19 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
+import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
+
+// Mock classes for testing
+class MockJoke extends Mock implements Joke {}
 
 void main() {
   group('ImageService', () {
     late ImageService imageService;
+
+    setUpAll(() {
+      // Initialize Flutter binding for tests that need it
+      TestWidgetsFlutterBinding.ensureInitialized();
+    });
 
     setUp(() {
       imageService = ImageService();
@@ -199,6 +209,115 @@ void main() {
       test('should have correct max cache size', () {
         // assert
         expect(ImageService.maxCacheSize, equals(100 * 1024 * 1024)); // 100MB
+      });
+    });
+
+    group('Joke image methods', () {
+      group('constants', () {
+        test('should have correct joke image quality', () {
+          // assert
+          expect(ImageService.jokeImageQuality, equals(50));
+        });
+
+        test('should have correct joke image HTTP headers', () {
+          // assert
+          expect(ImageService.jokeImageHttpHeaders, isA<Map<String, String>>());
+          expect(
+            ImageService.jokeImageHttpHeaders['Accept'],
+            contains('image/webp'),
+          );
+          expect(
+            ImageService.jokeImageHttpHeaders['Accept-Encoding'],
+            contains('gzip'),
+          );
+        });
+      });
+
+      group('getProcessedJokeImageUrl', () {
+        test('should return processed URL for valid joke image', () {
+          // arrange
+          const validUrl = 'https://example.com/joke.jpg';
+
+          // act
+          final result = imageService.getProcessedJokeImageUrl(validUrl);
+
+          // assert
+          expect(result, equals(validUrl)); // Currently returns same URL
+        });
+
+        test('should return null for invalid URL', () {
+          // arrange
+          const invalidUrl = 'not-a-url';
+
+          // act
+          final result = imageService.getProcessedJokeImageUrl(invalidUrl);
+
+          // assert
+          expect(result, isNull);
+        });
+
+        test('should return null for null URL', () {
+          // act
+          final result = imageService.getProcessedJokeImageUrl(null);
+
+          // assert
+          expect(result, isNull);
+        });
+      });
+
+      group('precacheJokeImage', () {
+        test('should return null for invalid URL', () async {
+          // arrange
+          const invalidUrl = 'not-a-url';
+
+          // act
+          final result = await imageService.precacheJokeImage(invalidUrl);
+
+          // assert
+          expect(result, isNull);
+        });
+
+        test('should return null for null URL', () async {
+          // act
+          final result = await imageService.precacheJokeImage(null);
+
+          // assert
+          expect(result, isNull);
+        });
+      });
+
+      group('precacheJokeImages', () {
+        test('should handle joke with null image URLs', () async {
+          // arrange
+          const joke = Joke(
+            id: 'test-joke',
+            setupText: 'Setup',
+            punchlineText: 'Punchline',
+            setupImageUrl: null,
+            punchlineImageUrl: null,
+          );
+
+          // act
+          final result = await imageService.precacheJokeImages(joke);
+
+          // assert
+          expect(result, isNotNull);
+          expect(result.setupUrl, isNull);
+          expect(result.punchlineUrl, isNull);
+        });
+      });
+
+      group('precacheMultipleJokeImages', () {
+        test('should handle empty joke list', () async {
+          // arrange
+          final jokes = <Joke>[];
+
+          // act & assert (should not throw)
+          await expectLater(
+            imageService.precacheMultipleJokeImages(jokes),
+            completes,
+          );
+        });
       });
     });
 

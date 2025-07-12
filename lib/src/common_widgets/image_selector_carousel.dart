@@ -32,15 +32,10 @@ class _ImageSelectorCarouselState extends ConsumerState<ImageSelectorCarousel> {
     super.initState();
 
     // Set initial index to selected image
-    final initialIndex =
-        widget.selectedImageUrl != null
-            ? widget.imageUrls.indexOf(widget.selectedImageUrl!)
-            : 0;
+    final initialIndex = widget.selectedImageUrl != null
+        ? widget.imageUrls.indexOf(widget.selectedImageUrl!)
+        : 0;
     _currentIndex = (initialIndex >= 0) ? initialIndex : 0;
-
-    debugPrint(
-      'INITIALIZED FIELDS for joke: ${widget.selectedImageUrl} ${widget.imageUrls}',
-    );
 
     // Create PageController with initial page
     _pageController = PageController(
@@ -170,12 +165,9 @@ class _ImageSelectorCarouselState extends ConsumerState<ImageSelectorCarousel> {
         width: isActive ? 20 : 8,
         height: 8,
         decoration: BoxDecoration(
-          color:
-              isActive
-                  ? Theme.of(context).colorScheme.primary
-                  : Theme.of(
-                    context,
-                  ).colorScheme.onSurface.withValues(alpha: 0.3),
+          color: isActive
+              ? Theme.of(context).colorScheme.primary
+              : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3),
           borderRadius: BorderRadius.circular(4),
         ),
       ),

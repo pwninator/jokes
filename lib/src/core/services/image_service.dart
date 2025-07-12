@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
+import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 
 class ImageService {
   // Cache configuration
@@ -9,6 +10,13 @@ class ImageService {
   static const String defaultImageFormat = 'webp';
   static const int defaultThumbnailQuality = 50;
   static const int defaultFullSizeQuality = 75;
+
+  // Joke image specific constants
+  static const int jokeImageQuality = 50;
+  static const Map<String, String> jokeImageHttpHeaders = {
+    'Accept': 'image/webp,image/avif,image/apng,image/*,*/*;q=0.8',
+    'Accept-Encoding': 'gzip, deflate, br',
+  };
 
   /// Validates if the provided URL is a valid image URL
   bool isValidImageUrl(String? url) {
@@ -158,6 +166,61 @@ class ImageService {
       debugPrint('Image cache cleared successfully');
     } catch (e) {
       debugPrint('Error clearing image cache: $e');
+    }
+  }
+
+  /// Returns the processed image URL for jokes, or null if invalid
+  String? getProcessedJokeImageUrl(String? imageUrl) {
+    if (imageUrl == null || !isValidImageUrl(imageUrl)) {
+      return null;
+    }
+
+    return processImageUrl(imageUrl, quality: jokeImageQuality.toString());
+  }
+
+  /// Precaches a single joke image with optimized configuration
+  /// Uses disk caching for efficiency and works in both foreground and background
+  /// Returns the processed URL if successful, null otherwise
+  Future<String?> precacheJokeImage(String? imageUrl) async {
+    final processedUrl = getProcessedJokeImageUrl(imageUrl);
+    if (processedUrl == null) return null;
+
+    try {
+      // Download and cache to disk using DefaultCacheManager
+      // CachedNetworkImage will find this in disk cache and load instantly
+      await DefaultCacheManager().downloadFile(processedUrl);
+      debugPrint('Precached image: $processedUrl');
+      return processedUrl;
+    } catch (error, stackTrace) {
+      // Silently handle preload errors - the actual image widget will show error state
+      debugPrint('Failed to precache image $imageUrl: $error\n$stackTrace');
+      return null;
+    }
+  }
+
+  /// Precaches both setup and punchline images for a joke
+  /// Returns the processed URLs for both images
+  Future<({String? setupUrl, String? punchlineUrl})> precacheJokeImages(
+    Joke joke,
+  ) async {
+    // Precache both images in parallel and get their processed URLs
+    final results = await Future.wait([
+      precacheJokeImage(joke.setupImageUrl),
+      precacheJokeImage(joke.punchlineImageUrl),
+    ]);
+
+    return (setupUrl: results[0], punchlineUrl: results[1]);
+  }
+
+  /// Precaches images for multiple jokes
+  Future<void> precacheMultipleJokeImages(List<Joke> jokes) async {
+    // Precache all jokes sequentially to avoid overwhelming the cache
+    for (final joke in jokes) {
+      try {
+        await precacheJokeImages(joke);
+      } catch (e) {
+        debugPrint('Failed to precache images for joke ${joke.id}: $e');
+      }
     }
   }
 }

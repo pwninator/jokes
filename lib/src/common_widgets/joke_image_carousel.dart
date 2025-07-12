@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:smooth_page_indicator/smooth_page_indicator.dart';
 import 'package:snickerdoodle/src/common_widgets/cached_joke_image.dart';
 import 'package:snickerdoodle/src/common_widgets/holdable_button.dart';
 import 'package:snickerdoodle/src/common_widgets/joke_reaction_button.dart'
@@ -591,9 +592,16 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
               const Expanded(child: SizedBox()),
 
               // Page indicators (centered)
-              _buildPageIndicator(0, theme),
-              const SizedBox(width: 8),
-              _buildPageIndicator(1, theme),
+              SmoothPageIndicator(
+                controller: _pageController,
+                count: 2,
+                effect: WormEffect(
+                  spacing: 10,
+                  radius: 8,
+                  dotColor: theme.colorScheme.onSurface.withValues(alpha: 0.3),
+                  activeDotColor: theme.colorScheme.primary,
+                ),
+              ),
 
               // Right buttons (save, share, thumbs) or spacer
               Expanded(child: _buildRightButtons()),
@@ -754,21 +762,6 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
       fit: BoxFit.cover,
       showLoadingIndicator: true,
       showErrorIcon: true,
-    );
-  }
-
-  Widget _buildPageIndicator(int index, ThemeData theme) {
-    final isActive = index == _currentIndex;
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
-      width: isActive ? 24 : 8,
-      height: 8,
-      decoration: BoxDecoration(
-        color: isActive
-            ? theme.colorScheme.primary
-            : theme.colorScheme.onSurface.withValues(alpha: 0.3),
-        borderRadius: BorderRadius.circular(4),
-      ),
     );
   }
 

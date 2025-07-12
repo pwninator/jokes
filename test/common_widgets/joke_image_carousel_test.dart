@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:smooth_page_indicator/smooth_page_indicator.dart';
 import 'package:snickerdoodle/src/common_widgets/joke_image_carousel.dart';
 import 'package:snickerdoodle/src/common_widgets/joke_reaction_button.dart'
     as reaction_buttons;
@@ -190,9 +191,9 @@ void main() {
       await tester.pumpWidget(createTestWidget(child: widget));
       await tester.pump();
 
-      // assert - should have 2 page indicators
-      final pageIndicators = find.byType(AnimatedContainer);
-      expect(pageIndicators, findsAtLeastNWidgets(2));
+      // assert - should have 1 smooth page indicator
+      final pageIndicator = find.byType(SmoothPageIndicator);
+      expect(pageIndicator, findsOneWidget);
     });
 
     testWidgets('handles null image URLs gracefully', (tester) async {
@@ -928,9 +929,9 @@ void main() {
 
         // Simulate hold complete by directly triggering the onHoldComplete callback
         // Note: We can't easily test the 3-second hold behavior in unit tests due to timer complexity
-        final deleteButton = tester.widget(
-          find.byKey(const Key('delete-joke-button')),
-        );
+        // final deleteButton = tester.widget(
+        //   find.byKey(const Key('delete-joke-button')),
+        // );
         // We would need to access the holdable button's onHoldComplete callback here
         // For now, we'll test the repository call directly in a separate test
 

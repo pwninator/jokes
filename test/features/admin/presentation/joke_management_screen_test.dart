@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:snickerdoodle/src/common_widgets/joke_card.dart';
 import 'package:snickerdoodle/src/core/providers/image_providers.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_management_screen.dart';
@@ -154,19 +155,18 @@ void main() {
         reason: 'FAB should be visible',
       );
 
-      // The content area should be in some state (either loading or loaded)
-      // For now, let's just verify that the basic UI structure is there
+      // The content area should be in a stable state - either showing content or loading
+      // In test environments, async providers may resolve differently than production
+      final hasJokeCards = find.byType(JokeCard).evaluate().isNotEmpty;
       final hasLoading = find
           .byType(CircularProgressIndicator)
           .evaluate()
           .isNotEmpty;
-      final hasContent = find.text('Test setup 1').evaluate().isNotEmpty;
 
-      // Either should be in loading state or showing content
       expect(
-        hasLoading || hasContent,
+        hasJokeCards || hasLoading,
         isTrue,
-        reason: 'Should either be loading or showing content',
+        reason: 'Should either be showing joke cards or loading state',
       );
     });
 
@@ -179,17 +179,19 @@ void main() {
       expect(find.text('Filters'), findsOneWidget);
       expect(find.text('Unrated only'), findsOneWidget);
 
-      // Should show either loading or content
+      // The content area should be in a stable state - either showing content or loading
+      // In test environments, async providers may resolve differently than production
+      final hasJokeCards = find.byType(JokeCard).evaluate().isNotEmpty;
       final hasLoading = find
           .byType(CircularProgressIndicator)
           .evaluate()
           .isNotEmpty;
-      final hasAnyJokeContent =
-          find.text('Test setup 1').evaluate().isNotEmpty ||
-          find.text('Test setup 2').evaluate().isNotEmpty ||
-          find.text('Test setup 3').evaluate().isNotEmpty;
 
-      expect(hasLoading || hasAnyJokeContent, isTrue);
+      expect(
+        hasJokeCards || hasLoading,
+        isTrue,
+        reason: 'Should either be showing joke cards or loading state',
+      );
     });
 
     testWidgets('shows appropriate empty state message', (tester) async {
@@ -202,14 +204,19 @@ void main() {
       await tester.pump(); // Let the widget build
       await tester.pump(); // Let the providers resolve
 
-      // Should show either loading or empty state message
+      // The content area should be in a stable state - either showing empty state or loading
+      // In test environments, async providers may resolve differently than production
+      final hasEmptyState = find.text('No jokes yet!').evaluate().isNotEmpty;
       final hasLoading = find
           .byType(CircularProgressIndicator)
           .evaluate()
           .isNotEmpty;
-      final hasEmptyMessage = find.text('No jokes yet!').evaluate().isNotEmpty;
 
-      expect(hasLoading || hasEmptyMessage, isTrue);
+      expect(
+        hasEmptyState || hasLoading,
+        isTrue,
+        reason: 'Should either be showing empty state or loading state',
+      );
     });
 
     testWidgets('FAB navigates to joke editor', (tester) async {

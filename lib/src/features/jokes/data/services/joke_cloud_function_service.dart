@@ -51,7 +51,10 @@ class JokeCloudFunctionService {
         options: HttpsCallableOptions(timeout: const Duration(seconds: 300)),
       );
 
-      final requestData = <String, dynamic>{'joke_id': jokeId};
+      final requestData = <String, dynamic>{
+        'joke_id': jokeId,
+        'overwrite': true,
+      };
       if (imagesOnly) {
         requestData['images_only'] = true;
       }

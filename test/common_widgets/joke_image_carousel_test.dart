@@ -3,10 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:smooth_page_indicator/smooth_page_indicator.dart';
+import 'package:snickerdoodle/src/common_widgets/admin_thumbs_buttons.dart';
 import 'package:snickerdoodle/src/common_widgets/joke_image_carousel.dart';
-import 'package:snickerdoodle/src/common_widgets/joke_reaction_button.dart'
-    as reaction_buttons;
-import 'package:snickerdoodle/src/common_widgets/joke_reaction_button.dart';
+import 'package:snickerdoodle/src/common_widgets/save_joke_button.dart';
 import 'package:snickerdoodle/src/common_widgets/share_joke_button.dart';
 import 'package:snickerdoodle/src/core/providers/image_providers.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
@@ -569,8 +568,7 @@ void main() {
 
         // assert
         expect(find.byType(SaveJokeButton), findsOneWidget);
-        expect(find.byType(ThumbsUpJokeButton), findsNothing);
-        expect(find.byType(ThumbsDownJokeButton), findsNothing);
+        expect(find.byType(AdminThumbsButtons), findsNothing);
       });
 
       testWidgets('hides save button when showSaveButton is false', (
@@ -597,12 +595,8 @@ void main() {
         await tester.pump();
 
         // assert
-        expect(find.byType(reaction_buttons.SaveJokeButton), findsNothing);
-        expect(find.byType(reaction_buttons.ThumbsUpJokeButton), findsNothing);
-        expect(
-          find.byType(reaction_buttons.ThumbsDownJokeButton),
-          findsNothing,
-        );
+        expect(find.byType(SaveJokeButton), findsNothing);
+        expect(find.byType(AdminThumbsButtons), findsNothing);
       });
 
       testWidgets('shows thumbs buttons when showThumbsButtons is true', (
@@ -629,13 +623,9 @@ void main() {
         await tester.pump();
 
         // assert
-        expect(find.byType(reaction_buttons.SaveJokeButton), findsNothing);
+        expect(find.byType(SaveJokeButton), findsNothing);
         expect(
-          find.byType(reaction_buttons.ThumbsUpJokeButton),
-          findsOneWidget,
-        );
-        expect(
-          find.byType(reaction_buttons.ThumbsDownJokeButton),
+          find.byType(AdminThumbsButtons),
           findsOneWidget,
         );
       });
@@ -665,8 +655,7 @@ void main() {
 
         // assert
         expect(find.byType(SaveJokeButton), findsOneWidget);
-        expect(find.byType(ThumbsUpJokeButton), findsNothing);
-        expect(find.byType(ThumbsDownJokeButton), findsNothing);
+        expect(find.byType(AdminThumbsButtons), findsNothing);
       });
 
       testWidgets(
@@ -693,13 +682,9 @@ void main() {
           await tester.pump();
 
           // assert - both save and thumbs buttons can be shown simultaneously
-          expect(find.byType(reaction_buttons.SaveJokeButton), findsOneWidget);
+          expect(find.byType(SaveJokeButton), findsOneWidget);
           expect(
-            find.byType(reaction_buttons.ThumbsUpJokeButton),
-            findsOneWidget,
-          );
-          expect(
-            find.byType(reaction_buttons.ThumbsDownJokeButton),
+            find.byType(AdminThumbsButtons),
             findsOneWidget,
           );
         },
@@ -722,12 +707,8 @@ void main() {
         await tester.pump();
 
         // assert - defaults should be showSaveButton: true, showThumbsButtons: false, showShareButton: false
-        expect(find.byType(reaction_buttons.SaveJokeButton), findsOneWidget);
-        expect(find.byType(reaction_buttons.ThumbsUpJokeButton), findsNothing);
-        expect(
-          find.byType(reaction_buttons.ThumbsDownJokeButton),
-          findsNothing,
-        );
+        expect(find.byType(SaveJokeButton), findsOneWidget);
+        expect(find.byType(AdminThumbsButtons), findsNothing);
         expect(find.byType(ShareJokeButton), findsNothing);
       });
 
@@ -808,8 +789,7 @@ void main() {
         // assert - all buttons should be visible
         expect(find.byType(SaveJokeButton), findsOneWidget);
         expect(find.byType(ShareJokeButton), findsOneWidget);
-        expect(find.byType(ThumbsUpJokeButton), findsOneWidget);
-        expect(find.byType(ThumbsDownJokeButton), findsOneWidget);
+        expect(find.byType(AdminThumbsButtons), findsOneWidget);
       });
     });
 

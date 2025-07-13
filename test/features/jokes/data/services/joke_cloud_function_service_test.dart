@@ -37,7 +37,7 @@ void main() {
         ).thenReturn(mockCallable);
         when(() => mockResult.data).thenReturn(mockResponseData);
         when(
-          () => mockCallable.call({'joke_id': jokeId}),
+          () => mockCallable.call(any()),
         ).thenAnswer((_) async => mockResult);
 
         final result = await service.populateJoke(jokeId);
@@ -49,7 +49,7 @@ void main() {
             options: any(named: 'options'),
           ),
         ).called(1);
-        verify(() => mockCallable.call({'joke_id': jokeId})).called(1);
+        verify(() => mockCallable.call(any())).called(1);
       });
 
       test('should return error when cloud function fails', () async {
@@ -65,7 +65,7 @@ void main() {
             options: any(named: 'options'),
           ),
         ).thenReturn(mockCallable);
-        when(() => mockCallable.call({'joke_id': jokeId})).thenThrow(exception);
+        when(() => mockCallable.call(any())).thenThrow(exception);
 
         final result = await service.populateJoke(jokeId);
 

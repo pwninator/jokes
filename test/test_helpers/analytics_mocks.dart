@@ -79,11 +79,19 @@ class AnalyticsMocks {
     ).thenAnswer((_) async {});
 
     when(
-      () => mock.logJokeReaction(
-        any(),
+      () => mock.logJokeSaved(
         any(),
         any(),
         jokeContext: any(named: 'jokeContext'),
+      ),
+    ).thenAnswer((_) async {});
+
+    when(
+      () => mock.logJokeShared(
+        any(),
+        jokeContext: any(named: 'jokeContext'),
+        shareMethod: any(named: 'shareMethod'),
+        shareSuccess: any(named: 'shareSuccess'),
       ),
     ).thenAnswer((_) async {});
 

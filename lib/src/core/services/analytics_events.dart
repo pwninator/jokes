@@ -12,7 +12,7 @@ enum AnalyticsEvent {
   jokeNavigated('joke_navigated'),
 
   // Joke reaction events
-  jokeReactionToggled('joke_reaction_toggled'),
+  jokeSaved('joke_saved'),
 
   // Joke sharing events
   jokeShared('joke_shared'),

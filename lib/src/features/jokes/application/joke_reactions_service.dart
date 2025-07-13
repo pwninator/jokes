@@ -95,12 +95,18 @@ class JokeReactionsService {
 
       // Track analytics for reaction
       if (_analyticsService != null) {
-        await _analyticsService.logJokeReaction(
-          jokeId,
-          reactionType,
-          true, // Always true for add
-          jokeContext: jokeContext,
-        );
+        if (reactionType == JokeReactionType.save) {
+          await _analyticsService.logJokeSaved(
+            jokeId,
+            true, // Always true for add
+            jokeContext: jokeContext,
+          );
+        } else if (reactionType == JokeReactionType.share) {
+          await _analyticsService.logJokeShared(
+            jokeId,
+            jokeContext: jokeContext,
+          );
+        }
       }
     }
   }
@@ -125,12 +131,18 @@ class JokeReactionsService {
 
       // Track analytics for reaction
       if (_analyticsService != null) {
-        await _analyticsService.logJokeReaction(
-          jokeId,
-          reactionType,
-          false, // Always false for remove
-          jokeContext: jokeContext,
-        );
+        if (reactionType == JokeReactionType.save) {
+          await _analyticsService.logJokeSaved(
+            jokeId,
+            false, // Always false for remove
+            jokeContext: jokeContext,
+          );
+        } else if (reactionType == JokeReactionType.share) {
+          await _analyticsService.logJokeShared(
+            jokeId,
+            jokeContext: jokeContext,
+          );
+        }
       }
     }
   }

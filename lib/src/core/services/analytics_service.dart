@@ -3,7 +3,6 @@ import 'package:flutter/foundation.dart';
 import 'package:snickerdoodle/src/core/services/analytics_events.dart';
 import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
 import 'package:snickerdoodle/src/features/auth/data/models/app_user.dart';
-import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
 
 /// Abstract interface for analytics service
 /// This allows for easy mocking in tests
@@ -38,12 +37,19 @@ abstract class AnalyticsService {
     required String jokeContext,
   });
 
-  /// Log joke reaction events (heart, thumbs up/down, etc.)
-  Future<void> logJokeReaction(
+  /// Log joke save events (when user saves/unsaves a joke)
+  Future<void> logJokeSaved(
     String jokeId,
-    JokeReactionType reactionType,
     bool isAdded, {
     required String jokeContext,
+  });
+
+  /// Log joke share events (when user shares a joke)
+  Future<void> logJokeShared(
+    String jokeId, {
+    required String jokeContext,
+    String? shareMethod,
+    bool? shareSuccess,
   });
 
   /// Log subscription-related events
@@ -73,7 +79,7 @@ abstract class AnalyticsService {
 
 /// Firebase Analytics implementation of the analytics service
 class FirebaseAnalyticsService implements AnalyticsService {
-  static const bool _isDebugMode = kDebugMode;
+  static const bool _isDebugMode = false; // kDebugMode;
 
   final FirebaseAnalytics _analytics;
   AppUser? _currentUser;
@@ -179,18 +185,32 @@ class FirebaseAnalyticsService implements AnalyticsService {
   }
 
   @override
-  Future<void> logJokeReaction(
+  Future<void> logJokeSaved(
     String jokeId,
-    JokeReactionType reactionType,
     bool isAdded, {
     required String jokeContext,
   }) async {
-    await _logEvent(AnalyticsEvent.jokeReactionToggled, {
+    await _logEvent(AnalyticsEvent.jokeSaved, {
       AnalyticsParameters.jokeId: jokeId,
-      AnalyticsParameters.reactionType: reactionType.name,
       AnalyticsParameters.reactionAdded: isAdded,
       AnalyticsParameters.jokeContext: jokeContext,
       AnalyticsParameters.userType: _getUserType(_currentUser),
+    });
+  }
+
+  @override
+  Future<void> logJokeShared(
+    String jokeId, {
+    required String jokeContext,
+    String? shareMethod,
+    bool? shareSuccess,
+  }) async {
+    await _logEvent(AnalyticsEvent.jokeShared, {
+      AnalyticsParameters.jokeId: jokeId,
+      AnalyticsParameters.jokeContext: jokeContext,
+      AnalyticsParameters.userType: _getUserType(_currentUser),
+      if (shareMethod != null) AnalyticsParameters.shareMethod: shareMethod,
+      if (shareSuccess != null) AnalyticsParameters.shareSuccess: shareSuccess,
     });
   }
 

@@ -1,10 +1,25 @@
 import 'package:flutter/foundation.dart';
-import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_service.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
+
+/// Abstract interface for platform sharing functionality
+abstract class PlatformShareService {
+  Future<ShareResult> shareFiles(List<XFile> files, {String? subject});
+}
+
+/// Production implementation of platform sharing
+class PlatformShareServiceImpl implements PlatformShareService {
+  @override
+  Future<ShareResult> shareFiles(List<XFile> files, {String? subject}) async {
+    return await SharePlus.instance.share(
+      ShareParams(subject: subject, files: files),
+    );
+  }
+}
 
 /// Abstract interface for joke sharing service
 /// This allows for easy mocking in tests and future strategy implementations
@@ -16,13 +31,19 @@ abstract class JokeShareService {
 /// Implementation of joke sharing service using share_plus
 class JokeShareServiceImpl implements JokeShareService {
   final ImageService _imageService;
-  final JokeReactionsService _jokeReactionsService;
+  final AnalyticsService _analyticsService;
+  final JokeReactionsService _reactionsService;
+  final PlatformShareService _platformShareService;
 
   JokeShareServiceImpl({
     required ImageService imageService,
-    required JokeReactionsService jokeReactionsService,
+    required AnalyticsService analyticsService,
+    required JokeReactionsService reactionsService,
+    required PlatformShareService platformShareService,
   }) : _imageService = imageService,
-       _jokeReactionsService = jokeReactionsService;
+       _analyticsService = analyticsService,
+       _reactionsService = reactionsService,
+       _platformShareService = platformShareService;
 
   @override
   Future<bool> shareJoke(Joke joke, {required String jokeContext}) async {
@@ -35,10 +56,27 @@ class JokeShareServiceImpl implements JokeShareService {
 
     // Only perform follow-up actions if user actually shared
     if (shareSuccessful) {
-      await _jokeReactionsService.addUserReaction(
+      // Save share reaction to SharedPreferences, increment count in Firestore, and log analytics
+      await _reactionsService.addUserReaction(
         joke.id,
         JokeReactionType.share,
         jokeContext: jokeContext,
+      );
+
+      // Log additional analytics with share-specific details
+      await _analyticsService.logJokeShared(
+        joke.id,
+        jokeContext: jokeContext,
+        shareMethod: 'images',
+        shareSuccess: true,
+      );
+    } else {
+      // Log failed share attempt
+      await _analyticsService.logJokeShared(
+        joke.id,
+        jokeContext: jokeContext,
+        shareMethod: 'images',
+        shareSuccess: false,
       );
     }
 
@@ -67,8 +105,12 @@ class JokeShareServiceImpl implements JokeShareService {
 
       // Only share images if both are available
       if (urls.setupUrl != null && urls.punchlineUrl != null) {
-        final setupFile = await _getCachedFileFromUrl(urls.setupUrl!);
-        final punchlineFile = await _getCachedFileFromUrl(urls.punchlineUrl!);
+        final setupFile = await _imageService.getCachedFileFromUrl(
+          urls.setupUrl!,
+        );
+        final punchlineFile = await _imageService.getCachedFileFromUrl(
+          urls.punchlineUrl!,
+        );
         if (setupFile != null && punchlineFile != null) {
           files.add(setupFile);
           files.add(punchlineFile);
@@ -79,8 +121,9 @@ class JokeShareServiceImpl implements JokeShareService {
         throw Exception('No images could be downloaded for sharing');
       }
 
-      final result = await SharePlus.instance.share(
-        ShareParams(subject: 'Check out this joke!', files: files),
+      final result = await _platformShareService.shareFiles(
+        files,
+        subject: 'Check out this joke!',
       );
 
       // Check if user actually shared (not dismissed)
@@ -91,16 +134,5 @@ class JokeShareServiceImpl implements JokeShareService {
     }
 
     return shareSuccessful;
-  }
-
-  /// Get cached file from URL using DefaultCacheManager
-  Future<XFile?> _getCachedFileFromUrl(String processedUrl) async {
-    try {
-      final imageFile = await DefaultCacheManager().getSingleFile(processedUrl);
-      return XFile(imageFile.path);
-    } catch (e) {
-      debugPrint('Error getting cached file from URL: $e');
-      return null;
-    }
   }
 }

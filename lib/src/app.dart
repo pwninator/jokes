@@ -24,14 +24,19 @@ class App extends ConsumerWidget {
       });
     });
 
-    return SubscriptionPromptOverlay(
-      child: MaterialApp.router(
-        title: 'Snickerdoodle Jokes',
-        theme: lightTheme,
-        darkTheme: darkTheme,
-        themeMode: themeMode,
-        routerConfig: router,
-      ),
+    return MaterialApp.router(
+      title: 'Snickerdoodle Jokes',
+      theme: lightTheme,
+      darkTheme: darkTheme,
+      themeMode: themeMode,
+      routerConfig: router,
+      builder: (context, child) {
+        // Wrap the router's content with SubscriptionPromptOverlay
+        // This ensures MaterialLocalizations are available when showing dialogs
+        return SubscriptionPromptOverlay(
+          child: child ?? const SizedBox.shrink(),
+        );
+      },
     );
   }
 }

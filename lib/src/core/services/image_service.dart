@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 
 class ImageService {
@@ -210,6 +211,18 @@ class ImageService {
     ]);
 
     return (setupUrl: results[0], punchlineUrl: results[1]);
+  }
+
+  /// Gets a cached file from URL as XFile for sharing
+  /// Returns null if the file is not cached or there's an error
+  Future<XFile?> getCachedFileFromUrl(String url) async {
+    try {
+      final imageFile = await DefaultCacheManager().getSingleFile(url);
+      return XFile(imageFile.path);
+    } catch (e) {
+      debugPrint('Error getting cached file from URL: $e');
+      return null;
+    }
   }
 
   /// Precaches images for multiple jokes

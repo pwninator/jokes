@@ -41,6 +41,7 @@ void main() {
         'generation_metadata': null,
         'num_thumbs_up': 0,
         'num_thumbs_down': 0,
+        'admin_rating': null,
       };
       expect(result, expected);
     });
@@ -167,10 +168,7 @@ void main() {
 
     test('should handle copyWith with reaction counts', () {
       // act
-      final result = tJokeModel.copyWith(
-        numThumbsUp: 7,
-        numThumbsDown: 1,
-      );
+      final result = tJokeModel.copyWith(numThumbsUp: 7, numThumbsDown: 1);
 
       // assert
       expect(result.numThumbsUp, 7);

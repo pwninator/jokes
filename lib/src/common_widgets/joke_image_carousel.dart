@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smooth_page_indicator/smooth_page_indicator.dart';
+import 'package:snickerdoodle/src/common_widgets/admin_thumbs_buttons.dart';
 import 'package:snickerdoodle/src/common_widgets/cached_joke_image.dart';
 import 'package:snickerdoodle/src/common_widgets/holdable_button.dart';
-import 'package:snickerdoodle/src/common_widgets/joke_reaction_button.dart'
-    as reaction_buttons;
+import 'package:snickerdoodle/src/common_widgets/save_joke_button.dart';
 import 'package:snickerdoodle/src/common_widgets/share_joke_button.dart';
 import 'package:snickerdoodle/src/config/router/route_names.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
@@ -777,17 +777,11 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
       if (buttons.isNotEmpty) {
         buttons.add(const SizedBox(width: 8));
       }
-      buttons.addAll([
-        reaction_buttons.ThumbsUpJokeButton(
+      buttons.add(
+        AdminThumbsButtons(
           jokeId: widget.joke.id,
-          jokeContext: widget.jokeContext,
         ),
-        const SizedBox(width: 8),
-        reaction_buttons.ThumbsDownJokeButton(
-          jokeId: widget.joke.id,
-          jokeContext: widget.jokeContext,
-        ),
-      ]);
+      );
     }
 
     // Add share button if enabled
@@ -803,7 +797,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
     // Add save button if enabled
     if (widget.showSaveButton) {
       buttons.add(
-        reaction_buttons.SaveJokeButton(
+        SaveJokeButton(
           jokeId: widget.joke.id,
           jokeContext: widget.jokeContext,
         ),

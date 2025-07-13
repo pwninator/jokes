@@ -5,7 +5,6 @@ import 'package:snickerdoodle/src/core/services/analytics_events.dart';
 import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/features/auth/data/models/app_user.dart';
-import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
 
 import '../../test_helpers/analytics_mocks.dart';
 
@@ -182,15 +181,14 @@ void main() {
       });
     });
 
-    group('joke reaction analytics', () {
-      test('should log joke reaction toggle', () async {
+    group('joke save analytics', () {
+      test('should log joke save', () async {
         // arrange
         // No setup needed for debug mode
 
         // act
-        await analyticsService.logJokeReaction(
+        await analyticsService.logJokeSaved(
           'test-joke-id',
-          JokeReactionType.save,
           true,
           jokeContext: 'test',
         );

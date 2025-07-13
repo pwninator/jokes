@@ -1,41 +1,54 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
-import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
+import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_service.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
+import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
 
 /// Abstract interface for joke sharing service
 /// This allows for easy mocking in tests and future strategy implementations
 abstract class JokeShareService {
   /// Share a joke using the default sharing method (images + text)
   Future<bool> shareJoke(Joke joke, {required String jokeContext});
-
-  /// Share joke images with text
-  Future<bool> shareJokeImages(Joke joke, {required String jokeContext});
 }
 
 /// Implementation of joke sharing service using share_plus
 class JokeShareServiceImpl implements JokeShareService {
-  final AnalyticsService _analyticsService;
   final ImageService _imageService;
+  final JokeReactionsService _jokeReactionsService;
 
   JokeShareServiceImpl({
-    required AnalyticsService analyticsService,
     required ImageService imageService,
-  }) : _analyticsService = analyticsService,
-       _imageService = imageService;
+    required JokeReactionsService jokeReactionsService,
+  }) : _imageService = imageService,
+       _jokeReactionsService = jokeReactionsService;
 
   @override
   Future<bool> shareJoke(Joke joke, {required String jokeContext}) async {
     // For now, use the images sharing method as default
     // This can be expanded to use different strategies based on joke content
-    return await shareJokeImages(joke, jokeContext: jokeContext);
+    final shareSuccessful = await _shareJokeImages(
+      joke,
+      jokeContext: jokeContext,
+    );
+
+    // Only perform follow-up actions if user actually shared
+    if (shareSuccessful) {
+      await _jokeReactionsService.addUserReaction(
+        joke.id,
+        JokeReactionType.share,
+        jokeContext: jokeContext,
+      );
+    }
+
+    return shareSuccessful;
   }
 
-  @override
-  Future<bool> shareJokeImages(Joke joke, {required String jokeContext}) async {
+  Future<bool> _shareJokeImages(
+    Joke joke, {
+    required String jokeContext,
+  }) async {
     bool shareSuccessful = false;
     try {
       // Check if joke has images
@@ -75,14 +88,6 @@ class JokeShareServiceImpl implements JokeShareService {
     } catch (e) {
       debugPrint('Error sharing joke images: $e');
       shareSuccessful = false;
-    } finally {
-      // Log share attempt
-      await _analyticsService.logJokeShared(
-        joke.id,
-        shareMethod: AnalyticsShareMethod.images,
-        shareSuccess: shareSuccessful,
-        jokeContext: jokeContext,
-      );
     }
 
     return shareSuccessful;

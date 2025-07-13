@@ -5,10 +5,10 @@ import 'package:mocktail/mocktail.dart';
 import 'package:snickerdoodle/src/common_widgets/holdable_button.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_schedule_batch_widget.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_schedule_providers.dart';
-import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_schedule_batch.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
+import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_schedule_repository.dart';
 
 // Mock repositories (following existing patterns in codebase)

@@ -1,12 +1,30 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
+import 'package:snickerdoodle/src/core/services/analytics_service.dart';
+import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
+import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
 
 final jokeReactionsServiceProvider = Provider<JokeReactionsService>((ref) {
-  return JokeReactionsService();
+  final jokeRepository = ref.watch(jokeRepositoryProvider);
+  final analyticsService = ref.watch(analyticsServiceProvider);
+  return JokeReactionsService(
+    jokeRepository: jokeRepository,
+    analyticsService: analyticsService,
+  );
 });
 
 class JokeReactionsService {
+  final JokeRepository? _jokeRepository;
+  final AnalyticsService? _analyticsService;
+
+  JokeReactionsService({
+    JokeRepository? jokeRepository,
+    AnalyticsService? analyticsService,
+  }) : _jokeRepository = jokeRepository,
+       _analyticsService = analyticsService;
+
   Future<SharedPreferences> get _prefs => SharedPreferences.getInstance();
 
   /// Get all user reactions for all jokes
@@ -60,64 +78,77 @@ class JokeReactionsService {
   /// Add a user reaction
   Future<void> addUserReaction(
     String jokeId,
-    JokeReactionType reactionType,
-  ) async {
+    JokeReactionType reactionType, {
+    required String jokeContext,
+  }) async {
     final prefs = await _prefs;
     final jokeIds = prefs.getStringList(reactionType.prefsKey) ?? [];
 
     if (!jokeIds.contains(jokeId)) {
       jokeIds.add(jokeId);
       await prefs.setStringList(reactionType.prefsKey, jokeIds);
+
+      // Increment reaction count in repository
+      if (_jokeRepository != null) {
+        await _jokeRepository.incrementReaction(jokeId, reactionType);
+      }
+
+      // Track analytics for reaction
+      if (_analyticsService != null) {
+        await _analyticsService.logJokeReaction(
+          jokeId,
+          reactionType,
+          true, // Always true for add
+          jokeContext: jokeContext,
+        );
+      }
     }
   }
 
   /// Remove a user reaction
   Future<void> removeUserReaction(
     String jokeId,
-    JokeReactionType reactionType,
-  ) async {
+    JokeReactionType reactionType, {
+    required String jokeContext,
+  }) async {
     final prefs = await _prefs;
     final jokeIds = prefs.getStringList(reactionType.prefsKey) ?? [];
 
     if (jokeIds.contains(jokeId)) {
       jokeIds.remove(jokeId);
       await prefs.setStringList(reactionType.prefsKey, jokeIds);
+
+      // Decrement reaction count in repository
+      if (_jokeRepository != null) {
+        await _jokeRepository.decrementReaction(jokeId, reactionType);
+      }
+
+      // Track analytics for reaction
+      if (_analyticsService != null) {
+        await _analyticsService.logJokeReaction(
+          jokeId,
+          reactionType,
+          false, // Always false for remove
+          jokeContext: jokeContext,
+        );
+      }
     }
   }
 
   /// Toggle a user reaction (add if not present, remove if present)
   Future<bool> toggleUserReaction(
     String jokeId,
-    JokeReactionType reactionType,
-  ) async {
+    JokeReactionType reactionType, {
+    required String jokeContext,
+  }) async {
     final hasReaction = await hasUserReaction(jokeId, reactionType);
 
     if (hasReaction) {
-      await removeUserReaction(jokeId, reactionType);
+      await removeUserReaction(jokeId, reactionType, jokeContext: jokeContext);
       return false; // Reaction was removed
     } else {
-      await addUserReaction(jokeId, reactionType);
+      await addUserReaction(jokeId, reactionType, jokeContext: jokeContext);
       return true; // Reaction was added
-    }
-  }
-
-  /// Clear all reactions for a specific joke
-  Future<void> clearAllReactionsForJoke(String jokeId) async {
-    for (final reactionType in JokeReactionType.values) {
-      await removeUserReaction(jokeId, reactionType);
-    }
-  }
-
-  /// Clear all reactions of a specific type
-  Future<void> clearAllReactionsOfType(JokeReactionType reactionType) async {
-    final prefs = await _prefs;
-    await prefs.remove(reactionType.prefsKey);
-  }
-
-  /// Clear all user reactions completely
-  Future<void> clearAllUserReactions() async {
-    for (final reactionType in JokeReactionType.values) {
-      await clearAllReactionsOfType(reactionType);
     }
   }
 }

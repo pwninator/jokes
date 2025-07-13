@@ -15,6 +15,7 @@ import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
+import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
 
 class JokeImageCarousel extends ConsumerStatefulWidget {
   final Joke joke;
@@ -596,8 +597,10 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
                 controller: _pageController,
                 count: 2,
                 effect: WormEffect(
-                  spacing: 10,
-                  radius: 8,
+                  dotHeight: 12,
+                  dotWidth: 12,
+                  spacing: 6,
+                  radius: 6,
                   dotColor: theme.colorScheme.onSurface.withValues(alpha: 0.3),
                   activeDotColor: theme.colorScheme.primary,
                 ),

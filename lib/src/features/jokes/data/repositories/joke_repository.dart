@@ -46,16 +46,14 @@ class JokeRepository {
       for (int i = 0; i < jokeIds.length; i += batchSize) {
         final batch = jokeIds.skip(i).take(batchSize).toList();
 
-        final querySnapshot =
-            await _firestore
-                .collection('jokes')
-                .where(FieldPath.documentId, whereIn: batch)
-                .get();
+        final querySnapshot = await _firestore
+            .collection('jokes')
+            .where(FieldPath.documentId, whereIn: batch)
+            .get();
 
-        final jokes =
-            querySnapshot.docs.map((doc) {
-              return Joke.fromMap(doc.data(), doc.id);
-            }).toList();
+        final jokes = querySnapshot.docs.map((doc) {
+          return Joke.fromMap(doc.data(), doc.id);
+        }).toList();
 
         allJokes.addAll(jokes);
       }

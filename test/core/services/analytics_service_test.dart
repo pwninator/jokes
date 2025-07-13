@@ -231,9 +231,7 @@ void main() {
         // No setup needed for debug mode
 
         // act
-        await analyticsService.logSubscriptionPromptShown(
-          hadPreviousChoice: false,
-        );
+        await analyticsService.logSubscriptionPromptShown();
 
         // assert - in debug mode, we should see debug logging but no Firebase calls
         verifyNever(

@@ -1,11 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/providers/joke_share_providers.dart';
-import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_service.dart';
-import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
-import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
 
 /// Button that shares a joke using the share functionality
 class ShareJokeButton extends ConsumerWidget {
@@ -26,62 +22,19 @@ class ShareJokeButton extends ConsumerWidget {
 
     return GestureDetector(
       onTap: () async {
+        final scaffoldMessenger = ScaffoldMessenger.of(context);
+        final errorColor = theme.colorScheme.error;
+
         try {
           final shareService = ref.read(jokeShareServiceProvider);
-
-          // Show loading state briefly
-          _showLoadingIndicator(context);
-
-          // Perform the share
-          final shareSuccessful = await shareService.shareJoke(
-            joke,
-            jokeContext: jokeContext,
-          );
-
-          // Only perform follow-up actions if user actually shared
-          if (shareSuccessful) {
-            // Increment the share count in Firestore (sharing is not toggleable)
-            final jokeRepository = ref.read(jokeRepositoryProvider);
-            final reactionsService = ref.read(jokeReactionsServiceProvider);
-
-            await jokeRepository.incrementReaction(
-              joke.id,
-              JokeReactionType.share,
-            );
-            await reactionsService.addUserReaction(
-              joke.id,
-              JokeReactionType.share,
-            );
-
-            // Track analytics for share reaction
-            final analyticsService = ref.read(analyticsServiceProvider);
-            await analyticsService.logJokeReaction(
-              joke.id,
-              JokeReactionType.share,
-              true, // Always true since sharing is additive
-              jokeContext: jokeContext,
-            );
-          }
-
-          // Hide loading indicator
-          if (context.mounted) {
-            Navigator.of(context).pop();
-          }
+          await shareService.shareJoke(joke, jokeContext: jokeContext);
         } catch (e) {
-          // Hide loading indicator if it's showing
-          if (context.mounted) {
-            Navigator.of(context).pop();
-          }
-
-          // Show error message
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('Failed to share joke: ${e.toString()}'),
-                backgroundColor: theme.colorScheme.error,
-              ),
-            );
-          }
+          scaffoldMessenger.showSnackBar(
+            SnackBar(
+              content: Text('Failed to share joke: ${e.toString()}'),
+              backgroundColor: errorColor,
+            ),
+          );
         }
       },
       child: AnimatedContainer(
@@ -96,14 +49,6 @@ class ShareJokeButton extends ConsumerWidget {
           ),
         ),
       ),
-    );
-  }
-
-  void _showLoadingIndicator(BuildContext context) {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const Center(child: CircularProgressIndicator()),
     );
   }
 }

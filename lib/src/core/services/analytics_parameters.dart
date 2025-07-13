@@ -29,7 +29,6 @@ class AnalyticsParameters {
   static const String subscriptionEventType = 'subscription_event_type';
   static const String subscriptionSource = 'subscription_source';
   static const String subscriptionHour = 'subscription_hour';
-  static const String hadPreviousChoice = 'had_previous_choice';
   static const String permissionGranted = 'permission_granted';
 
   // Notification parameters

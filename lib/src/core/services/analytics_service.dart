@@ -46,25 +46,16 @@ abstract class AnalyticsService {
     required String jokeContext,
   });
 
-  /// Log when user shares a joke
-  Future<void> logJokeShared(
-    String jokeId, {
-    required String shareMethod,
-    required bool shareSuccess,
-    required String jokeContext,
-  });
-
   /// Log subscription-related events
   Future<void> logSubscriptionEvent(
     SubscriptionEventType eventType,
     SubscriptionSource source, {
-    bool? hadPreviousChoice,
     bool? permissionGranted,
     int? subscriptionHour,
   });
 
   /// Log when subscription prompt is shown
-  Future<void> logSubscriptionPromptShown({bool? hadPreviousChoice});
+  Future<void> logSubscriptionPromptShown();
 
   /// Log when user taps on a notification to open the app
   Future<void> logNotificationTapped({String? jokeId, String? notificationId});
@@ -204,34 +195,15 @@ class FirebaseAnalyticsService implements AnalyticsService {
   }
 
   @override
-  Future<void> logJokeShared(
-    String jokeId, {
-    required String shareMethod,
-    required bool shareSuccess,
-    required String jokeContext,
-  }) async {
-    await _logEvent(AnalyticsEvent.jokeShared, {
-      AnalyticsParameters.jokeId: jokeId,
-      AnalyticsParameters.shareMethod: shareMethod,
-      AnalyticsParameters.shareSuccess: shareSuccess,
-      AnalyticsParameters.jokeContext: jokeContext,
-      AnalyticsParameters.userType: _getUserType(_currentUser),
-    });
-  }
-
-  @override
   Future<void> logSubscriptionEvent(
     SubscriptionEventType eventType,
     SubscriptionSource source, {
-    bool? hadPreviousChoice,
     bool? permissionGranted,
     int? subscriptionHour,
   }) async {
     await _logEvent(AnalyticsEvent.subscriptionSettingsToggled, {
       AnalyticsParameters.subscriptionEventType: eventType.value,
       AnalyticsParameters.subscriptionSource: source.value,
-      if (hadPreviousChoice != null)
-        AnalyticsParameters.hadPreviousChoice: hadPreviousChoice,
       if (permissionGranted != null)
         AnalyticsParameters.permissionGranted: permissionGranted,
       if (subscriptionHour != null)
@@ -241,10 +213,8 @@ class FirebaseAnalyticsService implements AnalyticsService {
   }
 
   @override
-  Future<void> logSubscriptionPromptShown({bool? hadPreviousChoice}) async {
+  Future<void> logSubscriptionPromptShown() async {
     await _logEvent(AnalyticsEvent.subscriptionPromptShown, {
-      if (hadPreviousChoice != null)
-        AnalyticsParameters.hadPreviousChoice: hadPreviousChoice,
       AnalyticsParameters.userType: _getUserType(_currentUser),
     });
   }

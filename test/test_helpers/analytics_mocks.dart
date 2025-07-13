@@ -91,16 +91,12 @@ class AnalyticsMocks {
       () => mock.logSubscriptionEvent(
         any(),
         any(),
-        hadPreviousChoice: any(named: 'hadPreviousChoice'),
         permissionGranted: any(named: 'permissionGranted'),
+        subscriptionHour: any(named: 'subscriptionHour'),
       ),
     ).thenAnswer((_) async {});
 
-    when(
-      () => mock.logSubscriptionPromptShown(
-        hadPreviousChoice: any(named: 'hadPreviousChoice'),
-      ),
-    ).thenAnswer((_) async {});
+    when(() => mock.logSubscriptionPromptShown()).thenAnswer((_) async {});
 
     when(
       () => mock.logNotificationTapped(

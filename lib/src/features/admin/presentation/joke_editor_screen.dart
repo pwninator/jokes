@@ -5,6 +5,7 @@ import 'package:snickerdoodle/src/common_widgets/image_selector_carousel.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
+import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
 
 class JokeEditorScreen extends ConsumerStatefulWidget {
   const JokeEditorScreen({super.key, this.jokeId});
@@ -69,34 +70,32 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
           }
           return _buildEditorContent(joke);
         },
-        loading:
-            () => AdaptiveAppBarScreen(
-              title: 'Edit Joke',
-              body: const Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    CircularProgressIndicator(),
-                    SizedBox(height: 16),
-                    Text('Loading joke...'),
-                  ],
-                ),
-              ),
+        loading: () => AdaptiveAppBarScreen(
+          title: 'Edit Joke',
+          body: const Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text('Loading joke...'),
+              ],
             ),
-        error:
-            (error, stackTrace) => AdaptiveAppBarScreen(
-              title: 'Edit Joke',
-              body: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.error_outline, size: 64),
-                    const SizedBox(height: 16),
-                    Text('Error loading joke: $error'),
-                  ],
-                ),
-              ),
+          ),
+        ),
+        error: (error, stackTrace) => AdaptiveAppBarScreen(
+          title: 'Edit Joke',
+          body: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.error_outline, size: 64),
+                const SizedBox(height: 16),
+                Text('Error loading joke: $error'),
+              ],
             ),
+          ),
+        ),
       );
     } else {
       // Creating new joke
@@ -289,17 +288,16 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
                 ElevatedButton(
                   key: Key(_isEditMode ? 'updateJokeButton' : 'saveJokeButton'),
                   onPressed: _isLoading ? null : _saveJoke,
-                  child:
-                      _isLoading
-                          ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                          : Text(
-                            _isEditMode ? 'Update Joke' : 'Save Joke',
-                            style: const TextStyle(fontSize: 16),
-                          ),
+                  child: _isLoading
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : Text(
+                          _isEditMode ? 'Update Joke' : 'Save Joke',
+                          style: const TextStyle(fontSize: 16),
+                        ),
                 ),
               ],
             ),
@@ -324,10 +322,11 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
 
       if (_isEditMode) {
         // Update existing joke
-        final setupImageDescription =
-            _setupImageDescriptionController.text.trim();
-        final punchlineImageDescription =
-            _punchlineImageDescriptionController.text.trim();
+        final setupImageDescription = _setupImageDescriptionController.text
+            .trim();
+        final punchlineImageDescription = _punchlineImageDescriptionController
+            .text
+            .trim();
         await _updateJoke(
           setup,
           punchline,

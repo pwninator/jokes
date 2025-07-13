@@ -1,10 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_schedule_auto_fill_service.dart';
-import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_schedule.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_schedule_batch.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/firestore_joke_schedule_repository.dart';
+import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_schedule_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_eligibility_strategy_registry.dart';
 
@@ -60,12 +60,12 @@ final batchDateRangeProvider = Provider<List<DateTime>>((ref) {
 
       if (batches.isNotEmpty) {
         // Find earliest and latest batches
-        final sortedBatches =
-            batches.toList()..sort((a, b) {
-              final aDate = DateTime(a.year, a.month);
-              final bDate = DateTime(b.year, b.month);
-              return aDate.compareTo(bDate);
-            });
+        final sortedBatches = batches.toList()
+          ..sort((a, b) {
+            final aDate = DateTime(a.year, a.month);
+            final bDate = DateTime(b.year, b.month);
+            return aDate.compareTo(bDate);
+          });
 
         final earliestBatch = DateTime(
           sortedBatches.first.year,
@@ -80,8 +80,9 @@ final batchDateRangeProvider = Provider<List<DateTime>>((ref) {
         // Top: latest batch OR next month, whichever is later
         // Bottom: earliest batch OR previous month, whichever is earlier
         topBound = latestBatch.isAfter(nextMonth) ? latestBatch : nextMonth;
-        bottomBound =
-            earliestBatch.isBefore(prevMonth) ? earliestBatch : prevMonth;
+        bottomBound = earliestBatch.isBefore(prevMonth)
+            ? earliestBatch
+            : prevMonth;
       }
 
       // Generate all months between bounds (inclusive)

@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:snickerdoodle/src/core/services/analytics_events.dart';
 import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
 import 'package:snickerdoodle/src/features/auth/data/models/app_user.dart';
+import 'package:snickerdoodle/src/utils/device_utils.dart';
 
 /// Abstract interface for analytics service
 /// This allows for easy mocking in tests
@@ -79,20 +80,27 @@ abstract class AnalyticsService {
 
 /// Firebase Analytics implementation of the analytics service
 class FirebaseAnalyticsService implements AnalyticsService {
-  static const bool _useFakeAnalytics = kDebugMode;
-
   final FirebaseAnalytics _analytics;
   AppUser? _currentUser;
 
   FirebaseAnalyticsService({FirebaseAnalytics? analytics})
     : _analytics = analytics ?? FirebaseAnalytics.instance;
 
+  /// Check if fake analytics should be used (debug mode AND not physical device)
+  Future<bool> _shouldUseFakeAnalytics() async {
+    if (kDebugMode) {
+      final isPhysicalDevice = await DeviceUtils.isPhysicalDevice;
+      return !isPhysicalDevice;
+    }
+    return false;
+  }
+
   @override
   Future<void> initialize() async {
     try {
-      if (_useFakeAnalytics) {
+      if (await _shouldUseFakeAnalytics()) {
         debugPrint(
-          'ANALYTICS: Initializing in debug mode (events will not be sent)',
+          'ANALYTICS: Initializing in debug mode on non-physical device (events will not be sent)',
         );
         return;
       }
@@ -115,7 +123,7 @@ class FirebaseAnalyticsService implements AnalyticsService {
     try {
       final userType = _getUserType(user);
 
-      if (_useFakeAnalytics) {
+      if (await _shouldUseFakeAnalytics()) {
         debugPrint(
           'ANALYTICS (DEBUG): Setting user properties - userType: $userType',
         );
@@ -280,7 +288,7 @@ class FirebaseAnalyticsService implements AnalyticsService {
     Map<String, dynamic> parameters,
   ) async {
     try {
-      if (_useFakeAnalytics) {
+      if (await _shouldUseFakeAnalytics()) {
         debugPrint('ANALYTICS (DEBUG): ${event.eventName} - $parameters');
         return;
       }
@@ -305,7 +313,7 @@ class FirebaseAnalyticsService implements AnalyticsService {
         parameters: analyticsParameters,
       );
 
-      debugPrint('ANALYTICS: ${event.eventName} logged');
+      debugPrint('ANALYTICS: ${event.eventName} logged: $analyticsParameters');
     } catch (e) {
       debugPrint('ANALYTICS ERROR: Failed to log ${event.eventName} - $e');
       // Don't recursively log analytics errors to avoid infinite loops

@@ -157,11 +157,7 @@ void main() {
         SharedPreferences.setMockInitialValues({});
 
         // Act
-        await service.addUserReaction(
-          'joke1',
-          JokeReactionType.save,
-          jokeContext: 'test',
-        );
+        await service.addUserReaction('joke1', JokeReactionType.save);
 
         // Assert
         final result = await service.hasUserReaction(
@@ -178,11 +174,7 @@ void main() {
         });
 
         // Act
-        await service.addUserReaction(
-          'joke2',
-          JokeReactionType.save,
-          jokeContext: 'test',
-        );
+        await service.addUserReaction('joke2', JokeReactionType.save);
 
         // Assert
         final result1 = await service.hasUserReaction(
@@ -204,11 +196,7 @@ void main() {
         });
 
         // Act
-        await service.addUserReaction(
-          'joke1',
-          JokeReactionType.save,
-          jokeContext: 'test',
-        );
+        await service.addUserReaction('joke1', JokeReactionType.save);
 
         // Assert
         final reactions = await service.getUserReactionsForJoke('joke1');
@@ -224,11 +212,7 @@ void main() {
         });
 
         // Act
-        await service.removeUserReaction(
-          'joke1',
-          JokeReactionType.save,
-          jokeContext: 'test',
-        );
+        await service.removeUserReaction('joke1', JokeReactionType.save);
 
         // Assert
         final result1 = await service.hasUserReaction(
@@ -250,11 +234,7 @@ void main() {
         });
 
         // Act
-        await service.removeUserReaction(
-          'joke1',
-          JokeReactionType.save,
-          jokeContext: 'test',
-        );
+        await service.removeUserReaction('joke1', JokeReactionType.save);
 
         // Assert
         final result = await service.hasUserReaction(
@@ -269,11 +249,7 @@ void main() {
         SharedPreferences.setMockInitialValues({});
 
         // Act
-        await service.removeUserReaction(
-          'joke1',
-          JokeReactionType.save,
-          jokeContext: 'test',
-        );
+        await service.removeUserReaction('joke1', JokeReactionType.save);
 
         // Assert
         final result = await service.hasUserReaction(
@@ -293,7 +269,6 @@ void main() {
         final wasAdded = await service.toggleUserReaction(
           'joke1',
           JokeReactionType.save,
-          jokeContext: 'test',
         );
 
         // Assert
@@ -315,7 +290,6 @@ void main() {
         final wasAdded = await service.toggleUserReaction(
           'joke1',
           JokeReactionType.save,
-          jokeContext: 'test',
         );
 
         // Assert
@@ -335,7 +309,6 @@ void main() {
         final result1 = await service.toggleUserReaction(
           'joke1',
           JokeReactionType.save,
-          jokeContext: 'test',
         );
         expect(result1, isTrue);
         expect(
@@ -347,7 +320,6 @@ void main() {
         final result2 = await service.toggleUserReaction(
           'joke1',
           JokeReactionType.save,
-          jokeContext: 'test',
         );
         expect(result2, isFalse);
         expect(
@@ -359,7 +331,6 @@ void main() {
         final result3 = await service.toggleUserReaction(
           'joke1',
           JokeReactionType.save,
-          jokeContext: 'test',
         );
         expect(result3, isTrue);
         expect(

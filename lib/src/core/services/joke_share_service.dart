@@ -56,14 +56,10 @@ class JokeShareServiceImpl implements JokeShareService {
 
     // Only perform follow-up actions if user actually shared
     if (shareSuccessful) {
-      // Save share reaction to SharedPreferences, increment count in Firestore, and log analytics
-      await _reactionsService.addUserReaction(
-        joke.id,
-        JokeReactionType.share,
-        jokeContext: jokeContext,
-      );
+      // Save share reaction to SharedPreferences and increment count in Firestore
+      await _reactionsService.addUserReaction(joke.id, JokeReactionType.share);
 
-      // Log additional analytics with share-specific details
+      // Log successful share analytics
       await _analyticsService.logJokeShared(
         joke.id,
         jokeContext: jokeContext,

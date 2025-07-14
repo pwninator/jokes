@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:snickerdoodle/src/common_widgets/subscription_prompt_overlay.dart';
 import 'package:snickerdoodle/src/config/router/route_guards.dart';
 import 'package:snickerdoodle/src/config/router/route_names.dart';
 import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
@@ -48,12 +49,14 @@ class AppRouter {
                 final isLandscape =
                     MediaQuery.of(context).orientation == Orientation.landscape;
 
-                return _buildMainNavigation(
-                  context: context,
-                  child: child,
-                  isAdmin: isAdmin,
-                  isLandscape: isLandscape,
-                  currentLocation: state.uri.path,
+                return SubscriptionPromptOverlay(
+                  child: _buildMainNavigation(
+                    context: context,
+                    child: child,
+                    isAdmin: isAdmin,
+                    isLandscape: isLandscape,
+                    currentLocation: state.uri.path,
+                  ),
                 );
               },
             );
@@ -63,11 +66,10 @@ class AppRouter {
             GoRoute(
               path: AppRoutes.jokes,
               name: RouteNames.jokes,
-              builder:
-                  (context, state) => const JokeViewerScreen(
-                    jokeContext: AnalyticsJokeContext.dailyJokes,
-                    screenTitle: 'Daily Jokes',
-                  ),
+              builder: (context, state) => const JokeViewerScreen(
+                jokeContext: AnalyticsJokeContext.dailyJokes,
+                screenTitle: 'Daily Jokes',
+              ),
             ),
 
             // Saved Jokes
@@ -163,85 +165,82 @@ class AppRouter {
     ];
 
     // Convert to NavigationRail destinations
-    final List<NavigationRailDestination> railDestinations =
-        navItems
-            .map(
-              (item) => NavigationRailDestination(
-                icon: item.icon,
-                label: Text(item.label!),
-              ),
-            )
-            .toList();
+    final List<NavigationRailDestination> railDestinations = navItems
+        .map(
+          (item) => NavigationRailDestination(
+            icon: item.icon,
+            label: Text(item.label!),
+          ),
+        )
+        .toList();
 
     return Scaffold(
-      body:
-          isLandscape
-              ? Row(
-                children: [
-                  SafeArea(
-                    child: SizedBox(
-                      width: 180,
-                      child: NavigationRail(
-                        destinations: railDestinations,
-                        selectedIndex: selectedIndex,
-                        onDestinationSelected: (index) {
-                          _navigateToIndex(context, index, isAdmin);
-                        },
-                        backgroundColor: Theme.of(context).colorScheme.surface,
-                        selectedIconTheme: IconThemeData(
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                        unselectedIconTheme: IconThemeData(
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.onSurface.withValues(alpha: 0.6),
-                        ),
-                        selectedLabelTextStyle: TextStyle(
-                          fontWeight: FontWeight.w600,
-                          color: Theme.of(context).colorScheme.primary,
-                        ),
-                        unselectedLabelTextStyle: TextStyle(
-                          fontWeight: FontWeight.normal,
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.onSurface.withValues(alpha: 0.6),
-                        ),
-                        extended: true,
-                        useIndicator: false,
+      body: isLandscape
+          ? Row(
+              children: [
+                SafeArea(
+                  child: SizedBox(
+                    width: 180,
+                    child: NavigationRail(
+                      destinations: railDestinations,
+                      selectedIndex: selectedIndex,
+                      onDestinationSelected: (index) {
+                        _navigateToIndex(context, index, isAdmin);
+                      },
+                      backgroundColor: Theme.of(context).colorScheme.surface,
+                      selectedIconTheme: IconThemeData(
+                        color: Theme.of(context).colorScheme.primary,
                       ),
+                      unselectedIconTheme: IconThemeData(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.onSurface.withValues(alpha: 0.6),
+                      ),
+                      selectedLabelTextStyle: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                      unselectedLabelTextStyle: TextStyle(
+                        fontWeight: FontWeight.normal,
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.onSurface.withValues(alpha: 0.6),
+                      ),
+                      extended: true,
+                      useIndicator: false,
                     ),
                   ),
-                  const VerticalDivider(thickness: 1, width: 1),
-                  Expanded(child: child),
-                ],
-              )
-              : child,
-      bottomNavigationBar:
-          isLandscape
-              ? null
-              : BottomNavigationBar(
-                type: BottomNavigationBarType.fixed,
-                items: navItems,
-                currentIndex: selectedIndex,
-                selectedItemColor: Theme.of(context).colorScheme.primary,
-                unselectedItemColor: Theme.of(
+                ),
+                const VerticalDivider(thickness: 1, width: 1),
+                Expanded(child: child),
+              ],
+            )
+          : child,
+      bottomNavigationBar: isLandscape
+          ? null
+          : BottomNavigationBar(
+              type: BottomNavigationBarType.fixed,
+              items: navItems,
+              currentIndex: selectedIndex,
+              selectedItemColor: Theme.of(context).colorScheme.primary,
+              unselectedItemColor: Theme.of(
+                context,
+              ).colorScheme.onSurface.withValues(alpha: 0.6),
+              selectedLabelStyle: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+              unselectedLabelStyle: TextStyle(
+                fontWeight: FontWeight.normal,
+                color: Theme.of(
                   context,
                 ).colorScheme.onSurface.withValues(alpha: 0.6),
-                selectedLabelStyle: TextStyle(
-                  fontWeight: FontWeight.w600,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-                unselectedLabelStyle: TextStyle(
-                  fontWeight: FontWeight.normal,
-                  color: Theme.of(
-                    context,
-                  ).colorScheme.onSurface.withValues(alpha: 0.6),
-                ),
-                backgroundColor: Theme.of(context).colorScheme.surface,
-                onTap: (index) {
-                  _navigateToIndex(context, index, isAdmin);
-                },
               ),
+              backgroundColor: Theme.of(context).colorScheme.surface,
+              onTap: (index) {
+                _navigateToIndex(context, index, isAdmin);
+              },
+            ),
     );
   }
 

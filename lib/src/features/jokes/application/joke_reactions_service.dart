@@ -1,29 +1,19 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
-import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
 
 final jokeReactionsServiceProvider = Provider<JokeReactionsService>((ref) {
   final jokeRepository = ref.watch(jokeRepositoryProvider);
-  final analyticsService = ref.watch(analyticsServiceProvider);
-  return JokeReactionsService(
-    jokeRepository: jokeRepository,
-    analyticsService: analyticsService,
-  );
+  return JokeReactionsService(jokeRepository: jokeRepository);
 });
 
 class JokeReactionsService {
   final JokeRepository? _jokeRepository;
-  final AnalyticsService? _analyticsService;
 
-  JokeReactionsService({
-    JokeRepository? jokeRepository,
-    AnalyticsService? analyticsService,
-  }) : _jokeRepository = jokeRepository,
-       _analyticsService = analyticsService;
+  JokeReactionsService({JokeRepository? jokeRepository})
+    : _jokeRepository = jokeRepository;
 
   Future<SharedPreferences> get _prefs => SharedPreferences.getInstance();
 
@@ -78,9 +68,8 @@ class JokeReactionsService {
   /// Add a user reaction
   Future<void> addUserReaction(
     String jokeId,
-    JokeReactionType reactionType, {
-    required String jokeContext,
-  }) async {
+    JokeReactionType reactionType,
+  ) async {
     final prefs = await _prefs;
     final jokeIds = prefs.getStringList(reactionType.prefsKey) ?? [];
 
@@ -92,31 +81,14 @@ class JokeReactionsService {
       if (_jokeRepository != null) {
         await _jokeRepository.incrementReaction(jokeId, reactionType);
       }
-
-      // Track analytics for reaction
-      if (_analyticsService != null) {
-        if (reactionType == JokeReactionType.save) {
-          await _analyticsService.logJokeSaved(
-            jokeId,
-            true, // Always true for add
-            jokeContext: jokeContext,
-          );
-        } else if (reactionType == JokeReactionType.share) {
-          await _analyticsService.logJokeShared(
-            jokeId,
-            jokeContext: jokeContext,
-          );
-        }
-      }
     }
   }
 
   /// Remove a user reaction
   Future<void> removeUserReaction(
     String jokeId,
-    JokeReactionType reactionType, {
-    required String jokeContext,
-  }) async {
+    JokeReactionType reactionType,
+  ) async {
     final prefs = await _prefs;
     final jokeIds = prefs.getStringList(reactionType.prefsKey) ?? [];
 
@@ -128,38 +100,21 @@ class JokeReactionsService {
       if (_jokeRepository != null) {
         await _jokeRepository.decrementReaction(jokeId, reactionType);
       }
-
-      // Track analytics for reaction
-      if (_analyticsService != null) {
-        if (reactionType == JokeReactionType.save) {
-          await _analyticsService.logJokeSaved(
-            jokeId,
-            false, // Always false for remove
-            jokeContext: jokeContext,
-          );
-        } else if (reactionType == JokeReactionType.share) {
-          await _analyticsService.logJokeShared(
-            jokeId,
-            jokeContext: jokeContext,
-          );
-        }
-      }
     }
   }
 
   /// Toggle a user reaction (add if not present, remove if present)
   Future<bool> toggleUserReaction(
     String jokeId,
-    JokeReactionType reactionType, {
-    required String jokeContext,
-  }) async {
+    JokeReactionType reactionType,
+  ) async {
     final hasReaction = await hasUserReaction(jokeId, reactionType);
 
     if (hasReaction) {
-      await removeUserReaction(jokeId, reactionType, jokeContext: jokeContext);
+      await removeUserReaction(jokeId, reactionType);
       return false; // Reaction was removed
     } else {
-      await addUserReaction(jokeId, reactionType, jokeContext: jokeContext);
+      await addUserReaction(jokeId, reactionType);
       return true; // Reaction was added
     }
   }

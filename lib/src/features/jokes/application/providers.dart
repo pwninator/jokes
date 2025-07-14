@@ -237,19 +237,14 @@ class JokeReactionsNotifier extends StateNotifier<JokeReactionsState> {
     try {
       // Handle the opposite reaction first (if applicable)
       if (!hadReaction && oppositeReaction != null && hadOppositeReaction) {
-        await _reactionsService.removeUserReaction(
-          jokeId,
-          oppositeReaction,
-          jokeContext: jokeContext,
-        );
+        await _reactionsService.removeUserReaction(jokeId, oppositeReaction);
       }
 
-      // Update SharedPreferences, Firestore, and analytics for the main reaction
-      await _reactionsService.toggleUserReaction(
-        jokeId,
-        reactionType,
-        jokeContext: jokeContext,
-      );
+      // Update SharedPreferences and Firestore for the main reaction
+      await _reactionsService.toggleUserReaction(jokeId, reactionType);
+
+      // Note: Analytics are handled by individual widgets (SaveJokeButton, etc.)
+      // Note: This keeps the provider focused on core state management
     } catch (e) {
       // Revert optimistic update on error
       if (!mounted) return;

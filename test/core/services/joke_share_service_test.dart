@@ -94,11 +94,7 @@ void main() {
         );
 
         when(
-          () => mockJokeReactionsService.addUserReaction(
-            any(),
-            any(),
-            jokeContext: any(named: 'jokeContext'),
-          ),
+          () => mockJokeReactionsService.addUserReaction(any(), any()),
         ).thenAnswer((_) async {});
 
         when(
@@ -123,7 +119,6 @@ void main() {
           () => mockJokeReactionsService.addUserReaction(
             'test-joke-id',
             JokeReactionType.share,
-            jokeContext: 'test-context',
           ),
         ).called(1);
 

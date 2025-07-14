@@ -45,7 +45,6 @@ class _SubscriptionPromptOverlayState
 
     // Track analytics for prompt shown
     final analyticsService = ref.read(analyticsServiceProvider);
-    await analyticsService.logSubscriptionPromptShown();
 
     // Wait for the next frame to ensure UI is ready
     WidgetsBinding.instance.addPostFrameCallback((_) async {
@@ -60,6 +59,7 @@ class _SubscriptionPromptOverlayState
           barrierDismissible: false, // User must choose an option
           builder: (context) => const SubscriptionPromptDialog(),
         );
+        await analyticsService.logSubscriptionPromptShown();
       } catch (e) {
         debugPrint('Error showing subscription dialog: $e');
       } finally {

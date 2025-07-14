@@ -79,7 +79,7 @@ abstract class AnalyticsService {
 
 /// Firebase Analytics implementation of the analytics service
 class FirebaseAnalyticsService implements AnalyticsService {
-  static const bool _isDebugMode = false; // kDebugMode;
+  static const bool _useFakeAnalytics = kDebugMode;
 
   final FirebaseAnalytics _analytics;
   AppUser? _currentUser;
@@ -90,7 +90,7 @@ class FirebaseAnalyticsService implements AnalyticsService {
   @override
   Future<void> initialize() async {
     try {
-      if (_isDebugMode) {
+      if (_useFakeAnalytics) {
         debugPrint(
           'ANALYTICS: Initializing in debug mode (events will not be sent)',
         );
@@ -115,7 +115,7 @@ class FirebaseAnalyticsService implements AnalyticsService {
     try {
       final userType = _getUserType(user);
 
-      if (_isDebugMode) {
+      if (_useFakeAnalytics) {
         debugPrint(
           'ANALYTICS (DEBUG): Setting user properties - userType: $userType',
         );
@@ -280,7 +280,7 @@ class FirebaseAnalyticsService implements AnalyticsService {
     Map<String, dynamic> parameters,
   ) async {
     try {
-      if (_isDebugMode) {
+      if (_useFakeAnalytics) {
         debugPrint('ANALYTICS (DEBUG): ${event.eventName} - $parameters');
         return;
       }

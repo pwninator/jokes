@@ -187,14 +187,12 @@ void main() {
             () => mockReactionsService.removeUserReaction(
               jokeId,
               JokeReactionType.thumbsDown,
-              jokeContext: any(named: 'jokeContext'),
             ),
           ).thenAnswer((_) async {});
           when(
             () => mockReactionsService.toggleUserReaction(
               jokeId,
               JokeReactionType.thumbsUp,
-              jokeContext: any(named: 'jokeContext'),
             ),
           ).thenAnswer((_) async => true); // returns true when adding
 
@@ -224,7 +222,6 @@ void main() {
             () => mockReactionsService.removeUserReaction(
               jokeId,
               JokeReactionType.thumbsDown,
-              jokeContext: 'test',
             ),
           ).called(1);
 
@@ -232,7 +229,6 @@ void main() {
             () => mockReactionsService.toggleUserReaction(
               jokeId,
               JokeReactionType.thumbsUp,
-              jokeContext: 'test',
             ),
           ).called(1);
 
@@ -258,14 +254,12 @@ void main() {
             () => mockReactionsService.removeUserReaction(
               jokeId,
               JokeReactionType.thumbsUp,
-              jokeContext: any(named: 'jokeContext'),
             ),
           ).thenAnswer((_) async {});
           when(
             () => mockReactionsService.toggleUserReaction(
               jokeId,
               JokeReactionType.thumbsDown,
-              jokeContext: any(named: 'jokeContext'),
             ),
           ).thenAnswer((_) async => true); // returns true when adding
 
@@ -295,7 +289,6 @@ void main() {
             () => mockReactionsService.removeUserReaction(
               jokeId,
               JokeReactionType.thumbsUp,
-              jokeContext: 'test',
             ),
           ).called(1);
 
@@ -303,7 +296,6 @@ void main() {
             () => mockReactionsService.toggleUserReaction(
               jokeId,
               JokeReactionType.thumbsDown,
-              jokeContext: 'test',
             ),
           ).called(1);
 
@@ -331,14 +323,12 @@ void main() {
               () => mockReactionsService.removeUserReaction(
                 jokeId,
                 JokeReactionType.thumbsUp,
-                jokeContext: any(named: 'jokeContext'),
               ),
             ).thenAnswer((_) async {});
             when(
               () => mockReactionsService.toggleUserReaction(
                 jokeId,
                 JokeReactionType.thumbsDown,
-                jokeContext: any(named: 'jokeContext'),
               ),
             ).thenAnswer((_) async => true); // returns true when adding
 
@@ -368,7 +358,6 @@ void main() {
               () => mockReactionsService.removeUserReaction(
                 jokeId,
                 JokeReactionType.thumbsUp,
-                jokeContext: 'test',
               ),
             ).called(1);
 
@@ -376,7 +365,6 @@ void main() {
               () => mockReactionsService.toggleUserReaction(
                 jokeId,
                 JokeReactionType.thumbsDown,
-                jokeContext: 'test',
               ),
             ).called(1);
 
@@ -405,7 +393,6 @@ void main() {
               () => mockReactionsService.toggleUserReaction(
                 jokeId,
                 JokeReactionType.save,
-                jokeContext: any(named: 'jokeContext'),
               ),
             ).thenAnswer((_) async => true); // returns true when adding
 
@@ -435,17 +422,12 @@ void main() {
               () => mockReactionsService.toggleUserReaction(
                 jokeId,
                 JokeReactionType.save,
-                jokeContext: 'test',
               ),
             ).called(1);
 
             // Should not call removeUserReaction for any reaction type
             verifyNever(
-              () => mockReactionsService.removeUserReaction(
-                any(),
-                any(),
-                jokeContext: any(named: 'jokeContext'),
-              ),
+              () => mockReactionsService.removeUserReaction(any(), any()),
             );
 
             container.dispose();
@@ -471,7 +453,6 @@ void main() {
               () => mockReactionsService.toggleUserReaction(
                 jokeId,
                 JokeReactionType.share,
-                jokeContext: any(named: 'jokeContext'),
               ),
             ).thenAnswer((_) async => true); // returns true when adding
 
@@ -501,17 +482,12 @@ void main() {
               () => mockReactionsService.toggleUserReaction(
                 jokeId,
                 JokeReactionType.share,
-                jokeContext: 'test',
               ),
             ).called(1);
 
             // Should not call removeUserReaction for any reaction type
             verifyNever(
-              () => mockReactionsService.removeUserReaction(
-                any(),
-                any(),
-                jokeContext: any(named: 'jokeContext'),
-              ),
+              () => mockReactionsService.removeUserReaction(any(), any()),
             );
 
             container.dispose();
@@ -539,7 +515,6 @@ void main() {
               () => mockReactionsService.toggleUserReaction(
                 jokeId,
                 JokeReactionType.thumbsUp,
-                jokeContext: any(named: 'jokeContext'),
               ),
             ).thenAnswer((_) async => true); // returns true when adding
 
@@ -569,7 +544,6 @@ void main() {
               () => mockReactionsService.toggleUserReaction(
                 jokeId,
                 JokeReactionType.thumbsUp,
-                jokeContext: 'test',
               ),
             ).called(1);
 
@@ -596,7 +570,6 @@ void main() {
               () => mockReactionsService.toggleUserReaction(
                 jokeId,
                 JokeReactionType.thumbsUp,
-                jokeContext: any(named: 'jokeContext'),
               ),
             ).thenThrow(Exception('Test error'));
 

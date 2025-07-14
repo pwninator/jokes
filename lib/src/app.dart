@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:snickerdoodle/src/common_widgets/subscription_prompt_overlay.dart';
 import 'package:snickerdoodle/src/config/router/router_providers.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/services/notification_service.dart';
@@ -30,13 +29,6 @@ class App extends ConsumerWidget {
       darkTheme: darkTheme,
       themeMode: themeMode,
       routerConfig: router,
-      builder: (context, child) {
-        // Wrap the router's content with SubscriptionPromptOverlay
-        // This ensures MaterialLocalizations are available when showing dialogs
-        return SubscriptionPromptOverlay(
-          child: child ?? const SizedBox.shrink(),
-        );
-      },
     );
   }
 }

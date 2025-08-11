@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_service.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_schedule_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
@@ -411,7 +412,9 @@ class JokeWithDate {
 final monthlyJokesWithDateProvider = StreamProvider<List<JokeWithDate>>((ref) {
   final repository = ref.watch(jokeScheduleRepositoryProvider);
 
-  return repository.watchBatchesForSchedule('tester_jokes').map((batches) {
+  return repository.watchBatchesForSchedule(JokeConstants.defaultJokeScheduleId).map((
+    batches,
+  ) {
     // Get current date
     final now = DateTime.now();
 

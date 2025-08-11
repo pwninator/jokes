@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_schedule_auto_fill_service.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_schedule.dart';
@@ -25,7 +26,10 @@ final selectedScheduleProvider = StateProvider<String?>((ref) {
     next.whenData((schedules) {
       final currentState = ref.controller.state;
       if (schedules.isNotEmpty && currentState == null) {
-        ref.controller.state = schedules.first.id;
+        // Prefer default schedule ID if present; otherwise fall back to first
+        final defaultId = JokeConstants.defaultJokeScheduleId;
+        final hasDefault = schedules.any((s) => s.id == defaultId);
+        ref.controller.state = hasDefault ? defaultId : schedules.first.id;
       } else if (schedules.isEmpty && currentState != null) {
         ref.controller.state = null;
       }

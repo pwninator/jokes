@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:snickerdoodle/src/core/providers/shared_preferences_provider.dart';
 import 'package:snickerdoodle/src/core/services/notification_service.dart';
+import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
 
 /// State class representing subscription status and hour
 class SubscriptionState {
@@ -160,7 +161,7 @@ class DailyJokeSubscriptionServiceImpl implements DailyJokeSubscriptionService {
 
   static const String _subscriptionKey = 'daily_jokes_subscribed';
   static const String _subscriptionHourKey = 'daily_jokes_subscribed_hour';
-  static const String _topicPrefix = 'tester_jokes';
+  static const String _topicPrefix = JokeConstants.defaultJokeScheduleId;
   static const int defaultHour = 9; // 9 AM default
 
   // Debouncing + Latest-Wins + Mutex implementation

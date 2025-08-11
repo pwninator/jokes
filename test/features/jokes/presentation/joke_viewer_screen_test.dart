@@ -6,6 +6,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:snickerdoodle/src/common_widgets/joke_card.dart';
 import 'package:snickerdoodle/src/common_widgets/joke_image_carousel.dart';
 import 'package:snickerdoodle/src/config/router/route_names.dart';
+import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
 import 'package:snickerdoodle/src/core/providers/image_providers.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
@@ -47,8 +48,8 @@ void main() {
 
       return [
         JokeScheduleBatch(
-          id: 'tester_jokes_${now.year}_${now.month.toString().padLeft(2, '0')}',
-          scheduleId: 'tester_jokes',
+          id: '${JokeConstants.defaultJokeScheduleId}_${now.year}_${now.month.toString().padLeft(2, '0')}',
+          scheduleId: JokeConstants.defaultJokeScheduleId,
           year: currentMonth.year,
           month: currentMonth.month,
           jokes: {
@@ -71,8 +72,8 @@ void main() {
 
       return [
         JokeScheduleBatch(
-          id: 'tester_jokes_${now.year}_${now.month.toString().padLeft(2, '0')}',
-          scheduleId: 'tester_jokes',
+          id: '${JokeConstants.defaultJokeScheduleId}_${now.year}_${now.month.toString().padLeft(2, '0')}',
+          scheduleId: JokeConstants.defaultJokeScheduleId,
           year: currentMonth.year,
           month: currentMonth.month,
           jokes: {now.day.toString().padLeft(2, '0'): mockJokes[0]},
@@ -112,7 +113,9 @@ void main() {
       // Setup mock repository
       mockRepository = MockJokeScheduleRepository();
       when(
-        () => mockRepository.watchBatchesForSchedule('tester_jokes'),
+        () => mockRepository.watchBatchesForSchedule(
+          JokeConstants.defaultJokeScheduleId,
+        ),
       ).thenAnswer((_) => Stream.value(mockBatches));
 
       // Setup mock image service
@@ -159,11 +162,15 @@ void main() {
 
       if (simulateError) {
         when(
-          () => customRepository.watchBatchesForSchedule('tester_jokes'),
+          () => customRepository.watchBatchesForSchedule(
+            JokeConstants.defaultJokeScheduleId,
+          ),
         ).thenAnswer((_) => Stream.error('Failed to load jokes'));
       } else {
         when(
-          () => customRepository.watchBatchesForSchedule('tester_jokes'),
+          () => customRepository.watchBatchesForSchedule(
+            JokeConstants.defaultJokeScheduleId,
+          ),
         ).thenAnswer((_) => Stream.value(customBatches ?? mockBatches));
       }
 
@@ -199,7 +206,9 @@ void main() {
         // Create a repository that never emits to simulate loading
         final loadingRepository = MockJokeScheduleRepository();
         when(
-          () => loadingRepository.watchBatchesForSchedule('tester_jokes'),
+          () => loadingRepository.watchBatchesForSchedule(
+            JokeConstants.defaultJokeScheduleId,
+          ),
         ).thenAnswer((_) => const Stream<List<JokeScheduleBatch>>.empty());
 
         // Create a simple GoRouter for testing

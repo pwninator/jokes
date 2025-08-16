@@ -53,13 +53,26 @@ abstract class AnalyticsService {
     bool? shareSuccess,
   });
 
-  /// Log subscription-related events
-  Future<void> logSubscriptionEvent(
-    SubscriptionEventType eventType,
-    SubscriptionSource source, {
-    bool? permissionGranted,
-    int? subscriptionHour,
-  });
+  /// Subscription: toggled on in settings
+  Future<void> logSubscriptionOnSettings();
+
+  /// Subscription: accepted prompt and permission granted
+  Future<void> logSubscriptionOnPrompt();
+
+  /// Subscription: toggled off in settings
+  Future<void> logSubscriptionOffSettings();
+
+  /// Subscription: time changed in settings
+  Future<void> logSubscriptionTimeChanged({required int subscriptionHour});
+
+  /// Subscription: chose "Maybe later" in prompt
+  Future<void> logSubscriptionDeclinedMaybeLater();
+
+  /// Subscription: denied permissions from settings flow
+  Future<void> logSubscriptionDeclinedPermissionsInSettings();
+
+  /// Subscription: denied permissions from prompt flow
+  Future<void> logSubscriptionDeclinedPermissionsInPrompt();
 
   /// Log when subscription prompt is shown
   Future<void> logSubscriptionPromptShown();
@@ -223,19 +236,65 @@ class FirebaseAnalyticsService implements AnalyticsService {
   }
 
   @override
-  Future<void> logSubscriptionEvent(
-    SubscriptionEventType eventType,
-    SubscriptionSource source, {
-    bool? permissionGranted,
-    int? subscriptionHour,
+  Future<void> logSubscriptionOnSettings() async {
+    await _logEvent(AnalyticsEvent.subscriptionOnSettings, {
+      AnalyticsParameters.subscriptionSource: SubscriptionSource.settings.value,
+      AnalyticsParameters.permissionGranted: true,
+      AnalyticsParameters.userType: _getUserType(_currentUser),
+    });
+  }
+
+  @override
+  Future<void> logSubscriptionOnPrompt() async {
+    await _logEvent(AnalyticsEvent.subscriptionOnPrompt, {
+      AnalyticsParameters.subscriptionSource: SubscriptionSource.popup.value,
+      AnalyticsParameters.permissionGranted: true,
+      AnalyticsParameters.userType: _getUserType(_currentUser),
+    });
+  }
+
+  @override
+  Future<void> logSubscriptionOffSettings() async {
+    await _logEvent(AnalyticsEvent.subscriptionOffSettings, {
+      AnalyticsParameters.subscriptionSource: SubscriptionSource.settings.value,
+      AnalyticsParameters.userType: _getUserType(_currentUser),
+    });
+  }
+
+  @override
+  Future<void> logSubscriptionTimeChanged({
+    required int subscriptionHour,
   }) async {
-    await _logEvent(AnalyticsEvent.subscriptionSettingsToggled, {
-      AnalyticsParameters.subscriptionEventType: eventType.value,
-      AnalyticsParameters.subscriptionSource: source.value,
-      if (permissionGranted != null)
-        AnalyticsParameters.permissionGranted: permissionGranted,
-      if (subscriptionHour != null)
-        AnalyticsParameters.subscriptionHour: subscriptionHour,
+    await _logEvent(AnalyticsEvent.subscriptionTimeChanged, {
+      AnalyticsParameters.subscriptionSource: SubscriptionSource.settings.value,
+      AnalyticsParameters.permissionGranted: true,
+      AnalyticsParameters.subscriptionHour: subscriptionHour,
+      AnalyticsParameters.userType: _getUserType(_currentUser),
+    });
+  }
+
+  @override
+  Future<void> logSubscriptionDeclinedMaybeLater() async {
+    await _logEvent(AnalyticsEvent.subscriptionDeclinedMaybeLater, {
+      AnalyticsParameters.subscriptionSource: SubscriptionSource.popup.value,
+      AnalyticsParameters.userType: _getUserType(_currentUser),
+    });
+  }
+
+  @override
+  Future<void> logSubscriptionDeclinedPermissionsInSettings() async {
+    await _logEvent(AnalyticsEvent.subscriptionDeclinedPermissions, {
+      AnalyticsParameters.subscriptionSource: SubscriptionSource.settings.value,
+      AnalyticsParameters.permissionGranted: false,
+      AnalyticsParameters.userType: _getUserType(_currentUser),
+    });
+  }
+
+  @override
+  Future<void> logSubscriptionDeclinedPermissionsInPrompt() async {
+    await _logEvent(AnalyticsEvent.subscriptionDeclinedPermissions, {
+      AnalyticsParameters.subscriptionSource: SubscriptionSource.popup.value,
+      AnalyticsParameters.permissionGranted: false,
       AnalyticsParameters.userType: _getUserType(_currentUser),
     });
   }

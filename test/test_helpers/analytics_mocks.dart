@@ -95,13 +95,22 @@ class AnalyticsMocks {
       ),
     ).thenAnswer((_) async {});
 
+    when(() => mock.logSubscriptionOnSettings()).thenAnswer((_) async {});
+    when(() => mock.logSubscriptionOnPrompt()).thenAnswer((_) async {});
+    when(() => mock.logSubscriptionOffSettings()).thenAnswer((_) async {});
     when(
-      () => mock.logSubscriptionEvent(
-        any(),
-        any(),
-        permissionGranted: any(named: 'permissionGranted'),
+      () => mock.logSubscriptionTimeChanged(
         subscriptionHour: any(named: 'subscriptionHour'),
       ),
+    ).thenAnswer((_) async {});
+    when(
+      () => mock.logSubscriptionDeclinedMaybeLater(),
+    ).thenAnswer((_) async {});
+    when(
+      () => mock.logSubscriptionDeclinedPermissionsInSettings(),
+    ).thenAnswer((_) async {});
+    when(
+      () => mock.logSubscriptionDeclinedPermissionsInPrompt(),
     ).thenAnswer((_) async {});
 
     when(() => mock.logSubscriptionPromptShown()).thenAnswer((_) async {});
@@ -128,7 +137,6 @@ class FakeAppUser extends Fake implements AppUser {}
 void registerAnalyticsFallbackValues() {
   registerFallbackValue(FakeAppUser());
   registerFallbackValue(JokeReactionType.save);
-  registerFallbackValue(SubscriptionEventType.subscribed);
-  registerFallbackValue(SubscriptionSource.popup);
+  // No subscription-specific enum fallbacks needed after API changes
   registerFallbackValue(AppTab.dailyJokes);
 }

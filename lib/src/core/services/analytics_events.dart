@@ -19,9 +19,12 @@ enum AnalyticsEvent {
 
   // Subscription events
   subscriptionPromptShown('subscription_prompt_shown'),
-  subscriptionPromptAccepted('subscription_prompt_accepted'),
-  subscriptionPromptDeclined('subscription_prompt_declined'),
-  subscriptionSettingsToggled('subscription_settings_toggled'),
+  subscriptionOnSettings('subscription_on_settings'),
+  subscriptionOnPrompt('subscription_on_prompt'),
+  subscriptionOffSettings('subscription_off_settings'),
+  subscriptionTimeChanged('subscription_time_changed'),
+  subscriptionDeclinedMaybeLater('subscription_declined_maybe_later'),
+  subscriptionDeclinedPermissions('subscription_declined_permissions'),
 
   // Notification events
   notificationTapped('notification_tapped'),
@@ -36,17 +39,6 @@ enum AnalyticsEvent {
 
   /// The event name to send to Firebase Analytics
   final String eventName;
-}
-
-/// Subscription event types for more granular tracking
-enum SubscriptionEventType {
-  subscribed('subscribed'),
-  unsubscribed('unsubscribed'),
-  declined('declined'),
-  maybeLater('maybe_later');
-
-  const SubscriptionEventType(this.value);
-  final String value;
 }
 
 /// Subscription source tracking (where the subscription action originated)

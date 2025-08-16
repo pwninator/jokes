@@ -2,7 +2,6 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
-import 'package:snickerdoodle/src/core/services/analytics_events.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
 
 /// Formats hour (0-23) to 12-hour format with AM/PM
@@ -184,35 +183,34 @@ class _HourDisplayWidgetState extends ConsumerState<HourDisplayWidget> {
 
     final result = await showDialog<int>(
       context: context,
-      builder:
-          (context) => AlertDialog(
-            title: const Text('Change Notification Time'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Text(
-                  'When would you like to receive your daily joke notifications?',
-                ),
-                const SizedBox(height: 20),
-                HourPickerWidget(
-                  selectedHour: selectedHour,
-                  onHourChanged: (hour) {
-                    selectedHour = hour;
-                  },
-                ),
-              ],
+      builder: (context) => AlertDialog(
+        title: const Text('Change Notification Time'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'When would you like to receive your daily joke notifications?',
             ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Cancel'),
-              ),
-              ElevatedButton(
-                onPressed: () => Navigator.of(context).pop(selectedHour),
-                child: const Text('Save'),
-              ),
-            ],
+            const SizedBox(height: 20),
+            HourPickerWidget(
+              selectedHour: selectedHour,
+              onHourChanged: (hour) {
+                selectedHour = hour;
+              },
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
           ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(selectedHour),
+            child: const Text('Save'),
+          ),
+        ],
+      ),
     );
 
     setState(() {
@@ -233,10 +231,7 @@ class _HourDisplayWidgetState extends ConsumerState<HourDisplayWidget> {
 
       // Track analytics for hour change
       final analyticsService = ref.read(analyticsServiceProvider);
-      await analyticsService.logSubscriptionEvent(
-        SubscriptionEventType.subscribed,
-        SubscriptionSource.settings,
-        permissionGranted: true,
+      await analyticsService.logSubscriptionTimeChanged(
         subscriptionHour: newHour,
       );
 

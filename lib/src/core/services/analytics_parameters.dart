@@ -26,7 +26,6 @@ class AnalyticsParameters {
   static const String navigationMethod = 'navigation_method';
 
   // Subscription parameters
-  static const String subscriptionEventType = 'subscription_event_type';
   static const String subscriptionSource = 'subscription_source';
   static const String subscriptionHour = 'subscription_hour';
   static const String permissionGranted = 'permission_granted';

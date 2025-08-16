@@ -6,7 +6,6 @@ import 'package:snickerdoodle/src/common_widgets/subscription_prompt_dialog.dart
 import 'package:snickerdoodle/src/common_widgets/titled_screen.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/providers/app_version_provider.dart';
-import 'package:snickerdoodle/src/core/services/analytics_events.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
@@ -212,27 +211,28 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                         if (currentUser?.isAnonymous == true) ...[
                           // Show Google sign-in option for anonymous users
                           ElevatedButton.icon(
-                            onPressed:
-                                () =>
-                                    _signInWithGoogle(context, authController),
+                            onPressed: () =>
+                                _signInWithGoogle(context, authController),
                             icon: const Icon(Icons.login),
                             label: const Text('Sign in with Google'),
                             style: ElevatedButton.styleFrom(
-                              backgroundColor:
-                                  Theme.of(context).appColors.googleBlue,
+                              backgroundColor: Theme.of(
+                                context,
+                              ).appColors.googleBlue,
                               foregroundColor: Colors.white,
                             ),
                           ),
                         ] else ...[
                           // Show sign out option for authenticated users
                           ElevatedButton.icon(
-                            onPressed:
-                                () => _confirmSignOut(context, authController),
+                            onPressed: () =>
+                                _confirmSignOut(context, authController),
                             icon: const Icon(Icons.logout),
                             label: const Text('Switch to Guest Mode'),
                             style: ElevatedButton.styleFrom(
-                              backgroundColor:
-                                  Theme.of(context).appColors.authError,
+                              backgroundColor: Theme.of(
+                                context,
+                              ).appColors.authError,
                               foregroundColor: Colors.white,
                             ),
                           ),
@@ -261,8 +261,9 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                           icon: const Icon(Icons.notifications),
                           label: const Text('Test Subscribe Prompt'),
                           style: ElevatedButton.styleFrom(
-                            backgroundColor:
-                                Theme.of(context).colorScheme.tertiary,
+                            backgroundColor: Theme.of(
+                              context,
+                            ).colorScheme.tertiary,
                             foregroundColor: Colors.white,
                           ),
                         ),
@@ -355,12 +356,11 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
           children: [
             Icon(
               Icons.notifications,
-              color:
-                  isSubscribed
-                      ? Theme.of(context).colorScheme.primary
-                      : Theme.of(
-                        context,
-                      ).colorScheme.onSurface.withValues(alpha: 0.6),
+              color: isSubscribed
+                  ? Theme.of(context).colorScheme.primary
+                  : Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withValues(alpha: 0.6),
             ),
             const SizedBox(width: 16),
             Expanded(
@@ -371,10 +371,9 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                     'Daily Joke Notifications',
                     style: TextStyle(
                       fontWeight: FontWeight.w500,
-                      color:
-                          isSubscribed
-                              ? Theme.of(context).colorScheme.primary
-                              : Theme.of(context).colorScheme.onSurface,
+                      color: isSubscribed
+                          ? Theme.of(context).colorScheme.primary
+                          : Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
                   const SizedBox(height: 2),
@@ -427,12 +426,11 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
           children: [
             Icon(
               icon,
-              color:
-                  isSelected
-                      ? Theme.of(context).colorScheme.primary
-                      : Theme.of(
-                        context,
-                      ).colorScheme.onSurface.withValues(alpha: 0.6),
+              color: isSelected
+                  ? Theme.of(context).colorScheme.primary
+                  : Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withValues(alpha: 0.6),
             ),
             const SizedBox(width: 16),
             Expanded(
@@ -443,10 +441,9 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                     title,
                     style: TextStyle(
                       fontWeight: FontWeight.w500,
-                      color:
-                          isSelected
-                              ? Theme.of(context).colorScheme.primary
-                              : Theme.of(context).colorScheme.onSurface,
+                      color: isSelected
+                          ? Theme.of(context).colorScheme.primary
+                          : Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
                   const SizedBox(height: 2),
@@ -539,19 +536,16 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                 // Show dialog with full error
                 showDialog(
                   context: context,
-                  builder:
-                      (context) => AlertDialog(
-                        title: const Text('Sign-in Error'),
-                        content: SingleChildScrollView(
-                          child: Text(e.toString()),
-                        ),
-                        actions: [
-                          TextButton(
-                            onPressed: () => Navigator.of(context).pop(),
-                            child: const Text('OK'),
-                          ),
-                        ],
+                  builder: (context) => AlertDialog(
+                    title: const Text('Sign-in Error'),
+                    content: SingleChildScrollView(child: Text(e.toString())),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: const Text('OK'),
                       ),
+                    ],
+                  ),
                 );
               },
             ),
@@ -564,48 +558,46 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
   void _confirmSignOut(BuildContext context, AuthController authController) {
     showDialog(
       context: context,
-      builder:
-          (context) => AlertDialog(
-            title: const Text('Switch to Guest Mode'),
-            content: const Text(
-              'Are you sure you want to switch to guest mode? You will still be able to view jokes, but you\'ll lose access to your personalized features.',
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('Cancel'),
-              ),
-              ElevatedButton(
-                onPressed: () async {
-                  Navigator.of(context).pop();
-                  try {
-                    await authController.signOut();
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: const Text('Switched to guest mode'),
-                          backgroundColor: Theme.of(context).appColors.success,
-                          duration: const Duration(seconds: 3),
-                        ),
-                      );
-                    }
-                  } catch (e) {
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Failed to switch to guest mode: $e'),
-                          backgroundColor:
-                              Theme.of(context).appColors.authError,
-                          duration: const Duration(seconds: 5),
-                        ),
-                      );
-                    }
-                  }
-                },
-                child: const Text('Switch to Guest'),
-              ),
-            ],
+      builder: (context) => AlertDialog(
+        title: const Text('Switch to Guest Mode'),
+        content: const Text(
+          'Are you sure you want to switch to guest mode? You will still be able to view jokes, but you\'ll lose access to your personalized features.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
           ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.of(context).pop();
+              try {
+                await authController.signOut();
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: const Text('Switched to guest mode'),
+                      backgroundColor: Theme.of(context).appColors.success,
+                      duration: const Duration(seconds: 3),
+                    ),
+                  );
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Failed to switch to guest mode: $e'),
+                      backgroundColor: Theme.of(context).appColors.authError,
+                      duration: const Duration(seconds: 5),
+                    ),
+                  );
+                }
+              }
+            },
+            child: const Text('Switch to Guest'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -631,20 +623,14 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
       // Track analytics for subscription toggle
       final analyticsService = ref.read(analyticsServiceProvider);
       if (success) {
-        await analyticsService.logSubscriptionEvent(
-          enable
-              ? SubscriptionEventType.subscribed
-              : SubscriptionEventType.unsubscribed,
-          SubscriptionSource.settings,
-          permissionGranted: enable ? success : null,
-        );
+        if (enable) {
+          await analyticsService.logSubscriptionOnSettings();
+        } else {
+          await analyticsService.logSubscriptionOffSettings();
+        }
       } else if (enable) {
         // Track failed subscription attempt
-        await analyticsService.logSubscriptionEvent(
-          SubscriptionEventType.declined,
-          SubscriptionSource.settings,
-          permissionGranted: false,
-        );
+        await analyticsService.logSubscriptionDeclinedPermissionsInSettings();
       }
 
       // Show appropriate message based on result

@@ -7,7 +7,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:snickerdoodle/src/common_widgets/notification_hour_widget.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/providers/shared_preferences_provider.dart';
-import 'package:snickerdoodle/src/core/services/analytics_events.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
 
@@ -18,11 +17,7 @@ class MockDailyJokeSubscriptionService extends Mock
     implements DailyJokeSubscriptionService {}
 
 void main() {
-  setUpAll(() {
-    // Register fallback values for mocktail
-    registerFallbackValue(SubscriptionEventType.subscribed);
-    registerFallbackValue(SubscriptionSource.settings);
-  });
+  setUpAll(() {});
 
   group('HourPickerWidget', () {
     testWidgets('displays correctly and handles hour changes', (tester) async {
@@ -86,10 +81,7 @@ void main() {
         () => mockSyncService.ensureSubscriptionSync(),
       ).thenAnswer((_) async => true);
       when(
-        () => mockAnalyticsService.logSubscriptionEvent(
-          any(),
-          any(),
-          permissionGranted: any(named: 'permissionGranted'),
+        () => mockAnalyticsService.logSubscriptionTimeChanged(
           subscriptionHour: any(named: 'subscriptionHour'),
         ),
       ).thenAnswer((_) async {});

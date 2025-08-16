@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
-import 'package:snickerdoodle/src/core/services/analytics_events.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
 
 class SubscriptionPromptDialog extends ConsumerStatefulWidget {
@@ -89,17 +88,16 @@ class _SubscriptionPromptDialogState
                 flex: 2,
                 child: ElevatedButton(
                   onPressed: _isLoading ? null : () => _handleSubscribe(),
-                  child:
-                      _isLoading
-                          ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                          : const Text(
-                            'Yes, Send Jokes!',
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
+                  child: _isLoading
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text(
+                          'Yes, Send Jokes!',
+                          style: TextStyle(fontWeight: FontWeight.bold),
+                        ),
                 ),
               ),
             ],
@@ -116,29 +114,26 @@ class _SubscriptionPromptDialogState
     ];
 
     return Column(
-      children:
-          benefits.map((benefit) {
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(benefit['icon']!, style: const TextStyle(fontSize: 16)),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Text(
-                      benefit['text']!,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurface.withValues(
-                          alpha: 0.7,
-                        ),
-                      ),
-                    ),
+      children: benefits.map((benefit) {
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(benefit['icon']!, style: const TextStyle(fontSize: 16)),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  benefit['text']!,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
                   ),
-                ],
+                ),
               ),
-            );
-          }).toList(),
+            ],
+          ),
+        );
+      }).toList(),
     );
   }
 
@@ -157,17 +152,9 @@ class _SubscriptionPromptDialogState
 
     // Track analytics for subscription result
     if (success) {
-      await analyticsService.logSubscriptionEvent(
-        SubscriptionEventType.subscribed,
-        SubscriptionSource.popup,
-        permissionGranted: true,
-      );
+      await analyticsService.logSubscriptionOnPrompt();
     } else {
-      await analyticsService.logSubscriptionEvent(
-        SubscriptionEventType.declined,
-        SubscriptionSource.popup,
-        permissionGranted: false,
-      );
+      await analyticsService.logSubscriptionDeclinedPermissionsInPrompt();
     }
 
     if (success && mounted) {
@@ -222,10 +209,7 @@ class _SubscriptionPromptDialogState
   Future<void> _handleMaybeLater() async {
     // Track analytics for maybe later choice
     final analyticsService = ref.read(analyticsServiceProvider);
-    await analyticsService.logSubscriptionEvent(
-      SubscriptionEventType.maybeLater,
-      SubscriptionSource.popup,
-    );
+    await analyticsService.logSubscriptionDeclinedMaybeLater();
 
     final subscriptionPromptNotifier = ref.read(
       subscriptionPromptProvider.notifier,

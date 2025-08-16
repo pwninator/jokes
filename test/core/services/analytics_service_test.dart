@@ -204,16 +204,12 @@ void main() {
     });
 
     group('subscription analytics', () {
-      test('should log subscription event', () async {
+      test('should log subscription prompt shown', () async {
         // arrange
         // No setup needed for debug mode
 
         // act
-        await analyticsService.logSubscriptionEvent(
-          SubscriptionEventType.subscribed,
-          SubscriptionSource.popup,
-          permissionGranted: true,
-        );
+        await analyticsService.logSubscriptionPromptShown();
 
         // assert - in debug mode, we should see debug logging but no Firebase calls
         verifyNever(
@@ -224,14 +220,78 @@ void main() {
         );
       });
 
-      test('should log subscription prompt shown', () async {
-        // arrange
-        // No setup needed for debug mode
+      test('should log subscription on settings', () async {
+        await analyticsService.logSubscriptionOnSettings();
 
-        // act
-        await analyticsService.logSubscriptionPromptShown();
+        verifyNever(
+          () => mockFirebaseAnalytics.logEvent(
+            name: any(named: 'name'),
+            parameters: any(named: 'parameters'),
+          ),
+        );
+      });
 
-        // assert - in debug mode, we should see debug logging but no Firebase calls
+      test('should log subscription on prompt', () async {
+        await analyticsService.logSubscriptionOnPrompt();
+
+        verifyNever(
+          () => mockFirebaseAnalytics.logEvent(
+            name: any(named: 'name'),
+            parameters: any(named: 'parameters'),
+          ),
+        );
+      });
+
+      test('should log subscription off settings', () async {
+        await analyticsService.logSubscriptionOffSettings();
+
+        verifyNever(
+          () => mockFirebaseAnalytics.logEvent(
+            name: any(named: 'name'),
+            parameters: any(named: 'parameters'),
+          ),
+        );
+      });
+
+      test('should log subscription time changed', () async {
+        await analyticsService.logSubscriptionTimeChanged(subscriptionHour: 9);
+
+        verifyNever(
+          () => mockFirebaseAnalytics.logEvent(
+            name: any(named: 'name'),
+            parameters: any(named: 'parameters'),
+          ),
+        );
+      });
+
+      test('should log subscription declined maybe later', () async {
+        await analyticsService.logSubscriptionDeclinedMaybeLater();
+
+        verifyNever(
+          () => mockFirebaseAnalytics.logEvent(
+            name: any(named: 'name'),
+            parameters: any(named: 'parameters'),
+          ),
+        );
+      });
+
+      test(
+        'should log subscription declined permissions in settings',
+        () async {
+          await analyticsService.logSubscriptionDeclinedPermissionsInSettings();
+
+          verifyNever(
+            () => mockFirebaseAnalytics.logEvent(
+              name: any(named: 'name'),
+              parameters: any(named: 'parameters'),
+            ),
+          );
+        },
+      );
+
+      test('should log subscription declined permissions in prompt', () async {
+        await analyticsService.logSubscriptionDeclinedPermissionsInPrompt();
+
         verifyNever(
           () => mockFirebaseAnalytics.logEvent(
             name: any(named: 'name'),

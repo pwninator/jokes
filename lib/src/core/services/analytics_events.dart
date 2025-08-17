@@ -9,6 +9,7 @@ enum AnalyticsEvent {
   // Joke viewing events
   jokeSetupViewed('joke_setup_viewed'),
   jokePunchlineViewed('joke_punchline_viewed'),
+  jokeViewed('joke_viewed'),
   jokeNavigated('joke_navigated'),
 
   // Joke reaction events

@@ -30,6 +30,14 @@ abstract class AnalyticsService {
     required String jokeContext,
   });
 
+  /// Log when a joke is fully viewed (setup and punchline each viewed ≥ 2s sequentially)
+  Future<void> logJokeViewed(
+    String jokeId, {
+    required bool hasImages,
+    required String navigationMethod,
+    required String jokeContext,
+  });
+
   /// Log when user navigates through jokes
   Future<void> logJokeNavigation(
     String jokeId,
@@ -183,6 +191,22 @@ class FirebaseAnalyticsService implements AnalyticsService {
     await _logEvent(AnalyticsEvent.jokePunchlineViewed, {
       AnalyticsParameters.jokeId: jokeId,
       AnalyticsParameters.jokeHasImages: hasImages,
+      AnalyticsParameters.navigationMethod: navigationMethod,
+      AnalyticsParameters.jokeContext: jokeContext,
+      AnalyticsParameters.userType: _getUserType(_currentUser),
+    });
+  }
+
+  @override
+  Future<void> logJokeViewed(
+    String jokeId, {
+    required bool hasImages,
+    required String navigationMethod,
+    required String jokeContext,
+  }) async {
+    await _logEvent(AnalyticsEvent.jokeViewed, {
+      AnalyticsParameters.jokeId: jokeId,
+      AnalyticsParameters.jokeHasImages: hasImages ? 1 : 0,
       AnalyticsParameters.navigationMethod: navigationMethod,
       AnalyticsParameters.jokeContext: jokeContext,
       AnalyticsParameters.userType: _getUserType(_currentUser),

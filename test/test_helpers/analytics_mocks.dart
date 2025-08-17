@@ -70,6 +70,15 @@ class AnalyticsMocks {
     ).thenAnswer((_) async {});
 
     when(
+      () => mock.logJokeViewed(
+        any(),
+        hasImages: any(named: 'hasImages'),
+        navigationMethod: any(named: 'navigationMethod'),
+        jokeContext: any(named: 'jokeContext'),
+      ),
+    ).thenAnswer((_) async {});
+
+    when(
       () => mock.logJokeNavigation(
         any(),
         any(),

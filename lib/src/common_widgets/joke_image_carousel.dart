@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -11,6 +13,7 @@ import 'package:snickerdoodle/src/config/router/route_names.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/providers/image_providers.dart';
 import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
+import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
@@ -52,11 +55,82 @@ class JokeImageCarousel extends ConsumerStatefulWidget {
 }
 
 class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
+  // Duration a page must be visible to be considered "viewed"
+  static const Duration _jokeImageViewThreshold = Duration(seconds: 2);
+
   late PageController _pageController;
   int _currentIndex = 0;
 
   // Track the navigation method that triggered the current page change
   String _lastNavigationMethod = AnalyticsNavigationMethod.swipe;
+
+  // Timing and state for full view detection (2s per image)
+  Timer? _viewTimer;
+  bool _setupThresholdMet = false;
+  bool _punchlineThresholdMet = false;
+  bool _jokeViewedLogged = false;
+  bool _setupEventLogged = false;
+  bool _punchlineEventLogged = false;
+  String? _navMethodSetup;
+  String? _navMethodPunchline;
+
+  bool get _hasBothImages {
+    final joke = widget.joke;
+    return joke.setupImageUrl != null &&
+        joke.setupImageUrl!.isNotEmpty &&
+        joke.punchlineImageUrl != null &&
+        joke.punchlineImageUrl!.isNotEmpty;
+  }
+
+  void _startViewTimerForIndex(int index) {
+    _viewTimer?.cancel();
+    if (!_hasBothImages || _jokeViewedLogged) return;
+    _viewTimer = Timer(_jokeImageViewThreshold, () async {
+      if (!mounted || _jokeViewedLogged) return;
+      final analyticsService = ref.read(analyticsServiceProvider);
+      if (index == 0) {
+        _setupThresholdMet = true;
+        if (!_setupEventLogged) {
+          _setupEventLogged = true;
+          await analyticsService.logJokeSetupViewed(
+            widget.joke.id,
+            hasImages: _hasBothImages,
+            navigationMethod: _navMethodSetup ?? AnalyticsNavigationMethod.none,
+            jokeContext: widget.jokeContext,
+          );
+        }
+      } else if (index == 1) {
+        _punchlineThresholdMet = true;
+        if (!_punchlineEventLogged) {
+          _punchlineEventLogged = true;
+          await analyticsService.logJokePunchlineViewed(
+            widget.joke.id,
+            hasImages: _hasBothImages,
+            navigationMethod:
+                _navMethodPunchline ?? AnalyticsNavigationMethod.swipe,
+            jokeContext: widget.jokeContext,
+          );
+        }
+      }
+      await _maybeLogJokeFullyViewed();
+    });
+  }
+
+  Future<void> _maybeLogJokeFullyViewed() async {
+    if (_jokeViewedLogged || !_hasBothImages) return;
+    if (_setupThresholdMet && _punchlineThresholdMet) {
+      _jokeViewedLogged = true;
+      final analyticsService = ref.read(analyticsServiceProvider);
+      await analyticsService.logJokeViewed(
+        widget.joke.id,
+        hasImages: true,
+        navigationMethod: _lastNavigationMethod,
+        jokeContext: widget.jokeContext,
+      );
+      final appUsageService = ref.read(appUsageServiceProvider);
+      await appUsageService.logJokeViewed();
+    }
+  }
 
   @override
   void initState() {
@@ -70,21 +144,9 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
         widget.onImageStateChanged!(0);
       }
 
-      // Track initial setup view
-      final analyticsService = ref.read(analyticsServiceProvider);
-      final joke = widget.joke;
-      final hasImages =
-          joke.setupImageUrl != null &&
-          joke.setupImageUrl!.isNotEmpty &&
-          joke.punchlineImageUrl != null &&
-          joke.punchlineImageUrl!.isNotEmpty;
-
-      analyticsService.logJokeSetupViewed(
-        joke.id,
-        hasImages: hasImages,
-        navigationMethod: AnalyticsNavigationMethod.none,
-        jokeContext: widget.jokeContext,
-      );
+      // Record navigation method and start timing for setup image being visible
+      _navMethodSetup = AnalyticsNavigationMethod.none;
+      _startViewTimerForIndex(0);
     });
   }
 
@@ -110,6 +172,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
 
   @override
   void dispose() {
+    _viewTimer?.cancel();
     _pageController.dispose();
     super.dispose();
   }
@@ -124,31 +187,15 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
       widget.onImageStateChanged!(index);
     }
 
-    // Track analytics for joke viewing
-    final analyticsService = ref.read(analyticsServiceProvider);
-    final joke = widget.joke;
-    final hasImages =
-        joke.setupImageUrl != null &&
-        joke.setupImageUrl!.isNotEmpty &&
-        joke.punchlineImageUrl != null &&
-        joke.punchlineImageUrl!.isNotEmpty;
+    // Start a 2s timer for the current page
+    _startViewTimerForIndex(index);
 
     if (index == 0) {
-      // User is viewing setup image
-      analyticsService.logJokeSetupViewed(
-        joke.id,
-        hasImages: hasImages,
-        navigationMethod: _lastNavigationMethod,
-        jokeContext: widget.jokeContext,
-      );
+      // Record navigation method for setup
+      _navMethodSetup = _lastNavigationMethod;
     } else if (index == 1) {
-      // User is viewing punchline image
-      analyticsService.logJokePunchlineViewed(
-        joke.id,
-        hasImages: hasImages,
-        navigationMethod: _lastNavigationMethod,
-        jokeContext: widget.jokeContext,
-      );
+      // Record navigation method for punchline
+      _navMethodPunchline = _lastNavigationMethod;
 
       // Trigger subscription prompt when user views punchline (index 1)
       final subscriptionPromptNotifier = ref.read(
@@ -777,11 +824,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
       if (buttons.isNotEmpty) {
         buttons.add(const SizedBox(width: 8));
       }
-      buttons.add(
-        AdminThumbsButtons(
-          jokeId: widget.joke.id,
-        ),
-      );
+      buttons.add(AdminThumbsButtons(jokeId: widget.joke.id));
     }
 
     // Add share button if enabled
@@ -797,10 +840,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
     // Add save button if enabled
     if (widget.showSaveButton) {
       buttons.add(
-        SaveJokeButton(
-          jokeId: widget.joke.id,
-          jokeContext: widget.jokeContext,
-        ),
+        SaveJokeButton(jokeId: widget.joke.id, jokeContext: widget.jokeContext),
       );
     }
 

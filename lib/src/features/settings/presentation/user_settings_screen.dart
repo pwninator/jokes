@@ -7,6 +7,7 @@ import 'package:snickerdoodle/src/common_widgets/titled_screen.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/providers/app_version_provider.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
+import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
 import 'package:snickerdoodle/src/features/auth/data/models/app_user.dart';
@@ -189,6 +190,34 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                           _buildInfoRow('User ID', currentUser.id),
                         ] else
                           const Text('No user information available'),
+
+                        const SizedBox(height: 12),
+                        FutureBuilder<_UsageMetrics>(
+                          future: _fetchUsageMetrics(ref),
+                          builder: (context, snapshot) {
+                            if (snapshot.connectionState == ConnectionState.waiting) {
+                              return const SizedBox.shrink();
+                            }
+                            if (!snapshot.hasData) {
+                              return const SizedBox.shrink();
+                            }
+                            final metrics = snapshot.data!;
+                            final first = metrics.firstUsedDate ?? '—';
+                            final last = metrics.lastUsedDate ?? '—';
+                            final days = metrics.numDaysUsed;
+                            final summary = '$first - $last ($days)';
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                _buildInfoRow('Usage', summary),
+                                _buildInfoRow(
+                                  'Num Jokes Viewed',
+                                  metrics.numJokesViewed.toString(),
+                                ),
+                              ],
+                            );
+                          },
+                        ),
                       ],
                     ),
                   ),
@@ -501,6 +530,20 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
     }
   }
 
+  Future<_UsageMetrics> _fetchUsageMetrics(WidgetRef ref) async {
+    final usage = ref.read(appUsageServiceProvider);
+    final firstUsed = await usage.getFirstUsedDate();
+    final lastUsed = await usage.getLastUsedDate();
+    final daysUsed = await usage.getNumDaysUsed();
+    final jokesViewed = await usage.getNumJokesViewed();
+    return _UsageMetrics(
+      firstUsedDate: firstUsed,
+      lastUsedDate: lastUsed,
+      numDaysUsed: daysUsed,
+      numJokesViewed: jokesViewed,
+    );
+  }
+
   Future<void> _signInWithGoogle(
     BuildContext context,
     AuthController authController,
@@ -668,4 +711,18 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
       builder: (context) => const SubscriptionPromptDialog(),
     );
   }
+}
+
+class _UsageMetrics {
+  final String? firstUsedDate;
+  final String? lastUsedDate;
+  final int numDaysUsed;
+  final int numJokesViewed;
+
+  const _UsageMetrics({
+    required this.firstUsedDate,
+    required this.lastUsedDate,
+    required this.numDaysUsed,
+    required this.numJokesViewed,
+  });
 }

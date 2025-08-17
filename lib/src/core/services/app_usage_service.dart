@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:snickerdoodle/src/core/providers/shared_preferences_provider.dart';
@@ -28,21 +29,34 @@ class AppUsageService {
   Future<void> logAppUsage() async {
     final String today = _formatTodayDate();
 
-    // Set first_used_date once
-    final String? firstUsed = _prefs.getString(_firstUsedDateKey);
-    if (firstUsed == null || firstUsed.isEmpty) {
+    // Capture current values
+    final String? oldFirstUsed = _prefs.getString(_firstUsedDateKey);
+    final String? oldLastUsed = _prefs.getString(_lastUsedDateKey);
+    final int oldNumDaysUsed = _prefs.getInt(_numDaysUsedKey) ?? 0;
+
+    // Compute new values
+    final bool shouldSetFirstUsed =
+        (oldFirstUsed == null || oldFirstUsed.isEmpty);
+    final bool shouldIncrementDays =
+        (oldLastUsed == null || oldLastUsed != today);
+    final int newNumDaysUsed = oldNumDaysUsed + (shouldIncrementDays ? 1 : 0);
+    final String newLastUsed = today;
+
+    // Persist changes
+    if (shouldSetFirstUsed) {
       await _prefs.setString(_firstUsedDateKey, today);
     }
-
-    // Determine if we should increment unique days used
-    final String? lastUsed = _prefs.getString(_lastUsedDateKey);
-    if (lastUsed == null || lastUsed != today) {
-      final int currentDays = _prefs.getInt(_numDaysUsedKey) ?? 0;
-      await _prefs.setInt(_numDaysUsedKey, currentDays + 1);
+    if (shouldIncrementDays) {
+      await _prefs.setInt(_numDaysUsedKey, newNumDaysUsed);
     }
+    await _prefs.setString(_lastUsedDateKey, newLastUsed);
 
-    // Always set last_used_date to today when the app loads
-    await _prefs.setString(_lastUsedDateKey, today);
+    // Single debug print summarizing modifications
+    final List<String> changes = [];
+    changes.add('first_used_date: ${oldFirstUsed ?? '(null)'} -> $today');
+    changes.add('last_used_date: ${oldLastUsed ?? '(null)'} -> $newLastUsed');
+    changes.add('num_days_used: $oldNumDaysUsed -> $newNumDaysUsed');
+    debugPrint('APP_USAGE logAppUsage: { ${changes.join(', ')} }');
   }
 
   /// Increment the number of jokes viewed counter.
@@ -50,8 +64,12 @@ class AppUsageService {
   /// The caller should ensure business rules are satisfied
   /// (e.g., both setup and punchline images viewed for at least 2 seconds each).
   Future<void> logJokeViewed() async {
-    final int current = _prefs.getInt(_numJokesViewedKey) ?? 0;
-    await _prefs.setInt(_numJokesViewedKey, current + 1);
+    final int oldCount = _prefs.getInt(_numJokesViewedKey) ?? 0;
+    final int newCount = oldCount + 1;
+    await _prefs.setInt(_numJokesViewedKey, newCount);
+    debugPrint(
+      'APP_USAGE logJokeViewed: { num_jokes_viewed: $oldCount -> $newCount }',
+    );
   }
 
   /// Getters to read metrics (useful for UI and tests)

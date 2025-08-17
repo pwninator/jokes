@@ -4,9 +4,9 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
 import 'package:snickerdoodle/src/core/providers/shared_preferences_provider.dart';
 import 'package:snickerdoodle/src/core/services/notification_service.dart';
-import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
 
 /// State class representing subscription status and hour
 class SubscriptionState {
@@ -104,8 +104,8 @@ class SubscriptionNotifier extends StateNotifier<SubscriptionState> {
 
       // Request permission
       final notificationService = NotificationService();
-      final permissionGranted =
-          await notificationService.requestNotificationPermissions();
+      final permissionGranted = await notificationService
+          .requestNotificationPermissions();
 
       if (permissionGranted) {
         await setSubscribed(true);
@@ -350,26 +350,22 @@ class SubscriptionPromptState {
   final bool isSubscribed;
   final bool hasUserMadeChoice;
   final bool shouldShowPrompt;
-  final bool isTimerActive;
 
   const SubscriptionPromptState({
     this.isSubscribed = false,
     this.hasUserMadeChoice = false,
     this.shouldShowPrompt = false,
-    this.isTimerActive = false,
   });
 
   SubscriptionPromptState copyWith({
     bool? isSubscribed,
     bool? hasUserMadeChoice,
     bool? shouldShowPrompt,
-    bool? isTimerActive,
   }) {
     return SubscriptionPromptState(
       isSubscribed: isSubscribed ?? this.isSubscribed,
       hasUserMadeChoice: hasUserMadeChoice ?? this.hasUserMadeChoice,
       shouldShowPrompt: shouldShowPrompt ?? this.shouldShowPrompt,
-      isTimerActive: isTimerActive ?? this.isTimerActive,
     );
   }
 
@@ -387,7 +383,6 @@ class SubscriptionPromptNotifier
   }
 
   final SubscriptionNotifier _subscriptionNotifier;
-  Timer? _promptTimer;
 
   /// Initialize state by checking cached preferences (called once)
   Future<void> _initializeState() async {
@@ -404,30 +399,17 @@ class SubscriptionPromptNotifier
     }
   }
 
-  /// Start 5-second timer for subscription prompt (only if needed)
-  void startPromptTimer() {
-    // Early exit: don't start timer if already prompted or subscribed
-    if (state.shouldSkipPromptLogic || state.isTimerActive) {
+  /// Consider showing the prompt immediately based on jokes-viewed threshold
+  void considerPromptAfterJokeViewed(int jokesViewedCount) {
+    // Skip if user has already made a choice or prompt already pending/shown
+    if (state.shouldSkipPromptLogic || state.shouldShowPrompt) {
       return;
     }
 
-    // Cancel any existing timer
-    _promptTimer?.cancel();
-
-    state = state.copyWith(isTimerActive: true);
-
-    _promptTimer = Timer(const Duration(seconds: 4), () {
-      // Double-check state hasn't changed during timer
-      if (!state.shouldSkipPromptLogic && mounted) {
-        state = state.copyWith(shouldShowPrompt: true, isTimerActive: false);
-      }
-    });
-  }
-
-  /// Cancel prompt timer
-  void cancelPromptTimer() {
-    _promptTimer?.cancel();
-    state = state.copyWith(isTimerActive: false);
+    if (jokesViewedCount >=
+        JokeConstants.subscriptionPromptJokesViewedThreshold) {
+      state = state.copyWith(shouldShowPrompt: true);
+    }
   }
 
   /// Handle subscription (user clicked "Subscribe")
@@ -438,9 +420,7 @@ class SubscriptionPromptNotifier
         isSubscribed: true,
         hasUserMadeChoice: true,
         shouldShowPrompt: false,
-        isTimerActive: false,
       );
-      _promptTimer?.cancel();
     }
     return success;
   }
@@ -456,13 +436,11 @@ class SubscriptionPromptNotifier
   /// Dismiss prompt (user clicked "Maybe later")
   Future<void> dismissPrompt() async {
     await markPromptShown();
-    state = state.copyWith(shouldShowPrompt: false, isTimerActive: false);
-    _promptTimer?.cancel();
+    state = state.copyWith(shouldShowPrompt: false);
   }
 
   @override
   void dispose() {
-    _promptTimer?.cancel();
     super.dispose();
   }
 }

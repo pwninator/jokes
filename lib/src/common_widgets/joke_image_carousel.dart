@@ -129,6 +129,13 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
       );
       final appUsageService = ref.read(appUsageServiceProvider);
       await appUsageService.logJokeViewed();
+      final jokesViewedCount = await appUsageService.getNumJokesViewed();
+      final subscriptionPromptNotifier = ref.read(
+        subscriptionPromptProvider.notifier,
+      );
+      subscriptionPromptNotifier.considerPromptAfterJokeViewed(
+        jokesViewedCount,
+      );
     }
   }
 
@@ -196,12 +203,6 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
     } else if (index == 1) {
       // Record navigation method for punchline
       _navMethodPunchline = _lastNavigationMethod;
-
-      // Trigger subscription prompt when user views punchline (index 1)
-      final subscriptionPromptNotifier = ref.read(
-        subscriptionPromptProvider.notifier,
-      );
-      subscriptionPromptNotifier.startPromptTimer();
     }
 
     // Reset navigation method to swipe for next potential swipe gesture

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
 import 'package:snickerdoodle/src/core/providers/shared_preferences_provider.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
 
@@ -398,6 +399,89 @@ void main() {
 
         // This test mainly ensures the cancellation logic works without deadlocks
       });
+    });
+  });
+
+  group('SubscriptionPromptNotifier (threshold logic)', () {
+    late ProviderContainer container;
+    late MockDailyJokeSubscriptionService mockSyncService;
+    late SharedPreferences sharedPreferences;
+
+    setUp(() async {
+      SharedPreferences.setMockInitialValues({});
+      sharedPreferences = await SharedPreferences.getInstance();
+
+      mockSyncService = MockDailyJokeSubscriptionService();
+      when(
+        () => mockSyncService.ensureSubscriptionSync(),
+      ).thenAnswer((_) async => true);
+
+      container = ProviderContainer(
+        overrides: [
+          sharedPreferencesInstanceProvider.overrideWithValue(
+            sharedPreferences,
+          ),
+          dailyJokeSubscriptionServiceProvider.overrideWithValue(
+            mockSyncService,
+          ),
+        ],
+      );
+    });
+
+    tearDown(() {
+      container.dispose();
+    });
+
+    test('does not show prompt below threshold', () async {
+      final notifier = container.read(subscriptionPromptProvider.notifier);
+
+      notifier.considerPromptAfterJokeViewed(
+        JokeConstants.subscriptionPromptJokesViewedThreshold - 1,
+      );
+
+      final state = container.read(subscriptionPromptProvider);
+      expect(state.shouldShowPrompt, isFalse);
+    });
+
+    test('shows prompt at or above threshold', () async {
+      final notifier = container.read(subscriptionPromptProvider.notifier);
+
+      notifier.considerPromptAfterJokeViewed(
+        JokeConstants.subscriptionPromptJokesViewedThreshold,
+      );
+
+      final state = container.read(subscriptionPromptProvider);
+      expect(state.shouldShowPrompt, isTrue);
+    });
+
+    test('does not show prompt if user already made a choice', () async {
+      // Mark that user already made a choice (preference exists)
+      await sharedPreferences.setBool('daily_jokes_subscribed', false);
+
+      // Recreate container so SubscriptionPromptNotifier initializes from prefs
+      container.dispose();
+      container = ProviderContainer(
+        overrides: [
+          sharedPreferencesInstanceProvider.overrideWithValue(
+            sharedPreferences,
+          ),
+          dailyJokeSubscriptionServiceProvider.overrideWithValue(
+            mockSyncService,
+          ),
+        ],
+      );
+
+      final notifier = container.read(subscriptionPromptProvider.notifier);
+
+      // Give async initializer a moment to populate state
+      await Future<void>.delayed(const Duration(milliseconds: 1));
+
+      notifier.considerPromptAfterJokeViewed(
+        JokeConstants.subscriptionPromptJokesViewedThreshold + 1,
+      );
+
+      final state = container.read(subscriptionPromptProvider);
+      expect(state.shouldShowPrompt, isFalse);
     });
   });
 }

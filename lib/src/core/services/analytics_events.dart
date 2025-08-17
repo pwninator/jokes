@@ -17,6 +17,11 @@ enum AnalyticsEvent {
 
   // Joke sharing events
   jokeShared('joke_shared'),
+  // Share funnel flow events
+  jokeShareInitiated('joke_share_initiated'),
+  jokeShareCanceled('joke_share_canceled'),
+  // Share funnel error events
+  errorJokeShare('error_joke_share'),
 
   // Subscription events
   subscriptionPromptShown('subscription_prompt_shown'),
@@ -30,8 +35,29 @@ enum AnalyticsEvent {
   // Notification events
   notificationTapped('notification_tapped'),
 
+  // Image reliability
+  errorImageLoad('error_image_load'),
+  errorImagePrecache('error_image_precache'),
+  errorJokeImagesMissing('error_joke_images_missing'),
+
+  // Data/content loading
+  errorJokesLoad('error_jokes_load'),
+  errorJokeFetch('error_joke_fetch'),
+
+  // Reactions
+  errorJokeSave('error_joke_save'),
+  errorJokeReaction('error_joke_reaction'),
+
   // App navigation events
   tabChanged('tab_changed'),
+
+  // Navigation/routing
+  errorRouteNavigation('error_route_navigation'),
+
+  // Subscriptions and notifications
+  errorSubscriptionPrompt('error_subscription_prompt'),
+  errorSubscriptionPermission('error_subscription_permission'),
+  errorNotificationHandling('error_notification_handling'),
 
   // Error events
   analyticsError('analytics_error');

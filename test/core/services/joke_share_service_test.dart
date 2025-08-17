@@ -106,6 +106,13 @@ void main() {
         ).thenAnswer((_) async {});
 
         when(
+          () => mockAnalyticsService.logJokeShareInitiated(
+            any(),
+            jokeContext: any(named: 'jokeContext'),
+            shareMethod: any(named: 'shareMethod'),
+          ),
+        ).thenAnswer((_) async {});
+        when(
           () => mockAnalyticsService.logJokeShared(
             any(),
             jokeContext: any(named: 'jokeContext'),
@@ -131,6 +138,13 @@ void main() {
           ),
         ).called(1);
 
+        verify(
+          () => mockAnalyticsService.logJokeShareInitiated(
+            'test-joke-id',
+            jokeContext: 'test-context',
+            shareMethod: 'images',
+          ),
+        ).called(1);
         verify(
           () => mockAnalyticsService.logJokeShared(
             'test-joke-id',
@@ -189,12 +203,27 @@ void main() {
         );
 
         when(
+          () => mockAnalyticsService.logJokeShareInitiated(
+            any(),
+            jokeContext: any(named: 'jokeContext'),
+            shareMethod: any(named: 'shareMethod'),
+          ),
+        ).thenAnswer((_) async {});
+        when(
           () => mockAnalyticsService.logJokeShared(
             any(),
             jokeContext: any(named: 'jokeContext'),
             shareMethod: any(named: 'shareMethod'),
             shareSuccess: any(named: 'shareSuccess'),
             totalJokesShared: any(named: 'totalJokesShared'),
+          ),
+        ).thenAnswer((_) async {});
+        when(
+          () => mockAnalyticsService.logJokeShareCanceled(
+            any(),
+            jokeContext: any(named: 'jokeContext'),
+            shareMethod: any(named: 'shareMethod'),
+            status: any(named: 'status'),
           ),
         ).thenAnswer((_) async {});
 
@@ -207,6 +236,31 @@ void main() {
         // Assert
         expect(result, isFalse);
         expect(await appUsageService.getNumSharedJokes(), 0);
+
+        verify(
+          () => mockAnalyticsService.logJokeShareInitiated(
+            'test-joke-id',
+            jokeContext: 'test-context',
+            shareMethod: 'images',
+          ),
+        ).called(1);
+        verify(
+          () => mockAnalyticsService.logJokeShared(
+            'test-joke-id',
+            jokeContext: 'test-context',
+            shareMethod: 'images',
+            shareSuccess: false,
+            totalJokesShared: any(named: 'totalJokesShared'),
+          ),
+        ).called(1);
+        verify(
+          () => mockAnalyticsService.logJokeShareCanceled(
+            'test-joke-id',
+            jokeContext: 'test-context',
+            shareMethod: 'images',
+            status: any(named: 'status'),
+          ),
+        ).called(1);
       },
     );
   });

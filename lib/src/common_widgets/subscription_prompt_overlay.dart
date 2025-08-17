@@ -62,6 +62,10 @@ class _SubscriptionPromptOverlayState
         await analyticsService.logSubscriptionPromptShown();
       } catch (e) {
         debugPrint('Error showing subscription dialog: $e');
+        await analyticsService.logErrorSubscriptionPrompt(
+          errorMessage: e.toString(),
+          phase: 'show_dialog',
+        );
       } finally {
         if (mounted) {
           _isDialogShowing = false;

@@ -104,6 +104,35 @@ class AnalyticsMocks {
       ),
     ).thenAnswer((_) async {});
 
+    // Share funnel
+    when(
+      () => mock.logJokeShareInitiated(
+        any(),
+        jokeContext: any(named: 'jokeContext'),
+        shareMethod: any(named: 'shareMethod'),
+      ),
+    ).thenAnswer((_) async {});
+
+    when(
+      () => mock.logJokeShareCanceled(
+        any(),
+        jokeContext: any(named: 'jokeContext'),
+        shareMethod: any(named: 'shareMethod'),
+        status: any(named: 'status'),
+      ),
+    ).thenAnswer((_) async {});
+
+    when(
+      () => mock.logErrorJokeShare(
+        any(),
+        jokeContext: any(named: 'jokeContext'),
+        shareMethod: any(named: 'shareMethod'),
+        errorMessage: any(named: 'errorMessage'),
+        errorContext: any(named: 'errorContext'),
+        exceptionType: any(named: 'exceptionType'),
+      ),
+    ).thenAnswer((_) async {});
+
     when(() => mock.logSubscriptionOnSettings()).thenAnswer((_) async {});
     when(() => mock.logSubscriptionOnPrompt()).thenAnswer((_) async {});
     when(() => mock.logSubscriptionOffSettings()).thenAnswer((_) async {});
@@ -124,6 +153,21 @@ class AnalyticsMocks {
 
     when(() => mock.logSubscriptionPromptShown()).thenAnswer((_) async {});
 
+    // Error events
+    when(
+      () => mock.logErrorSubscriptionPrompt(
+        errorMessage: any(named: 'errorMessage'),
+        phase: any(named: 'phase'),
+      ),
+    ).thenAnswer((_) async {});
+
+    when(
+      () => mock.logErrorSubscriptionPermission(
+        source: any(named: 'source'),
+        errorMessage: any(named: 'errorMessage'),
+      ),
+    ).thenAnswer((_) async {});
+
     when(
       () => mock.logNotificationTapped(
         jokeId: any(named: 'jokeId'),
@@ -132,10 +176,74 @@ class AnalyticsMocks {
     ).thenAnswer((_) async {});
 
     when(
+      () => mock.logErrorNotificationHandling(
+        notificationId: any(named: 'notificationId'),
+        phase: any(named: 'phase'),
+        errorMessage: any(named: 'errorMessage'),
+      ),
+    ).thenAnswer((_) async {});
+
+    when(
       () => mock.logTabChanged(any(), any(), method: any(named: 'method')),
     ).thenAnswer((_) async {});
 
+    when(
+      () => mock.logErrorRouteNavigation(
+        previousRoute: any(named: 'previousRoute'),
+        newRoute: any(named: 'newRoute'),
+        method: any(named: 'method'),
+        errorMessage: any(named: 'errorMessage'),
+      ),
+    ).thenAnswer((_) async {});
+
     when(() => mock.logAnalyticsError(any(), any())).thenAnswer((_) async {});
+
+    when(
+      () => mock.logErrorJokeSave(
+        jokeId: any(named: 'jokeId'),
+        action: any(named: 'action'),
+        errorMessage: any(named: 'errorMessage'),
+      ),
+    ).thenAnswer((_) async {});
+
+    when(
+      () => mock.logErrorImagePrecache(
+        jokeId: any(named: 'jokeId'),
+        imageType: any(named: 'imageType'),
+        imageUrlHash: any(named: 'imageUrlHash'),
+        errorMessage: any(named: 'errorMessage'),
+      ),
+    ).thenAnswer((_) async {});
+
+    when(
+      () => mock.logErrorImageLoad(
+        jokeId: any(named: 'jokeId'),
+        imageType: any(named: 'imageType'),
+        imageUrlHash: any(named: 'imageUrlHash'),
+        errorMessage: any(named: 'errorMessage'),
+      ),
+    ).thenAnswer((_) async {});
+
+    when(
+      () => mock.logErrorJokeImagesMissing(
+        jokeId: any(named: 'jokeId'),
+        missingParts: any(named: 'missingParts'),
+      ),
+    ).thenAnswer((_) async {});
+
+    when(
+      () => mock.logErrorJokesLoad(
+        source: any(named: 'source'),
+        errorMessage: any(named: 'errorMessage'),
+      ),
+    ).thenAnswer((_) async {});
+
+    when(
+      () => mock.logErrorJokeFetch(
+        jokeId: any(named: 'jokeId'),
+        errorMessage: any(named: 'errorMessage'),
+      ),
+    ).thenAnswer((_) async {});
   }
 }
 

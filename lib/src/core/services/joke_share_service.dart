@@ -52,6 +52,12 @@ class JokeShareServiceImpl implements JokeShareService {
   @override
   Future<bool> shareJoke(Joke joke, {required String jokeContext}) async {
     // For now, use the images sharing method as default
+    // Track share initiation
+    await _analyticsService.logJokeShareInitiated(
+      joke.id,
+      jokeContext: jokeContext,
+      shareMethod: 'images',
+    );
     // This can be expanded to use different strategies based on joke content
     final shareSuccessful = await _shareJokeImages(
       joke,
@@ -84,6 +90,13 @@ class JokeShareServiceImpl implements JokeShareService {
         shareMethod: 'images',
         shareSuccess: false,
         totalJokesShared: totalShared,
+      );
+      // Distinguish between canceled vs. error based on ShareResult
+      await _analyticsService.logJokeShareCanceled(
+        joke.id,
+        jokeContext: jokeContext,
+        shareMethod: 'images',
+        status: 'canceled_or_failed',
       );
     }
 
@@ -137,6 +150,15 @@ class JokeShareServiceImpl implements JokeShareService {
       shareSuccessful = result.status == ShareResultStatus.success;
     } catch (e) {
       debugPrint('Error sharing joke images: $e');
+      // Log error-specific analytics
+      await _analyticsService.logErrorJokeShare(
+        joke.id,
+        jokeContext: jokeContext,
+        shareMethod: 'images',
+        errorMessage: e.toString(),
+        errorContext: 'share_images',
+        exceptionType: e.runtimeType.toString(),
+      );
       shareSuccessful = false;
     }
 

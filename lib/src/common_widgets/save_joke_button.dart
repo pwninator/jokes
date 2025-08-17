@@ -37,10 +37,20 @@ class SaveJokeButton extends ConsumerWidget {
         final service = ref.read(jokeReactionsServiceProvider);
         final analyticsService = ref.read(analyticsServiceProvider);
 
-        final wasAdded = await service.toggleUserReaction(
-          jokeId,
-          JokeReactionType.save,
-        );
+        bool wasAdded;
+        try {
+          wasAdded = await service.toggleUserReaction(
+            jokeId,
+            JokeReactionType.save,
+          );
+        } catch (e) {
+          await analyticsService.logErrorJokeSave(
+            jokeId: jokeId,
+            action: 'toggle',
+            errorMessage: e.toString(),
+          );
+          return;
+        }
 
         // Log analytics for save state change
         final appUsageService = ref.read(appUsageServiceProvider);

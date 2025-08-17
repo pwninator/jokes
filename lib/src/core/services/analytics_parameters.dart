@@ -44,6 +44,15 @@ class AnalyticsParameters {
   // Timing parameters
   static const String timeSpentMs = 'time_spent_ms';
   static const String sessionDurationMs = 'session_duration_ms';
+
+  // Extended diagnostics
+  static const String phase = 'phase';
+  static const String action = 'action';
+  static const String source = 'source';
+  static const String status = 'status';
+  static const String imageType = 'image_type';
+  static const String imageUrlHash = 'image_url_hash';
+  static const String exceptionType = 'exception_type';
 }
 
 /// User type values for analytics

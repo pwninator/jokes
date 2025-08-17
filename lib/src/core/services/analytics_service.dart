@@ -61,6 +61,31 @@ abstract class AnalyticsService {
     required int totalJokesShared,
   });
 
+  /// Share funnel: user initiated sharing
+  Future<void> logJokeShareInitiated(
+    String jokeId, {
+    required String jokeContext,
+    required String shareMethod,
+  });
+
+  /// Share funnel: user canceled/dismissed share sheet (failure, not error)
+  Future<void> logJokeShareCanceled(
+    String jokeId, {
+    required String jokeContext,
+    required String shareMethod,
+    String? status,
+  });
+
+  /// Share funnel: error occurred during sharing
+  Future<void> logErrorJokeShare(
+    String jokeId, {
+    required String jokeContext,
+    required String shareMethod,
+    required String errorMessage,
+    String? errorContext,
+    String? exceptionType,
+  });
+
   /// Subscription: toggled on in settings
   Future<void> logSubscriptionOnSettings();
 
@@ -85,8 +110,27 @@ abstract class AnalyticsService {
   /// Log when subscription prompt is shown
   Future<void> logSubscriptionPromptShown();
 
+  /// Subscription prompt show/dismiss errors
+  Future<void> logErrorSubscriptionPrompt({
+    required String errorMessage,
+    String? phase,
+  });
+
+  /// Subscription permission errors from prompt/settings flows
+  Future<void> logErrorSubscriptionPermission({
+    required String source,
+    required String errorMessage,
+  });
+
   /// Log when user taps on a notification to open the app
   Future<void> logNotificationTapped({String? jokeId, String? notificationId});
+
+  /// Notification handling errors
+  Future<void> logErrorNotificationHandling({
+    String? notificationId,
+    String? phase,
+    required String errorMessage,
+  });
 
   /// Log tab navigation events
   Future<void> logTabChanged(
@@ -95,8 +139,54 @@ abstract class AnalyticsService {
     required String method,
   });
 
+  /// Route/navigation errors
+  Future<void> logErrorRouteNavigation({
+    String? previousRoute,
+    String? newRoute,
+    String? method,
+    required String errorMessage,
+  });
+
   /// Log errors that occur during analytics
   Future<void> logAnalyticsError(String errorMessage, String context);
+
+  /// Save reaction errors
+  Future<void> logErrorJokeSave({
+    required String jokeId,
+    required String action,
+    required String errorMessage,
+  });
+
+  /// Image-related errors
+  Future<void> logErrorImagePrecache({
+    String? jokeId,
+    String? imageType,
+    String? imageUrlHash,
+    required String errorMessage,
+  });
+
+  Future<void> logErrorImageLoad({
+    String? jokeId,
+    String? imageType,
+    String? imageUrlHash,
+    required String errorMessage,
+  });
+
+  Future<void> logErrorJokeImagesMissing({
+    required String jokeId,
+    required String missingParts,
+  });
+
+  /// Data/content loading errors
+  Future<void> logErrorJokesLoad({
+    required String source,
+    required String errorMessage,
+  });
+
+  Future<void> logErrorJokeFetch({
+    required String jokeId,
+    required String errorMessage,
+  });
 }
 
 /// Firebase Analytics implementation of the analytics service
@@ -260,6 +350,59 @@ class FirebaseAnalyticsService implements AnalyticsService {
   }
 
   @override
+  Future<void> logJokeShareInitiated(
+    String jokeId, {
+    required String jokeContext,
+    required String shareMethod,
+  }) async {
+    await _logEvent(AnalyticsEvent.jokeShared, {
+      AnalyticsParameters.jokeId: jokeId,
+      AnalyticsParameters.jokeContext: jokeContext,
+      AnalyticsParameters.shareMethod: shareMethod,
+      AnalyticsParameters.status: 'initiated',
+      AnalyticsParameters.userType: _getUserType(_currentUser),
+    });
+  }
+
+  @override
+  Future<void> logJokeShareCanceled(
+    String jokeId, {
+    required String jokeContext,
+    required String shareMethod,
+    String? status,
+  }) async {
+    await _logEvent(AnalyticsEvent.jokeShareCanceled, {
+      AnalyticsParameters.jokeId: jokeId,
+      AnalyticsParameters.jokeContext: jokeContext,
+      AnalyticsParameters.shareMethod: shareMethod,
+      if (status != null) AnalyticsParameters.status: status,
+      AnalyticsParameters.userType: _getUserType(_currentUser),
+    });
+  }
+
+  @override
+  Future<void> logErrorJokeShare(
+    String jokeId, {
+    required String jokeContext,
+    required String shareMethod,
+    required String errorMessage,
+    String? errorContext,
+    String? exceptionType,
+  }) async {
+    await _logEvent(AnalyticsEvent.errorJokeShare, {
+      AnalyticsParameters.jokeId: jokeId,
+      AnalyticsParameters.jokeContext: jokeContext,
+      AnalyticsParameters.shareMethod: shareMethod,
+      AnalyticsParameters.errorMessage: errorMessage,
+      if (errorContext != null)
+        AnalyticsParameters.errorContext: errorContext,
+      if (exceptionType != null)
+        AnalyticsParameters.exceptionType: exceptionType,
+      AnalyticsParameters.userType: _getUserType(_currentUser),
+    });
+  }
+
+  @override
   Future<void> logSubscriptionOnSettings() async {
     await _logEvent(AnalyticsEvent.subscriptionOnSettings, {
       AnalyticsParameters.subscriptionSource: SubscriptionSource.settings.value,
@@ -331,6 +474,30 @@ class FirebaseAnalyticsService implements AnalyticsService {
   }
 
   @override
+  Future<void> logErrorSubscriptionPrompt({
+    required String errorMessage,
+    String? phase,
+  }) async {
+    await _logEvent(AnalyticsEvent.errorSubscriptionPrompt, {
+      AnalyticsParameters.errorMessage: errorMessage,
+      if (phase != null) AnalyticsParameters.phase: phase,
+      AnalyticsParameters.userType: _getUserType(_currentUser),
+    });
+  }
+
+  @override
+  Future<void> logErrorSubscriptionPermission({
+    required String source,
+    required String errorMessage,
+  }) async {
+    await _logEvent(AnalyticsEvent.errorSubscriptionPermission, {
+      AnalyticsParameters.source: source,
+      AnalyticsParameters.errorMessage: errorMessage,
+      AnalyticsParameters.userType: _getUserType(_currentUser),
+    });
+  }
+
+  @override
   Future<void> logNotificationTapped({
     String? jokeId,
     String? notificationId,
@@ -339,6 +506,21 @@ class FirebaseAnalyticsService implements AnalyticsService {
       if (jokeId != null) AnalyticsParameters.jokeId: jokeId,
       if (notificationId != null)
         AnalyticsParameters.notificationId: notificationId,
+      AnalyticsParameters.userType: _getUserType(_currentUser),
+    });
+  }
+
+  @override
+  Future<void> logErrorNotificationHandling({
+    String? notificationId,
+    String? phase,
+    required String errorMessage,
+  }) async {
+    await _logEvent(AnalyticsEvent.errorNotificationHandling, {
+      if (notificationId != null)
+        AnalyticsParameters.notificationId: notificationId,
+      if (phase != null) AnalyticsParameters.phase: phase,
+      AnalyticsParameters.errorMessage: errorMessage,
       AnalyticsParameters.userType: _getUserType(_currentUser),
     });
   }
@@ -358,10 +540,108 @@ class FirebaseAnalyticsService implements AnalyticsService {
   }
 
   @override
+  Future<void> logErrorRouteNavigation({
+    String? previousRoute,
+    String? newRoute,
+    String? method,
+    required String errorMessage,
+  }) async {
+    await _logEvent(AnalyticsEvent.errorRouteNavigation, {
+      if (previousRoute != null) AnalyticsParameters.previousTab: previousRoute,
+      if (newRoute != null) AnalyticsParameters.newTab: newRoute,
+      if (method != null) AnalyticsParameters.navigationMethod: method,
+      AnalyticsParameters.errorMessage: errorMessage,
+      AnalyticsParameters.userType: _getUserType(_currentUser),
+    });
+  }
+
+  @override
   Future<void> logAnalyticsError(String errorMessage, String context) async {
     await _logEvent(AnalyticsEvent.analyticsError, {
       AnalyticsParameters.errorMessage: errorMessage,
       AnalyticsParameters.errorContext: context,
+    });
+  }
+
+  @override
+  Future<void> logErrorJokeSave({
+    required String jokeId,
+    required String action,
+    required String errorMessage,
+  }) async {
+    await _logEvent(AnalyticsEvent.errorJokeSave, {
+      AnalyticsParameters.jokeId: jokeId,
+      AnalyticsParameters.action: action,
+      AnalyticsParameters.errorMessage: errorMessage,
+      AnalyticsParameters.userType: _getUserType(_currentUser),
+    });
+  }
+
+  @override
+  Future<void> logErrorImagePrecache({
+    String? jokeId,
+    String? imageType,
+    String? imageUrlHash,
+    required String errorMessage,
+  }) async {
+    await _logEvent(AnalyticsEvent.errorImagePrecache, {
+      if (jokeId != null) AnalyticsParameters.jokeId: jokeId,
+      if (imageType != null) AnalyticsParameters.imageType: imageType,
+      if (imageUrlHash != null) AnalyticsParameters.imageUrlHash: imageUrlHash,
+      AnalyticsParameters.errorMessage: errorMessage,
+      AnalyticsParameters.userType: _getUserType(_currentUser),
+    });
+  }
+
+  @override
+  Future<void> logErrorImageLoad({
+    String? jokeId,
+    String? imageType,
+    String? imageUrlHash,
+    required String errorMessage,
+  }) async {
+    await _logEvent(AnalyticsEvent.errorImageLoad, {
+      if (jokeId != null) AnalyticsParameters.jokeId: jokeId,
+      if (imageType != null) AnalyticsParameters.imageType: imageType,
+      if (imageUrlHash != null) AnalyticsParameters.imageUrlHash: imageUrlHash,
+      AnalyticsParameters.errorMessage: errorMessage,
+      AnalyticsParameters.userType: _getUserType(_currentUser),
+    });
+  }
+
+  @override
+  Future<void> logErrorJokeImagesMissing({
+    required String jokeId,
+    required String missingParts,
+  }) async {
+    await _logEvent(AnalyticsEvent.errorJokeImagesMissing, {
+      AnalyticsParameters.jokeId: jokeId,
+      AnalyticsParameters.errorContext: missingParts,
+      AnalyticsParameters.userType: _getUserType(_currentUser),
+    });
+  }
+
+  @override
+  Future<void> logErrorJokesLoad({
+    required String source,
+    required String errorMessage,
+  }) async {
+    await _logEvent(AnalyticsEvent.errorJokesLoad, {
+      AnalyticsParameters.source: source,
+      AnalyticsParameters.errorMessage: errorMessage,
+      AnalyticsParameters.userType: _getUserType(_currentUser),
+    });
+  }
+
+  @override
+  Future<void> logErrorJokeFetch({
+    required String jokeId,
+    required String errorMessage,
+  }) async {
+    await _logEvent(AnalyticsEvent.errorJokeFetch, {
+      AnalyticsParameters.jokeId: jokeId,
+      AnalyticsParameters.errorMessage: errorMessage,
+      AnalyticsParameters.userType: _getUserType(_currentUser),
     });
   }
 

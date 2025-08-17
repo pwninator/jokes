@@ -148,7 +148,16 @@ class _SubscriptionPromptDialogState
     final subscriptionPromptNotifier = ref.read(
       subscriptionPromptProvider.notifier,
     );
-    final success = await subscriptionPromptNotifier.subscribeUser();
+    bool success = false;
+    try {
+      success = await subscriptionPromptNotifier.subscribeUser();
+    } catch (e) {
+      await analyticsService.logErrorSubscriptionPermission(
+        source: 'prompt',
+        errorMessage: e.toString(),
+      );
+      success = false;
+    }
 
     // Track analytics for subscription result
     if (success) {
@@ -214,7 +223,14 @@ class _SubscriptionPromptDialogState
     final subscriptionPromptNotifier = ref.read(
       subscriptionPromptProvider.notifier,
     );
-    await subscriptionPromptNotifier.dismissPrompt();
+    try {
+      await subscriptionPromptNotifier.dismissPrompt();
+    } catch (e) {
+      await analyticsService.logErrorSubscriptionPrompt(
+        errorMessage: e.toString(),
+        phase: 'dismiss_prompt',
+      );
+    }
 
     if (mounted) {
       Navigator.of(context).pop();

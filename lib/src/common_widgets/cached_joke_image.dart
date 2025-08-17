@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/core/providers/image_providers.dart';
+import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
 
 class CachedJokeImage extends ConsumerWidget {
@@ -45,8 +46,27 @@ class CachedJokeImage extends ConsumerWidget {
           ? (context, url) => _buildLoadingWidget(context)
           : null,
       errorWidget: showErrorIcon
-          ? (context, url, error) => _buildErrorWidget(context)
-          : (context, url, error) => const SizedBox.shrink(),
+          ? (context, url, error) {
+              final analytics = ref.read(analyticsServiceProvider);
+              // Hash the url lightly to avoid logging full URLs
+              final urlHash = url.hashCode.toRadixString(16);
+              analytics.logErrorImageLoad(
+                imageType: null,
+                imageUrlHash: urlHash,
+                errorMessage: error.toString(),
+              );
+              return _buildErrorWidget(context);
+            }
+          : (context, url, error) {
+              final analytics = ref.read(analyticsServiceProvider);
+              final urlHash = url.hashCode.toRadixString(16);
+              analytics.logErrorImageLoad(
+                imageType: null,
+                imageUrlHash: urlHash,
+                errorMessage: error.toString(),
+              );
+              return const SizedBox.shrink();
+            },
       fadeInDuration: const Duration(milliseconds: 300),
       fadeOutDuration: const Duration(milliseconds: 100),
     );

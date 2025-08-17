@@ -36,9 +36,19 @@ class NavigationAnalytics {
     final newTab = _routeToAppTab(newRoute);
 
     // Track tab change if both routes map to tabs
-    if (previousTab != null && newTab != null && previousTab != newTab) {
+    try {
+      if (previousTab != null && newTab != null && previousTab != newTab) {
+        final analyticsService = _ref.read(analyticsServiceProvider);
+        analyticsService.logTabChanged(previousTab, newTab, method: method);
+      }
+    } catch (e) {
       final analyticsService = _ref.read(analyticsServiceProvider);
-      analyticsService.logTabChanged(previousTab, newTab, method: method);
+      analyticsService.logErrorRouteNavigation(
+        previousRoute: previousRoute,
+        newRoute: newRoute,
+        method: method,
+        errorMessage: e.toString(),
+      );
     }
   }
 

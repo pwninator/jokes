@@ -337,6 +337,12 @@ class _JokeViewerScreenState extends ConsumerState<JokeViewerScreen> {
         error: (error, stackTrace) {
           debugPrint('Error loading jokes: $error');
           debugPrint('Stack trace: $stackTrace');
+          // Log domain-specific analytics event for load error
+          final analyticsService = ref.read(analyticsServiceProvider);
+          analyticsService.logErrorJokesLoad(
+            source: widget.jokesProvider == null ? 'monthly' : 'saved',
+            errorMessage: error.toString(),
+          );
           return Center(child: Text('Error loading jokes: $error'));
         },
       ),

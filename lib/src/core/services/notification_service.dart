@@ -80,6 +80,13 @@ class NotificationService {
       }
     } catch (e) {
       debugPrint('Failed to check initial message: $e');
+      if (_analyticsService != null) {
+        await _analyticsService!.logErrorNotificationHandling(
+          notificationId: null,
+          phase: 'initial_message',
+          errorMessage: e.toString(),
+        );
+      }
     }
   }
 
@@ -99,13 +106,30 @@ class NotificationService {
       debugPrint('FCM listeners initialized');
     } catch (e) {
       debugPrint('Failed to initialize FCM listeners: $e');
+      if (_analyticsService != null) {
+        await _analyticsService!.logErrorNotificationHandling(
+          notificationId: null,
+          phase: 'initialize_listeners',
+          errorMessage: e.toString(),
+        );
+      }
     }
   }
 
   /// Handle foreground FCM messages
   Future<void> _handleForegroundMessage(RemoteMessage message) async {
     debugPrint('Received foreground FCM message: ${message.messageId}');
-    await _processJokeNotification(message);
+    try {
+      await _processJokeNotification(message);
+    } catch (e) {
+      if (_analyticsService != null) {
+        await _analyticsService!.logErrorNotificationHandling(
+          notificationId: message.messageId,
+          phase: 'foreground',
+          errorMessage: e.toString(),
+        );
+      }
+    }
   }
 
   /// Handle FCM message when app is opened from notification
@@ -122,7 +146,17 @@ class NotificationService {
     }
 
     // Navigate to jokes screen and scroll to top
-    _navigateToJokesScreen();
+    try {
+      _navigateToJokesScreen();
+    } catch (e) {
+      if (_analyticsService != null) {
+        await _analyticsService!.logErrorNotificationHandling(
+          notificationId: message.messageId,
+          phase: 'tap_navigation',
+          errorMessage: e.toString(),
+        );
+      }
+    }
   }
 
   /// Navigate to jokes screen and reset to first joke
@@ -143,6 +177,13 @@ class NotificationService {
       });
     } catch (e) {
       debugPrint('Failed to navigate to jokes screen: $e');
+      if (_analyticsService != null) {
+        _analyticsService!.logErrorNotificationHandling(
+          notificationId: null,
+          phase: 'navigate_to_jokes',
+          errorMessage: e.toString(),
+        );
+      }
     }
   }
 
@@ -173,6 +214,13 @@ class NotificationService {
     } catch (e) {
       debugPrint('Error processing joke notification: $e');
       // FCM will still show the notification even if image caching fails
+      if (_analyticsService != null) {
+        await _analyticsService!.logErrorNotificationHandling(
+          notificationId: message.messageId,
+          phase: 'process_notification',
+          errorMessage: e.toString(),
+        );
+      }
     }
   }
 
@@ -183,6 +231,12 @@ class NotificationService {
       await imageService.precacheJokeImage(imageUrl);
     } catch (e) {
       debugPrint('Failed to cache image $imageUrl: $e');
+      if (_analyticsService != null) {
+        await _analyticsService!.logErrorImagePrecache(
+          imageUrlHash: imageUrl.hashCode.toRadixString(16),
+          errorMessage: e.toString(),
+        );
+      }
     }
   }
 

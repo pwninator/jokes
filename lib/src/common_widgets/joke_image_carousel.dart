@@ -97,6 +97,14 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
             navigationMethod: _navMethodSetup ?? AnalyticsNavigationMethod.none,
             jokeContext: widget.jokeContext,
           );
+          // If image missing, log error context for missing parts
+          if (widget.joke.setupImageUrl == null ||
+              widget.joke.setupImageUrl!.isEmpty) {
+            await analyticsService.logErrorJokeImagesMissing(
+              jokeId: widget.joke.id,
+              missingParts: 'setup',
+            );
+          }
         }
       } else if (index == 1) {
         _punchlineThresholdMet = true;
@@ -108,6 +116,13 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
                 _navMethodPunchline ?? AnalyticsNavigationMethod.swipe,
             jokeContext: widget.jokeContext,
           );
+          if (widget.joke.punchlineImageUrl == null ||
+              widget.joke.punchlineImageUrl!.isEmpty) {
+            await analyticsService.logErrorJokeImagesMissing(
+              jokeId: widget.joke.id,
+              missingParts: 'punchline',
+            );
+          }
         }
       }
       await _maybeLogJokeFullyViewed();

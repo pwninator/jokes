@@ -3,7 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:snickerdoodle/src/common_widgets/cached_joke_image.dart';
+import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/providers/image_providers.dart';
+import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 
@@ -11,13 +13,16 @@ import '../test_helpers/firebase_mocks.dart';
 
 // Mock classes using mocktail
 class MockImageService extends Mock implements ImageService {}
+class MockAnalyticsService extends Mock implements AnalyticsService {}
 
 void main() {
   group('CachedJokeImage Widget Tests', () {
     late MockImageService mockImageService;
+    late MockAnalyticsService mockAnalyticsService;
 
     setUp(() {
       mockImageService = MockImageService();
+      mockAnalyticsService = MockAnalyticsService();
     });
 
     Widget createTestWidget({
@@ -27,6 +32,7 @@ void main() {
       return ProviderScope(
         overrides: [
           imageServiceProvider.overrideWithValue(mockImageService),
+          analyticsServiceProvider.overrideWithValue(mockAnalyticsService),
           ...FirebaseMocks.getFirebaseProviderOverrides(
             additionalOverrides: additionalOverrides,
           ),
@@ -71,6 +77,14 @@ void main() {
         ).thenReturn(null);
 
         const widget = CachedJokeImage(imageUrl: invalidUrl);
+        when(
+          () => mockAnalyticsService.logErrorImageLoad(
+            jokeId: any(named: 'jokeId'),
+            imageType: any(named: 'imageType'),
+            imageUrlHash: any(named: 'imageUrlHash'),
+            errorMessage: any(named: 'errorMessage'),
+          ),
+        ).thenAnswer((_) async {});
 
         // act
         await tester.pumpWidget(createTestWidget(child: widget));
@@ -104,6 +118,14 @@ void main() {
         ).thenReturn(validUrl);
 
         const widget = CachedJokeImage(imageUrl: validUrl);
+        when(
+          () => mockAnalyticsService.logErrorImageLoad(
+            jokeId: any(named: 'jokeId'),
+            imageType: any(named: 'imageType'),
+            imageUrlHash: any(named: 'imageUrlHash'),
+            errorMessage: any(named: 'errorMessage'),
+          ),
+        ).thenAnswer((_) async {});
 
         // act
         await tester.pumpWidget(createTestWidget(child: widget));

@@ -379,6 +379,85 @@ void main() {
           completes,
         );
       });
+
+      test('exercises new error/flow analytics methods', () async {
+        // act
+        await analyticsService.logJokeShareInitiated(
+          'joke-id',
+          jokeContext: 'ctx',
+          shareMethod: 'images',
+        );
+        await analyticsService.logJokeShareCanceled(
+          'joke-id',
+          jokeContext: 'ctx',
+          shareMethod: 'images',
+          status: 'dismissed',
+        );
+        await analyticsService.logErrorJokeShare(
+          'joke-id',
+          jokeContext: 'ctx',
+          shareMethod: 'images',
+          errorMessage: 'boom',
+          errorContext: 'share_images',
+          exceptionType: 'Exception',
+        );
+        await analyticsService.logErrorSubscriptionPrompt(
+          errorMessage: 'prompt failed',
+          phase: 'show_dialog',
+        );
+        await analyticsService.logErrorSubscriptionPermission(
+          source: 'prompt',
+          errorMessage: 'denied',
+        );
+        await analyticsService.logErrorNotificationHandling(
+          notificationId: 'nid',
+          phase: 'foreground',
+          errorMessage: 'notif error',
+        );
+        await analyticsService.logErrorRouteNavigation(
+          previousRoute: '/a',
+          newRoute: '/b',
+          method: 'programmatic',
+          errorMessage: 'route err',
+        );
+        await analyticsService.logErrorJokeSave(
+          jokeId: 'joke-id',
+          action: 'toggle',
+          errorMessage: 'save err',
+        );
+        await analyticsService.logErrorImagePrecache(
+          jokeId: 'joke-id',
+          imageType: 'setup',
+          imageUrlHash: 'abc',
+          errorMessage: 'cache err',
+        );
+        await analyticsService.logErrorImageLoad(
+          jokeId: 'joke-id',
+          imageType: 'setup',
+          imageUrlHash: 'abc',
+          errorMessage: 'load err',
+        );
+        await analyticsService.logErrorJokeImagesMissing(
+          jokeId: 'joke-id',
+          missingParts: 'setup',
+        );
+        await analyticsService.logErrorJokesLoad(
+          source: 'monthly',
+          errorMessage: 'load err',
+        );
+        await analyticsService.logErrorJokeFetch(
+          jokeId: 'joke-id',
+          errorMessage: 'fetch err',
+        );
+
+        // assert - ensure no Firebase calls in debug mode
+        verifyNever(
+          () => mockFirebaseAnalytics.logEvent(
+            name: any(named: 'name'),
+            parameters: any(named: 'parameters'),
+          ),
+        );
+      });
     });
   });
 }

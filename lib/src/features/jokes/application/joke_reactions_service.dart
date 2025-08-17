@@ -1,19 +1,28 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
 
 final jokeReactionsServiceProvider = Provider<JokeReactionsService>((ref) {
   final jokeRepository = ref.watch(jokeRepositoryProvider);
-  return JokeReactionsService(jokeRepository: jokeRepository);
+  final appUsageService = ref.watch(appUsageServiceProvider);
+  return JokeReactionsService(
+    jokeRepository: jokeRepository,
+    appUsageService: appUsageService,
+  );
 });
 
 class JokeReactionsService {
   final JokeRepository? _jokeRepository;
+  final AppUsageService _appUsageService;
 
-  JokeReactionsService({JokeRepository? jokeRepository})
-    : _jokeRepository = jokeRepository;
+  JokeReactionsService({
+    JokeRepository? jokeRepository,
+    required AppUsageService appUsageService,
+  }) : _jokeRepository = jokeRepository,
+       _appUsageService = appUsageService;
 
   Future<SharedPreferences> get _prefs => SharedPreferences.getInstance();
 
@@ -81,6 +90,11 @@ class JokeReactionsService {
       if (_jokeRepository != null) {
         await _jokeRepository.incrementReaction(jokeId, reactionType);
       }
+
+      // Update usage counters for saved reaction
+      if (reactionType == JokeReactionType.save) {
+        await _appUsageService.incrementSavedJokesCount();
+      }
     }
   }
 
@@ -99,6 +113,11 @@ class JokeReactionsService {
       // Decrement reaction count in repository
       if (_jokeRepository != null) {
         await _jokeRepository.decrementReaction(jokeId, reactionType);
+      }
+
+      // Update usage counters for saved reaction
+      if (reactionType == JokeReactionType.save) {
+        await _appUsageService.decrementSavedJokesCount();
       }
     }
   }

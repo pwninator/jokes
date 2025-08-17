@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
+import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_service.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
@@ -34,16 +35,19 @@ class JokeShareServiceImpl implements JokeShareService {
   final AnalyticsService _analyticsService;
   final JokeReactionsService _reactionsService;
   final PlatformShareService _platformShareService;
+  final AppUsageService _appUsageService;
 
   JokeShareServiceImpl({
     required ImageService imageService,
     required AnalyticsService analyticsService,
     required JokeReactionsService reactionsService,
     required PlatformShareService platformShareService,
+    required AppUsageService appUsageService,
   }) : _imageService = imageService,
        _analyticsService = analyticsService,
        _reactionsService = reactionsService,
-       _platformShareService = platformShareService;
+       _platformShareService = platformShareService,
+       _appUsageService = appUsageService;
 
   @override
   Future<bool> shareJoke(Joke joke, {required String jokeContext}) async {
@@ -59,20 +63,27 @@ class JokeShareServiceImpl implements JokeShareService {
       // Save share reaction to SharedPreferences and increment count in Firestore
       await _reactionsService.addUserReaction(joke.id, JokeReactionType.share);
 
+      // Increment local shared jokes counter
+      await _appUsageService.incrementSharedJokesCount();
+
       // Log successful share analytics
+      final totalShared = await _appUsageService.getNumSharedJokes();
       await _analyticsService.logJokeShared(
         joke.id,
         jokeContext: jokeContext,
         shareMethod: 'images',
         shareSuccess: true,
+        totalJokesShared: totalShared,
       );
     } else {
       // Log failed share attempt
+      final totalShared = await _appUsageService.getNumSharedJokes();
       await _analyticsService.logJokeShared(
         joke.id,
         jokeContext: jokeContext,
         shareMethod: 'images',
         shareSuccess: false,
+        totalJokesShared: totalShared,
       );
     }
 

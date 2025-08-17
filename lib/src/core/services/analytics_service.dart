@@ -17,7 +17,6 @@ abstract class AnalyticsService {
   /// Log when user views a joke setup
   Future<void> logJokeSetupViewed(
     String jokeId, {
-    required bool hasImages,
     required String navigationMethod,
     required String jokeContext,
   });
@@ -25,7 +24,6 @@ abstract class AnalyticsService {
   /// Log when user views a joke punchline
   Future<void> logJokePunchlineViewed(
     String jokeId, {
-    required bool hasImages,
     required String navigationMethod,
     required String jokeContext,
   });
@@ -33,7 +31,7 @@ abstract class AnalyticsService {
   /// Log when a joke is fully viewed (setup and punchline each viewed ≥ 2s sequentially)
   Future<void> logJokeViewed(
     String jokeId, {
-    required bool hasImages,
+    required int totalJokesViewed,
     required String navigationMethod,
     required String jokeContext,
   });
@@ -51,6 +49,7 @@ abstract class AnalyticsService {
     String jokeId,
     bool isAdded, {
     required String jokeContext,
+    required int totalJokesSaved,
   });
 
   /// Log joke share events (when user shares a joke)
@@ -59,6 +58,7 @@ abstract class AnalyticsService {
     required String jokeContext,
     String? shareMethod,
     bool? shareSuccess,
+    required int totalJokesShared,
   });
 
   /// Subscription: toggled on in settings
@@ -168,13 +168,11 @@ class FirebaseAnalyticsService implements AnalyticsService {
   @override
   Future<void> logJokeSetupViewed(
     String jokeId, {
-    required bool hasImages,
     required String navigationMethod,
     required String jokeContext,
   }) async {
     await _logEvent(AnalyticsEvent.jokeSetupViewed, {
       AnalyticsParameters.jokeId: jokeId,
-      AnalyticsParameters.jokeHasImages: hasImages,
       AnalyticsParameters.navigationMethod: navigationMethod,
       AnalyticsParameters.jokeContext: jokeContext,
       AnalyticsParameters.userType: _getUserType(_currentUser),
@@ -184,13 +182,11 @@ class FirebaseAnalyticsService implements AnalyticsService {
   @override
   Future<void> logJokePunchlineViewed(
     String jokeId, {
-    required bool hasImages,
     required String navigationMethod,
     required String jokeContext,
   }) async {
     await _logEvent(AnalyticsEvent.jokePunchlineViewed, {
       AnalyticsParameters.jokeId: jokeId,
-      AnalyticsParameters.jokeHasImages: hasImages,
       AnalyticsParameters.navigationMethod: navigationMethod,
       AnalyticsParameters.jokeContext: jokeContext,
       AnalyticsParameters.userType: _getUserType(_currentUser),
@@ -200,13 +196,13 @@ class FirebaseAnalyticsService implements AnalyticsService {
   @override
   Future<void> logJokeViewed(
     String jokeId, {
-    required bool hasImages,
+    required int totalJokesViewed,
     required String navigationMethod,
     required String jokeContext,
   }) async {
     await _logEvent(AnalyticsEvent.jokeViewed, {
       AnalyticsParameters.jokeId: jokeId,
-      AnalyticsParameters.jokeHasImages: hasImages ? 1 : 0,
+      AnalyticsParameters.totalJokesViewed: totalJokesViewed,
       AnalyticsParameters.navigationMethod: navigationMethod,
       AnalyticsParameters.jokeContext: jokeContext,
       AnalyticsParameters.userType: _getUserType(_currentUser),
@@ -234,11 +230,13 @@ class FirebaseAnalyticsService implements AnalyticsService {
     String jokeId,
     bool isAdded, {
     required String jokeContext,
+    required int totalJokesSaved,
   }) async {
     await _logEvent(AnalyticsEvent.jokeSaved, {
       AnalyticsParameters.jokeId: jokeId,
       AnalyticsParameters.reactionAdded: isAdded,
       AnalyticsParameters.jokeContext: jokeContext,
+      AnalyticsParameters.totalJokesSaved: totalJokesSaved,
       AnalyticsParameters.userType: _getUserType(_currentUser),
     });
   }
@@ -249,11 +247,13 @@ class FirebaseAnalyticsService implements AnalyticsService {
     required String jokeContext,
     String? shareMethod,
     bool? shareSuccess,
+    required int totalJokesShared,
   }) async {
     await _logEvent(AnalyticsEvent.jokeShared, {
       AnalyticsParameters.jokeId: jokeId,
       AnalyticsParameters.jokeContext: jokeContext,
       AnalyticsParameters.userType: _getUserType(_currentUser),
+      AnalyticsParameters.totalJokesShared: totalJokesShared,
       if (shareMethod != null) AnalyticsParameters.shareMethod: shareMethod,
       if (shareSuccess != null) AnalyticsParameters.shareSuccess: shareSuccess,
     });

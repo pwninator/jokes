@@ -1,14 +1,19 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_service.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
 
 void main() {
   group('JokeReactionsService', () {
     late JokeReactionsService service;
+    late AppUsageService appUsageService;
 
-    setUp(() {
-      service = JokeReactionsService();
+    setUp(() async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      appUsageService = AppUsageService(prefs: prefs);
+      service = JokeReactionsService(appUsageService: appUsageService);
     });
 
     tearDown(() async {
@@ -278,6 +283,7 @@ void main() {
           JokeReactionType.save,
         );
         expect(hasReaction, isTrue);
+        expect(await appUsageService.getNumSavedJokes(), 1);
       });
 
       test('removes reaction when present and returns false', () async {
@@ -299,6 +305,7 @@ void main() {
           JokeReactionType.save,
         );
         expect(hasReaction, isFalse);
+        expect(await appUsageService.getNumSavedJokes(), 0);
       });
 
       test('supports multiple toggles correctly', () async {
@@ -315,6 +322,7 @@ void main() {
           await service.hasUserReaction('joke1', JokeReactionType.save),
           isTrue,
         );
+        expect(await appUsageService.getNumSavedJokes(), 1);
 
         // Act & Assert - Second toggle (remove)
         final result2 = await service.toggleUserReaction(
@@ -326,6 +334,7 @@ void main() {
           await service.hasUserReaction('joke1', JokeReactionType.save),
           isFalse,
         );
+        expect(await appUsageService.getNumSavedJokes(), 0);
 
         // Act & Assert - Third toggle (add again)
         final result3 = await service.toggleUserReaction(
@@ -337,6 +346,49 @@ void main() {
           await service.hasUserReaction('joke1', JokeReactionType.save),
           isTrue,
         );
+        expect(await appUsageService.getNumSavedJokes(), 1);
+      });
+    });
+
+    group('non-save reactions do not affect saved counter', () {
+      test('thumbsUp add/remove does not change num_saved_jokes', () async {
+        // Arrange
+        SharedPreferences.setMockInitialValues({});
+        expect(await appUsageService.getNumSavedJokes(), 0);
+
+        // Act - add thumbsUp
+        await service.addUserReaction('j1', JokeReactionType.thumbsUp);
+        // Assert
+        expect(await appUsageService.getNumSavedJokes(), 0);
+
+        // Act - remove thumbsUp
+        await service.removeUserReaction('j1', JokeReactionType.thumbsUp);
+        // Assert
+        expect(await appUsageService.getNumSavedJokes(), 0);
+      });
+
+      test('share reaction does not change num_saved_jokes', () async {
+        // Arrange
+        SharedPreferences.setMockInitialValues({});
+        expect(await appUsageService.getNumSavedJokes(), 0);
+
+        // Act - toggle share (add)
+        final added = await service.toggleUserReaction(
+          'j2',
+          JokeReactionType.share,
+        );
+        expect(added, isTrue);
+        // Assert
+        expect(await appUsageService.getNumSavedJokes(), 0);
+
+        // Act - toggle share (remove)
+        final removed = await service.toggleUserReaction(
+          'j2',
+          JokeReactionType.share,
+        );
+        expect(removed, isFalse);
+        // Assert
+        expect(await appUsageService.getNumSavedJokes(), 0);
       });
     });
   });

@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/providers/image_providers.dart';
+import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/joke_share_service.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_service.dart';
 
@@ -15,11 +16,13 @@ final jokeShareServiceProvider = Provider<JokeShareService>((ref) {
   final analyticsService = ref.watch(analyticsServiceProvider);
   final reactionsService = ref.watch(jokeReactionsServiceProvider);
   final platformShareService = ref.watch(platformShareServiceProvider);
+  final appUsageService = ref.watch(appUsageServiceProvider);
 
   return JokeShareServiceImpl(
     imageService: imageService,
     analyticsService: analyticsService,
     reactionsService: reactionsService,
     platformShareService: platformShareService,
+    appUsageService: appUsageService,
   );
 });

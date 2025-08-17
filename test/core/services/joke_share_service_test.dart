@@ -1,7 +1,9 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
+import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
 import 'package:snickerdoodle/src/core/services/joke_share_service.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_service.dart';
@@ -27,6 +29,7 @@ void main() {
     late MockAnalyticsService mockAnalyticsService;
     late MockJokeReactionsService mockJokeReactionsService;
     late MockPlatformShareService mockPlatformShareService;
+    late AppUsageService appUsageService;
 
     setUpAll(() {
       registerFallbackValue(FakeJoke());
@@ -34,17 +37,22 @@ void main() {
       registerFallbackValue(FakeXFile());
     });
 
-    setUp(() {
+    setUp(() async {
       mockImageService = MockImageService();
       mockAnalyticsService = MockAnalyticsService();
       mockJokeReactionsService = MockJokeReactionsService();
       mockPlatformShareService = MockPlatformShareService();
+      // Real AppUsageService with mock SharedPreferences
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      appUsageService = AppUsageService(prefs: prefs);
 
       service = JokeShareServiceImpl(
         imageService: mockImageService,
         analyticsService: mockAnalyticsService,
         reactionsService: mockJokeReactionsService,
         platformShareService: mockPlatformShareService,
+        appUsageService: appUsageService,
       );
     });
 
@@ -103,6 +111,7 @@ void main() {
             jokeContext: any(named: 'jokeContext'),
             shareMethod: any(named: 'shareMethod'),
             shareSuccess: any(named: 'shareSuccess'),
+            totalJokesShared: any(named: 'totalJokesShared'),
           ),
         ).thenAnswer((_) async {});
 
@@ -128,8 +137,76 @@ void main() {
             jokeContext: 'test-context',
             shareMethod: 'images',
             shareSuccess: true,
+            totalJokesShared: any(named: 'totalJokesShared'),
           ),
         ).called(1);
+        expect(await appUsageService.getNumSharedJokes(), 1);
+      },
+    );
+    test(
+      'shareJoke should not increment shared counter when sharing fails',
+      () async {
+        // Arrange
+        const joke = Joke(
+          id: 'test-joke-id',
+          setupText: 'Test setup',
+          punchlineText: 'Test punchline',
+          setupImageUrl: 'https://example.com/setup.jpg',
+          punchlineImageUrl: 'https://example.com/punchline.jpg',
+          numThumbsUp: 0,
+          numThumbsDown: 0,
+          adminRating: null,
+        );
+
+        final mockFiles = [XFile('setup.jpg'), XFile('punchline.jpg')];
+
+        when(() => mockImageService.precacheJokeImages(any())).thenAnswer(
+          (_) async => (
+            setupUrl: 'https://example.com/setup.jpg',
+            punchlineUrl: 'https://example.com/punchline.jpg',
+          ),
+        );
+
+        when(
+          () => mockImageService.getCachedFileFromUrl(
+            'https://example.com/setup.jpg',
+          ),
+        ).thenAnswer((_) async => mockFiles[0]);
+
+        when(
+          () => mockImageService.getCachedFileFromUrl(
+            'https://example.com/punchline.jpg',
+          ),
+        ).thenAnswer((_) async => mockFiles[1]);
+
+        when(
+          () => mockPlatformShareService.shareFiles(
+            any(),
+            subject: any(named: 'subject'),
+          ),
+        ).thenAnswer(
+          (_) async => const ShareResult('', ShareResultStatus.unavailable),
+        );
+
+        when(
+          () => mockAnalyticsService.logJokeShared(
+            any(),
+            jokeContext: any(named: 'jokeContext'),
+            shareMethod: any(named: 'shareMethod'),
+            shareSuccess: any(named: 'shareSuccess'),
+            totalJokesShared: any(named: 'totalJokesShared'),
+          ),
+        ).thenAnswer((_) async {});
+
+        // Act
+        final result = await service.shareJoke(
+          joke,
+          jokeContext: 'test-context',
+        );
+
+        // Assert
+        expect(result, isFalse);
+        expect(await appUsageService.getNumSharedJokes(), 0);
       },
     );
   });

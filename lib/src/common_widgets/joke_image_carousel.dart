@@ -94,7 +94,6 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
           _setupEventLogged = true;
           await analyticsService.logJokeSetupViewed(
             widget.joke.id,
-            hasImages: _hasBothImages,
             navigationMethod: _navMethodSetup ?? AnalyticsNavigationMethod.none,
             jokeContext: widget.jokeContext,
           );
@@ -105,7 +104,6 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
           _punchlineEventLogged = true;
           await analyticsService.logJokePunchlineViewed(
             widget.joke.id,
-            hasImages: _hasBothImages,
             navigationMethod:
                 _navMethodPunchline ?? AnalyticsNavigationMethod.swipe,
             jokeContext: widget.jokeContext,
@@ -120,16 +118,16 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
     if (_jokeViewedLogged || !_hasBothImages) return;
     if (_setupThresholdMet && _punchlineThresholdMet) {
       _jokeViewedLogged = true;
-      final analyticsService = ref.read(analyticsServiceProvider);
-      await analyticsService.logJokeViewed(
-        widget.joke.id,
-        hasImages: true,
-        navigationMethod: _lastNavigationMethod,
-        jokeContext: widget.jokeContext,
-      );
       final appUsageService = ref.read(appUsageServiceProvider);
       await appUsageService.logJokeViewed();
       final jokesViewedCount = await appUsageService.getNumJokesViewed();
+      final analyticsService = ref.read(analyticsServiceProvider);
+      await analyticsService.logJokeViewed(
+        widget.joke.id,
+        totalJokesViewed: jokesViewedCount,
+        navigationMethod: _lastNavigationMethod,
+        jokeContext: widget.jokeContext,
+      );
       final subscriptionPromptNotifier = ref.read(
         subscriptionPromptProvider.notifier,
       );

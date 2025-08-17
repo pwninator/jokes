@@ -54,7 +54,6 @@ class AnalyticsMocks {
     when(
       () => mock.logJokeSetupViewed(
         any(),
-        hasImages: any(named: 'hasImages'),
         navigationMethod: any(named: 'navigationMethod'),
         jokeContext: any(named: 'jokeContext'),
       ),
@@ -63,7 +62,6 @@ class AnalyticsMocks {
     when(
       () => mock.logJokePunchlineViewed(
         any(),
-        hasImages: any(named: 'hasImages'),
         navigationMethod: any(named: 'navigationMethod'),
         jokeContext: any(named: 'jokeContext'),
       ),
@@ -72,7 +70,7 @@ class AnalyticsMocks {
     when(
       () => mock.logJokeViewed(
         any(),
-        hasImages: any(named: 'hasImages'),
+        totalJokesViewed: any(named: 'totalJokesViewed'),
         navigationMethod: any(named: 'navigationMethod'),
         jokeContext: any(named: 'jokeContext'),
       ),
@@ -92,6 +90,7 @@ class AnalyticsMocks {
         any(),
         any(),
         jokeContext: any(named: 'jokeContext'),
+        totalJokesSaved: any(named: 'totalJokesSaved'),
       ),
     ).thenAnswer((_) async {});
 
@@ -101,6 +100,7 @@ class AnalyticsMocks {
         jokeContext: any(named: 'jokeContext'),
         shareMethod: any(named: 'shareMethod'),
         shareSuccess: any(named: 'shareSuccess'),
+        totalJokesShared: any(named: 'totalJokesShared'),
       ),
     ).thenAnswer((_) async {});
 

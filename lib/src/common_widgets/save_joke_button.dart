@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
+import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_service.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
 
@@ -42,10 +43,13 @@ class SaveJokeButton extends ConsumerWidget {
         );
 
         // Log analytics for save state change
+        final appUsageService = ref.read(appUsageServiceProvider);
+        final totalSaved = await appUsageService.getNumSavedJokes();
         await analyticsService.logJokeSaved(
           jokeId,
           wasAdded, // true if saved, false if unsaved
           jokeContext: jokeContext,
+          totalJokesSaved: totalSaved,
         );
 
         // Invalidate the provider to refresh the UI

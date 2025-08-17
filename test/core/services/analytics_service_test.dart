@@ -145,7 +145,6 @@ void main() {
         // act
         await analyticsService.logJokeSetupViewed(
           'test-joke-id',
-          hasImages: true,
           navigationMethod: AnalyticsNavigationMethod.swipe,
           jokeContext: 'test',
         );
@@ -166,7 +165,6 @@ void main() {
         // act
         await analyticsService.logJokePunchlineViewed(
           'test-joke-id',
-          hasImages: false,
           navigationMethod: AnalyticsNavigationMethod.tap,
           jokeContext: 'test',
         );
@@ -191,6 +189,7 @@ void main() {
           'test-joke-id',
           true,
           jokeContext: 'test',
+          totalJokesSaved: 3,
         );
 
         // assert - in debug mode, we should see debug logging but no Firebase calls
@@ -374,7 +373,6 @@ void main() {
         await expectLater(
           analyticsService.logJokeSetupViewed(
             'test-joke-id',
-            hasImages: true,
             navigationMethod: AnalyticsNavigationMethod.swipe,
             jokeContext: 'test',
           ),

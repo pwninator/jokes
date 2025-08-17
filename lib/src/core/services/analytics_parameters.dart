@@ -11,6 +11,9 @@ class AnalyticsParameters {
   static const String jokeCreationDate = 'joke_creation_date';
   static const String jokeHasImages = 'joke_has_images';
   static const String jokeContext = 'joke_context';
+  static const String totalJokesViewed = 'total_jokes_viewed';
+  static const String totalJokesSaved = 'total_jokes_saved';
+  static const String totalJokesShared = 'total_jokes_shared';
 
   // User interaction parameters
   static const String jokeScrollDepth = 'joke_scroll_depth';

@@ -20,6 +20,8 @@ class AppUsageService {
   static const String _lastUsedDateKey = 'last_used_date';
   static const String _numDaysUsedKey = 'num_days_used';
   static const String _numJokesViewedKey = 'num_jokes_viewed';
+  static const String _numSavedJokesKey = 'num_saved_jokes';
+  static const String _numSharedJokesKey = 'num_shared_jokes';
 
   /// Log app usage for the current launch.
   ///
@@ -72,6 +74,36 @@ class AppUsageService {
     );
   }
 
+  /// Increment the number of saved jokes counter (on save).
+  Future<void> incrementSavedJokesCount() async {
+    final int oldCount = _prefs.getInt(_numSavedJokesKey) ?? 0;
+    final int newCount = oldCount + 1;
+    await _prefs.setInt(_numSavedJokesKey, newCount);
+    debugPrint(
+      'APP_USAGE incrementSavedJokesCount: { num_saved_jokes: $oldCount -> $newCount }',
+    );
+  }
+
+  /// Decrement the number of saved jokes counter (on unsave). Floors at 0.
+  Future<void> decrementSavedJokesCount() async {
+    final int oldCount = _prefs.getInt(_numSavedJokesKey) ?? 0;
+    final int newCount = (oldCount > 0) ? oldCount - 1 : 0;
+    await _prefs.setInt(_numSavedJokesKey, newCount);
+    debugPrint(
+      'APP_USAGE decrementSavedJokesCount: { num_saved_jokes: $oldCount -> $newCount }',
+    );
+  }
+
+  /// Increment the number of shared jokes counter (on successful share).
+  Future<void> incrementSharedJokesCount() async {
+    final int oldCount = _prefs.getInt(_numSharedJokesKey) ?? 0;
+    final int newCount = oldCount + 1;
+    await _prefs.setInt(_numSharedJokesKey, newCount);
+    debugPrint(
+      'APP_USAGE incrementSharedJokesCount: { num_shared_jokes: $oldCount -> $newCount }',
+    );
+  }
+
   /// Getters to read metrics (useful for UI and tests)
   Future<String?> getFirstUsedDate() async =>
       _prefs.getString(_firstUsedDateKey);
@@ -82,6 +114,11 @@ class AppUsageService {
 
   Future<int> getNumJokesViewed() async =>
       _prefs.getInt(_numJokesViewedKey) ?? 0;
+
+  Future<int> getNumSavedJokes() async => _prefs.getInt(_numSavedJokesKey) ?? 0;
+
+  Future<int> getNumSharedJokes() async =>
+      _prefs.getInt(_numSharedJokesKey) ?? 0;
 
   // Returns today's date as yyyy-MM-dd in local time
   String _formatTodayDate() {

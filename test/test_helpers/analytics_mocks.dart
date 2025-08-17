@@ -88,6 +88,13 @@ class AnalyticsMocks {
     when(
       () => mock.logJokeSaved(
         any(),
+        jokeContext: any(named: 'jokeContext'),
+        totalJokesSaved: any(named: 'totalJokesSaved'),
+      ),
+    ).thenAnswer((_) async {});
+
+    when(
+      () => mock.logJokeUnsaved(
         any(),
         jokeContext: any(named: 'jokeContext'),
         totalJokesSaved: any(named: 'totalJokesSaved'),

@@ -55,12 +55,19 @@ class SaveJokeButton extends ConsumerWidget {
         // Log analytics for save state change
         final appUsageService = ref.read(appUsageServiceProvider);
         final totalSaved = await appUsageService.getNumSavedJokes();
-        await analyticsService.logJokeSaved(
-          jokeId,
-          wasAdded, // true if saved, false if unsaved
-          jokeContext: jokeContext,
-          totalJokesSaved: totalSaved,
-        );
+        if (wasAdded) {
+          await analyticsService.logJokeSaved(
+            jokeId,
+            jokeContext: jokeContext,
+            totalJokesSaved: totalSaved,
+          );
+        } else {
+          await analyticsService.logJokeUnsaved(
+            jokeId,
+            jokeContext: jokeContext,
+            totalJokesSaved: totalSaved,
+          );
+        }
 
         // Invalidate the provider to refresh the UI
         ref.invalidate(isJokeSavedProvider(jokeId));

@@ -187,9 +187,25 @@ void main() {
         // act
         await analyticsService.logJokeSaved(
           'test-joke-id',
-          true,
           jokeContext: 'test',
           totalJokesSaved: 3,
+        );
+
+        // assert - in debug mode, we should see debug logging but no Firebase calls
+        verifyNever(
+          () => mockFirebaseAnalytics.logEvent(
+            name: any(named: 'name'),
+            parameters: any(named: 'parameters'),
+          ),
+        );
+      });
+
+      test('should log joke unsave', () async {
+        // act
+        await analyticsService.logJokeUnsaved(
+          'test-joke-id',
+          jokeContext: 'test',
+          totalJokesSaved: 2,
         );
 
         // assert - in debug mode, we should see debug logging but no Firebase calls

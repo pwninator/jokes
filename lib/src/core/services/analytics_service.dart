@@ -44,10 +44,16 @@ abstract class AnalyticsService {
     required String jokeContext,
   });
 
-  /// Log joke save events (when user saves/unsaves a joke)
+  /// Log when a joke is saved
   Future<void> logJokeSaved(
-    String jokeId,
-    bool isAdded, {
+    String jokeId, {
+    required String jokeContext,
+    required int totalJokesSaved,
+  });
+
+  /// Log when a joke is unsaved
+  Future<void> logJokeUnsaved(
+    String jokeId, {
     required String jokeContext,
     required int totalJokesSaved,
   });
@@ -317,14 +323,26 @@ class FirebaseAnalyticsService implements AnalyticsService {
 
   @override
   Future<void> logJokeSaved(
-    String jokeId,
-    bool isAdded, {
+    String jokeId, {
     required String jokeContext,
     required int totalJokesSaved,
   }) async {
     await _logEvent(AnalyticsEvent.jokeSaved, {
       AnalyticsParameters.jokeId: jokeId,
-      AnalyticsParameters.reactionAdded: isAdded,
+      AnalyticsParameters.jokeContext: jokeContext,
+      AnalyticsParameters.totalJokesSaved: totalJokesSaved,
+      AnalyticsParameters.userType: _getUserType(_currentUser),
+    });
+  }
+
+  @override
+  Future<void> logJokeUnsaved(
+    String jokeId, {
+    required String jokeContext,
+    required int totalJokesSaved,
+  }) async {
+    await _logEvent(AnalyticsEvent.jokeUnsaved, {
+      AnalyticsParameters.jokeId: jokeId,
       AnalyticsParameters.jokeContext: jokeContext,
       AnalyticsParameters.totalJokesSaved: totalJokesSaved,
       AnalyticsParameters.userType: _getUserType(_currentUser),
@@ -394,8 +412,7 @@ class FirebaseAnalyticsService implements AnalyticsService {
       AnalyticsParameters.jokeContext: jokeContext,
       AnalyticsParameters.shareMethod: shareMethod,
       AnalyticsParameters.errorMessage: errorMessage,
-      if (errorContext != null)
-        AnalyticsParameters.errorContext: errorContext,
+      if (errorContext != null) AnalyticsParameters.errorContext: errorContext,
       if (exceptionType != null)
         AnalyticsParameters.exceptionType: exceptionType,
       AnalyticsParameters.userType: _getUserType(_currentUser),

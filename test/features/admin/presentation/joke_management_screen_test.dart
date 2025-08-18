@@ -143,9 +143,15 @@ void main() {
         reason: 'Filter bar should be visible',
       );
       expect(
-        find.text('Unrated only'),
+        find.byKey(const Key('unrated-only-filter-chip')),
         findsOneWidget,
         reason: 'Filter chip should be visible',
+      );
+      // Chips should be in a Wrap that can multi-line
+      expect(
+        find.byWidgetPredicate((w) => w is Wrap),
+        findsWidgets,
+        reason: 'Filter chips container should be a Wrap',
       );
 
       // FAB should be visible
@@ -177,7 +183,7 @@ void main() {
 
       // Should show the basic structure with filter bar
       expect(find.text('Filters'), findsOneWidget);
-      expect(find.text('Unrated only'), findsOneWidget);
+      expect(find.byKey(const Key('unrated-only-filter-chip')), findsOneWidget);
 
       // The content area should be in a stable state - either showing content or loading
       // In test environments, async providers may resolve differently than production
@@ -236,6 +242,69 @@ void main() {
       // After navigation, we should be on the editor screen
       expect(find.text('Editor Screen'), findsOneWidget);
       expect(find.text('Filters'), findsNothing);
+    });
+
+    testWidgets('Popular only filter shows only popular jokes', (tester) async {
+      // Arrange: include popular and non-popular jokes
+      final jokes = [
+        const Joke(
+          id: '1',
+          setupText: 'S1',
+          punchlineText: 'P1',
+          setupImageUrl: 'https://example.com/s1.jpg',
+          punchlineImageUrl: 'https://example.com/p1.jpg',
+          numSaves: 0,
+          numShares: 0,
+        ),
+        const Joke(
+          id: '2',
+          setupText: 'S2',
+          punchlineText: 'P2',
+          setupImageUrl: 'https://example.com/s2.jpg',
+          punchlineImageUrl: 'https://example.com/p2.jpg',
+          numSaves: 2,
+          numShares: 0,
+        ),
+        const Joke(
+          id: '3',
+          setupText: 'S3',
+          punchlineText: 'P3',
+          setupImageUrl: 'https://example.com/s3.jpg',
+          punchlineImageUrl: 'https://example.com/p3.jpg',
+          numSaves: 0,
+          numShares: 5,
+        ),
+      ];
+
+      when(
+        () => mockJokeRepository.getJokes(),
+      ).thenAnswer((_) => Stream.value(jokes));
+
+      await tester.pumpWidget(createTestWidget());
+      await tester.pump();
+      await tester.pump();
+
+      // Initially, multiple JokeCards should be present
+      expect(find.byType(JokeCard).evaluate().length, greaterThanOrEqualTo(1));
+
+      // Tap the Popular only filter chip
+      await tester.tap(find.byKey(const Key('popular-only-filter-chip')));
+      await tester.pump();
+
+      // After filtering, joke '1' should not be present
+      expect(find.byKey(const ValueKey('1')), findsNothing);
+
+      // At least one popular joke should be visible immediately
+      expect(find.byKey(const ValueKey('2')), findsWidgets);
+
+      // Try to scroll to reveal more items (ListView.builder is lazy)
+      final listFinder = find.byType(ListView);
+      if (listFinder.evaluate().isNotEmpty) {
+        await tester.drag(listFinder.first, const Offset(0, -500));
+        await tester.pump();
+      }
+      // The second popular joke should be present after scroll
+      expect(find.byKey(const ValueKey('3')), findsWidgets);
     });
   });
 }

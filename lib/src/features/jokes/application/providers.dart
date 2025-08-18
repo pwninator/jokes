@@ -310,16 +310,23 @@ final userReactionsForJokeProvider =
 class JokeFilterState {
   final bool showUnratedOnly;
   final bool showUnscheduledOnly;
+  final bool showPopularOnly; // saves + shares > 0
 
   const JokeFilterState({
     this.showUnratedOnly = false,
     this.showUnscheduledOnly = false,
+    this.showPopularOnly = false,
   });
 
-  JokeFilterState copyWith({bool? showUnratedOnly, bool? showUnscheduledOnly}) {
+  JokeFilterState copyWith({
+    bool? showUnratedOnly,
+    bool? showUnscheduledOnly,
+    bool? showPopularOnly,
+  }) {
     return JokeFilterState(
       showUnratedOnly: showUnratedOnly ?? this.showUnratedOnly,
       showUnscheduledOnly: showUnscheduledOnly ?? this.showUnscheduledOnly,
+      showPopularOnly: showPopularOnly ?? this.showPopularOnly,
     );
   }
 }
@@ -342,6 +349,14 @@ class JokeFilterNotifier extends StateNotifier<JokeFilterState> {
 
   void setUnscheduledOnly(bool value) {
     state = state.copyWith(showUnscheduledOnly: value);
+  }
+
+  void togglePopularOnly() {
+    state = state.copyWith(showPopularOnly: !state.showPopularOnly);
+  }
+
+  void setPopularOnly(bool value) {
+    state = state.copyWith(showPopularOnly: value);
   }
 }
 
@@ -391,6 +406,13 @@ final filteredJokesProvider = Provider<AsyncValue<List<Joke>>>((ref) {
           loading: () => const AsyncValue.loading(),
           error: (error, stackTrace) => AsyncValue.error(error, stackTrace),
         );
+      }
+
+      // Apply popular filter if enabled (saves + shares > 0)
+      if (filterState.showPopularOnly) {
+        filteredJokes = filteredJokes
+            .where((joke) => (joke.numSaves + joke.numShares) > 0)
+            .toList();
       }
 
       return AsyncValue.data(filteredJokes);

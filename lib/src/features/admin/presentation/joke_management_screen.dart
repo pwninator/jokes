@@ -73,37 +73,54 @@ class _JokeManagementScreenState extends ConsumerState<JokeManagementScreen> {
               ),
             ),
             child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Expanded(
-                  child: Text(
-                    'Filters',
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.onSurface.withValues(alpha: 0.8),
-                    ),
+                Text(
+                  'Filters',
+                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withValues(alpha: 0.8),
                   ),
                 ),
-                FilterChip(
-                  key: const Key('unrated-only-filter-chip'),
-                  label: const Text('Unrated only'),
-                  selected: filterState.showUnratedOnly,
-                  onSelected: (selected) {
-                    ref.read(jokeFilterProvider.notifier).toggleUnratedOnly();
-                  },
-                  showCheckmark: true,
-                ),
-                const SizedBox(width: 8),
-                FilterChip(
-                  key: const Key('unscheduled-only-filter-chip'),
-                  label: const Text('Unscheduled only'),
-                  selected: filterState.showUnscheduledOnly,
-                  onSelected: (selected) {
-                    ref
-                        .read(jokeFilterProvider.notifier)
-                        .toggleUnscheduledOnly();
-                  },
-                  showCheckmark: true,
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Wrap(
+                    spacing: 4,
+                    runSpacing: 0,
+                    children: [
+                      _AdminFilterChip(
+                        key: const Key('unrated-only-filter-chip'),
+                        label: 'Unrated',
+                        selected: filterState.showUnratedOnly,
+                        onSelected: (selected) {
+                          ref
+                              .read(jokeFilterProvider.notifier)
+                              .toggleUnratedOnly();
+                        },
+                      ),
+                      _AdminFilterChip(
+                        key: const Key('unscheduled-only-filter-chip'),
+                        label: 'Unscheduled',
+                        selected: filterState.showUnscheduledOnly,
+                        onSelected: (selected) {
+                          ref
+                              .read(jokeFilterProvider.notifier)
+                              .toggleUnscheduledOnly();
+                        },
+                      ),
+                      _AdminFilterChip(
+                        key: const Key('popular-only-filter-chip'),
+                        label: 'Popular',
+                        selected: filterState.showPopularOnly,
+                        onSelected: (selected) {
+                          ref
+                              .read(jokeFilterProvider.notifier)
+                              .togglePopularOnly();
+                        },
+                      ),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -206,6 +223,34 @@ class _JokeManagementScreenState extends ConsumerState<JokeManagementScreen> {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _AdminFilterChip extends StatelessWidget {
+  const _AdminFilterChip({
+    super.key,
+    required this.label,
+    required this.selected,
+    required this.onSelected,
+  });
+
+  final String label;
+  final bool selected;
+  final ValueChanged<bool> onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    return FilterChip(
+      label: Text(
+        label,
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(fontSize: 12),
+      ),
+      labelPadding: const EdgeInsets.symmetric(horizontal: 0),
+      visualDensity: VisualDensity.compact,
+      selected: selected,
+      onSelected: onSelected,
+      showCheckmark: true,
     );
   }
 }

@@ -19,7 +19,10 @@ void main() {
         overrides: FirebaseMocks.getFirebaseProviderOverrides(
           additionalOverrides: additionalOverrides,
         ),
-        child: MaterialApp(theme: lightTheme, home: Scaffold(body: child)),
+        child: MaterialApp(
+          theme: lightTheme,
+          home: Scaffold(body: child),
+        ),
       );
     }
 
@@ -147,11 +150,10 @@ void main() {
           punchlineText: 'Test punchline',
         );
 
-        bool setupTapCalled = false;
         final widget = JokeCard(
           joke: joke,
           index: 5,
-          onSetupTap: () => setupTapCalled = true,
+          onSetupTap: () {},
           jokeContext: 'test',
         );
 
@@ -179,13 +181,11 @@ void main() {
           punchlineImageUrl: 'https://example.com/punchline.jpg',
         );
 
-        bool setupTapCalled = false;
-        bool punchlineTapCalled = false;
         final widget = JokeCard(
           joke: joke,
           index: 3,
-          onSetupTap: () => setupTapCalled = true,
-          onPunchlineTap: () => punchlineTapCalled = true,
+          onSetupTap: () {},
+          onPunchlineTap: () {},
           jokeContext: 'test',
         );
 
@@ -200,6 +200,9 @@ void main() {
         expect(jokeImageCarousel.index, equals(3));
         expect(jokeImageCarousel.onSetupTap, isNotNull);
         expect(jokeImageCarousel.onPunchlineTap, isNotNull);
+        // Defaults
+        expect(jokeImageCarousel.showSaveButton, isFalse);
+        expect(jokeImageCarousel.showShareButton, isFalse);
       });
 
       testWidgets('should pass isAdminMode to JokeImageCarousel when enabled', (
@@ -230,6 +233,68 @@ void main() {
         );
         expect(jokeImageCarousel.isAdminMode, isTrue);
       });
+    });
+
+    group('Counts and Buttons Flags', () {
+      testWidgets('defaults to not showing save/share buttons and counts', (
+        tester,
+      ) async {
+        // arrange
+        const joke = Joke(
+          id: '1',
+          setupText: 'Test setup',
+          punchlineText: 'Test punchline',
+          setupImageUrl: 'https://example.com/setup.jpg',
+          punchlineImageUrl: 'https://example.com/punchline.jpg',
+        );
+
+        const widget = JokeCard(joke: joke, jokeContext: 'test');
+
+        // act
+        await tester.pumpWidget(createTestWidget(child: widget));
+
+        // assert
+        final carousel = tester.widget<JokeImageCarousel>(
+          find.byType(JokeImageCarousel),
+        );
+        expect(carousel.showSaveButton, isFalse);
+        expect(carousel.showShareButton, isFalse);
+        expect(carousel.showNumSaves, isFalse);
+        expect(carousel.showNumShares, isFalse);
+      });
+
+      testWidgets(
+        'can enable counts (num saves/shares) flags and reflect in child',
+        (tester) async {
+          // arrange
+          const joke = Joke(
+            id: '1',
+            setupText: 'Test setup',
+            punchlineText: 'Test punchline',
+            setupImageUrl: 'https://example.com/setup.jpg',
+            punchlineImageUrl: 'https://example.com/punchline.jpg',
+            numSaves: 2,
+            numShares: 3,
+          );
+
+          const widget = JokeCard(
+            joke: joke,
+            jokeContext: 'test',
+            showNumSaves: true,
+            showNumShares: true,
+          );
+
+          // act
+          await tester.pumpWidget(createTestWidget(child: widget));
+
+          // assert
+          final carousel = tester.widget<JokeImageCarousel>(
+            find.byType(JokeImageCarousel),
+          );
+          expect(carousel.showNumSaves, isTrue);
+          expect(carousel.showNumShares, isTrue);
+        },
+      );
     });
 
     group('Edge Cases', () {

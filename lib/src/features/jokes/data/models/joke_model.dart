@@ -15,6 +15,8 @@ class Joke {
   final Map<String, dynamic>? generationMetadata;
   final int numThumbsUp;
   final int numThumbsDown;
+  final int numSaves;
+  final int numShares;
   final JokeAdminRating? adminRating;
 
   const Joke({
@@ -30,6 +32,8 @@ class Joke {
     this.generationMetadata,
     this.numThumbsUp = 0,
     this.numThumbsDown = 0,
+    this.numSaves = 0,
+    this.numShares = 0,
     this.adminRating,
   });
 
@@ -46,6 +50,8 @@ class Joke {
     Map<String, dynamic>? generationMetadata,
     int? numThumbsUp,
     int? numThumbsDown,
+    int? numSaves,
+    int? numShares,
     JokeAdminRating? adminRating,
   }) {
     return Joke(
@@ -64,6 +70,8 @@ class Joke {
       generationMetadata: generationMetadata ?? this.generationMetadata,
       numThumbsUp: numThumbsUp ?? this.numThumbsUp,
       numThumbsDown: numThumbsDown ?? this.numThumbsDown,
+      numSaves: numSaves ?? this.numSaves,
+      numShares: numShares ?? this.numShares,
       adminRating: adminRating ?? this.adminRating,
     );
   }
@@ -81,6 +89,8 @@ class Joke {
       'generation_metadata': generationMetadata,
       'num_thumbs_up': numThumbsUp,
       'num_thumbs_down': numThumbsDown,
+      'num_saves': numSaves,
+      'num_shares': numShares,
       'admin_rating': adminRating?.value,
     };
   }
@@ -101,6 +111,8 @@ class Joke {
       generationMetadata: map['generation_metadata'] as Map<String, dynamic>?,
       numThumbsUp: (map['num_thumbs_up'] as num?)?.toInt() ?? 0,
       numThumbsDown: (map['num_thumbs_down'] as num?)?.toInt() ?? 0,
+      numSaves: (map['num_saves'] as num?)?.toInt() ?? 0,
+      numShares: (map['num_shares'] as num?)?.toInt() ?? 0,
       adminRating: JokeAdminRating.fromString(map['admin_rating'] as String?),
     );
   }
@@ -112,7 +124,7 @@ class Joke {
 
   @override
   String toString() =>
-      'Joke(id: $id, setupText: $setupText, punchlineText: $punchlineText, setupImageUrl: $setupImageUrl, punchlineImageUrl: $punchlineImageUrl, setupImageDescription: $setupImageDescription, punchlineImageDescription: $punchlineImageDescription, allSetupImageUrls: $allSetupImageUrls, allPunchlineImageUrls: $allPunchlineImageUrls, generationMetadata: $generationMetadata, numThumbsUp: $numThumbsUp, numThumbsDown: $numThumbsDown, adminRating: $adminRating)';
+      'Joke(id: $id, setupText: $setupText, punchlineText: $punchlineText, setupImageUrl: $setupImageUrl, punchlineImageUrl: $punchlineImageUrl, setupImageDescription: $setupImageDescription, punchlineImageDescription: $punchlineImageDescription, allSetupImageUrls: $allSetupImageUrls, allPunchlineImageUrls: $allPunchlineImageUrls, generationMetadata: $generationMetadata, numThumbsUp: $numThumbsUp, numThumbsDown: $numThumbsDown, numSaves: $numSaves, numShares: $numShares, adminRating: $adminRating)';
 
   @override
   bool operator ==(Object other) {
@@ -131,6 +143,8 @@ class Joke {
         mapEquals(other.generationMetadata, generationMetadata) &&
         other.numThumbsUp == numThumbsUp &&
         other.numThumbsDown == numThumbsDown &&
+        other.numSaves == numSaves &&
+        other.numShares == numShares &&
         other.adminRating == adminRating;
   }
 
@@ -148,5 +162,7 @@ class Joke {
       generationMetadata.hashCode ^
       numThumbsUp.hashCode ^
       numThumbsDown.hashCode ^
+      numSaves.hashCode ^
+      numShares.hashCode ^
       adminRating.hashCode;
 }

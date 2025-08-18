@@ -111,99 +111,97 @@ class _JokeManagementScreenState extends ConsumerState<JokeManagementScreen> {
           // Jokes list
           Expanded(
             child: jokesAsync.when(
-              data:
-                  (jokes) =>
-                      jokes.isEmpty
-                          ? Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.mood_bad,
-                                  size: 64,
-                                  color: Theme.of(context).colorScheme.onSurface
-                                      .withValues(alpha: 0.4),
-                                ),
-                                const SizedBox(height: 16),
-                                Text(
-                                  _getEmptyStateTitle(filterState),
-                                  style: TextStyle(
-                                    fontSize: 18,
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .onSurface
-                                        .withValues(alpha: 0.6),
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  _getEmptyStateSubtitle(filterState),
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .onSurface
-                                        .withValues(alpha: 0.5),
-                                  ),
-                                  textAlign: TextAlign.center,
-                                ),
-                              ],
+              data: (jokes) => jokes.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.mood_bad,
+                            size: 64,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurface.withValues(alpha: 0.4),
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            _getEmptyStateTitle(filterState),
+                            style: TextStyle(
+                              fontSize: 18,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurface.withValues(alpha: 0.6),
                             ),
-                          )
-                          : ListView.builder(
-                            padding: const EdgeInsets.all(8.0),
-                            itemCount: jokes.length,
-                            itemBuilder: (context, index) {
-                              final joke = jokes[index];
-                              return JokeCard(
-                                key: Key(joke.id),
-                                joke: joke,
-                                index: index,
-                                isAdminMode: true,
-                                showSaveButton: false,
-                                showThumbsButtons: true,
-                                jokeContext: 'admin',
-                              );
-                            },
                           ),
-              loading:
-                  () => const Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        CircularProgressIndicator(),
-                        SizedBox(height: 16),
-                        Text('Loading jokes...'),
-                      ],
-                    ),
-                  ),
-              error:
-                  (error, stackTrace) => Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.error_outline,
-                          size: 64,
-                          color: Theme.of(context).colorScheme.error,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'Error loading jokes',
-                          style: TextStyle(
-                            fontSize: 18,
-                            color: Theme.of(context).colorScheme.error,
+                          const SizedBox(height: 8),
+                          Text(
+                            _getEmptyStateSubtitle(filterState),
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurface.withValues(alpha: 0.5),
+                            ),
+                            textAlign: TextAlign.center,
                           ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          error.toString(),
-                          style: const TextStyle(fontSize: 14),
-                          textAlign: TextAlign.center,
-                        ),
-                      ],
+                        ],
+                      ),
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.all(8.0),
+                      itemCount: jokes.length,
+                      itemBuilder: (context, index) {
+                        final joke = jokes[index];
+                        return JokeCard(
+                          key: Key(joke.id),
+                          joke: joke,
+                          index: index,
+                          isAdminMode: true,
+                          showSaveButton: false,
+                          showShareButton: false,
+                          showThumbsButtons: true,
+                          showNumSaves: true,
+                          showNumShares: true,
+                          jokeContext: 'admin',
+                        );
+                      },
                     ),
-                  ),
+              loading: () => const Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    CircularProgressIndicator(),
+                    SizedBox(height: 16),
+                    Text('Loading jokes...'),
+                  ],
+                ),
+              ),
+              error: (error, stackTrace) => Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.error_outline,
+                      size: 64,
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Error loading jokes',
+                      style: TextStyle(
+                        fontSize: 18,
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      error.toString(),
+                      style: const TextStyle(fontSize: 14),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
         ],

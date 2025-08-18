@@ -41,6 +41,8 @@ void main() {
         'generation_metadata': null,
         'num_thumbs_up': 0,
         'num_thumbs_down': 0,
+        'num_saves': 0,
+        'num_shares': 0,
         'admin_rating': null,
       };
       expect(result, expected);
@@ -137,6 +139,8 @@ void main() {
         punchlineText: 'Because he was outstanding in his field!',
         numThumbsUp: 5,
         numThumbsDown: 2,
+        numSaves: 7,
+        numShares: 9,
       );
 
       // act
@@ -145,8 +149,12 @@ void main() {
       // assert
       expect(result['num_thumbs_up'], 5);
       expect(result['num_thumbs_down'], 2);
+      expect(result['num_saves'], 7);
+      expect(result['num_shares'], 9);
       expect(jokeWithReactions.numThumbsUp, 5);
       expect(jokeWithReactions.numThumbsDown, 2);
+      expect(jokeWithReactions.numSaves, 7);
+      expect(jokeWithReactions.numShares, 9);
     });
 
     test('should create joke from map with reaction counts', () {
@@ -156,6 +164,8 @@ void main() {
         'punchline_text': 'Because he was outstanding in his field!',
         'num_thumbs_up': 10,
         'num_thumbs_down': 3,
+        'num_saves': 4,
+        'num_shares': 6,
       };
 
       // act
@@ -164,6 +174,8 @@ void main() {
       // assert
       expect(result.numThumbsUp, 10);
       expect(result.numThumbsDown, 3);
+      expect(result.numSaves, 4);
+      expect(result.numShares, 6);
     });
 
     test('should handle copyWith with reaction counts', () {
@@ -186,6 +198,8 @@ void main() {
         punchlineText: 'test',
         numThumbsUp: 5,
         numThumbsDown: 2,
+        numSaves: 1,
+        numShares: 1,
       );
       const joke2 = Joke(
         id: '1',
@@ -193,6 +207,8 @@ void main() {
         punchlineText: 'test',
         numThumbsUp: 5,
         numThumbsDown: 2,
+        numSaves: 1,
+        numShares: 1,
       );
       const joke3 = Joke(
         id: '1',
@@ -200,6 +216,8 @@ void main() {
         punchlineText: 'test',
         numThumbsUp: 3,
         numThumbsDown: 2,
+        numSaves: 1,
+        numShares: 1,
       );
 
       // assert

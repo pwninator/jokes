@@ -31,6 +31,8 @@ class JokeImageCarousel extends ConsumerStatefulWidget {
   final bool showSaveButton;
   final bool showShareButton;
   final bool showThumbsButtons;
+  final bool showNumSaves;
+  final bool showNumShares;
   final String? title;
   final String jokeContext;
 
@@ -46,6 +48,8 @@ class JokeImageCarousel extends ConsumerStatefulWidget {
     this.showSaveButton = true,
     this.showShareButton = false,
     this.showThumbsButtons = false,
+    this.showNumSaves = false,
+    this.showNumShares = false,
     this.title,
     required this.jokeContext,
   });
@@ -647,11 +651,11 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
             ),
           ),
 
-          // Page indicators and reaction buttons row
+          // Page indicators and reaction/count buttons row
           Row(
             children: [
               // Left spacer
-              const Expanded(child: SizedBox()),
+              Expanded(child: _buildLeftCounts()),
 
               // Page indicators (centered)
               SmoothPageIndicator(
@@ -867,6 +871,58 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
     return Align(
       alignment: Alignment.centerRight,
       child: Row(mainAxisSize: MainAxisSize.min, children: buttons),
+    );
+  }
+
+  Widget _buildLeftCounts() {
+    final List<Widget> items = [];
+
+    if (widget.showNumSaves) {
+      final Color saveColor = widget.joke.numSaves > 0
+          ? Colors.red.withValues(alpha: 0.9)
+          : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4);
+      items.add(
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.favorite, size: 20, color: saveColor),
+            const SizedBox(width: 4),
+            Text(
+              '${widget.joke.numSaves}',
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (widget.showNumShares) {
+      if (items.isNotEmpty) items.add(const SizedBox(width: 12));
+      final Color shareColor = widget.joke.numShares > 0
+          ? Colors.blue.withValues(alpha: 0.9)
+          : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4);
+      items.add(
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.share, size: 20, color: shareColor),
+            const SizedBox(width: 4),
+            Text(
+              '${widget.joke.numShares}',
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+            ),
+          ],
+        ),
+      );
+    }
+
+    if (items.isEmpty) {
+      return const SizedBox();
+    }
+
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Row(mainAxisSize: MainAxisSize.min, children: items),
     );
   }
 }

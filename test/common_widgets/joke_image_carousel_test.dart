@@ -16,6 +16,72 @@ import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_reposito
 
 import '../test_helpers/firebase_mocks.dart';
 
+void main() {
+  Widget createTestWidget({required Widget child}) {
+    return ProviderScope(
+      overrides: FirebaseMocks.getFirebaseProviderOverrides(),
+      child: MaterialApp(
+        theme: lightTheme,
+        home: Scaffold(body: child),
+      ),
+    );
+  }
+
+  group('JokeImageCarousel Counts Icons', () {
+    testWidgets('icons are gray when counts are 0', (tester) async {
+      const joke = Joke(
+        id: '1',
+        setupText: 'setup',
+        punchlineText: 'punch',
+        setupImageUrl: 'https://example.com/a.jpg',
+        punchlineImageUrl: 'https://example.com/b.jpg',
+        numSaves: 0,
+        numShares: 0,
+      );
+
+      const widget = JokeImageCarousel(
+        joke: joke,
+        showNumSaves: true,
+        showNumShares: true,
+        jokeContext: 'test',
+      );
+
+      await tester.pumpWidget(createTestWidget(child: widget));
+
+      // We can only assert presence, not exact color easily.
+      expect(find.byIcon(Icons.favorite), findsOneWidget);
+      expect(find.byIcon(Icons.share), findsOneWidget);
+      expect(find.text('0'), findsNWidgets(2));
+    });
+
+    testWidgets('icons are colored when counts are > 0', (tester) async {
+      const joke = Joke(
+        id: '1',
+        setupText: 'setup',
+        punchlineText: 'punch',
+        setupImageUrl: 'https://example.com/a.jpg',
+        punchlineImageUrl: 'https://example.com/b.jpg',
+        numSaves: 1,
+        numShares: 2,
+      );
+
+      const widget = JokeImageCarousel(
+        joke: joke,
+        showNumSaves: true,
+        showNumShares: true,
+        jokeContext: 'test',
+      );
+
+      await tester.pumpWidget(createTestWidget(child: widget));
+
+      expect(find.byIcon(Icons.favorite), findsOneWidget);
+      expect(find.byIcon(Icons.share), findsOneWidget);
+      expect(find.text('1'), findsOneWidget);
+      expect(find.text('2'), findsOneWidget);
+    });
+  });
+}
+
 // Mock class for ImageService
 class MockImageService extends Mock implements ImageService {}
 
@@ -25,7 +91,7 @@ class MockJokeRepository extends Mock implements JokeRepository {}
 // Fake class for Mocktail fallback values
 class FakeJoke extends Fake implements Joke {}
 
-void main() {
+void mainCountsAndButtonsSuite() {
   late MockImageService mockImageService;
   late MockJokeRepository mockJokeRepository;
 
@@ -624,10 +690,7 @@ void main() {
 
         // assert
         expect(find.byType(SaveJokeButton), findsNothing);
-        expect(
-          find.byType(AdminThumbsButtons),
-          findsOneWidget,
-        );
+        expect(find.byType(AdminThumbsButtons), findsOneWidget);
       });
 
       testWidgets('hides thumbs buttons when showThumbsButtons is false', (
@@ -683,10 +746,7 @@ void main() {
 
           // assert - both save and thumbs buttons can be shown simultaneously
           expect(find.byType(SaveJokeButton), findsOneWidget);
-          expect(
-            find.byType(AdminThumbsButtons),
-            findsOneWidget,
-          );
+          expect(find.byType(AdminThumbsButtons), findsOneWidget);
         },
       );
 

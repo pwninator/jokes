@@ -18,16 +18,16 @@ class AuthWrapper extends ConsumerWidget {
           // This screen shouldn't be shown when user is authenticated
           return const _LoadingScreen();
         } else {
-          // No user, attempt anonymous sign-in
+          // No user, ensure a session exists (restored or anonymous)
           return FutureBuilder(
-            future: authController.signInAnonymously(),
+            future: authController.ensureSignedIn(),
             builder: (context, snapshot) {
               if (snapshot.connectionState == ConnectionState.waiting) {
                 return const _LoadingScreen();
               } else if (snapshot.hasError) {
                 return _ErrorScreen(
                   error: snapshot.error.toString(),
-                  onRetry: () => authController.signInAnonymously(),
+                  onRetry: () => authController.ensureSignedIn(),
                 );
               } else {
                 // This shouldn't happen as the auth state should update
@@ -38,11 +38,10 @@ class AuthWrapper extends ConsumerWidget {
         }
       },
       loading: () => const _LoadingScreen(),
-      error:
-          (error, stackTrace) => _ErrorScreen(
-            error: error.toString(),
-            onRetry: () => authController.signInAnonymously(),
-          ),
+      error: (error, stackTrace) => _ErrorScreen(
+        error: error.toString(),
+        onRetry: () => authController.signInAnonymously(),
+      ),
     );
   }
 }

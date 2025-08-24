@@ -143,10 +143,32 @@ class AuthMocks {
       ),
     );
     when(() => mock.signOut()).thenAnswer((_) async {});
+    when(
+      () => mock.ensureSignedIn(waitForRestore: any(named: 'waitForRestore')),
+    ).thenAnswer(
+      (_) async => const AppUser(
+        id: 'test-user',
+        email: 'test@example.com',
+        displayName: 'Test User',
+        isAnonymous: false,
+        role: UserRole.user,
+      ),
+    );
   }
 
   static void _setupAuthControllerDefaults(MockAuthController mock) {
     // Setup default behaviors that won't throw
+    when(
+      () => mock.ensureSignedIn(waitForRestore: any(named: 'waitForRestore')),
+    ).thenAnswer(
+      (_) async => const AppUser(
+        id: 'test-user',
+        email: 'test@example.com',
+        displayName: 'Test User',
+        isAnonymous: false,
+        role: UserRole.user,
+      ),
+    );
     when(() => mock.signInAnonymously()).thenAnswer((_) async {});
     when(() => mock.signInWithGoogle()).thenAnswer((_) async {});
     when(() => mock.signOut()).thenAnswer((_) async {});

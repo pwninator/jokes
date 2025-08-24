@@ -11,9 +11,7 @@ final firebaseAuthProvider = Provider<FirebaseAuth>((ref) {
 
 /// Provider for GoogleSignIn instance
 final googleSignInProvider = Provider<GoogleSignIn>((ref) {
-  return GoogleSignIn(
-    scopes: ['email', 'profile'],
-  );
+  return GoogleSignIn(scopes: ['email', 'profile']);
 });
 
 /// Provider for AuthRepository
@@ -69,6 +67,12 @@ class AuthController {
   final AuthRepository _authRepository;
 
   AuthController(this._authRepository);
+
+  Future<AppUser> ensureSignedIn({
+    Duration waitForRestore = const Duration(milliseconds: 1500),
+  }) async {
+    return _authRepository.ensureSignedIn(waitForRestore: waitForRestore);
+  }
 
   Future<void> signInAnonymously() async {
     await _authRepository.signInAnonymously();

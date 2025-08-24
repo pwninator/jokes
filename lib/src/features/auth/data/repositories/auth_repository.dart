@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -8,6 +10,9 @@ class AuthRepository {
   final GoogleSignIn _googleSignIn;
 
   AuthRepository(this._firebaseAuth, this._googleSignIn);
+
+  /// Tracks an in-flight ensureSignedIn call to prevent duplicates
+  Future<AppUser>? _ensureInFlight;
 
   /// Stream of authentication state changes
   Stream<AppUser?> get authStateChanges {
@@ -39,6 +44,65 @@ class AuthRepository {
       debugPrint('DEBUG: Stack trace: $stackTrace');
       throw AuthException('Failed to sign in anonymously: $e');
     }
+  }
+
+  /// Ensure there is a signed-in user.
+  ///
+  /// - If a user is already restored/present, return it.
+  /// - Otherwise wait briefly for Firebase to restore a previous session.
+  /// - If still no user, sign in anonymously and return that user.
+  Future<AppUser> ensureSignedIn({
+    Duration waitForRestore = const Duration(milliseconds: 1500),
+  }) async {
+    // De-duplicate concurrent calls
+    if (_ensureInFlight != null) {
+      return _ensureInFlight!;
+    }
+
+    Future<AppUser> run() async {
+      try {
+        // If already signed in, return immediately
+        final existingUser = _firebaseAuth.currentUser;
+        if (existingUser != null) {
+          debugPrint(
+            'DEBUG: ensureSignedIn - existing user detected: ${existingUser.uid}',
+          );
+          return _createAppUser(existingUser);
+        }
+
+        // Wait briefly for auth restoration to complete
+        try {
+          final restoredFirebaseUser = await _firebaseAuth
+              .authStateChanges()
+              .where((user) => user != null)
+              .cast<User>()
+              .first
+              .timeout(waitForRestore);
+
+          debugPrint(
+            'DEBUG: ensureSignedIn - restored user detected: ${restoredFirebaseUser.uid}',
+          );
+          return _createAppUser(restoredFirebaseUser);
+        } on TimeoutException {
+          debugPrint(
+            'DEBUG: ensureSignedIn - restoration timeout exceeded, signing in anonymously',
+          );
+        } catch (e) {
+          debugPrint(
+            'DEBUG: ensureSignedIn - error while waiting for restoration: $e',
+          );
+        }
+
+        // No restored user, sign in anonymously
+        return await signInAnonymously();
+      } finally {
+        // Clear in-flight tracker after completion
+        _ensureInFlight = null;
+      }
+    }
+
+    _ensureInFlight = run();
+    return _ensureInFlight!;
   }
 
   Future<AppUser> signInWithGoogle() async {

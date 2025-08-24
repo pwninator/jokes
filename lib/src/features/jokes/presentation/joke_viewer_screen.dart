@@ -143,11 +143,6 @@ class _JokeViewerScreenState extends ConsumerState<JokeViewerScreen> {
             : const EdgeInsets.only(left: 16, right: 16, bottom: 16),
         child: ElevatedButton(
           key: const Key('joke_viewer_cta_button'),
-          style: ElevatedButton.styleFrom(
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(10),
-            ),
-          ),
           onPressed: disabled
               ? null
               : () {

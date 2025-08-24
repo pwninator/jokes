@@ -23,47 +23,80 @@ const AppBarTheme appBarTheme = AppBarTheme(
   elevation: 0,
 );
 
-final ThemeData lightTheme = ThemeData.from(
-  colorScheme: lightColorScheme,
-  textTheme: textTheme,
-).copyWith(
-  extensions: [AppColorExtension.light],
-  appBarTheme: appBarTheme,
-  elevatedButtonTheme: ElevatedButtonThemeData(
-    style: ElevatedButton.styleFrom(
-      backgroundColor: lightColorScheme.primary,
-      foregroundColor: lightColorScheme.onPrimary,
-    ),
-  ),
-  cardTheme: CardThemeData(
-    color: lightColorScheme.surfaceContainerHigh,
-    elevation: 4,
-  ),
-);
-
-final ThemeData darkTheme = ThemeData.from(
-  colorScheme: darkColorScheme,
-  textTheme: textTheme,
-).copyWith(
-  extensions: [AppColorExtension.dark],
-  elevatedButtonTheme: ElevatedButtonThemeData(
-    style: ElevatedButton.styleFrom(
-      backgroundColor: darkColorScheme.primary,
-      foregroundColor: darkColorScheme.onPrimary,
-    ),
-  ),
-  cardTheme: CardThemeData(
-    color: darkColorScheme.surfaceContainerHigh,
-    elevation: 1,
-    shape: RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(12),
-      side: BorderSide(
-        color: darkColorScheme.outline.withValues(alpha: 0.2),
-        width: 0.5,
+final ThemeData lightTheme =
+    ThemeData.from(
+      colorScheme: lightColorScheme,
+      textTheme: textTheme,
+    ).copyWith(
+      extensions: [AppColorExtension.light],
+      appBarTheme: appBarTheme,
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: lightColorScheme.primary,
+          foregroundColor: lightColorScheme.onPrimary,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
       ),
-    ),
-  ),
-);
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      ),
+      cardTheme: CardThemeData(
+        color: lightColorScheme.surfaceContainerHigh,
+        elevation: 4,
+      ),
+    );
+
+final ThemeData darkTheme =
+    ThemeData.from(colorScheme: darkColorScheme, textTheme: textTheme).copyWith(
+      extensions: [AppColorExtension.dark],
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: darkColorScheme.primary,
+          foregroundColor: darkColorScheme.onPrimary,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+      ),
+      cardTheme: CardThemeData(
+        color: darkColorScheme.surfaceContainerHigh,
+        elevation: 1,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
+          side: BorderSide(
+            color: darkColorScheme.outline.withValues(alpha: 0.2),
+            width: 0.5,
+          ),
+        ),
+      ),
+    );
 
 @immutable
 class AppColorExtension extends ThemeExtension<AppColorExtension> {

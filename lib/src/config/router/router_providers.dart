@@ -1,9 +1,14 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:snickerdoodle/src/config/router/app_router.dart';
 import 'package:snickerdoodle/src/config/router/route_guards.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/services/analytics_events.dart';
+
+/// Bottom slot widget for the NavigationRail when in landscape.
+/// Screens can set this to render a CTA at the bottom of the rail.
+final railBottomSlotProvider = StateProvider<Widget?>((ref) => null);
 
 /// Provider for the main GoRouter instance
 final goRouterProvider = Provider<GoRouter>((ref) {

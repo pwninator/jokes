@@ -104,6 +104,12 @@ class AuthMocks {
 
   static void _setupAuthRepositoryDefaults(MockAuthRepository mock) {
     // Setup default behaviors that won't throw
+    // Ensure mocktail has a fallback for Duration used in named matchers
+    try {
+      registerFallbackValue(const Duration(milliseconds: 1));
+    } catch (_) {
+      // ignore if already registered
+    }
     when(() => mock.authStateChanges).thenAnswer(
       (_) => Stream.value(
         const AppUser(

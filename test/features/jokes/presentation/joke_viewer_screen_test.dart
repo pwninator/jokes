@@ -5,7 +5,9 @@ import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:snickerdoodle/src/common_widgets/joke_card.dart';
 import 'package:snickerdoodle/src/common_widgets/joke_image_carousel.dart';
+import 'package:snickerdoodle/src/config/router/app_router.dart' show RailHost;
 import 'package:snickerdoodle/src/config/router/route_names.dart';
+import 'package:snickerdoodle/src/config/router/router_providers.dart';
 import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
 import 'package:snickerdoodle/src/core/providers/image_providers.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
@@ -199,6 +201,73 @@ void main() {
       );
     }
 
+    Widget createLandscapeShellTestWidget({
+      List<JokeScheduleBatch>? customBatches,
+    }) {
+      final MockJokeScheduleRepository customRepository =
+          MockJokeScheduleRepository();
+      when(
+        () => customRepository.watchBatchesForSchedule(
+          JokeConstants.defaultJokeScheduleId,
+        ),
+      ).thenAnswer((_) => Stream.value(customBatches ?? mockBatches));
+
+      final child = const JokeViewerScreen(
+        jokeContext: 'test',
+        screenTitle: 'Test Jokes',
+      );
+
+      return ProviderScope(
+        overrides: [
+          imageServiceProvider.overrideWithValue(mockImageService),
+          jokeScheduleRepositoryProvider.overrideWithValue(customRepository),
+          ...FirebaseMocks.getFirebaseProviderOverrides(),
+        ],
+        child: MaterialApp(
+          theme: lightTheme,
+          home: Scaffold(
+            body: Row(
+              children: [
+                SafeArea(
+                  child: SizedBox(
+                    width: 180,
+                    child: Consumer(
+                      builder: (context, ref, _) {
+                        final bottomSlot = ref.watch(railBottomSlotProvider);
+                        return Column(
+                          children: [
+                            Expanded(
+                              child: NavigationRail(
+                                destinations: [
+                                  NavigationRailDestination(
+                                    icon: Icon(Icons.mood),
+                                    label: Text('Daily Jokes'),
+                                  ),
+                                ],
+                                selectedIndex: 0,
+                                extended: true,
+                              ),
+                            ),
+                            if (bottomSlot != null)
+                              Padding(
+                                padding: const EdgeInsets.all(12.0),
+                                child: bottomSlot,
+                              ),
+                          ],
+                        );
+                      },
+                    ),
+                  ),
+                ),
+                const VerticalDivider(thickness: 1, width: 1),
+                Expanded(child: RailHost(child: child, railWidth: 180)),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     group('Basic Display States', () {
       testWidgets('displays loading indicator when jokes are loading', (
         tester,
@@ -276,49 +345,151 @@ void main() {
       });
     });
 
-    group('Hint System - Core Functionality', () {
-      testWidgets('shows contextual hints initially', (tester) async {
-        await tester.pumpWidget(createTestWidget());
-
-        await tester.pump(); // Allow data to be processed
-        await tester.pump(
-          const Duration(milliseconds: 200),
-        ); // Allow hints to appear
-
-        expect(find.byKey(const Key('joke_viewer_hint_text')), findsOneWidget);
-      });
-
-      testWidgets('hints can fade and restore during interactions', (
+    group('CTA Behavior', () {
+      testWidgets('shows CTA button and toggles label based on state', (
         tester,
       ) async {
         await tester.pumpWidget(createTestWidget());
 
-        await tester.pump(); // Allow data to be processed
-        await tester.pump(
-          const Duration(milliseconds: 200),
-        ); // Allow hints to appear
+        await tester.pump();
+        // Allow post-frame rail slot update
+        await tester.pump();
 
-        // Find any hint elements that might have opacity
-        final opacityWidgets = find.byType(Opacity);
-        expect(
-          opacityWidgets,
-          findsWidgets,
-          reason: 'Should have opacity-controlled hints',
-        );
+        // Initially on setup image: CTA should say Reveal
+        expect(find.byKey(const Key('joke_viewer_cta_button')), findsOneWidget);
+        expect(find.text('Reveal'), findsOneWidget);
+
+        // Tap CTA to reveal punchline
+        await tester.tap(find.byKey(const Key('joke_viewer_cta_button')));
+        await tester.pump(const Duration(milliseconds: 400));
+
+        // Now CTA should say Next joke
+        expect(find.text('Next joke'), findsOneWidget);
       });
 
-      testWidgets('works with single joke scenario', (tester) async {
-        await tester.pumpWidget(
-          createTestWidget(customBatches: createSingleJokeBatch()),
+      testWidgets('CTA disabled on last joke when showing Next joke', (
+        tester,
+      ) async {
+        final single = createSingleJokeBatch();
+        await tester.pumpWidget(createTestWidget(customBatches: single));
+        await tester.pump();
+        // Allow post-frame rail slot update
+        await tester.pump();
+        // Reveal first
+        await tester.tap(find.byKey(const Key('joke_viewer_cta_button')));
+        await tester.pump(const Duration(milliseconds: 400));
+        // Should show Next joke and be disabled (no onPressed)
+        final button = tester.widget<ElevatedButton>(
+          find.byKey(const Key('joke_viewer_cta_button')),
         );
+        expect(find.text('Next joke'), findsOneWidget);
+        expect(button.onPressed, isNull);
+      });
 
-        await tester.pump(); // Allow data to be processed
-        await tester.pump(
-          const Duration(milliseconds: 200),
-        ); // Allow hints to appear
+      testWidgets('landscape CTA switches from Reveal to Next joke', (
+        tester,
+      ) async {
+        // Simulate landscape by making width > height
+        tester.view.physicalSize = const Size(1200, 600);
+        addTearDown(() => tester.view.resetPhysicalSize());
 
-        // Should not crash and should show some UI
-        expect(find.byType(PageView), findsWidgets);
+        await tester.pumpWidget(createTestWidget());
+        await tester.pump();
+        await tester.pump(); // allow post-frame rail slot update
+
+        // CTA is rendered via the rail bottom slot
+        expect(find.byKey(const Key('joke_viewer_cta_button')), findsOneWidget);
+        expect(find.text('Reveal'), findsOneWidget);
+
+        // Tap to reveal punchline
+        await tester.tap(find.byKey(const Key('joke_viewer_cta_button')));
+        await tester.pump(const Duration(milliseconds: 400));
+
+        // Now label should be Next joke
+        expect(find.text('Next joke'), findsOneWidget);
+      });
+
+      testWidgets('portrait places CTA as bottom overlay', (tester) async {
+        // Use a wide portrait to avoid carousel chip overflows in tight widths
+        tester.view.physicalSize = const Size(1200, 2000);
+        addTearDown(() => tester.view.resetPhysicalSize());
+        await tester.pumpWidget(createTestWidget());
+        await tester.pump();
+        await tester.pump();
+        expect(find.byType(NavigationRail), findsNothing);
+        expect(find.byKey(const Key('joke_viewer_cta_button')), findsOneWidget);
+        expect(find.text('Reveal'), findsOneWidget);
+      });
+
+      testWidgets('landscape places CTA inside NavigationRail bottom slot', (
+        tester,
+      ) async {
+        tester.view.physicalSize = const Size(1200, 600);
+        addTearDown(() => tester.view.resetPhysicalSize());
+        await tester.pumpWidget(createLandscapeShellTestWidget());
+        await tester.pump();
+        await tester.pump();
+        expect(find.byType(NavigationRail), findsOneWidget);
+        expect(find.byKey(const Key('joke_viewer_cta_button')), findsOneWidget);
+        expect(find.text('Reveal'), findsOneWidget);
+      });
+
+      testWidgets('CTA shows Next joke when joke has no punchline image', (
+        tester,
+      ) async {
+        // Build data where current joke has no punchline image
+        final now = DateTime.now();
+        final currentMonth = DateTime(now.year, now.month);
+        final jokes = [
+          Joke(
+            id: 'np-1',
+            setupText: 'Setup only',
+            punchlineText: 'No punchline image',
+            setupImageUrl: 'https://example.com/setup1.jpg',
+            punchlineImageUrl: '', // missing/empty
+          ),
+        ];
+        final batches = [
+          JokeScheduleBatch(
+            id: '${JokeConstants.defaultJokeScheduleId}_${now.year}_${now.month.toString().padLeft(2, '0')}',
+            scheduleId: JokeConstants.defaultJokeScheduleId,
+            year: currentMonth.year,
+            month: currentMonth.month,
+            jokes: {now.day.toString().padLeft(2, '0'): jokes[0]},
+          ),
+        ];
+
+        await tester.pumpWidget(createTestWidget(customBatches: batches));
+        await tester.pump();
+        await tester.pump();
+
+        expect(find.byKey(const Key('joke_viewer_cta_button')), findsOneWidget);
+        expect(find.text('Next joke'), findsOneWidget);
+        final btn = tester.widget<ElevatedButton>(
+          find.byKey(const Key('joke_viewer_cta_button')),
+        );
+        expect(btn.onPressed, isNull, reason: 'Single joke -> Next disabled');
+      });
+
+      testWidgets('after advancing, CTA label resets to Reveal on next joke', (
+        tester,
+      ) async {
+        await tester.pumpWidget(createTestWidget());
+        await tester.pump();
+        await tester.pump();
+
+        // Reveal first joke
+        await tester.tap(find.byKey(const Key('joke_viewer_cta_button')));
+        await tester.pump(const Duration(milliseconds: 400));
+        expect(find.text('Next joke'), findsOneWidget);
+
+        // Advance to next joke
+        await tester.tap(find.byKey(const Key('joke_viewer_cta_button')));
+        await tester.pump(const Duration(milliseconds: 400));
+        await tester.pump(const Duration(milliseconds: 400));
+
+        // CTA should reset to Reveal for the new joke
+        expect(find.text('Reveal'), findsOneWidget);
       });
     });
 

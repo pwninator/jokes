@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:snickerdoodle/src/common_widgets/subscription_prompt_overlay.dart';
 import 'package:snickerdoodle/src/config/router/route_guards.dart';
 import 'package:snickerdoodle/src/config/router/route_names.dart';
+import 'package:snickerdoodle/src/config/router/router_providers.dart';
 import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
 import 'package:snickerdoodle/src/core/services/notification_service.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_admin_screen.dart';
@@ -181,38 +182,54 @@ class AppRouter {
                 SafeArea(
                   child: SizedBox(
                     width: 180,
-                    child: NavigationRail(
-                      destinations: railDestinations,
-                      selectedIndex: selectedIndex,
-                      onDestinationSelected: (index) {
-                        _navigateToIndex(context, index, isAdmin);
+                    child: Consumer(
+                      builder: (context, ref, _) {
+                        final bottomSlot = ref.watch(railBottomSlotProvider);
+                        return Column(
+                          children: [
+                            Expanded(
+                              child: NavigationRail(
+                                destinations: railDestinations,
+                                selectedIndex: selectedIndex,
+                                onDestinationSelected: (index) {
+                                  _navigateToIndex(context, index, isAdmin);
+                                },
+                                backgroundColor: Theme.of(
+                                  context,
+                                ).colorScheme.surface,
+                                selectedIconTheme: IconThemeData(
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                                unselectedIconTheme: IconThemeData(
+                                  color: Theme.of(context).colorScheme.onSurface
+                                      .withValues(alpha: 0.6),
+                                ),
+                                selectedLabelTextStyle: TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
+                                unselectedLabelTextStyle: TextStyle(
+                                  fontWeight: FontWeight.normal,
+                                  color: Theme.of(context).colorScheme.onSurface
+                                      .withValues(alpha: 0.6),
+                                ),
+                                extended: true,
+                                useIndicator: false,
+                              ),
+                            ),
+                            if (bottomSlot != null)
+                              Padding(
+                                padding: const EdgeInsets.all(12.0),
+                                child: bottomSlot,
+                              ),
+                          ],
+                        );
                       },
-                      backgroundColor: Theme.of(context).colorScheme.surface,
-                      selectedIconTheme: IconThemeData(
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                      unselectedIconTheme: IconThemeData(
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.onSurface.withValues(alpha: 0.6),
-                      ),
-                      selectedLabelTextStyle: TextStyle(
-                        fontWeight: FontWeight.w600,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                      unselectedLabelTextStyle: TextStyle(
-                        fontWeight: FontWeight.normal,
-                        color: Theme.of(
-                          context,
-                        ).colorScheme.onSurface.withValues(alpha: 0.6),
-                      ),
-                      extended: true,
-                      useIndicator: false,
                     ),
                   ),
                 ),
                 const VerticalDivider(thickness: 1, width: 1),
-                Expanded(child: child),
+                Expanded(child: RailHost(railWidth: 180, child: child)),
               ],
             )
           : child,
@@ -274,4 +291,15 @@ class AppRouter {
 
     context.go(route);
   }
+}
+
+/// Inherited widget to indicate that a NavigationRail is present in the layout
+class RailHost extends InheritedWidget {
+  final double railWidth;
+
+  const RailHost({super.key, required this.railWidth, required super.child});
+
+  @override
+  bool updateShouldNotify(covariant RailHost oldWidget) =>
+      oldWidget.railWidth != railWidth;
 }

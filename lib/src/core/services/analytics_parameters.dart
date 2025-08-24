@@ -69,6 +69,7 @@ class AnalyticsNavigationMethod {
   static const String swipe = 'swipe';
   static const String notification = 'notification';
   static const String programmatic = 'programmatic';
+  static const String ctaReveal = 'cta_reveal';
 }
 
 /// Joke context values for analytics

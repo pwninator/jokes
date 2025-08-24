@@ -18,6 +18,7 @@ class JokeCard extends StatelessWidget {
   final bool showNumShares;
   final String? title;
   final String jokeContext;
+  final JokeImageCarouselController? controller;
 
   const JokeCard({
     super.key,
@@ -35,6 +36,7 @@ class JokeCard extends StatelessWidget {
     this.showNumShares = false,
     this.title,
     required this.jokeContext,
+    this.controller,
   });
 
   @override
@@ -64,6 +66,7 @@ class JokeCard extends StatelessWidget {
         showNumShares: showNumShares,
         title: title,
         jokeContext: jokeContext,
+        controller: controller,
       );
     } else {
       // No images or incomplete images - show text with populate button

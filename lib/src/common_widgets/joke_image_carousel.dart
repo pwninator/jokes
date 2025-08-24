@@ -20,25 +20,6 @@ import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
 
-/// Controller to allow parent widgets to imperatively control the
-/// `JokeImageCarousel` (e.g., reveal the punchline programmatically).
-class JokeImageCarouselController {
-  VoidCallback? _revealPunchline;
-
-  void _attach({required VoidCallback revealPunchline}) {
-    _revealPunchline = revealPunchline;
-  }
-
-  void _detach() {
-    _revealPunchline = null;
-  }
-
-  /// Programmatically reveals the punchline (moves from setup → punchline).
-  void revealPunchline() {
-    _revealPunchline?.call();
-  }
-}
-
 class JokeImageCarousel extends ConsumerStatefulWidget {
   final Joke joke;
   final int? index;
@@ -54,7 +35,6 @@ class JokeImageCarousel extends ConsumerStatefulWidget {
   final bool showNumShares;
   final String? title;
   final String jokeContext;
-  final JokeImageCarouselController? controller;
 
   const JokeImageCarousel({
     super.key,
@@ -72,7 +52,6 @@ class JokeImageCarousel extends ConsumerStatefulWidget {
     this.showNumShares = false,
     this.title,
     required this.jokeContext,
-    this.controller,
   });
 
   @override
@@ -183,9 +162,6 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
     _pageController = PageController();
     _preloadImages();
 
-    // Expose imperative controls to parent if a controller is provided
-    widget.controller?._attach(revealPunchline: _revealPunchline);
-
     // Initialize image state (starts at setup image = index 0)
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (widget.onImageStateChanged != null) {
@@ -221,7 +197,6 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
   @override
   void dispose() {
     _viewTimer?.cancel();
-    widget.controller?._detach();
     _pageController.dispose();
     super.dispose();
   }
@@ -279,19 +254,6 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
         );
       }
     }
-  }
-
-  // Programmatic reveal that mirrors tapping the setup image
-  void _revealPunchline() {
-    if (_currentIndex != 0) return;
-    if (widget.onSetupTap != null) {
-      widget.onSetupTap!();
-    }
-    _lastNavigationMethod = AnalyticsNavigationMethod.programmatic;
-    _pageController.nextPage(
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeInOut,
-    );
   }
 
   void _onImageLongPress() {

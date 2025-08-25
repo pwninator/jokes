@@ -1,19 +1,30 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/providers/shared_preferences_provider.dart';
+import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 
 /// Provider for AppUsageService using the shared preferences instance provider
 final appUsageServiceProvider = Provider<AppUsageService>((ref) {
   final sharedPreferences = ref.watch(sharedPreferencesInstanceProvider);
-  return AppUsageService(prefs: sharedPreferences);
+  final analyticsService = ref.watch(analyticsServiceProvider);
+  return AppUsageService(
+    prefs: sharedPreferences,
+    analyticsService: analyticsService,
+  );
 });
 
 /// Service responsible for tracking local app usage metrics via SharedPreferences
 class AppUsageService {
-  AppUsageService({required SharedPreferences prefs}) : _prefs = prefs;
+  AppUsageService({
+    required SharedPreferences prefs,
+    AnalyticsService? analyticsService,
+  }) : _prefs = prefs,
+       _analyticsService = analyticsService;
 
   final SharedPreferences _prefs;
+  final AnalyticsService? _analyticsService;
 
   // Preference keys
   static const String _firstUsedDateKey = 'first_used_date';
@@ -50,6 +61,14 @@ class AppUsageService {
     }
     if (shouldIncrementDays) {
       await _prefs.setInt(_numDaysUsedKey, newNumDaysUsed);
+      // Log analytics for day increment
+      try {
+        await _analyticsService?.logAppUsageDayIncremented(
+          numDaysUsed: newNumDaysUsed,
+        );
+      } catch (e) {
+        debugPrint('APP_USAGE analytics error: $e');
+      }
     }
     await _prefs.setString(_lastUsedDateKey, newLastUsed);
 

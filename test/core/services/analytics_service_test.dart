@@ -380,6 +380,20 @@ void main() {
       });
     });
 
+    group('app usage analytics', () {
+      test('should log app usage day incremented', () async {
+        // act
+        await analyticsService.logAppUsageDayIncremented(numDaysUsed: 2);
+
+        // assert - in debug mode, we should see debug logging but no Firebase calls
+        verifyNever(
+          () => mockFirebaseAnalytics.logEvent(
+            name: any(named: 'name'),
+            parameters: any(named: 'parameters'),
+          ),
+        );
+      });
+    });
     group('error handling', () {
       test('should handle analytics errors gracefully', () async {
         // arrange

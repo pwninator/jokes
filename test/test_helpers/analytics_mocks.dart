@@ -251,6 +251,13 @@ class AnalyticsMocks {
         errorMessage: any(named: 'errorMessage'),
       ),
     ).thenAnswer((_) async {});
+
+    // App usage
+    when(
+      () => mock.logAppUsageDayIncremented(
+        numDaysUsed: any(named: 'numDaysUsed'),
+      ),
+    ).thenAnswer((_) async {});
   }
 }
 

@@ -15,6 +15,9 @@ class AnalyticsParameters {
   static const String totalJokesSaved = 'total_jokes_saved';
   static const String totalJokesShared = 'total_jokes_shared';
 
+  // App usage parameters
+  static const String numDaysUsed = 'num_days_used';
+
   // User interaction parameters
   static const String jokeScrollDepth = 'joke_scroll_depth';
   static const String reactionType = 'reaction_type';

@@ -193,6 +193,9 @@ abstract class AnalyticsService {
     required String jokeId,
     required String errorMessage,
   });
+
+  /// App usage: unique day incremented
+  Future<void> logAppUsageDayIncremented({required int numDaysUsed});
 }
 
 /// Firebase Analytics implementation of the analytics service
@@ -658,6 +661,14 @@ class FirebaseAnalyticsService implements AnalyticsService {
     await _logEvent(AnalyticsEvent.errorJokeFetch, {
       AnalyticsParameters.jokeId: jokeId,
       AnalyticsParameters.errorMessage: errorMessage,
+      AnalyticsParameters.userType: _getUserType(_currentUser),
+    });
+  }
+
+  @override
+  Future<void> logAppUsageDayIncremented({required int numDaysUsed}) async {
+    await _logEvent(AnalyticsEvent.appUsageDayIncremented, {
+      AnalyticsParameters.numDaysUsed: numDaysUsed,
       AnalyticsParameters.userType: _getUserType(_currentUser),
     });
   }

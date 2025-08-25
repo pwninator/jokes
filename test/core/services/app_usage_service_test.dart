@@ -1,5 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 
 void main() {
@@ -20,32 +22,69 @@ void main() {
       'first run initializes dates and increments unique day count',
       () async {
         final prefs = await SharedPreferences.getInstance();
-        final service = AppUsageService(prefs: prefs);
+        final mockAnalytics = _MockAnalyticsService();
+        when(
+          () => mockAnalytics.logAppUsageDayIncremented(
+            numDaysUsed: any(named: 'numDaysUsed'),
+          ),
+        ).thenAnswer((_) async {});
+        final service = AppUsageService(
+          prefs: prefs,
+          analyticsService: mockAnalytics,
+        );
 
         await service.logAppUsage();
 
         expect(await service.getFirstUsedDate(), todayString());
         expect(await service.getLastUsedDate(), todayString());
         expect(await service.getNumDaysUsed(), 1);
+
+        verify(
+          () => mockAnalytics.logAppUsageDayIncremented(numDaysUsed: 1),
+        ).called(1);
       },
     );
 
     test('same day run does not increment unique day count', () async {
       final prefs = await SharedPreferences.getInstance();
-      final service = AppUsageService(prefs: prefs);
+      final mockAnalytics = _MockAnalyticsService();
+      when(
+        () => mockAnalytics.logAppUsageDayIncremented(
+          numDaysUsed: any(named: 'numDaysUsed'),
+        ),
+      ).thenAnswer((_) async {});
+      final service = AppUsageService(
+        prefs: prefs,
+        analyticsService: mockAnalytics,
+      );
 
       await service.logAppUsage();
       await service.logAppUsage();
 
       expect(await service.getNumDaysUsed(), 1);
       expect(await service.getLastUsedDate(), todayString());
+
+      verify(
+        () => mockAnalytics.logAppUsageDayIncremented(
+          numDaysUsed: any(named: 'numDaysUsed'),
+        ),
+      ).called(1);
     });
 
     test(
       'new day increments unique day count and updates last_used_date',
       () async {
         final prefs = await SharedPreferences.getInstance();
-        final service = AppUsageService(prefs: prefs);
+        final mockAnalytics = _MockAnalyticsService();
+        when(
+          () => mockAnalytics.logAppUsageDayIncremented(
+            numDaysUsed: any(named: 'numDaysUsed'),
+          ),
+        ).thenAnswer((_) async {});
+        final service = AppUsageService(
+          prefs: prefs,
+          analyticsService: mockAnalytics,
+        );
 
         await service.logAppUsage();
         expect(await service.getNumDaysUsed(), 1);
@@ -60,6 +99,10 @@ void main() {
 
         expect(await service.getNumDaysUsed(), 2);
         expect(await service.getLastUsedDate(), todayString());
+
+        verify(
+          () => mockAnalytics.logAppUsageDayIncremented(numDaysUsed: 2),
+        ).called(1);
       },
     );
   });
@@ -111,3 +154,5 @@ void main() {
     });
   });
 }
+
+class _MockAnalyticsService extends Mock implements AnalyticsService {}

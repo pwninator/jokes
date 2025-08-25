@@ -52,6 +52,9 @@ enum AnalyticsEvent {
   // App navigation events
   tabChanged('tab_changed'),
 
+  // App usage events
+  appUsageDayIncremented('app_usage_day_incremented'),
+
   // Navigation/routing
   errorRouteNavigation('error_route_navigation'),
 

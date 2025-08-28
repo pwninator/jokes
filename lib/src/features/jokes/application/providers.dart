@@ -371,55 +371,70 @@ final filteredJokesProvider = Provider<AsyncValue<List<Joke>>>((ref) {
   final jokesAsync = ref.watch(jokesProvider);
   final filterState = ref.watch(jokeFilterProvider);
 
-  return jokesAsync.when(
-    data: (jokes) {
-      var filteredJokes = jokes;
+  // Watch schedule only when needed to avoid extra work
+  final scheduledAsync = filterState.showUnscheduledOnly
+      ? ref.watch(monthlyJokesWithDateProvider)
+      : const AsyncValue.data(<JokeWithDate>[]);
 
-      // Apply unrated filter if enabled
-      if (filterState.showUnratedOnly) {
-        filteredJokes = filteredJokes.where((joke) {
-          final hasImages =
-              joke.setupImageUrl != null &&
-              joke.setupImageUrl!.isNotEmpty &&
-              joke.punchlineImageUrl != null &&
-              joke.punchlineImageUrl!.isNotEmpty;
+  // Handle loading
+  if (jokesAsync.isLoading || scheduledAsync.isLoading) {
+    return const AsyncValue.loading();
+  }
 
-          final isUnrated = joke.numThumbsUp == 0 && joke.numThumbsDown == 0;
+  // Handle errors (prefer jokes error first)
+  if (jokesAsync.hasError) {
+    return AsyncValue.error(
+      jokesAsync.error!,
+      jokesAsync.stackTrace ?? StackTrace.current,
+    );
+  }
+  if (scheduledAsync.hasError) {
+    return AsyncValue.error(
+      scheduledAsync.error!,
+      scheduledAsync.stackTrace ?? StackTrace.current,
+    );
+  }
 
-          return hasImages && isUnrated;
-        }).toList();
-      }
+  // Base list
+  var filteredJokes = List<Joke>.from(jokesAsync.value ?? const <Joke>[]);
 
-      // Apply unscheduled filter if enabled
-      if (filterState.showUnscheduledOnly) {
-        final scheduledJokesAsync = ref.watch(monthlyJokesWithDateProvider);
-        return scheduledJokesAsync.when(
-          data: (scheduledJokes) {
-            final scheduledJokeIds = scheduledJokes
-                .map((jokeWithDate) => jokeWithDate.joke.id)
-                .toSet();
-            filteredJokes = filteredJokes
-                .where((joke) => !scheduledJokeIds.contains(joke.id))
-                .toList();
-            return AsyncValue.data(filteredJokes);
-          },
-          loading: () => const AsyncValue.loading(),
-          error: (error, stackTrace) => AsyncValue.error(error, stackTrace),
-        );
-      }
+  // 1) Unrated filter (require images and no thumbs reactions)
+  if (filterState.showUnratedOnly) {
+    filteredJokes = filteredJokes.where((joke) {
+      final hasImages =
+          joke.setupImageUrl != null &&
+          joke.setupImageUrl!.isNotEmpty &&
+          joke.punchlineImageUrl != null &&
+          joke.punchlineImageUrl!.isNotEmpty;
+      final isUnrated = joke.numThumbsUp == 0 && joke.numThumbsDown == 0;
+      return hasImages && isUnrated;
+    }).toList();
+  }
 
-      // Apply popular filter if enabled (saves + shares > 0)
-      if (filterState.showPopularOnly) {
-        filteredJokes = filteredJokes
+  // 2) Unscheduled filter (exclude jokes present in schedule)
+  if (filterState.showUnscheduledOnly) {
+    final scheduledJokeIds = (scheduledAsync.value ?? const <JokeWithDate>[])
+        .map((j) => j.joke.id)
+        .toSet();
+    filteredJokes = filteredJokes
+        .where((joke) => !scheduledJokeIds.contains(joke.id))
+        .toList();
+  }
+
+  // 3) Popular filter and sorting
+  if (filterState.showPopularOnly) {
+    filteredJokes =
+        filteredJokes
             .where((joke) => (joke.numSaves + joke.numShares) > 0)
-            .toList();
-      }
+            .toList()
+          ..sort((a, b) {
+            final scoreA = (a.numShares * 10) + a.numSaves;
+            final scoreB = (b.numShares * 10) + b.numSaves;
+            return scoreB.compareTo(scoreA);
+          });
+  }
 
-      return AsyncValue.data(filteredJokes);
-    },
-    loading: () => const AsyncValue.loading(),
-    error: (error, stackTrace) => AsyncValue.error(error, stackTrace),
-  );
+  return AsyncValue.data(filteredJokes);
 });
 
 // Data class to hold a joke with its associated date
@@ -434,71 +449,76 @@ class JokeWithDate {
 final monthlyJokesWithDateProvider = StreamProvider<List<JokeWithDate>>((ref) {
   final repository = ref.watch(jokeScheduleRepositoryProvider);
 
-  return repository.watchBatchesForSchedule(JokeConstants.defaultJokeScheduleId).map((
-    batches,
-  ) {
-    // Get current date
-    final now = DateTime.now();
+  return repository
+      .watchBatchesForSchedule(JokeConstants.defaultJokeScheduleId)
+      .map((batches) {
+        // Get current date
+        final now = DateTime.now();
 
-    // Calculate 6-month window: 3 previous, current, 2 next
-    final targetMonths = <DateTime>[];
-    for (int i = -3; i <= 2; i++) {
-      targetMonths.add(DateTime(now.year, now.month + i));
-    }
+        // Calculate 6-month window: 3 previous, current, 2 next
+        final targetMonths = <DateTime>[];
+        for (int i = -3; i <= 2; i++) {
+          targetMonths.add(DateTime(now.year, now.month + i));
+        }
 
-    // Filter batches for our target months
-    final relevantBatches = batches.where((batch) {
-      final batchDate = DateTime(batch.year, batch.month);
-      return targetMonths.any(
-        (target) =>
-            target.year == batchDate.year && target.month == batchDate.month,
-      );
-    }).toList();
+        // Filter batches for our target months
+        final relevantBatches = batches.where((batch) {
+          final batchDate = DateTime(batch.year, batch.month);
+          return targetMonths.any(
+            (target) =>
+                target.year == batchDate.year &&
+                target.month == batchDate.month,
+          );
+        }).toList();
 
-    // Convert batches to chronological joke list with dates
-    final jokesWithDates = <JokeWithDate>[];
+        // Convert batches to chronological joke list with dates
+        final jokesWithDates = <JokeWithDate>[];
 
-    // Sort batches in reverse chronological order (newest first)
-    relevantBatches.sort((a, b) {
-      final aDate = DateTime(a.year, a.month);
-      final bDate = DateTime(b.year, b.month);
-      return bDate.compareTo(aDate); // Reversed for newest first
-    });
+        // Sort batches in reverse chronological order (newest first)
+        relevantBatches.sort((a, b) {
+          final aDate = DateTime(a.year, a.month);
+          final bDate = DateTime(b.year, b.month);
+          return bDate.compareTo(aDate); // Reversed for newest first
+        });
 
-    // Extract jokes from each batch in reverse chronological order
-    for (final batch in relevantBatches) {
-      // Get all days in the batch and sort them in descending order
-      final sortedDays = batch.jokes.keys.toList()
-        ..sort((a, b) => b.compareTo(a)); // Reverse sort for newest day first
+        // Extract jokes from each batch in reverse chronological order
+        for (final batch in relevantBatches) {
+          // Get all days in the batch and sort them in descending order
+          final sortedDays = batch.jokes.keys.toList()
+            ..sort(
+              (a, b) => b.compareTo(a),
+            ); // Reverse sort for newest day first
 
-      // Add jokes in day order, but only for dates that are not in the future
-      for (final day in sortedDays) {
-        final joke = batch.jokes[day];
-        if (joke != null) {
-          // Parse day string to int and create full date
-          final dayInt = int.tryParse(day);
-          if (dayInt != null) {
-            final jokeDate = DateTime(batch.year, batch.month, dayInt);
-            final today = DateTime.now();
-            final todayDate = DateTime(today.year, today.month, today.day);
+          // Add jokes in day order, but only for dates that are not in the future
+          for (final day in sortedDays) {
+            final joke = batch.jokes[day];
+            if (joke != null) {
+              // Parse day string to int and create full date
+              final dayInt = int.tryParse(day);
+              if (dayInt != null) {
+                final jokeDate = DateTime(batch.year, batch.month, dayInt);
+                final today = DateTime.now();
+                final todayDate = DateTime(today.year, today.month, today.day);
 
-            // Only include jokes for today or past dates
-            if (!jokeDate.isAfter(todayDate)) {
-              // Filter for jokes with images
-              if (joke.setupImageUrl != null &&
-                  joke.setupImageUrl!.isNotEmpty &&
-                  joke.punchlineImageUrl != null &&
-                  joke.punchlineImageUrl!.isNotEmpty) {
-                jokesWithDates.add(JokeWithDate(joke: joke, date: jokeDate));
+                // Only include jokes for today or past dates
+                if (!jokeDate.isAfter(todayDate)) {
+                  // Filter for jokes with images
+                  if (joke.setupImageUrl != null &&
+                      joke.setupImageUrl!.isNotEmpty &&
+                      joke.punchlineImageUrl != null &&
+                      joke.punchlineImageUrl!.isNotEmpty) {
+                    jokesWithDates.add(
+                      JokeWithDate(joke: joke, date: jokeDate),
+                    );
+                  }
+                }
               }
             }
           }
         }
-      }
-    }
 
-    return jokesWithDates;
-  });
+        return jokesWithDates;
+      });
 });
 
 // Saved jokes provider that loads saved jokes from SharedPreferences

@@ -1004,6 +1004,113 @@ void main() {
 
         container.dispose();
       });
+
+      test('popular-only sorts by (shares*10 + saves) descending', () async {
+        // arrange
+        final testJokes = [
+          const Joke(
+            id: 'a',
+            setupText: 'Sa',
+            punchlineText: 'Pa',
+            numSaves: 0,
+            numShares: 1, // score 10
+          ),
+          const Joke(
+            id: 'b',
+            setupText: 'Sb',
+            punchlineText: 'Pb',
+            numSaves: 11,
+            numShares: 0, // score 11
+          ),
+          const Joke(
+            id: 'c',
+            setupText: 'Sc',
+            punchlineText: 'Pc',
+            numSaves: 2,
+            numShares: 1, // score 12
+          ),
+        ];
+
+        when(
+          () => mockJokeRepository.getJokes(),
+        ).thenAnswer((_) => Stream.value(testJokes));
+
+        final container = ProviderContainer(
+          overrides: [
+            jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
+          ],
+        );
+
+        // Wait for jokes to load
+        await container.read(jokesProvider.future);
+
+        // Enable popular filter
+        container.read(jokeFilterProvider.notifier).setPopularOnly(true);
+
+        final result = container.read(filteredJokesProvider);
+        expect(result.hasValue, true);
+        final ids = result.value!.map((j) => j.id).toList();
+        expect(ids, ['c', 'b', 'a']);
+
+        container.dispose();
+      });
+
+      test(
+        'unscheduled + popular filters combine and then sort by score',
+        () async {
+          // arrange
+          final a = const Joke(
+            id: 'a',
+            setupText: 'Sa',
+            punchlineText: 'Pa',
+            numSaves: 0,
+            numShares: 1, // 10
+          );
+          final b = const Joke(
+            id: 'b',
+            setupText: 'Sb',
+            punchlineText: 'Pb',
+            numSaves: 11,
+            numShares: 0, // 11 (but scheduled -> excluded)
+          );
+          final c = const Joke(
+            id: 'c',
+            setupText: 'Sc',
+            punchlineText: 'Pc',
+            numSaves: 2,
+            numShares: 1, // 12
+          );
+
+          when(
+            () => mockJokeRepository.getJokes(),
+          ).thenAnswer((_) => Stream.value([a, b, c]));
+
+          final container = ProviderContainer(
+            overrides: [
+              jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
+              // Override schedule provider to mark 'b' as scheduled
+              monthlyJokesWithDateProvider.overrideWith(
+                (ref) => Stream.value([JokeWithDate(joke: b)]),
+              ),
+            ],
+          );
+
+          // Wait for jokes to load
+          await container.read(jokesProvider.future);
+
+          // Enable unscheduled and popular filters
+          container.read(jokeFilterProvider.notifier).setUnscheduledOnly(true);
+          container.read(jokeFilterProvider.notifier).setPopularOnly(true);
+
+          final result = container.read(filteredJokesProvider);
+          expect(result.hasValue, true);
+          final ids = result.value!.map((j) => j.id).toList();
+          // 'b' excluded due to schedule; 'c' (12) before 'a' (10)
+          expect(ids, ['c', 'a']);
+
+          container.dispose();
+        },
+      );
     });
   });
 

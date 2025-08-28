@@ -43,6 +43,8 @@ class _JokeManagementScreenState extends ConsumerState<JokeManagementScreen> {
   Widget build(BuildContext context) {
     final jokesAsync = ref.watch(filteredJokesProvider);
     final filterState = ref.watch(jokeFilterProvider);
+    final searchQuery = ref.watch(searchQueryProvider);
+    final searchResultsAsync = ref.watch(searchResultsProvider);
 
     return AdaptiveAppBarScreen(
       title: 'Joke Management',
@@ -72,8 +74,8 @@ class _JokeManagementScreenState extends ConsumerState<JokeManagementScreen> {
                 ),
               ),
             ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   'Filters',
@@ -83,143 +85,180 @@ class _JokeManagementScreenState extends ConsumerState<JokeManagementScreen> {
                     ).colorScheme.onSurface.withValues(alpha: 0.8),
                   ),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Wrap(
-                    spacing: 4,
-                    runSpacing: 0,
-                    children: [
-                      _AdminFilterChip(
-                        key: const Key('unrated-only-filter-chip'),
-                        label: 'Unrated',
-                        selected: filterState.showUnratedOnly,
-                        onSelected: (selected) {
-                          ref
-                              .read(jokeFilterProvider.notifier)
-                              .toggleUnratedOnly();
-                        },
-                      ),
-                      _AdminFilterChip(
-                        key: const Key('unscheduled-only-filter-chip'),
-                        label: 'Unscheduled',
-                        selected: filterState.showUnscheduledOnly,
-                        onSelected: (selected) {
-                          ref
-                              .read(jokeFilterProvider.notifier)
-                              .toggleUnscheduledOnly();
-                        },
-                      ),
-                      _AdminFilterChip(
-                        key: const Key('popular-only-filter-chip'),
-                        label: 'Popular',
-                        selected: filterState.showPopularOnly,
-                        onSelected: (selected) {
-                          ref
-                              .read(jokeFilterProvider.notifier)
-                              .togglePopularOnly();
-                        },
-                      ),
-                    ],
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  child: TextField(
+                    key: const Key('admin-search-field'),
+                    decoration: InputDecoration(
+                      hintText: 'Search jokes...',
+                      prefixIcon: const Icon(Icons.search),
+                      isDense: true,
+                      border: const OutlineInputBorder(),
+                      suffixIcon: searchQuery.isNotEmpty
+                          ? IconButton(
+                              tooltip: 'Clear',
+                              icon: const Icon(Icons.clear),
+                              onPressed: () {
+                                ref.read(searchQueryProvider.notifier).state =
+                                    '';
+                                FocusScope.of(context).unfocus();
+                              },
+                            )
+                          : null,
+                    ),
+                    maxLines: 1,
+                    textInputAction: TextInputAction.search,
+                    onSubmitted: (raw) {
+                      final query = raw.trim();
+                      ref.read(searchQueryProvider.notifier).state = query;
+                      FocusScope.of(context).unfocus();
+                    },
                   ),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  key: const Key('admin-filter-chips-wrap'),
+                  spacing: 4,
+                  runSpacing: 0,
+                  children: [
+                    _AdminFilterChip(
+                      key: const Key('unrated-only-filter-chip'),
+                      label: 'Unrated',
+                      selected: filterState.showUnratedOnly,
+                      onSelected: (selected) {
+                        ref
+                            .read(jokeFilterProvider.notifier)
+                            .toggleUnratedOnly();
+                      },
+                    ),
+                    _AdminFilterChip(
+                      key: const Key('unscheduled-only-filter-chip'),
+                      label: 'Unscheduled',
+                      selected: filterState.showUnscheduledOnly,
+                      onSelected: (selected) {
+                        ref
+                            .read(jokeFilterProvider.notifier)
+                            .toggleUnscheduledOnly();
+                      },
+                    ),
+                    _AdminFilterChip(
+                      key: const Key('popular-only-filter-chip'),
+                      label: 'Popular',
+                      selected: filterState.showPopularOnly,
+                      onSelected: (selected) {
+                        ref
+                            .read(jokeFilterProvider.notifier)
+                            .togglePopularOnly();
+                      },
+                    ),
+                  ],
                 ),
               ],
             ),
           ),
-          // Jokes list
+          // Search + Jokes list
           Expanded(
-            child: jokesAsync.when(
-              data: (jokes) => jokes.isEmpty
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.mood_bad,
-                            size: 64,
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.onSurface.withValues(alpha: 0.4),
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            _getEmptyStateTitle(filterState),
-                            style: TextStyle(
-                              fontSize: 18,
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.onSurface.withValues(alpha: 0.6),
+            child:
+                (searchQuery.trim().isNotEmpty
+                        ? searchResultsAsync
+                        : jokesAsync)
+                    .when(
+                      data: (jokes) => jokes.isEmpty
+                          ? Center(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(
+                                    Icons.mood_bad,
+                                    size: 64,
+                                    color: Theme.of(context)
+                                        .colorScheme
+                                        .onSurface
+                                        .withValues(alpha: 0.4),
+                                  ),
+                                  const SizedBox(height: 16),
+                                  Text(
+                                    _getEmptyStateTitle(filterState),
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurface
+                                          .withValues(alpha: 0.6),
+                                    ),
+                                  ),
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    _getEmptyStateSubtitle(filterState),
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurface
+                                          .withValues(alpha: 0.5),
+                                    ),
+                                    textAlign: TextAlign.center,
+                                  ),
+                                ],
+                              ),
+                            )
+                          : ListView.builder(
+                              padding: const EdgeInsets.all(8.0),
+                              itemCount: jokes.length,
+                              itemBuilder: (context, index) {
+                                final joke = jokes[index];
+                                return JokeCard(
+                                  key: Key(joke.id),
+                                  joke: joke,
+                                  index: index,
+                                  isAdminMode: true,
+                                  showSaveButton: false,
+                                  showShareButton: false,
+                                  showThumbsButtons: true,
+                                  showNumSaves: true,
+                                  showNumShares: true,
+                                  jokeContext: 'admin',
+                                );
+                              },
                             ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            _getEmptyStateSubtitle(filterState),
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.onSurface.withValues(alpha: 0.5),
+                      loading: () => const Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            CircularProgressIndicator(),
+                            SizedBox(height: 16),
+                            Text('Loading jokes...'),
+                          ],
+                        ),
+                      ),
+                      error: (error, stackTrace) => Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.error_outline,
+                              size: 64,
+                              color: Theme.of(context).colorScheme.error,
                             ),
-                            textAlign: TextAlign.center,
-                          ),
-                        ],
-                      ),
-                    )
-                  : ListView.builder(
-                      padding: const EdgeInsets.all(8.0),
-                      itemCount: jokes.length,
-                      itemBuilder: (context, index) {
-                        final joke = jokes[index];
-                        return JokeCard(
-                          key: Key(joke.id),
-                          joke: joke,
-                          index: index,
-                          isAdminMode: true,
-                          showSaveButton: false,
-                          showShareButton: false,
-                          showThumbsButtons: true,
-                          showNumSaves: true,
-                          showNumShares: true,
-                          jokeContext: 'admin',
-                        );
-                      },
-                    ),
-              loading: () => const Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    CircularProgressIndicator(),
-                    SizedBox(height: 16),
-                    Text('Loading jokes...'),
-                  ],
-                ),
-              ),
-              error: (error, stackTrace) => Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.error_outline,
-                      size: 64,
-                      color: Theme.of(context).colorScheme.error,
-                    ),
-                    const SizedBox(height: 16),
-                    Text(
-                      'Error loading jokes',
-                      style: TextStyle(
-                        fontSize: 18,
-                        color: Theme.of(context).colorScheme.error,
+                            const SizedBox(height: 16),
+                            Text(
+                              'Error loading jokes',
+                              style: TextStyle(
+                                fontSize: 18,
+                                color: Theme.of(context).colorScheme.error,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              error.toString(),
+                              style: const TextStyle(fontSize: 14),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      error.toString(),
-                      style: const TextStyle(fontSize: 14),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                ),
-              ),
-            ),
           ),
         ],
       ),

@@ -11,29 +11,26 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 
 void main() {
-  testWidgets(
-    'Basic app theme and material app smoke test',
-    (WidgetTester tester) async {
-      // Build a simple MaterialApp with our theme to test basic functionality
-      await tester.pumpWidget(
-        ProviderScope(
-          child: MaterialApp(
-            theme: lightTheme,
-            home: const Scaffold(
-              appBar: null,
-              body: Center(
-                child: Text('Test App'),
-              ),
-            ),
+  testWidgets('Basic app theme and material app smoke test', (
+    WidgetTester tester,
+  ) async {
+    // Build a simple MaterialApp with our theme to test basic functionality
+    await tester.pumpWidget(
+      ProviderScope(
+        child: MaterialApp(
+          theme: lightTheme,
+          home: const Scaffold(
+            appBar: null,
+            body: Center(child: Text('Test App')),
           ),
         ),
-      );
+      ),
+    );
 
-      // Allow time for any async operations to settle
-      await tester.pumpAndSettle();
+    // Allow time for any async operations to settle
+    await tester.pumpAndSettle();
 
-      // Verify that the app renders without issues
-      expect(find.text('Test App'), findsOneWidget);
-    },
-  );
+    // Verify that the app renders without issues
+    expect(find.text('Test App'), findsOneWidget);
+  });
 }

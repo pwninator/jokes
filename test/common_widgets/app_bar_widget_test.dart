@@ -8,7 +8,9 @@ void main() {
       const title = 'Test Title';
 
       await tester.pumpWidget(
-        MaterialApp(home: Scaffold(appBar: const AppBarWidget(title: title))),
+        MaterialApp(
+          home: Scaffold(appBar: const AppBarWidget(title: title)),
+        ),
       );
 
       expect(find.text(title), findsOneWidget);
@@ -56,7 +58,9 @@ void main() {
 
       await tester.pumpWidget(
         MaterialApp(
-          home: Scaffold(appBar: AppBarWidget(title: 'Test', actions: actions)),
+          home: Scaffold(
+            appBar: AppBarWidget(title: 'Test', actions: actions),
+          ),
         ),
       );
 

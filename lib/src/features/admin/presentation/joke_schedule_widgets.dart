@@ -24,11 +24,11 @@ class CalendarCellPopup extends ConsumerWidget {
     final screenSize = MediaQuery.of(context).size;
     const popupWidth = 320.0;
     const popupHeight = 240.0;
-    
+
     // Calculate popup position - center horizontally on cell, position above
     double left = cellPosition.dx + (cellSize.width / 2) - (popupWidth / 2);
     double top = cellPosition.dy - popupHeight - 8; // 8px gap above cell
-    
+
     // Ensure popup stays within screen bounds
     left = left.clamp(16.0, screenSize.width - popupWidth - 16.0);
     top = top.clamp(16.0, screenSize.height - popupHeight - 16.0);
@@ -53,7 +53,9 @@ class CalendarCellPopup extends ConsumerWidget {
               ),
             ],
             border: Border.all(
-              color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
+              color: Theme.of(
+                context,
+              ).colorScheme.outline.withValues(alpha: 0.2),
             ),
           ),
           child: Column(
@@ -62,12 +64,12 @@ class CalendarCellPopup extends ConsumerWidget {
               // Header
               Text(
                 'Day $dayLabel',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 12),
-              
+
               // Side-by-side images
               Expanded(
                 child: Row(
@@ -78,9 +80,8 @@ class CalendarCellPopup extends ConsumerWidget {
                         children: [
                           Text(
                             'Setup',
-                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                              fontWeight: FontWeight.w600,
-                            ),
+                            style: Theme.of(context).textTheme.labelSmall
+                                ?.copyWith(fontWeight: FontWeight.w600),
                           ),
                           const SizedBox(height: 6),
                           Expanded(
@@ -94,16 +95,15 @@ class CalendarCellPopup extends ConsumerWidget {
                       ),
                     ),
                     const SizedBox(width: 12),
-                    
+
                     // Punchline image
                     Expanded(
                       child: Column(
                         children: [
                           Text(
                             'Punchline',
-                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                              fontWeight: FontWeight.w600,
-                            ),
+                            style: Theme.of(context).textTheme.labelSmall
+                                ?.copyWith(fontWeight: FontWeight.w600),
                           ),
                           const SizedBox(height: 6),
                           Expanded(
@@ -119,9 +119,9 @@ class CalendarCellPopup extends ConsumerWidget {
                   ],
                 ),
               ),
-              
+
               const SizedBox(height: 12),
-              
+
               // Joke text
               Text(
                 joke.setupText,
@@ -169,7 +169,9 @@ class NewScheduleDialog extends ConsumerWidget {
             Text(
               'ID: ${JokeSchedule.sanitizeId(scheduleName)}',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+                color: Theme.of(
+                  context,
+                ).colorScheme.onSurface.withValues(alpha: 0.6),
                 fontFamily: 'monospace',
               ),
             ),
@@ -182,8 +184,8 @@ class NewScheduleDialog extends ConsumerWidget {
           child: const Text('Cancel'),
         ),
         FilledButton(
-          onPressed: isLoading || scheduleName.trim().isEmpty 
-              ? null 
+          onPressed: isLoading || scheduleName.trim().isEmpty
+              ? null
               : () => _createSchedule(context, ref),
           child: isLoading
               ? const SizedBox(
@@ -211,19 +213,19 @@ class NewScheduleDialog extends ConsumerWidget {
 
     try {
       await ref.read(jokeScheduleRepositoryProvider).createSchedule(name);
-      
+
       if (context.mounted) {
         // Close dialog first - this is the key fix
         Navigator.of(context).pop();
-        
+
         // Then reset providers
         ref.read(newScheduleDialogProvider.notifier).state = false;
         ref.read(newScheduleNameProvider.notifier).state = '';
-        
+
         // Show success message
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Created schedule "$name"')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Created schedule "$name"')));
       }
     } catch (error) {
       if (context.mounted) {
@@ -239,5 +241,3 @@ class NewScheduleDialog extends ConsumerWidget {
     }
   }
 }
-
- 

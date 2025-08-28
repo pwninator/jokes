@@ -145,4 +145,52 @@ class JokeCloudFunctionService {
       return {'success': false, 'error': 'Unexpected error: $e'};
     }
   }
+
+  /// Search jokes via Cloud Function and return a list of joke IDs
+  ///
+  /// Request params: { search_query, max_results }
+  /// Response: List of objects: [{ joke_id, vector_distance }, ...]
+  Future<List<String>> searchJokes({
+    required String searchQuery,
+    int? maxResults,
+  }) async {
+    try {
+      final callable = _functions.httpsCallable('search_jokes');
+      final payload = <String, dynamic>{'search_query': searchQuery};
+      if (maxResults != null) {
+        payload['max_results'] = maxResults;
+      }
+
+      final result = await callable.call(payload);
+
+      final data = result.data;
+      // Accept either: { jokes: [...] } or [...] directly
+      final List<dynamic>? resultsList = (data is Map && data['jokes'] is List)
+          ? (data['jokes'] as List)
+          : (data is List)
+          ? data
+          : null;
+
+      if (resultsList != null) {
+        final ids = <String>[];
+        for (final item in resultsList) {
+          if (item is Map && item['joke_id'] != null) {
+            ids.add(item['joke_id'].toString());
+          }
+        }
+        return ids;
+      }
+
+      debugPrint('Unexpected search_jokes response: $data');
+      return <String>[];
+    } on FirebaseFunctionsException catch (e) {
+      debugPrint(
+        'Firebase Functions error (search_jokes): ${e.code} - ${e.message}',
+      );
+      return <String>[];
+    } catch (e) {
+      debugPrint('Error calling search_jokes: $e');
+      return <String>[];
+    }
+  }
 }

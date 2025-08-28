@@ -38,24 +38,23 @@ class _CalendarGridWidgetState extends ConsumerState<CalendarGridWidget> {
     final cellSize = cellRenderBox.size;
 
     _popupOverlay = OverlayEntry(
-      builder:
-          (context) => GestureDetector(
-            onTap: _hidePopup,
-            behavior: HitTestBehavior.translucent,
-            child: Material(
-              color: Colors.transparent,
-              child: Stack(
-                children: [
-                  CalendarCellPopup(
-                    joke: joke,
-                    dayLabel: dayKey,
-                    cellPosition: cellPosition,
-                    cellSize: cellSize,
-                  ),
-                ],
+      builder: (context) => GestureDetector(
+        onTap: _hidePopup,
+        behavior: HitTestBehavior.translucent,
+        child: Material(
+          color: Colors.transparent,
+          child: Stack(
+            children: [
+              CalendarCellPopup(
+                joke: joke,
+                dayLabel: dayKey,
+                cellPosition: cellPosition,
+                cellSize: cellSize,
               ),
-            ),
+            ],
           ),
+        ),
+      ),
     );
 
     Overlay.of(context).insert(_popupOverlay!);
@@ -69,8 +68,11 @@ class _CalendarGridWidgetState extends ConsumerState<CalendarGridWidget> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final daysInMonth =
-        DateTime(widget.monthDate.year, widget.monthDate.month + 1, 0).day;
+    final daysInMonth = DateTime(
+      widget.monthDate.year,
+      widget.monthDate.month + 1,
+      0,
+    ).day;
     final firstWeekday =
         DateTime(widget.monthDate.year, widget.monthDate.month, 1).weekday %
         7; // 0=Sunday
@@ -86,24 +88,23 @@ class _CalendarGridWidgetState extends ConsumerState<CalendarGridWidget> {
         SizedBox(
           height: 32,
           child: Row(
-            children:
-                weekdayHeaders
-                    .map(
-                      (day) => Expanded(
-                        child: Center(
-                          child: Text(
-                            day,
-                            style: theme.textTheme.labelSmall?.copyWith(
-                              fontWeight: FontWeight.bold,
-                              color: theme.colorScheme.onSurface.withValues(
-                                alpha: 0.7,
-                              ),
-                            ),
+            children: weekdayHeaders
+                .map(
+                  (day) => Expanded(
+                    child: Center(
+                      child: Text(
+                        day,
+                        style: theme.textTheme.labelSmall?.copyWith(
+                          fontWeight: FontWeight.bold,
+                          color: theme.colorScheme.onSurface.withValues(
+                            alpha: 0.7,
                           ),
                         ),
                       ),
-                    )
-                    .toList(),
+                    ),
+                  ),
+                )
+                .toList(),
           ),
         ),
 
@@ -182,12 +183,9 @@ class _CalendarGridWidgetState extends ConsumerState<CalendarGridWidget> {
                     Container(
                       width: double.infinity,
                       height: double.infinity,
-                      color:
-                          hasJoke
-                              ? theme.colorScheme.primary.withValues(alpha: 1.0)
-                              : theme.colorScheme.primary.withValues(
-                                alpha: 0.2,
-                              ),
+                      color: hasJoke
+                          ? theme.colorScheme.primary.withValues(alpha: 1.0)
+                          : theme.colorScheme.primary.withValues(alpha: 0.2),
                     ),
 
                   // Semi-transparent overlay for better text readability on images
@@ -203,26 +201,25 @@ class _CalendarGridWidgetState extends ConsumerState<CalendarGridWidget> {
                     child: Text(
                       dayNumber.toString(),
                       style: TextStyle(
-                        color:
-                            hasJoke && joke.setupImageUrl != null
-                                ? Colors
-                                    .white // White text on image with dark overlay
-                                : hasJoke
-                                ? theme.colorScheme.onPrimary
-                                : theme.colorScheme.onPrimaryContainer
-                                    .withValues(alpha: 0.3),
+                        color: hasJoke && joke.setupImageUrl != null
+                            ? Colors
+                                  .white // White text on image with dark overlay
+                            : hasJoke
+                            ? theme.colorScheme.onPrimary
+                            : theme.colorScheme.onPrimaryContainer.withValues(
+                                alpha: 0.3,
+                              ),
                         fontWeight: FontWeight.bold,
                         fontSize: 12,
-                        shadows:
-                            hasJoke && joke.setupImageUrl != null
-                                ? [
-                                  Shadow(
-                                    offset: const Offset(1, 1),
-                                    blurRadius: 2,
-                                    color: Colors.black.withValues(alpha: 0.8),
-                                  ),
-                                ]
-                                : null,
+                        shadows: hasJoke && joke.setupImageUrl != null
+                            ? [
+                                Shadow(
+                                  offset: const Offset(1, 1),
+                                  blurRadius: 2,
+                                  color: Colors.black.withValues(alpha: 0.8),
+                                ),
+                              ]
+                            : null,
                       ),
                     ),
                   ),

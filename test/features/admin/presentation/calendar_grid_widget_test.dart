@@ -58,8 +58,8 @@ void main() {
 
       // Find the container that wraps today's text by traversing up the widget tree
       final todayTextWidget = tester.element(todayText);
-      final containerElement =
-          todayTextWidget.findAncestorWidgetOfExactType<Container>();
+      final containerElement = todayTextWidget
+          .findAncestorWidgetOfExactType<Container>();
       expect(
         containerElement,
         isNotNull,
@@ -87,8 +87,8 @@ void main() {
           final dayTextFinder = find.text(day.toString());
           if (dayTextFinder.hasFound) {
             final dayTextElement = tester.element(dayTextFinder);
-            final dayContainer =
-                dayTextElement.findAncestorWidgetOfExactType<Container>();
+            final dayContainer = dayTextElement
+                .findAncestorWidgetOfExactType<Container>();
             if (dayContainer != null) {
               final dayDecoration = dayContainer.decoration as BoxDecoration?;
               if (dayDecoration?.border != null) {
@@ -161,8 +161,8 @@ void main() {
         final dayTextFinder = find.text(day.toString());
         if (dayTextFinder.hasFound) {
           final dayTextElement = tester.element(dayTextFinder);
-          final dayContainer =
-              dayTextElement.findAncestorWidgetOfExactType<Container>();
+          final dayContainer = dayTextElement
+              .findAncestorWidgetOfExactType<Container>();
           if (dayContainer != null) {
             final dayDecoration = dayContainer.decoration as BoxDecoration?;
             if (dayDecoration?.border != null) {
@@ -224,8 +224,8 @@ void main() {
 
       // Find the container that wraps today's text
       final todayTextWidget = tester.element(todayText);
-      final containerElement =
-          todayTextWidget.findAncestorWidgetOfExactType<Container>();
+      final containerElement = todayTextWidget
+          .findAncestorWidgetOfExactType<Container>();
       expect(
         containerElement,
         isNotNull,

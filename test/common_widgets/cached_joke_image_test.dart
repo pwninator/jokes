@@ -13,6 +13,7 @@ import '../test_helpers/firebase_mocks.dart';
 
 // Mock classes using mocktail
 class MockImageService extends Mock implements ImageService {}
+
 class MockAnalyticsService extends Mock implements AnalyticsService {}
 
 void main() {

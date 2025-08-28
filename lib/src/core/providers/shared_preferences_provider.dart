@@ -16,8 +16,7 @@ final sharedPreferencesInstanceProvider = Provider<SharedPreferences>((ref) {
   return asyncValue.when(
     data: (prefs) => prefs,
     loading: () => throw StateError('SharedPreferences not yet loaded'),
-    error:
-        (error, stack) =>
-            throw StateError('Failed to load SharedPreferences: $error'),
+    error: (error, stack) =>
+        throw StateError('Failed to load SharedPreferences: $error'),
   );
 });

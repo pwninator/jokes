@@ -34,9 +34,11 @@ void main() {
         final container = ProviderContainer(
           overrides: [
             jokesProvider.overrideWith(
-              (ref) => Stream.value(
-                [jokePopularSaves, jokePopularShares, jokeNotPopular],
-              ),
+              (ref) => Stream.value([
+                jokePopularSaves,
+                jokePopularShares,
+                jokeNotPopular,
+              ]),
             ),
           ],
         );

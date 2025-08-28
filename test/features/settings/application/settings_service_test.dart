@@ -98,7 +98,9 @@ void main() {
     });
 
     test('getStringList returns null for non-existent key', () async {
-      final retrievedValue = await settingsService.getStringList('nonExistentKey');
+      final retrievedValue = await settingsService.getStringList(
+        'nonExistentKey',
+      );
       expect(retrievedValue, isNull);
     });
   });

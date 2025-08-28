@@ -174,5 +174,78 @@ void main() {
         ).called(1);
       });
     });
+
+    group('searchJokes', () {
+      test('parses list of objects with joke_id and vector_distance', () async {
+        const q = 'cat';
+
+        when(
+          () => mockFunctions.httpsCallable('search_jokes'),
+        ).thenReturn(mockCallable);
+        when(() => mockResult.data).thenReturn([
+          {'joke_id': 'a', 'vector_distance': 0.11},
+          {'joke_id': 'b', 'vector_distance': 0.23},
+        ]);
+        when(
+          () => mockCallable.call({'search_query': q}),
+        ).thenAnswer((_) async => mockResult);
+
+        final ids = await service.searchJokes(searchQuery: q);
+        expect(ids, ['a', 'b']);
+        verify(() => mockFunctions.httpsCallable('search_jokes')).called(1);
+        verify(() => mockCallable.call({'search_query': q})).called(1);
+      });
+
+      test('parses {jokes: [...]} shape', () async {
+        const q = 'dog';
+
+        when(
+          () => mockFunctions.httpsCallable('search_jokes'),
+        ).thenReturn(mockCallable);
+        when(() => mockResult.data).thenReturn({
+          'jokes': [
+            {'joke_id': 'x', 'vector_distance': 0.3},
+            {'joke_id': 'y', 'vector_distance': 0.4},
+          ],
+        });
+        when(
+          () => mockCallable.call({'search_query': q}),
+        ).thenAnswer((_) async => mockResult);
+
+        final ids = await service.searchJokes(searchQuery: q);
+        expect(ids, ['x', 'y']);
+      });
+
+      test('supports max_results param', () async {
+        const q = 'dog';
+
+        when(
+          () => mockFunctions.httpsCallable('search_jokes'),
+        ).thenReturn(mockCallable);
+        when(() => mockResult.data).thenReturn([
+          {'joke_id': 'x', 'vector_distance': 0.1},
+        ]);
+        when(
+          () => mockCallable.call({'search_query': q, 'max_results': 5}),
+        ).thenAnswer((_) async => mockResult);
+
+        final ids = await service.searchJokes(searchQuery: q, maxResults: 5);
+        expect(ids, ['x']);
+      });
+
+      test('handles exceptions and returns empty list', () async {
+        const q = 'error';
+
+        when(
+          () => mockFunctions.httpsCallable('search_jokes'),
+        ).thenReturn(mockCallable);
+        when(
+          () => mockCallable.call({'search_query': q}),
+        ).thenThrow(Exception('boom'));
+
+        final ids = await service.searchJokes(searchQuery: q);
+        expect(ids, isEmpty);
+      });
+    });
   });
 }

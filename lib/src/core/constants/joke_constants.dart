@@ -4,5 +4,3 @@ class JokeConstants {
   static const String defaultJokeScheduleId = 'daily_jokes';
   static const int subscriptionPromptJokesViewedThreshold = 5;
 }
-
-

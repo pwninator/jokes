@@ -7,7 +7,7 @@ class EligibilityContext {
   final List<JokeScheduleBatch> existingBatches;
   final DateTime targetMonth;
   final Map<String, dynamic> additionalFilters;
-  
+
   const EligibilityContext({
     required this.scheduleId,
     required this.existingBatches,
@@ -20,12 +20,15 @@ class EligibilityContext {
 abstract class JokeEligibilityStrategy {
   /// Unique identifier for this strategy
   String get name;
-  
+
   /// Human-readable description of this strategy
   String get description;
-  
+
   /// Get eligible jokes based on this strategy's criteria
-  Future<List<Joke>> getEligibleJokes(List<Joke> allJokes, EligibilityContext context);
+  Future<List<Joke>> getEligibleJokes(
+    List<Joke> allJokes,
+    EligibilityContext context,
+  );
 }
 
 /// Mixin providing common functionality for eligibility strategies
@@ -45,10 +48,10 @@ mixin JokeEligibilityHelpers {
 abstract class JokeEligibilityRule {
   /// Unique identifier for this rule
   String get name;
-  
+
   /// Human-readable description of this rule
   String get description;
-  
+
   /// Evaluate whether a joke meets this rule's criteria
   bool evaluate(Joke joke, EligibilityContext context);
-} 
+}

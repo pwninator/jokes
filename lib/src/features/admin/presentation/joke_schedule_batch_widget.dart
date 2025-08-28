@@ -57,12 +57,11 @@ class JokeScheduleBatchWidget extends ConsumerWidget {
                         data: (batches) {
                           final batch = _findBatchForMonth(batches, monthDate);
                           final jokeCount = batch?.jokes.length ?? 0;
-                          final daysInMonth =
-                              DateTime(
-                                monthDate.year,
-                                monthDate.month + 1,
-                                0,
-                              ).day;
+                          final daysInMonth = DateTime(
+                            monthDate.year,
+                            monthDate.month + 1,
+                            0,
+                          ).day;
 
                           return Text(
                             '$jokeCount of $daysInMonth days scheduled',
@@ -73,22 +72,20 @@ class JokeScheduleBatchWidget extends ConsumerWidget {
                             ),
                           );
                         },
-                        loading:
-                            () => Text(
-                              'Loading...',
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: theme.colorScheme.onSurface.withValues(
-                                  alpha: 0.6,
-                                ),
-                              ),
+                        loading: () => Text(
+                          'Loading...',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurface.withValues(
+                              alpha: 0.6,
                             ),
-                        error:
-                            (_, _) => Text(
-                              'Error loading data',
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: theme.colorScheme.error,
-                              ),
-                            ),
+                          ),
+                        ),
+                        error: (_, _) => Text(
+                          'Error loading data',
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.error,
+                          ),
+                        ),
                       ),
                     ],
                   ),
@@ -97,38 +94,37 @@ class JokeScheduleBatchWidget extends ConsumerWidget {
                 // Auto Fill button
                 FilledButton.tonal(
                   key: const Key('auto-fill-button'),
-                  onPressed:
-                      selectedScheduleId != null
-                          ? () => _autoFillMonth(
-                            context,
-                            ref,
-                            selectedScheduleId,
-                            monthDate,
-                          )
-                          : null,
+                  onPressed: selectedScheduleId != null
+                      ? () => _autoFillMonth(
+                          context,
+                          ref,
+                          selectedScheduleId,
+                          monthDate,
+                        )
+                      : null,
                   child:
                       () {
-                            final state = ref.watch(autoFillProvider);
-                            final monthKey =
-                                '${selectedScheduleId ?? ''}_${monthDate.year}_${monthDate.month}';
-                            return state.processingMonths.contains(monthKey);
-                          }()
-                          ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                              key: Key('auto-fill-loading'),
-                              strokeWidth: 2,
-                            ),
-                          )
-                          : const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.auto_awesome, size: 16),
-                              SizedBox(width: 4),
-                              Text('Auto Fill'),
-                            ],
+                        final state = ref.watch(autoFillProvider);
+                        final monthKey =
+                            '${selectedScheduleId ?? ''}_${monthDate.year}_${monthDate.month}';
+                        return state.processingMonths.contains(monthKey);
+                      }()
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(
+                            key: Key('auto-fill-loading'),
+                            strokeWidth: 2,
                           ),
+                        )
+                      : const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.auto_awesome, size: 16),
+                            SizedBox(width: 4),
+                            Text('Auto Fill'),
+                          ],
+                        ),
                 ),
                 const SizedBox(width: 8),
                 HoldableButton(
@@ -156,48 +152,46 @@ class JokeScheduleBatchWidget extends ConsumerWidget {
                 final batch = _findBatchForMonth(batches, monthDate);
                 return CalendarGridWidget(batch: batch, monthDate: monthDate);
               },
-              loading:
-                  () => SizedBox(
-                    height: 200,
-                    child: const Center(
-                      child: CircularProgressIndicator(
-                        key: Key('calendar-loading'),
-                      ),
-                    ),
+              loading: () => SizedBox(
+                height: 200,
+                child: const Center(
+                  child: CircularProgressIndicator(
+                    key: Key('calendar-loading'),
                   ),
-              error:
-                  (error, _) => SizedBox(
-                    height: 200,
-                    child: Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.error_outline,
-                            color: theme.colorScheme.error,
-                            size: 48,
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Failed to load schedule data',
-                            style: TextStyle(color: theme.colorScheme.error),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            error.toString(),
-                            style: theme.textTheme.bodySmall?.copyWith(
-                              color: theme.colorScheme.onSurface.withValues(
-                                alpha: 0.6,
-                              ),
-                            ),
-                            textAlign: TextAlign.center,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
+                ),
+              ),
+              error: (error, _) => SizedBox(
+                height: 200,
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.error_outline,
+                        color: theme.colorScheme.error,
+                        size: 48,
                       ),
-                    ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Failed to load schedule data',
+                        style: TextStyle(color: theme.colorScheme.error),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        error.toString(),
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurface.withValues(
+                            alpha: 0.6,
+                          ),
+                        ),
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
                   ),
+                ),
+              ),
             ),
           ],
         ),
@@ -244,20 +238,18 @@ class JokeScheduleBatchWidget extends ConsumerWidget {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(result.summaryMessage),
-            backgroundColor:
-                success
-                    ? Theme.of(context).colorScheme.primary
-                    : Theme.of(context).colorScheme.error,
-            action:
-                success && result.warnings.isNotEmpty
-                    ? SnackBarAction(
-                      label: 'Details',
-                      textColor: Colors.white,
-                      onPressed: () {
-                        _showWarningsDialog(context, result.warnings);
-                      },
-                    )
-                    : null,
+            backgroundColor: success
+                ? Theme.of(context).colorScheme.primary
+                : Theme.of(context).colorScheme.error,
+            action: success && result.warnings.isNotEmpty
+                ? SnackBarAction(
+                    label: 'Details',
+                    textColor: Colors.white,
+                    onPressed: () {
+                      _showWarningsDialog(context, result.warnings);
+                    },
+                  )
+                : null,
           ),
         );
       }
@@ -281,32 +273,31 @@ class JokeScheduleBatchWidget extends ConsumerWidget {
 
     return await showDialog<bool>(
           context: context,
-          builder:
-              (context) => AlertDialog(
-                key: const Key('auto-fill-confirmation-dialog'),
-                title: const Text('Auto Fill Schedule'),
-                content: Text(
-                  key: const Key('auto-fill-dialog-content'),
-                  'Auto-fill $monthName ${monthDate.year} with eligible jokes?\n\n'
-                  'This will:\n'
-                  '• Fill empty days with jokes that have positive ratings\n'
-                  '• Randomize joke order\n'
-                  '• Skip jokes already scheduled in other months\n'
-                  '• Preserve any manually scheduled jokes',
-                ),
-                actions: [
-                  TextButton(
-                    key: const Key('auto-fill-cancel-button'),
-                    onPressed: () => Navigator.of(context).pop(false),
-                    child: const Text('Cancel'),
-                  ),
-                  FilledButton(
-                    key: const Key('auto-fill-confirm-button'),
-                    onPressed: () => Navigator.of(context).pop(true),
-                    child: const Text('Auto Fill'),
-                  ),
-                ],
+          builder: (context) => AlertDialog(
+            key: const Key('auto-fill-confirmation-dialog'),
+            title: const Text('Auto Fill Schedule'),
+            content: Text(
+              key: const Key('auto-fill-dialog-content'),
+              'Auto-fill $monthName ${monthDate.year} with eligible jokes?\n\n'
+              'This will:\n'
+              '• Fill empty days with jokes that have positive ratings\n'
+              '• Randomize joke order\n'
+              '• Skip jokes already scheduled in other months\n'
+              '• Preserve any manually scheduled jokes',
+            ),
+            actions: [
+              TextButton(
+                key: const Key('auto-fill-cancel-button'),
+                onPressed: () => Navigator.of(context).pop(false),
+                child: const Text('Cancel'),
               ),
+              FilledButton(
+                key: const Key('auto-fill-confirm-button'),
+                onPressed: () => Navigator.of(context).pop(true),
+                child: const Text('Auto Fill'),
+              ),
+            ],
+          ),
         ) ??
         false;
   }
@@ -314,40 +305,38 @@ class JokeScheduleBatchWidget extends ConsumerWidget {
   void _showWarningsDialog(BuildContext context, List<String> warnings) {
     showDialog(
       context: context,
-      builder:
-          (context) => AlertDialog(
-            title: const Text('Auto Fill Warnings'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children:
-                  warnings
-                      .map(
-                        (warning) => Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Icon(
-                                Icons.warning_amber,
-                                size: 16,
-                                color: Theme.of(context).colorScheme.error,
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(child: Text(warning)),
-                            ],
-                          ),
-                        ),
-                      )
-                      .toList(),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: const Text('OK'),
-              ),
-            ],
+      builder: (context) => AlertDialog(
+        title: const Text('Auto Fill Warnings'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: warnings
+              .map(
+                (warning) => Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        Icons.warning_amber,
+                        size: 16,
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text(warning)),
+                    ],
+                  ),
+                ),
+              )
+              .toList(),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('OK'),
           ),
+        ],
+      ),
     );
   }
 

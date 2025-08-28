@@ -86,8 +86,9 @@ void main() {
       );
 
       test('should have unique Firestore field names', () {
-        final fields =
-            JokeReactionType.values.map((e) => e.firestoreField).toSet();
+        final fields = JokeReactionType.values
+            .map((e) => e.firestoreField)
+            .toSet();
         expect(fields.length, equals(JokeReactionType.values.length));
       });
 

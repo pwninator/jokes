@@ -233,7 +233,7 @@ void main() {
         // Act - ensure batches are loaded first, then check date range
         final batches = await container.read(scheduleBatchesProvider.future);
         expect(batches, isNotEmpty); // Verify batches loaded
-        
+
         final dateRange = container.read(batchDateRangeProvider);
 
         // Assert - should have dates when batches exist

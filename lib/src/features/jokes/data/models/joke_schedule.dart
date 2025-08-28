@@ -5,10 +5,7 @@ class JokeSchedule {
   final String id;
   final String name;
 
-  const JokeSchedule({
-    required this.id,
-    required this.name,
-  });
+  const JokeSchedule({required this.id, required this.name});
 
   /// Sanitizes a name to create a valid Firestore document ID
   /// 1. Replace all non-alphanumeric chars with underscores
@@ -23,27 +20,16 @@ class JokeSchedule {
         .toLowerCase();
   }
 
-  JokeSchedule copyWith({
-    String? id,
-    String? name,
-  }) {
-    return JokeSchedule(
-      id: id ?? this.id,
-      name: name ?? this.name,
-    );
+  JokeSchedule copyWith({String? id, String? name}) {
+    return JokeSchedule(id: id ?? this.id, name: name ?? this.name);
   }
 
   Map<String, dynamic> toMap() {
-    return {
-      'name': name,
-    };
+    return {'name': name};
   }
 
   factory JokeSchedule.fromMap(Map<String, dynamic> map, String documentId) {
-    return JokeSchedule(
-      id: documentId,
-      name: map['name'] ?? '',
-    );
+    return JokeSchedule(id: documentId, name: map['name'] ?? '');
   }
 
   @override
@@ -57,4 +43,4 @@ class JokeSchedule {
 
   @override
   int get hashCode => id.hashCode ^ name.hashCode;
-} 
+}

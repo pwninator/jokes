@@ -1,15 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/common_widgets/adaptive_app_bar_screen.dart';
-import 'package:snickerdoodle/src/features/jokes/application/joke_schedule_providers.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_schedule_batch_widget.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_schedule_widgets.dart';
+import 'package:snickerdoodle/src/features/jokes/application/joke_schedule_providers.dart';
 
 class JokeSchedulerScreen extends ConsumerStatefulWidget {
   const JokeSchedulerScreen({super.key});
 
   @override
-  ConsumerState<JokeSchedulerScreen> createState() => _JokeSchedulerScreenState();
+  ConsumerState<JokeSchedulerScreen> createState() =>
+      _JokeSchedulerScreenState();
 }
 
 class _JokeSchedulerScreenState extends ConsumerState<JokeSchedulerScreen> {
@@ -26,16 +27,18 @@ class _JokeSchedulerScreenState extends ConsumerState<JokeSchedulerScreen> {
 
     final now = DateTime.now();
     final currentMonth = DateTime(now.year, now.month);
-    
+
     // Find the index of the current month in the list
-    final currentIndex = dateRange.indexWhere((date) => 
-      date.year == currentMonth.year && date.month == currentMonth.month);
-    
+    final currentIndex = dateRange.indexWhere(
+      (date) =>
+          date.year == currentMonth.year && date.month == currentMonth.month,
+    );
+
     if (currentIndex != -1 && _scrollController.hasClients) {
       // Calculate the approximate item height (card height + margin)
       const estimatedItemHeight = 400.0; // Adjust based on your card height
       final targetOffset = currentIndex * estimatedItemHeight;
-      
+
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _scrollController.animateTo(
           targetOffset,
@@ -107,9 +110,9 @@ class _JokeSchedulerScreenState extends ConsumerState<JokeSchedulerScreen> {
                     ),
                   ),
                 ),
-                
+
                 const SizedBox(width: 12),
-                
+
                 // Add schedule button
                 FilledButton.tonal(
                   onPressed: () => _openNewScheduleDialog(ref),
@@ -118,25 +121,25 @@ class _JokeSchedulerScreenState extends ConsumerState<JokeSchedulerScreen> {
               ],
             ),
           ),
-          
+
           // Divider
           const Divider(),
-          
+
           // Batch list
           Expanded(
             child: selectedScheduleId == null
                 ? _buildEmptyState(context)
                 : dateRange.isEmpty
-                    ? _buildLoadingState()
-                    : ListView.builder(
-                        controller: _scrollController,
-                        itemCount: dateRange.length,
-                        itemBuilder: (context, index) {
-                          return JokeScheduleBatchWidget(
-                            monthDate: dateRange[index],
-                          );
-                        },
-                      ),
+                ? _buildLoadingState()
+                : ListView.builder(
+                    controller: _scrollController,
+                    itemCount: dateRange.length,
+                    itemBuilder: (context, index) {
+                      return JokeScheduleBatchWidget(
+                        monthDate: dateRange[index],
+                      );
+                    },
+                  ),
           ),
         ],
       ),
@@ -154,9 +157,7 @@ class _JokeSchedulerScreenState extends ConsumerState<JokeSchedulerScreen> {
         height: 48,
         padding: const EdgeInsets.symmetric(horizontal: 12),
         decoration: BoxDecoration(
-          border: Border.all(
-            color: Theme.of(context).colorScheme.outline,
-          ),
+          border: Border.all(color: Theme.of(context).colorScheme.outline),
           borderRadius: BorderRadius.circular(8),
         ),
         child: const Center(
@@ -194,20 +195,26 @@ class _JokeSchedulerScreenState extends ConsumerState<JokeSchedulerScreen> {
           Icon(
             Icons.schedule_outlined,
             size: 64,
-            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4),
+            color: Theme.of(
+              context,
+            ).colorScheme.onSurface.withValues(alpha: 0.4),
           ),
           const SizedBox(height: 16),
           Text(
             'No schedule selected',
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurface.withValues(alpha: 0.6),
             ),
           ),
           const SizedBox(height: 8),
           Text(
             'Create a schedule to get started',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-              color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5),
+              color: Theme.of(
+                context,
+              ).colorScheme.onSurface.withValues(alpha: 0.5),
             ),
           ),
         ],
@@ -241,4 +248,4 @@ class _JokeSchedulerScreenState extends ConsumerState<JokeSchedulerScreen> {
       ref.read(newScheduleDialogProvider.notifier).state = false;
     });
   }
-} 
+}

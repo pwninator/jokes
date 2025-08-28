@@ -94,38 +94,38 @@ class JokeTextCard extends ConsumerWidget {
             child: SizedBox(
               width: double.infinity,
               child: ElevatedButton.icon(
-                onPressed:
-                    isPopulating
-                        ? null
-                        : () async {
-                          final notifier = ref.read(
-                            jokePopulationProvider.notifier,
-                          );
-                                                      await notifier.populateJoke(joke.id, imagesOnly: false);
-                        },
-                icon:
-                    isPopulating
-                        ? SizedBox(
-                          width: 16,
-                          height: 16,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(
-                              Theme.of(
-                                context,
-                              ).colorScheme.onSurface.withValues(alpha: 0.6),
-                            ),
+                onPressed: isPopulating
+                    ? null
+                    : () async {
+                        final notifier = ref.read(
+                          jokePopulationProvider.notifier,
+                        );
+                        await notifier.populateJoke(joke.id, imagesOnly: false);
+                      },
+                icon: isPopulating
+                    ? SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Theme.of(
+                              context,
+                            ).colorScheme.onSurface.withValues(alpha: 0.6),
                           ),
-                        )
-                        : const Icon(Icons.auto_awesome),
+                        ),
+                      )
+                    : const Icon(Icons.auto_awesome),
                 label: Text(
                   isPopulating ? 'Generating Images...' : 'Generate Images',
                 ),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor:
-                      Theme.of(context).colorScheme.primaryContainer,
-                  foregroundColor:
-                      Theme.of(context).colorScheme.onPrimaryContainer,
+                  backgroundColor: Theme.of(
+                    context,
+                  ).colorScheme.primaryContainer,
+                  foregroundColor: Theme.of(
+                    context,
+                  ).colorScheme.onPrimaryContainer,
                 ),
               ),
             ),

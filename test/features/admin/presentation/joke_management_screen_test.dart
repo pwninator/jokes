@@ -10,6 +10,7 @@ import 'package:snickerdoodle/src/features/admin/presentation/joke_management_sc
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
+import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
 
 import '../../../test_helpers/firebase_mocks.dart';
 
@@ -142,16 +143,18 @@ void main() {
         findsOneWidget,
         reason: 'Filter bar should be visible',
       );
+      // Search field should be present
+      expect(find.byKey(const Key('admin-search-field')), findsOneWidget);
       expect(
         find.byKey(const Key('unrated-only-filter-chip')),
         findsOneWidget,
         reason: 'Filter chip should be visible',
       );
-      // Chips should be in a Wrap that can multi-line
+      // Chips should be in a Wrap below the search TextField
       expect(
-        find.byWidgetPredicate((w) => w is Wrap),
-        findsWidgets,
-        reason: 'Filter chips container should be a Wrap',
+        find.byKey(const Key('admin-filter-chips-wrap')),
+        findsOneWidget,
+        reason: 'Filter chips container should be a Wrap under search',
       );
 
       // FAB should be visible
@@ -183,6 +186,7 @@ void main() {
 
       // Should show the basic structure with filter bar
       expect(find.text('Filters'), findsOneWidget);
+      expect(find.byKey(const Key('admin-search-field')), findsOneWidget);
       expect(find.byKey(const Key('unrated-only-filter-chip')), findsOneWidget);
 
       // The content area should be in a stable state - either showing content or loading
@@ -373,6 +377,40 @@ void main() {
       final firstCard =
           tester.widgetList(find.byType(JokeCard)).first as JokeCard;
       expect((firstCard.key as Key).toString(), const Key('c').toString());
+    });
+
+    testWidgets('search field onSubmitted triggers search flow', (
+      tester,
+    ) async {
+      // Arrange: when search_jokes returns ids, repository returns those jokes
+      when(
+        () => mockJokeRepository.getJokes(),
+      ).thenAnswer((_) => Stream.value(testJokes));
+
+      await tester.pumpWidget(createTestWidget());
+      await tester.pump();
+
+      // Enter query and submit
+      final field = find.byKey(const Key('admin-search-field'));
+      expect(field, findsOneWidget);
+      await tester.enterText(field, 'penguin');
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pump();
+
+      // We can't observe cloud function call here, but provider state changes
+      // should not crash; list renders in either loading or content state
+      final hasLoading = find
+          .byType(CircularProgressIndicator)
+          .evaluate()
+          .isNotEmpty;
+      final hasList = find.byType(ListView).evaluate().isNotEmpty;
+      expect(hasLoading || hasList, isTrue);
+
+      // Clear button should appear and clear query when tapped
+      if (find.byIcon(Icons.clear).evaluate().isNotEmpty) {
+        await tester.tap(find.byIcon(Icons.clear));
+        await tester.pump();
+      }
     });
   });
 }

@@ -45,7 +45,8 @@ class _JokeCreatorScreenState extends ConsumerState<JokeCreatorScreen> {
                 controller: _instructionsController,
                 decoration: const InputDecoration(
                   labelText: 'Instructions',
-                  hintText: 'Enter detailed instructions for the AI to generate and critique jokes...',
+                  hintText:
+                      'Enter detailed instructions for the AI to generate and critique jokes...',
                   border: OutlineInputBorder(),
                   prefixIcon: Icon(Icons.edit_note),
                 ),
@@ -78,10 +79,7 @@ class _JokeCreatorScreenState extends ConsumerState<JokeCreatorScreen> {
                         width: 20,
                         child: CircularProgressIndicator(strokeWidth: 2),
                       )
-                    : const Text(
-                        'Generate',
-                        style: TextStyle(fontSize: 16),
-                      ),
+                    : const Text('Generate', style: TextStyle(fontSize: 16)),
               ),
 
               const SizedBox(height: 16),
@@ -91,10 +89,9 @@ class _JokeCreatorScreenState extends ConsumerState<JokeCreatorScreen> {
                 'The AI will generate and critique jokes based on your instructions.',
                 style: TextStyle(
                   fontSize: 12,
-                  color: Theme.of(context)
-                      .colorScheme
-                      .onSurface
-                      .withValues(alpha: 0.6),
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withValues(alpha: 0.6),
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -161,9 +158,7 @@ class _JokeCreatorScreenState extends ConsumerState<JokeCreatorScreen> {
             ] else ...[
               Text(
                 'Error: ${_generationResult!['error'] ?? 'Unknown error occurred'}',
-                style: TextStyle(
-                  color: Theme.of(context).appColors.authError,
-                ),
+                style: TextStyle(color: Theme.of(context).appColors.authError),
               ),
             ],
           ],
@@ -219,7 +214,7 @@ class _JokeCreatorScreenState extends ConsumerState<JokeCreatorScreen> {
     try {
       final instructions = _instructionsController.text.trim();
       final jokeService = ref.read(jokeCloudFunctionServiceProvider);
-      
+
       final result = await jokeService.critiqueJokes(
         instructions: instructions,
       );
@@ -280,4 +275,4 @@ class _JokeCreatorScreenState extends ConsumerState<JokeCreatorScreen> {
       }
     }
   }
-} 
+}

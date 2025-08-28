@@ -106,8 +106,9 @@ class JokeScheduleAutoFillService {
       }
 
       // 2. Get existing batches for context
-      final existingBatches =
-          await _scheduleRepository.watchBatchesForSchedule(scheduleId).first;
+      final existingBatches = await _scheduleRepository
+          .watchBatchesForSchedule(scheduleId)
+          .first;
 
       // 3. Create eligibility context
       final context = EligibilityContext(
@@ -162,10 +163,9 @@ class JokeScheduleAutoFillService {
       monthDate.month,
     );
 
-    final existingBatch =
-        context.existingBatches
-            .where((batch) => batch.id == batchId)
-            .firstOrNull;
+    final existingBatch = context.existingBatches
+        .where((batch) => batch.id == batchId)
+        .firstOrNull;
 
     // Start with existing jokes if we're not replacing
     final assignments = <String, Joke>{};
@@ -238,8 +238,9 @@ class JokeScheduleAutoFillService {
       final allJokes = await _jokeRepository.getJokes().first;
 
       // Get existing batches for context
-      final existingBatches =
-          await _scheduleRepository.watchBatchesForSchedule(scheduleId).first;
+      final existingBatches = await _scheduleRepository
+          .watchBatchesForSchedule(scheduleId)
+          .first;
 
       // Create eligibility context
       final context = EligibilityContext(
@@ -265,8 +266,9 @@ class JokeScheduleAutoFillService {
       final allJokes = await _jokeRepository.getJokes().first;
 
       // Get existing batches
-      final existingBatches =
-          await _scheduleRepository.watchBatchesForSchedule(scheduleId).first;
+      final existingBatches = await _scheduleRepository
+          .watchBatchesForSchedule(scheduleId)
+          .first;
 
       // Create dummy context for current month
       final context = EligibilityContext(

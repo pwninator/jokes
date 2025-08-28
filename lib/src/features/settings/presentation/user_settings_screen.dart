@@ -195,7 +195,8 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                         FutureBuilder<_UsageMetrics>(
                           future: _fetchUsageMetrics(ref),
                           builder: (context, snapshot) {
-                            if (snapshot.connectionState == ConnectionState.waiting) {
+                            if (snapshot.connectionState ==
+                                ConnectionState.waiting) {
                               return const SizedBox.shrink();
                             }
                             if (!snapshot.hasData) {

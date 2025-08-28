@@ -1117,6 +1117,96 @@ void main() {
     });
   });
 
+  group('Search Providers', () {
+    late MockJokeRepository mockJokeRepository;
+    late MockJokeCloudFunctionService mockCloudFunctionService;
+
+    setUp(() {
+      mockJokeRepository = MockJokeRepository();
+      mockCloudFunctionService = MockJokeCloudFunctionService();
+    });
+
+    test('searchResultIdsProvider returns empty when query empty', () async {
+      final container = ProviderContainer(
+        overrides: [
+          jokeCloudFunctionServiceProvider.overrideWithValue(
+            mockCloudFunctionService,
+          ),
+        ],
+      );
+
+      // default query is ''
+      final ids = await container.read(searchResultIdsProvider.future);
+      expect(ids, isEmpty);
+      container.dispose();
+    });
+
+    test('searchResultsProvider preserves order and applies filters', () async {
+      // Arrange: search returns ids in a specific order
+      when(
+        () => mockCloudFunctionService.searchJokes(
+          searchQuery: any(named: 'searchQuery'),
+        ),
+      ).thenAnswer((_) async => ['c', 'a', 'b']);
+
+      // Repository returns all three jokes
+      when(() => mockJokeRepository.getJokesByIds(['c', 'a', 'b'])).thenAnswer(
+        (_) async => const [
+          Joke(
+            id: 'a',
+            setupText: 'Sa',
+            punchlineText: 'Pa',
+            numSaves: 0,
+            numShares: 1,
+          ),
+          Joke(
+            id: 'b',
+            setupText: 'Sb',
+            punchlineText: 'Pb',
+            numSaves: 11,
+            numShares: 0,
+          ),
+          Joke(
+            id: 'c',
+            setupText: 'Sc',
+            punchlineText: 'Pc',
+            numSaves: 2,
+            numShares: 1,
+          ),
+        ],
+      );
+
+      final container = ProviderContainer(
+        overrides: FirebaseMocks.getFirebaseProviderOverrides(
+          additionalOverrides: [
+            jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
+            jokeCloudFunctionServiceProvider.overrideWithValue(
+              mockCloudFunctionService,
+            ),
+            // No schedule data needed for this test
+          ],
+        ),
+      );
+
+      // Set a non-empty query
+      container.read(searchQueryProvider.notifier).state = 'abc';
+
+      // Read results
+      final results = await container.read(searchResultsProvider.future);
+      // Should preserve order from ids: c, a, b (before popular filter)
+      expect(results.map((j) => j.id).toList(), ['c', 'a', 'b']);
+
+      // Now enable popular filter (will sort by score)
+      container.read(jokeFilterProvider.notifier).setPopularOnly(true);
+      final resultsAfterFilter = await container.read(
+        searchResultsProvider.future,
+      );
+      expect(resultsAfterFilter.map((j) => j.id).toList(), ['c', 'b', 'a']);
+
+      container.dispose();
+    });
+  });
+
   group('savedJokesProvider', () {
     test('provides saved jokes in SharedPreferences order', () async {
       final mockReactionsService = MockJokeReactionsService();

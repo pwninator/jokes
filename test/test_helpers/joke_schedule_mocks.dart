@@ -7,7 +7,8 @@ import 'package:snickerdoodle/src/features/jokes/data/models/joke_schedule_batch
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_schedule_repository.dart';
 
 // Mock classes for joke scheduling
-class MockJokeScheduleRepository extends Mock implements JokeScheduleRepository {}
+class MockJokeScheduleRepository extends Mock
+    implements JokeScheduleRepository {}
 
 // Fake classes for Mocktail fallback values
 class FakeJokeSchedule extends Fake implements JokeSchedule {}
@@ -49,11 +50,9 @@ class JokeScheduleMocks {
         ),
 
       // Mock selected schedule - always override to avoid auto-selection logic
-      selectedScheduleProvider.overrideWith(
-        (ref) => selectedScheduleId,
-      ),
+      selectedScheduleProvider.overrideWith((ref) => selectedScheduleId),
 
-      // Mock batches stream  
+      // Mock batches stream
       if (testBatches != null)
         scheduleBatchesProvider.overrideWith(
           (ref) => Stream.value(testBatches),
@@ -65,10 +64,7 @@ class JokeScheduleMocks {
   }
 
   /// Create test schedule
-  static JokeSchedule createTestSchedule({
-    String? id,
-    String? name,
-  }) {
+  static JokeSchedule createTestSchedule({String? id, String? name}) {
     return JokeSchedule(
       id: id ?? 'test_schedule',
       name: name ?? 'Test Schedule',
@@ -85,7 +81,7 @@ class JokeScheduleMocks {
     final testScheduleId = scheduleId ?? 'test_schedule';
     final testYear = year ?? 2024;
     final testMonth = month ?? 1;
-    
+
     return JokeScheduleBatch(
       id: JokeScheduleBatch.createBatchId(testScheduleId, testYear, testMonth),
       scheduleId: testScheduleId,
@@ -122,20 +118,20 @@ class JokeScheduleMocks {
 
   static void _setupRepositoryDefaults(MockJokeScheduleRepository mock) {
     // Setup default behaviors that won't throw
-    when(() => mock.watchSchedules()).thenAnswer(
-      (_) => Stream.value([createTestSchedule()]),
-    );
-    
-    when(() => mock.watchBatchesForSchedule(any())).thenAnswer(
-      (_) => Stream.value([createTestBatch()]),
-    );
-    
+    when(
+      () => mock.watchSchedules(),
+    ).thenAnswer((_) => Stream.value([createTestSchedule()]));
+
+    when(
+      () => mock.watchBatchesForSchedule(any()),
+    ).thenAnswer((_) => Stream.value([createTestBatch()]));
+
     when(() => mock.createSchedule(any())).thenAnswer((_) async {});
-    
+
     when(() => mock.updateBatch(any())).thenAnswer((_) async {});
-    
+
     when(() => mock.deleteBatch(any())).thenAnswer((_) async {});
-    
+
     when(() => mock.deleteSchedule(any())).thenAnswer((_) async {});
   }
-} 
+}

@@ -2,4 +2,4 @@
 abstract class TitledScreen {
   /// The title to be displayed in the app bar for this screen
   String get title;
-} 
+}

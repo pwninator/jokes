@@ -1,8 +1,4 @@
-enum UserRole {
-  anonymous,
-  user,
-  admin,
-}
+enum UserRole { anonymous, user, admin }
 
 class AppUser {
   final String id;
@@ -20,11 +16,7 @@ class AppUser {
   });
 
   factory AppUser.anonymous(String id) {
-    return AppUser(
-      id: id,
-      role: UserRole.anonymous,
-      isAnonymous: true,
-    );
+    return AppUser(id: id, role: UserRole.anonymous, isAnonymous: true);
   }
 
   factory AppUser.authenticated({
@@ -85,4 +77,4 @@ class AppUser {
   String toString() {
     return 'AppUser(id: $id, email: $email, displayName: $displayName, role: $role, isAnonymous: $isAnonymous)';
   }
-} 
+}

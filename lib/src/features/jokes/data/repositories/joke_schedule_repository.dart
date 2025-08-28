@@ -19,4 +19,4 @@ abstract class JokeScheduleRepository {
 
   /// Delete a joke schedule and all its batches
   Future<void> deleteSchedule(String scheduleId);
-} 
+}

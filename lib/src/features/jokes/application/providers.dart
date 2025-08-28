@@ -43,6 +43,71 @@ final jokeCloudFunctionServiceProvider = Provider<JokeCloudFunctionService>((
   return JokeCloudFunctionService();
 });
 
+// Search query state
+final searchQueryProvider = StateProvider<String>((ref) => '');
+
+// Provider that calls the search_jokes cloud function and returns list of IDs
+final searchResultIdsProvider = FutureProvider<List<String>>((ref) async {
+  final query = ref.watch(searchQueryProvider).trim();
+  if (query.isEmpty) return <String>[];
+
+  final service = ref.watch(jokeCloudFunctionServiceProvider);
+  final ids = await service.searchJokes(searchQuery: query);
+  return ids;
+});
+
+// Provider that maps search IDs to Joke models and applies admin filters
+final searchResultsProvider = FutureProvider<List<Joke>>((ref) async {
+  final ids = await ref.watch(searchResultIdsProvider.future);
+  if (ids.isEmpty) return <Joke>[];
+
+  final repository = ref.watch(jokeRepositoryProvider);
+  final jokes = await repository.getJokesByIds(ids);
+
+  // Preserve order from search results
+  final jokeMap = {for (final j in jokes) j.id: j};
+  var ordered = <Joke>[];
+  for (final id in ids) {
+    final j = jokeMap[id];
+    if (j != null) ordered.add(j);
+  }
+
+  // Apply admin filters client-side to the search results
+  final filterState = ref.watch(jokeFilterProvider);
+
+  // 1) Unrated filter (require images and no thumbs reactions)
+  if (filterState.showUnratedOnly) {
+    ordered = ordered.where((joke) {
+      final hasImages =
+          joke.setupImageUrl != null &&
+          joke.setupImageUrl!.isNotEmpty &&
+          joke.punchlineImageUrl != null &&
+          joke.punchlineImageUrl!.isNotEmpty;
+      final isUnrated = joke.numThumbsUp == 0 && joke.numThumbsDown == 0;
+      return hasImages && isUnrated;
+    }).toList();
+  }
+
+  // 2) Unscheduled filter (exclude jokes present in schedule)
+  if (filterState.showUnscheduledOnly) {
+    final scheduled = await ref.watch(monthlyJokesWithDateProvider.future);
+    final scheduledJokeIds = scheduled.map((j) => j.joke.id).toSet();
+    ordered = ordered.where((j) => !scheduledJokeIds.contains(j.id)).toList();
+  }
+
+  // 3) Popular filter and sorting
+  if (filterState.showPopularOnly) {
+    ordered = ordered.where((j) => (j.numSaves + j.numShares) > 0).toList()
+      ..sort((a, b) {
+        final scoreA = (a.numShares * 10) + a.numSaves;
+        final scoreB = (b.numShares * 10) + b.numSaves;
+        return scoreB.compareTo(scoreA);
+      });
+  }
+
+  return ordered;
+});
+
 // State class for joke population
 class JokePopulationState {
   final bool isLoading;

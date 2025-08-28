@@ -32,11 +32,7 @@ class JokeScheduleBatch {
       final year = int.parse(parts[parts.length - 2]);
       final month = int.parse(parts[parts.length - 1]);
       final scheduleId = parts.sublist(0, parts.length - 2).join('_');
-      return {
-        'scheduleId': scheduleId,
-        'year': year,
-        'month': month,
-      };
+      return {'scheduleId': scheduleId, 'year': year, 'month': month};
     } catch (e) {
       return null;
     }
@@ -71,12 +67,13 @@ class JokeScheduleBatch {
       };
     });
 
-    return {
-      'jokes': jokesMap,
-    };
+    return {'jokes': jokesMap};
   }
 
-  factory JokeScheduleBatch.fromMap(Map<String, dynamic> map, String documentId) {
+  factory JokeScheduleBatch.fromMap(
+    Map<String, dynamic> map,
+    String documentId,
+  ) {
     final parsedId = parseBatchId(documentId);
     if (parsedId == null) {
       throw ArgumentError('Invalid batch ID format: $documentId');
@@ -85,7 +82,7 @@ class JokeScheduleBatch {
     // Convert Firestore jokes map to Joke objects
     final jokes = <String, Joke>{};
     final jokesMap = map['jokes'] as Map<String, dynamic>? ?? {};
-    
+
     jokesMap.forEach((day, jokeData) {
       if (jokeData is Map<String, dynamic>) {
         jokes[day] = Joke(
@@ -108,7 +105,8 @@ class JokeScheduleBatch {
   }
 
   @override
-  String toString() => 'JokeScheduleBatch(id: $id, scheduleId: $scheduleId, year: $year, month: $month, jokes: ${jokes.length})';
+  String toString() =>
+      'JokeScheduleBatch(id: $id, scheduleId: $scheduleId, year: $year, month: $month, jokes: ${jokes.length})';
 
   @override
   bool operator ==(Object other) {
@@ -122,5 +120,10 @@ class JokeScheduleBatch {
   }
 
   @override
-  int get hashCode => id.hashCode ^ scheduleId.hashCode ^ year.hashCode ^ month.hashCode ^ jokes.hashCode;
-} 
+  int get hashCode =>
+      id.hashCode ^
+      scheduleId.hashCode ^
+      year.hashCode ^
+      month.hashCode ^
+      jokes.hashCode;
+}

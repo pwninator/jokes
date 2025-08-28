@@ -6,9 +6,8 @@ import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_schedule
 class FirestoreJokeScheduleRepository implements JokeScheduleRepository {
   final FirebaseFirestore _firestore;
 
-  FirestoreJokeScheduleRepository({
-    FirebaseFirestore? firestore,
-  }) : _firestore = firestore ?? FirebaseFirestore.instance;
+  FirestoreJokeScheduleRepository({FirebaseFirestore? firestore})
+    : _firestore = firestore ?? FirebaseFirestore.instance;
 
   static const String _schedulesCollection = 'joke_schedules';
   static const String _batchesCollection = 'joke_schedule_batches';
@@ -20,10 +19,10 @@ class FirestoreJokeScheduleRepository implements JokeScheduleRepository {
         .orderBy('name')
         .snapshots()
         .map((snapshot) {
-      return snapshot.docs
-          .map((doc) => JokeSchedule.fromMap(doc.data(), doc.id))
-          .toList();
-    });
+          return snapshot.docs
+              .map((doc) => JokeSchedule.fromMap(doc.data(), doc.id))
+              .toList();
+        });
   }
 
   @override
@@ -31,23 +30,26 @@ class FirestoreJokeScheduleRepository implements JokeScheduleRepository {
     // Query batches that start with the schedule ID
     return _firestore
         .collection(_batchesCollection)
-        .where(FieldPath.documentId, isGreaterThanOrEqualTo: '${scheduleId}_2000')
+        .where(
+          FieldPath.documentId,
+          isGreaterThanOrEqualTo: '${scheduleId}_2000',
+        )
         .where(FieldPath.documentId, isLessThan: '${scheduleId}_3000')
         .snapshots()
         .map((snapshot) {
-      return snapshot.docs
-          .map((doc) {
-            try {
-              return JokeScheduleBatch.fromMap(doc.data(), doc.id);
-            } catch (e) {
-              // Skip invalid batch documents
-              return null;
-            }
-          })
-          .where((batch) => batch != null)
-          .cast<JokeScheduleBatch>()
-          .toList();
-    });
+          return snapshot.docs
+              .map((doc) {
+                try {
+                  return JokeScheduleBatch.fromMap(doc.data(), doc.id);
+                } catch (e) {
+                  // Skip invalid batch documents
+                  return null;
+                }
+              })
+              .where((batch) => batch != null)
+              .cast<JokeScheduleBatch>()
+              .toList();
+        });
   }
 
   @override
@@ -91,4 +93,4 @@ class FirestoreJokeScheduleRepository implements JokeScheduleRepository {
 
     await batch.commit();
   }
-} 
+}

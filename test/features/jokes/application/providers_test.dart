@@ -1102,6 +1102,9 @@ void main() {
           container.read(jokeFilterProvider.notifier).setUnscheduledOnly(true);
           container.read(jokeFilterProvider.notifier).setPopularOnly(true);
 
+          // Ensure schedule data is ready before reading filtered provider
+          await container.read(monthlyJokesWithDateProvider.future);
+
           final result = container.read(filteredJokesProvider);
           expect(result.hasValue, true);
           final ids = result.value!.map((j) => j.id).toList();

@@ -137,14 +137,11 @@ void main() {
       await tester.pump(); // Let the widget build
       await tester.pump(); // Let the providers resolve
 
-      // The filter bar should be visible
-      expect(
-        find.text('Filters'),
-        findsOneWidget,
-        reason: 'Filter bar should be visible',
-      );
-      // Search field should be present
-      expect(find.byKey(const Key('admin-search-field')), findsOneWidget);
+      // Filter area should be visible (chips container present)
+      expect(find.byKey(const Key('admin-filter-chips-wrap')), findsOneWidget);
+      // By default the search field is hidden, the search toggle chip is shown
+      expect(find.byKey(const Key('admin-search-field')), findsNothing);
+      expect(find.byKey(const Key('search-toggle-chip')), findsOneWidget);
       expect(
         find.byKey(const Key('unrated-only-filter-chip')),
         findsOneWidget,
@@ -184,9 +181,9 @@ void main() {
       await tester.pump(); // Let the widget build
       await tester.pump(); // Let the providers resolve
 
-      // Should show the basic structure with filter bar
-      expect(find.text('Filters'), findsOneWidget);
-      expect(find.byKey(const Key('admin-search-field')), findsOneWidget);
+      // Should show the basic structure with chips container
+      expect(find.byKey(const Key('admin-filter-chips-wrap')), findsOneWidget);
+      expect(find.byKey(const Key('admin-search-field')), findsNothing);
       expect(find.byKey(const Key('unrated-only-filter-chip')), findsOneWidget);
 
       // The content area should be in a stable state - either showing content or loading
@@ -237,8 +234,8 @@ void main() {
       // Verify FAB is present and tappable
       expect(find.byType(FloatingActionButton), findsOneWidget);
 
-      // Verify we're on the management screen initially
-      expect(find.text('Filters'), findsOneWidget);
+      // Verify we're on the management screen initially (chips present)
+      expect(find.byKey(const Key('admin-filter-chips-wrap')), findsOneWidget);
 
       await tester.tap(find.byType(FloatingActionButton));
       await tester.pumpAndSettle(); // Let the navigation animation complete
@@ -390,6 +387,11 @@ void main() {
       await tester.pumpWidget(createTestWidget());
       await tester.pump();
 
+      // Reveal the search field via the search chip
+      expect(find.byKey(const Key('search-toggle-chip')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('search-toggle-chip')));
+      await tester.pump();
+
       // Enter query and submit
       final field = find.byKey(const Key('admin-search-field'));
       expect(field, findsOneWidget);
@@ -406,11 +408,34 @@ void main() {
       final hasList = find.byType(ListView).evaluate().isNotEmpty;
       expect(hasLoading || hasList, isTrue);
 
-      // Clear button should appear and clear query when tapped
+      // Clear button should appear and clear query when tapped (keeps field visible)
       if (find.byIcon(Icons.clear).evaluate().isNotEmpty) {
         await tester.tap(find.byIcon(Icons.clear));
         await tester.pump();
       }
     });
+
+    testWidgets(
+      'search chip toggles search field visibility and hides on blur when empty',
+      (tester) async {
+        await tester.pumpWidget(createTestWidget());
+        await tester.pump();
+
+        // Initially, chip is visible, field hidden
+        expect(find.byKey(const Key('search-toggle-chip')), findsOneWidget);
+        expect(find.byKey(const Key('admin-search-field')), findsNothing);
+
+        // Tap chip -> field appears
+        await tester.tap(find.byKey(const Key('search-toggle-chip')));
+        await tester.pump();
+        expect(find.byKey(const Key('admin-search-field')), findsOneWidget);
+
+        // Submit empty search (no text) to dismiss keyboard and lose focus
+        await tester.testTextInput.receiveAction(TextInputAction.search);
+        await tester.pump();
+        expect(find.byKey(const Key('admin-search-field')), findsNothing);
+        expect(find.byKey(const Key('search-toggle-chip')), findsOneWidget);
+      },
+    );
   });
 }

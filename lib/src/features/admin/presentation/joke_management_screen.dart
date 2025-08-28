@@ -15,6 +15,30 @@ class JokeManagementScreen extends ConsumerStatefulWidget {
 }
 
 class _JokeManagementScreenState extends ConsumerState<JokeManagementScreen> {
+  bool _showSearch = false;
+  final FocusNode _searchFocusNode = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    _searchFocusNode.addListener(() {
+      if (!_searchFocusNode.hasFocus) {
+        final query = ref.read(searchQueryProvider).trim();
+        if (mounted && query.isEmpty) {
+          setState(() {
+            _showSearch = false;
+          });
+        }
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchFocusNode.dispose();
+    super.dispose();
+  }
+
   String _getEmptyStateTitle(JokeFilterState filterState) {
     if (filterState.showUnratedOnly && filterState.showUnscheduledOnly) {
       return 'No unrated and unscheduled jokes found!';
@@ -77,51 +101,72 @@ class _JokeManagementScreenState extends ConsumerState<JokeManagementScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Filters',
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.onSurface.withValues(alpha: 0.8),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                SizedBox(
-                  width: double.infinity,
-                  child: TextField(
-                    key: const Key('admin-search-field'),
-                    decoration: InputDecoration(
-                      hintText: 'Search jokes...',
-                      prefixIcon: const Icon(Icons.search),
-                      isDense: true,
-                      border: const OutlineInputBorder(),
-                      suffixIcon: searchQuery.isNotEmpty
-                          ? IconButton(
-                              tooltip: 'Clear',
-                              icon: const Icon(Icons.clear),
-                              onPressed: () {
-                                ref.read(searchQueryProvider.notifier).state =
-                                    '';
-                                FocusScope.of(context).unfocus();
-                              },
-                            )
-                          : null,
+                if (_showSearch)
+                  SizedBox(
+                    width: double.infinity,
+                    child: TextField(
+                      key: const Key('admin-search-field'),
+                      focusNode: _searchFocusNode,
+                      decoration: InputDecoration(
+                        hintText: 'Search jokes...',
+                        prefixIcon: const Icon(Icons.search),
+                        isDense: true,
+                        border: const OutlineInputBorder(),
+                        suffixIcon: searchQuery.isNotEmpty
+                            ? IconButton(
+                                tooltip: 'Clear',
+                                icon: const Icon(Icons.clear),
+                                onPressed: () {
+                                  ref.read(searchQueryProvider.notifier).state =
+                                      '';
+                                  setState(() {
+                                    _showSearch = false;
+                                  });
+                                  FocusScope.of(context).unfocus();
+                                },
+                              )
+                            : null,
+                      ),
+                      maxLines: 1,
+                      textInputAction: TextInputAction.search,
+                      onSubmitted: (raw) {
+                        final query = raw.trim();
+                        ref.read(searchQueryProvider.notifier).state = query;
+                        FocusScope.of(context).unfocus();
+                      },
                     ),
-                    maxLines: 1,
-                    textInputAction: TextInputAction.search,
-                    onSubmitted: (raw) {
-                      final query = raw.trim();
-                      ref.read(searchQueryProvider.notifier).state = query;
-                      FocusScope.of(context).unfocus();
-                    },
                   ),
-                ),
                 const SizedBox(height: 8),
                 Wrap(
                   key: const Key('admin-filter-chips-wrap'),
                   spacing: 4,
                   runSpacing: 0,
                   children: [
+                    if (!_showSearch)
+                      FilterChip(
+                        key: const Key('search-toggle-chip'),
+                        label: Text(
+                          'Search',
+                          style: Theme.of(
+                            context,
+                          ).textTheme.bodySmall?.copyWith(fontSize: 12),
+                        ),
+                        labelPadding: const EdgeInsets.symmetric(horizontal: 0),
+                        visualDensity: VisualDensity.compact,
+                        selected: false,
+                        onSelected: (_) {
+                          setState(() {
+                            _showSearch = true;
+                          });
+                          WidgetsBinding.instance.addPostFrameCallback((_) {
+                            if (mounted) {
+                              _searchFocusNode.requestFocus();
+                            }
+                          });
+                        },
+                        showCheckmark: false,
+                        avatar: const Icon(Icons.search, size: 16),
+                      ),
                     _AdminFilterChip(
                       key: const Key('unrated-only-filter-chip'),
                       label: 'Unrated',

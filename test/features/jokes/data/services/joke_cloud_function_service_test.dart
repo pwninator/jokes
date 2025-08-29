@@ -200,8 +200,9 @@ void main() {
         expect(results.map((r) => r.id).toList(), ['a', 'b']);
         expect(results.map((r) => r.vectorDistance).toList(), [0.11, 0.23]);
         verify(() => mockFunctions.httpsCallable('search_jokes')).called(1);
-        final captured = verify(() => mockCallable.call(captureAny())).captured
-            .single as Map<String, dynamic>;
+        final captured =
+            verify(() => mockCallable.call(captureAny())).captured.single
+                as Map<String, dynamic>;
         expect(captured['search_query'], q);
         expect(captured['max_results'], '50');
         expect(captured['public_only'], isTrue);
@@ -231,8 +232,9 @@ void main() {
           matchMode: MatchMode.loose,
         );
         expect(results.map((r) => r.id).toList(), ['x', 'y']);
-        final captured = verify(() => mockCallable.call(captureAny())).captured
-            .last as Map<String, dynamic>;
+        final captured =
+            verify(() => mockCallable.call(captureAny())).captured.last
+                as Map<String, dynamic>;
         expect(captured['search_query'], q);
         expect(captured['max_results'], '25');
         expect(captured['public_only'], isFalse);
@@ -259,8 +261,9 @@ void main() {
           matchMode: MatchMode.tight,
         );
         expect(results.map((r) => r.id).toList(), ['x']);
-        final captured = verify(() => mockCallable.call(captureAny())).captured
-            .last as Map<String, dynamic>;
+        final captured =
+            verify(() => mockCallable.call(captureAny())).captured.last
+                as Map<String, dynamic>;
         expect(captured['search_query'], q);
         expect(captured['max_results'], '5');
         expect(captured['public_only'], isTrue);
@@ -273,9 +276,7 @@ void main() {
         when(
           () => mockFunctions.httpsCallable('search_jokes'),
         ).thenReturn(mockCallable);
-        when(
-          () => mockCallable.call(any()),
-        ).thenThrow(Exception('boom'));
+        when(() => mockCallable.call(any())).thenThrow(Exception('boom'));
 
         final results = await service.searchJokes(
           searchQuery: q,

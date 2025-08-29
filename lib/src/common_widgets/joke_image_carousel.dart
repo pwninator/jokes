@@ -119,11 +119,14 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
         _setupThresholdMet = true;
         if (!_setupEventLogged) {
           _setupEventLogged = true;
-          await analyticsService.logJokeSetupViewed(
-            widget.joke.id,
-            navigationMethod: _navMethodSetup ?? AnalyticsNavigationMethod.none,
-            jokeContext: widget.jokeContext,
-          );
+          if (!widget.isAdminMode) {
+            await analyticsService.logJokeSetupViewed(
+              widget.joke.id,
+              navigationMethod:
+                  _navMethodSetup ?? AnalyticsNavigationMethod.none,
+              jokeContext: widget.jokeContext,
+            );
+          }
           // If image missing, log error context for missing parts
           if (widget.joke.setupImageUrl == null ||
               widget.joke.setupImageUrl!.isEmpty) {
@@ -137,12 +140,14 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
         _punchlineThresholdMet = true;
         if (!_punchlineEventLogged) {
           _punchlineEventLogged = true;
-          await analyticsService.logJokePunchlineViewed(
-            widget.joke.id,
-            navigationMethod:
-                _navMethodPunchline ?? AnalyticsNavigationMethod.swipe,
-            jokeContext: widget.jokeContext,
-          );
+          if (!widget.isAdminMode) {
+            await analyticsService.logJokePunchlineViewed(
+              widget.joke.id,
+              navigationMethod:
+                  _navMethodPunchline ?? AnalyticsNavigationMethod.swipe,
+              jokeContext: widget.jokeContext,
+            );
+          }
           if (widget.joke.punchlineImageUrl == null ||
               widget.joke.punchlineImageUrl!.isEmpty) {
             await analyticsService.logErrorJokeImagesMissing(
@@ -164,18 +169,20 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
       await appUsageService.logJokeViewed();
       final jokesViewedCount = await appUsageService.getNumJokesViewed();
       final analyticsService = ref.read(analyticsServiceProvider);
-      await analyticsService.logJokeViewed(
-        widget.joke.id,
-        totalJokesViewed: jokesViewedCount,
-        navigationMethod: _lastNavigationMethod,
-        jokeContext: widget.jokeContext,
-      );
-      final subscriptionPromptNotifier = ref.read(
-        subscriptionPromptProvider.notifier,
-      );
-      subscriptionPromptNotifier.considerPromptAfterJokeViewed(
-        jokesViewedCount,
-      );
+      if (!widget.isAdminMode) {
+        await analyticsService.logJokeViewed(
+          widget.joke.id,
+          totalJokesViewed: jokesViewedCount,
+          navigationMethod: _lastNavigationMethod,
+          jokeContext: widget.jokeContext,
+        );
+        final subscriptionPromptNotifier = ref.read(
+          subscriptionPromptProvider.notifier,
+        );
+        subscriptionPromptNotifier.considerPromptAfterJokeViewed(
+          jokesViewedCount,
+        );
+      }
     }
   }
 

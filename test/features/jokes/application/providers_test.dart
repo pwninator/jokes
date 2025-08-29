@@ -10,6 +10,7 @@ import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_reposito
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
+import 'package:snickerdoodle/src/features/jokes/domain/joke_search_result.dart';
 
 import '../../../test_helpers/analytics_mocks.dart';
 import '../../../test_helpers/firebase_mocks.dart';
@@ -1138,8 +1139,8 @@ void main() {
       );
 
       // default query is ''
-      final ids = await container.read(searchResultIdsProvider.future);
-      expect(ids, isEmpty);
+      final results = await container.read(searchResultIdsProvider.future);
+      expect(results, isEmpty);
       container.dispose();
     });
 
@@ -1151,7 +1152,13 @@ void main() {
           () => mockCloudFunctionService.searchJokes(
             searchQuery: any(named: 'searchQuery'),
           ),
-        ).thenAnswer((_) async => ['c', 'a', 'b']);
+        ).thenAnswer(
+          (_) async => const [
+            JokeSearchResult(id: 'c', vectorDistance: 0.2),
+            JokeSearchResult(id: 'a', vectorDistance: 0.3),
+            JokeSearchResult(id: 'b', vectorDistance: 0.4),
+          ],
+        );
 
         // Per-joke streams
         final streamA = StreamController<Joke?>();
@@ -1180,7 +1187,10 @@ void main() {
         );
 
         // Set a non-empty query to trigger ids fetch and await completion
-        container.read(searchQueryProvider.notifier).state = 'abc';
+        container.read(searchQueryProvider.notifier).state = (
+          query: 'abc',
+          maxResults: null,
+        );
         await container.read(searchResultIdsProvider.future);
 
         // Push initial values
@@ -1219,7 +1229,11 @@ void main() {
           value1 = container.read(searchResultsLiveProvider);
         }
         expect(value1.hasValue, isTrue);
-        expect(value1.value!.map((j) => j.id).toList(), ['c', 'a', 'b']);
+        expect(value1.value!.map((jvd) => jvd.joke.id).toList(), [
+          'c',
+          'a',
+          'b',
+        ]);
 
         // Enable popular filter -> sorts by (shares*10 + saves)
         container.read(jokeFilterProvider.notifier).setPopularOnly(true);
@@ -1229,7 +1243,11 @@ void main() {
           value2 = container.read(searchResultsLiveProvider);
         }
         expect(value2.hasValue, isTrue);
-        expect(value2.value!.map((j) => j.id).toList(), ['c', 'b', 'a']);
+        expect(value2.value!.map((jvd) => jvd.joke.id).toList(), [
+          'c',
+          'b',
+          'a',
+        ]);
 
         await streamA.close();
         await streamB.close();
@@ -1243,7 +1261,9 @@ void main() {
         () => mockCloudFunctionService.searchJokes(
           searchQuery: any(named: 'searchQuery'),
         ),
-      ).thenAnswer((_) async => ['j1']);
+      ).thenAnswer(
+        (_) async => const [JokeSearchResult(id: 'j1', vectorDistance: 0.42)],
+      );
 
       final stream = StreamController<Joke?>();
       when(
@@ -1261,7 +1281,10 @@ void main() {
         ),
       );
 
-      container.read(searchQueryProvider.notifier).state = 'x';
+      container.read(searchQueryProvider.notifier).state = (
+        query: 'x',
+        maxResults: null,
+      );
       await container.read(searchResultIdsProvider.future);
 
       // Initial emit without images
@@ -1280,8 +1303,8 @@ void main() {
         value = container.read(searchResultsLiveProvider);
       }
       expect(value.hasValue, isTrue);
-      expect(value.value!.first.id, 'j1');
-      expect(value.value!.first.setupImageUrl, isNull);
+      expect(value.value!.first.joke.id, 'j1');
+      expect(value.value!.first.joke.setupImageUrl, isNull);
 
       // Update with images -> provider should now reflect images
       stream.add(
@@ -1299,15 +1322,15 @@ void main() {
         if (!value.isLoading &&
             value.hasValue &&
             value.value!.isNotEmpty &&
-            value.value!.first.setupImageUrl != null &&
-            value.value!.first.punchlineImageUrl != null) {
+            value.value!.first.joke.setupImageUrl != null &&
+            value.value!.first.joke.punchlineImageUrl != null) {
           break;
         }
         await Future.delayed(const Duration(milliseconds: 5));
       }
       expect(value.hasValue, isTrue);
-      expect(value.value!.first.setupImageUrl, isNotNull);
-      expect(value.value!.first.punchlineImageUrl, isNotNull);
+      expect(value.value!.first.joke.setupImageUrl, isNotNull);
+      expect(value.value!.first.joke.punchlineImageUrl, isNotNull);
 
       await stream.close();
       container.dispose();

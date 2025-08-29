@@ -1,5 +1,6 @@
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/foundation.dart';
+import 'package:snickerdoodle/src/features/jokes/domain/joke_search_result.dart';
 
 class JokeCloudFunctionService {
   JokeCloudFunctionService({FirebaseFunctions? functions})
@@ -146,11 +147,11 @@ class JokeCloudFunctionService {
     }
   }
 
-  /// Search jokes via Cloud Function and return a list of joke IDs
+  /// Search jokes via Cloud Function and return typed results
   ///
   /// Request params: { search_query, max_results }
   /// Response: List of objects: [{ joke_id, vector_distance }, ...]
-  Future<List<String>> searchJokes({
+  Future<List<JokeSearchResult>> searchJokes({
     required String searchQuery,
     int? maxResults,
   }) async {
@@ -158,7 +159,8 @@ class JokeCloudFunctionService {
       final callable = _functions.httpsCallable('search_jokes');
       final payload = <String, dynamic>{'search_query': searchQuery};
       if (maxResults != null) {
-        payload['max_results'] = maxResults;
+        // Workaround: send as string to avoid protobuf Int64 wrapper on the server
+        payload['max_results'] = maxResults.toString();
       }
 
       final result = await callable.call(payload);
@@ -172,25 +174,23 @@ class JokeCloudFunctionService {
           : null;
 
       if (resultsList != null) {
-        final ids = <String>[];
-        for (final item in resultsList) {
-          if (item is Map && item['joke_id'] != null) {
-            ids.add(item['joke_id'].toString());
-          }
-        }
-        return ids;
+        return resultsList
+            .whereType<Map>()
+            .map((e) => JokeSearchResult.fromMap(e))
+            .where((r) => r.id.isNotEmpty)
+            .toList();
       }
 
       debugPrint('Unexpected search_jokes response: $data');
-      return <String>[];
+      return <JokeSearchResult>[];
     } on FirebaseFunctionsException catch (e) {
       debugPrint(
         'Firebase Functions error (search_jokes): ${e.code} - ${e.message}',
       );
-      return <String>[];
+      return <JokeSearchResult>[];
     } catch (e) {
       debugPrint('Error calling search_jokes: $e');
-      return <String>[];
+      return <JokeSearchResult>[];
     }
   }
 }

@@ -5,6 +5,7 @@ import 'package:snickerdoodle/src/common_widgets/adaptive_app_bar_screen.dart';
 import 'package:snickerdoodle/src/common_widgets/joke_card.dart';
 import 'package:snickerdoodle/src/config/router/route_names.dart';
 import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
+import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 
 class JokeManagementScreen extends ConsumerStatefulWidget {
   const JokeManagementScreen({super.key});
@@ -23,7 +24,8 @@ class _JokeManagementScreenState extends ConsumerState<JokeManagementScreen> {
     super.initState();
     _searchFocusNode.addListener(() {
       if (!_searchFocusNode.hasFocus) {
-        final query = ref.read(searchQueryProvider).trim();
+        final params = ref.read(searchQueryProvider);
+        final query = params.query.trim();
         if (mounted && query.isEmpty) {
           setState(() {
             _showSearch = false;
@@ -67,7 +69,7 @@ class _JokeManagementScreenState extends ConsumerState<JokeManagementScreen> {
   Widget build(BuildContext context) {
     final jokesAsync = ref.watch(filteredJokesProvider);
     final filterState = ref.watch(jokeFilterProvider);
-    final searchQuery = ref.watch(searchQueryProvider);
+    final searchParams = ref.watch(searchQueryProvider);
     final searchResultsAsync = ref.watch(searchResultsLiveProvider);
 
     return AdaptiveAppBarScreen(
@@ -112,13 +114,18 @@ class _JokeManagementScreenState extends ConsumerState<JokeManagementScreen> {
                         prefixIcon: const Icon(Icons.search),
                         isDense: true,
                         border: const OutlineInputBorder(),
-                        suffixIcon: searchQuery.isNotEmpty
+                        suffixIcon: searchParams.query.isNotEmpty
                             ? IconButton(
                                 tooltip: 'Clear',
                                 icon: const Icon(Icons.clear),
                                 onPressed: () {
-                                  ref.read(searchQueryProvider.notifier).state =
-                                      '';
+                                  final current = ref.read(searchQueryProvider);
+                                  ref
+                                      .read(searchQueryProvider.notifier)
+                                      .state = (
+                                    query: '',
+                                    maxResults: current.maxResults,
+                                  );
                                   setState(() {
                                     _showSearch = false;
                                   });
@@ -131,7 +138,10 @@ class _JokeManagementScreenState extends ConsumerState<JokeManagementScreen> {
                       textInputAction: TextInputAction.search,
                       onSubmitted: (raw) {
                         final query = raw.trim();
-                        ref.read(searchQueryProvider.notifier).state = query;
+                        ref.read(searchQueryProvider.notifier).state = (
+                          query: query,
+                          maxResults: 50,
+                        );
                         FocusScope.of(context).unfocus();
                       },
                     ),
@@ -205,11 +215,28 @@ class _JokeManagementScreenState extends ConsumerState<JokeManagementScreen> {
           // Search + Jokes list
           Expanded(
             child:
-                (searchQuery.trim().isNotEmpty
-                        ? searchResultsAsync
-                        : jokesAsync)
+                (searchParams.query.trim().isNotEmpty
+                        ? searchResultsAsync.whenData(
+                            (list) => list
+                                .map<({Joke joke, String? badge})>(
+                                  (jvd) => (
+                                    joke: jvd.joke,
+                                    badge: jvd.vectorDistance.toStringAsFixed(
+                                      2,
+                                    ),
+                                  ),
+                                )
+                                .toList(),
+                          )
+                        : jokesAsync.whenData(
+                            (list) => list
+                                .map<({Joke joke, String? badge})>(
+                                  (j) => (joke: j, badge: null),
+                                )
+                                .toList(),
+                          ))
                     .when(
-                      data: (jokes) => jokes.isEmpty
+                      data: (items) => items.isEmpty
                           ? Center(
                               child: Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
@@ -250,9 +277,9 @@ class _JokeManagementScreenState extends ConsumerState<JokeManagementScreen> {
                             )
                           : ListView.builder(
                               padding: const EdgeInsets.all(8.0),
-                              itemCount: jokes.length,
+                              itemCount: items.length,
                               itemBuilder: (context, index) {
-                                final joke = jokes[index];
+                                final joke = items[index].joke;
                                 return JokeCard(
                                   key: Key(joke.id),
                                   joke: joke,
@@ -264,6 +291,7 @@ class _JokeManagementScreenState extends ConsumerState<JokeManagementScreen> {
                                   showNumSaves: true,
                                   showNumShares: true,
                                   jokeContext: 'admin',
+                                  topRightBadgeText: items[index].badge,
                                 );
                               },
                             ),

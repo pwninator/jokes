@@ -408,5 +408,43 @@ void main() {
         expect(find.byType(JokeImageCarousel), findsNothing);
       });
     });
+
+    // New tests for badge overlay
+    group('Badge Overlay', () {
+      testWidgets('passes topRightBadgeText to JokeTextCard overlay', (
+        tester,
+      ) async {
+        const joke = Joke(id: 't1', setupText: 'Setup', punchlineText: 'Punch');
+        const w = JokeCard(
+          joke: joke,
+          jokeContext: 'test',
+          topRightBadgeText: '92%',
+        );
+        await tester.pumpWidget(createTestWidget(child: w));
+        final textCard = tester.widget<JokeTextCard>(find.byType(JokeTextCard));
+        expect(textCard.overlayBadgeText, '92%');
+        expect(find.text('92%'), findsOneWidget);
+      });
+
+      testWidgets('passes topRightBadgeText to JokeImageCarousel overlay', (
+        tester,
+      ) async {
+        const joke = Joke(
+          id: 'i1',
+          setupText: 'Setup',
+          punchlineText: 'Punch',
+          setupImageUrl: 'https://ex/setup.jpg',
+          punchlineImageUrl: 'https://ex/punch.jpg',
+        );
+        const w = JokeCard(
+          joke: joke,
+          jokeContext: 'test',
+          topRightBadgeText: '0.87',
+        );
+        await tester.pumpWidget(createTestWidget(child: w));
+        expect(find.byType(JokeImageCarousel), findsOneWidget);
+        expect(find.text('0.87'), findsOneWidget);
+      });
+    });
   });
 }

@@ -2,6 +2,7 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
+// joke_search_result.dart imported transitively via service tests; keep imports minimal
 
 // Mock classes using mocktail
 class MockFirebaseFunctions extends Mock implements FirebaseFunctions {}
@@ -190,8 +191,9 @@ void main() {
           () => mockCallable.call({'search_query': q}),
         ).thenAnswer((_) async => mockResult);
 
-        final ids = await service.searchJokes(searchQuery: q);
-        expect(ids, ['a', 'b']);
+        final results = await service.searchJokes(searchQuery: q);
+        expect(results.map((r) => r.id).toList(), ['a', 'b']);
+        expect(results.map((r) => r.vectorDistance).toList(), [0.11, 0.23]);
         verify(() => mockFunctions.httpsCallable('search_jokes')).called(1);
         verify(() => mockCallable.call({'search_query': q})).called(1);
       });
@@ -212,8 +214,8 @@ void main() {
           () => mockCallable.call({'search_query': q}),
         ).thenAnswer((_) async => mockResult);
 
-        final ids = await service.searchJokes(searchQuery: q);
-        expect(ids, ['x', 'y']);
+        final results = await service.searchJokes(searchQuery: q);
+        expect(results.map((r) => r.id).toList(), ['x', 'y']);
       });
 
       test('supports max_results param', () async {
@@ -229,8 +231,11 @@ void main() {
           () => mockCallable.call({'search_query': q, 'max_results': 5}),
         ).thenAnswer((_) async => mockResult);
 
-        final ids = await service.searchJokes(searchQuery: q, maxResults: 5);
-        expect(ids, ['x']);
+        final results = await service.searchJokes(
+          searchQuery: q,
+          maxResults: 5,
+        );
+        expect(results.map((r) => r.id).toList(), ['x']);
       });
 
       test('handles exceptions and returns empty list', () async {
@@ -243,8 +248,8 @@ void main() {
           () => mockCallable.call({'search_query': q}),
         ).thenThrow(Exception('boom'));
 
-        final ids = await service.searchJokes(searchQuery: q);
-        expect(ids, isEmpty);
+        final results = await service.searchJokes(searchQuery: q);
+        expect(results, isEmpty);
       });
     });
   });

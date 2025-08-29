@@ -19,6 +19,7 @@ class JokeCard extends StatelessWidget {
   final String? title;
   final String jokeContext;
   final JokeImageCarouselController? controller;
+  final String? topRightBadgeText;
 
   const JokeCard({
     super.key,
@@ -37,6 +38,7 @@ class JokeCard extends StatelessWidget {
     this.title,
     required this.jokeContext,
     this.controller,
+    this.topRightBadgeText,
   });
 
   @override
@@ -67,10 +69,16 @@ class JokeCard extends StatelessWidget {
         title: title,
         jokeContext: jokeContext,
         controller: controller,
+        overlayBadgeText: topRightBadgeText,
       );
     } else {
       // No images or incomplete images - show text with populate button
-      return JokeTextCard(joke: joke, index: index, onTap: onSetupTap);
+      return JokeTextCard(
+        joke: joke,
+        index: index,
+        onTap: onSetupTap,
+        overlayBadgeText: topRightBadgeText,
+      );
     }
   }
 }

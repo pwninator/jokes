@@ -55,6 +55,7 @@ class JokeImageCarousel extends ConsumerStatefulWidget {
   final String? title;
   final String jokeContext;
   final JokeImageCarouselController? controller;
+  final String? overlayBadgeText;
 
   const JokeImageCarousel({
     super.key,
@@ -73,6 +74,7 @@ class JokeImageCarousel extends ConsumerStatefulWidget {
     this.title,
     required this.jokeContext,
     this.controller,
+    this.overlayBadgeText,
   });
 
   @override
@@ -655,35 +657,72 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
           // Image carousel
           Flexible(
             child: Card(
-              child: GestureDetector(
-                onTap: _onImageTap,
-                onLongPress: widget.isAdminMode ? _onImageLongPress : null,
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(
-                    minHeight: 200, // Ensure minimum usable height
-                  ),
-                  child: ClipRRect(
-                    borderRadius: const BorderRadius.vertical(
-                      top: Radius.circular(16),
-                      bottom: Radius.circular(16),
-                    ),
-                    child: AspectRatio(
-                      aspectRatio: 1.0,
-                      child: PageView(
-                        controller: _pageController,
-                        onPageChanged: _onPageChanged,
-                        children: [
-                          // Setup image
-                          _buildImagePage(imageUrl: widget.joke.setupImageUrl),
-                          // Punchline image
-                          _buildImagePage(
-                            imageUrl: widget.joke.punchlineImageUrl,
+              child: Stack(
+                children: [
+                  GestureDetector(
+                    onTap: _onImageTap,
+                    onLongPress: widget.isAdminMode ? _onImageLongPress : null,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(
+                        minHeight: 200, // Ensure minimum usable height
+                      ),
+                      child: ClipRRect(
+                        borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(16),
+                          bottom: Radius.circular(16),
+                        ),
+                        child: AspectRatio(
+                          aspectRatio: 1.0,
+                          child: PageView(
+                            controller: _pageController,
+                            onPageChanged: _onPageChanged,
+                            children: [
+                              // Setup image
+                              _buildImagePage(
+                                imageUrl: widget.joke.setupImageUrl,
+                              ),
+                              // Punchline image
+                              _buildImagePage(
+                                imageUrl: widget.joke.punchlineImageUrl,
+                              ),
+                            ],
                           ),
-                        ],
+                        ),
                       ),
                     ),
                   ),
-                ),
+                  if (widget.overlayBadgeText != null &&
+                      widget.overlayBadgeText!.isNotEmpty)
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.surfaceContainerHighest,
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.outline.withValues(alpha: 0.3),
+                          ),
+                        ),
+                        child: Text(
+                          widget.overlayBadgeText!,
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            color: Theme.of(context).colorScheme.onSurface,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
           ),

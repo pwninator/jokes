@@ -7,6 +7,7 @@ import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
+import 'package:snickerdoodle/src/features/jokes/domain/joke_search_result.dart';
 
 // StreamProvider for the list of jokes
 final jokesProvider = StreamProvider<List<Joke>>((ref) {
@@ -43,114 +44,146 @@ final jokeCloudFunctionServiceProvider = Provider<JokeCloudFunctionService>((
   return JokeCloudFunctionService();
 });
 
-// Search query state
-final searchQueryProvider = StateProvider<String>((ref) => '');
+// Search query state: tuple of (query, maxResults)
+final searchQueryProvider = StateProvider<({String query, int? maxResults})>(
+  (ref) => (query: '', maxResults: null),
+);
 
 // Provider that calls the search_jokes cloud function and returns list of IDs
-final searchResultIdsProvider = FutureProvider<List<String>>((ref) async {
-  final query = ref.watch(searchQueryProvider).trim();
-  if (query.isEmpty) return <String>[];
+final searchResultIdsProvider = FutureProvider<List<JokeSearchResult>>((
+  ref,
+) async {
+  final params = ref.watch(searchQueryProvider);
+  final query = params.query.trim();
+  if (query.isEmpty) return <JokeSearchResult>[];
 
   final service = ref.watch(jokeCloudFunctionServiceProvider);
-  final ids = await service.searchJokes(searchQuery: query);
-  return ids;
+  final results = await service.searchJokes(
+    searchQuery: query,
+    maxResults: params.maxResults,
+  );
+  return results;
 });
 
 // Live search results that react to per-joke updates
-final searchResultsLiveProvider = Provider<AsyncValue<List<Joke>>>((ref) {
-  final idsAsync = ref.watch(searchResultIdsProvider);
+class JokeWithVectorDistance {
+  final Joke joke;
+  final double vectorDistance;
+  const JokeWithVectorDistance({
+    required this.joke,
+    required this.vectorDistance,
+  });
+}
 
-  // Propagate loading/error from ids fetch
-  if (idsAsync.isLoading) {
-    return const AsyncValue.loading();
-  }
-  if (idsAsync.hasError) {
-    return AsyncValue.error(
-      idsAsync.error!,
-      idsAsync.stackTrace ?? StackTrace.current,
-    );
-  }
+final searchResultsLiveProvider =
+    Provider<AsyncValue<List<JokeWithVectorDistance>>>((ref) {
+      final resultsAsync = ref.watch(searchResultIdsProvider);
 
-  final ids = idsAsync.value ?? const <String>[];
-  if (ids.isEmpty) {
-    return const AsyncValue.data(<Joke>[]);
-  }
+      // Propagate loading/error from ids fetch
+      if (resultsAsync.isLoading) {
+        return const AsyncValue.loading();
+      }
+      if (resultsAsync.hasError) {
+        return AsyncValue.error(
+          resultsAsync.error!,
+          resultsAsync.stackTrace ?? StackTrace.current,
+        );
+      }
 
-  // Watch each joke by id
-  final perJoke = <AsyncValue<Joke?>>[];
-  for (final id in ids) {
-    perJoke.add(ref.watch(jokeByIdProvider(id)));
-  }
+      final results = resultsAsync.value ?? const <JokeSearchResult>[];
+      if (results.isEmpty) {
+        return const AsyncValue.data(<JokeWithVectorDistance>[]);
+      }
 
-  // If any still loading, show loading to keep UX consistent with other lists
-  if (perJoke.any((j) => j.isLoading)) {
-    return const AsyncValue.loading();
-  }
-  // Surface first error if any
-  final firstError = perJoke.firstWhere(
-    (j) => j.hasError,
-    orElse: () => const AsyncValue.data(null),
-  );
-  if (firstError.hasError) {
-    return AsyncValue.error(
-      firstError.error!,
-      firstError.stackTrace ?? StackTrace.current,
-    );
-  }
+      // Watch each joke by id
+      final perJoke = <AsyncValue<Joke?>>[];
+      for (final r in results) {
+        perJoke.add(ref.watch(jokeByIdProvider(r.id)));
+      }
 
-  // Build ordered list based on ids, skipping nulls
-  var ordered = <Joke>[];
-  for (var i = 0; i < ids.length; i++) {
-    final value = perJoke[i].value;
-    if (value != null) ordered.add(value);
-  }
-
-  // Apply admin filters client-side to the search results
-  final filterState = ref.watch(jokeFilterProvider);
-
-  // 1) Unrated filter (require images and no thumbs reactions)
-  if (filterState.showUnratedOnly) {
-    ordered = ordered.where((joke) {
-      final hasImages =
-          joke.setupImageUrl != null &&
-          joke.setupImageUrl!.isNotEmpty &&
-          joke.punchlineImageUrl != null &&
-          joke.punchlineImageUrl!.isNotEmpty;
-      final isUnrated = joke.numThumbsUp == 0 && joke.numThumbsDown == 0;
-      return hasImages && isUnrated;
-    }).toList();
-  }
-
-  // 2) Unscheduled filter (exclude jokes present in schedule)
-  if (filterState.showUnscheduledOnly) {
-    final scheduledAsync = ref.watch(monthlyJokesWithDateProvider);
-    if (scheduledAsync.isLoading) {
-      return const AsyncValue.loading();
-    }
-    if (scheduledAsync.hasError) {
-      return AsyncValue.error(
-        scheduledAsync.error!,
-        scheduledAsync.stackTrace ?? StackTrace.current,
+      // If any still loading, show loading to keep UX consistent with other lists
+      if (perJoke.any((j) => j.isLoading)) {
+        return const AsyncValue.loading();
+      }
+      // Surface first error if any
+      final firstError = perJoke.firstWhere(
+        (j) => j.hasError,
+        orElse: () => const AsyncValue.data(null),
       );
-    }
-    final scheduledJokeIds = (scheduledAsync.value ?? const <JokeWithDate>[])
-        .map((j) => j.joke.id)
-        .toSet();
-    ordered = ordered.where((j) => !scheduledJokeIds.contains(j.id)).toList();
-  }
+      if (firstError.hasError) {
+        return AsyncValue.error(
+          firstError.error!,
+          firstError.stackTrace ?? StackTrace.current,
+        );
+      }
 
-  // 3) Popular filter and sorting
-  if (filterState.showPopularOnly) {
-    ordered = ordered.where((j) => (j.numSaves + j.numShares) > 0).toList()
-      ..sort((a, b) {
-        final scoreA = (a.numShares * 10) + a.numSaves;
-        final scoreB = (b.numShares * 10) + b.numSaves;
-        return scoreB.compareTo(scoreA);
-      });
-  }
+      // Build ordered list based on ids, skipping nulls
+      var ordered = <JokeWithVectorDistance>[];
+      for (var i = 0; i < results.length; i++) {
+        final value = perJoke[i].value;
+        if (value != null) {
+          ordered.add(
+            JokeWithVectorDistance(
+              joke: value,
+              vectorDistance: results[i].vectorDistance,
+            ),
+          );
+        }
+      }
 
-  return AsyncValue.data(ordered);
-});
+      // Apply admin filters client-side to the search results
+      final filterState = ref.watch(jokeFilterProvider);
+
+      // 1) Unrated filter (require images and no thumbs reactions)
+      if (filterState.showUnratedOnly) {
+        ordered = ordered.where((jvd) {
+          final hasImages =
+              jvd.joke.setupImageUrl != null &&
+              jvd.joke.setupImageUrl!.isNotEmpty &&
+              jvd.joke.punchlineImageUrl != null &&
+              jvd.joke.punchlineImageUrl!.isNotEmpty;
+          final isUnrated =
+              jvd.joke.numThumbsUp == 0 && jvd.joke.numThumbsDown == 0;
+          return hasImages && isUnrated;
+        }).toList();
+      }
+
+      // 2) Unscheduled filter (exclude jokes present in schedule)
+      if (filterState.showUnscheduledOnly) {
+        final scheduledAsync = ref.watch(monthlyJokesWithDateProvider);
+        if (scheduledAsync.isLoading) {
+          return const AsyncValue.loading();
+        }
+        if (scheduledAsync.hasError) {
+          return AsyncValue.error(
+            scheduledAsync.error!,
+            scheduledAsync.stackTrace ?? StackTrace.current,
+          );
+        }
+        final scheduledJokeIds =
+            (scheduledAsync.value ?? const <JokeWithDate>[])
+                .map((j) => j.joke.id)
+                .toSet();
+        ordered = ordered
+            .where((jvd) => !scheduledJokeIds.contains(jvd.joke.id))
+            .toList();
+      }
+
+      // 3) Popular filter and sorting
+      if (filterState.showPopularOnly) {
+        ordered =
+            ordered
+                .where((jvd) => (jvd.joke.numSaves + jvd.joke.numShares) > 0)
+                .toList()
+              ..sort((a, b) {
+                final scoreA = (a.joke.numShares * 10) + a.joke.numSaves;
+                final scoreB = (b.joke.numShares * 10) + b.joke.numSaves;
+                return scoreB.compareTo(scoreA);
+              });
+      }
+
+      return AsyncValue.data(ordered);
+    });
 
 // State class for joke population
 class JokePopulationState {

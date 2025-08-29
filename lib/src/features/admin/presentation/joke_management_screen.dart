@@ -68,7 +68,7 @@ class _JokeManagementScreenState extends ConsumerState<JokeManagementScreen> {
     final jokesAsync = ref.watch(filteredJokesProvider);
     final filterState = ref.watch(jokeFilterProvider);
     final searchQuery = ref.watch(searchQueryProvider);
-    final searchResultsAsync = ref.watch(searchResultsProvider);
+    final searchResultsAsync = ref.watch(searchResultsLiveProvider);
 
     return AdaptiveAppBarScreen(
       title: 'Joke Management',

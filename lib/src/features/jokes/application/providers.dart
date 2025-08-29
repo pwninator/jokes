@@ -56,20 +56,53 @@ final searchResultIdsProvider = FutureProvider<List<String>>((ref) async {
   return ids;
 });
 
-// Provider that maps search IDs to Joke models and applies admin filters
-final searchResultsProvider = FutureProvider<List<Joke>>((ref) async {
-  final ids = await ref.watch(searchResultIdsProvider.future);
-  if (ids.isEmpty) return <Joke>[];
+// Live search results that react to per-joke updates
+final searchResultsLiveProvider = Provider<AsyncValue<List<Joke>>>((ref) {
+  final idsAsync = ref.watch(searchResultIdsProvider);
 
-  final repository = ref.watch(jokeRepositoryProvider);
-  final jokes = await repository.getJokesByIds(ids);
+  // Propagate loading/error from ids fetch
+  if (idsAsync.isLoading) {
+    return const AsyncValue.loading();
+  }
+  if (idsAsync.hasError) {
+    return AsyncValue.error(
+      idsAsync.error!,
+      idsAsync.stackTrace ?? StackTrace.current,
+    );
+  }
 
-  // Preserve order from search results
-  final jokeMap = {for (final j in jokes) j.id: j};
-  var ordered = <Joke>[];
+  final ids = idsAsync.value ?? const <String>[];
+  if (ids.isEmpty) {
+    return const AsyncValue.data(<Joke>[]);
+  }
+
+  // Watch each joke by id
+  final perJoke = <AsyncValue<Joke?>>[];
   for (final id in ids) {
-    final j = jokeMap[id];
-    if (j != null) ordered.add(j);
+    perJoke.add(ref.watch(jokeByIdProvider(id)));
+  }
+
+  // If any still loading, show loading to keep UX consistent with other lists
+  if (perJoke.any((j) => j.isLoading)) {
+    return const AsyncValue.loading();
+  }
+  // Surface first error if any
+  final firstError = perJoke.firstWhere(
+    (j) => j.hasError,
+    orElse: () => const AsyncValue.data(null),
+  );
+  if (firstError.hasError) {
+    return AsyncValue.error(
+      firstError.error!,
+      firstError.stackTrace ?? StackTrace.current,
+    );
+  }
+
+  // Build ordered list based on ids, skipping nulls
+  var ordered = <Joke>[];
+  for (var i = 0; i < ids.length; i++) {
+    final value = perJoke[i].value;
+    if (value != null) ordered.add(value);
   }
 
   // Apply admin filters client-side to the search results
@@ -90,8 +123,19 @@ final searchResultsProvider = FutureProvider<List<Joke>>((ref) async {
 
   // 2) Unscheduled filter (exclude jokes present in schedule)
   if (filterState.showUnscheduledOnly) {
-    final scheduled = await ref.watch(monthlyJokesWithDateProvider.future);
-    final scheduledJokeIds = scheduled.map((j) => j.joke.id).toSet();
+    final scheduledAsync = ref.watch(monthlyJokesWithDateProvider);
+    if (scheduledAsync.isLoading) {
+      return const AsyncValue.loading();
+    }
+    if (scheduledAsync.hasError) {
+      return AsyncValue.error(
+        scheduledAsync.error!,
+        scheduledAsync.stackTrace ?? StackTrace.current,
+      );
+    }
+    final scheduledJokeIds = (scheduledAsync.value ?? const <JokeWithDate>[])
+        .map((j) => j.joke.id)
+        .toSet();
     ordered = ordered.where((j) => !scheduledJokeIds.contains(j.id)).toList();
   }
 
@@ -105,7 +149,7 @@ final searchResultsProvider = FutureProvider<List<Joke>>((ref) async {
       });
   }
 
-  return ordered;
+  return AsyncValue.data(ordered);
 });
 
 // State class for joke population

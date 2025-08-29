@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -1141,40 +1143,112 @@ void main() {
       container.dispose();
     });
 
-    test('searchResultsProvider preserves order and applies filters', () async {
-      // Arrange: search returns ids in a specific order
-      when(
-        () => mockCloudFunctionService.searchJokes(
-          searchQuery: any(named: 'searchQuery'),
-        ),
-      ).thenAnswer((_) async => ['c', 'a', 'b']);
+    test(
+      'searchResultsLiveProvider preserves order and applies filters',
+      () async {
+        // Arrange ids
+        when(
+          () => mockCloudFunctionService.searchJokes(
+            searchQuery: any(named: 'searchQuery'),
+          ),
+        ).thenAnswer((_) async => ['c', 'a', 'b']);
 
-      // Repository returns all three jokes
-      when(() => mockJokeRepository.getJokesByIds(['c', 'a', 'b'])).thenAnswer(
-        (_) async => const [
-          Joke(
-            id: 'a',
-            setupText: 'Sa',
-            punchlineText: 'Pa',
-            numSaves: 0,
-            numShares: 1,
+        // Per-joke streams
+        final streamA = StreamController<Joke?>();
+        final streamB = StreamController<Joke?>();
+        final streamC = StreamController<Joke?>();
+
+        when(
+          () => mockJokeRepository.getJokeByIdStream('a'),
+        ).thenAnswer((_) => streamA.stream);
+        when(
+          () => mockJokeRepository.getJokeByIdStream('b'),
+        ).thenAnswer((_) => streamB.stream);
+        when(
+          () => mockJokeRepository.getJokeByIdStream('c'),
+        ).thenAnswer((_) => streamC.stream);
+
+        final container = ProviderContainer(
+          overrides: FirebaseMocks.getFirebaseProviderOverrides(
+            additionalOverrides: [
+              jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
+              jokeCloudFunctionServiceProvider.overrideWithValue(
+                mockCloudFunctionService,
+              ),
+            ],
           ),
-          Joke(
-            id: 'b',
-            setupText: 'Sb',
-            punchlineText: 'Pb',
-            numSaves: 11,
-            numShares: 0,
-          ),
-          Joke(
+        );
+
+        // Set a non-empty query to trigger ids fetch and await completion
+        container.read(searchQueryProvider.notifier).state = 'abc';
+        await container.read(searchResultIdsProvider.future);
+
+        // Push initial values
+        streamC.add(
+          const Joke(
             id: 'c',
             setupText: 'Sc',
             punchlineText: 'Pc',
             numSaves: 2,
             numShares: 1,
           ),
-        ],
-      );
+        );
+        streamA.add(
+          const Joke(
+            id: 'a',
+            setupText: 'Sa',
+            punchlineText: 'Pa',
+            numSaves: 0,
+            numShares: 1,
+          ),
+        );
+        streamB.add(
+          const Joke(
+            id: 'b',
+            setupText: 'Sb',
+            punchlineText: 'Pb',
+            numSaves: 11,
+            numShares: 0,
+          ),
+        );
+
+        // Read results (should preserve ids order: c, a, b)
+        var value1 = container.read(searchResultsLiveProvider);
+        if (value1.isLoading) {
+          await Future.delayed(const Duration(milliseconds: 1));
+          value1 = container.read(searchResultsLiveProvider);
+        }
+        expect(value1.hasValue, isTrue);
+        expect(value1.value!.map((j) => j.id).toList(), ['c', 'a', 'b']);
+
+        // Enable popular filter -> sorts by (shares*10 + saves)
+        container.read(jokeFilterProvider.notifier).setPopularOnly(true);
+        var value2 = container.read(searchResultsLiveProvider);
+        if (value2.isLoading) {
+          await Future.delayed(const Duration(milliseconds: 1));
+          value2 = container.read(searchResultsLiveProvider);
+        }
+        expect(value2.hasValue, isTrue);
+        expect(value2.value!.map((j) => j.id).toList(), ['c', 'b', 'a']);
+
+        await streamA.close();
+        await streamB.close();
+        await streamC.close();
+        container.dispose();
+      },
+    );
+
+    test('searchResultsLiveProvider updates when a joke changes', () async {
+      when(
+        () => mockCloudFunctionService.searchJokes(
+          searchQuery: any(named: 'searchQuery'),
+        ),
+      ).thenAnswer((_) async => ['j1']);
+
+      final stream = StreamController<Joke?>();
+      when(
+        () => mockJokeRepository.getJokeByIdStream('j1'),
+      ).thenAnswer((_) => stream.stream);
 
       final container = ProviderContainer(
         overrides: FirebaseMocks.getFirebaseProviderOverrides(
@@ -1183,26 +1257,59 @@ void main() {
             jokeCloudFunctionServiceProvider.overrideWithValue(
               mockCloudFunctionService,
             ),
-            // No schedule data needed for this test
           ],
         ),
       );
 
-      // Set a non-empty query
-      container.read(searchQueryProvider.notifier).state = 'abc';
+      container.read(searchQueryProvider.notifier).state = 'x';
+      await container.read(searchResultIdsProvider.future);
 
-      // Read results
-      final results = await container.read(searchResultsProvider.future);
-      // Should preserve order from ids: c, a, b (before popular filter)
-      expect(results.map((j) => j.id).toList(), ['c', 'a', 'b']);
-
-      // Now enable popular filter (will sort by score)
-      container.read(jokeFilterProvider.notifier).setPopularOnly(true);
-      final resultsAfterFilter = await container.read(
-        searchResultsProvider.future,
+      // Initial emit without images
+      stream.add(
+        const Joke(
+          id: 'j1',
+          setupText: 'S',
+          punchlineText: 'P',
+          setupImageUrl: null,
+          punchlineImageUrl: null,
+        ),
       );
-      expect(resultsAfterFilter.map((j) => j.id).toList(), ['c', 'b', 'a']);
+      var value = container.read(searchResultsLiveProvider);
+      if (value.isLoading) {
+        await Future.delayed(const Duration(milliseconds: 1));
+        value = container.read(searchResultsLiveProvider);
+      }
+      expect(value.hasValue, isTrue);
+      expect(value.value!.first.id, 'j1');
+      expect(value.value!.first.setupImageUrl, isNull);
 
+      // Update with images -> provider should now reflect images
+      stream.add(
+        const Joke(
+          id: 'j1',
+          setupText: 'S',
+          punchlineText: 'P',
+          setupImageUrl: 's.jpg',
+          punchlineImageUrl: 'p.jpg',
+        ),
+      );
+      // Poll briefly until update propagates
+      for (int i = 0; i < 20; i++) {
+        value = container.read(searchResultsLiveProvider);
+        if (!value.isLoading &&
+            value.hasValue &&
+            value.value!.isNotEmpty &&
+            value.value!.first.setupImageUrl != null &&
+            value.value!.first.punchlineImageUrl != null) {
+          break;
+        }
+        await Future.delayed(const Duration(milliseconds: 5));
+      }
+      expect(value.hasValue, isTrue);
+      expect(value.value!.first.setupImageUrl, isNotNull);
+      expect(value.value!.first.punchlineImageUrl, isNotNull);
+
+      await stream.close();
       container.dispose();
     });
   });

@@ -10,7 +10,6 @@ import 'package:snickerdoodle/src/features/admin/presentation/joke_management_sc
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
-import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
 
 import '../../../test_helpers/firebase_mocks.dart';
 

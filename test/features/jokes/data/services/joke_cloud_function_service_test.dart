@@ -228,7 +228,7 @@ void main() {
           {'joke_id': 'x', 'vector_distance': 0.1},
         ]);
         when(
-          () => mockCallable.call({'search_query': q, 'max_results': 5}),
+          () => mockCallable.call({'search_query': q, 'max_results': '5'}),
         ).thenAnswer((_) async => mockResult);
 
         final results = await service.searchJokes(

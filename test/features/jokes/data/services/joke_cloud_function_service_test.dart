@@ -188,14 +188,24 @@ void main() {
           {'joke_id': 'b', 'vector_distance': 0.23},
         ]);
         when(
-          () => mockCallable.call({'search_query': q}),
+          () => mockCallable.call(any()),
         ).thenAnswer((_) async => mockResult);
 
-        final results = await service.searchJokes(searchQuery: q);
+        final results = await service.searchJokes(
+          searchQuery: q,
+          maxResults: 50,
+          publicOnly: true,
+          matchMode: MatchMode.tight,
+        );
         expect(results.map((r) => r.id).toList(), ['a', 'b']);
         expect(results.map((r) => r.vectorDistance).toList(), [0.11, 0.23]);
         verify(() => mockFunctions.httpsCallable('search_jokes')).called(1);
-        verify(() => mockCallable.call({'search_query': q})).called(1);
+        final captured = verify(() => mockCallable.call(captureAny())).captured
+            .single as Map<String, dynamic>;
+        expect(captured['search_query'], q);
+        expect(captured['max_results'], '50');
+        expect(captured['public_only'], isTrue);
+        expect(captured['match_mode'], 'TIGHT');
       });
 
       test('parses {jokes: [...]} shape', () async {
@@ -211,11 +221,22 @@ void main() {
           ],
         });
         when(
-          () => mockCallable.call({'search_query': q}),
+          () => mockCallable.call(any()),
         ).thenAnswer((_) async => mockResult);
 
-        final results = await service.searchJokes(searchQuery: q);
+        final results = await service.searchJokes(
+          searchQuery: q,
+          maxResults: 25,
+          publicOnly: false,
+          matchMode: MatchMode.loose,
+        );
         expect(results.map((r) => r.id).toList(), ['x', 'y']);
+        final captured = verify(() => mockCallable.call(captureAny())).captured
+            .last as Map<String, dynamic>;
+        expect(captured['search_query'], q);
+        expect(captured['max_results'], '25');
+        expect(captured['public_only'], isFalse);
+        expect(captured['match_mode'], 'LOOSE');
       });
 
       test('supports max_results param', () async {
@@ -228,14 +249,22 @@ void main() {
           {'joke_id': 'x', 'vector_distance': 0.1},
         ]);
         when(
-          () => mockCallable.call({'search_query': q, 'max_results': '5'}),
+          () => mockCallable.call(any()),
         ).thenAnswer((_) async => mockResult);
 
         final results = await service.searchJokes(
           searchQuery: q,
           maxResults: 5,
+          publicOnly: true,
+          matchMode: MatchMode.tight,
         );
         expect(results.map((r) => r.id).toList(), ['x']);
+        final captured = verify(() => mockCallable.call(captureAny())).captured
+            .last as Map<String, dynamic>;
+        expect(captured['search_query'], q);
+        expect(captured['max_results'], '5');
+        expect(captured['public_only'], isTrue);
+        expect(captured['match_mode'], 'TIGHT');
       });
 
       test('handles exceptions and returns empty list', () async {
@@ -245,10 +274,15 @@ void main() {
           () => mockFunctions.httpsCallable('search_jokes'),
         ).thenReturn(mockCallable);
         when(
-          () => mockCallable.call({'search_query': q}),
+          () => mockCallable.call(any()),
         ).thenThrow(Exception('boom'));
 
-        final results = await service.searchJokes(searchQuery: q);
+        final results = await service.searchJokes(
+          searchQuery: q,
+          maxResults: 10,
+          publicOnly: true,
+          matchMode: MatchMode.tight,
+        );
         expect(results, isEmpty);
       });
     });

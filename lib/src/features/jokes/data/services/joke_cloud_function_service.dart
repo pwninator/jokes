@@ -2,6 +2,9 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/foundation.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_search_result.dart';
 
+/// How strictly to match the search query
+enum MatchMode { tight, loose }
+
 class JokeCloudFunctionService {
   JokeCloudFunctionService({FirebaseFunctions? functions})
     : _functions = functions ?? FirebaseFunctions.instance;
@@ -153,15 +156,19 @@ class JokeCloudFunctionService {
   /// Response: List of objects: [{ joke_id, vector_distance }, ...]
   Future<List<JokeSearchResult>> searchJokes({
     required String searchQuery,
-    int? maxResults,
+    required int maxResults,
+    required bool publicOnly,
+    required MatchMode matchMode,
   }) async {
     try {
       final callable = _functions.httpsCallable('search_jokes');
-      final payload = <String, dynamic>{'search_query': searchQuery};
-      if (maxResults != null) {
+      final payload = <String, dynamic>{
+        'search_query': searchQuery,
         // Workaround: send as string to avoid protobuf Int64 wrapper on the server
-        payload['max_results'] = maxResults.toString();
-      }
+        'max_results': maxResults.toString(),
+        'public_only': publicOnly,
+        'match_mode': matchMode == MatchMode.tight ? 'TIGHT' : 'LOOSE',
+      };
 
       final result = await callable.call(payload);
 

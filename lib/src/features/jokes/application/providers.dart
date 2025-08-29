@@ -44,9 +44,42 @@ final jokeCloudFunctionServiceProvider = Provider<JokeCloudFunctionService>((
   return JokeCloudFunctionService();
 });
 
-// Search query state: tuple of (query, maxResults)
-final searchQueryProvider = StateProvider<({String query, int? maxResults})>(
-  (ref) => (query: '', maxResults: null),
+// Search query state: strongly typed object
+class SearchQuery {
+  final String query;
+  final int maxResults;
+  final bool publicOnly;
+  final MatchMode matchMode;
+
+  const SearchQuery({
+    required this.query,
+    required this.maxResults,
+    required this.publicOnly,
+    required this.matchMode,
+  });
+
+  SearchQuery copyWith({
+    String? query,
+    int? maxResults,
+    bool? publicOnly,
+    MatchMode? matchMode,
+  }) {
+    return SearchQuery(
+      query: query ?? this.query,
+      maxResults: maxResults ?? this.maxResults,
+      publicOnly: publicOnly ?? this.publicOnly,
+      matchMode: matchMode ?? this.matchMode,
+    );
+  }
+}
+
+final searchQueryProvider = StateProvider<SearchQuery>(
+  (ref) => const SearchQuery(
+    query: '',
+    maxResults: 10,
+    publicOnly: true,
+    matchMode: MatchMode.tight,
+  ),
 );
 
 // Provider that calls the search_jokes cloud function and returns list of IDs
@@ -61,6 +94,8 @@ final searchResultIdsProvider = FutureProvider<List<JokeSearchResult>>((
   final results = await service.searchJokes(
     searchQuery: query,
     maxResults: params.maxResults,
+    publicOnly: params.publicOnly,
+    matchMode: params.matchMode,
   );
   return results;
 });

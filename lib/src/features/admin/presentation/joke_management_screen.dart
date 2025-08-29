@@ -6,6 +6,21 @@ import 'package:snickerdoodle/src/common_widgets/joke_card.dart';
 import 'package:snickerdoodle/src/config/router/route_names.dart';
 import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
+import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
+
+// Admin search config
+const int kAdminSearchMaxResults = 50;
+const bool kAdminSearchPublicOnly = false;
+const MatchMode kAdminSearchMatchMode = MatchMode.loose;
+
+// Admin JokeCard config
+const bool kAdminJokeCardIsAdminMode = true;
+const bool kAdminJokeCardShowSaveButton = false;
+const bool kAdminJokeCardShowShareButton = false;
+const bool kAdminJokeCardShowThumbsButtons = true;
+const bool kAdminJokeCardShowNumSaves = true;
+const bool kAdminJokeCardShowNumShares = true;
+const String kAdminJokeCardContext = 'admin';
 
 class JokeManagementScreen extends ConsumerStatefulWidget {
   const JokeManagementScreen({super.key});
@@ -119,12 +134,13 @@ class _JokeManagementScreenState extends ConsumerState<JokeManagementScreen> {
                                 tooltip: 'Clear',
                                 icon: const Icon(Icons.clear),
                                 onPressed: () {
-                                  final current = ref.read(searchQueryProvider);
                                   ref
                                       .read(searchQueryProvider.notifier)
-                                      .state = (
+                                      .state = SearchQuery(
                                     query: '',
-                                    maxResults: current.maxResults,
+                                    maxResults: kAdminSearchMaxResults,
+                                    publicOnly: kAdminSearchPublicOnly,
+                                    matchMode: kAdminSearchMatchMode,
                                   );
                                   setState(() {
                                     _showSearch = false;
@@ -138,9 +154,13 @@ class _JokeManagementScreenState extends ConsumerState<JokeManagementScreen> {
                       textInputAction: TextInputAction.search,
                       onSubmitted: (raw) {
                         final query = raw.trim();
-                        ref.read(searchQueryProvider.notifier).state = (
+                        ref
+                            .read(searchQueryProvider.notifier)
+                            .state = SearchQuery(
                           query: query,
-                          maxResults: 50,
+                          maxResults: kAdminSearchMaxResults,
+                          publicOnly: kAdminSearchPublicOnly,
+                          matchMode: kAdminSearchMatchMode,
                         );
                         FocusScope.of(context).unfocus();
                       },
@@ -284,13 +304,15 @@ class _JokeManagementScreenState extends ConsumerState<JokeManagementScreen> {
                                   key: Key(joke.id),
                                   joke: joke,
                                   index: index,
-                                  isAdminMode: true,
-                                  showSaveButton: false,
-                                  showShareButton: false,
-                                  showThumbsButtons: true,
-                                  showNumSaves: true,
-                                  showNumShares: true,
-                                  jokeContext: 'admin',
+                                  isAdminMode: kAdminJokeCardIsAdminMode,
+                                  showSaveButton: kAdminJokeCardShowSaveButton,
+                                  showShareButton:
+                                      kAdminJokeCardShowShareButton,
+                                  showThumbsButtons:
+                                      kAdminJokeCardShowThumbsButtons,
+                                  showNumSaves: kAdminJokeCardShowNumSaves,
+                                  showNumShares: kAdminJokeCardShowNumShares,
+                                  jokeContext: kAdminJokeCardContext,
                                   topRightBadgeText: items[index].badge,
                                 );
                               },

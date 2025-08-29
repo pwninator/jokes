@@ -30,6 +30,8 @@ void main() {
 
     setUpAll(() {
       registerAnalyticsFallbackValues();
+      // Fallbacks for new enums used with any(named: ...)
+      registerFallbackValue(MatchMode.tight);
     });
 
     setUp(() {
@@ -1144,6 +1146,51 @@ void main() {
       container.dispose();
     });
 
+    test('searchResultIdsProvider passes through search params', () async {
+      when(
+        () => mockCloudFunctionService.searchJokes(
+          searchQuery: any(named: 'searchQuery'),
+          maxResults: any(named: 'maxResults'),
+          publicOnly: any(named: 'publicOnly'),
+          matchMode: any(named: 'matchMode'),
+        ),
+      ).thenAnswer(
+        (_) async => const [JokeSearchResult(id: 'x', vectorDistance: 0.1)],
+      );
+
+      final container = ProviderContainer(
+        overrides: [
+          jokeCloudFunctionServiceProvider.overrideWithValue(
+            mockCloudFunctionService,
+          ),
+        ],
+      );
+
+      const q = 'hello';
+      const max = 25;
+      const pub = false;
+      const mode = MatchMode.loose;
+      container.read(searchQueryProvider.notifier).state = const SearchQuery(
+        query: q,
+        maxResults: max,
+        publicOnly: pub,
+        matchMode: mode,
+      );
+
+      await container.read(searchResultIdsProvider.future);
+
+      verify(
+        () => mockCloudFunctionService.searchJokes(
+          searchQuery: q,
+          maxResults: max,
+          publicOnly: pub,
+          matchMode: mode,
+        ),
+      ).called(1);
+
+      container.dispose();
+    });
+
     test(
       'searchResultsLiveProvider preserves order and applies filters',
       () async {
@@ -1151,6 +1198,9 @@ void main() {
         when(
           () => mockCloudFunctionService.searchJokes(
             searchQuery: any(named: 'searchQuery'),
+            maxResults: any(named: 'maxResults'),
+            publicOnly: any(named: 'publicOnly'),
+            matchMode: any(named: 'matchMode'),
           ),
         ).thenAnswer(
           (_) async => const [
@@ -1187,9 +1237,11 @@ void main() {
         );
 
         // Set a non-empty query to trigger ids fetch and await completion
-        container.read(searchQueryProvider.notifier).state = (
+        container.read(searchQueryProvider.notifier).state = const SearchQuery(
           query: 'abc',
-          maxResults: null,
+          maxResults: 50,
+          publicOnly: true,
+          matchMode: MatchMode.tight,
         );
         await container.read(searchResultIdsProvider.future);
 
@@ -1260,6 +1312,9 @@ void main() {
       when(
         () => mockCloudFunctionService.searchJokes(
           searchQuery: any(named: 'searchQuery'),
+          maxResults: any(named: 'maxResults'),
+          publicOnly: any(named: 'publicOnly'),
+          matchMode: any(named: 'matchMode'),
         ),
       ).thenAnswer(
         (_) async => const [JokeSearchResult(id: 'j1', vectorDistance: 0.42)],
@@ -1281,9 +1336,11 @@ void main() {
         ),
       );
 
-      container.read(searchQueryProvider.notifier).state = (
+      container.read(searchQueryProvider.notifier).state = const SearchQuery(
         query: 'x',
-        maxResults: null,
+        maxResults: 50,
+        publicOnly: true,
+        matchMode: MatchMode.tight,
       );
       await container.read(searchResultIdsProvider.future);
 

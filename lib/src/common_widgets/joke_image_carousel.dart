@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:smooth_page_indicator/smooth_page_indicator.dart';
-import 'package:snickerdoodle/src/common_widgets/admin_thumbs_buttons.dart';
+import 'package:snickerdoodle/src/common_widgets/admin_approval_controls.dart';
 import 'package:snickerdoodle/src/common_widgets/cached_joke_image.dart';
 import 'package:snickerdoodle/src/common_widgets/holdable_button.dart';
 import 'package:snickerdoodle/src/common_widgets/save_joke_button.dart';
@@ -50,6 +50,7 @@ class JokeImageCarousel extends ConsumerStatefulWidget {
   final bool showSaveButton;
   final bool showShareButton;
   final bool showThumbsButtons;
+  final bool showStateBadge;
   final bool showNumSaves;
   final bool showNumShares;
   final String? title;
@@ -69,6 +70,7 @@ class JokeImageCarousel extends ConsumerStatefulWidget {
     this.showSaveButton = true,
     this.showShareButton = false,
     this.showThumbsButtons = false,
+    this.showStateBadge = false,
     this.showNumSaves = false,
     this.showNumShares = false,
     this.title,
@@ -729,6 +731,29 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
                         ),
                       ),
                     ),
+                  if (widget.showStateBadge)
+                    Positioned(
+                      top: 8,
+                      left: 8,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 4,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.surfaceContainerHighest,
+                          borderRadius: BorderRadius.circular(999),
+                          border: Border.all(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.outline.withValues(alpha: 0.3),
+                          ),
+                        ),
+                        child: _buildStateBadgeText(context),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -925,7 +950,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
       if (buttons.isNotEmpty) {
         buttons.add(const SizedBox(width: 8));
       }
-      buttons.add(AdminThumbsButtons(jokeId: widget.joke.id));
+      buttons.add(AdminApprovalControls(jokeId: widget.joke.id));
     }
 
     // Add share button if enabled
@@ -954,6 +979,24 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
     return Align(
       alignment: Alignment.centerRight,
       child: Row(mainAxisSize: MainAxisSize.min, children: buttons),
+    );
+  }
+
+  Widget _buildStateBadgeText(BuildContext context) {
+    // Proper-case the state string for the badge
+    final stateStr = widget.joke.state?.value;
+    if (stateStr == null || stateStr.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final lower = stateStr.toLowerCase();
+    final proper = lower[0].toUpperCase() + lower.substring(1);
+    return Text(
+      proper,
+      style: TextStyle(
+        fontSize: 10,
+        fontWeight: FontWeight.w600,
+        color: Theme.of(context).colorScheme.onSurface,
+      ),
     );
   }
 

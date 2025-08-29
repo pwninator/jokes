@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:smooth_page_indicator/smooth_page_indicator.dart';
-import 'package:snickerdoodle/src/common_widgets/admin_thumbs_buttons.dart';
+import 'package:snickerdoodle/src/common_widgets/admin_approval_controls.dart';
 import 'package:snickerdoodle/src/common_widgets/joke_image_carousel.dart';
 import 'package:snickerdoodle/src/common_widgets/save_joke_button.dart';
 import 'package:snickerdoodle/src/common_widgets/share_joke_button.dart';
@@ -634,7 +634,7 @@ void mainCountsAndButtonsSuite() {
 
         // assert
         expect(find.byType(SaveJokeButton), findsOneWidget);
-        expect(find.byType(AdminThumbsButtons), findsNothing);
+        expect(find.byType(AdminApprovalControls), findsNothing);
       });
 
       testWidgets('hides save button when showSaveButton is false', (
@@ -662,7 +662,7 @@ void mainCountsAndButtonsSuite() {
 
         // assert
         expect(find.byType(SaveJokeButton), findsNothing);
-        expect(find.byType(AdminThumbsButtons), findsNothing);
+        expect(find.byType(AdminApprovalControls), findsNothing);
       });
 
       testWidgets('shows thumbs buttons when showThumbsButtons is true', (
@@ -690,7 +690,7 @@ void mainCountsAndButtonsSuite() {
 
         // assert
         expect(find.byType(SaveJokeButton), findsNothing);
-        expect(find.byType(AdminThumbsButtons), findsOneWidget);
+        expect(find.byType(AdminApprovalControls), findsOneWidget);
       });
 
       testWidgets('hides thumbs buttons when showThumbsButtons is false', (
@@ -718,7 +718,7 @@ void mainCountsAndButtonsSuite() {
 
         // assert
         expect(find.byType(SaveJokeButton), findsOneWidget);
-        expect(find.byType(AdminThumbsButtons), findsNothing);
+        expect(find.byType(AdminApprovalControls), findsNothing);
       });
 
       testWidgets(
@@ -746,7 +746,7 @@ void mainCountsAndButtonsSuite() {
 
           // assert - both save and thumbs buttons can be shown simultaneously
           expect(find.byType(SaveJokeButton), findsOneWidget);
-          expect(find.byType(AdminThumbsButtons), findsOneWidget);
+          expect(find.byType(AdminApprovalControls), findsOneWidget);
         },
       );
 
@@ -768,7 +768,7 @@ void mainCountsAndButtonsSuite() {
 
         // assert - defaults should be showSaveButton: true, showThumbsButtons: false, showShareButton: false
         expect(find.byType(SaveJokeButton), findsOneWidget);
-        expect(find.byType(AdminThumbsButtons), findsNothing);
+        expect(find.byType(AdminApprovalControls), findsNothing);
         expect(find.byType(ShareJokeButton), findsNothing);
       });
 
@@ -849,7 +849,7 @@ void mainCountsAndButtonsSuite() {
         // assert - all buttons should be visible
         expect(find.byType(SaveJokeButton), findsOneWidget);
         expect(find.byType(ShareJokeButton), findsOneWidget);
-        expect(find.byType(AdminThumbsButtons), findsOneWidget);
+        expect(find.byType(AdminApprovalControls), findsOneWidget);
       });
     });
 

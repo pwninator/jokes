@@ -1,5 +1,6 @@
 /// Admin rating values for jokes
 enum JokeAdminRating {
+  unreviewed('UNREVIEWED'),
   approved('APPROVED'),
   rejected('REJECTED');
 

@@ -9,6 +9,7 @@ import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
+import 'package:snickerdoodle/src/features/jokes/domain/joke_admin_rating.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_search_result.dart';
 
@@ -893,6 +894,7 @@ void main() {
               punchlineImageUrl: 'url4',
               numThumbsUp: 5,
               numThumbsDown: 0,
+              adminRating: JokeAdminRating.approved,
             ),
             // Has images but rated (thumbs down) - should be filtered out
             const Joke(
@@ -903,6 +905,7 @@ void main() {
               punchlineImageUrl: 'url6',
               numThumbsUp: 0,
               numThumbsDown: 3,
+              adminRating: JokeAdminRating.rejected,
             ),
             // Has only one image - should be filtered out
             const Joke(

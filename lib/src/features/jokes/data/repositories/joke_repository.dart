@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_admin_rating.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
+import 'package:snickerdoodle/src/features/jokes/domain/joke_state.dart';
 
 class JokeRepository {
   final FirebaseFirestore _firestore;
@@ -126,30 +127,42 @@ class JokeRepository {
     await decrementReaction(jokeId, JokeReactionType.save);
   }
 
-  /// Set admin rating for a joke
-  /// This updates both the new admin_rating field and the legacy thumbs fields
-  Future<void> setAdminRating(String jokeId, JokeAdminRating? rating) async {
-    final Map<String, dynamic> updates = {};
-
-    if (rating != null) {
-      updates['admin_rating'] = rating.value;
-
-      // Update legacy fields for backward compatibility
-      if (rating == JokeAdminRating.approved) {
-        updates['num_thumbs_up'] = 1;
-        updates['num_thumbs_down'] = 0;
-      } else if (rating == JokeAdminRating.rejected) {
-        updates['num_thumbs_up'] = 0;
-        updates['num_thumbs_down'] = 1;
-      }
-    } else {
-      // Clear rating
-      updates['admin_rating'] = null;
-      updates['num_thumbs_up'] = 0;
-      updates['num_thumbs_down'] = 0;
+  /// Set admin rating and state together (state mirrors rating)
+  Future<void> setAdminRatingAndState(
+    String jokeId,
+    JokeAdminRating rating,
+  ) async {
+    // Validate current state allows changing admin rating
+    final docRef = _firestore.collection('jokes').doc(jokeId);
+    final snapshot = await docRef.get();
+    final data = snapshot.data();
+    final currentState = data == null
+        ? null
+        : JokeState.fromString(data['state'] as String?);
+    if (currentState == null || !currentState.canMutateAdminRating) {
+      throw StateError(
+        'Admin rating cannot be changed when state is ${currentState?.value ?? 'UNKNOWN'}',
+      );
     }
 
-    await _firestore.collection('jokes').doc(jokeId).update(updates);
+    // Map rating to state (only APPROVED/REJECTED/UNREVIEWED supported)
+    JokeState mappedState;
+    switch (rating) {
+      case JokeAdminRating.approved:
+        mappedState = JokeState.approved;
+        break;
+      case JokeAdminRating.rejected:
+        mappedState = JokeState.rejected;
+        break;
+      case JokeAdminRating.unreviewed:
+        mappedState = JokeState.unreviewed;
+        break;
+    }
+
+    await docRef.update({
+      'admin_rating': rating.value,
+      'state': mappedState.value,
+    });
   }
 
   /// Delete a joke from Firestore

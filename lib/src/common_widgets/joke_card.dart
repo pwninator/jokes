@@ -14,6 +14,7 @@ class JokeCard extends StatelessWidget {
   final bool showSaveButton;
   final bool showShareButton;
   final bool showThumbsButtons;
+  final bool showState;
   final bool showNumSaves;
   final bool showNumShares;
   final String? title;
@@ -33,6 +34,7 @@ class JokeCard extends StatelessWidget {
     this.showSaveButton = false,
     this.showShareButton = false,
     this.showThumbsButtons = false,
+    this.showState = false,
     this.showNumSaves = false,
     this.showNumShares = false,
     this.title,
@@ -64,6 +66,7 @@ class JokeCard extends StatelessWidget {
         showSaveButton: showSaveButton,
         showShareButton: showShareButton,
         showThumbsButtons: showThumbsButtons,
+        showStateBadge: showState,
         showNumSaves: showNumSaves,
         showNumShares: showNumShares,
         title: title,

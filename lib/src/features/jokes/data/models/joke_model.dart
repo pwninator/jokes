@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_admin_rating.dart';
+import 'package:snickerdoodle/src/features/jokes/domain/joke_state.dart';
 
 @immutable
 class Joke {
@@ -18,6 +19,7 @@ class Joke {
   final int numSaves;
   final int numShares;
   final JokeAdminRating? adminRating;
+  final JokeState? state;
 
   const Joke({
     required this.id,
@@ -35,6 +37,7 @@ class Joke {
     this.numSaves = 0,
     this.numShares = 0,
     this.adminRating,
+    this.state,
   });
 
   Joke copyWith({
@@ -53,6 +56,7 @@ class Joke {
     int? numSaves,
     int? numShares,
     JokeAdminRating? adminRating,
+    JokeState? state,
   }) {
     return Joke(
       id: id ?? this.id,
@@ -73,6 +77,7 @@ class Joke {
       numSaves: numSaves ?? this.numSaves,
       numShares: numShares ?? this.numShares,
       adminRating: adminRating ?? this.adminRating,
+      state: state ?? this.state,
     );
   }
 
@@ -92,6 +97,7 @@ class Joke {
       'num_saves': numSaves,
       'num_shares': numShares,
       'admin_rating': adminRating?.value,
+      'state': state?.value,
     };
   }
 
@@ -114,6 +120,7 @@ class Joke {
       numSaves: (map['num_saves'] as num?)?.toInt() ?? 0,
       numShares: (map['num_shares'] as num?)?.toInt() ?? 0,
       adminRating: JokeAdminRating.fromString(map['admin_rating'] as String?),
+      state: JokeState.fromString(map['state'] as String?),
     );
   }
 
@@ -124,7 +131,7 @@ class Joke {
 
   @override
   String toString() =>
-      'Joke(id: $id, setupText: $setupText, punchlineText: $punchlineText, setupImageUrl: $setupImageUrl, punchlineImageUrl: $punchlineImageUrl, setupImageDescription: $setupImageDescription, punchlineImageDescription: $punchlineImageDescription, allSetupImageUrls: $allSetupImageUrls, allPunchlineImageUrls: $allPunchlineImageUrls, generationMetadata: $generationMetadata, numThumbsUp: $numThumbsUp, numThumbsDown: $numThumbsDown, numSaves: $numSaves, numShares: $numShares, adminRating: $adminRating)';
+      'Joke(id: $id, setupText: $setupText, punchlineText: $punchlineText, setupImageUrl: $setupImageUrl, punchlineImageUrl: $punchlineImageUrl, setupImageDescription: $setupImageDescription, punchlineImageDescription: $punchlineImageDescription, allSetupImageUrls: $allSetupImageUrls, allPunchlineImageUrls: $allPunchlineImageUrls, generationMetadata: $generationMetadata, numThumbsUp: $numThumbsUp, numThumbsDown: $numThumbsDown, numSaves: $numSaves, numShares: $numShares, adminRating: $adminRating, state: $state)';
 
   @override
   bool operator ==(Object other) {
@@ -145,7 +152,8 @@ class Joke {
         other.numThumbsDown == numThumbsDown &&
         other.numSaves == numSaves &&
         other.numShares == numShares &&
-        other.adminRating == adminRating;
+        other.adminRating == adminRating &&
+        other.state == state;
   }
 
   @override
@@ -164,5 +172,6 @@ class Joke {
       numThumbsDown.hashCode ^
       numSaves.hashCode ^
       numShares.hashCode ^
-      adminRating.hashCode;
+      adminRating.hashCode ^
+      state.hashCode;
 }

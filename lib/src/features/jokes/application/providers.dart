@@ -6,6 +6,7 @@ import 'package:snickerdoodle/src/features/jokes/application/joke_schedule_provi
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
+import 'package:snickerdoodle/src/features/jokes/domain/joke_admin_rating.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_search_result.dart';
 
@@ -169,7 +170,7 @@ final searchResultsLiveProvider =
       // Apply admin filters client-side to the search results
       final filterState = ref.watch(jokeFilterProvider);
 
-      // 1) Unrated filter (require images and no thumbs reactions)
+      // 1) Unrated filter (require images and admin_rating == UNREVIEWED)
       if (filterState.showUnratedOnly) {
         ordered = ordered.where((jvd) {
           final hasImages =
@@ -177,9 +178,9 @@ final searchResultsLiveProvider =
               jvd.joke.setupImageUrl!.isNotEmpty &&
               jvd.joke.punchlineImageUrl != null &&
               jvd.joke.punchlineImageUrl!.isNotEmpty;
-          final isUnrated =
-              jvd.joke.numThumbsUp == 0 && jvd.joke.numThumbsDown == 0;
-          return hasImages && isUnrated;
+          final rating = jvd.joke.adminRating ?? JokeAdminRating.unreviewed;
+          final isUnreviewed = rating == JokeAdminRating.unreviewed;
+          return hasImages && isUnreviewed;
         }).toList();
       }
 
@@ -575,7 +576,7 @@ final filteredJokesProvider = Provider<AsyncValue<List<Joke>>>((ref) {
   // Base list
   var filteredJokes = List<Joke>.from(jokesAsync.value ?? const <Joke>[]);
 
-  // 1) Unrated filter (require images and no thumbs reactions)
+  // 1) Unrated filter (require images and admin_rating == UNREVIEWED)
   if (filterState.showUnratedOnly) {
     filteredJokes = filteredJokes.where((joke) {
       final hasImages =
@@ -583,8 +584,9 @@ final filteredJokesProvider = Provider<AsyncValue<List<Joke>>>((ref) {
           joke.setupImageUrl!.isNotEmpty &&
           joke.punchlineImageUrl != null &&
           joke.punchlineImageUrl!.isNotEmpty;
-      final isUnrated = joke.numThumbsUp == 0 && joke.numThumbsDown == 0;
-      return hasImages && isUnrated;
+      final rating = joke.adminRating ?? JokeAdminRating.unreviewed;
+      final isUnreviewed = rating == JokeAdminRating.unreviewed;
+      return hasImages && isUnreviewed;
     }).toList();
   }
 

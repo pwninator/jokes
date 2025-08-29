@@ -44,6 +44,7 @@ void main() {
         'num_saves': 0,
         'num_shares': 0,
         'admin_rating': null,
+        'state': null,
       };
       expect(result, expected);
     });

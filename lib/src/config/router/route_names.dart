@@ -20,6 +20,7 @@ class AppRoutes {
   static const String adminScheduler = '/admin/scheduler';
   static const String adminEditor = '/admin/editor';
   static const String adminEditorWithJoke = '/admin/editor/:jokeId';
+  static const String adminDeepResearch = '/admin/deep_research';
 }
 
 /// Route names for analytics and debugging
@@ -37,6 +38,7 @@ class RouteNames {
   static const String adminScheduler = 'adminScheduler';
   static const String adminEditor = 'adminEditor';
   static const String adminEditorWithJoke = 'adminEditorWithJoke';
+  static const String adminDeepResearch = 'adminDeepResearch';
 }
 
 /// Extension for easy route navigation

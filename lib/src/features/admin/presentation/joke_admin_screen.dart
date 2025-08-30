@@ -64,6 +64,21 @@ class JokeAdminScreen extends StatelessWidget implements TitledScreen {
                   },
                 ),
               ),
+
+              const SizedBox(height: 8),
+
+              // Deep Research Card (last in menu)
+              Card(
+                child: ListTile(
+                  leading: const Icon(Icons.science),
+                  title: const Text('Deep Research'),
+                  subtitle: const Text('Generate a prompt from search examples'),
+                  trailing: const Icon(Icons.arrow_forward_ios),
+                  onTap: () {
+                    context.push(AppRoutes.adminDeepResearch);
+                  },
+                ),
+              ),
             ],
           ),
         ),

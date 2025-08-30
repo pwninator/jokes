@@ -31,7 +31,7 @@ Find the top new 20 jokes for the given topic that best fit the above criteria. 
 """;
 
 const String kResponsePromptTemplate = """\
-List the jokes you found, each with the setup and punchline on separate lines, and an empty line between each joke.
+List the jokes you found, each with the setup and punchline on separate lines, and an empty line between each joke. ONLY include the setup line, punchline, and separator "###", NOTHING ELSE (e.g. no comments, citations, links, etc.)
 
 Example:
 What do you call an aquarium event with only one animal on display?###A single porpoise exhibit!
@@ -216,76 +216,80 @@ class _DeepResearchScreenState extends ConsumerState<DeepResearchScreen> {
       title: 'Deep Research',
       body: Padding(
         padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            TextFormField(
-              controller: _topicController,
-              decoration: const InputDecoration(
-                labelText: 'joke topic',
-                border: OutlineInputBorder(),
-              ),
-              onFieldSubmitted: (_) => _createPrompt(),
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                ElevatedButton(
-                  onPressed: _isLoading ? null : _createPrompt,
-                  child: const Text('Create prompt'),
+        child: SingleChildScrollView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextFormField(
+                controller: _topicController,
+                decoration: const InputDecoration(
+                  labelText: 'joke topic',
+                  border: OutlineInputBorder(),
                 ),
-                const SizedBox(width: 12),
-                if (_composedPrompt != null && _composedPrompt!.isNotEmpty)
-                  OutlinedButton.icon(
-                    onPressed: _copyToClipboard,
-                    icon: const Icon(Icons.copy),
-                    label: const Text('Copy'),
+                onFieldSubmitted: (_) => _createPrompt(),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  ElevatedButton(
+                    onPressed: _isLoading ? null : _createPrompt,
+                    child: const Text('Create prompt'),
                   ),
+                  const SizedBox(width: 12),
+                  if (_composedPrompt != null && _composedPrompt!.isNotEmpty)
+                    OutlinedButton.icon(
+                      onPressed: _copyToClipboard,
+                      icon: const Icon(Icons.copy),
+                      label: const Text('Copy'),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              if (_isLoading) const LinearProgressIndicator(),
+              if (_error != null) ...[
+                Text(
+                  _error!,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+                const SizedBox(height: 8),
               ],
-            ),
-            const SizedBox(height: 16),
-            if (_isLoading) const LinearProgressIndicator(),
-            if (_error != null) ...[
-              Text(
-                _error!,
-                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 300),
+                child: SingleChildScrollView(
+                  child: _composedPrompt == null || _composedPrompt!.isEmpty
+                      ? const Text('')
+                      : SelectableText(_composedPrompt!),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: _responseController,
+                minLines: 5,
+                maxLines: 10,
+                decoration: const InputDecoration(
+                  labelText: 'Paste LLM response here',
+                  border: OutlineInputBorder(),
+                  alignLabelWithHint: true,
+                ),
               ),
               const SizedBox(height: 8),
+              Row(
+                children: [
+                  ElevatedButton(
+                    onPressed: _onSubmitPressed,
+                    child: const Text('Submit'),
+                  ),
+                  const SizedBox(width: 12),
+                  OutlinedButton.icon(
+                    onPressed: _copyFormatPrompt,
+                    icon: const Icon(Icons.copy_all),
+                    label: const Text('Copy Response Prompt'),
+                  ),
+                ],
+              ),
             ],
-            Expanded(
-              child: SingleChildScrollView(
-                child: _composedPrompt == null || _composedPrompt!.isEmpty
-                    ? const Text('')
-                    : SelectableText(_composedPrompt!),
-              ),
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _responseController,
-              minLines: 5,
-              maxLines: 10,
-              decoration: const InputDecoration(
-                labelText: 'Paste LLM response here',
-                border: OutlineInputBorder(),
-                alignLabelWithHint: true,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                ElevatedButton(
-                  onPressed: _onSubmitPressed,
-                  child: const Text('Submit'),
-                ),
-                const SizedBox(width: 12),
-                OutlinedButton.icon(
-                  onPressed: _copyFormatPrompt,
-                  icon: const Icon(Icons.copy_all),
-                  label: const Text('Copy Response Prompt'),
-                ),
-              ],
-            ),
-          ],
+          ),
         ),
       ),
     );

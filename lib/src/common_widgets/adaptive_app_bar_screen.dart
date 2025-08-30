@@ -10,6 +10,7 @@ class AdaptiveAppBarScreen extends StatelessWidget {
     required this.title,
     required this.body,
     this.floatingActionButton,
+    this.resizeToAvoidBottomInset = false,
   });
 
   /// The title to display in the app bar when in portrait mode
@@ -21,12 +22,16 @@ class AdaptiveAppBarScreen extends StatelessWidget {
   /// Optional floating action button
   final Widget? floatingActionButton;
 
+  /// Whether the body should resize when the onscreen keyboard appears
+  final bool resizeToAvoidBottomInset;
+
   @override
   Widget build(BuildContext context) {
     final isLandscape =
         MediaQuery.of(context).orientation == Orientation.landscape;
 
     return Scaffold(
+      resizeToAvoidBottomInset: resizeToAvoidBottomInset,
       appBar: isLandscape
           ? PreferredSize(
               preferredSize: const Size.fromHeight(8.0),

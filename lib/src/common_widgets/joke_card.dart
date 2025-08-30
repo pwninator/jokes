@@ -80,6 +80,7 @@ class JokeCard extends StatelessWidget {
         joke: joke,
         index: index,
         onTap: onSetupTap,
+        isAdminMode: isAdminMode,
         overlayBadgeText: topRightBadgeText,
       );
     }

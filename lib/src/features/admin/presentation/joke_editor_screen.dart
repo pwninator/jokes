@@ -229,10 +229,10 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
                     ),
                     maxLines: 10,
                     validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Please enter a description for the setup image';
-                      }
-                      if (value.trim().length < 10) {
+                      // Allow empty descriptions; validate length only if not empty
+                      if (value != null &&
+                          value.trim().isNotEmpty &&
+                          value.trim().length < 10) {
                         return 'Description must be at least 10 characters long';
                       }
                       return null;
@@ -271,10 +271,10 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
                     ),
                     maxLines: 10,
                     validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'Please enter a description for the punchline image';
-                      }
-                      if (value.trim().length < 10) {
+                      // Allow empty descriptions; validate length only if not empty
+                      if (value != null &&
+                          value.trim().isNotEmpty &&
+                          value.trim().length < 10) {
                         return 'Description must be at least 10 characters long';
                       }
                       return null;

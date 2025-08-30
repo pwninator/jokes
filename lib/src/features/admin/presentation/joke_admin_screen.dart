@@ -72,7 +72,9 @@ class JokeAdminScreen extends StatelessWidget implements TitledScreen {
                 child: ListTile(
                   leading: const Icon(Icons.science),
                   title: const Text('Deep Research'),
-                  subtitle: const Text('Generate a prompt from search examples'),
+                  subtitle: const Text(
+                    'Generate a prompt from search examples',
+                  ),
                   trailing: const Icon(Icons.arrow_forward_ios),
                   onTap: () {
                     context.push(AppRoutes.adminDeepResearch);

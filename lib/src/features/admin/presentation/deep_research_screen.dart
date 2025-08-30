@@ -255,7 +255,7 @@ class _DeepResearchScreenState extends ConsumerState<DeepResearchScreen> {
                 const SizedBox(height: 8),
               ],
               ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 300),
+                constraints: const BoxConstraints(maxHeight: 80),
                 child: SingleChildScrollView(
                   child: _composedPrompt == null || _composedPrompt!.isEmpty
                       ? const Text('')
@@ -265,8 +265,8 @@ class _DeepResearchScreenState extends ConsumerState<DeepResearchScreen> {
               const SizedBox(height: 16),
               TextFormField(
                 controller: _responseController,
-                minLines: 5,
-                maxLines: 10,
+                minLines: 3,
+                maxLines: 3,
                 decoration: const InputDecoration(
                   labelText: 'Paste LLM response here',
                   border: OutlineInputBorder(),

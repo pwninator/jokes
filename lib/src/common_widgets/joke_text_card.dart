@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:snickerdoodle/src/common_widgets/admin_joke_action_buttons.dart';
+import 'package:snickerdoodle/src/common_widgets/holdable_button.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
@@ -9,6 +11,7 @@ class JokeTextCard extends ConsumerWidget {
   final int? index;
   final VoidCallback? onTap;
   final String? overlayBadgeText;
+  final bool isAdminMode;
 
   const JokeTextCard({
     super.key,
@@ -16,6 +19,7 @@ class JokeTextCard extends ConsumerWidget {
     this.index,
     this.onTap,
     this.overlayBadgeText,
+    this.isAdminMode = false,
   });
 
   @override
@@ -102,12 +106,70 @@ class JokeTextCard extends ConsumerWidget {
                   right: 16.0,
                   bottom: 16.0,
                 ),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: isPopulating
-                        ? null
-                        : () async {
+                child: isAdminMode
+                    ? Row(
+                        children: [
+                          // Hold to Delete button (leftmost)
+                          Expanded(
+                            child: AdminDeleteJokeButton(
+                              jokeId: joke.id,
+                              theme: Theme.of(context),
+                              isLoading: isPopulating,
+                              holdDuration: const Duration(seconds: 3),
+                            ),
+                          ),
+                          const SizedBox(width: 8.0),
+                          // Hold to Regenerate Edit button (middle)
+                          Expanded(
+                            child: AdminEditJokeButton(
+                              jokeId: joke.id,
+                              theme: Theme.of(context),
+                              isLoading: isPopulating,
+                            ),
+                          ),
+                          const SizedBox(width: 8.0),
+                          // Regenerate Images button (rightmost)
+                          Expanded(
+                            child: HoldableButton(
+                              key: const Key('regenerate-images-button'),
+                              icon: Icons.image,
+                              holdCompleteIcon: Icons.hd,
+                              onTap: () async {
+                                final notifier = ref.read(
+                                  jokePopulationProvider.notifier,
+                                );
+                                await notifier.populateJoke(
+                                  joke.id,
+                                  imagesOnly: true,
+                                  additionalParams: {"image_quality": "medium"},
+                                );
+                              },
+                              onHoldComplete: () async {
+                                final notifier = ref.read(
+                                  jokePopulationProvider.notifier,
+                                );
+                                await notifier.populateJoke(
+                                  joke.id,
+                                  imagesOnly: true,
+                                  additionalParams: {"image_quality": "high"},
+                                );
+                              },
+                              isLoading: isPopulating,
+                              theme: Theme.of(context),
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.secondaryContainer,
+                            ),
+                          ),
+                        ],
+                      )
+                    : Align(
+                        alignment: Alignment.centerRight,
+                        child: HoldableButton(
+                          key: const Key('regenerate-images-button'),
+                          icon: Icons.image,
+                          holdCompleteIcon: Icons.hd,
+                          onTap: () async {
                             final notifier = ref.read(
                               jokePopulationProvider.notifier,
                             );
@@ -116,33 +178,22 @@ class JokeTextCard extends ConsumerWidget {
                               imagesOnly: false,
                             );
                           },
-                    icon: isPopulating
-                        ? SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              valueColor: AlwaysStoppedAnimation<Color>(
-                                Theme.of(
-                                  context,
-                                ).colorScheme.onSurface.withValues(alpha: 0.6),
-                              ),
-                            ),
-                          )
-                        : const Icon(Icons.auto_awesome),
-                    label: Text(
-                      isPopulating ? 'Generating Images...' : 'Generate Images',
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Theme.of(
-                        context,
-                      ).colorScheme.primaryContainer,
-                      foregroundColor: Theme.of(
-                        context,
-                      ).colorScheme.onPrimaryContainer,
-                    ),
-                  ),
-                ),
+                          onHoldComplete: () async {
+                            final notifier = ref.read(
+                              jokePopulationProvider.notifier,
+                            );
+                            await notifier.populateJoke(
+                              joke.id,
+                              imagesOnly: false,
+                            );
+                          },
+                          isLoading: isPopulating,
+                          theme: Theme.of(context),
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.secondaryContainer,
+                        ),
+                      ),
               ),
               if (populationState.error != null)
                 Padding(

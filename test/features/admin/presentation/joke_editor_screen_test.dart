@@ -123,55 +123,63 @@ void main() {
         );
       });
 
-      testWidgets('should display form validation errors for edit mode', (
-        tester,
-      ) async {
-        const joke = Joke(
-          id: 'test-id',
-          setupText: 'Test setup',
-          punchlineText: 'Test punchline',
-          setupImageDescription: 'Test setup description',
-          punchlineImageDescription: 'Test punchline description',
-        );
+      testWidgets(
+        'should display form validation errors for edit mode (allow empty descriptions)',
+        (tester) async {
+          const joke = Joke(
+            id: 'test-id',
+            setupText: 'Test setup',
+            punchlineText: 'Test punchline',
+            setupImageDescription: 'Test setup description',
+            punchlineImageDescription: 'Test punchline description',
+          );
 
-        await tester.pumpWidget(createTestWidget(joke: joke));
-        await tester.pumpAndSettle();
+          await tester.pumpWidget(createTestWidget(joke: joke));
+          await tester.pumpAndSettle();
 
-        // Clear all fields
-        await tester.enterText(find.byKey(const Key('setupTextField')), '');
-        await tester.enterText(find.byKey(const Key('punchlineTextField')), '');
-        await tester.enterText(
-          find.byKey(const Key('setupImageDescriptionTextField')),
-          '',
-        );
-        await tester.enterText(
-          find.byKey(const Key('punchlineImageDescriptionTextField')),
-          '',
-        );
+          // Clear all fields
+          await tester.enterText(find.byKey(const Key('setupTextField')), '');
+          await tester.enterText(
+            find.byKey(const Key('punchlineTextField')),
+            '',
+          );
+          await tester.enterText(
+            find.byKey(const Key('setupImageDescriptionTextField')),
+            '',
+          );
+          await tester.enterText(
+            find.byKey(const Key('punchlineImageDescriptionTextField')),
+            '',
+          );
 
-        // Try to save - ensure button is visible first
-        await tester.ensureVisible(find.byKey(const Key('updateJokeButton')));
-        await tester.pumpAndSettle();
-        await tester.tap(
-          find.byKey(const Key('updateJokeButton')),
-          warnIfMissed: false,
-        );
-        await tester.pump();
+          // Try to save - ensure button is visible first
+          await tester.ensureVisible(find.byKey(const Key('updateJokeButton')));
+          await tester.pumpAndSettle();
+          await tester.tap(
+            find.byKey(const Key('updateJokeButton')),
+            warnIfMissed: false,
+          );
+          await tester.pump();
 
-        expect(find.text('Please enter a setup for the joke'), findsOneWidget);
-        expect(
-          find.text('Please enter a punchline for the joke'),
-          findsOneWidget,
-        );
-        expect(
-          find.text('Please enter a description for the setup image'),
-          findsOneWidget,
-        );
-        expect(
-          find.text('Please enter a description for the punchline image'),
-          findsOneWidget,
-        );
-      });
+          expect(
+            find.text('Please enter a setup for the joke'),
+            findsOneWidget,
+          );
+          expect(
+            find.text('Please enter a punchline for the joke'),
+            findsOneWidget,
+          );
+          // Empty descriptions are allowed; no errors for empty descriptions
+          expect(
+            find.text('Please enter a description for the setup image'),
+            findsNothing,
+          );
+          expect(
+            find.text('Please enter a description for the punchline image'),
+            findsNothing,
+          );
+        },
+      );
     });
 
     group('Create Joke', () {

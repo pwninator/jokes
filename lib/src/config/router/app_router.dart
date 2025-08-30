@@ -188,89 +188,105 @@ class AppRouter {
         )
         .toList();
 
-    return Scaffold(
-      body: isLandscape
-          ? Row(
-              children: [
-                SafeArea(
-                  child: SizedBox(
-                    width: 180,
-                    child: Consumer(
-                      builder: (context, ref, _) {
-                        final bottomSlot = ref.watch(railBottomSlotProvider);
-                        return Column(
-                          children: [
-                            Expanded(
-                              child: NavigationRail(
-                                destinations: railDestinations,
-                                selectedIndex: selectedIndex,
-                                onDestinationSelected: (index) {
-                                  _navigateToIndex(context, index, isAdmin);
-                                },
-                                backgroundColor: Theme.of(
-                                  context,
-                                ).colorScheme.surface,
-                                selectedIconTheme: IconThemeData(
-                                  color: Theme.of(context).colorScheme.primary,
+    return Consumer(
+      builder: (context, ref, _) {
+        final resize = ref.watch(keyboardResizeProvider);
+        return Scaffold(
+          resizeToAvoidBottomInset: resize,
+          body: isLandscape
+              ? Row(
+                  children: [
+                    SafeArea(
+                      child: SizedBox(
+                        width: 180,
+                        child: Consumer(
+                          builder: (context, ref, _) {
+                            final bottomSlot = ref.watch(
+                              railBottomSlotProvider,
+                            );
+                            return Column(
+                              children: [
+                                Expanded(
+                                  child: NavigationRail(
+                                    destinations: railDestinations,
+                                    selectedIndex: selectedIndex,
+                                    onDestinationSelected: (index) {
+                                      _navigateToIndex(context, index, isAdmin);
+                                    },
+                                    backgroundColor: Theme.of(
+                                      context,
+                                    ).colorScheme.surface,
+                                    selectedIconTheme: IconThemeData(
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.primary,
+                                    ),
+                                    unselectedIconTheme: IconThemeData(
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurface
+                                          .withValues(alpha: 0.6),
+                                    ),
+                                    selectedLabelTextStyle: TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.primary,
+                                    ),
+                                    unselectedLabelTextStyle: TextStyle(
+                                      fontWeight: FontWeight.normal,
+                                      color: Theme.of(context)
+                                          .colorScheme
+                                          .onSurface
+                                          .withValues(alpha: 0.6),
+                                    ),
+                                    extended: true,
+                                    useIndicator: false,
+                                  ),
                                 ),
-                                unselectedIconTheme: IconThemeData(
-                                  color: Theme.of(context).colorScheme.onSurface
-                                      .withValues(alpha: 0.6),
-                                ),
-                                selectedLabelTextStyle: TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  color: Theme.of(context).colorScheme.primary,
-                                ),
-                                unselectedLabelTextStyle: TextStyle(
-                                  fontWeight: FontWeight.normal,
-                                  color: Theme.of(context).colorScheme.onSurface
-                                      .withValues(alpha: 0.6),
-                                ),
-                                extended: true,
-                                useIndicator: false,
-                              ),
-                            ),
-                            if (bottomSlot != null)
-                              Padding(
-                                padding: const EdgeInsets.all(12.0),
-                                child: bottomSlot,
-                              ),
-                          ],
-                        );
-                      },
+                                if (bottomSlot != null)
+                                  Padding(
+                                    padding: const EdgeInsets.all(12.0),
+                                    child: bottomSlot,
+                                  ),
+                              ],
+                            );
+                          },
+                        ),
+                      ),
                     ),
+                    const VerticalDivider(thickness: 1, width: 1),
+                    Expanded(child: RailHost(railWidth: 180, child: child)),
+                  ],
+                )
+              : child,
+          bottomNavigationBar: isLandscape
+              ? null
+              : BottomNavigationBar(
+                  type: BottomNavigationBarType.fixed,
+                  items: navItems,
+                  currentIndex: selectedIndex,
+                  selectedItemColor: Theme.of(context).colorScheme.primary,
+                  unselectedItemColor: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withValues(alpha: 0.6),
+                  selectedLabelStyle: TextStyle(
+                    fontWeight: FontWeight.w600,
+                    color: Theme.of(context).colorScheme.primary,
                   ),
+                  unselectedLabelStyle: TextStyle(
+                    fontWeight: FontWeight.normal,
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withValues(alpha: 0.6),
+                  ),
+                  backgroundColor: Theme.of(context).colorScheme.surface,
+                  onTap: (index) {
+                    _navigateToIndex(context, index, isAdmin);
+                  },
                 ),
-                const VerticalDivider(thickness: 1, width: 1),
-                Expanded(child: RailHost(railWidth: 180, child: child)),
-              ],
-            )
-          : child,
-      bottomNavigationBar: isLandscape
-          ? null
-          : BottomNavigationBar(
-              type: BottomNavigationBarType.fixed,
-              items: navItems,
-              currentIndex: selectedIndex,
-              selectedItemColor: Theme.of(context).colorScheme.primary,
-              unselectedItemColor: Theme.of(
-                context,
-              ).colorScheme.onSurface.withValues(alpha: 0.6),
-              selectedLabelStyle: TextStyle(
-                fontWeight: FontWeight.w600,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-              unselectedLabelStyle: TextStyle(
-                fontWeight: FontWeight.normal,
-                color: Theme.of(
-                  context,
-                ).colorScheme.onSurface.withValues(alpha: 0.6),
-              ),
-              backgroundColor: Theme.of(context).colorScheme.surface,
-              onTap: (index) {
-                _navigateToIndex(context, index, isAdmin);
-              },
-            ),
+        );
+      },
     );
   }
 

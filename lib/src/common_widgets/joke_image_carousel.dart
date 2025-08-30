@@ -2,14 +2,13 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:smooth_page_indicator/smooth_page_indicator.dart';
 import 'package:snickerdoodle/src/common_widgets/admin_approval_controls.dart';
 import 'package:snickerdoodle/src/common_widgets/cached_joke_image.dart';
+import 'package:snickerdoodle/src/common_widgets/admin_joke_action_buttons.dart';
 import 'package:snickerdoodle/src/common_widgets/holdable_button.dart';
 import 'package:snickerdoodle/src/common_widgets/save_joke_button.dart';
 import 'package:snickerdoodle/src/common_widgets/share_joke_button.dart';
-import 'package:snickerdoodle/src/config/router/route_names.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/providers/image_providers.dart';
 import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
@@ -18,7 +17,6 @@ import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
-import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
 
 /// Controller to allow parent widgets to imperatively control the
 /// `JokeImageCarousel` (e.g., reveal the punchline programmatically).
@@ -796,48 +794,20 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
                 children: [
                   // Hold to Delete button (leftmost)
                   Expanded(
-                    child: HoldableButton(
-                      key: const Key('delete-joke-button'),
-                      icon: Icons.delete,
-                      holdCompleteIcon: Icons.delete_forever,
-                      onTap: () {
-                        // Do nothing on tap
-                      },
-                      onHoldComplete: () async {
-                        final repository = ref.read(jokeRepositoryProvider);
-                        await repository.deleteJoke(widget.joke.id);
-                      },
-                      isLoading: isPopulating,
+                    child: AdminDeleteJokeButton(
+                      jokeId: widget.joke.id,
                       theme: theme,
-                      color: theme.colorScheme.error,
+                      isLoading: isPopulating,
                       holdDuration: const Duration(seconds: 3),
                     ),
                   ),
                   const SizedBox(width: 8.0),
                   // Hold to Regenerate Edit button (middle)
                   Expanded(
-                    child: HoldableButton(
-                      key: const Key('edit-joke-button'),
-                      icon: Icons.edit,
-                      holdCompleteIcon: Icons.refresh,
-                      onTap: () {
-                        context.pushNamed(
-                          RouteNames.adminEditorWithJoke,
-                          pathParameters: {'jokeId': widget.joke.id},
-                        );
-                      },
-                      onHoldComplete: () async {
-                        final notifier = ref.read(
-                          jokePopulationProvider.notifier,
-                        );
-                        await notifier.populateJoke(
-                          widget.joke.id,
-                          imagesOnly: false,
-                        );
-                      },
-                      isLoading: isPopulating,
+                    child: AdminEditJokeButton(
+                      jokeId: widget.joke.id,
                       theme: theme,
-                      color: theme.colorScheme.tertiaryContainer,
+                      isLoading: isPopulating,
                     ),
                   ),
                   const SizedBox(width: 8.0),

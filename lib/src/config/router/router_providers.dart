@@ -10,6 +10,10 @@ import 'package:snickerdoodle/src/core/services/analytics_events.dart';
 /// Screens can set this to render a CTA at the bottom of the rail.
 final railBottomSlotProvider = StateProvider<Widget?>((ref) => null);
 
+/// Controls whether the root Scaffold resizes when the keyboard appears.
+/// Defaults to false so pages do not shift unless they opt-in.
+final keyboardResizeProvider = StateProvider<bool>((ref) => false);
+
 /// Provider for the main GoRouter instance
 final goRouterProvider = Provider<GoRouter>((ref) {
   final refreshNotifier = ref.watch(routeRefreshNotifierProvider);

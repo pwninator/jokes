@@ -54,7 +54,27 @@ void main() {
         expect(find.byIcon(Icons.star), findsNothing);
       });
 
-      testWidgets('should display spinner when disabled', (tester) async {
+      testWidgets('should display spinner when loading', (tester) async {
+        // arrange
+        final widget = HoldableButton(
+          icon: Icons.edit,
+          onTap: () {},
+          onHoldComplete: () {},
+          theme: lightTheme,
+          isLoading: true,
+        );
+
+        // act
+        await tester.pumpWidget(createTestWidget(child: widget));
+
+        // assert
+        expect(find.byType(CircularProgressIndicator), findsOneWidget);
+        expect(find.byIcon(Icons.edit), findsNothing);
+      });
+
+      testWidgets('should gray out and not show spinner when disabled', (
+        tester,
+      ) async {
         // arrange
         final widget = HoldableButton(
           icon: Icons.edit,
@@ -68,8 +88,8 @@ void main() {
         await tester.pumpWidget(createTestWidget(child: widget));
 
         // assert
-        expect(find.byType(CircularProgressIndicator), findsOneWidget);
-        expect(find.byIcon(Icons.edit), findsNothing);
+        expect(find.byType(CircularProgressIndicator), findsNothing);
+        expect(find.byIcon(Icons.edit), findsOneWidget);
       });
     });
 

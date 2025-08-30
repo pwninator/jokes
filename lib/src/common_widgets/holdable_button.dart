@@ -4,6 +4,7 @@ class HoldableButton extends StatefulWidget {
   final VoidCallback onTap;
   final VoidCallback onHoldComplete;
   final bool isEnabled;
+  final bool isLoading;
   final ThemeData theme;
   final String? tooltip;
   final IconData icon;
@@ -18,6 +19,7 @@ class HoldableButton extends StatefulWidget {
     required this.theme,
     required this.icon,
     this.isEnabled = true,
+    this.isLoading = false,
     this.tooltip,
     this.holdCompleteIcon,
     this.holdDuration = const Duration(seconds: 2),
@@ -65,7 +67,8 @@ class _HoldableButtonState extends State<HoldableButton>
   }
 
   void _onTapDown(TapDownDetails details) {
-    if (!widget.isEnabled) return;
+    final blocked = _isBlocked;
+    if (blocked) return;
 
     setState(() {
       _isHolding = true;
@@ -74,7 +77,8 @@ class _HoldableButtonState extends State<HoldableButton>
   }
 
   void _onTapUp(TapUpDetails details) {
-    if (!widget.isEnabled) return;
+    final blocked = _isBlocked;
+    if (blocked) return;
 
     if (_animationController.isCompleted) {
       // Already completed - do nothing (onHoldComplete already called)
@@ -90,7 +94,8 @@ class _HoldableButtonState extends State<HoldableButton>
   }
 
   void _onTapCancel() {
-    if (!widget.isEnabled) return;
+    final blocked = _isBlocked;
+    if (blocked) return;
     _resetHold();
   }
 
@@ -102,22 +107,35 @@ class _HoldableButtonState extends State<HoldableButton>
   }
 
   Color _getBaseColor() {
+    final disabled = _isDisabled;
+    final loading = widget.isLoading;
+    if (disabled) {
+      return widget.theme.disabledColor;
+    }
     final baseColor =
         widget.color ?? widget.theme.colorScheme.tertiaryContainer;
-    if (!widget.isEnabled) {
+    if (loading) {
       return baseColor.withValues(alpha: 0.5);
     }
     return baseColor.withValues(alpha: 0.8);
   }
 
   Color _getFillColor() {
+    final disabled = _isDisabled;
+    final loading = widget.isLoading;
+    if (disabled) {
+      return widget.theme.disabledColor;
+    }
     final baseColor =
         widget.color ?? widget.theme.colorScheme.tertiaryContainer;
-    if (!widget.isEnabled) {
-      return baseColor.withValues(alpha: 0.5);
+    if (loading) {
+      return baseColor.withValues(alpha: 0.8);
     }
     return baseColor.withValues(alpha: 1.0);
   }
+
+  bool get _isDisabled => !widget.isEnabled;
+  bool get _isBlocked => _isDisabled || widget.isLoading;
 
   @override
   Widget build(BuildContext context) {
@@ -163,16 +181,19 @@ class _HoldableButtonState extends State<HoldableButton>
                 child: AnimatedBuilder(
                   animation: _fillAnimation,
                   builder: (context, child) {
-                    // Show spinner when disabled (processing)
-                    if (!widget.isEnabled) {
+                    // Show spinner when loading (optionally greyed if also disabled)
+                    if (widget.isLoading) {
+                      final spinnerColor = _isDisabled
+                          ? widget.theme.disabledColor
+                          : widget.theme.colorScheme.onTertiaryContainer
+                                .withValues(alpha: 0.6);
                       return SizedBox(
                         width: 16,
                         height: 16,
                         child: CircularProgressIndicator(
                           strokeWidth: 2,
                           valueColor: AlwaysStoppedAnimation<Color>(
-                            widget.theme.colorScheme.onTertiaryContainer
-                                .withValues(alpha: 0.6),
+                            spinnerColor,
                           ),
                         ),
                       );
@@ -183,7 +204,9 @@ class _HoldableButtonState extends State<HoldableButton>
                       _fillAnimation.value >= 1.0
                           ? (widget.holdCompleteIcon ?? Icons.refresh)
                           : widget.icon,
-                      color: widget.theme.colorScheme.onTertiaryContainer,
+                      color: _isDisabled
+                          ? widget.theme.disabledColor
+                          : widget.theme.colorScheme.onTertiaryContainer,
                     );
                   },
                 ),

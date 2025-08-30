@@ -807,7 +807,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
                         final repository = ref.read(jokeRepositoryProvider);
                         await repository.deleteJoke(widget.joke.id);
                       },
-                      isEnabled: !isPopulating,
+                      isLoading: isPopulating,
                       theme: theme,
                       color: theme.colorScheme.error,
                       holdDuration: const Duration(seconds: 3),
@@ -835,7 +835,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
                           imagesOnly: false,
                         );
                       },
-                      isEnabled: !isPopulating,
+                      isLoading: isPopulating,
                       theme: theme,
                       color: theme.colorScheme.tertiaryContainer,
                     ),
@@ -867,7 +867,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
                           additionalParams: {"image_quality": "high"},
                         );
                       },
-                      isEnabled: !isPopulating,
+                      isLoading: isPopulating,
                       theme: theme,
                       color: theme.colorScheme.secondaryContainer,
                     ),

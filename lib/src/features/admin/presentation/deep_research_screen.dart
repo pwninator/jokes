@@ -31,7 +31,7 @@ Find the top new 20 jokes for the given topic that best fit the above criteria. 
 """;
 
 const String kResponsePromptTemplate = """\
-List the jokes you found, each with the setup and punchline on separate lines, and an empty line between each joke. ONLY include the setup line, punchline, and separator "###", NOTHING ELSE (e.g. no comments, citations, links, etc.)
+List each of the jokes you found on a separate line, with the setup and punchline separated by "###" (3 hashes). ONLY include the setup line, punchline, and separator "###", NOTHING ELSE (e.g. no comments, citations, links, etc.)
 
 Example:
 What do you call an aquarium event with only one animal on display?###A single porpoise exhibit!

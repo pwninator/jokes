@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/common_widgets/admin_joke_action_buttons.dart';
-import 'package:snickerdoodle/src/common_widgets/holdable_button.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
@@ -130,68 +129,20 @@ class JokeTextCard extends ConsumerWidget {
                           const SizedBox(width: 8.0),
                           // Regenerate Images button (rightmost)
                           Expanded(
-                            child: HoldableButton(
-                              key: const Key('regenerate-images-button'),
-                              icon: Icons.image,
-                              holdCompleteIcon: Icons.hd,
-                              onTap: () async {
-                                final notifier = ref.read(
-                                  jokePopulationProvider.notifier,
-                                );
-                                await notifier.populateJoke(
-                                  joke.id,
-                                  imagesOnly: true,
-                                  additionalParams: {"image_quality": "medium"},
-                                );
-                              },
-                              onHoldComplete: () async {
-                                final notifier = ref.read(
-                                  jokePopulationProvider.notifier,
-                                );
-                                await notifier.populateJoke(
-                                  joke.id,
-                                  imagesOnly: true,
-                                  additionalParams: {"image_quality": "high"},
-                                );
-                              },
-                              isLoading: isPopulating,
+                            child: AdminPopulateJokeButton(
+                              jokeId: joke.id,
                               theme: Theme.of(context),
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.secondaryContainer,
+                              isLoading: isPopulating,
                             ),
                           ),
                         ],
                       )
                     : Align(
                         alignment: Alignment.centerRight,
-                        child: HoldableButton(
-                          key: const Key('regenerate-images-button'),
-                          icon: Icons.image,
-                          holdCompleteIcon: Icons.hd,
-                          onTap: () async {
-                            final notifier = ref.read(
-                              jokePopulationProvider.notifier,
-                            );
-                            await notifier.populateJoke(
-                              joke.id,
-                              imagesOnly: false,
-                            );
-                          },
-                          onHoldComplete: () async {
-                            final notifier = ref.read(
-                              jokePopulationProvider.notifier,
-                            );
-                            await notifier.populateJoke(
-                              joke.id,
-                              imagesOnly: false,
-                            );
-                          },
-                          isLoading: isPopulating,
+                        child: AdminPopulateJokeButton(
+                          jokeId: joke.id,
                           theme: Theme.of(context),
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.secondaryContainer,
+                          isLoading: isPopulating,
                         ),
                       ),
               ),

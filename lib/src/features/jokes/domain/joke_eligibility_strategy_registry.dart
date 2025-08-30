@@ -4,7 +4,7 @@ import 'package:snickerdoodle/src/features/jokes/domain/joke_eligibility_strateg
 /// Registry for managing and creating joke eligibility strategies
 class JokeEligibilityStrategyRegistry {
   static final Map<String, JokeEligibilityStrategy> _strategies = {
-    'thumbs_up': const ThumbsUpStrategy(),
+    'approved': const ApprovedStrategy(),
     'highly_rated': const HighlyRatedStrategy(),
     'highly_rated_strict': const HighlyRatedStrategy(
       minThumbsUp: 10,
@@ -14,7 +14,7 @@ class JokeEligibilityStrategyRegistry {
 
   /// Get a strategy by name, returns default if not found
   static JokeEligibilityStrategy getStrategy(String name) {
-    return _strategies[name] ?? const ThumbsUpStrategy();
+    return _strategies[name] ?? const ApprovedStrategy();
   }
 
   /// Get all available strategies
@@ -88,7 +88,7 @@ class JokeEligibilityStrategyRegistry {
         );
 
       default:
-        return const ThumbsUpStrategy();
+        return const ApprovedStrategy();
     }
   }
 

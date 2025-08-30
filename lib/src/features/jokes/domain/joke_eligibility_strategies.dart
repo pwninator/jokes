@@ -1,17 +1,18 @@
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_eligibility_strategy.dart';
+import 'package:snickerdoodle/src/features/jokes/domain/joke_state.dart';
 
-/// Current strategy: Jokes with thumbs up > 0 and thumbs up > thumbs down
-class ThumbsUpStrategy
+/// Strategy: Jokes explicitly approved by admins/state
+class ApprovedStrategy
     with JokeEligibilityHelpers
     implements JokeEligibilityStrategy {
-  const ThumbsUpStrategy();
+  const ApprovedStrategy();
 
   @override
-  String get name => 'thumbs_up';
+  String get name => 'approved';
 
   @override
-  String get description => 'Jokes with more thumbs up than down';
+  String get description => 'Jokes with state APPROVED';
 
   @override
   Future<List<Joke>> getEligibleJokes(
@@ -21,8 +22,7 @@ class ThumbsUpStrategy
     return allJokes
         .where(
           (joke) =>
-              joke.numThumbsUp > 0 &&
-              joke.numThumbsUp > joke.numThumbsDown &&
+              joke.state == JokeState.approved &&
               !isJokeAlreadyScheduled(joke.id, context),
         )
         .toList();

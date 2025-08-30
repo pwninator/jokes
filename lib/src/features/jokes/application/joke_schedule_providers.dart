@@ -1,7 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_schedule_service.dart';
-import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_schedule.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_schedule_batch.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/firestore_joke_schedule_repository.dart';
@@ -133,7 +132,7 @@ final jokeScheduleAutoFillServiceProvider =
 
 // Selected auto-fill strategy
 final selectedAutoFillStrategyProvider = StateProvider<String>(
-  (ref) => 'thumbs_up',
+  (ref) => 'approved',
 );
 
 // Auto-fill state
@@ -240,32 +239,6 @@ class AutoFillNotifier extends StateNotifier<AutoFillState> {
   /// Clear last result
   void clearResult() {
     state = state.copyWith(clearResult: true);
-  }
-
-  /// Get preview of eligible jokes for current strategy
-  Future<List<Joke>> previewEligibleJokes(
-    String scheduleId,
-    DateTime monthDate,
-  ) async {
-    final strategyName = _ref.read(selectedAutoFillStrategyProvider);
-    final strategy = JokeEligibilityStrategyRegistry.getStrategy(strategyName);
-
-    return await _service.previewEligibleJokes(
-      scheduleId: scheduleId,
-      monthDate: monthDate,
-      strategy: strategy,
-    );
-  }
-
-  /// Get eligibility statistics for current strategy
-  Future<Map<String, int>> getEligibilityStats(String scheduleId) async {
-    final strategyName = _ref.read(selectedAutoFillStrategyProvider);
-    final strategy = JokeEligibilityStrategyRegistry.getStrategy(strategyName);
-
-    return await _service.getEligibilityStats(
-      scheduleId: scheduleId,
-      strategy: strategy,
-    );
   }
 }
 

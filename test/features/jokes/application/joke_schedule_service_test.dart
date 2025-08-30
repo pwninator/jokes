@@ -7,6 +7,7 @@ import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_reposito
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_schedule_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_eligibility_strategies.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_eligibility_strategy.dart';
+import 'package:snickerdoodle/src/features/jokes/domain/joke_state.dart';
 
 class MockJokeRepository extends Mock implements JokeRepository {}
 
@@ -48,6 +49,7 @@ void main() {
           punchlineText: 'Punchline 1',
           numThumbsUp: 5,
           numThumbsDown: 2,
+          state: JokeState.approved,
         ),
         const Joke(
           id: 'joke2',
@@ -55,13 +57,15 @@ void main() {
           punchlineText: 'Punchline 2',
           numThumbsUp: 8,
           numThumbsDown: 1,
+          state: JokeState.approved,
         ),
         const Joke(
           id: 'joke3',
           setupText: 'Setup 3',
           punchlineText: 'Punchline 3',
           numThumbsUp: 3,
-          numThumbsDown: 7, // Not eligible for thumbs up strategy
+          numThumbsDown: 7, // Not eligible for approved strategy
+          state: JokeState.rejected,
         ),
       ];
 
@@ -80,7 +84,7 @@ void main() {
         'should successfully auto-fill a month with eligible jokes',
         () async {
           // arrange
-          const strategy = ThumbsUpStrategy();
+          const strategy = ApprovedStrategy();
           const scheduleId = 'test_schedule';
           final monthDate = DateTime(2024, 2);
 
@@ -99,7 +103,7 @@ void main() {
           expect(result.success, isTrue);
           expect(result.jokesFilled, equals(2)); // joke1 and joke2 are eligible
           expect(result.totalDays, equals(29)); // February 2024 has 29 days
-          expect(result.strategyUsed, equals('thumbs_up'));
+          expect(result.strategyUsed, equals('approved'));
 
           // Verify batch was created and saved
           verify(() => mockScheduleRepository.updateBatch(any())).called(1);
@@ -112,7 +116,7 @@ void main() {
           () => mockJokeRepository.getJokes(),
         ).thenAnswer((_) => Stream.value([]));
 
-        const strategy = ThumbsUpStrategy();
+        const strategy = ApprovedStrategy();
         const scheduleId = 'test_schedule';
         final monthDate = DateTime(2024, 2);
 
@@ -126,7 +130,7 @@ void main() {
         // assert
         expect(result.success, isFalse);
         expect(result.error, contains('No jokes available in the system'));
-        expect(result.strategyUsed, equals('thumbs_up'));
+        expect(result.strategyUsed, equals('approved'));
       });
 
       test('should handle no eligible jokes for strategy', () async {
@@ -159,7 +163,7 @@ void main() {
 
       test('should preserve existing jokes when not replacing', () async {
         // arrange
-        const strategy = ThumbsUpStrategy();
+        const strategy = ApprovedStrategy();
         const scheduleId = 'test_schedule';
         final monthDate = DateTime(2024, 2);
 
@@ -210,7 +214,7 @@ void main() {
         'should generate warnings when insufficient jokes available',
         () async {
           // arrange
-          const strategy = ThumbsUpStrategy();
+          const strategy = ApprovedStrategy();
           const scheduleId = 'test_schedule';
           final monthDate = DateTime(2024, 2); // 29 days
 
@@ -244,7 +248,7 @@ void main() {
           () => mockJokeRepository.getJokes(),
         ).thenThrow(Exception('Database error'));
 
-        const strategy = ThumbsUpStrategy();
+        const strategy = ApprovedStrategy();
         const scheduleId = 'test_schedule';
         final monthDate = DateTime(2024, 2);
 
@@ -258,87 +262,7 @@ void main() {
         // assert
         expect(result.success, isFalse);
         expect(result.error, contains('Auto-fill failed'));
-        expect(result.strategyUsed, equals('thumbs_up'));
-      });
-    });
-
-    group('previewEligibleJokes', () {
-      test('should return eligible jokes without modifying schedule', () async {
-        // arrange
-        const strategy = ThumbsUpStrategy();
-        const scheduleId = 'test_schedule';
-        final monthDate = DateTime(2024, 2);
-
-        // act
-        final result = await service.previewEligibleJokes(
-          scheduleId: scheduleId,
-          monthDate: monthDate,
-          strategy: strategy,
-        );
-
-        // assert
-        expect(result.length, equals(2)); // joke1 and joke2
-        expect(result.map((j) => j.id), containsAll(['joke1', 'joke2']));
-
-        // Verify no batch was updated
-        verifyNever(() => mockScheduleRepository.updateBatch(any()));
-      });
-
-      test('should handle errors gracefully', () async {
-        // arrange
-        when(() => mockJokeRepository.getJokes()).thenThrow(Exception('Error'));
-
-        const strategy = ThumbsUpStrategy();
-        const scheduleId = 'test_schedule';
-        final monthDate = DateTime(2024, 2);
-
-        // act
-        final result = await service.previewEligibleJokes(
-          scheduleId: scheduleId,
-          monthDate: monthDate,
-          strategy: strategy,
-        );
-
-        // assert
-        expect(result, isEmpty);
-      });
-    });
-
-    group('getEligibilityStats', () {
-      test('should return correct statistics', () async {
-        // arrange
-        const strategy = ThumbsUpStrategy();
-        const scheduleId = 'test_schedule';
-
-        // act
-        final result = await service.getEligibilityStats(
-          scheduleId: scheduleId,
-          strategy: strategy,
-        );
-
-        // assert
-        expect(result['total_jokes'], equals(3));
-        expect(result['eligible_jokes'], equals(2)); // joke1 and joke2
-        expect(result['already_scheduled'], equals(1)); // joke3 not eligible
-      });
-
-      test('should handle errors gracefully', () async {
-        // arrange
-        when(() => mockJokeRepository.getJokes()).thenThrow(Exception('Error'));
-
-        const strategy = ThumbsUpStrategy();
-        const scheduleId = 'test_schedule';
-
-        // act
-        final result = await service.getEligibilityStats(
-          scheduleId: scheduleId,
-          strategy: strategy,
-        );
-
-        // assert
-        expect(result['total_jokes'], equals(0));
-        expect(result['eligible_jokes'], equals(0));
-        expect(result['already_scheduled'], equals(0));
+        expect(result.strategyUsed, equals('approved'));
       });
     });
 

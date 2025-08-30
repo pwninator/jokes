@@ -438,11 +438,6 @@ class SubscriptionPromptNotifier
     await markPromptShown();
     state = state.copyWith(shouldShowPrompt: false);
   }
-
-  @override
-  void dispose() {
-    super.dispose();
-  }
 }
 
 /// Provider for subscription prompt state management

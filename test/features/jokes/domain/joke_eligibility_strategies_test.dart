@@ -3,6 +3,7 @@ import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_schedule_batch.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_eligibility_strategies.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_eligibility_strategy.dart';
+import 'package:snickerdoodle/src/features/jokes/domain/joke_state.dart';
 
 void main() {
   group('JokeEligibilityStrategies', () {
@@ -11,31 +12,34 @@ void main() {
 
     setUp(() {
       testJokes = [
-        // Joke 1: Perfect for thumbs up strategy
+        // Joke 1: Approved
         const Joke(
           id: 'joke1',
           setupText: 'Setup 1',
           punchlineText: 'Punchline 1',
           numThumbsUp: 5,
           numThumbsDown: 2,
+          state: JokeState.approved,
         ),
-        // Joke 2: More thumbs down than up
+        // Joke 2: Not approved
         const Joke(
           id: 'joke2',
           setupText: 'Setup 2',
           punchlineText: 'Punchline 2',
           numThumbsUp: 3,
           numThumbsDown: 7,
+          state: JokeState.unreviewed,
         ),
-        // Joke 3: No reactions
+        // Joke 3: Not approved
         const Joke(
           id: 'joke3',
           setupText: 'Setup 3',
           punchlineText: 'Punchline 3',
           numThumbsUp: 0,
           numThumbsDown: 0,
+          state: JokeState.draft,
         ),
-        // Joke 4: High quality joke
+        // Joke 4: Approved with images
         const Joke(
           id: 'joke4',
           setupText: 'Setup 4',
@@ -44,14 +48,16 @@ void main() {
           numThumbsDown: 1,
           setupImageUrl: 'https://example.com/setup.jpg',
           punchlineImageUrl: 'https://example.com/punchline.jpg',
+          state: JokeState.approved,
         ),
-        // Joke 5: Already scheduled in batch
+        // Joke 5: Approved but already scheduled in batch
         const Joke(
           id: 'joke5',
           setupText: 'Setup 5',
           punchlineText: 'Punchline 5',
           numThumbsUp: 8,
           numThumbsDown: 1,
+          state: JokeState.approved,
         ),
       ];
 
@@ -71,12 +77,12 @@ void main() {
       );
     });
 
-    group('ThumbsUpStrategy', () {
+    group('ApprovedStrategy', () {
       test(
-        'should select jokes with thumbs up > 0 and thumbs up > thumbs down',
+        'should select jokes with state APPROVED and exclude already scheduled',
         () async {
           // arrange
-          const strategy = ThumbsUpStrategy();
+          const strategy = ApprovedStrategy();
 
           // act
           final result = await strategy.getEligibleJokes(
@@ -85,16 +91,16 @@ void main() {
           );
 
           // assert
-          expect(result.length, equals(2)); // joke1 and joke4
+          expect(result.length, equals(2)); // joke1 and joke4 are approved
           expect(result.map((j) => j.id), containsAll(['joke1', 'joke4']));
           expect(
             result.map((j) => j.id),
             isNot(contains('joke2')),
-          ); // thumbs down > up
+          ); // not approved
           expect(
             result.map((j) => j.id),
             isNot(contains('joke3')),
-          ); // no thumbs up
+          ); // not approved
           expect(
             result.map((j) => j.id),
             isNot(contains('joke5')),
@@ -104,7 +110,7 @@ void main() {
 
       test('should exclude already scheduled jokes', () async {
         // arrange
-        const strategy = ThumbsUpStrategy();
+        const strategy = ApprovedStrategy();
 
         // Create context where joke1 is already scheduled
         final contextWithScheduledJoke = EligibilityContext(
@@ -133,12 +139,9 @@ void main() {
       });
 
       test('should have correct name and description', () {
-        const strategy = ThumbsUpStrategy();
-        expect(strategy.name, equals('thumbs_up'));
-        expect(
-          strategy.description,
-          equals('Jokes with more thumbs up than down'),
-        );
+        const strategy = ApprovedStrategy();
+        expect(strategy.name, equals('approved'));
+        expect(strategy.description, equals('Jokes with state APPROVED'));
       });
     });
 
@@ -336,7 +339,7 @@ void main() {
 
     group('JokeEligibilityHelpers', () {
       test('isJokeAlreadyScheduled should work correctly', () {
-        const strategy = ThumbsUpStrategy();
+        const strategy = ApprovedStrategy();
 
         expect(strategy.isJokeAlreadyScheduled('joke5', testContext), isTrue);
         expect(strategy.isJokeAlreadyScheduled('joke1', testContext), isFalse);

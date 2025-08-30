@@ -5,7 +5,6 @@ import 'package:snickerdoodle/src/common_widgets/subscription_prompt_overlay.dar
 import 'package:snickerdoodle/src/config/router/route_guards.dart';
 import 'package:snickerdoodle/src/config/router/route_names.dart';
 import 'package:snickerdoodle/src/config/router/router_providers.dart';
-import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
 import 'package:snickerdoodle/src/core/services/notification_service.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_admin_screen.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_creator_screen.dart';
@@ -14,7 +13,7 @@ import 'package:snickerdoodle/src/features/admin/presentation/joke_management_sc
 import 'package:snickerdoodle/src/features/admin/presentation/joke_scheduler_screen.dart';
 import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
 import 'package:snickerdoodle/src/features/auth/presentation/auth_wrapper.dart';
-import 'package:snickerdoodle/src/features/jokes/presentation/joke_viewer_screen.dart';
+import 'package:snickerdoodle/src/features/jokes/presentation/daily_jokes_screen.dart';
 import 'package:snickerdoodle/src/features/jokes/presentation/saved_jokes_screen.dart';
 import 'package:snickerdoodle/src/features/search/presentation/search_screen.dart';
 import 'package:snickerdoodle/src/features/settings/presentation/user_settings_screen.dart';
@@ -68,10 +67,7 @@ class AppRouter {
             GoRoute(
               path: AppRoutes.jokes,
               name: RouteNames.jokes,
-              builder: (context, state) => const JokeViewerScreen(
-                jokeContext: AnalyticsJokeContext.dailyJokes,
-                screenTitle: 'Daily Jokes',
-              ),
+              builder: (context, state) => const DailyJokesScreen(),
             ),
 
             // Saved Jokes

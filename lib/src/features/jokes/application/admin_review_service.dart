@@ -54,5 +54,3 @@ class AdminReviewService {
     await _jokeRepository.setAdminRatingAndState(jokeId, next);
   }
 }
-
-

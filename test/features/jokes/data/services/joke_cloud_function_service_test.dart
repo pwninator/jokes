@@ -89,6 +89,7 @@ void main() {
           when(() => mockResult.data).thenReturn(mockResponseData);
           when(
             () => mockCallable.call({
+              'admin_owned': true,
               'joke_data': {
                 'setup_text': setupText,
                 'punchline_text': punchlineText,
@@ -101,6 +102,7 @@ void main() {
           final result = await service.createJokeWithResponse(
             setupText: setupText,
             punchlineText: punchlineText,
+            adminOwned: true,
           );
 
           expect(result, equals({'success': true, 'data': mockResponseData}));

@@ -14,6 +14,7 @@ class JokeCloudFunctionService {
   Future<Map<String, dynamic>?> createJokeWithResponse({
     required String setupText,
     required String punchlineText,
+    required bool adminOwned,
     String? setupImageUrl,
     String? punchlineImageUrl,
   }) async {
@@ -21,6 +22,7 @@ class JokeCloudFunctionService {
       final callable = _functions.httpsCallable('create_joke');
 
       final result = await callable.call({
+        'admin_owned': adminOwned,
         'joke_data': {
           'setup_text': setupText,
           'punchline_text': punchlineText,

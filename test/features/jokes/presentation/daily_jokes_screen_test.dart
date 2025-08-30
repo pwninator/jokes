@@ -16,7 +16,7 @@ import 'package:snickerdoodle/src/features/jokes/application/joke_schedule_provi
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_schedule_batch.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_schedule_repository.dart';
-import 'package:snickerdoodle/src/features/jokes/presentation/joke_viewer_screen.dart';
+import 'package:snickerdoodle/src/features/jokes/presentation/daily_jokes_screen.dart';
 
 import '../../../test_helpers/firebase_mocks.dart';
 
@@ -32,7 +32,7 @@ class FakeJokeScheduleBatch extends Fake implements JokeScheduleBatch {}
 class FakeJoke extends Fake implements Joke {}
 
 void main() {
-  group('JokeViewerScreen', () {
+  group('DailyJokesScreen', () {
     late List<Joke> mockJokes;
     late List<JokeScheduleBatch> mockBatches;
     late MockImageService mockImageService;
@@ -176,17 +176,14 @@ void main() {
         ).thenAnswer((_) => Stream.value(customBatches ?? mockBatches));
       }
 
-      // Create a simple GoRouter for testing that routes directly to JokeViewerScreen
+      // Create a simple GoRouter for testing that routes directly to DailyJokesScreen
       final router = GoRouter(
         initialLocation: AppRoutes.jokes,
         routes: [
           GoRoute(
             path: AppRoutes.jokes,
             name: RouteNames.jokes,
-            builder: (context, state) => const JokeViewerScreen(
-              jokeContext: 'test',
-              screenTitle: 'Test Jokes',
-            ),
+            builder: (context, state) => const DailyJokesScreen(),
           ),
         ],
       );
@@ -212,10 +209,7 @@ void main() {
         ),
       ).thenAnswer((_) => Stream.value(customBatches ?? mockBatches));
 
-      final child = const JokeViewerScreen(
-        jokeContext: 'test',
-        screenTitle: 'Test Jokes',
-      );
+      final child = const DailyJokesScreen();
 
       return ProviderScope(
         overrides: [
@@ -260,7 +254,7 @@ void main() {
                   ),
                 ),
                 const VerticalDivider(thickness: 1, width: 1),
-                Expanded(child: RailHost(child: child, railWidth: 180)),
+                Expanded(child: RailHost(railWidth: 180, child: child)),
               ],
             ),
           ),
@@ -287,10 +281,7 @@ void main() {
             GoRoute(
               path: AppRoutes.jokes,
               name: RouteNames.jokes,
-              builder: (context, state) => const JokeViewerScreen(
-                jokeContext: 'test',
-                screenTitle: 'Test Jokes',
-              ),
+              builder: (context, state) => const DailyJokesScreen(),
             ),
           ],
         );
@@ -462,13 +453,11 @@ void main() {
         await tester.pumpWidget(createTestWidget(customBatches: batches));
         await tester.pump();
         await tester.pump();
+        // Give the StreamProvider an extra frame to emit
+        await tester.pump(const Duration(milliseconds: 200));
 
-        expect(find.byKey(const Key('joke_viewer_cta_button')), findsOneWidget);
-        expect(find.text('Next joke'), findsOneWidget);
-        final btn = tester.widget<ElevatedButton>(
-          find.byKey(const Key('joke_viewer_cta_button')),
-        );
-        expect(btn.onPressed, isNull, reason: 'Single joke -> Next disabled');
+        // With new behavior, CTA is hidden when there is no reveal or next
+        expect(find.byKey(const Key('joke_viewer_cta_button')), findsNothing);
       });
 
       testWidgets('after advancing, CTA label resets to Reveal on next joke', (

@@ -105,6 +105,7 @@ class FirebaseMocks {
       () => mock.createJokeWithResponse(
         setupText: any(named: 'setupText'),
         punchlineText: any(named: 'punchlineText'),
+        adminOwned: any(named: 'adminOwned'),
         setupImageUrl: any(named: 'setupImageUrl'),
         punchlineImageUrl: any(named: 'punchlineImageUrl'),
       ),

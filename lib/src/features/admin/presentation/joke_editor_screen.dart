@@ -363,6 +363,7 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
     final result = await jokeService.createJokeWithResponse(
       setupText: setup,
       punchlineText: punchline,
+      adminOwned: true,
     );
 
     if (mounted) {

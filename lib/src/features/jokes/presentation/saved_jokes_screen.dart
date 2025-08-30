@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:snickerdoodle/src/common_widgets/adaptive_app_bar_screen.dart';
 import 'package:snickerdoodle/src/common_widgets/titled_screen.dart';
+import 'package:snickerdoodle/src/config/router/router_providers.dart';
 import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
 import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
-import 'package:snickerdoodle/src/features/jokes/presentation/joke_viewer_screen.dart';
+import 'package:snickerdoodle/src/features/jokes/presentation/joke_list_viewer.dart';
 
 class SavedJokesScreen extends ConsumerStatefulWidget implements TitledScreen {
   const SavedJokesScreen({super.key});
@@ -27,11 +29,21 @@ class _SavedJokesScreenState extends ConsumerState<SavedJokesScreen> {
   }
 
   @override
+  void dispose() {
+    try {
+      ref.read(railBottomSlotProvider.notifier).state = null;
+    } catch (_) {}
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return JokeViewerScreen(
-      jokesProvider: savedJokesProvider,
-      jokeContext: AnalyticsJokeContext.savedJokes,
-      screenTitle: 'Saved Jokes',
+    return AdaptiveAppBarScreen(
+      title: 'Saved Jokes',
+      body: JokeListViewer(
+        jokesAsyncProvider: savedJokesProvider,
+        jokeContext: AnalyticsJokeContext.savedJokes,
+      ),
     );
   }
 }

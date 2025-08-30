@@ -120,7 +120,6 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               ),
               jokeContext: AnalyticsJokeContext.search,
               onInitRegisterReset: (cb) => _resetViewer = cb,
-              showCtaWhenEmpty: false,
               emptyState: const Center(child: Text('Search for jokes!')),
             ),
           ),

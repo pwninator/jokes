@@ -3,34 +3,21 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/common_widgets/adaptive_app_bar_screen.dart';
 import 'package:snickerdoodle/src/common_widgets/titled_screen.dart';
 import 'package:snickerdoodle/src/config/router/router_providers.dart';
+import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
 import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
 import 'package:snickerdoodle/src/features/jokes/presentation/joke_list_viewer.dart';
 
-class JokeViewerScreen extends ConsumerStatefulWidget implements TitledScreen {
-  const JokeViewerScreen({
-    super.key,
-    this.jokesProvider,
-    required this.jokeContext,
-    required this.screenTitle,
-  });
-
-  final StreamProvider<List<JokeWithDate>>? jokesProvider;
-  final String jokeContext;
-  final String screenTitle;
+class DailyJokesScreen extends ConsumerStatefulWidget implements TitledScreen {
+  const DailyJokesScreen({super.key});
 
   @override
-  String get title => screenTitle;
+  String get title => 'Daily Jokes';
 
   @override
-  ConsumerState<JokeViewerScreen> createState() => _JokeViewerScreenState();
+  ConsumerState<DailyJokesScreen> createState() => _DailyJokesScreenState();
 }
 
-class _JokeViewerScreenState extends ConsumerState<JokeViewerScreen> {
-  @override
-  void initState() {
-    super.initState();
-  }
-
+class _DailyJokesScreenState extends ConsumerState<DailyJokesScreen> {
   @override
   void dispose() {
     // Clear rail bottom slot when leaving the screen
@@ -42,15 +29,13 @@ class _JokeViewerScreenState extends ConsumerState<JokeViewerScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final jokesWithDateAsyncValue = ref.watch(
-      widget.jokesProvider ?? monthlyJokesWithDateProvider,
-    );
+    final jokesWithDateAsyncValue = ref.watch(monthlyJokesWithDateProvider);
 
     return AdaptiveAppBarScreen(
-      title: widget.screenTitle,
+      title: 'Daily Jokes',
       body: JokeListViewer(
-        jokesWithDateAsyncValue: jokesWithDateAsyncValue,
-        jokeContext: widget.jokeContext,
+        jokesAsyncValue: jokesWithDateAsyncValue,
+        jokeContext: AnalyticsJokeContext.dailyJokes,
       ),
     );
   }

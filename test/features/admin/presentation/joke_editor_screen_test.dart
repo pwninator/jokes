@@ -185,6 +185,7 @@ void main() {
           () => mockJokeService.createJokeWithResponse(
             setupText: setupText,
             punchlineText: punchlineText,
+            adminOwned: true,
           ),
         ).thenAnswer(
           (_) async => {
@@ -213,6 +214,7 @@ void main() {
           () => mockJokeService.createJokeWithResponse(
             setupText: setupText,
             punchlineText: punchlineText,
+            adminOwned: true,
           ),
         ).called(1);
       });
@@ -227,6 +229,7 @@ void main() {
           () => mockJokeService.createJokeWithResponse(
             setupText: setupText,
             punchlineText: punchlineText,
+            adminOwned: true,
           ),
         ).thenAnswer(
           (_) async => {
@@ -453,6 +456,7 @@ void main() {
           () => mockJokeService.createJokeWithResponse(
             setupText: setupText,
             punchlineText: punchlineText,
+            adminOwned: true,
           ),
         ).thenAnswer(
           (_) async => {'success': false, 'error': 'Failed to create joke'},

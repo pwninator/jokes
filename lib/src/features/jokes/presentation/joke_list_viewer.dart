@@ -14,15 +14,15 @@ import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 class JokeListViewer extends ConsumerStatefulWidget {
   const JokeListViewer({
     super.key,
-    this.jokesWithDateAsyncValue,
+    this.jokesAsyncValue,
     this.jokesAsyncProvider,
     required this.jokeContext,
     this.onInitRegisterReset,
-    this.showCtaWhenEmpty = true,
+    this.showCtaWhenEmpty = false,
     this.emptyState,
   });
 
-  final AsyncValue<List<JokeWithDate>>? jokesWithDateAsyncValue;
+  final AsyncValue<List<JokeWithDate>>? jokesAsyncValue;
   final ProviderListenable<AsyncValue<List<JokeWithDate>>>? jokesAsyncProvider;
   final String jokeContext;
   final Function(VoidCallback)? onInitRegisterReset;
@@ -147,7 +147,7 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
   @override
   Widget build(BuildContext context) {
     final AsyncValue<List<JokeWithDate>> effectiveAsync =
-        widget.jokesWithDateAsyncValue ??
+        widget.jokesAsyncValue ??
         (widget.jokesAsyncProvider != null
             ? ref.watch(widget.jokesAsyncProvider!)
             : const AsyncValue<List<JokeWithDate>>.data(<JokeWithDate>[]));

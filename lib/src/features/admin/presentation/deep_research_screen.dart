@@ -164,8 +164,14 @@ class _DeepResearchScreenState extends ConsumerState<DeepResearchScreen> {
       if (idx <= 0 || idx >= line.length - 3) {
         continue; // skip lines without proper delimiter
       }
-      final setup = line.substring(0, idx).trim();
-      final punchline = line.substring(idx + 3).trim();
+      final setup = line
+          .substring(0, idx)
+          .trim()
+          .replaceAll(RegExp(r'\.$'), '');
+      final punchline = line
+          .substring(idx + 3)
+          .trim()
+          .replaceAll(RegExp(r'\.$'), '');
       if (setup.isEmpty || punchline.isEmpty) continue;
       parsed.add((setup: setup, punchline: punchline));
     }

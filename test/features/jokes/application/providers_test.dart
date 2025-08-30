@@ -12,6 +12,7 @@ import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_functi
 import 'package:snickerdoodle/src/features/jokes/domain/joke_admin_rating.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_search_result.dart';
+import 'package:snickerdoodle/src/features/jokes/domain/joke_state.dart';
 
 import '../../../test_helpers/analytics_mocks.dart';
 import '../../../test_helpers/firebase_mocks.dart';
@@ -863,7 +864,7 @@ void main() {
       });
 
       test(
-        'should filter to unrated jokes with images when filter is on',
+        'should filter to unreviewed jokes with images when filter is on',
         () async {
           // arrange
           final testJokes = [
@@ -884,6 +885,7 @@ void main() {
               punchlineImageUrl: 'url2',
               numThumbsUp: 0,
               numThumbsDown: 0,
+              state: JokeState.unreviewed,
             ),
             // Has images but rated - should be filtered out
             const Joke(
@@ -895,6 +897,7 @@ void main() {
               numThumbsUp: 5,
               numThumbsDown: 0,
               adminRating: JokeAdminRating.approved,
+              state: JokeState.approved,
             ),
             // Has images but rated (thumbs down) - should be filtered out
             const Joke(
@@ -906,6 +909,7 @@ void main() {
               numThumbsUp: 0,
               numThumbsDown: 3,
               adminRating: JokeAdminRating.rejected,
+              state: JokeState.rejected,
             ),
             // Has only one image - should be filtered out
             const Joke(
@@ -1064,7 +1068,7 @@ void main() {
       });
 
       test(
-        'unscheduled + popular filters combine and then sort by score',
+        'unpublished + popular filters combine and then sort by score',
         () async {
           // arrange
           final a = const Joke(
@@ -1073,6 +1077,7 @@ void main() {
             punchlineText: 'Pa',
             numSaves: 0,
             numShares: 1, // 10
+            state: JokeState.draft,
           );
           final b = const Joke(
             id: 'b',
@@ -1080,6 +1085,7 @@ void main() {
             punchlineText: 'Pb',
             numSaves: 11,
             numShares: 0, // 11 (but scheduled -> excluded)
+            state: JokeState.published,
           );
           final c = const Joke(
             id: 'c',
@@ -1087,6 +1093,7 @@ void main() {
             punchlineText: 'Pc',
             numSaves: 2,
             numShares: 1, // 12
+            state: JokeState.unreviewed,
           );
 
           when(
@@ -1106,7 +1113,7 @@ void main() {
           // Wait for jokes to load
           await container.read(jokesProvider.future);
 
-          // Enable unscheduled and popular filters
+          // Enable unpublished and popular filters
           container.read(jokeFilterProvider.notifier).setUnscheduledOnly(true);
           container.read(jokeFilterProvider.notifier).setPopularOnly(true);
 
@@ -1116,7 +1123,7 @@ void main() {
           final result = container.read(filteredJokesProvider);
           expect(result.hasValue, true);
           final ids = result.value!.map((j) => j.id).toList();
-          // 'b' excluded due to schedule; 'c' (12) before 'a' (10)
+          // 'b' excluded due to state PUBLISHED; 'c' (12) before 'a' (10)
           expect(ids, ['c', 'a']);
 
           container.dispose();

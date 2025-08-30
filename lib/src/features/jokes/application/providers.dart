@@ -7,9 +7,9 @@ import 'package:snickerdoodle/src/features/jokes/application/joke_schedule_provi
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
-import 'package:snickerdoodle/src/features/jokes/domain/joke_admin_rating.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_search_result.dart';
+import 'package:snickerdoodle/src/features/jokes/domain/joke_state.dart';
 
 // StreamProvider for the list of jokes
 final jokesProvider = StreamProvider<List<Joke>>((ref) {
@@ -200,38 +200,17 @@ final searchResultsLiveProvider =
       if (scope == SearchScope.jokeManagementSearch) {
         final filterState = ref.watch(jokeFilterProvider);
 
-        // 1) Unrated filter (require images and admin_rating == UNREVIEWED)
+        // 1) Unrated filter (require images and state == UNREVIEWED)
         if (filterState.showUnratedOnly) {
           ordered = ordered.where((jvd) {
-            final hasImages =
-                jvd.joke.setupImageUrl != null &&
-                jvd.joke.setupImageUrl!.isNotEmpty &&
-                jvd.joke.punchlineImageUrl != null &&
-                jvd.joke.punchlineImageUrl!.isNotEmpty;
-            final rating = jvd.joke.adminRating ?? JokeAdminRating.unreviewed;
-            final isUnreviewed = rating == JokeAdminRating.unreviewed;
-            return hasImages && isUnreviewed;
+            return jvd.joke.state == JokeState.unreviewed;
           }).toList();
         }
 
-        // 2) Unscheduled filter (exclude jokes present in schedule)
+        // 2) Unpublished filter (state != PUBLISHED)
         if (filterState.showUnscheduledOnly) {
-          final scheduledAsync = ref.watch(monthlyJokesWithDateProvider);
-          if (scheduledAsync.isLoading) {
-            return const AsyncValue.loading();
-          }
-          if (scheduledAsync.hasError) {
-            return AsyncValue.error(
-              scheduledAsync.error!,
-              scheduledAsync.stackTrace ?? StackTrace.current,
-            );
-          }
-          final scheduledJokeIds =
-              (scheduledAsync.value ?? const <JokeWithDate>[])
-                  .map((j) => j.joke.id)
-                  .toSet();
           ordered = ordered
-              .where((jvd) => !scheduledJokeIds.contains(jvd.joke.id))
+              .where((jvd) => jvd.joke.state != JokeState.published)
               .toList();
         }
 
@@ -628,13 +607,8 @@ final filteredJokesProvider = Provider<AsyncValue<List<Joke>>>((ref) {
   final jokesAsync = ref.watch(jokesProvider);
   final filterState = ref.watch(jokeFilterProvider);
 
-  // Watch schedule only when needed to avoid extra work
-  final scheduledAsync = filterState.showUnscheduledOnly
-      ? ref.watch(monthlyJokesWithDateProvider)
-      : const AsyncValue.data(<JokeWithDate>[]);
-
   // Handle loading
-  if (jokesAsync.isLoading || scheduledAsync.isLoading) {
+  if (jokesAsync.isLoading) {
     return const AsyncValue.loading();
   }
 
@@ -645,37 +619,21 @@ final filteredJokesProvider = Provider<AsyncValue<List<Joke>>>((ref) {
       jokesAsync.stackTrace ?? StackTrace.current,
     );
   }
-  if (scheduledAsync.hasError) {
-    return AsyncValue.error(
-      scheduledAsync.error!,
-      scheduledAsync.stackTrace ?? StackTrace.current,
-    );
-  }
 
   // Base list
   var filteredJokes = List<Joke>.from(jokesAsync.value ?? const <Joke>[]);
 
-  // 1) Unrated filter (require images and admin_rating == UNREVIEWED)
+  // 1) Unrated filter (require images and state == UNREVIEWED)
   if (filterState.showUnratedOnly) {
     filteredJokes = filteredJokes.where((joke) {
-      final hasImages =
-          joke.setupImageUrl != null &&
-          joke.setupImageUrl!.isNotEmpty &&
-          joke.punchlineImageUrl != null &&
-          joke.punchlineImageUrl!.isNotEmpty;
-      final rating = joke.adminRating ?? JokeAdminRating.unreviewed;
-      final isUnreviewed = rating == JokeAdminRating.unreviewed;
-      return hasImages && isUnreviewed;
+      return joke.state == JokeState.unreviewed;
     }).toList();
   }
 
-  // 2) Unscheduled filter (exclude jokes present in schedule)
+  // 2) Unpublished filter (state != PUBLISHED)
   if (filterState.showUnscheduledOnly) {
-    final scheduledJokeIds = (scheduledAsync.value ?? const <JokeWithDate>[])
-        .map((j) => j.joke.id)
-        .toSet();
     filteredJokes = filteredJokes
-        .where((joke) => !scheduledJokeIds.contains(joke.id))
+        .where((joke) => joke.state != JokeState.published)
         .toList();
   }
 

@@ -223,7 +223,7 @@ class _JokeManagementScreenState extends ConsumerState<JokeManagementScreen> {
                     ),
                     _AdminFilterChip(
                       key: const Key('unscheduled-only-filter-chip'),
-                      label: 'Unscheduled',
+                      label: 'Unpublished',
                       selected: filterState.showUnscheduledOnly,
                       onSelected: (selected) {
                         ref

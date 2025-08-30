@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_admin_rating.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_state.dart';
 
@@ -20,6 +21,7 @@ class Joke {
   final int numShares;
   final JokeAdminRating? adminRating;
   final JokeState? state;
+  final DateTime? publicTimestamp;
 
   const Joke({
     required this.id,
@@ -38,6 +40,7 @@ class Joke {
     this.numShares = 0,
     this.adminRating,
     this.state,
+    this.publicTimestamp,
   });
 
   Joke copyWith({
@@ -57,6 +60,7 @@ class Joke {
     int? numShares,
     JokeAdminRating? adminRating,
     JokeState? state,
+    DateTime? publicTimestamp,
   }) {
     return Joke(
       id: id ?? this.id,
@@ -78,6 +82,7 @@ class Joke {
       numShares: numShares ?? this.numShares,
       adminRating: adminRating ?? this.adminRating,
       state: state ?? this.state,
+      publicTimestamp: publicTimestamp ?? this.publicTimestamp,
     );
   }
 
@@ -98,6 +103,9 @@ class Joke {
       'num_shares': numShares,
       'admin_rating': adminRating?.value,
       'state': state?.value,
+      'public_timestamp': publicTimestamp != null
+          ? Timestamp.fromDate(publicTimestamp!)
+          : null,
     };
   }
 
@@ -121,17 +129,34 @@ class Joke {
       numShares: (map['num_shares'] as num?)?.toInt() ?? 0,
       adminRating: JokeAdminRating.fromString(map['admin_rating'] as String?),
       state: JokeState.fromString(map['state'] as String?),
+      publicTimestamp: _parsePublicTimestamp(map['public_timestamp']),
     );
   }
 
-  // Optional: Consider using toJson/fromJson if you prefer, especially for consistency
-  // if other models use it, or if you have nested objects (though not the case here).
-  // String toJson() => json.encode(toMap());
-  // factory Joke.fromJson(String source) => Joke.fromMap(json.decode(source));
+  static DateTime? _parsePublicTimestamp(dynamic value) {
+    if (value == null) return null;
+    try {
+      if (value is Timestamp) {
+        return value.toDate();
+      }
+      if (value is String) {
+        return DateTime.tryParse(value);
+      }
+      if (value is int) {
+        if (value > 1000000000000) {
+          return DateTime.fromMillisecondsSinceEpoch(value, isUtc: true);
+        }
+        return DateTime.fromMillisecondsSinceEpoch(value * 1000, isUtc: true);
+      }
+    } catch (_) {
+      return null;
+    }
+    return null;
+  }
 
   @override
   String toString() =>
-      'Joke(id: $id, setupText: $setupText, punchlineText: $punchlineText, setupImageUrl: $setupImageUrl, punchlineImageUrl: $punchlineImageUrl, setupImageDescription: $setupImageDescription, punchlineImageDescription: $punchlineImageDescription, allSetupImageUrls: $allSetupImageUrls, allPunchlineImageUrls: $allPunchlineImageUrls, generationMetadata: $generationMetadata, numThumbsUp: $numThumbsUp, numThumbsDown: $numThumbsDown, numSaves: $numSaves, numShares: $numShares, adminRating: $adminRating, state: $state)';
+      'Joke(id: $id, setupText: $setupText, punchlineText: $punchlineText, setupImageUrl: $setupImageUrl, punchlineImageUrl: $punchlineImageUrl, setupImageDescription: $setupImageDescription, punchlineImageDescription: $punchlineImageDescription, allSetupImageUrls: $allSetupImageUrls, allPunchlineImageUrls: $allPunchlineImageUrls, generationMetadata: $generationMetadata, numThumbsUp: $numThumbsUp, numThumbsDown: $numThumbsDown, numSaves: $numSaves, numShares: $numShares, adminRating: $adminRating, state: $state, publicTimestamp: $publicTimestamp)';
 
   @override
   bool operator ==(Object other) {
@@ -153,7 +178,8 @@ class Joke {
         other.numSaves == numSaves &&
         other.numShares == numShares &&
         other.adminRating == adminRating &&
-        other.state == state;
+        other.state == state &&
+        other.publicTimestamp == publicTimestamp;
   }
 
   @override
@@ -173,5 +199,6 @@ class Joke {
       numSaves.hashCode ^
       numShares.hashCode ^
       adminRating.hashCode ^
-      state.hashCode;
+      state.hashCode ^
+      publicTimestamp.hashCode;
 }

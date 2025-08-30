@@ -73,6 +73,9 @@ void main() {
       when(
         () => mockJokeRepository.getJokes(),
       ).thenAnswer((_) => Stream.value(testJokes));
+      when(
+        () => mockJokeRepository.setJokesPublished(any()),
+      ).thenAnswer((_) async {});
 
       when(
         () => mockScheduleRepository.watchBatchesForSchedule(any()),

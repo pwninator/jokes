@@ -10,7 +10,8 @@ import 'package:snickerdoodle/src/features/jokes/domain/joke_eligibility_strateg
 
 // Repository provider
 final jokeScheduleRepositoryProvider = Provider<JokeScheduleRepository>((ref) {
-  return FirestoreJokeScheduleRepository();
+  final jokeRepository = ref.watch(jokeRepositoryProvider);
+  return FirestoreJokeScheduleRepository(jokeRepository: jokeRepository);
 });
 
 // Real-time schedules stream

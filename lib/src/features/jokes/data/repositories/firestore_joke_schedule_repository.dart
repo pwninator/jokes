@@ -1,13 +1,23 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_schedule.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_schedule_batch.dart';
+import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_schedule_repository.dart';
+import 'package:timezone/data/latest.dart' as tzdata;
+import 'package:timezone/timezone.dart' as tz;
 
 class FirestoreJokeScheduleRepository implements JokeScheduleRepository {
   final FirebaseFirestore _firestore;
+  final JokeRepository _jokeRepository;
+  final tz.Location? _laLocation;
 
-  FirestoreJokeScheduleRepository({FirebaseFirestore? firestore})
-    : _firestore = firestore ?? FirebaseFirestore.instance;
+  FirestoreJokeScheduleRepository({
+    FirebaseFirestore? firestore,
+    required JokeRepository jokeRepository,
+    tz.Location? laLocation,
+  }) : _firestore = firestore ?? FirebaseFirestore.instance,
+       _jokeRepository = jokeRepository,
+       _laLocation = laLocation;
 
   static const String _schedulesCollection = 'joke_schedules';
   static const String _batchesCollection = 'joke_schedule_batches';
@@ -70,6 +80,39 @@ class FirestoreJokeScheduleRepository implements JokeScheduleRepository {
 
   @override
   Future<void> deleteBatch(String batchId) async {
+    // Parse batchId to extract scheduleId_year_month
+    final parsed = JokeScheduleBatch.parseBatchId(batchId);
+    if (parsed == null) {
+      throw ArgumentError('Invalid batch ID: $batchId');
+    }
+    final year = parsed['year'] as int;
+    final month = parsed['month'] as int;
+
+    // Ensure timezone database is initialized (safe to call multiple times)
+    tzdata.initializeTimeZones();
+    final la = _laLocation ?? tz.getLocation('America/Los_Angeles');
+    final nowLa = tz.TZDateTime.now(la);
+    // Only allow deletion if batch month is strictly in the future in LA
+    final isFuture =
+        (year > nowLa.year) || (year == nowLa.year && month > nowLa.month);
+    if (!isFuture) {
+      throw StateError('Cannot delete schedule for current or past months.');
+    }
+
+    // Load batch to gather jokeIds
+    final snapshot = await _firestore
+        .collection(_batchesCollection)
+        .doc(batchId)
+        .get();
+    if (!snapshot.exists) {
+      // Nothing to do
+      return;
+    }
+    final batchModel = JokeScheduleBatch.fromMap(snapshot.data()!, batchId);
+    final jokeIds = batchModel.jokes.values.map((j) => j.id);
+
+    // Reset jokes to APPROVED and clear public_timestamp, then delete the batch
+    await _jokeRepository.resetJokesToApproved(jokeIds);
     await _firestore.collection(_batchesCollection).doc(batchId).delete();
   }
 

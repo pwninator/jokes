@@ -131,11 +131,12 @@ class JokeScheduleBatchWidget extends ConsumerWidget {
                   theme: theme,
                   icon: Icons.delete_outline,
                   color: theme.colorScheme.errorContainer,
-                  onTap: () {
-                    // Do nothing on tap
-                  },
+                  isEnabled:
+                      selectedScheduleId != null && _isFutureMonth(monthDate),
+                  onTap: () {},
                   onHoldComplete: () {
-                    if (selectedScheduleId != null) {
+                    if (selectedScheduleId != null &&
+                        _isFutureMonth(monthDate)) {
                       _deleteBatch(context, ref, selectedScheduleId, monthDate);
                     }
                   },
@@ -265,6 +266,13 @@ class JokeScheduleBatchWidget extends ConsumerWidget {
     }
   }
 
+  bool _isFutureMonth(DateTime monthDate) {
+    // Client-side guard using device local time (repo enforces final rule)
+    final now = DateTime.now();
+    return monthDate.year > now.year ||
+        (monthDate.year == now.year && monthDate.month > now.month);
+  }
+
   Future<bool> _showAutoFillConfirmationDialog(
     BuildContext context,
     DateTime monthDate,
@@ -366,9 +374,11 @@ class JokeScheduleBatchWidget extends ConsumerWidget {
       }
     } catch (e) {
       if (context.mounted) {
+        final errorMessage = 'Failed to delete batch: $e';
+        debugPrint('ERROR: $errorMessage');
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to delete batch: $e'),
+            content: Text(errorMessage),
             backgroundColor: Theme.of(context).colorScheme.error,
           ),
         );

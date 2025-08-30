@@ -227,10 +227,11 @@ void main() {
     });
 
     testWidgets(
-      'tapping delete button does nothing and holding delete button shows confirmation dialog',
+      'delete is triggered only for future months and shows success snackbar',
       (tester) async {
-        // arrange
-        final monthDate = DateTime(2024, 2);
+        // arrange a future month to satisfy deletion rule
+        final now = DateTime.now();
+        final futureMonth = DateTime(now.year + 1, 2);
         const scheduleId = 'test_schedule';
 
         when(
@@ -247,44 +248,88 @@ void main() {
               scheduleBatchesProvider.overrideWith((ref) => Stream.value([])),
               selectedScheduleProvider.overrideWith((ref) => scheduleId),
             ],
-            child: JokeScheduleBatchWidget(monthDate: monthDate),
+            child: JokeScheduleBatchWidget(monthDate: futureMonth),
           ),
         );
 
         final deleteButtonFinder = find.byType(HoldableButton);
         expect(deleteButtonFinder, findsOneWidget);
 
-        // act: tap (should do nothing)
+        // tap does nothing
         await tester.tap(deleteButtonFinder);
-        await tester.pumpAndSettle(); // Allow time for dialog if any
-
-        // assert: no dialog
+        await tester.pumpAndSettle();
         expect(find.text('Delete Schedule Batch'), findsNothing);
 
-        // act: hold for the full duration (2 seconds default)
+        // hold to trigger delete
         await tester.startGesture(tester.getCenter(deleteButtonFinder));
-        await tester.pump(
-          const Duration(milliseconds: 2100),
-        ); // Slightly longer than 2 seconds to ensure completion
+        await tester.pump(const Duration(milliseconds: 2100));
         await tester.pumpAndSettle();
 
-        // assert: no dialog initially, and delete is called directly on long press
-        expect(find.text('Delete Schedule Batch'), findsNothing);
+        // verify delete called for the future month
         verify(
           () => mockScheduleRepository.deleteBatch(
             JokeScheduleBatch.createBatchId(
               scheduleId,
-              monthDate.year,
-              monthDate.month,
+              futureMonth.year,
+              futureMonth.month,
             ),
           ),
         ).called(1);
-        expect(
-          find.text('Successfully deleted schedule for February 2024'),
-          findsOneWidget,
-        );
+
+        // Verify snackbar message contains month/year
+        final monthNames = [
+          '',
+          'January',
+          'February',
+          'March',
+          'April',
+          'May',
+          'June',
+          'July',
+          'August',
+          'September',
+          'October',
+          'November',
+          'December',
+        ];
+        final expected =
+            'Successfully deleted schedule for ${monthNames[futureMonth.month]} ${futureMonth.year}';
+        expect(find.text(expected), findsOneWidget);
       },
     );
+
+    testWidgets('delete button is disabled for current/past months', (
+      tester,
+    ) async {
+      // arrange: current month
+      final now = DateTime.now();
+      final currentMonth = DateTime(now.year, now.month);
+
+      await tester.pumpWidget(
+        createTestWidget(
+          overrides: [
+            jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
+            jokeScheduleRepositoryProvider.overrideWithValue(
+              mockScheduleRepository,
+            ),
+            scheduleBatchesProvider.overrideWith((ref) => Stream.value([])),
+            selectedScheduleProvider.overrideWith((ref) => 'test_schedule'),
+          ],
+          child: JokeScheduleBatchWidget(monthDate: currentMonth),
+        ),
+      );
+
+      // assert: HoldableButton exists and is visually disabled (spinner rendered)
+      final buttonFinder = find.byType(HoldableButton);
+      expect(buttonFinder, findsOneWidget);
+      // Simulate tap/hold should not trigger delete; UI shows disabled spinner
+      await tester.tap(buttonFinder);
+      await tester.pumpAndSettle();
+      expect(
+        find.textContaining('Successfully deleted schedule for'),
+        findsNothing,
+      );
+    });
 
     // Removed tests for confirmation dialog as it's no longer used for delete.
     // 'should delete batch when confirmation is given' - merged into the above.

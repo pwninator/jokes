@@ -45,6 +45,7 @@ void main() {
         'num_shares': 0,
         'admin_rating': null,
         'state': null,
+        'public_timestamp': null,
       };
       expect(result, expected);
     });

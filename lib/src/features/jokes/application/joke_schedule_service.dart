@@ -5,6 +5,9 @@ import 'package:snickerdoodle/src/features/jokes/data/models/joke_schedule_batch
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_schedule_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_eligibility_strategy.dart';
+import 'package:snickerdoodle/src/features/jokes/domain/joke_state.dart';
+import 'package:timezone/data/latest.dart' as tzdata;
+import 'package:timezone/timezone.dart' as tz;
 
 /// Result of an auto-fill operation
 class AutoFillResult {
@@ -80,12 +83,15 @@ class AutoFillResult {
 class JokeScheduleAutoFillService {
   final JokeRepository _jokeRepository;
   final JokeScheduleRepository _scheduleRepository;
+  final tz.Location? _laLocation; // injected for testing/timezone
 
   const JokeScheduleAutoFillService({
     required JokeRepository jokeRepository,
     required JokeScheduleRepository scheduleRepository,
+    tz.Location? laLocation,
   }) : _jokeRepository = jokeRepository,
-       _scheduleRepository = scheduleRepository;
+       _scheduleRepository = scheduleRepository,
+       _laLocation = laLocation;
 
   /// Auto-fill a month with jokes using the specified strategy
   Future<AutoFillResult> autoFillMonth({
@@ -196,7 +202,15 @@ class JokeScheduleAutoFillService {
       }
 
       // Assign joke to this day
-      assignments[dayKey] = shuffledJokes[jokeIndex];
+      final candidate = shuffledJokes[jokeIndex];
+      // Validate candidate state is APPROVED
+      if (candidate.state != JokeState.approved) {
+        return AutoFillResult.error(
+          error: 'Joke "${candidate.id}" must be APPROVED before scheduling',
+          strategyUsed: strategy.name,
+        );
+      }
+      assignments[dayKey] = candidate;
       jokeIndex++;
     }
 
@@ -207,6 +221,23 @@ class JokeScheduleAutoFillService {
         'Could not fill $unfilledDays days due to insufficient eligible jokes',
       );
     }
+
+    // Compute LA start-of-day timestamps and publish jokes
+    final publishMap = <String, DateTime>{};
+    // Ensure timezone database is initialized when used outside app startup
+    tzdata.initializeTimeZones();
+    final la = _laLocation ?? tz.getLocation('America/Los_Angeles');
+    assignments.forEach((dayKey, joke) {
+      final dayInt = int.parse(dayKey);
+      final laMidnight = tz.TZDateTime(
+        la,
+        monthDate.year,
+        monthDate.month,
+        dayInt,
+      );
+      publishMap[joke.id] = laMidnight;
+    });
+    await _jokeRepository.setJokesPublished(publishMap);
 
     // Create/update batch
     final batch = JokeScheduleBatch(

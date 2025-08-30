@@ -53,6 +53,7 @@ dependencies:
   shared_preferences: ^2.2.3
   share_plus: ^11.0.0
   smooth_page_indicator: ^1.2.1
+  timezone: ^0.10.1
 
 dev_dependencies:
   flutter_test:

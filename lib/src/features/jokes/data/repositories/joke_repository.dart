@@ -169,4 +169,35 @@ class JokeRepository {
   Future<void> deleteJoke(String jokeId) async {
     await _firestore.collection('jokes').doc(jokeId).delete();
   }
+
+  /// Batch publish jokes: set state=PUBLISHED and public_timestamp
+  Future<void> setJokesPublished(
+    Map<String, DateTime> jokeIdToPublicTimestamp,
+  ) async {
+    if (jokeIdToPublicTimestamp.isEmpty) return;
+    final batch = _firestore.batch();
+    for (final entry in jokeIdToPublicTimestamp.entries) {
+      final docRef = _firestore.collection('jokes').doc(entry.key);
+      batch.update(docRef, {
+        'state': JokeState.published.value,
+        'public_timestamp': Timestamp.fromDate(entry.value),
+      });
+    }
+    await batch.commit();
+  }
+
+  /// Batch reset jokes: set state=APPROVED and public_timestamp=null
+  Future<void> resetJokesToApproved(Iterable<String> jokeIds) async {
+    final ids = jokeIds.toList();
+    if (ids.isEmpty) return;
+    final batch = _firestore.batch();
+    for (final jokeId in ids) {
+      final docRef = _firestore.collection('jokes').doc(jokeId);
+      batch.update(docRef, {
+        'state': JokeState.approved.value,
+        'public_timestamp': null,
+      });
+    }
+    await batch.commit();
+  }
 }

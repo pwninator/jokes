@@ -10,6 +10,7 @@ class AppRoutes {
   // Main app routes (shell route)
   static const String jokes = '/jokes';
   static const String saved = '/saved';
+  static const String search = '/search';
   static const String settings = '/settings';
   static const String admin = '/admin';
 
@@ -28,6 +29,7 @@ class RouteNames {
   static const String auth = 'auth';
   static const String jokes = 'jokes';
   static const String saved = 'saved';
+  static const String search = 'search';
   static const String settings = 'settings';
   static const String admin = 'admin';
   static const String adminCreator = 'adminCreator';
@@ -54,6 +56,8 @@ extension AppRoutesExtension on String {
         return RouteNames.jokes;
       case AppRoutes.saved:
         return RouteNames.saved;
+      case AppRoutes.search:
+        return RouteNames.search;
       case AppRoutes.settings:
         return RouteNames.settings;
       case AppRoutes.admin:

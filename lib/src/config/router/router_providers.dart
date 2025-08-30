@@ -61,6 +61,7 @@ class NavigationAnalytics {
   AppTab? _routeToAppTab(String route) {
     if (route.startsWith('/jokes')) return AppTab.dailyJokes;
     if (route.startsWith('/saved')) return AppTab.savedJokes;
+    if (route.startsWith('/search')) return AppTab.search;
     if (route.startsWith('/settings')) return AppTab.settings;
     if (route.startsWith('/admin')) return AppTab.admin;
     return null;

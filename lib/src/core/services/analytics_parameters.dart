@@ -79,6 +79,7 @@ class AnalyticsNavigationMethod {
 class AnalyticsJokeContext {
   static const String dailyJokes = 'daily_jokes';
   static const String savedJokes = 'saved_jokes';
+  static const String search = 'search';
 }
 
 /// Share method values for analytics

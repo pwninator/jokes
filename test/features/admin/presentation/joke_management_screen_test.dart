@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_management_screen.dart';
 import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
@@ -50,7 +50,9 @@ void main() {
     // Read provider state
     final context = tester.element(find.byType(JokeManagementScreen));
     final container = ProviderScope.containerOf(context);
-    final params = container.read(searchQueryProvider);
+    final params = container.read(
+      searchQueryProvider(SearchScope.jokeManagementSearch),
+    );
 
     expect(params.query, 'cats');
     expect(params.maxResults, 50);

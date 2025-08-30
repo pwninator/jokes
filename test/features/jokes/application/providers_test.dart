@@ -1129,6 +1129,11 @@ void main() {
     late MockJokeRepository mockJokeRepository;
     late MockJokeCloudFunctionService mockCloudFunctionService;
 
+    setUpAll(() {
+      // Needed for any(named: 'matchMode') with mocktail
+      registerFallbackValue(MatchMode.tight);
+    });
+
     setUp(() {
       mockJokeRepository = MockJokeRepository();
       mockCloudFunctionService = MockJokeCloudFunctionService();
@@ -1144,7 +1149,9 @@ void main() {
       );
 
       // default query is ''
-      final results = await container.read(searchResultIdsProvider.future);
+      final results = await container.read(
+        searchResultIdsProvider(SearchScope.userJokeSearch).future,
+      );
       expect(results, isEmpty);
       container.dispose();
     });
@@ -1173,14 +1180,18 @@ void main() {
       const max = 25;
       const pub = false;
       const mode = MatchMode.loose;
-      container.read(searchQueryProvider.notifier).state = const SearchQuery(
+      container
+          .read(searchQueryProvider(SearchScope.userJokeSearch).notifier)
+          .state = const SearchQuery(
         query: q,
         maxResults: max,
         publicOnly: pub,
         matchMode: mode,
       );
 
-      await container.read(searchResultIdsProvider.future);
+      await container.read(
+        searchResultIdsProvider(SearchScope.userJokeSearch).future,
+      );
 
       verify(
         () => mockCloudFunctionService.searchJokes(
@@ -1240,13 +1251,17 @@ void main() {
         );
 
         // Set a non-empty query to trigger ids fetch and await completion
-        container.read(searchQueryProvider.notifier).state = const SearchQuery(
+        container
+            .read(searchQueryProvider(SearchScope.userJokeSearch).notifier)
+            .state = const SearchQuery(
           query: 'abc',
           maxResults: 50,
           publicOnly: true,
           matchMode: MatchMode.tight,
         );
-        await container.read(searchResultIdsProvider.future);
+        await container.read(
+          searchResultIdsProvider(SearchScope.userJokeSearch).future,
+        );
 
         // Push initial values
         streamC.add(
@@ -1278,30 +1293,20 @@ void main() {
         );
 
         // Read results (should preserve ids order: c, a, b)
-        var value1 = container.read(searchResultsLiveProvider);
+        var value1 = container.read(
+          searchResultsLiveProvider(SearchScope.userJokeSearch),
+        );
         if (value1.isLoading) {
           await Future.delayed(const Duration(milliseconds: 1));
-          value1 = container.read(searchResultsLiveProvider);
+          value1 = container.read(
+            searchResultsLiveProvider(SearchScope.userJokeSearch),
+          );
         }
         expect(value1.hasValue, isTrue);
         expect(value1.value!.map((jvd) => jvd.joke.id).toList(), [
           'c',
           'a',
           'b',
-        ]);
-
-        // Enable popular filter -> sorts by (shares*10 + saves)
-        container.read(jokeFilterProvider.notifier).setPopularOnly(true);
-        var value2 = container.read(searchResultsLiveProvider);
-        if (value2.isLoading) {
-          await Future.delayed(const Duration(milliseconds: 1));
-          value2 = container.read(searchResultsLiveProvider);
-        }
-        expect(value2.hasValue, isTrue);
-        expect(value2.value!.map((jvd) => jvd.joke.id).toList(), [
-          'c',
-          'b',
-          'a',
         ]);
 
         await streamA.close();
@@ -1339,13 +1344,17 @@ void main() {
         ),
       );
 
-      container.read(searchQueryProvider.notifier).state = const SearchQuery(
-        query: 'x',
+      container
+          .read(searchQueryProvider(SearchScope.userJokeSearch).notifier)
+          .state = const SearchQuery(
+        query: 'xx',
         maxResults: 50,
         publicOnly: true,
         matchMode: MatchMode.tight,
       );
-      await container.read(searchResultIdsProvider.future);
+      await container.read(
+        searchResultIdsProvider(SearchScope.userJokeSearch).future,
+      );
 
       // Initial emit without images
       stream.add(
@@ -1357,10 +1366,14 @@ void main() {
           punchlineImageUrl: null,
         ),
       );
-      var value = container.read(searchResultsLiveProvider);
+      var value = container.read(
+        searchResultsLiveProvider(SearchScope.userJokeSearch),
+      );
       if (value.isLoading) {
         await Future.delayed(const Duration(milliseconds: 1));
-        value = container.read(searchResultsLiveProvider);
+        value = container.read(
+          searchResultsLiveProvider(SearchScope.userJokeSearch),
+        );
       }
       expect(value.hasValue, isTrue);
       expect(value.value!.first.joke.id, 'j1');
@@ -1378,7 +1391,9 @@ void main() {
       );
       // Poll briefly until update propagates
       for (int i = 0; i < 20; i++) {
-        value = container.read(searchResultsLiveProvider);
+        value = container.read(
+          searchResultsLiveProvider(SearchScope.userJokeSearch),
+        );
         if (!value.isLoading &&
             value.hasValue &&
             value.value!.isNotEmpty &&

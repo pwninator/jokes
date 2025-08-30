@@ -196,6 +196,13 @@ abstract class AnalyticsService {
 
   /// App usage: unique day incremented
   Future<void> logAppUsageDayIncremented({required int numDaysUsed});
+
+  /// Log joke search completion
+  Future<void> logJokeSearch({
+    required int queryLength,
+    required String scope,
+    required int resultsCount,
+  });
 }
 
 /// Firebase Analytics implementation of the analytics service
@@ -669,6 +676,20 @@ class FirebaseAnalyticsService implements AnalyticsService {
   Future<void> logAppUsageDayIncremented({required int numDaysUsed}) async {
     await _logEvent(AnalyticsEvent.appUsageDayIncremented, {
       AnalyticsParameters.numDaysUsed: numDaysUsed,
+      AnalyticsParameters.userType: _getUserType(_currentUser),
+    });
+  }
+
+  @override
+  Future<void> logJokeSearch({
+    required int queryLength,
+    required String scope,
+    required int resultsCount,
+  }) async {
+    await _logEvent(AnalyticsEvent.jokeSearch, {
+      'query_length': queryLength,
+      'scope': scope,
+      'results_count': resultsCount,
       AnalyticsParameters.userType: _getUserType(_currentUser),
     });
   }

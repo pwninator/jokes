@@ -16,6 +16,7 @@ import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart'
 import 'package:snickerdoodle/src/features/auth/presentation/auth_wrapper.dart';
 import 'package:snickerdoodle/src/features/jokes/presentation/joke_viewer_screen.dart';
 import 'package:snickerdoodle/src/features/jokes/presentation/saved_jokes_screen.dart';
+import 'package:snickerdoodle/src/features/search/presentation/search_screen.dart';
 import 'package:snickerdoodle/src/features/settings/presentation/user_settings_screen.dart';
 
 /// App router configuration
@@ -78,6 +79,13 @@ class AppRouter {
               path: AppRoutes.saved,
               name: RouteNames.saved,
               builder: (context, state) => const SavedJokesScreen(),
+            ),
+
+            // Search
+            GoRoute(
+              path: AppRoutes.search,
+              name: RouteNames.search,
+              builder: (context, state) => const SearchScreen(),
             ),
 
             // Settings
@@ -154,6 +162,7 @@ class AppRouter {
         icon: Icon(Icons.favorite),
         label: 'Saved Jokes',
       ),
+      const BottomNavigationBarItem(icon: Icon(Icons.search), label: 'Search'),
       const BottomNavigationBarItem(
         icon: Icon(Icons.settings),
         label: 'Settings',
@@ -264,8 +273,9 @@ class AppRouter {
   /// Get selected index from current route
   static int _getSelectedIndexFromRoute(String route, bool isAdmin) {
     if (route.startsWith('/saved')) return 1;
-    if (route.startsWith('/settings')) return 2;
-    if (route.startsWith('/admin') && isAdmin) return 3;
+    if (route.startsWith('/search')) return 2;
+    if (route.startsWith('/settings')) return 3;
+    if (route.startsWith('/admin') && isAdmin) return 4;
     return 0; // Default to jokes
   }
 
@@ -280,9 +290,12 @@ class AppRouter {
         route = AppRoutes.saved;
         break;
       case 2:
-        route = AppRoutes.settings;
+        route = AppRoutes.search;
         break;
       case 3:
+        route = AppRoutes.settings;
+        break;
+      case 4:
         route = isAdmin ? AppRoutes.admin : AppRoutes.jokes;
         break;
       default:

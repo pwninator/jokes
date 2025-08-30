@@ -39,7 +39,9 @@ class _JokeManagementScreenState extends ConsumerState<JokeManagementScreen> {
     super.initState();
     _searchFocusNode.addListener(() {
       if (!_searchFocusNode.hasFocus) {
-        final params = ref.read(searchQueryProvider);
+        final params = ref.read(
+          searchQueryProvider(SearchScope.jokeManagementSearch),
+        );
         final query = params.query.trim();
         if (mounted && query.isEmpty) {
           setState(() {
@@ -84,8 +86,12 @@ class _JokeManagementScreenState extends ConsumerState<JokeManagementScreen> {
   Widget build(BuildContext context) {
     final jokesAsync = ref.watch(filteredJokesProvider);
     final filterState = ref.watch(jokeFilterProvider);
-    final searchParams = ref.watch(searchQueryProvider);
-    final searchResultsAsync = ref.watch(searchResultsLiveProvider);
+    final searchParams = ref.watch(
+      searchQueryProvider(SearchScope.jokeManagementSearch),
+    );
+    final searchResultsAsync = ref.watch(
+      searchResultsLiveProvider(SearchScope.jokeManagementSearch),
+    );
 
     return AdaptiveAppBarScreen(
       title: 'Joke Management',
@@ -135,8 +141,12 @@ class _JokeManagementScreenState extends ConsumerState<JokeManagementScreen> {
                                 icon: const Icon(Icons.clear),
                                 onPressed: () {
                                   ref
-                                      .read(searchQueryProvider.notifier)
-                                      .state = SearchQuery(
+                                      .read(
+                                        searchQueryProvider(
+                                          SearchScope.jokeManagementSearch,
+                                        ).notifier,
+                                      )
+                                      .state = const SearchQuery(
                                     query: '',
                                     maxResults: kAdminSearchMaxResults,
                                     publicOnly: kAdminSearchPublicOnly,
@@ -155,7 +165,11 @@ class _JokeManagementScreenState extends ConsumerState<JokeManagementScreen> {
                       onSubmitted: (raw) {
                         final query = raw.trim();
                         ref
-                            .read(searchQueryProvider.notifier)
+                            .read(
+                              searchQueryProvider(
+                                SearchScope.jokeManagementSearch,
+                              ).notifier,
+                            )
                             .state = SearchQuery(
                           query: query,
                           maxResults: kAdminSearchMaxResults,

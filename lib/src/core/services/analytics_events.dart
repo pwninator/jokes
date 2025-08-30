@@ -11,6 +11,8 @@ enum AnalyticsEvent {
   jokePunchlineViewed('joke_punchline_viewed'),
   jokeViewed('joke_viewed'),
   jokeNavigated('joke_navigated'),
+  // Joke search event
+  jokeSearch('joke_search'),
 
   // Joke reaction events
   jokeSaved('joke_saved'),
@@ -85,6 +87,7 @@ enum SubscriptionSource {
 enum AppTab {
   dailyJokes('daily_jokes'),
   savedJokes('saved_jokes'),
+  search('search'),
   settings('settings'),
   admin('admin');
 

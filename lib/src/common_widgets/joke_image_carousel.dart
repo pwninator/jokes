@@ -4,8 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:smooth_page_indicator/smooth_page_indicator.dart';
 import 'package:snickerdoodle/src/common_widgets/admin_approval_controls.dart';
-import 'package:snickerdoodle/src/common_widgets/cached_joke_image.dart';
 import 'package:snickerdoodle/src/common_widgets/admin_joke_action_buttons.dart';
+import 'package:snickerdoodle/src/common_widgets/cached_joke_image.dart';
 import 'package:snickerdoodle/src/common_widgets/holdable_button.dart';
 import 'package:snickerdoodle/src/common_widgets/save_joke_button.dart';
 import 'package:snickerdoodle/src/common_widgets/share_joke_button.dart';
@@ -17,6 +17,7 @@ import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
+import 'package:snickerdoodle/src/features/jokes/domain/joke_state.dart';
 
 /// Controller to allow parent widgets to imperatively control the
 /// `JokeImageCarousel` (e.g., reveal the punchline programmatically).
@@ -48,7 +49,6 @@ class JokeImageCarousel extends ConsumerStatefulWidget {
   final bool showSaveButton;
   final bool showShareButton;
   final bool showThumbsButtons;
-  final bool showStateBadge;
   final bool showNumSaves;
   final bool showNumShares;
   final String? title;
@@ -68,7 +68,6 @@ class JokeImageCarousel extends ConsumerStatefulWidget {
     this.showSaveButton = true,
     this.showShareButton = false,
     this.showThumbsButtons = false,
-    this.showStateBadge = false,
     this.showNumSaves = false,
     this.showNumShares = false,
     this.title,
@@ -729,28 +728,11 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
                         ),
                       ),
                     ),
-                  if (widget.showStateBadge)
+                  if (widget.isAdminMode)
                     Positioned(
                       top: 8,
                       left: 8,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Theme.of(
-                            context,
-                          ).colorScheme.surfaceContainerHighest,
-                          borderRadius: BorderRadius.circular(999),
-                          border: Border.all(
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.outline.withValues(alpha: 0.3),
-                          ),
-                        ),
-                        child: _buildStateBadgeText(context),
-                      ),
+                      child: _buildStateBadgeText(context),
                     ),
                 ],
               ),
@@ -959,13 +941,51 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
       return const SizedBox.shrink();
     }
     final lower = stateStr.toLowerCase();
-    final proper = lower[0].toUpperCase() + lower.substring(1);
-    return Text(
-      proper,
-      style: TextStyle(
-        fontSize: 10,
-        fontWeight: FontWeight.w600,
-        color: Theme.of(context).colorScheme.onSurface,
+    final stateProperCase = lower[0].toUpperCase() + lower.substring(1);
+
+    // Determine background color based on state
+    Color backgroundColor;
+    switch (widget.joke.state) {
+      case JokeState.unknown:
+        backgroundColor = Colors.red.withValues(alpha: 1.0);
+        break;
+      case JokeState.draft:
+        backgroundColor = Colors.grey.withValues(alpha: 0.3);
+        break;
+      case JokeState.unreviewed:
+        backgroundColor = Colors.orange.withValues(alpha: 0.3);
+        break;
+      case JokeState.approved:
+        backgroundColor = Colors.green.withValues(alpha: 0.3);
+        break;
+      case JokeState.rejected:
+        backgroundColor = Colors.red.withValues(alpha: 0.3);
+        break;
+      case JokeState.published:
+        backgroundColor = Colors.blue.withValues(alpha: 0.3);
+        break;
+      default:
+        backgroundColor = Theme.of(
+          context,
+        ).colorScheme.primary.withValues(alpha: 0.3);
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
+        ),
+      ),
+      child: Text(
+        stateProperCase,
+        style: TextStyle(
+          fontSize: 10,
+          fontWeight: FontWeight.w600,
+          color: Theme.of(context).colorScheme.onPrimary.withValues(alpha: 0.8),
+        ),
       ),
     );
   }

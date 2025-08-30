@@ -44,10 +44,10 @@ void main() {
       // Ensure text card is being used
       expect(find.byType(JokeTextCard), findsOneWidget);
 
-      // Only the regenerate button should exist
-      expect(find.byKey(const Key('regenerate-images-button')), findsOneWidget);
+      // No admin buttons should be shown
       expect(find.byKey(const Key('delete-joke-button')), findsNothing);
       expect(find.byKey(const Key('edit-joke-button')), findsNothing);
+      expect(find.byKey(const Key('populate-joke-button')), findsNothing);
     });
 
     testWidgets('admin shows delete, edit, and regenerate icon buttons', (
@@ -75,7 +75,7 @@ void main() {
       // All three admin buttons should exist
       expect(find.byKey(const Key('delete-joke-button')), findsOneWidget);
       expect(find.byKey(const Key('edit-joke-button')), findsOneWidget);
-      expect(find.byKey(const Key('regenerate-images-button')), findsOneWidget);
+      expect(find.byKey(const Key('populate-joke-button')), findsOneWidget);
     });
   });
 }

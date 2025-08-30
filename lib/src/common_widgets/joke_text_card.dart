@@ -99,53 +99,45 @@ class JokeTextCard extends ConsumerWidget {
                   ],
                 ),
               ),
-              Padding(
-                padding: const EdgeInsets.only(
-                  left: 16.0,
-                  right: 16.0,
-                  bottom: 16.0,
-                ),
-                child: isAdminMode
-                    ? Row(
-                        children: [
-                          // Hold to Delete button (leftmost)
-                          Expanded(
-                            child: AdminDeleteJokeButton(
-                              jokeId: joke.id,
-                              theme: Theme.of(context),
-                              isLoading: isPopulating,
-                              holdDuration: const Duration(seconds: 1),
-                            ),
-                          ),
-                          const SizedBox(width: 8.0),
-                          // Hold to Regenerate Edit button (middle)
-                          Expanded(
-                            child: AdminEditJokeButton(
-                              jokeId: joke.id,
-                              theme: Theme.of(context),
-                              isLoading: isPopulating,
-                            ),
-                          ),
-                          const SizedBox(width: 8.0),
-                          // Regenerate Images button (rightmost)
-                          Expanded(
-                            child: AdminPopulateJokeButton(
-                              jokeId: joke.id,
-                              theme: Theme.of(context),
-                              isLoading: isPopulating,
-                            ),
-                          ),
-                        ],
-                      )
-                    : Align(
-                        alignment: Alignment.centerRight,
+              if (isAdminMode)
+                Padding(
+                  padding: const EdgeInsets.only(
+                    left: 16.0,
+                    right: 16.0,
+                    bottom: 16.0,
+                  ),
+                  child: Row(
+                    children: [
+                      // Hold to Delete button (leftmost)
+                      Expanded(
+                        child: AdminDeleteJokeButton(
+                          jokeId: joke.id,
+                          theme: Theme.of(context),
+                          isLoading: isPopulating,
+                          holdDuration: const Duration(seconds: 1),
+                        ),
+                      ),
+                      const SizedBox(width: 8.0),
+                      // Hold to Regenerate Edit button (middle)
+                      Expanded(
+                        child: AdminEditJokeButton(
+                          jokeId: joke.id,
+                          theme: Theme.of(context),
+                          isLoading: isPopulating,
+                        ),
+                      ),
+                      const SizedBox(width: 8.0),
+                      // Regenerate Images button (rightmost)
+                      Expanded(
                         child: AdminPopulateJokeButton(
                           jokeId: joke.id,
                           theme: Theme.of(context),
                           isLoading: isPopulating,
                         ),
                       ),
-              ),
+                    ],
+                  ),
+                ),
               if (populationState.error != null)
                 Padding(
                   padding: const EdgeInsets.only(

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/common_widgets/adaptive_app_bar_screen.dart';
 import 'package:snickerdoodle/src/common_widgets/image_selector_carousel.dart';
+import 'package:snickerdoodle/src/config/router/router_providers.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
@@ -33,10 +34,16 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
   @override
   void initState() {
     super.initState();
+    // Enable keyboard resizing for this screen
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(keyboardResizeProvider.notifier).state = true;
+    });
   }
 
   @override
   void dispose() {
+    // Disable keyboard resizing when leaving this screen
+    ref.read(keyboardResizeProvider.notifier).state = false;
     _setupController.dispose();
     _punchlineController.dispose();
     _setupImageDescriptionController.dispose();

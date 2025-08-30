@@ -9,7 +9,7 @@ import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_functi
     show MatchMode;
 
 /// Dummy template with placeholders; replace later
-const String kDeepResearchTemplate = """\
+const String kDeepResearchPromptTemplate = """\
 Search the internet to compile the best, funniest, most clever and witty punny jokes for this topic: "{topic}". Each joke should be a 2 liner with a setup and punchline, and must contain at least one pun.
 
 Criteria for high quality punny jokes:
@@ -30,6 +30,15 @@ Criteria for high quality punny jokes:
 Find the top new 20 jokes for the given topic that best fit the above criteria. All new jokes MUST be sufficiently different from the examples provided. If you find a joke that is witty and clever but fails some of the criteria above in a way that is fixable, you can edit the pun to improve it. For example, if a pun is clever and witty but the joke is adult themed, you can change it to a child friendly version of the joke that uses the same pun instead.
 """;
 
+const String kResponsePromptTemplate = """\
+List the jokes you found, each with the setup and punchline on separate lines, and an empty line between each joke.
+
+Example:
+What do you call an aquarium event with only one animal on display?###A single porpoise exhibit!
+What is the salad green's friendship pledge?###Lettuce always stick together!
+What did the dog say to the tree?###Bark!
+""";
+
 class DeepResearchScreen extends ConsumerStatefulWidget {
   const DeepResearchScreen({super.key});
 
@@ -39,6 +48,7 @@ class DeepResearchScreen extends ConsumerStatefulWidget {
 
 class _DeepResearchScreenState extends ConsumerState<DeepResearchScreen> {
   final TextEditingController _topicController = TextEditingController();
+  final TextEditingController _responseController = TextEditingController();
   String? _composedPrompt;
   bool _isLoading = false;
   String? _error;
@@ -46,6 +56,7 @@ class _DeepResearchScreenState extends ConsumerState<DeepResearchScreen> {
   @override
   void dispose() {
     _topicController.dispose();
+    _responseController.dispose();
     super.dispose();
   }
 
@@ -88,7 +99,7 @@ class _DeepResearchScreenState extends ConsumerState<DeepResearchScreen> {
         setState(() {
           _composedPrompt = composeDeepResearchPrompt(
             jokes: const [],
-            template: kDeepResearchTemplate,
+            template: kDeepResearchPromptTemplate,
             topic: topic,
           );
           _isLoading = false;
@@ -103,7 +114,7 @@ class _DeepResearchScreenState extends ConsumerState<DeepResearchScreen> {
       setState(() {
         _composedPrompt = composeDeepResearchPrompt(
           jokes: jokes,
-          template: kDeepResearchTemplate,
+          template: kDeepResearchPromptTemplate,
           topic: topic,
         );
         _isLoading = false;
@@ -125,6 +136,78 @@ class _DeepResearchScreenState extends ConsumerState<DeepResearchScreen> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(const SnackBar(content: Text('Prompt copied to clipboard')));
+  }
+
+  Future<void> _copyFormatPrompt() async {
+    await Clipboard.setData(const ClipboardData(text: kResponsePromptTemplate));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Formatting prompt copied to clipboard')),
+    );
+  }
+
+  // Parse pasted text into list of (setup, punchline) pairs
+  // Expected format: one joke per line as "<setup>###<punchline>"
+  List<({String setup, String punchline})> _parsePastedJokes(String raw) {
+    if (raw.trim().isEmpty) return const [];
+
+    final text = raw.replaceAll('\r\n', '\n').trim();
+    final lines = text
+        .split('\n')
+        .map((l) => l.trim())
+        .where((l) => l.isNotEmpty)
+        .toList();
+
+    final parsed = <({String setup, String punchline})>[];
+    for (final line in lines) {
+      final idx = line.indexOf('###');
+      if (idx <= 0 || idx >= line.length - 3) {
+        continue; // skip lines without proper delimiter
+      }
+      final setup = line.substring(0, idx).trim();
+      final punchline = line.substring(idx + 3).trim();
+      if (setup.isEmpty || punchline.isEmpty) continue;
+      parsed.add((setup: setup, punchline: punchline));
+    }
+    return parsed;
+  }
+
+  Future<void> _onSubmitPressed() async {
+    final pasted = _responseController.text;
+    final jokes = _parsePastedJokes(pasted);
+    if (jokes.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('No jokes found to submit')));
+      return;
+    }
+
+    await _showConfirmDialog(jokes);
+  }
+
+  Future<void> _showConfirmDialog(
+    List<({String setup, String punchline})> jokes,
+  ) async {
+    if (!mounted) return;
+
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return _CreateJokesDialog(
+          jokes: jokes,
+          onAllDone: () {
+            if (!mounted) return;
+            setState(() {
+              _topicController.clear();
+              _responseController.clear();
+            });
+          },
+          ref: ref,
+        );
+      },
+    );
   }
 
   @override
@@ -176,9 +259,131 @@ class _DeepResearchScreenState extends ConsumerState<DeepResearchScreen> {
                     : SelectableText(_composedPrompt!),
               ),
             ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: _responseController,
+              minLines: 5,
+              maxLines: 10,
+              decoration: const InputDecoration(
+                labelText: 'Paste LLM response here',
+                border: OutlineInputBorder(),
+                alignLabelWithHint: true,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                ElevatedButton(
+                  onPressed: _onSubmitPressed,
+                  child: const Text('Submit'),
+                ),
+                const SizedBox(width: 12),
+                OutlinedButton.icon(
+                  onPressed: _copyFormatPrompt,
+                  icon: const Icon(Icons.copy_all),
+                  label: const Text('Copy Response Prompt'),
+                ),
+              ],
+            ),
           ],
         ),
       ),
+    );
+  }
+}
+
+class _CreateJokesDialog extends StatefulWidget {
+  final List<({String setup, String punchline})> jokes;
+  final VoidCallback onAllDone;
+  final WidgetRef ref;
+  const _CreateJokesDialog({
+    required this.jokes,
+    required this.onAllDone,
+    required this.ref,
+  });
+
+  @override
+  State<_CreateJokesDialog> createState() => _CreateJokesDialogState();
+}
+
+class _CreateJokesDialogState extends State<_CreateJokesDialog> {
+  late final List<bool> _created;
+  bool _isRunning = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _created = List<bool>.filled(widget.jokes.length, false);
+  }
+
+  Future<void> _runCreation() async {
+    if (_isRunning) return;
+    setState(() {
+      _isRunning = true;
+    });
+    final service = widget.ref.read(jokeCloudFunctionServiceProvider);
+    for (int i = 0; i < widget.jokes.length; i++) {
+      final j = widget.jokes[i];
+      try {
+        await service.createJokeWithResponse(
+          setupText: j.setup,
+          punchlineText: j.punchline,
+          adminOwned: true,
+        );
+        setState(() {
+          _created[i] = true;
+        });
+      } catch (_) {
+        // Leave as false on failure; continue
+      }
+    }
+
+    if (!mounted) return;
+    Navigator.of(context).pop();
+    widget.onAllDone();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Confirm jokes to create'),
+      content: SizedBox(
+        width: 600,
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxHeight: 400),
+          child: Scrollbar(
+            child: ListView.builder(
+              itemCount: widget.jokes.length,
+              itemBuilder: (context, index) {
+                final j = widget.jokes[index];
+                final isDone = _created[index];
+                return ListTile(
+                  dense: true,
+                  leading: isDone
+                      ? const Icon(Icons.check_circle, color: Colors.green)
+                      : const Icon(Icons.radio_button_unchecked),
+                  title: Text(j.setup),
+                  subtitle: Text(j.punchline),
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _isRunning
+              ? null
+              : () {
+                  Navigator.of(context).pop();
+                },
+          child: const Text('Cancel'),
+        ),
+        FilledButton(
+          onPressed: _isRunning ? null : _runCreation,
+          child: const Text('Confirm'),
+        ),
+      ],
     );
   }
 }

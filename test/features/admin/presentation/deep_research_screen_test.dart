@@ -84,7 +84,10 @@ void main() {
       when(() => mockRepo.getJokesByIds(any())).thenAnswer((_) async => jokes);
 
       // Enter topic and submit
-      await tester.enterText(find.byType(TextFormField), 'penguins');
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'joke topic'),
+        'penguins',
+      );
       await tester.tap(find.text('Create prompt'));
       await tester.pumpAndSettle();
 
@@ -99,6 +102,30 @@ void main() {
         findsOneWidget,
       );
       expect(find.textContaining('Setup B Punchline B'), findsOneWidget);
+
+      // New response input and buttons exist (updated labels)
+      expect(find.text('Paste LLM response here'), findsOneWidget);
+      expect(find.text('Submit'), findsOneWidget);
+      expect(find.text('Copy Response Prompt'), findsOneWidget);
+
+      // Provide a simple ###-delimited response and submit
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Paste LLM response here'),
+        'Setup A###Punchline A\nSetup B###Punchline B',
+      );
+      await tester.tap(find.text('Submit'));
+      await tester.pumpAndSettle();
+
+      // Confirmation dialog should appear with parsed items
+      expect(find.text('Confirm jokes to create'), findsOneWidget);
+      expect(find.text('Setup A'), findsOneWidget);
+      expect(find.text('Punchline A'), findsOneWidget);
+      expect(find.text('Setup B'), findsOneWidget);
+      expect(find.text('Punchline B'), findsOneWidget);
+
+      // Close the dialog (Cancel)
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
     },
   );
 }

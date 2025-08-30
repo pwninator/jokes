@@ -115,7 +115,7 @@ class JokeTextCard extends ConsumerWidget {
                               jokeId: joke.id,
                               theme: Theme.of(context),
                               isLoading: isPopulating,
-                              holdDuration: const Duration(seconds: 3),
+                              holdDuration: const Duration(seconds: 1),
                             ),
                           ),
                           const SizedBox(width: 8.0),

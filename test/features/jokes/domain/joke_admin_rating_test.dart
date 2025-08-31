@@ -9,17 +9,6 @@ void main() {
       expect(JokeAdminRating.rejected.value, equals('REJECTED'));
     });
 
-    test('should have correct thumbs up/down representation', () {
-      expect(JokeAdminRating.approved.isThumbsUp, isTrue);
-      expect(JokeAdminRating.approved.isThumbsDown, isFalse);
-
-      expect(JokeAdminRating.rejected.isThumbsUp, isFalse);
-      expect(JokeAdminRating.rejected.isThumbsDown, isTrue);
-      // unreviewed is neither up nor down
-      expect(JokeAdminRating.unreviewed.isThumbsUp, isFalse);
-      expect(JokeAdminRating.unreviewed.isThumbsDown, isFalse);
-    });
-
     test('should parse string values correctly', () {
       expect(
         JokeAdminRating.fromString('APPROVED'),

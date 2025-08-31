@@ -10,6 +10,7 @@ class CalendarCellPopup extends ConsumerWidget {
   final String dayLabel;
   final Offset cellPosition;
   final Size cellSize;
+  final VoidCallback onClose;
 
   const CalendarCellPopup({
     super.key,
@@ -17,6 +18,7 @@ class CalendarCellPopup extends ConsumerWidget {
     required this.dayLabel,
     required this.cellPosition,
     required this.cellSize,
+    required this.onClose,
   });
 
   @override
@@ -61,12 +63,23 @@ class CalendarCellPopup extends ConsumerWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Header
-              Text(
-                'Day $dayLabel',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+              // Header with close button
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Day $dayLabel',
+                    style: Theme.of(
+                      context,
+                    ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                  ),
+                  IconButton(
+                    onPressed: onClose,
+                    icon: const Icon(Icons.close, size: 20),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                ],
               ),
               const SizedBox(height: 12),
 

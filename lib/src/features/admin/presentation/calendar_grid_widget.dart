@@ -38,21 +38,28 @@ class _CalendarGridWidgetState extends ConsumerState<CalendarGridWidget> {
     final cellSize = cellRenderBox.size;
 
     _popupOverlay = OverlayEntry(
-      builder: (context) => GestureDetector(
-        onTap: _hidePopup,
-        behavior: HitTestBehavior.translucent,
-        child: Material(
-          color: Colors.transparent,
-          child: Stack(
-            children: [
-              CalendarCellPopup(
-                joke: joke,
-                dayLabel: dayKey,
-                cellPosition: cellPosition,
-                cellSize: cellSize,
+      builder: (context) => Material(
+        color: Colors.transparent,
+        child: Stack(
+          children: [
+            // Semi-transparent background to capture taps outside the popup
+            Positioned.fill(
+              child: GestureDetector(
+                onTap: _hidePopup,
+                behavior: HitTestBehavior.translucent,
+                child: Container(
+                  color: Colors.black.withValues(alpha: 0.5),
+                ),
               ),
-            ],
-          ),
+            ),
+            CalendarCellPopup(
+              joke: joke,
+              dayLabel: dayKey,
+              cellPosition: cellPosition,
+              cellSize: cellSize,
+              onClose: _hidePopup,
+            ),
+          ],
         ),
       ),
     );
@@ -155,9 +162,7 @@ class _CalendarGridWidgetState extends ConsumerState<CalendarGridWidget> {
     return Builder(
       builder: (cellContext) {
         return GestureDetector(
-          onTapDown: hasJoke ? (_) => _showPopup(cellContext, dayKey) : null,
-          onTapUp: (_) => _hidePopup(),
-          onTapCancel: () => _hidePopup(),
+          onTap: hasJoke ? () => _showPopup(cellContext, dayKey) : null,
           child: Container(
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(6),

@@ -46,6 +46,8 @@ void main() {
         'admin_rating': null,
         'state': null,
         'public_timestamp': null,
+        'tags': [],
+        'seasonal': null,
       };
       expect(result, expected);
     });
@@ -479,6 +481,140 @@ void main() {
       expect(joke1, isNot(joke3)); // Different metadata content
       expect(joke1.hashCode, joke2.hashCode);
       expect(joke1.hashCode, isNot(joke3.hashCode));
+    });
+
+    test('should handle tags and seasonal fields correctly', () {
+      // arrange
+      const jokeWithTagsAndSeasonal = Joke(
+        id: '1',
+        setupText: 'Why did the scarecrow win an award?',
+        punchlineText: 'Because he was outstanding in his field!',
+        tags: ['funny', 'farm', 'award'],
+        seasonal: 'Halloween',
+      );
+
+      // act
+      final result = jokeWithTagsAndSeasonal.toMap();
+
+      // assert
+      expect(result['tags'], ['funny', 'farm', 'award']);
+      expect(result['seasonal'], 'Halloween');
+      expect(jokeWithTagsAndSeasonal.tags, ['funny', 'farm', 'award']);
+      expect(jokeWithTagsAndSeasonal.seasonal, 'Halloween');
+    });
+
+    test('should create joke from map with tags and seasonal fields', () {
+      // arrange
+      final Map<String, dynamic> jsonMap = {
+        'setup_text': 'Why did the scarecrow win an award?',
+        'punchline_text': 'Because he was outstanding in his field!',
+        'tags': ['funny', 'farm', 'award'],
+        'seasonal': 'Halloween',
+      };
+
+      // act
+      final result = Joke.fromMap(jsonMap, '1');
+
+      // assert
+      expect(result.tags, ['funny', 'farm', 'award']);
+      expect(result.seasonal, 'Halloween');
+    });
+
+    test('should handle empty tags and null seasonal fields', () {
+      // arrange
+      final Map<String, dynamic> jsonMap = {
+        'setup_text': 'Why did the scarecrow win an award?',
+        'punchline_text': 'Because he was outstanding in his field!',
+        'tags': [], // empty list
+        // seasonal is missing (null)
+      };
+
+      // act
+      final result = Joke.fromMap(jsonMap, '1');
+
+      // assert
+      expect(result.tags, []);
+      expect(result.seasonal, null);
+    });
+
+    test('should handle copyWith with tags and seasonal fields', () {
+      // act
+      final result = tJokeModel.copyWith(
+        tags: ['new', 'tags'],
+        seasonal: 'Christmas',
+      );
+
+      // assert
+      expect(result.tags, ['new', 'tags']);
+      expect(result.seasonal, 'Christmas');
+      expect(result.id, tJokeModel.id);
+      expect(result.setupText, tJokeModel.setupText);
+      expect(result.punchlineText, tJokeModel.punchlineText);
+    });
+
+    test('should compare jokes with tags and seasonal fields correctly', () {
+      // arrange
+      const joke1 = Joke(
+        id: '1',
+        setupText: 'test',
+        punchlineText: 'test',
+        tags: ['tag1', 'tag2'],
+        seasonal: 'Halloween',
+      );
+      const joke2 = Joke(
+        id: '1',
+        setupText: 'test',
+        punchlineText: 'test',
+        tags: ['tag1', 'tag2'],
+        seasonal: 'Halloween',
+      );
+      const joke3 = Joke(
+        id: '1',
+        setupText: 'test',
+        punchlineText: 'test',
+        tags: ['different', 'tags'],
+        seasonal: 'Halloween',
+      );
+      const joke4 = Joke(
+        id: '1',
+        setupText: 'test',
+        punchlineText: 'test',
+        tags: ['tag1', 'tag2'],
+        seasonal: 'Christmas',
+      );
+
+      // assert
+      expect(joke1, joke2); // Same tags and seasonal
+      expect(joke1, isNot(joke3)); // Different tags
+      expect(joke1, isNot(joke4)); // Different seasonal
+      expect(joke1.hashCode, joke2.hashCode);
+      expect(joke1.hashCode, isNot(joke3.hashCode));
+      expect(joke1.hashCode, isNot(joke4.hashCode));
+    });
+
+    test('should serialize to map with empty tags and null seasonal', () {
+      // act
+      final result = tJokeModel.toMap();
+
+      // assert
+      expect(result['tags'], []);
+      expect(result['seasonal'], null);
+    });
+
+    test('should deserialize from map without tags and seasonal fields', () {
+      // arrange - simulating old data without tags and seasonal fields
+      final Map<String, dynamic> jsonMap = {
+        'setup_text': 'Why did the scarecrow win an award?',
+        'punchline_text': 'Because he was outstanding in his field!',
+        // tags and seasonal are missing
+      };
+
+      // act
+      final result = Joke.fromMap(jsonMap, '1');
+
+      // assert
+      expect(result.tags, []); // Should default to empty list
+      expect(result.seasonal, null); // Should default to null
     });
   });
 }

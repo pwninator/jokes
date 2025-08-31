@@ -22,6 +22,8 @@ class Joke {
   final JokeAdminRating? adminRating;
   final JokeState? state;
   final DateTime? publicTimestamp;
+  final List<String> tags;
+  final String? seasonal;
 
   const Joke({
     required this.id,
@@ -41,6 +43,8 @@ class Joke {
     this.adminRating,
     this.state,
     this.publicTimestamp,
+    this.tags = const [],
+    this.seasonal,
   });
 
   Joke copyWith({
@@ -61,6 +65,8 @@ class Joke {
     JokeAdminRating? adminRating,
     JokeState? state,
     DateTime? publicTimestamp,
+    List<String>? tags,
+    String? seasonal,
   }) {
     return Joke(
       id: id ?? this.id,
@@ -83,6 +89,8 @@ class Joke {
       adminRating: adminRating ?? this.adminRating,
       state: state ?? this.state,
       publicTimestamp: publicTimestamp ?? this.publicTimestamp,
+      tags: tags ?? this.tags,
+      seasonal: seasonal ?? this.seasonal,
     );
   }
 
@@ -106,6 +114,8 @@ class Joke {
       'public_timestamp': publicTimestamp != null
           ? Timestamp.fromDate(publicTimestamp!)
           : null,
+      'tags': tags,
+      'seasonal': seasonal,
     };
   }
 
@@ -130,6 +140,8 @@ class Joke {
       adminRating: JokeAdminRating.fromString(map['admin_rating'] as String?),
       state: JokeState.fromString(map['state'] as String?),
       publicTimestamp: _parsePublicTimestamp(map['public_timestamp']),
+      tags: List<String>.from(map['tags'] ?? []),
+      seasonal: map['seasonal'] as String?,
     );
   }
 
@@ -156,7 +168,7 @@ class Joke {
 
   @override
   String toString() =>
-      'Joke(id: $id, setupText: $setupText, punchlineText: $punchlineText, setupImageUrl: $setupImageUrl, punchlineImageUrl: $punchlineImageUrl, setupImageDescription: $setupImageDescription, punchlineImageDescription: $punchlineImageDescription, allSetupImageUrls: $allSetupImageUrls, allPunchlineImageUrls: $allPunchlineImageUrls, generationMetadata: $generationMetadata, numThumbsUp: $numThumbsUp, numThumbsDown: $numThumbsDown, numSaves: $numSaves, numShares: $numShares, adminRating: $adminRating, state: $state, publicTimestamp: $publicTimestamp)';
+      'Joke(id: $id, setupText: $setupText, punchlineText: $punchlineText, setupImageUrl: $setupImageUrl, punchlineImageUrl: $punchlineImageUrl, setupImageDescription: $setupImageDescription, punchlineImageDescription: $punchlineImageDescription, allSetupImageUrls: $allSetupImageUrls, allPunchlineImageUrls: $allPunchlineImageUrls, generationMetadata: $generationMetadata, numThumbsUp: $numThumbsUp, numThumbsDown: $numThumbsDown, numSaves: $numSaves, numShares: $numShares, adminRating: $adminRating, state: $state, publicTimestamp: $publicTimestamp, tags: $tags, seasonal: $seasonal)';
 
   @override
   bool operator ==(Object other) {
@@ -179,7 +191,9 @@ class Joke {
         other.numShares == numShares &&
         other.adminRating == adminRating &&
         other.state == state &&
-        other.publicTimestamp == publicTimestamp;
+        other.publicTimestamp == publicTimestamp &&
+        listEquals(other.tags, tags) &&
+        other.seasonal == seasonal;
   }
 
   @override
@@ -200,5 +214,7 @@ class Joke {
       numShares.hashCode ^
       adminRating.hashCode ^
       state.hashCode ^
-      publicTimestamp.hashCode;
+      publicTimestamp.hashCode ^
+      tags.hashCode ^
+      seasonal.hashCode;
 }

@@ -317,15 +317,22 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
           children: [
             const Icon(Icons.info_outline, size: 20),
             const SizedBox(width: 8),
-            const Text('Generation Metadata'),
+            const Text('Joke Details'),
           ],
         ),
         content: SizedBox(
           width: double.maxFinite,
           child: SingleChildScrollView(
-            child: metadata != null && metadata.isNotEmpty
-                ? Container(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Joke Metadata Section
+                if (widget.joke.tags.isNotEmpty || widget.joke.seasonal != null)
+                  Container(
+                    width: double.infinity,
                     padding: const EdgeInsets.all(12),
+                    margin: const EdgeInsets.only(bottom: 16),
                     decoration: BoxDecoration(
                       color: Theme.of(
                         context,
@@ -337,17 +344,37 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
                         ).colorScheme.outline.withValues(alpha: 0.3),
                       ),
                     ),
-                    child: _buildFormattedMetadata(metadata),
-                  )
-                : Text(
-                    'No generation metadata available for this joke.',
-                    style: TextStyle(
+                    child: _buildFormattedTags(context),
+                  ),
+
+                // Generation Metadata Section
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
                       color: Theme.of(
                         context,
-                      ).colorScheme.onSurface.withValues(alpha: 0.6),
-                      fontStyle: FontStyle.italic,
+                      ).colorScheme.outline.withValues(alpha: 0.3),
                     ),
                   ),
+                  child: metadata != null && metadata.isNotEmpty
+                      ? _buildFormattedGenerationMetadata(metadata)
+                      : Text(
+                          'No generation metadata available for this joke.',
+                          style: TextStyle(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurface.withValues(alpha: 0.6),
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                ),
+              ],
+            ),
           ),
         ),
         actions: [
@@ -357,6 +384,43 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildFormattedTags(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'JOKE INFO',
+          style: TextStyle(
+            fontFamily: 'monospace',
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: Theme.of(context).colorScheme.primary,
+          ),
+        ),
+        const SizedBox(height: 8),
+        if (widget.joke.tags.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Text(
+              'Tags: ${widget.joke.tags.join(", ")}',
+              style: const TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 12,
+              ),
+            ),
+          ),
+        if (widget.joke.seasonal != null)
+          Text(
+            'Seasonal: ${widget.joke.seasonal}',
+            style: const TextStyle(
+              fontFamily: 'monospace',
+              fontSize: 12,
+            ),
+          ),
+      ],
     );
   }
 
@@ -385,7 +449,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
     return buffer.toString().trim();
   }
 
-  Widget _buildFormattedMetadata(Map<String, dynamic> metadata) {
+  Widget _buildFormattedGenerationMetadata(Map<String, dynamic> metadata) {
     // Check if this has the expected structure with generations
     final generations = metadata['generations'] as List<dynamic>?;
     if (generations == null || generations.isEmpty) {

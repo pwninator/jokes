@@ -969,6 +969,9 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
       case JokeState.published:
         backgroundColor = Colors.blue.withValues(alpha: 0.3);
         break;
+      case JokeState.daily:
+        backgroundColor = Colors.purple.withValues(alpha: 0.3);
+        break;
       default:
         backgroundColor = Theme.of(
           context,

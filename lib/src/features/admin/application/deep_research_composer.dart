@@ -1,12 +1,11 @@
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
-import 'package:snickerdoodle/src/features/jokes/domain/joke_state.dart';
 
 /// Build the final Deep Research prompt by injecting positive and negative
 /// examples into the provided template.
 ///
 /// Rules:
-/// - Positive examples: state in {APPROVED, PUBLISHED}
-/// - Negative examples: state == REJECTED
+/// - Positive examples: state is high quality
+/// - Negative examples: state is low quality
 /// - Only include jokes where both setup and punchline are non-empty
 /// - Each example is a single line: "{trimmed setup} {trimmed punchline}"
 /// - Section headers are included only if the section has examples
@@ -25,9 +24,9 @@ String composeDeepResearchPrompt({
     if (setup.isEmpty || punchline.isEmpty) continue;
 
     final state = joke.state;
-    if (state == JokeState.approved || state == JokeState.published) {
+    if (state?.isHighQuality ?? false) {
       positive.add('$setup $punchline');
-    } else if (state == JokeState.rejected) {
+    } else if (state?.isLowQuality ?? false) {
       negative.add('$setup $punchline');
     }
   }

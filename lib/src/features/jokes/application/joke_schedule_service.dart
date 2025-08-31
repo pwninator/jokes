@@ -237,7 +237,7 @@ class JokeScheduleAutoFillService {
       );
       publishMap[joke.id] = laMidnight;
     });
-    await _jokeRepository.setJokesPublished(publishMap);
+    await _jokeRepository.setJokesPublished(publishMap, true);
 
     // Create/update batch
     final batch = JokeScheduleBatch(

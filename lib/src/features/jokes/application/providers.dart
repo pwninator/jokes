@@ -47,7 +47,7 @@ final jokeCloudFunctionServiceProvider = Provider<JokeCloudFunctionService>((
 });
 
 /// Scope for search providers
-enum SearchScope { userJokeSearch, jokeManagementSearch }
+enum SearchScope { userJokeSearch, jokeManagementSearch, jokeDeepResearchSearch }
 
 // Search query state: strongly typed object
 class SearchQuery {
@@ -207,10 +207,10 @@ final searchResultsLiveProvider =
           }).toList();
         }
 
-        // 2) Unpublished filter (state != PUBLISHED)
+        // 2) Unpublished filter (state is not public)
         if (filterState.showUnscheduledOnly) {
           ordered = ordered
-              .where((jvd) => jvd.joke.state != JokeState.published)
+              .where((jvd) => !(jvd.joke.state?.isPublic ?? false))
               .toList();
         }
 
@@ -630,10 +630,10 @@ final filteredJokesProvider = Provider<AsyncValue<List<Joke>>>((ref) {
     }).toList();
   }
 
-  // 2) Unpublished filter (state != PUBLISHED)
+  // 2) Unpublished filter (state is not public)
   if (filterState.showUnscheduledOnly) {
     filteredJokes = filteredJokes
-        .where((joke) => joke.state != JokeState.published)
+        .where((joke) => !(joke.state?.isPublic ?? false))
         .toList();
   }
 

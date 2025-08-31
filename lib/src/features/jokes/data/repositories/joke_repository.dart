@@ -170,16 +170,16 @@ class JokeRepository {
     await _firestore.collection('jokes').doc(jokeId).delete();
   }
 
-  /// Batch publish jokes: set state=PUBLISHED and public_timestamp
+  /// Batch publish jokes
   Future<void> setJokesPublished(
-    Map<String, DateTime> jokeIdToPublicTimestamp,
+    Map<String, DateTime> jokeIdToPublicTimestamp, bool isDaily,
   ) async {
     if (jokeIdToPublicTimestamp.isEmpty) return;
     final batch = _firestore.batch();
     for (final entry in jokeIdToPublicTimestamp.entries) {
       final docRef = _firestore.collection('jokes').doc(entry.key);
       batch.update(docRef, {
-        'state': JokeState.published.value,
+        'state': isDaily ? JokeState.daily.value : JokeState.published.value,
         'public_timestamp': Timestamp.fromDate(entry.value),
       });
     }

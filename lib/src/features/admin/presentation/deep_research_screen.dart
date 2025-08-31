@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/common_widgets/adaptive_app_bar_screen.dart';
 import 'package:snickerdoodle/src/features/admin/application/deep_research_composer.dart';
 import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
+import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart'
     show MatchMode;
@@ -78,10 +79,10 @@ class _DeepResearchScreenState extends ConsumerState<DeepResearchScreen> {
     try {
       // Trigger search
       final current = ref.read(
-        searchQueryProvider(SearchScope.jokeManagementSearch),
+        searchQueryProvider(SearchScope.jokeDeepResearchSearch),
       );
       ref
-          .read(searchQueryProvider(SearchScope.jokeManagementSearch).notifier)
+          .read(searchQueryProvider(SearchScope.jokeDeepResearchSearch).notifier)
           .state = current.copyWith(
         query: topic,
         maxResults: 100,
@@ -91,25 +92,19 @@ class _DeepResearchScreenState extends ConsumerState<DeepResearchScreen> {
 
       // Await the ids result
       final ids = await ref.read(
-        searchResultIdsProvider(SearchScope.jokeManagementSearch).future,
+        searchResultIdsProvider(SearchScope.jokeDeepResearchSearch).future,
       );
       if (!mounted) return;
 
+      // Determine jokes to use for prompt composition
+      final List<Joke> jokes;
       if (ids.isEmpty) {
-        setState(() {
-          _composedPrompt = composeDeepResearchPrompt(
-            jokes: const [],
-            template: kDeepResearchPromptTemplate,
-            topic: topic,
-          );
-          _isLoading = false;
-        });
-        return;
+        jokes = const [];
+      } else {
+        // Fetch jokes by ids directly to avoid relying on stream timing in tests
+        final repo = ref.read(jokeRepositoryProvider);
+        jokes = await repo.getJokesByIds(ids.map((e) => e.id).toList());
       }
-
-      // Fetch jokes by ids directly to avoid relying on stream timing in tests
-      final repo = ref.read(jokeRepositoryProvider);
-      final jokes = await repo.getJokesByIds(ids.map((e) => e.id).toList());
 
       setState(() {
         _composedPrompt = composeDeepResearchPrompt(
@@ -164,8 +159,14 @@ class _DeepResearchScreenState extends ConsumerState<DeepResearchScreen> {
       if (idx <= 0 || idx >= line.length - 3) {
         continue; // skip lines without proper delimiter
       }
-      final setup = line.substring(0, idx).trim().replaceAll(RegExp(r'\.+$'), '');
-      final punchline = line.substring(idx + 3).trim().replaceAll(RegExp(r'\.+$'), '');
+      final setup = line
+          .substring(0, idx)
+          .trim()
+          .replaceAll(RegExp(r'\.+$'), '');
+      final punchline = line
+          .substring(idx + 3)
+          .trim()
+          .replaceAll(RegExp(r'\.+$'), '');
       if (setup.isEmpty || punchline.isEmpty) continue;
       parsed.add((setup: setup, punchline: punchline));
     }

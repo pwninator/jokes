@@ -106,7 +106,7 @@ final searchResultIdsProvider =
 
       final service = ref.watch(jokeCloudFunctionServiceProvider);
       final results = await service.searchJokes(
-        searchQuery: query,
+        searchQuery: "jokes about $query",
         maxResults: params.maxResults,
         publicOnly: params.publicOnly,
         matchMode: params.matchMode,

@@ -25,7 +25,7 @@ void main() async {
   final notificationService = NotificationService();
   await notificationService.initialize();
 
-  final useEmulatorInDebugMode = false;
+  final useEmulatorInDebugMode = true;
   // ignore: dead_code
   if (kDebugMode && useEmulatorInDebugMode) {
     bool isPhysicalDevice = await DeviceUtils.isPhysicalDevice;

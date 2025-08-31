@@ -1202,7 +1202,7 @@ void main() {
 
       verify(
         () => mockCloudFunctionService.searchJokes(
-          searchQuery: q,
+          searchQuery: 'jokes about $q',
           maxResults: max,
           publicOnly: pub,
           matchMode: mode,

@@ -701,7 +701,16 @@ class FirebaseAnalyticsService implements AnalyticsService {
   ) async {
     try {
       if (await _shouldUseFakeAnalytics()) {
-        debugPrint('ANALYTICS (DEBUG): ${event.eventName} - $parameters');
+        debugPrint(
+          'ANALYTICS SKIPPED (DEBUG): ${event.eventName} - $parameters',
+        );
+        return;
+      }
+
+      if (_getUserType(_currentUser) == AnalyticsUserType.admin) {
+        debugPrint(
+          'ANALYTICS SKIPPED (ADMIN): ${event.eventName} - $parameters',
+        );
         return;
       }
 

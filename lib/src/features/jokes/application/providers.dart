@@ -200,24 +200,15 @@ final searchResultsLiveProvider =
       if (scope == SearchScope.jokeManagementSearch) {
         final filterState = ref.watch(jokeFilterProvider);
 
-        // 1) Unrated filter (require images and state == UNREVIEWED)
-        if (filterState.showUnratedOnly) {
+        // 1) State filter (filter by selected states if any are selected)
+        if (filterState.hasStateFilter) {
           ordered = ordered.where((jvd) {
-            return jvd.joke.state == JokeState.unreviewed;
+            return jvd.joke.state != null && filterState.selectedStates.contains(jvd.joke.state!);
           }).toList();
-        }
-
-        // 2) Unpublished filter (state is not public)
-        if (filterState.showUnscheduledOnly) {
-          ordered = ordered
-              .where((jvd) => !(jvd.joke.state?.isPublic ?? false))
-              .toList();
         }
 
         // note: do not apply popular sorting here; handled globally below
       }
-
-      // Popular-only filter now applies only in admin scope (handled above)
 
       return AsyncValue.data(ordered);
     });
@@ -544,47 +535,55 @@ final userReactionsForJokeProvider =
 
 // State class for joke filter
 class JokeFilterState {
-  final bool showUnratedOnly;
-  final bool showUnscheduledOnly;
+  final Set<JokeState> selectedStates;
   final bool showPopularOnly; // saves + shares > 0
 
   const JokeFilterState({
-    this.showUnratedOnly = false,
-    this.showUnscheduledOnly = false,
+    this.selectedStates = const {},
     this.showPopularOnly = false,
   });
 
   JokeFilterState copyWith({
-    bool? showUnratedOnly,
-    bool? showUnscheduledOnly,
+    Set<JokeState>? selectedStates,
     bool? showPopularOnly,
   }) {
     return JokeFilterState(
-      showUnratedOnly: showUnratedOnly ?? this.showUnratedOnly,
-      showUnscheduledOnly: showUnscheduledOnly ?? this.showUnscheduledOnly,
+      selectedStates: selectedStates ?? this.selectedStates,
       showPopularOnly: showPopularOnly ?? this.showPopularOnly,
     );
   }
+
+  bool get hasStateFilter => selectedStates.isNotEmpty;
 }
 
 // Notifier for managing joke filter
 class JokeFilterNotifier extends StateNotifier<JokeFilterState> {
   JokeFilterNotifier() : super(const JokeFilterState());
 
-  void toggleUnratedOnly() {
-    state = state.copyWith(showUnratedOnly: !state.showUnratedOnly);
+  void addState(JokeState state) {
+    final newStates = Set<JokeState>.from(this.state.selectedStates)..add(state);
+    this.state = this.state.copyWith(selectedStates: newStates);
   }
 
-  void setUnratedOnly(bool value) {
-    state = state.copyWith(showUnratedOnly: value);
+  void removeState(JokeState state) {
+    final newStates = Set<JokeState>.from(this.state.selectedStates)..remove(state);
+    this.state = this.state.copyWith(selectedStates: newStates);
   }
 
-  void toggleUnscheduledOnly() {
-    state = state.copyWith(showUnscheduledOnly: !state.showUnscheduledOnly);
+  void toggleState(JokeState state) {
+    if (this.state.selectedStates.contains(state)) {
+      removeState(state);
+    } else {
+      addState(state);
+    }
   }
 
-  void setUnscheduledOnly(bool value) {
-    state = state.copyWith(showUnscheduledOnly: value);
+  void setSelectedStates(Set<JokeState> states) {
+    state = state.copyWith(selectedStates: states);
+  }
+
+  void clearStates() {
+    state = state.copyWith(selectedStates: const {});
   }
 
   void togglePopularOnly() {
@@ -623,18 +622,11 @@ final filteredJokesProvider = Provider<AsyncValue<List<Joke>>>((ref) {
   // Base list
   var filteredJokes = List<Joke>.from(jokesAsync.value ?? const <Joke>[]);
 
-  // 1) Unrated filter (require images and state == UNREVIEWED)
-  if (filterState.showUnratedOnly) {
+  // 1) State filter (filter by selected states if any are selected)
+  if (filterState.hasStateFilter) {
     filteredJokes = filteredJokes.where((joke) {
-      return joke.state == JokeState.unreviewed;
+      return joke.state != null && filterState.selectedStates.contains(joke.state!);
     }).toList();
-  }
-
-  // 2) Unpublished filter (state is not public)
-  if (filterState.showUnscheduledOnly) {
-    filteredJokes = filteredJokes
-        .where((joke) => !(joke.state?.isPublic ?? false))
-        .toList();
   }
 
   // 3) Popular filter and sorting

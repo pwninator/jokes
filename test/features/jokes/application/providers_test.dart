@@ -9,7 +9,6 @@ import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
-import 'package:snickerdoodle/src/features/jokes/domain/joke_admin_rating.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_search_result.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_state.dart';
@@ -777,43 +776,76 @@ void main() {
   group('JokeFilter Tests', () {
     test('JokeFilterState should have correct initial values', () {
       const state = JokeFilterState();
-      expect(state.showUnratedOnly, false);
+      expect(state.selectedStates, isEmpty);
+      expect(state.showPopularOnly, false);
+      expect(state.hasStateFilter, false);
     });
 
     test('JokeFilterState copyWith should work correctly', () {
       const state = JokeFilterState();
-      final newState = state.copyWith(showUnratedOnly: true);
+      final newState = state.copyWith(selectedStates: {JokeState.approved});
 
-      expect(newState.showUnratedOnly, true);
-      expect(state.showUnratedOnly, false); // Original unchanged
+      expect(newState.selectedStates, {JokeState.approved});
+      expect(state.selectedStates, isEmpty); // Original unchanged
+      expect(newState.hasStateFilter, true);
     });
 
-    test('JokeFilterNotifier should toggle unrated filter', () {
+    test('JokeFilterNotifier should add and remove states', () {
       final container = ProviderContainer();
       final notifier = container.read(jokeFilterProvider.notifier);
 
-      expect(container.read(jokeFilterProvider).showUnratedOnly, false);
+      expect(container.read(jokeFilterProvider).selectedStates, isEmpty);
 
-      notifier.toggleUnratedOnly();
-      expect(container.read(jokeFilterProvider).showUnratedOnly, true);
+      notifier.addState(JokeState.approved);
+      expect(container.read(jokeFilterProvider).selectedStates, {
+        JokeState.approved,
+      });
 
-      notifier.toggleUnratedOnly();
-      expect(container.read(jokeFilterProvider).showUnratedOnly, false);
+      notifier.addState(JokeState.published);
+      expect(container.read(jokeFilterProvider).selectedStates, {
+        JokeState.approved,
+        JokeState.published,
+      });
+
+      notifier.removeState(JokeState.approved);
+      expect(container.read(jokeFilterProvider).selectedStates, {
+        JokeState.published,
+      });
 
       container.dispose();
     });
 
-    test('JokeFilterNotifier should set unrated filter value', () {
+    test('JokeFilterNotifier should toggle states', () {
       final container = ProviderContainer();
       final notifier = container.read(jokeFilterProvider.notifier);
 
-      expect(container.read(jokeFilterProvider).showUnratedOnly, false);
+      expect(container.read(jokeFilterProvider).selectedStates, isEmpty);
 
-      notifier.setUnratedOnly(true);
-      expect(container.read(jokeFilterProvider).showUnratedOnly, true);
+      notifier.toggleState(JokeState.approved);
+      expect(container.read(jokeFilterProvider).selectedStates, {
+        JokeState.approved,
+      });
 
-      notifier.setUnratedOnly(false);
-      expect(container.read(jokeFilterProvider).showUnratedOnly, false);
+      notifier.toggleState(JokeState.approved);
+      expect(container.read(jokeFilterProvider).selectedStates, isEmpty);
+
+      container.dispose();
+    });
+
+    test('JokeFilterNotifier should set selected states', () {
+      final container = ProviderContainer();
+      final notifier = container.read(jokeFilterProvider.notifier);
+
+      expect(container.read(jokeFilterProvider).selectedStates, isEmpty);
+
+      notifier.setSelectedStates({JokeState.approved, JokeState.rejected});
+      expect(container.read(jokeFilterProvider).selectedStates, {
+        JokeState.approved,
+        JokeState.rejected,
+      });
+
+      notifier.clearStates();
+      expect(container.read(jokeFilterProvider).selectedStates, isEmpty);
 
       container.dispose();
     });
@@ -864,71 +896,39 @@ void main() {
       });
 
       test(
-        'should filter to unreviewed jokes with images when filter is on',
+        'should filter to selected states when state filter is on',
         () async {
           // arrange
           final testJokes = [
-            // No images - should be filtered out
             const Joke(
               id: '1',
               setupText: 'setup1',
               punchlineText: 'punchline1',
-              numThumbsUp: 0,
-              numThumbsDown: 0,
+              state: JokeState.draft,
             ),
-            // Has images and unrated - should be included
             const Joke(
               id: '2',
               setupText: 'setup2',
               punchlineText: 'punchline2',
-              setupImageUrl: 'url1',
-              punchlineImageUrl: 'url2',
-              numThumbsUp: 0,
-              numThumbsDown: 0,
-              state: JokeState.unreviewed,
+              state: JokeState.approved,
             ),
-            // Has images but rated - should be filtered out
             const Joke(
               id: '3',
               setupText: 'setup3',
               punchlineText: 'punchline3',
-              setupImageUrl: 'url3',
-              punchlineImageUrl: 'url4',
-              numThumbsUp: 5,
-              numThumbsDown: 0,
-              adminRating: JokeAdminRating.approved,
-              state: JokeState.approved,
+              state: JokeState.rejected,
             ),
-            // Has images but rated (thumbs down) - should be filtered out
             const Joke(
               id: '4',
               setupText: 'setup4',
               punchlineText: 'punchline4',
-              setupImageUrl: 'url5',
-              punchlineImageUrl: 'url6',
-              numThumbsUp: 0,
-              numThumbsDown: 3,
-              adminRating: JokeAdminRating.rejected,
-              state: JokeState.rejected,
+              state: JokeState.published,
             ),
-            // Has only one image - should be filtered out
             const Joke(
               id: '5',
               setupText: 'setup5',
               punchlineText: 'punchline5',
-              setupImageUrl: 'url7',
-              numThumbsUp: 0,
-              numThumbsDown: 0,
-            ),
-            // Empty image URLs - should be filtered out
-            const Joke(
-              id: '6',
-              setupText: 'setup6',
-              punchlineText: 'punchline6',
-              setupImageUrl: '',
-              punchlineImageUrl: '',
-              numThumbsUp: 0,
-              numThumbsDown: 0,
+              state: null, // No state
             ),
           ];
 
@@ -946,18 +946,21 @@ void main() {
           // Wait for the stream provider to emit data
           await container.read(jokesProvider.future);
 
-          // Turn on the filter
-          container.read(jokeFilterProvider.notifier).setUnratedOnly(true);
+          // Set state filter to approved and rejected
+          container.read(jokeFilterProvider.notifier).setSelectedStates({
+            JokeState.approved,
+            JokeState.rejected,
+          });
 
           final result = container.read(filteredJokesProvider);
 
           // assert
           expect(result.hasValue, true);
-          expect(result.value?.length, 1);
+          expect(result.value?.length, 2);
           expect(
-            result.value?.first.id,
-            '2',
-          ); // Only joke 2 should pass the filter
+            result.value?.map((j) => j.id).toSet(),
+            {'2', '3'}, // Only approved and rejected jokes
+          );
 
           container.dispose();
         },
@@ -1113,8 +1116,13 @@ void main() {
           // Wait for jokes to load
           await container.read(jokesProvider.future);
 
-          // Enable unpublished and popular filters
-          container.read(jokeFilterProvider.notifier).setUnscheduledOnly(true);
+          // Enable state filter for non-published states and popular filters
+          container.read(jokeFilterProvider.notifier).setSelectedStates({
+            JokeState.draft,
+            JokeState.unreviewed,
+            JokeState.approved,
+            JokeState.rejected,
+          });
           container.read(jokeFilterProvider.notifier).setPopularOnly(true);
 
           // Ensure schedule data is ready before reading filtered provider

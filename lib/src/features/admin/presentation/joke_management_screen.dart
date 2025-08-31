@@ -7,6 +7,7 @@ import 'package:snickerdoodle/src/config/router/route_names.dart';
 import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
+import 'package:snickerdoodle/src/features/jokes/domain/joke_state.dart';
 
 // Admin search config
 const int kAdminSearchMaxResults = 50;
@@ -70,26 +71,78 @@ class _JokeManagementScreenState extends ConsumerState<JokeManagementScreen> {
   }
 
   String _getEmptyStateTitle(JokeFilterState filterState) {
-    if (filterState.showUnratedOnly && filterState.showUnscheduledOnly) {
-      return 'No unrated and unscheduled jokes found!';
-    } else if (filterState.showUnratedOnly) {
-      return 'No unrated jokes with images found!';
-    } else if (filterState.showUnscheduledOnly) {
-      return 'No unscheduled jokes found!';
+    if (filterState.hasStateFilter) {
+      final stateNames = filterState.selectedStates
+          .map((s) => s.value)
+          .join(', ');
+      return 'No jokes found with selected states: $stateNames';
     } else {
       return 'No jokes yet!';
     }
   }
 
   String _getEmptyStateSubtitle(JokeFilterState filterState) {
-    if (filterState.showUnratedOnly && filterState.showUnscheduledOnly) {
-      return 'Try turning off the filters or add some jokes with images';
-    } else if (filterState.showUnratedOnly) {
-      return 'Try turning off the filter or add some jokes with images';
-    } else if (filterState.showUnscheduledOnly) {
-      return 'Try turning off the filter or add some jokes';
+    if (filterState.hasStateFilter) {
+      return 'Try selecting different states or clearing the state filter';
     } else {
       return 'Tap the + button to add your first joke';
+    }
+  }
+
+  Future<void> _showStateSelectionDialog(
+    BuildContext context,
+    Set<JokeState> selectedStates,
+  ) async {
+    final result = await showDialog<Set<JokeState>>(
+      context: context,
+      builder: (BuildContext context) {
+        final tempSelectedStates = Set<JokeState>.from(selectedStates);
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              title: const Text('Select Joke States'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: JokeState.values.map((state) {
+                    return CheckboxListTile(
+                      title: Text(state.value),
+                      value: tempSelectedStates.contains(state),
+                      onChanged: (bool? checked) {
+                        setState(() {
+                          if (checked ?? false) {
+                            tempSelectedStates.add(state);
+                          } else {
+                            tempSelectedStates.remove(state);
+                          }
+                        });
+                      },
+                    );
+                  }).toList(),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                  },
+                  child: const Text('Cancel'),
+                ),
+                TextButton(
+                  onPressed: () {
+                    Navigator.of(context).pop(tempSelectedStates);
+                  },
+                  child: const Text('Apply'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (result != null) {
+      ref.read(jokeFilterProvider.notifier).setSelectedStates(result);
     }
   }
 
@@ -227,25 +280,36 @@ class _JokeManagementScreenState extends ConsumerState<JokeManagementScreen> {
                         showCheckmark: false,
                         avatar: const Icon(Icons.search, size: 16),
                       ),
-                    _AdminFilterChip(
-                      key: const Key('unrated-only-filter-chip'),
-                      label: 'Unrated',
-                      selected: filterState.showUnratedOnly,
-                      onSelected: (selected) {
-                        ref
-                            .read(jokeFilterProvider.notifier)
-                            .toggleUnratedOnly();
+                    FilterChip(
+                      key: const Key('state-filter-chip'),
+                      label: Text(
+                        filterState.hasStateFilter
+                            ? 'State (${filterState.selectedStates.length})'
+                            : 'State',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          fontSize: 12,
+                          color: filterState.hasStateFilter
+                              ? Theme.of(context).colorScheme.primary
+                              : null,
+                        ),
+                      ),
+                      labelPadding: const EdgeInsets.symmetric(horizontal: 0),
+                      visualDensity: VisualDensity.compact,
+                      selected: filterState.hasStateFilter,
+                      onSelected: (_) {
+                        _showStateSelectionDialog(
+                          context,
+                          filterState.selectedStates,
+                        );
                       },
-                    ),
-                    _AdminFilterChip(
-                      key: const Key('unscheduled-only-filter-chip'),
-                      label: 'Unpublished',
-                      selected: filterState.showUnscheduledOnly,
-                      onSelected: (selected) {
-                        ref
-                            .read(jokeFilterProvider.notifier)
-                            .toggleUnscheduledOnly();
-                      },
+                      showCheckmark: false,
+                      avatar: Icon(
+                        Icons.filter_list,
+                        size: 16,
+                        color: filterState.hasStateFilter
+                            ? Theme.of(context).colorScheme.primary
+                            : null,
+                      ),
                     ),
                     _AdminFilterChip(
                       key: const Key('popular-only-filter-chip'),

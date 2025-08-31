@@ -74,7 +74,7 @@ void main() {
         () => mockJokeRepository.getJokes(),
       ).thenAnswer((_) => Stream.value(testJokes));
       when(
-        () => mockJokeRepository.setJokesPublished(any()),
+        () => mockJokeRepository.setJokesPublished(any(), any()),
       ).thenAnswer((_) async {});
 
       when(

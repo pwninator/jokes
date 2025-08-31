@@ -19,14 +19,20 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   VoidCallback? _resetViewer;
   final FocusNode _focusNode = FocusNode();
   final TextEditingController _controller = TextEditingController();
+  bool _hasHandledFocusTrigger = false;
 
   @override
   void initState() {
     super.initState();
+    // Add listener to trigger rebuild when controller text changes
+    _controller.addListener(() {
+      if (mounted) setState(() {});
+    });
+
     // Initialize controller with current provider value for persistence
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(keyboardResizeProvider.notifier).state = false;
-      
+
       if (mounted) {
         final currentQuery = ref
             .read(searchQueryProvider(SearchScope.userJokeSearch))
@@ -71,6 +77,24 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Check for focus trigger from navigation
+    final focusTrigger = ref.watch(searchFieldFocusTriggerProvider);
+
+    // If focus trigger is true and we haven't handled it yet, focus the search field
+    if (focusTrigger && !_hasHandledFocusTrigger) {
+      _hasHandledFocusTrigger = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          _focusNode.requestFocus();
+        }
+      });
+    }
+
+    // If focus trigger is false, reset our handled flag
+    if (!focusTrigger) {
+      _hasHandledFocusTrigger = false;
+    }
+
     return AdaptiveAppBarScreen(
       title: 'Search',
       body: Column(
@@ -129,13 +153,23 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             ),
           ),
           Expanded(
-            child: JokeListViewer(
-              jokesAsyncProvider: searchResultsViewerProvider(
-                SearchScope.userJokeSearch,
-              ),
-              jokeContext: AnalyticsJokeContext.search,
-              onInitRegisterReset: (cb) => _resetViewer = cb,
-              emptyState: const Center(child: Text('Search for jokes!')),
+            child: Consumer(
+              builder: (context, ref, child) {
+                final currentQuery = ref
+                    .watch(searchQueryProvider(SearchScope.userJokeSearch))
+                    .query;
+                final emptyStateMessage = currentQuery.isNotEmpty
+                    ? 'No jokes found'
+                    : 'Search for jokes!';
+                return JokeListViewer(
+                  jokesAsyncProvider: searchResultsViewerProvider(
+                    SearchScope.userJokeSearch,
+                  ),
+                  jokeContext: AnalyticsJokeContext.search,
+                  onInitRegisterReset: (cb) => _resetViewer = cb,
+                  emptyState: Center(child: Text(emptyStateMessage)),
+                );
+              },
             ),
           ),
         ],

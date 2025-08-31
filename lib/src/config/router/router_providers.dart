@@ -14,6 +14,9 @@ final railBottomSlotProvider = StateProvider<Widget?>((ref) => null);
 /// Defaults to false so pages do not shift unless they opt-in.
 final keyboardResizeProvider = StateProvider<bool>((ref) => false);
 
+/// Provider to trigger search field focus when search tab is tapped while already on search screen
+final searchFieldFocusTriggerProvider = StateProvider<bool>((ref) => false);
+
 /// Provider for the main GoRouter instance
 final goRouterProvider = Provider<GoRouter>((ref) {
   final refreshNotifier = ref.watch(routeRefreshNotifierProvider);

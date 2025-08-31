@@ -301,6 +301,25 @@ class AppRouter {
 
   /// Navigate to tab index
   static void _navigateToIndex(BuildContext context, int index, bool isAdmin) {
+    // Special handling for search tab - if already on search screen, focus the field
+    if (index == 2) {
+      final currentLocation = GoRouterState.of(context).uri.path;
+      if (currentLocation.startsWith(AppRoutes.search)) {
+        // Already on search screen, trigger focus instead of navigating
+        final container = ProviderScope.containerOf(context);
+        container.read(searchFieldFocusTriggerProvider.notifier).state = true;
+
+        // Reset the trigger after a short delay to allow the SearchScreen to handle it
+        Future.delayed(const Duration(milliseconds: 100), () {
+          if (context.mounted) {
+            final resetContainer = ProviderScope.containerOf(context);
+            resetContainer.read(searchFieldFocusTriggerProvider.notifier).state = false;
+          }
+        });
+        return;
+      }
+    }
+
     String route;
     switch (index) {
       case 0:

@@ -33,17 +33,27 @@ class JokeManagementScreen extends ConsumerStatefulWidget {
 class _JokeManagementScreenState extends ConsumerState<JokeManagementScreen> {
   bool _showSearch = false;
   final FocusNode _searchFocusNode = FocusNode();
+  final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
+    // Initialize controller with current provider value
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        final currentQuery = ref
+            .read(searchQueryProvider(SearchScope.jokeManagementSearch))
+            .query;
+        _searchController.text = currentQuery;
+      }
+    });
     _searchFocusNode.addListener(() {
       if (!_searchFocusNode.hasFocus) {
         final params = ref.read(
           searchQueryProvider(SearchScope.jokeManagementSearch),
         );
         final query = params.query.trim();
-        if (mounted && query.isEmpty) {
+        if (mounted && query.isEmpty && !_showSearch) {
           setState(() {
             _showSearch = false;
           });
@@ -55,6 +65,7 @@ class _JokeManagementScreenState extends ConsumerState<JokeManagementScreen> {
   @override
   void dispose() {
     _searchFocusNode.dispose();
+    _searchController.dispose();
     super.dispose();
   }
 
@@ -93,6 +104,9 @@ class _JokeManagementScreenState extends ConsumerState<JokeManagementScreen> {
       searchResultsLiveProvider(SearchScope.jokeManagementSearch),
     );
 
+    // Show search field if user explicitly wants to search OR if there's a query
+    final showSearch = _showSearch || searchParams.query.trim().isNotEmpty;
+
     return AdaptiveAppBarScreen(
       title: 'Joke Management',
       floatingActionButton: FloatingActionButton(
@@ -124,22 +138,24 @@ class _JokeManagementScreenState extends ConsumerState<JokeManagementScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (_showSearch)
+                if (showSearch)
                   SizedBox(
                     width: double.infinity,
                     child: TextField(
                       key: const Key('admin-search-field'),
+                      controller: _searchController,
                       focusNode: _searchFocusNode,
                       decoration: InputDecoration(
                         hintText: 'Search jokes...',
                         prefixIcon: const Icon(Icons.search),
                         isDense: true,
                         border: const OutlineInputBorder(),
-                        suffixIcon: searchParams.query.isNotEmpty
+                        suffixIcon: _searchController.text.isNotEmpty
                             ? IconButton(
                                 tooltip: 'Clear',
                                 icon: const Icon(Icons.clear),
                                 onPressed: () {
+                                  _searchController.clear();
                                   ref
                                       .read(
                                         searchQueryProvider(
@@ -186,7 +202,7 @@ class _JokeManagementScreenState extends ConsumerState<JokeManagementScreen> {
                   spacing: 4,
                   runSpacing: 0,
                   children: [
-                    if (!_showSearch)
+                    if (!showSearch)
                       FilterChip(
                         key: const Key('search-toggle-chip'),
                         label: Text(

@@ -42,8 +42,6 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
 
   @override
   void dispose() {
-    // Disable keyboard resizing when leaving this screen
-    ref.read(keyboardResizeProvider.notifier).state = false;
     _setupController.dispose();
     _punchlineController.dispose();
     _setupImageDescriptionController.dispose();

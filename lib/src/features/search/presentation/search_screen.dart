@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/common_widgets/adaptive_app_bar_screen.dart';
+import 'package:snickerdoodle/src/config/router/router_providers.dart';
 import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
 import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart'
@@ -16,8 +17,24 @@ class SearchScreen extends ConsumerStatefulWidget {
 
 class _SearchScreenState extends ConsumerState<SearchScreen> {
   VoidCallback? _resetViewer;
-  final TextEditingController _controller = TextEditingController();
   final FocusNode _focusNode = FocusNode();
+  final TextEditingController _controller = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    // Initialize controller with current provider value for persistence
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(keyboardResizeProvider.notifier).state = false;
+      
+      if (mounted) {
+        final currentQuery = ref
+            .read(searchQueryProvider(SearchScope.userJokeSearch))
+            .query;
+        _controller.text = currentQuery;
+      }
+    });
+  }
 
   @override
   void dispose() {
@@ -101,7 +118,6 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                               .state = current.copyWith(
                             query: '',
                           );
-                          setState(() {});
                           FocusScope.of(context).unfocus();
                         },
                       )
@@ -110,7 +126,6 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               maxLines: 1,
               textInputAction: TextInputAction.search,
               onSubmitted: _onSubmitted,
-              onChanged: (_) => setState(() {}),
             ),
           ),
           Expanded(

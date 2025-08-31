@@ -20,8 +20,4 @@ enum JokeAdminRating {
     }
     return null;
   }
-
-  /// Convert to thumbs up/down representation
-  bool get isThumbsUp => this == JokeAdminRating.approved;
-  bool get isThumbsDown => this == JokeAdminRating.rejected;
 }

@@ -48,7 +48,7 @@ class JokeImageCarousel extends ConsumerStatefulWidget {
   final List<Joke>? jokesToPreload;
   final bool showSaveButton;
   final bool showShareButton;
-  final bool showThumbsButtons;
+  final bool showAdminRatingButtons;
   final bool showNumSaves;
   final bool showNumShares;
   final String? title;
@@ -67,7 +67,7 @@ class JokeImageCarousel extends ConsumerStatefulWidget {
     this.jokesToPreload,
     this.showSaveButton = true,
     this.showShareButton = false,
-    this.showThumbsButtons = false,
+    this.showAdminRatingButtons = false,
     this.showNumSaves = false,
     this.showNumShares = false,
     this.title,
@@ -740,28 +740,33 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
           ),
 
           // Page indicators and reaction/count buttons row
-          Row(
-            children: [
-              // Left spacer
-              Expanded(child: _buildLeftCounts()),
+          SizedBox(
+            height: 36,
+            child: Row(
+              children: [
+                // Left spacer
+                Expanded(child: _buildLeftCounts()),
 
-              // Page indicators (centered)
-              SmoothPageIndicator(
-                controller: _pageController,
-                count: 2,
-                effect: WormEffect(
-                  dotHeight: 12,
-                  dotWidth: 12,
-                  spacing: 6,
-                  radius: 6,
-                  dotColor: theme.colorScheme.onSurface.withValues(alpha: 0.3),
-                  activeDotColor: theme.colorScheme.primary,
+                // Page indicators (centered)
+                SmoothPageIndicator(
+                  controller: _pageController,
+                  count: 2,
+                  effect: WormEffect(
+                    dotHeight: 12,
+                    dotWidth: 12,
+                    spacing: 6,
+                    radius: 6,
+                    dotColor: theme.colorScheme.onSurface.withValues(
+                      alpha: 0.3,
+                    ),
+                    activeDotColor: theme.colorScheme.primary,
+                  ),
                 ),
-              ),
 
-              // Right buttons (save, share, thumbs) or spacer
-              Expanded(child: _buildRightButtons()),
-            ],
+                // Right buttons (save, share, admin rating) or spacer
+                Expanded(child: _buildRightButtons()),
+              ],
+            ),
           ),
 
           // Regenerate buttons (only shown in admin mode)
@@ -897,8 +902,8 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
     // Create a list of buttons to show
     final List<Widget> buttons = [];
 
-    // Add thumbs buttons if enabled
-    if (widget.showThumbsButtons) {
+    // Add admin rating buttons if enabled
+    if (widget.showAdminRatingButtons) {
       if (buttons.isNotEmpty) {
         buttons.add(const SizedBox(width: 8));
       }

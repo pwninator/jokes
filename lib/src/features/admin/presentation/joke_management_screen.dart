@@ -17,7 +17,7 @@ const MatchMode kAdminSearchMatchMode = MatchMode.loose;
 const bool kAdminJokeCardIsAdminMode = true;
 const bool kAdminJokeCardShowSaveButton = false;
 const bool kAdminJokeCardShowShareButton = false;
-const bool kAdminJokeCardShowThumbsButtons = true;
+const bool kAdminJokeCardShowAdminRatingButtons = true;
 const bool kAdminJokeCardShowNumSaves = true;
 const bool kAdminJokeCardShowNumShares = true;
 const String kAdminJokeCardContext = 'admin';
@@ -338,8 +338,8 @@ class _JokeManagementScreenState extends ConsumerState<JokeManagementScreen> {
                                   showSaveButton: kAdminJokeCardShowSaveButton,
                                   showShareButton:
                                       kAdminJokeCardShowShareButton,
-                                  showThumbsButtons:
-                                      kAdminJokeCardShowThumbsButtons,
+                                  showAdminRatingButtons:
+                                      kAdminJokeCardShowAdminRatingButtons,
                                   showNumSaves: kAdminJokeCardShowNumSaves,
                                   showNumShares: kAdminJokeCardShowNumShares,
                                   jokeContext: kAdminJokeCardContext,

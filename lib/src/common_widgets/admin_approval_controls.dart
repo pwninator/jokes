@@ -4,24 +4,28 @@ import 'package:snickerdoodle/src/features/jokes/application/admin_review_servic
 import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_admin_rating.dart';
 
+const IconData kApprovedIcon = Icons.check;
+const IconData kRejectedIcon = Icons.close;
+const IconData kUnreviewedIcon = Icons.help;
+
 /// Non-interactive icon for non-mutable states
-Widget _staticIconForRating(JokeAdminRating rating, {double size = 24.0}) {
+Widget _staticIconForRating(JokeAdminRating rating, {required double size}) {
   switch (rating) {
     case JokeAdminRating.approved:
       return Icon(
-        Icons.thumb_up_outlined,
+        kApprovedIcon,
         size: size,
         color: Colors.green.withValues(alpha: 0.7),
       );
     case JokeAdminRating.rejected:
       return Icon(
-        Icons.thumb_down_outlined,
+        kRejectedIcon,
         size: size,
         color: Colors.red.withValues(alpha: 0.7),
       );
     case JokeAdminRating.unreviewed:
       return Icon(
-        Icons.help,
+        kUnreviewedIcon,
         size: size,
         color: Colors.red, // solid 100% alpha
       );
@@ -58,10 +62,10 @@ class AdminApprovalControls extends ConsumerWidget {
         return Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            _buildThumbButton(
+            _buildAdminRatingButton(
               context: context,
               ref: ref,
-              icon: Icons.thumb_up,
+              icon: kApprovedIcon,
               isActive: rating == JokeAdminRating.approved,
               onTap: () async {
                 final service = ref.read(adminReviewServiceProvider);
@@ -69,10 +73,10 @@ class AdminApprovalControls extends ConsumerWidget {
               },
             ),
             const SizedBox(width: 8),
-            _buildThumbButton(
+            _buildAdminRatingButton(
               context: context,
               ref: ref,
-              icon: Icons.thumb_down,
+              icon: kRejectedIcon,
               isActive: rating == JokeAdminRating.rejected,
               onTap: () async {
                 final service = ref.read(adminReviewServiceProvider);
@@ -93,15 +97,15 @@ class AdminApprovalControls extends ConsumerWidget {
       error: (error, stack) => Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _buildErrorButton(Icons.thumb_up),
+          _buildErrorButton(kApprovedIcon),
           const SizedBox(width: 8),
-          _buildErrorButton(Icons.thumb_down),
+          _buildErrorButton(kRejectedIcon),
         ],
       ),
     );
   }
 
-  Widget _buildThumbButton({
+  Widget _buildAdminRatingButton({
     required BuildContext context,
     required WidgetRef ref,
     required IconData icon,
@@ -109,45 +113,41 @@ class AdminApprovalControls extends ConsumerWidget {
     required VoidCallback onTap,
   }) {
     final color = isActive
-        ? (icon == Icons.thumb_up ? Colors.green : Colors.red)
+        ? (icon == kApprovedIcon ? Colors.green : Colors.red)
         : Colors.grey.shade600;
 
     return GestureDetector(
       onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        width: size + 16,
-        height: size + 16,
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: isActive ? color.withValues(alpha: 0.4) : Colors.transparent,
+          border: Border.all(color: color, width: 1.0),
+          shape: BoxShape.circle,
+        ),
         child: Center(
-          child: Icon(icon, size: size, color: color),
+          child: Icon(icon, size: size * 0.7, color: color),
         ),
       ),
     );
   }
 
   Widget _buildLoadingButton() {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 200),
-      width: size + 16,
-      height: size + 16,
-      child: Center(
-        child: SizedBox(
-          width: size * 0.7,
-          height: size * 0.7,
-          child: CircularProgressIndicator(
-            strokeWidth: 2,
-            color: Colors.grey.shade600,
-          ),
-        ),
+    return SizedBox(
+      width: size,
+      height: size,
+      child: CircularProgressIndicator(
+        strokeWidth: 2,
+        color: Colors.grey.shade600,
       ),
     );
   }
 
   Widget _buildErrorButton(IconData icon) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 200),
-      width: size + 16,
-      height: size + 16,
+    return SizedBox(
+      width: size,
+      height: size,
       child: Center(
         child: Icon(icon, size: size, color: Colors.grey.shade600),
       ),

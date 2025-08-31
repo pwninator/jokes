@@ -1,16 +1,15 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
-import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_admin_rating.dart';
 
-/// AdminReviewService (replaces JokeAdminThumbsService)
 final adminReviewServiceProvider = Provider<AdminReviewService>((ref) {
   final jokeRepository = ref.watch(jokeRepositoryProvider);
   return AdminReviewService(jokeRepository: jokeRepository);
 });
 
-/// Central service for admin rating logic (no legacy num_thumbs_* usage)
+/// Central service for admin rating logic
 class AdminReviewService {
   final JokeRepository _jokeRepository;
 

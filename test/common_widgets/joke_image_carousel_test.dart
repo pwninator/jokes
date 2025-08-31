@@ -624,7 +624,7 @@ void mainCountsAndButtonsSuite() {
         const widget = JokeImageCarousel(
           joke: joke,
           showSaveButton: true,
-          showThumbsButtons: false,
+          showAdminRatingButtons: false,
           jokeContext: 'test',
         );
 
@@ -652,7 +652,7 @@ void mainCountsAndButtonsSuite() {
         const widget = JokeImageCarousel(
           joke: joke,
           showSaveButton: false,
-          showThumbsButtons: false,
+          showAdminRatingButtons: false,
           jokeContext: 'test',
         );
 
@@ -680,7 +680,7 @@ void mainCountsAndButtonsSuite() {
         const widget = JokeImageCarousel(
           joke: joke,
           showSaveButton: false,
-          showThumbsButtons: true,
+          showAdminRatingButtons: true,
           jokeContext: 'test',
         );
 
@@ -708,7 +708,7 @@ void mainCountsAndButtonsSuite() {
         const widget = JokeImageCarousel(
           joke: joke,
           showSaveButton: true,
-          showThumbsButtons: false,
+          showAdminRatingButtons: false,
           jokeContext: 'test',
         );
 
@@ -736,7 +736,7 @@ void mainCountsAndButtonsSuite() {
           const widget = JokeImageCarousel(
             joke: joke,
             showSaveButton: true,
-            showThumbsButtons: true,
+            showAdminRatingButtons: true,
             jokeContext: 'test',
           );
 
@@ -838,7 +838,7 @@ void mainCountsAndButtonsSuite() {
           joke: joke,
           showSaveButton: true,
           showShareButton: true,
-          showThumbsButtons: true,
+          showAdminRatingButtons: true,
           jokeContext: 'test',
         );
 

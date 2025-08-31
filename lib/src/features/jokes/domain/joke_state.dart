@@ -5,6 +5,7 @@ enum JokeState {
   unreviewed('UNREVIEWED'),
   approved('APPROVED'),
   rejected('REJECTED'),
+  daily('DAILY'),
   published('PUBLISHED');
 
   const JokeState(this.value);

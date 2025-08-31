@@ -273,7 +273,7 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
                       jokesToPreload: jokesToPreload,
                       showSaveButton: true,
                       showShareButton: true,
-                      showThumbsButtons: false,
+                      showAdminRatingButtons: false,
                       jokeContext: widget.jokeContext,
                       controller: controller,
                     ),

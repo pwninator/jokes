@@ -58,12 +58,11 @@ abstract class AnalyticsService {
     required int totalJokesSaved,
   });
 
-  /// Log joke share events (when user shares a joke)
-  Future<void> logJokeShared(
+  /// Log successful joke share events
+  Future<void> logJokeShareSuccess(
     String jokeId, {
     required String jokeContext,
     String? shareMethod,
-    bool? shareSuccess,
     required int totalJokesShared,
   });
 
@@ -79,7 +78,6 @@ abstract class AnalyticsService {
     String jokeId, {
     required String jokeContext,
     required String shareMethod,
-    String? status,
   });
 
   /// Share funnel: error occurred during sharing
@@ -360,20 +358,18 @@ class FirebaseAnalyticsService implements AnalyticsService {
   }
 
   @override
-  Future<void> logJokeShared(
+  Future<void> logJokeShareSuccess(
     String jokeId, {
     required String jokeContext,
     String? shareMethod,
-    bool? shareSuccess,
     required int totalJokesShared,
   }) async {
-    await _logEvent(AnalyticsEvent.jokeShared, {
+    await _logEvent(AnalyticsEvent.jokeShareSuccess, {
       AnalyticsParameters.jokeId: jokeId,
       AnalyticsParameters.jokeContext: jokeContext,
       AnalyticsParameters.userType: _getUserType(_currentUser),
       AnalyticsParameters.totalJokesShared: totalJokesShared,
       if (shareMethod != null) AnalyticsParameters.shareMethod: shareMethod,
-      if (shareSuccess != null) AnalyticsParameters.shareSuccess: shareSuccess,
     });
   }
 
@@ -383,11 +379,10 @@ class FirebaseAnalyticsService implements AnalyticsService {
     required String jokeContext,
     required String shareMethod,
   }) async {
-    await _logEvent(AnalyticsEvent.jokeShared, {
+    await _logEvent(AnalyticsEvent.jokeShareInitiated, {
       AnalyticsParameters.jokeId: jokeId,
       AnalyticsParameters.jokeContext: jokeContext,
       AnalyticsParameters.shareMethod: shareMethod,
-      AnalyticsParameters.status: 'initiated',
       AnalyticsParameters.userType: _getUserType(_currentUser),
     });
   }
@@ -397,13 +392,11 @@ class FirebaseAnalyticsService implements AnalyticsService {
     String jokeId, {
     required String jokeContext,
     required String shareMethod,
-    String? status,
   }) async {
     await _logEvent(AnalyticsEvent.jokeShareCanceled, {
       AnalyticsParameters.jokeId: jokeId,
       AnalyticsParameters.jokeContext: jokeContext,
       AnalyticsParameters.shareMethod: shareMethod,
-      if (status != null) AnalyticsParameters.status: status,
       AnalyticsParameters.userType: _getUserType(_currentUser),
     });
   }

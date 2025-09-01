@@ -113,11 +113,10 @@ void main() {
           ),
         ).thenAnswer((_) async {});
         when(
-          () => mockAnalyticsService.logJokeShared(
+          () => mockAnalyticsService.logJokeShareSuccess(
             any(),
             jokeContext: any(named: 'jokeContext'),
             shareMethod: any(named: 'shareMethod'),
-            shareSuccess: any(named: 'shareSuccess'),
             totalJokesShared: any(named: 'totalJokesShared'),
           ),
         ).thenAnswer((_) async {});
@@ -146,11 +145,10 @@ void main() {
           ),
         ).called(1);
         verify(
-          () => mockAnalyticsService.logJokeShared(
+          () => mockAnalyticsService.logJokeShareSuccess(
             'test-joke-id',
             jokeContext: 'test-context',
             shareMethod: 'images',
-            shareSuccess: true,
             totalJokesShared: any(named: 'totalJokesShared'),
           ),
         ).called(1);
@@ -210,20 +208,10 @@ void main() {
           ),
         ).thenAnswer((_) async {});
         when(
-          () => mockAnalyticsService.logJokeShared(
-            any(),
-            jokeContext: any(named: 'jokeContext'),
-            shareMethod: any(named: 'shareMethod'),
-            shareSuccess: any(named: 'shareSuccess'),
-            totalJokesShared: any(named: 'totalJokesShared'),
-          ),
-        ).thenAnswer((_) async {});
-        when(
           () => mockAnalyticsService.logJokeShareCanceled(
             any(),
             jokeContext: any(named: 'jokeContext'),
             shareMethod: any(named: 'shareMethod'),
-            status: any(named: 'status'),
           ),
         ).thenAnswer((_) async {});
 
@@ -245,20 +233,10 @@ void main() {
           ),
         ).called(1);
         verify(
-          () => mockAnalyticsService.logJokeShared(
-            'test-joke-id',
-            jokeContext: 'test-context',
-            shareMethod: 'images',
-            shareSuccess: false,
-            totalJokesShared: any(named: 'totalJokesShared'),
-          ),
-        ).called(1);
-        verify(
           () => mockAnalyticsService.logJokeShareCanceled(
             'test-joke-id',
             jokeContext: 'test-context',
             shareMethod: 'images',
-            status: any(named: 'status'),
           ),
         ).called(1);
       },

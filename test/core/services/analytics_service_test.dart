@@ -421,7 +421,6 @@ void main() {
           'joke-id',
           jokeContext: 'ctx',
           shareMethod: 'images',
-          status: 'dismissed',
         );
         await analyticsService.logErrorJokeShare(
           'joke-id',

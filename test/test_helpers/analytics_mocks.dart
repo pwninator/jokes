@@ -102,11 +102,10 @@ class AnalyticsMocks {
     ).thenAnswer((_) async {});
 
     when(
-      () => mock.logJokeShared(
+      () => mock.logJokeShareSuccess(
         any(),
         jokeContext: any(named: 'jokeContext'),
         shareMethod: any(named: 'shareMethod'),
-        shareSuccess: any(named: 'shareSuccess'),
         totalJokesShared: any(named: 'totalJokesShared'),
       ),
     ).thenAnswer((_) async {});
@@ -125,7 +124,6 @@ class AnalyticsMocks {
         any(),
         jokeContext: any(named: 'jokeContext'),
         shareMethod: any(named: 'shareMethod'),
-        status: any(named: 'status'),
       ),
     ).thenAnswer((_) async {});
 

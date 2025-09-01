@@ -7,6 +7,14 @@ import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_serv
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
 
+/// Result of a share operation
+class ShareOperationResult {
+  final bool success;
+  final ShareResultStatus status;
+
+  const ShareOperationResult(this.success, this.status);
+}
+
 /// Abstract interface for platform sharing functionality
 abstract class PlatformShareService {
   Future<ShareResult> shareFiles(List<XFile> files, {String? subject});
@@ -59,13 +67,13 @@ class JokeShareServiceImpl implements JokeShareService {
       shareMethod: 'images',
     );
     // This can be expanded to use different strategies based on joke content
-    final shareSuccessful = await _shareJokeImages(
+    final shareResult = await _shareJokeImagesWithResult(
       joke,
       jokeContext: jokeContext,
     );
 
     // Only perform follow-up actions if user actually shared
-    if (shareSuccessful) {
+    if (shareResult.success) {
       // Save share reaction to SharedPreferences and increment count in Firestore
       await _reactionsService.addUserReaction(joke.id, JokeReactionType.share);
 
@@ -74,40 +82,30 @@ class JokeShareServiceImpl implements JokeShareService {
 
       // Log successful share analytics
       final totalShared = await _appUsageService.getNumSharedJokes();
-      await _analyticsService.logJokeShared(
+      await _analyticsService.logJokeShareSuccess(
         joke.id,
         jokeContext: jokeContext,
         shareMethod: 'images',
-        shareSuccess: true,
         totalJokesShared: totalShared,
       );
     } else {
-      // Log failed share attempt
-      final totalShared = await _appUsageService.getNumSharedJokes();
-      await _analyticsService.logJokeShared(
-        joke.id,
-        jokeContext: jokeContext,
-        shareMethod: 'images',
-        shareSuccess: false,
-        totalJokesShared: totalShared,
-      );
-      // Distinguish between canceled vs. error based on ShareResult
+      // Log cancellation or failure
       await _analyticsService.logJokeShareCanceled(
         joke.id,
         jokeContext: jokeContext,
         shareMethod: 'images',
-        status: 'canceled_or_failed',
       );
     }
 
-    return shareSuccessful;
+    return shareResult.success;
   }
 
-  Future<bool> _shareJokeImages(
+  Future<ShareOperationResult> _shareJokeImagesWithResult(
     Joke joke, {
     required String jokeContext,
   }) async {
     bool shareSuccessful = false;
+    ShareResultStatus shareStatus = ShareResultStatus.dismissed; // default
     try {
       // Check if joke has images
       final hasSetupImage =
@@ -148,6 +146,7 @@ class JokeShareServiceImpl implements JokeShareService {
 
       // Check if user actually shared (not dismissed)
       shareSuccessful = result.status == ShareResultStatus.success;
+      shareStatus = result.status;
     } catch (e) {
       debugPrint('Error sharing joke images: $e');
       // Log error-specific analytics
@@ -160,8 +159,9 @@ class JokeShareServiceImpl implements JokeShareService {
         exceptionType: e.runtimeType.toString(),
       );
       shareSuccessful = false;
+      shareStatus = ShareResultStatus.unavailable; // error state
     }
 
-    return shareSuccessful;
+    return ShareOperationResult(shareSuccessful, shareStatus);
   }
 }

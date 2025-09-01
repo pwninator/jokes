@@ -19,7 +19,7 @@ enum AnalyticsEvent {
   jokeUnsaved('joke_unsaved'),
 
   // Joke sharing events
-  jokeShared('joke_shared'),
+  jokeShareSuccess('joke_share_success'),
   // Share funnel flow events
   jokeShareInitiated('joke_share_initiated'),
   jokeShareCanceled('joke_share_canceled'),

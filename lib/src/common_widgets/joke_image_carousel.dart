@@ -861,7 +861,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
                       ),
                     )
                   else if (widget.joke.state == JokeState.published)
-                    // PUBLISHED: Half-width unpublish button and half-width publish button
+                    // PUBLISHED: Half-width unpublish button and half-width add-to-daily button
                     Expanded(
                       child: Row(
                         children: [
@@ -874,7 +874,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
                           ),
                           const SizedBox(width: 8.0),
                           Expanded(
-                            child: AdminPublishJokeButton(
+                            child: AdminAddToDailyScheduleButton(
                               jokeId: widget.joke.id,
                               theme: theme,
                               isLoading: isPopulating,
@@ -1067,7 +1067,12 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
       case JokeState.daily:
         if (widget.joke.publicTimestamp != null &&
             widget.joke.publicTimestamp!.isAfter(DateTime.now())) {
-          backgroundColor = const Color.fromARGB(255, 233, 109, 255).withValues(alpha: 0.8);
+          backgroundColor = const Color.fromARGB(
+            255,
+            233,
+            109,
+            255,
+          ).withValues(alpha: 0.8);
           borderColor = backgroundColor.withValues(alpha: 0.8);
           borderWidth = 2.0; // Thicker border for future daily jokes
         } else {

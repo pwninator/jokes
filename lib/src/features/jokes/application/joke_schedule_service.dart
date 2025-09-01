@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_schedule_batch.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
@@ -110,6 +111,134 @@ class JokeScheduleAutoFillService {
   /// Unpublish a joke by resetting it to APPROVED state and clearing public_timestamp
   Future<void> unpublishJoke(String jokeId) async {
     await _jokeRepository.resetJokesToApproved([jokeId], JokeState.published);
+  }
+
+  /// Add a joke to the next available date in the daily joke schedule
+  Future<void> addJokeToNextAvailableDailySchedule(String jokeId) async {
+    // 1. Get the joke to verify it's in PUBLISHED state
+    final joke = await _jokeRepository.getJokeByIdStream(jokeId).first;
+    if (joke == null) {
+      throw Exception('Joke with ID "$jokeId" not found');
+    }
+    if (joke.state != JokeState.published) {
+      throw Exception(
+        'Joke "$jokeId" must be in PUBLISHED state to add to daily schedule',
+      );
+    }
+
+    // 2. Load all batches for the daily schedule
+    final allBatches = await _scheduleRepository
+        .watchBatchesForSchedule(JokeConstants.defaultJokeScheduleId)
+        .first;
+
+    // 3. Check for duplicate joke across all batches (past and future)
+    for (final batch in allBatches) {
+      if (batch.jokes.values.any((j) => j.id == jokeId)) {
+        throw Exception(
+          'Joke "$jokeId" is already scheduled in batch ${batch.year}-${batch.month.toString().padLeft(2, '0')}',
+        );
+      }
+    }
+
+    // 4. Find next available date starting from today
+    final nextDate = await _findNextAvailableDate(allBatches);
+
+    // 5. Get or create batch for the target month
+    final targetBatch = await _getOrCreateBatchForDate(
+      allBatches,
+      nextDate,
+      JokeConstants.defaultJokeScheduleId,
+    );
+
+    // 6. Add joke to the batch
+    final dayKey = nextDate.day.toString().padLeft(2, '0');
+    targetBatch.jokes[dayKey] = joke;
+
+    // 7. Save the updated batch
+    await _scheduleRepository.updateBatch(targetBatch);
+
+    // 8. Update joke's public timestamp
+    tzdata.initializeTimeZones();
+    final la = _laLocation ?? tz.getLocation('America/Los_Angeles');
+    final laMidnight = tz.TZDateTime(
+      la,
+      nextDate.year,
+      nextDate.month,
+      nextDate.day,
+    );
+    await _jokeRepository.setJokesPublished({jokeId: laMidnight}, true);
+  }
+
+  /// Find the next available date starting from today
+  Future<DateTime> _findNextAvailableDate(
+    List<JokeScheduleBatch> allBatches,
+  ) async {
+    tzdata.initializeTimeZones();
+    final la = _laLocation ?? tz.getLocation('America/Los_Angeles');
+    final today = tz.TZDateTime.now(la);
+    final startDate = DateTime(today.year, today.month, today.day);
+
+    // Sort batches by date for sequential traversal
+    final sortedBatches = allBatches.toList()
+      ..sort((a, b) {
+        final aDate = DateTime(a.year, a.month);
+        final bDate = DateTime(b.year, b.month);
+        return aDate.compareTo(bDate);
+      });
+
+    // Traverse through sorted batches
+    for (final batch in sortedBatches) {
+      final batchDate = DateTime(batch.year, batch.month);
+
+      // Skip batches that are completely in the past
+      if (batchDate.isBefore(DateTime(startDate.year, startDate.month))) {
+        continue;
+      }
+
+      // Check each day in this batch
+      final daysInMonth = DateTime(batch.year, batch.month + 1, 0).day;
+      final startDay = (batch.year == startDate.year && batch.month == startDate.month)
+          ? startDate.day
+          : 1;
+
+      for (int day = startDay; day <= daysInMonth; day++) {
+        final dayKey = day.toString().padLeft(2, '0');
+        if (!batch.jokes.containsKey(dayKey)) {
+          return DateTime(batch.year, batch.month, day);
+        }
+      }
+    }
+
+    // If we get here, all existing batches are full
+    // Find the last batch and create a date in the next month
+    if (sortedBatches.isNotEmpty) {
+      final lastBatch = sortedBatches.last;
+      // Dart's DateTime constructor automatically handles month overflow
+      return DateTime(lastBatch.year, lastBatch.month + 1, 1);
+    }
+
+    // No batches exist, start with current month
+    return startDate;
+  }
+
+  /// Get existing batch for date or create new one
+  Future<JokeScheduleBatch> _getOrCreateBatchForDate(
+    List<JokeScheduleBatch> allBatches,
+    DateTime date,
+    String scheduleId,
+  ) async {
+    final existingBatch = allBatches.firstWhere(
+      (batch) => batch.year == date.year && batch.month == date.month,
+      orElse: () => JokeScheduleBatch(
+        id: JokeScheduleBatch.createBatchId(scheduleId, date.year, date.month),
+        scheduleId: scheduleId,
+        year: date.year,
+        month: date.month,
+        jokes: {},
+      ),
+    );
+
+    return existingBatch;
   }
 
   /// Auto-fill a month with jokes using the specified strategy

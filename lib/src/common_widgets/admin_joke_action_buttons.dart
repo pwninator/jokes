@@ -105,7 +105,7 @@ class AdminEditJokeButton extends ConsumerWidget {
       },
       isLoading: isLoading,
       theme: theme,
-      color: Colors.blue,
+      color: theme.colorScheme.secondary,
     );
   }
 }
@@ -146,7 +146,7 @@ class AdminRegenerateImagesButton extends ConsumerWidget {
       },
       isLoading: isLoading,
       theme: theme,
-      color: Colors.cyan,
+      color: theme.colorScheme.secondary,
     );
   }
 }
@@ -211,6 +211,38 @@ class AdminUnpublishJokeButton extends ConsumerWidget {
       isLoading: isLoading,
       theme: theme,
       color: Colors.orange,
+    );
+  }
+}
+
+class AdminAddToDailyScheduleButton extends ConsumerWidget {
+  final String jokeId;
+  final ThemeData theme;
+  final bool isLoading;
+
+  const AdminAddToDailyScheduleButton({
+    super.key,
+    required this.jokeId,
+    required this.theme,
+    required this.isLoading,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return HoldableButton(
+      key: const Key('add-to-daily-schedule-button'),
+      icon: Icons.calendar_month,
+      holdCompleteIcon: Icons.check_circle,
+      onTap: () {
+        // No-op on tap
+      },
+      onHoldComplete: () async {
+        final scheduleService = ref.read(jokeScheduleAutoFillServiceProvider);
+        await scheduleService.addJokeToNextAvailableDailySchedule(jokeId);
+      },
+      isLoading: isLoading,
+      theme: theme,
+      color: Colors.purple,
     );
   }
 }

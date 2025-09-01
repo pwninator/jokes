@@ -65,7 +65,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     ref
         .read(searchQueryProvider(SearchScope.userJokeSearch).notifier)
         .state = current.copyWith(
-      query: query,
+      query: "jokes about $query",
       maxResults: 50,
       publicOnly: true,
       matchMode: MatchMode.tight,

@@ -54,7 +54,7 @@ void main() {
       searchQueryProvider(SearchScope.jokeManagementSearch),
     );
 
-    expect(params.query, 'cats');
+    expect(params.query, 'jokes about cats');
     expect(params.maxResults, 50);
     expect(params.publicOnly, isFalse);
     expect(params.matchMode, MatchMode.loose);

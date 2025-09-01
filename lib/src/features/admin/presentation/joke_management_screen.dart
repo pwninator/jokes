@@ -240,7 +240,7 @@ class _JokeManagementScreenState extends ConsumerState<JokeManagementScreen> {
                               ).notifier,
                             )
                             .state = SearchQuery(
-                          query: query,
+                          query: "jokes about $query",
                           maxResults: kAdminSearchMaxResults,
                           publicOnly: kAdminSearchPublicOnly,
                           matchMode: kAdminSearchMatchMode,

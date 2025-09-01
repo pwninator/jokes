@@ -107,6 +107,11 @@ class JokeScheduleAutoFillService {
     await _jokeRepository.setJokesPublished({jokeId: startOfToday}, false);
   }
 
+  /// Unpublish a joke by resetting it to APPROVED state and clearing public_timestamp
+  Future<void> unpublishJoke(String jokeId) async {
+    await _jokeRepository.resetJokesToApproved([jokeId], JokeState.published);
+  }
+
   /// Auto-fill a month with jokes using the specified strategy
   Future<AutoFillResult> autoFillMonth({
     required String scheduleId,

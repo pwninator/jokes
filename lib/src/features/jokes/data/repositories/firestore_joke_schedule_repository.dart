@@ -3,6 +3,7 @@ import 'package:snickerdoodle/src/features/jokes/data/models/joke_schedule.dart'
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_schedule_batch.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_schedule_repository.dart';
+import 'package:snickerdoodle/src/features/jokes/domain/joke_state.dart';
 import 'package:timezone/data/latest.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
 
@@ -112,7 +113,7 @@ class FirestoreJokeScheduleRepository implements JokeScheduleRepository {
     final jokeIds = batchModel.jokes.values.map((j) => j.id);
 
     // Reset jokes to APPROVED and clear public_timestamp, then delete the batch
-    await _jokeRepository.resetJokesToApproved(jokeIds);
+    await _jokeRepository.resetJokesToApproved(jokeIds, JokeState.daily);
     await _firestore.collection(_batchesCollection).doc(batchId).delete();
   }
 

@@ -836,10 +836,9 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
               ),
               child: Row(
                 children: [
-                  // Delete and Publish buttons (conditional based on joke state)
-                  if (widget.joke.state == JokeState.approved ||
-                      widget.joke.state == JokeState.published)
-                    // Half-width delete button and half-width publish button
+                  // Left buttons (conditional based on joke state)
+                  if (widget.joke.state == JokeState.approved)
+                    // APPROVED: Half-width delete button and half-width publish button
                     Expanded(
                       child: Row(
                         children: [
@@ -861,8 +860,31 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
                         ],
                       ),
                     )
+                  else if (widget.joke.state == JokeState.published)
+                    // PUBLISHED: Half-width unpublish button and half-width publish button
+                    Expanded(
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: AdminUnpublishJokeButton(
+                              jokeId: widget.joke.id,
+                              theme: theme,
+                              isLoading: isPopulating,
+                            ),
+                          ),
+                          const SizedBox(width: 8.0),
+                          Expanded(
+                            child: AdminPublishJokeButton(
+                              jokeId: widget.joke.id,
+                              theme: theme,
+                              isLoading: isPopulating,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
                   else
-                    // Full-width delete button
+                    // Other states: Full-width delete button
                     Expanded(
                       child: AdminDeleteJokeButton(
                         jokeId: widget.joke.id,

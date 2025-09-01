@@ -146,7 +146,7 @@ class AdminRegenerateImagesButton extends ConsumerWidget {
       },
       isLoading: isLoading,
       theme: theme,
-      color: Colors.amber,
+      color: Colors.cyan,
     );
   }
 }
@@ -167,7 +167,7 @@ class AdminPublishJokeButton extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return HoldableButton(
       key: const Key('publish-joke-button'),
-      icon: Icons.publish,
+      icon: Icons.public,
       holdCompleteIcon: Icons.check_circle,
       onTap: () {
         // No-op on tap
@@ -179,6 +179,38 @@ class AdminPublishJokeButton extends ConsumerWidget {
       isLoading: isLoading,
       theme: theme,
       color: Colors.green,
+    );
+  }
+}
+
+class AdminUnpublishJokeButton extends ConsumerWidget {
+  final String jokeId;
+  final ThemeData theme;
+  final bool isLoading;
+
+  const AdminUnpublishJokeButton({
+    super.key,
+    required this.jokeId,
+    required this.theme,
+    required this.isLoading,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return HoldableButton(
+      key: const Key('unpublish-joke-button'),
+      icon: Icons.public_off,
+      holdCompleteIcon: Icons.undo,
+      onTap: () {
+        // No-op on tap
+      },
+      onHoldComplete: () async {
+        final scheduleService = ref.read(jokeScheduleAutoFillServiceProvider);
+        await scheduleService.unpublishJoke(jokeId);
+      },
+      isLoading: isLoading,
+      theme: theme,
+      color: Colors.orange,
     );
   }
 }

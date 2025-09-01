@@ -25,6 +25,9 @@ void main() {
     // Register fallback values for mocktail
     registerFallbackValue(FakeJokeScheduleBatch());
     registerFallbackValue(FakeEligibilityContext());
+    registerFallbackValue(
+      JokeState.approved,
+    ); // Use actual enum value for fallback
   });
 
   group('JokeScheduleAutoFillService', () {
@@ -75,6 +78,14 @@ void main() {
       ).thenAnswer((_) => Stream.value(testJokes));
       when(
         () => mockJokeRepository.setJokesPublished(any(), any()),
+      ).thenAnswer((_) async {});
+      when(
+        () =>
+            mockJokeRepository.resetJokesToApproved(any(), JokeState.approved),
+      ).thenAnswer((_) async {});
+      when(
+        () =>
+            mockJokeRepository.resetJokesToApproved(any(), JokeState.published),
       ).thenAnswer((_) async {});
 
       when(
@@ -266,6 +277,37 @@ void main() {
         expect(result.success, isFalse);
         expect(result.error, contains('Auto-fill failed'));
         expect(result.strategyUsed, equals('approved'));
+      });
+    });
+
+    group('unpublishJoke', () {
+      test('should successfully unpublish a PUBLISHED joke', () async {
+        // arrange
+        const jokeId = 'published_joke';
+
+        // act
+        await service.unpublishJoke(jokeId);
+
+        // assert
+        verify(
+          () => mockJokeRepository.resetJokesToApproved([
+            jokeId,
+          ], JokeState.published),
+        ).called(1);
+      });
+
+      test('should handle repository errors gracefully', () async {
+        // arrange
+        const jokeId = 'published_joke';
+        when(
+          () => mockJokeRepository.resetJokesToApproved(
+            any(),
+            JokeState.published,
+          ),
+        ).thenThrow(Exception('Repository error'));
+
+        // act & assert
+        expect(() => service.unpublishJoke(jokeId), throwsA(isA<Exception>()));
       });
     });
 

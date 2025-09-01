@@ -172,7 +172,8 @@ class JokeRepository {
 
   /// Batch publish jokes
   Future<void> setJokesPublished(
-    Map<String, DateTime> jokeIdToPublicTimestamp, bool isDaily,
+    Map<String, DateTime> jokeIdToPublicTimestamp,
+    bool isDaily,
   ) async {
     if (jokeIdToPublicTimestamp.isEmpty) return;
     final batch = _firestore.batch();
@@ -187,17 +188,41 @@ class JokeRepository {
   }
 
   /// Batch reset jokes: set state=APPROVED and public_timestamp=null
-  Future<void> resetJokesToApproved(Iterable<String> jokeIds) async {
+  /// Validates that all jokes have the expected state before updating
+  Future<void> resetJokesToApproved(
+    Iterable<String> jokeIds,
+    JokeState expectedState,
+  ) async {
     final ids = jokeIds.toList();
     if (ids.isEmpty) return;
     final batch = _firestore.batch();
     for (final jokeId in ids) {
       final docRef = _firestore.collection('jokes').doc(jokeId);
+      final snapshot = await docRef.get();
+
+      if (!snapshot.exists || snapshot.data() == null) {
+        // Don't commit the batch since validation failed
+        throw Exception('Joke with ID $jokeId not found');
+      }
+
+      final data = snapshot.data()!;
+      final currentState = JokeState.fromString(data['state'] as String?);
+
+      if (currentState != expectedState) {
+        // Don't commit the batch since validation failed
+        throw Exception(
+          'Cannot reset joke $jokeId: current state is ${currentState?.value ?? 'unknown'}, expected ${expectedState.value}',
+        );
+      }
+
+      // Validation passed, add to batch
       batch.update(docRef, {
         'state': JokeState.approved.value,
         'public_timestamp': null,
       });
     }
+
+    // All validations passed, commit the batch
     await batch.commit();
   }
 }

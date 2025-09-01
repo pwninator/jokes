@@ -93,6 +93,20 @@ class JokeScheduleAutoFillService {
        _scheduleRepository = scheduleRepository,
        _laLocation = laLocation;
 
+  /// Publish a joke immediately with current date in Los Angeles time
+  Future<void> publishJokeImmediately(String jokeId) async {
+    // Ensure timezone database is initialized when used outside app startup
+    tzdata.initializeTimeZones();
+    final la = _laLocation ?? tz.getLocation('America/Los_Angeles');
+
+    // Get the start of today in LA time
+    final now = tz.TZDateTime.now(la);
+    final startOfToday = tz.TZDateTime(la, now.year, now.month, now.day);
+
+    // Publish the joke (not as a daily joke)
+    await _jokeRepository.setJokesPublished({jokeId: startOfToday}, false);
+  }
+
   /// Auto-fill a month with jokes using the specified strategy
   Future<AutoFillResult> autoFillMonth({
     required String scheduleId,

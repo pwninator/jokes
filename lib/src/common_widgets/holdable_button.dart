@@ -26,7 +26,7 @@ class HoldableButton extends StatefulWidget {
     this.isLoading = false,
     this.tooltip,
     this.holdCompleteIcon,
-    this.holdDuration = const Duration(seconds: 2),
+    this.holdDuration = const Duration(seconds: 3),
     this.color,
   });
 
@@ -190,9 +190,9 @@ class _HoldableButtonState extends State<HoldableButton>
     final baseColor =
         widget.color ?? widget.theme.colorScheme.tertiaryContainer;
     if (loading) {
-      return baseColor.withValues(alpha: 0.5);
+      return baseColor.withValues(alpha: 0.3);
     }
-    return baseColor.withValues(alpha: 0.8);
+    return baseColor.withValues(alpha: 0.6);
   }
 
   Color _getFillColor() {

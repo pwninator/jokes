@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:snickerdoodle/src/common_widgets/holdable_button.dart';
 import 'package:snickerdoodle/src/config/router/route_names.dart';
+import 'package:snickerdoodle/src/features/jokes/application/joke_schedule_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
 
@@ -10,14 +11,12 @@ class AdminPopulateJokeButton extends ConsumerWidget {
   final String jokeId;
   final ThemeData theme;
   final bool isLoading;
-  final Duration holdDuration;
 
   const AdminPopulateJokeButton({
     super.key,
     required this.jokeId,
     required this.theme,
     required this.isLoading,
-    this.holdDuration = const Duration(seconds: 3),
   });
 
   @override
@@ -37,7 +36,6 @@ class AdminPopulateJokeButton extends ConsumerWidget {
       isLoading: isLoading,
       theme: theme,
       color: theme.colorScheme.secondaryContainer,
-      holdDuration: holdDuration,
     );
   }
 }
@@ -71,7 +69,7 @@ class AdminDeleteJokeButton extends ConsumerWidget {
       },
       isLoading: isLoading,
       theme: theme,
-      color: theme.colorScheme.error,
+      color: Colors.red,
       holdDuration: holdDuration,
     );
   }
@@ -107,7 +105,7 @@ class AdminEditJokeButton extends ConsumerWidget {
       },
       isLoading: isLoading,
       theme: theme,
-      color: theme.colorScheme.tertiaryContainer,
+      color: Colors.blue,
     );
   }
 }
@@ -116,14 +114,12 @@ class AdminRegenerateImagesButton extends ConsumerWidget {
   final String jokeId;
   final ThemeData theme;
   final bool isLoading;
-  final Duration holdDuration;
 
   const AdminRegenerateImagesButton({
     super.key,
     required this.jokeId,
     required this.theme,
     required this.isLoading,
-    this.holdDuration = const Duration(seconds: 3),
   });
 
   @override
@@ -150,8 +146,39 @@ class AdminRegenerateImagesButton extends ConsumerWidget {
       },
       isLoading: isLoading,
       theme: theme,
-      color: theme.colorScheme.secondaryContainer,
-      holdDuration: holdDuration,
+      color: Colors.amber,
+    );
+  }
+}
+
+class AdminPublishJokeButton extends ConsumerWidget {
+  final String jokeId;
+  final ThemeData theme;
+  final bool isLoading;
+
+  const AdminPublishJokeButton({
+    super.key,
+    required this.jokeId,
+    required this.theme,
+    required this.isLoading,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return HoldableButton(
+      key: const Key('publish-joke-button'),
+      icon: Icons.publish,
+      holdCompleteIcon: Icons.check_circle,
+      onTap: () {
+        // No-op on tap
+      },
+      onHoldComplete: () async {
+        final scheduleService = ref.read(jokeScheduleAutoFillServiceProvider);
+        await scheduleService.publishJokeImmediately(jokeId);
+      },
+      isLoading: isLoading,
+      theme: theme,
+      color: Colors.green,
     );
   }
 }

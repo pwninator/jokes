@@ -6,7 +6,6 @@ import 'package:smooth_page_indicator/smooth_page_indicator.dart';
 import 'package:snickerdoodle/src/common_widgets/admin_approval_controls.dart';
 import 'package:snickerdoodle/src/common_widgets/admin_joke_action_buttons.dart';
 import 'package:snickerdoodle/src/common_widgets/cached_joke_image.dart';
-import 'package:snickerdoodle/src/common_widgets/holdable_button.dart';
 import 'package:snickerdoodle/src/common_widgets/save_joke_button.dart';
 import 'package:snickerdoodle/src/common_widgets/share_joke_button.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
@@ -406,19 +405,13 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
             padding: const EdgeInsets.only(bottom: 8),
             child: Text(
               'Tags: ${widget.joke.tags.join(", ")}',
-              style: const TextStyle(
-                fontFamily: 'monospace',
-                fontSize: 12,
-              ),
+              style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
             ),
           ),
         if (widget.joke.seasonal != null)
           Text(
             'Seasonal: ${widget.joke.seasonal}',
-            style: const TextStyle(
-              fontFamily: 'monospace',
-              fontSize: 12,
-            ),
+            style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
           ),
       ],
     );
@@ -833,7 +826,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
             ),
           ),
 
-          // Regenerate buttons (only shown in admin mode)
+          // Admin buttons (only shown in admin mode)
           if (widget.isAdminMode)
             Padding(
               padding: const EdgeInsets.only(
@@ -843,15 +836,40 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
               ),
               child: Row(
                 children: [
-                  // Hold to Delete button (leftmost)
-                  Expanded(
-                    child: AdminDeleteJokeButton(
-                      jokeId: widget.joke.id,
-                      theme: theme,
-                      isLoading: isPopulating,
-                      holdDuration: const Duration(seconds: 3),
+                  // Delete and Publish buttons (conditional based on joke state)
+                  if (widget.joke.state == JokeState.approved ||
+                      widget.joke.state == JokeState.published)
+                    // Half-width delete button and half-width publish button
+                    Expanded(
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: AdminDeleteJokeButton(
+                              jokeId: widget.joke.id,
+                              theme: theme,
+                              isLoading: isPopulating,
+                            ),
+                          ),
+                          const SizedBox(width: 8.0),
+                          Expanded(
+                            child: AdminPublishJokeButton(
+                              jokeId: widget.joke.id,
+                              theme: theme,
+                              isLoading: isPopulating,
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  else
+                    // Full-width delete button
+                    Expanded(
+                      child: AdminDeleteJokeButton(
+                        jokeId: widget.joke.id,
+                        theme: theme,
+                        isLoading: isPopulating,
+                      ),
                     ),
-                  ),
                   const SizedBox(width: 8.0),
                   // Hold to Regenerate Edit button (middle)
                   Expanded(
@@ -864,33 +882,10 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
                   const SizedBox(width: 8.0),
                   // Regenerate Images button (rightmost)
                   Expanded(
-                    child: HoldableButton(
-                      key: const Key('regenerate-images-button'),
-                      icon: Icons.image,
-                      holdCompleteIcon: Icons.hd,
-                      onTap: () async {
-                        final notifier = ref.read(
-                          jokePopulationProvider.notifier,
-                        );
-                        await notifier.populateJoke(
-                          widget.joke.id,
-                          imagesOnly: true,
-                          additionalParams: {"image_quality": "medium"},
-                        );
-                      },
-                      onHoldComplete: () async {
-                        final notifier = ref.read(
-                          jokePopulationProvider.notifier,
-                        );
-                        await notifier.populateJoke(
-                          widget.joke.id,
-                          imagesOnly: true,
-                          additionalParams: {"image_quality": "high"},
-                        );
-                      },
-                      isLoading: isPopulating,
+                    child: AdminRegenerateImagesButton(
+                      jokeId: widget.joke.id,
                       theme: theme,
-                      color: theme.colorScheme.secondaryContainer,
+                      isLoading: isPopulating,
                     ),
                   ),
                 ],
@@ -1006,10 +1001,12 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
   Widget _buildStateBadgeText(BuildContext context) {
     // Determine the display text for the badge
     String displayText;
-    if (widget.joke.state == JokeState.daily && widget.joke.publicTimestamp != null) {
+    if (widget.joke.state == JokeState.daily &&
+        widget.joke.publicTimestamp != null) {
       // For daily state, show the public timestamp in YYYY-MM-DD format
       final timestamp = widget.joke.publicTimestamp!;
-      displayText = '${timestamp.year}-${timestamp.month.toString().padLeft(2, '0')}-${timestamp.day.toString().padLeft(2, '0')}';
+      displayText =
+          '${timestamp.year}-${timestamp.month.toString().padLeft(2, '0')}-${timestamp.day.toString().padLeft(2, '0')}';
     } else {
       // For all other states, show the proper-case state name
       final stateStr = widget.joke.state?.value;
@@ -1022,6 +1019,10 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
 
     // Determine background color based on state
     Color backgroundColor;
+    Color borderColor = Theme.of(
+      context,
+    ).colorScheme.outline.withValues(alpha: 0.2);
+    double borderWidth = 1.0;
     switch (widget.joke.state) {
       case JokeState.unknown:
         backgroundColor = Colors.red.withValues(alpha: 1.0);
@@ -1042,7 +1043,14 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
         backgroundColor = Colors.blue.withValues(alpha: 0.3);
         break;
       case JokeState.daily:
-        backgroundColor = Colors.purple.withValues(alpha: 0.3);
+        if (widget.joke.publicTimestamp != null &&
+            widget.joke.publicTimestamp!.isAfter(DateTime.now())) {
+          backgroundColor = const Color.fromARGB(255, 233, 109, 255).withValues(alpha: 0.8);
+          borderColor = backgroundColor.withValues(alpha: 0.8);
+          borderWidth = 2.0; // Thicker border for future daily jokes
+        } else {
+          backgroundColor = Colors.purple.withValues(alpha: 0.3);
+        }
         break;
       default:
         backgroundColor = Theme.of(
@@ -1055,9 +1063,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
       decoration: BoxDecoration(
         color: backgroundColor,
         borderRadius: BorderRadius.circular(999),
-        border: Border.all(
-          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.2),
-        ),
+        border: Border.all(color: borderColor, width: borderWidth),
       ),
       child: Text(
         displayText,

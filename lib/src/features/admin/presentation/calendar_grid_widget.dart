@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/common_widgets/cached_joke_image.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_schedule_widgets.dart';
+import 'package:snickerdoodle/src/features/jokes/application/joke_schedule_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_schedule_batch.dart';
 
 class CalendarGridWidget extends ConsumerStatefulWidget {
@@ -37,6 +38,9 @@ class _CalendarGridWidgetState extends ConsumerState<CalendarGridWidget> {
     final cellPosition = cellRenderBox.localToGlobal(Offset.zero);
     final cellSize = cellRenderBox.size;
 
+    // Get the scheduleId from the ref
+    final scheduleId = ref.read(selectedScheduleProvider);
+
     _popupOverlay = OverlayEntry(
       builder: (context) => Material(
         color: Colors.transparent,
@@ -47,9 +51,7 @@ class _CalendarGridWidgetState extends ConsumerState<CalendarGridWidget> {
               child: GestureDetector(
                 onTap: _hidePopup,
                 behavior: HitTestBehavior.translucent,
-                child: Container(
-                  color: Colors.black.withValues(alpha: 0.5),
-                ),
+                child: Container(color: Colors.black.withValues(alpha: 0.5)),
               ),
             ),
             CalendarCellPopup(
@@ -58,6 +60,8 @@ class _CalendarGridWidgetState extends ConsumerState<CalendarGridWidget> {
               cellPosition: cellPosition,
               cellSize: cellSize,
               onClose: _hidePopup,
+              batch: widget.batch,
+              scheduleId: scheduleId,
             ),
           ],
         ),

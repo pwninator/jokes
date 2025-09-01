@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/common_widgets/cached_joke_image.dart';
+import 'package:snickerdoodle/src/common_widgets/holdable_button.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_schedule_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_schedule.dart';
+import 'package:snickerdoodle/src/features/jokes/data/models/joke_schedule_batch.dart';
 
 class CalendarCellPopup extends ConsumerWidget {
   final Joke joke;
@@ -11,6 +13,8 @@ class CalendarCellPopup extends ConsumerWidget {
   final Offset cellPosition;
   final Size cellSize;
   final VoidCallback onClose;
+  final JokeScheduleBatch? batch;
+  final String? scheduleId;
 
   const CalendarCellPopup({
     super.key,
@@ -19,13 +23,15 @@ class CalendarCellPopup extends ConsumerWidget {
     required this.cellPosition,
     required this.cellSize,
     required this.onClose,
+    this.batch,
+    this.scheduleId,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final screenSize = MediaQuery.of(context).size;
     const popupWidth = 320.0;
-    const popupHeight = 240.0;
+    const popupHeight = 350.0;
 
     // Calculate popup position - center horizontally on cell, position above
     double left = cellPosition.dx + (cellSize.width / 2) - (popupWidth / 2);
@@ -143,11 +149,68 @@ class CalendarCellPopup extends ConsumerWidget {
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
+
+              const SizedBox(height: 16),
+
+              // Delete button
+              if (batch != null && scheduleId != null)
+                Center(
+                  child: HoldableButton(
+                    theme: Theme.of(context),
+                    icon: Icons.delete_outline,
+                    color: Theme.of(context).colorScheme.errorContainer,
+                    isEnabled: true,
+                    onTap: () {
+                      // Quick tap - do nothing (require hold to delete)
+                    },
+                    onHoldComplete: () => _deleteJoke(context, ref),
+                    tooltip: "Hold to delete this day's joke",
+                    holdDuration: const Duration(seconds: 2),
+                  ),
+                ),
             ],
           ),
         ),
       ),
     );
+  }
+
+  Future<void> _deleteJoke(BuildContext context, WidgetRef ref) async {
+    if (batch == null || scheduleId == null) return;
+
+    try {
+      // Create a new batch with the joke removed
+      final updatedJokes = Map<String, Joke>.from(batch!.jokes);
+      updatedJokes.remove(dayLabel);
+
+      final updatedBatch = batch!.copyWith(jokes: updatedJokes);
+
+      // Update the batch in the repository
+      await ref.read(jokeScheduleRepositoryProvider).updateBatch(updatedBatch);
+
+      // Close the popup
+      onClose();
+
+      // Show success message
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Successfully removed joke for day $dayLabel'),
+            backgroundColor: Theme.of(context).colorScheme.primary,
+          ),
+        );
+      }
+    } catch (e) {
+      // Show error message
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to delete joke: $e'),
+            backgroundColor: Theme.of(context).colorScheme.error,
+          ),
+        );
+      }
+    }
   }
 }
 

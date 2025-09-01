@@ -1004,13 +1004,21 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
   }
 
   Widget _buildStateBadgeText(BuildContext context) {
-    // Proper-case the state string for the badge
-    final stateStr = widget.joke.state?.value;
-    if (stateStr == null || stateStr.isEmpty) {
-      return const SizedBox.shrink();
+    // Determine the display text for the badge
+    String displayText;
+    if (widget.joke.state == JokeState.daily && widget.joke.publicTimestamp != null) {
+      // For daily state, show the public timestamp in YYYY-MM-DD format
+      final timestamp = widget.joke.publicTimestamp!;
+      displayText = '${timestamp.year}-${timestamp.month.toString().padLeft(2, '0')}-${timestamp.day.toString().padLeft(2, '0')}';
+    } else {
+      // For all other states, show the proper-case state name
+      final stateStr = widget.joke.state?.value;
+      if (stateStr == null || stateStr.isEmpty) {
+        return const SizedBox.shrink();
+      }
+      final lower = stateStr.toLowerCase();
+      displayText = lower[0].toUpperCase() + lower.substring(1);
     }
-    final lower = stateStr.toLowerCase();
-    final stateProperCase = lower[0].toUpperCase() + lower.substring(1);
 
     // Determine background color based on state
     Color backgroundColor;
@@ -1052,7 +1060,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
         ),
       ),
       child: Text(
-        stateProperCase,
+        displayText,
         style: TextStyle(
           fontSize: 10,
           fontWeight: FontWeight.w600,

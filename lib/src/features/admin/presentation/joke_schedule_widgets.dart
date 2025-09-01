@@ -179,14 +179,10 @@ class CalendarCellPopup extends ConsumerWidget {
     if (batch == null || scheduleId == null) return;
 
     try {
-      // Create a new batch with the joke removed
-      final updatedJokes = Map<String, Joke>.from(batch!.jokes);
-      updatedJokes.remove(dayLabel);
-
-      final updatedBatch = batch!.copyWith(jokes: updatedJokes);
-
-      // Update the batch in the repository
-      await ref.read(jokeScheduleRepositoryProvider).updateBatch(updatedBatch);
+      // Use the service to properly remove the joke from the daily schedule
+      // This will update both the batch and the joke's state
+      final scheduleService = ref.read(jokeScheduleAutoFillServiceProvider);
+      await scheduleService.removeJokeFromDailySchedule(joke.id);
 
       // Close the popup
       onClose();

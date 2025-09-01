@@ -883,6 +883,23 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
                         ],
                       ),
                     )
+                  else if (widget.joke.state == JokeState.daily)
+                    // DAILY: Conditional button based on public_timestamp
+                    Expanded(
+                      child:
+                          widget.joke.publicTimestamp != null &&
+                              widget.joke.publicTimestamp!.isAfter(
+                                DateTime.now(),
+                              )
+                          ? // Future daily joke: remove from schedule button
+                            AdminRemoveFromDailyScheduleButton(
+                              jokeId: widget.joke.id,
+                              theme: theme,
+                              isLoading: isPopulating,
+                            )
+                          : // Past daily joke: empty space (no button)
+                            const SizedBox(),
+                    )
                   else
                     // Other states: Full-width delete button
                     Expanded(

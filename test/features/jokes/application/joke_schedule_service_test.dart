@@ -93,6 +93,9 @@ void main() {
         () =>
             mockJokeRepository.resetJokesToApproved(any(), JokeState.published),
       ).thenAnswer((_) async {});
+      when(
+        () => mockJokeRepository.resetJokesToApproved(any(), JokeState.daily),
+      ).thenAnswer((_) async {});
 
       when(
         () => mockScheduleRepository.watchBatchesForSchedule(any()),
@@ -284,6 +287,218 @@ void main() {
         expect(result.error, contains('Auto-fill failed'));
         expect(result.strategyUsed, equals('approved'));
       });
+
+      test(
+        'should overwrite existing jokes when replaceExisting is true',
+        () async {
+          // arrange
+          const strategy = ApprovedStrategy();
+          const scheduleId = 'test_schedule';
+          final monthDate = DateTime(2024, 4); // 30 days
+
+          // Existing batch with a joke on day 1
+          final existingBatch = JokeScheduleBatch(
+            id: 'test_schedule_2024_04',
+            scheduleId: scheduleId,
+            year: 2024,
+            month: 4,
+            jokes: {
+              '01': const Joke(
+                id: 'existing_joke_day1',
+                setupText: 'Setup',
+                punchlineText: 'Punchline',
+                numThumbsUp: 1,
+                numThumbsDown: 0,
+                state: JokeState.daily,
+              ),
+            },
+          );
+
+          when(
+            () => mockScheduleRepository.watchBatchesForSchedule(scheduleId),
+          ).thenAnswer((_) => Stream.value([existingBatch]));
+
+          when(
+            () => mockScheduleRepository.updateBatch(any()),
+          ).thenAnswer((_) async {});
+
+          // act
+          final result = await service.autoFillMonth(
+            scheduleId: scheduleId,
+            monthDate: monthDate,
+            strategy: strategy,
+            replaceExisting: true,
+          );
+
+          // assert
+          expect(result.success, isTrue);
+          final savedBatch =
+              verify(
+                    () => mockScheduleRepository.updateBatch(captureAny()),
+                  ).captured.first
+                  as JokeScheduleBatch;
+          // Day 1 should be replaced when replaceExisting is true
+          expect(savedBatch.jokes.containsKey('01'), isTrue);
+          expect(savedBatch.jokes['01']!.id, isNot('existing_joke_day1'));
+        },
+      );
+
+      test('should error when strategy yields non-approved jokes', () async {
+        // arrange
+        final mockStrategy = MockEligibilityStrategy();
+        when(() => mockStrategy.name).thenReturn('test_strategy');
+        when(() => mockStrategy.description).thenReturn('Test Strategy');
+        final rejectedJoke = const Joke(
+          id: 'rejected_joke',
+          setupText: 's',
+          punchlineText: 'p',
+          numThumbsUp: 0,
+          numThumbsDown: 1,
+          state: JokeState.rejected,
+        );
+        when(
+          () => mockStrategy.getEligibleJokes(any(), any()),
+        ).thenAnswer((_) async => [rejectedJoke]);
+
+        const scheduleId = 'test_schedule';
+        final monthDate = DateTime(2024, 3);
+
+        // act
+        final result = await service.autoFillMonth(
+          scheduleId: scheduleId,
+          monthDate: monthDate,
+          strategy: mockStrategy,
+        );
+
+        // assert
+        expect(result.success, isFalse);
+        expect(result.error, contains('must be APPROVED'));
+        expect(result.strategyUsed, equals('test_strategy'));
+      });
+
+      test('should publish scheduled jokes at LA midnight', () async {
+        // arrange
+        const strategy = ApprovedStrategy();
+        const scheduleId = 'test_schedule';
+        final monthDate = DateTime(2024, 3);
+
+        when(
+          () => mockScheduleRepository.updateBatch(any()),
+        ).thenAnswer((_) async {});
+
+        // act
+        await service.autoFillMonth(
+          scheduleId: scheduleId,
+          monthDate: monthDate,
+          strategy: strategy,
+        );
+
+        // assert
+        final capturedPublishMap =
+            verify(
+                  () =>
+                      mockJokeRepository.setJokesPublished(captureAny(), true),
+                ).captured.first
+                as Map<String, DateTime>;
+        expect(capturedPublishMap, isNotEmpty);
+        for (final date in capturedPublishMap.values) {
+          expect(date.hour, equals(0));
+          expect(date.minute, equals(0));
+          expect(date.second, equals(0));
+          expect(date.timeZoneName, anyOf(equals('PST'), equals('PDT')));
+        }
+      });
+
+      test('should cap published jokes to number of days in month', () async {
+        // arrange
+        const strategy = ApprovedStrategy();
+        const scheduleId = 'test_schedule';
+        final monthDate = DateTime(2024, 4); // 30 days
+
+        // Provide many approved jokes
+        final manyJokes = List<Joke>.generate(50, (i) {
+          return Joke(
+            id: 'j$i',
+            setupText: 's',
+            punchlineText: 'p',
+            numThumbsUp: 1,
+            numThumbsDown: 0,
+            state: JokeState.approved,
+          );
+        });
+
+        when(
+          () => mockJokeRepository.getJokes(),
+        ).thenAnswer((_) => Stream.value(manyJokes));
+        when(
+          () => mockScheduleRepository.updateBatch(any()),
+        ).thenAnswer((_) async {});
+
+        // act
+        final result = await service.autoFillMonth(
+          scheduleId: scheduleId,
+          monthDate: monthDate,
+          strategy: strategy,
+        );
+
+        // assert
+        expect(result.success, isTrue);
+        expect(result.jokesFilled, equals(30));
+        expect(result.totalDays, equals(30));
+      });
+
+      test(
+        'should include existing jokes in publish map when preserving existing',
+        () async {
+          // arrange
+          const strategy = ApprovedStrategy();
+          const scheduleId = 'test_schedule';
+          final monthDate = DateTime(2024, 2);
+
+          final existing = const Joke(
+            id: 'existing_day1',
+            setupText: 'Setup',
+            punchlineText: 'Punchline',
+            numThumbsUp: 1,
+            numThumbsDown: 0,
+            state: JokeState.daily,
+          );
+
+          final existingBatch = JokeScheduleBatch(
+            id: 'test_schedule_2024_02',
+            scheduleId: scheduleId,
+            year: 2024,
+            month: 2,
+            jokes: {'01': existing},
+          );
+
+          when(
+            () => mockScheduleRepository.watchBatchesForSchedule(scheduleId),
+          ).thenAnswer((_) => Stream.value([existingBatch]));
+          when(
+            () => mockScheduleRepository.updateBatch(any()),
+          ).thenAnswer((_) async {});
+
+          // act
+          await service.autoFillMonth(
+            scheduleId: scheduleId,
+            monthDate: monthDate,
+            strategy: strategy,
+            replaceExisting: false,
+          );
+
+          // assert
+          final capturedPublishMap =
+              verify(
+                    () => mockJokeRepository.setJokesPublished(
+                      captureAny(),
+                      true,
+                    ),
+                  ).captured.first
+                  as Map<String, DateTime>;
+          expect(capturedPublishMap.containsKey('existing_day1'), isTrue);
+        },
+      );
     });
 
     group('unpublishJoke', () {
@@ -344,67 +559,90 @@ void main() {
         );
 
         // Setup default mock for published joke
-        when(() => mockJokeRepository.getJokeByIdStream('published_joke'))
-            .thenAnswer((_) => Stream.value(publishedJoke));
+        when(
+          () => mockJokeRepository.getJokeByIdStream('published_joke'),
+        ).thenAnswer((_) => Stream.value(publishedJoke));
 
         // Setup default mock for non-published joke
-        when(() => mockJokeRepository.getJokeByIdStream('draft_joke'))
-            .thenAnswer((_) => Stream.value(nonPublishedJoke));
+        when(
+          () => mockJokeRepository.getJokeByIdStream('draft_joke'),
+        ).thenAnswer((_) => Stream.value(nonPublishedJoke));
 
         // Setup default empty batches for daily schedule
-        when(() => mockScheduleRepository.watchBatchesForSchedule(JokeConstants.defaultJokeScheduleId))
-            .thenAnswer((_) => Stream.value([]));
+        when(
+          () => mockScheduleRepository.watchBatchesForSchedule(
+            JokeConstants.defaultJokeScheduleId,
+          ),
+        ).thenAnswer((_) => Stream.value([]));
 
         // Setup batch update mock
-        when(() => mockScheduleRepository.updateBatch(any()))
-            .thenAnswer((_) async {});
+        when(
+          () => mockScheduleRepository.updateBatch(any()),
+        ).thenAnswer((_) async {});
       });
 
-      test('should successfully add a PUBLISHED joke to next available date', () async {
-        // arrange
-        const jokeId = 'published_joke';
+      test(
+        'should successfully add a PUBLISHED joke to next available date',
+        () async {
+          // arrange
+          const jokeId = 'published_joke';
 
-        // act
-        await service.addJokeToNextAvailableDailySchedule(jokeId);
+          // act
+          await service.addJokeToNextAvailableDailySchedule(jokeId);
 
-        // assert
-        verify(() => mockJokeRepository.getJokeByIdStream(jokeId)).called(1);
-        verify(() => mockScheduleRepository.watchBatchesForSchedule(JokeConstants.defaultJokeScheduleId)).called(1);
-        verify(() => mockScheduleRepository.updateBatch(any())).called(1);
-        verify(() => mockJokeRepository.setJokesPublished(any(), true)).called(1);
-      });
+          // assert
+          verify(() => mockJokeRepository.getJokeByIdStream(jokeId)).called(1);
+          verify(
+            () => mockScheduleRepository.watchBatchesForSchedule(
+              JokeConstants.defaultJokeScheduleId,
+            ),
+          ).called(1);
+          verify(() => mockScheduleRepository.updateBatch(any())).called(1);
+          verify(
+            () => mockJokeRepository.setJokesPublished(any(), true),
+          ).called(1);
+        },
+      );
 
       test('should throw exception when joke is not found', () async {
         // arrange
         const jokeId = 'nonexistent_joke';
-        when(() => mockJokeRepository.getJokeByIdStream(jokeId))
-            .thenAnswer((_) => Stream.value(null));
+        when(
+          () => mockJokeRepository.getJokeByIdStream(jokeId),
+        ).thenAnswer((_) => Stream.value(null));
 
         // act & assert
         expect(
           () => service.addJokeToNextAvailableDailySchedule(jokeId),
-          throwsA(isA<Exception>().having(
-            (e) => e.toString(),
-            'message',
-            contains('Joke with ID "nonexistent_joke" not found'),
-          )),
+          throwsA(
+            isA<Exception>().having(
+              (e) => e.toString(),
+              'message',
+              contains('Joke with ID "nonexistent_joke" not found'),
+            ),
+          ),
         );
       });
 
-      test('should throw exception when joke is not in PUBLISHED state', () async {
-        // arrange
-        const jokeId = 'draft_joke';
+      test(
+        'should throw exception when joke is not in PUBLISHED state',
+        () async {
+          // arrange
+          const jokeId = 'draft_joke';
 
-        // act & assert
-        expect(
-          () => service.addJokeToNextAvailableDailySchedule(jokeId),
-          throwsA(isA<Exception>().having(
-            (e) => e.toString(),
-            'message',
-            contains('must be in PUBLISHED state'),
-          )),
-        );
-      });
+          // act & assert
+          expect(
+            () => service.addJokeToNextAvailableDailySchedule(jokeId),
+            throwsA(
+              isA<Exception>().having(
+                (e) => e.toString(),
+                'message',
+                contains('must be in PUBLISHED state'),
+              ),
+            ),
+          );
+        },
+      );
 
       test('should throw exception when joke is already scheduled', () async {
         // arrange
@@ -419,17 +657,22 @@ void main() {
           },
         );
 
-        when(() => mockScheduleRepository.watchBatchesForSchedule(JokeConstants.defaultJokeScheduleId))
-            .thenAnswer((_) => Stream.value([existingBatch]));
+        when(
+          () => mockScheduleRepository.watchBatchesForSchedule(
+            JokeConstants.defaultJokeScheduleId,
+          ),
+        ).thenAnswer((_) => Stream.value([existingBatch]));
 
         // act & assert
         expect(
           () => service.addJokeToNextAvailableDailySchedule(jokeId),
-          throwsA(isA<Exception>().having(
-            (e) => e.toString(),
-            'message',
-            contains('already scheduled in batch 2024-01'),
-          )),
+          throwsA(
+            isA<Exception>().having(
+              (e) => e.toString(),
+              'message',
+              contains('already scheduled in batch 2024-01'),
+            ),
+          ),
         );
       });
 
@@ -458,154 +701,204 @@ void main() {
           },
         );
 
-        when(() => mockScheduleRepository.watchBatchesForSchedule(JokeConstants.defaultJokeScheduleId))
-            .thenAnswer((_) => Stream.value([existingBatch]));
+        when(
+          () => mockScheduleRepository.watchBatchesForSchedule(
+            JokeConstants.defaultJokeScheduleId,
+          ),
+        ).thenAnswer((_) => Stream.value([existingBatch]));
 
         // act
         await service.addJokeToNextAvailableDailySchedule(jokeId);
 
         // assert
-        final capturedBatch = verify(() => mockScheduleRepository.updateBatch(captureAny()))
-            .captured.first as JokeScheduleBatch;
+        final capturedBatch =
+            verify(
+                  () => mockScheduleRepository.updateBatch(captureAny()),
+                ).captured.first
+                as JokeScheduleBatch;
 
         // Should add joke to today or next available date
         final todayKey = currentDate.day.toString().padLeft(2, '0');
         expect(capturedBatch.jokes[todayKey]?.id, equals(jokeId));
       });
 
-      test('should create new batch for next month when current month is full', () async {
-        // arrange
-        const jokeId = 'published_joke';
+      test(
+        'should create new batch for next month when current month is full',
+        () async {
+          // arrange
+          const jokeId = 'published_joke';
 
-        // Create a batch for current month that is completely full
-        final currentDate = DateTime.now();
-        final daysInMonth = DateTime(currentDate.year, currentDate.month + 1, 0).day;
+          // Create a batch for current month that is completely full
+          final currentDate = DateTime.now();
+          final daysInMonth = DateTime(
+            currentDate.year,
+            currentDate.month + 1,
+            0,
+          ).day;
 
-        final fullBatch = JokeScheduleBatch(
-          id: 'daily_jokes_${currentDate.year}_${currentDate.month.toString().padLeft(2, '0')}',
-          scheduleId: JokeConstants.defaultJokeScheduleId,
-          year: currentDate.year,
-          month: currentDate.month,
-          jokes: {
-            // Fill all days of the month
-            for (int day = 1; day <= daysInMonth; day++)
-              day.toString().padLeft(2, '0'): Joke(
-                id: 'existing_joke_$day',
-                setupText: 'Setup',
-                punchlineText: 'Punchline',
-                numThumbsUp: 1,
-                numThumbsDown: 0,
-                state: JokeState.daily,
-              ),
-          },
-        );
+          final fullBatch = JokeScheduleBatch(
+            id: 'daily_jokes_${currentDate.year}_${currentDate.month.toString().padLeft(2, '0')}',
+            scheduleId: JokeConstants.defaultJokeScheduleId,
+            year: currentDate.year,
+            month: currentDate.month,
+            jokes: {
+              // Fill all days of the month
+              for (int day = 1; day <= daysInMonth; day++)
+                day.toString().padLeft(2, '0'): Joke(
+                  id: 'existing_joke_$day',
+                  setupText: 'Setup',
+                  punchlineText: 'Punchline',
+                  numThumbsUp: 1,
+                  numThumbsDown: 0,
+                  state: JokeState.daily,
+                ),
+            },
+          );
 
-        when(() => mockScheduleRepository.watchBatchesForSchedule(JokeConstants.defaultJokeScheduleId))
-            .thenAnswer((_) => Stream.value([fullBatch]));
+          when(
+            () => mockScheduleRepository.watchBatchesForSchedule(
+              JokeConstants.defaultJokeScheduleId,
+            ),
+          ).thenAnswer((_) => Stream.value([fullBatch]));
 
-        // act
-        await service.addJokeToNextAvailableDailySchedule(jokeId);
+          // act
+          await service.addJokeToNextAvailableDailySchedule(jokeId);
 
-        // assert
-        final capturedBatch = verify(() => mockScheduleRepository.updateBatch(captureAny()))
-            .captured.first as JokeScheduleBatch;
+          // assert
+          final capturedBatch =
+              verify(
+                    () => mockScheduleRepository.updateBatch(captureAny()),
+                  ).captured.first
+                  as JokeScheduleBatch;
 
-        // Should create batch for next month using Dart's automatic overflow
-        final expectedNextDate = DateTime(currentDate.year, currentDate.month + 1, 1);
+          // Should create batch for next month using Dart's automatic overflow
+          final expectedNextDate = DateTime(
+            currentDate.year,
+            currentDate.month + 1,
+            1,
+          );
 
-        expect(capturedBatch.year, equals(expectedNextDate.year));
-        expect(capturedBatch.month, equals(expectedNextDate.month));
-        expect(capturedBatch.scheduleId, equals(JokeConstants.defaultJokeScheduleId));
+          expect(capturedBatch.year, equals(expectedNextDate.year));
+          expect(capturedBatch.month, equals(expectedNextDate.month));
+          expect(
+            capturedBatch.scheduleId,
+            equals(JokeConstants.defaultJokeScheduleId),
+          );
 
-        // Should add joke to first day of next month
-        expect(capturedBatch.jokes['01']?.id, equals(jokeId));
-      });
+          // Should add joke to first day of next month
+          expect(capturedBatch.jokes['01']?.id, equals(jokeId));
+        },
+      );
 
-      test('should handle December to January year transition correctly', () async {
-        // arrange
-        const jokeId = 'published_joke';
+      test(
+        'should handle December to January year transition correctly',
+        () async {
+          // arrange
+          const jokeId = 'published_joke';
 
-        // Create a batch for December 2024 that is completely full (31 days)
-        final decBatch = JokeScheduleBatch(
-          id: 'daily_jokes_2024_12',
-          scheduleId: JokeConstants.defaultJokeScheduleId,
-          year: 2024,
-          month: 12,
-          jokes: {
-            // Fill all 31 days of December
-            for (int day = 1; day <= 31; day++)
-              day.toString().padLeft(2, '0'): Joke(
-                id: 'dec_joke_$day',
-                setupText: 'Setup',
-                punchlineText: 'Punchline',
-                numThumbsUp: 1,
-                numThumbsDown: 0,
-                state: JokeState.daily,
-              ),
-          },
-        );
+          // Create a batch for December 2024 that is completely full (31 days)
+          final decBatch = JokeScheduleBatch(
+            id: 'daily_jokes_2024_12',
+            scheduleId: JokeConstants.defaultJokeScheduleId,
+            year: 2024,
+            month: 12,
+            jokes: {
+              // Fill all 31 days of December
+              for (int day = 1; day <= 31; day++)
+                day.toString().padLeft(2, '0'): Joke(
+                  id: 'dec_joke_$day',
+                  setupText: 'Setup',
+                  punchlineText: 'Punchline',
+                  numThumbsUp: 1,
+                  numThumbsDown: 0,
+                  state: JokeState.daily,
+                ),
+            },
+          );
 
-        when(() => mockScheduleRepository.watchBatchesForSchedule(JokeConstants.defaultJokeScheduleId))
-            .thenAnswer((_) => Stream.value([decBatch]));
+          when(
+            () => mockScheduleRepository.watchBatchesForSchedule(
+              JokeConstants.defaultJokeScheduleId,
+            ),
+          ).thenAnswer((_) => Stream.value([decBatch]));
 
-        // act
-        await service.addJokeToNextAvailableDailySchedule(jokeId);
+          // act
+          await service.addJokeToNextAvailableDailySchedule(jokeId);
 
-        // assert
-        final capturedBatch = verify(() => mockScheduleRepository.updateBatch(captureAny()))
-            .captured.first as JokeScheduleBatch;
+          // assert
+          final capturedBatch =
+              verify(
+                    () => mockScheduleRepository.updateBatch(captureAny()),
+                  ).captured.first
+                  as JokeScheduleBatch;
 
-        // Should create batch for January 2025 (December 31st + 1 day)
-        expect(capturedBatch.year, equals(2025));
-        expect(capturedBatch.month, equals(1));
-        expect(capturedBatch.scheduleId, equals(JokeConstants.defaultJokeScheduleId));
+          // Should create batch for January 2025 (December 31st + 1 day)
+          expect(capturedBatch.year, equals(2025));
+          expect(capturedBatch.month, equals(1));
+          expect(
+            capturedBatch.scheduleId,
+            equals(JokeConstants.defaultJokeScheduleId),
+          );
 
-        // Should add joke to first day of January
-        expect(capturedBatch.jokes['01']?.id, equals(jokeId));
-      });
+          // Should add joke to first day of January
+          expect(capturedBatch.jokes['01']?.id, equals(jokeId));
+        },
+      );
 
-      test('should handle regular month transition without year change', () async {
-        // arrange
-        const jokeId = 'published_joke';
+      test(
+        'should handle regular month transition without year change',
+        () async {
+          // arrange
+          const jokeId = 'published_joke';
 
-        // Create a batch for November 2024 that is completely full (30 days)
-        final novBatch = JokeScheduleBatch(
-          id: 'daily_jokes_2024_11',
-          scheduleId: JokeConstants.defaultJokeScheduleId,
-          year: 2024,
-          month: 11,
-          jokes: {
-            // Fill all 30 days of November
-            for (int day = 1; day <= 30; day++)
-              day.toString().padLeft(2, '0'): Joke(
-                id: 'nov_joke_$day',
-                setupText: 'Setup',
-                punchlineText: 'Punchline',
-                numThumbsUp: 1,
-                numThumbsDown: 0,
-                state: JokeState.daily,
-              ),
-          },
-        );
+          // Create a batch for November 2024 that is completely full (30 days)
+          final novBatch = JokeScheduleBatch(
+            id: 'daily_jokes_2024_11',
+            scheduleId: JokeConstants.defaultJokeScheduleId,
+            year: 2024,
+            month: 11,
+            jokes: {
+              // Fill all 30 days of November
+              for (int day = 1; day <= 30; day++)
+                day.toString().padLeft(2, '0'): Joke(
+                  id: 'nov_joke_$day',
+                  setupText: 'Setup',
+                  punchlineText: 'Punchline',
+                  numThumbsUp: 1,
+                  numThumbsDown: 0,
+                  state: JokeState.daily,
+                ),
+            },
+          );
 
-        when(() => mockScheduleRepository.watchBatchesForSchedule(JokeConstants.defaultJokeScheduleId))
-            .thenAnswer((_) => Stream.value([novBatch]));
+          when(
+            () => mockScheduleRepository.watchBatchesForSchedule(
+              JokeConstants.defaultJokeScheduleId,
+            ),
+          ).thenAnswer((_) => Stream.value([novBatch]));
 
-        // act
-        await service.addJokeToNextAvailableDailySchedule(jokeId);
+          // act
+          await service.addJokeToNextAvailableDailySchedule(jokeId);
 
-        // assert
-        final capturedBatch = verify(() => mockScheduleRepository.updateBatch(captureAny()))
-            .captured.first as JokeScheduleBatch;
+          // assert
+          final capturedBatch =
+              verify(
+                    () => mockScheduleRepository.updateBatch(captureAny()),
+                  ).captured.first
+                  as JokeScheduleBatch;
 
-        // Should create batch for December 2024 (November 30th + 1 day)
-        expect(capturedBatch.year, equals(2024));
-        expect(capturedBatch.month, equals(12));
-        expect(capturedBatch.scheduleId, equals(JokeConstants.defaultJokeScheduleId));
+          // Should create batch for December 2024 (November 30th + 1 day)
+          expect(capturedBatch.year, equals(2024));
+          expect(capturedBatch.month, equals(12));
+          expect(
+            capturedBatch.scheduleId,
+            equals(JokeConstants.defaultJokeScheduleId),
+          );
 
-        // Should add joke to first day of December
-        expect(capturedBatch.jokes['01']?.id, equals(jokeId));
-      });
+          // Should add joke to first day of December
+          expect(capturedBatch.jokes['01']?.id, equals(jokeId));
+        },
+      );
 
       test('should handle February leap year correctly', () async {
         // arrange
@@ -631,20 +924,29 @@ void main() {
           },
         );
 
-        when(() => mockScheduleRepository.watchBatchesForSchedule(JokeConstants.defaultJokeScheduleId))
-            .thenAnswer((_) => Stream.value([febBatch]));
+        when(
+          () => mockScheduleRepository.watchBatchesForSchedule(
+            JokeConstants.defaultJokeScheduleId,
+          ),
+        ).thenAnswer((_) => Stream.value([febBatch]));
 
         // act
         await service.addJokeToNextAvailableDailySchedule(jokeId);
 
         // assert
-        final capturedBatch = verify(() => mockScheduleRepository.updateBatch(captureAny()))
-            .captured.first as JokeScheduleBatch;
+        final capturedBatch =
+            verify(
+                  () => mockScheduleRepository.updateBatch(captureAny()),
+                ).captured.first
+                as JokeScheduleBatch;
 
         // Should create batch for March 2024 (February 29th + 1 day)
         expect(capturedBatch.year, equals(2024));
         expect(capturedBatch.month, equals(3));
-        expect(capturedBatch.scheduleId, equals(JokeConstants.defaultJokeScheduleId));
+        expect(
+          capturedBatch.scheduleId,
+          equals(JokeConstants.defaultJokeScheduleId),
+        );
 
         // Should add joke to first day of March
         expect(capturedBatch.jokes['01']?.id, equals(jokeId));
@@ -692,15 +994,21 @@ void main() {
           },
         );
 
-        when(() => mockScheduleRepository.watchBatchesForSchedule(JokeConstants.defaultJokeScheduleId))
-            .thenAnswer((_) => Stream.value([currentBatch, futureBatch]));
+        when(
+          () => mockScheduleRepository.watchBatchesForSchedule(
+            JokeConstants.defaultJokeScheduleId,
+          ),
+        ).thenAnswer((_) => Stream.value([currentBatch, futureBatch]));
 
         // act
         await service.addJokeToNextAvailableDailySchedule(jokeId);
 
         // assert
-        final capturedBatch = verify(() => mockScheduleRepository.updateBatch(captureAny()))
-            .captured.first as JokeScheduleBatch;
+        final capturedBatch =
+            verify(
+                  () => mockScheduleRepository.updateBatch(captureAny()),
+                ).captured.first
+                as JokeScheduleBatch;
 
         // Should find available date in current month (day 2)
         expect(capturedBatch.id, equals(currentBatch.id));
@@ -723,8 +1031,12 @@ void main() {
         await serviceWithLA.addJokeToNextAvailableDailySchedule(jokeId);
 
         // assert
-        final capturedPublishMap = verify(() => mockJokeRepository.setJokesPublished(captureAny(), true))
-            .captured.first as Map<String, DateTime>;
+        final capturedPublishMap =
+            verify(
+                  () =>
+                      mockJokeRepository.setJokesPublished(captureAny(), true),
+                ).captured.first
+                as Map<String, DateTime>;
 
         // Should have published with LA timezone
         expect(capturedPublishMap.containsKey(jokeId), isTrue);
@@ -736,8 +1048,9 @@ void main() {
       test('should handle repository errors during batch update', () async {
         // arrange
         const jokeId = 'published_joke';
-        when(() => mockScheduleRepository.updateBatch(any()))
-            .thenThrow(Exception('Batch update failed'));
+        when(
+          () => mockScheduleRepository.updateBatch(any()),
+        ).thenThrow(Exception('Batch update failed'));
 
         // act & assert
         expect(
@@ -749,8 +1062,9 @@ void main() {
       test('should handle repository errors during joke publishing', () async {
         // arrange
         const jokeId = 'published_joke';
-        when(() => mockJokeRepository.setJokesPublished(any(), any()))
-            .thenThrow(Exception('Publishing failed'));
+        when(
+          () => mockJokeRepository.setJokesPublished(any(), any()),
+        ).thenThrow(Exception('Publishing failed'));
 
         // act & assert
         expect(
@@ -762,25 +1076,259 @@ void main() {
       test('should handle empty batch collection', () async {
         // arrange
         const jokeId = 'published_joke';
-        when(() => mockScheduleRepository.watchBatchesForSchedule(JokeConstants.defaultJokeScheduleId))
-            .thenAnswer((_) => Stream.value([]));
+        when(
+          () => mockScheduleRepository.watchBatchesForSchedule(
+            JokeConstants.defaultJokeScheduleId,
+          ),
+        ).thenAnswer((_) => Stream.value([]));
 
         // act
         await service.addJokeToNextAvailableDailySchedule(jokeId);
 
         // assert
-        final capturedBatch = verify(() => mockScheduleRepository.updateBatch(captureAny()))
-            .captured.first as JokeScheduleBatch;
+        final capturedBatch =
+            verify(
+                  () => mockScheduleRepository.updateBatch(captureAny()),
+                ).captured.first
+                as JokeScheduleBatch;
 
         // Should create batch for current month
         final currentDate = DateTime.now();
         expect(capturedBatch.year, equals(currentDate.year));
         expect(capturedBatch.month, equals(currentDate.month));
-        expect(capturedBatch.scheduleId, equals(JokeConstants.defaultJokeScheduleId));
+        expect(
+          capturedBatch.scheduleId,
+          equals(JokeConstants.defaultJokeScheduleId),
+        );
 
         // Should add joke to first available date (today or next available)
         final todayKey = currentDate.day.toString().padLeft(2, '0');
         expect(capturedBatch.jokes[todayKey]?.id, equals(jokeId));
+      });
+    });
+
+    group('removeJokeFromDailySchedule', () {
+      setUp(() {
+        // Initialize timezone data for tests
+        tzdata.initializeTimeZones();
+      });
+
+      test(
+        'should remove a DAILY joke from current month and reset state',
+        () async {
+          // arrange
+          const jokeId = 'daily_joke';
+          final currentDate = DateTime.now();
+          final dailyJoke = const Joke(
+            id: jokeId,
+            setupText: 's',
+            punchlineText: 'p',
+            numThumbsUp: 0,
+            numThumbsDown: 0,
+            state: JokeState.daily,
+          );
+
+          when(
+            () => mockJokeRepository.getJokeByIdStream(jokeId),
+          ).thenAnswer((_) => Stream.value(dailyJoke));
+
+          final dayKey = currentDate.day.toString().padLeft(2, '0');
+          final currentBatch = JokeScheduleBatch(
+            id: 'daily_jokes_${currentDate.year}_${currentDate.month.toString().padLeft(2, '0')}',
+            scheduleId: JokeConstants.defaultJokeScheduleId,
+            year: currentDate.year,
+            month: currentDate.month,
+            jokes: {dayKey: dailyJoke},
+          );
+
+          when(
+            () => mockScheduleRepository.watchBatchesForSchedule(
+              JokeConstants.defaultJokeScheduleId,
+            ),
+          ).thenAnswer((_) => Stream.value([currentBatch]));
+          when(
+            () => mockScheduleRepository.updateBatch(any()),
+          ).thenAnswer((_) async {});
+
+          // act
+          await service.removeJokeFromDailySchedule(jokeId);
+
+          // assert
+          final savedBatch =
+              verify(
+                    () => mockScheduleRepository.updateBatch(captureAny()),
+                  ).captured.first
+                  as JokeScheduleBatch;
+          expect(savedBatch.jokes.containsKey(dayKey), isFalse);
+          verify(
+            () => mockJokeRepository.resetJokesToApproved([
+              jokeId,
+            ], JokeState.daily),
+          ).called(1);
+        },
+      );
+
+      test('should throw when joke is scheduled in a past month', () async {
+        // arrange
+        const jokeId = 'daily_joke_past';
+        final dailyJoke = const Joke(
+          id: jokeId,
+          setupText: 's',
+          punchlineText: 'p',
+          numThumbsUp: 0,
+          numThumbsDown: 0,
+          state: JokeState.daily,
+        );
+
+        when(
+          () => mockJokeRepository.getJokeByIdStream(jokeId),
+        ).thenAnswer((_) => Stream.value(dailyJoke));
+
+        // Create a batch in a clearly past month
+        final pastBatch = JokeScheduleBatch(
+          id: 'daily_jokes_2020_01',
+          scheduleId: JokeConstants.defaultJokeScheduleId,
+          year: 2020,
+          month: 1,
+          jokes: {'01': dailyJoke},
+        );
+
+        when(
+          () => mockScheduleRepository.watchBatchesForSchedule(
+            JokeConstants.defaultJokeScheduleId,
+          ),
+        ).thenAnswer((_) => Stream.value([pastBatch]));
+
+        // act & assert
+        expect(
+          () => service.removeJokeFromDailySchedule(jokeId),
+          throwsA(
+            isA<Exception>().having(
+              (e) => e.toString(),
+              'message',
+              contains('past schedule'),
+            ),
+          ),
+        );
+      });
+
+      test(
+        'should reset state when DAILY joke not found in any batches',
+        () async {
+          // arrange
+          const jokeId = 'daily_not_in_batches';
+          final dailyJoke = const Joke(
+            id: jokeId,
+            setupText: 's',
+            punchlineText: 'p',
+            numThumbsUp: 0,
+            numThumbsDown: 0,
+            state: JokeState.daily,
+          );
+          when(
+            () => mockJokeRepository.getJokeByIdStream(jokeId),
+          ).thenAnswer((_) => Stream.value(dailyJoke));
+          when(
+            () => mockScheduleRepository.watchBatchesForSchedule(
+              JokeConstants.defaultJokeScheduleId,
+            ),
+          ).thenAnswer((_) => Stream.value([]));
+
+          // act
+          await service.removeJokeFromDailySchedule(jokeId);
+
+          // assert
+          verifyNever(() => mockScheduleRepository.updateBatch(any()));
+          verify(
+            () => mockJokeRepository.resetJokesToApproved([
+              jokeId,
+            ], JokeState.daily),
+          ).called(1);
+        },
+      );
+
+      test('should throw when joke is not found', () async {
+        // arrange
+        const jokeId = 'missing_joke';
+        when(
+          () => mockJokeRepository.getJokeByIdStream(jokeId),
+        ).thenAnswer((_) => Stream.value(null));
+
+        // act & assert
+        expect(
+          () => service.removeJokeFromDailySchedule(jokeId),
+          throwsA(
+            isA<Exception>().having(
+              (e) => e.toString(),
+              'message',
+              contains('not found'),
+            ),
+          ),
+        );
+      });
+
+      test('should throw when joke is not in DAILY state', () async {
+        // arrange
+        const jokeId = 'wrong_state_joke';
+        final publishedJoke = const Joke(
+          id: jokeId,
+          setupText: 's',
+          punchlineText: 'p',
+          numThumbsUp: 0,
+          numThumbsDown: 0,
+          state: JokeState.published,
+        );
+        when(
+          () => mockJokeRepository.getJokeByIdStream(jokeId),
+        ).thenAnswer((_) => Stream.value(publishedJoke));
+        when(
+          () => mockScheduleRepository.watchBatchesForSchedule(
+            JokeConstants.defaultJokeScheduleId,
+          ),
+        ).thenAnswer((_) => Stream.value([]));
+
+        // act & assert
+        expect(
+          () => service.removeJokeFromDailySchedule(jokeId),
+          throwsA(
+            isA<Exception>().having(
+              (e) => e.toString(),
+              'message',
+              contains('must be in DAILY state'),
+            ),
+          ),
+        );
+      });
+    });
+
+    group('publishJokeImmediately', () {
+      setUp(() {
+        tzdata.initializeTimeZones();
+      });
+
+      test('should publish at LA start of today with isDaily=false', () async {
+        // arrange
+        const jokeId = 'publish_now_joke';
+        when(
+          () => mockJokeRepository.setJokesPublished(any(), any()),
+        ).thenAnswer((_) async {});
+
+        // act
+        await service.publishJokeImmediately(jokeId);
+
+        // assert
+        final captured =
+            verify(
+                  () =>
+                      mockJokeRepository.setJokesPublished(captureAny(), false),
+                ).captured.first
+                as Map<String, DateTime>;
+        expect(captured.containsKey(jokeId), isTrue);
+        final date = captured[jokeId]!;
+        expect(date.hour, equals(0));
+        expect(date.minute, equals(0));
+        expect(date.second, equals(0));
+        expect(date.timeZoneName, anyOf(equals('PST'), equals('PDT')));
       });
     });
 

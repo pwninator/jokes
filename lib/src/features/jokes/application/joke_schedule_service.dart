@@ -168,6 +168,99 @@ class JokeScheduleAutoFillService {
     );
     await _jokeRepository.setJokesPublished({jokeId: laMidnight}, true);
   }
+  
+  /// Remove a joke from the daily schedule
+  Future<void> removeJokeFromDailySchedule(String jokeId) async {
+    // 1. Get the joke to verify it's in DAILY state
+    final joke = await _jokeRepository.getJokeByIdStream(jokeId).first;
+    if (joke == null) {
+      throw Exception('Joke with ID "$jokeId" not found');
+    }
+    if (joke.state != JokeState.daily) {
+      throw Exception(
+        'Joke "$jokeId" must be in DAILY state to remove from daily schedule',
+      );
+    }
+
+    // 2. Load all batches for the daily schedule
+    final allBatches = await _scheduleRepository
+        .watchBatchesForSchedule(JokeConstants.defaultJokeScheduleId)
+        .first;
+
+    // 3. Get current date in LA timezone
+    tzdata.initializeTimeZones();
+    final la = _laLocation ?? tz.getLocation('America/Los_Angeles');
+    final now = tz.TZDateTime.now(la);
+    final currentMonthStart = tz.TZDateTime(la, now.year, now.month, 1);
+
+    // 4. Find the batch containing this joke (only in current/future months)
+    JokeScheduleBatch? targetBatch;
+    String? dayKey;
+    bool foundInPastBatch = false;
+
+    for (final batch in allBatches) {
+      final batchDate = DateTime(batch.year, batch.month);
+
+      // Skip past months
+      if (batchDate.isBefore(
+        DateTime(currentMonthStart.year, currentMonthStart.month),
+      )) {
+        // Check if joke exists in past batch (to provide better error message)
+        for (final entry in batch.jokes.entries) {
+          if (entry.value.id == jokeId) {
+            foundInPastBatch = true;
+            break;
+          }
+        }
+        continue;
+      }
+
+      // Check current/future months
+      for (final entry in batch.jokes.entries) {
+        if (entry.value.id == jokeId) {
+          // Check if this specific day is in the past within the current month
+          if (batch.year == now.year && batch.month == now.month) {
+            final dayInt = int.parse(entry.key);
+            final jokeDate = tz.TZDateTime(la, batch.year, batch.month, dayInt);
+            if (jokeDate.isBefore(DateTime(now.year, now.month, now.day))) {
+              throw Exception(
+                'Cannot remove joke "$jokeId" from past schedule. Joke is scheduled for a date that has already passed (${jokeDate.year}-${jokeDate.month.toString().padLeft(2, '0')}-${jokeDate.day.toString().padLeft(2, '0')}).',
+              );
+            }
+          }
+
+          targetBatch = batch;
+          dayKey = entry.key;
+          break;
+        }
+      }
+      if (targetBatch != null) break;
+    }
+
+    if (foundInPastBatch) {
+      throw Exception(
+        'Cannot remove joke "$jokeId" from past schedule. Joke is scheduled for a date that has already passed.',
+      );
+    }
+
+    if (targetBatch == null || dayKey == null) {
+      // If joke is in DAILY state but not found in batches, still reset its state
+      await _jokeRepository.resetJokesToApproved([jokeId], JokeState.daily);
+      return; // Early return since there's nothing to remove from batches
+    }
+
+    // 5. Remove joke from the batch
+    final updatedJokes = Map<String, Joke>.from(targetBatch.jokes);
+    updatedJokes.remove(dayKey);
+
+    final updatedBatch = targetBatch.copyWith(jokes: updatedJokes);
+
+    // 6. Save the updated batch
+    await _scheduleRepository.updateBatch(updatedBatch);
+
+    // 7. Reset joke's state to APPROVED
+    await _jokeRepository.resetJokesToApproved([jokeId], JokeState.daily);
+  }
 
   /// Find the next available date starting from today
   Future<DateTime> _findNextAvailableDate(
@@ -197,7 +290,8 @@ class JokeScheduleAutoFillService {
 
       // Check each day in this batch
       final daysInMonth = DateTime(batch.year, batch.month + 1, 0).day;
-      final startDay = (batch.year == startDate.year && batch.month == startDate.month)
+      final startDay =
+          (batch.year == startDate.year && batch.month == startDate.month)
           ? startDate.day
           : 1;
 

@@ -246,3 +246,35 @@ class AdminAddToDailyScheduleButton extends ConsumerWidget {
     );
   }
 }
+
+class AdminRemoveFromDailyScheduleButton extends ConsumerWidget {
+  final String jokeId;
+  final ThemeData theme;
+  final bool isLoading;
+
+  const AdminRemoveFromDailyScheduleButton({
+    super.key,
+    required this.jokeId,
+    required this.theme,
+    required this.isLoading,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return HoldableButton(
+      key: const Key('remove-from-daily-schedule-button'),
+      icon: Icons.event_busy,
+      holdCompleteIcon: Icons.undo,
+      onTap: () {
+        // No-op on tap
+      },
+      onHoldComplete: () async {
+        final scheduleService = ref.read(jokeScheduleAutoFillServiceProvider);
+        await scheduleService.removeJokeFromDailySchedule(jokeId);
+      },
+      isLoading: isLoading,
+      theme: theme,
+      color: Colors.orange,
+    );
+  }
+}

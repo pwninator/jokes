@@ -1,4 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:vibration/vibration.dart';
 
 class HoldableButton extends StatefulWidget {
   final VoidCallback onTap;
@@ -35,6 +39,9 @@ class _HoldableButtonState extends State<HoldableButton>
   late AnimationController _animationController;
   late Animation<double> _fillAnimation;
   bool _isHolding = false;
+  bool? _hasVibrator;
+  bool? _hasAmplitudeControl;
+  Timer? _vibrationTimer;
 
   @override
   void initState() {
@@ -49,20 +56,84 @@ class _HoldableButtonState extends State<HoldableButton>
 
     // Listen for animation completion
     _animationController.addStatusListener(_onAnimationStatusChanged);
+
+    // Initialize vibration capabilities
+    _initVibration();
+  }
+
+  Future<void> _initVibration() async {
+    _hasVibrator = await Vibration.hasVibrator();
+    _hasAmplitudeControl = await Vibration.hasAmplitudeControl();
   }
 
   @override
   void dispose() {
     _animationController.removeStatusListener(_onAnimationStatusChanged);
     _animationController.dispose();
+    _vibrationTimer?.cancel();
     super.dispose();
   }
 
   void _onAnimationStatusChanged(AnimationStatus status) {
     if (status == AnimationStatus.completed && _isHolding) {
       // Animation completed while still holding - trigger hold action
+      _triggerFinalVibration();
       widget.onHoldComplete();
       _resetHold();
+    }
+  }
+
+  void _startVibration() {
+    if (_hasVibrator != true) return;
+
+    // Start continuous vibration with increasing intensity
+    _vibrationTimer = Timer.periodic(const Duration(milliseconds: 50), (timer) {
+      if (!_isHolding) {
+        timer.cancel();
+        return;
+      }
+
+      final progress = _fillAnimation.value;
+      if (_hasAmplitudeControl == true) {
+        // Android: Use amplitude control for smooth intensity ramp
+        final amplitude = (progress * 255).toInt().clamp(1, 255);
+        Vibration.vibrate(duration: 50, amplitude: amplitude);
+      } else {
+        // iOS or fallback: Use haptic feedback patterns
+        _triggerHapticFeedback(progress);
+      }
+    });
+  }
+
+  void _stopVibration() {
+    _vibrationTimer?.cancel();
+    _vibrationTimer = null;
+  }
+
+  void _triggerHapticFeedback(double progress) {
+    // Note: iOS haptic feedback doesn't have direct amplitude control
+    // We use timing and pattern selection instead
+    if (progress < 0.3) {
+      // Light feedback at start - subtle indication
+      HapticFeedback.lightImpact();
+    } else if (progress < 0.7) {
+      // Medium feedback in middle - building intensity
+      HapticFeedback.mediumImpact();
+    } else {
+      // Stronger feedback near end - clear escalation
+      HapticFeedback.heavyImpact();
+    }
+  }
+
+  void _triggerFinalVibration() {
+    if (_hasVibrator != true) return;
+
+    if (_hasAmplitudeControl == true) {
+      // Android: Strong final vibration
+      Vibration.vibrate(duration: 100, amplitude: 255);
+    } else {
+      // iOS: Use system vibration
+      Vibration.vibrate(duration: 200);
     }
   }
 
@@ -74,11 +145,14 @@ class _HoldableButtonState extends State<HoldableButton>
       _isHolding = true;
     });
     _animationController.forward();
+    _startVibration();
   }
 
   void _onTapUp(TapUpDetails details) {
     final blocked = _isBlocked;
     if (blocked) return;
+
+    _stopVibration();
 
     if (_animationController.isCompleted) {
       // Already completed - do nothing (onHoldComplete already called)
@@ -96,6 +170,7 @@ class _HoldableButtonState extends State<HoldableButton>
   void _onTapCancel() {
     final blocked = _isBlocked;
     if (blocked) return;
+    _stopVibration();
     _resetHold();
   }
 

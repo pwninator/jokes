@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_admin_rating.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
@@ -6,8 +7,9 @@ import 'package:snickerdoodle/src/features/jokes/domain/joke_state.dart';
 
 class JokeRepository {
   final FirebaseFirestore _firestore;
+  final bool _isAdmin;
 
-  JokeRepository(this._firestore);
+  JokeRepository(this._firestore, this._isAdmin);
 
   Stream<List<Joke>> getJokes() {
     return _firestore
@@ -102,6 +104,14 @@ class JokeRepository {
     JokeReactionType reactionType,
     int increment,
   ) async {
+    // Suppress Firestore writes for admin users
+    if (_isAdmin) {
+      final action = increment > 0 ? 'increment' : 'decrement';
+      debugPrint(
+        'JOKE REPO ADMIN reaction suppressed: $action $reactionType for joke $jokeId',
+      );
+      return;
+    }
     // Get current joke data to calculate new popularity score
     final docRef = _firestore.collection('jokes').doc(jokeId);
     final snapshot = await docRef.get();

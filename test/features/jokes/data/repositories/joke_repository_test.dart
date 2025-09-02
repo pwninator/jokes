@@ -25,6 +25,7 @@ class MockDocumentSnapshot extends Mock
 void main() {
   group('JokeRepository', () {
     late JokeRepository repository;
+    late JokeRepository adminRepository;
     late MockFirebaseFirestore mockFirestore;
     late MockCollectionReference mockCollectionReference;
     late MockDocumentReference mockDocumentReference;
@@ -37,7 +38,8 @@ void main() {
       mockDocumentReference = MockDocumentReference();
       mockQuery = MockQuery();
       mockQuerySnapshot = MockQuerySnapshot();
-      repository = JokeRepository(mockFirestore);
+      repository = JokeRepository(mockFirestore, false); // Non-admin
+      adminRepository = JokeRepository(mockFirestore, true); // Admin
 
       // Set up the default behavior for the collection and query chain
       when(
@@ -535,6 +537,64 @@ void main() {
         ).called(1);
         verify(() => mockWhereQuery.get()).called(1);
       });
+    });
+
+    group('admin reaction operations', () {
+      late MockDocumentSnapshot mockDocSnapshot;
+
+      setUp(() {
+        when(
+          () => mockCollectionReference.doc(any()),
+        ).thenReturn(mockDocumentReference);
+        when(
+          () => mockDocumentReference.get(),
+        ).thenAnswer((_) async => mockDocSnapshot);
+        when(
+          () => mockDocumentReference.update(any()),
+        ).thenAnswer((_) async => {});
+      });
+
+      test(
+        'admin incrementReaction should not update Firestore and print debug message',
+        () async {
+          const jokeId = 'test-joke-id';
+          mockDocSnapshot = MockDocumentSnapshot();
+          when(
+            () => mockDocSnapshot.data(),
+          ).thenReturn({'num_saves': 5, 'num_shares': 3});
+
+          await adminRepository.incrementReaction(
+            jokeId,
+            JokeReactionType.save,
+          );
+
+          // Should not update Firestore
+          verifyNever(() => mockDocumentReference.update(any()));
+          // Should not read document data
+          verifyNever(() => mockDocumentReference.get());
+        },
+      );
+
+      test(
+        'admin decrementReaction should not update Firestore and print debug message',
+        () async {
+          const jokeId = 'test-joke-id';
+          mockDocSnapshot = MockDocumentSnapshot();
+          when(
+            () => mockDocSnapshot.data(),
+          ).thenReturn({'num_saves': 5, 'num_shares': 3});
+
+          await adminRepository.decrementReaction(
+            jokeId,
+            JokeReactionType.save,
+          );
+
+          // Should not update Firestore
+          verifyNever(() => mockDocumentReference.update(any()));
+          // Should not read document data
+          verifyNever(() => mockDocumentReference.get());
+        },
+      );
     });
 
     group('reaction operations', () {

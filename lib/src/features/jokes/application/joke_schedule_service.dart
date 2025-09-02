@@ -168,7 +168,7 @@ class JokeScheduleAutoFillService {
     );
     await _jokeRepository.setJokesPublished({jokeId: laMidnight}, true);
   }
-  
+
   /// Remove a joke from the daily schedule
   Future<void> removeJokeFromDailySchedule(String jokeId) async {
     // 1. Get the joke to verify it's in DAILY state

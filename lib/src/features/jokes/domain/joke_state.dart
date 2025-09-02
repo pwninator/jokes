@@ -25,7 +25,7 @@ enum JokeState {
       this == JokeState.approved ||
       this == JokeState.rejected ||
       this == JokeState.unreviewed;
-  
+
   bool get isPublic => this == JokeState.published || this == JokeState.daily;
 
   bool get isHighQuality =>

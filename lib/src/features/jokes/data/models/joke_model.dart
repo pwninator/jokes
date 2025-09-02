@@ -1,5 +1,5 @@
-import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_admin_rating.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_state.dart';
 
@@ -19,6 +19,7 @@ class Joke {
   final int numThumbsDown;
   final int numSaves;
   final int numShares;
+  final int popularityScore;
   final JokeAdminRating? adminRating;
   final JokeState? state;
   final DateTime? publicTimestamp;
@@ -40,6 +41,7 @@ class Joke {
     this.numThumbsDown = 0,
     this.numSaves = 0,
     this.numShares = 0,
+    this.popularityScore = 0,
     this.adminRating,
     this.state,
     this.publicTimestamp,
@@ -62,6 +64,7 @@ class Joke {
     int? numThumbsDown,
     int? numSaves,
     int? numShares,
+    int? popularityScore,
     JokeAdminRating? adminRating,
     JokeState? state,
     DateTime? publicTimestamp,
@@ -86,6 +89,7 @@ class Joke {
       numThumbsDown: numThumbsDown ?? this.numThumbsDown,
       numSaves: numSaves ?? this.numSaves,
       numShares: numShares ?? this.numShares,
+      popularityScore: popularityScore ?? this.popularityScore,
       adminRating: adminRating ?? this.adminRating,
       state: state ?? this.state,
       publicTimestamp: publicTimestamp ?? this.publicTimestamp,
@@ -109,6 +113,7 @@ class Joke {
       'num_thumbs_down': numThumbsDown,
       'num_saves': numSaves,
       'num_shares': numShares,
+      'popularity_score': popularityScore,
       'admin_rating': adminRating?.value,
       'state': state?.value,
       'public_timestamp': publicTimestamp != null
@@ -137,6 +142,7 @@ class Joke {
       numThumbsDown: (map['num_thumbs_down'] as num?)?.toInt() ?? 0,
       numSaves: (map['num_saves'] as num?)?.toInt() ?? 0,
       numShares: (map['num_shares'] as num?)?.toInt() ?? 0,
+      popularityScore: (map['popularity_score'] as num?)?.toInt() ?? 0,
       adminRating: JokeAdminRating.fromString(map['admin_rating'] as String?),
       state: JokeState.fromString(map['state'] as String?),
       publicTimestamp: _parsePublicTimestamp(map['public_timestamp']),
@@ -168,7 +174,7 @@ class Joke {
 
   @override
   String toString() =>
-      'Joke(id: $id, setupText: $setupText, punchlineText: $punchlineText, setupImageUrl: $setupImageUrl, punchlineImageUrl: $punchlineImageUrl, setupImageDescription: $setupImageDescription, punchlineImageDescription: $punchlineImageDescription, allSetupImageUrls: $allSetupImageUrls, allPunchlineImageUrls: $allPunchlineImageUrls, generationMetadata: $generationMetadata, numThumbsUp: $numThumbsUp, numThumbsDown: $numThumbsDown, numSaves: $numSaves, numShares: $numShares, adminRating: $adminRating, state: $state, publicTimestamp: $publicTimestamp, tags: $tags, seasonal: $seasonal)';
+      'Joke(id: $id, setupText: $setupText, punchlineText: $punchlineText, setupImageUrl: $setupImageUrl, punchlineImageUrl: $punchlineImageUrl, setupImageDescription: $setupImageDescription, punchlineImageDescription: $punchlineImageDescription, allSetupImageUrls: $allSetupImageUrls, allPunchlineImageUrls: $allPunchlineImageUrls, generationMetadata: $generationMetadata, numThumbsUp: $numThumbsUp, numThumbsDown: $numThumbsDown, numSaves: $numSaves, numShares: $numShares, popularityScore: $popularityScore, adminRating: $adminRating, state: $state, publicTimestamp: $publicTimestamp, tags: $tags, seasonal: $seasonal)';
 
   @override
   bool operator ==(Object other) {
@@ -189,6 +195,7 @@ class Joke {
         other.numThumbsDown == numThumbsDown &&
         other.numSaves == numSaves &&
         other.numShares == numShares &&
+        other.popularityScore == popularityScore &&
         other.adminRating == adminRating &&
         other.state == state &&
         other.publicTimestamp == publicTimestamp &&
@@ -212,6 +219,7 @@ class Joke {
       numThumbsDown.hashCode ^
       numSaves.hashCode ^
       numShares.hashCode ^
+      popularityScore.hashCode ^
       adminRating.hashCode ^
       state.hashCode ^
       publicTimestamp.hashCode ^

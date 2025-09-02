@@ -43,6 +43,7 @@ void main() {
         'num_thumbs_down': 0,
         'num_saves': 0,
         'num_shares': 0,
+        'popularity_score': 0,
         'admin_rating': null,
         'state': null,
         'public_timestamp': null,
@@ -81,7 +82,7 @@ void main() {
         'setup_image_description': null,
         'punchline_image_description': null,
         'generation_metadata': null,
-        // num_thumbs_up and num_thumbs_down are missing
+        // num_thumbs_up, num_thumbs_down, num_saves, num_shares, and popularity_score are missing
       };
       // act
       final result = Joke.fromMap(jsonMap, '1');
@@ -89,6 +90,9 @@ void main() {
       expect(result, tJokeModel); // Should default to 0
       expect(result.numThumbsUp, 0);
       expect(result.numThumbsDown, 0);
+      expect(result.numSaves, 0);
+      expect(result.numShares, 0);
+      expect(result.popularityScore, 0);
     });
 
     test('should return a valid model with updated parameters', () {
@@ -145,6 +149,7 @@ void main() {
         numThumbsDown: 2,
         numSaves: 7,
         numShares: 9,
+        popularityScore: 52, // 7 + (9 * 5) = 52
       );
 
       // act
@@ -155,10 +160,12 @@ void main() {
       expect(result['num_thumbs_down'], 2);
       expect(result['num_saves'], 7);
       expect(result['num_shares'], 9);
+      expect(result['popularity_score'], 52);
       expect(jokeWithReactions.numThumbsUp, 5);
       expect(jokeWithReactions.numThumbsDown, 2);
       expect(jokeWithReactions.numSaves, 7);
       expect(jokeWithReactions.numShares, 9);
+      expect(jokeWithReactions.popularityScore, 52);
     });
 
     test('should create joke from map with reaction counts', () {
@@ -170,6 +177,7 @@ void main() {
         'num_thumbs_down': 3,
         'num_saves': 4,
         'num_shares': 6,
+        'popularity_score': 34, // 4 + (6 * 5) = 34
       };
 
       // act
@@ -180,15 +188,25 @@ void main() {
       expect(result.numThumbsDown, 3);
       expect(result.numSaves, 4);
       expect(result.numShares, 6);
+      expect(result.popularityScore, 34);
     });
 
     test('should handle copyWith with reaction counts', () {
       // act
-      final result = tJokeModel.copyWith(numThumbsUp: 7, numThumbsDown: 1);
+      final result = tJokeModel.copyWith(
+        numThumbsUp: 7,
+        numThumbsDown: 1,
+        numSaves: 3,
+        numShares: 2,
+        popularityScore: 13, // 3 + (2 * 5) = 13
+      );
 
       // assert
       expect(result.numThumbsUp, 7);
       expect(result.numThumbsDown, 1);
+      expect(result.numSaves, 3);
+      expect(result.numShares, 2);
+      expect(result.popularityScore, 13);
       expect(result.id, tJokeModel.id);
       expect(result.setupText, tJokeModel.setupText);
       expect(result.punchlineText, tJokeModel.punchlineText);
@@ -204,6 +222,7 @@ void main() {
         numThumbsDown: 2,
         numSaves: 1,
         numShares: 1,
+        popularityScore: 6, // 1 + (1 * 5) = 6
       );
       const joke2 = Joke(
         id: '1',
@@ -213,6 +232,7 @@ void main() {
         numThumbsDown: 2,
         numSaves: 1,
         numShares: 1,
+        popularityScore: 6, // 1 + (1 * 5) = 6
       );
       const joke3 = Joke(
         id: '1',
@@ -222,13 +242,26 @@ void main() {
         numThumbsDown: 2,
         numSaves: 1,
         numShares: 1,
+        popularityScore: 6, // 1 + (1 * 5) = 6
+      );
+      const joke4 = Joke(
+        id: '1',
+        setupText: 'test',
+        punchlineText: 'test',
+        numThumbsUp: 5,
+        numThumbsDown: 2,
+        numSaves: 1,
+        numShares: 1,
+        popularityScore: 7, // Different popularity score
       );
 
       // assert
-      expect(joke1, joke2); // Same reaction counts
+      expect(joke1, joke2); // Same reaction counts and popularity score
       expect(joke1, isNot(joke3)); // Different reaction counts
+      expect(joke1, isNot(joke4)); // Different popularity score
       expect(joke1.hashCode, joke2.hashCode);
       expect(joke1.hashCode, isNot(joke3.hashCode));
+      expect(joke1.hashCode, isNot(joke4.hashCode));
     });
 
     test('should handle image URL fields correctly', () {
@@ -483,6 +516,27 @@ void main() {
       expect(joke1.hashCode, isNot(joke3.hashCode));
     });
 
+    test('should handle popularity score field correctly', () {
+      // arrange
+      const jokeWithPopularityScore = Joke(
+        id: '1',
+        setupText: 'Why did the scarecrow win an award?',
+        punchlineText: 'Because he was outstanding in his field!',
+        numSaves: 10,
+        numShares: 5,
+        popularityScore: 35, // 10 + (5 * 5) = 35
+      );
+
+      // act
+      final result = jokeWithPopularityScore.toMap();
+
+      // assert
+      expect(result['popularity_score'], 35);
+      expect(jokeWithPopularityScore.popularityScore, 35);
+      expect(jokeWithPopularityScore.numSaves, 10);
+      expect(jokeWithPopularityScore.numShares, 5);
+    });
+
     test('should handle tags and seasonal fields correctly', () {
       // arrange
       const jokeWithTagsAndSeasonal = Joke(
@@ -501,6 +555,25 @@ void main() {
       expect(result['seasonal'], 'Halloween');
       expect(jokeWithTagsAndSeasonal.tags, ['funny', 'farm', 'award']);
       expect(jokeWithTagsAndSeasonal.seasonal, 'Halloween');
+    });
+
+    test('should create joke from map with popularity score', () {
+      // arrange
+      final Map<String, dynamic> jsonMap = {
+        'setup_text': 'Why did the scarecrow win an award?',
+        'punchline_text': 'Because he was outstanding in his field!',
+        'num_saves': 8,
+        'num_shares': 3,
+        'popularity_score': 23, // 8 + (3 * 5) = 23
+      };
+
+      // act
+      final result = Joke.fromMap(jsonMap, '1');
+
+      // assert
+      expect(result.numSaves, 8);
+      expect(result.numShares, 3);
+      expect(result.popularityScore, 23);
     });
 
     test('should create joke from map with tags and seasonal fields', () {
@@ -535,6 +608,23 @@ void main() {
       // assert
       expect(result.tags, []);
       expect(result.seasonal, null);
+    });
+
+    test('should handle copyWith with popularity score', () {
+      // act
+      final result = tJokeModel.copyWith(
+        numSaves: 15,
+        numShares: 4,
+        popularityScore: 35, // 15 + (4 * 5) = 35
+      );
+
+      // assert
+      expect(result.numSaves, 15);
+      expect(result.numShares, 4);
+      expect(result.popularityScore, 35);
+      expect(result.id, tJokeModel.id);
+      expect(result.setupText, tJokeModel.setupText);
+      expect(result.punchlineText, tJokeModel.punchlineText);
     });
 
     test('should handle copyWith with tags and seasonal fields', () {

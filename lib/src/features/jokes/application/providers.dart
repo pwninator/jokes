@@ -47,7 +47,11 @@ final jokeCloudFunctionServiceProvider = Provider<JokeCloudFunctionService>((
 });
 
 /// Scope for search providers
-enum SearchScope { userJokeSearch, jokeManagementSearch, jokeDeepResearchSearch }
+enum SearchScope {
+  userJokeSearch,
+  jokeManagementSearch,
+  jokeDeepResearchSearch,
+}
 
 // Search query state: strongly typed object
 class SearchQuery {
@@ -203,7 +207,8 @@ final searchResultsLiveProvider =
         // 1) State filter (filter by selected states if any are selected)
         if (filterState.hasStateFilter) {
           ordered = ordered.where((jvd) {
-            return jvd.joke.state != null && filterState.selectedStates.contains(jvd.joke.state!);
+            return jvd.joke.state != null &&
+                filterState.selectedStates.contains(jvd.joke.state!);
           }).toList();
         }
 
@@ -561,12 +566,14 @@ class JokeFilterNotifier extends StateNotifier<JokeFilterState> {
   JokeFilterNotifier() : super(const JokeFilterState());
 
   void addState(JokeState state) {
-    final newStates = Set<JokeState>.from(this.state.selectedStates)..add(state);
+    final newStates = Set<JokeState>.from(this.state.selectedStates)
+      ..add(state);
     this.state = this.state.copyWith(selectedStates: newStates);
   }
 
   void removeState(JokeState state) {
-    final newStates = Set<JokeState>.from(this.state.selectedStates)..remove(state);
+    final newStates = Set<JokeState>.from(this.state.selectedStates)
+      ..remove(state);
     this.state = this.state.copyWith(selectedStates: newStates);
   }
 
@@ -625,7 +632,8 @@ final filteredJokesProvider = Provider<AsyncValue<List<Joke>>>((ref) {
   // 1) State filter (filter by selected states if any are selected)
   if (filterState.hasStateFilter) {
     filteredJokes = filteredJokes.where((joke) {
-      return joke.state != null && filterState.selectedStates.contains(joke.state!);
+      return joke.state != null &&
+          filterState.selectedStates.contains(joke.state!);
     }).toList();
   }
 

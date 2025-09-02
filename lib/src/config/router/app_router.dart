@@ -313,7 +313,10 @@ class AppRouter {
         Future.delayed(const Duration(milliseconds: 100), () {
           if (context.mounted) {
             final resetContainer = ProviderScope.containerOf(context);
-            resetContainer.read(searchFieldFocusTriggerProvider.notifier).state = false;
+            resetContainer
+                    .read(searchFieldFocusTriggerProvider.notifier)
+                    .state =
+                false;
           }
         });
         return;

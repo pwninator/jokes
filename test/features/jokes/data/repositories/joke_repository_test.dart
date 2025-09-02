@@ -3,6 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
+import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
 
 // Mock classes using mocktail
 class MockFirebaseFirestore extends Mock implements FirebaseFirestore {}
@@ -533,6 +534,223 @@ void main() {
           ),
         ).called(1);
         verify(() => mockWhereQuery.get()).called(1);
+      });
+    });
+
+    group('reaction operations', () {
+      late MockDocumentSnapshot mockDocSnapshot;
+
+      setUp(() {
+        when(
+          () => mockCollectionReference.doc(any()),
+        ).thenReturn(mockDocumentReference);
+        when(
+          () => mockDocumentReference.get(),
+        ).thenAnswer((_) async => mockDocSnapshot);
+        when(
+          () => mockDocumentReference.update(any()),
+        ).thenAnswer((_) async => {});
+      });
+
+      group('incrementReaction', () {
+        test(
+          'should increment save reaction and update popularity score',
+          () async {
+            const jokeId = 'test-joke-id';
+            mockDocSnapshot = MockDocumentSnapshot();
+            when(
+              () => mockDocSnapshot.data(),
+            ).thenReturn({'num_saves': 5, 'num_shares': 3});
+
+            await repository.incrementReaction(jokeId, JokeReactionType.save);
+
+            // popularity_score = (5+1) + (3 * 5) = 21
+            verify(
+              () => mockDocumentReference.update({
+                'num_saves': FieldValue.increment(1),
+                'popularity_score': 21,
+              }),
+            ).called(1);
+          },
+        );
+
+        test(
+          'should increment share reaction and update popularity score',
+          () async {
+            const jokeId = 'test-joke-id';
+            mockDocSnapshot = MockDocumentSnapshot();
+            when(
+              () => mockDocSnapshot.data(),
+            ).thenReturn({'num_saves': 2, 'num_shares': 1});
+
+            await repository.incrementReaction(jokeId, JokeReactionType.share);
+
+            // popularity_score = 2 + ((1+1) * 5) = 12
+            verify(
+              () => mockDocumentReference.update({
+                'num_shares': FieldValue.increment(1),
+                'popularity_score': 12,
+              }),
+            ).called(1);
+          },
+        );
+
+        test('should handle missing reaction counts gracefully', () async {
+          const jokeId = 'test-joke-id';
+          mockDocSnapshot = MockDocumentSnapshot();
+          when(() => mockDocSnapshot.data()).thenReturn({
+            'setup_text': 'Test joke',
+            // Missing num_saves and num_shares
+          });
+
+          await repository.incrementReaction(jokeId, JokeReactionType.save);
+
+          // popularity_score = (0+1) + (0 * 5) = 1
+          verify(
+            () => mockDocumentReference.update({
+              'num_saves': FieldValue.increment(1),
+              'popularity_score': 1,
+            }),
+          ).called(1);
+        });
+
+        test('should throw exception when joke not found', () async {
+          const jokeId = 'non-existent-joke-id';
+          mockDocSnapshot = MockDocumentSnapshot();
+          when(() => mockDocSnapshot.data()).thenReturn(<String, dynamic>{});
+
+          expect(
+            () => repository.incrementReaction(jokeId, JokeReactionType.save),
+            throwsA(isA<Exception>()),
+          );
+
+          verifyNever(() => mockDocumentReference.update(any()));
+        });
+
+        test(
+          'should handle other reaction types without affecting popularity score',
+          () async {
+            const jokeId = 'test-joke-id';
+            mockDocSnapshot = MockDocumentSnapshot();
+            when(
+              () => mockDocSnapshot.data(),
+            ).thenReturn({'num_saves': 1, 'num_shares': 1});
+
+            // Test with a reaction type that doesn't affect saves or shares
+            await repository.incrementReaction(
+              jokeId,
+              JokeReactionType.thumbsUp,
+            );
+
+            // popularity_score should remain the same: 1 + (1 * 5) = 6
+            verify(
+              () => mockDocumentReference.update({
+                'num_thumbs_up': FieldValue.increment(1),
+                'popularity_score': 6,
+              }),
+            ).called(1);
+          },
+        );
+      });
+
+      group('decrementReaction', () {
+        test(
+          'should decrement save reaction and update popularity score',
+          () async {
+            const jokeId = 'test-joke-id';
+            mockDocSnapshot = MockDocumentSnapshot();
+            when(
+              () => mockDocSnapshot.data(),
+            ).thenReturn({'num_saves': 5, 'num_shares': 3});
+
+            await repository.decrementReaction(jokeId, JokeReactionType.save);
+
+            // popularity_score = (5-1) + (3 * 5) = 19
+            verify(
+              () => mockDocumentReference.update({
+                'num_saves': FieldValue.increment(-1),
+                'popularity_score': 19,
+              }),
+            ).called(1);
+          },
+        );
+
+        test(
+          'should decrement share reaction and update popularity score',
+          () async {
+            const jokeId = 'test-joke-id';
+            mockDocSnapshot = MockDocumentSnapshot();
+            when(
+              () => mockDocSnapshot.data(),
+            ).thenReturn({'num_saves': 2, 'num_shares': 1});
+
+            await repository.decrementReaction(jokeId, JokeReactionType.share);
+
+            // popularity_score = 2 + (0 * 5) = 2
+            verify(
+              () => mockDocumentReference.update({
+                'num_shares': FieldValue.increment(-1),
+                'popularity_score': 2,
+              }),
+            ).called(1);
+          },
+        );
+
+        test('should prevent negative reaction counts', () async {
+          const jokeId = 'test-joke-id';
+          mockDocSnapshot = MockDocumentSnapshot();
+          when(
+            () => mockDocSnapshot.data(),
+          ).thenReturn({'num_saves': 0, 'num_shares': 0});
+
+          await repository.decrementReaction(jokeId, JokeReactionType.save);
+
+          // popularity_score = 0 + (0 * 5) = 0 (shouldn't go negative)
+          verify(
+            () => mockDocumentReference.update({
+              'num_saves': FieldValue.increment(-1),
+              'popularity_score': 0,
+            }),
+          ).called(1);
+        });
+
+        test('should throw exception when joke not found', () async {
+          const jokeId = 'non-existent-joke-id';
+          mockDocSnapshot = MockDocumentSnapshot();
+          when(() => mockDocSnapshot.data()).thenReturn(<String, dynamic>{});
+
+          expect(
+            () => repository.decrementReaction(jokeId, JokeReactionType.save),
+            throwsA(isA<Exception>()),
+          );
+
+          verifyNever(() => mockDocumentReference.update(any()));
+        });
+
+        test(
+          'should handle other reaction types without affecting popularity score',
+          () async {
+            const jokeId = 'test-joke-id';
+            mockDocSnapshot = MockDocumentSnapshot();
+            when(
+              () => mockDocSnapshot.data(),
+            ).thenReturn({'num_saves': 1, 'num_shares': 1});
+
+            // Test with a reaction type that doesn't affect saves or shares
+            await repository.decrementReaction(
+              jokeId,
+              JokeReactionType.thumbsUp,
+            );
+
+            // popularity_score should remain the same: 1 + (1 * 5) = 6
+            verify(
+              () => mockDocumentReference.update({
+                'num_thumbs_up': FieldValue.increment(-1),
+                'popularity_score': 6,
+              }),
+            ).called(1);
+          },
+        );
       });
     });
   });

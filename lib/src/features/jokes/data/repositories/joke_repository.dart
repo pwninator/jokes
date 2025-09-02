@@ -96,14 +96,54 @@ class JokeRepository {
     await _firestore.collection('jokes').doc(jokeId).update(updateData);
   }
 
+  /// Helper function to update reaction count and popularity score
+  Future<void> _updateReactionAndPopularity(
+    String jokeId,
+    JokeReactionType reactionType,
+    int increment,
+  ) async {
+    // Get current joke data to calculate new popularity score
+    final docRef = _firestore.collection('jokes').doc(jokeId);
+    final snapshot = await docRef.get();
+    final data = snapshot.data();
+
+    if (data == null || data.isEmpty) {
+      throw Exception('Joke not found');
+    }
+
+    final currentSaves = data['num_saves'] as int? ?? 0;
+    final currentShares = data['num_shares'] as int? ?? 0;
+
+    // Calculate new values
+    int newSaves = currentSaves;
+    int newShares = currentShares;
+
+    if (reactionType == JokeReactionType.save) {
+      newSaves = currentSaves + increment;
+    } else if (reactionType == JokeReactionType.share) {
+      newShares = currentShares + increment;
+    }
+
+    // Ensure values don't go below 0
+    newSaves = newSaves < 0 ? 0 : newSaves;
+    newShares = newShares < 0 ? 0 : newShares;
+
+    // Calculate new popularity score
+    final newPopularityScore = newSaves + (newShares * 5);
+
+    // Update both the reaction count and popularity score
+    await docRef.update({
+      reactionType.firestoreField: FieldValue.increment(increment),
+      'popularity_score': newPopularityScore,
+    });
+  }
+
   /// Generic method to increment any reaction count
   Future<void> incrementReaction(
     String jokeId,
     JokeReactionType reactionType,
   ) async {
-    await _firestore.collection('jokes').doc(jokeId).update({
-      reactionType.firestoreField: FieldValue.increment(1),
-    });
+    await _updateReactionAndPopularity(jokeId, reactionType, 1);
   }
 
   /// Generic method to decrement any reaction count
@@ -111,9 +151,7 @@ class JokeRepository {
     String jokeId,
     JokeReactionType reactionType,
   ) async {
-    await _firestore.collection('jokes').doc(jokeId).update({
-      reactionType.firestoreField: FieldValue.increment(-1),
-    });
+    await _updateReactionAndPopularity(jokeId, reactionType, -1);
   }
 
   // Legacy methods for backward compatibility (can be removed later)

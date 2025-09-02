@@ -75,9 +75,9 @@ class CalendarCellPopup extends ConsumerWidget {
                 children: [
                   Text(
                     'Day $dayLabel',
-                    style: Theme.of(
-                      context,
-                    ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   IconButton(
                     onPressed: onClose,

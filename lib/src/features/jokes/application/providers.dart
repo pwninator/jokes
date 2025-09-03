@@ -114,6 +114,7 @@ final searchResultIdsProvider =
         maxResults: params.maxResults,
         publicOnly: params.publicOnly,
         matchMode: params.matchMode,
+        scope: scope,
       );
 
       // Log analytics for user scope

@@ -22,6 +22,8 @@ void main() {
     registerFallbackValue(JokeAdminRating.unreviewed);
     // Fallback for MatchMode enum used in cloud function mock
     registerFallbackValue(MatchMode.tight);
+    // Fallback for SearchScope enum used in cloud function mock
+    registerFallbackValue(SearchScope.userJokeSearch);
   });
 
   Widget buildTestWidget(List<Override> overrides) {
@@ -68,6 +70,7 @@ void main() {
           maxResults: any(named: 'maxResults'),
           publicOnly: any(named: 'publicOnly'),
           matchMode: any(named: 'matchMode'),
+          scope: any(named: 'scope'),
         ),
       ).thenAnswer(
         (_) async => const [

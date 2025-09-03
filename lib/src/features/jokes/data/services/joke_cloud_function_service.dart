@@ -1,5 +1,6 @@
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/foundation.dart';
+import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_search_result.dart';
 
 /// How strictly to match the search query
@@ -154,13 +155,14 @@ class JokeCloudFunctionService {
 
   /// Search jokes via Cloud Function and return typed results
   ///
-  /// Request params: { search_query, max_results }
+  /// Request params: { search_query, max_results, label }
   /// Response: List of objects: [{ joke_id, vector_distance }, ...]
   Future<List<JokeSearchResult>> searchJokes({
     required String searchQuery,
     required int maxResults,
     required bool publicOnly,
     required MatchMode matchMode,
+    required SearchScope scope,
   }) async {
     try {
       final callable = _functions.httpsCallable('search_jokes');
@@ -170,6 +172,7 @@ class JokeCloudFunctionService {
         'max_results': maxResults.toString(),
         'public_only': publicOnly,
         'match_mode': matchMode == MatchMode.tight ? 'TIGHT' : 'LOOSE',
+        'label': scope.name,
       };
 
       final result = await callable.call(payload);

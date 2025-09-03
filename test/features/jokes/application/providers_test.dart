@@ -33,6 +33,7 @@ void main() {
       registerAnalyticsFallbackValues();
       // Fallbacks for new enums used with any(named: ...)
       registerFallbackValue(MatchMode.tight);
+      registerFallbackValue(SearchScope.userJokeSearch);
     });
 
     setUp(() {
@@ -1238,6 +1239,7 @@ void main() {
           maxResults: any(named: 'maxResults'),
           publicOnly: any(named: 'publicOnly'),
           matchMode: any(named: 'matchMode'),
+          scope: any(named: 'scope'),
         ),
       ).thenAnswer(
         (_) async => const [JokeSearchResult(id: 'x', vectorDistance: 0.1)],
@@ -1274,6 +1276,7 @@ void main() {
           maxResults: max,
           publicOnly: pub,
           matchMode: mode,
+          scope: SearchScope.userJokeSearch,
         ),
       ).called(1);
 
@@ -1290,6 +1293,7 @@ void main() {
             maxResults: any(named: 'maxResults'),
             publicOnly: any(named: 'publicOnly'),
             matchMode: any(named: 'matchMode'),
+            scope: any(named: 'scope'),
           ),
         ).thenAnswer(
           (_) async => const [
@@ -1398,6 +1402,7 @@ void main() {
           maxResults: any(named: 'maxResults'),
           publicOnly: any(named: 'publicOnly'),
           matchMode: any(named: 'matchMode'),
+          scope: any(named: 'scope'),
         ),
       ).thenAnswer(
         (_) async => const [JokeSearchResult(id: 'j1', vectorDistance: 0.42)],

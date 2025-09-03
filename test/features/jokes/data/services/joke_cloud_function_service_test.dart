@@ -1,6 +1,7 @@
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
 // joke_search_result.dart imported transitively via service tests; keep imports minimal
 
@@ -198,6 +199,7 @@ void main() {
           maxResults: 50,
           publicOnly: true,
           matchMode: MatchMode.tight,
+          scope: SearchScope.userJokeSearch,
         );
         expect(results.map((r) => r.id).toList(), ['a', 'b']);
         expect(results.map((r) => r.vectorDistance).toList(), [0.11, 0.23]);
@@ -232,6 +234,7 @@ void main() {
           maxResults: 25,
           publicOnly: false,
           matchMode: MatchMode.loose,
+          scope: SearchScope.jokeManagementSearch,
         );
         expect(results.map((r) => r.id).toList(), ['x', 'y']);
         final captured =
@@ -261,6 +264,7 @@ void main() {
           maxResults: 5,
           publicOnly: true,
           matchMode: MatchMode.tight,
+          scope: SearchScope.jokeDeepResearchSearch,
         );
         expect(results.map((r) => r.id).toList(), ['x']);
         final captured =
@@ -285,6 +289,7 @@ void main() {
           maxResults: 10,
           publicOnly: true,
           matchMode: MatchMode.tight,
+          scope: SearchScope.userJokeSearch,
         );
         expect(results, isEmpty);
       });

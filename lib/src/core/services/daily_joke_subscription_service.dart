@@ -401,8 +401,11 @@ class SubscriptionPromptNotifier
 
   /// Consider showing the prompt immediately based on jokes-viewed threshold
   void considerPromptAfterJokeViewed(int jokesViewedCount) {
-    // Skip if user has already made a choice or prompt already pending/shown
-    if (state.shouldSkipPromptLogic || state.shouldShowPrompt) {
+    // Skip if user is already subscribed, has already made a choice, or the
+    // prompt is already pending or has been shown.
+    if (state.isSubscribed ||
+        state.shouldSkipPromptLogic ||
+        state.shouldShowPrompt) {
       return;
     }
 

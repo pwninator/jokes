@@ -443,6 +443,36 @@ void main() {
       expect(state.shouldShowPrompt, isFalse);
     });
 
+    test('does not show prompt if user is already subscribed', () async {
+      // Mark that user is already subscribed
+      await sharedPreferences.setBool('daily_jokes_subscribed', true);
+
+      // Recreate container so SubscriptionPromptNotifier initializes from prefs
+      container.dispose();
+      container = ProviderContainer(
+        overrides: [
+          sharedPreferencesInstanceProvider.overrideWithValue(
+            sharedPreferences,
+          ),
+          dailyJokeSubscriptionServiceProvider.overrideWithValue(
+            mockSyncService,
+          ),
+        ],
+      );
+
+      final notifier = container.read(subscriptionPromptProvider.notifier);
+
+      // Give async initializer a moment to populate state
+      await Future<void>.delayed(const Duration(milliseconds: 1));
+
+      notifier.considerPromptAfterJokeViewed(
+        JokeConstants.subscriptionPromptJokesViewedThreshold + 1,
+      );
+
+      final state = container.read(subscriptionPromptProvider);
+      expect(state.shouldShowPrompt, isFalse);
+    });
+
     test('shows prompt at or above threshold', () async {
       final notifier = container.read(subscriptionPromptProvider.notifier);
 

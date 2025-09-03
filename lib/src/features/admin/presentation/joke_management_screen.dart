@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:snickerdoodle/src/common_widgets/adaptive_app_bar_screen.dart';
 import 'package:snickerdoodle/src/common_widgets/joke_card.dart';
 import 'package:snickerdoodle/src/config/router/route_names.dart';
+import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
 import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_state.dart';
@@ -44,7 +45,13 @@ class _JokeManagementScreenState extends ConsumerState<JokeManagementScreen> {
         final currentQuery = ref
             .read(searchQueryProvider(SearchScope.jokeManagementSearch))
             .query;
-        _searchController.text = currentQuery;
+        const String prefix = JokeConstants.searchQueryPrefix;
+        if (currentQuery.length >= prefix.length &&
+            currentQuery.substring(0, prefix.length) == prefix) {
+          _searchController.text = currentQuery.substring(prefix.length);
+        } else {
+          _searchController.text = currentQuery;
+        }
       }
     });
     _searchFocusNode.addListener(() {
@@ -236,7 +243,7 @@ class _JokeManagementScreenState extends ConsumerState<JokeManagementScreen> {
                               ).notifier,
                             )
                             .state = SearchQuery(
-                          query: "jokes about $query",
+                          query: "${JokeConstants.searchQueryPrefix}$query",
                           maxResults: kAdminSearchMaxResults,
                           publicOnly: kAdminSearchPublicOnly,
                           matchMode: kAdminSearchMatchMode,

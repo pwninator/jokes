@@ -7,6 +7,7 @@ import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
+import 'package:snickerdoodle/src/features/jokes/domain/joke_search_result.dart';
 
 // Mock classes for Firebase services
 class MockJokeCloudFunctionService extends Mock
@@ -108,6 +109,8 @@ class FirebaseMocks {
   static void _setupCloudFunctionServiceDefaults(
     MockJokeCloudFunctionService mock,
   ) {
+    // Needed for mocktail when matching named args of type MatchMode
+    registerFallbackValue(MatchMode.tight);
     // Setup default behaviors that won't throw
     when(
       () => mock.createJokeWithResponse(
@@ -138,6 +141,16 @@ class FirebaseMocks {
         'data': {'jokes': []},
       },
     );
+
+    // Default searchJokes returns empty list to avoid network calls during tests
+    when(
+      () => mock.searchJokes(
+        searchQuery: any(named: 'searchQuery'),
+        maxResults: any(named: 'maxResults'),
+        publicOnly: any(named: 'publicOnly'),
+        matchMode: any(named: 'matchMode'),
+      ),
+    ).thenAnswer((_) async => <JokeSearchResult>[]);
   }
 
   static void _setupFirebaseFirestoreDefaults(MockFirebaseFirestore mock) {

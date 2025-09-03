@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/common_widgets/adaptive_app_bar_screen.dart';
 import 'package:snickerdoodle/src/config/router/router_providers.dart';
+import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
 import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
 import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart'
@@ -37,7 +38,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         final currentQuery = ref
             .read(searchQueryProvider(SearchScope.userJokeSearch))
             .query;
-        _controller.text = currentQuery;
+        const String prefix = JokeConstants.searchQueryPrefix;
+        if (currentQuery.length >= prefix.length &&
+            currentQuery.substring(0, prefix.length) == prefix) {
+          _controller.text = currentQuery.substring(prefix.length);
+        } else {
+          _controller.text = currentQuery;
+        }
       }
     });
   }
@@ -65,7 +72,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     ref
         .read(searchQueryProvider(SearchScope.userJokeSearch).notifier)
         .state = current.copyWith(
-      query: "jokes about $query",
+      query: "${JokeConstants.searchQueryPrefix}$query",
       maxResults: 50,
       publicOnly: true,
       matchMode: MatchMode.tight,

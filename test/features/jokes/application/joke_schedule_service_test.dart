@@ -1010,9 +1010,11 @@ void main() {
                 ).captured.first
                 as JokeScheduleBatch;
 
-        // Should find available date in current month (day 2)
+        // Should find available date in current month (today if available; otherwise next available)
         expect(capturedBatch.id, equals(currentBatch.id));
-        expect(capturedBatch.jokes['02']?.id, equals(jokeId));
+        final expectedDay = currentDate.day == 1 ? 2 : currentDate.day;
+        final expectedKey = expectedDay.toString().padLeft(2, '0');
+        expect(capturedBatch.jokes[expectedKey]?.id, equals(jokeId));
       });
 
       test('should handle timezone conversion for LA timezone', () async {

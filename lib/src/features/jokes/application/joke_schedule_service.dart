@@ -290,6 +290,7 @@ class JokeScheduleAutoFillService {
 
       // Check each day in this batch
       final daysInMonth = DateTime(batch.year, batch.month + 1, 0).day;
+      // Start from today if current month, otherwise from day 1
       final startDay =
           (batch.year == startDate.year && batch.month == startDate.month)
           ? startDate.day

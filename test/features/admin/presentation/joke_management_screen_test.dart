@@ -24,12 +24,16 @@ void main() {
 
     when(() => mockRepo.getJokes()).thenAnswer((_) => Stream.value(const []));
 
+    final container = ProviderContainer(
+      overrides: [
+        jokeRepositoryProvider.overrideWithValue(mockRepo),
+        jokeCloudFunctionServiceProvider.overrideWithValue(mockService),
+      ],
+    );
+    addTearDown(container.dispose);
     await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          jokeRepositoryProvider.overrideWithValue(mockRepo),
-          jokeCloudFunctionServiceProvider.overrideWithValue(mockService),
-        ],
+      UncontrolledProviderScope(
+        container: container,
         child: const MaterialApp(home: Scaffold(body: JokeManagementScreen())),
       ),
     );
@@ -48,15 +52,63 @@ void main() {
     await tester.pump();
 
     // Read provider state
-    final context = tester.element(find.byType(JokeManagementScreen));
-    final container = ProviderScope.containerOf(context);
-    final params = container.read(
-      searchQueryProvider(SearchScope.jokeManagementSearch),
-    );
+    final params = ProviderScope.containerOf(
+      tester.element(find.byType(JokeManagementScreen)),
+    ).read(searchQueryProvider(SearchScope.jokeManagementSearch));
 
     expect(params.query, 'jokes about cats');
     expect(params.maxResults, 50);
     expect(params.publicOnly, isFalse);
     expect(params.matchMode, MatchMode.loose);
+  });
+
+  testWidgets('Admin search field restores raw text without prefix', (
+    tester,
+  ) async {
+    final mockRepo = _MockJokeRepository();
+    final mockService = _MockJokeCloudFunctionService();
+
+    when(() => mockRepo.getJokes()).thenAnswer((_) => Stream.value(const []));
+
+    final container = ProviderContainer(
+      overrides: [
+        jokeRepositoryProvider.overrideWithValue(mockRepo),
+        jokeCloudFunctionServiceProvider.overrideWithValue(mockService),
+      ],
+    );
+    addTearDown(container.dispose);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: Scaffold(body: JokeManagementScreen())),
+      ),
+    );
+
+    // Open search field
+    final searchChip = find.byKey(const Key('search-toggle-chip'));
+    await tester.tap(searchChip);
+    await tester.pumpAndSettle();
+
+    // Enter text and submit to set provider (which adds prefix)
+    final field = find.byKey(const Key('admin-search-field'));
+    await tester.enterText(field, 'otters');
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.pump();
+
+    // Preserve provider state across remount via UncontrolledProviderScope
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: Scaffold(body: JokeManagementScreen())),
+      ),
+    );
+
+    // Field should auto-show because provider query is non-empty
+    final fieldAfter = find.byKey(const Key('admin-search-field'));
+    final textFieldWidget = tester.widget<TextField>(fieldAfter);
+    expect(textFieldWidget.controller?.text, 'otters');
   });
 }

@@ -1,3 +1,4 @@
+import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -5,6 +6,7 @@ import 'package:snickerdoodle/src/common_widgets/subscription_prompt_overlay.dar
 import 'package:snickerdoodle/src/config/router/route_guards.dart';
 import 'package:snickerdoodle/src/config/router/route_names.dart';
 import 'package:snickerdoodle/src/config/router/router_providers.dart';
+import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/services/notification_service.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/deep_research_screen.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_admin_screen.dart';
@@ -33,6 +35,11 @@ class AppRouter {
       initialLocation: AppRoutes.jokes,
       refreshListenable: refreshListenable,
       debugLogDiagnostics: true,
+      observers: [
+        FirebaseAnalyticsObserver(
+          analytics: ref.read(firebaseAnalyticsProvider),
+        ),
+      ],
       redirect: AuthGuard.redirect,
       routes: [
         // Auth route
@@ -44,6 +51,11 @@ class AppRouter {
 
         // Main shell route with tab navigation
         ShellRoute(
+          observers: [
+            FirebaseAnalyticsObserver(
+              analytics: ref.read(firebaseAnalyticsProvider),
+            ),
+          ],
           builder: (context, state, child) {
             return Consumer(
               builder: (context, ref, _) {

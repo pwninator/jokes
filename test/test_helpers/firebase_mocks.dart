@@ -96,6 +96,13 @@ class FirebaseMocks {
         parameters: any(named: 'parameters'),
       ),
     ).thenAnswer((_) async {});
+    when(
+      () => mock.logScreenView(
+        screenName: any(named: 'screenName'),
+        screenClass: any(named: 'screenClass'),
+        parameters: any(named: 'parameters'),
+      ),
+    ).thenAnswer((_) async {});
   }
 
   static void _setupCloudFunctionServiceDefaults(

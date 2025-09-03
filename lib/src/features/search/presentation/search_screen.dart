@@ -152,6 +152,43 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               onSubmitted: _onSubmitted,
             ),
           ),
+          // Results count label under the search bar
+          Consumer(
+            builder: (context, ref, _) {
+              final currentQuery = ref
+                  .watch(searchQueryProvider(SearchScope.userJokeSearch))
+                  .query
+                  .trim();
+              if (currentQuery.length < 2) {
+                return const SizedBox.shrink();
+              }
+              final resultsAsync = ref.watch(
+                searchResultsViewerProvider(SearchScope.userJokeSearch),
+              );
+              return resultsAsync.when(
+                data: (list) {
+                  final count = list.length;
+                  final label = count == 1 ? '1 result' : '$count results';
+                  return Align(
+                    alignment: Alignment.centerLeft,
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16.0,
+                        vertical: 6.0,
+                      ),
+                      child: Text(
+                        label,
+                        key: const Key('search-results-count'),
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ),
+                  );
+                },
+                loading: () => const SizedBox.shrink(),
+                error: (error, stackTrace) => const SizedBox.shrink(),
+              );
+            },
+          ),
           Expanded(
             child: Consumer(
               builder: (context, ref, child) {

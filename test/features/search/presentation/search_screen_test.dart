@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
 import 'package:snickerdoodle/src/features/search/presentation/search_screen.dart';
+import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
+import '../../../test_helpers/firebase_mocks.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -11,7 +13,10 @@ void main() {
     tester,
   ) async {
     await tester.pumpWidget(
-      const ProviderScope(child: MaterialApp(home: SearchScreen())),
+      ProviderScope(
+        overrides: FirebaseMocks.getFirebaseProviderOverrides(),
+        child: const MaterialApp(home: SearchScreen()),
+      ),
     );
 
     // Ensure initial state
@@ -38,5 +43,144 @@ void main() {
       container.read(searchQueryProvider(SearchScope.userJokeSearch)).query,
       '',
     );
+  });
+
+  testWidgets('Shows results count for single result', (tester) async {
+    final overrides = FirebaseMocks.getFirebaseProviderOverrides(
+      additionalOverrides: [
+        searchResultsViewerProvider(SearchScope.userJokeSearch).overrideWith(
+          (ref) => const AsyncValue.data([
+            JokeWithDate(
+              joke: Joke(
+                id: '1',
+                setupText: 's',
+                punchlineText: 'p',
+                setupImageUrl: 'a',
+                punchlineImageUrl: 'b',
+              ),
+            ),
+          ]),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: overrides,
+        child: const MaterialApp(home: SearchScreen()),
+      ),
+    );
+
+    final field = find.byKey(const Key('search-tab-search-field'));
+    await tester.enterText(field, 'cat');
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.pump();
+
+    expect(find.byKey(const Key('search-results-count')), findsOneWidget);
+    expect(find.text('1 result'), findsOneWidget);
+  });
+
+  testWidgets('Shows pluralized results count for multiple results', (
+    tester,
+  ) async {
+    final overrides = FirebaseMocks.getFirebaseProviderOverrides(
+      additionalOverrides: [
+        searchResultsViewerProvider(SearchScope.userJokeSearch).overrideWith(
+          (ref) => const AsyncValue.data([
+            JokeWithDate(
+              joke: Joke(
+                id: '1',
+                setupText: 's1',
+                punchlineText: 'p1',
+                setupImageUrl: 'a',
+                punchlineImageUrl: 'b',
+              ),
+            ),
+            JokeWithDate(
+              joke: Joke(
+                id: '2',
+                setupText: 's2',
+                punchlineText: 'p2',
+                setupImageUrl: 'a',
+                punchlineImageUrl: 'b',
+              ),
+            ),
+            JokeWithDate(
+              joke: Joke(
+                id: '3',
+                setupText: 's3',
+                punchlineText: 'p3',
+                setupImageUrl: 'a',
+                punchlineImageUrl: 'b',
+              ),
+            ),
+          ]),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: overrides,
+        child: const MaterialApp(home: SearchScreen()),
+      ),
+    );
+
+    final field = find.byKey(const Key('search-tab-search-field'));
+    await tester.enterText(field, 'dog');
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.pump();
+
+    expect(find.byKey(const Key('search-results-count')), findsOneWidget);
+    expect(find.text('3 results'), findsOneWidget);
+  });
+
+  testWidgets('Search results show 1-based index titles on JokeCards', (tester) async {
+    final overrides = FirebaseMocks.getFirebaseProviderOverrides(
+      additionalOverrides: [
+        searchResultsViewerProvider(SearchScope.userJokeSearch).overrideWith(
+          (ref) => const AsyncValue.data([
+            JokeWithDate(joke: Joke(
+              id: 'a',
+              setupText: 's1',
+              punchlineText: 'p1',
+              setupImageUrl: 'a',
+              punchlineImageUrl: 'b',
+            )),
+            JokeWithDate(joke: Joke(
+              id: 'b',
+              setupText: 's2',
+              punchlineText: 'p2',
+              setupImageUrl: 'a',
+              punchlineImageUrl: 'b',
+            )),
+          ]),
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: overrides,
+        child: const MaterialApp(home: SearchScreen()),
+      ),
+    );
+
+    final field = find.byKey(const Key('search-tab-search-field'));
+    await tester.enterText(field, 'fish');
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.pump();
+
+    // Title should be the index (1-based) for the first card
+    expect(find.text('1'), findsOneWidget);
+
+    // Swipe up to move to the second joke (vertical PageView)
+    final pageView = find.byKey(const Key('joke_viewer_page_view'));
+    expect(pageView, findsOneWidget);
+    await tester.fling(pageView, const Offset(0, -400), 1000);
+    await tester.pumpAndSettle();
+
+    // Now the title should show '2' for the second card
+    expect(find.text('2'), findsOneWidget);
   });
 }

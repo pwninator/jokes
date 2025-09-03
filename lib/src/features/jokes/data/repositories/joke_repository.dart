@@ -23,6 +23,34 @@ class JokeRepository {
         });
   }
 
+  /// Fetch a one-time snapshot of joke IDs filtered and sorted in Firestore
+  /// - State filter: if one state -> isEqualTo; if multiple -> whereIn
+  /// - Popular filter: popularity_score > 0 and ordered by popularity_score desc
+  /// - Default ordering (when not popular): creation_time desc
+  /// - No limit
+  Future<List<String>> getFilteredJokeIds({
+    required Set<JokeState> states,
+    required bool popularOnly,
+  }) async {
+    Query<Map<String, dynamic>> query = _firestore.collection('jokes');
+
+    if (states.isNotEmpty) {
+      final stateValues = states.map((s) => s.value).toList();
+      query = query.where('state', whereIn: stateValues);
+    }
+
+    if (popularOnly) {
+      query = query
+          .where('popularity_score', isGreaterThan: 0)
+          .orderBy('popularity_score', descending: true);
+    } else {
+      query = query.orderBy('creation_time', descending: true);
+    }
+
+    final snapshot = await query.get();
+    return snapshot.docs.map((d) => d.id).toList();
+  }
+
   /// Get a real-time stream of a joke by ID
   Stream<Joke?> getJokeByIdStream(String jokeId) {
     return _firestore.collection('jokes').doc(jokeId).snapshots().map((

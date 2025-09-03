@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
+import 'package:snickerdoodle/src/features/jokes/domain/joke_state.dart';
 
 // Mock classes using mocktail
 class MockFirebaseFirestore extends Mock implements FirebaseFirestore {}
@@ -537,6 +538,212 @@ void main() {
         ).called(1);
         verify(() => mockWhereQuery.get()).called(1);
       });
+    });
+
+    group('getFilteredJokeIds', () {
+      setUp(() {
+        when(
+          () => mockFirestore.collection('jokes'),
+        ).thenReturn(mockCollectionReference);
+      });
+
+      test(
+        'no filters: orders by creation_time desc and returns ids',
+        () async {
+          final orderedQuery = MockQuery();
+
+          when(
+            () => mockCollectionReference.orderBy(
+              'creation_time',
+              descending: true,
+            ),
+          ).thenReturn(orderedQuery);
+
+          final doc1 = MockDocumentSnapshot();
+          final doc2 = MockDocumentSnapshot();
+          when(() => doc1.id).thenReturn('a');
+          when(() => doc2.id).thenReturn('b');
+          when(() => mockQuerySnapshot.docs).thenReturn([doc1, doc2]);
+
+          when(
+            () => orderedQuery.get(),
+          ).thenAnswer((_) async => mockQuerySnapshot);
+
+          final ids = await repository.getFilteredJokeIds(
+            states: {},
+            popularOnly: false,
+          );
+
+          expect(ids, ['a', 'b']);
+          verify(
+            () => mockCollectionReference.orderBy(
+              'creation_time',
+              descending: true,
+            ),
+          ).called(1);
+          verify(() => orderedQuery.get()).called(1);
+        },
+      );
+
+      test(
+        'single state filter: whereIn with single value + creation_time desc',
+        () async {
+          final whereQuery = MockQuery();
+          final orderedQuery = MockQuery();
+
+          when(
+            () => mockCollectionReference.where('state', whereIn: ['APPROVED']),
+          ).thenReturn(whereQuery);
+          when(
+            () => whereQuery.orderBy('creation_time', descending: true),
+          ).thenReturn(orderedQuery);
+
+          final doc1 = MockDocumentSnapshot();
+          when(() => doc1.id).thenReturn('x');
+          when(() => mockQuerySnapshot.docs).thenReturn([doc1]);
+          when(
+            () => orderedQuery.get(),
+          ).thenAnswer((_) async => mockQuerySnapshot);
+
+          final ids = await repository.getFilteredJokeIds(
+            states: {JokeState.approved},
+            popularOnly: false,
+          );
+
+          expect(ids, ['x']);
+          verify(
+            () => mockCollectionReference.where('state', whereIn: ['APPROVED']),
+          ).called(1);
+          verify(
+            () => whereQuery.orderBy('creation_time', descending: true),
+          ).called(1);
+          verify(() => orderedQuery.get()).called(1);
+        },
+      );
+
+      test('multiple states: whereIn + creation_time desc', () async {
+        final whereQuery = MockQuery();
+        final orderedQuery = MockQuery();
+
+        when(
+          () => mockCollectionReference.where(
+            'state',
+            whereIn: ['APPROVED', 'PUBLISHED'],
+          ),
+        ).thenReturn(whereQuery);
+        when(
+          () => whereQuery.orderBy('creation_time', descending: true),
+        ).thenReturn(orderedQuery);
+
+        final doc1 = MockDocumentSnapshot();
+        when(() => doc1.id).thenReturn('y');
+        when(() => mockQuerySnapshot.docs).thenReturn([doc1]);
+        when(
+          () => orderedQuery.get(),
+        ).thenAnswer((_) async => mockQuerySnapshot);
+
+        final ids = await repository.getFilteredJokeIds(
+          states: {JokeState.approved, JokeState.published},
+          popularOnly: false,
+        );
+
+        expect(ids, ['y']);
+        verify(
+          () => mockCollectionReference.where(
+            'state',
+            whereIn: ['APPROVED', 'PUBLISHED'],
+          ),
+        ).called(1);
+        verify(
+          () => whereQuery.orderBy('creation_time', descending: true),
+        ).called(1);
+        verify(() => orderedQuery.get()).called(1);
+      });
+
+      test(
+        'popular only: where popularity_score > 0 + orderBy popularity desc',
+        () async {
+          final wherePopularity = MockQuery();
+          final orderPopularity = MockQuery();
+
+          when(
+            () => mockCollectionReference.where(
+              'popularity_score',
+              isGreaterThan: 0,
+            ),
+          ).thenReturn(wherePopularity);
+          when(
+            () => wherePopularity.orderBy('popularity_score', descending: true),
+          ).thenReturn(orderPopularity);
+
+          final doc1 = MockDocumentSnapshot();
+          when(() => doc1.id).thenReturn('p');
+          when(() => mockQuerySnapshot.docs).thenReturn([doc1]);
+          when(
+            () => orderPopularity.get(),
+          ).thenAnswer((_) async => mockQuerySnapshot);
+
+          final ids = await repository.getFilteredJokeIds(
+            states: {},
+            popularOnly: true,
+          );
+
+          expect(ids, ['p']);
+          verify(
+            () => mockCollectionReference.where(
+              'popularity_score',
+              isGreaterThan: 0,
+            ),
+          ).called(1);
+          verify(
+            () => wherePopularity.orderBy('popularity_score', descending: true),
+          ).called(1);
+          verify(() => orderPopularity.get()).called(1);
+        },
+      );
+
+      test(
+        'state + popular: where state, where popularity, orderBy popularity desc',
+        () async {
+          final whereState = MockQuery();
+          final wherePopularity = MockQuery();
+          final orderPopularity = MockQuery();
+
+          when(
+            () => mockCollectionReference.where('state', whereIn: ['APPROVED']),
+          ).thenReturn(whereState);
+          when(
+            () => whereState.where('popularity_score', isGreaterThan: 0),
+          ).thenReturn(wherePopularity);
+          when(
+            () => wherePopularity.orderBy('popularity_score', descending: true),
+          ).thenReturn(orderPopularity);
+
+          final doc1 = MockDocumentSnapshot();
+          when(() => doc1.id).thenReturn('z');
+          when(() => mockQuerySnapshot.docs).thenReturn([doc1]);
+          when(
+            () => orderPopularity.get(),
+          ).thenAnswer((_) async => mockQuerySnapshot);
+
+          final ids = await repository.getFilteredJokeIds(
+            states: {JokeState.approved},
+            popularOnly: true,
+          );
+
+          expect(ids, ['z']);
+          verify(
+            () => mockCollectionReference.where('state', whereIn: ['APPROVED']),
+          ).called(1);
+          verify(
+            () => whereState.where('popularity_score', isGreaterThan: 0),
+          ).called(1);
+          verify(
+            () => wherePopularity.orderBy('popularity_score', descending: true),
+          ).called(1);
+          verify(() => orderPopularity.get()).called(1);
+        },
+      );
     });
 
     group('admin reaction operations', () {

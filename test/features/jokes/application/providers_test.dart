@@ -1140,6 +1140,66 @@ void main() {
     });
   });
 
+  group('filteredJokeIdsProvider', () {
+    late MockJokeRepository mockJokeRepository;
+
+    setUp(() {
+      mockJokeRepository = MockJokeRepository();
+    });
+
+    test('returns ids from repository with no filters', () async {
+      when(
+        () => mockJokeRepository.getFilteredJokeIds(
+          states: any(named: 'states'),
+          popularOnly: any(named: 'popularOnly'),
+        ),
+      ).thenAnswer((_) async => ['a', 'b']);
+
+      final container = ProviderContainer(
+        overrides: [
+          jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
+        ],
+      );
+
+      final result = await container.read(filteredJokeIdsProvider.future);
+      expect(result, ['a', 'b']);
+      container.dispose();
+    });
+
+    test('passes selected states and popularOnly to repository', () async {
+      when(
+        () => mockJokeRepository.getFilteredJokeIds(
+          states: {JokeState.approved, JokeState.published},
+          popularOnly: true,
+        ),
+      ).thenAnswer((_) async => ['x']);
+
+      final container = ProviderContainer(
+        overrides: [
+          jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
+        ],
+      );
+
+      // Set filter state
+      container.read(jokeFilterProvider.notifier).setSelectedStates({
+        JokeState.approved,
+        JokeState.published,
+      });
+      container.read(jokeFilterProvider.notifier).setPopularOnly(true);
+
+      final result = await container.read(filteredJokeIdsProvider.future);
+      expect(result, ['x']);
+
+      verify(
+        () => mockJokeRepository.getFilteredJokeIds(
+          states: {JokeState.approved, JokeState.published},
+          popularOnly: true,
+        ),
+      ).called(1);
+      container.dispose();
+    });
+  });
+
   group('Search Providers', () {
     late MockJokeRepository mockJokeRepository;
     late MockJokeCloudFunctionService mockCloudFunctionService;

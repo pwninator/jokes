@@ -5,7 +5,6 @@ import 'package:snickerdoodle/src/common_widgets/adaptive_app_bar_screen.dart';
 import 'package:snickerdoodle/src/common_widgets/joke_card.dart';
 import 'package:snickerdoodle/src/config/router/route_names.dart';
 import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
-import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_state.dart';
 
@@ -148,13 +147,10 @@ class _JokeManagementScreenState extends ConsumerState<JokeManagementScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final jokesAsync = ref.watch(filteredJokesProvider);
+    final adminJokesAsync = ref.watch(adminJokesLiveProvider);
     final filterState = ref.watch(jokeFilterProvider);
     final searchParams = ref.watch(
       searchQueryProvider(SearchScope.jokeManagementSearch),
-    );
-    final searchResultsAsync = ref.watch(
-      searchResultsLiveProvider(SearchScope.jokeManagementSearch),
     );
 
     // Show search field if user explicitly wants to search OR if there's a query
@@ -328,126 +324,103 @@ class _JokeManagementScreenState extends ConsumerState<JokeManagementScreen> {
           ),
           // Search + Jokes list
           Expanded(
-            child:
-                (searchParams.query.trim().isNotEmpty
-                        ? searchResultsAsync.whenData(
-                            (list) => list
-                                .map<({Joke joke, String? badge})>(
-                                  (jvd) => (
-                                    joke: jvd.joke,
-                                    badge: jvd.vectorDistance.toStringAsFixed(
-                                      2,
-                                    ),
-                                  ),
-                                )
-                                .toList(),
-                          )
-                        : jokesAsync.whenData(
-                            (list) => list
-                                .map<({Joke joke, String? badge})>(
-                                  (j) => (joke: j, badge: null),
-                                )
-                                .toList(),
-                          ))
-                    .when(
-                      data: (items) => items.isEmpty
-                          ? Center(
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    Icons.mood_bad,
-                                    size: 64,
-                                    color: Theme.of(context)
-                                        .colorScheme
-                                        .onSurface
-                                        .withValues(alpha: 0.4),
-                                  ),
-                                  const SizedBox(height: 16),
-                                  Text(
-                                    _getEmptyStateTitle(filterState),
-                                    style: TextStyle(
-                                      fontSize: 18,
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .onSurface
-                                          .withValues(alpha: 0.6),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    _getEmptyStateSubtitle(filterState),
-                                    style: TextStyle(
-                                      fontSize: 14,
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .onSurface
-                                          .withValues(alpha: 0.5),
-                                    ),
-                                    textAlign: TextAlign.center,
-                                  ),
-                                ],
-                              ),
-                            )
-                          : ListView.builder(
-                              padding: const EdgeInsets.all(8.0),
-                              itemCount: items.length,
-                              itemBuilder: (context, index) {
-                                final joke = items[index].joke;
-                                return JokeCard(
-                                  key: Key(joke.id),
-                                  joke: joke,
-                                  index: index,
-                                  isAdminMode: kAdminJokeCardIsAdminMode,
-                                  showSaveButton: kAdminJokeCardShowSaveButton,
-                                  showShareButton:
-                                      kAdminJokeCardShowShareButton,
-                                  showAdminRatingButtons:
-                                      kAdminJokeCardShowAdminRatingButtons,
-                                  showNumSaves: kAdminJokeCardShowNumSaves,
-                                  showNumShares: kAdminJokeCardShowNumShares,
-                                  jokeContext: kAdminJokeCardContext,
-                                  topRightBadgeText: items[index].badge,
-                                );
-                              },
+            child: adminJokesAsync.when(
+              data: (items) => items.isEmpty
+                  ? Center(
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(
+                            Icons.mood_bad,
+                            size: 64,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurface.withValues(alpha: 0.4),
+                          ),
+                          const SizedBox(height: 16),
+                          Text(
+                            _getEmptyStateTitle(filterState),
+                            style: TextStyle(
+                              fontSize: 18,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurface.withValues(alpha: 0.6),
                             ),
-                      loading: () => const Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            CircularProgressIndicator(),
-                            SizedBox(height: 16),
-                            Text('Loading jokes...'),
-                          ],
-                        ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            _getEmptyStateSubtitle(filterState),
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurface.withValues(alpha: 0.5),
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
                       ),
-                      error: (error, stackTrace) => Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(
-                              Icons.error_outline,
-                              size: 64,
-                              color: Theme.of(context).colorScheme.error,
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              'Error loading jokes',
-                              style: TextStyle(
-                                fontSize: 18,
-                                color: Theme.of(context).colorScheme.error,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              error.toString(),
-                              style: const TextStyle(fontSize: 14),
-                              textAlign: TextAlign.center,
-                            ),
-                          ],
-                        ),
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.all(8.0),
+                      itemCount: items.length,
+                      itemBuilder: (context, index) {
+                        final jvd = items[index];
+                        final joke = jvd.joke;
+                        return JokeCard(
+                          key: Key(joke.id),
+                          joke: joke,
+                          index: index,
+                          isAdminMode: kAdminJokeCardIsAdminMode,
+                          showSaveButton: kAdminJokeCardShowSaveButton,
+                          showShareButton: kAdminJokeCardShowShareButton,
+                          showAdminRatingButtons:
+                              kAdminJokeCardShowAdminRatingButtons,
+                          showNumSaves: kAdminJokeCardShowNumSaves,
+                          showNumShares: kAdminJokeCardShowNumShares,
+                          jokeContext: kAdminJokeCardContext,
+                          topRightBadgeText: jvd.vectorDistance
+                              ?.toStringAsFixed(2),
+                        );
+                      },
+                    ),
+              loading: () => const Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    CircularProgressIndicator(),
+                    SizedBox(height: 16),
+                    Text('Loading jokes...'),
+                  ],
+                ),
+              ),
+              error: (error, stackTrace) => Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.error_outline,
+                      size: 64,
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      'Error loading jokes',
+                      style: TextStyle(
+                        fontSize: 18,
+                        color: Theme.of(context).colorScheme.error,
                       ),
                     ),
+                    const SizedBox(height: 8),
+                    Text(
+                      error.toString(),
+                      style: const TextStyle(fontSize: 14),
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
         ],
       ),

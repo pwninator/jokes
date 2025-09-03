@@ -134,11 +134,8 @@ final searchResultIdsProvider =
 // Live search results that react to per-joke updates
 class JokeWithVectorDistance {
   final Joke joke;
-  final double vectorDistance;
-  const JokeWithVectorDistance({
-    required this.joke,
-    required this.vectorDistance,
-  });
+  final double? vectorDistance; // null when not from search
+  const JokeWithVectorDistance({required this.joke, this.vectorDistance});
 }
 
 final searchResultsLiveProvider =
@@ -213,6 +210,74 @@ final searchResultsLiveProvider =
         }
 
         // note: do not apply popular sorting here; handled globally below
+      }
+
+      return AsyncValue.data(ordered);
+    });
+
+// Unified admin jokes provider: search path uses live search; otherwise
+// builds from filtered snapshot of IDs and streams per-doc.
+final adminJokesLiveProvider =
+    Provider<AsyncValue<List<JokeWithVectorDistance>>>((ref) {
+      final searchParams = ref.watch(
+        searchQueryProvider(SearchScope.jokeManagementSearch),
+      );
+
+      // If there is a search query, delegate to live search provider
+      if (searchParams.query.trim().isNotEmpty) {
+        return ref.watch(
+          searchResultsLiveProvider(SearchScope.jokeManagementSearch),
+        );
+      }
+
+      final idsAsync = ref.watch(filteredJokeIdsProvider);
+      if (idsAsync.isLoading) {
+        return const AsyncValue.loading();
+      }
+      if (idsAsync.hasError) {
+        return AsyncValue.error(
+          idsAsync.error!,
+          idsAsync.stackTrace ?? StackTrace.current,
+        );
+      }
+
+      final ids = idsAsync.value ?? const <String>[];
+      if (ids.isEmpty) {
+        return const AsyncValue.data(<JokeWithVectorDistance>[]);
+      }
+
+      // Watch each joke by id
+      final perJoke = <AsyncValue<Joke?>>[];
+      for (final id in ids) {
+        perJoke.add(ref.watch(jokeByIdProvider(id)));
+      }
+
+      // If any still loading, show loading
+      if (perJoke.any((j) => j.isLoading)) {
+        return const AsyncValue.loading();
+      }
+
+      // Surface first error if any
+      final firstError = perJoke.firstWhere(
+        (j) => j.hasError,
+        orElse: () => const AsyncValue.data(null),
+      );
+      if (firstError.hasError) {
+        return AsyncValue.error(
+          firstError.error!,
+          firstError.stackTrace ?? StackTrace.current,
+        );
+      }
+
+      // Build ordered list based on ids, skipping nulls
+      final ordered = <JokeWithVectorDistance>[];
+      for (var i = 0; i < ids.length; i++) {
+        final value = perJoke[i].value;
+        if (value != null) {
+          ordered.add(
+            JokeWithVectorDistance(joke: value, vectorDistance: null),
+          );
+        }
       }
 
       return AsyncValue.data(ordered);
@@ -651,6 +716,16 @@ final filteredJokesProvider = Provider<AsyncValue<List<Joke>>>((ref) {
   }
 
   return AsyncValue.data(filteredJokes);
+});
+
+// Snapshot-only list of filtered joke IDs for admin management list
+final filteredJokeIdsProvider = FutureProvider<List<String>>((ref) async {
+  final repository = ref.watch(jokeRepositoryProvider);
+  final filterState = ref.watch(jokeFilterProvider);
+  return repository.getFilteredJokeIds(
+    states: filterState.selectedStates,
+    popularOnly: filterState.showPopularOnly,
+  );
 });
 
 // Data class to hold a joke with its associated date

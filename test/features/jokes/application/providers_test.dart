@@ -1240,6 +1240,7 @@ void main() {
           publicOnly: any(named: 'publicOnly'),
           matchMode: any(named: 'matchMode'),
           scope: any(named: 'scope'),
+          excludeJokeIds: any(named: 'excludeJokeIds'),
         ),
       ).thenAnswer(
         (_) async => const [JokeSearchResult(id: 'x', vectorDistance: 0.1)],
@@ -1264,6 +1265,7 @@ void main() {
         maxResults: max,
         publicOnly: pub,
         matchMode: mode,
+        excludeJokeIds: ['id_to_exclude'],
       );
 
       await container.read(
@@ -1277,11 +1279,44 @@ void main() {
           publicOnly: pub,
           matchMode: mode,
           scope: SearchScope.userJokeSearch,
+          excludeJokeIds: ['id_to_exclude'],
         ),
       ).called(1);
 
       container.dispose();
     });
+
+    test(
+      'search query excludeJokeIds defaults to empty and can be overridden',
+      () async {
+        final container = ProviderContainer(
+          overrides: [
+            jokeCloudFunctionServiceProvider.overrideWithValue(
+              mockCloudFunctionService,
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        // Default is empty
+        final initial = container.read(
+          searchQueryProvider(SearchScope.userJokeSearch),
+        );
+        expect(initial.excludeJokeIds, isEmpty);
+
+        // Override via copyWith
+        container
+            .read(searchQueryProvider(SearchScope.userJokeSearch).notifier)
+            .state = initial.copyWith(
+          excludeJokeIds: ['a'],
+        );
+
+        final updated = container.read(
+          searchQueryProvider(SearchScope.userJokeSearch),
+        );
+        expect(updated.excludeJokeIds, ['a']);
+      },
+    );
 
     test(
       'searchResultsLiveProvider preserves order and applies filters',

@@ -163,6 +163,7 @@ class JokeCloudFunctionService {
     required bool publicOnly,
     required MatchMode matchMode,
     required SearchScope scope,
+    List<String> excludeJokeIds = const <String>[],
   }) async {
     try {
       final callable = _functions.httpsCallable('search_jokes');
@@ -173,6 +174,7 @@ class JokeCloudFunctionService {
         'public_only': publicOnly,
         'match_mode': matchMode == MatchMode.tight ? 'TIGHT' : 'LOOSE',
         'label': scope.name,
+        if (excludeJokeIds.isNotEmpty) 'exclude_joke_ids': excludeJokeIds,
       };
 
       final result = await callable.call(payload);
@@ -186,11 +188,17 @@ class JokeCloudFunctionService {
           : null;
 
       if (resultsList != null) {
-        return resultsList
+        var parsed = resultsList
             .whereType<Map>()
             .map((e) => JokeSearchResult.fromMap(e))
             .where((r) => r.id.isNotEmpty)
             .toList();
+        if (excludeJokeIds.isNotEmpty) {
+          final exclude = excludeJokeIds.toSet();
+          parsed = parsed.where((r) => !exclude.contains(r.id)).toList();
+        }
+
+        return parsed;
       }
 
       debugPrint('Unexpected search_jokes response: $data');

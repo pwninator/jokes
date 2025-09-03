@@ -76,6 +76,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       maxResults: 50,
       publicOnly: true,
       matchMode: MatchMode.tight,
+      excludeJokeIds: const [],
     );
     // Reset viewer to first result
     _resetViewer?.call();

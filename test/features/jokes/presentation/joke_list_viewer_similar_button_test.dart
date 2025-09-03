@@ -134,6 +134,8 @@ void main() {
       query.query,
       '${JokeConstants.searchQueryPrefix}Penguin antics A punchline',
     );
+    // Should exclude the initiating joke id
+    expect(query.excludeJokeIds, ['1']);
 
     // Verify analytics call for joke_search_similar
     verify(

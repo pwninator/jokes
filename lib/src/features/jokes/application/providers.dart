@@ -59,12 +59,14 @@ class SearchQuery {
   final int maxResults;
   final bool publicOnly;
   final MatchMode matchMode;
+  final List<String> excludeJokeIds;
 
   const SearchQuery({
     required this.query,
     required this.maxResults,
     required this.publicOnly,
     required this.matchMode,
+    this.excludeJokeIds = const [],
   });
 
   SearchQuery copyWith({
@@ -72,12 +74,14 @@ class SearchQuery {
     int? maxResults,
     bool? publicOnly,
     MatchMode? matchMode,
+    List<String>? excludeJokeIds,
   }) {
     return SearchQuery(
       query: query ?? this.query,
       maxResults: maxResults ?? this.maxResults,
       publicOnly: publicOnly ?? this.publicOnly,
       matchMode: matchMode ?? this.matchMode,
+      excludeJokeIds: excludeJokeIds ?? this.excludeJokeIds,
     );
   }
 }
@@ -115,6 +119,7 @@ final searchResultIdsProvider =
         publicOnly: params.publicOnly,
         matchMode: params.matchMode,
         scope: scope,
+        excludeJokeIds: params.excludeJokeIds,
       );
 
       // Log analytics for user scope

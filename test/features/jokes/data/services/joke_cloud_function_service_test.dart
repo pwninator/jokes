@@ -293,6 +293,42 @@ void main() {
         );
         expect(results, isEmpty);
       });
+
+      test(
+        'sends exclude_joke_ids and filters excluded ids from results',
+        () async {
+          const q = 'exclude';
+
+          when(
+            () => mockFunctions.httpsCallable('search_jokes'),
+          ).thenReturn(mockCallable);
+          when(() => mockResult.data).thenReturn([
+            {'joke_id': 'keep', 'vector_distance': 0.12},
+            {'joke_id': 'omit', 'vector_distance': 0.34},
+          ]);
+          when(
+            () => mockCallable.call(any()),
+          ).thenAnswer((_) async => mockResult);
+
+          final results = await service.searchJokes(
+            searchQuery: q,
+            maxResults: 10,
+            publicOnly: true,
+            matchMode: MatchMode.tight,
+            scope: SearchScope.userJokeSearch,
+            excludeJokeIds: const ['omit'],
+          );
+
+          // Verify payload includes exclude_joke_ids
+          final captured =
+              verify(() => mockCallable.call(captureAny())).captured.last
+                  as Map<String, dynamic>;
+          expect(captured['exclude_joke_ids'], ['omit']);
+
+          // Verify filtered results do not include excluded id
+          expect(results.map((r) => r.id).toList(), ['keep']);
+        },
+      );
     });
   });
 }

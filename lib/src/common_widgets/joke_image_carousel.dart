@@ -1245,6 +1245,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
       maxResults: 50,
       publicOnly: true,
       matchMode: MatchMode.tight,
+      excludeJokeIds: [widget.joke.id],
     );
 
     // Navigate to search using push so that back returns to previous page

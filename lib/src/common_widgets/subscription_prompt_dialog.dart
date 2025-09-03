@@ -38,7 +38,7 @@ class _SubscriptionPromptDialogState
 
           // Main title
           Text(
-            'Never Miss a Laugh!',
+            'Start Every Day with a Smile!',
             style: theme.textTheme.headlineSmall?.copyWith(
               fontWeight: FontWeight.bold,
               color: theme.colorScheme.onSurface,
@@ -49,7 +49,7 @@ class _SubscriptionPromptDialogState
 
           // Persuasive subtitle
           Text(
-            "Enjoying the jokes? We'll deliver one perfectly punny joke to you each day. Allow notifications to get your daily dose of humor without lifting a finger.",
+            "Keep the laughs coming! We can send one fresh, handpicked joke straight to your phone each day!",
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
             ),
@@ -109,8 +109,9 @@ class _SubscriptionPromptDialogState
 
   Widget _buildBenefitsList(ThemeData theme) {
     final benefits = [
-      {'icon': '📱', 'text': 'Daily notifications with fresh jokes'},
+      {'icon': '😂', 'text': 'Daily notifications with fresh jokes'},
       {'icon': '🆓', 'text': 'Completely free, forever'},
+      {'icon': '👉', 'text': 'To get jokes, tap "Allow" on the next screen.'},
     ];
 
     return Column(
@@ -196,7 +197,7 @@ class _SubscriptionPromptDialogState
               const Icon(Icons.error, color: Colors.white),
               const SizedBox(width: 8),
               Expanded(
-                child: const Text(
+                child: Text(
                   'Notification permission is required for daily jokes. If you change your mind, you can subscribe anytime in Settings! 😊',
                 ),
               ),

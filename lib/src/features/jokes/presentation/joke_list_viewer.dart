@@ -20,6 +20,7 @@ class JokeListViewer extends ConsumerStatefulWidget {
     this.onInitRegisterReset,
     this.showCtaWhenEmpty = false,
     this.emptyState,
+    this.showSimilarSearchButton = false,
   });
 
   final AsyncValue<List<JokeWithDate>>? jokesAsyncValue;
@@ -28,6 +29,7 @@ class JokeListViewer extends ConsumerStatefulWidget {
   final Function(VoidCallback)? onInitRegisterReset;
   final bool showCtaWhenEmpty;
   final Widget? emptyState;
+  final bool showSimilarSearchButton;
 
   @override
   ConsumerState<JokeListViewer> createState() => _JokeListViewerState();
@@ -282,6 +284,7 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
                       showAdminRatingButtons: false,
                       jokeContext: widget.jokeContext,
                       controller: controller,
+                      showSimilarSearchButton: widget.showSimilarSearchButton,
                     ),
                   ),
                 );

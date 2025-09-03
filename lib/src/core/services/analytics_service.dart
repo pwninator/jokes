@@ -201,6 +201,12 @@ abstract class AnalyticsService {
     required String scope,
     required int resultsCount,
   });
+
+  /// Log when user taps Similar to perform a prefilled search
+  Future<void> logJokeSearchSimilar({
+    required int queryLength,
+    required String jokeContext,
+  });
 }
 
 /// Firebase Analytics implementation of the analytics service
@@ -683,6 +689,18 @@ class FirebaseAnalyticsService implements AnalyticsService {
       'query_length': queryLength,
       'scope': scope,
       'results_count': resultsCount,
+      AnalyticsParameters.userType: _getUserType(_currentUser),
+    });
+  }
+
+  @override
+  Future<void> logJokeSearchSimilar({
+    required int queryLength,
+    required String jokeContext,
+  }) async {
+    await _logEvent(AnalyticsEvent.jokeSearchSimilar, {
+      'query_length': queryLength,
+      AnalyticsParameters.jokeContext: jokeContext,
       AnalyticsParameters.userType: _getUserType(_currentUser),
     });
   }

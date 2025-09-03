@@ -212,6 +212,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   jokeContext: AnalyticsJokeContext.search,
                   onInitRegisterReset: (cb) => _resetViewer = cb,
                   emptyState: Center(child: Text(emptyStateMessage)),
+                  showSimilarSearchButton: false,
                 );
               },
             ),

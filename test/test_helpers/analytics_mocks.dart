@@ -110,6 +110,14 @@ class AnalyticsMocks {
       ),
     ).thenAnswer((_) async {});
 
+    // Similar search CTA
+    when(
+      () => mock.logJokeSearchSimilar(
+        queryLength: any(named: 'queryLength'),
+        jokeContext: any(named: 'jokeContext'),
+      ),
+    ).thenAnswer((_) async {});
+
     // Share funnel
     when(
       () => mock.logJokeShareInitiated(

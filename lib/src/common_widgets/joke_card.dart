@@ -20,6 +20,7 @@ class JokeCard extends StatelessWidget {
   final String jokeContext;
   final JokeImageCarouselController? controller;
   final String? topRightBadgeText;
+  final bool showSimilarSearchButton;
 
   const JokeCard({
     super.key,
@@ -39,6 +40,7 @@ class JokeCard extends StatelessWidget {
     required this.jokeContext,
     this.controller,
     this.topRightBadgeText,
+    this.showSimilarSearchButton = false,
   });
 
   @override
@@ -70,6 +72,7 @@ class JokeCard extends StatelessWidget {
         jokeContext: jokeContext,
         controller: controller,
         overlayBadgeText: topRightBadgeText,
+        showSimilarSearchButton: showSimilarSearchButton,
       );
     } else {
       // No images or incomplete images - show text with populate button

@@ -8,6 +8,8 @@ import 'package:snickerdoodle/src/common_widgets/admin_joke_action_buttons.dart'
 import 'package:snickerdoodle/src/common_widgets/cached_joke_image.dart';
 import 'package:snickerdoodle/src/common_widgets/save_joke_button.dart';
 import 'package:snickerdoodle/src/common_widgets/share_joke_button.dart';
+import 'package:snickerdoodle/src/config/router/route_names.dart';
+import 'package:snickerdoodle/src/config/router/router_providers.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/providers/image_providers.dart';
 import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
@@ -15,8 +17,11 @@ import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
+import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart'
+    show MatchMode;
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_state.dart';
+import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
 
 /// Controller to allow parent widgets to imperatively control the
 /// `JokeImageCarousel` (e.g., reveal the punchline programmatically).
@@ -54,6 +59,7 @@ class JokeImageCarousel extends ConsumerStatefulWidget {
   final String jokeContext;
   final JokeImageCarouselController? controller;
   final String? overlayBadgeText;
+  final bool showSimilarSearchButton;
 
   const JokeImageCarousel({
     super.key,
@@ -73,6 +79,7 @@ class JokeImageCarousel extends ConsumerStatefulWidget {
     required this.jokeContext,
     this.controller,
     this.overlayBadgeText,
+    this.showSimilarSearchButton = false,
   });
 
   @override
@@ -802,7 +809,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
             child: Row(
               children: [
                 // Left spacer
-                Expanded(child: _buildLeftCounts()),
+                Expanded(child: _buildLeftControls()),
 
                 // Page indicators (centered)
                 SmoothPageIndicator(
@@ -821,7 +828,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
                 ),
 
                 // Right buttons (save, share, admin rating) or spacer
-                Expanded(child: _buildRightButtons()),
+                Expanded(child: _buildRightControls()),
               ],
             ),
           ),
@@ -996,7 +1003,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
     );
   }
 
-  Widget _buildRightButtons() {
+  Widget _buildRightControls() {
     // Create a list of buttons to show
     final List<Widget> buttons = [];
 
@@ -1120,8 +1127,13 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
     );
   }
 
-  Widget _buildLeftCounts() {
+  Widget _buildLeftControls() {
     final List<Widget> items = [];
+
+    // Similar button (icon + text), shown only when flag enabled and not admin
+    if (widget.showSimilarSearchButton && !widget.isAdminMode) {
+      items.add(_buildSimilarButton(context));
+    }
 
     if (widget.showNumSaves) {
       final Color saveColor = widget.joke.numSaves > 0
@@ -1168,7 +1180,74 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
 
     return Align(
       alignment: Alignment.centerLeft,
-      child: Row(mainAxisSize: MainAxisSize.min, children: items),
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: Alignment.centerLeft,
+        child: Row(mainAxisSize: MainAxisSize.min, children: items),
+      ),
     );
+  }
+
+  Widget _buildSimilarButton(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        key: const Key('similar-search-button'),
+        onTap: _onTapSimilar,
+        borderRadius: BorderRadius.circular(6),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.search, size: 24, color: theme.colorScheme.primary),
+              const SizedBox(width: 4),
+              Text(
+                'Similar',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: theme.colorScheme.primary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _onTapSimilar() async {
+    final refLocal = ref;
+    final analyticsService = refLocal.read(analyticsServiceProvider);
+
+    // Build query: setup and punchline strings joined together
+    final String baseQuery = '${widget.joke.setupText} ${widget.joke.punchlineText}'.trim();
+    if (baseQuery.isEmpty) return;
+
+    // Log CTA analytics first
+    await analyticsService.logJokeSearchSimilar(
+      queryLength: baseQuery.length,
+      jokeContext: widget.jokeContext,
+    );
+
+    // Update search query provider
+    final current = refLocal.read(
+      searchQueryProvider(SearchScope.userJokeSearch),
+    );
+    refLocal
+        .read(searchQueryProvider(SearchScope.userJokeSearch).notifier)
+        .state = current.copyWith(
+      query: '${JokeConstants.searchQueryPrefix}$baseQuery',
+      maxResults: 50,
+      publicOnly: true,
+      matchMode: MatchMode.tight,
+    );
+
+    // Navigate to search using helpers to keep tab analytics consistent
+    final nav = refLocal.read(navigationHelpersProvider);
+    nav.navigateToRoute(AppRoutes.search, method: 'programmatic');
   }
 }

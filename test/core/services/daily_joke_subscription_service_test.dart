@@ -483,5 +483,33 @@ void main() {
       final state = container.read(subscriptionPromptProvider);
       expect(state.shouldShowPrompt, isFalse);
     });
+
+    test('does not show prompt if user subscribed from settings screen', () async {
+      // Simulate user subscribing from settings screen by directly updating SharedPreferences
+      await sharedPreferences.setBool('daily_jokes_subscribed', true);
+      await sharedPreferences.setInt('daily_jokes_subscribed_hour', 9);
+
+      // Get the subscription notifier and update its state to reflect the subscription
+      final subscriptionNotifier = container.read(
+        subscriptionProvider.notifier,
+      );
+      await subscriptionNotifier.setSubscribed(true);
+
+      // Now get the prompt notifier and test that it picks up the subscription change
+      final promptNotifier = container.read(
+        subscriptionPromptProvider.notifier,
+      );
+
+      // Call considerPromptAfterJokeViewed - this should check current subscription state
+      // and skip showing the prompt since user is already subscribed
+      promptNotifier.considerPromptAfterJokeViewed(
+        JokeConstants.subscriptionPromptJokesViewedThreshold + 1,
+      );
+
+      final state = container.read(subscriptionPromptProvider);
+      expect(state.shouldShowPrompt, isFalse);
+      expect(state.isSubscribed, isTrue);
+      expect(state.hasUserMadeChoice, isTrue);
+    });
   });
 }

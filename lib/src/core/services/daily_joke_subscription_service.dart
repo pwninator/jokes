@@ -401,6 +401,17 @@ class SubscriptionPromptNotifier
 
   /// Consider showing the prompt immediately based on jokes-viewed threshold
   void considerPromptAfterJokeViewed(int jokesViewedCount) {
+    // Always check the current subscription state from the underlying notifier
+    // to ensure we have the latest information (e.g., if user subscribed from settings)
+    final currentSubscriptionState = _subscriptionNotifier.state;
+    final hasUserMadeChoice = _subscriptionNotifier.hasUserMadeChoice();
+
+    // Update our state to reflect the current subscription state
+    state = state.copyWith(
+      isSubscribed: currentSubscriptionState.isSubscribed,
+      hasUserMadeChoice: hasUserMadeChoice,
+    );
+
     // Skip if user has already made a choice or prompt already pending/shown
     if (state.shouldSkipPromptLogic || state.shouldShowPrompt) {
       return;

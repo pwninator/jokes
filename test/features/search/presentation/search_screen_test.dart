@@ -17,9 +17,9 @@ void main() {
       overrides: FirebaseMocks.getFirebaseProviderOverrides(
         additionalOverrides: [
           // Prevent real cloud function calls during this test
-          searchResultsViewerProvider(SearchScope.userJokeSearch).overrideWith(
-            (ref) => const AsyncValue.data([]),
-          ),
+          searchResultsViewerProvider(
+            SearchScope.userJokeSearch,
+          ).overrideWith((ref) => const AsyncValue.data([])),
         ],
       ),
     );

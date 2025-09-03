@@ -17,7 +17,11 @@ import '../../../test_helpers/firebase_mocks.dart';
 class StubNavigationHelpers extends NavigationHelpers {
   StubNavigationHelpers(super.ref);
   @override
-  void navigateToRoute(String route, {String method = 'programmatic'}) {
+  void navigateToRoute(
+    String route, {
+    String method = 'programmatic',
+    bool push = false,
+  }) {
     // no-op for tests
   }
 }
@@ -46,9 +50,7 @@ void main() {
         overrides: overrides,
         child: MaterialApp(
           home: JokeListViewer(
-            jokesAsyncValue: AsyncValue.data([
-              JokeWithDate(joke: joke),
-            ]),
+            jokesAsyncValue: AsyncValue.data([JokeWithDate(joke: joke)]),
             jokeContext: 'daily_jokes',
             showSimilarSearchButton: false,
           ),
@@ -64,9 +66,7 @@ void main() {
         overrides: overrides,
         child: MaterialApp(
           home: JokeListViewer(
-            jokesAsyncValue: AsyncValue.data([
-              JokeWithDate(joke: joke),
-            ]),
+            jokesAsyncValue: AsyncValue.data([JokeWithDate(joke: joke)]),
             jokeContext: 'daily_jokes',
             showSimilarSearchButton: true,
           ),
@@ -77,7 +77,9 @@ void main() {
     expect(find.text('Similar'), findsOneWidget);
   });
 
-  testWidgets('Similar button updates search query and navigates', (tester) async {
+  testWidgets('Similar button updates search query and navigates', (
+    tester,
+  ) async {
     final analyticsMock = AnalyticsMocks.mockAnalyticsService;
     final joke = const Joke(
       id: '1',
@@ -92,11 +94,13 @@ void main() {
       overrides: [
         ...FirebaseMocks.getFirebaseProviderOverrides(),
         analyticsServiceProvider.overrideWithValue(analyticsMock),
-        navigationHelpersProvider.overrideWith((ref) => StubNavigationHelpers(ref)),
-        // Avoid real cloud function calls
-        searchResultIdsProvider(SearchScope.userJokeSearch).overrideWith(
-          (ref) async => const [],
+        navigationHelpersProvider.overrideWith(
+          (ref) => StubNavigationHelpers(ref),
         ),
+        // Avoid real cloud function calls
+        searchResultIdsProvider(
+          SearchScope.userJokeSearch,
+        ).overrideWith((ref) async => const []),
       ],
     );
     addTearDown(container.dispose);
@@ -108,9 +112,7 @@ void main() {
           home: RailHost(
             railWidth: 180,
             child: JokeListViewer(
-              jokesAsyncValue: AsyncValue.data([
-                JokeWithDate(joke: joke),
-              ]),
+              jokesAsyncValue: AsyncValue.data([JokeWithDate(joke: joke)]),
               jokeContext: 'daily_jokes',
               showSimilarSearchButton: true,
             ),
@@ -128,7 +130,10 @@ void main() {
     final query = container.read(
       searchQueryProvider(SearchScope.userJokeSearch),
     );
-    expect(query.query, '${JokeConstants.searchQueryPrefix}Penguin antics A punchline');
+    expect(
+      query.query,
+      '${JokeConstants.searchQueryPrefix}Penguin antics A punchline',
+    );
 
     // Verify analytics call for joke_search_similar
     verify(
@@ -139,5 +144,3 @@ void main() {
     ).called(1);
   });
 }
-
-

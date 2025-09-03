@@ -1224,7 +1224,8 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
     final analyticsService = refLocal.read(analyticsServiceProvider);
 
     // Build query: setup and punchline strings joined together
-    final String baseQuery = '${widget.joke.setupText} ${widget.joke.punchlineText}'.trim();
+    final String baseQuery =
+        '${widget.joke.setupText} ${widget.joke.punchlineText}'.trim();
     if (baseQuery.isEmpty) return;
 
     // Log CTA analytics first
@@ -1246,8 +1247,8 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
       matchMode: MatchMode.tight,
     );
 
-    // Navigate to search using helpers to keep tab analytics consistent
+    // Navigate to search using push so that back returns to previous page
     final nav = refLocal.read(navigationHelpersProvider);
-    nav.navigateToRoute(AppRoutes.search, method: 'programmatic');
+    nav.navigateToRoute(AppRoutes.search, method: 'programmatic', push: true);
   }
 }

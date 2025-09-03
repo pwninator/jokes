@@ -87,7 +87,12 @@ class NavigationHelpers {
   NavigationHelpers(this._ref);
 
   /// Navigate to a specific route with analytics tracking
-  void navigateToRoute(String route, {String method = 'programmatic'}) {
+  /// If push is true, uses router.push so back returns to the previous page.
+  void navigateToRoute(
+    String route, {
+    String method = 'programmatic',
+    bool push = false,
+  }) {
     final router = _ref.read(goRouterProvider);
     final currentRoute = _ref.read(currentRouteProvider);
 
@@ -96,26 +101,10 @@ class NavigationHelpers {
     analytics.trackRouteChange(currentRoute, route, method);
 
     // Perform navigation
-    router.go(route);
-  }
-
-  /// Navigate to jokes tab (equivalent to old navigateToJokesAndReset)
-  void navigateToJokesAndReset() {
-    navigateToRoute('/jokes', method: 'programmatic');
-  }
-
-  /// Navigate to admin screen
-  void navigateToAdmin() {
-    navigateToRoute('/admin', method: 'programmatic');
-  }
-
-  /// Navigate to settings
-  void navigateToSettings() {
-    navigateToRoute('/settings', method: 'programmatic');
-  }
-
-  /// Navigate to saved jokes
-  void navigateToSaved() {
-    navigateToRoute('/saved', method: 'programmatic');
+    if (push) {
+      router.push(route);
+    } else {
+      router.go(route);
+    }
   }
 }

@@ -11,28 +11,6 @@ import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart'
 import 'package:snickerdoodle/src/features/jokes/domain/joke_search_result.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_state.dart';
 
-// StreamProvider for the list of jokes
-final jokesProvider = StreamProvider<List<Joke>>((ref) {
-  final repository = ref.watch(jokeRepositoryProvider);
-  return repository.getJokes();
-});
-
-// StreamProvider for jokes that have both image URLs
-final jokesWithImagesProvider = StreamProvider<List<Joke>>((ref) {
-  final repository = ref.watch(jokeRepositoryProvider);
-  return repository.getJokes().map(
-    (jokes) => jokes
-        .where(
-          (joke) =>
-              joke.setupImageUrl != null &&
-              joke.setupImageUrl!.isNotEmpty &&
-              joke.punchlineImageUrl != null &&
-              joke.punchlineImageUrl!.isNotEmpty,
-        )
-        .toList(),
-  );
-});
-
 // Provider for getting a specific joke by ID
 final jokeByIdProvider = StreamProvider.family<Joke?, String>((ref, jokeId) {
   final repository = ref.watch(jokeRepositoryProvider);
@@ -589,26 +567,6 @@ final jokeReactionsProvider =
       return JokeReactionsNotifier(reactionsService);
     });
 
-// Family provider to check if a user has reacted to a joke with a specific reaction type
-final hasUserReactionProvider =
-    Provider.family<bool, ({String jokeId, JokeReactionType reactionType})>((
-      ref,
-      params,
-    ) {
-      final reactionsState = ref.watch(jokeReactionsProvider);
-      return reactionsState.userReactions[params.jokeId]?.contains(
-            params.reactionType,
-          ) ??
-          false;
-    });
-
-// Family provider to get all user reactions for a specific joke
-final userReactionsForJokeProvider =
-    Provider.family<Set<JokeReactionType>, String>((ref, jokeId) {
-      final reactionsState = ref.watch(jokeReactionsProvider);
-      return reactionsState.userReactions[jokeId] ?? <JokeReactionType>{};
-    });
-
 // State class for joke filter
 class JokeFilterState {
   final Set<JokeState> selectedStates;
@@ -678,51 +636,6 @@ final jokeFilterProvider =
     StateNotifierProvider<JokeFilterNotifier, JokeFilterState>((ref) {
       return JokeFilterNotifier();
     });
-
-// Provider for filtered jokes (used in joke management screen)
-final filteredJokesProvider = Provider<AsyncValue<List<Joke>>>((ref) {
-  final jokesAsync = ref.watch(jokesProvider);
-  final filterState = ref.watch(jokeFilterProvider);
-
-  // Handle loading
-  if (jokesAsync.isLoading) {
-    return const AsyncValue.loading();
-  }
-
-  // Handle errors (prefer jokes error first)
-  if (jokesAsync.hasError) {
-    return AsyncValue.error(
-      jokesAsync.error!,
-      jokesAsync.stackTrace ?? StackTrace.current,
-    );
-  }
-
-  // Base list
-  var filteredJokes = List<Joke>.from(jokesAsync.value ?? const <Joke>[]);
-
-  // 1) State filter (filter by selected states if any are selected)
-  if (filterState.hasStateFilter) {
-    filteredJokes = filteredJokes.where((joke) {
-      return joke.state != null &&
-          filterState.selectedStates.contains(joke.state!);
-    }).toList();
-  }
-
-  // 3) Popular filter and sorting
-  if (filterState.showPopularOnly) {
-    filteredJokes =
-        filteredJokes
-            .where((joke) => (joke.numSaves + joke.numShares) > 0)
-            .toList()
-          ..sort((a, b) {
-            final scoreA = (a.numShares * 10) + a.numSaves;
-            final scoreB = (b.numShares * 10) + b.numSaves;
-            return scoreB.compareTo(scoreA);
-          });
-  }
-
-  return AsyncValue.data(filteredJokes);
-});
 
 // Snapshot-only list of filtered joke IDs for admin management list
 final filteredJokeIdsProvider = FutureProvider<List<String>>((ref) async {

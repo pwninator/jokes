@@ -1,6 +1,6 @@
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/foundation.dart';
-import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
+import 'package:snickerdoodle/src/features/jokes/application/joke_search_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_search_result.dart';
 
 /// How strictly to match the search query

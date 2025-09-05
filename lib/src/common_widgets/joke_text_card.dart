@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/common_widgets/admin_joke_action_buttons.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
-import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
+import 'package:snickerdoodle/src/features/jokes/application/joke_population_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 
 class JokeTextCard extends ConsumerWidget {

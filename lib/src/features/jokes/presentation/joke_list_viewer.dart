@@ -7,7 +7,7 @@ import 'package:snickerdoodle/src/config/router/app_router.dart' show RailHost;
 import 'package:snickerdoodle/src/config/router/router_providers.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
-import 'package:snickerdoodle/src/features/jokes/application/providers.dart';
+import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 
 /// Reusable vertical viewer for a list of jokes with CTA button

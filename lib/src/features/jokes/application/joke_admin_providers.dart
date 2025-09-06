@@ -3,6 +3,141 @@ import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers
 import 'package:snickerdoodle/src/features/jokes/application/joke_filter_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_search_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
+import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
+import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
+
+// Pagination state for admin list
+class AdminPagingState {
+  final List<String> loadedIds;
+  final JokeListPageCursor? cursor;
+  final bool isLoading;
+  final bool hasMore;
+
+  const AdminPagingState({
+    required this.loadedIds,
+    required this.cursor,
+    required this.isLoading,
+    required this.hasMore,
+  });
+
+  const AdminPagingState.initial()
+    : loadedIds = const <String>[],
+      cursor = null,
+      isLoading = false,
+      hasMore = true;
+
+  AdminPagingState copyWith({
+    List<String>? loadedIds,
+    JokeListPageCursor? cursor,
+    bool? isLoading,
+    bool? hasMore,
+  }) {
+    return AdminPagingState(
+      loadedIds: loadedIds ?? this.loadedIds,
+      cursor: cursor ?? this.cursor,
+      isLoading: isLoading ?? this.isLoading,
+      hasMore: hasMore ?? this.hasMore,
+    );
+  }
+}
+
+class AdminPagingNotifier extends StateNotifier<AdminPagingState> {
+  AdminPagingNotifier(this.ref) : super(const AdminPagingState.initial()) {
+    // Reset and load first page on filter changes
+    ref.listen<JokeFilterState>(jokeFilterProvider, (prev, next) {
+      reset();
+      // Defer to allow UI/provider tree to settle
+      Future.microtask(loadFirstPage);
+    });
+    // Also reset when search becomes empty or toggles away from search
+    ref.listen<SearchQuery>(
+      searchQueryProvider(SearchScope.jokeManagementSearch),
+      (prev, next) {
+        if (next.query.trim().isEmpty) {
+          reset();
+          Future.microtask(loadFirstPage);
+        }
+      },
+    );
+
+    // Trigger initial page load
+    Future.microtask(loadFirstPage);
+  }
+
+  final Ref ref;
+  static const int defaultPageSize = 10;
+
+  void reset() {
+    state = const AdminPagingState.initial();
+  }
+
+  Future<void> loadFirstPage({int limit = defaultPageSize}) async {
+    if (state.isLoading) return;
+    state = state.copyWith(
+      isLoading: true,
+      loadedIds: const <String>[],
+      cursor: null,
+      hasMore: true,
+    );
+    final repository = ref.read(jokeRepositoryProvider);
+    final filterState = ref.read(jokeFilterProvider);
+    try {
+      final page = await repository.getFilteredJokePage(
+        states: filterState.selectedStates,
+        popularOnly: filterState.showPopularOnly,
+        limit: limit,
+        cursor: null,
+      );
+      state = state.copyWith(
+        loadedIds: page.ids,
+        cursor: page.cursor,
+        hasMore: page.hasMore,
+        isLoading: false,
+      );
+    } catch (e) {
+      // Fail closed
+      state = state.copyWith(isLoading: false, hasMore: false);
+    }
+  }
+
+  Future<void> loadMore({int limit = defaultPageSize}) async {
+    if (state.isLoading || !state.hasMore) return;
+    state = state.copyWith(isLoading: true);
+    final repository = ref.read(jokeRepositoryProvider);
+    final filterState = ref.read(jokeFilterProvider);
+    try {
+      final page = await repository.getFilteredJokePage(
+        states: filterState.selectedStates,
+        popularOnly: filterState.showPopularOnly,
+        limit: limit,
+        cursor: state.cursor,
+      );
+      // Deduplicate in case of overlapping pages
+      final existing = Set<String>.from(state.loadedIds);
+      final appended = <String>[
+        ...state.loadedIds,
+        ...page.ids.where((id) => !existing.contains(id)),
+      ];
+      state = state.copyWith(
+        loadedIds: appended,
+        cursor: page.cursor,
+        hasMore: page.hasMore,
+        isLoading: false,
+      );
+    } catch (e) {
+      state = state.copyWith(isLoading: false);
+    }
+  }
+}
+
+final adminPagingProvider =
+    StateNotifierProvider<AdminPagingNotifier, AdminPagingState>((ref) {
+      return AdminPagingNotifier(ref);
+    });
+
+final adminPagedIdsProvider = Provider<List<String>>((ref) {
+  return ref.watch(adminPagingProvider).loadedIds;
+});
 
 // Unified admin jokes provider: search path uses live search; otherwise
 // builds from filtered snapshot of IDs and streams per-doc.
@@ -18,32 +153,19 @@ final adminJokesLiveProvider =
           searchResultsLiveProvider(SearchScope.jokeManagementSearch),
         );
       }
-
-      final idsAsync = ref.watch(filteredJokeIdsProvider);
-      if (idsAsync.isLoading) {
-        return const AsyncValue.loading();
-      }
-      if (idsAsync.hasError) {
-        return AsyncValue.error(
-          idsAsync.error!,
-          idsAsync.stackTrace ?? StackTrace.current,
-        );
-      }
-
-      final ids = idsAsync.value ?? const <String>[];
+      final ids = ref.watch(adminPagedIdsProvider);
       if (ids.isEmpty) {
-        return const AsyncValue.data(<JokeWithVectorDistance>[]);
+        // Show loading while first page fetch is in flight
+        final isLoading = ref.watch(adminPagingProvider).isLoading;
+        return isLoading
+            ? const AsyncValue<List<JokeWithVectorDistance>>.loading()
+            : const AsyncValue.data(<JokeWithVectorDistance>[]);
       }
 
       // Watch each joke by id
       final perJoke = <AsyncValue<Joke?>>[];
       for (final id in ids) {
         perJoke.add(ref.watch(jokeByIdProvider(id)));
-      }
-
-      // If any still loading, show loading
-      if (perJoke.any((j) => j.isLoading)) {
-        return const AsyncValue.loading();
       }
 
       // Surface first error if any
@@ -58,7 +180,8 @@ final adminJokesLiveProvider =
         );
       }
 
-      // Build ordered list based on ids, skipping nulls
+      // Build ordered list based on ids, skipping nulls. Return partial data
+      // even if some items are still loading.
       final ordered = <JokeWithVectorDistance>[];
       for (var i = 0; i < ids.length; i++) {
         final value = perJoke[i].value;
@@ -68,6 +191,8 @@ final adminJokesLiveProvider =
           );
         }
       }
-
+      if (ordered.isEmpty && perJoke.any((j) => j.isLoading)) {
+        return const AsyncValue.loading();
+      }
       return AsyncValue.data(ordered);
     });

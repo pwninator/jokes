@@ -356,60 +356,57 @@ void main() {
     });
 
     group('toggleReaction - basic functionality', () {
-      test(
-        'should toggle reaction and update state optimistically',
-        () async {
-          // arrange
-          const jokeId = 'test-joke';
+      test('should toggle reaction and update state optimistically', () async {
+        // arrange
+        const jokeId = 'test-joke';
 
-          // Mock initial state: no reactions
-          when(
-            () => mockReactionsService.getAllUserReactions(),
-          ).thenAnswer((_) async => <String, Set<JokeReactionType>>{});
-          when(
-            () => mockReactionsService.getSavedJokeIds(),
-          ).thenAnswer((_) async => <String>[]);
+        // Mock initial state: no reactions
+        when(
+          () => mockReactionsService.getAllUserReactions(),
+        ).thenAnswer((_) async => <String, Set<JokeReactionType>>{});
+        when(
+          () => mockReactionsService.getSavedJokeIds(),
+        ).thenAnswer((_) async => <String>[]);
 
-          // Mock service calls
-          when(
-            () => mockReactionsService.toggleUserReaction(
-              jokeId,
-              JokeReactionType.thumbsUp,
-            ),
-          ).thenAnswer((_) async => true); // returns true when adding
-
-          // act
-          final container = ProviderContainer(
-            overrides: [
-              jokeReactionsServiceProvider.overrideWithValue(
-                mockReactionsService,
-              ),
-            ],
-          );
-
-          final notifier = container.read(jokeReactionsProvider.notifier);
-
-          // Wait for initial load to complete
-          await Future.delayed(const Duration(milliseconds: 10));
-
-          // Toggle thumbs up
-          await notifier.toggleReaction(
+        // Mock service calls
+        when(
+          () => mockReactionsService.toggleUserReaction(
             jokeId,
             JokeReactionType.thumbsUp,
-            jokeContext: 'test',
-          );
+          ),
+        ).thenAnswer((_) async => true); // returns true when adding
 
-          // assert
-          verify(
-            () => mockReactionsService.toggleUserReaction(
-              jokeId,
-              JokeReactionType.thumbsUp,
+        // act
+        final container = ProviderContainer(
+          overrides: [
+            jokeReactionsServiceProvider.overrideWithValue(
+              mockReactionsService,
             ),
-          ).called(1);
+          ],
+        );
 
-          container.dispose();
-        },
-      );
+        final notifier = container.read(jokeReactionsProvider.notifier);
+
+        // Wait for initial load to complete
+        await Future.delayed(const Duration(milliseconds: 10));
+
+        // Toggle thumbs up
+        await notifier.toggleReaction(
+          jokeId,
+          JokeReactionType.thumbsUp,
+          jokeContext: 'test',
+        );
+
+        // assert
+        verify(
+          () => mockReactionsService.toggleUserReaction(
+            jokeId,
+            JokeReactionType.thumbsUp,
+          ),
+        ).called(1);
+
+        container.dispose();
+      });
 
       test(
         'should handle errors gracefully and revert optimistic updates',

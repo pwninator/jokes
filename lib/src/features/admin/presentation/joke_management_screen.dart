@@ -31,6 +31,7 @@ class _JokeManagementScreenState extends ConsumerState<JokeManagementScreen> {
   bool _showSearch = false;
   final FocusNode _searchFocusNode = FocusNode();
   final TextEditingController _searchController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
 
   @override
   void initState() {
@@ -63,13 +64,49 @@ class _JokeManagementScreenState extends ConsumerState<JokeManagementScreen> {
         }
       }
     });
+    _scrollController.addListener(_onScrollCheckLoadMore);
+    // After first frame, run a check to prefetch when list is short
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _onScrollCheckLoadMore();
+    });
   }
 
   @override
   void dispose() {
     _searchFocusNode.dispose();
     _searchController.dispose();
+    _scrollController.dispose();
     super.dispose();
+  }
+
+  void _onScrollCheckLoadMore() {
+    // If in search mode, do nothing
+    final searchParams = ref.read(
+      searchQueryProvider(SearchScope.jokeManagementSearch),
+    );
+    if (searchParams.query.trim().isNotEmpty) return;
+
+    final ids = ref.read(adminPagedIdsProvider);
+    if (ids.isEmpty) return;
+
+    // Pixels-based estimation of remaining items: compute average item extent
+    // as (maxScrollExtent + viewport) / itemCount, then multiply by thresholdFromEnd.
+    final thresholdFromEnd = 5;
+    final position = _scrollController.position;
+    final totalContentExtent =
+        position.maxScrollExtent + position.viewportDimension;
+    final avgItemExtent = ids.isNotEmpty
+        ? totalContentExtent / ids.length
+        : double.infinity;
+    final thresholdPixels = avgItemExtent * thresholdFromEnd;
+    final remainingPixels = position.maxScrollExtent - position.pixels;
+
+    if (remainingPixels <= thresholdPixels) {
+      final paging = ref.read(adminPagingProvider);
+      if (!paging.isLoading && paging.hasMore) {
+        ref.read(adminPagingProvider.notifier).loadMore();
+      }
+    }
   }
 
   String _getEmptyStateTitle(JokeFilterState filterState) {
@@ -368,6 +405,7 @@ class _JokeManagementScreenState extends ConsumerState<JokeManagementScreen> {
                       ),
                     )
                   : ListView.builder(
+                      controller: _scrollController,
                       padding: const EdgeInsets.all(8.0),
                       itemCount: items.length,
                       itemBuilder: (context, index) {

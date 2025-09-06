@@ -95,9 +95,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
 
     // Verify that the rebuilt viewer shows the saved page by reading the index
-    final restored = container.read(
-      jokeViewerPageIndexProvider(viewerId),
-    );
+    final restored = container.read(jokeViewerPageIndexProvider(viewerId));
     expect(restored, 3);
   });
 }

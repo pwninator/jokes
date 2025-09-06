@@ -74,10 +74,7 @@ void main() {
     test('populateJoke should update state correctly on failure', () async {
       // arrange
       const jokeId = 'test-joke-id';
-      final failureResponse = {
-        'success': false,
-        'error': 'Test error message',
-      };
+      final failureResponse = {'success': false, 'error': 'Test error message'};
 
       when(
         () => mockCloudFunctionService.populateJoke(

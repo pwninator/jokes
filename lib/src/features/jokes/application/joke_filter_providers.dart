@@ -1,5 +1,4 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_state.dart';
 
 // State class for joke filter
@@ -71,13 +70,3 @@ final jokeFilterProvider =
     StateNotifierProvider<JokeFilterNotifier, JokeFilterState>((ref) {
       return JokeFilterNotifier();
     });
-
-// Snapshot-only list of filtered joke IDs for admin management list
-final filteredJokeIdsProvider = FutureProvider<List<String>>((ref) async {
-  final repository = ref.watch(jokeRepositoryProvider);
-  final filterState = ref.watch(jokeFilterProvider);
-  return repository.getFilteredJokeIds(
-    states: filterState.selectedStates,
-    popularOnly: filterState.showPopularOnly,
-  );
-});

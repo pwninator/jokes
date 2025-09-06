@@ -5,6 +5,28 @@ import 'package:snickerdoodle/src/features/jokes/domain/joke_admin_rating.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_state.dart';
 
+@immutable
+class JokeListPageCursor {
+  // Timestamp when ordering by creation_time, or int when by popularity_score
+  final Object orderValue;
+  final String docId;
+
+  const JokeListPageCursor({required this.orderValue, required this.docId});
+}
+
+@immutable
+class JokeListPage {
+  final List<String> ids;
+  final JokeListPageCursor? cursor;
+  final bool hasMore;
+
+  const JokeListPage({
+    required this.ids,
+    required this.cursor,
+    required this.hasMore,
+  });
+}
+
 class JokeRepository {
   final FirebaseFirestore _firestore;
   final bool _isAdmin;
@@ -23,14 +45,15 @@ class JokeRepository {
         });
   }
 
-  /// Fetch a one-time snapshot of joke IDs filtered and sorted in Firestore
-  /// - State filter: if one state -> isEqualTo; if multiple -> whereIn
-  /// - Popular filter: popularity_score > 0 and ordered by popularity_score desc
-  /// - Default ordering (when not popular): creation_time desc
-  /// - No limit
-  Future<List<String>> getFilteredJokeIds({
+  /// Fetch a paginated snapshot of joke IDs filtered and sorted in Firestore.
+  /// - Applies the same filters with limit and cursor.
+  /// - Adds a stable secondary order on document ID to ensure deterministic paging
+  ///   when the primary order values are equal.
+  Future<JokeListPage> getFilteredJokePage({
     required Set<JokeState> states,
     required bool popularOnly,
+    required int limit,
+    JokeListPageCursor? cursor,
   }) async {
     Query<Map<String, dynamic>> query = _firestore.collection('jokes');
 
@@ -39,16 +62,53 @@ class JokeRepository {
       query = query.where('state', whereIn: stateValues);
     }
 
+    // Primary ordering and the field used for cursor.orderValue
+    final String primaryOrderField;
+    final bool descending;
     if (popularOnly) {
+      primaryOrderField = 'popularity_score';
+      descending = true;
       query = query
           .where('popularity_score', isGreaterThan: 0)
-          .orderBy('popularity_score', descending: true);
+          .orderBy(primaryOrderField, descending: descending)
+          .orderBy(FieldPath.documentId, descending: true);
     } else {
-      query = query.orderBy('creation_time', descending: true);
+      primaryOrderField = 'creation_time';
+      descending = true;
+      query = query
+          .orderBy(primaryOrderField, descending: descending)
+          .orderBy(FieldPath.documentId, descending: true);
     }
 
+    if (cursor != null) {
+      // Use tuple-based startAfter with primary order value and doc ID
+      query = query.startAfter([cursor.orderValue, cursor.docId]);
+    }
+
+    query = query.limit(limit);
+
     final snapshot = await query.get();
-    return snapshot.docs.map((d) => d.id).toList();
+    final ids = snapshot.docs.map((d) => d.id).toList();
+
+    if (ids.isEmpty) {
+      return const JokeListPage(ids: <String>[], cursor: null, hasMore: false);
+    }
+
+    // The last document determines the next cursor
+    final lastDoc = snapshot.docs.last;
+    final lastData = lastDoc.data();
+    final orderValue = lastData[primaryOrderField];
+
+    final nextCursor = JokeListPageCursor(
+      orderValue: orderValue,
+      docId: lastDoc.id,
+    );
+
+    // We don't know hasMore without an extra count/read; conservatively assume
+    // more pages exist if the page is full
+    final hasMore = ids.length == limit;
+
+    return JokeListPage(ids: ids, cursor: nextCursor, hasMore: hasMore);
   }
 
   /// Get a real-time stream of a joke by ID
@@ -190,17 +250,6 @@ class JokeRepository {
     JokeReactionType reactionType,
   ) async {
     await _updateReactionAndPopularity(jokeId, reactionType, -1);
-  }
-
-  // Legacy methods for backward compatibility (can be removed later)
-  @Deprecated('Use incrementReaction(jokeId, JokeReactionType.save) instead')
-  Future<void> incrementSaves(String jokeId) async {
-    await incrementReaction(jokeId, JokeReactionType.save);
-  }
-
-  @Deprecated('Use decrementReaction(jokeId, JokeReactionType.save) instead')
-  Future<void> decrementSaves(String jokeId) async {
-    await decrementReaction(jokeId, JokeReactionType.save);
   }
 
   /// Set admin rating and state together (state mirrors rating)

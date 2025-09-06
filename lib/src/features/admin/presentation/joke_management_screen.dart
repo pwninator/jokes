@@ -239,34 +239,29 @@ class _JokeManagementScreenState extends ConsumerState<JokeManagementScreen> {
                         prefixIcon: const Icon(Icons.search),
                         isDense: true,
                         border: const OutlineInputBorder(),
-                        suffixIcon: _searchController.text.isNotEmpty
-                            ? IconButton(
-                                tooltip: 'Clear',
-                                icon: const Icon(Icons.clear),
-                                onPressed: () {
-                                  _searchController.clear();
-                                  ref
-                                      .read(
-                                        searchQueryProvider(
-                                          SearchScope.jokeManagementSearch,
-                                        ).notifier,
-                                      )
-                                      .state = const SearchQuery(
-                                    query: '',
-                                    maxResults:
-                                        JokeConstants.adminSearchMaxResults,
-                                    publicOnly:
-                                        JokeConstants.adminSearchPublicOnly,
-                                    matchMode:
-                                        JokeConstants.adminSearchMatchMode,
-                                  );
-                                  setState(() {
-                                    _showSearch = false;
-                                  });
-                                  FocusScope.of(context).unfocus();
-                                },
-                              )
-                            : null,
+                        suffixIcon: IconButton(
+                          tooltip: 'Clear',
+                          icon: const Icon(Icons.clear),
+                          onPressed: () {
+                            _searchController.clear();
+                            ref
+                                .read(
+                                  searchQueryProvider(
+                                    SearchScope.jokeManagementSearch,
+                                  ).notifier,
+                                )
+                                .state = const SearchQuery(
+                              query: '',
+                              maxResults: JokeConstants.adminSearchMaxResults,
+                              publicOnly: JokeConstants.adminSearchPublicOnly,
+                              matchMode: JokeConstants.adminSearchMatchMode,
+                            );
+                            setState(() {
+                              _showSearch = false;
+                            });
+                            FocusScope.of(context).unfocus();
+                          },
+                        ),
                       ),
                       maxLines: 1,
                       textInputAction: TextInputAction.search,

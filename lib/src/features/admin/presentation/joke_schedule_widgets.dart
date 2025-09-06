@@ -163,7 +163,7 @@ class CalendarCellPopup extends ConsumerWidget {
                     onTap: () {
                       // Quick tap - do nothing (require hold to delete)
                     },
-                    onHoldComplete: () => _deleteJoke(context, ref),
+                    onHoldComplete: () => _removeFromSchedule(context, ref),
                     tooltip: "Hold to delete this day's joke",
                     holdDuration: const Duration(seconds: 2),
                   ),
@@ -175,7 +175,7 @@ class CalendarCellPopup extends ConsumerWidget {
     );
   }
 
-  Future<void> _deleteJoke(BuildContext context, WidgetRef ref) async {
+  Future<void> _removeFromSchedule(BuildContext context, WidgetRef ref) async {
     if (batch == null || scheduleId == null) return;
 
     try {

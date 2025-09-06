@@ -113,22 +113,24 @@ class JokeScheduleAutoFillService {
     await _jokeRepository.resetJokesToApproved([jokeId], JokeState.published);
   }
 
-  /// Add a joke to the next available date in the daily joke schedule
-  Future<void> addJokeToNextAvailableDailySchedule(String jokeId) async {
+  /// Schedule a joke to a specific date and schedule
+  Future<void> scheduleJokeToDate({
+    required String jokeId,
+    required DateTime date,
+    required String scheduleId,
+  }) async {
     // 1. Get the joke to verify it's in PUBLISHED state
     final joke = await _jokeRepository.getJokeByIdStream(jokeId).first;
     if (joke == null) {
       throw Exception('Joke with ID "$jokeId" not found');
     }
     if (joke.state != JokeState.published) {
-      throw Exception(
-        'Joke "$jokeId" must be in PUBLISHED state to add to daily schedule',
-      );
+      throw Exception('Joke "$jokeId" must be in PUBLISHED state to schedule');
     }
 
-    // 2. Load all batches for the daily schedule
+    // 2. Load all batches for the schedule
     final allBatches = await _scheduleRepository
-        .watchBatchesForSchedule(JokeConstants.defaultJokeScheduleId)
+        .watchBatchesForSchedule(scheduleId)
         .first;
 
     // 3. Check for duplicate joke across all batches (past and future)
@@ -140,18 +142,22 @@ class JokeScheduleAutoFillService {
       }
     }
 
-    // 4. Find next available date starting from today
-    final nextDate = await _findNextAvailableDate(allBatches);
-
-    // 5. Get or create batch for the target month
+    // 4. Get or create batch for the target month
     final targetBatch = await _getOrCreateBatchForDate(
       allBatches,
-      nextDate,
-      JokeConstants.defaultJokeScheduleId,
+      date,
+      scheduleId,
     );
 
+    // 5. Check if the specific date already has a joke
+    final dayKey = date.day.toString().padLeft(2, '0');
+    if (targetBatch.jokes.containsKey(dayKey)) {
+      throw Exception(
+        'Schedule "$scheduleId" already has a joke scheduled for ${date.year}-${date.month.toString().padLeft(2, '0')}-$dayKey',
+      );
+    }
+
     // 6. Add joke to the batch
-    final dayKey = nextDate.day.toString().padLeft(2, '0');
     targetBatch.jokes[dayKey] = joke;
 
     // 7. Save the updated batch
@@ -160,13 +166,29 @@ class JokeScheduleAutoFillService {
     // 8. Update joke's public timestamp
     tzdata.initializeTimeZones();
     final la = _laLocation ?? tz.getLocation('America/Los_Angeles');
-    final laMidnight = tz.TZDateTime(
-      la,
-      nextDate.year,
-      nextDate.month,
-      nextDate.day,
-    );
+    final laMidnight = tz.TZDateTime(la, date.year, date.month, date.day);
     await _jokeRepository.setJokesPublished({jokeId: laMidnight}, true);
+  }
+
+  /// Add a joke to the next available date in the daily joke schedule
+  Future<void> addJokeToNextAvailableSchedule(
+    String jokeId, {
+    String scheduleId = JokeConstants.defaultJokeScheduleId,
+  }) async {
+    // 1. Load all batches for the daily schedule
+    final allBatches = await _scheduleRepository
+        .watchBatchesForSchedule(scheduleId)
+        .first;
+
+    // 2. Find next available date starting from today
+    final nextDate = await _findNextAvailableDate(allBatches);
+
+    // 3. Use the new scheduleJokeToDate function
+    await scheduleJokeToDate(
+      jokeId: jokeId,
+      date: nextDate,
+      scheduleId: scheduleId,
+    );
   }
 
   /// Remove a joke from the daily schedule

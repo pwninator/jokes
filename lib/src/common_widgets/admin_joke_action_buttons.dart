@@ -238,7 +238,7 @@ class AdminAddToDailyScheduleButton extends ConsumerWidget {
       },
       onHoldComplete: () async {
         final scheduleService = ref.read(jokeScheduleAutoFillServiceProvider);
-        await scheduleService.addJokeToNextAvailableDailySchedule(jokeId);
+        await scheduleService.addJokeToNextAvailableSchedule(jokeId);
       },
       isLoading: isLoading,
       theme: theme,

@@ -51,8 +51,16 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
     final initialIndex = ref.read(jokeViewerPageIndexProvider(widget.viewerId));
     _pageController = PageController(
       viewportFraction: 1.0,
-      initialPage: initialIndex,
+      // For some reason, _resetToFirstJoke() always resets not to 0, but to this
+      // initialPage value. So, set it to 0 and jump to the initialIndex so that
+      // resets bring it back to 0.
+      initialPage: 0,
     );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _pageController.hasClients) {
+        _pageController.jumpToPage(initialIndex);
+      }
+    });
     widget.onInitRegisterReset?.call(_resetToFirstJoke);
   }
 
@@ -64,16 +72,12 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
 
   void _resetToFirstJoke() {
     if (mounted && _pageController.hasClients) {
+      ref.read(jokeViewerPageIndexProvider(widget.viewerId).notifier).state = 0;
       setState(() {
         _currentPage = 0;
         _currentImageStates.clear();
       });
-      _pageController.animateToPage(
-        0,
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-      );
-      ref.read(jokeViewerPageIndexProvider(widget.viewerId).notifier).state = 0;
+      _pageController.jumpToPage(0);
     }
   }
 

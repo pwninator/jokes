@@ -4,6 +4,7 @@ import 'package:snickerdoodle/src/common_widgets/adaptive_app_bar_screen.dart';
 import 'package:snickerdoodle/src/config/router/router_providers.dart';
 import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
 import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
+import 'package:snickerdoodle/src/features/jokes/application/joke_navigation_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_search_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/presentation/joke_list_viewer.dart';
 
@@ -66,6 +67,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       );
       return;
     }
+    ref.read(jokeViewerPageIndexProvider('search_user').notifier).state = 0;
+
     final current = ref.read(searchQueryProvider(SearchScope.userJokeSearch));
     ref
         .read(searchQueryProvider(SearchScope.userJokeSearch).notifier)

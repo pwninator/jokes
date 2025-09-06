@@ -8,13 +8,7 @@ import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_admin_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_filter_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_search_providers.dart';
-import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_state.dart';
-
-// Admin search config
-const int kAdminSearchMaxResults = 50;
-const bool kAdminSearchPublicOnly = false;
-const MatchMode kAdminSearchMatchMode = MatchMode.loose;
 
 // Admin JokeCard config
 const bool kAdminJokeCardIsAdminMode = true;
@@ -222,9 +216,12 @@ class _JokeManagementScreenState extends ConsumerState<JokeManagementScreen> {
                                       )
                                       .state = const SearchQuery(
                                     query: '',
-                                    maxResults: kAdminSearchMaxResults,
-                                    publicOnly: kAdminSearchPublicOnly,
-                                    matchMode: kAdminSearchMatchMode,
+                                    maxResults:
+                                        JokeConstants.adminSearchMaxResults,
+                                    publicOnly:
+                                        JokeConstants.adminSearchPublicOnly,
+                                    matchMode:
+                                        JokeConstants.adminSearchMatchMode,
                                   );
                                   setState(() {
                                     _showSearch = false;
@@ -246,9 +243,9 @@ class _JokeManagementScreenState extends ConsumerState<JokeManagementScreen> {
                             )
                             .state = SearchQuery(
                           query: "${JokeConstants.searchQueryPrefix}$query",
-                          maxResults: kAdminSearchMaxResults,
-                          publicOnly: kAdminSearchPublicOnly,
-                          matchMode: kAdminSearchMatchMode,
+                          maxResults: JokeConstants.adminSearchMaxResults,
+                          publicOnly: JokeConstants.adminSearchPublicOnly,
+                          matchMode: JokeConstants.adminSearchMatchMode,
                         );
                         FocusScope.of(context).unfocus();
                       },

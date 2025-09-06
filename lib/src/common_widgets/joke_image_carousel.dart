@@ -18,8 +18,6 @@ import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_population_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_search_providers.dart';
-import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart'
-    show MatchMode;
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_state.dart';
 import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
@@ -1243,9 +1241,9 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
         .read(searchQueryProvider(SearchScope.userJokeSearch).notifier)
         .state = current.copyWith(
       query: '${JokeConstants.searchQueryPrefix}$baseQuery',
-      maxResults: 50,
-      publicOnly: true,
-      matchMode: MatchMode.tight,
+      maxResults: JokeConstants.userSearchMaxResults,
+      publicOnly: JokeConstants.userSearchPublicOnly,
+      matchMode: JokeConstants.userSearchMatchMode,
       excludeJokeIds: [widget.joke.id],
     );
 

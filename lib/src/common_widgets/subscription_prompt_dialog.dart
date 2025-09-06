@@ -49,7 +49,7 @@ class _SubscriptionPromptDialogState
 
           // Persuasive subtitle
           Text(
-            "Keep the laughs coming! We can send one fresh, handpicked joke straight to your phone each day!",
+            "Keep the laughs coming! We can send one new, handpicked joke straight to your phone each day!",
             style: theme.textTheme.bodyMedium?.copyWith(
               color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
             ),
@@ -110,7 +110,7 @@ class _SubscriptionPromptDialogState
   Widget _buildBenefitsList(ThemeData theme) {
     final benefits = [
       {'icon': '😂', 'text': 'Daily notifications with fresh jokes'},
-      {'icon': '🆓', 'text': 'Completely free, forever'},
+      {'icon': '🆓', 'text': 'Completely free!'},
       {'icon': '👉', 'text': 'To get jokes, tap "Allow" on the next screen.'},
     ];
 

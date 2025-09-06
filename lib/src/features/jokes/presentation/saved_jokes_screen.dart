@@ -44,6 +44,7 @@ class _SavedJokesScreenState extends ConsumerState<SavedJokesScreen> {
       body: JokeListViewer(
         jokesAsyncProvider: savedJokesProvider,
         jokeContext: AnalyticsJokeContext.savedJokes,
+        viewerId: 'saved_jokes',
       ),
     );
   }

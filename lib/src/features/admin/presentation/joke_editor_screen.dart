@@ -159,9 +159,6 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
                     if (value == null || value.trim().isEmpty) {
                       return 'Please enter a setup for the joke';
                     }
-                    if (value.trim().length < 5) {
-                      return 'Setup must be at least 5 characters long';
-                    }
                     return null;
                   },
                 ),

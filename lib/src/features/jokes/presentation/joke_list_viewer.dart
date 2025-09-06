@@ -8,6 +8,7 @@ import 'package:snickerdoodle/src/config/router/router_providers.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
+import 'package:snickerdoodle/src/features/jokes/application/joke_navigation_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 
 /// Reusable vertical viewer for a list of jokes with CTA button
@@ -17,6 +18,7 @@ class JokeListViewer extends ConsumerStatefulWidget {
     this.jokesAsyncValue,
     this.jokesAsyncProvider,
     required this.jokeContext,
+    required this.viewerId,
     this.onInitRegisterReset,
     this.showCtaWhenEmpty = false,
     this.emptyState,
@@ -26,6 +28,7 @@ class JokeListViewer extends ConsumerStatefulWidget {
   final AsyncValue<List<JokeWithDate>>? jokesAsyncValue;
   final ProviderListenable<AsyncValue<List<JokeWithDate>>>? jokesAsyncProvider;
   final String jokeContext;
+  final String viewerId;
   final Function(VoidCallback)? onInitRegisterReset;
   final bool showCtaWhenEmpty;
   final Widget? emptyState;
@@ -45,7 +48,11 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
   @override
   void initState() {
     super.initState();
-    _pageController = PageController(viewportFraction: 1.0);
+    final initialIndex = ref.read(jokeViewerPageIndexProvider(widget.viewerId));
+    _pageController = PageController(
+      viewportFraction: 1.0,
+      initialPage: initialIndex,
+    );
     widget.onInitRegisterReset?.call(_resetToFirstJoke);
   }
 
@@ -66,6 +73,7 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
       );
+      ref.read(jokeViewerPageIndexProvider(widget.viewerId).notifier).state = 0;
     }
   }
 
@@ -75,21 +83,10 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
     });
   }
 
-  void _goToNextJoke(int totalJokes) {
+  void _goToNextJoke(int totalJokes, {required String method}) {
     final nextPage = _currentPage + 1;
     if (nextPage < totalJokes) {
-      _lastNavigationMethod = AnalyticsNavigationMethod.tap;
-      _pageController.nextPage(
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-      );
-    }
-  }
-
-  void _goToNextJokeViaCTA(int totalJokes) {
-    final nextPage = _currentPage + 1;
-    if (nextPage < totalJokes) {
-      _lastNavigationMethod = AnalyticsNavigationMethod.ctaReveal;
+      _lastNavigationMethod = method;
       _pageController.nextPage(
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
@@ -137,7 +134,10 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
                     });
                     _carouselControllers[_currentPage]?.revealPunchline();
                   } else {
-                    _goToNextJokeViaCTA(total);
+                    _goToNextJoke(
+                      total,
+                      method: AnalyticsNavigationMethod.ctaReveal,
+                    );
                   }
                 },
           child: Text(label),
@@ -166,7 +166,10 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
             : null;
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
-          ref.read(railBottomSlotProvider.notifier).state = railBottomWidget;
+          final current = ref.read(railBottomSlotProvider);
+          if (!identical(current, railBottomWidget)) {
+            ref.read(railBottomSlotProvider.notifier).state = railBottomWidget;
+          }
         });
 
         if (jokesWithDates.isEmpty) {
@@ -200,6 +203,12 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
               setState(() {
                 _currentPage = safeCurrentPage;
               });
+              ref
+                      .read(
+                        jokeViewerPageIndexProvider(widget.viewerId).notifier,
+                      )
+                      .state =
+                  safeCurrentPage;
             }
           });
         }
@@ -216,6 +225,14 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
                   setState(() {
                     _currentPage = index;
                   });
+                  ref
+                          .read(
+                            jokeViewerPageIndexProvider(
+                              widget.viewerId,
+                            ).notifier,
+                          )
+                          .state =
+                      index;
 
                   final jokeWithDate = jokesWithDates[index];
                   final joke = jokeWithDate.joke;
@@ -273,8 +290,10 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
                       joke: joke,
                       index: index,
                       title: titleForCard,
-                      onPunchlineTap: () =>
-                          _goToNextJoke(jokesWithDates.length),
+                      onPunchlineTap: () => _goToNextJoke(
+                        jokesWithDates.length,
+                        method: AnalyticsNavigationMethod.tap,
+                      ),
                       onImageStateChanged: (imageIndex) =>
                           _onImageStateChanged(index, imageIndex),
                       isAdminMode: false,

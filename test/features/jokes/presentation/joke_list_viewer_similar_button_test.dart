@@ -53,6 +53,7 @@ void main() {
           home: JokeListViewer(
             jokesAsyncValue: AsyncValue.data([JokeWithDate(joke: joke)]),
             jokeContext: 'daily_jokes',
+            viewerId: 'sim_button_off',
             showSimilarSearchButton: false,
           ),
         ),
@@ -69,6 +70,7 @@ void main() {
           home: JokeListViewer(
             jokesAsyncValue: AsyncValue.data([JokeWithDate(joke: joke)]),
             jokeContext: 'daily_jokes',
+            viewerId: 'sim_button_on',
             showSimilarSearchButton: true,
           ),
         ),
@@ -115,6 +117,7 @@ void main() {
             child: JokeListViewer(
               jokesAsyncValue: AsyncValue.data([JokeWithDate(joke: joke)]),
               jokeContext: 'daily_jokes',
+              viewerId: 'sim_button_nav',
               showSimilarSearchButton: true,
             ),
           ),

@@ -96,6 +96,7 @@ void main() {
           () => mockPlatformShareService.shareFiles(
             any(),
             subject: any(named: 'subject'),
+            text: any(named: 'text'),
           ),
         ).thenAnswer(
           (_) async => const ShareResult('', ShareResultStatus.success),
@@ -195,6 +196,7 @@ void main() {
           () => mockPlatformShareService.shareFiles(
             any(),
             subject: any(named: 'subject'),
+            text: any(named: 'text'),
           ),
         ).thenAnswer(
           (_) async => const ShareResult('', ShareResultStatus.unavailable),
@@ -237,6 +239,91 @@ void main() {
             'test-joke-id',
             jokeContext: 'test-context',
             shareMethod: 'images',
+          ),
+        ).called(1);
+      },
+    );
+
+    test(
+      'shareJoke should pass correct text parameter to platform share service',
+      () async {
+        // Arrange
+        const joke = Joke(
+          id: 'test-joke-id',
+          setupText: 'Test setup',
+          punchlineText: 'Test punchline',
+          setupImageUrl: 'https://example.com/setup.jpg',
+          punchlineImageUrl: 'https://example.com/punchline.jpg',
+          numThumbsUp: 0,
+          numThumbsDown: 0,
+          adminRating: null,
+        );
+
+        final mockFiles = [XFile('setup.jpg'), XFile('punchline.jpg')];
+
+        when(() => mockImageService.precacheJokeImages(any())).thenAnswer(
+          (_) async => (
+            setupUrl: 'https://example.com/setup.jpg',
+            punchlineUrl: 'https://example.com/punchline.jpg',
+          ),
+        );
+
+        when(
+          () => mockImageService.getCachedFileFromUrl(
+            'https://example.com/setup.jpg',
+          ),
+        ).thenAnswer((_) async => mockFiles[0]);
+
+        when(
+          () => mockImageService.getCachedFileFromUrl(
+            'https://example.com/punchline.jpg',
+          ),
+        ).thenAnswer((_) async => mockFiles[1]);
+
+        when(
+          () => mockPlatformShareService.shareFiles(
+            any(),
+            subject: any(named: 'subject'),
+            text: any(named: 'text'),
+          ),
+        ).thenAnswer(
+          (_) async => const ShareResult('', ShareResultStatus.success),
+        );
+
+        when(
+          () => mockJokeReactionsService.addUserReaction(any(), any()),
+        ).thenAnswer((_) async {});
+
+        when(
+          () => mockAnalyticsService.logJokeShareInitiated(
+            any(),
+            jokeContext: any(named: 'jokeContext'),
+            shareMethod: any(named: 'shareMethod'),
+          ),
+        ).thenAnswer((_) async {});
+        when(
+          () => mockAnalyticsService.logJokeShareSuccess(
+            any(),
+            jokeContext: any(named: 'jokeContext'),
+            shareMethod: any(named: 'shareMethod'),
+            totalJokesShared: any(named: 'totalJokesShared'),
+          ),
+        ).thenAnswer((_) async {});
+
+        // Act
+        await service.shareJoke(
+          joke,
+          jokeContext: 'test-context',
+          subject: 'Test subject',
+          text: 'Test text',
+        );
+
+        // Assert
+        verify(
+          () => mockPlatformShareService.shareFiles(
+            any(),
+            subject: 'Test subject',
+            text: 'Test text',
           ),
         ).called(1);
       },

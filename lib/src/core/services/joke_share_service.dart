@@ -17,15 +17,23 @@ class ShareOperationResult {
 
 /// Abstract interface for platform sharing functionality
 abstract class PlatformShareService {
-  Future<ShareResult> shareFiles(List<XFile> files, {String? subject});
+  Future<ShareResult> shareFiles(
+    List<XFile> files, {
+    String? subject,
+    String? text,
+  });
 }
 
 /// Production implementation of platform sharing
 class PlatformShareServiceImpl implements PlatformShareService {
   @override
-  Future<ShareResult> shareFiles(List<XFile> files, {String? subject}) async {
+  Future<ShareResult> shareFiles(
+    List<XFile> files, {
+    String? subject,
+    String? text,
+  }) async {
     return await SharePlus.instance.share(
-      ShareParams(subject: subject, files: files),
+      ShareParams(subject: subject, files: files, text: text),
     );
   }
 }
@@ -34,7 +42,12 @@ class PlatformShareServiceImpl implements PlatformShareService {
 /// This allows for easy mocking in tests and future strategy implementations
 abstract class JokeShareService {
   /// Share a joke using the default sharing method (images + text)
-  Future<bool> shareJoke(Joke joke, {required String jokeContext});
+  Future<bool> shareJoke(
+    Joke joke, {
+    required String jokeContext,
+    String subject = 'Thought this might make you smile 😊',
+    String text = 'Freshly baked laughs from snickerdoodlejokes.com 🍪',
+  });
 }
 
 /// Implementation of joke sharing service using share_plus
@@ -58,7 +71,12 @@ class JokeShareServiceImpl implements JokeShareService {
        _appUsageService = appUsageService;
 
   @override
-  Future<bool> shareJoke(Joke joke, {required String jokeContext}) async {
+  Future<bool> shareJoke(
+    Joke joke, {
+    required String jokeContext,
+    String subject = 'Thought this might make you smile 😊',
+    String text = 'Freshly baked laughs from snickerdoodlejokes.com 🍪',
+  }) async {
     // For now, use the images sharing method as default
     // Track share initiation
     await _analyticsService.logJokeShareInitiated(
@@ -70,6 +88,8 @@ class JokeShareServiceImpl implements JokeShareService {
     final shareResult = await _shareJokeImagesWithResult(
       joke,
       jokeContext: jokeContext,
+      subject: subject,
+      text: text,
     );
 
     // Only perform follow-up actions if user actually shared
@@ -103,6 +123,8 @@ class JokeShareServiceImpl implements JokeShareService {
   Future<ShareOperationResult> _shareJokeImagesWithResult(
     Joke joke, {
     required String jokeContext,
+    required String subject,
+    required String text,
   }) async {
     bool shareSuccessful = false;
     ShareResultStatus shareStatus = ShareResultStatus.dismissed; // default
@@ -141,7 +163,8 @@ class JokeShareServiceImpl implements JokeShareService {
 
       final result = await _platformShareService.shareFiles(
         files,
-        subject: 'Check out this joke!',
+        subject: subject,
+        text: text,
       );
 
       // Check if user actually shared (not dismissed)

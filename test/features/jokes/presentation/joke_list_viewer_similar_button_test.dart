@@ -102,7 +102,7 @@ void main() {
         ),
         // Avoid real cloud function calls
         searchResultIdsProvider(
-          SearchScope.userJokeSearch,
+          SearchScope.similarJokeSearch,
         ).overrideWith((ref) async => const []),
       ],
     );
@@ -132,7 +132,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
 
     final query = container.read(
-      searchQueryProvider(SearchScope.userJokeSearch),
+      searchQueryProvider(SearchScope.similarJokeSearch),
     );
     expect(
       query.query,

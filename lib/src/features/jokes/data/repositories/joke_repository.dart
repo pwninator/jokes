@@ -315,9 +315,9 @@ class JokeRepository {
   /// Batch reset jokes: set state=APPROVED and public_timestamp=null
   /// Validates that all jokes have the expected state before updating
   Future<void> resetJokesToApproved(
-    Iterable<String> jokeIds,
-    JokeState expectedState,
-  ) async {
+    Iterable<String> jokeIds, {
+    JokeState? expectedState,
+  }) async {
     final ids = jokeIds.toList();
     if (ids.isEmpty) return;
     final batch = _firestore.batch();
@@ -333,7 +333,7 @@ class JokeRepository {
       final data = snapshot.data()!;
       final currentState = JokeState.fromString(data['state'] as String?);
 
-      if (currentState != expectedState) {
+      if (expectedState != null && currentState != expectedState) {
         // Don't commit the batch since validation failed
         throw Exception(
           'Cannot reset joke $jokeId: current state is ${currentState?.value ?? 'unknown'}, expected ${expectedState.value}',

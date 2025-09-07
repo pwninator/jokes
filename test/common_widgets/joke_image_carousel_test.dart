@@ -13,6 +13,10 @@ import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
+import 'package:snickerdoodle/src/features/jokes/application/joke_schedule_providers.dart';
+import 'package:snickerdoodle/src/features/jokes/application/joke_schedule_service.dart';
+import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_schedule_repository.dart';
+import 'package:snickerdoodle/src/features/jokes/domain/joke_state.dart';
 
 import '../test_helpers/firebase_mocks.dart';
 
@@ -91,9 +95,39 @@ class MockJokeRepository extends Mock implements JokeRepository {}
 // Fake class for Mocktail fallback values
 class FakeJoke extends Fake implements Joke {}
 
+// Simple spy service to capture calls triggered by the dialog
+class _SpyScheduleService extends JokeScheduleAutoFillService {
+  _SpyScheduleService()
+    : super(
+        jokeRepository: _NoopJokeRepository(),
+        scheduleRepository: _NoopJokeScheduleRepository(),
+      );
+
+  String? lastJokeId;
+  DateTime? lastDate;
+  String lastScheduleId = '';
+
+  @override
+  Future<void> scheduleJokeToDate({
+    required String jokeId,
+    required DateTime date,
+    required String scheduleId,
+  }) async {
+    lastJokeId = jokeId;
+    lastDate = date;
+    lastScheduleId = scheduleId;
+  }
+}
+
+class _NoopJokeRepository extends Mock implements JokeRepository {}
+
+class _NoopJokeScheduleRepository extends Mock
+    implements JokeScheduleRepository {}
+
 void mainCountsAndButtonsSuite() {
   late MockImageService mockImageService;
   late MockJokeRepository mockJokeRepository;
+  // No schedule service mock needed here
 
   setUpAll(() {
     // Register fallback values for mocktail
@@ -107,6 +141,8 @@ void mainCountsAndButtonsSuite() {
   setUp(() {
     mockImageService = MockImageService();
     mockJokeRepository = MockJokeRepository();
+    // Provide a real service with mocked repositories via providers; in widget tests,
+    // we'll override the provider to a fake that captures calls.
 
     // Mock to return true for any URL
     when(() => mockImageService.isValidImageUrl(any())).thenReturn(true);
@@ -158,6 +194,10 @@ void mainCountsAndButtonsSuite() {
         ...FirebaseMocks.getFirebaseProviderOverrides(),
         imageServiceProvider.overrideWithValue(mockImageService),
         jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
+        // Override schedule service to a test double (spy not needed for most tests)
+        jokeScheduleAutoFillServiceProvider.overrideWithValue(
+          _SpyScheduleService(),
+        ),
       ],
       child: MaterialApp(
         theme: lightTheme,
@@ -606,6 +646,64 @@ void mainCountsAndButtonsSuite() {
       // testWidgets('can close metadata dialog', (tester) async {
       //   // Test implementation skipped due to Flutter test framework dialog timing issues
       // });
+    });
+
+    group('Reschedule badge flow', () {
+      testWidgets('tapping future DAILY badge opens dialog and calls service', (
+        tester,
+      ) async {
+        // arrange: DAILY with future timestamp
+        final future = DateTime.now().add(const Duration(days: 10));
+        final joke = Joke(
+          id: 'daily-future-1',
+          setupText: 'Setup',
+          punchlineText: 'Punch',
+          setupImageUrl: 'https://example.com/a.jpg',
+          punchlineImageUrl: 'https://example.com/b.jpg',
+          state: JokeState.daily,
+          publicTimestamp: future,
+        );
+
+        // Spy service
+        final spyService = _SpyScheduleService();
+
+        final widget = ProviderScope(
+          overrides: [
+            ...FirebaseMocks.getFirebaseProviderOverrides(),
+            imageServiceProvider.overrideWithValue(mockImageService),
+            jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
+            jokeScheduleAutoFillServiceProvider.overrideWithValue(spyService),
+          ],
+          child: MaterialApp(
+            theme: lightTheme,
+            home: Scaffold(
+              body: JokeImageCarousel(joke: joke, jokeContext: 'test'),
+            ),
+          ),
+        );
+
+        // act
+        await tester.pumpWidget(widget);
+        await tester.pump();
+
+        // Tap the state badge
+        expect(find.byKey(const Key('daily-state-badge')), findsOneWidget);
+        await tester.tap(find.byKey(const Key('daily-state-badge')));
+        await tester.pumpAndSettle();
+
+        // Dialog should appear with Change date button
+        expect(find.text('Change scheduled date'), findsOneWidget);
+        expect(find.byKey(const Key('change-date-btn')), findsOneWidget);
+
+        // Tap change date
+        await tester.tap(find.byKey(const Key('change-date-btn')));
+        await tester.pumpAndSettle();
+
+        // assert - service called
+        expect(spyService.lastJokeId, equals('daily-future-1'));
+        expect(spyService.lastScheduleId, isNotEmpty);
+        expect(spyService.lastDate, isNotNull);
+      });
     });
 
     group('Button visibility controls', () {

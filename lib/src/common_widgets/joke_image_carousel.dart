@@ -17,6 +17,7 @@ import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_population_providers.dart';
+import 'package:snickerdoodle/src/features/jokes/application/joke_schedule_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_search_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_state.dart';
@@ -1108,7 +1109,13 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
         ).colorScheme.primary.withValues(alpha: 0.3);
     }
 
-    return Container(
+    final isFutureDaily =
+        widget.joke.state == JokeState.daily &&
+        widget.joke.publicTimestamp != null &&
+        widget.joke.publicTimestamp!.isAfter(DateTime.now());
+
+    final badge = Container(
+      key: isFutureDaily ? const Key('daily-state-badge') : null,
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
         color: backgroundColor,
@@ -1123,6 +1130,66 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
           color: Theme.of(context).colorScheme.onPrimary.withValues(alpha: 0.8),
         ),
       ),
+    );
+
+    if (!isFutureDaily) return badge;
+
+    return InkWell(
+      onTap: _onTapRescheduleBadge,
+      borderRadius: BorderRadius.circular(999),
+      child: badge,
+    );
+  }
+
+  void _onTapRescheduleBadge() async {
+    if (widget.joke.publicTimestamp == null) return;
+    DateTime initial = DateTime(
+      widget.joke.publicTimestamp!.year,
+      widget.joke.publicTimestamp!.month,
+      widget.joke.publicTimestamp!.day,
+    );
+
+    DateTime selectedDate = initial;
+
+    // Use a dialog with a CalendarDatePicker and a confirm button for testability
+    await showDialog<void>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Change scheduled date'),
+          content: SizedBox(
+            width: 300,
+            height: 300,
+            child: CalendarDatePicker(
+              initialDate: initial,
+              firstDate: DateTime.now().subtract(const Duration(days: 0)),
+              lastDate: DateTime.now().add(const Duration(days: 365 * 5)),
+              onDateChanged: (date) {
+                selectedDate = DateTime(date.year, date.month, date.day);
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              key: const Key('change-date-btn'),
+              onPressed: () async {
+                final service = ref.read(jokeScheduleAutoFillServiceProvider);
+                await service.scheduleJokeToDate(
+                  jokeId: widget.joke.id,
+                  date: selectedDate,
+                  scheduleId: JokeConstants.defaultJokeScheduleId,
+                );
+                if (context.mounted) Navigator.of(context).pop();
+              },
+              child: const Text('Change date'),
+            ),
+          ],
+        );
+      },
     );
   }
 

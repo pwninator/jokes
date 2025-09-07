@@ -14,6 +14,9 @@ abstract class JokeScheduleRepository {
   /// Update or create a joke schedule batch
   Future<void> updateBatch(JokeScheduleBatch batch);
 
+  /// Update or create multiple joke schedule batches atomically (single commit)
+  Future<void> updateBatches(List<JokeScheduleBatch> batches);
+
   /// Delete a joke schedule batch
   Future<void> deleteBatch(String batchId);
 

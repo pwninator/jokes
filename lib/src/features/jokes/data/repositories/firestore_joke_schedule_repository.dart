@@ -80,6 +80,17 @@ class FirestoreJokeScheduleRepository implements JokeScheduleRepository {
   }
 
   @override
+  Future<void> updateBatches(List<JokeScheduleBatch> batches) async {
+    if (batches.isEmpty) return;
+    final writeBatch = _firestore.batch();
+    for (final b in batches) {
+      final ref = _firestore.collection(_batchesCollection).doc(b.id);
+      writeBatch.set(ref, b.toMap());
+    }
+    await writeBatch.commit();
+  }
+
+  @override
   Future<void> deleteBatch(String batchId) async {
     // Parse batchId to extract scheduleId_year_month
     final parsed = JokeScheduleBatch.parseBatchId(batchId);
@@ -113,7 +124,10 @@ class FirestoreJokeScheduleRepository implements JokeScheduleRepository {
     final jokeIds = batchModel.jokes.values.map((j) => j.id);
 
     // Reset jokes to APPROVED and clear public_timestamp, then delete the batch
-    await _jokeRepository.resetJokesToApproved(jokeIds, JokeState.daily);
+    await _jokeRepository.resetJokesToApproved(
+      jokeIds,
+      expectedState: JokeState.daily,
+    );
     await _firestore.collection(_batchesCollection).doc(batchId).delete();
   }
 

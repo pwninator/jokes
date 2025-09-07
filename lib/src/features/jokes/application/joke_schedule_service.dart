@@ -110,60 +110,74 @@ class JokeScheduleAutoFillService {
 
   /// Unpublish a joke by resetting it to APPROVED state and clearing public_timestamp
   Future<void> unpublishJoke(String jokeId) async {
-    await _jokeRepository.resetJokesToApproved([jokeId], JokeState.published);
+    await _jokeRepository.resetJokesToApproved([
+      jokeId,
+    ], expectedState: JokeState.published);
   }
 
-  /// Schedule a joke to a specific date and schedule
+  /// Schedule a joke to a specific date and schedule.
+  ///
+  /// Behavior:
+  /// - If the joke is in DAILY state, it will be descheduled first
+  ///   (only if scheduled for a current or future date), then scheduled
+  ///   to the new date.
+  /// - If the joke is in PUBLISHED state, it will be scheduled directly.
+  /// - If the joke is in any other state (e.g., DRAFT), an error is thrown.
   Future<void> scheduleJokeToDate({
     required String jokeId,
     required DateTime date,
     required String scheduleId,
   }) async {
-    // 1. Get the joke to verify it's in PUBLISHED state
+    // 1) Load the joke
     final joke = await _jokeRepository.getJokeByIdStream(jokeId).first;
     if (joke == null) {
       throw Exception('Joke with ID "$jokeId" not found');
     }
-    if (joke.state != JokeState.published) {
-      throw Exception('Joke "$jokeId" must be in PUBLISHED state to schedule');
-    }
 
-    // 2. Load all batches for the schedule
+    // 2) Load all schedule batches
     final allBatches = await _scheduleRepository
         .watchBatchesForSchedule(scheduleId)
         .first;
 
-    // 3. Check for duplicate joke across all batches (past and future)
-    for (final batch in allBatches) {
-      if (batch.jokes.values.any((j) => j.id == jokeId)) {
-        throw Exception(
-          'Joke "$jokeId" is already scheduled in batch ${batch.year}-${batch.month.toString().padLeft(2, '0')}',
-        );
-      }
+    // 3) Validate joke state
+    if (joke.state != JokeState.published && joke.state != JokeState.daily) {
+      throw Exception(
+        'Joke "$jokeId" must be in PUBLISHED or DAILY state to schedule',
+      );
     }
 
-    // 4. Get or create batch for the target month
+    // 4) Remove joke from existing batches, if any
+    final removal = await _removeJokeFromBatches(allBatches, jokeId);
+    final removalBatches = removal.updated;
+    final untouchedBatches = removal.untouched;
+    final allBatchesWithRemoval = [...untouchedBatches, ...removalBatches];
+
+    // 5) Validate target day availability and prepare target batch
+    final dayKey = date.day.toString().padLeft(2, '0');
     final targetBatch = await _getOrCreateBatchForDate(
-      allBatches,
+      allBatchesWithRemoval,
       date,
       scheduleId,
     );
-
-    // 5. Check if the specific date already has a joke
-    final dayKey = date.day.toString().padLeft(2, '0');
     if (targetBatch.jokes.containsKey(dayKey)) {
       throw Exception(
         'Schedule "$scheduleId" already has a joke scheduled for ${date.year}-${date.month.toString().padLeft(2, '0')}-$dayKey',
       );
     }
 
-    // 6. Add joke to the batch
-    targetBatch.jokes[dayKey] = joke;
+    // 6) Apply addition to target batch in-memory
+    final updatedTarget = targetBatch.copyWith(
+      jokes: {...targetBatch.jokes, dayKey: joke},
+    );
 
-    // 7. Save the updated batch
-    await _scheduleRepository.updateBatch(targetBatch);
+    // 8) Persist all modified batches in a single commit
+    final toPersist = <JokeScheduleBatch>{
+      ...removalBatches,
+      updatedTarget,
+    }.toList();
+    await _scheduleRepository.updateBatches(toPersist);
 
-    // 8. Update joke's public timestamp
+    // 9) Publish at LA midnight for the target date
     tzdata.initializeTimeZones();
     final la = _laLocation ?? tz.getLocation('America/Los_Angeles');
     final laMidnight = tz.TZDateTime(la, date.year, date.month, date.day);
@@ -192,96 +206,90 @@ class JokeScheduleAutoFillService {
   }
 
   /// Remove a joke from the daily schedule
-  Future<void> removeJokeFromDailySchedule(String jokeId) async {
-    // 1. Get the joke to verify it's in DAILY state
+  Future<void> removeJokeFromDailySchedule(
+    String jokeId, {
+    String scheduleId = JokeConstants.defaultJokeScheduleId,
+  }) async {
+    // 1. Get the joke to verify it exists
     final joke = await _jokeRepository.getJokeByIdStream(jokeId).first;
     if (joke == null) {
       throw Exception('Joke with ID "$jokeId" not found');
     }
-    if (joke.state != JokeState.daily) {
-      throw Exception(
-        'Joke "$jokeId" must be in DAILY state to remove from daily schedule',
-      );
-    }
-
     // 2. Load all batches for the daily schedule
     final allBatches = await _scheduleRepository
-        .watchBatchesForSchedule(JokeConstants.defaultJokeScheduleId)
+        .watchBatchesForSchedule(scheduleId)
         .first;
 
-    // 3. Get current date in LA timezone
+    // 3. Remove from batches
+    final removal = await _removeJokeFromBatches(allBatches, jokeId);
+
+    // 4. Persist all updated batches atomically
+    if (removal.updated.isNotEmpty) {
+      await _scheduleRepository.updateBatches(removal.updated);
+    }
+
+    // 5. Reset joke's state to APPROVED
+    await _jokeRepository.resetJokesToApproved([jokeId]);
+  }
+
+  /// Remove a joke from provided batches when the scheduled date is not in the past.
+  /// Returns two lists: (updated, untouched). Throws if the joke exists
+  /// in any past batch/day.
+  Future<({List<JokeScheduleBatch> updated, List<JokeScheduleBatch> untouched})>
+  _removeJokeFromBatches(List<JokeScheduleBatch> batches, String jokeId) async {
+    // Initialize timezone
     tzdata.initializeTimeZones();
     final la = _laLocation ?? tz.getLocation('America/Los_Angeles');
     final now = tz.TZDateTime.now(la);
     final currentMonthStart = tz.TZDateTime(la, now.year, now.month, 1);
 
-    // 4. Find the batch containing this joke (only in current/future months)
-    JokeScheduleBatch? targetBatch;
-    String? dayKey;
-    bool foundInPastBatch = false;
+    final updated = <JokeScheduleBatch>[];
+    final untouched = <JokeScheduleBatch>[];
 
-    for (final batch in allBatches) {
+    for (final batch in batches) {
       final batchDate = DateTime(batch.year, batch.month);
 
-      // Skip past months
+      // If batch month is fully in the past, any presence is an error
       if (batchDate.isBefore(
         DateTime(currentMonthStart.year, currentMonthStart.month),
       )) {
-        // Check if joke exists in past batch (to provide better error message)
-        for (final entry in batch.jokes.entries) {
-          if (entry.value.id == jokeId) {
-            foundInPastBatch = true;
-            break;
-          }
+        final containsInPast = batch.jokes.values.any((j) => j.id == jokeId);
+        if (containsInPast) {
+          throw Exception(
+            'Cannot remove joke "$jokeId" from past schedule. Joke is scheduled for a date that has already passed.',
+          );
         }
         continue;
       }
 
-      // Check current/future months
+      // For current/future months, remove only if the specific day is not in the past
+      final newJokes = Map<String, Joke>.from(batch.jokes);
+      bool removedAny = false;
       for (final entry in batch.jokes.entries) {
-        if (entry.value.id == jokeId) {
-          // Check if this specific day is in the past within the current month
-          if (batch.year == now.year && batch.month == now.month) {
-            final dayInt = int.parse(entry.key);
-            final jokeDate = tz.TZDateTime(la, batch.year, batch.month, dayInt);
-            if (jokeDate.isBefore(DateTime(now.year, now.month, now.day))) {
-              throw Exception(
-                'Cannot remove joke "$jokeId" from past schedule. Joke is scheduled for a date that has already passed (${jokeDate.year}-${jokeDate.month.toString().padLeft(2, '0')}-${jokeDate.day.toString().padLeft(2, '0')}).',
-              );
-            }
+        if (entry.value.id != jokeId) continue;
+
+        if (batch.year == now.year && batch.month == now.month) {
+          final dayInt = int.parse(entry.key);
+          final jokeDate = tz.TZDateTime(la, batch.year, batch.month, dayInt);
+          if (jokeDate.isBefore(DateTime(now.year, now.month, now.day))) {
+            throw Exception(
+              'Cannot remove joke "$jokeId" from past schedule. Joke is scheduled for a date that has already passed (${jokeDate.year}-${jokeDate.month.toString().padLeft(2, '0')}-${jokeDate.day.toString().padLeft(2, '0')}).',
+            );
           }
-
-          targetBatch = batch;
-          dayKey = entry.key;
-          break;
         }
+
+        newJokes.remove(entry.key);
+        removedAny = true;
       }
-      if (targetBatch != null) break;
+
+      if (removedAny) {
+        updated.add(batch.copyWith(jokes: newJokes));
+      } else {
+        untouched.add(batch);
+      }
     }
 
-    if (foundInPastBatch) {
-      throw Exception(
-        'Cannot remove joke "$jokeId" from past schedule. Joke is scheduled for a date that has already passed.',
-      );
-    }
-
-    if (targetBatch == null || dayKey == null) {
-      // If joke is in DAILY state but not found in batches, still reset its state
-      await _jokeRepository.resetJokesToApproved([jokeId], JokeState.daily);
-      return; // Early return since there's nothing to remove from batches
-    }
-
-    // 5. Remove joke from the batch
-    final updatedJokes = Map<String, Joke>.from(targetBatch.jokes);
-    updatedJokes.remove(dayKey);
-
-    final updatedBatch = targetBatch.copyWith(jokes: updatedJokes);
-
-    // 6. Save the updated batch
-    await _scheduleRepository.updateBatch(updatedBatch);
-
-    // 7. Reset joke's state to APPROVED
-    await _jokeRepository.resetJokesToApproved([jokeId], JokeState.daily);
+    return (updated: updated, untouched: untouched);
   }
 
   /// Find the next available date starting from today
@@ -513,7 +521,7 @@ class JokeScheduleAutoFillService {
       jokes: assignments,
     );
 
-    await _scheduleRepository.updateBatch(batch);
+    await _scheduleRepository.updateBatches([batch]);
 
     return AutoFillResult.success(
       jokesFilled: assignments.length,

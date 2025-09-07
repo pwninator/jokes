@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/common_widgets/adaptive_app_bar_screen.dart';
+import 'package:snickerdoodle/src/common_widgets/feedback_dialog.dart';
 import 'package:snickerdoodle/src/common_widgets/notification_hour_widget.dart';
 import 'package:snickerdoodle/src/common_widgets/subscription_prompt_dialog.dart';
 import 'package:snickerdoodle/src/common_widgets/titled_screen.dart';
-import 'package:snickerdoodle/src/common_widgets/feedback_dialog.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/providers/app_version_provider.dart';
-import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
+import 'package:snickerdoodle/src/core/services/app_review_service.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
+import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
 import 'package:snickerdoodle/src/features/auth/data/models/app_user.dart';
@@ -320,6 +321,19 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                             backgroundColor: Theme.of(
                               context,
                             ).colorScheme.tertiary,
+                            foregroundColor: Colors.white,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        ElevatedButton.icon(
+                          key: const Key('settings-review-button'),
+                          onPressed: () => _testReviewPrompt(context),
+                          icon: const Icon(Icons.rate_review),
+                          label: const Text('Test Review Prompt'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Theme.of(
+                              context,
+                            ).colorScheme.secondary,
                             foregroundColor: Colors.white,
                           ),
                         ),
@@ -736,6 +750,43 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
       context: context,
       barrierDismissible: false,
       builder: (context) => const SubscriptionPromptDialog(),
+    );
+  }
+
+  Future<void> _testReviewPrompt(BuildContext context) async {
+    final reviewService = ref.read(appReviewServiceProvider);
+    final result = await reviewService.requestReview(
+      source: ReviewRequestSource.adminTest,
+    );
+
+    if (!context.mounted) return;
+
+    String message;
+    Color bg = Theme.of(context).colorScheme.primary;
+    switch (result) {
+      case ReviewRequestResult.shown:
+        message = 'Review prompt shown (if allowed by the OS).';
+        break;
+      case ReviewRequestResult.notAvailable:
+        message = 'In-app review not available on this device.';
+        bg = Theme.of(context).colorScheme.secondary;
+        break;
+      case ReviewRequestResult.throttledOrNoop:
+        message = 'Review prompt throttled (no UI shown).';
+        bg = Theme.of(context).colorScheme.secondary;
+        break;
+      case ReviewRequestResult.error:
+        message = 'Error requesting review prompt.';
+        bg = Theme.of(context).appColors.authError;
+        break;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: bg,
+        duration: const Duration(seconds: 3),
+      ),
     );
   }
 }

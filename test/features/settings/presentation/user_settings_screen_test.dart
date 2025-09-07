@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:snickerdoodle/src/core/services/app_review_service.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/settings/presentation/user_settings_screen.dart';
 
@@ -432,6 +433,52 @@ void main() {
         await tester.pump();
       });
 
+      testWidgets('shows Test Review Prompt button and calls service', (
+        tester,
+      ) async {
+        Widget withOverrides() {
+          return ProviderScope(
+            overrides: [
+              ...TestHelpers.getAllMockOverrides(
+                testUser: TestHelpers.anonymousUser,
+              ),
+              appReviewServiceProvider.overrideWithValue(
+                AppReviewService(
+                  nativeAdapter: _FakeAdapter(),
+                  analyticsService: null,
+                ),
+              ),
+            ],
+            child: MaterialApp(
+              theme: lightTheme,
+              darkTheme: darkTheme,
+              home: Scaffold(
+                body: SingleChildScrollView(
+                  child: const SizedBox(
+                    height: 1000,
+                    child: UserSettingsScreen(),
+                  ),
+                ),
+              ),
+            ),
+          );
+        }
+
+        await tester.pumpWidget(withOverrides());
+        await tester.pumpAndSettle();
+
+        await enableDeveloperMode(tester);
+
+        // Tap the button
+        final btn = find.byKey(const Key('settings-review-button'));
+        expect(btn, findsOneWidget);
+        await tester.tap(btn);
+        await tester.pump();
+
+        // A snackbar should appear (message depends on result)
+        expect(find.byType(SnackBar), findsOneWidget);
+      });
+
       testWidgets(
         'maintains regular functionality after enabling developer mode',
         (tester) async {
@@ -511,4 +558,14 @@ void main() {
       });
     });
   });
+}
+
+class _MockAppReviewService extends Mock implements AppReviewService {}
+
+class _FakeAdapter implements NativeReviewAdapter {
+  @override
+  Future<bool> isAvailable() async => true;
+
+  @override
+  Future<void> requestReview() async {}
 }

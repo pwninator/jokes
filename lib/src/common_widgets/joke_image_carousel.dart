@@ -1302,16 +1302,17 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
 
     // Update search query provider
     final current = refLocal.read(
-      searchQueryProvider(SearchScope.similarJokeSearch),
+      searchQueryProvider(SearchScope.userJokeSearch),
     );
     refLocal
-        .read(searchQueryProvider(SearchScope.similarJokeSearch).notifier)
+        .read(searchQueryProvider(SearchScope.userJokeSearch).notifier)
         .state = current.copyWith(
       query: '${JokeConstants.searchQueryPrefix}$baseQuery',
       maxResults: JokeConstants.userSearchMaxResults,
       publicOnly: JokeConstants.userSearchPublicOnly,
       matchMode: JokeConstants.userSearchMatchMode,
       excludeJokeIds: [widget.joke.id],
+      label: SearchLabel.similarJokes,
     );
 
     // Navigate to search using push so that back returns to previous page

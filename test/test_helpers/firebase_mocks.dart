@@ -115,6 +115,8 @@ class FirebaseMocks {
     registerFallbackValue(MatchMode.tight);
     // Needed for mocktail when matching named args of type SearchScope
     registerFallbackValue(SearchScope.userJokeSearch);
+    // Needed for mocktail when matching named args of type SearchLabel
+    registerFallbackValue(SearchLabel.none);
     // Setup default behaviors that won't throw
     when(
       () => mock.createJokeWithResponse(
@@ -154,6 +156,7 @@ class FirebaseMocks {
         publicOnly: any(named: 'publicOnly'),
         matchMode: any(named: 'matchMode'),
         scope: any(named: 'scope'),
+        label: any(named: 'label'),
       ),
     ).thenAnswer((_) async => <JokeSearchResult>[]);
   }

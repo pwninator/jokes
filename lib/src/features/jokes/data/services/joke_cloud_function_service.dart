@@ -164,16 +164,23 @@ class JokeCloudFunctionService {
     required MatchMode matchMode,
     required SearchScope scope,
     List<String> excludeJokeIds = const <String>[],
+    required SearchLabel label,
   }) async {
     try {
       final callable = _functions.httpsCallable('search_jokes');
+
+      // Build label: if SearchLabel is none, use scope.name; otherwise use "scope.name:label.name"
+      final String labelValue = label == SearchLabel.none
+          ? scope.name
+          : '${scope.name}:${label.name}';
+
       final payload = <String, dynamic>{
         'search_query': searchQuery,
         // Workaround: send as string to avoid protobuf Int64 wrapper on the server
         'max_results': maxResults.toString(),
         'public_only': publicOnly,
         'match_mode': matchMode == MatchMode.tight ? 'TIGHT' : 'LOOSE',
-        'label': scope.name,
+        'label': labelValue,
         if (excludeJokeIds.isNotEmpty) 'exclude_joke_ids': excludeJokeIds,
       };
 

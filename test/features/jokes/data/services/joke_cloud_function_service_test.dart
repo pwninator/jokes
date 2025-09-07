@@ -200,6 +200,7 @@ void main() {
           publicOnly: true,
           matchMode: MatchMode.tight,
           scope: SearchScope.userJokeSearch,
+          label: SearchLabel.none,
         );
         expect(results.map((r) => r.id).toList(), ['a', 'b']);
         expect(results.map((r) => r.vectorDistance).toList(), [0.11, 0.23]);
@@ -235,6 +236,7 @@ void main() {
           publicOnly: false,
           matchMode: MatchMode.loose,
           scope: SearchScope.jokeManagementSearch,
+          label: SearchLabel.none,
         );
         expect(results.map((r) => r.id).toList(), ['x', 'y']);
         final captured =
@@ -265,6 +267,7 @@ void main() {
           publicOnly: true,
           matchMode: MatchMode.tight,
           scope: SearchScope.jokeDeepResearchSearch,
+          label: SearchLabel.none,
         );
         expect(results.map((r) => r.id).toList(), ['x']);
         final captured =
@@ -290,6 +293,7 @@ void main() {
           publicOnly: true,
           matchMode: MatchMode.tight,
           scope: SearchScope.userJokeSearch,
+          label: SearchLabel.none,
         );
         expect(results, isEmpty);
       });
@@ -317,6 +321,7 @@ void main() {
             matchMode: MatchMode.tight,
             scope: SearchScope.userJokeSearch,
             excludeJokeIds: const ['omit'],
+            label: SearchLabel.none,
           );
 
           // Verify payload includes exclude_joke_ids
@@ -329,6 +334,63 @@ void main() {
           expect(results.map((r) => r.id).toList(), ['keep']);
         },
       );
+
+      test('builds correct label based on SearchLabel enum', () async {
+        const q = 'label test';
+
+        when(
+          () => mockFunctions.httpsCallable('search_jokes'),
+        ).thenReturn(mockCallable);
+        when(() => mockResult.data).thenReturn([]);
+        when(
+          () => mockCallable.call(any()),
+        ).thenAnswer((_) async => mockResult);
+
+        // Test with SearchLabel.none - should use scope.name only
+        await service.searchJokes(
+          searchQuery: q,
+          maxResults: 10,
+          publicOnly: true,
+          matchMode: MatchMode.tight,
+          scope: SearchScope.userJokeSearch,
+          label: SearchLabel.none,
+        );
+
+        var captured =
+            verify(() => mockCallable.call(captureAny())).captured.last
+                as Map<String, dynamic>;
+        expect(captured['label'], 'userJokeSearch');
+
+        // Test with SearchLabel.similarJokes - should use "scope.name:label.name"
+        await service.searchJokes(
+          searchQuery: q,
+          maxResults: 10,
+          publicOnly: true,
+          matchMode: MatchMode.tight,
+          scope: SearchScope.userJokeSearch,
+          label: SearchLabel.similarJokes,
+        );
+
+        captured =
+            verify(() => mockCallable.call(captureAny())).captured.last
+                as Map<String, dynamic>;
+        expect(captured['label'], 'userJokeSearch:similarJokes');
+
+        // Test with different scope
+        await service.searchJokes(
+          searchQuery: q,
+          maxResults: 10,
+          publicOnly: true,
+          matchMode: MatchMode.tight,
+          scope: SearchScope.jokeManagementSearch,
+          label: SearchLabel.similarJokes,
+        );
+
+        captured =
+            verify(() => mockCallable.call(captureAny())).captured.last
+                as Map<String, dynamic>;
+        expect(captured['label'], 'jokeManagementSearch:similarJokes');
+      });
     });
   });
 }

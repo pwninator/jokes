@@ -9,10 +9,12 @@ import 'package:snickerdoodle/src/features/jokes/domain/joke_search_result.dart'
 /// Scope for search providers
 enum SearchScope {
   userJokeSearch,
-  similarJokeSearch,
   jokeManagementSearch,
   jokeDeepResearchSearch,
 }
+
+/// Label for search queries to provide additional context
+enum SearchLabel { none, similarJokes }
 
 // Search query state: strongly typed object
 class SearchQuery {
@@ -21,6 +23,7 @@ class SearchQuery {
   final bool publicOnly;
   final MatchMode matchMode;
   final List<String> excludeJokeIds;
+  final SearchLabel label;
 
   const SearchQuery({
     required this.query,
@@ -28,6 +31,7 @@ class SearchQuery {
     required this.publicOnly,
     required this.matchMode,
     this.excludeJokeIds = const [],
+    this.label = SearchLabel.none,
   });
 
   SearchQuery copyWith({
@@ -36,6 +40,7 @@ class SearchQuery {
     bool? publicOnly,
     MatchMode? matchMode,
     List<String>? excludeJokeIds,
+    SearchLabel? label,
   }) {
     return SearchQuery(
       query: query ?? this.query,
@@ -43,6 +48,7 @@ class SearchQuery {
       publicOnly: publicOnly ?? this.publicOnly,
       matchMode: matchMode ?? this.matchMode,
       excludeJokeIds: excludeJokeIds ?? this.excludeJokeIds,
+      label: label ?? this.label,
     );
   }
 }
@@ -81,6 +87,7 @@ final searchResultIdsProvider =
         matchMode: params.matchMode,
         scope: scope,
         excludeJokeIds: params.excludeJokeIds,
+        label: params.label,
       );
 
       // Log analytics for user scope

@@ -25,6 +25,8 @@ void main() {
     registerFallbackValue(MatchMode.tight);
     // Fallback for SearchScope enum used in cloud function mock
     registerFallbackValue(SearchScope.userJokeSearch);
+    // Fallback for SearchLabel enum used in cloud function mock
+    registerFallbackValue(SearchLabel.none);
   });
 
   Widget buildTestWidget(List<Override> overrides) {
@@ -72,6 +74,7 @@ void main() {
           publicOnly: any(named: 'publicOnly'),
           matchMode: any(named: 'matchMode'),
           scope: any(named: 'scope'),
+          label: any(named: 'label'),
         ),
       ).thenAnswer(
         (_) async => const [

@@ -30,6 +30,7 @@ void main() {
       // Needed for any(named: 'matchMode') with mocktail
       registerFallbackValue(MatchMode.tight);
       registerFallbackValue(SearchScope.userJokeSearch);
+      registerFallbackValue(SearchLabel.none);
     });
 
     setUp(() {
@@ -63,6 +64,7 @@ void main() {
           matchMode: any(named: 'matchMode'),
           scope: any(named: 'scope'),
           excludeJokeIds: any(named: 'excludeJokeIds'),
+          label: any(named: 'label'),
         ),
       ).thenAnswer(
         (_) async => const [JokeSearchResult(id: 'x', vectorDistance: 0.1)],
@@ -102,6 +104,7 @@ void main() {
           matchMode: mode,
           scope: SearchScope.userJokeSearch,
           excludeJokeIds: ['id_to_exclude'],
+          label: SearchLabel.none,
         ),
       ).called(1);
 
@@ -140,6 +143,35 @@ void main() {
       },
     );
 
+    test('search query label defaults to none and can be overridden', () async {
+      final container = ProviderContainer(
+        overrides: [
+          jokeCloudFunctionServiceProvider.overrideWithValue(
+            mockCloudFunctionService,
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      // Default is none
+      final initial = container.read(
+        searchQueryProvider(SearchScope.userJokeSearch),
+      );
+      expect(initial.label, SearchLabel.none);
+
+      // Override via copyWith
+      container
+          .read(searchQueryProvider(SearchScope.userJokeSearch).notifier)
+          .state = initial.copyWith(
+        label: SearchLabel.similarJokes,
+      );
+
+      final updated = container.read(
+        searchQueryProvider(SearchScope.userJokeSearch),
+      );
+      expect(updated.label, SearchLabel.similarJokes);
+    });
+
     test(
       'searchResultsLiveProvider preserves order and applies filters',
       () async {
@@ -151,6 +183,7 @@ void main() {
             publicOnly: any(named: 'publicOnly'),
             matchMode: any(named: 'matchMode'),
             scope: any(named: 'scope'),
+            label: any(named: 'label'),
           ),
         ).thenAnswer(
           (_) async => const [
@@ -260,6 +293,7 @@ void main() {
           publicOnly: any(named: 'publicOnly'),
           matchMode: any(named: 'matchMode'),
           scope: any(named: 'scope'),
+          label: any(named: 'label'),
         ),
       ).thenAnswer(
         (_) async => const [JokeSearchResult(id: 'j1', vectorDistance: 0.42)],

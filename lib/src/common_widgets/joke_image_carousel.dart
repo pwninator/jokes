@@ -10,6 +10,7 @@ import 'package:snickerdoodle/src/common_widgets/save_joke_button.dart';
 import 'package:snickerdoodle/src/common_widgets/share_joke_button.dart';
 import 'package:snickerdoodle/src/config/router/route_names.dart';
 import 'package:snickerdoodle/src/config/router/router_providers.dart';
+import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/providers/image_providers.dart';
 import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
@@ -21,7 +22,6 @@ import 'package:snickerdoodle/src/features/jokes/application/joke_schedule_provi
 import 'package:snickerdoodle/src/features/jokes/application/joke_search_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_state.dart';
-import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
 
 /// Controller to allow parent widgets to imperatively control the
 /// `JokeImageCarousel` (e.g., reveal the punchline programmatically).
@@ -1294,7 +1294,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
         '${widget.joke.setupText} ${widget.joke.punchlineText}'.trim();
     if (baseQuery.isEmpty) return;
 
-    // Log CTA analytics first
+    // Log CTA analytics
     await analyticsService.logJokeSearchSimilar(
       queryLength: baseQuery.length,
       jokeContext: widget.jokeContext,
@@ -1302,10 +1302,10 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
 
     // Update search query provider
     final current = refLocal.read(
-      searchQueryProvider(SearchScope.userJokeSearch),
+      searchQueryProvider(SearchScope.similarJokeSearch),
     );
     refLocal
-        .read(searchQueryProvider(SearchScope.userJokeSearch).notifier)
+        .read(searchQueryProvider(SearchScope.similarJokeSearch).notifier)
         .state = current.copyWith(
       query: '${JokeConstants.searchQueryPrefix}$baseQuery',
       maxResults: JokeConstants.userSearchMaxResults,

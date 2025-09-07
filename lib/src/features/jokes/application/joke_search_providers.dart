@@ -9,6 +9,7 @@ import 'package:snickerdoodle/src/features/jokes/domain/joke_search_result.dart'
 /// Scope for search providers
 enum SearchScope {
   userJokeSearch,
+  similarJokeSearch,
   jokeManagementSearch,
   jokeDeepResearchSearch,
 }

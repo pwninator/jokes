@@ -4,6 +4,7 @@ import 'package:snickerdoodle/src/common_widgets/adaptive_app_bar_screen.dart';
 import 'package:snickerdoodle/src/common_widgets/notification_hour_widget.dart';
 import 'package:snickerdoodle/src/common_widgets/subscription_prompt_dialog.dart';
 import 'package:snickerdoodle/src/common_widgets/titled_screen.dart';
+import 'package:snickerdoodle/src/common_widgets/feedback_dialog.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/providers/app_version_provider.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
@@ -147,6 +148,31 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                       _buildNotificationSettings(context, ref),
                     ],
                   ),
+                ),
+              ),
+
+              // Suggestions/Feedback button
+              const SizedBox(height: 16),
+              Align(
+                alignment: Alignment.center,
+                child: OutlinedButton.icon(
+                  key: const Key('settings-feedback-button'),
+                  icon: const Icon(Icons.feedback_outlined),
+                  label: const Text('Suggestions/Feedback'),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 16,
+                      horizontal: 16,
+                    ),
+                    visualDensity: VisualDensity.compact,
+                    minimumSize: const Size(0, 32),
+                  ),
+                  onPressed: () {
+                    showDialog<bool>(
+                      context: context,
+                      builder: (context) => const FeedbackDialog(),
+                    );
+                  },
                 ),
               ),
 

@@ -59,6 +59,9 @@ enum AnalyticsEvent {
   // App usage events
   appUsageDayIncremented('app_usage_day_incremented'),
 
+  // Feedback
+  feedbackSubmitted('feedback_submitted'),
+
   // Navigation/routing
   errorRouteNavigation('error_route_navigation'),
 

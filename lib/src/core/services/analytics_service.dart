@@ -207,6 +207,9 @@ abstract class AnalyticsService {
     required int queryLength,
     required String jokeContext,
   });
+
+  /// Log when a user submits app feedback (no parameters)
+  Future<void> logFeedbackSubmitted();
 }
 
 /// Firebase Analytics implementation of the analytics service
@@ -703,6 +706,12 @@ class FirebaseAnalyticsService implements AnalyticsService {
       AnalyticsParameters.jokeContext: jokeContext,
       AnalyticsParameters.userType: _getUserType(_currentUser),
     });
+  }
+
+  @override
+  Future<void> logFeedbackSubmitted() async {
+    // Per requirements, log event with no parameters
+    await _logEvent(AnalyticsEvent.feedbackSubmitted, {});
   }
 
   /// Internal method to log events with consistent error handling

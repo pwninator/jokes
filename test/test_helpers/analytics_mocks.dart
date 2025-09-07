@@ -118,6 +118,9 @@ class AnalyticsMocks {
       ),
     ).thenAnswer((_) async {});
 
+    // Feedback
+    when(() => mock.logFeedbackSubmitted()).thenAnswer((_) async {});
+
     // Share funnel
     when(
       () => mock.logJokeShareInitiated(

@@ -917,7 +917,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
                       ),
                     ),
                   const SizedBox(width: 8.0),
-                  // Hold to Regenerate Edit button (middle)
+                  // Edit button (middle)
                   Expanded(
                     child: AdminEditJokeButton(
                       jokeId: widget.joke.id,
@@ -926,14 +926,18 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
                     ),
                   ),
                   const SizedBox(width: 8.0),
-                  // Regenerate Images button (rightmost)
-                  Expanded(
-                    child: AdminRegenerateImagesButton(
-                      jokeId: widget.joke.id,
-                      theme: theme,
-                      isLoading: isPopulating,
-                    ),
-                  ),
+                  // Regenerate Images button (rightmost) - hidden for public/daily jokes
+                  if (widget.joke.state != JokeState.published && 
+                      widget.joke.state != JokeState.daily)
+                    Expanded(
+                      child: AdminRegenerateImagesButton(
+                        jokeId: widget.joke.id,
+                        theme: theme,
+                        isLoading: isPopulating,
+                      ),
+                    )
+                  else
+                    const Expanded(child: SizedBox()),
                 ],
               ),
             ),

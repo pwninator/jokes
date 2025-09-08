@@ -926,8 +926,8 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
                     ),
                   ),
                   const SizedBox(width: 8.0),
-                  // Regenerate Images button (rightmost) - hidden for public/daily jokes
-                  if (widget.joke.state != JokeState.published && 
+                  // Regenerate Images button (half-width) - hidden for public/daily jokes
+                  if (widget.joke.state != JokeState.published &&
                       widget.joke.state != JokeState.daily)
                     Expanded(
                       child: AdminRegenerateImagesButton(
@@ -938,6 +938,17 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
                     )
                   else
                     const Expanded(child: SizedBox()),
+                  const SizedBox(width: 8.0),
+                  // Modify Images button (half-width)
+                  Expanded(
+                    child: AdminModifyImageButton(
+                      jokeId: widget.joke.id,
+                      theme: theme,
+                      isLoading: isPopulating,
+                      setupImageUrl: widget.joke.setupImageUrl,
+                      punchlineImageUrl: widget.joke.punchlineImageUrl,
+                    ),
+                  ),
                 ],
               ),
             ),

@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:snickerdoodle/src/common_widgets/holdable_button.dart';
+import 'package:snickerdoodle/src/common_widgets/modify_image_dialog.dart';
 import 'package:snickerdoodle/src/config/router/route_names.dart';
-import 'package:snickerdoodle/src/features/jokes/application/joke_schedule_providers.dart';
+import 'package:snickerdoodle/src/features/jokes/application/joke_modification_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_population_providers.dart';
+import 'package:snickerdoodle/src/features/jokes/application/joke_schedule_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
 
 class AdminPopulateJokeButton extends ConsumerWidget {
@@ -275,6 +277,55 @@ class AdminRemoveFromDailyScheduleButton extends ConsumerWidget {
       isLoading: isLoading,
       theme: theme,
       color: Colors.orange,
+    );
+  }
+}
+
+class AdminModifyImageButton extends ConsumerWidget {
+  final String jokeId;
+  final ThemeData theme;
+  final bool isLoading;
+  final String? setupImageUrl;
+  final String? punchlineImageUrl;
+
+  const AdminModifyImageButton({
+    super.key,
+    required this.jokeId,
+    required this.theme,
+    required this.isLoading,
+    this.setupImageUrl,
+    this.punchlineImageUrl,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final modificationState = ref.watch(jokeModificationProvider);
+    final isModifying = modificationState.modifyingJokes.contains(jokeId);
+    
+    return HoldableButton(
+      key: const Key('modify-image-button'),
+      icon: Icons.edit_note,
+      holdCompleteIcon: Icons.edit_note,
+      onTap: () {
+        _showModifyImageDialog(context, ref);
+      },
+      onHoldComplete: () {
+        // No hold action
+      },
+      isLoading: isLoading || isModifying,
+      theme: theme,
+      color: theme.colorScheme.tertiary,
+    );
+  }
+
+  void _showModifyImageDialog(BuildContext context, WidgetRef ref) {
+    showDialog<void>(
+      context: context,
+      builder: (context) => ModifyImageDialog(
+        jokeId: jokeId,
+        setupImageUrl: setupImageUrl,
+        punchlineImageUrl: punchlineImageUrl,
+      ),
     );
   }
 }

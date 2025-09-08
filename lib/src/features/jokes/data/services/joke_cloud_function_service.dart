@@ -153,6 +153,46 @@ class JokeCloudFunctionService {
     }
   }
 
+  Future<Map<String, dynamic>?> modifyJoke({
+    required String jokeId,
+    String? setupInstructions,
+    String? punchlineInstructions,
+  }) async {
+    try {
+      final callable = _functions.httpsCallable(
+        'modify_joke_image',
+        options: HttpsCallableOptions(timeout: const Duration(seconds: 300)),
+      );
+
+      final requestData = <String, dynamic>{
+        'joke_id': jokeId,
+      };
+      
+      if (setupInstructions != null && setupInstructions.isNotEmpty) {
+        requestData['setup_instruction'] = setupInstructions;
+      }
+      
+      if (punchlineInstructions != null && punchlineInstructions.isNotEmpty) {
+        requestData['punchline_instruction'] = punchlineInstructions;
+      }
+
+      final result = await callable.call(requestData);
+
+      debugPrint('Joke modified successfully: ${result.data}');
+      return {'success': true, 'data': result.data};
+    } on FirebaseFunctionsException catch (e) {
+      debugPrint('Firebase Functions error: ${e.code} - ${e.message}');
+      return {
+        'success': false,
+        'error': 'Function error: ${e.message}',
+        'code': e.code,
+      };
+    } catch (e) {
+      debugPrint('Error modifying joke: $e');
+      return {'success': false, 'error': 'Unexpected error: $e'};
+    }
+  }
+
   /// Search jokes via Cloud Function and return typed results
   ///
   /// Request params: { search_query, max_results, label }

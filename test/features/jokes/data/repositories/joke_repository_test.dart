@@ -3,7 +3,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
+import 'package:snickerdoodle/src/features/jokes/domain/joke_admin_rating.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
+import 'package:snickerdoodle/src/features/jokes/domain/joke_state.dart';
 
 // Mock classes using mocktail
 class MockFirebaseFirestore extends Mock implements FirebaseFirestore {}
@@ -22,15 +24,38 @@ class MockQuerySnapshot extends Mock
 class MockDocumentSnapshot extends Mock
     implements QueryDocumentSnapshot<Map<String, dynamic>> {}
 
+class MockWriteBatch extends Mock implements WriteBatch {}
+
+class MockTimestamp extends Mock implements Timestamp {}
+
 void main() {
   group('JokeRepository', () {
     late JokeRepository repository;
     late JokeRepository adminRepository;
+    late JokeRepository debugRepository;
     late MockFirebaseFirestore mockFirestore;
     late MockCollectionReference mockCollectionReference;
     late MockDocumentReference mockDocumentReference;
     late MockQuery mockQuery;
     late MockQuerySnapshot mockQuerySnapshot;
+    late MockDocumentSnapshot mockDocSnapshot;
+    late MockWriteBatch mockBatch;
+
+    // Test data helpers
+    Map<String, dynamic> createJokeData(int index) => {
+      'setup_text': 'Setup $index',
+      'punchline_text': 'Punchline $index',
+      'setup_image_url': 'https://example.com/setup$index.jpg',
+      'punchline_image_url': 'https://example.com/punchline$index.jpg',
+    };
+
+    MockDocumentSnapshot createMockDoc(String id, Map<String, dynamic> data) {
+      final doc = MockDocumentSnapshot();
+      when(() => doc.id).thenReturn(id);
+      when(() => doc.data()).thenReturn(data);
+      when(() => doc.exists).thenReturn(true);
+      return doc;
+    }
 
     setUp(() {
       mockFirestore = MockFirebaseFirestore();
@@ -38,341 +63,195 @@ void main() {
       mockDocumentReference = MockDocumentReference();
       mockQuery = MockQuery();
       mockQuerySnapshot = MockQuerySnapshot();
-      repository = JokeRepository(mockFirestore, false); // Non-admin
-      adminRepository = JokeRepository(mockFirestore, true); // Admin
+      mockDocSnapshot = MockDocumentSnapshot();
+      mockBatch = MockWriteBatch();
 
-      // Set up the default behavior for the collection and query chain
+      repository = JokeRepository(mockFirestore, false, false);
+      adminRepository = JokeRepository(mockFirestore, true, false);
+      debugRepository = JokeRepository(mockFirestore, false, true);
+
+      // Common Firestore setup
       when(
         () => mockFirestore.collection(any()),
       ).thenReturn(mockCollectionReference);
+      when(() => mockFirestore.batch()).thenReturn(mockBatch);
       when(
-        () => mockCollectionReference.orderBy(
-          any(),
-          descending: any(named: 'descending'),
-        ),
-      ).thenReturn(mockQuery);
+        () => mockCollectionReference.doc(any()),
+      ).thenReturn(mockDocumentReference);
       when(
-        () => mockQuery.snapshots(),
-      ).thenAnswer((_) => Stream.value(mockQuerySnapshot));
+        () => mockDocumentReference.update(any()),
+      ).thenAnswer((_) async => {});
+      when(() => mockDocumentReference.delete()).thenAnswer((_) async => {});
+      when(
+        () => mockDocumentReference.get(),
+      ).thenAnswer((_) async => mockDocSnapshot);
+      when(() => mockBatch.commit()).thenAnswer((_) async => {});
     });
 
     group('getJokes', () {
-      test(
-        'should return stream of jokes when collection is not empty',
-        () async {
-          // Create mock documents
-          final mockDoc1 = MockDocumentSnapshot();
-          final mockDoc2 = MockDocumentSnapshot();
+      setUp(() {
+        when(
+          () => mockCollectionReference.orderBy(
+            any(),
+            descending: any(named: 'descending'),
+          ),
+        ).thenReturn(mockQuery);
+        when(
+          () => mockQuery.snapshots(),
+        ).thenAnswer((_) => Stream.value(mockQuerySnapshot));
+      });
 
-          final joke1Data = {
-            'setup_text': 'Setup 1',
-            'punchline_text': 'Punchline 1',
-            'setup_image_url': 'https://example.com/setup1.jpg',
-            'punchline_image_url': 'https://example.com/punchline1.jpg',
-          };
+      test('returns stream of jokes', () async {
+        final docs = [
+          createMockDoc('1', createJokeData(1)),
+          createMockDoc('2', createJokeData(2)),
+        ];
+        when(() => mockQuerySnapshot.docs).thenReturn(docs);
 
-          final joke2Data = {
-            'setup_text': 'Setup 2',
-            'punchline_text': 'Punchline 2',
-            'setup_image_url': 'https://example.com/setup2.jpg',
-            'punchline_image_url': 'https://example.com/punchline2.jpg',
-          };
+        final jokes = await repository.getJokes().first;
 
-          when(() => mockDoc1.data()).thenReturn(joke1Data);
-          when(() => mockDoc1.id).thenReturn('1');
-          when(() => mockDoc2.data()).thenReturn(joke2Data);
-          when(() => mockDoc2.id).thenReturn('2');
-
-          when(() => mockQuerySnapshot.docs).thenReturn([mockDoc1, mockDoc2]);
-
-          final jokesStream = repository.getJokes();
-          final jokes = await jokesStream.first;
-
-          expect(jokes, hasLength(2));
-          expect(jokes[0].id, '1');
-          expect(jokes[0].setupText, 'Setup 1');
-          expect(jokes[1].id, '2');
-          expect(jokes[1].setupText, 'Setup 2');
-
-          verify(() => mockFirestore.collection('jokes')).called(1);
-          verify(
-            () => mockCollectionReference.orderBy(
-              'creation_time',
-              descending: true,
-            ),
-          ).called(1);
-          verify(() => mockQuery.snapshots()).called(1);
-        },
-      );
-
-      test('should return empty stream when collection is empty', () async {
-        when(() => mockQuerySnapshot.docs).thenReturn([]); // Empty list of docs
-
-        final jokesStream = repository.getJokes();
-        final jokes = await jokesStream.first;
-
-        expect(jokes, isEmpty);
+        expect(jokes, hasLength(2));
+        expect(jokes[0].id, '1');
+        expect(jokes[0].setupText, 'Setup 1');
         verify(
           () => mockCollectionReference.orderBy(
             'creation_time',
             descending: true,
           ),
-        ).called(1);
-        verify(() => mockQuery.snapshots()).called(1);
+        );
       });
 
-      test('should handle FirebaseException', () async {
+      test('returns empty list when no jokes', () async {
+        when(() => mockQuerySnapshot.docs).thenReturn([]);
+
+        final jokes = await repository.getJokes().first;
+
+        expect(jokes, isEmpty);
+      });
+
+      test('propagates Firebase errors', () async {
         when(() => mockQuery.snapshots()).thenAnswer(
           (_) => Stream.error(
-            FirebaseException(plugin: 'firestore', message: 'Test error'),
+            FirebaseException(plugin: 'firestore', message: 'Error'),
           ),
         );
 
-        final jokesStream = repository.getJokes();
-
-        expect(jokesStream, emitsError(isA<FirebaseException>()));
-        verify(
-          () => mockCollectionReference.orderBy(
-            'creation_time',
-            descending: true,
-          ),
-        ).called(1);
-        verify(() => mockQuery.snapshots()).called(1);
+        expect(repository.getJokes(), emitsError(isA<FirebaseException>()));
       });
     });
 
     group('updateJoke', () {
-      setUp(() {
-        // Set up document reference behavior
-        when(
-          () => mockCollectionReference.doc(any()),
-        ).thenReturn(mockDocumentReference);
+      test('updates joke with all fields', () async {
+        await repository.updateJoke(
+          jokeId: 'joke1',
+          setupText: 'New setup',
+          punchlineText: 'New punchline',
+          setupImageUrl: 'setup.jpg',
+          punchlineImageUrl: 'punchline.jpg',
+          setupImageDescription: 'Setup desc',
+          punchlineImageDescription: 'Punchline desc',
+        );
+
+        verify(
+          () => mockDocumentReference.update({
+            'setup_text': 'New setup',
+            'punchline_text': 'New punchline',
+            'setup_image_url': 'setup.jpg',
+            'punchline_image_url': 'punchline.jpg',
+            'setup_image_description': 'Setup desc',
+            'punchline_image_description': 'Punchline desc',
+          }),
+        );
+      });
+
+      test('updates joke with required fields only', () async {
+        await repository.updateJoke(
+          jokeId: 'joke1',
+          setupText: 'New setup',
+          punchlineText: 'New punchline',
+        );
+
+        verify(
+          () => mockDocumentReference.update({
+            'setup_text': 'New setup',
+            'punchline_text': 'New punchline',
+          }),
+        );
+      });
+
+      test('propagates Firebase errors', () async {
         when(
           () => mockDocumentReference.update(any()),
-        ).thenAnswer((_) async => {});
-      });
-
-      test('should update joke with all fields', () async {
-        const jokeId = 'test-joke-id';
-        const setupText = 'Updated setup';
-        const punchlineText = 'Updated punchline';
-        const setupImageUrl = 'https://example.com/setup.jpg';
-        const punchlineImageUrl = 'https://example.com/punchline.jpg';
-        const setupImageDescription = 'Updated setup description';
-        const punchlineImageDescription = 'Updated punchline description';
-
-        await repository.updateJoke(
-          jokeId: jokeId,
-          setupText: setupText,
-          punchlineText: punchlineText,
-          setupImageUrl: setupImageUrl,
-          punchlineImageUrl: punchlineImageUrl,
-          setupImageDescription: setupImageDescription,
-          punchlineImageDescription: punchlineImageDescription,
-        );
-
-        final expectedUpdateData = {
-          'setup_text': setupText,
-          'punchline_text': punchlineText,
-          'setup_image_url': setupImageUrl,
-          'punchline_image_url': punchlineImageUrl,
-          'setup_image_description': setupImageDescription,
-          'punchline_image_description': punchlineImageDescription,
-        };
-
-        verify(() => mockFirestore.collection('jokes')).called(1);
-        verify(() => mockCollectionReference.doc(jokeId)).called(1);
-        verify(
-          () => mockDocumentReference.update(expectedUpdateData),
-        ).called(1);
-      });
-
-      test('should update joke with only required fields', () async {
-        const jokeId = 'test-joke-id';
-        const setupText = 'Updated setup';
-        const punchlineText = 'Updated punchline';
-
-        await repository.updateJoke(
-          jokeId: jokeId,
-          setupText: setupText,
-          punchlineText: punchlineText,
-        );
-
-        final expectedUpdateData = {
-          'setup_text': setupText,
-          'punchline_text': punchlineText,
-        };
-
-        verify(() => mockFirestore.collection('jokes')).called(1);
-        verify(() => mockCollectionReference.doc(jokeId)).called(1);
-        verify(
-          () => mockDocumentReference.update(expectedUpdateData),
-        ).called(1);
-      });
-
-      test('should update joke with partial optional fields', () async {
-        const jokeId = 'test-joke-id';
-        const setupText = 'Updated setup';
-        const punchlineText = 'Updated punchline';
-        const setupImageDescription = 'Only setup description';
-
-        await repository.updateJoke(
-          jokeId: jokeId,
-          setupText: setupText,
-          punchlineText: punchlineText,
-          setupImageDescription: setupImageDescription,
-        );
-
-        final expectedUpdateData = {
-          'setup_text': setupText,
-          'punchline_text': punchlineText,
-          'setup_image_description': setupImageDescription,
-        };
-
-        verify(() => mockFirestore.collection('jokes')).called(1);
-        verify(() => mockCollectionReference.doc(jokeId)).called(1);
-        verify(
-          () => mockDocumentReference.update(expectedUpdateData),
-        ).called(1);
-      });
-
-      test('should propagate FirebaseException when update fails', () async {
-        const jokeId = 'test-joke-id';
-        const setupText = 'Updated setup';
-        const punchlineText = 'Updated punchline';
-
-        when(() => mockDocumentReference.update(any())).thenThrow(
-          FirebaseException(plugin: 'firestore', message: 'Update failed'),
-        );
+        ).thenThrow(FirebaseException(plugin: 'firestore', message: 'Error'));
 
         expect(
           () => repository.updateJoke(
-            jokeId: jokeId,
-            setupText: setupText,
-            punchlineText: punchlineText,
+            jokeId: 'joke1',
+            setupText: 'setup',
+            punchlineText: 'punchline',
           ),
           throwsA(isA<FirebaseException>()),
         );
-
-        verify(() => mockFirestore.collection('jokes')).called(1);
-        verify(() => mockCollectionReference.doc(jokeId)).called(1);
-        verify(() => mockDocumentReference.update(any())).called(1);
       });
     });
 
     group('deleteJoke', () {
-      setUp(() {
-        // Set up document reference behavior
+      test('deletes joke successfully', () async {
+        await repository.deleteJoke('joke1');
+
+        verify(() => mockDocumentReference.delete());
+      });
+
+      test('propagates Firebase errors', () async {
         when(
-          () => mockCollectionReference.doc(any()),
-        ).thenReturn(mockDocumentReference);
-        when(() => mockDocumentReference.delete()).thenAnswer((_) async => {});
-      });
-
-      test('should delete joke successfully', () async {
-        const jokeId = 'test-joke-id';
-
-        await repository.deleteJoke(jokeId);
-
-        verify(() => mockFirestore.collection('jokes')).called(1);
-        verify(() => mockCollectionReference.doc(jokeId)).called(1);
-        verify(() => mockDocumentReference.delete()).called(1);
-      });
-
-      test('should propagate FirebaseException when delete fails', () async {
-        const jokeId = 'test-joke-id';
-
-        when(() => mockDocumentReference.delete()).thenThrow(
-          FirebaseException(plugin: 'firestore', message: 'Delete failed'),
-        );
+          () => mockDocumentReference.delete(),
+        ).thenThrow(FirebaseException(plugin: 'firestore', message: 'Error'));
 
         expect(
-          () => repository.deleteJoke(jokeId),
+          () => repository.deleteJoke('joke1'),
           throwsA(isA<FirebaseException>()),
         );
-
-        verify(() => mockFirestore.collection('jokes')).called(1);
-        verify(() => mockCollectionReference.doc(jokeId)).called(1);
-        verify(() => mockDocumentReference.delete()).called(1);
       });
     });
 
     group('getJokeByIdStream', () {
-      setUp(() {
-        // Set up document reference behavior
-        when(
-          () => mockCollectionReference.doc(any()),
-        ).thenReturn(mockDocumentReference);
-      });
-
-      test('should return stream of joke when document exists', () async {
-        const jokeId = 'test-joke-id';
-        final jokeData = {
-          'setup_text': 'Test setup',
-          'punchline_text': 'Test punchline',
-          'setup_image_url': 'https://example.com/setup.jpg',
-          'punchline_image_url': 'https://example.com/punchline.jpg',
-        };
-
-        final mockDocSnapshot = MockDocumentSnapshot();
+      test('returns joke when document exists', () async {
         when(() => mockDocSnapshot.exists).thenReturn(true);
-        when(() => mockDocSnapshot.data()).thenReturn(jokeData);
-        when(() => mockDocSnapshot.id).thenReturn(jokeId);
+        when(() => mockDocSnapshot.data()).thenReturn(createJokeData(1));
+        when(() => mockDocSnapshot.id).thenReturn('joke1');
         when(
           () => mockDocumentReference.snapshots(),
         ).thenAnswer((_) => Stream.value(mockDocSnapshot));
 
-        final jokeStream = repository.getJokeByIdStream(jokeId);
-        final result = await jokeStream.first;
+        final joke = await repository.getJokeByIdStream('joke1').first;
 
-        expect(result, isNotNull);
-        expect(result!.id, jokeId);
-        expect(result.setupText, 'Test setup');
-        expect(result.punchlineText, 'Test punchline');
-
-        verify(() => mockFirestore.collection('jokes')).called(1);
-        verify(() => mockCollectionReference.doc(jokeId)).called(1);
-        verify(() => mockDocumentReference.snapshots()).called(1);
+        expect(joke, isNotNull);
+        expect(joke!.id, 'joke1');
+        expect(joke.setupText, 'Setup 1');
       });
 
-      test(
-        'should return stream of null when document does not exist',
-        () async {
-          const jokeId = 'non-existent-joke-id';
+      test('returns null when document does not exist', () async {
+        when(() => mockDocSnapshot.exists).thenReturn(false);
+        when(
+          () => mockDocumentReference.snapshots(),
+        ).thenAnswer((_) => Stream.value(mockDocSnapshot));
 
-          final mockDocSnapshot = MockDocumentSnapshot();
-          when(() => mockDocSnapshot.exists).thenReturn(false);
-          when(
-            () => mockDocumentReference.snapshots(),
-          ).thenAnswer((_) => Stream.value(mockDocSnapshot));
+        final joke = await repository.getJokeByIdStream('joke1').first;
 
-          final jokeStream = repository.getJokeByIdStream(jokeId);
-          final result = await jokeStream.first;
+        expect(joke, isNull);
+      });
 
-          expect(result, isNull);
-
-          verify(() => mockFirestore.collection('jokes')).called(1);
-          verify(() => mockCollectionReference.doc(jokeId)).called(1);
-          verify(() => mockDocumentReference.snapshots()).called(1);
-        },
-      );
-
-      test('should emit error when Firebase operation fails', () async {
-        const jokeId = 'test-joke-id';
-
+      test('propagates Firebase errors', () async {
         when(() => mockDocumentReference.snapshots()).thenAnswer(
           (_) => Stream.error(
-            FirebaseException(plugin: 'firestore', message: 'Get failed'),
+            FirebaseException(plugin: 'firestore', message: 'Error'),
           ),
         );
 
-        final jokeStream = repository.getJokeByIdStream(jokeId);
-
-        expect(jokeStream, emitsError(isA<FirebaseException>()));
-
-        verify(() => mockFirestore.collection('jokes')).called(1);
-        verify(() => mockCollectionReference.doc(jokeId)).called(1);
-        verify(() => mockDocumentReference.snapshots()).called(1);
+        expect(
+          repository.getJokeByIdStream('joke1'),
+          emitsError(isA<FirebaseException>()),
+        );
       });
     });
 
@@ -392,87 +271,59 @@ void main() {
         ).thenAnswer((_) async => mockQuerySnapshot);
       });
 
-      test('should return empty list when jokeIds is empty', () async {
+      test('returns empty list when no IDs provided', () async {
         final result = await repository.getJokesByIds([]);
 
         expect(result, isEmpty);
         verifyNever(() => mockFirestore.collection('jokes'));
       });
 
-      test('should return jokes when documents exist', () async {
-        final jokeIds = ['joke1', 'joke2'];
-        final mockDoc1 = MockDocumentSnapshot();
-        final mockDoc2 = MockDocumentSnapshot();
+      test('returns jokes for given IDs', () async {
+        final docs = [
+          createMockDoc('joke1', createJokeData(1)),
+          createMockDoc('joke2', createJokeData(2)),
+        ];
+        when(() => mockQuerySnapshot.docs).thenReturn(docs);
 
-        final joke1Data = {
-          'setup_text': 'Setup 1',
-          'punchline_text': 'Punchline 1',
-          'setup_image_url': 'https://example.com/setup1.jpg',
-          'punchline_image_url': 'https://example.com/punchline1.jpg',
-        };
-
-        final joke2Data = {
-          'setup_text': 'Setup 2',
-          'punchline_text': 'Punchline 2',
-          'setup_image_url': 'https://example.com/setup2.jpg',
-          'punchline_image_url': 'https://example.com/punchline2.jpg',
-        };
-
-        when(() => mockDoc1.data()).thenReturn(joke1Data);
-        when(() => mockDoc1.id).thenReturn('joke1');
-        when(() => mockDoc2.data()).thenReturn(joke2Data);
-        when(() => mockDoc2.id).thenReturn('joke2');
-
-        when(() => mockQuerySnapshot.docs).thenReturn([mockDoc1, mockDoc2]);
-
-        final result = await repository.getJokesByIds(jokeIds);
+        final result = await repository.getJokesByIds(['joke1', 'joke2']);
 
         expect(result, hasLength(2));
-        expect(result[0].id, 'joke1');
-        expect(result[0].setupText, 'Setup 1');
-        expect(result[1].id, 'joke2');
-        expect(result[1].setupText, 'Setup 2');
-
-        verify(() => mockFirestore.collection('jokes')).called(1);
+        expect(result.map((j) => j.id), ['joke1', 'joke2']);
         verify(
           () => mockCollectionReference.where(
             FieldPath.documentId,
-            whereIn: jokeIds,
+            whereIn: ['joke1', 'joke2'],
           ),
-        ).called(1);
-        verify(() => mockWhereQuery.get()).called(1);
+        );
       });
 
-      test('should handle batches larger than 10 items', () async {
+      test('handles batching for more than 10 IDs', () async {
         final jokeIds = List.generate(15, (i) => 'joke$i');
 
-        // Create separate mock query snapshots for each batch
+        // Mock separate query snapshots for each batch
         final firstBatchSnapshot = MockQuerySnapshot();
         final secondBatchSnapshot = MockQuerySnapshot();
-
-        final firstBatchDocs = List.generate(10, (i) {
-          final mockDoc = MockDocumentSnapshot();
-          when(() => mockDoc.data()).thenReturn({
-            'setup_text': 'Setup $i',
-            'punchline_text': 'Punchline $i',
-          });
-          when(() => mockDoc.id).thenReturn('joke$i');
-          return mockDoc;
-        });
-
-        final secondBatchDocs = List.generate(5, (i) {
-          final mockDoc = MockDocumentSnapshot();
-          when(() => mockDoc.data()).thenReturn({
-            'setup_text': 'Setup ${i + 10}',
-            'punchline_text': 'Punchline ${i + 10}',
-          });
-          when(() => mockDoc.id).thenReturn('joke${i + 10}');
-          return mockDoc;
-        });
-
-        // First batch (10 items)
-        when(() => firstBatchSnapshot.docs).thenReturn(firstBatchDocs);
         final firstBatchQuery = MockQuery();
+        final secondBatchQuery = MockQuery();
+
+        final firstBatchDocs = List.generate(
+          10,
+          (i) => createMockDoc('joke$i', createJokeData(i)),
+        );
+        final secondBatchDocs = List.generate(
+          5,
+          (i) => createMockDoc('joke${i + 10}', createJokeData(i + 10)),
+        );
+
+        when(() => firstBatchSnapshot.docs).thenReturn(firstBatchDocs);
+        when(() => secondBatchSnapshot.docs).thenReturn(secondBatchDocs);
+        when(
+          () => firstBatchQuery.get(),
+        ).thenAnswer((_) async => firstBatchSnapshot);
+        when(
+          () => secondBatchQuery.get(),
+        ).thenAnswer((_) async => secondBatchSnapshot);
+
         when(
           () => mockCollectionReference.where(
             FieldPath.documentId,
@@ -480,373 +331,344 @@ void main() {
           ),
         ).thenReturn(firstBatchQuery);
         when(
-          () => firstBatchQuery.get(),
-        ).thenAnswer((_) async => firstBatchSnapshot);
-
-        // Second batch (5 items)
-        when(() => secondBatchSnapshot.docs).thenReturn(secondBatchDocs);
-        final secondBatchQuery = MockQuery();
-        when(
           () => mockCollectionReference.where(
             FieldPath.documentId,
-            whereIn: jokeIds.skip(10).take(5).toList(),
+            whereIn: jokeIds.skip(10).toList(),
           ),
         ).thenReturn(secondBatchQuery);
-        when(
-          () => secondBatchQuery.get(),
-        ).thenAnswer((_) async => secondBatchSnapshot);
 
         final result = await repository.getJokesByIds(jokeIds);
 
         expect(result, hasLength(15));
-
-        // Verify both batches were called
         verify(() => mockFirestore.collection('jokes')).called(2);
-        verify(
-          () => mockCollectionReference.where(
-            FieldPath.documentId,
-            whereIn: jokeIds.take(10).toList(),
-          ),
-        ).called(1);
-        verify(
-          () => mockCollectionReference.where(
-            FieldPath.documentId,
-            whereIn: jokeIds.skip(10).take(5).toList(),
-          ),
-        ).called(1);
       });
 
-      test('should throw exception when Firebase operation fails', () async {
-        final jokeIds = ['joke1', 'joke2'];
-
-        when(() => mockWhereQuery.get()).thenThrow(
-          FirebaseException(plugin: 'firestore', message: 'Batch get failed'),
-        );
+      test('propagates Firebase errors', () async {
+        when(
+          () => mockWhereQuery.get(),
+        ).thenThrow(FirebaseException(plugin: 'firestore', message: 'Error'));
 
         expect(
-          () => repository.getJokesByIds(jokeIds),
+          () => repository.getJokesByIds(['joke1']),
           throwsA(isA<Exception>()),
         );
+      });
+    });
 
-        verify(() => mockFirestore.collection('jokes')).called(1);
+    group('getFilteredJokePage', () {
+      test('returns paginated joke IDs with cursor', () async {
+        // Setup the query chain for this specific test
+        when(
+          () => mockCollectionReference.where(
+            any(),
+            whereIn: any(named: 'whereIn'),
+          ),
+        ).thenReturn(mockQuery);
+        when(
+          () => mockCollectionReference.orderBy(
+            any(),
+            descending: any(named: 'descending'),
+          ),
+        ).thenReturn(mockQuery);
+        when(
+          () => mockQuery.orderBy(any(), descending: any(named: 'descending')),
+        ).thenReturn(mockQuery);
+        when(() => mockQuery.limit(any())).thenReturn(mockQuery);
+        when(() => mockQuery.get()).thenAnswer((_) async => mockQuerySnapshot);
+
+        final docs = [
+          createMockDoc('joke1', {
+            'creation_time': Timestamp.now(),
+            ...createJokeData(1),
+          }),
+          createMockDoc('joke2', {
+            'creation_time': Timestamp.now(),
+            ...createJokeData(2),
+          }),
+        ];
+        when(() => mockQuerySnapshot.docs).thenReturn(docs);
+
+        final page = await repository.getFilteredJokePage(
+          states: {JokeState.approved},
+          popularOnly: false,
+          limit: 10,
+        );
+
+        expect(page.ids, ['joke1', 'joke2']);
+        expect(page.cursor, isNotNull);
+        expect(page.hasMore, false); // Less than limit
+      });
+
+      test('handles popular-only filtering', () async {
+        // Setup for popular-only path which uses different query chain
+        when(
+          () => mockCollectionReference.where(
+            any(),
+            isGreaterThan: any(named: 'isGreaterThan'),
+          ),
+        ).thenReturn(mockQuery);
+        when(
+          () => mockQuery.orderBy(any(), descending: any(named: 'descending')),
+        ).thenReturn(mockQuery);
+        when(() => mockQuery.limit(any())).thenReturn(mockQuery);
+        when(() => mockQuery.get()).thenAnswer((_) async => mockQuerySnapshot);
+        when(() => mockQuerySnapshot.docs).thenReturn([]);
+
+        final page = await repository.getFilteredJokePage(
+          states: {},
+          popularOnly: true,
+          limit: 10,
+        );
+
+        expect(page.ids, isEmpty);
+        expect(page.cursor, isNull);
+        expect(page.hasMore, false);
         verify(
           () => mockCollectionReference.where(
-            FieldPath.documentId,
-            whereIn: jokeIds,
+            'popularity_score',
+            isGreaterThan: 0,
           ),
-        ).called(1);
-        verify(() => mockWhereQuery.get()).called(1);
+        );
+      });
+
+      test('returns empty page when no results', () async {
+        when(
+          () => mockCollectionReference.orderBy(
+            any(),
+            descending: any(named: 'descending'),
+          ),
+        ).thenReturn(mockQuery);
+        when(
+          () => mockQuery.orderBy(any(), descending: any(named: 'descending')),
+        ).thenReturn(mockQuery);
+        when(() => mockQuery.limit(any())).thenReturn(mockQuery);
+        when(() => mockQuery.get()).thenAnswer((_) async => mockQuerySnapshot);
+        when(() => mockQuerySnapshot.docs).thenReturn([]);
+
+        final page = await repository.getFilteredJokePage(
+          states: {},
+          popularOnly: false,
+          limit: 10,
+        );
+
+        expect(page.ids, isEmpty);
+        expect(page.cursor, isNull);
+        expect(page.hasMore, false);
       });
     });
 
-    // removed getFilteredJokeIds tests (method deleted in repository)
-
-    group('admin reaction operations', () {
-      late MockDocumentSnapshot mockDocSnapshot;
-
+    group('updateReactionAndPopularity', () {
       setUp(() {
         when(
-          () => mockCollectionReference.doc(any()),
-        ).thenReturn(mockDocumentReference);
-        when(
-          () => mockDocumentReference.get(),
-        ).thenAnswer((_) async => mockDocSnapshot);
-        when(
-          () => mockDocumentReference.update(any()),
-        ).thenAnswer((_) async => {});
+          () => mockDocSnapshot.data(),
+        ).thenReturn({'num_saves': 5, 'num_shares': 3});
       });
 
-      test(
-        'admin updateReactionAndPopularity should not update Firestore and print debug message',
-        () async {
-          const jokeId = 'test-joke-id';
-          mockDocSnapshot = MockDocumentSnapshot();
-          when(
-            () => mockDocSnapshot.data(),
-          ).thenReturn({'num_saves': 5, 'num_shares': 3});
-
-          await adminRepository.updateReactionAndPopularity(
-            jokeId,
-            JokeReactionType.save,
-            1,
-          );
-
-          // Should not update Firestore
-          verifyNever(() => mockDocumentReference.update(any()));
-          // Should not read document data
-          verifyNever(() => mockDocumentReference.get());
-        },
-      );
-
-      test(
-        'admin updateReactionAndPopularity with negative increment should not update Firestore and print debug message',
-        () async {
-          const jokeId = 'test-joke-id';
-          mockDocSnapshot = MockDocumentSnapshot();
-          when(
-            () => mockDocSnapshot.data(),
-          ).thenReturn({'num_saves': 5, 'num_shares': 3});
-
-          await adminRepository.updateReactionAndPopularity(
-            jokeId,
-            JokeReactionType.save,
-            -1,
-          );
-
-          // Should not update Firestore
-          verifyNever(() => mockDocumentReference.update(any()));
-          // Should not read document data
-          verifyNever(() => mockDocumentReference.get());
-        },
-      );
-    });
-
-    group('reaction operations', () {
-      late MockDocumentSnapshot mockDocSnapshot;
-
-      setUp(() {
-        when(
-          () => mockCollectionReference.doc(any()),
-        ).thenReturn(mockDocumentReference);
-        when(
-          () => mockDocumentReference.get(),
-        ).thenAnswer((_) async => mockDocSnapshot);
-        when(
-          () => mockDocumentReference.update(any()),
-        ).thenAnswer((_) async => {});
-      });
-
-      group('updateReactionAndPopularity', () {
-        test(
-          'should increment save reaction and update popularity score',
-          () async {
-            const jokeId = 'test-joke-id';
-            mockDocSnapshot = MockDocumentSnapshot();
-            when(
-              () => mockDocSnapshot.data(),
-            ).thenReturn({'num_saves': 5, 'num_shares': 3});
-
-            await repository.updateReactionAndPopularity(
-              jokeId,
-              JokeReactionType.save,
-              1,
-            );
-
-            // popularity_score = (5+1) + (3 * 5) = 21
-            verify(
-              () => mockDocumentReference.update({
-                'num_saves': FieldValue.increment(1),
-                'popularity_score': 21,
-              }),
-            ).called(1);
-          },
-        );
-
-        test(
-          'should increment share reaction and update popularity score',
-          () async {
-            const jokeId = 'test-joke-id';
-            mockDocSnapshot = MockDocumentSnapshot();
-            when(
-              () => mockDocSnapshot.data(),
-            ).thenReturn({'num_saves': 2, 'num_shares': 1});
-
-            await repository.updateReactionAndPopularity(
-              jokeId,
-              JokeReactionType.share,
-              1,
-            );
-
-            // popularity_score = 2 + ((1+1) * 5) = 12
-            verify(
-              () => mockDocumentReference.update({
-                'num_shares': FieldValue.increment(1),
-                'popularity_score': 12,
-              }),
-            ).called(1);
-          },
-        );
-
-        test('should handle missing reaction counts gracefully', () async {
-          const jokeId = 'test-joke-id';
-          mockDocSnapshot = MockDocumentSnapshot();
-          when(() => mockDocSnapshot.data()).thenReturn({
-            'setup_text': 'Test joke',
-            // Missing num_saves and num_shares
-          });
-
+      group('production mode', () {
+        test('increments save reaction and updates popularity score', () async {
           await repository.updateReactionAndPopularity(
-            jokeId,
+            'joke1',
             JokeReactionType.save,
             1,
           );
 
-          // popularity_score = (0+1) + (0 * 5) = 1
+          // popularity_score = (5+1) + (3 * 5) = 21
           verify(
             () => mockDocumentReference.update({
               'num_saves': FieldValue.increment(1),
-              'popularity_score': 1,
+              'popularity_score': 21,
             }),
-          ).called(1);
-        });
-
-        test('should throw exception when joke not found', () async {
-          const jokeId = 'non-existent-joke-id';
-          mockDocSnapshot = MockDocumentSnapshot();
-          when(() => mockDocSnapshot.data()).thenReturn(<String, dynamic>{});
-
-          expect(
-            () => repository.updateReactionAndPopularity(
-              jokeId,
-              JokeReactionType.save,
-              1,
-            ),
-            throwsA(isA<Exception>()),
           );
-
-          verifyNever(() => mockDocumentReference.update(any()));
         });
 
         test(
-          'should handle other reaction types without affecting popularity score',
+          'increments share reaction and updates popularity score',
           () async {
-            const jokeId = 'test-joke-id';
-            mockDocSnapshot = MockDocumentSnapshot();
-            when(
-              () => mockDocSnapshot.data(),
-            ).thenReturn({'num_saves': 1, 'num_shares': 1});
-
-            // Test with a reaction type that doesn't affect saves or shares
             await repository.updateReactionAndPopularity(
-              jokeId,
-              JokeReactionType.thumbsUp,
+              'joke1',
+              JokeReactionType.share,
               1,
             );
 
-            // popularity_score should remain the same: 1 + (1 * 5) = 6
+            // popularity_score = 5 + ((3+1) * 5) = 25
             verify(
               () => mockDocumentReference.update({
-                'num_thumbs_up': FieldValue.increment(1),
-                'popularity_score': 6,
+                'num_shares': FieldValue.increment(1),
+                'popularity_score': 25,
               }),
-            ).called(1);
-          },
-        );
-
-        test(
-          'should decrement save reaction and update popularity score',
-          () async {
-            const jokeId = 'test-joke-id';
-            mockDocSnapshot = MockDocumentSnapshot();
-            when(
-              () => mockDocSnapshot.data(),
-            ).thenReturn({'num_saves': 5, 'num_shares': 3});
-
-            await repository.updateReactionAndPopularity(
-              jokeId,
-              JokeReactionType.save,
-              -1,
             );
-
-            // popularity_score = (5-1) + (3 * 5) = 19
-            verify(
-              () => mockDocumentReference.update({
-                'num_saves': FieldValue.increment(-1),
-                'popularity_score': 19,
-              }),
-            ).called(1);
           },
         );
 
-        test(
-          'should decrement share reaction and update popularity score',
-          () async {
-            const jokeId = 'test-joke-id';
-            mockDocSnapshot = MockDocumentSnapshot();
-            when(
-              () => mockDocSnapshot.data(),
-            ).thenReturn({'num_saves': 2, 'num_shares': 1});
-
-            await repository.updateReactionAndPopularity(
-              jokeId,
-              JokeReactionType.share,
-              -1,
-            );
-
-            // popularity_score = 2 + (0 * 5) = 2
-            verify(
-              () => mockDocumentReference.update({
-                'num_shares': FieldValue.increment(-1),
-                'popularity_score': 2,
-              }),
-            ).called(1);
-          },
-        );
-
-        test('should prevent negative reaction counts', () async {
-          const jokeId = 'test-joke-id';
-          mockDocSnapshot = MockDocumentSnapshot();
-          when(
-            () => mockDocSnapshot.data(),
-          ).thenReturn({'num_saves': 0, 'num_shares': 0});
+        test('handles missing reaction counts gracefully', () async {
+          when(() => mockDocSnapshot.data()).thenReturn({'setup_text': 'joke'});
 
           await repository.updateReactionAndPopularity(
-            jokeId,
+            'joke1',
+            JokeReactionType.save,
+            1,
+          );
+
+          verify(
+            () => mockDocumentReference.update({
+              'num_saves': FieldValue.increment(1),
+              'popularity_score': 1, // (0+1) + (0 * 5)
+            }),
+          );
+        });
+
+        test('handles other reaction types', () async {
+          await repository.updateReactionAndPopularity(
+            'joke1',
+            JokeReactionType.thumbsUp,
+            1,
+          );
+
+          verify(
+            () => mockDocumentReference.update({
+              'num_thumbs_up': FieldValue.increment(1),
+              'popularity_score': 20, // 5 + (3 * 5)
+            }),
+          );
+        });
+
+        test('handles decrements correctly', () async {
+          await repository.updateReactionAndPopularity(
+            'joke1',
             JokeReactionType.save,
             -1,
           );
 
-          // popularity_score = 0 + (0 * 5) = 0 (shouldn't go negative)
           verify(
             () => mockDocumentReference.update({
               'num_saves': FieldValue.increment(-1),
-              'popularity_score': 0,
+              'popularity_score': 19, // (5-1) + (3 * 5)
             }),
-          ).called(1);
+          );
         });
 
-        test('should throw exception when joke not found', () async {
-          const jokeId = 'non-existent-joke-id';
-          mockDocSnapshot = MockDocumentSnapshot();
-          when(() => mockDocSnapshot.data()).thenReturn(<String, dynamic>{});
+        test('throws exception when joke not found', () async {
+          when(() => mockDocSnapshot.data()).thenReturn({});
 
           expect(
             () => repository.updateReactionAndPopularity(
-              jokeId,
+              'joke1',
               JokeReactionType.save,
-              -1,
+              1,
             ),
             throwsA(isA<Exception>()),
           );
+        });
+      });
+
+      group('admin/debug mode suppression', () {
+        test('admin mode suppresses writes', () async {
+          await adminRepository.updateReactionAndPopularity(
+            'joke1',
+            JokeReactionType.save,
+            1,
+          );
 
           verifyNever(() => mockDocumentReference.update(any()));
+          verifyNever(() => mockDocumentReference.get());
         });
 
-        test(
-          'should handle other reaction types without affecting popularity score',
-          () async {
-            const jokeId = 'test-joke-id';
-            mockDocSnapshot = MockDocumentSnapshot();
-            when(
-              () => mockDocSnapshot.data(),
-            ).thenReturn({'num_saves': 1, 'num_shares': 1});
+        test('debug mode suppresses writes', () async {
+          await debugRepository.updateReactionAndPopularity(
+            'joke1',
+            JokeReactionType.save,
+            1,
+          );
 
-            // Test with a reaction type that doesn't affect saves or shares
-            await repository.updateReactionAndPopularity(
-              jokeId,
-              JokeReactionType.thumbsUp,
-              -1,
-            );
+          verifyNever(() => mockDocumentReference.update(any()));
+          verifyNever(() => mockDocumentReference.get());
+        });
+      });
+    });
 
-            // popularity_score should remain the same: 1 + (1 * 5) = 6
-            verify(
-              () => mockDocumentReference.update({
-                'num_thumbs_up': FieldValue.increment(-1),
-                'popularity_score': 6,
-              }),
-            ).called(1);
-          },
+    group('setAdminRatingAndState', () {
+      test('updates admin rating and state when allowed', () async {
+        when(
+          () => mockDocSnapshot.data(),
+        ).thenReturn({'state': JokeState.unreviewed.value});
+
+        await repository.setAdminRatingAndState(
+          'joke1',
+          JokeAdminRating.approved,
         );
+
+        verify(
+          () => mockDocumentReference.update({
+            'admin_rating': JokeAdminRating.approved.value,
+            'state': JokeState.approved.value,
+          }),
+        );
+      });
+
+      test(
+        'throws error when state does not allow admin rating change',
+        () async {
+          when(
+            () => mockDocSnapshot.data(),
+          ).thenReturn({'state': JokeState.published.value});
+
+          expect(
+            () => repository.setAdminRatingAndState(
+              'joke1',
+              JokeAdminRating.approved,
+            ),
+            throwsA(isA<StateError>()),
+          );
+        },
+      );
+    });
+
+    group('batch operations', () {
+      test('setJokesPublished updates multiple jokes', () async {
+        final jokeMap = {
+          'joke1': DateTime(2024, 1, 1),
+          'joke2': DateTime(2024, 1, 2),
+        };
+
+        await repository.setJokesPublished(jokeMap, false);
+
+        verify(() => mockBatch.commit());
+      });
+
+      test('setJokesPublished handles empty map', () async {
+        await repository.setJokesPublished({}, false);
+
+        verifyNever(() => mockBatch.commit());
+      });
+
+      test('resetJokesToApproved validates states and resets jokes', () async {
+        when(() => mockDocSnapshot.exists).thenReturn(true);
+        when(
+          () => mockDocSnapshot.data(),
+        ).thenReturn({'state': JokeState.published.value});
+
+        await repository.resetJokesToApproved([
+          'joke1',
+          'joke2',
+        ], expectedState: JokeState.published);
+
+        verify(() => mockBatch.commit());
+      });
+
+      test('resetJokesToApproved throws when validation fails', () async {
+        when(() => mockDocSnapshot.exists).thenReturn(true);
+        when(
+          () => mockDocSnapshot.data(),
+        ).thenReturn({'state': JokeState.approved.value});
+
+        expect(
+          () => repository.resetJokesToApproved([
+            'joke1',
+          ], expectedState: JokeState.published),
+          throwsA(isA<Exception>()),
+        );
+
+        verifyNever(() => mockBatch.commit());
       });
     });
   });

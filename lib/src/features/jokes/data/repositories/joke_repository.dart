@@ -30,8 +30,9 @@ class JokeListPage {
 class JokeRepository {
   final FirebaseFirestore _firestore;
   final bool _isAdmin;
+  final bool _debugMode;
 
-  JokeRepository(this._firestore, this._isAdmin);
+  JokeRepository(this._firestore, this._isAdmin, this._debugMode);
 
   Stream<List<Joke>> getJokes() {
     return _firestore
@@ -192,8 +193,8 @@ class JokeRepository {
     JokeReactionType reactionType,
     int increment,
   ) async {
-    // Suppress Firestore writes for admin users
-    if (_isAdmin || kDebugMode) {
+    // Suppress Firestore writes for admin users or in debug mode
+    if (_isAdmin || _debugMode) {
       final action = increment > 0 ? 'increment' : 'decrement';
       debugPrint(
         'JOKE REPO ADMIN/DEBUG reaction suppressed: $action $reactionType for joke $jokeId',

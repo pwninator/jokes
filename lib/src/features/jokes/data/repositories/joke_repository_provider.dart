@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
@@ -12,5 +13,5 @@ final firebaseFirestoreProvider = Provider<FirebaseFirestore>((ref) {
 final jokeRepositoryProvider = Provider<JokeRepository>((ref) {
   final firestore = ref.watch(firebaseFirestoreProvider);
   final isAdmin = ref.watch(isAdminProvider);
-  return JokeRepository(firestore, isAdmin);
+  return JokeRepository(firestore, isAdmin, kDebugMode);
 });

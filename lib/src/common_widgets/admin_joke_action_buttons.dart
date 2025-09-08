@@ -303,7 +303,7 @@ class AdminModifyImageButton extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final modificationState = ref.watch(jokeModificationProvider);
     final isModifying = modificationState.modifyingJokes.contains(jokeId);
-    
+
     return HoldableButton(
       key: const Key('modify-image-button'),
       icon: Icons.edit_note,

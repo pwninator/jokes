@@ -23,6 +23,7 @@ class AnalyticsParameters {
   static const String reactionType = 'reaction_type';
   static const String reactionAdded = 'reaction_added';
   static const String shareMethod = 'share_method';
+  static const String shareDestination = 'share_destination';
   static const String shareSuccess = 'share_success';
   static const String userType = 'user_type';
 

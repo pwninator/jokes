@@ -1,10 +1,18 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_service.dart';
+import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
 
+class MockJokeRepository extends Mock implements JokeRepository {}
+
 void main() {
+  setUpAll(() {
+    registerFallbackValue(JokeReactionType.save);
+  });
+
   group('JokeReactionsService', () {
     late JokeReactionsService service;
     late AppUsageService appUsageService;
@@ -389,6 +397,163 @@ void main() {
         expect(removed, isFalse);
         // Assert
         expect(await appUsageService.getNumSavedJokes(), 0);
+      });
+    });
+
+    group('async Firestore operations', () {
+      late MockJokeRepository mockRepository;
+      late JokeReactionsService serviceWithRepository;
+
+      setUp(() {
+        mockRepository = MockJokeRepository();
+        serviceWithRepository = JokeReactionsService(
+          jokeRepository: mockRepository,
+          appUsageService: appUsageService,
+        );
+      });
+
+      test(
+        'addUserReaction completes immediately even with slow Firestore',
+        () async {
+          // Arrange
+          SharedPreferences.setMockInitialValues({});
+
+          // Mock a slow Firestore operation that takes 1 second
+          when(
+            () =>
+                mockRepository.updateReactionAndPopularity(any(), any(), any()),
+          ).thenAnswer((_) async {
+            await Future.delayed(const Duration(seconds: 1));
+          });
+
+          // Act & Assert - The method should complete immediately
+          final stopwatch = Stopwatch()..start();
+          await serviceWithRepository.addUserReaction(
+            'joke1',
+            JokeReactionType.thumbsUp,
+          );
+          stopwatch.stop();
+
+          // Should complete in much less than 1 second (SharedPreferences is fast)
+          expect(stopwatch.elapsedMilliseconds, lessThan(100));
+
+          // Verify SharedPreferences was updated immediately
+          final hasReaction = await serviceWithRepository.hasUserReaction(
+            'joke1',
+            JokeReactionType.thumbsUp,
+          );
+          expect(hasReaction, isTrue);
+
+          // Verify Firestore was called
+          verify(
+            () => mockRepository.updateReactionAndPopularity(
+              'joke1',
+              JokeReactionType.thumbsUp,
+              1,
+            ),
+          ).called(1);
+        },
+      );
+
+      test(
+        'removeUserReaction completes immediately even with slow Firestore',
+        () async {
+          // Arrange
+          SharedPreferences.setMockInitialValues({
+            'user_reactions_thumbsUp': ['joke1'],
+          });
+
+          // Mock a slow Firestore operation that takes 1 second
+          when(
+            () =>
+                mockRepository.updateReactionAndPopularity(any(), any(), any()),
+          ).thenAnswer((_) async {
+            await Future.delayed(const Duration(seconds: 1));
+          });
+
+          // Act & Assert - The method should complete immediately
+          final stopwatch = Stopwatch()..start();
+          await serviceWithRepository.removeUserReaction(
+            'joke1',
+            JokeReactionType.thumbsUp,
+          );
+          stopwatch.stop();
+
+          // Should complete in much less than 1 second (SharedPreferences is fast)
+          expect(stopwatch.elapsedMilliseconds, lessThan(100));
+
+          // Verify SharedPreferences was updated immediately
+          final hasReaction = await serviceWithRepository.hasUserReaction(
+            'joke1',
+            JokeReactionType.thumbsUp,
+          );
+          expect(hasReaction, isFalse);
+
+          // Verify Firestore was called
+          verify(
+            () => mockRepository.updateReactionAndPopularity(
+              'joke1',
+              JokeReactionType.thumbsUp,
+              -1,
+            ),
+          ).called(1);
+        },
+      );
+
+      test('Firestore failures do not affect SharedPreferences state', () async {
+        // Arrange
+        SharedPreferences.setMockInitialValues({});
+
+        // Mock Firestore to throw an error asynchronously
+        when(
+          () => mockRepository.updateReactionAndPopularity(any(), any(), any()),
+        ).thenAnswer((_) async {
+          throw Exception('Firestore error');
+        });
+
+        // Act
+        await serviceWithRepository.addUserReaction(
+          'joke1',
+          JokeReactionType.thumbsUp,
+        );
+
+        // Assert - SharedPreferences should still be updated despite Firestore error
+        final hasReaction = await serviceWithRepository.hasUserReaction(
+          'joke1',
+          JokeReactionType.thumbsUp,
+        );
+        expect(hasReaction, isTrue);
+
+        // Verify Firestore was called
+        verify(
+          () => mockRepository.updateReactionAndPopularity(
+            'joke1',
+            JokeReactionType.thumbsUp,
+            1,
+          ),
+        ).called(1);
+      });
+
+      test('works correctly without repository (null repository)', () async {
+        // Arrange
+        SharedPreferences.setMockInitialValues({});
+        final serviceWithoutRepository = JokeReactionsService(
+          jokeRepository: null,
+          appUsageService: appUsageService,
+        );
+
+        // Act
+        await serviceWithoutRepository.addUserReaction(
+          'joke1',
+          JokeReactionType.thumbsUp,
+        );
+
+        // Assert - Should still work with SharedPreferences
+        final hasReaction = await serviceWithoutRepository.hasUserReaction(
+          'joke1',
+          JokeReactionType.thumbsUp,
+        );
+        expect(hasReaction, isTrue);
       });
     });
   });

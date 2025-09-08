@@ -39,15 +39,17 @@ class RescheduleDialog extends ConsumerWidget {
                 date.day == initialDate.day) {
               return true;
             }
-            
+
             // Disable dates that already have jokes scheduled (excluding current joke)
             if (scheduledDates != null) {
-              return !scheduledDates!.any((scheduledDate) =>
-                  scheduledDate.year == date.year &&
-                  scheduledDate.month == date.month &&
-                  scheduledDate.day == date.day);
+              return !scheduledDates!.any(
+                (scheduledDate) =>
+                    scheduledDate.year == date.year &&
+                    scheduledDate.month == date.month &&
+                    scheduledDate.day == date.day,
+              );
             }
-            
+
             return true;
           },
           onDateChanged: (date) {

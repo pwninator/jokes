@@ -164,14 +164,12 @@ class JokeCloudFunctionService {
         options: HttpsCallableOptions(timeout: const Duration(seconds: 300)),
       );
 
-      final requestData = <String, dynamic>{
-        'joke_id': jokeId,
-      };
-      
+      final requestData = <String, dynamic>{'joke_id': jokeId};
+
       if (setupInstructions != null && setupInstructions.isNotEmpty) {
         requestData['setup_instruction'] = setupInstructions;
       }
-      
+
       if (punchlineInstructions != null && punchlineInstructions.isNotEmpty) {
         requestData['punchline_instruction'] = punchlineInstructions;
       }

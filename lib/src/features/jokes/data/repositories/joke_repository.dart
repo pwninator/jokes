@@ -187,7 +187,7 @@ class JokeRepository {
   }
 
   /// Helper function to update reaction count and popularity score
-  Future<void> _updateReactionAndPopularity(
+  Future<void> updateReactionAndPopularity(
     String jokeId,
     JokeReactionType reactionType,
     int increment,
@@ -234,22 +234,10 @@ class JokeRepository {
       reactionType.firestoreField: FieldValue.increment(increment),
       'popularity_score': newPopularityScore,
     });
-  }
 
-  /// Generic method to increment any reaction count
-  Future<void> incrementReaction(
-    String jokeId,
-    JokeReactionType reactionType,
-  ) async {
-    await _updateReactionAndPopularity(jokeId, reactionType, 1);
-  }
-
-  /// Generic method to decrement any reaction count
-  Future<void> decrementReaction(
-    String jokeId,
-    JokeReactionType reactionType,
-  ) async {
-    await _updateReactionAndPopularity(jokeId, reactionType, -1);
+    debugPrint(
+      'REPO: JokeRepository updateReactionAndPopularity: $jokeId, $reactionType, $increment, $newSaves, $newShares, $newPopularityScore',
+    );
   }
 
   /// Set admin rating and state together (state mirrors rating)

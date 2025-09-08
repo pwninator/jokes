@@ -733,10 +733,11 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
         }
       }
     } catch (e) {
+      debugPrint('ERROR: _toggleNotifications: $e');
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Error updating notification settings: $e'),
+            content: Text('Error updating notification settings'),
             backgroundColor: Theme.of(context).appColors.authError,
             duration: const Duration(seconds: 5),
           ),

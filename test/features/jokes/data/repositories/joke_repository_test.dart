@@ -557,7 +557,7 @@ void main() {
       });
 
       test(
-        'admin incrementReaction should not update Firestore and print debug message',
+        'admin updateReactionAndPopularity should not update Firestore and print debug message',
         () async {
           const jokeId = 'test-joke-id';
           mockDocSnapshot = MockDocumentSnapshot();
@@ -565,9 +565,10 @@ void main() {
             () => mockDocSnapshot.data(),
           ).thenReturn({'num_saves': 5, 'num_shares': 3});
 
-          await adminRepository.incrementReaction(
+          await adminRepository.updateReactionAndPopularity(
             jokeId,
             JokeReactionType.save,
+            1,
           );
 
           // Should not update Firestore
@@ -578,7 +579,7 @@ void main() {
       );
 
       test(
-        'admin decrementReaction should not update Firestore and print debug message',
+        'admin updateReactionAndPopularity with negative increment should not update Firestore and print debug message',
         () async {
           const jokeId = 'test-joke-id';
           mockDocSnapshot = MockDocumentSnapshot();
@@ -586,9 +587,10 @@ void main() {
             () => mockDocSnapshot.data(),
           ).thenReturn({'num_saves': 5, 'num_shares': 3});
 
-          await adminRepository.decrementReaction(
+          await adminRepository.updateReactionAndPopularity(
             jokeId,
             JokeReactionType.save,
+            -1,
           );
 
           // Should not update Firestore
@@ -614,7 +616,7 @@ void main() {
         ).thenAnswer((_) async => {});
       });
 
-      group('incrementReaction', () {
+      group('updateReactionAndPopularity', () {
         test(
           'should increment save reaction and update popularity score',
           () async {
@@ -624,7 +626,11 @@ void main() {
               () => mockDocSnapshot.data(),
             ).thenReturn({'num_saves': 5, 'num_shares': 3});
 
-            await repository.incrementReaction(jokeId, JokeReactionType.save);
+            await repository.updateReactionAndPopularity(
+              jokeId,
+              JokeReactionType.save,
+              1,
+            );
 
             // popularity_score = (5+1) + (3 * 5) = 21
             verify(
@@ -645,7 +651,11 @@ void main() {
               () => mockDocSnapshot.data(),
             ).thenReturn({'num_saves': 2, 'num_shares': 1});
 
-            await repository.incrementReaction(jokeId, JokeReactionType.share);
+            await repository.updateReactionAndPopularity(
+              jokeId,
+              JokeReactionType.share,
+              1,
+            );
 
             // popularity_score = 2 + ((1+1) * 5) = 12
             verify(
@@ -665,7 +675,11 @@ void main() {
             // Missing num_saves and num_shares
           });
 
-          await repository.incrementReaction(jokeId, JokeReactionType.save);
+          await repository.updateReactionAndPopularity(
+            jokeId,
+            JokeReactionType.save,
+            1,
+          );
 
           // popularity_score = (0+1) + (0 * 5) = 1
           verify(
@@ -682,7 +696,11 @@ void main() {
           when(() => mockDocSnapshot.data()).thenReturn(<String, dynamic>{});
 
           expect(
-            () => repository.incrementReaction(jokeId, JokeReactionType.save),
+            () => repository.updateReactionAndPopularity(
+              jokeId,
+              JokeReactionType.save,
+              1,
+            ),
             throwsA(isA<Exception>()),
           );
 
@@ -699,9 +717,10 @@ void main() {
             ).thenReturn({'num_saves': 1, 'num_shares': 1});
 
             // Test with a reaction type that doesn't affect saves or shares
-            await repository.incrementReaction(
+            await repository.updateReactionAndPopularity(
               jokeId,
               JokeReactionType.thumbsUp,
+              1,
             );
 
             // popularity_score should remain the same: 1 + (1 * 5) = 6
@@ -713,9 +732,7 @@ void main() {
             ).called(1);
           },
         );
-      });
 
-      group('decrementReaction', () {
         test(
           'should decrement save reaction and update popularity score',
           () async {
@@ -725,7 +742,11 @@ void main() {
               () => mockDocSnapshot.data(),
             ).thenReturn({'num_saves': 5, 'num_shares': 3});
 
-            await repository.decrementReaction(jokeId, JokeReactionType.save);
+            await repository.updateReactionAndPopularity(
+              jokeId,
+              JokeReactionType.save,
+              -1,
+            );
 
             // popularity_score = (5-1) + (3 * 5) = 19
             verify(
@@ -746,7 +767,11 @@ void main() {
               () => mockDocSnapshot.data(),
             ).thenReturn({'num_saves': 2, 'num_shares': 1});
 
-            await repository.decrementReaction(jokeId, JokeReactionType.share);
+            await repository.updateReactionAndPopularity(
+              jokeId,
+              JokeReactionType.share,
+              -1,
+            );
 
             // popularity_score = 2 + (0 * 5) = 2
             verify(
@@ -765,7 +790,11 @@ void main() {
             () => mockDocSnapshot.data(),
           ).thenReturn({'num_saves': 0, 'num_shares': 0});
 
-          await repository.decrementReaction(jokeId, JokeReactionType.save);
+          await repository.updateReactionAndPopularity(
+            jokeId,
+            JokeReactionType.save,
+            -1,
+          );
 
           // popularity_score = 0 + (0 * 5) = 0 (shouldn't go negative)
           verify(
@@ -782,7 +811,11 @@ void main() {
           when(() => mockDocSnapshot.data()).thenReturn(<String, dynamic>{});
 
           expect(
-            () => repository.decrementReaction(jokeId, JokeReactionType.save),
+            () => repository.updateReactionAndPopularity(
+              jokeId,
+              JokeReactionType.save,
+              -1,
+            ),
             throwsA(isA<Exception>()),
           );
 
@@ -799,9 +832,10 @@ void main() {
             ).thenReturn({'num_saves': 1, 'num_shares': 1});
 
             // Test with a reaction type that doesn't affect saves or shares
-            await repository.decrementReaction(
+            await repository.updateReactionAndPopularity(
               jokeId,
               JokeReactionType.thumbsUp,
+              -1,
             );
 
             // popularity_score should remain the same: 1 + (1 * 5) = 6

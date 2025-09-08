@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
@@ -86,15 +87,13 @@ class JokeReactionsService {
       jokeIds.add(jokeId);
       await prefs.setStringList(reactionType.prefsKey, jokeIds);
 
-      // Increment reaction count in repository
-      if (_jokeRepository != null) {
-        await _jokeRepository.incrementReaction(jokeId, reactionType);
-      }
-
       // Update usage counters for saved reaction
       if (reactionType == JokeReactionType.save) {
         await _appUsageService.incrementSavedJokesCount();
       }
+
+      // Handle Firestore operations asynchronously without blocking UI
+      _handleFirestoreUpdateAsync(jokeId, reactionType, 1);
     }
   }
 
@@ -110,15 +109,13 @@ class JokeReactionsService {
       jokeIds.remove(jokeId);
       await prefs.setStringList(reactionType.prefsKey, jokeIds);
 
-      // Decrement reaction count in repository
-      if (_jokeRepository != null) {
-        await _jokeRepository.decrementReaction(jokeId, reactionType);
-      }
-
       // Update usage counters for saved reaction
       if (reactionType == JokeReactionType.save) {
         await _appUsageService.decrementSavedJokesCount();
       }
+
+      // Handle Firestore operations asynchronously without blocking UI
+      _handleFirestoreUpdateAsync(jokeId, reactionType, -1);
     }
   }
 
@@ -135,6 +132,29 @@ class JokeReactionsService {
     } else {
       await addUserReaction(jokeId, reactionType);
       return true; // Reaction was added
+    }
+  }
+
+  /// Handle Firestore reaction update operation asynchronously without blocking UI
+  void _handleFirestoreUpdateAsync(
+    String jokeId,
+    JokeReactionType reactionType,
+    int increment,
+  ) {
+    final repository = _jokeRepository;
+    if (repository != null) {
+      // Fire and forget - don't await this operation
+      repository
+          .updateReactionAndPopularity(jokeId, reactionType, increment)
+          .catchError((error) {
+            // Log error but don't throw - this shouldn't affect UI state
+            // since SharedPreferences has already been updated
+            final action = increment > 0 ? 'increment' : 'decrement';
+            debugPrint(
+              'Failed to $action Firestore reaction for joke $jokeId, '
+              'reaction $reactionType: $error',
+            );
+          });
     }
   }
 }

@@ -118,6 +118,7 @@ void main() {
             any(),
             jokeContext: any(named: 'jokeContext'),
             shareMethod: any(named: 'shareMethod'),
+            shareDestination: any(named: 'shareDestination'),
             totalJokesShared: any(named: 'totalJokesShared'),
           ),
         ).thenAnswer((_) async {});
@@ -150,6 +151,7 @@ void main() {
             'test-joke-id',
             jokeContext: 'test-context',
             shareMethod: 'images',
+            shareDestination: any(named: 'shareDestination'),
             totalJokesShared: any(named: 'totalJokesShared'),
           ),
         ).called(1);
@@ -214,6 +216,7 @@ void main() {
             any(),
             jokeContext: any(named: 'jokeContext'),
             shareMethod: any(named: 'shareMethod'),
+            shareDestination: any(named: 'shareDestination'),
           ),
         ).thenAnswer((_) async {});
 
@@ -239,6 +242,7 @@ void main() {
             'test-joke-id',
             jokeContext: 'test-context',
             shareMethod: 'images',
+            shareDestination: any(named: 'shareDestination'),
           ),
         ).called(1);
       },
@@ -306,6 +310,7 @@ void main() {
             any(),
             jokeContext: any(named: 'jokeContext'),
             shareMethod: any(named: 'shareMethod'),
+            shareDestination: any(named: 'shareDestination'),
             totalJokesShared: any(named: 'totalJokesShared'),
           ),
         ).thenAnswer((_) async {});

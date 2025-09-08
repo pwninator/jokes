@@ -165,8 +165,12 @@ class CalendarCellPopup extends ConsumerWidget {
                         icon: const Icon(Icons.schedule, size: 16),
                         label: const Text('Reschedule'),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Theme.of(context).colorScheme.primary,
-                          foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                          backgroundColor: Theme.of(
+                            context,
+                          ).colorScheme.primary,
+                          foregroundColor: Theme.of(
+                            context,
+                          ).colorScheme.onPrimary,
                         ),
                       ),
                     ),
@@ -216,7 +220,7 @@ class CalendarCellPopup extends ConsumerWidget {
 
   DateTime? _getDateForJoke(String jokeId) {
     if (batch == null) return null;
-    
+
     // Find the day where this joke is scheduled
     for (final entry in batch!.jokes.entries) {
       if (entry.value.id == jokeId) {
@@ -231,7 +235,7 @@ class CalendarCellPopup extends ConsumerWidget {
 
   List<DateTime> _getScheduledDates() {
     if (batch == null) return [];
-    
+
     final scheduledDates = <DateTime>[];
     for (final entry in batch!.jokes.entries) {
       final day = int.tryParse(entry.key);

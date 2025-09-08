@@ -11,8 +11,9 @@ import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart'
 class ShareOperationResult {
   final bool success;
   final ShareResultStatus status;
+  final String shareDestination;
 
-  const ShareOperationResult(this.success, this.status);
+  const ShareOperationResult(this.success, this.status, this.shareDestination);
 }
 
 /// Abstract interface for platform sharing functionality
@@ -32,9 +33,11 @@ class PlatformShareServiceImpl implements PlatformShareService {
     String? subject,
     String? text,
   }) async {
-    return await SharePlus.instance.share(
+    final result = await SharePlus.instance.share(
       ShareParams(subject: subject, files: files, text: text),
     );
+    debugPrint('PlatformShareServiceImpl shareFiles result: $result');
+    return result;
   }
 }
 
@@ -106,6 +109,7 @@ class JokeShareServiceImpl implements JokeShareService {
         joke.id,
         jokeContext: jokeContext,
         shareMethod: 'images',
+        shareDestination: shareResult.shareDestination,
         totalJokesShared: totalShared,
       );
     } else {
@@ -114,6 +118,7 @@ class JokeShareServiceImpl implements JokeShareService {
         joke.id,
         jokeContext: jokeContext,
         shareMethod: 'images',
+        shareDestination: shareResult.shareDestination,
       );
     }
 
@@ -128,6 +133,7 @@ class JokeShareServiceImpl implements JokeShareService {
   }) async {
     bool shareSuccessful = false;
     ShareResultStatus shareStatus = ShareResultStatus.dismissed; // default
+    String shareDestination = "unknown";
     try {
       // Check if joke has images
       final hasSetupImage =
@@ -170,6 +176,7 @@ class JokeShareServiceImpl implements JokeShareService {
       // Check if user actually shared (not dismissed)
       shareSuccessful = result.status == ShareResultStatus.success;
       shareStatus = result.status;
+      shareDestination = result.raw;
     } catch (e) {
       debugPrint('Error sharing joke images: $e');
       // Log error-specific analytics
@@ -185,6 +192,6 @@ class JokeShareServiceImpl implements JokeShareService {
       shareStatus = ShareResultStatus.unavailable; // error state
     }
 
-    return ShareOperationResult(shareSuccessful, shareStatus);
+    return ShareOperationResult(shareSuccessful, shareStatus, shareDestination);
   }
 }

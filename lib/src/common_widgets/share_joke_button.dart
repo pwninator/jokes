@@ -22,19 +22,11 @@ class ShareJokeButton extends ConsumerWidget {
 
     return GestureDetector(
       onTap: () async {
-        final scaffoldMessenger = ScaffoldMessenger.of(context);
-        final errorColor = theme.colorScheme.error;
-
         try {
           final shareService = ref.read(jokeShareServiceProvider);
           await shareService.shareJoke(joke, jokeContext: jokeContext);
         } catch (e) {
-          scaffoldMessenger.showSnackBar(
-            SnackBar(
-              content: Text('Failed to share joke: ${e.toString()}'),
-              backgroundColor: errorColor,
-            ),
-          );
+          debugPrint('ERROR: share_joke_button: Failed to share joke: $e');
         }
       },
       child: AnimatedContainer(

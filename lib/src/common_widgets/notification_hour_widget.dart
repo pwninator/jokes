@@ -256,6 +256,7 @@ class _HourDisplayWidgetState extends ConsumerState<HourDisplayWidget> {
         );
       }
     } catch (e) {
+      debugPrint('ERROR: _updateNotificationHour: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -263,7 +264,7 @@ class _HourDisplayWidgetState extends ConsumerState<HourDisplayWidget> {
               children: [
                 const Icon(Icons.error, color: Colors.white),
                 const SizedBox(width: 8),
-                Expanded(child: Text('Error updating notification time: $e')),
+                Expanded(child: Text('Error updating notification time')),
               ],
             ),
             backgroundColor: Theme.of(context).colorScheme.error,

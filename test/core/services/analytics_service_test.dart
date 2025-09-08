@@ -417,10 +417,18 @@ void main() {
           jokeContext: 'ctx',
           shareMethod: 'images',
         );
+        await analyticsService.logJokeShareSuccess(
+          'joke-id',
+          jokeContext: 'ctx',
+          shareMethod: 'images',
+          shareDestination: 'com.whatsapp',
+          totalJokesShared: 5,
+        );
         await analyticsService.logJokeShareCanceled(
           'joke-id',
           jokeContext: 'ctx',
           shareMethod: 'images',
+          shareDestination: 'com.whatsapp',
         );
         await analyticsService.logErrorJokeShare(
           'joke-id',

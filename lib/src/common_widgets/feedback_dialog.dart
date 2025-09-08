@@ -94,10 +94,11 @@ class _FeedbackDialogState extends ConsumerState<FeedbackDialog> {
         );
       }
     } catch (e) {
+      debugPrint('ERROR: feedback_dialog: _handleSubmit: $e');
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to submit feedback: $e'),
+            content: Text('Failed to submit feedback'),
             backgroundColor: Theme.of(context).colorScheme.error,
           ),
         );

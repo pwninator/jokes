@@ -106,6 +106,7 @@ class AnalyticsMocks {
         any(),
         jokeContext: any(named: 'jokeContext'),
         shareMethod: any(named: 'shareMethod'),
+        shareDestination: any(named: 'shareDestination'),
         totalJokesShared: any(named: 'totalJokesShared'),
       ),
     ).thenAnswer((_) async {});
@@ -135,6 +136,7 @@ class AnalyticsMocks {
         any(),
         jokeContext: any(named: 'jokeContext'),
         shareMethod: any(named: 'shareMethod'),
+        shareDestination: any(named: 'shareDestination'),
       ),
     ).thenAnswer((_) async {});
 

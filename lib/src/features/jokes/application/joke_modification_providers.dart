@@ -31,7 +31,7 @@ class JokeModificationState {
 // Notifier for managing joke modification
 class JokeModificationNotifier extends StateNotifier<JokeModificationState> {
   JokeModificationNotifier(this._cloudFunctionService)
-      : super(const JokeModificationState());
+    : super(const JokeModificationState());
 
   final JokeCloudFunctionService _cloudFunctionService;
 
@@ -71,8 +71,7 @@ class JokeModificationNotifier extends StateNotifier<JokeModificationState> {
       }
     } catch (e) {
       // Remove joke from modifying set and set error
-      final updatedSet = Set<String>.from(state.modifyingJokes)
-        ..remove(jokeId);
+      final updatedSet = Set<String>.from(state.modifyingJokes)..remove(jokeId);
       state = state.copyWith(
         modifyingJokes: updatedSet,
         error: 'Failed to modify joke: $e',
@@ -92,7 +91,9 @@ class JokeModificationNotifier extends StateNotifier<JokeModificationState> {
 
 // Provider for joke modification notifier
 final jokeModificationProvider =
-    StateNotifierProvider<JokeModificationNotifier, JokeModificationState>((ref) {
-  final cloudFunctionService = ref.watch(jokeCloudFunctionServiceProvider);
-  return JokeModificationNotifier(cloudFunctionService);
-});
+    StateNotifierProvider<JokeModificationNotifier, JokeModificationState>((
+      ref,
+    ) {
+      final cloudFunctionService = ref.watch(jokeCloudFunctionServiceProvider);
+      return JokeModificationNotifier(cloudFunctionService);
+    });

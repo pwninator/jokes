@@ -63,6 +63,7 @@ abstract class AnalyticsService {
     String jokeId, {
     required String jokeContext,
     String? shareMethod,
+    String? shareDestination,
     required int totalJokesShared,
   });
 
@@ -78,6 +79,7 @@ abstract class AnalyticsService {
     String jokeId, {
     required String jokeContext,
     required String shareMethod,
+    String? shareDestination,
   });
 
   /// Share funnel: error occurred during sharing
@@ -371,6 +373,7 @@ class FirebaseAnalyticsService implements AnalyticsService {
     String jokeId, {
     required String jokeContext,
     String? shareMethod,
+    String? shareDestination,
     required int totalJokesShared,
   }) async {
     await _logEvent(AnalyticsEvent.jokeShareSuccess, {
@@ -379,6 +382,8 @@ class FirebaseAnalyticsService implements AnalyticsService {
       AnalyticsParameters.userType: _getUserType(_currentUser),
       AnalyticsParameters.totalJokesShared: totalJokesShared,
       if (shareMethod != null) AnalyticsParameters.shareMethod: shareMethod,
+      if (shareDestination != null)
+        AnalyticsParameters.shareDestination: shareDestination,
     });
   }
 
@@ -401,12 +406,15 @@ class FirebaseAnalyticsService implements AnalyticsService {
     String jokeId, {
     required String jokeContext,
     required String shareMethod,
+    String? shareDestination,
   }) async {
     await _logEvent(AnalyticsEvent.jokeShareCanceled, {
       AnalyticsParameters.jokeId: jokeId,
       AnalyticsParameters.jokeContext: jokeContext,
       AnalyticsParameters.shareMethod: shareMethod,
       AnalyticsParameters.userType: _getUserType(_currentUser),
+      if (shareDestination != null)
+        AnalyticsParameters.shareDestination: shareDestination,
     });
   }
 

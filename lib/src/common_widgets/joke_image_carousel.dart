@@ -6,6 +6,7 @@ import 'package:smooth_page_indicator/smooth_page_indicator.dart';
 import 'package:snickerdoodle/src/common_widgets/admin_approval_controls.dart';
 import 'package:snickerdoodle/src/common_widgets/admin_joke_action_buttons.dart';
 import 'package:snickerdoodle/src/common_widgets/cached_joke_image.dart';
+import 'package:snickerdoodle/src/common_widgets/reschedule_dialog.dart';
 import 'package:snickerdoodle/src/common_widgets/save_joke_button.dart';
 import 'package:snickerdoodle/src/common_widgets/share_joke_button.dart';
 import 'package:snickerdoodle/src/config/router/route_names.dart';
@@ -1164,47 +1165,29 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
       widget.joke.publicTimestamp!.day,
     );
 
-    DateTime selectedDate = initial;
+    // Get scheduled dates from the provider
+    final batchesAsync = ref.read(scheduleBatchesProvider);
+    final scheduledDates = <DateTime>[];
 
-    // Use a dialog with a CalendarDatePicker and a confirm button for testability
+    batchesAsync.whenData((batches) {
+      for (final batch in batches) {
+        for (final entry in batch.jokes.entries) {
+          final day = int.tryParse(entry.key);
+          if (day != null) {
+            scheduledDates.add(DateTime(batch.year, batch.month, day));
+          }
+        }
+      }
+    });
+
     await showDialog<void>(
       context: context,
-      builder: (context) {
-        return AlertDialog(
-          title: const Text('Change scheduled date'),
-          content: SizedBox(
-            width: 300,
-            height: 300,
-            child: CalendarDatePicker(
-              initialDate: initial,
-              firstDate: DateTime.now().subtract(const Duration(days: 0)),
-              lastDate: DateTime.now().add(const Duration(days: 365 * 5)),
-              onDateChanged: (date) {
-                selectedDate = DateTime(date.year, date.month, date.day);
-              },
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              key: const Key('change-date-btn'),
-              onPressed: () async {
-                final service = ref.read(jokeScheduleAutoFillServiceProvider);
-                await service.scheduleJokeToDate(
-                  jokeId: widget.joke.id,
-                  date: selectedDate,
-                  scheduleId: JokeConstants.defaultJokeScheduleId,
-                );
-                if (context.mounted) Navigator.of(context).pop();
-              },
-              child: const Text('Change date'),
-            ),
-          ],
-        );
-      },
+      builder: (context) => RescheduleDialog(
+        jokeId: widget.joke.id,
+        initialDate: initial,
+        scheduleId: JokeConstants.defaultJokeScheduleId,
+        scheduledDates: scheduledDates,
+      ),
     );
   }
 

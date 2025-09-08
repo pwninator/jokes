@@ -181,6 +181,7 @@ class AdminPublishJokeButton extends ConsumerWidget {
       isLoading: isLoading,
       theme: theme,
       color: Colors.green,
+      holdDuration: const Duration(seconds: 1),
     );
   }
 }
@@ -245,6 +246,7 @@ class AdminAddToDailyScheduleButton extends ConsumerWidget {
       isLoading: isLoading,
       theme: theme,
       color: Colors.purple,
+      holdDuration: const Duration(seconds: 1),
     );
   }
 }

@@ -180,8 +180,8 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
                     if (value == null || value.trim().isEmpty) {
                       return 'Please enter a punchline for the joke';
                     }
-                    if (value.trim().length < 5) {
-                      return 'Punchline must be at least 5 characters long';
+                    if (value.trim().isEmpty) {
+                      return 'Punchline cannot be empty';
                     }
                     return null;
                   },

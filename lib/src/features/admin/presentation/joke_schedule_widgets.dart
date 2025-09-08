@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/common_widgets/cached_joke_image.dart';
 import 'package:snickerdoodle/src/common_widgets/holdable_button.dart';
+import 'package:snickerdoodle/src/common_widgets/reschedule_dialog.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_schedule_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_schedule.dart';
@@ -152,27 +153,93 @@ class CalendarCellPopup extends ConsumerWidget {
 
               const SizedBox(height: 16),
 
-              // Delete button
+              // Action buttons row
               if (batch != null && scheduleId != null)
-                Center(
-                  child: HoldableButton(
-                    theme: Theme.of(context),
-                    icon: Icons.delete_outline,
-                    color: Theme.of(context).colorScheme.errorContainer,
-                    isEnabled: true,
-                    onTap: () {
-                      // Quick tap - do nothing (require hold to delete)
-                    },
-                    onHoldComplete: () => _removeFromSchedule(context, ref),
-                    tooltip: "Hold to delete this day's joke",
-                    holdDuration: const Duration(seconds: 2),
-                  ),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: [
+                    // Reschedule button
+                    Expanded(
+                      child: ElevatedButton.icon(
+                        onPressed: () => _showRescheduleDialog(context, ref),
+                        icon: const Icon(Icons.schedule, size: 16),
+                        label: const Text('Reschedule'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Theme.of(context).colorScheme.primary,
+                          foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    // Delete button
+                    Expanded(
+                      child: HoldableButton(
+                        theme: Theme.of(context),
+                        icon: Icons.delete_outline,
+                        color: Theme.of(context).colorScheme.errorContainer,
+                        isEnabled: true,
+                        onTap: () {
+                          // Quick tap - do nothing (require hold to delete)
+                        },
+                        onHoldComplete: () => _removeFromSchedule(context, ref),
+                        tooltip: "Hold to delete this day's joke",
+                        holdDuration: const Duration(seconds: 2),
+                      ),
+                    ),
+                  ],
                 ),
             ],
           ),
         ),
       ),
     );
+  }
+
+  void _showRescheduleDialog(BuildContext context, WidgetRef ref) {
+    if (batch == null || scheduleId == null) return;
+
+    // Get the current scheduled date from the batch
+    final currentDate = _getDateForJoke(joke.id);
+    if (currentDate == null) return;
+
+    showDialog<void>(
+      context: context,
+      builder: (context) => RescheduleDialog(
+        jokeId: joke.id,
+        initialDate: currentDate,
+        scheduleId: scheduleId,
+        onSuccess: onClose,
+        scheduledDates: _getScheduledDates(),
+      ),
+    );
+  }
+
+  DateTime? _getDateForJoke(String jokeId) {
+    if (batch == null) return null;
+    
+    // Find the day where this joke is scheduled
+    for (final entry in batch!.jokes.entries) {
+      if (entry.value.id == jokeId) {
+        final day = int.tryParse(entry.key);
+        if (day != null) {
+          return DateTime(batch!.year, batch!.month, day);
+        }
+      }
+    }
+    return null;
+  }
+
+  List<DateTime> _getScheduledDates() {
+    if (batch == null) return [];
+    
+    final scheduledDates = <DateTime>[];
+    for (final entry in batch!.jokes.entries) {
+      final day = int.tryParse(entry.key);
+      if (day != null) {
+        scheduledDates.add(DateTime(batch!.year, batch!.month, day));
+      }
+    }
+    return scheduledDates;
   }
 
   Future<void> _removeFromSchedule(BuildContext context, WidgetRef ref) async {

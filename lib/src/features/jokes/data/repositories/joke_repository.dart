@@ -193,10 +193,10 @@ class JokeRepository {
     int increment,
   ) async {
     // Suppress Firestore writes for admin users
-    if (_isAdmin) {
+    if (_isAdmin || kDebugMode) {
       final action = increment > 0 ? 'increment' : 'decrement';
       debugPrint(
-        'JOKE REPO ADMIN reaction suppressed: $action $reactionType for joke $jokeId',
+        'JOKE REPO ADMIN/DEBUG reaction suppressed: $action $reactionType for joke $jokeId',
       );
       return;
     }

@@ -176,6 +176,11 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                   },
                 ),
               ),
+              TextButton(
+    onPressed: () => throw Exception(),
+    child: const Text("Throw Test Exception"),
+),
+
 
               // Developer mode sections (only show when unlocked)
               if (_developerModeEnabled) ...[

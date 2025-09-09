@@ -7,6 +7,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/app.dart';
+import 'package:snickerdoodle/src/core/providers/crash_reporting_provider.dart';
 import 'package:snickerdoodle/src/core/services/notification_service.dart';
 import 'package:snickerdoodle/src/utils/device_utils.dart';
 
@@ -39,6 +40,23 @@ void main() async {
         debugPrint('Firebase emulator connection error: $e');
       }
     }
+  }
+
+  if (kReleaseMode) {
+    FlutterError.onError = (FlutterErrorDetails details) async {
+      // Forward Flutter framework errors to Crashlytics in release builds only
+      final container = ProviderContainer();
+      final crashService = container.read(crashReportingServiceProvider);
+      await crashService.recordFlutterError(details);
+    };
+
+    PlatformDispatcher.instance.onError = (error, stack) {
+      // Uncaught async errors
+      final container = ProviderContainer();
+      final crashService = container.read(crashReportingServiceProvider);
+      crashService.recordFatal(error, stack);
+      return true;
+    };
   }
 
   runApp(const ProviderScope(child: App()));

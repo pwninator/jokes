@@ -276,19 +276,37 @@ void main() {
         await tester.pump(const Duration(milliseconds: 100));
 
         // Version (2 taps)
-        await tester.tap(find.text('Snickerdoodle v0.0.1+1'));
+        await tester.ensureVisible(find.text('Snickerdoodle v0.0.1+1'));
+        await tester.pump();
+        await tester.tap(
+          find.text('Snickerdoodle v0.0.1+1'),
+          warnIfMissed: false,
+        );
         await tester.pump(const Duration(milliseconds: 100));
-        await tester.tap(find.text('Snickerdoodle v0.0.1+1'));
+        await tester.ensureVisible(find.text('Snickerdoodle v0.0.1+1'));
+        await tester.pump();
+        await tester.tap(
+          find.text('Snickerdoodle v0.0.1+1'),
+          warnIfMissed: false,
+        );
         await tester.pump(const Duration(milliseconds: 100));
 
         // Notifications (4 taps)
-        await tester.tap(find.text('Notifications'));
+        await tester.ensureVisible(find.text('Notifications'));
+        await tester.pump();
+        await tester.tap(find.text('Notifications'), warnIfMissed: false);
         await tester.pump(const Duration(milliseconds: 100));
-        await tester.tap(find.text('Notifications'));
+        await tester.ensureVisible(find.text('Notifications'));
+        await tester.pump();
+        await tester.tap(find.text('Notifications'), warnIfMissed: false);
         await tester.pump(const Duration(milliseconds: 100));
-        await tester.tap(find.text('Notifications'));
+        await tester.ensureVisible(find.text('Notifications'));
+        await tester.pump();
+        await tester.tap(find.text('Notifications'), warnIfMissed: false);
         await tester.pump(const Duration(milliseconds: 100));
-        await tester.tap(find.text('Notifications'));
+        await tester.ensureVisible(find.text('Notifications'));
+        await tester.pump();
+        await tester.tap(find.text('Notifications'), warnIfMissed: false);
         await tester.pumpAndSettle();
 
         // Developer mode should now be active
@@ -308,17 +326,35 @@ void main() {
         await tester.pump(const Duration(milliseconds: 100));
         await tester.tap(find.text('Theme Settings'));
         await tester.pump(const Duration(milliseconds: 100));
-        await tester.tap(find.text('Snickerdoodle v0.0.1+1'));
+        await tester.ensureVisible(find.text('Snickerdoodle v0.0.1+1'));
+        await tester.pump();
+        await tester.tap(
+          find.text('Snickerdoodle v0.0.1+1'),
+          warnIfMissed: false,
+        );
         await tester.pump(const Duration(milliseconds: 100));
-        await tester.tap(find.text('Snickerdoodle v0.0.1+1'));
+        await tester.ensureVisible(find.text('Snickerdoodle v0.0.1+1'));
+        await tester.pump();
+        await tester.tap(
+          find.text('Snickerdoodle v0.0.1+1'),
+          warnIfMissed: false,
+        );
         await tester.pump(const Duration(milliseconds: 100));
-        await tester.tap(find.text('Notifications'));
+        await tester.ensureVisible(find.text('Notifications'));
+        await tester.pump();
+        await tester.tap(find.text('Notifications'), warnIfMissed: false);
         await tester.pump(const Duration(milliseconds: 100));
-        await tester.tap(find.text('Notifications'));
+        await tester.ensureVisible(find.text('Notifications'));
+        await tester.pump();
+        await tester.tap(find.text('Notifications'), warnIfMissed: false);
         await tester.pump(const Duration(milliseconds: 100));
-        await tester.tap(find.text('Notifications'));
+        await tester.ensureVisible(find.text('Notifications'));
+        await tester.pump();
+        await tester.tap(find.text('Notifications'), warnIfMissed: false);
         await tester.pump(const Duration(milliseconds: 100));
-        await tester.tap(find.text('Notifications'));
+        await tester.ensureVisible(find.text('Notifications'));
+        await tester.pump();
+        await tester.tap(find.text('Notifications'), warnIfMissed: false);
         await tester.pumpAndSettle();
 
         // Should show success snackbar
@@ -333,7 +369,9 @@ void main() {
         await tester.pumpAndSettle();
 
         // Start sequence correctly
-        await tester.tap(find.text('Theme Settings'));
+        await tester.ensureVisible(find.text('Theme Settings'));
+        await tester.pump();
+        await tester.tap(find.text('Theme Settings'), warnIfMissed: false);
         await tester.pump(const Duration(milliseconds: 100));
 
         // Wrong tap - should reset sequence
@@ -341,17 +379,35 @@ void main() {
         await tester.pump(const Duration(milliseconds: 100));
 
         // Continue with what would be correct if sequence wasn't reset
-        await tester.tap(find.text('Theme Settings'));
+        await tester.ensureVisible(find.text('Theme Settings'));
+        await tester.pump();
+        await tester.tap(find.text('Theme Settings'), warnIfMissed: false);
         await tester.pump(const Duration(milliseconds: 100));
-        await tester.tap(find.text('Snickerdoodle v0.0.1+1'));
+        await tester.ensureVisible(find.text('Snickerdoodle v0.0.1+1'));
+        await tester.pump();
+        await tester.tap(
+          find.text('Snickerdoodle v0.0.1+1'),
+          warnIfMissed: false,
+        );
         await tester.pump(const Duration(milliseconds: 100));
-        await tester.tap(find.text('Snickerdoodle v0.0.1+1'));
+        await tester.ensureVisible(find.text('Snickerdoodle v0.0.1+1'));
+        await tester.pump();
+        await tester.tap(
+          find.text('Snickerdoodle v0.0.1+1'),
+          warnIfMissed: false,
+        );
         await tester.pump(const Duration(milliseconds: 100));
-        await tester.tap(find.text('Notifications'));
+        await tester.ensureVisible(find.text('Notifications'));
+        await tester.pump();
+        await tester.tap(find.text('Notifications'), warnIfMissed: false);
         await tester.pump(const Duration(milliseconds: 100));
-        await tester.tap(find.text('Notifications'));
+        await tester.ensureVisible(find.text('Notifications'));
+        await tester.pump();
+        await tester.tap(find.text('Notifications'), warnIfMissed: false);
         await tester.pump(const Duration(milliseconds: 100));
-        await tester.tap(find.text('Notifications'));
+        await tester.ensureVisible(find.text('Notifications'));
+        await tester.pump();
+        await tester.tap(find.text('Notifications'), warnIfMissed: false);
         await tester.pumpAndSettle();
 
         // Developer mode should NOT be active
@@ -367,21 +423,43 @@ void main() {
     group('Developer Mode Features', () {
       Future<void> enableDeveloperMode(WidgetTester tester) async {
         // Execute the secret sequence to enable developer mode
-        await tester.tap(find.text('Theme Settings'));
+        await tester.ensureVisible(find.text('Theme Settings'));
+        await tester.pump();
+        await tester.tap(find.text('Theme Settings'), warnIfMissed: false);
         await tester.pump(const Duration(milliseconds: 100));
-        await tester.tap(find.text('Theme Settings'));
+        await tester.ensureVisible(find.text('Theme Settings'));
+        await tester.pump();
+        await tester.tap(find.text('Theme Settings'), warnIfMissed: false);
         await tester.pump(const Duration(milliseconds: 100));
-        await tester.tap(find.text('Snickerdoodle v0.0.1+1'));
+        await tester.ensureVisible(find.text('Snickerdoodle v0.0.1+1'));
+        await tester.pump();
+        await tester.tap(
+          find.text('Snickerdoodle v0.0.1+1'),
+          warnIfMissed: false,
+        );
         await tester.pump(const Duration(milliseconds: 100));
-        await tester.tap(find.text('Snickerdoodle v0.0.1+1'));
+        await tester.ensureVisible(find.text('Snickerdoodle v0.0.1+1'));
+        await tester.pump();
+        await tester.tap(
+          find.text('Snickerdoodle v0.0.1+1'),
+          warnIfMissed: false,
+        );
         await tester.pump(const Duration(milliseconds: 100));
-        await tester.tap(find.text('Notifications'));
+        await tester.ensureVisible(find.text('Notifications'));
+        await tester.pump();
+        await tester.tap(find.text('Notifications'), warnIfMissed: false);
         await tester.pump(const Duration(milliseconds: 100));
-        await tester.tap(find.text('Notifications'));
+        await tester.ensureVisible(find.text('Notifications'));
+        await tester.pump();
+        await tester.tap(find.text('Notifications'), warnIfMissed: false);
         await tester.pump(const Duration(milliseconds: 100));
-        await tester.tap(find.text('Notifications'));
+        await tester.ensureVisible(find.text('Notifications'));
+        await tester.pump();
+        await tester.tap(find.text('Notifications'), warnIfMissed: false);
         await tester.pump(const Duration(milliseconds: 100));
-        await tester.tap(find.text('Notifications'));
+        await tester.ensureVisible(find.text('Notifications'));
+        await tester.pump();
+        await tester.tap(find.text('Notifications'), warnIfMissed: false);
         await tester.pumpAndSettle();
       }
 
@@ -472,7 +550,9 @@ void main() {
         // Tap the button
         final btn = find.byKey(const Key('settings-review-button'));
         expect(btn, findsOneWidget);
-        await tester.tap(btn);
+        await tester.ensureVisible(btn);
+        await tester.pump();
+        await tester.tap(btn, warnIfMissed: false);
         await tester.pump();
 
         // A snackbar should appear (message depends on result)
@@ -491,7 +571,9 @@ void main() {
           expect(find.text('Theme Settings'), findsOneWidget);
           expect(find.text('Always Light'), findsOneWidget);
 
-          await tester.tap(find.text('Always Light'));
+          await tester.ensureVisible(find.text('Always Light'));
+          await tester.pump();
+          await tester.tap(find.text('Always Light'), warnIfMissed: false);
           await tester.pumpAndSettle();
 
           verify(
@@ -526,30 +608,58 @@ void main() {
         await tester.pumpAndSettle();
 
         // Do part of the sequence incorrectly
-        await tester.tap(find.text('Theme Settings'));
+        await tester.ensureVisible(find.text('Theme Settings'));
+        await tester.pump();
+        await tester.tap(find.text('Theme Settings'), warnIfMissed: false);
         await tester.pump(const Duration(milliseconds: 100));
-        await tester.tap(find.text('Theme Settings'));
+        await tester.ensureVisible(find.text('Theme Settings'));
+        await tester.pump();
+        await tester.tap(find.text('Theme Settings'), warnIfMissed: false);
         await tester.pump(const Duration(milliseconds: 100));
         // Wrong tap - should reset
-        await tester.tap(find.text('Notifications'));
+        await tester.ensureVisible(find.text('Notifications'));
+        await tester.pump();
+        await tester.tap(find.text('Notifications'), warnIfMissed: false);
         await tester.pump(const Duration(milliseconds: 100));
 
         // Now do the complete sequence from start
-        await tester.tap(find.text('Theme Settings'));
+        await tester.ensureVisible(find.text('Theme Settings'));
+        await tester.pump();
+        await tester.tap(find.text('Theme Settings'), warnIfMissed: false);
         await tester.pump(const Duration(milliseconds: 100));
-        await tester.tap(find.text('Theme Settings'));
+        await tester.ensureVisible(find.text('Theme Settings'));
+        await tester.pump();
+        await tester.tap(find.text('Theme Settings'), warnIfMissed: false);
         await tester.pump(const Duration(milliseconds: 100));
-        await tester.tap(find.text('Snickerdoodle v0.0.1+1'));
+        await tester.ensureVisible(find.text('Snickerdoodle v0.0.1+1'));
+        await tester.pump();
+        await tester.tap(
+          find.text('Snickerdoodle v0.0.1+1'),
+          warnIfMissed: false,
+        );
         await tester.pump(const Duration(milliseconds: 100));
-        await tester.tap(find.text('Snickerdoodle v0.0.1+1'));
+        await tester.ensureVisible(find.text('Snickerdoodle v0.0.1+1'));
+        await tester.pump();
+        await tester.tap(
+          find.text('Snickerdoodle v0.0.1+1'),
+          warnIfMissed: false,
+        );
         await tester.pump(const Duration(milliseconds: 100));
-        await tester.tap(find.text('Notifications'));
+        await tester.ensureVisible(find.text('Notifications'));
+        await tester.pump();
+        await tester.tap(find.text('Notifications'), warnIfMissed: false);
         await tester.pump(const Duration(milliseconds: 100));
-        await tester.tap(find.text('Notifications'));
+        await tester.ensureVisible(find.text('Notifications'));
+        await tester.pump();
+        await tester.tap(find.text('Notifications'), warnIfMissed: false);
         await tester.pump(const Duration(milliseconds: 100));
-        await tester.tap(find.text('Notifications'));
+        await tester.ensureVisible(find.text('Notifications'));
+        await tester.pump();
+        await tester.tap(find.text('Notifications'), warnIfMissed: false);
         await tester.pump(const Duration(milliseconds: 100));
-        await tester.tap(find.text('Notifications'));
+        await tester.ensureVisible(find.text('Notifications'));
+        await tester.pump();
+        await tester.tap(find.text('Notifications'), warnIfMissed: false);
         await tester.pumpAndSettle();
 
         // Should now be enabled after correct sequence

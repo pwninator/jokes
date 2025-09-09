@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_modification_providers.dart';
+import 'package:snickerdoodle/src/core/providers/crash_reporting_provider.dart';
 
 class ModifyImageDialog extends ConsumerStatefulWidget {
   final String jokeId;
@@ -84,6 +85,20 @@ class _ModifyImageDialogState extends ConsumerState<ModifyImageDialog> {
                           widget.setupImageUrl!,
                           fit: BoxFit.cover,
                           errorBuilder: (context, error, stackTrace) {
+                            // Report image load error (non-fatal)
+                            final crash = ref.read(
+                              crashReportingServiceProvider,
+                            );
+                            crash.recordNonFatal(
+                              error,
+                              stackTrace: stackTrace,
+                              keys: {
+                                'screen': 'ModifyImageDialog',
+                                'imageType': 'setup',
+                                'jokeId': widget.jokeId,
+                                'imageUrl': widget.setupImageUrl,
+                              },
+                            );
                             return Container(
                               color: theme.colorScheme.surfaceContainerHighest,
                               child: Icon(
@@ -138,6 +153,20 @@ class _ModifyImageDialogState extends ConsumerState<ModifyImageDialog> {
                           widget.punchlineImageUrl!,
                           fit: BoxFit.cover,
                           errorBuilder: (context, error, stackTrace) {
+                            // Report image load error (non-fatal)
+                            final crash = ref.read(
+                              crashReportingServiceProvider,
+                            );
+                            crash.recordNonFatal(
+                              error,
+                              stackTrace: stackTrace,
+                              keys: {
+                                'screen': 'ModifyImageDialog',
+                                'imageType': 'punchline',
+                                'jokeId': widget.jokeId,
+                                'imageUrl': widget.punchlineImageUrl,
+                              },
+                            );
                             return Container(
                               color: theme.colorScheme.surfaceContainerHighest,
                               child: Icon(

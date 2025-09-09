@@ -71,6 +71,13 @@ class AppReviewService {
       return await _native.isAvailable();
     } catch (e) {
       debugPrint('APP_REVIEW isAvailable error: $e');
+      // Log analytics/crash for availability check failure
+      try {
+        await _analytics?.logAnalyticsError(
+          'app_review_is_available_failed',
+          'app_review_service',
+        );
+      } catch (_) {}
       return false;
     }
   }
@@ -109,6 +116,13 @@ class AppReviewService {
       return ReviewRequestResult.shown;
     } catch (e) {
       debugPrint('APP_REVIEW requestReview error: $e');
+      // Log analytics/crash for request review failure
+      try {
+        await _analytics?.logAnalyticsError(
+          'app_review_request_failed',
+          'app_review_service_${source.value}',
+        );
+      } catch (_) {}
       return ReviewRequestResult.error;
     }
   }

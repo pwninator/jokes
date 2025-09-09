@@ -610,6 +610,14 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
       }
     } catch (e) {
       debugPrint('DEBUG: Settings screen - Google sign-in failed: $e');
+      // Log analytics/crash for sign-in failure
+      try {
+        final analytics = ref.read(analyticsServiceProvider);
+        await analytics.logAnalyticsError(
+          'google_sign_in_failed',
+          'user_settings_screen',
+        );
+      } catch (_) {}
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -738,6 +746,14 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
       }
     } catch (e) {
       debugPrint('ERROR: _toggleNotifications: $e');
+      // Log analytics/crash for notification toggle failure
+      try {
+        final analytics = ref.read(analyticsServiceProvider);
+        await analytics.logAnalyticsError(
+          'notifications_toggle_failed',
+          'user_settings_screen',
+        );
+      } catch (_) {}
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

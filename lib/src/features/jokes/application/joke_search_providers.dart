@@ -96,7 +96,9 @@ final searchResultIdsProvider =
           final analyticsService = ref.read(analyticsServiceProvider);
           await analyticsService.logJokeSearch(
             queryLength: query.length,
-            scope: 'user_joke_search',
+            scope: params.label != SearchLabel.none
+                ? "${scope.name}:${params.label.name}"
+                : scope.name,
             resultsCount: results.length,
           );
         } catch (_) {}

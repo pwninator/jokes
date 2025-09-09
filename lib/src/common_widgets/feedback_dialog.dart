@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/core/providers/feedback_providers.dart';
 import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
+import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 
 class FeedbackDialog extends ConsumerStatefulWidget {
   const FeedbackDialog({super.key});
@@ -95,6 +96,14 @@ class _FeedbackDialogState extends ConsumerState<FeedbackDialog> {
       }
     } catch (e) {
       debugPrint('ERROR: feedback_dialog: _handleSubmit: $e');
+      // Log analytics/crash for feedback submission failure
+      try {
+        final analytics = ref.read(analyticsServiceProvider);
+        await analytics.logAnalyticsError(
+          'feedback_submit_failed',
+          'feedback_dialog',
+        );
+      } catch (_) {}
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

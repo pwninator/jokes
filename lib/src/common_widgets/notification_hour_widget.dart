@@ -257,6 +257,14 @@ class _HourDisplayWidgetState extends ConsumerState<HourDisplayWidget> {
       }
     } catch (e) {
       debugPrint('ERROR: _updateNotificationHour: $e');
+      // Log analytics/crash for hour update failure
+      try {
+        final analytics = ref.read(analyticsServiceProvider);
+        await analytics.logAnalyticsError(
+          'notification_hour_update_failed',
+          'notification_hour_widget',
+        );
+      } catch (_) {}
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

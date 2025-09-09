@@ -78,6 +78,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       publicOnly: JokeConstants.userSearchPublicOnly,
       matchMode: JokeConstants.userSearchMatchMode,
       excludeJokeIds: const [],
+      label: JokeConstants.userSearchLabel,
     );
     // Reset viewer to first result
     _resetViewer?.call();
@@ -150,6 +151,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                               )
                               .state = current.copyWith(
                             query: '',
+                            maxResults: JokeConstants.userSearchMaxResults,
+                            publicOnly: JokeConstants.userSearchPublicOnly,
+                            matchMode: JokeConstants.userSearchMatchMode,
+                            excludeJokeIds: const [],
+                            label: JokeConstants.userSearchLabel,
                           );
                           FocusScope.of(context).unfocus();
                         },

@@ -1,5 +1,6 @@
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:snickerdoodle/src/core/providers/crash_reporting_provider.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
 
@@ -11,7 +12,11 @@ final firebaseAnalyticsProvider = Provider<FirebaseAnalytics>((ref) {
 /// Provider for AnalyticsService
 final analyticsServiceProvider = Provider<AnalyticsService>((ref) {
   final firebaseAnalytics = ref.watch(firebaseAnalyticsProvider);
-  return FirebaseAnalyticsService(analytics: firebaseAnalytics);
+  final crashService = ref.watch(crashReportingServiceProvider);
+  return FirebaseAnalyticsService(
+    analytics: firebaseAnalytics,
+    crashReportingService: crashService,
+  );
 });
 
 /// Provider that initializes analytics and sets up user tracking

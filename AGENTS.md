@@ -28,6 +28,12 @@ Your primary goal is to make correct and verifiable code changes.
 - Before submitting, always ensure your code is formatted and passes all analysis checks.
 - Run `dart format .` and `flutter analyze` to catch any issues.
 
+### **Analytics and Crash Reporting**
+
+- For every error-related analytics event (e.g., events in `analytics_events.dart` prefixed with `error_` or `analytics_error`), also log a Crashlytics non-fatal at the call site.
+- Use the central `AnalyticsService` methods to ensure both Analytics and Crashlytics are invoked together. Include meaningful custom keys such as `analytics_event`, `joke_id`, `source`, `phase`, etc., when available.
+- Tests must verify both the analytics event call and the Crashlytics non-fatal log for error flows.
+
 ## 3. Essential Commands
 
 Here are the commands you will need to work on this project. Run them from the root directory.

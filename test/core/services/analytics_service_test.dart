@@ -1,9 +1,11 @@
 import 'package:firebase_analytics/firebase_analytics.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:snickerdoodle/src/core/services/analytics_events.dart';
 import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
+import 'package:snickerdoodle/src/core/services/crash_reporting_service.dart';
 import 'package:snickerdoodle/src/features/auth/data/models/app_user.dart';
 
 import '../../test_helpers/analytics_mocks.dart';
@@ -11,24 +13,35 @@ import '../../test_helpers/analytics_mocks.dart';
 // Mock Firebase Analytics
 class MockFirebaseAnalytics extends Mock implements FirebaseAnalytics {}
 
+class MockCrashReportingService extends Mock implements CrashReportingService {}
+
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   group('FirebaseAnalyticsService', () {
     late MockFirebaseAnalytics mockFirebaseAnalytics;
     late FirebaseAnalyticsService analyticsService;
+    late MockCrashReportingService mockCrashService;
 
     setUpAll(() {
       registerAnalyticsFallbackValues();
+      // Needed for mocktail when matching FlutterErrorDetails and StackTrace
+      registerFallbackValue(FlutterErrorDetails(exception: Exception('x')));
+      registerFallbackValue(StackTrace.current);
     });
 
     setUp(() {
       mockFirebaseAnalytics = MockFirebaseAnalytics();
+      mockCrashService = MockCrashReportingService();
       analyticsService = FirebaseAnalyticsService(
         analytics: mockFirebaseAnalytics,
+        crashReportingService: mockCrashService,
       );
 
       // Set up default mock responses
       when(
-        () => mockFirebaseAnalytics.setDefaultEventParameters(any()),
+        () => mockFirebaseAnalytics.setDefaultEventParameters(
+          any<Map<String, Object?>>(),
+        ),
       ).thenAnswer((_) async {});
       when(
         () => mockFirebaseAnalytics.setUserId(id: any(named: 'id')),
@@ -45,13 +58,38 @@ void main() {
           parameters: any(named: 'parameters'),
         ),
       ).thenAnswer((_) async {});
+
+      // Crash reporting stubs
+      when(() => mockCrashService.initialize()).thenAnswer((_) async {});
+      when(() => mockCrashService.setUser(any())).thenAnswer((_) async {});
+      when(
+        () => mockCrashService.recordFlutterError(any()),
+      ).thenAnswer((_) async {});
+      when(
+        () => mockCrashService.recordFatal(any(), any()),
+      ).thenAnswer((_) async {});
+      when(
+        () => mockCrashService.recordNonFatal(
+          any(),
+          stackTrace: any(named: 'stackTrace'),
+          keys: any(named: 'keys'),
+        ),
+      ).thenAnswer((_) async {});
+      // Also allow calls without stackTrace (optional named arg)
+      when(
+        () => mockCrashService.recordNonFatal(any(), keys: any(named: 'keys')),
+      ).thenAnswer((_) async {});
+      when(() => mockCrashService.log(any())).thenAnswer((_) async {});
+      when(() => mockCrashService.setKeys(any())).thenAnswer((_) async {});
     });
 
     group('initialize', () {
       test('should initialize successfully in production mode', () async {
         // arrange
         when(
-          () => mockFirebaseAnalytics.setDefaultEventParameters(any()),
+          () => mockFirebaseAnalytics.setDefaultEventParameters(
+            any<Map<String, Object?>>(),
+          ),
         ).thenAnswer((_) async {});
 
         // act
@@ -64,7 +102,9 @@ void main() {
       test('should handle initialization errors gracefully', () async {
         // arrange
         when(
-          () => mockFirebaseAnalytics.setDefaultEventParameters(any()),
+          () => mockFirebaseAnalytics.setDefaultEventParameters(
+            any<Map<String, Object?>>(),
+          ),
         ).thenThrow(Exception('Firebase initialization failed'));
 
         // act & assert - should not throw
@@ -494,6 +534,213 @@ void main() {
             parameters: any(named: 'parameters'),
           ),
         );
+      });
+
+      test('logs Crashlytics non-fatal for error analytics methods', () async {
+        // act
+        await analyticsService.logErrorJokeShare(
+          'j-id',
+          jokeContext: 'ctx',
+          shareMethod: 'images',
+          errorMessage: 'boom',
+          errorContext: 'share_images',
+          exceptionType: 'Exception',
+        );
+        await analyticsService.logErrorSubscriptionPrompt(
+          errorMessage: 'prompt failed',
+          phase: 'show_dialog',
+        );
+        await analyticsService.logErrorSubscriptionPermission(
+          source: 'prompt',
+          errorMessage: 'denied',
+        );
+        await analyticsService.logErrorNotificationHandling(
+          notificationId: 'nid',
+          phase: 'foreground',
+          errorMessage: 'notif err',
+        );
+        await analyticsService.logErrorRouteNavigation(
+          previousRoute: '/a',
+          newRoute: '/b',
+          method: 'tap',
+          errorMessage: 'route err',
+        );
+        await analyticsService.logAnalyticsError('ae', 'ctx');
+        await analyticsService.logErrorJokeSave(
+          jokeId: 'j-id',
+          action: 'toggle',
+          errorMessage: 'save err',
+        );
+        await analyticsService.logErrorImagePrecache(
+          jokeId: 'j-id',
+          imageType: 'setup',
+          imageUrlHash: 'abc',
+          errorMessage: 'cache err',
+        );
+        await analyticsService.logErrorImageLoad(
+          jokeId: 'j-id',
+          imageType: 'setup',
+          imageUrlHash: 'abc',
+          errorMessage: 'load err',
+        );
+        await analyticsService.logErrorJokeImagesMissing(
+          jokeId: 'j-id',
+          missingParts: 'setup',
+        );
+        await analyticsService.logErrorJokesLoad(
+          source: 'viewer',
+          errorMessage: 'load err',
+        );
+        await analyticsService.logErrorJokeFetch(
+          jokeId: 'j-id',
+          errorMessage: 'fetch err',
+        );
+
+        // Stronger assertion: verify specific events at least once
+        verify(
+          () => mockCrashService.recordNonFatal(
+            any(),
+            keys: any(
+              named: 'keys',
+              that: containsPair(
+                'analytics_event',
+                AnalyticsEvent.errorJokeShare.eventName,
+              ),
+            ),
+          ),
+        ).called(greaterThanOrEqualTo(1));
+        verify(
+          () => mockCrashService.recordNonFatal(
+            any(),
+            keys: any(
+              named: 'keys',
+              that: containsPair(
+                'analytics_event',
+                AnalyticsEvent.errorSubscriptionPrompt.eventName,
+              ),
+            ),
+          ),
+        ).called(greaterThanOrEqualTo(1));
+        verify(
+          () => mockCrashService.recordNonFatal(
+            any(),
+            keys: any(
+              named: 'keys',
+              that: containsPair(
+                'analytics_event',
+                AnalyticsEvent.errorSubscriptionPermission.eventName,
+              ),
+            ),
+          ),
+        ).called(greaterThanOrEqualTo(1));
+        verify(
+          () => mockCrashService.recordNonFatal(
+            any(),
+            keys: any(
+              named: 'keys',
+              that: containsPair(
+                'analytics_event',
+                AnalyticsEvent.errorNotificationHandling.eventName,
+              ),
+            ),
+          ),
+        ).called(greaterThanOrEqualTo(1));
+        verify(
+          () => mockCrashService.recordNonFatal(
+            any(),
+            keys: any(
+              named: 'keys',
+              that: containsPair(
+                'analytics_event',
+                AnalyticsEvent.errorRouteNavigation.eventName,
+              ),
+            ),
+          ),
+        ).called(greaterThanOrEqualTo(1));
+        verify(
+          () => mockCrashService.recordNonFatal(
+            any(),
+            keys: any(
+              named: 'keys',
+              that: containsPair(
+                'analytics_event',
+                AnalyticsEvent.analyticsError.eventName,
+              ),
+            ),
+          ),
+        ).called(greaterThanOrEqualTo(1));
+        verify(
+          () => mockCrashService.recordNonFatal(
+            any(),
+            keys: any(
+              named: 'keys',
+              that: containsPair(
+                'analytics_event',
+                AnalyticsEvent.errorJokeSave.eventName,
+              ),
+            ),
+          ),
+        ).called(greaterThanOrEqualTo(1));
+        verify(
+          () => mockCrashService.recordNonFatal(
+            any(),
+            keys: any(
+              named: 'keys',
+              that: containsPair(
+                'analytics_event',
+                AnalyticsEvent.errorImagePrecache.eventName,
+              ),
+            ),
+          ),
+        ).called(greaterThanOrEqualTo(1));
+        verify(
+          () => mockCrashService.recordNonFatal(
+            any(),
+            keys: any(
+              named: 'keys',
+              that: containsPair(
+                'analytics_event',
+                AnalyticsEvent.errorImageLoad.eventName,
+              ),
+            ),
+          ),
+        ).called(greaterThanOrEqualTo(1));
+        verify(
+          () => mockCrashService.recordNonFatal(
+            any(),
+            keys: any(
+              named: 'keys',
+              that: containsPair(
+                'analytics_event',
+                AnalyticsEvent.errorJokeImagesMissing.eventName,
+              ),
+            ),
+          ),
+        ).called(greaterThanOrEqualTo(1));
+        verify(
+          () => mockCrashService.recordNonFatal(
+            any(),
+            keys: any(
+              named: 'keys',
+              that: containsPair(
+                'analytics_event',
+                AnalyticsEvent.errorJokesLoad.eventName,
+              ),
+            ),
+          ),
+        ).called(greaterThanOrEqualTo(1));
+        verify(
+          () => mockCrashService.recordNonFatal(
+            any(),
+            keys: any(
+              named: 'keys',
+              that: containsPair(
+                'analytics_event',
+                AnalyticsEvent.errorJokeFetch.eventName,
+              ),
+            ),
+          ),
+        ).called(1);
       });
     });
   });

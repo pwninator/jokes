@@ -2,6 +2,7 @@ import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter/foundation.dart';
 import 'package:snickerdoodle/src/core/services/analytics_events.dart';
 import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
+import 'package:snickerdoodle/src/core/services/crash_reporting_service.dart';
 import 'package:snickerdoodle/src/features/auth/data/models/app_user.dart';
 import 'package:snickerdoodle/src/utils/device_utils.dart';
 
@@ -217,10 +218,15 @@ abstract class AnalyticsService {
 /// Firebase Analytics implementation of the analytics service
 class FirebaseAnalyticsService implements AnalyticsService {
   final FirebaseAnalytics _analytics;
+  final CrashReportingService _crashReportingService;
   AppUser? _currentUser;
 
-  FirebaseAnalyticsService({FirebaseAnalytics? analytics})
-    : _analytics = analytics ?? FirebaseAnalytics.instance;
+  FirebaseAnalyticsService({
+    FirebaseAnalytics? analytics,
+    CrashReportingService? crashReportingService,
+  }) : _analytics = analytics ?? FirebaseAnalytics.instance,
+       _crashReportingService =
+           crashReportingService ?? NoopCrashReportingService();
 
   /// Check if fake analytics should be used (debug mode AND not physical device)
   Future<bool> _shouldUseFakeAnalytics() async {
@@ -437,6 +443,20 @@ class FirebaseAnalyticsService implements AnalyticsService {
         AnalyticsParameters.exceptionType: exceptionType,
       AnalyticsParameters.userType: _getUserType(_currentUser),
     });
+
+    await _crashReportingService.recordNonFatal(
+      Exception('errorJokeShare: $errorMessage'),
+      keys: {
+        'analytics_event': AnalyticsEvent.errorJokeShare.eventName,
+        AnalyticsParameters.jokeId: jokeId,
+        AnalyticsParameters.jokeContext: jokeContext,
+        AnalyticsParameters.shareMethod: shareMethod,
+        if (errorContext != null)
+          AnalyticsParameters.errorContext: errorContext,
+        if (exceptionType != null)
+          AnalyticsParameters.exceptionType: exceptionType,
+      },
+    );
   }
 
   @override
@@ -520,6 +540,14 @@ class FirebaseAnalyticsService implements AnalyticsService {
       if (phase != null) AnalyticsParameters.phase: phase,
       AnalyticsParameters.userType: _getUserType(_currentUser),
     });
+
+    await _crashReportingService.recordNonFatal(
+      Exception('errorSubscriptionPrompt: $errorMessage'),
+      keys: {
+        'analytics_event': AnalyticsEvent.errorSubscriptionPrompt.eventName,
+        if (phase != null) AnalyticsParameters.phase: phase,
+      },
+    );
   }
 
   @override
@@ -532,6 +560,14 @@ class FirebaseAnalyticsService implements AnalyticsService {
       AnalyticsParameters.errorMessage: errorMessage,
       AnalyticsParameters.userType: _getUserType(_currentUser),
     });
+
+    await _crashReportingService.recordNonFatal(
+      Exception('errorSubscriptionPermission: $errorMessage'),
+      keys: {
+        'analytics_event': AnalyticsEvent.errorSubscriptionPermission.eventName,
+        AnalyticsParameters.source: source,
+      },
+    );
   }
 
   @override
@@ -560,6 +596,16 @@ class FirebaseAnalyticsService implements AnalyticsService {
       AnalyticsParameters.errorMessage: errorMessage,
       AnalyticsParameters.userType: _getUserType(_currentUser),
     });
+
+    await _crashReportingService.recordNonFatal(
+      Exception('errorNotificationHandling: $errorMessage'),
+      keys: {
+        'analytics_event': AnalyticsEvent.errorNotificationHandling.eventName,
+        if (notificationId != null)
+          AnalyticsParameters.notificationId: notificationId,
+        if (phase != null) AnalyticsParameters.phase: phase,
+      },
+    );
   }
 
   @override
@@ -590,6 +636,17 @@ class FirebaseAnalyticsService implements AnalyticsService {
       AnalyticsParameters.errorMessage: errorMessage,
       AnalyticsParameters.userType: _getUserType(_currentUser),
     });
+
+    await _crashReportingService.recordNonFatal(
+      Exception('errorRouteNavigation: $errorMessage'),
+      keys: {
+        'analytics_event': AnalyticsEvent.errorRouteNavigation.eventName,
+        if (previousRoute != null)
+          AnalyticsParameters.previousTab: previousRoute,
+        if (newRoute != null) AnalyticsParameters.newTab: newRoute,
+        if (method != null) AnalyticsParameters.navigationMethod: method,
+      },
+    );
   }
 
   @override
@@ -598,6 +655,14 @@ class FirebaseAnalyticsService implements AnalyticsService {
       AnalyticsParameters.errorMessage: errorMessage,
       AnalyticsParameters.errorContext: context,
     });
+
+    await _crashReportingService.recordNonFatal(
+      Exception('analyticsError: $errorMessage'),
+      keys: {
+        'analytics_event': AnalyticsEvent.analyticsError.eventName,
+        AnalyticsParameters.errorContext: context,
+      },
+    );
   }
 
   @override
@@ -612,6 +677,15 @@ class FirebaseAnalyticsService implements AnalyticsService {
       AnalyticsParameters.errorMessage: errorMessage,
       AnalyticsParameters.userType: _getUserType(_currentUser),
     });
+
+    await _crashReportingService.recordNonFatal(
+      Exception('errorJokeSave: $errorMessage'),
+      keys: {
+        'analytics_event': AnalyticsEvent.errorJokeSave.eventName,
+        AnalyticsParameters.jokeId: jokeId,
+        AnalyticsParameters.action: action,
+      },
+    );
   }
 
   @override
@@ -628,6 +702,17 @@ class FirebaseAnalyticsService implements AnalyticsService {
       AnalyticsParameters.errorMessage: errorMessage,
       AnalyticsParameters.userType: _getUserType(_currentUser),
     });
+
+    await _crashReportingService.recordNonFatal(
+      Exception('errorImagePrecache: $errorMessage'),
+      keys: {
+        'analytics_event': AnalyticsEvent.errorImagePrecache.eventName,
+        if (jokeId != null) AnalyticsParameters.jokeId: jokeId,
+        if (imageType != null) AnalyticsParameters.imageType: imageType,
+        if (imageUrlHash != null)
+          AnalyticsParameters.imageUrlHash: imageUrlHash,
+      },
+    );
   }
 
   @override
@@ -644,6 +729,17 @@ class FirebaseAnalyticsService implements AnalyticsService {
       AnalyticsParameters.errorMessage: errorMessage,
       AnalyticsParameters.userType: _getUserType(_currentUser),
     });
+
+    await _crashReportingService.recordNonFatal(
+      Exception('errorImageLoad: $errorMessage'),
+      keys: {
+        'analytics_event': AnalyticsEvent.errorImageLoad.eventName,
+        if (jokeId != null) AnalyticsParameters.jokeId: jokeId,
+        if (imageType != null) AnalyticsParameters.imageType: imageType,
+        if (imageUrlHash != null)
+          AnalyticsParameters.imageUrlHash: imageUrlHash,
+      },
+    );
   }
 
   @override
@@ -656,6 +752,15 @@ class FirebaseAnalyticsService implements AnalyticsService {
       AnalyticsParameters.errorContext: missingParts,
       AnalyticsParameters.userType: _getUserType(_currentUser),
     });
+
+    await _crashReportingService.recordNonFatal(
+      Exception('errorJokeImagesMissing'),
+      keys: {
+        'analytics_event': AnalyticsEvent.errorJokeImagesMissing.eventName,
+        AnalyticsParameters.jokeId: jokeId,
+        AnalyticsParameters.errorContext: missingParts,
+      },
+    );
   }
 
   @override
@@ -668,6 +773,14 @@ class FirebaseAnalyticsService implements AnalyticsService {
       AnalyticsParameters.errorMessage: errorMessage,
       AnalyticsParameters.userType: _getUserType(_currentUser),
     });
+
+    await _crashReportingService.recordNonFatal(
+      Exception('errorJokesLoad: $errorMessage'),
+      keys: {
+        'analytics_event': AnalyticsEvent.errorJokesLoad.eventName,
+        AnalyticsParameters.source: source,
+      },
+    );
   }
 
   @override
@@ -680,6 +793,14 @@ class FirebaseAnalyticsService implements AnalyticsService {
       AnalyticsParameters.errorMessage: errorMessage,
       AnalyticsParameters.userType: _getUserType(_currentUser),
     });
+
+    await _crashReportingService.recordNonFatal(
+      Exception('errorJokeFetch: $errorMessage'),
+      keys: {
+        'analytics_event': AnalyticsEvent.errorJokeFetch.eventName,
+        AnalyticsParameters.jokeId: jokeId,
+      },
+    );
   }
 
   @override

@@ -5,6 +5,9 @@ import 'package:flutter/foundation.dart';
 abstract class CrashReportingService {
   Future<void> initialize();
 
+  /// Set or clear the currently authenticated user for crash reports
+  Future<void> setUser(String? userId);
+
   Future<void> recordFlutterError(FlutterErrorDetails details);
 
   Future<void> recordFatal(Object error, StackTrace stackTrace);
@@ -29,6 +32,15 @@ class FirebaseCrashReportingService implements CrashReportingService {
   @override
   Future<void> initialize() async {
     // Nothing required here for now; placeholder for future config (e.g., opt-in)
+  }
+
+  @override
+  Future<void> setUser(String? userId) async {
+    if (userId == null || userId.isEmpty) {
+      await _crashlytics.setUserIdentifier('');
+      return;
+    }
+    await _crashlytics.setUserIdentifier(userId);
   }
 
   @override
@@ -89,6 +101,9 @@ class FirebaseCrashReportingService implements CrashReportingService {
 class NoopCrashReportingService implements CrashReportingService {
   @override
   Future<void> initialize() async {}
+
+  @override
+  Future<void> setUser(String? userId) async {}
 
   @override
   Future<void> recordFlutterError(FlutterErrorDetails details) async {

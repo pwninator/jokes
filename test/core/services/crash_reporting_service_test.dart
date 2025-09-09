@@ -12,17 +12,21 @@ void main() {
   });
 
   group('FirebaseCrashReportingService', () {
-    void _stubAll(_MockCrashlytics mock) {
-      when(() => mock.setCustomKey(any(), any<int>()))
-          .thenAnswer((_) async {});
-      when(() => mock.setCustomKey(any(), any<double>()))
-          .thenAnswer((_) async {});
-      when(() => mock.setCustomKey(any(), any<bool>()))
-          .thenAnswer((_) async {});
-      when(() => mock.setCustomKey(any(), any<String>()))
-          .thenAnswer((_) async {});
-      when(() => mock.recordError(any(), any(), fatal: any(named: 'fatal')))
-          .thenAnswer((_) async {});
+    void stubAll(_MockCrashlytics mock) {
+      when(() => mock.setCustomKey(any(), any<int>())).thenAnswer((_) async {});
+      when(
+        () => mock.setCustomKey(any(), any<double>()),
+      ).thenAnswer((_) async {});
+      when(
+        () => mock.setCustomKey(any(), any<bool>()),
+      ).thenAnswer((_) async {});
+      when(
+        () => mock.setCustomKey(any(), any<String>()),
+      ).thenAnswer((_) async {});
+      when(() => mock.setUserIdentifier(any())).thenAnswer((_) async {});
+      when(
+        () => mock.recordError(any(), any(), fatal: any(named: 'fatal')),
+      ).thenAnswer((_) async {});
       when(() => mock.log(any())).thenAnswer((_) async {});
       when(() => mock.recordFlutterError(any())).thenAnswer((_) async {});
     }
@@ -31,7 +35,7 @@ void main() {
       'recordNonFatal forwards keys and records error as non-fatal',
       () async {
         final mockCrashlytics = _MockCrashlytics();
-        _stubAll(mockCrashlytics);
+        stubAll(mockCrashlytics);
         final service = FirebaseCrashReportingService(
           crashlytics: mockCrashlytics,
         );
@@ -61,15 +65,11 @@ void main() {
           () => mockCrashlytics.setCustomKey('stringKey', 'value'),
         ).called(1);
         // nullKey is skipped (check against all supported overloads)
-        verifyNever(
-          () => mockCrashlytics.setCustomKey('nullKey', any<int>()),
-        );
+        verifyNever(() => mockCrashlytics.setCustomKey('nullKey', any<int>()));
         verifyNever(
           () => mockCrashlytics.setCustomKey('nullKey', any<double>()),
         );
-        verifyNever(
-          () => mockCrashlytics.setCustomKey('nullKey', any<bool>()),
-        );
+        verifyNever(() => mockCrashlytics.setCustomKey('nullKey', any<bool>()));
         verifyNever(
           () => mockCrashlytics.setCustomKey('nullKey', any<String>()),
         );
@@ -83,9 +83,29 @@ void main() {
       },
     );
 
+    test(
+      'setUser sets/crashes user identifier and clears on null/empty',
+      () async {
+        final mockCrashlytics = _MockCrashlytics();
+        stubAll(mockCrashlytics);
+        final service = FirebaseCrashReportingService(
+          crashlytics: mockCrashlytics,
+        );
+
+        await service.setUser('abc');
+        verify(() => mockCrashlytics.setUserIdentifier('abc')).called(1);
+
+        await service.setUser('');
+        verify(() => mockCrashlytics.setUserIdentifier('')).called(1);
+
+        await service.setUser(null);
+        verify(() => mockCrashlytics.setUserIdentifier('')).called(1);
+      },
+    );
+
     test('recordFatal records fatal error', () async {
       final mockCrashlytics = _MockCrashlytics();
-      _stubAll(mockCrashlytics);
+      stubAll(mockCrashlytics);
       final service = FirebaseCrashReportingService(
         crashlytics: mockCrashlytics,
       );
@@ -102,7 +122,7 @@ void main() {
 
     test('log forwards to Crashlytics', () async {
       final mockCrashlytics = _MockCrashlytics();
-      _stubAll(mockCrashlytics);
+      stubAll(mockCrashlytics);
       final service = FirebaseCrashReportingService(
         crashlytics: mockCrashlytics,
       );

@@ -341,10 +341,10 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                     ),
                   ),
                 ),
-              TextButton(
-                onPressed: () => throw Exception(),
-                child: const Text("Throw Test Exception"),
-              ),
+                TextButton(
+                  onPressed: () => throw Exception(),
+                  child: const Text("Throw Test Exception"),
+                ),
               ],
               const SizedBox(height: 16),
 

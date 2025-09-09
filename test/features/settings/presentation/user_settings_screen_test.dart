@@ -670,8 +670,6 @@ void main() {
   });
 }
 
-class _MockAppReviewService extends Mock implements AppReviewService {}
-
 class _FakeAdapter implements NativeReviewAdapter {
   @override
   Future<bool> isAvailable() async => true;

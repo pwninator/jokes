@@ -364,7 +364,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
               Center(
                 child: GestureDetector(
                   onTap: () => _handleSecretTap('version'),
-                  child: Padding(
+                  child: Container(
                     padding: const EdgeInsets.symmetric(vertical: 16.0),
                     child: Consumer(
                       builder: (context, ref, child) {

@@ -44,40 +44,58 @@ void main() {
       verify(() => native.isAvailable()).called(1);
     });
 
-    test('requestReview returns notAvailable when API not available', () async {
-      when(() => native.isAvailable()).thenAnswer((_) async => false);
+    test(
+      'requestReview returns notAvailable and nativeAttempted=false when API not available',
+      () async {
+        when(() => native.isAvailable()).thenAnswer((_) async => false);
 
-      final result = await service.requestReview(
-        source: ReviewRequestSource.adminTest,
-      );
+        final resp = await service.requestReview(
+          source: ReviewRequestSource.adminTest,
+        );
 
-      expect(result, ReviewRequestResult.notAvailable);
-      verify(() => native.isAvailable()).called(1);
-      verifyNever(() => native.requestReview());
-    });
+        expect(resp.result, ReviewRequestResult.notAvailable);
+        expect(resp.nativeAttempted, isFalse);
+        verify(() => native.isAvailable()).called(1);
+        verifyNever(() => native.requestReview());
+      },
+    );
 
-    test('requestReview returns shown when request succeeds', () async {
-      when(() => native.isAvailable()).thenAnswer((_) async => true);
-      when(() => native.requestReview()).thenAnswer((_) async {});
+    test(
+      'requestReview returns shown and nativeAttempted=true when request succeeds',
+      () async {
+        when(() => native.isAvailable()).thenAnswer((_) async => true);
+        when(() => native.requestReview()).thenAnswer((_) async {});
 
-      final result = await service.requestReview(
-        source: ReviewRequestSource.adminTest,
-      );
+        final resp = await service.requestReview(
+          source: ReviewRequestSource.adminTest,
+        );
 
-      expect(result, ReviewRequestResult.shown);
-      verifyInOrder([() => native.isAvailable(), () => native.requestReview()]);
-    });
+        expect(resp.result, ReviewRequestResult.shown);
+        expect(resp.nativeAttempted, isTrue);
+        verifyInOrder([
+          () => native.isAvailable(),
+          () => native.requestReview(),
+        ]);
+      },
+    );
 
-    test('requestReview returns error when native throws', () async {
-      when(() => native.isAvailable()).thenAnswer((_) async => true);
-      when(() => native.requestReview()).thenThrow(Exception('nope'));
+    test(
+      'requestReview returns error and nativeAttempted=true when native throws after availability',
+      () async {
+        when(() => native.isAvailable()).thenAnswer((_) async => true);
+        when(() => native.requestReview()).thenThrow(Exception('nope'));
 
-      final result = await service.requestReview(
-        source: ReviewRequestSource.adminTest,
-      );
+        final resp = await service.requestReview(
+          source: ReviewRequestSource.adminTest,
+        );
 
-      expect(result, ReviewRequestResult.error);
-      verifyInOrder([() => native.isAvailable(), () => native.requestReview()]);
-    });
+        expect(resp.result, ReviewRequestResult.error);
+        expect(resp.nativeAttempted, isTrue);
+        verifyInOrder([
+          () => native.isAvailable(),
+          () => native.requestReview(),
+        ]);
+      },
+    );
   });
 }

@@ -1,7 +1,9 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:snickerdoodle/src/core/services/app_review_service.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
+import 'package:snickerdoodle/src/core/services/review_prompt_service.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
@@ -9,21 +11,26 @@ import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart'
 final jokeReactionsServiceProvider = Provider<JokeReactionsService>((ref) {
   final jokeRepository = ref.watch(jokeRepositoryProvider);
   final appUsageService = ref.watch(appUsageServiceProvider);
+  final reviewCoordinator = ref.watch(reviewPromptCoordinatorProvider);
   return JokeReactionsService(
     jokeRepository: jokeRepository,
     appUsageService: appUsageService,
+    reviewPromptCoordinator: reviewCoordinator,
   );
 });
 
 class JokeReactionsService {
   final JokeRepository? _jokeRepository;
   final AppUsageService _appUsageService;
+  final ReviewPromptCoordinator _reviewPromptCoordinator;
 
   JokeReactionsService({
     JokeRepository? jokeRepository,
     required AppUsageService appUsageService,
+    required ReviewPromptCoordinator reviewPromptCoordinator,
   }) : _jokeRepository = jokeRepository,
-       _appUsageService = appUsageService;
+       _appUsageService = appUsageService,
+       _reviewPromptCoordinator = reviewPromptCoordinator;
 
   Future<SharedPreferences> get _prefs => SharedPreferences.getInstance();
 
@@ -90,6 +97,10 @@ class JokeReactionsService {
       // Update usage counters for saved reaction
       if (reactionType == JokeReactionType.save) {
         await _appUsageService.incrementSavedJokesCount();
+        // Trigger review check only on successful save addition
+        await _reviewPromptCoordinator.maybePromptForReview(
+          source: ReviewRequestSource.auto,
+        );
       }
 
       // Handle Firestore operations asynchronously without blocking UI

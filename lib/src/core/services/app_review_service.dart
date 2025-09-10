@@ -84,9 +84,10 @@ class AppReviewService {
 
   /// Attempt to show the in-app review sheet
   ///
-  /// Returns a [ReviewRequestResult] describing the outcome.
-  Future<ReviewRequestResult> requestReview({
+  /// Returns a tuple of the outcome and whether the native request was attempted.
+  Future<({ReviewRequestResult result, bool nativeAttempted})> requestReview({
     required ReviewRequestSource source,
+    bool force = false,
   }) async {
     // Attempt regardless of availability to mirror plugin guidance, but we
     // prefer checking to short-circuit obvious unavailability.
@@ -94,17 +95,22 @@ class AppReviewService {
       await _analytics?.logAppReviewAttempt(source: source.value);
     } catch (_) {}
 
+    bool attempted = false;
     try {
       final available = await _native.isAvailable();
       if (!available) {
-        return ReviewRequestResult.notAvailable;
+        return (
+          result: ReviewRequestResult.notAvailable,
+          nativeAttempted: attempted,
+        );
       }
 
+      attempted = true;
       await _native.requestReview();
 
       // The API does not guarantee UI will be shown; treat as throttled/no-op
       // only if we have platform signals. Since we don't, return shown as best-effort.
-      return ReviewRequestResult.shown;
+      return (result: ReviewRequestResult.shown, nativeAttempted: attempted);
     } catch (e) {
       debugPrint('APP_REVIEW requestReview error: $e');
       // Log analytics/crash for request review failure
@@ -114,7 +120,7 @@ class AppReviewService {
           errorMessage: 'app_review_request_failed',
         );
       } catch (_) {}
-      return ReviewRequestResult.error;
+      return (result: ReviewRequestResult.error, nativeAttempted: attempted);
     }
   }
 }

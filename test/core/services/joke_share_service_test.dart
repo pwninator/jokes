@@ -3,9 +3,11 @@ import 'package:mocktail/mocktail.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
+import 'package:snickerdoodle/src/core/services/app_review_service.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
 import 'package:snickerdoodle/src/core/services/joke_share_service.dart';
+import 'package:snickerdoodle/src/core/services/review_prompt_service.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_service.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
@@ -17,6 +19,9 @@ class MockAnalyticsService extends Mock implements AnalyticsService {}
 class MockJokeReactionsService extends Mock implements JokeReactionsService {}
 
 class MockPlatformShareService extends Mock implements PlatformShareService {}
+
+class MockReviewPromptCoordinator extends Mock
+    implements ReviewPromptCoordinator {}
 
 class FakeJoke extends Fake implements Joke {}
 
@@ -30,11 +35,13 @@ void main() {
     late MockJokeReactionsService mockJokeReactionsService;
     late MockPlatformShareService mockPlatformShareService;
     late AppUsageService appUsageService;
+    late ReviewPromptCoordinator mockCoordinator;
 
     setUpAll(() {
       registerFallbackValue(FakeJoke());
       registerFallbackValue(JokeReactionType.share);
       registerFallbackValue(FakeXFile());
+      registerFallbackValue(ReviewRequestSource.auto);
     });
 
     setUp(() async {
@@ -42,6 +49,11 @@ void main() {
       mockAnalyticsService = MockAnalyticsService();
       mockJokeReactionsService = MockJokeReactionsService();
       mockPlatformShareService = MockPlatformShareService();
+      mockCoordinator = MockReviewPromptCoordinator();
+      when(
+        () =>
+            mockCoordinator.maybePromptForReview(source: any(named: 'source')),
+      ).thenAnswer((_) async {});
       // Real AppUsageService with mock SharedPreferences
       SharedPreferences.setMockInitialValues({});
       final prefs = await SharedPreferences.getInstance();
@@ -53,6 +65,7 @@ void main() {
         reactionsService: mockJokeReactionsService,
         platformShareService: mockPlatformShareService,
         appUsageService: appUsageService,
+        reviewPromptCoordinator: mockCoordinator,
       );
     });
 

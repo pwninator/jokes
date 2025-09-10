@@ -1,8 +1,10 @@
 import 'package:flutter/foundation.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
+import 'package:snickerdoodle/src/core/services/app_review_service.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
+import 'package:snickerdoodle/src/core/services/review_prompt_service.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_service.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
@@ -60,6 +62,7 @@ class JokeShareServiceImpl implements JokeShareService {
   final JokeReactionsService _reactionsService;
   final PlatformShareService _platformShareService;
   final AppUsageService _appUsageService;
+  final ReviewPromptCoordinator _reviewPromptCoordinator;
 
   JokeShareServiceImpl({
     required ImageService imageService,
@@ -67,11 +70,13 @@ class JokeShareServiceImpl implements JokeShareService {
     required JokeReactionsService reactionsService,
     required PlatformShareService platformShareService,
     required AppUsageService appUsageService,
+    required ReviewPromptCoordinator reviewPromptCoordinator,
   }) : _imageService = imageService,
        _analyticsService = analyticsService,
        _reactionsService = reactionsService,
        _platformShareService = platformShareService,
-       _appUsageService = appUsageService;
+       _appUsageService = appUsageService,
+       _reviewPromptCoordinator = reviewPromptCoordinator;
 
   @override
   Future<bool> shareJoke(
@@ -111,6 +116,11 @@ class JokeShareServiceImpl implements JokeShareService {
         shareMethod: 'images',
         shareDestination: shareResult.shareDestination,
         totalJokesShared: totalShared,
+      );
+
+      // Trigger review check only on successful share
+      await _reviewPromptCoordinator.maybePromptForReview(
+        source: ReviewRequestSource.auto,
       );
     } else {
       // Log cancellation or failure

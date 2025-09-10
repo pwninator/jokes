@@ -4,13 +4,13 @@ import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
+import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_population_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_search_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_search_result.dart';
-import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 
 // Mock classes for Firebase services
 class MockJokeCloudFunctionService extends Mock
@@ -180,8 +180,8 @@ class _TestRemoteConfigValues implements RemoteConfigValues {
 
   @override
   int getInt(RemoteParam param) {
-    if (param == RemoteParam.subscriptionPromptMinJokesViewed) return 5;
-    return 0;
+    final descriptor = remoteParams[param]!;
+    return descriptor.defaultInt ?? 0;
   }
 
   @override

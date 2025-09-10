@@ -1,27 +1,42 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:snickerdoodle/src/core/services/app_review_service.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
+import 'package:snickerdoodle/src/core/services/review_prompt_service.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_service.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
 
 class MockJokeRepository extends Mock implements JokeRepository {}
 
+class MockReviewPromptCoordinator extends Mock
+    implements ReviewPromptCoordinator {}
+
 void main() {
   setUpAll(() {
     registerFallbackValue(JokeReactionType.save);
+    registerFallbackValue(ReviewRequestSource.auto);
   });
 
   group('JokeReactionsService', () {
     late JokeReactionsService service;
     late AppUsageService appUsageService;
+    late MockReviewPromptCoordinator mockCoordinator;
 
     setUp(() async {
       SharedPreferences.setMockInitialValues({});
       final prefs = await SharedPreferences.getInstance();
       appUsageService = AppUsageService(prefs: prefs);
-      service = JokeReactionsService(appUsageService: appUsageService);
+      mockCoordinator = MockReviewPromptCoordinator();
+      when(
+        () =>
+            mockCoordinator.maybePromptForReview(source: any(named: 'source')),
+      ).thenAnswer((_) async {});
+      service = JokeReactionsService(
+        appUsageService: appUsageService,
+        reviewPromptCoordinator: mockCoordinator,
+      );
     });
 
     tearDown(() async {
@@ -409,6 +424,7 @@ void main() {
         serviceWithRepository = JokeReactionsService(
           jokeRepository: mockRepository,
           appUsageService: appUsageService,
+          reviewPromptCoordinator: mockCoordinator,
         );
       });
 
@@ -540,6 +556,7 @@ void main() {
         final serviceWithoutRepository = JokeReactionsService(
           jokeRepository: null,
           appUsageService: appUsageService,
+          reviewPromptCoordinator: mockCoordinator,
         );
 
         // Act

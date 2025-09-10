@@ -70,6 +70,9 @@ enum AnalyticsEvent {
   errorSubscriptionPermission('error_subscription_permission'),
   errorNotificationHandling('error_notification_handling'),
 
+  // Remote Config
+  errorRemoteConfig('error_remote_config'),
+
   // Error events
   analyticsError('analytics_error');
 

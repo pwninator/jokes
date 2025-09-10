@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
 import 'package:snickerdoodle/src/core/providers/shared_preferences_provider.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
+import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 
 // Mock classes
 class MockDailyJokeSubscriptionService extends Mock
@@ -63,6 +64,13 @@ void main() {
           dailyJokeSubscriptionServiceProvider.overrideWithValue(
             mockSyncService,
           ),
+          // Override remote config so tests don't touch Firebase
+          remoteConfigValuesProvider.overrideWithValue(
+            _TestRCValues(
+              threshold: JokeConstants.subscriptionPromptJokesViewedThreshold,
+            ),
+          ),
+          remoteConfigInitializationProvider.overrideWith((ref) async {}),
         ],
       );
     });
@@ -424,6 +432,13 @@ void main() {
           dailyJokeSubscriptionServiceProvider.overrideWithValue(
             mockSyncService,
           ),
+          // Override remote config so tests don't touch Firebase
+          remoteConfigValuesProvider.overrideWithValue(
+            _TestRCValues(
+              threshold: JokeConstants.subscriptionPromptJokesViewedThreshold,
+            ),
+          ),
+          remoteConfigInitializationProvider.overrideWith((ref) async {}),
         ],
       );
     });
@@ -468,6 +483,13 @@ void main() {
           dailyJokeSubscriptionServiceProvider.overrideWithValue(
             mockSyncService,
           ),
+          // Override remote config so tests don't touch Firebase
+          remoteConfigValuesProvider.overrideWithValue(
+            _TestRCValues(
+              threshold: JokeConstants.subscriptionPromptJokesViewedThreshold,
+            ),
+          ),
+          remoteConfigInitializationProvider.overrideWith((ref) async {}),
         ],
       );
 
@@ -512,4 +534,24 @@ void main() {
       expect(state.hasUserMadeChoice, isTrue);
     });
   });
+}
+
+class _TestRCValues implements RemoteConfigValues {
+  _TestRCValues({required this.threshold});
+  final int threshold;
+
+  @override
+  bool getBool(RemoteParam param) => false;
+
+  @override
+  double getDouble(RemoteParam param) => 0;
+
+  @override
+  int getInt(RemoteParam param) {
+    if (param == RemoteParam.subscriptionPromptMinJokesViewed) return threshold;
+    return 0;
+  }
+
+  @override
+  String getString(RemoteParam param) => '';
 }

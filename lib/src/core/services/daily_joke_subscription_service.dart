@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
 import 'package:snickerdoodle/src/core/providers/shared_preferences_provider.dart';
 import 'package:snickerdoodle/src/core/services/notification_service.dart';
+import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 
 /// State class representing subscription status and hour
 class SubscriptionState {
@@ -377,12 +378,15 @@ class SubscriptionPromptState {
 /// High-performance subscription prompt state manager
 class SubscriptionPromptNotifier
     extends StateNotifier<SubscriptionPromptState> {
-  SubscriptionPromptNotifier(this._subscriptionNotifier)
-    : super(const SubscriptionPromptState()) {
+  SubscriptionPromptNotifier(
+    this._subscriptionNotifier, {
+    required this.remoteConfigValues,
+  }) : super(const SubscriptionPromptState()) {
     _initializeState();
   }
 
   final SubscriptionNotifier _subscriptionNotifier;
+  final RemoteConfigValues remoteConfigValues;
 
   /// Initialize state by checking cached preferences (called once)
   Future<void> _initializeState() async {
@@ -417,8 +421,9 @@ class SubscriptionPromptNotifier
       return;
     }
 
-    if (jokesViewedCount >=
-        JokeConstants.subscriptionPromptJokesViewedThreshold) {
+    final int threshold =
+        remoteConfigValues.getInt(RemoteParam.subscriptionPromptMinJokesViewed);
+    if (jokesViewedCount >= threshold) {
       state = state.copyWith(shouldShowPrompt: true);
     }
   }
@@ -457,5 +462,9 @@ final subscriptionPromptProvider =
       ref,
     ) {
       final subscriptionNotifier = ref.watch(subscriptionProvider.notifier);
-      return SubscriptionPromptNotifier(subscriptionNotifier);
+      final rcValues = ref.watch(remoteConfigValuesProvider);
+      return SubscriptionPromptNotifier(
+        subscriptionNotifier,
+        remoteConfigValues: rcValues,
+      );
     });

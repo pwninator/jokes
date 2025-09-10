@@ -4,6 +4,7 @@ import 'package:snickerdoodle/src/config/router/router_providers.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/providers/crash_reporting_provider.dart';
 import 'package:snickerdoodle/src/core/providers/app_usage_providers.dart';
+import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:snickerdoodle/src/core/services/notification_service.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/settings/application/theme_settings_service.dart';
@@ -17,6 +18,9 @@ class App extends ConsumerWidget {
     final router = ref.watch(goRouterProvider);
     // Trigger app usage initialization
     ref.watch(appUsageInitializationProvider);
+
+    // Trigger Remote Config initialization
+    ref.watch(remoteConfigInitializationProvider);
 
     // Trigger crash reporting initialization and user syncing
     ref.watch(crashReportingInitializationProvider);

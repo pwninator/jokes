@@ -10,6 +10,7 @@ import 'package:snickerdoodle/src/core/providers/app_version_provider.dart';
 import 'package:snickerdoodle/src/core/services/app_review_service.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
+import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
 import 'package:snickerdoodle/src/features/auth/data/models/app_user.dart';
@@ -337,13 +338,24 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                             foregroundColor: Colors.white,
                           ),
                         ),
+                        const SizedBox(height: 12),
+                        ElevatedButton.icon(
+                          key: const Key('settings-remote-config-button'),
+                          onPressed: () => _showRemoteConfigDialog(context),
+                          icon: const Icon(Icons.tune),
+                          label: const Text('See Remote Config'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Theme.of(
+                              context,
+                            ).colorScheme.primaryContainer,
+                            foregroundColor: Theme.of(
+                              context,
+                            ).colorScheme.onPrimaryContainer,
+                          ),
+                        ),
                       ],
                     ),
                   ),
-                ),
-                TextButton(
-                  onPressed: () => throw Exception(),
-                  child: const Text("Throw Test Exception"),
                 ),
               ],
               const SizedBox(height: 16),
@@ -808,6 +820,36 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
         backgroundColor: bg,
         duration: const Duration(seconds: 3),
       ),
+    );
+  }
+
+  void _showRemoteConfigDialog(BuildContext context) {
+    final rc = ref.read(remoteConfigValuesProvider);
+    showDialog<void>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Remote Config'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildInfoRow(
+                'Min Jokes Viewed',
+                rc
+                    .getInt(RemoteParam.subscriptionPromptMinJokesViewed)
+                    .toString(),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Close'),
+            ),
+          ],
+        );
+      },
     );
   }
 }

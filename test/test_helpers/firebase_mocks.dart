@@ -10,6 +10,7 @@ import 'package:snickerdoodle/src/features/jokes/application/joke_search_provide
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_search_result.dart';
+import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 
 // Mock classes for Firebase services
 class MockJokeCloudFunctionService extends Mock
@@ -79,6 +80,10 @@ class FirebaseMocks {
       ),
 
       // Add any additional overrides
+      // Remote Config: override values to avoid platform calls in tests
+      remoteConfigValuesProvider.overrideWithValue(_TestRemoteConfigValues()),
+      remoteConfigInitializationProvider.overrideWith((ref) async {}),
+      // Additional overrides after base ones so tests can replace any of these
       ...additionalOverrides,
     ];
   }
@@ -164,6 +169,23 @@ class FirebaseMocks {
   static void _setupFirebaseFirestoreDefaults(MockFirebaseFirestore mock) {
     // Basic mock setup - methods will be mocked as needed in individual tests
   }
+}
+
+class _TestRemoteConfigValues implements RemoteConfigValues {
+  @override
+  bool getBool(RemoteParam param) => false;
+
+  @override
+  double getDouble(RemoteParam param) => 0;
+
+  @override
+  int getInt(RemoteParam param) {
+    if (param == RemoteParam.subscriptionPromptMinJokesViewed) return 5;
+    return 0;
+  }
+
+  @override
+  String getString(RemoteParam param) => '';
 }
 
 /// Test joke population notifier that doesn't require Firebase

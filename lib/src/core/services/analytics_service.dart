@@ -139,6 +139,12 @@ abstract class AnalyticsService {
     required String errorMessage,
   });
 
+  /// Remote Config errors
+  Future<void> logErrorRemoteConfig({
+    required String errorMessage,
+    String? phase,
+  });
+
   /// Log tab navigation events
   Future<void> logTabChanged(
     AppTab previousTab,
@@ -603,6 +609,26 @@ class FirebaseAnalyticsService implements AnalyticsService {
         'analytics_event': AnalyticsEvent.errorNotificationHandling.eventName,
         if (notificationId != null)
           AnalyticsParameters.notificationId: notificationId,
+        if (phase != null) AnalyticsParameters.phase: phase,
+      },
+    );
+  }
+
+  @override
+  Future<void> logErrorRemoteConfig({
+    required String errorMessage,
+    String? phase,
+  }) async {
+    await _logEvent(AnalyticsEvent.errorRemoteConfig, {
+      if (phase != null) AnalyticsParameters.phase: phase,
+      AnalyticsParameters.errorMessage: errorMessage,
+      AnalyticsParameters.userType: _getUserType(_currentUser),
+    });
+
+    await _crashReportingService.recordNonFatal(
+      Exception('errorRemoteConfig: $errorMessage'),
+      keys: {
+        'analytics_event': AnalyticsEvent.errorRemoteConfig.eventName,
         if (phase != null) AnalyticsParameters.phase: phase,
       },
     );

@@ -74,7 +74,22 @@ enum AnalyticsEvent {
   errorRemoteConfig('error_remote_config'),
 
   // Error events
-  analyticsError('analytics_error');
+  analyticsError('analytics_error'),
+
+  // Auth
+  errorAuthSignIn('error_auth_sign_in'),
+
+  // Settings / subscriptions errors
+  errorSubscriptionToggle('error_subscription_toggle'),
+  errorSubscriptionTimeUpdate('error_subscription_time_update'),
+
+  // Feedback
+  errorFeedbackSubmit('error_feedback_submit'),
+
+  // App review
+  appReviewAttempt('app_review_attempt'),
+  errorAppReviewAvailability('error_app_review_availability'),
+  errorAppReviewRequest('error_app_review_request');
 
   const AnalyticsEvent(this.eventName);
 

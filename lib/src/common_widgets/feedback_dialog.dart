@@ -99,9 +99,8 @@ class _FeedbackDialogState extends ConsumerState<FeedbackDialog> {
       // Log analytics/crash for feedback submission failure
       try {
         final analytics = ref.read(analyticsServiceProvider);
-        await analytics.logAnalyticsError(
-          'feedback_submit_failed',
-          'feedback_dialog',
+        await analytics.logErrorFeedbackSubmit(
+          errorMessage: 'feedback_submit_failed',
         );
       } catch (_) {}
       if (mounted) {

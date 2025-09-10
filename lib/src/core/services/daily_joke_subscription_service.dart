@@ -421,8 +421,9 @@ class SubscriptionPromptNotifier
       return;
     }
 
-    final int threshold =
-        remoteConfigValues.getInt(RemoteParam.subscriptionPromptMinJokesViewed);
+    final int threshold = remoteConfigValues.getInt(
+      RemoteParam.subscriptionPromptMinJokesViewed,
+    );
     if (jokesViewedCount >= threshold) {
       state = state.copyWith(shouldShowPrompt: true);
     }

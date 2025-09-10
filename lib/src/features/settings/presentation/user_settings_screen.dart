@@ -625,9 +625,9 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
       // Log analytics/crash for sign-in failure
       try {
         final analytics = ref.read(analyticsServiceProvider);
-        await analytics.logAnalyticsError(
-          'google_sign_in_failed',
-          'user_settings_screen',
+        await analytics.logErrorAuthSignIn(
+          source: 'user_settings_screen',
+          errorMessage: 'google_sign_in_failed',
         );
       } catch (_) {}
       if (context.mounted) {
@@ -761,9 +761,9 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
       // Log analytics/crash for notification toggle failure
       try {
         final analytics = ref.read(analyticsServiceProvider);
-        await analytics.logAnalyticsError(
-          'notifications_toggle_failed',
-          'user_settings_screen',
+        await analytics.logErrorSubscriptionToggle(
+          source: 'user_settings_screen',
+          errorMessage: 'notifications_toggle_failed',
         );
       } catch (_) {}
       if (context.mounted) {

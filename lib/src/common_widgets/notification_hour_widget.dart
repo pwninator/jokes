@@ -260,9 +260,9 @@ class _HourDisplayWidgetState extends ConsumerState<HourDisplayWidget> {
       // Log analytics/crash for hour update failure
       try {
         final analytics = ref.read(analyticsServiceProvider);
-        await analytics.logAnalyticsError(
-          'notification_hour_update_failed',
-          'notification_hour_widget',
+        await analytics.logErrorSubscriptionTimeUpdate(
+          source: 'notification_hour_widget',
+          errorMessage: 'notification_hour_update_failed',
         );
       } catch (_) {}
       if (mounted) {

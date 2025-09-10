@@ -73,9 +73,9 @@ class AppReviewService {
       debugPrint('APP_REVIEW isAvailable error: $e');
       // Log analytics/crash for availability check failure
       try {
-        await _analytics?.logAnalyticsError(
-          'app_review_is_available_failed',
-          'app_review_service',
+        await _analytics?.logErrorAppReviewAvailability(
+          source: 'service',
+          errorMessage: 'app_review_is_available_failed',
         );
       } catch (_) {}
       return false;
@@ -91,17 +91,8 @@ class AppReviewService {
     // Attempt regardless of availability to mirror plugin guidance, but we
     // prefer checking to short-circuit obvious unavailability.
     try {
-      await _analytics?.logAnalyticsError(
-        // Using analytics error channel for attempts would be noisy; skip.
-        // Instead, rely on result-specific events logged below.
-        // Keeping this as a no-op shim: do not log attempts here.
-        // This line ensures interface availability in case future refactor needs it.
-        '',
-        'app_review_attempt_${source.value}',
-      );
-    } catch (_) {
-      // Ignore analytics failures
-    }
+      await _analytics?.logAppReviewAttempt(source: source.value);
+    } catch (_) {}
 
     try {
       final available = await _native.isAvailable();
@@ -118,9 +109,9 @@ class AppReviewService {
       debugPrint('APP_REVIEW requestReview error: $e');
       // Log analytics/crash for request review failure
       try {
-        await _analytics?.logAnalyticsError(
-          'app_review_request_failed',
-          'app_review_service_${source.value}',
+        await _analytics?.logErrorAppReviewRequest(
+          source: source.value,
+          errorMessage: 'app_review_request_failed',
         );
       } catch (_) {}
       return ReviewRequestResult.error;

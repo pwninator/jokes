@@ -596,6 +596,32 @@ void main() {
           errorMessage: 'fetch err',
         );
 
+        // New errors
+        await analyticsService.logErrorAuthSignIn(
+          source: 'user_settings_screen',
+          errorMessage: 'google_sign_in_failed',
+        );
+        await analyticsService.logErrorSubscriptionToggle(
+          source: 'user_settings_screen',
+          errorMessage: 'notifications_toggle_failed',
+        );
+        await analyticsService.logErrorSubscriptionTimeUpdate(
+          source: 'notification_hour_widget',
+          errorMessage: 'notification_hour_update_failed',
+        );
+        await analyticsService.logErrorFeedbackSubmit(
+          errorMessage: 'feedback_submit_failed',
+        );
+        await analyticsService.logAppReviewAttempt(source: 'settings');
+        await analyticsService.logErrorAppReviewAvailability(
+          source: 'service',
+          errorMessage: 'app_review_is_available_failed',
+        );
+        await analyticsService.logErrorAppReviewRequest(
+          source: 'settings',
+          errorMessage: 'app_review_request_failed',
+        );
+
         // Stronger assertion: verify specific events at least once
         verify(
           () => mockCrashService.recordNonFatal(
@@ -741,6 +767,94 @@ void main() {
             ),
           ),
         ).called(1);
+
+        // New ones
+        verify(
+          () => mockCrashService.recordNonFatal(
+            any(),
+            keys: any(
+              named: 'keys',
+              that: containsPair(
+                'analytics_event',
+                AnalyticsEvent.errorAuthSignIn.eventName,
+              ),
+            ),
+          ),
+        ).called(1);
+        verify(
+          () => mockCrashService.recordNonFatal(
+            any(),
+            keys: any(
+              named: 'keys',
+              that: containsPair(
+                'analytics_event',
+                AnalyticsEvent.errorSubscriptionToggle.eventName,
+              ),
+            ),
+          ),
+        ).called(1);
+        verify(
+          () => mockCrashService.recordNonFatal(
+            any(),
+            keys: any(
+              named: 'keys',
+              that: containsPair(
+                'analytics_event',
+                AnalyticsEvent.errorSubscriptionTimeUpdate.eventName,
+              ),
+            ),
+          ),
+        ).called(1);
+        verify(
+          () => mockCrashService.recordNonFatal(
+            any(),
+            keys: any(
+              named: 'keys',
+              that: containsPair(
+                'analytics_event',
+                AnalyticsEvent.errorFeedbackSubmit.eventName,
+              ),
+            ),
+          ),
+        ).called(1);
+        verify(
+          () => mockCrashService.recordNonFatal(
+            any(),
+            keys: any(
+              named: 'keys',
+              that: containsPair(
+                'analytics_event',
+                AnalyticsEvent.errorAppReviewAvailability.eventName,
+              ),
+            ),
+          ),
+        ).called(1);
+        verify(
+          () => mockCrashService.recordNonFatal(
+            any(),
+            keys: any(
+              named: 'keys',
+              that: containsPair(
+                'analytics_event',
+                AnalyticsEvent.errorAppReviewRequest.eventName,
+              ),
+            ),
+          ),
+        ).called(1);
+
+        // Ensure non-error attempt does NOT record crash
+        verifyNever(
+          () => mockCrashService.recordNonFatal(
+            any(),
+            keys: any(
+              named: 'keys',
+              that: containsPair(
+                'analytics_event',
+                AnalyticsEvent.appReviewAttempt.eventName,
+              ),
+            ),
+          ),
+        );
       });
     });
   });

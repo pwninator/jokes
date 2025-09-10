@@ -122,6 +122,45 @@ class AnalyticsMocks {
     // Feedback
     when(() => mock.logFeedbackSubmitted()).thenAnswer((_) async {});
 
+    // New error/non-error APIs
+    when(
+      () => mock.logErrorAuthSignIn(
+        source: any(named: 'source'),
+        errorMessage: any(named: 'errorMessage'),
+      ),
+    ).thenAnswer((_) async {});
+    when(
+      () => mock.logErrorSubscriptionToggle(
+        source: any(named: 'source'),
+        errorMessage: any(named: 'errorMessage'),
+      ),
+    ).thenAnswer((_) async {});
+    when(
+      () => mock.logErrorSubscriptionTimeUpdate(
+        source: any(named: 'source'),
+        errorMessage: any(named: 'errorMessage'),
+      ),
+    ).thenAnswer((_) async {});
+    when(
+      () =>
+          mock.logErrorFeedbackSubmit(errorMessage: any(named: 'errorMessage')),
+    ).thenAnswer((_) async {});
+    when(
+      () => mock.logAppReviewAttempt(source: any(named: 'source')),
+    ).thenAnswer((_) async {});
+    when(
+      () => mock.logErrorAppReviewAvailability(
+        source: any(named: 'source'),
+        errorMessage: any(named: 'errorMessage'),
+      ),
+    ).thenAnswer((_) async {});
+    when(
+      () => mock.logErrorAppReviewRequest(
+        source: any(named: 'source'),
+        errorMessage: any(named: 'errorMessage'),
+      ),
+    ).thenAnswer((_) async {});
+
     // Share funnel
     when(
       () => mock.logJokeShareInitiated(

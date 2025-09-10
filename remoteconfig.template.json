@@ -1,0 +1,48 @@
+{
+  "version": {
+    "versionNumber": "8",
+    "updateTime": "2025-09-10T07:45:47.861064Z",
+    "updateUser": {
+      "email": "tonyw85@gmail.com"
+    },
+    "updateOrigin": "CONSOLE",
+    "updateType": "INCREMENTAL_UPDATE"
+  },
+  "parameterGroups": {
+    "Subscription Prompt": {
+      "parameters": {
+        "subscription_prompt_min_jokes_viewed": {
+          "defaultValue": {
+            "value": "5"
+          },
+          "valueType": "NUMBER"
+        }
+      }
+    },
+    "Review Request": {
+      "parameters": {
+        "review_min_shared_jokes": {
+          "defaultValue": {
+            "value": "1"
+          },
+          "description": "Min number of jokes shared before eligible for review request",
+          "valueType": "NUMBER"
+        },
+        "review_min_saved_jokes": {
+          "defaultValue": {
+            "value": "5"
+          },
+          "description": "Min number of jokes saved before eligible for review request",
+          "valueType": "NUMBER"
+        },
+        "review_min_days_used": {
+          "defaultValue": {
+            "value": "5"
+          },
+          "description": "Min number of distinct days used before eligible for review request",
+          "valueType": "NUMBER"
+        }
+      }
+    }
+  }
+}

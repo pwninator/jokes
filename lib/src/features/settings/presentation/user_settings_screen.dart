@@ -835,12 +835,26 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildInfoRow(
-                'Min Jokes Viewed',
-                rc
-                    .getInt(RemoteParam.subscriptionPromptMinJokesViewed)
-                    .toString(),
-              ),
+              ...RemoteParam.values.map((param) {
+                final descriptor = remoteParams[param]!;
+                final label = descriptor.key;
+                String valueString;
+                switch (descriptor.type) {
+                  case RemoteParamType.intType:
+                    valueString = rc.getInt(param).toString();
+                    break;
+                  case RemoteParamType.boolType:
+                    valueString = rc.getBool(param).toString();
+                    break;
+                  case RemoteParamType.doubleType:
+                    valueString = rc.getDouble(param).toString();
+                    break;
+                  case RemoteParamType.stringType:
+                    valueString = rc.getString(param);
+                    break;
+                }
+                return _buildInfoRow(label, valueString);
+              }),
             ],
           ),
           actions: [

@@ -831,31 +831,40 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
       builder: (context) {
         return AlertDialog(
           title: const Text('Remote Config'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              ...RemoteParam.values.map((param) {
-                final descriptor = remoteParams[param]!;
-                final label = descriptor.key;
-                String valueString;
-                switch (descriptor.type) {
-                  case RemoteParamType.intType:
-                    valueString = rc.getInt(param).toString();
-                    break;
-                  case RemoteParamType.boolType:
-                    valueString = rc.getBool(param).toString();
-                    break;
-                  case RemoteParamType.doubleType:
-                    valueString = rc.getDouble(param).toString();
-                    break;
-                  case RemoteParamType.stringType:
-                    valueString = rc.getString(param);
-                    break;
-                }
-                return _buildInfoRow(label, valueString);
-              }),
-            ],
+          content: SingleChildScrollView(
+            child: SizedBox(
+              width: double.maxFinite,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  ...RemoteParam.values.map((param) {
+                    final descriptor = remoteParams[param]!;
+                    final label = descriptor.key;
+                    String valueString;
+                    switch (descriptor.type) {
+                      case RemoteParamType.intType:
+                        valueString = rc.getInt(param).toString();
+                        break;
+                      case RemoteParamType.boolType:
+                        valueString = rc.getBool(param).toString();
+                        break;
+                      case RemoteParamType.doubleType:
+                        valueString = rc.getDouble(param).toString();
+                        break;
+                      case RemoteParamType.stringType:
+                        valueString = rc.getString(param);
+                        break;
+                    }
+                    return Text(
+                      '$label: $valueString',
+                      style: const TextStyle(fontSize: 13),
+                      softWrap: true,
+                    );
+                  }),
+                ],
+              ),
+            ),
           ),
           actions: [
             TextButton(

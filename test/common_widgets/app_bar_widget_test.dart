@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:snickerdoodle/src/common_widgets/app_bar_widget.dart';
+import 'package:snickerdoodle/src/core/providers/feedback_prompt_providers.dart';
 
 void main() {
   group('AppBarWidget', () {
@@ -8,8 +10,13 @@ void main() {
       const title = 'Test Title';
 
       await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(appBar: const AppBarWidget(title: title)),
+        ProviderScope(
+          overrides: [
+            shouldShowFeedbackActionProvider.overrideWith((ref) async => false),
+          ],
+          child: MaterialApp(
+            home: Scaffold(appBar: const AppBarWidget(title: title)),
+          ),
         ),
       );
 
@@ -22,11 +29,16 @@ void main() {
       const customColor = Colors.red;
 
       await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            appBar: const AppBarWidget(
-              title: 'Test',
-              backgroundColor: customColor,
+        ProviderScope(
+          overrides: [
+            shouldShowFeedbackActionProvider.overrideWith((ref) async => false),
+          ],
+          child: MaterialApp(
+            home: Scaffold(
+              appBar: const AppBarWidget(
+                title: 'Test',
+                backgroundColor: customColor,
+              ),
             ),
           ),
         ),
@@ -40,9 +52,14 @@ void main() {
       const leadingIcon = Icon(Icons.menu, key: Key('custom-leading'));
 
       await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            appBar: const AppBarWidget(title: 'Test', leading: leadingIcon),
+        ProviderScope(
+          overrides: [
+            shouldShowFeedbackActionProvider.overrideWith((ref) async => false),
+          ],
+          child: MaterialApp(
+            home: Scaffold(
+              appBar: const AppBarWidget(title: 'Test', leading: leadingIcon),
+            ),
           ),
         ),
       );
@@ -57,9 +74,14 @@ void main() {
       ];
 
       await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            appBar: AppBarWidget(title: 'Test', actions: actions),
+        ProviderScope(
+          overrides: [
+            shouldShowFeedbackActionProvider.overrideWith((ref) async => false),
+          ],
+          child: MaterialApp(
+            home: Scaffold(
+              appBar: AppBarWidget(title: 'Test', actions: actions),
+            ),
           ),
         ),
       );
@@ -72,11 +94,16 @@ void main() {
       const customColor = Colors.green;
 
       await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            appBar: const AppBarWidget(
-              title: 'Test',
-              foregroundColor: customColor,
+        ProviderScope(
+          overrides: [
+            shouldShowFeedbackActionProvider.overrideWith((ref) async => false),
+          ],
+          child: MaterialApp(
+            home: Scaffold(
+              appBar: const AppBarWidget(
+                title: 'Test',
+                foregroundColor: customColor,
+              ),
             ),
           ),
         ),
@@ -90,11 +117,16 @@ void main() {
       const customElevation = 8.0;
 
       await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            appBar: const AppBarWidget(
-              title: 'Test',
-              elevation: customElevation,
+        ProviderScope(
+          overrides: [
+            shouldShowFeedbackActionProvider.overrideWith((ref) async => false),
+          ],
+          child: MaterialApp(
+            home: Scaffold(
+              appBar: const AppBarWidget(
+                title: 'Test',
+                elevation: customElevation,
+              ),
             ),
           ),
         ),
@@ -106,9 +138,14 @@ void main() {
 
     testWidgets('applies centerTitle setting', (WidgetTester tester) async {
       await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            appBar: const AppBarWidget(title: 'Test', centerTitle: true),
+        ProviderScope(
+          overrides: [
+            shouldShowFeedbackActionProvider.overrideWith((ref) async => false),
+          ],
+          child: MaterialApp(
+            home: Scaffold(
+              appBar: const AppBarWidget(title: 'Test', centerTitle: true),
+            ),
           ),
         ),
       );
@@ -127,11 +164,16 @@ void main() {
       WidgetTester tester,
     ) async {
       await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            appBar: const AppBarWidget(
-              title: 'Test',
-              automaticallyImplyLeading: false,
+        ProviderScope(
+          overrides: [
+            shouldShowFeedbackActionProvider.overrideWith((ref) async => false),
+          ],
+          child: MaterialApp(
+            home: Scaffold(
+              appBar: const AppBarWidget(
+                title: 'Test',
+                automaticallyImplyLeading: false,
+              ),
             ),
           ),
         ),

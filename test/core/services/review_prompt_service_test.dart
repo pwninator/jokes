@@ -39,6 +39,8 @@ class _FakeRemoteValues implements RemoteConfigValues {
         return minShared;
       case RemoteParam.subscriptionPromptMinJokesViewed:
         return 0;
+      case RemoteParam.feedbackMinJokesViewed:
+        return 0;
     }
   }
 

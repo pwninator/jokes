@@ -66,5 +66,4 @@ class DefaultFirebaseOptions {
     storageBucket: 'storyteller-450807.firebasestorage.app',
     measurementId: 'G-4KQFXXRSJY',
   );
-
 }

@@ -220,6 +220,9 @@ abstract class AnalyticsService {
   /// Log when a user submits app feedback (no parameters)
   Future<void> logFeedbackSubmitted();
 
+  /// Log when the feedback dialog is shown
+  Future<void> logFeedbackDialogShown();
+
   // Auth
   Future<void> logErrorAuthSignIn({
     required String source,
@@ -782,6 +785,11 @@ class FirebaseAnalyticsService implements AnalyticsService {
   Future<void> logFeedbackSubmitted() async {
     // Per requirements, log event with no parameters
     await _logEvent(AnalyticsEvent.feedbackSubmitted, {});
+  }
+
+  @override
+  Future<void> logFeedbackDialogShown() async {
+    await _logEvent(AnalyticsEvent.feedbackDialogShown, {});
   }
 
   // Auth

@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:snickerdoodle/src/common_widgets/feedback_dialog.dart';
+import 'package:snickerdoodle/src/core/providers/feedback_prompt_providers.dart';
 
 /// A custom AppBar widget that provides consistent styling across the app
 /// while allowing for flexible customization when needed.
-class AppBarWidget extends StatelessWidget implements PreferredSizeWidget {
+class AppBarWidget extends ConsumerWidget implements PreferredSizeWidget {
   const AppBarWidget({
     super.key,
     required this.title,
@@ -40,13 +43,40 @@ class AppBarWidget extends StatelessWidget implements PreferredSizeWidget {
   final bool automaticallyImplyLeading;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+
+    final trailing = actions ?? <Widget>[];
+
+    final eligibility = ref.watch(shouldShowFeedbackActionProvider);
+    Widget? feedbackAction;
+    feedbackAction = eligibility.when(
+      data: (show) {
+        if (!show) return null;
+        return IconButton(
+          key: const Key('appbar-feedback-button'),
+          icon: const Icon(Icons.feedback_outlined),
+          color: theme.colorScheme.primary,
+          tooltip: 'Feedback',
+          onPressed: () async {
+            if (context.mounted) {
+              // Show dialog
+              showDialog<bool>(
+                context: context,
+                builder: (context) => const FeedbackDialog(),
+              );
+            }
+          },
+        );
+      },
+      loading: () => null,
+      error: (_, __) => null,
+    );
 
     return AppBar(
       title: Text(title),
       leading: leading,
-      actions: actions,
+      actions: [...trailing, if (feedbackAction != null) feedbackAction],
       backgroundColor: backgroundColor ?? theme.colorScheme.surface,
       foregroundColor: foregroundColor,
       elevation: elevation ?? 0,

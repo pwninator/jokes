@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/core/providers/feedback_providers.dart';
 import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
+import 'package:snickerdoodle/src/core/providers/app_usage_events_provider.dart';
+import 'package:snickerdoodle/src/core/services/feedback_prompt_state_store.dart';
 
 class FeedbackDialog extends ConsumerStatefulWidget {
   const FeedbackDialog({super.key});
@@ -22,6 +24,19 @@ class _FeedbackDialogState extends ConsumerState<FeedbackDialog> {
     // Focus the text field after the dialog is built
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _focusNode.requestFocus();
+    });
+    // Log analytics for dialog shown and mark viewed
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      try {
+        final analytics = ref.read(analyticsServiceProvider);
+        await analytics.logFeedbackDialogShown();
+      } catch (_) {}
+      try {
+        final store = ref.read(feedbackPromptStateStoreProvider);
+        await store.markViewed();
+        // Invalidate eligibility so the app bar button hides immediately
+        ref.read(appUsageEventsProvider.notifier).state++;
+      } catch (_) {}
     });
   }
 
@@ -43,7 +58,7 @@ class _FeedbackDialogState extends ConsumerState<FeedbackDialog> {
           children: [
             const Text(
               'Our mission is to brighten your day, one joke at a time. How are we doing?\n\n'
-              'Whether you have a feature request, found a pesky bug, or just want to say hello, '
+              "Whether you have a joke you'd like to submit, a feature request, found a pesky bug, or just want to say hello, "
               'we read every message and appreciate you helping us improve!',
             ),
             const SizedBox(height: 12),
@@ -52,7 +67,7 @@ class _FeedbackDialogState extends ConsumerState<FeedbackDialog> {
               child: TextField(
                 controller: _controller,
                 focusNode: _focusNode,
-                maxLines: 10,
+                maxLines: 5,
                 decoration: const InputDecoration(border: OutlineInputBorder()),
               ),
             ),

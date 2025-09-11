@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
+import 'package:snickerdoodle/src/core/providers/app_usage_events_provider.dart';
 import 'package:snickerdoodle/src/core/providers/shared_preferences_provider.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 
@@ -12,6 +13,7 @@ final appUsageServiceProvider = Provider<AppUsageService>((ref) {
   return AppUsageService(
     prefs: sharedPreferences,
     analyticsService: analyticsService,
+    ref: ref,
   );
 });
 
@@ -20,11 +22,14 @@ class AppUsageService {
   AppUsageService({
     required SharedPreferences prefs,
     AnalyticsService? analyticsService,
+    Ref? ref,
   }) : _prefs = prefs,
-       _analyticsService = analyticsService;
+       _analyticsService = analyticsService,
+       _ref = ref;
 
   final SharedPreferences _prefs;
   final AnalyticsService? _analyticsService;
+  final Ref? _ref;
 
   // Preference keys
   static const String _firstUsedDateKey = 'first_used_date';
@@ -69,6 +74,8 @@ class AppUsageService {
       } catch (e) {
         debugPrint('APP_USAGE analytics error: $e');
       }
+      // Notify listeners that usage changed
+      _notifyUsageChanged();
     }
     await _prefs.setString(_lastUsedDateKey, newLastUsed);
 
@@ -88,6 +95,8 @@ class AppUsageService {
     final int oldCount = _prefs.getInt(_numJokesViewedKey) ?? 0;
     final int newCount = oldCount + 1;
     await _prefs.setInt(_numJokesViewedKey, newCount);
+    // Notify listeners that usage changed
+    _notifyUsageChanged();
     debugPrint(
       'APP_USAGE logJokeViewed: { num_jokes_viewed: $oldCount -> $newCount }',
     );
@@ -98,6 +107,7 @@ class AppUsageService {
     final int oldCount = _prefs.getInt(_numSavedJokesKey) ?? 0;
     final int newCount = oldCount + 1;
     await _prefs.setInt(_numSavedJokesKey, newCount);
+    _notifyUsageChanged();
     debugPrint(
       'APP_USAGE incrementSavedJokesCount: { num_saved_jokes: $oldCount -> $newCount }',
     );
@@ -108,6 +118,7 @@ class AppUsageService {
     final int oldCount = _prefs.getInt(_numSavedJokesKey) ?? 0;
     final int newCount = (oldCount > 0) ? oldCount - 1 : 0;
     await _prefs.setInt(_numSavedJokesKey, newCount);
+    _notifyUsageChanged();
     debugPrint(
       'APP_USAGE decrementSavedJokesCount: { num_saved_jokes: $oldCount -> $newCount }',
     );
@@ -118,6 +129,7 @@ class AppUsageService {
     final int oldCount = _prefs.getInt(_numSharedJokesKey) ?? 0;
     final int newCount = oldCount + 1;
     await _prefs.setInt(_numSharedJokesKey, newCount);
+    _notifyUsageChanged();
     debugPrint(
       'APP_USAGE incrementSharedJokesCount: { num_shared_jokes: $oldCount -> $newCount }',
     );
@@ -146,5 +158,12 @@ class AppUsageService {
     final String month = now.month.toString().padLeft(2, '0');
     final String day = now.day.toString().padLeft(2, '0');
     return '$year-$month-$day';
+  }
+
+  void _notifyUsageChanged() {
+    try {
+      final notifier = _ref?.read(appUsageEventsProvider.notifier);
+      if (notifier != null) notifier.state++;
+    } catch (_) {}
   }
 }

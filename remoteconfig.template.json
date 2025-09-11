@@ -9,6 +9,17 @@
     "updateType": "INCREMENTAL_UPDATE"
   },
   "parameterGroups": {
+    "Feedback": {
+      "parameters": {
+        "feedback_min_jokes_viewed": {
+          "defaultValue": {
+            "value": "10"
+          },
+          "description": "Min jokes viewed before showing app bar feedback icon",
+          "valueType": "NUMBER"
+        }
+      }
+    },
     "Subscription Prompt": {
       "parameters": {
         "subscription_prompt_min_jokes_viewed": {
@@ -37,7 +48,7 @@
         },
         "review_min_days_used": {
           "defaultValue": {
-            "value": "5"
+            "value": "30"
           },
           "description": "Min number of distinct days used before eligible for review request",
           "valueType": "NUMBER"

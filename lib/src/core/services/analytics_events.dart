@@ -61,6 +61,7 @@ enum AnalyticsEvent {
 
   // Feedback
   feedbackSubmitted('feedback_submitted'),
+  feedbackDialogShown('feedback_dialog_shown'),
 
   // Navigation/routing
   errorRouteNavigation('error_route_navigation'),

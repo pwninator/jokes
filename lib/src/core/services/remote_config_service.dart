@@ -11,10 +11,17 @@ const Map<RemoteParam, RemoteParamDescriptor> remoteParams = {
     defaultInt: 5,
     isValid: _validatePositiveInt,
   ),
+  RemoteParam.feedbackMinJokesViewed: RemoteParamDescriptor(
+    key: 'feedback_min_jokes_viewed',
+    type: RemoteParamType.intType,
+    defaultInt: 10,
+    isValid: _validatePositiveInt,
+  ),
   RemoteParam.reviewMinDaysUsed: RemoteParamDescriptor(
     key: 'review_min_days_used',
     type: RemoteParamType.intType,
-    defaultInt: 5,
+    // Default to never show review prompt
+    defaultInt: 10000,
     isValid: _validatePositiveInt,
   ),
   RemoteParam.reviewMinSavedJokes: RemoteParamDescriptor(
@@ -33,6 +40,7 @@ const Map<RemoteParam, RemoteParamDescriptor> remoteParams = {
 
 enum RemoteParam {
   subscriptionPromptMinJokesViewed,
+  feedbackMinJokesViewed,
   reviewMinDaysUsed,
   reviewMinSavedJokes,
   reviewMinSharedJokes,

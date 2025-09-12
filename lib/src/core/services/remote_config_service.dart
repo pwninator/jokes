@@ -164,7 +164,7 @@ class RemoteConfigService {
     } catch (e) {
       // Log analytics + crashlytics on error per project policy
       try {
-        await _analyticsService.logErrorRemoteConfig(
+        _analyticsService.logErrorRemoteConfig(
           phase: 'initialize',
           errorMessage: e.toString(),
         );

@@ -59,15 +59,13 @@ class _SubscriptionPromptOverlayState
           barrierDismissible: false, // User must choose an option
           builder: (context) => const SubscriptionPromptDialog(),
         );
-        analyticsService.logSubscriptionPromptShown().catchError((_) {});
+        analyticsService.logSubscriptionPromptShown();
       } catch (e) {
         debugPrint('Error showing subscription dialog: $e');
-        analyticsService
-            .logErrorSubscriptionPrompt(
-              errorMessage: e.toString(),
-              phase: 'show_dialog',
-            )
-            .catchError((_) {});
+        analyticsService.logErrorSubscriptionPrompt(
+          errorMessage: e.toString(),
+          phase: 'show_dialog',
+        );
       } finally {
         if (mounted) {
           _isDialogShowing = false;

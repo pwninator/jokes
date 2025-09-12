@@ -29,7 +29,7 @@ class _FeedbackDialogState extends ConsumerState<FeedbackDialog> {
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       try {
         final analytics = ref.read(analyticsServiceProvider);
-        await analytics.logFeedbackDialogShown();
+        analytics.logFeedbackDialogShown();
       } catch (_) {}
       try {
         final store = ref.read(feedbackPromptStateStoreProvider);
@@ -114,7 +114,7 @@ class _FeedbackDialogState extends ConsumerState<FeedbackDialog> {
       // Log analytics/crash for feedback submission failure
       try {
         final analytics = ref.read(analyticsServiceProvider);
-        await analytics.logErrorFeedbackSubmit(
+        analytics.logErrorFeedbackSubmit(
           errorMessage: 'feedback_submit_failed',
         );
       } catch (_) {}

@@ -87,7 +87,7 @@ class JokeShareServiceImpl implements JokeShareService {
   }) async {
     // For now, use the images sharing method as default
     // Track share initiation
-    await _analyticsService.logJokeShareInitiated(
+    _analyticsService.logJokeShareInitiated(
       joke.id,
       jokeContext: jokeContext,
       shareMethod: 'images',
@@ -110,7 +110,7 @@ class JokeShareServiceImpl implements JokeShareService {
 
       // Log successful share analytics
       final totalShared = await _appUsageService.getNumSharedJokes();
-      await _analyticsService.logJokeShareSuccess(
+      _analyticsService.logJokeShareSuccess(
         joke.id,
         jokeContext: jokeContext,
         shareMethod: 'images',
@@ -124,7 +124,7 @@ class JokeShareServiceImpl implements JokeShareService {
       );
     } else {
       // Log cancellation or failure
-      await _analyticsService.logJokeShareCanceled(
+      _analyticsService.logJokeShareCanceled(
         joke.id,
         jokeContext: jokeContext,
         shareMethod: 'images',
@@ -190,7 +190,7 @@ class JokeShareServiceImpl implements JokeShareService {
     } catch (e) {
       debugPrint('Error sharing joke images: $e');
       // Log error-specific analytics
-      await _analyticsService.logErrorJokeShare(
+      _analyticsService.logErrorJokeShare(
         joke.id,
         jokeContext: jokeContext,
         shareMethod: 'images',

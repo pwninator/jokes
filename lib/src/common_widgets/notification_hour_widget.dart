@@ -231,9 +231,7 @@ class _HourDisplayWidgetState extends ConsumerState<HourDisplayWidget> {
 
       // Track analytics for hour change (fire-and-forget)
       final analyticsService = ref.read(analyticsServiceProvider);
-      analyticsService
-          .logSubscriptionTimeChanged(subscriptionHour: newHour)
-          .catchError((e, _) => debugPrint('ANALYTICS error: $e'));
+      analyticsService.logSubscriptionTimeChanged(subscriptionHour: newHour);
 
       // Show success message
       if (mounted) {
@@ -259,12 +257,10 @@ class _HourDisplayWidgetState extends ConsumerState<HourDisplayWidget> {
       debugPrint('ERROR: _updateNotificationHour: $e');
       // Log analytics/crash for hour update failure
       final analytics = ref.read(analyticsServiceProvider);
-      analytics
-          .logErrorSubscriptionTimeUpdate(
-            source: 'notification_hour_widget',
-            errorMessage: 'notification_hour_update_failed',
-          )
-          .catchError((_) {});
+      analytics.logErrorSubscriptionTimeUpdate(
+        source: 'notification_hour_widget',
+        errorMessage: 'notification_hour_update_failed',
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

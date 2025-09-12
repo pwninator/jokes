@@ -75,10 +75,13 @@ class AppUsageService {
       _notifyUsageChanged();
 
       // Fire-and-forget analytics + backend usage snapshot
-      if (_analyticsService != null) {
-        _analyticsService!
-            .logAppUsageDayIncremented(numDaysUsed: newNumDaysUsed)
-            .catchError((e, _) => debugPrint('APP_USAGE analytics error: $e'));
+      final service = _analyticsService;
+      if (service != null) {
+        try {
+          service.logAppUsageDayIncremented(numDaysUsed: newNumDaysUsed);
+        } catch (e) {
+          debugPrint('APP_USAGE analytics error: $e');
+        }
       }
       // Do not await remote sync to keep UI responsive
       _pushUsageSnapshot();

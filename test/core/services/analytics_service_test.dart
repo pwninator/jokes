@@ -183,7 +183,7 @@ void main() {
         // No setup needed for debug mode
 
         // act
-        await analyticsService.logJokeSetupViewed(
+        analyticsService.logJokeSetupViewed(
           'test-joke-id',
           navigationMethod: AnalyticsNavigationMethod.swipe,
           jokeContext: 'test',
@@ -203,7 +203,7 @@ void main() {
         // No setup needed for debug mode
 
         // act
-        await analyticsService.logJokePunchlineViewed(
+        analyticsService.logJokePunchlineViewed(
           'test-joke-id',
           navigationMethod: AnalyticsNavigationMethod.tap,
           jokeContext: 'test',
@@ -225,7 +225,7 @@ void main() {
         // No setup needed for debug mode
 
         // act
-        await analyticsService.logJokeSaved(
+        analyticsService.logJokeSaved(
           'test-joke-id',
           jokeContext: 'test',
           totalJokesSaved: 3,
@@ -242,7 +242,7 @@ void main() {
 
       test('should log joke unsave', () async {
         // act
-        await analyticsService.logJokeUnsaved(
+        analyticsService.logJokeUnsaved(
           'test-joke-id',
           jokeContext: 'test',
           totalJokesSaved: 2,
@@ -264,7 +264,7 @@ void main() {
         // No setup needed for debug mode
 
         // act
-        await analyticsService.logSubscriptionPromptShown();
+        analyticsService.logSubscriptionPromptShown();
 
         // assert - in debug mode, we should see debug logging but no Firebase calls
         verifyNever(
@@ -276,7 +276,7 @@ void main() {
       });
 
       test('should log subscription on settings', () async {
-        await analyticsService.logSubscriptionOnSettings();
+        analyticsService.logSubscriptionOnSettings();
 
         verifyNever(
           () => mockFirebaseAnalytics.logEvent(
@@ -287,7 +287,7 @@ void main() {
       });
 
       test('should log subscription on prompt', () async {
-        await analyticsService.logSubscriptionOnPrompt();
+        analyticsService.logSubscriptionOnPrompt();
 
         verifyNever(
           () => mockFirebaseAnalytics.logEvent(
@@ -298,7 +298,7 @@ void main() {
       });
 
       test('should log subscription off settings', () async {
-        await analyticsService.logSubscriptionOffSettings();
+        analyticsService.logSubscriptionOffSettings();
 
         verifyNever(
           () => mockFirebaseAnalytics.logEvent(
@@ -309,7 +309,7 @@ void main() {
       });
 
       test('should log subscription time changed', () async {
-        await analyticsService.logSubscriptionTimeChanged(subscriptionHour: 9);
+        analyticsService.logSubscriptionTimeChanged(subscriptionHour: 9);
 
         verifyNever(
           () => mockFirebaseAnalytics.logEvent(
@@ -320,7 +320,7 @@ void main() {
       });
 
       test('should log subscription declined maybe later', () async {
-        await analyticsService.logSubscriptionDeclinedMaybeLater();
+        analyticsService.logSubscriptionDeclinedMaybeLater();
 
         verifyNever(
           () => mockFirebaseAnalytics.logEvent(
@@ -333,7 +333,7 @@ void main() {
       test(
         'should log subscription declined permissions in settings',
         () async {
-          await analyticsService.logSubscriptionDeclinedPermissionsInSettings();
+          analyticsService.logSubscriptionDeclinedPermissionsInSettings();
 
           verifyNever(
             () => mockFirebaseAnalytics.logEvent(
@@ -345,7 +345,7 @@ void main() {
       );
 
       test('should log subscription declined permissions in prompt', () async {
-        await analyticsService.logSubscriptionDeclinedPermissionsInPrompt();
+        analyticsService.logSubscriptionDeclinedPermissionsInPrompt();
 
         verifyNever(
           () => mockFirebaseAnalytics.logEvent(
@@ -362,7 +362,7 @@ void main() {
         // No setup needed for debug mode
 
         // act
-        await analyticsService.logJokeNavigation(
+        analyticsService.logJokeNavigation(
           'test-joke-id',
           5,
           method: 'swipe',
@@ -383,7 +383,7 @@ void main() {
         // No setup needed for debug mode
 
         // act
-        await analyticsService.logTabChanged(
+        analyticsService.logTabChanged(
           AppTab.dailyJokes,
           AppTab.settings,
           method: 'tap',
@@ -405,7 +405,7 @@ void main() {
         // No setup needed for debug mode
 
         // act
-        await analyticsService.logNotificationTapped(
+        analyticsService.logNotificationTapped(
           jokeId: 'test-joke-id',
           notificationId: 'test-notification-id',
         );
@@ -423,7 +423,7 @@ void main() {
     group('app usage analytics', () {
       test('should log app usage day incremented', () async {
         // act
-        await analyticsService.logAppUsageDayIncremented(numDaysUsed: 2);
+        analyticsService.logAppUsageDayIncremented(numDaysUsed: 2);
 
         // assert - in debug mode, we should see debug logging but no Firebase calls
         verifyNever(
@@ -441,36 +441,36 @@ void main() {
 
         // act & assert - should not throw
         await expectLater(
-          analyticsService.logJokeSetupViewed(
+          Future.sync(() => analyticsService.logJokeSetupViewed(
             'test-joke-id',
             navigationMethod: AnalyticsNavigationMethod.swipe,
             jokeContext: 'test',
-          ),
+          )),
           completes,
         );
       });
 
       test('exercises new error/flow analytics methods', () async {
         // act
-        await analyticsService.logJokeShareInitiated(
+        analyticsService.logJokeShareInitiated(
           'joke-id',
           jokeContext: 'ctx',
           shareMethod: 'images',
         );
-        await analyticsService.logJokeShareSuccess(
+        analyticsService.logJokeShareSuccess(
           'joke-id',
           jokeContext: 'ctx',
           shareMethod: 'images',
           shareDestination: 'com.whatsapp',
           totalJokesShared: 5,
         );
-        await analyticsService.logJokeShareCanceled(
+        analyticsService.logJokeShareCanceled(
           'joke-id',
           jokeContext: 'ctx',
           shareMethod: 'images',
           shareDestination: 'com.whatsapp',
         );
-        await analyticsService.logErrorJokeShare(
+        analyticsService.logErrorJokeShare(
           'joke-id',
           jokeContext: 'ctx',
           shareMethod: 'images',
@@ -478,51 +478,51 @@ void main() {
           errorContext: 'share_images',
           exceptionType: 'Exception',
         );
-        await analyticsService.logErrorSubscriptionPrompt(
+        analyticsService.logErrorSubscriptionPrompt(
           errorMessage: 'prompt failed',
           phase: 'show_dialog',
         );
-        await analyticsService.logErrorSubscriptionPermission(
+        analyticsService.logErrorSubscriptionPermission(
           source: 'prompt',
           errorMessage: 'denied',
         );
-        await analyticsService.logErrorNotificationHandling(
+        analyticsService.logErrorNotificationHandling(
           notificationId: 'nid',
           phase: 'foreground',
           errorMessage: 'notif error',
         );
-        await analyticsService.logErrorRouteNavigation(
+        analyticsService.logErrorRouteNavigation(
           previousRoute: '/a',
           newRoute: '/b',
           method: 'programmatic',
           errorMessage: 'route err',
         );
-        await analyticsService.logErrorJokeSave(
+        analyticsService.logErrorJokeSave(
           jokeId: 'joke-id',
           action: 'toggle',
           errorMessage: 'save err',
         );
-        await analyticsService.logErrorImagePrecache(
+        analyticsService.logErrorImagePrecache(
           jokeId: 'joke-id',
           imageType: 'setup',
           imageUrlHash: 'abc',
           errorMessage: 'cache err',
         );
-        await analyticsService.logErrorImageLoad(
+        analyticsService.logErrorImageLoad(
           jokeId: 'joke-id',
           imageType: 'setup',
           imageUrlHash: 'abc',
           errorMessage: 'load err',
         );
-        await analyticsService.logErrorJokeImagesMissing(
+        analyticsService.logErrorJokeImagesMissing(
           jokeId: 'joke-id',
           missingParts: 'setup',
         );
-        await analyticsService.logErrorJokesLoad(
+        analyticsService.logErrorJokesLoad(
           source: 'monthly',
           errorMessage: 'load err',
         );
-        await analyticsService.logErrorJokeFetch(
+        analyticsService.logErrorJokeFetch(
           jokeId: 'joke-id',
           errorMessage: 'fetch err',
         );
@@ -538,7 +538,7 @@ void main() {
 
       test('logs Crashlytics non-fatal for error analytics methods', () async {
         // act
-        await analyticsService.logErrorJokeShare(
+        analyticsService.logErrorJokeShare(
           'j-id',
           jokeContext: 'ctx',
           shareMethod: 'images',
@@ -546,81 +546,84 @@ void main() {
           errorContext: 'share_images',
           exceptionType: 'Exception',
         );
-        await analyticsService.logErrorSubscriptionPrompt(
+        analyticsService.logErrorSubscriptionPrompt(
           errorMessage: 'prompt failed',
           phase: 'show_dialog',
         );
-        await analyticsService.logErrorSubscriptionPermission(
+        analyticsService.logErrorSubscriptionPermission(
           source: 'prompt',
           errorMessage: 'denied',
         );
-        await analyticsService.logErrorNotificationHandling(
+        analyticsService.logErrorNotificationHandling(
           notificationId: 'nid',
           phase: 'foreground',
           errorMessage: 'notif err',
         );
-        await analyticsService.logErrorRouteNavigation(
+        analyticsService.logErrorRouteNavigation(
           previousRoute: '/a',
           newRoute: '/b',
           method: 'tap',
           errorMessage: 'route err',
         );
-        await analyticsService.logAnalyticsError('ae', 'ctx');
-        await analyticsService.logErrorJokeSave(
+        analyticsService.logAnalyticsError('ae', 'ctx');
+        analyticsService.logErrorJokeSave(
           jokeId: 'j-id',
           action: 'toggle',
           errorMessage: 'save err',
         );
-        await analyticsService.logErrorImagePrecache(
+        analyticsService.logErrorImagePrecache(
           jokeId: 'j-id',
           imageType: 'setup',
           imageUrlHash: 'abc',
           errorMessage: 'cache err',
         );
-        await analyticsService.logErrorImageLoad(
+        analyticsService.logErrorImageLoad(
           jokeId: 'j-id',
           imageType: 'setup',
           imageUrlHash: 'abc',
           errorMessage: 'load err',
         );
-        await analyticsService.logErrorJokeImagesMissing(
+        analyticsService.logErrorJokeImagesMissing(
           jokeId: 'j-id',
           missingParts: 'setup',
         );
-        await analyticsService.logErrorJokesLoad(
+        analyticsService.logErrorJokesLoad(
           source: 'viewer',
           errorMessage: 'load err',
         );
-        await analyticsService.logErrorJokeFetch(
+        analyticsService.logErrorJokeFetch(
           jokeId: 'j-id',
           errorMessage: 'fetch err',
         );
 
         // New errors
-        await analyticsService.logErrorAuthSignIn(
+        analyticsService.logErrorAuthSignIn(
           source: 'user_settings_screen',
           errorMessage: 'google_sign_in_failed',
         );
-        await analyticsService.logErrorSubscriptionToggle(
+        analyticsService.logErrorSubscriptionToggle(
           source: 'user_settings_screen',
           errorMessage: 'notifications_toggle_failed',
         );
-        await analyticsService.logErrorSubscriptionTimeUpdate(
+        analyticsService.logErrorSubscriptionTimeUpdate(
           source: 'notification_hour_widget',
           errorMessage: 'notification_hour_update_failed',
         );
-        await analyticsService.logErrorFeedbackSubmit(
+        analyticsService.logErrorFeedbackSubmit(
           errorMessage: 'feedback_submit_failed',
         );
-        await analyticsService.logAppReviewAttempt(source: 'settings');
-        await analyticsService.logErrorAppReviewAvailability(
+        analyticsService.logAppReviewAttempt(source: 'settings');
+        analyticsService.logErrorAppReviewAvailability(
           source: 'service',
           errorMessage: 'app_review_is_available_failed',
         );
-        await analyticsService.logErrorAppReviewRequest(
+        analyticsService.logErrorAppReviewRequest(
           source: 'settings',
           errorMessage: 'app_review_request_failed',
         );
+
+        // Allow microtasks to run for fire-and-forget logging
+        await Future<void>.delayed(Duration.zero);
 
         // Stronger assertion: verify specific events at least once
         verify(

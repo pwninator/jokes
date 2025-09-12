@@ -81,7 +81,7 @@ class NotificationService {
     } catch (e) {
       debugPrint('Failed to check initial message: $e');
       if (_analyticsService != null) {
-        await _analyticsService!.logErrorNotificationHandling(
+        _analyticsService!.logErrorNotificationHandling(
           notificationId: null,
           phase: 'initial_message',
           errorMessage: e.toString(),
@@ -107,7 +107,7 @@ class NotificationService {
     } catch (e) {
       debugPrint('Failed to initialize FCM listeners: $e');
       if (_analyticsService != null) {
-        await _analyticsService!.logErrorNotificationHandling(
+        _analyticsService!.logErrorNotificationHandling(
           notificationId: null,
           phase: 'initialize_listeners',
           errorMessage: e.toString(),
@@ -123,7 +123,7 @@ class NotificationService {
       await _processJokeNotification(message);
     } catch (e) {
       if (_analyticsService != null) {
-        await _analyticsService!.logErrorNotificationHandling(
+        _analyticsService!.logErrorNotificationHandling(
           notificationId: message.messageId,
           phase: 'foreground',
           errorMessage: e.toString(),
@@ -139,7 +139,7 @@ class NotificationService {
     // Track analytics for notification tap
     if (_analyticsService != null) {
       final jokeId = message.data['joke_id'];
-      await _analyticsService!.logNotificationTapped(
+      _analyticsService!.logNotificationTapped(
         jokeId: jokeId,
         notificationId: message.messageId,
       );
@@ -150,7 +150,7 @@ class NotificationService {
       _navigateToJokesScreen();
     } catch (e) {
       if (_analyticsService != null) {
-        await _analyticsService!.logErrorNotificationHandling(
+        _analyticsService!.logErrorNotificationHandling(
           notificationId: message.messageId,
           phase: 'tap_navigation',
           errorMessage: e.toString(),
@@ -215,7 +215,7 @@ class NotificationService {
       debugPrint('Error processing joke notification: $e');
       // FCM will still show the notification even if image caching fails
       if (_analyticsService != null) {
-        await _analyticsService!.logErrorNotificationHandling(
+        _analyticsService!.logErrorNotificationHandling(
           notificationId: message.messageId,
           phase: 'process_notification',
           errorMessage: e.toString(),
@@ -232,7 +232,7 @@ class NotificationService {
     } catch (e) {
       debugPrint('Failed to cache image $imageUrl: $e');
       if (_analyticsService != null) {
-        await _analyticsService!.logErrorImagePrecache(
+        _analyticsService!.logErrorImagePrecache(
           imageUrlHash: imageUrl.hashCode.toRadixString(16),
           errorMessage: e.toString(),
         );

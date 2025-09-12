@@ -126,24 +126,20 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
         if (!_setupEventLogged) {
           _setupEventLogged = true;
           if (!widget.isAdminMode) {
-            analyticsService
-                .logJokeSetupViewed(
-                  widget.joke.id,
-                  navigationMethod:
-                      _navMethodSetup ?? AnalyticsNavigationMethod.none,
-                  jokeContext: widget.jokeContext,
-                )
-                .catchError((e, _) => debugPrint('ANALYTICS error: $e'));
+            analyticsService.logJokeSetupViewed(
+              widget.joke.id,
+              navigationMethod:
+                  _navMethodSetup ?? AnalyticsNavigationMethod.none,
+              jokeContext: widget.jokeContext,
+            );
           }
           // If image missing, log error context for missing parts
           if (widget.joke.setupImageUrl == null ||
               widget.joke.setupImageUrl!.isEmpty) {
-            analyticsService
-                .logErrorJokeImagesMissing(
-                  jokeId: widget.joke.id,
-                  missingParts: 'setup',
-                )
-                .catchError((e, _) => debugPrint('ANALYTICS error: $e'));
+            analyticsService.logErrorJokeImagesMissing(
+              jokeId: widget.joke.id,
+              missingParts: 'setup',
+            );
           }
         }
       } else if (index == 1) {
@@ -151,23 +147,19 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
         if (!_punchlineEventLogged) {
           _punchlineEventLogged = true;
           if (!widget.isAdminMode) {
-            analyticsService
-                .logJokePunchlineViewed(
-                  widget.joke.id,
-                  navigationMethod:
-                      _navMethodPunchline ?? AnalyticsNavigationMethod.swipe,
-                  jokeContext: widget.jokeContext,
-                )
-                .catchError((e, _) => debugPrint('ANALYTICS error: $e'));
+            analyticsService.logJokePunchlineViewed(
+              widget.joke.id,
+              navigationMethod:
+                  _navMethodPunchline ?? AnalyticsNavigationMethod.swipe,
+              jokeContext: widget.jokeContext,
+            );
           }
           if (widget.joke.punchlineImageUrl == null ||
               widget.joke.punchlineImageUrl!.isEmpty) {
-            analyticsService
-                .logErrorJokeImagesMissing(
-                  jokeId: widget.joke.id,
-                  missingParts: 'punchline',
-                )
-                .catchError((e, _) => debugPrint('ANALYTICS error: $e'));
+            analyticsService.logErrorJokeImagesMissing(
+              jokeId: widget.joke.id,
+              missingParts: 'punchline',
+            );
           }
         }
       }
@@ -184,14 +176,12 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
       final jokesViewedCount = await appUsageService.getNumJokesViewed();
       final analyticsService = ref.read(analyticsServiceProvider);
       if (!widget.isAdminMode) {
-        analyticsService
-            .logJokeViewed(
-              widget.joke.id,
-              totalJokesViewed: jokesViewedCount,
-              navigationMethod: _lastNavigationMethod,
-              jokeContext: widget.jokeContext,
-            )
-            .catchError((e, _) => debugPrint('ANALYTICS error: $e'));
+        analyticsService.logJokeViewed(
+          widget.joke.id,
+          totalJokesViewed: jokesViewedCount,
+          navigationMethod: _lastNavigationMethod,
+          jokeContext: widget.jokeContext,
+        );
         final subscriptionPromptNotifier = ref.read(
           subscriptionPromptProvider.notifier,
         );
@@ -1303,12 +1293,10 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
     if (baseQuery.isEmpty) return;
 
     // Log CTA analytics
-    analyticsService
-        .logJokeSearchSimilar(
-          queryLength: baseQuery.length,
-          jokeContext: widget.jokeContext,
-        )
-        .catchError((e, _) => debugPrint('ANALYTICS error: $e'));
+    analyticsService.logJokeSearchSimilar(
+      queryLength: baseQuery.length,
+      jokeContext: widget.jokeContext,
+    );
 
     // Update search query provider
     final current = refLocal.read(

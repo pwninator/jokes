@@ -44,13 +44,11 @@ class SaveJokeButton extends ConsumerWidget {
             JokeReactionType.save,
           );
         } catch (e) {
-          analyticsService
-              .logErrorJokeSave(
-                jokeId: jokeId,
-                action: 'toggle',
-                errorMessage: e.toString(),
-              )
-              .catchError((err, _) => debugPrint('ANALYTICS error: $err'));
+          analyticsService.logErrorJokeSave(
+            jokeId: jokeId,
+            action: 'toggle',
+            errorMessage: e.toString(),
+          );
           return;
         }
 
@@ -58,21 +56,17 @@ class SaveJokeButton extends ConsumerWidget {
         final appUsageService = ref.read(appUsageServiceProvider);
         final totalSaved = await appUsageService.getNumSavedJokes();
         if (wasAdded) {
-          analyticsService
-              .logJokeSaved(
-                jokeId,
-                jokeContext: jokeContext,
-                totalJokesSaved: totalSaved,
-              )
-              .catchError((err, _) => debugPrint('ANALYTICS error: $err'));
+          analyticsService.logJokeSaved(
+            jokeId,
+            jokeContext: jokeContext,
+            totalJokesSaved: totalSaved,
+          );
         } else {
-          analyticsService
-              .logJokeUnsaved(
-                jokeId,
-                jokeContext: jokeContext,
-                totalJokesSaved: totalSaved,
-              )
-              .catchError((err, _) => debugPrint('ANALYTICS error: $err'));
+          analyticsService.logJokeUnsaved(
+            jokeId,
+            jokeContext: jokeContext,
+            totalJokesSaved: totalSaved,
+          );
         }
 
         // Invalidate the provider to refresh the UI

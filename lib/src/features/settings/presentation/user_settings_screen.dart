@@ -637,7 +637,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
       // Log analytics/crash for sign-in failure
       try {
         final analytics = ref.read(analyticsServiceProvider);
-        await analytics.logErrorAuthSignIn(
+        analytics.logErrorAuthSignIn(
           source: 'user_settings_screen',
           errorMessage: 'google_sign_in_failed',
         );
@@ -744,15 +744,13 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
       final analyticsService = ref.read(analyticsServiceProvider);
       if (success) {
         if (enable) {
-          analyticsService.logSubscriptionOnSettings().catchError((_) {});
+          analyticsService.logSubscriptionOnSettings();
         } else {
-          analyticsService.logSubscriptionOffSettings().catchError((_) {});
+          analyticsService.logSubscriptionOffSettings();
         }
       } else if (enable) {
         // Track failed subscription attempt
-        analyticsService
-            .logSubscriptionDeclinedPermissionsInSettings()
-            .catchError((_) {});
+        analyticsService.logSubscriptionDeclinedPermissionsInSettings();
       }
 
       // Show appropriate message based on result
@@ -774,12 +772,10 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
       debugPrint('ERROR: _toggleNotifications: $e');
       // Log analytics/crash for notification toggle failure (fire-and-forget)
       final analytics = ref.read(analyticsServiceProvider);
-      analytics
-          .logErrorSubscriptionToggle(
-            source: 'user_settings_screen',
-            errorMessage: 'notifications_toggle_failed',
-          )
-          .catchError((_) {});
+      analytics.logErrorSubscriptionToggle(
+        source: 'user_settings_screen',
+        errorMessage: 'notifications_toggle_failed',
+      );
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

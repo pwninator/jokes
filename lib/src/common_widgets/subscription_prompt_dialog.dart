@@ -153,22 +153,18 @@ class _SubscriptionPromptDialogState
     try {
       success = await subscriptionPromptNotifier.subscribeUser();
     } catch (e) {
-      analyticsService
-          .logErrorSubscriptionPermission(
-            source: 'prompt',
-            errorMessage: e.toString(),
-          )
-          .catchError((_) {});
+      analyticsService.logErrorSubscriptionPermission(
+        source: 'prompt',
+        errorMessage: e.toString(),
+      );
       success = false;
     }
 
     // Track analytics for subscription result
     if (success) {
-      analyticsService.logSubscriptionOnPrompt().catchError((_) {});
+      analyticsService.logSubscriptionOnPrompt();
     } else {
-      analyticsService.logSubscriptionDeclinedPermissionsInPrompt().catchError(
-        (_) {},
-      );
+      analyticsService.logSubscriptionDeclinedPermissionsInPrompt();
     }
 
     if (success && mounted) {
@@ -223,7 +219,7 @@ class _SubscriptionPromptDialogState
   Future<void> _handleMaybeLater() async {
     // Track analytics for maybe later choice
     final analyticsService = ref.read(analyticsServiceProvider);
-    analyticsService.logSubscriptionDeclinedMaybeLater().catchError((_) {});
+    analyticsService.logSubscriptionDeclinedMaybeLater();
 
     final subscriptionPromptNotifier = ref.read(
       subscriptionPromptProvider.notifier,
@@ -231,12 +227,10 @@ class _SubscriptionPromptDialogState
     try {
       await subscriptionPromptNotifier.dismissPrompt();
     } catch (e) {
-      analyticsService
-          .logErrorSubscriptionPrompt(
-            errorMessage: e.toString(),
-            phase: 'dismiss_prompt',
-          )
-          .catchError((_) {});
+      analyticsService.logErrorSubscriptionPrompt(
+        errorMessage: e.toString(),
+        phase: 'dismiss_prompt',
+      );
     }
 
     if (mounted) {

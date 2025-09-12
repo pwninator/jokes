@@ -490,6 +490,20 @@ void main() {
         expect(find.byIcon(Icons.login), findsOneWidget);
       });
 
+      testWidgets('shows usage metrics rows in developer mode', (tester) async {
+        await tester.pumpWidget(createTestWidget());
+        await tester.pumpAndSettle();
+
+        await enableDeveloperMode(tester);
+
+        // Allow FutureBuilder to resolve
+        await tester.pump(const Duration(milliseconds: 100));
+
+        expect(find.text('Num Jokes Viewed:'), findsOneWidget);
+        expect(find.text('Num Jokes Saved:'), findsOneWidget);
+        expect(find.text('Num Jokes Shared:'), findsOneWidget);
+      });
+
       testWidgets('can tap Google sign-in button in developer mode', (
         tester,
       ) async {

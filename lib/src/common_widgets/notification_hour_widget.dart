@@ -229,11 +229,11 @@ class _HourDisplayWidgetState extends ConsumerState<HourDisplayWidget> {
       // Update hour using the reactive notifier (fast operation)
       await subscriptionNotifier.setHour(newHour);
 
-      // Track analytics for hour change
+      // Track analytics for hour change (fire-and-forget)
       final analyticsService = ref.read(analyticsServiceProvider);
-      await analyticsService.logSubscriptionTimeChanged(
-        subscriptionHour: newHour,
-      );
+      analyticsService
+          .logSubscriptionTimeChanged(subscriptionHour: newHour)
+          .catchError((e, _) => debugPrint('ANALYTICS error: $e'));
 
       // Show success message
       if (mounted) {
@@ -258,13 +258,13 @@ class _HourDisplayWidgetState extends ConsumerState<HourDisplayWidget> {
     } catch (e) {
       debugPrint('ERROR: _updateNotificationHour: $e');
       // Log analytics/crash for hour update failure
-      try {
-        final analytics = ref.read(analyticsServiceProvider);
-        await analytics.logErrorSubscriptionTimeUpdate(
-          source: 'notification_hour_widget',
-          errorMessage: 'notification_hour_update_failed',
-        );
-      } catch (_) {}
+      final analytics = ref.read(analyticsServiceProvider);
+      analytics
+          .logErrorSubscriptionTimeUpdate(
+            source: 'notification_hour_widget',
+            errorMessage: 'notification_hour_update_failed',
+          )
+          .catchError((_) {});
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

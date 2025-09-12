@@ -14,10 +14,20 @@ class JokeCloudFunctionService {
   FirebaseFunctions get _fns => _functions ?? FirebaseFunctions.instance;
 
   /// Track app usage in Cloud Functions (HTTP on_request endpoint).
-  Future<void> trackUsage({required int numDaysUsed}) async {
+  Future<void> trackUsage({
+    required int numDaysUsed,
+    required int numSaved,
+    required int numViewed,
+    required int numShared,
+  }) async {
     try {
       final callable = _fns.httpsCallable('usage');
-      await callable.call({'num_days_used': numDaysUsed});
+      await callable.call({
+        'num_days_used': numDaysUsed.toString(),
+        'num_saved': numSaved.toString(),
+        'num_viewed': numViewed.toString(),
+        'num_shared': numShared.toString(),
+      });
     } catch (e) {
       debugPrint('CLOUD FUNCTIONS trackUsage exception: $e');
     }

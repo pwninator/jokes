@@ -473,10 +473,14 @@ def _to_utc_naive(dt: datetime.datetime) -> datetime.datetime:
   return dt
 
 
-def _upsert_joke_user_usage_logic(
-    transaction: Transaction,
-    user_id: str,
-    now_utc: datetime.datetime | None = None) -> int:
+def _upsert_joke_user_usage_logic(transaction: Transaction,
+                                  user_id: str,
+                                  now_utc: datetime.datetime | None = None,
+                                  *,
+                                  client_num_days_used: int | None = None,
+                                  client_num_saved: int | None = None,
+                                  client_num_viewed: int | None = None,
+                                  client_num_shared: int | None = None) -> int:
   """Transactional helper to upsert joke user usage and return final count.
 
   Args:
@@ -490,14 +494,26 @@ def _upsert_joke_user_usage_logic(
   doc_ref = db().collection('joke_users').document(user_id)
   snapshot = doc_ref.get(transaction=transaction)
 
+  # Collect client counters if provided
+  client_updates: dict[str, int] = {}
+  if client_num_days_used is not None:
+    client_updates['client_num_days_used'] = int(client_num_days_used)
+  if client_num_saved is not None:
+    client_updates['client_num_saved'] = int(client_num_saved)
+  if client_num_viewed is not None:
+    client_updates['client_num_viewed'] = int(client_num_viewed)
+  if client_num_shared is not None:
+    client_updates['client_num_shared'] = int(client_num_shared)
+
   # Insert path
   if not snapshot.exists:
-    transaction.set(
-      doc_ref, {
-        'created_at': SERVER_TIMESTAMP,
-        'last_login_at': SERVER_TIMESTAMP,
-        'num_distinct_day_used': 1,
-      })
+    initial = {
+      'created_at': SERVER_TIMESTAMP,
+      'last_login_at': SERVER_TIMESTAMP,
+      'num_distinct_day_used': 1,
+      **client_updates,
+    }
+    transaction.set(doc_ref, initial)
     return 1
 
   # Update path
@@ -533,10 +549,12 @@ def _upsert_joke_user_usage_logic(
   increment = 1 if num_days_now != num_days_at_last_login else 0
   final_count = current_count + increment
 
-  transaction.update(doc_ref, {
+  update_payload = {
     'last_login_at': SERVER_TIMESTAMP,
     'num_distinct_day_used': final_count,
-  })
+    **client_updates,
+  }
+  transaction.update(doc_ref, update_payload)
   return final_count
 
 
@@ -544,14 +562,32 @@ def _upsert_joke_user_usage_logic(
 def _upsert_joke_user_usage_in_txn(
     transaction: Transaction,
     user_id: str,
-    now_utc: datetime.datetime | None = None) -> int:
+    now_utc: datetime.datetime | None = None,
+    *,
+    client_num_days_used: int | None = None,
+    client_num_saved: int | None = None,
+    client_num_viewed: int | None = None,
+    client_num_shared: int | None = None) -> int:
   """Transactional wrapper that handles the transaction."""
   # The actual logic is in a separate function for testability
-  return _upsert_joke_user_usage_logic(transaction, user_id, now_utc)
+  return _upsert_joke_user_usage_logic(
+    transaction,
+    user_id,
+    now_utc,
+    client_num_days_used=client_num_days_used,
+    client_num_saved=client_num_saved,
+    client_num_viewed=client_num_viewed,
+    client_num_shared=client_num_shared,
+  )
 
 
 def upsert_joke_user_usage(user_id: str,
-                           now_utc: datetime.datetime | None = None) -> int:
+                           now_utc: datetime.datetime | None = None,
+                           *,
+                           client_num_days_used: int | None = None,
+                           client_num_saved: int | None = None,
+                           client_num_viewed: int | None = None,
+                           client_num_shared: int | None = None) -> int:
   """Create or update the joke user usage document and return final count.
 
   Args:
@@ -566,4 +602,12 @@ def upsert_joke_user_usage(user_id: str,
     raise ValueError("user_id is required")
 
   transaction = db().transaction()
-  return _upsert_joke_user_usage_in_txn(transaction, user_id, now_utc)
+  return _upsert_joke_user_usage_in_txn(
+    transaction,
+    user_id,
+    now_utc,
+    client_num_days_used=client_num_days_used,
+    client_num_saved=client_num_saved,
+    client_num_viewed=client_num_viewed,
+    client_num_shared=client_num_shared,
+  )

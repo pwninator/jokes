@@ -44,11 +44,13 @@ class SaveJokeButton extends ConsumerWidget {
             JokeReactionType.save,
           );
         } catch (e) {
-          await analyticsService.logErrorJokeSave(
-            jokeId: jokeId,
-            action: 'toggle',
-            errorMessage: e.toString(),
-          );
+          analyticsService
+              .logErrorJokeSave(
+                jokeId: jokeId,
+                action: 'toggle',
+                errorMessage: e.toString(),
+              )
+              .catchError((err, _) => debugPrint('ANALYTICS error: $err'));
           return;
         }
 
@@ -56,17 +58,21 @@ class SaveJokeButton extends ConsumerWidget {
         final appUsageService = ref.read(appUsageServiceProvider);
         final totalSaved = await appUsageService.getNumSavedJokes();
         if (wasAdded) {
-          await analyticsService.logJokeSaved(
-            jokeId,
-            jokeContext: jokeContext,
-            totalJokesSaved: totalSaved,
-          );
+          analyticsService
+              .logJokeSaved(
+                jokeId,
+                jokeContext: jokeContext,
+                totalJokesSaved: totalSaved,
+              )
+              .catchError((err, _) => debugPrint('ANALYTICS error: $err'));
         } else {
-          await analyticsService.logJokeUnsaved(
-            jokeId,
-            jokeContext: jokeContext,
-            totalJokesSaved: totalSaved,
-          );
+          analyticsService
+              .logJokeUnsaved(
+                jokeId,
+                jokeContext: jokeContext,
+                totalJokesSaved: totalSaved,
+              )
+              .catchError((err, _) => debugPrint('ANALYTICS error: $err'));
         }
 
         // Invalidate the provider to refresh the UI

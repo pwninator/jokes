@@ -243,6 +243,14 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                                   'Num Jokes Viewed',
                                   metrics.numJokesViewed.toString(),
                                 ),
+                                _buildInfoRow(
+                                  'Num Jokes Saved',
+                                  metrics.numJokesSaved.toString(),
+                                ),
+                                _buildInfoRow(
+                                  'Num Jokes Shared',
+                                  metrics.numJokesShared.toString(),
+                                ),
                               ],
                             );
                           },
@@ -593,11 +601,15 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
     final lastUsed = await usage.getLastUsedDate();
     final daysUsed = await usage.getNumDaysUsed();
     final jokesViewed = await usage.getNumJokesViewed();
+    final jokesSaved = await usage.getNumSavedJokes();
+    final jokesShared = await usage.getNumSharedJokes();
     return _UsageMetrics(
       firstUsedDate: firstUsed,
       lastUsedDate: lastUsed,
       numDaysUsed: daysUsed,
       numJokesViewed: jokesViewed,
+      numJokesSaved: jokesSaved,
+      numJokesShared: jokesShared,
     );
   }
 
@@ -728,17 +740,19 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
         success = true;
       }
 
-      // Track analytics for subscription toggle
+      // Track analytics for subscription toggle (fire-and-forget)
       final analyticsService = ref.read(analyticsServiceProvider);
       if (success) {
         if (enable) {
-          await analyticsService.logSubscriptionOnSettings();
+          analyticsService.logSubscriptionOnSettings().catchError((_) {});
         } else {
-          await analyticsService.logSubscriptionOffSettings();
+          analyticsService.logSubscriptionOffSettings().catchError((_) {});
         }
       } else if (enable) {
         // Track failed subscription attempt
-        await analyticsService.logSubscriptionDeclinedPermissionsInSettings();
+        analyticsService
+            .logSubscriptionDeclinedPermissionsInSettings()
+            .catchError((_) {});
       }
 
       // Show appropriate message based on result
@@ -758,14 +772,14 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
       }
     } catch (e) {
       debugPrint('ERROR: _toggleNotifications: $e');
-      // Log analytics/crash for notification toggle failure
-      try {
-        final analytics = ref.read(analyticsServiceProvider);
-        await analytics.logErrorSubscriptionToggle(
-          source: 'user_settings_screen',
-          errorMessage: 'notifications_toggle_failed',
-        );
-      } catch (_) {}
+      // Log analytics/crash for notification toggle failure (fire-and-forget)
+      final analytics = ref.read(analyticsServiceProvider);
+      analytics
+          .logErrorSubscriptionToggle(
+            source: 'user_settings_screen',
+            errorMessage: 'notifications_toggle_failed',
+          )
+          .catchError((_) {});
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -883,11 +897,15 @@ class _UsageMetrics {
   final String? lastUsedDate;
   final int numDaysUsed;
   final int numJokesViewed;
+  final int numJokesSaved;
+  final int numJokesShared;
 
   const _UsageMetrics({
     required this.firstUsedDate,
     required this.lastUsedDate,
     required this.numDaysUsed,
     required this.numJokesViewed,
+    required this.numJokesSaved,
+    required this.numJokesShared,
   });
 }

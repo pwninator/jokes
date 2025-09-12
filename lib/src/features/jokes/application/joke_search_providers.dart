@@ -92,16 +92,16 @@ final searchResultIdsProvider =
 
       // Log analytics for user scope
       if (scope == SearchScope.userJokeSearch) {
-        try {
-          final analyticsService = ref.read(analyticsServiceProvider);
-          await analyticsService.logJokeSearch(
-            queryLength: query.length,
-            scope: params.label != SearchLabel.none
-                ? "${scope.name}:${params.label.name}"
-                : scope.name,
-            resultsCount: results.length,
-          );
-        } catch (_) {}
+        final analyticsService = ref.read(analyticsServiceProvider);
+        analyticsService
+            .logJokeSearch(
+              queryLength: query.length,
+              scope: params.label != SearchLabel.none
+                  ? "${scope.name}:${params.label.name}"
+                  : scope.name,
+              resultsCount: results.length,
+            )
+            .catchError((_) {});
       }
 
       return results;

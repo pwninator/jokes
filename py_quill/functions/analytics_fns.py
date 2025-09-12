@@ -1,7 +1,8 @@
 """Analytics and usage tracking functions."""
 
 from firebase_functions import https_fn, logger, options
-from functions.function_utils import get_param, get_user_id, success_response, error_response
+from functions.function_utils import (error_response, get_int_param,
+                                      get_user_id, success_response)
 from services import firestore as firestore_service
 
 
@@ -27,14 +28,21 @@ def usage(req: https_fn.Request) -> https_fn.Response:
     if not user_id:
       return error_response("Unauthenticated request")
 
-    client_days_used = get_param(req, 'num_days_used')
-    try:
-      client_days_used_int = int(
-        client_days_used) if client_days_used is not None else None
-    except Exception:
-      client_days_used_int = None
+    # Parse client-reported metrics using helpers
+    client_days_used_int = get_int_param(req, 'num_days_used', default=None)
+    client_num_saved_int = get_int_param(req, 'num_saved', default=None)
+    client_num_viewed_int = get_int_param(req, 'num_viewed', default=None)
+    client_num_shared_int = get_int_param(req, 'num_shared', default=None)
 
-    final_days_used = firestore_service.upsert_joke_user_usage(user_id)
+    final_days_used = firestore_service.upsert_joke_user_usage(
+      user_id,
+      client_num_days_used=client_days_used_int,
+      client_num_saved=client_num_saved_int,
+      client_num_viewed=client_num_viewed_int,
+      client_num_shared=client_num_shared_int,
+    )
+
+    # Client counters are persisted within upsert_joke_user_usage
 
     logger.info(
       "usage updated",
@@ -43,9 +51,20 @@ def usage(req: https_fn.Request) -> https_fn.Response:
           "user_id": user_id,
           "num_distinct_day_used_server": final_days_used,
           "num_distinct_day_used_client": client_days_used_int,
+          "client_num_saved": client_num_saved_int,
+          "client_num_viewed": client_num_viewed_int,
+          "client_num_shared": client_num_shared_int,
         }
       },
     )
+    print(f"""usage updated:
+user_id: {user_id}
+num_distinct_day_used_server: {final_days_used}
+num_distinct_day_used_client: {client_days_used_int}
+client_num_saved: {client_num_saved_int}
+client_num_viewed: {client_num_viewed_int}
+client_num_shared: {client_num_shared_int}
+""")
 
     return success_response({
       "user_id": user_id,

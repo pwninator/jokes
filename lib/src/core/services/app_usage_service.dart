@@ -65,28 +65,24 @@ class AppUsageService {
     final String newLastUsed = today;
 
     // Persist changes
+    await _prefs.setString(_lastUsedDateKey, newLastUsed);
     if (shouldSetFirstUsed) {
       await _prefs.setString(_firstUsedDateKey, today);
     }
     if (shouldIncrementDays) {
       await _prefs.setInt(_numDaysUsedKey, newNumDaysUsed);
-      // Fire analytics + backend usage tracking in parallel
-      final futures = <Future<void>>[
-        if (_analyticsService != null)
-          _analyticsService!
-              .logAppUsageDayIncremented(numDaysUsed: newNumDaysUsed)
-              .catchError(
-                (e, _) => debugPrint('APP_USAGE analytics error: $e'),
-              ),
-        _jokeCloudFn
-            .trackUsage(numDaysUsed: newNumDaysUsed)
-            .catchError((e, _) => debugPrint('APP_USAGE trackUsage error: $e')),
-      ];
-      await Future.wait(futures);
       // Notify listeners that usage changed
       _notifyUsageChanged();
+
+      // Fire-and-forget analytics + backend usage snapshot
+      if (_analyticsService != null) {
+        _analyticsService!
+            .logAppUsageDayIncremented(numDaysUsed: newNumDaysUsed)
+            .catchError((e, _) => debugPrint('APP_USAGE analytics error: $e'));
+      }
+      // Do not await remote sync to keep UI responsive
+      _pushUsageSnapshot();
     }
-    await _prefs.setString(_lastUsedDateKey, newLastUsed);
 
     // Single debug print summarizing modifications
     final List<String> changes = [];
@@ -104,8 +100,10 @@ class AppUsageService {
     final int oldCount = _prefs.getInt(_numJokesViewedKey) ?? 0;
     final int newCount = oldCount + 1;
     await _prefs.setInt(_numJokesViewedKey, newCount);
-    // Notify listeners that usage changed
     _notifyUsageChanged();
+
+    // Fire-and-forget usage snapshot to backend
+    _pushUsageSnapshot();
     debugPrint(
       'APP_USAGE logJokeViewed: { num_jokes_viewed: $oldCount -> $newCount }',
     );
@@ -117,6 +115,9 @@ class AppUsageService {
     final int newCount = oldCount + 1;
     await _prefs.setInt(_numSavedJokesKey, newCount);
     _notifyUsageChanged();
+
+    // Fire-and-forget usage snapshot to backend
+    _pushUsageSnapshot();
     debugPrint(
       'APP_USAGE incrementSavedJokesCount: { num_saved_jokes: $oldCount -> $newCount }',
     );
@@ -128,6 +129,9 @@ class AppUsageService {
     final int newCount = (oldCount > 0) ? oldCount - 1 : 0;
     await _prefs.setInt(_numSavedJokesKey, newCount);
     _notifyUsageChanged();
+
+    // Fire-and-forget usage snapshot to backend
+    _pushUsageSnapshot();
     debugPrint(
       'APP_USAGE decrementSavedJokesCount: { num_saved_jokes: $oldCount -> $newCount }',
     );
@@ -139,6 +143,9 @@ class AppUsageService {
     final int newCount = oldCount + 1;
     await _prefs.setInt(_numSharedJokesKey, newCount);
     _notifyUsageChanged();
+
+    // Fire-and-forget usage snapshot to backend
+    _pushUsageSnapshot();
     debugPrint(
       'APP_USAGE incrementSharedJokesCount: { num_shared_jokes: $oldCount -> $newCount }',
     );
@@ -174,5 +181,28 @@ class AppUsageService {
       final notifier = _ref?.read(appUsageEventsProvider.notifier);
       if (notifier != null) notifier.state++;
     } catch (_) {}
+  }
+
+  Future<void> _pushUsageSnapshot() async {
+    try {
+      final futures = <Future<void>>[];
+      final int numDaysUsed = await getNumDaysUsed();
+      final int numSaved = await getNumSavedJokes();
+      final int numViewed = await getNumJokesViewed();
+      final int numShared = await getNumSharedJokes();
+      futures.add(
+        _jokeCloudFn
+            .trackUsage(
+              numDaysUsed: numDaysUsed,
+              numSaved: numSaved,
+              numViewed: numViewed,
+              numShared: numShared,
+            )
+            .catchError((e, _) => debugPrint('APP_USAGE trackUsage error: $e')),
+      );
+      await Future.wait(futures);
+    } catch (e) {
+      debugPrint('APP_USAGE pushUsageSnapshot error: $e');
+    }
   }
 }

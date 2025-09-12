@@ -5,6 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_search_providers.dart';
+import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
+import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
@@ -20,10 +22,14 @@ class MockJokeRepository extends Mock implements JokeRepository {}
 class MockJokeCloudFunctionService extends Mock
     implements JokeCloudFunctionService {}
 
+class MockAnalyticsService extends Mock implements AnalyticsService {}
+
 void main() {
   group('Search Providers', () {
     late MockJokeRepository mockJokeRepository;
     late MockJokeCloudFunctionService mockCloudFunctionService;
+    late MockAnalyticsService mockAnalyticsService;
+    late ProviderContainer Function({List<Override> extra}) createContainer;
 
     setUpAll(() {
       registerAnalyticsFallbackValues();
@@ -36,23 +42,43 @@ void main() {
     setUp(() {
       mockJokeRepository = MockJokeRepository();
       mockCloudFunctionService = MockJokeCloudFunctionService();
+      mockAnalyticsService = MockAnalyticsService();
+
+      // Default: analytics logs resolve immediately
+      when(
+        () => mockAnalyticsService.logJokeSearch(
+          queryLength: any(named: 'queryLength'),
+          scope: any(named: 'scope'),
+          resultsCount: any(named: 'resultsCount'),
+        ),
+      ).thenAnswer((_) async {});
+
+      createContainer = ({List<Override> extra = const []}) {
+        final container = ProviderContainer(
+          overrides: FirebaseMocks.getFirebaseProviderOverrides(
+            additionalOverrides: [
+              // Ensure these test-specific mocks override defaults
+              jokeCloudFunctionServiceProvider.overrideWithValue(
+                mockCloudFunctionService,
+              ),
+              analyticsServiceProvider.overrideWithValue(mockAnalyticsService),
+              ...extra,
+            ],
+          ),
+        );
+        addTearDown(container.dispose);
+        return container;
+      };
     });
 
     test('searchResultIdsProvider returns empty when query empty', () async {
-      final container = ProviderContainer(
-        overrides: [
-          jokeCloudFunctionServiceProvider.overrideWithValue(
-            mockCloudFunctionService,
-          ),
-        ],
-      );
+      final container = createContainer();
 
       // default query is ''
       final results = await container.read(
         searchResultIdsProvider(SearchScope.userJokeSearch).future,
       );
       expect(results, isEmpty);
-      container.dispose();
     });
 
     test('searchResultIdsProvider passes through search params', () async {
@@ -70,13 +96,7 @@ void main() {
         (_) async => const [JokeSearchResult(id: 'x', vectorDistance: 0.1)],
       );
 
-      final container = ProviderContainer(
-        overrides: [
-          jokeCloudFunctionServiceProvider.overrideWithValue(
-            mockCloudFunctionService,
-          ),
-        ],
-      );
+      final container = createContainer();
 
       const q = 'hello';
       const max = 25;
@@ -107,21 +127,12 @@ void main() {
           label: SearchLabel.none,
         ),
       ).called(1);
-
-      container.dispose();
     });
 
     test(
       'search query excludeJokeIds defaults to empty and can be overridden',
       () async {
-        final container = ProviderContainer(
-          overrides: [
-            jokeCloudFunctionServiceProvider.overrideWithValue(
-              mockCloudFunctionService,
-            ),
-          ],
-        );
-        addTearDown(container.dispose);
+        final container = createContainer();
 
         // Default is empty
         final initial = container.read(
@@ -144,14 +155,7 @@ void main() {
     );
 
     test('search query label defaults to none and can be overridden', () async {
-      final container = ProviderContainer(
-        overrides: [
-          jokeCloudFunctionServiceProvider.overrideWithValue(
-            mockCloudFunctionService,
-          ),
-        ],
-      );
-      addTearDown(container.dispose);
+      final container = createContainer();
 
       // Default is none
       final initial = container.read(
@@ -208,15 +212,8 @@ void main() {
           () => mockJokeRepository.getJokeByIdStream('c'),
         ).thenAnswer((_) => streamC.stream);
 
-        final container = ProviderContainer(
-          overrides: FirebaseMocks.getFirebaseProviderOverrides(
-            additionalOverrides: [
-              jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
-              jokeCloudFunctionServiceProvider.overrideWithValue(
-                mockCloudFunctionService,
-              ),
-            ],
-          ),
+        final container = createContainer(
+          extra: [jokeRepositoryProvider.overrideWithValue(mockJokeRepository)],
         );
 
         // Set a non-empty query to trigger ids fetch and await completion
@@ -304,15 +301,8 @@ void main() {
         () => mockJokeRepository.getJokeByIdStream('j1'),
       ).thenAnswer((_) => stream.stream);
 
-      final container = ProviderContainer(
-        overrides: FirebaseMocks.getFirebaseProviderOverrides(
-          additionalOverrides: [
-            jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
-            jokeCloudFunctionServiceProvider.overrideWithValue(
-              mockCloudFunctionService,
-            ),
-          ],
-        ),
+      final container = createContainer(
+        extra: [jokeRepositoryProvider.overrideWithValue(mockJokeRepository)],
       );
 
       container

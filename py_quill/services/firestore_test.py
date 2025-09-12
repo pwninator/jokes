@@ -1,4 +1,6 @@
 """Tests for the firestore module."""
+import datetime
+
 from common import models
 from services import firestore
 
@@ -98,3 +100,187 @@ def test_get_punny_jokes_batch(monkeypatch):
   jokes = fs.get_punny_jokes(joke_ids)
   assert len(jokes) == 3
   assert all(j.key in joke_ids for j in jokes)
+
+
+def test_upsert_joke_user_usage_insert(monkeypatch):
+  """Inserts a new joke user doc with count=1 and timestamps."""
+  from services import firestore as fs
+
+  captured = {}
+
+  class DummyDoc:
+
+    def __init__(self):
+      self._exists = False
+
+    def get(self, transaction=None):  # pylint: disable=unused-argument
+
+      class R:
+
+        def __init__(self):
+          self.exists = False
+
+      return R()
+
+  class DummyCol:
+
+    def document(self, _id):  # pylint: disable=unused-argument
+      return DummyDoc()
+
+  class DummyTxn:
+    _read_only = False
+
+    def set(self, doc_ref, data):  # pylint: disable=unused-argument
+      captured.update(data)
+
+  class DummyDB:
+
+    def collection(self, _name):  # pylint: disable=unused-argument
+      return DummyCol()
+
+    def transaction(self):
+      return DummyTxn()
+
+  monkeypatch.setattr(fs, "db", DummyDB)
+  # Avoid server timestamp complexity
+  monkeypatch.setattr(fs, "SERVER_TIMESTAMP", "TS")
+
+  # Call the undecorated logic directly with our dummy txn
+  count = fs._upsert_joke_user_usage_logic(DummyTxn(), "user1")  # pylint: disable=protected-access
+  assert count == 1
+  assert captured["created_at"] == "TS"
+  assert captured["last_login_at"] == "TS"
+  assert captured["num_distinct_day_used"] == 1
+
+
+def test_upsert_joke_user_usage_no_increment_same_day(monkeypatch):
+  """Does not increment when last_login_at and now fall in same day bucket."""
+  from services import firestore as fs
+
+  class DummySnap:
+
+    def __init__(self, data):
+      self._data = data
+      self.exists = True
+
+    def to_dict(self):
+      return self._data
+
+  class DummyDoc:
+
+    def __init__(self, snap):
+      self._snap = snap
+
+    def get(self, transaction=None):  # pylint: disable=unused-argument
+      return self._snap
+
+  class DummyCol:
+
+    def __init__(self, snap):
+      self._snap = snap
+
+    def document(self, _id):  # pylint: disable=unused-argument
+      return DummyDoc(self._snap)
+
+  updates = {}
+
+  class DummyTxn:
+    _read_only = False
+
+    def update(self, doc_ref, data):  # pylint: disable=unused-argument
+      updates.update(data)
+
+  class DummyDB:
+
+    def __init__(self, snap):
+      self._snap = snap
+
+    def collection(self, _name):  # pylint: disable=unused-argument
+      return DummyCol(self._snap)
+
+    def transaction(self):
+      return DummyTxn()
+
+  created = datetime.datetime(2024, 1, 1, 0, 0, 0)
+  # same day bucket: last_login_at = created + 2 hours; now = created + 5 hours
+  last_login_at = created + datetime.timedelta(hours=2)
+  now = created + datetime.timedelta(hours=5)
+  snap_data = {
+    'created_at': created,
+    'last_login_at': last_login_at,
+    'num_distinct_day_used': 5,
+  }
+
+  monkeypatch.setattr(fs, "db", lambda: DummyDB(DummySnap(snap_data)))
+  monkeypatch.setattr(fs, "SERVER_TIMESTAMP", "TS")
+
+  count = fs._upsert_joke_user_usage_logic(DummyTxn(), "user1", now_utc=now)  # pylint: disable=protected-access
+  assert count == 5
+  assert updates["num_distinct_day_used"] == 5
+  assert updates["last_login_at"] == "TS"
+
+
+def test_upsert_joke_user_usage_increment_new_day(monkeypatch):
+  """Increments by 1 when now falls into a new whole-day bucket."""
+  from services import firestore as fs
+
+  class DummySnap:
+
+    def __init__(self, data):
+      self._data = data
+      self.exists = True
+
+    def to_dict(self):
+      return self._data
+
+  class DummyDoc:
+
+    def __init__(self, snap):
+      self._snap = snap
+
+    def get(self, transaction=None):  # pylint: disable=unused-argument
+      return self._snap
+
+  class DummyCol:
+
+    def __init__(self, snap):
+      self._snap = snap
+
+    def document(self, _id):  # pylint: disable=unused-argument
+      return DummyDoc(self._snap)
+
+  updates = {}
+
+  class DummyTxn:
+    _read_only = False
+
+    def update(self, doc_ref, data):  # pylint: disable=unused-argument
+      updates.update(data)
+
+  class DummyDB:
+
+    def __init__(self, snap):
+      self._snap = snap
+
+    def collection(self, _name):  # pylint: disable=unused-argument
+      return DummyCol(self._snap)
+
+    def transaction(self):
+      return DummyTxn()
+
+  created = datetime.datetime(2024, 1, 1, 0, 0, 0)
+  last_login_at = created + datetime.timedelta(days=1, hours=1)
+  now = created + datetime.timedelta(days=2, hours=2)
+  snap_data = {
+    'created_at': created,
+    'last_login_at': last_login_at,
+    'num_distinct_day_used': 7,
+  }
+
+  monkeypatch.setattr(fs, "db", lambda: DummyDB(DummySnap(snap_data)))
+  monkeypatch.setattr(fs, "SERVER_TIMESTAMP", "TS")
+
+  count = fs._upsert_joke_user_usage_logic(DummyTxn(), "user1", now_utc=now)  # pylint: disable=protected-access
+  assert count == 8
+  assert updates["num_distinct_day_used"] == 8
+  assert updates["last_login_at"] == "TS"

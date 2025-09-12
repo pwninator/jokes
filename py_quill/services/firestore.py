@@ -461,3 +461,109 @@ def initialize_user_document(user_id: str, email: str) -> bool:
   transaction = db().transaction()
   created = _initialize_user_in_transaction(transaction, user_id, email=email)
   return created
+
+
+def _to_utc_naive(dt: datetime.datetime) -> datetime.datetime:
+  """Convert a datetime to naive UTC for arithmetic.
+
+  If the provided datetime has tzinfo, convert to UTC and strip tzinfo.
+  """
+  if isinstance(dt, datetime.datetime) and dt.tzinfo is not None:
+    return dt.astimezone(datetime.timezone.utc).replace(tzinfo=None)
+  return dt
+
+
+def _upsert_joke_user_usage_logic(
+    transaction: Transaction,
+    user_id: str,
+    now_utc: datetime.datetime | None = None) -> int:
+  """Transactional helper to upsert joke user usage and return final count.
+
+  Args:
+      transaction: Firestore transaction
+      user_id: The Firebase Authentication user ID, used as document ID
+      now_utc: Optional override for current time (UTC). Useful for tests.
+
+  Returns:
+      The final value of num_distinct_day_used after the write.
+  """
+  doc_ref = db().collection('joke_users').document(user_id)
+  snapshot = doc_ref.get(transaction=transaction)
+
+  # Insert path
+  if not snapshot.exists:
+    transaction.set(
+      doc_ref, {
+        'created_at': SERVER_TIMESTAMP,
+        'last_login_at': SERVER_TIMESTAMP,
+        'num_distinct_day_used': 1,
+      })
+    return 1
+
+  # Update path
+  data = snapshot.to_dict() or {}
+  created_at_val = data.get('created_at')
+  last_login_at_val = data.get('last_login_at') or created_at_val
+  current_count = int(data.get('num_distinct_day_used', 0) or 0)
+
+  # If created_at is missing for an existing doc, treat as now to avoid false increments
+  if not created_at_val:
+    transaction.update(
+      doc_ref, {
+        'last_login_at': SERVER_TIMESTAMP,
+        'num_distinct_day_used': max(1, current_count),
+      })
+    return max(1, current_count)
+
+  # Normalize datetimes
+  created_at_dt = _to_utc_naive(created_at_val)
+  last_login_dt = _to_utc_naive(
+    last_login_at_val) if last_login_at_val else created_at_dt
+  # Use timezone-aware now in UTC, then normalize to naive UTC for arithmetic
+  now_dt = _to_utc_naive(
+    now_utc if now_utc else datetime.datetime.now(datetime.timezone.utc))
+
+  # Compute whole-day buckets since creation
+  seconds_per_day = 86400
+  num_days_at_last_login = int(
+    (last_login_dt - created_at_dt).total_seconds() // seconds_per_day)
+  num_days_now = int(
+    (now_dt - created_at_dt).total_seconds() // seconds_per_day)
+
+  increment = 1 if num_days_now != num_days_at_last_login else 0
+  final_count = current_count + increment
+
+  transaction.update(doc_ref, {
+    'last_login_at': SERVER_TIMESTAMP,
+    'num_distinct_day_used': final_count,
+  })
+  return final_count
+
+
+@transactional
+def _upsert_joke_user_usage_in_txn(
+    transaction: Transaction,
+    user_id: str,
+    now_utc: datetime.datetime | None = None) -> int:
+  """Transactional wrapper that handles the transaction."""
+  # The actual logic is in a separate function for testability
+  return _upsert_joke_user_usage_logic(transaction, user_id, now_utc)
+
+
+def upsert_joke_user_usage(user_id: str,
+                           now_utc: datetime.datetime | None = None) -> int:
+  """Create or update the joke user usage document and return final count.
+
+  Args:
+      user_id: The user ID (document ID in collection 'joke_users').
+      now_utc: Optional override for current time (UTC). Useful for tests.
+
+  Returns:
+      The final value of num_distinct_day_used after the write.
+  """
+  user_id = user_id.strip()
+  if not user_id:
+    raise ValueError("user_id is required")
+
+  transaction = db().transaction()
+  return _upsert_joke_user_usage_in_txn(transaction, user_id, now_utc)

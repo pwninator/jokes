@@ -5,6 +5,7 @@ import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/providers/app_usage_events_provider.dart';
 import 'package:snickerdoodle/src/core/providers/shared_preferences_provider.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
+import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
 
 /// Provider for AppUsageService using the shared preferences instance provider
 final appUsageServiceProvider = Provider<AppUsageService>((ref) {
@@ -23,13 +24,16 @@ class AppUsageService {
     required SharedPreferences prefs,
     AnalyticsService? analyticsService,
     Ref? ref,
+    JokeCloudFunctionService? jokeCloudFn,
   }) : _prefs = prefs,
        _analyticsService = analyticsService,
-       _ref = ref;
+       _ref = ref,
+       _jokeCloudFn = jokeCloudFn ?? JokeCloudFunctionService();
 
   final SharedPreferences _prefs;
   final AnalyticsService? _analyticsService;
   final Ref? _ref;
+  final JokeCloudFunctionService _jokeCloudFn;
 
   // Preference keys
   static const String _firstUsedDateKey = 'first_used_date';
@@ -66,14 +70,19 @@ class AppUsageService {
     }
     if (shouldIncrementDays) {
       await _prefs.setInt(_numDaysUsedKey, newNumDaysUsed);
-      // Log analytics for day increment
-      try {
-        await _analyticsService?.logAppUsageDayIncremented(
-          numDaysUsed: newNumDaysUsed,
-        );
-      } catch (e) {
-        debugPrint('APP_USAGE analytics error: $e');
-      }
+      // Fire analytics + backend usage tracking in parallel
+      final futures = <Future<void>>[
+        if (_analyticsService != null)
+          _analyticsService!
+              .logAppUsageDayIncremented(numDaysUsed: newNumDaysUsed)
+              .catchError(
+                (e, _) => debugPrint('APP_USAGE analytics error: $e'),
+              ),
+        _jokeCloudFn
+            .trackUsage(numDaysUsed: newNumDaysUsed)
+            .catchError((e, _) => debugPrint('APP_USAGE trackUsage error: $e')),
+      ];
+      await Future.wait(futures);
       // Notify listeners that usage changed
       _notifyUsageChanged();
     }

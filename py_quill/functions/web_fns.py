@@ -46,8 +46,8 @@ def _html_response(html: str,
   resp.headers['Cache-Control'] = (
     f'public, max-age={cache_seconds}, s-maxage={cdn_seconds}, '
     'stale-while-revalidate=86400')
-  resp.headers['Last-Modified'] = (
-    datetime.datetime.utcnow().strftime('%a, %d %b %Y %H:%M:%S GMT'))
+  resp.headers['Last-Modified'] = (datetime.datetime.now(
+    datetime.timezone.utc).strftime('%a, %d %b %Y %H:%M:%S GMT'))
   return resp
 
 
@@ -114,7 +114,8 @@ def sitemap():
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
   ]
-  now = datetime.datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ')
+  now = datetime.datetime.now(
+    datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
   for topic in topics:
     urlset_parts.append('<url>')
     urlset_parts.append(f'<loc>{base_url}/jokes/{topic}</loc>')

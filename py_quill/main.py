@@ -6,8 +6,9 @@ import vertexai
 from common import config
 from firebase_admin import initialize_app
 from firebase_functions.core import init
-from functions import (admin_fns, book_fns, character_fns, dummy_fns, joke_fns,
-                       story_prompt_fns, user_fns, util_fns, web_fns)
+from functions import (admin_fns, analytics_fns, book_fns, character_fns,
+                       dummy_fns, joke_fns, story_prompt_fns, user_fns,
+                       util_fns, web_fns)
 
 # Configure basic logging for the application (primarily for emulator visibility)
 logging.basicConfig(level=logging.INFO)
@@ -28,6 +29,9 @@ get_random_prompt = story_prompt_fns.get_random_prompt
 create_character = character_fns.create_character
 update_character = character_fns.update_character
 delete_character = character_fns.delete_character
+
+# Export test functions
+dummy_endpoint = dummy_fns.dummy_endpoint
 
 # Export the user functions
 on_user_created = user_fns.on_user_created
@@ -58,5 +62,5 @@ run_firestore_migration = util_fns.run_firestore_migration
 # Export the web functions
 web_search_page = web_fns.web_search_page
 
-# Export test functions
-dummy_endpoint = dummy_fns.dummy_endpoint
+# Export analytics functions
+usage = analytics_fns.usage

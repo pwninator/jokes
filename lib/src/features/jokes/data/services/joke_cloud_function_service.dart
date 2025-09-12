@@ -8,9 +8,20 @@ enum MatchMode { tight, loose }
 
 class JokeCloudFunctionService {
   JokeCloudFunctionService({FirebaseFunctions? functions})
-    : _functions = functions ?? FirebaseFunctions.instance;
+    : _functions = functions;
 
-  final FirebaseFunctions _functions;
+  final FirebaseFunctions? _functions;
+  FirebaseFunctions get _fns => _functions ?? FirebaseFunctions.instance;
+
+  /// Track app usage in Cloud Functions (HTTP on_request endpoint).
+  Future<void> trackUsage({required int numDaysUsed}) async {
+    try {
+      final callable = _fns.httpsCallable('usage');
+      await callable.call({'num_days_used': numDaysUsed});
+    } catch (e) {
+      debugPrint('CLOUD FUNCTIONS trackUsage exception: $e');
+    }
+  }
 
   Future<Map<String, dynamic>?> createJokeWithResponse({
     required String setupText,
@@ -20,7 +31,7 @@ class JokeCloudFunctionService {
     String? punchlineImageUrl,
   }) async {
     try {
-      final callable = _functions.httpsCallable('create_joke');
+      final callable = _fns.httpsCallable('create_joke');
 
       final result = await callable.call({
         'admin_owned': adminOwned,
@@ -53,7 +64,7 @@ class JokeCloudFunctionService {
     Map<String, dynamic>? additionalParams,
   }) async {
     try {
-      final callable = _functions.httpsCallable(
+      final callable = _fns.httpsCallable(
         'populate_joke',
         options: HttpsCallableOptions(timeout: const Duration(seconds: 300)),
       );
@@ -94,7 +105,7 @@ class JokeCloudFunctionService {
     String? punchlineImageUrl,
   }) async {
     try {
-      final callable = _functions.httpsCallable('update_joke');
+      final callable = _fns.httpsCallable('update_joke');
 
       final result = await callable.call({
         'joke_id': jokeId,
@@ -126,7 +137,7 @@ class JokeCloudFunctionService {
     Map<String, dynamic>? additionalParameters,
   }) async {
     try {
-      final callable = _functions.httpsCallable(
+      final callable = _fns.httpsCallable(
         'critique_jokes',
         options: HttpsCallableOptions(timeout: const Duration(seconds: 300)),
       );
@@ -159,7 +170,7 @@ class JokeCloudFunctionService {
     String? punchlineInstructions,
   }) async {
     try {
-      final callable = _functions.httpsCallable(
+      final callable = _fns.httpsCallable(
         'modify_joke_image',
         options: HttpsCallableOptions(timeout: const Duration(seconds: 300)),
       );
@@ -205,7 +216,7 @@ class JokeCloudFunctionService {
     required SearchLabel label,
   }) async {
     try {
-      final callable = _functions.httpsCallable('search_jokes');
+      final callable = _fns.httpsCallable('search_jokes');
 
       // Build label: if SearchLabel is none, use scope.name; otherwise use "scope.name:label.name"
       final String labelValue = label == SearchLabel.none

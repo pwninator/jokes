@@ -46,6 +46,32 @@
       "firebase.json",
       "**/.*",
       "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "/jokes/**",
+        "function": {
+          "functionId": "web_search_page",
+          "region": "us-central1",
+          "codebase": "default"
+        }
+      },
+      {
+        "source": "/sitemap.xml",
+        "function": {
+          "functionId": "web_search_page",
+          "region": "us-central1",
+          "codebase": "default"
+        }
+      },
+      {
+        "source": "/search",
+        "function": {
+          "functionId": "web_search_page",
+          "region": "us-central1",
+          "codebase": "default"
+        }
+      }
     ]
   },
   "remoteconfig": {

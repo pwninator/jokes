@@ -24,14 +24,31 @@ def db() -> firestore.client:
 
 def get_punny_joke(joke_id: str) -> models.PunnyJoke | None:
   """Get a punny joke by ID."""
-  joke_ref = db().collection('jokes').document(joke_id)
-  joke_doc = joke_ref.get()
+  jokes = get_punny_jokes([joke_id])
+  return jokes[0] if jokes else None
 
-  if not joke_doc.exists:
-    return None
 
-  joke_data = joke_doc.to_dict()
-  return models.PunnyJoke.from_firestore_dict(joke_data, key=joke_id)
+def get_punny_jokes(joke_ids: Collection[str]) -> list[models.PunnyJoke]:
+  """Get multiple punny jokes in a single batch read.
+
+  Args:
+      joke_ids: List of joke IDs to fetch
+
+  Returns:
+      List of PunnyJoke objects, in the same order as the input IDs where found.
+      Missing IDs are omitted.
+  """
+  if not joke_ids:
+    return []
+
+  refs = [db().collection('jokes').document(joke_id) for joke_id in joke_ids]
+  docs = db().get_all(refs)
+
+  jokes = [
+    models.PunnyJoke.from_firestore_dict(doc.to_dict(), key=doc.id)
+    for doc in docs if doc.exists and doc.to_dict() is not None
+  ]
+  return jokes
 
 
 def list_joke_schedules() -> list[str]:

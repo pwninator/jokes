@@ -1,0 +1,63 @@
+{% extends "base.html" %}
+
+{% block title %}Best {{ topic|title }} jokes with images | {{ site_name }}{% endblock %}
+{% block meta_description %}Hand-picked {{ topic }} jokes with setup images. Click reveal to see punchlines and images. Family-friendly and fun!{% endblock %}
+{% block og_title %}{{ topic|title }} jokes | {{ site_name }}{% endblock %}
+{% block og_description %}Browse {{ topic }} jokes. Reveal punchlines when you're ready.{% endblock %}
+{% block twitter_title %}{{ topic|title }} jokes | {{ site_name }}{% endblock %}
+{% block twitter_description %}Browse {{ topic }} jokes. Reveal punchlines when you're ready.{% endblock %}
+
+{% block head_extra %}
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {% for joke in jokes %}
+    {
+      "@type": "Question",
+      "name": {{ joke.setup_text | tojson }},
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": {{ joke.punchline_text | tojson }}
+      }
+    }{% if not loop.last %},{% endif %}
+    {% endfor %}
+  ]
+}
+</script>
+{% endblock %}
+
+{% block content %}
+  <h1>{{ topic|title }} jokes</h1>
+  <p class="subtitle">Setup images with revealable punchlines.</p>
+  <section class="grid" aria-label="Jokes list">
+    {% for joke in jokes %}
+    <article class="card">
+      <div class="media">
+        {% if joke.setup_image_url %}
+          <img src="{{ joke.setup_image_url }}" alt="{{ joke.setup_text }}" loading="lazy" width="600" height="400">
+        {% else %}
+          <span>Image unavailable</span>
+        {% endif %}
+      </div>
+      <div class="content">
+        <h2 class="setup">{{ joke.setup_text }}</h2>
+        <details>
+          <summary>Reveal punchline</summary>
+          <div class="punchline">
+            <p>{{ joke.punchline_text }}</p>
+            {% if joke.punchline_image_url %}
+              <div class="media" style="margin-top:8px;">
+                <img src="{{ joke.punchline_image_url }}" alt="Punchline image" loading="lazy" width="600" height="400">
+              </div>
+            {% endif %}
+          </div>
+        </details>
+      </div>
+    </article>
+    {% endfor %}
+  </section>
+{% endblock %}
+
+

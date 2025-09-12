@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}{{ site_name }} jokes{% endblock %}</title>
+    <meta name="description" content="{% block meta_description %}Discover funny, family-friendly jokes with images. Reveal the punchline when you're ready.{% endblock %}">
+    <link rel="canonical" href="{{ canonical_url }}">
+    {% if prev_url %}<link rel="prev" href="{{ prev_url }}">{% endif %}
+    {% if next_url %}<link rel="next" href="{{ next_url }}">{% endif %}
+
+    <!-- Open Graph -->
+    <meta property="og:title" content="{% block og_title %}{{ site_name }} jokes{% endblock %}">
+    <meta property="og:description" content="{% block og_description %}Discover funny, family-friendly jokes with images. Reveal the punchline when you're ready.{% endblock %}">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="{{ canonical_url }}">
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="{% block twitter_title %}{{ site_name }} jokes{% endblock %}">
+    <meta name="twitter:description" content="{% block twitter_description %}Discover funny, family-friendly jokes with images. Reveal the punchline when you're ready.{% endblock %}">
+
+    {% block head_extra %}{% endblock %}
+    <style>
+      :root { color-scheme: light dark; }
+      body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; line-height: 1.6; }
+      header { padding: 16px 24px; border-bottom: 1px solid rgba(0,0,0,0.1); }
+      main { padding: 24px; max-width: 1200px; margin: 0 auto; }
+      h1 { font-size: 2rem; margin: 0 0 12px; }
+      .subtitle { color: #666; margin-bottom: 24px; }
+      .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+      .card { border: 1px solid rgba(0,0,0,0.08); border-radius: 12px; overflow: hidden; background: rgba(255,255,255,0.9); }
+      .media { aspect-ratio: 3 / 2; background: #f4f4f5; display: flex; align-items: center; justify-content: center; }
+      .media img { width: 100%; height: 100%; object-fit: cover; }
+      .content { padding: 14px; }
+      .setup { font-weight: 600; margin: 0 0 8px; }
+      details { border-top: 1px solid rgba(0,0,0,0.06); padding-top: 10px; }
+      summary { cursor: pointer; color: #0d6efd; }
+      .punchline { margin-top: 10px; }
+      footer { padding: 24px; text-align: center; color: #777; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div style="max-width:1200px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:16px;">
+        <a href="/" style="text-decoration:none;color:inherit;"><strong>{{ site_name }}</strong></a>
+        <nav style="display:flex;gap:12px;">
+          <a href="/jokes/dogs">Dogs</a>
+        </nav>
+      </div>
+    </header>
+    <main>
+      {% block content %}{% endblock %}
+    </main>
+    <footer>
+      <small>&copy; {{ site_name }} {{ now_year|default(2025) }}</small>
+    </footer>
+  </body>
+  </html>
+
+

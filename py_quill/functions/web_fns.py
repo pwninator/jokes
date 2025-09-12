@@ -1,7 +1,7 @@
 """Web cloud functions."""
 
 import flask
-from firebase_functions import https_fn
+from firebase_functions import https_fn, options
 from services import firestore, search
 
 app = flask.Flask(__name__)
@@ -55,7 +55,10 @@ def _run_search(query: str) -> str:
   return html
 
 
-@https_fn.on_request()
+@https_fn.on_request(
+  memory=options.MemoryOption.GB_1,
+  timeout_sec=30,
+)
 def web_search_page(req: https_fn.Request) -> https_fn.Response:
   """A web page that displays jokes based on a search query."""
   with app.request_context(req.environ):

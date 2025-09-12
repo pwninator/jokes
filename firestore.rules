@@ -1,0 +1,169 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /jokes/{jokeId} {
+      // Read access: Open
+      allow read: if true;
+
+      // Allow anyone to update engagement fields
+      allow update: if request.resource.data.diff(resource.data).affectedKeys()
+                      .hasOnly(['popularity_score', 'num_saves', 'num_shares', 'num_thumbs_down', 'num_thumbs_up']);
+
+      // Update/delete access: Only allowed for admin users  
+      allow update, delete:
+        if request.auth != null && request.auth.token.role == 'admin';
+
+      // Disallow client-side creation (handled by cloud function)
+      allow create: if false;
+    }
+
+    match /joke_schedules/{jokeScheduleId} {
+      // Read access: Open
+      allow read: if true;
+
+      // Mutate access: Only allowed for admin users
+      allow create, write, delete:
+        if request.auth != null && request.auth.token.role == 'admin';
+    }
+
+    match /joke_schedule_batches/{jokeScheduleBatchId} {
+      // Read access: Open
+      allow read: if true;
+
+      // Mutate access: Only allowed for admin users
+      allow create, write, delete:
+        if request.auth != null && request.auth.token.role == 'admin';
+    }
+
+    match /joke_feedback/{jokeFeedbackId} {
+      // Read access: Open
+      allow read:
+        if request.auth != null && request.auth.token.role == 'admin';
+
+      // Update/delete access: Only allowed for admin users
+      allow update, delete:
+        if request.auth != null && request.auth.token.role == 'admin';
+
+      // Anyone can submit feedback
+      allow create: if true;
+    }
+
+    match /characters/{characterId} {
+      // Read access: Allowed if authenticated
+      allow read:
+      	if request.auth != null;
+
+      // Mutate access: Only allowed if owner matches
+      allow write, delete:
+	      if request.auth != null;
+        
+      allow create:
+	      if request.auth != null;
+    }
+
+    match /images/{imageId} {
+      // Read access: Allowed if authenticated
+      allow read:
+        if request.auth != null;
+
+      // Mutate access: Allowed if authenticated
+      allow write, delete:
+      	if request.auth != null;
+
+      allow create:
+      	if request.auth != null;
+    }
+
+    // User settings rules - only allow specific fields to be updated
+    match /user_settings/{userId} {
+      // Allow read if the user ID matches the authenticated user
+      allow read: 
+        if request.auth != null && userId == request.auth.uid;
+      
+      // Allow create/update with field validation
+      allow create, update: 
+        if request.auth != null && 
+           userId == request.auth.uid && 
+           request.resource.data.keys().hasOnly(['reading_level', 'llm_model', 'user_type', 'story_mode', 'last_updated']);
+    }
+
+    // Rules for the users collection
+    match /users/{userId} {
+      // Allow read only if the user is authenticated and accessing their own document
+      allow read: if request.auth != null && request.auth.uid == userId;
+
+      // Disallow client-side creation (handled by cloud function)
+      allow create: if false;
+
+      // Allow update only for the user's own document AND only if 'preferences' and 'last_preference_updated' fields are the only ones affected
+      allow update: if request.auth != null && request.auth.uid == userId &&
+                       request.resource.data.diff(resource.data).affectedKeys().hasOnly(['preferences', 'last_preference_updated']);
+
+      // Disallow client-side deletion
+      allow delete: if false;
+    }
+
+    match /books/{bookId} {
+      // Read access: Allowed if authenticated
+      allow read:
+        if request.auth != null;
+
+      // Mutate access: Only allowed if owner matches
+      allow write, delete:
+        if request.auth != null && resource.data.owner_user_id == request.auth.uid;
+        
+      allow create:
+        if request.auth != null && request.resource.data.owner_user_id == request.auth.uid;
+
+      // Allow access to chapters subcollection
+      match /chapters/{chapterId} {
+        allow read:
+          if request.auth != null;
+
+        // Allow access to pages subcollection
+        match /pages/{pageId} {
+          allow read:
+            if request.auth != null;
+        }
+      }
+
+      // Allow access to timing_events subcollection
+      match /timing_events/{eventId} {
+        allow read:
+          if request.auth != null;
+        allow create:
+          if request.auth != null && get(/databases/$(database)/documents/books/$(bookId)).data.owner_user_id == request.auth.uid;
+        allow update, delete:
+          if false;  // Timing events should be immutable once created
+      }
+
+      // Allow access to jokes subcollection
+      match /jokes/{jokeId} {
+        allow read:
+          if request.auth != null;
+        // Jokes are created by the server only
+        allow create, update, delete:
+          if false;
+      }
+      
+      // Allow access to feedback subcollection
+      match /feedback/{userId} {
+        // Users can only read their own feedback
+        allow read:
+          if request.auth != null;
+        
+        // Users can create and update their own feedback
+        allow create, update:
+          if request.auth != null && 
+             userId == request.auth.uid && 
+             get(/databases/$(database)/documents/books/$(bookId)).data.owner_user_id == request.auth.uid;
+        
+        // Prevent deletion of feedback
+        allow delete:
+          if false;
+      }
+    }
+  }
+}

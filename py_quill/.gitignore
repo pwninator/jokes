@@ -1,0 +1,20 @@
+# Python bytecode
+__pycache__/
+
+# Python virtual environment
+venv/
+*.local
+
+# Firebase Emulator Runtime Config
+.runtimeconfig.json
+
+# Compiled Python files
+*.pyc
+__pycache__/
+
+# Pytest cache
+.pytest_cache/
+
+# Coverage reports
+coverage.xml
+*.log

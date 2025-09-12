@@ -1,0 +1,30 @@
+rules_version = '2';
+
+// Craft rules based on data in your Firestore database
+// allow write: if firestore.get(
+//    /databases/(default)/documents/users/$(request.auth.uid)).data.isAdmin;
+service firebase.storage {
+  // Default bucket rules
+  match /b/{bucket}/o {
+    // Match any file path in the bucket
+    match /{allPaths=**} {
+      // Allow authenticated users to read any file.
+      // This is necessary for getDownloadURL() to work.
+      allow read: if request.auth != null;
+
+      // Define your write rules separately based on your app's needs.
+      // For example, you might only allow writes to specific paths
+      // or based on user ID.
+      // allow write: if request.auth != null && <your-write-conditions>;
+    }
+  }
+  
+  // Explicitly add rules for gen_audio bucket
+  match /b/gen_audio/o {
+    match /{allPaths=**} {
+      // Allow authenticated users to read audio files
+      allow read: if request.auth != null;
+      // Write operations are handled by Cloud Functions
+    }
+  }
+}

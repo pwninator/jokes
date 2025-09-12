@@ -2,6 +2,7 @@ adk
 anthropic
 bs4
 firebase-functions
+Flask
 functions-framework
 google-adk
 google-api-python-client

@@ -789,7 +789,7 @@ class AnthropicClient(LlmClient[anthropic.Anthropic]):
   @override
   def _create_model_client(self) -> anthropic.Anthropic:
     """Create the Anthropic client."""
-    return anthropic.Anthropic(api_key=config.get_anthropic_api_key(), )
+    return anthropic.Anthropic(api_key=config.get_anthropic_api_key())
 
   @override
   def _get_generation_costs(self) -> dict[str, float]:

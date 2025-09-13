@@ -1,71 +1,284 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>{% block title %}{{ site_name }} jokes{% endblock %}</title>
-    <meta name="description" content="{% block meta_description %}Discover funny, family-friendly jokes with images. Reveal the punchline when you're ready.{% endblock %}">
-    <link rel="canonical" href="{{ canonical_url }}">
-    {% if prev_url %}<link rel="prev" href="{{ prev_url }}">{% endif %}
-    {% if next_url %}<link rel="next" href="{{ next_url }}">{% endif %}
 
-    <!-- Open Graph -->
-    <meta property="og:title" content="{% block og_title %}{{ site_name }} jokes{% endblock %}">
-    <meta property="og:description" content="{% block og_description %}Discover funny, family-friendly jokes with images. Reveal the punchline when you're ready.{% endblock %}">
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="{{ canonical_url }}">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ site_name }} jokes{% endblock %}</title>
+  <meta name="description"
+    content="{% block meta_description %}Discover funny, family-friendly jokes with images. Reveal the punchline when you're ready.{% endblock %}">
+  <link rel="canonical" href="{{ canonical_url }}">
+  {% if prev_url %}
+  <link rel="prev" href="{{ prev_url }}">{% endif %}
+  {% if next_url %}
+  <link rel="next" href="{{ next_url }}">{% endif %}
 
-    <!-- Twitter -->
-    <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="{% block twitter_title %}{{ site_name }} jokes{% endblock %}">
-    <meta name="twitter:description" content="{% block twitter_description %}Discover funny, family-friendly jokes with images. Reveal the punchline when you're ready.{% endblock %}">
+  <!-- Open Graph -->
+  <meta property="og:title" content="{% block og_title %}{{ site_name }} jokes{% endblock %}">
+  <meta property="og:description"
+    content="{% block og_description %}Discover funny, family-friendly jokes with images. Reveal the punchline when you're ready.{% endblock %}">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="{{ canonical_url }}">
 
-    {% block head_extra %}{% endblock %}
-    <!-- Google tag (gtag.js) -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-D2B7E8PXJJ"></script>
-    <script>
-      window.dataLayer = window.dataLayer || [];
-      function gtag(){dataLayer.push(arguments);} // eslint-disable-line
-      gtag('js', new Date());
+  <!-- Twitter -->
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="{% block twitter_title %}{{ site_name }} jokes{% endblock %}">
+  <meta name="twitter:description"
+    content="{% block twitter_description %}Discover funny, family-friendly jokes with images. Reveal the punchline when you're ready.{% endblock %}">
 
-      gtag('config', 'G-D2B7E8PXJJ');
-    </script>
-    <style>
-      :root { color-scheme: light; }
-      body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; line-height: 1.6; background: #f7f1e1; color: #111; }
-      header { padding: 16px 24px; border-bottom: 1px solid rgba(0,0,0,0.1); }
-      main { padding: 24px; max-width: 1200px; margin: 0 auto; }
-      h1 { font-size: 2rem; margin: 0 0 12px; }
-      .subtitle { color: #666; margin-bottom: 24px; }
-      .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
-      .card { border: 1px solid rgba(0,0,0,0.08); border-radius: 12px; overflow: hidden; background: rgba(255,255,255,0.9); }
-      .media { aspect-ratio: 3 / 2; background: #f4f4f5; display: flex; align-items: center; justify-content: center; }
-      .media img { width: 100%; height: 100%; object-fit: cover; }
-      .content { padding: 14px; }
-      .setup { font-weight: 600; margin: 0 0 8px; }
-      details { border-top: 1px solid rgba(0,0,0,0.06); padding-top: 10px; }
-      summary { cursor: pointer; color: #0d6efd; }
-      .punchline { margin-top: 10px; }
-      footer { padding: 24px; text-align: center; color: #777; }
-    </style>
-  </head>
-  <body>
-    <header>
-      <div style="max-width:1200px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:16px;">
-        <a href="/" style="text-decoration:none;color:inherit;"><strong>{{ site_name }}</strong></a>
-        <nav style="display:flex;gap:12px;">
-          <a href="/jokes/dogs">Dogs</a>
-        </nav>
-      </div>
-    </header>
-    <main>
-      {% block content %}{% endblock %}
-    </main>
-    <footer>
-      <small>&copy; {{ site_name }} {{ now_year|default(2025) }}</small>
-    </footer>
-  </body>
-  </html>
+  {% block head_extra %}{% endblock %}
+  <!-- Google tag (gtag.js) -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-D2B7E8PXJJ"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag() { dataLayer.push(arguments); } // eslint-disable-line
+    gtag('js', new Date());
 
+    gtag('config', 'G-D2B7E8PXJJ');
+  </script>
+  <style>
+    :root {
+      color-scheme: light;
+    }
 
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      line-height: 1.6;
+      background: #f7f1e1;
+      color: #111;
+    }
+
+    header {
+      padding: 16px 24px;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+    }
+
+    main {
+      padding: 24px;
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    h1 {
+      font-size: 2rem;
+      margin: 0 0 12px;
+    }
+
+    .subtitle {
+      color: #666;
+      margin-bottom: 24px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+    }
+
+    .card {
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      border-radius: 12px;
+      overflow: hidden;
+      background: rgba(255, 255, 255, 0.9);
+    }
+
+    .media {
+      aspect-ratio: 3 / 2;
+      background: #f4f4f5;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .media img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    .content {
+      padding: 14px;
+    }
+
+    .setup {
+      font-weight: 600;
+      margin: 0 0 8px;
+    }
+
+    details {
+      border-top: 1px solid rgba(0, 0, 0, 0.06);
+      padding-top: 10px;
+    }
+
+    summary {
+      cursor: pointer;
+    }
+
+    .punchline {
+      margin-top: 10px;
+    }
+
+    footer {
+      padding: 24px;
+      text-align: center;
+      color: #777;
+    }
+
+    /* Joke carousel */
+    .joke-carousel {
+      width: 100%;
+      max-width: 600px;
+      margin: 0 auto 12px;
+    }
+
+    .joke-carousel-viewport {
+      overflow: hidden;
+      width: 100%;
+      border-radius: 12px;
+      background: #fff;
+      border: 1px solid rgba(0, 0, 0, 0.08);
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+    }
+
+    .joke-carousel-track {
+      display: flex;
+      width: 200%;
+      height: 100%;
+      transform: translateX(0);
+      transition: transform 300ms ease;
+    }
+
+    .joke-slide {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      padding: 8px;
+      box-sizing: border-box;
+      align-items: stretch;
+      justify-content: flex-start;
+    }
+
+    .joke-slide-media {
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      border-radius: 12px;
+      overflow: hidden;
+      background: #f7f7f8;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .joke-slide img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+
+    /* Joke text styling inside widget */
+    .joke-widget .joke-text {
+      text-align: center;
+      font-size: 1.1rem;
+      color: #222;
+      margin: 2px 6px 0;
+    }
+
+    /* Toggle second slide when details is open */
+    .joke-widget details[open]+.joke-carousel .joke-carousel-track {
+      transform: translateX(-50%);
+    }
+
+    /* Reduced motion */
+    @media (prefers-reduced-motion: reduce) {
+      .joke-carousel-track {
+        transition: none;
+      }
+    }
+
+    /* Visually hidden for a11y-only content */
+    .visually-hidden {
+      position: absolute !important;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    /* Joke widget wrapper: ensure button appears below the image visually */
+    .joke-widget {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      align-items: stretch;
+    }
+
+    .joke-widget .joke-carousel {
+      order: 1;
+    }
+
+    .joke-widget details {
+      order: 2;
+      align-self: center;
+    }
+
+    .joke-widget summary {
+      background: linear-gradient(180deg, #0d6efd 0%, #0a58ca 100%);
+      color: #fff;
+      padding: 12px 18px;
+      border-radius: 10px;
+      font-weight: 700;
+      list-style: none;
+      display: inline-block;
+      border: 1px solid #0a58ca;
+      box-shadow: 0 2px 6px rgba(13, 110, 253, 0.3);
+      transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease;
+      user-select: none;
+    }
+
+    .joke-widget summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .joke-widget summary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 10px rgba(13, 110, 253, 0.35);
+    }
+
+    .joke-widget summary:active {
+      transform: translateY(0);
+      box-shadow: 0 2px 6px rgba(13, 110, 253, 0.3);
+    }
+
+    .joke-widget summary:focus-visible {
+      outline: 3px solid rgba(13, 110, 253, 0.4);
+      outline-offset: 2px;
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <div style="max-width:1200px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:16px;">
+      <a href="/" style="text-decoration:none;color:inherit;"><strong>{{ site_name }}</strong></a>
+      <nav style="display:flex;gap:12px;">
+        <a href="/jokes/dogs">Dogs</a>
+      </nav>
+    </div>
+  </header>
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+  <footer>
+    <small>&copy; {{ site_name }} {{ now_year|default(2025) }}</small>
+  </footer>
+</body>
+
+</html>

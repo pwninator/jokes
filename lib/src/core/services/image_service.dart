@@ -277,8 +277,10 @@ class ImageService {
 
       // Compute placement: bottom-left with padding
       const int leftPaddingPx = 16;
-      final int dstX = leftPaddingPx
-          .clamp(0, baseImage.width - resizedWm.width);
+      final int dstX = leftPaddingPx.clamp(
+        0,
+        baseImage.width - resizedWm.width,
+      );
       final int dstY = (baseImage.height - resizedWm.height - bottomPaddingPx)
           .clamp(0, baseImage.height - resizedWm.height)
           .toInt();

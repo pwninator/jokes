@@ -46,6 +46,13 @@
           "description": "Min number of jokes saved before eligible for review request",
           "valueType": "NUMBER"
         },
+        "review_min_viewed_jokes": {
+          "defaultValue": {
+            "value": "30"
+          },
+          "description": "Min number of jokes viewed before eligible for review request",
+          "valueType": "NUMBER"
+        },
         "review_min_days_used": {
           "defaultValue": {
             "value": "30"

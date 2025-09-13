@@ -39,14 +39,19 @@ class ReviewPromptCoordinator {
       final int minDays = rv.getInt(RemoteParam.reviewMinDaysUsed);
       final int minSaved = rv.getInt(RemoteParam.reviewMinSavedJokes);
       final int minShared = rv.getInt(RemoteParam.reviewMinSharedJokes);
+      final int minViewed = rv.getInt(RemoteParam.reviewMinViewedJokes);
 
       // Read usage (fast SharedPreferences reads)
       final days = await _usage.getNumDaysUsed();
       final saved = await _usage.getNumSavedJokes();
       final shared = await _usage.getNumSharedJokes();
+      final viewed = await _usage.getNumJokesViewed();
 
       final eligible =
-          days >= minDays && saved >= minSaved && shared >= minShared;
+          days >= minDays &&
+          saved >= minSaved &&
+          shared >= minShared &&
+          viewed >= minViewed;
       if (!eligible) return;
 
       debugPrint('REVIEW_COORDINATOR maybePromptForReview requesting review');

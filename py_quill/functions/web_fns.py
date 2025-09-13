@@ -6,9 +6,9 @@ import os
 import zoneinfo
 
 import flask
+from common import models
 from firebase_functions import https_fn, logger, options
 from services import firestore, search
-from common import models
 
 _TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), '..', 'web',
                               'templates')

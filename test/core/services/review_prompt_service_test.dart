@@ -16,11 +16,13 @@ class _FakeRemoteValues implements RemoteConfigValues {
     required this.minDays,
     required this.minSaved,
     required this.minShared,
+    this.minViewed = 0,
   });
 
   final int minDays;
   final int minSaved;
   final int minShared;
+  final int minViewed;
 
   @override
   bool getBool(RemoteParam param) => false;
@@ -37,6 +39,8 @@ class _FakeRemoteValues implements RemoteConfigValues {
         return minSaved;
       case RemoteParam.reviewMinSharedJokes:
         return minShared;
+      case RemoteParam.reviewMinViewedJokes:
+        return minViewed;
       case RemoteParam.subscriptionPromptMinJokesViewed:
         return 0;
       case RemoteParam.feedbackMinJokesViewed:
@@ -209,5 +213,68 @@ void main() {
         verifyNever(() => store.markRequested());
       },
     );
+
+    test('ineligible when viewed jokes below threshold', () async {
+      // Arrange thresholds include viewed
+      final values = _FakeRemoteValues(
+        minDays: 1,
+        minSaved: 1,
+        minShared: 1,
+        minViewed: 2,
+      );
+      when(() => store.hasRequested()).thenAnswer((_) async => false);
+
+      // Set other usage to thresholds but do not log views
+      await usage.incrementSavedJokesCount();
+      await usage.incrementSharedJokesCount();
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('num_days_used', 1);
+
+      final coordinator = ReviewPromptCoordinator(
+        getRemoteValues: () => values,
+        appUsageService: usage,
+        appReviewService: review,
+        stateStore: store,
+      );
+
+      // Act
+      await coordinator.maybePromptForReview(source: ReviewRequestSource.auto);
+
+      // Assert: should not request review because viewed < minViewed
+      verifyNever(() => review.requestReview(source: any(named: 'source')));
+    });
+
+    test('eligible when viewed jokes meets threshold calls review', () async {
+      final values = _FakeRemoteValues(
+        minDays: 1,
+        minSaved: 1,
+        minShared: 1,
+        minViewed: 1,
+      );
+      when(() => store.hasRequested()).thenAnswer((_) async => false);
+
+      await usage.incrementSavedJokesCount();
+      await usage.incrementSharedJokesCount();
+      await usage.logJokeViewed();
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('num_days_used', 1);
+
+      when(
+        () => review.requestReview(source: any(named: 'source')),
+      ).thenAnswer((_) async => ReviewRequestResult.notAvailable);
+
+      final coordinator = ReviewPromptCoordinator(
+        getRemoteValues: () => values,
+        appUsageService: usage,
+        appReviewService: review,
+        stateStore: store,
+      );
+
+      await coordinator.maybePromptForReview(source: ReviewRequestSource.auto);
+
+      verify(
+        () => review.requestReview(source: any(named: 'source')),
+      ).called(1);
+    });
   });
 }

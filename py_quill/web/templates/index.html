@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "components/jokes.html" import joke_card %}
 
 {% block title %}Snickerdoodle Jokes | Daily Fun for Everyone{% endblock %}
 
@@ -98,30 +99,7 @@
 
   <h2 style="text-align: center;">Today's Joke</h2>
   <div class="joke-card">
-    {% if joke.setup_image_url %}
-    <img src="{{ joke.setup_image_url | replace('width=1024', 'width=600') }}"
-         alt="{{ joke.setup_text }}"
-         class="joke-image"
-         width="600"
-         height="600"
-         loading="lazy">
-    {% endif %}
-    <p class="joke-text">{{ joke.setup_text }}</p>
-
-    <details>
-      <summary>Reveal Punchline</summary>
-      <div class="punchline">
-        {% if joke.punchline_image_url %}
-        <img src="{{ joke.punchline_image_url | replace('width=1024', 'width=600') }}"
-             alt="{{ joke.punchline_text }}"
-             class="joke-image"
-             width="600"
-             height="600"
-             loading="lazy">
-        {% endif %}
-        <p class="joke-text">{{ joke.punchline_text }}</p>
-      </div>
-    </details>
+    {{ joke_card(joke, reveal_label='Reveal Punchline', image_size=600) }}
   </div>
 
   <div class="cta-section">

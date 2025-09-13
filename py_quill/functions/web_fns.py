@@ -6,6 +6,7 @@ import os
 import zoneinfo
 
 import flask
+from common import models
 from firebase_functions import https_fn, logger, options
 from services import firestore, search
 
@@ -51,7 +52,7 @@ def _html_response(html: str,
   return resp
 
 
-def _fetch_topic_jokes(topic: str, limit: int) -> list:
+def _fetch_topic_jokes(topic: str, limit: int) -> list[models.PunnyJoke]:
   """Fetch jokes for a given topic using vector search constrained by tags."""
   now_la = datetime.datetime.now(zoneinfo.ZoneInfo("America/Los_Angeles"))
   field_filters = [('public_timestamp', '<=', now_la)]
@@ -65,8 +66,15 @@ def _fetch_topic_jokes(topic: str, limit: int) -> list:
     distance_threshold=0.31,
     field_filters=field_filters,
   )
+  # Fetch full jokes by IDs and sort by popularity desc, then vector distance asc
   joke_ids = [r.joke.key for r in results]
-  return firestore.get_punny_jokes(joke_ids)
+  id_to_distance = {r.joke.key: r.vector_distance for r in results}
+  jokes = firestore.get_punny_jokes(joke_ids)
+  jokes.sort(key=lambda j: (
+    -1 * (getattr(j, 'popularity_score', 0) or 0),
+    id_to_distance.get(j.key, float('inf')),
+  ))
+  return jokes
 
 
 @web_bp.route('/')
@@ -98,9 +106,6 @@ def topic_page(topic: str):
 
   page_size = 20
   jokes = _fetch_topic_jokes(topic, limit=page_size)
-  # Sort by popularity_score descending
-  jokes.sort(key=lambda j: getattr(j, 'popularity_score', 0) or 0,
-             reverse=True)
 
   base_url = flask.request.url_root.rstrip('/')
   canonical_url = f"{base_url}/jokes/{topic}"

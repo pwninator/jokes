@@ -128,6 +128,53 @@ def test_index_page_renders_joke_of_the_day(monkeypatch):
   assert 'Cache-Control' in resp.headers
 
 
+def test_fetch_topic_jokes_sorts_by_popularity_then_distance(monkeypatch):
+  """_fetch_topic_jokes orders by popularity desc, then vector distance asc."""
+  # Arrange
+  mock_search_jokes = Mock()
+  monkeypatch.setattr(web_fns.search, "search_jokes", mock_search_jokes)
+
+  mock_get_punny_jokes = Mock()
+  monkeypatch.setattr(web_fns.firestore,
+                      "get_punny_jokes",
+                      mock_get_punny_jokes,
+                      raising=False)
+
+  # Three results: A and B same popularity; B has smaller distance than A
+  # C has higher popularity than both and should come first.
+  jA = models.PunnyJoke(key="A", setup_text="sa", punchline_text="pa")
+  jB = models.PunnyJoke(key="B", setup_text="sb", punchline_text="pb")
+  jC = models.PunnyJoke(key="C", setup_text="sc", punchline_text="pc")
+  mock_search_jokes.return_value = [
+    search.JokeSearchResult(joke=jA, vector_distance=0.20),
+    search.JokeSearchResult(joke=jB, vector_distance=0.10),
+    search.JokeSearchResult(joke=jC, vector_distance=0.30),
+  ]
+
+  # Populate popularity scores when firestore objects are returned
+  jA_fs = models.PunnyJoke(key="A",
+                           setup_text="sa",
+                           punchline_text="pa",
+                           popularity_score=5)
+  jB_fs = models.PunnyJoke(key="B",
+                           setup_text="sb",
+                           punchline_text="pb",
+                           popularity_score=5)
+  jC_fs = models.PunnyJoke(key="C",
+                           setup_text="sc",
+                           punchline_text="pc",
+                           popularity_score=10)
+  mock_get_punny_jokes.return_value = [jA_fs, jB_fs, jC_fs]
+
+  # Act
+  ordered = web_fns._fetch_topic_jokes("dogs", limit=3)
+
+  # Assert
+  keys = [j.key for j in ordered]
+  # C first (highest popularity), then B (tie pop, closer), then A
+  assert keys == ["C", "B", "A"]
+
+
 def test_pages_include_ga4_tag_and_parchment_background(monkeypatch):
   """All pages should include GA4 and use the parchment background color."""
   # Arrange

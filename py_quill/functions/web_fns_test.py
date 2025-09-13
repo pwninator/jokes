@@ -91,6 +91,10 @@ def test_topic_page_renders_with_json_ld_and_reveal(monkeypatch):
   assert 'FAQPage' in html
   assert '<details>' in html
   assert '<summary>Reveal punchline</summary>' in html
+  # Layout and image sizing
+  assert '.topic-page .grid { grid-template-columns: 1fr;' in html
+  assert 'aspect-ratio: 1 / 1' in html
+  assert 'width="600" height="600"' in html
   # Cache headers present
   assert 'Cache-Control' in resp.headers
 

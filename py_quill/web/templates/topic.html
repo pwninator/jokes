@@ -26,9 +26,17 @@
   ]
 }
 </script>
+<style>
+  /* Topic page: single column, centered, square images up to 600px */
+  .topic-page .grid { grid-template-columns: 1fr; max-width: 640px; margin: 0 auto; }
+  .topic-page .card { width: min(100%, 600px); margin: 0 auto; }
+  .topic-page .media { aspect-ratio: 1 / 1; }
+  .topic-page .media img { width: 100%; height: 100%; object-fit: cover; }
+</style>
 {% endblock %}
 
 {% block content %}
+  <div class="topic-page">
   <h1>{{ topic|title }} jokes</h1>
   <p class="subtitle">Setup images with revealable punchlines.</p>
   <section class="grid" aria-label="Jokes list">
@@ -36,7 +44,7 @@
     <article class="card">
       <div class="media">
         {% if joke.setup_image_url %}
-          <img src="{{ joke.setup_image_url }}" alt="{{ joke.setup_text }}" loading="lazy" width="600" height="400">
+          <img src="{{ joke.setup_image_url }}" alt="{{ joke.setup_text }}" loading="lazy" width="600" height="600">
         {% else %}
           <span>Image unavailable</span>
         {% endif %}
@@ -49,7 +57,7 @@
             <p>{{ joke.punchline_text }}</p>
             {% if joke.punchline_image_url %}
               <div class="media" style="margin-top:8px;">
-                <img src="{{ joke.punchline_image_url }}" alt="Punchline image" loading="lazy" width="600" height="400">
+                <img src="{{ joke.punchline_image_url }}" alt="Punchline image" loading="lazy" width="600" height="600">
               </div>
             {% endif %}
           </div>
@@ -58,6 +66,7 @@
     </article>
     {% endfor %}
   </section>
+  </div>
 {% endblock %}
 
 

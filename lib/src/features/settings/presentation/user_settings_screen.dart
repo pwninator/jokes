@@ -936,7 +936,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
 
   Future<void> _testReviewPrompt(BuildContext context) async {
     final reviewService = ref.read(appReviewServiceProvider);
-    final response = await reviewService.requestReview(
+    final result = await reviewService.requestReview(
       source: ReviewRequestSource.adminTest,
       force: true,
     );
@@ -945,7 +945,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
 
     String message;
     Color bg = Theme.of(context).colorScheme.primary;
-    switch (response.result) {
+    switch (result) {
       case ReviewRequestResult.shown:
         message = 'Review prompt shown (if allowed by the OS).';
         break;

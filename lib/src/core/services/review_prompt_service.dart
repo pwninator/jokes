@@ -50,11 +50,8 @@ class ReviewPromptCoordinator {
       if (!eligible) return;
 
       debugPrint('REVIEW_COORDINATOR maybePromptForReview requesting review');
-      // Respect the requirement to mark only when native is attempted
-      final response = await _review.requestReview(source: source);
-      if (response.nativeAttempted) {
-        await _store.markRequested();
-      }
+      // The review service is responsible for marking attempts
+      await _review.requestReview(source: source);
     } catch (e) {
       debugPrint('REVIEW_COORDINATOR maybePromptForReview error: $e');
     }

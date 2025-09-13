@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:in_app_review/in_app_review.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
+import 'package:snickerdoodle/src/core/services/review_prompt_state_store.dart';
 
 /// Outcome of attempting to request an in-app review
 enum ReviewRequestResult {
@@ -58,11 +59,14 @@ class InAppReviewAdapter implements NativeReviewAdapter {
 class AppReviewService {
   AppReviewService({
     required NativeReviewAdapter nativeAdapter,
+    required ReviewPromptStateStore stateStore,
     AnalyticsService? analyticsService,
   }) : _native = nativeAdapter,
+       _store = stateStore,
        _analytics = analyticsService;
 
   final NativeReviewAdapter _native;
+  final ReviewPromptStateStore _store;
   final AnalyticsService? _analytics;
 
   /// Check if in-app review API is available on this device/OS
@@ -84,8 +88,9 @@ class AppReviewService {
 
   /// Attempt to show the in-app review sheet
   ///
-  /// Returns a tuple of the outcome and whether the native request was attempted.
-  Future<({ReviewRequestResult result, bool nativeAttempted})> requestReview({
+  /// Returns the outcome of the request. Internally marks the request as
+  /// attempted when native API is available (regardless of success/error).
+  Future<ReviewRequestResult> requestReview({
     required ReviewRequestSource source,
     bool force = false,
   }) async {
@@ -93,22 +98,20 @@ class AppReviewService {
     // prefer checking to short-circuit obvious unavailability.
     _analytics?.logAppReviewAttempt(source: source.value);
 
-    bool attempted = false;
     try {
       final available = await _native.isAvailable();
       if (!available) {
-        return (
-          result: ReviewRequestResult.notAvailable,
-          nativeAttempted: attempted,
-        );
+        return ReviewRequestResult.notAvailable;
       }
 
-      attempted = true;
       await _native.requestReview();
+      // Mark that we attempted to show the native review sheet
+      try {
+        await _store.markRequested();
+      } catch (_) {}
 
-      // The API does not guarantee UI will be shown; treat as throttled/no-op
-      // only if we have platform signals. Since we don't, return shown as best-effort.
-      return (result: ReviewRequestResult.shown, nativeAttempted: attempted);
+      // The API does not guarantee UI will be shown; return shown as best-effort.
+      return ReviewRequestResult.shown;
     } catch (e) {
       debugPrint('APP_REVIEW requestReview error: $e');
       // Log analytics/crash for request review failure
@@ -118,7 +121,7 @@ class AppReviewService {
           errorMessage: 'app_review_request_failed',
         );
       } catch (_) {}
-      return (result: ReviewRequestResult.error, nativeAttempted: attempted);
+      return ReviewRequestResult.error;
     }
   }
 }
@@ -126,8 +129,10 @@ class AppReviewService {
 /// Provider wiring, following project patterns
 final appReviewServiceProvider = Provider<AppReviewService>((ref) {
   final analytics = ref.watch(analyticsServiceProvider);
+  final stateStore = ref.watch(reviewPromptStateStoreProvider);
   return AppReviewService(
     nativeAdapter: InAppReviewAdapter(),
+    stateStore: stateStore,
     analyticsService: analytics,
   );
 });

@@ -128,10 +128,8 @@ void main() {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setInt('num_days_used', 1);
 
-      when(() => review.requestReview(source: any(named: 'source'))).thenAnswer(
-        (_) async =>
-            (result: ReviewRequestResult.notAvailable, nativeAttempted: false),
-      );
+      when(() => review.requestReview(source: any(named: 'source')))
+          .thenAnswer((_) async => ReviewRequestResult.notAvailable);
 
       final coordinator = ReviewPromptCoordinator(
         getRemoteValues: () => values,
@@ -144,9 +142,7 @@ void main() {
       await coordinator.maybePromptForReview(source: ReviewRequestSource.auto);
 
       // Assert
-      verify(
-        () => review.requestReview(source: any(named: 'source')),
-      ).called(1);
+      verify(() => review.requestReview(source: any(named: 'source'))).called(1);
       verifyNever(() => store.markRequested());
     });
 
@@ -159,10 +155,8 @@ void main() {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setInt('num_days_used', 1);
 
-      when(() => review.requestReview(source: any(named: 'source'))).thenAnswer(
-        (_) async => (result: ReviewRequestResult.shown, nativeAttempted: true),
-      );
-      when(() => store.markRequested()).thenAnswer((_) async {});
+      when(() => review.requestReview(source: any(named: 'source')))
+          .thenAnswer((_) async => ReviewRequestResult.shown);
 
       final coordinator = ReviewPromptCoordinator(
         getRemoteValues: () => values,
@@ -173,7 +167,8 @@ void main() {
 
       await coordinator.maybePromptForReview(source: ReviewRequestSource.auto);
 
-      verify(() => store.markRequested()).called(1);
+      // Store is now marked by the service; coordinator no longer marks
+      verifyNever(() => store.markRequested());
     });
 
     test('eligible + attempted error still marks requested', () async {
@@ -185,10 +180,8 @@ void main() {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setInt('num_days_used', 1);
 
-      when(() => review.requestReview(source: any(named: 'source'))).thenAnswer(
-        (_) async => (result: ReviewRequestResult.error, nativeAttempted: true),
-      );
-      when(() => store.markRequested()).thenAnswer((_) async {});
+      when(() => review.requestReview(source: any(named: 'source')))
+          .thenAnswer((_) async => ReviewRequestResult.error);
 
       final coordinator = ReviewPromptCoordinator(
         getRemoteValues: () => values,
@@ -199,7 +192,7 @@ void main() {
 
       await coordinator.maybePromptForReview(source: ReviewRequestSource.auto);
 
-      verify(() => store.markRequested()).called(1);
+      verifyNever(() => store.markRequested());
     });
   });
 }

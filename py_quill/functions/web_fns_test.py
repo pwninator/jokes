@@ -102,17 +102,17 @@ def test_index_page_renders_joke_of_the_day(monkeypatch):
   monkeypatch.setattr(web_fns.firestore, "get_daily_joke", mock_get_daily_joke)
 
   joke = models.PunnyJoke(
-      key="joke123",
-      setup_text="What do you call a fake noodle?",
-      punchline_text="An Impasta!",
-      setup_image_url="http://example.com/setup.jpg",
-      punchline_image_url="http://example.com/punchline.jpg",
+    key="joke123",
+    setup_text="What do you call a fake noodle?",
+    punchline_text="An Impasta!",
+    setup_image_url="http://example.com/setup.jpg",
+    punchline_image_url="http://example.com/punchline.jpg",
   )
   mock_get_daily_joke.return_value = joke
 
   # Act
   with web_fns.app.test_client() as client:
-      resp = client.get('/')
+    resp = client.get('/')
 
   # Assert
   assert resp.status_code == 200
@@ -122,3 +122,62 @@ def test_index_page_renders_joke_of_the_day(monkeypatch):
   assert "An Impasta!" in html
   assert "Download on Google Play" in html
   assert 'Cache-Control' in resp.headers
+
+
+def test_pages_include_ga4_tag_and_parchment_background(monkeypatch):
+  """All pages should include GA4 and use the parchment background color."""
+  # Arrange
+  mock_search_jokes = Mock()
+  monkeypatch.setattr(web_fns.search, "search_jokes", mock_search_jokes)
+
+  mock_get_punny_jokes = Mock()
+  monkeypatch.setattr(web_fns.firestore,
+                      "get_punny_jokes",
+                      mock_get_punny_jokes,
+                      raising=False)
+  mock_get_daily_joke = Mock()
+  monkeypatch.setattr(web_fns.firestore, "get_daily_joke", mock_get_daily_joke)
+
+  search_result = search.JokeSearchResult(
+    joke=models.PunnyJoke(key="j3", setup_text="S", punchline_text="P"),
+    vector_distance=0.03,
+  )
+  mock_search_jokes.return_value = [search_result]
+
+  joke = models.PunnyJoke(
+    key="j3",
+    setup_text="S",
+    punchline_text="P",
+    setup_image_url="http://example.com/s3.jpg",
+    punchline_image_url="http://example.com/p3.jpg",
+  )
+  mock_get_punny_jokes.return_value = [joke]
+  daily_joke = models.PunnyJoke(
+    key="daily1",
+    setup_text="Daily setup",
+    punchline_text="Daily punch",
+    setup_image_url="http://example.com/d.jpg",
+    punchline_image_url="http://example.com/pd.jpg",
+  )
+  mock_get_daily_joke.return_value = daily_joke
+
+  # Act
+  with web_fns.app.test_client() as client:
+    topic_resp = client.get('/jokes/dogs')
+    index_resp = client.get('/')
+
+  # Assert
+  assert topic_resp.status_code == 200
+  assert index_resp.status_code == 200
+  topic_html = topic_resp.get_data(as_text=True)
+  index_html = index_resp.get_data(as_text=True)
+
+  # GA4 present
+  assert 'gtag/js?id=G-D2B7E8PXJJ' in topic_html
+  assert "gtag('config', 'G-D2B7E8PXJJ')" in topic_html
+  assert 'gtag/js?id=G-D2B7E8PXJJ' in index_html
+  assert "gtag('config', 'G-D2B7E8PXJJ')" in index_html
+
+  # Background matches parchment color
+  assert 'background: #f7f1e1' in topic_html
+  assert 'background: #f7f1e1' in index_html

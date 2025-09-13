@@ -80,11 +80,10 @@ void main() {
       verify(() => store.markRequested()).called(1);
     });
 
-    test('requestReview returns error and marks requested when attempt made',
+    test('requestReview returns error and does not mark requested on failure',
         () async {
       when(() => native.isAvailable()).thenAnswer((_) async => true);
       when(() => native.requestReview()).thenThrow(Exception('nope'));
-      when(() => store.markRequested()).thenAnswer((_) async {});
 
       final result = await service.requestReview(
         source: ReviewRequestSource.adminTest,
@@ -95,7 +94,7 @@ void main() {
         () => native.isAvailable(),
         () => native.requestReview(),
       ]);
-      verify(() => store.markRequested()).called(1);
+      verifyNever(() => store.markRequested());
     });
   });
 }

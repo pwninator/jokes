@@ -146,7 +146,7 @@ void main() {
       verifyNever(() => store.markRequested());
     });
 
-    test('eligible + attempted success marks requested', () async {
+    test('eligible + success marks requested (service handles marking)', () async {
       final values = _FakeRemoteValues(minDays: 1, minSaved: 1, minShared: 1);
       when(() => store.hasRequested()).thenAnswer((_) async => false);
 
@@ -167,11 +167,11 @@ void main() {
 
       await coordinator.maybePromptForReview(source: ReviewRequestSource.auto);
 
-      // Store is now marked by the service; coordinator no longer marks
+      // Service marks internally; coordinator doesn't call store
       verifyNever(() => store.markRequested());
     });
 
-    test('eligible + attempted error still marks requested', () async {
+    test('eligible + error does not mark requested (service handles marking)', () async {
       final values = _FakeRemoteValues(minDays: 1, minSaved: 1, minShared: 1);
       when(() => store.hasRequested()).thenAnswer((_) async => false);
 

@@ -51,17 +51,20 @@
     }
     .cta-button {
       display: inline-block;
-      padding: 1rem 2rem;
-      background-color: #4CAF50; /* A nice green */
-      color: white;
+      padding: 12px 20px;
+      background: linear-gradient(180deg, var(--primary) 0%, var(--primary-600) 100%);
+      color: var(--on-primary);
       text-decoration: none;
-      font-size: 1.2rem;
-      border-radius: 8px;
-      font-weight: bold;
-      transition: background-color 0.3s;
+      font-size: 1.05rem;
+      border-radius: 10px;
+      font-weight: 700;
+      border: 1px solid var(--primary-700);
+      box-shadow: 0 2px 6px rgba(193, 122, 45, 0.35);
+      transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease;
     }
     .cta-button:hover {
-      background-color: #45a049;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 10px rgba(193, 122, 45, 0.4);
     }
     .value-props {
       display: flex;
@@ -88,9 +91,7 @@
   <img src="https://images.quillsstorybook.com/cdn-cgi/image/width=1024,format=auto,quality=75/banner001.png" alt="Snickerdoodle Jokes Banner" class="banner-image">
 
   <h2 style="text-align: center;">Today's Joke</h2>
-  <div class="joke-card">
-    {{ joke_card(joke, reveal_label='Reveal Punchline', image_size=600) }}
-  </div>
+  {{ joke_card(joke, reveal_label='Reveal Punchline', image_size=600) }}
 
   <div class="cta-section">
     <a href="https://play.google.com/store/apps/details?id=com.builtwithporpoise.jokes" class="cta-button" target="_blank" rel="noopener noreferrer">

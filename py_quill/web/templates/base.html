@@ -40,14 +40,25 @@
   <style>
     :root {
       color-scheme: light;
+      /* App theme palette (mirrors Flutter app) */
+      --primary: #C17A2D;           /* primaryColor */
+      --primary-600: #B06E29;       /* slightly darker */
+      --primary-700: #9A5F22;       /* darker for borders */
+      --on-primary: #ffffff;        /* text on primary */
+      --card-bg: #ffffff;           /* card surface */
+      --card-border: rgba(0,0,0,0.08);
+      --card-shadow: 0 6px 18px rgba(0,0,0,0.08);
+      --parchment: #f7f1e1;         /* site background */
+      --text: #1b1b1b;
     }
 
     body {
       margin: 0;
       font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
       line-height: 1.6;
-      background: #f7f1e1;
-      color: #111;
+      background: #f7f1e1; /* keep literal for tests */
+      background: var(--parchment);
+      color: var(--text);
     }
 
     header {
@@ -78,10 +89,11 @@
     }
 
     .card {
-      border: 1px solid rgba(0, 0, 0, 0.08);
+      border: 1px solid var(--card-border);
       border-radius: 12px;
       overflow: hidden;
-      background: rgba(255, 255, 255, 0.9);
+      background: var(--card-bg);
+      box-shadow: var(--card-shadow);
     }
 
     .media {
@@ -130,16 +142,16 @@
     .joke-carousel {
       width: 100%;
       max-width: 600px;
-      margin: 0 auto 12px;
+      margin: 0 auto 8px;
     }
 
     .joke-carousel-viewport {
       overflow: hidden;
       width: 100%;
       border-radius: 12px;
-      background: #fff;
-      border: 1px solid rgba(0, 0, 0, 0.08);
-      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      box-shadow: var(--card-shadow);
     }
 
     .joke-carousel-track {
@@ -216,8 +228,10 @@
     .joke-widget {
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 6px;
       align-items: stretch;
+      max-width: 600px;
+      margin: 0 auto;
     }
 
     .joke-widget .joke-carousel {
@@ -226,20 +240,25 @@
 
     .joke-widget details {
       order: 2;
-      align-self: center;
+      align-self: stretch;
+      border-top: 0;
+      padding-top: 0;
+      margin-top: 0;
     }
 
     .joke-widget summary {
-      background: linear-gradient(180deg, #0d6efd 0%, #0a58ca 100%);
-      color: #fff;
+      background: var(--primary);
+      color: var(--on-primary);
       padding: 12px 18px;
       border-radius: 10px;
       font-weight: 700;
       list-style: none;
-      display: inline-block;
-      border: 1px solid #0a58ca;
-      box-shadow: 0 2px 6px rgba(13, 110, 253, 0.3);
-      transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease;
+      display: block;
+      width: 100%;
+      box-sizing: border-box;
+      text-align: center;
+      border: 1px solid var(--primary-700);
+      transition: background 120ms ease;
       user-select: none;
     }
 
@@ -248,17 +267,15 @@
     }
 
     .joke-widget summary:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 4px 10px rgba(13, 110, 253, 0.35);
+      background: var(--primary-600);
     }
 
     .joke-widget summary:active {
-      transform: translateY(0);
-      box-shadow: 0 2px 6px rgba(13, 110, 253, 0.3);
+      background: var(--primary-700);
     }
 
     .joke-widget summary:focus-visible {
-      outline: 3px solid rgba(13, 110, 253, 0.4);
+      outline: 3px solid rgba(193, 122, 45, 0.4);
       outline-offset: 2px;
     }
   </style>

@@ -49,7 +49,7 @@
     ],
     "rewrites": [
       {
-        "source": "*",
+        "source": "**",
         "function": {
           "functionId": "web_search_page",
           "region": "us-central1",

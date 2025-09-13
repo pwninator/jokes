@@ -6,7 +6,6 @@ import os
 import zoneinfo
 
 import flask
-from common import models
 from firebase_functions import https_fn, logger, options
 from services import firestore, search
 
@@ -97,8 +96,11 @@ def topic_page(topic: str):
   except Exception:
     page_num = 1
 
-  page_size = 12
+  page_size = 20
   jokes = _fetch_topic_jokes(topic, limit=page_size)
+  # Sort by popularity_score descending
+  jokes.sort(key=lambda j: getattr(j, 'popularity_score', 0) or 0,
+             reverse=True)
 
   base_url = flask.request.url_root.rstrip('/')
   canonical_url = f"{base_url}/jokes/{topic}"

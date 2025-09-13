@@ -91,9 +91,7 @@ class AppReviewService {
   }) async {
     // Attempt regardless of availability to mirror plugin guidance, but we
     // prefer checking to short-circuit obvious unavailability.
-    try {
-      _analytics?.logAppReviewAttempt(source: source.value);
-    } catch (_) {}
+    _analytics?.logAppReviewAttempt(source: source.value);
 
     bool attempted = false;
     try {

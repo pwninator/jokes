@@ -26,8 +26,13 @@ class ReviewPromptCoordinator {
     required ReviewRequestSource source,
   }) async {
     try {
+      debugPrint('REVIEW_COORDINATOR maybePromptForReview');
+
       // Early out if previously requested
-      if (await _store.hasRequested()) return;
+      if (await _store.hasRequested()) {
+        debugPrint('REVIEW_COORDINATOR maybePromptForReview already requested');
+        return;
+      }
 
       // Read thresholds (synchronous, default-safe)
       final rv = _getRemoteValues();
@@ -44,13 +49,14 @@ class ReviewPromptCoordinator {
           days >= minDays && saved >= minSaved && shared >= minShared;
       if (!eligible) return;
 
+      debugPrint('REVIEW_COORDINATOR maybePromptForReview requesting review');
       // Respect the requirement to mark only when native is attempted
       final response = await _review.requestReview(source: source);
       if (response.nativeAttempted) {
         await _store.markRequested();
       }
     } catch (e) {
-      debugPrint('REVIEW_COORD error: $e');
+      debugPrint('REVIEW_COORDINATOR maybePromptForReview error: $e');
     }
   }
 }

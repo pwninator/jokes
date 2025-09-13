@@ -441,11 +441,13 @@ void main() {
 
         // act & assert - should not throw
         await expectLater(
-          Future.sync(() => analyticsService.logJokeSetupViewed(
-            'test-joke-id',
-            navigationMethod: AnalyticsNavigationMethod.swipe,
-            jokeContext: 'test',
-          )),
+          Future.sync(
+            () => analyticsService.logJokeSetupViewed(
+              'test-joke-id',
+              navigationMethod: AnalyticsNavigationMethod.swipe,
+              jokeContext: 'test',
+            ),
+          ),
           completes,
         );
       });

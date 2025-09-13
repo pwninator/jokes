@@ -170,6 +170,49 @@ class AppUsageService {
   Future<int> getNumSharedJokes() async =>
       _prefs.getInt(_numSharedJokesKey) ?? 0;
 
+  /// Setters to directly override metrics (admin/testing tools)
+  Future<void> setFirstUsedDate(String? date) async {
+    if (date == null || date.isEmpty) {
+      await _prefs.remove(_firstUsedDateKey);
+    } else {
+      await _prefs.setString(_firstUsedDateKey, date);
+    }
+    _notifyUsageChanged();
+  }
+
+  Future<void> setLastUsedDate(String? date) async {
+    if (date == null || date.isEmpty) {
+      await _prefs.remove(_lastUsedDateKey);
+    } else {
+      await _prefs.setString(_lastUsedDateKey, date);
+    }
+    _notifyUsageChanged();
+  }
+
+  Future<void> setNumDaysUsed(int value) async {
+    final int sanitized = value < 0 ? 0 : value;
+    await _prefs.setInt(_numDaysUsedKey, sanitized);
+    _notifyUsageChanged();
+  }
+
+  Future<void> setNumJokesViewed(int value) async {
+    final int sanitized = value < 0 ? 0 : value;
+    await _prefs.setInt(_numJokesViewedKey, sanitized);
+    _notifyUsageChanged();
+  }
+
+  Future<void> setNumSavedJokes(int value) async {
+    final int sanitized = value < 0 ? 0 : value;
+    await _prefs.setInt(_numSavedJokesKey, sanitized);
+    _notifyUsageChanged();
+  }
+
+  Future<void> setNumSharedJokes(int value) async {
+    final int sanitized = value < 0 ? 0 : value;
+    await _prefs.setInt(_numSharedJokesKey, sanitized);
+    _notifyUsageChanged();
+  }
+
   // Returns today's date as yyyy-MM-dd in local time
   String _formatTodayDate() {
     final DateTime now = DateTime.now();

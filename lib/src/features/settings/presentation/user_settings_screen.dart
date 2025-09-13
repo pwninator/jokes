@@ -251,6 +251,20 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                                   'Num Jokes Shared',
                                   metrics.numJokesShared.toString(),
                                 ),
+                                const SizedBox(height: 12),
+                                Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: OutlinedButton.icon(
+                                    key: const Key('edit-usage-metrics-button'),
+                                    icon: const Icon(Icons.edit_outlined),
+                                    label: const Text('Edit Usage Metrics'),
+                                    onPressed: () => _showEditUsageDialog(
+                                      context,
+                                      ref,
+                                      metrics,
+                                    ),
+                                  ),
+                                ),
                               ],
                             );
                           },
@@ -436,6 +450,130 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
           () => themeModeNotifier.setThemeMode(ThemeMode.dark),
         ),
       ],
+    );
+  }
+
+  void _showEditUsageDialog(
+    BuildContext context,
+    WidgetRef ref,
+    _UsageMetrics metrics,
+  ) {
+    final firstUsedController = TextEditingController(
+      text: metrics.firstUsedDate ?? '',
+    );
+    final lastUsedController = TextEditingController(
+      text: metrics.lastUsedDate ?? '',
+    );
+    final daysUsedController = TextEditingController(
+      text: metrics.numDaysUsed.toString(),
+    );
+    final viewedController = TextEditingController(
+      text: metrics.numJokesViewed.toString(),
+    );
+    final savedController = TextEditingController(
+      text: metrics.numJokesSaved.toString(),
+    );
+    final sharedController = TextEditingController(
+      text: metrics.numJokesShared.toString(),
+    );
+
+    showDialog<void>(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: const Text('Edit Usage Metrics'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  key: const Key('edit-first-used'),
+                  controller: firstUsedController,
+                  decoration: const InputDecoration(
+                    labelText: 'First used date (yyyy-MM-dd)',
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  key: const Key('edit-last-used'),
+                  controller: lastUsedController,
+                  decoration: const InputDecoration(
+                    labelText: 'Last used date (yyyy-MM-dd)',
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  key: const Key('edit-num-days-used'),
+                  controller: daysUsedController,
+                  decoration: const InputDecoration(
+                    labelText: 'Number of days used',
+                  ),
+                  keyboardType: TextInputType.number,
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  key: const Key('edit-num-viewed'),
+                  controller: viewedController,
+                  decoration: const InputDecoration(
+                    labelText: 'Num jokes viewed',
+                  ),
+                  keyboardType: TextInputType.number,
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  key: const Key('edit-num-saved'),
+                  controller: savedController,
+                  decoration: const InputDecoration(
+                    labelText: 'Num jokes saved',
+                  ),
+                  keyboardType: TextInputType.number,
+                ),
+                const SizedBox(height: 8),
+                TextField(
+                  key: const Key('edit-num-shared'),
+                  controller: sharedController,
+                  decoration: const InputDecoration(
+                    labelText: 'Num jokes shared',
+                  ),
+                  keyboardType: TextInputType.number,
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              key: const Key('edit-usage-cancel'),
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              key: const Key('edit-usage-submit'),
+              onPressed: () async {
+                final usage = ref.read(appUsageServiceProvider);
+                final int parsedDays =
+                    int.tryParse(daysUsedController.text) ?? 0;
+                final int parsedViewed =
+                    int.tryParse(viewedController.text) ?? 0;
+                final int parsedSaved = int.tryParse(savedController.text) ?? 0;
+                final int parsedShared =
+                    int.tryParse(sharedController.text) ?? 0;
+
+                await usage.setFirstUsedDate(firstUsedController.text.trim());
+                await usage.setLastUsedDate(lastUsedController.text.trim());
+                await usage.setNumDaysUsed(parsedDays);
+                await usage.setNumJokesViewed(parsedViewed);
+                await usage.setNumSavedJokes(parsedSaved);
+                await usage.setNumSharedJokes(parsedShared);
+
+                if (context.mounted) {
+                  Navigator.of(context).pop();
+                }
+              },
+              child: const Text('Submit'),
+            ),
+          ],
+        );
+      },
     );
   }
 

@@ -67,6 +67,13 @@ void main() {
         appUsageService: appUsageService,
         reviewPromptCoordinator: mockCoordinator,
       );
+
+      // Default watermark behavior: passthrough original files
+      when(() => mockImageService.addWatermarkToFiles(any())).thenAnswer(
+        (invocation) async => List<XFile>.from(
+          invocation.positionalArguments.first as List<XFile>,
+        ),
+      );
     });
 
     test(

@@ -93,3 +93,32 @@ def test_topic_page_renders_with_json_ld_and_reveal(monkeypatch):
   assert '<summary>Reveal punchline</summary>' in html
   # Cache headers present
   assert 'Cache-Control' in resp.headers
+
+
+def test_index_page_renders_joke_of_the_day(monkeypatch):
+  """Verify that the index page '/' renders the joke of the day."""
+  # Arrange
+  mock_get_daily_joke = Mock()
+  monkeypatch.setattr(web_fns.firestore, "get_daily_joke", mock_get_daily_joke)
+
+  joke = models.PunnyJoke(
+      key="joke123",
+      setup_text="What do you call a fake noodle?",
+      punchline_text="An Impasta!",
+      setup_image_url="http://example.com/setup.jpg",
+      punchline_image_url="http://example.com/punchline.jpg",
+  )
+  mock_get_daily_joke.return_value = joke
+
+  # Act
+  with web_fns.app.test_client() as client:
+      resp = client.get('/')
+
+  # Assert
+  assert resp.status_code == 200
+  html = resp.get_data(as_text=True)
+  assert "Today's Joke" in html
+  assert "What do you call a fake noodle?" in html
+  assert "An Impasta!" in html
+  assert "Download on Google Play" in html
+  assert 'Cache-Control' in resp.headers

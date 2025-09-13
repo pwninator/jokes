@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+
+{% block title %}Snickerdoodle Jokes | Daily Fun for Everyone{% endblock %}
+
+{% block head_extra %}
+  <meta name="description" content="Welcome to Snickerdoodle Jokes! Get a new, funny joke every day. Download our app for more laughs!">
+  <link rel="canonical" href="{{ url_for('web.index', _external=True) }}">
+  <meta property="og:title" content="Snickerdoodle Jokes | Daily Fun for Everyone">
+  <meta property="og:description" content="Today's joke: {{ joke.setup_text }}">
+  <meta property="og:image" content="https://images.quillsstorybook.com/cdn-cgi/image/width=1024,format=auto,quality=75/banner001.png">
+  <meta property="og:url" content="{{ url_for('web.index', _external=True) }}">
+  <meta name="twitter:card" content="summary_large_image">
+  <style>
+    /* Some basic styling for the landing page */
+    .banner-image {
+      width: 100%;
+      height: auto;
+      margin-bottom: 2rem;
+    }
+    .joke-card {
+      background-color: #fff;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      padding: 24px;
+      max-width: 600px;
+      margin: 2rem auto;
+      text-align: center;
+    }
+    .joke-image {
+      width: 100%;
+      height: auto;
+      border-radius: 8px;
+      margin-bottom: 1rem;
+    }
+    .joke-text {
+      font-size: 1.25rem;
+      color: #333;
+      margin-bottom: 1rem;
+    }
+    .punchline {
+      display: none;
+    }
+    details[open] .punchline {
+      display: block;
+    }
+    summary {
+      cursor: pointer;
+      background-color: #f0f0f0;
+      padding: 1rem;
+      border-radius: 8px;
+      font-weight: bold;
+      list-style: none; /* Hide the default marker */
+    }
+    summary::-webkit-details-marker {
+      display: none; /* Hide the default marker in Chrome */
+    }
+    .cta-section {
+      text-align: center;
+      margin: 3rem 0;
+    }
+    .cta-button {
+      display: inline-block;
+      padding: 1rem 2rem;
+      background-color: #4CAF50; /* A nice green */
+      color: white;
+      text-decoration: none;
+      font-size: 1.2rem;
+      border-radius: 8px;
+      font-weight: bold;
+      transition: background-color 0.3s;
+    }
+    .cta-button:hover {
+      background-color: #45a049;
+    }
+    .value-props {
+      display: flex;
+      justify-content: center;
+      gap: 2rem;
+      margin-top: 3rem;
+      flex-wrap: wrap;
+    }
+    .prop-box {
+      background-color: #f9f9f9;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 1.5rem;
+      width: 250px;
+      text-align: center;
+    }
+    .prop-box h3 {
+      margin-top: 0;
+    }
+  </style>
+{% endblock %}
+
+{% block content %}
+  <img src="https://images.quillsstorybook.com/cdn-cgi/image/width=1024,format=auto,quality=75/banner001.png" alt="Snickerdoodle Jokes Banner" class="banner-image">
+
+  <h2 style="text-align: center;">Today's Joke</h2>
+  <div class="joke-card">
+    {% if joke.setup_image_url %}
+    <img src="{{ joke.setup_image_url | replace('width=1024', 'width=600') }}"
+         alt="{{ joke.setup_text }}"
+         class="joke-image"
+         width="600"
+         height="600"
+         loading="lazy">
+    {% endif %}
+    <p class="joke-text">{{ joke.setup_text }}</p>
+
+    <details>
+      <summary>Reveal Punchline</summary>
+      <div class="punchline">
+        {% if joke.punchline_image_url %}
+        <img src="{{ joke.punchline_image_url | replace('width=1024', 'width=600') }}"
+             alt="{{ joke.punchline_text }}"
+             class="joke-image"
+             width="600"
+             height="600"
+             loading="lazy">
+        {% endif %}
+        <p class="joke-text">{{ joke.punchline_text }}</p>
+      </div>
+    </details>
+  </div>
+
+  <div class="cta-section">
+    <a href="https://play.google.com/store/apps/details?id=com.builtwithporpoise.jokes" class="cta-button" target="_blank" rel="noopener noreferrer">
+      Download on Google Play
+    </a>
+  </div>
+
+  <div class="value-props">
+    <div class="prop-box">
+      <h3>Daily Laughs</h3>
+      <p>Get a new, hilarious joke delivered to you every day.</p>
+    </div>
+    <div class="prop-box">
+      <h3>Beautiful Images</h3>
+      <p>Each joke comes with funny, AI-generated images.</p>
+    </div>
+    <div class="prop-box">
+      <h3>Share with Friends</h3>
+      <p>Easily share your favorite jokes and spread the fun.</p>
+    </div>
+  </div>
+{% endblock %}

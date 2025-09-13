@@ -128,8 +128,9 @@ void main() {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setInt('num_days_used', 1);
 
-      when(() => review.requestReview(source: any(named: 'source')))
-          .thenAnswer((_) async => ReviewRequestResult.notAvailable);
+      when(
+        () => review.requestReview(source: any(named: 'source')),
+      ).thenAnswer((_) async => ReviewRequestResult.notAvailable);
 
       final coordinator = ReviewPromptCoordinator(
         getRemoteValues: () => values,
@@ -142,57 +143,71 @@ void main() {
       await coordinator.maybePromptForReview(source: ReviewRequestSource.auto);
 
       // Assert
-      verify(() => review.requestReview(source: any(named: 'source'))).called(1);
+      verify(
+        () => review.requestReview(source: any(named: 'source')),
+      ).called(1);
       verifyNever(() => store.markRequested());
     });
 
-    test('eligible + success marks requested (service handles marking)', () async {
-      final values = _FakeRemoteValues(minDays: 1, minSaved: 1, minShared: 1);
-      when(() => store.hasRequested()).thenAnswer((_) async => false);
+    test(
+      'eligible + success marks requested (service handles marking)',
+      () async {
+        final values = _FakeRemoteValues(minDays: 1, minSaved: 1, minShared: 1);
+        when(() => store.hasRequested()).thenAnswer((_) async => false);
 
-      await usage.incrementSavedJokesCount();
-      await usage.incrementSharedJokesCount();
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setInt('num_days_used', 1);
+        await usage.incrementSavedJokesCount();
+        await usage.incrementSharedJokesCount();
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setInt('num_days_used', 1);
 
-      when(() => review.requestReview(source: any(named: 'source')))
-          .thenAnswer((_) async => ReviewRequestResult.shown);
+        when(
+          () => review.requestReview(source: any(named: 'source')),
+        ).thenAnswer((_) async => ReviewRequestResult.shown);
 
-      final coordinator = ReviewPromptCoordinator(
-        getRemoteValues: () => values,
-        appUsageService: usage,
-        appReviewService: review,
-        stateStore: store,
-      );
+        final coordinator = ReviewPromptCoordinator(
+          getRemoteValues: () => values,
+          appUsageService: usage,
+          appReviewService: review,
+          stateStore: store,
+        );
 
-      await coordinator.maybePromptForReview(source: ReviewRequestSource.auto);
+        await coordinator.maybePromptForReview(
+          source: ReviewRequestSource.auto,
+        );
 
-      // Service marks internally; coordinator doesn't call store
-      verifyNever(() => store.markRequested());
-    });
+        // Service marks internally; coordinator doesn't call store
+        verifyNever(() => store.markRequested());
+      },
+    );
 
-    test('eligible + error does not mark requested (service handles marking)', () async {
-      final values = _FakeRemoteValues(minDays: 1, minSaved: 1, minShared: 1);
-      when(() => store.hasRequested()).thenAnswer((_) async => false);
+    test(
+      'eligible + error does not mark requested (service handles marking)',
+      () async {
+        final values = _FakeRemoteValues(minDays: 1, minSaved: 1, minShared: 1);
+        when(() => store.hasRequested()).thenAnswer((_) async => false);
 
-      await usage.incrementSavedJokesCount();
-      await usage.incrementSharedJokesCount();
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setInt('num_days_used', 1);
+        await usage.incrementSavedJokesCount();
+        await usage.incrementSharedJokesCount();
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setInt('num_days_used', 1);
 
-      when(() => review.requestReview(source: any(named: 'source')))
-          .thenAnswer((_) async => ReviewRequestResult.error);
+        when(
+          () => review.requestReview(source: any(named: 'source')),
+        ).thenAnswer((_) async => ReviewRequestResult.error);
 
-      final coordinator = ReviewPromptCoordinator(
-        getRemoteValues: () => values,
-        appUsageService: usage,
-        appReviewService: review,
-        stateStore: store,
-      );
+        final coordinator = ReviewPromptCoordinator(
+          getRemoteValues: () => values,
+          appUsageService: usage,
+          appReviewService: review,
+          stateStore: store,
+        );
 
-      await coordinator.maybePromptForReview(source: ReviewRequestSource.auto);
+        await coordinator.maybePromptForReview(
+          source: ReviewRequestSource.auto,
+        );
 
-      verifyNever(() => store.markRequested());
-    });
+        verifyNever(() => store.markRequested());
+      },
+    );
   });
 }

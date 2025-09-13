@@ -1,9 +1,18 @@
+import 'dart:io';
+
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
+import 'package:image/image.dart' as img;
+import 'package:path/path.dart' as p;
 import 'package:share_plus/share_plus.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 
 class ImageService {
+  // Watermark asset path
+  static const String watermarkAssetPath =
+      'assets/watermark/snickerdoodlejokes_watermark_01.png';
+
   // Cache configuration
   static const Duration defaultCacheDuration = Duration(days: 30);
   static const int maxCacheSize = 100 * 1024 * 1024; // 100MB
@@ -235,5 +244,77 @@ class ImageService {
         debugPrint('Failed to precache images for joke ${joke.id}: $e');
       }
     }
+  }
+
+  /// Adds a watermark overlay image to the provided file and returns a new XFile.
+  /// If processing fails at any step, returns the original file to avoid blocking share.
+  Future<XFile> addWatermarkToFile(
+    XFile baseFile, {
+    double targetWidthFraction = 0.35,
+    int bottomPaddingPx = 16,
+  }) async {
+    try {
+      final baseBytes = await baseFile.readAsBytes();
+      final baseImage = img.decodeImage(baseBytes);
+      if (baseImage == null) {
+        return baseFile;
+      }
+
+      // Load watermark asset
+      final ByteData wmData = await rootBundle.load(watermarkAssetPath);
+      final wmImage = img.decodeImage(wmData.buffer.asUint8List());
+      if (wmImage == null) {
+        return baseFile;
+      }
+
+      // Resize watermark to a fraction of base width
+      final int targetWidth = (baseImage.width * targetWidthFraction).round();
+      final img.Image resizedWm = img.copyResize(
+        wmImage,
+        width: targetWidth.clamp(1, baseImage.width),
+        interpolation: img.Interpolation.linear,
+      );
+
+      // Compute placement: bottom-left with padding
+      const int leftPaddingPx = 16;
+      final int dstX = leftPaddingPx
+          .clamp(0, baseImage.width - resizedWm.width);
+      final int dstY = (baseImage.height - resizedWm.height - bottomPaddingPx)
+          .clamp(0, baseImage.height - resizedWm.height)
+          .toInt();
+
+      // Composite watermark onto base image with alpha blending
+      final img.Image composed = img.compositeImage(
+        baseImage.clone(),
+        resizedWm,
+        dstX: dstX,
+        dstY: dstY,
+      );
+
+      // Encode to PNG
+      final outBytes = img.encodePng(composed);
+
+      // Write to a temp file (use system temp to avoid platform channel dependency)
+      final String tempDir = Directory.systemTemp.path;
+      final String outPath = p.join(
+        tempDir,
+        'snickerdoodle_share_${DateTime.now().millisecondsSinceEpoch}_${p.basename(baseFile.path)}.png',
+      );
+      final outFile = File(outPath);
+      await outFile.writeAsBytes(outBytes, flush: true);
+      return XFile(outFile.path);
+    } catch (e) {
+      debugPrint('addWatermarkToFile failed: $e');
+      return baseFile;
+    }
+  }
+
+  /// Convenience helper to watermark multiple files
+  Future<List<XFile>> addWatermarkToFiles(List<XFile> files) async {
+    final List<XFile> results = [];
+    for (final file in files) {
+      results.add(await addWatermarkToFile(file));
+    }
+    return results;
   }
 }

@@ -177,8 +177,13 @@ class JokeShareServiceImpl implements JokeShareService {
         throw Exception('No images could be downloaded for sharing');
       }
 
-      final result = await _platformShareService.shareFiles(
+      // Apply watermark overlay to each file before sharing
+      final List<XFile> brandedFiles = await _imageService.addWatermarkToFiles(
         files,
+      );
+
+      final result = await _platformShareService.shareFiles(
+        brandedFiles,
         subject: subject,
         text: text,
       );

@@ -63,38 +63,43 @@ void main() {
       verifyNever(() => store.markRequested());
     });
 
-    test('requestReview returns shown and marks requested on success', () async {
-      when(() => native.isAvailable()).thenAnswer((_) async => true);
-      when(() => native.requestReview()).thenAnswer((_) async {});
-      when(() => store.markRequested()).thenAnswer((_) async {});
+    test(
+      'requestReview returns shown and marks requested on success',
+      () async {
+        when(() => native.isAvailable()).thenAnswer((_) async => true);
+        when(() => native.requestReview()).thenAnswer((_) async {});
+        when(() => store.markRequested()).thenAnswer((_) async {});
 
-      final result = await service.requestReview(
-        source: ReviewRequestSource.adminTest,
-      );
+        final result = await service.requestReview(
+          source: ReviewRequestSource.adminTest,
+        );
 
-      expect(result, ReviewRequestResult.shown);
-      verifyInOrder([
-        () => native.isAvailable(),
-        () => native.requestReview(),
-      ]);
-      verify(() => store.markRequested()).called(1);
-    });
+        expect(result, ReviewRequestResult.shown);
+        verifyInOrder([
+          () => native.isAvailable(),
+          () => native.requestReview(),
+        ]);
+        verify(() => store.markRequested()).called(1);
+      },
+    );
 
-    test('requestReview returns error and does not mark requested on failure',
-        () async {
-      when(() => native.isAvailable()).thenAnswer((_) async => true);
-      when(() => native.requestReview()).thenThrow(Exception('nope'));
+    test(
+      'requestReview returns error and does not mark requested on failure',
+      () async {
+        when(() => native.isAvailable()).thenAnswer((_) async => true);
+        when(() => native.requestReview()).thenThrow(Exception('nope'));
 
-      final result = await service.requestReview(
-        source: ReviewRequestSource.adminTest,
-      );
+        final result = await service.requestReview(
+          source: ReviewRequestSource.adminTest,
+        );
 
-      expect(result, ReviewRequestResult.error);
-      verifyInOrder([
-        () => native.isAvailable(),
-        () => native.requestReview(),
-      ]);
-      verifyNever(() => store.markRequested());
-    });
+        expect(result, ReviewRequestResult.error);
+        verifyInOrder([
+          () => native.isAvailable(),
+          () => native.requestReview(),
+        ]);
+        verifyNever(() => store.markRequested());
+      },
+    );
   });
 }

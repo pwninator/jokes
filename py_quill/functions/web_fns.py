@@ -152,6 +152,7 @@ def sitemap():
 
 @https_fn.on_request(
   memory=options.MemoryOption.GB_1,
+  min_instances=1,
   timeout_sec=30,
 )
 def web_search_page(req: https_fn.Request) -> https_fn.Response:

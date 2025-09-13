@@ -8,6 +8,7 @@ import zoneinfo
 import flask
 from firebase_functions import https_fn, logger, options
 from services import firestore, search
+from common import models
 
 _TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), '..', 'web',
                               'templates')
@@ -67,6 +68,23 @@ def _fetch_topic_jokes(topic: str, limit: int) -> list:
   )
   joke_ids = [r.joke.key for r in results]
   return firestore.get_punny_jokes(joke_ids)
+
+
+@web_bp.route('/')
+def index():
+  """Render the landing page with the joke of the day."""
+  today = datetime.datetime.now(datetime.timezone.utc).date()
+  joke = firestore.get_daily_joke("daily_jokes", today)
+
+  if not joke:
+    return "Could not find a joke of the day.", 404
+
+  html = flask.render_template(
+    'index.html',
+    joke=joke,
+    site_name='Snickerdoodle',
+  )
+  return _html_response(html, cache_seconds=300, cdn_seconds=1800)
 
 
 @web_bp.route('/jokes/<topic>')

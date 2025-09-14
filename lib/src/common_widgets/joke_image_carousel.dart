@@ -168,12 +168,15 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
   }
 
   Future<void> _maybeLogJokeFullyViewed() async {
-    if (_jokeViewedLogged || !_hasBothImages) return;
+    // Guard against running after disposal or when conditions aren't met
+    if (!mounted || _jokeViewedLogged || !_hasBothImages) return;
     if (_setupThresholdMet && _punchlineThresholdMet) {
       _jokeViewedLogged = true;
       final appUsageService = ref.read(appUsageServiceProvider);
       await appUsageService.logJokeViewed();
       final jokesViewedCount = await appUsageService.getNumJokesViewed();
+      // Re-check mounted before any further ref.read calls after awaits
+      if (!mounted) return;
       final analyticsService = ref.read(analyticsServiceProvider);
       if (!widget.isAdminMode) {
         analyticsService.logJokeViewed(
@@ -182,6 +185,8 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
           navigationMethod: _lastNavigationMethod,
           jokeContext: widget.jokeContext,
         );
+        // Re-check mounted before reading another provider
+        if (!mounted) return;
         final subscriptionPromptNotifier = ref.read(
           subscriptionPromptProvider.notifier,
         );

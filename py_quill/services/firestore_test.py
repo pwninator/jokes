@@ -1,5 +1,6 @@
 """Tests for the firestore module."""
 import datetime
+import pytest
 
 from common import models
 from services import firestore
@@ -56,6 +57,110 @@ def test_upsert_punny_joke_serializes_state_string(monkeypatch):
   assert res is not None
   assert captured["state"] == "DRAFT"
   assert "key" not in captured
+
+
+import pytest
+
+def test_get_all_jokes(monkeypatch):
+  """Test that get_all_jokes returns a list of PunnyJoke objects."""
+  from services import firestore as fs
+
+  class DummyDoc:
+    def __init__(self, id_, exists=True, data=None):
+      self.id = id_
+      self._exists = exists
+      self._data = data or {"setup_text": "s", "punchline_text": "p"}
+
+    @property
+    def exists(self):
+      return self._exists
+
+    def to_dict(self):
+      return self._data
+
+  class DummyCol:
+    def stream(self):
+      return [
+          DummyDoc("joke1", data={
+              "setup_text": "Why did the scarecrow win an award?",
+              "punchline_text": "Because he was outstanding in his field."
+          }),
+          DummyDoc("joke2", data={
+              "setup_text": "What do you call a fake noodle?",
+              "punchline_text": "An Impasta."
+          }),
+      ]
+
+  class DummyDB:
+    def collection(self, _name):
+      return DummyCol()
+
+  monkeypatch.setattr(fs, "db", DummyDB)
+
+  jokes = fs.get_all_jokes()
+  assert len(jokes) == 2
+  assert jokes[0].key == "joke1"
+  assert jokes[0].setup_text == "Why did the scarecrow win an award?"
+  assert jokes[1].key == "joke2"
+  assert jokes[1].punchline_text == "An Impasta."
+
+
+@pytest.mark.asyncio
+async def test_get_all_jokes_async(monkeypatch):
+  """Test that get_all_jokes_async returns a list of PunnyJoke objects."""
+  from services import firestore as fs
+
+  class AsyncIterator:
+    def __init__(self, seq):
+      self.iter = iter(seq)
+
+    def __aiter__(self):
+      return self
+
+    async def __anext__(self):
+      try:
+        return next(self.iter)
+      except StopIteration:
+        raise StopAsyncIteration
+
+  class DummyDoc:
+    def __init__(self, id_, exists=True, data=None):
+      self.id = id_
+      self._exists = exists
+      self._data = data or {"setup_text": "s", "punchline_text": "p"}
+
+    @property
+    def exists(self):
+      return self._exists
+
+    def to_dict(self):
+      return self._data
+
+  class DummyCol:
+    def stream(self):
+      return AsyncIterator([
+          DummyDoc("joke1", data={
+              "setup_text": "Why did the scarecrow win an award?",
+              "punchline_text": "Because he was outstanding in his field."
+          }),
+          DummyDoc("joke2", data={
+              "setup_text": "What do you call a fake noodle?",
+              "punchline_text": "An Impasta."
+          }),
+      ])
+
+  class DummyDB:
+    def collection(self, _name):
+      return DummyCol()
+
+  monkeypatch.setattr(fs, "get_async_db", DummyDB)
+
+  jokes = await fs.get_all_jokes_async()
+  assert len(jokes) == 2
+  assert jokes[0].key == "joke1"
+  assert jokes[0].setup_text == "Why did the scarecrow win an award?"
+  assert jokes[1].key == "joke2"
+  assert jokes[1].punchline_text == "An Impasta."
 
 
 def test_get_punny_jokes_batch(monkeypatch):

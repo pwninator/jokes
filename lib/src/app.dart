@@ -8,6 +8,7 @@ import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:snickerdoodle/src/core/services/notification_service.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/settings/application/theme_settings_service.dart';
+import 'package:snickerdoodle/src/features/auth/application/auth_startup_manager.dart';
 
 class App extends ConsumerWidget {
   const App({super.key});
@@ -24,6 +25,9 @@ class App extends ConsumerWidget {
 
     // Trigger crash reporting initialization and user syncing
     ref.watch(crashReportingInitializationProvider);
+
+    // Trigger background auth startup (non-blocking)
+    ref.watch(authStartupInitializationProvider);
 
     // Initialize analytics and set up notification service
     ref.listen(analyticsInitializationProvider, (previous, current) {

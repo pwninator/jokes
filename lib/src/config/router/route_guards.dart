@@ -16,46 +16,35 @@ class AuthGuard {
 
     return authState.when(
       data: (user) {
-        // User is authenticated
-        if (user != null) {
-          // If user is on auth route but authenticated, redirect to main app
-          if (currentPath == AppRoutes.auth) {
+        // Allow all main routes whether authenticated or not.
+        // Only guard admin routes.
+        if (currentPath.isAdminRoute) {
+          if (user == null || !user.isAdmin) {
+            debugPrint(
+              'ROUTER: Blocking admin route for non-admin/unauthenticated: $currentPath',
+            );
             return AppRoutes.jokes;
           }
-
-          // Check admin access for admin routes
-          if (currentPath.isAdminRoute && !user.isAdmin) {
-            debugPrint(
-              'ROUTER: Non-admin user attempted to access admin route: $currentPath',
-            );
-            // Redirect non-admin users away from admin routes
-            return AppRoutes.jokes;
-          }
-
-          // User is authenticated and has proper access
-          return null;
-        } else {
-          // User is not authenticated
-          if (currentPath != AppRoutes.auth) {
-            debugPrint(
-              'ROUTER: Unauthenticated user redirected to auth from: $currentPath',
-            );
-            return AppRoutes.auth;
-          }
-          return null;
         }
+
+        // Prevent showing auth route if already authenticated
+        if (user != null && currentPath == AppRoutes.auth) {
+          return AppRoutes.jokes;
+        }
+
+        return null;
       },
       loading: () {
-        // While auth state is loading, redirect to auth unless already there
-        if (currentPath != AppRoutes.auth) {
-          return AppRoutes.auth;
-        }
+        // While loading, do not block. Let UI proceed; admin routes will be re-evaluated once loaded.
         return null;
       },
       error: (error, stackTrace) {
-        // On auth error, redirect to auth
-        debugPrint('ROUTER: Auth error, redirecting to auth: $error');
-        return AppRoutes.auth;
+        // On error, be permissive on main routes but block admin.
+        if (currentPath.isAdminRoute) {
+          debugPrint('ROUTER: Auth error on admin route, redirecting: $error');
+          return AppRoutes.jokes;
+        }
+        return null;
       },
     );
   }

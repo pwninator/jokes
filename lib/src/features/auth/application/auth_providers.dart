@@ -68,12 +68,6 @@ class AuthController {
 
   AuthController(this._authRepository);
 
-  Future<AppUser> ensureSignedIn({
-    Duration waitForRestore = const Duration(milliseconds: 1500),
-  }) async {
-    return _authRepository.ensureSignedIn(waitForRestore: waitForRestore);
-  }
-
   Future<void> signInAnonymously() async {
     await _authRepository.signInAnonymously();
   }

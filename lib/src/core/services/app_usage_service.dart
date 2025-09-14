@@ -5,6 +5,7 @@ import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/providers/app_usage_events_provider.dart';
 import 'package:snickerdoodle/src/core/providers/shared_preferences_provider.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
+import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
 
 /// Provider for AppUsageService using the shared preferences instance provider
@@ -231,6 +232,15 @@ class AppUsageService {
 
   Future<void> _pushUsageSnapshot() async {
     try {
+      // Skip backend sync in debug mode or for admin users (mirrors analytics behavior)
+      final bool isAdmin = _ref?.read(isAdminProvider) ?? false;
+      if (kDebugMode || isAdmin) {
+        debugPrint(
+          'APP_USAGE SKIPPED (${isAdmin ? 'ADMIN' : 'DEBUG'}): trackUsage snapshot not sent',
+        );
+        return;
+      }
+
       final futures = <Future<void>>[];
       final int numDaysUsed = await getNumDaysUsed();
       final int numSaved = await getNumSavedJokes();

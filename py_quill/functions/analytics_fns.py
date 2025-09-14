@@ -24,7 +24,7 @@ def usage(req: https_fn.Request) -> https_fn.Response:
     if req.method not in ['GET', 'POST']:
       return error_response(f'Method not allowed: {req.method}')
 
-    user_id = get_user_id(req)
+    user_id = get_user_id(req, allow_unauthenticated=True)
     if not user_id:
       return error_response("Unauthenticated request")
 

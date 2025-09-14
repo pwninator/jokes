@@ -93,12 +93,24 @@ def get_categorizer_agent() -> SequentialAgent:
 
     category_generation_agent = LlmAgent(
         name="CategoryGenerationAgent",
-        instruction="""
-        You are a joke categorizer. You will be given a list of jokes and you need to
-        generate a list of categories for them. The categories should be fun,
-        useful, and likely to contain at least 10 jokes.
-        Here are the jokes:
-        {{all_jokes}}
+        instruction=f"""
+        **Context:**
+        You are the first step in a joke categorization pipeline. Your purpose is to generate a diverse list of potential categories for a large collection of jokes. These categories will be shown to users to help them discover new jokes.
+
+        **Inputs:**
+        - `{{{STATE_ALL_JOKES}}}`: A string containing a list of all the jokes in the database.
+
+        **Task:**
+        Your task is to analyze the provided jokes and generate a list of 10-15 creative, fun, and useful categories. The categories can be based on themes (e.g., "love", "work"), topics (e.g., "animals", "food"), or joke structures (e.g., "puns", "one-liners").
+
+        **Success Criteria:**
+        A good category is one that is likely to contain at least 10 jokes from the database. Try to create categories that are not too broad or too narrow.
+
+        **Output Format:**
+        Your output must be a JSON object with a single key "categories", which is a list of strings. For example:
+        {{
+            "categories": ["animals", "food", "puns", "science"]
+        }}
         """,
         output_schema=CategorizerAgentOutput,
         output_key="categories_output",
@@ -109,12 +121,26 @@ def get_categorizer_agent() -> SequentialAgent:
 
     refinement_agent = LlmAgent(
         name="RefinementAgent",
-        instruction="""
-        You have a list of good categories and bad categories.
-        Good categories: {{good_categories}}
-        Bad categories: {{bad_categories}}
-        Your task is to generate a new list of categories to try based on the bad categories.
-        The new categories should not be in the list of processed categories: {{processed_categories}}
+        instruction=f"""
+        **Context:**
+        You are part of an iterative joke categorization pipeline. In the previous step, a set of categories were tested, and some of them were found to be "bad" because they contained fewer than 10 jokes. Your task is to generate new, better category ideas based on this feedback.
+
+        **Inputs:**
+        - `{{{STATE_GOOD_CATEGORIES}}}`: A list of categories that have already been validated and found to be good.
+        - `{{{STATE_BAD_CATEGORIES}}}`: A list of categories that were tested and found to be bad.
+        - `{{{STATE_PROCESSED_CATEGORIES}}}`: A list of all categories that have been processed so far.
+
+        **Task:**
+        Your task is to analyze the bad categories and generate a new list of 5-10 category ideas. The new categories should be different from the ones that have already been processed. You can try to come up with more specific or more general versions of the bad categories, or completely new ideas.
+
+        **Success Criteria:**
+        The new categories should be creative, fun, and likely to contain at least 10 jokes.
+
+        **Output Format:**
+        Your output must be a JSON object with a single key "categories", which is a list of strings. For example:
+        {{
+            "categories": ["dogs", "cats", "office humor", "dad jokes"]
+        }}
         """,
         output_schema=CategorizerAgentOutput,
         output_key="categories_output",

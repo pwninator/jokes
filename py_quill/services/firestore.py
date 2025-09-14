@@ -10,8 +10,18 @@ from firebase_functions import logger
 from google.cloud.firestore import (SERVER_TIMESTAMP, DocumentReference,
                                     FieldFilter, Query, Transaction,
                                     transactional)
+from firebase_admin import firestore_async
 
 _db = None  # pylint: disable=invalid-name
+_async_db = None  # pylint: disable=invalid-name
+
+
+def get_async_db() -> firestore_async.client:
+  """Get the firestore async client."""
+  global _async_db
+  if _async_db is None:
+    _async_db = firestore_async.client()
+  return _async_db
 
 
 def db() -> firestore.client:
@@ -20,6 +30,24 @@ def db() -> firestore.client:
   if _db is None:
     _db = firestore.client()
   return _db
+
+
+def get_all_jokes() -> list[models.PunnyJoke]:
+  """Get all jokes from firestore."""
+  docs = db().collection('jokes').stream()
+  return [
+    models.PunnyJoke.from_firestore_dict(doc.to_dict(), key=doc.id)
+    for doc in docs if doc.exists and doc.to_dict() is not None
+  ]
+
+
+async def get_all_jokes_async() -> list[models.PunnyJoke]:
+  """Get all jokes from firestore asynchronously."""
+  docs = get_async_db().collection('jokes').stream()
+  return [
+    models.PunnyJoke.from_firestore_dict(doc.to_dict(), key=doc.id)
+    async for doc in docs if doc.exists and doc.to_dict() is not None
+  ]
 
 
 def get_punny_joke(joke_id: str) -> models.PunnyJoke | None:

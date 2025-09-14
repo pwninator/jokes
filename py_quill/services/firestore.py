@@ -51,6 +51,16 @@ def get_punny_jokes(joke_ids: Collection[str]) -> list[models.PunnyJoke]:
   return jokes
 
 
+def get_all_punny_jokes() -> list[models.PunnyJoke]:
+  """Get all punny jokes from the 'jokes' collection."""
+  docs = db().collection('jokes').stream()
+  jokes = [
+    models.PunnyJoke.from_firestore_dict(doc.to_dict(), key=doc.id)
+    for doc in docs if doc.exists and doc.to_dict() is not None
+  ]
+  return jokes
+
+
 def list_joke_schedules() -> list[str]:
   """List all joke schedule IDs from Firestore.
 

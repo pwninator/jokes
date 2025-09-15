@@ -44,7 +44,7 @@ def dummy_endpoint(req: https_fn.Request) -> https_fn.Response:
   return_val = f"""
 <html>
 <body>
-<p>Output: {'<br>'.join(output.split('\n'))}</p>
+<p>Output: {output}</p>
 <p>Final State: {pprint.pformat(final_state, width=120, sort_dicts=False)}</p>
 <p>Agent Generation Metadata: {agent_generation_metadata}</p>
 </body>

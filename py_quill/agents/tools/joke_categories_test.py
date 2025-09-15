@@ -29,8 +29,8 @@ def test_populate_state_with_all_joke_categories(monkeypatch):
   tool.populate_state_with_all_joke_categories(ctx)
 
   # Assert
-  assert constants.STATE_JOKE_CATEGORIES in ctx.state
-  cats = ctx.state[constants.STATE_JOKE_CATEGORIES]
+  assert constants.STATE_ALL_STORAGE_JOKE_CATEGORIES in ctx.state
+  cats = ctx.state[constants.STATE_ALL_STORAGE_JOKE_CATEGORIES]
   assert isinstance(cats, list) and len(cats) == 2
   assert cats[0]["key"] == "animal_jokes"
   assert cats[1]["display_name"] == "Seasonal"

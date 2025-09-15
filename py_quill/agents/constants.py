@@ -21,7 +21,7 @@ STATE_LLM_COST = "llm_cost"
 # Joke State Keys
 STATE_JOKE_SEEDS = "joke_seeds"
 STATE_ALL_STORAGE_JOKES = "all_storage_jokes"
-STATE_JOKE_CATEGORIES = "joke_categories"
+STATE_ALL_STORAGE_JOKE_CATEGORIES = "all_storage_joke_categories"
 
 # Pun State Keys
 STATE_FINALIZED_PUNS = "finalized_puns"

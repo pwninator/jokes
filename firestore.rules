@@ -19,6 +19,15 @@ service cloud.firestore {
       allow create: if false;
     }
 
+    match /joke_categories/{jokeScheduleId} {
+      // Read access: Open
+      allow read: if true;
+
+      // Mutate access: Only allowed for admin users
+      allow create, write, delete:
+        if request.auth != null && request.auth.token.role == 'admin';
+    }
+
     match /joke_schedules/{jokeScheduleId} {
       // Read access: Open
       allow read: if true;

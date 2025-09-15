@@ -1,7 +1,7 @@
 """Tests for the firestore module."""
 import datetime
-import pytest
 
+import pytest
 from common import models
 from services import firestore
 
@@ -61,11 +61,13 @@ def test_upsert_punny_joke_serializes_state_string(monkeypatch):
 
 import pytest
 
+
 def test_get_all_jokes(monkeypatch):
   """Test that get_all_jokes returns a list of PunnyJoke objects."""
   from services import firestore as fs
 
   class DummyDoc:
+
     def __init__(self, id_, exists=True, data=None):
       self.id = id_
       self._exists = exists
@@ -78,20 +80,29 @@ def test_get_all_jokes(monkeypatch):
     def to_dict(self):
       return self._data
 
-  class DummyCol:
+  class DummyQuery:
+
     def stream(self):
       return [
-          DummyDoc("joke1", data={
-              "setup_text": "Why did the scarecrow win an award?",
-              "punchline_text": "Because he was outstanding in his field."
-          }),
-          DummyDoc("joke2", data={
-              "setup_text": "What do you call a fake noodle?",
-              "punchline_text": "An Impasta."
-          }),
+        DummyDoc("joke1",
+                 data={
+                   "setup_text": "Why did the scarecrow win an award?",
+                   "punchline_text": "Because he was outstanding in his field."
+                 }),
+        DummyDoc("joke2",
+                 data={
+                   "setup_text": "What do you call a fake noodle?",
+                   "punchline_text": "An Impasta."
+                 }),
       ]
 
+  class DummyCol:
+
+    def where(self, filter=None):  # pylint: disable=unused-argument
+      return DummyQuery()
+
   class DummyDB:
+
     def collection(self, _name):
       return DummyCol()
 
@@ -111,6 +122,7 @@ async def test_get_all_jokes_async(monkeypatch):
   from services import firestore as fs
 
   class AsyncIterator:
+
     def __init__(self, seq):
       self.iter = iter(seq)
 
@@ -124,6 +136,7 @@ async def test_get_all_jokes_async(monkeypatch):
         raise StopAsyncIteration
 
   class DummyDoc:
+
     def __init__(self, id_, exists=True, data=None):
       self.id = id_
       self._exists = exists
@@ -136,20 +149,29 @@ async def test_get_all_jokes_async(monkeypatch):
     def to_dict(self):
       return self._data
 
-  class DummyCol:
+  class DummyQuery:
+
     def stream(self):
       return AsyncIterator([
-          DummyDoc("joke1", data={
-              "setup_text": "Why did the scarecrow win an award?",
-              "punchline_text": "Because he was outstanding in his field."
-          }),
-          DummyDoc("joke2", data={
-              "setup_text": "What do you call a fake noodle?",
-              "punchline_text": "An Impasta."
-          }),
+        DummyDoc("joke1",
+                 data={
+                   "setup_text": "Why did the scarecrow win an award?",
+                   "punchline_text": "Because he was outstanding in his field."
+                 }),
+        DummyDoc("joke2",
+                 data={
+                   "setup_text": "What do you call a fake noodle?",
+                   "punchline_text": "An Impasta."
+                 }),
       ])
 
+  class DummyCol:
+
+    def where(self, filter=None):  # pylint: disable=unused-argument
+      return DummyQuery()
+
   class DummyDB:
+
     def collection(self, _name):
       return DummyCol()
 

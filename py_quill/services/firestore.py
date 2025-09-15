@@ -5,12 +5,11 @@ import pprint
 from typing import Any, Collection
 
 from common import models, utils
-from firebase_admin import firestore
+from firebase_admin import firestore, firestore_async
 from firebase_functions import logger
 from google.cloud.firestore import (SERVER_TIMESTAMP, DocumentReference,
                                     FieldFilter, Query, Transaction,
                                     transactional)
-from firebase_admin import firestore_async
 
 _db = None  # pylint: disable=invalid-name
 _async_db = None  # pylint: disable=invalid-name
@@ -32,18 +31,39 @@ def db() -> firestore.client:
   return _db
 
 
-def get_all_jokes() -> list[models.PunnyJoke]:
-  """Get all jokes from firestore."""
-  docs = db().collection('jokes').stream()
+def _prepare_jokes_query(states: list[models.JokeState] | None, *,
+                         async_mode: bool):
+  """Build a Firestore query for jokes filtered by the given states."""
+  if not states:
+    states = [models.JokeState.DAILY, models.JokeState.PUBLISHED]
+  state_values = [s.value for s in states]
+  client = get_async_db() if async_mode else db()
+  return client.collection('jokes').where(
+    filter=FieldFilter('state', 'in', state_values))
+
+
+def get_all_jokes(
+    states: list[models.JokeState] | None = None) -> list[models.PunnyJoke]:
+  """Get jokes from firestore filtered by state.
+
+  Args:
+      states: List of JokeState values to include. Defaults to DAILY and PUBLISHED.
+  """
+  docs = _prepare_jokes_query(states, async_mode=False).stream()
   return [
     models.PunnyJoke.from_firestore_dict(doc.to_dict(), key=doc.id)
     for doc in docs if doc.exists and doc.to_dict() is not None
   ]
 
 
-async def get_all_jokes_async() -> list[models.PunnyJoke]:
-  """Get all jokes from firestore asynchronously."""
-  docs = get_async_db().collection('jokes').stream()
+async def get_all_jokes_async(
+    states: list[models.JokeState] | None = None) -> list[models.PunnyJoke]:
+  """Get jokes from firestore asynchronously filtered by state.
+
+  Args:
+      states: List of JokeState values to include. Defaults to DAILY and PUBLISHED.
+  """
+  docs = _prepare_jokes_query(states, async_mode=True).stream()
   return [
     models.PunnyJoke.from_firestore_dict(doc.to_dict(), key=doc.id)
     async for doc in docs if doc.exists and doc.to_dict() is not None

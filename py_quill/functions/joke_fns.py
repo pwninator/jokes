@@ -11,7 +11,7 @@ from typing import Any
 from agents import agents_common, constants
 from agents.endpoints import all_agents
 from agents.puns import pun_postprocessor_agent
-from common import image_generation, models
+from common import config, image_generation, models
 from firebase_functions import (firestore_fn, https_fn, logger, options,
                                 scheduler_fn)
 from functions.function_utils import (error_response, get_bool_param,
@@ -146,9 +146,9 @@ def search_jokes(req: https_fn.Request) -> https_fn.Response:
 
     match_mode = get_param(req, 'match_mode', "TIGHT")
     if match_mode == "TIGHT":
-      distance_threshold = 0.32
+      distance_threshold = config.JOKE_SEARCH_TIGHT_THRESHOLD
     elif match_mode == "LOOSE":
-      distance_threshold = 0.37
+      distance_threshold = config.JOKE_SEARCH_LOOSE_THRESHOLD
     else:
       return error_response(f'Invalid match_mode: {match_mode}')
 

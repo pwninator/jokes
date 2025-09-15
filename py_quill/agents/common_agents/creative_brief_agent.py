@@ -11,7 +11,7 @@ def get_creative_brief_agent() -> BaseAgent:
 
   return QuillLlmAgent(
     name="CreativeBriefAgent",
-    model=constants.LLM_MODEL,
+    model=constants.FAST_LLM_MODEL,
     generate_content_config=types.GenerateContentConfig(
       temperature=1.0,
       max_output_tokens=8000,

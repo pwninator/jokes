@@ -1,8 +1,10 @@
 """Test cloud functions."""
 
 import json
+import pprint
 
 from agents import agents_common, constants
+from agents.endpoints import all_agents
 from common import image_generation
 from firebase_functions import https_fn, options
 
@@ -32,40 +34,21 @@ def dummy_endpoint(req: https_fn.Request) -> https_fn.Response:
                              status=405,
                              mimetype='application/json')
 
-  setup_text = req.args.get("setup_text", "Why did the cat cross the road?")
-  setup_description = req.args.get("setup_description",
-                                   "A super cute cat crossing the road.")
-  punchline_text = req.args.get("punchline_text",
-                                "Because it wanted to catch the chicken!")
-  punchline_description = req.args.get(
-    "punchline_description",
-    "The same super cute cat chasing a chubby chicken running down the road")
-
-  if not all(
-    [setup_text, setup_description, punchline_text, punchline_description]):
-    return https_fn.Response(json.dumps({
-      "error":
-      "Missing one or more required URL parameters: setup_text, setup_description, punchline_text, punchline_description",
-      "success": False
-    }),
-                             status=400,
-                             mimetype='application/json')
-
-  pun_data = [
-    (setup_text, setup_description),
-    (punchline_text, punchline_description),
-  ]
-
-  images = image_generation.generate_pun_images(
-    pun_data=pun_data,
-    image_quality="gemini",
+  joke_categorizer_agent = all_agents.get_joke_categorizer_agent_adk_app()
+  output, final_state, agent_generation_metadata = agents_common.run_agent(
+    adk_app=joke_categorizer_agent,
+    inputs="Group jokes into categories.",
+    user_id="dummy_user",
   )
 
-  html_content = "<html><body>"
-  for image in images:
-    if image and image.url:
-      html_content += f'<img src="{image.url}" width="512" height="512"><br>'
-      html_content += f"<p>Prompt: {image.final_prompt}</p><br>"
-  html_content += "</body></html>"
+  return_val = f"""
+<html>
+<body>
+<p>Output: {'<br>'.join(output.split('\n'))}</p>
+<p>Final State: {pprint.pformat(final_state, width=120, sort_dicts=False)}</p>
+<p>Agent Generation Metadata: {agent_generation_metadata}</p>
+</body>
+</html>
+"""
 
-  return https_fn.Response(html_content, status=200, mimetype='text/html')
+  return https_fn.Response(return_val, status=200, mimetype='text/html')

@@ -2,6 +2,7 @@
 
 from typing import Callable
 
+from agents.endpoints.joke_categorizer import agent as joke_categorizer
 from agents.endpoints.joke_critic import agent as joke_critic
 from agents.endpoints.joke_populator import agent as joke_populator
 from common import utils
@@ -28,6 +29,15 @@ def get_joke_populator_agent_adk_app() -> agent_engines.AgentEngine:
     agent_name="JokePopulator",
     get_local_agent_fn=joke_populator.get_root_agent,
     remote_agent_id=joke_populator.DEPLOYED_AGENT_ID,
+  )
+
+
+def get_joke_categorizer_agent_adk_app() -> agent_engines.AgentEngine:
+  """Get the ADK app for the joke categorizer agent."""
+  return _get_agent_adk_app(
+    agent_name="JokeCategorizer",
+    get_local_agent_fn=joke_categorizer.get_root_agent,
+    remote_agent_id=joke_categorizer.DEPLOYED_AGENT_ID,
   )
 
 

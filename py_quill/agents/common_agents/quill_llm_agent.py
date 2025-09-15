@@ -38,8 +38,9 @@ def set_usage_costs(
   if not (usage := llm_response.usage_metadata):
     return
 
+  cached_token_count = 0
   if usage.cached_content_token_count:
-    raise ValueError(f"Unexpected token type: {usage}")
+    cached_token_count = usage.cached_content_token_count
 
   input_tokens = 0
   if usage.prompt_token_count:
@@ -53,7 +54,7 @@ def set_usage_costs(
   if usage.candidates_token_count:
     output_tokens = usage.candidates_token_count
 
-  if input_tokens + thought_tokens + output_tokens == 0:
+  if input_tokens + thought_tokens + output_tokens + cached_token_count == 0:
     if usage.total_token_count and usage.total_token_count > 0:
       raise ValueError(f"Unexpected usage metadata: {usage}")
     return
@@ -62,6 +63,7 @@ def set_usage_costs(
     model_name=model_name,
     input_tokens=input_tokens,
     thinking_tokens=thought_tokens,
+    cached_tokens=cached_token_count,
     output_tokens=output_tokens,
   )
 
@@ -69,6 +71,7 @@ def set_usage_costs(
     "input_tokens": input_tokens,
     "thought_tokens": thought_tokens,
     "output_tokens": output_tokens,
+    "cached_tokens": cached_token_count,
   }
 
   agent_name = callback_context.agent_name

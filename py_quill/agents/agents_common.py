@@ -138,9 +138,12 @@ def parse_event(
   """
   agent_name = event["author"]
 
+  logger.info(f"\n\n\nEvent: {event}\n\n\n")
+
   if "content" in event:
     if "parts" in event["content"]:
-      text = "".join(p["text"] for p in event["content"]["parts"]).strip()
+      text = "".join(p["text"] for p in event["content"]["parts"]
+                     if "text" in p).strip()
       try:
         # Pretty print if it's valid JSON
         output_data = json.loads(text)
@@ -191,6 +194,7 @@ Agent: {agent_name} {usage_str}
 def get_llm_cost(
   input_tokens: int,
   thinking_tokens: int,
+  cached_tokens: int,
   output_tokens: int,
   model_name: str,
 ) -> float:
@@ -210,6 +214,7 @@ def get_llm_cost(
                       temperature=0)
   token_counts = {
     'prompt_tokens': input_tokens,
+    'cached_prompt_tokens': cached_tokens,
     'output_tokens': output_tokens + thinking_tokens,
   }
   # Filter out zero counts as llm_client's _calculate_generation_cost might expect non-empty values if keys are present

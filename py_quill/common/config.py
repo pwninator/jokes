@@ -15,6 +15,10 @@ NUM_CHARACTER_PORTRAIT_IMAGE_ATTEMPTS = 8
 NUM_COVER_IMAGE_ATTEMPTS = 8
 NUM_PAGE_IMAGE_ATTEMPTS = 4
 
+# Joke search constants
+JOKE_SEARCH_TIGHT_THRESHOLD = 0.32
+JOKE_SEARCH_LOOSE_THRESHOLD = 0.37
+
 
 def get_openai_api_key() -> str:
   """Gets the OpenAI API key from the secret manager."""

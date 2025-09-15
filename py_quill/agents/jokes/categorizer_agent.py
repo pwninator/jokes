@@ -4,13 +4,6 @@ from agents.common_agents.quill_llm_agent import QuillLlmAgent
 from agents.tools import get_all_jokes, joke_search
 from google.adk.agents import BaseAgent
 from google.genai import types
-from pydantic import BaseModel
-
-
-class JokeCategories(BaseModel):
-  """Data structure for a list of joke categories."""
-
-  categories: list[str]
 
 
 def get_joke_categorizer_agent() -> BaseAgent:
@@ -26,10 +19,6 @@ def get_joke_categorizer_agent() -> BaseAgent:
     ),
     planner=constants.PLANNER_THINKING,
     include_contents='none',
-    output_key=constants.STATE_JOKE_CATEGORIES,
-    output_schema=JokeCategories,
-    disallow_transfer_to_parent=True,  # Required when specifying output_schema
-    disallow_transfer_to_peers=True,  # Required when specifying output_schema
     description="Groups jokes into categories.",
     before_agent_callback=get_all_jokes.populate_state_with_all_storage_jokes,
     tools=[joke_search.get_num_search_results],

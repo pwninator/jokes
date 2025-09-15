@@ -5,7 +5,7 @@ from google.adk.agents import BaseAgent
 
 # app_init.init()
 
-DEPLOYED_AGENT_ID = ""
+DEPLOYED_AGENT_ID = "9034260434923814912"
 
 
 def get_root_agent() -> BaseAgent:

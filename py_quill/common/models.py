@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 import datetime
+import re
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
@@ -627,6 +628,34 @@ class StoryData:
     return updated_keys
 
 
+@dataclass
+class JokeCategory:
+  """Represents a joke category used for grouping jokes."""
+
+  display_name: str
+  joke_description_query: str
+
+  @property
+  def key(self) -> str:
+    """Computed Firestore-safe key from display name.
+
+    Lowercase and replace any non-alphanumeric characters with underscores,
+    collapsing runs and trimming leading/trailing underscores.
+    """
+    lowered = (self.display_name or "").lower()
+    # Replace any run of non [a-z0-9] with a single underscore
+    snake = re.sub(r"[^a-z0-9]+", "_", lowered)
+    return snake.strip("_")
+
+  def to_dict(self) -> dict:
+    """Serialize the category to a dictionary including computed key."""
+    return {
+      'key': self.key,
+      'display_name': self.display_name,
+      'joke_description_query': self.joke_description_query,
+    }
+
+
 @dataclass(kw_only=True)
 class PunnyJoke:
   """Represents a punny joke."""
@@ -738,7 +767,9 @@ class PunnyJoke:
     self.generation_metadata.add_generation(image.generation_metadata)
 
   def set_punchline_image(
-    self, image: Image, update_text: bool = True
+    self,
+    image: Image,
+    update_text: bool = True,
   ) -> None:
     """Set the punchline image."""
     if not image or not image.url:

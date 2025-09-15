@@ -109,6 +109,56 @@ def get_all_punny_jokes() -> list[models.PunnyJoke]:
   return jokes
 
 
+def get_all_joke_categories() -> list[models.JokeCategory]:
+  """Get all joke categories from the 'joke_categories' collection."""
+  docs = db().collection('joke_categories').stream()
+  categories: list[models.JokeCategory] = []
+  for doc in docs:
+    if not doc.exists:
+      continue
+    data = doc.to_dict() or {}
+    display_name = data.get('display_name', '')
+    joke_description_query = data.get('joke_description_query', '')
+    if not display_name and not joke_description_query:
+      continue
+    categories.append(
+      models.JokeCategory(
+        display_name=display_name,
+        joke_description_query=joke_description_query,
+      ))
+  return categories
+
+
+async def upsert_joke_categories(
+    categories: list[models.JokeCategory]) -> None:
+  """Upsert joke categories into the 'joke_categories' collection.
+
+  Args:
+      categories: List of JokeCategory objects to upsert.
+  """
+  if not categories:
+    return
+
+  # Validate and prepare payloads first to avoid partial writes
+  prepared: list[tuple[str, dict[str, str]]] = []
+  for category in categories:
+    display_name = (category.display_name or '').strip()
+    description_query = (category.joke_description_query or '').strip()
+    if not display_name or not description_query:
+      raise ValueError(
+        "JokeCategory must have non-empty display_name and joke_description_query"
+      )
+    prepared.append((category.key, {
+      'display_name': display_name,
+      'joke_description_query': description_query,
+    }))
+
+  client = get_async_db()
+  for key, data in prepared:
+    await client.collection('joke_categories').document(key).set(data,
+                                                                 merge=True)
+
+
 def list_joke_schedules() -> list[str]:
   """List all joke schedule IDs from Firestore.
 

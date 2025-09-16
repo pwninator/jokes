@@ -1,9 +1,10 @@
 """Joke populator agent."""
 
 from agents.jokes import categorizer_agent
+from firebase_admin import initialize_app
 from google.adk.agents import BaseAgent
 
-# app_init.init()
+app = initialize_app()
 
 DEPLOYED_AGENT_ID = "9034260434923814912"
 

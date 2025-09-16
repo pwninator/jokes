@@ -5,6 +5,7 @@ from google.genai import types
 from services import llm_client
 
 FAST_LLM_MODEL = llm_client.LlmModel.GEMINI_2_5_FLASH
+SLOW_LLM_MODEL = llm_client.LlmModel.GEMINI_2_5_PRO
 
 # Common State Keys
 STATE_USER_INPUT = "user_input"

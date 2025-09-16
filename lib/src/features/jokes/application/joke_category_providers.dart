@@ -1,0 +1,16 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:snickerdoodle/src/features/jokes/data/models/joke_category.dart';
+import 'package:snickerdoodle/src/features/jokes/data/repositories/firestore_joke_category_repository.dart';
+import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_category_repository.dart';
+import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
+
+// Repository provider
+final jokeCategoryRepositoryProvider = Provider<JokeCategoryRepository>((ref) {
+  final firestore = ref.watch(firebaseFirestoreProvider);
+  return FirestoreJokeCategoryRepository(firestore: firestore);
+});
+
+// Stream of categories
+final jokeCategoriesProvider = StreamProvider<List<JokeCategory>>((ref) {
+  return ref.watch(jokeCategoryRepositoryProvider).watchCategories();
+});

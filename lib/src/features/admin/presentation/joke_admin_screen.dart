@@ -20,6 +20,21 @@ class JokeAdminScreen extends StatelessWidget implements TitledScreen {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Joke Categories Card
+              Card(
+                child: ListTile(
+                  leading: const Icon(Icons.category),
+                  title: const Text('Joke Categories'),
+                  subtitle: const Text('Browse categories and images'),
+                  trailing: const Icon(Icons.arrow_forward_ios),
+                  onTap: () {
+                    context.push(AppRoutes.adminCategories);
+                  },
+                ),
+              ),
+
+              const SizedBox(height: 8),
+
               // Joke Creator Card
               Card(
                 child: ListTile(

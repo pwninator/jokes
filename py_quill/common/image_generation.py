@@ -113,14 +113,14 @@ def generate_pun_images(
 
 
 def generate_pun_image(
-  pun_text: str,
+  pun_text: str | None,
   image_description: str,
   image_quality: str,
   reference_images: list[Any] | None = None,
 ) -> models.Image:
   """Generate a pun image.
   Args:
-    pun_text: The full text of the pun to display on the image.
+    pun_text: The full text of the pun to display on the image. If None, the image will be generated without the pun text.
     image_description: Detailed description of all aspects of the image. This should include the full text of the pun (again), the style/font/color/position/etc. of the pun text, as well as the image's subject(s), foreground, background, color palette, artistic style, and all other details needed to render an accurate image.
     reference_images: Data about reference images. Format depends on the image provider.
     image_quality: The quality of the image to generate.
@@ -136,7 +136,10 @@ def generate_pun_image(
   else:
     prompt_preamble = _IMAGE_GENERATION_PROMPT_PREAMBLE
 
-  prompt_postamble = f'The phrase "{pun_text}" is prominently displayed in a casual, whimsical hand-written script, resembling a silly pencil sketch.'
+  if pun_text:
+    prompt_postamble = f'The phrase "{pun_text}" is prominently displayed in a casual, whimsical hand-written script, resembling a silly pencil sketch.'
+  else:
+    prompt_postamble = ''
 
   image_description = _strip_prompt_preamble(image_description,
                                              prompt_preamble, prompt_postamble)
@@ -163,7 +166,9 @@ def generate_pun_image(
   image.final_prompt = prompt
 
   if not image or not image.url:
-    raise ValueError(f"Failed to generate image for pun: {pun_text}")
+    raise ValueError(
+      f"Failed to generate image for pun: {pun_text if pun_text else 'no pun text'}"
+    )
 
   return image
 

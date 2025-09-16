@@ -43,7 +43,12 @@ This repository contains a Flutter app and a Python Cloud Functions codebase. Fo
 
 ### 3.1 Jules
 
-Jules should run the jules_setup.sh script to initialize the development environment. This script will install the necessary dependencies such as flutter.
+Jules should run this command to sync to the latest repo:
+
+```
+git checkout master
+git log -1
+```
 
 ### 3.2 All other environments/agents
 

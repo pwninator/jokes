@@ -1,4 +1,9 @@
+#! /bin/bash
+
 #!/bin/bash
+
+git checkout master
+git log -1
 
 # Configuration - Define all paths and URLs
 export FLUTTER_HOME="/usr/local/flutter"
@@ -49,6 +54,7 @@ sudo "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platform-tools" "platf
 
 echo "Configuring Flutter..."
 git config --global --add safe.directory "$FLUTTER_HOME"
+sudo chown -R $(whoami) $FLUTTER_HOME
 # sudo "$FLUTTER_HOME/bin/flutter" config --enable-linux-desktop
 sudo "$FLUTTER_HOME/bin/flutter" doctor
 
@@ -76,3 +82,6 @@ echo "Setup complete!"
 
 # Use full path to flutter since PATH changes may not be active yet
 "$FLUTTER_HOME/bin/flutter" pub get
+
+
+

@@ -4,6 +4,8 @@ import 'package:snickerdoodle/src/common_widgets/adaptive_app_bar_screen.dart';
 import 'package:snickerdoodle/src/common_widgets/titled_screen.dart';
 import 'package:snickerdoodle/src/core/data/repositories/feedback_repository.dart';
 import 'package:snickerdoodle/src/core/providers/feedback_providers.dart';
+import 'package:timezone/data/latest.dart' as tzdata;
+import 'package:timezone/timezone.dart' as tz;
 
 // Track which feedback IDs have been scheduled for READ update to avoid duplicates
 final Set<String> _scheduledMarkReadIds = <String>{};
@@ -133,7 +135,7 @@ class JokeFeedbackScreen extends ConsumerWidget implements TitledScreen {
 
 String _formatTimestamp(String label, DateTime? dt) {
   if (dt == null) return '$label: —';
-  return '$label: ${dt.toLocal()}';
+  return '$label: ${_laDateString(dt)}';
 }
 
 Widget _metric(
@@ -154,4 +156,17 @@ Widget _metric(
       ],
     ),
   );
+}
+
+String _laDateString(DateTime dt) {
+  // Initialize TZ database lazily
+  // Safe to call multiple times; no-ops after first init
+  tzdata.initializeTimeZones();
+  final la = tz.getLocation('America/Los_Angeles');
+  // Convert instant to LA timezone and format as YYYY-MM-DD
+  final laDt = tz.TZDateTime.from(dt.isUtc ? dt : dt.toUtc(), la);
+  final y = laDt.year.toString().padLeft(4, '0');
+  final m = laDt.month.toString().padLeft(2, '0');
+  final d = laDt.day.toString().padLeft(2, '0');
+  return '$y-$m-$d';
 }

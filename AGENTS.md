@@ -39,6 +39,16 @@ This repository contains a Flutter app and a Python Cloud Functions codebase. Fo
 - Flutter: error-like analytics events must also log a Crashlytics non-fatal via `AnalyticsService`; tests should verify both.
 - Python: use Cloud Logging (do not call Flutter Analytics/Crashlytics from Python).
 
+## 3. Environment setup
+
+### 3.1 Jules
+
+Jules should run the jules_setup.sh script to initialize the development environment. This script will install the necessary dependencies such as flutter.
+
+### 3.2 All other environments/agents
+
+For all other agents, the environments is already set up for you. There is no need for any setup or dependency installation.
+
 ## 3. Commands (run from repo root)
 
 Use Dart/Flutter commands only for the Flutter app. Do not use Flutter/Dart commands for the Python codebase. For Python, use the pytest commands specified below.

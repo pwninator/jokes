@@ -1273,6 +1273,88 @@ class TestOnJokeWrite:
     return event
 
 
+class TestOnJokeCategoryWrite:
+  """Tests for the on_joke_category_write cloud function."""
+
+  def _create_event(self, before_data, after_data, category_id="cat1"):
+    event = MagicMock()
+    event.params = {"category_id": category_id}
+    event.data = MagicMock()
+    event.data.before = MagicMock() if before_data is not None else None
+    event.data.after = MagicMock() if after_data is not None else None
+    if before_data is not None:
+      event.data.before.to_dict.return_value = before_data
+    if after_data is not None:
+      event.data.after.to_dict.return_value = after_data
+    return event
+
+  def test_new_doc_with_image_description_generates_and_updates(
+      self, monkeypatch):
+    # Arrange
+    mock_image = MagicMock()
+    mock_image.url = "http://example.com/image.png"
+    mock_generate = MagicMock(return_value=mock_image)
+    monkeypatch.setattr(joke_fns.image_generation, "generate_pun_image",
+                        mock_generate)
+
+    mock_db = MagicMock()
+    mock_doc = MagicMock()
+    mock_coll = MagicMock(return_value=MagicMock(document=MagicMock(
+      return_value=mock_doc)))
+    mock_db.collection = mock_coll
+    monkeypatch.setattr(joke_fns.firestore, "db",
+                        MagicMock(return_value=mock_db))
+
+    event = self._create_event(before_data=None,
+                               after_data={"image_description": "desc"})
+
+    # Act
+    joke_fns.on_joke_category_write.__wrapped__(event)
+
+    # Assert
+    mock_generate.assert_called_once()
+    mock_doc.update.assert_called_once()
+    args = mock_doc.update.call_args[0]
+    assert args[0]["image_url"] == mock_image.url
+
+  def test_description_unchanged_does_nothing(self, monkeypatch):
+    # Arrange
+    mock_generate = MagicMock()
+    monkeypatch.setattr(joke_fns.image_generation, "generate_pun_image",
+                        mock_generate)
+    mock_db = MagicMock()
+    monkeypatch.setattr(joke_fns.firestore, "db",
+                        MagicMock(return_value=mock_db))
+
+    event = self._create_event(before_data={"image_description": "same"},
+                               after_data={"image_description": "same"})
+
+    # Act
+    joke_fns.on_joke_category_write.__wrapped__(event)
+
+    # Assert
+    mock_generate.assert_not_called()
+    mock_db.collection.assert_not_called()
+
+  def test_missing_image_description_skips(self, monkeypatch):
+    # Arrange
+    mock_generate = MagicMock()
+    monkeypatch.setattr(joke_fns.image_generation, "generate_pun_image",
+                        mock_generate)
+    mock_db = MagicMock()
+    monkeypatch.setattr(joke_fns.firestore, "db",
+                        MagicMock(return_value=mock_db))
+
+    event = self._create_event(before_data=None, after_data={})
+
+    # Act
+    joke_fns.on_joke_category_write.__wrapped__(event)
+
+    # Assert
+    mock_generate.assert_not_called()
+    mock_db.collection.assert_not_called()
+
+
 class TestModifyJokeImage:
   """Tests for the modify_joke_image cloud function."""
 

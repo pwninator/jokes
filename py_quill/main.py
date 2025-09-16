@@ -52,6 +52,7 @@ send_daily_joke_http = joke_fns.send_daily_joke_http
 send_daily_joke_scheduler = joke_fns.send_daily_joke_scheduler
 search_jokes = joke_fns.search_jokes
 on_joke_write = joke_fns.on_joke_write
+on_joke_category_write = joke_fns.on_joke_category_write
 
 # Export the admin functions
 set_user_role = admin_fns.set_user_role

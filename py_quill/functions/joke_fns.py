@@ -434,6 +434,55 @@ def on_joke_write(event: firestore_fn.Event[firestore_fn.Change]) -> None:
                   after_joke.key)
 
 
+@firestore_fn.on_document_written(
+  document="joke_categories/{category_id}",
+  memory=options.MemoryOption.GB_1,
+  timeout_sec=300,
+)
+def on_joke_category_write(
+    event: firestore_fn.Event[firestore_fn.Change]) -> None:
+  """Trigger on writes to `joke_categories` collection.
+
+  If the document is newly created or the `image_description` field value
+  changed compared to before, log that the description changed.
+  """
+  # Handle deletes
+  if not event.data.after:
+    logger.info("Joke category deleted: %s", event.params.get("category_id"))
+    return
+
+  after_data = event.data.after.to_dict() or {}
+  before_data = event.data.before.to_dict() if event.data.before else None
+
+  if (before_data is None or (before_data or {}).get("image_description")
+      != after_data.get("image_description")):
+    image_description = after_data.get("image_description")
+    if not image_description:
+      logger.info("image_description missing; skipping image generation")
+      return
+
+    # Generate a category image at high quality without pun text or references
+    generated_image = image_generation.generate_pun_image(
+      pun_text=None,
+      image_description=image_description,
+      image_quality="high",
+      reference_images=None,
+    )
+
+    if not generated_image or not generated_image.url:
+      logger.info("Image generation returned no URL; skipping update")
+      return
+
+    category_id = event.params.get("category_id")
+    if not category_id:
+      logger.info("Missing category_id param; cannot update Firestore")
+      return
+
+    # Save the generated image URL back to the category document
+    firestore.db().collection("joke_categories").document(category_id).update(
+      {"image_url": generated_image.url})
+
+
 def _populate_joke_internal(
   user_id: str,
   joke_id: str,

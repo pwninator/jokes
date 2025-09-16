@@ -33,6 +33,7 @@ def usage(req: https_fn.Request) -> https_fn.Response:
     client_num_saved_int = get_int_param(req, 'num_saved', default=None)
     client_num_viewed_int = get_int_param(req, 'num_viewed', default=None)
     client_num_shared_int = get_int_param(req, 'num_shared', default=None)
+    requested_review = req.data.get("requested_review", False)
 
     final_days_used = firestore_service.upsert_joke_user_usage(
       user_id,
@@ -40,6 +41,7 @@ def usage(req: https_fn.Request) -> https_fn.Response:
       client_num_saved=client_num_saved_int,
       client_num_viewed=client_num_viewed_int,
       client_num_shared=client_num_shared_int,
+      requested_review=requested_review,
     )
 
     # Client counters are persisted within upsert_joke_user_usage

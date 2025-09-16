@@ -22,6 +22,7 @@ class AppRoutes {
   static const String adminEditorWithJoke = '/admin/editor/:jokeId';
   static const String adminDeepResearch = '/admin/deep_research';
   static const String adminCategories = '/admin/categories';
+  static const String adminFeedback = '/admin/feedback';
 }
 
 /// Route names for analytics and debugging
@@ -41,6 +42,7 @@ class RouteNames {
   static const String adminEditorWithJoke = 'adminEditorWithJoke';
   static const String adminDeepResearch = 'adminDeepResearch';
   static const String adminCategories = 'adminCategories';
+  static const String adminFeedback = 'adminFeedback';
 }
 
 /// Extension for easy route navigation
@@ -76,6 +78,8 @@ extension AppRoutesExtension on String {
         return RouteNames.adminEditor;
       case AppRoutes.adminCategories:
         return RouteNames.adminCategories;
+      case AppRoutes.adminFeedback:
+        return RouteNames.adminFeedback;
       default:
         return 'unknown';
     }

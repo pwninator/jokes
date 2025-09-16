@@ -1,0 +1,40 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:snickerdoodle/src/core/providers/feedback_providers.dart';
+import 'package:snickerdoodle/src/features/admin/presentation/joke_admin_screen.dart';
+
+import '../../../test_helpers/firebase_mocks.dart';
+
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  testWidgets('shows unread badge when unread feedback > 0', (tester) async {
+    final container = ProviderContainer(
+      overrides: FirebaseMocks.getFirebaseProviderOverrides(
+        additionalOverrides: [
+          unreadFeedbackCountProvider.overrideWith((ref) => Stream.value(12)),
+        ],
+      ),
+    );
+    addTearDown(container.dispose);
+
+    // Force portrait for consistent UI
+    final originalSize = tester.view.physicalSize;
+    tester.view.physicalSize = const Size(600, 800);
+    addTearDown(() => tester.view.physicalSize = originalSize);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: JokeAdminScreen()),
+      ),
+    );
+
+    await tester.pump();
+
+    expect(find.text('Feedback'), findsOneWidget);
+    // The badge text
+    expect(find.text('12'), findsOneWidget);
+  });
+}

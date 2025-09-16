@@ -22,6 +22,63 @@ import 'package:snickerdoodle/src/features/jokes/presentation/saved_jokes_screen
 import 'package:snickerdoodle/src/features/search/presentation/search_screen.dart';
 import 'package:snickerdoodle/src/features/settings/presentation/user_settings_screen.dart';
 
+const List<TabConfig> _allTabs = [
+  TabConfig(
+    id: TabId.daily,
+    route: AppRoutes.jokes,
+    label: 'Daily Jokes',
+    icon: Icons.mood,
+  ),
+  TabConfig(
+    id: TabId.discover,
+    route: AppRoutes.search,
+    label: 'Discover',
+    icon: Icons.explore,
+  ),
+  TabConfig(
+    id: TabId.saved,
+    route: AppRoutes.saved,
+    label: 'Saved Jokes',
+    icon: Icons.favorite,
+  ),
+  TabConfig(
+    id: TabId.settings,
+    route: AppRoutes.settings,
+    label: 'Settings',
+    icon: Icons.settings,
+  ),
+  TabConfig(
+    id: TabId.admin,
+    route: AppRoutes.admin,
+    label: 'Admin',
+    icon: Icons.admin_panel_settings,
+    requiresAdmin: true,
+  ),
+];
+
+/// Bottom navigation: central configuration
+enum TabId { daily, discover, saved, settings, admin }
+
+class TabConfig {
+  final TabId id;
+  final String route;
+  final String label;
+  final IconData icon;
+  final bool requiresAdmin;
+
+  const TabConfig({
+    required this.id,
+    required this.route,
+    required this.label,
+    required this.icon,
+    this.requiresAdmin = false,
+  });
+}
+
+List<TabConfig> _visibleTabs(bool isAdmin) {
+  return _allTabs.where((t) => !t.requiresAdmin || isAdmin).toList();
+}
+
 /// App router configuration
 class AppRouter {
   AppRouter._();
@@ -176,34 +233,18 @@ class AppRouter {
     // Determine selected index based on current route
     int selectedIndex = _getSelectedIndexFromRoute(currentLocation, isAdmin);
 
-    // Build navigation items
-    final List<BottomNavigationBarItem> navItems = [
-      const BottomNavigationBarItem(
-        icon: Icon(Icons.mood),
-        label: 'Daily Jokes',
-      ),
-      const BottomNavigationBarItem(
-        icon: Icon(Icons.favorite),
-        label: 'Saved Jokes',
-      ),
-      const BottomNavigationBarItem(icon: Icon(Icons.search), label: 'Search'),
-      const BottomNavigationBarItem(
-        icon: Icon(Icons.settings),
-        label: 'Settings',
-      ),
-      if (isAdmin)
-        const BottomNavigationBarItem(
-          icon: Icon(Icons.admin_panel_settings),
-          label: 'Admin',
-        ),
-    ];
+    // Build navigation items from central config
+    final tabs = _visibleTabs(isAdmin);
+    final List<BottomNavigationBarItem> navItems = tabs
+        .map((t) => BottomNavigationBarItem(icon: Icon(t.icon), label: t.label))
+        .toList();
 
     // Convert to NavigationRail destinations
-    final List<NavigationRailDestination> railDestinations = navItems
+    final List<NavigationRailDestination> railDestinations = tabs
         .map(
-          (item) => NavigationRailDestination(
-            icon: item.icon,
-            label: Text(item.label!),
+          (t) => NavigationRailDestination(
+            icon: Icon(t.icon),
+            label: Text(t.label),
           ),
         )
         .toList();
@@ -312,17 +353,23 @@ class AppRouter {
 
   /// Get selected index from current route
   static int _getSelectedIndexFromRoute(String route, bool isAdmin) {
-    if (route.startsWith('/saved')) return 1;
-    if (route.startsWith('/search')) return 2;
-    if (route.startsWith('/settings')) return 3;
-    if (route.startsWith('/admin') && isAdmin) return 4;
-    return 0; // Default to jokes
+    final tabs = _visibleTabs(isAdmin);
+    final idx = tabs.indexWhere((t) => route.startsWith(t.route));
+    if (idx >= 0) return idx;
+    return 0;
   }
 
   /// Navigate to tab index
   static void _navigateToIndex(BuildContext context, int index, bool isAdmin) {
-    // Special handling for search tab - if already on search screen, focus the field
-    if (index == 2) {
+    final tabs = _visibleTabs(isAdmin);
+    if (index < 0 || index >= tabs.length) {
+      context.go(AppRoutes.jokes);
+      return;
+    }
+
+    // Special handling for Discover (Search) tab: focus field if already there
+    final selectedTab = tabs[index];
+    if (selectedTab.route == AppRoutes.search) {
       final currentLocation = GoRouterState.of(context).uri.path;
       if (currentLocation.startsWith(AppRoutes.search)) {
         // Already on search screen, trigger focus instead of navigating
@@ -343,28 +390,7 @@ class AppRouter {
       }
     }
 
-    String route;
-    switch (index) {
-      case 0:
-        route = AppRoutes.jokes;
-        break;
-      case 1:
-        route = AppRoutes.saved;
-        break;
-      case 2:
-        route = AppRoutes.search;
-        break;
-      case 3:
-        route = AppRoutes.settings;
-        break;
-      case 4:
-        route = isAdmin ? AppRoutes.admin : AppRoutes.jokes;
-        break;
-      default:
-        route = AppRoutes.jokes;
-    }
-
-    context.go(route);
+    context.go(selectedTab.route);
   }
 }
 

@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
+import 'package:snickerdoodle/src/features/jokes/application/joke_category_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_search_providers.dart';
+import 'package:snickerdoodle/src/features/jokes/data/models/joke_category.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/search/presentation/search_screen.dart';
 
@@ -237,4 +240,128 @@ void main() {
     final textFieldWidget = tester.widget<TextField>(fieldAfter);
     expect(textFieldWidget.controller?.text, 'penguins');
   });
+
+  testWidgets('Empty search shows categories; tapping tile triggers search', (
+    tester,
+  ) async {
+    final container = ProviderContainer(
+      overrides: FirebaseMocks.getFirebaseProviderOverrides(
+        additionalOverrides: [
+          // Provide fake categories
+          jokeCategoriesProvider.overrideWith(
+            (ref) => Stream.value(const [
+              JokeCategory(
+                id: 'animal_jokes',
+                displayName: 'Animal Jokes',
+                jokeDescriptionQuery: 'animal',
+                imageUrl: null,
+              ),
+              JokeCategory(
+                id: 'food',
+                displayName: 'Food',
+                jokeDescriptionQuery: 'food',
+                imageUrl: null,
+              ),
+            ]),
+          ),
+          // Avoid network search calls in tests
+          searchResultsViewerProvider(
+            SearchScope.userJokeSearch,
+          ).overrideWith((ref) => const AsyncValue.data([])),
+        ],
+      ),
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: SearchScreen()),
+      ),
+    );
+
+    // Let the StreamProvider emit data
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    // Initially empty field should show categories grid
+    expect(find.byKey(const Key('search-categories-grid')), findsOneWidget);
+    expect(find.text('Animal Jokes'), findsOneWidget);
+
+    // Tap a category tile
+    await tester.tap(find.text('Animal Jokes'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    // Provider should be updated with prefixed query
+    final query = container
+        .read(searchQueryProvider(SearchScope.userJokeSearch))
+        .query;
+    expect(query, '${JokeConstants.searchQueryPrefix}animal');
+
+    // The grid should no longer be visible after search starts
+    expect(find.byKey(const Key('search-categories-grid')), findsNothing);
+  });
+
+  testWidgets(
+    'Clear button is circular and clears query restoring categories',
+    (tester) async {
+      final container = ProviderContainer(
+        overrides: FirebaseMocks.getFirebaseProviderOverrides(
+          additionalOverrides: [
+            // Provide categories so grid can show when empty
+            jokeCategoriesProvider.overrideWith(
+              (ref) => Stream.value(const [
+                JokeCategory(
+                  id: 'tech',
+                  displayName: 'Tech',
+                  jokeDescriptionQuery: 'tech',
+                  imageUrl: null,
+                ),
+              ]),
+            ),
+            // Avoid network search calls in tests
+            searchResultsViewerProvider(
+              SearchScope.userJokeSearch,
+            ).overrideWith((ref) => const AsyncValue.data([])),
+          ],
+        ),
+      );
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(home: SearchScreen()),
+        ),
+      );
+
+      // Initially empty shows categories
+      await tester.pump();
+      expect(find.byKey(const Key('search-categories-grid')), findsOneWidget);
+
+      // Enter text to make clear button appear
+      final field = find.byKey(const Key('search-tab-search-field'));
+      await tester.enterText(field, 'robots');
+      await tester.pump();
+
+      // Clear button should be present and circular-styled
+      final clearBtn = find.byKey(const Key('search-clear-button'));
+      expect(clearBtn, findsOneWidget);
+
+      // Submit search so categories disappear
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pump();
+      expect(find.byKey(const Key('search-categories-grid')), findsNothing);
+
+      // Tap clear; field should clear and categories should reappear
+      await tester.tap(clearBtn);
+      await tester.pump();
+      expect(
+        container.read(searchQueryProvider(SearchScope.userJokeSearch)).query,
+        '',
+      );
+      expect(find.byKey(const Key('search-categories-grid')), findsOneWidget);
+    },
+  );
 }

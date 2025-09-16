@@ -7,6 +7,9 @@ import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_navigation_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_search_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/presentation/joke_list_viewer.dart';
+import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
+import 'package:snickerdoodle/src/features/jokes/application/joke_category_providers.dart';
+import 'package:snickerdoodle/src/features/admin/presentation/joke_category_tile.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key});
@@ -135,32 +138,53 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 isDense: true,
                 border: const OutlineInputBorder(),
                 suffixIcon: _controller.text.isNotEmpty
-                    ? IconButton(
-                        tooltip: 'Clear',
-                        icon: const Icon(Icons.clear),
-                        onPressed: () {
-                          _controller.clear();
-                          final current = ref.read(
-                            searchQueryProvider(SearchScope.userJokeSearch),
-                          );
-                          ref
-                              .read(
-                                searchQueryProvider(
-                                  SearchScope.userJokeSearch,
-                                ).notifier,
-                              )
-                              .state = current.copyWith(
-                            query: '',
-                            maxResults: JokeConstants.userSearchMaxResults,
-                            publicOnly: JokeConstants.userSearchPublicOnly,
-                            matchMode: JokeConstants.userSearchMatchMode,
-                            excludeJokeIds: const [],
-                            label: JokeConstants.userSearchLabel,
-                          );
-                          FocusScope.of(context).unfocus();
-                        },
+                    ? Padding(
+                        padding: const EdgeInsets.only(right: 8.0),
+                        child: IconButton(
+                          key: const Key('search-clear-button'),
+                          tooltip: 'Clear',
+                          icon: const Icon(Icons.close),
+                          padding: EdgeInsets.all(4),
+                          iconSize: 20,
+                          style: IconButton.styleFrom(
+                            backgroundColor: Theme.of(
+                              context,
+                            ).colorScheme.primary.withValues(alpha: 0.5),
+                            foregroundColor: Theme.of(
+                              context,
+                            ).colorScheme.primary,
+                            shape: const CircleBorder(),
+                            visualDensity: VisualDensity.compact,
+                          ),
+                          onPressed: () {
+                            _controller.clear();
+                            final current = ref.read(
+                              searchQueryProvider(SearchScope.userJokeSearch),
+                            );
+                            ref
+                                .read(
+                                  searchQueryProvider(
+                                    SearchScope.userJokeSearch,
+                                  ).notifier,
+                                )
+                                .state = current.copyWith(
+                              query: '',
+                              maxResults: JokeConstants.userSearchMaxResults,
+                              publicOnly: JokeConstants.userSearchPublicOnly,
+                              matchMode: JokeConstants.userSearchMatchMode,
+                              excludeJokeIds: const [],
+                              label: JokeConstants.userSearchLabel,
+                            );
+                            FocusScope.of(context).unfocus();
+                          },
+                        ),
                       )
                     : null,
+                // Ensure the suffix icon area size is enforced by the InputDecorator
+                suffixIconConstraints: const BoxConstraints.tightFor(
+                  width: 40,
+                  height: 40,
+                ),
               ),
               maxLines: 1,
               textInputAction: TextInputAction.search,
@@ -207,12 +231,82 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           Expanded(
             child: Consumer(
               builder: (context, ref, child) {
+                final bool isSearchEmpty = _controller.text.trim().isEmpty;
+                if (isSearchEmpty) {
+                  final categoriesAsync = ref.watch(jokeCategoriesProvider);
+                  return categoriesAsync.when(
+                    data: (categories) {
+                      if (categories.isEmpty) {
+                        return const Center(child: Text('No categories found'));
+                      }
+
+                      const double minTileWidth = 150.0;
+                      const double maxTileWidth = 250.0;
+                      const double targetTileWidth = 200.0;
+
+                      return LayoutBuilder(
+                        builder: (context, constraints) {
+                          const horizontalPadding = 16.0;
+                          const spacing = 12.0;
+                          final availableWidth =
+                              constraints.maxWidth - (horizontalPadding * 2);
+
+                          int columns = (availableWidth / targetTileWidth)
+                              .round()
+                              .clamp(1, 8);
+
+                          double tileWidth() =>
+                              (availableWidth - (columns - 1) * spacing) /
+                              columns;
+
+                          while (tileWidth() > maxTileWidth && columns < 12) {
+                            columns += 1;
+                          }
+                          while (tileWidth() < minTileWidth && columns > 1) {
+                            columns -= 1;
+                          }
+
+                          return Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: horizontalPadding,
+                            ),
+                            child: MasonryGridView.count(
+                              key: const Key('search-categories-grid'),
+                              crossAxisCount: columns,
+                              mainAxisSpacing: spacing,
+                              crossAxisSpacing: spacing,
+                              itemCount: categories.length,
+                              itemBuilder: (context, index) {
+                                final cat = categories[index];
+                                return JokeCategoryTile(
+                                  category: cat,
+                                  onTap: () {
+                                    final rawQuery = cat.jokeDescriptionQuery
+                                        .trim();
+                                    if (rawQuery.isEmpty) return;
+                                    _controller.text = rawQuery;
+                                    _onSubmitted(rawQuery);
+                                  },
+                                );
+                              },
+                            ),
+                          );
+                        },
+                      );
+                    },
+                    loading: () =>
+                        const Center(child: CircularProgressIndicator()),
+                    error: (e, st) =>
+                        Center(child: Text('Error loading categories: $e')),
+                  );
+                }
+
                 final currentQuery = ref
                     .watch(searchQueryProvider(SearchScope.userJokeSearch))
                     .query;
                 final emptyStateMessage = currentQuery.isNotEmpty
                     ? 'No jokes found'
-                    : 'Search for jokes!';
+                    : '';
                 return JokeListViewer(
                   jokesAsyncProvider: searchResultsViewerProvider(
                     SearchScope.userJokeSearch,
@@ -220,7 +314,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   jokeContext: AnalyticsJokeContext.search,
                   viewerId: 'search_user',
                   onInitRegisterReset: (cb) => _resetViewer = cb,
-                  emptyState: Center(child: Text(emptyStateMessage)),
+                  emptyState: emptyStateMessage.isEmpty
+                      ? const SizedBox.shrink()
+                      : Center(child: Text(emptyStateMessage)),
                   showSimilarSearchButton: false,
                 );
               },

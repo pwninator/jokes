@@ -16,6 +16,7 @@ import 'package:snickerdoodle/src/features/admin/presentation/joke_feedback_scre
 import 'package:snickerdoodle/src/features/admin/presentation/joke_editor_screen.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_management_screen.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_scheduler_screen.dart';
+import 'package:snickerdoodle/src/features/admin/presentation/users_analytics_screen.dart';
 import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
 import 'package:snickerdoodle/src/features/auth/presentation/auth_wrapper.dart';
 import 'package:snickerdoodle/src/features/jokes/presentation/daily_jokes_screen.dart';
@@ -223,6 +224,13 @@ class AppRouter {
               path: AppRoutes.adminFeedback,
               name: RouteNames.adminFeedback,
               builder: (context, state) => const JokeFeedbackScreen(),
+            ),
+
+            // Admin Users Analytics
+            GoRoute(
+              path: AppRoutes.adminUsers,
+              name: RouteNames.adminUsers,
+              builder: (context, state) => const UsersAnalyticsScreen(),
             ),
           ],
         ),

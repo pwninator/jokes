@@ -95,9 +95,7 @@ class JokeFeedbackScreen extends ConsumerWidget implements TitledScreen {
                                     'Last login',
                                     u!.lastLoginAt,
                                   ),
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .bodySmall
+                                  style: Theme.of(context).textTheme.bodySmall
                                       ?.copyWith(
                                         color: Theme.of(context).hintColor,
                                       ),
@@ -107,14 +105,30 @@ class JokeFeedbackScreen extends ConsumerWidget implements TitledScreen {
                                 spacing: 16,
                                 runSpacing: 8,
                                 children: [
-                                  _metric(context, Icons.calendar_today,
-                                      u?.clientNumDaysUsed, 'days'),
-                                  _metric(context, Icons.visibility,
-                                      u?.clientNumViewed, 'views'),
-                                  _metric(context, Icons.favorite,
-                                      u?.clientNumSaved, 'saves'),
-                                  _metric(context, Icons.share,
-                                      u?.clientNumShared, 'shares'),
+                                  _metric(
+                                    context,
+                                    Icons.calendar_today,
+                                    u?.clientNumDaysUsed,
+                                    'days',
+                                  ),
+                                  _metric(
+                                    context,
+                                    Icons.visibility,
+                                    u?.clientNumViewed,
+                                    'views',
+                                  ),
+                                  _metric(
+                                    context,
+                                    Icons.favorite,
+                                    u?.clientNumSaved,
+                                    'saves',
+                                  ),
+                                  _metric(
+                                    context,
+                                    Icons.share,
+                                    u?.clientNumShared,
+                                    'shares',
+                                  ),
                                 ],
                               ),
                             ],

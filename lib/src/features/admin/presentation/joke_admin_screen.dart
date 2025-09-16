@@ -60,6 +60,21 @@ class JokeAdminScreen extends ConsumerWidget implements TitledScreen {
               ),
 
               const SizedBox(height: 8),
+
+              // Users Analytics Card
+              Card(
+                child: ListTile(
+                  leading: const Icon(Icons.people_alt),
+                  title: const Text('Users'),
+                  subtitle: const Text('Daily logins by days-used bucket'),
+                  trailing: const Icon(Icons.arrow_forward_ios),
+                  onTap: () {
+                    context.push(AppRoutes.adminUsers);
+                  },
+                ),
+              ),
+
+              const SizedBox(height: 8),
               // Joke Categories Card
               Card(
                 child: ListTile(

@@ -47,22 +47,20 @@ Think deeply about the jokes and existing categories to decide what is the best 
 
 After you have created the categories, use the get_num_search_results tool to search for jokes in each category (call the tool multiple times, once for each category). A category is only good if it contains at least 10 jokes. If the search for a category returns less than 10 jokes, you should revise the category and try again.
 
-Each category should be a single word or phrase without any punctuation or descriptor of jokes (e.g. "jokes about", "puns about", etc.). If it's a noun, it should be in the plural form.
+Guidance on creating categories:
+- Categories should be as close to MECE as possible, so that every joke can be assigned to exactly one category.
+- Each category should be a single word or phrase without any punctuation or descriptor of jokes (e.g. "jokes about", "puns about", etc.). If it's a noun, it should be in the plural form.
+    - e.g. "Dogs" instead of "Dog jokes"
+    - e.g. "Sea creatures" instead of "Sea Creature"
+    - e.g. "Love" instead of "Love puns"
+- Every category should be generally approachable and natural for joke categories in a popular joke app.
+    - e.g. "Wild Animals" or "Forest Animals" are good, but "Wild Mammals" is too awkwardly specific
 
-Examples of good categories:
-- Dogs
-- Sea creatures
-- Love
-- Halloween
-
-Examples of bad categories:
-- Dog jokes (should be "Dogs")
-- Sea Creature (should be "Sea creatures")
-- Love puns (should be "Love")
+Each category should also have a short description of the image that will represent this category in the UI. The scene should be simple, adorable, and comical, featuring two to three different baby creatures from the specified category. Every creature in the scene must be a different species or breed, and all of their expressions should be joyful, happy, content, or otherwise positive and contribute to a cheerful, wholesome mood. The creatures should be engaged in a variety of imaginative activities across different categories to ensure variety. The image will be fairly small, so the scene should be simple.
 
 After you have finalized the categories, use the save_joke_categories tool to save the categories to the database. For each category to save, include the following:
 - display_name: The display name of the category that will be shown to users. It should have proper capitalization and spacing.
-- joke_description_query: The query that will be used to query for jokes in that category. This is how the app will find jokes in that category. This should be the exact description query that you used to search for jokes in that category (e.g. "jokes about dogs", "puns about love", etc.).
+- image_description: (Optional) A description of the category that will be used to generate an image for the category. Only set this for new categories that did not previously exist.
 
 ## All jokes:
 {{{constants.STATE_ALL_STORAGE_JOKES}}}

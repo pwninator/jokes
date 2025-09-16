@@ -634,6 +634,7 @@ class JokeCategory:
 
   display_name: str
   joke_description_query: str
+  image_description: str | None = None
 
   @property
   def key(self) -> str:
@@ -649,11 +650,14 @@ class JokeCategory:
 
   def to_dict(self) -> dict:
     """Serialize the category to a dictionary including computed key."""
-    return {
+    data = {
       'key': self.key,
       'display_name': self.display_name,
       'joke_description_query': self.joke_description_query,
     }
+    if self.image_description:
+      data['image_description'] = self.image_description
+    return data
 
 
 @dataclass(kw_only=True)

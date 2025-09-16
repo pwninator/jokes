@@ -1299,6 +1299,9 @@ class TestOnJokeCategoryWrite:
 
     mock_db = MagicMock()
     mock_doc = MagicMock()
+    # Mock the document to not exist (new document)
+    mock_doc.exists = False
+    mock_doc.get.return_value = mock_doc  # get() returns the document itself
     mock_coll = MagicMock(return_value=MagicMock(document=MagicMock(
       return_value=mock_doc)))
     mock_db.collection = mock_coll
@@ -1313,9 +1316,94 @@ class TestOnJokeCategoryWrite:
 
     # Assert
     mock_generate.assert_called_once()
+    mock_doc.get.assert_called_once(
+    )  # Should call get() to check if doc exists
+    mock_doc.set.assert_called_once()  # Should call set() for new document
+    args = mock_doc.set.call_args[0]
+    assert args[0]["image_url"] == mock_image.url
+    assert args[0]["all_image_urls"] == [mock_image.url]
+
+  def test_existing_doc_with_image_description_generates_and_updates(
+      self, monkeypatch):
+    # Arrange
+    mock_image = MagicMock()
+    mock_image.url = "http://example.com/new_image.png"
+    mock_generate = MagicMock(return_value=mock_image)
+    monkeypatch.setattr(joke_fns.image_generation, "generate_pun_image",
+                        mock_generate)
+
+    mock_db = MagicMock()
+    mock_doc = MagicMock()
+    # Mock the document to exist with existing data
+    mock_doc.exists = True
+    mock_doc.to_dict.return_value = {
+      "image_url": "http://example.com/old_image.png",
+      "all_image_urls": ["http://example.com/old_image.png"]
+    }
+    mock_doc.get.return_value = mock_doc  # get() returns the document itself
+    mock_coll = MagicMock(return_value=MagicMock(document=MagicMock(
+      return_value=mock_doc)))
+    mock_db.collection = mock_coll
+    monkeypatch.setattr(joke_fns.firestore, "db",
+                        MagicMock(return_value=mock_db))
+
+    event = self._create_event(before_data={"image_description": "old_desc"},
+                               after_data={"image_description": "new_desc"})
+
+    # Act
+    joke_fns.on_joke_category_write.__wrapped__(event)
+
+    # Assert
+    mock_generate.assert_called_once()
+    mock_doc.get.assert_called_once(
+    )  # Should call get() to check if doc exists
+    mock_doc.update.assert_called_once(
+    )  # Should call update() for existing document
+    args = mock_doc.update.call_args[0]
+    assert args[0]["image_url"] == mock_image.url
+    assert args[0]["all_image_urls"] == [
+      "http://example.com/old_image.png", "http://example.com/new_image.png"
+    ]
+
+  def test_existing_doc_without_all_image_urls_initializes_it(
+      self, monkeypatch):
+    # Arrange
+    mock_image = MagicMock()
+    mock_image.url = "http://example.com/new_image.png"
+    mock_generate = MagicMock(return_value=mock_image)
+    monkeypatch.setattr(joke_fns.image_generation, "generate_pun_image",
+                        mock_generate)
+
+    mock_db = MagicMock()
+    mock_doc = MagicMock()
+    # Mock the document to exist but without all_image_urls field
+    mock_doc.exists = True
+    mock_doc.to_dict.return_value = {
+      "image_url": "http://example.com/old_image.png"
+      # No all_image_urls field
+    }
+    mock_doc.get.return_value = mock_doc  # get() returns the document itself
+    mock_coll = MagicMock(return_value=MagicMock(document=MagicMock(
+      return_value=mock_doc)))
+    mock_db.collection = mock_coll
+    monkeypatch.setattr(joke_fns.firestore, "db",
+                        MagicMock(return_value=mock_db))
+
+    event = self._create_event(before_data={"image_description": "old_desc"},
+                               after_data={"image_description": "new_desc"})
+
+    # Act
+    joke_fns.on_joke_category_write.__wrapped__(event)
+
+    # Assert
+    mock_generate.assert_called_once()
+    mock_doc.get.assert_called_once()
     mock_doc.update.assert_called_once()
     args = mock_doc.update.call_args[0]
     assert args[0]["image_url"] == mock_image.url
+    assert args[0]["all_image_urls"] == [
+      "http://example.com/old_image.png", "http://example.com/new_image.png"
+    ]
 
   def test_description_unchanged_does_nothing(self, monkeypatch):
     # Arrange

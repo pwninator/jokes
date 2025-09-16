@@ -31,7 +31,8 @@ def test_get_all_joke_categories_sync(monkeypatch):
         DummyDoc("animal",
                  data={
                    "display_name": "Animal Jokes",
-                   "joke_description_query": "animals"
+                   "joke_description_query": "animals",
+                   "image_description": "cute animals"
                  }),
         DummyDoc("seasonal",
                  data={
@@ -52,6 +53,7 @@ def test_get_all_joke_categories_sync(monkeypatch):
   assert isinstance(cats[0], models.JokeCategory)
   assert cats[0].display_name == "Animal Jokes"
   assert cats[1].joke_description_query == "season"
+  assert cats[0].image_description == "cute animals"
 
 
 @pytest.mark.asyncio
@@ -80,7 +82,8 @@ async def test_upsert_joke_categories_async(monkeypatch):
 
   cats = [
     models.JokeCategory(display_name="Animal Jokes",
-                        joke_description_query="animals"),
+                        joke_description_query="animals",
+                        image_description="cute animals"),
     models.JokeCategory(display_name="Seasonal",
                         joke_description_query="season"),
   ]
@@ -90,6 +93,7 @@ async def test_upsert_joke_categories_async(monkeypatch):
   assert "animal_jokes" in captured
   assert captured["animal_jokes"]["display_name"] == "Animal Jokes"
   assert captured["seasonal"]["joke_description_query"] == "season"
+  assert captured["animal_jokes"]["image_description"] == "cute animals"
 
 
 @pytest.mark.asyncio

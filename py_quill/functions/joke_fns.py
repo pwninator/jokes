@@ -478,9 +478,33 @@ def on_joke_category_write(
       logger.info("Missing category_id param; cannot update Firestore")
       return
 
-    # Save the generated image URL back to the category document
-    firestore.db().collection("joke_categories").document(category_id).update(
-      {"image_url": generated_image.url})
+    # Get the current document to check for existing all_image_urls
+    doc_ref = firestore.db().collection("joke_categories").document(
+      category_id)
+    current_doc = doc_ref.get()
+
+    if current_doc.exists:
+      current_data = current_doc.to_dict() or {}
+      all_image_urls = current_data.get("all_image_urls", [])
+
+      # If all_image_urls doesn't exist, initialize it with the current image_url
+      if not all_image_urls and current_data.get("image_url"):
+        all_image_urls = [current_data["image_url"]]
+
+      # Append the new image URL to all_image_urls
+      all_image_urls.append(generated_image.url)
+
+      # Update both fields
+      doc_ref.update({
+        "image_url": generated_image.url,
+        "all_image_urls": all_image_urls
+      })
+    else:
+      # Document doesn't exist, just set both fields
+      doc_ref.set({
+        "image_url": generated_image.url,
+        "all_image_urls": [generated_image.url]
+      })
 
 
 def _populate_joke_internal(

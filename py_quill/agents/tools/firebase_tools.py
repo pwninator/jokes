@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import datetime
+import zoneinfo
 
 from agents import constants
 from common import config, firebase_init, models
@@ -37,24 +39,23 @@ def populate_state_with_all_joke_categories(
   """Populates the state with all joke categories."""
   cats = firestore.get_all_joke_categories()
   if cats:
-    callback_context.state[constants.STATE_ALL_STORAGE_JOKE_CATEGORIES] = [{
-      "key":
-      c.key,
-      "display_name":
-      c.display_name,
-      "joke_description_query":
-      c.joke_description_query,
-    } for c in cats]
+    out = []
+    for c in cats:
+      d = {"display_name": c.display_name}
+      if getattr(c, "image_description", None):
+        d["image_description"] = c.image_description
+      out.append(d)
+    callback_context.state[constants.STATE_ALL_STORAGE_JOKE_CATEGORIES] = out
   else:
     callback_context.state[constants.STATE_ALL_STORAGE_JOKE_CATEGORIES] = []
 
 
-async def save_joke_categories(categories: list[dict]) -> None:
+async def save_joke_categories(categories: list[dict[str, str]]) -> None:
   """Saves joke categories to storage by upserting them.
 
   Expects a list of dictionaries where each dict contains:
-  - display_name: str
-  - joke_description_query: str
+  - display_name: string name of the category that will be displayed in the UI to users.
+  - image_description: optional string description of the category that will be used to generate an image for the category. Only needed for new categories.
   """
   if not categories:
     return
@@ -64,13 +65,18 @@ async def save_joke_categories(categories: list[dict]) -> None:
     if not isinstance(item, dict):
       continue
     display_name = (item.get("display_name") or "").strip()
-    joke_description_query = (item.get("joke_description_query") or "").strip()
+    # Same as display name
+    joke_description_query = display_name
+    image_description = item.get("image_description")
+    if image_description:
+      image_description = image_description.strip()
     if not display_name or not joke_description_query:
       continue
     to_upsert.append(
       models.JokeCategory(
         display_name=display_name,
         joke_description_query=joke_description_query,
+        image_description=image_description,
       ))
 
   if not to_upsert:
@@ -100,13 +106,14 @@ async def search_for_jokes(joke_description_query: str) -> list[str]:
   if "jokes" not in joke_description_query.lower():
     joke_description_query = f"jokes about {joke_description_query}"
 
+  now_la = datetime.datetime.now(zoneinfo.ZoneInfo("America/Los_Angeles"))
   search_results = await asyncio.to_thread(
     search.search_jokes,
     query=joke_description_query,
     limit=15,
     distance_threshold=config.JOKE_SEARCH_TIGHT_THRESHOLD,
     label="joke_search_tool",
-    field_filters=[],
+    field_filters=[('public_timestamp', '<=', now_la)],
   )
   joke_ids = [result.joke.key for result in search_results if result.joke.key]
   jokes = await asyncio.to_thread(firestore.get_punny_jokes, joke_ids)

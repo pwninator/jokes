@@ -97,7 +97,8 @@ def test_populate_state_with_all_joke_categories_non_empty(
     "services.firestore.get_all_joke_categories",
     lambda: [
       models.JokeCategory(display_name="Animal Jokes",
-                          joke_description_query="animals"),
+                          joke_description_query="animals",
+                          image_description="cute animals"),
       models.JokeCategory(display_name="Seasonal",
                           joke_description_query="season"),
     ],
@@ -110,8 +111,9 @@ def test_populate_state_with_all_joke_categories_non_empty(
   assert constants.STATE_ALL_STORAGE_JOKE_CATEGORIES in fake_ctx.state
   cats = fake_ctx.state[constants.STATE_ALL_STORAGE_JOKE_CATEGORIES]
   assert isinstance(cats, list) and len(cats) == 2
-  assert cats[0]["key"] == "animal_jokes"
+  assert cats[0]["display_name"] == "Animal Jokes"
   assert cats[1]["display_name"] == "Seasonal"
+  assert cats[0]["image_description"] == "cute animals"
 
 
 def test_populate_state_with_all_joke_categories_empty(tool, monkeypatch,
@@ -139,7 +141,8 @@ async def test_save_joke_categories_valid(tool, monkeypatch):
   await tool.save_joke_categories([
     {
       "display_name": "Animal Jokes",
-      "joke_description_query": "animals"
+      "joke_description_query": "animals",
+      "image_description": "cute animals",
     },
     {
       "display_name": "Seasonal",
@@ -151,6 +154,7 @@ async def test_save_joke_categories_valid(tool, monkeypatch):
   assert len(captured) == 2
   assert isinstance(captured[0], models.JokeCategory)
   assert captured[0].key == "animal_jokes"
+  assert captured[0].image_description == "cute animals"
 
 
 @pytest.mark.asyncio
@@ -170,10 +174,21 @@ async def test_save_joke_categories_ignores_invalid_and_does_not_call_upsert(
     "display_name": "",
     "joke_description_query": "animals"
   }])  # blank display
+  # For blank query, the tool should default it to display_name and proceed
+  captured = []
+
+  async def fake_upsert(categories):
+    captured.extend(categories)
+
+  monkeypatch.setattr("services.firestore.upsert_joke_categories", fake_upsert)
+
   await tool.save_joke_categories([{
     "display_name": "Animals",
     "joke_description_query": ""
-  }])  # blank query
+  }])
+  assert len(captured) == 1
+  assert captured[0].display_name == "Animals"
+  assert captured[0].joke_description_query == "Animals"
 
 
 @pytest.mark.asyncio

@@ -119,12 +119,14 @@ def get_all_joke_categories() -> list[models.JokeCategory]:
     data = doc.to_dict() or {}
     display_name = data.get('display_name', '')
     joke_description_query = data.get('joke_description_query', '')
+    image_description = data.get('image_description')
     if not display_name and not joke_description_query:
       continue
     categories.append(
       models.JokeCategory(
         display_name=display_name,
         joke_description_query=joke_description_query,
+        image_description=image_description,
       ))
   return categories
 
@@ -144,14 +146,18 @@ async def upsert_joke_categories(
   for category in categories:
     display_name = (category.display_name or '').strip()
     description_query = (category.joke_description_query or '').strip()
+    image_description = (category.image_description or '').strip()
     if not display_name or not description_query:
       raise ValueError(
         "JokeCategory must have non-empty display_name and joke_description_query"
       )
-    prepared.append((category.key, {
+    payload: dict[str, str] = {
       'display_name': display_name,
       'joke_description_query': description_query,
-    }))
+    }
+    if image_description:
+      payload['image_description'] = image_description
+    prepared.append((category.key, payload))
 
   client = get_async_db()
   for key, data in prepared:

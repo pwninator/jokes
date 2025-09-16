@@ -1,7 +1,7 @@
 """Agent that categorizes jokes."""
 from agents import constants
 from agents.common_agents.quill_llm_agent import QuillLlmAgent
-from agents.tools import get_all_jokes, joke_categories, joke_search
+from agents.tools import firebase_tools
 from google.adk.agents import BaseAgent
 from google.genai import types
 
@@ -21,11 +21,12 @@ def get_joke_categorizer_agent() -> BaseAgent:
     include_contents='none',
     description="Groups jokes into categories.",
     before_agent_callback=[
-      get_all_jokes.populate_state_with_all_storage_jokes,
-      joke_categories.populate_state_with_all_joke_categories,
+      firebase_tools.populate_state_with_all_storage_jokes,
+      firebase_tools.populate_state_with_all_joke_categories,
     ],
     tools=[
-      joke_search.get_num_search_results, joke_categories.save_joke_categories
+      firebase_tools.get_num_search_results,
+      firebase_tools.save_joke_categories,
     ],
     instruction=
     f"""You are a joke categorizer. Your task is to group jokes into categories. The categories will be shown to users in an app to help them discover new jokes. The categories should be creative, fun, and useful.

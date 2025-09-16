@@ -3,8 +3,7 @@
 import logging
 
 import vertexai
-from common import config
-from firebase_admin import initialize_app
+from common import config, firebase_init
 from firebase_functions.core import init
 from functions import (admin_fns, analytics_fns, book_fns, character_fns,
                        dummy_fns, joke_fns, story_prompt_fns, user_fns,
@@ -13,7 +12,7 @@ from functions import (admin_fns, analytics_fns, book_fns, character_fns,
 # Configure basic logging for the application (primarily for emulator visibility)
 logging.basicConfig(level=logging.INFO)
 
-app = initialize_app()
+app = firebase_init.app
 
 
 @init

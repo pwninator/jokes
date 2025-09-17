@@ -64,20 +64,9 @@ async def test_upsert_joke_categories_async(monkeypatch):
 
     def __init__(self, k):
       self.k = k
-      self._exists = False
 
     async def set(self, data, merge=False):  # pylint: disable=unused-argument
       captured[self.k] = data
-
-    async def get(self):
-      return self
-
-    @property
-    def exists(self):
-      return self._exists
-
-    def to_dict(self):
-      return {}
 
   class DummyCol:
 
@@ -118,13 +107,6 @@ async def test_upsert_joke_categories_validation(monkeypatch):
     async def set(self, data, merge=False):  # pylint: disable=unused-argument
       raise AssertionError("Should not be called for invalid categories")
 
-    async def get(self):
-        return self
-
-    @property
-    def exists(self):
-        return False
-
   class DummyCol:
 
     def document(self, key):
@@ -147,163 +129,3 @@ async def test_upsert_joke_categories_validation(monkeypatch):
     await fs.upsert_joke_categories([
       models.JokeCategory(display_name="Name", joke_description_query="   "),
     ])
-
-
-@pytest.mark.asyncio
-async def test_upsert_joke_categories_state_default_proposed(monkeypatch):
-  captured = {}
-
-  class DummyDoc:
-
-    def __init__(self, k):
-      self.k = k
-      self._exists = False
-
-    async def set(self, data, merge=False):  # pylint: disable=unused-argument
-      captured[self.k] = data
-
-    async def get(self):
-        return self
-
-    @property
-    def exists(self):
-        return self._exists
-
-  class DummyCol:
-
-    def document(self, key):
-      return DummyDoc(key)
-
-  class DummyDB:
-
-    def collection(self, _name):
-      return DummyCol()
-
-  monkeypatch.setattr(fs, "get_async_db", lambda: DummyDB())
-
-  cats = [
-    models.JokeCategory(display_name="Animal Jokes",
-                        joke_description_query="animals"),
-  ]
-
-  await fs.upsert_joke_categories(cats)
-
-  assert captured["animal_jokes"]["state"] == models.JokeCategoryState.PROPOSED.value
-
-
-@pytest.mark.asyncio
-async def test_upsert_joke_categories_approved_fails(monkeypatch):
-  class DummyDoc:
-
-    def __init__(self, k):
-      self.k = k
-      self._exists = True
-      self._data = {"state": models.JokeCategoryState.APPROVED.value}
-
-    async def set(self, data, merge=False):  # pylint: disable=unused-argument
-      raise AssertionError("Should not be called for approved categories")
-
-    async def get(self):
-        return self
-
-    @property
-    def exists(self):
-        return self._exists
-
-    def to_dict(self):
-        return self._data
-
-  class DummyCol:
-
-    def document(self, key):
-      return DummyDoc(key)
-
-  class DummyDB:
-
-    def collection(self, _name):
-      return DummyCol()
-
-  monkeypatch.setattr(fs, "get_async_db", lambda: DummyDB())
-
-  with pytest.raises(Exception):
-    await fs.upsert_joke_categories([
-      models.JokeCategory(display_name="Animal Jokes",
-                          joke_description_query="animals"),
-    ])
-
-
-@pytest.mark.asyncio
-async def test_upsert_joke_categories_rejected_becomes_proposed(monkeypatch):
-  captured = {}
-
-  class DummyDoc:
-
-    def __init__(self, k):
-      self.k = k
-      self._exists = True
-      self._data = {"state": models.JokeCategoryState.REJECTED.value}
-
-    async def set(self, data, merge=False):  # pylint: disable=unused-argument
-      captured[self.k] = data
-
-    async def get(self):
-        return self
-
-    @property
-    def exists(self):
-        return self._exists
-
-    def to_dict(self):
-        return self._data
-
-  class DummyCol:
-
-    def document(self, key):
-      return DummyDoc(key)
-
-  class DummyDB:
-
-    def collection(self, _name):
-      return DummyCol()
-
-  monkeypatch.setattr(fs, "get_async_db", lambda: DummyDB())
-
-  cats = [
-    models.JokeCategory(display_name="Animal Jokes",
-                        joke_description_query="animals",
-                        state=models.JokeCategoryState.REJECTED),
-  ]
-
-  await fs.upsert_joke_categories(cats)
-
-  assert captured["animal_jokes"]["state"] == models.JokeCategoryState.PROPOSED.value
-
-
-@pytest.mark.asyncio
-async def test_delete_joke_category(monkeypatch):
-  deleted_key = None
-
-  class DummyDoc:
-
-    def __init__(self, k):
-      self.k = k
-
-    async def delete(self):
-      nonlocal deleted_key
-      deleted_key = self.k
-
-  class DummyCol:
-
-    def document(self, key):
-      return DummyDoc(key)
-
-  class DummyDB:
-
-    def collection(self, _name):
-      return DummyCol()
-
-  monkeypatch.setattr(fs, "get_async_db", lambda: DummyDB())
-
-  await fs.delete_joke_category("animal_jokes")
-
-  assert deleted_key == "animal_jokes"

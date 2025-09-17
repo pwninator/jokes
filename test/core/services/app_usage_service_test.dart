@@ -1,8 +1,19 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
+import 'package:snickerdoodle/src/core/services/review_prompt_state_store.dart';
+import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
+import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
+
+class _MockAnalyticsService extends Mock implements AnalyticsService {}
+
+class _MockJokeCloudFunctionService extends Mock
+    implements JokeCloudFunctionService {}
+
+class _MockReviewPromptStateStore extends Mock implements ReviewPromptStateStore {}
 
 void main() {
   String todayString() {
@@ -153,6 +164,62 @@ void main() {
       expect(await service.getNumSharedJokes(), 2);
     });
   });
-}
 
-class _MockAnalyticsService extends Mock implements AnalyticsService {}
+  group('AppUsageService._pushUsageSnapshot', () {
+    test(
+      'passes correct requestedReview value to cloud function',
+      () async {
+        final prefs = await SharedPreferences.getInstance();
+        final mockJokeCloudFn = _MockJokeCloudFunctionService();
+        final mockReviewStore = _MockReviewPromptStateStore();
+
+        when(() => mockReviewStore.hasRequested())
+            .thenAnswer((_) async => true);
+        when(() => mockJokeCloudFn.trackUsage(
+              numDaysUsed: any(named: 'numDaysUsed'),
+              numSaved: any(named: 'numSaved'),
+              numViewed: any(named: 'numViewed'),
+              numShared: any(named: 'numShared'),
+              requestedReview: any(named: 'requestedReview'),
+            )).thenAnswer((_) async {});
+
+        final testRefProvider = Provider<Ref>((ref) => ref);
+        final container = ProviderContainer(
+          overrides: [
+            reviewPromptStateStoreProvider.overrideWithValue(mockReviewStore),
+            isAdminProvider.overrideWithValue(false),
+          ],
+        );
+        final ref = container.read(testRefProvider);
+
+        final testService = AppUsageService(
+          prefs: prefs,
+          ref: ref,
+          jokeCloudFn: mockJokeCloudFn,
+          isDebugMode: false,
+        );
+
+        // Simulate a new day to trigger _pushUsageSnapshot
+        final yesterday = DateTime.now().subtract(const Duration(days: 1));
+        final yesterdayStr =
+            '${yesterday.year.toString()}-${yesterday.month.toString().padLeft(2, '0')}-${yesterday.day.toString().padLeft(2, '0')}';
+        await prefs.setString('last_used_date', yesterdayStr);
+
+        await testService.logAppUsage();
+
+        // Allow microtasks to complete
+        await Future.delayed(Duration.zero);
+
+        final captured = verify(() => mockJokeCloudFn.trackUsage(
+              numDaysUsed: any(named: 'numDaysUsed'),
+              numSaved: any(named: 'numSaved'),
+              numViewed: any(named: 'numViewed'),
+              numShared: any(named: 'numShared'),
+              requestedReview: captureAny(named: 'requestedReview'),
+            )).captured;
+
+        expect(captured.first, isTrue);
+      },
+    );
+  });
+}

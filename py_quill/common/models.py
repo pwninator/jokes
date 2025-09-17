@@ -628,13 +628,6 @@ class StoryData:
     return updated_keys
 
 
-class JokeCategoryState(Enum):
-  """Lifecycle state of a joke category."""
-  PROPOSED = "PROPOSED"
-  APPROVED = "APPROVED"
-  REJECTED = "REJECTED"
-
-
 @dataclass
 class JokeCategory:
   """Represents a joke category used for grouping jokes."""
@@ -642,7 +635,6 @@ class JokeCategory:
   display_name: str
   joke_description_query: str
   image_description: str | None = None
-  state: JokeCategoryState = JokeCategoryState.PROPOSED
 
   @property
   def key(self) -> str:

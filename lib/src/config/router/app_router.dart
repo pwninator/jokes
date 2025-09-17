@@ -11,9 +11,8 @@ import 'package:snickerdoodle/src/core/services/notification_service.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/deep_research_screen.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_admin_screen.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_categories_screen.dart';
-import 'package:snickerdoodle/src/features/admin/presentation/joke_category_editor_screen.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_creator_screen.dart';
-import 'package:snickerdoodle/src/features/jokes/data/models/joke_category.dart';
+import 'package:snickerdoodle/src/features/admin/presentation/admin_feedback/admin_feedback_details_page.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_feedback_screen.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_editor_screen.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_management_screen.dart';
@@ -221,23 +220,20 @@ class AppRouter {
               builder: (context, state) => const JokeCategoriesScreen(),
             ),
 
-            GoRoute(
-              path: AppRoutes.adminCategoryEditor,
-              name: RouteNames.adminCategoryEditor,
-              builder: (context, state) {
-                final category = state.extra as JokeCategory?;
-                if (category == null) {
-                  return const Center(child: Text('Category not found'));
-                }
-                return JokeCategoryEditorScreen(category: category);
-              },
-            ),
-
             // Admin Feedback
             GoRoute(
               path: AppRoutes.adminFeedback,
               name: RouteNames.adminFeedback,
               builder: (context, state) => const JokeFeedbackScreen(),
+            ),
+
+            GoRoute(
+              path: AppRoutes.adminFeedbackDetails,
+              name: RouteNames.adminFeedbackDetails,
+              builder: (context, state) {
+                final feedbackId = state.pathParameters['feedbackId']!;
+                return AdminFeedbackDetailsPage(feedbackId: feedbackId);
+              },
             ),
 
             // Admin Users Analytics

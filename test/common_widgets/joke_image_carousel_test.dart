@@ -10,11 +10,11 @@ import 'package:snickerdoodle/src/common_widgets/share_joke_button.dart';
 import 'package:snickerdoodle/src/core/providers/image_providers.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
+import 'package:snickerdoodle/src/features/jokes/application/joke_schedule_providers.dart';
+import 'package:snickerdoodle/src/features/jokes/application/joke_schedule_service.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
-import 'package:snickerdoodle/src/features/jokes/application/joke_schedule_providers.dart';
-import 'package:snickerdoodle/src/features/jokes/application/joke_schedule_service.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_schedule_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_state.dart';
 
@@ -30,6 +30,100 @@ void main() {
       ),
     );
   }
+
+  group('JokeImageCarousel Modes', () {
+    testWidgets('REVEAL mode shows page indicators and uses PageView', (
+      tester,
+    ) async {
+      // arrange
+      const joke = Joke(
+        id: 'reveal-joke',
+        setupText: 'Setup',
+        punchlineText: 'Punch',
+        setupImageUrl: 'https://example.com/a.jpg',
+        punchlineImageUrl: 'https://example.com/b.jpg',
+      );
+
+      const widget = JokeImageCarousel(
+        joke: joke,
+        jokeContext: 'test',
+        mode: JokeCarouselMode.REVEAL,
+      );
+
+      // act
+      await tester.pumpWidget(createTestWidget(child: widget));
+      await tester.pump();
+
+      // assert
+      expect(find.byType(SmoothPageIndicator), findsOneWidget);
+      expect(find.byType(PageView), findsOneWidget);
+      expect(find.byType(SaveJokeButton), findsOneWidget);
+    });
+
+    testWidgets('VERTICAL mode hides page indicators but shows controls', (
+      tester,
+    ) async {
+      // arrange
+      const joke = Joke(
+        id: 'vertical-joke',
+        setupText: 'Setup',
+        punchlineText: 'Punch',
+        setupImageUrl: 'https://example.com/a.jpg',
+        punchlineImageUrl: 'https://example.com/b.jpg',
+      );
+
+      const widget = JokeImageCarousel(
+        joke: joke,
+        jokeContext: 'test',
+        mode: JokeCarouselMode.VERTICAL,
+      );
+
+      // act
+      await tester.pumpWidget(createTestWidget(child: widget));
+      await tester.pump();
+
+      // assert: indicators hidden, controls visible, no PageView
+      expect(find.byType(SmoothPageIndicator), findsNothing);
+      expect(find.byType(PageView), findsNothing);
+      expect(find.byType(SaveJokeButton), findsOneWidget);
+
+      // assert: aspect ratio reflects two stacked images (0.5)
+      final ar = tester.widget<AspectRatio>(find.byType(AspectRatio));
+      expect(ar.aspectRatio, 0.5);
+    });
+
+    testWidgets('HORIZONTAL mode hides page indicators but shows controls', (
+      tester,
+    ) async {
+      // arrange
+      const joke = Joke(
+        id: 'horizontal-joke',
+        setupText: 'Setup',
+        punchlineText: 'Punch',
+        setupImageUrl: 'https://example.com/a.jpg',
+        punchlineImageUrl: 'https://example.com/b.jpg',
+      );
+
+      const widget = JokeImageCarousel(
+        joke: joke,
+        jokeContext: 'test',
+        mode: JokeCarouselMode.HORIZONTAL,
+      );
+
+      // act
+      await tester.pumpWidget(createTestWidget(child: widget));
+      await tester.pump();
+
+      // assert: indicators hidden, controls visible, no PageView
+      expect(find.byType(SmoothPageIndicator), findsNothing);
+      expect(find.byType(PageView), findsNothing);
+      expect(find.byType(SaveJokeButton), findsOneWidget);
+
+      // assert: aspect ratio reflects two side-by-side images (2.0)
+      final ar = tester.widget<AspectRatio>(find.byType(AspectRatio));
+      expect(ar.aspectRatio, 2.0);
+    });
+  });
 
   group('JokeImageCarousel Counts Icons', () {
     testWidgets('icons are gray when counts are 0', (tester) async {

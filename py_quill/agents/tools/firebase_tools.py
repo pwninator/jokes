@@ -53,9 +53,12 @@ def populate_state_with_all_joke_categories(
 async def save_joke_categories(categories: list[dict[str, str]]) -> None:
   """Saves joke categories to storage by upserting them.
 
-  Expects a list of dictionaries where each dict contains:
-  - display_name: string name of the category that will be displayed in the UI to users.
-  - image_description: optional string description of the category that will be used to generate an image for the category. Only needed for new categories.
+  This function only inserts new categories or updates existing ones. It does not delete categories.
+
+  Args:
+      categories: List of dictionaries where each dict contains:
+        - display_name: string name of the category that will be displayed in the UI to users.
+        - image_description: optional string description of the category that will be used to generate an image for the category. Only needed for new categories.
   """
   if not categories:
     return

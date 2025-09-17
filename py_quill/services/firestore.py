@@ -141,7 +141,8 @@ async def upsert_joke_categories(
   if not categories:
     return
 
-  client = get_async_db()
+  # Validate and prepare payloads first to avoid partial writes
+  prepared: list[tuple[str, dict[str, str]]] = []
   for category in categories:
     display_name = (category.display_name or '').strip()
     description_query = (category.joke_description_query or '').strip()
@@ -150,40 +151,18 @@ async def upsert_joke_categories(
       raise ValueError(
         "JokeCategory must have non-empty display_name and joke_description_query"
       )
-
-    doc_ref = client.collection('joke_categories').document(category.key)
-    existing_doc = await doc_ref.get()
-
-    if existing_doc.exists:
-      existing_data = existing_doc.to_dict()
-      existing_state = existing_data.get('state')
-      if existing_state == models.JokeCategoryState.APPROVED.value:
-        raise Exception(f"Cannot update category {category.key} because it is already approved.")
-      if existing_state == models.JokeCategoryState.REJECTED.value:
-        category.state = models.JokeCategoryState.PROPOSED
-
     payload: dict[str, str] = {
       'display_name': display_name,
       'joke_description_query': description_query,
-      'state': category.state.value,
     }
     if image_description:
       payload['image_description'] = image_description
-
-    await doc_ref.set(payload, merge=True)
-
-
-async def delete_joke_category(category_id: str) -> None:
-  """Delete a joke category from the 'joke_categories' collection.
-
-  Args:
-      category_id: The ID of the category to delete.
-  """
-  if not category_id:
-    return
+    prepared.append((category.key, payload))
 
   client = get_async_db()
-  await client.collection('joke_categories').document(category_id).delete()
+  for key, data in prepared:
+    await client.collection('joke_categories').document(key).set(data,
+                                                                 merge=True)
 
 
 def list_joke_schedules() -> list[str]:
@@ -615,7 +594,8 @@ def _upsert_joke_user_usage_logic(transaction: Transaction,
                                   client_num_days_used: int | None = None,
                                   client_num_saved: int | None = None,
                                   client_num_viewed: int | None = None,
-                                  client_num_shared: int | None = None) -> int:
+                                  client_num_shared: int | None = None,
+                                  requested_review: bool | None = None) -> int:
   """Transactional helper to upsert joke user usage and return final count.
 
   Args:
@@ -630,7 +610,7 @@ def _upsert_joke_user_usage_logic(transaction: Transaction,
   snapshot = doc_ref.get(transaction=transaction)
 
   # Collect client counters if provided
-  client_updates: dict[str, int] = {}
+  client_updates: dict[str, int | bool] = {}
   if client_num_days_used is not None:
     client_updates['client_num_days_used'] = int(client_num_days_used)
   if client_num_saved is not None:
@@ -639,6 +619,8 @@ def _upsert_joke_user_usage_logic(transaction: Transaction,
     client_updates['client_num_viewed'] = int(client_num_viewed)
   if client_num_shared is not None:
     client_updates['client_num_shared'] = int(client_num_shared)
+  if requested_review is not None:
+    client_updates['requested_review'] = requested_review
 
   # Insert path
   if not snapshot.exists:
@@ -702,7 +684,8 @@ def _upsert_joke_user_usage_in_txn(
     client_num_days_used: int | None = None,
     client_num_saved: int | None = None,
     client_num_viewed: int | None = None,
-    client_num_shared: int | None = None) -> int:
+    client_num_shared: int | None = None,
+    requested_review: bool | None = None) -> int:
   """Transactional wrapper that handles the transaction."""
   # The actual logic is in a separate function for testability
   return _upsert_joke_user_usage_logic(
@@ -713,6 +696,7 @@ def _upsert_joke_user_usage_in_txn(
     client_num_saved=client_num_saved,
     client_num_viewed=client_num_viewed,
     client_num_shared=client_num_shared,
+    requested_review=requested_review,
   )
 
 
@@ -722,7 +706,8 @@ def upsert_joke_user_usage(user_id: str,
                            client_num_days_used: int | None = None,
                            client_num_saved: int | None = None,
                            client_num_viewed: int | None = None,
-                           client_num_shared: int | None = None) -> int:
+                           client_num_shared: int | None = None,
+                           requested_review: bool | None = None) -> int:
   """Create or update the joke user usage document and return final count.
 
   Args:
@@ -745,4 +730,5 @@ def upsert_joke_user_usage(user_id: str,
     client_num_saved=client_num_saved,
     client_num_viewed=client_num_viewed,
     client_num_shared=client_num_shared,
+    requested_review=requested_review,
   )

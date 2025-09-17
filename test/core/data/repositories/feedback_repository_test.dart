@@ -15,8 +15,7 @@ void main() {
 
     test('submitFeedback creates a new feedback document', () async {
       await repository.submitFeedback('Test feedback', 'user1');
-      final snapshot =
-          await fakeFirestore.collection('joke_feedback').get();
+      final snapshot = await fakeFirestore.collection('joke_feedback').get();
       expect(snapshot.docs.length, 1);
       final doc = snapshot.docs.first.data();
       expect(doc['user_id'], 'user1');
@@ -45,29 +44,32 @@ void main() {
       expect(doc['conversation'][0]['speaker'], 'ADMIN');
     });
 
-    test('addConversationMessage migrates legacy feedback_text to conversation', () async {
-      final docRef = await fakeFirestore.collection('joke_feedback').add({
-        'user_id': 'user1',
-        'feedback_text': 'Legacy user message',
-        'creation_time': Timestamp.fromDate(DateTime(2023, 1, 1)),
-        'lastAdminViewTime': null,
-      });
+    test(
+      'addConversationMessage migrates legacy feedback_text to conversation',
+      () async {
+        final docRef = await fakeFirestore.collection('joke_feedback').add({
+          'user_id': 'user1',
+          'feedback_text': 'Legacy user message',
+          'creation_time': Timestamp.fromDate(DateTime(2023, 1, 1)),
+          'lastAdminViewTime': null,
+        });
 
-      await repository.addConversationMessage(
-        docRef.id,
-        'Admin reply',
-        SpeakerType.admin,
-      );
+        await repository.addConversationMessage(
+          docRef.id,
+          'Admin reply',
+          SpeakerType.admin,
+        );
 
-      final snapshot = await docRef.get();
-      final doc = snapshot.data();
-      expect(doc!['conversation'].length, 2);
-      expect(doc['conversation'][0]['text'], 'Legacy user message');
-      expect(doc['conversation'][0]['speaker'], 'USER');
-      expect(doc['conversation'][1]['text'], 'Admin reply');
-      expect(doc['conversation'][1]['speaker'], 'ADMIN');
-      expect(doc['feedback_text'], isNull); // Should be removed
-    });
+        final snapshot = await docRef.get();
+        final doc = snapshot.data();
+        expect(doc!['conversation'].length, 2);
+        expect(doc['conversation'][0]['text'], 'Legacy user message');
+        expect(doc['conversation'][0]['speaker'], 'USER');
+        expect(doc['conversation'][1]['text'], 'Admin reply');
+        expect(doc['conversation'][1]['speaker'], 'ADMIN');
+        expect(doc['feedback_text'], isNull); // Should be removed
+      },
+    );
 
     test('updateLastAdminViewTime writes server timestamp', () async {
       final docRef = await fakeFirestore.collection('joke_feedback').add({
@@ -93,9 +95,12 @@ void main() {
       final stream = repository.watchAllFeedback();
 
       expect(
-          stream,
-          emits(isA<List<FeedbackEntry>>()..having(
-              (list) => list.length, 'length', 1)));
+        stream,
+        emits(
+          isA<List<FeedbackEntry>>()
+            ..having((list) => list.length, 'length', 1),
+        ),
+      );
     });
   });
 }

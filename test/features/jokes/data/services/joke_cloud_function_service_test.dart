@@ -435,5 +435,33 @@ void main() {
         expect(captured['requested_review'], isTrue);
       });
     });
+
+    group('trackUsage', () {
+      test('should call httpsCallable with correct parameters', () async {
+        when(
+          () => mockFunctions.httpsCallable('usage'),
+        ).thenReturn(mockCallable);
+        when(
+          () => mockCallable.call(any()),
+        ).thenAnswer((_) async => mockResult);
+
+        await service.trackUsage(
+          numDaysUsed: 1,
+          numSaved: 2,
+          numViewed: 3,
+          numShared: 4,
+          requestedReview: true,
+        );
+
+        final captured =
+            verify(() => mockCallable.call(captureAny())).captured.single
+                as Map<String, dynamic>;
+        expect(captured['num_days_used'], '1');
+        expect(captured['num_saved'], '2');
+        expect(captured['num_viewed'], '3');
+        expect(captured['num_shared'], '4');
+        expect(captured['requested_review'], isTrue);
+      });
+    });
   });
 }

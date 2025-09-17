@@ -13,7 +13,8 @@ class _MockAnalyticsService extends Mock implements AnalyticsService {}
 class _MockJokeCloudFunctionService extends Mock
     implements JokeCloudFunctionService {}
 
-class _MockReviewPromptStateStore extends Mock implements ReviewPromptStateStore {}
+class _MockReviewPromptStateStore extends Mock
+    implements ReviewPromptStateStore {}
 
 void main() {
   String todayString() {
@@ -166,60 +167,60 @@ void main() {
   });
 
   group('AppUsageService._pushUsageSnapshot', () {
-    test(
-      'passes correct requestedReview value to cloud function',
-      () async {
-        final prefs = await SharedPreferences.getInstance();
-        final mockJokeCloudFn = _MockJokeCloudFunctionService();
-        final mockReviewStore = _MockReviewPromptStateStore();
+    test('passes correct requestedReview value to cloud function', () async {
+      final prefs = await SharedPreferences.getInstance();
+      final mockJokeCloudFn = _MockJokeCloudFunctionService();
+      final mockReviewStore = _MockReviewPromptStateStore();
 
-        when(() => mockReviewStore.hasRequested())
-            .thenAnswer((_) async => true);
-        when(() => mockJokeCloudFn.trackUsage(
-              numDaysUsed: any(named: 'numDaysUsed'),
-              numSaved: any(named: 'numSaved'),
-              numViewed: any(named: 'numViewed'),
-              numShared: any(named: 'numShared'),
-              requestedReview: any(named: 'requestedReview'),
-            )).thenAnswer((_) async {});
+      when(() => mockReviewStore.hasRequested()).thenAnswer((_) async => true);
+      when(
+        () => mockJokeCloudFn.trackUsage(
+          numDaysUsed: any(named: 'numDaysUsed'),
+          numSaved: any(named: 'numSaved'),
+          numViewed: any(named: 'numViewed'),
+          numShared: any(named: 'numShared'),
+          requestedReview: any(named: 'requestedReview'),
+        ),
+      ).thenAnswer((_) async {});
 
-        final testRefProvider = Provider<Ref>((ref) => ref);
-        final container = ProviderContainer(
-          overrides: [
-            reviewPromptStateStoreProvider.overrideWithValue(mockReviewStore),
-            isAdminProvider.overrideWithValue(false),
-          ],
-        );
-        final ref = container.read(testRefProvider);
+      final testRefProvider = Provider<Ref>((ref) => ref);
+      final container = ProviderContainer(
+        overrides: [
+          reviewPromptStateStoreProvider.overrideWithValue(mockReviewStore),
+          isAdminProvider.overrideWithValue(false),
+        ],
+      );
+      final ref = container.read(testRefProvider);
 
-        final testService = AppUsageService(
-          prefs: prefs,
-          ref: ref,
-          jokeCloudFn: mockJokeCloudFn,
-          isDebugMode: false,
-        );
+      final testService = AppUsageService(
+        prefs: prefs,
+        ref: ref,
+        jokeCloudFn: mockJokeCloudFn,
+        isDebugMode: false,
+      );
 
-        // Simulate a new day to trigger _pushUsageSnapshot
-        final yesterday = DateTime.now().subtract(const Duration(days: 1));
-        final yesterdayStr =
-            '${yesterday.year.toString()}-${yesterday.month.toString().padLeft(2, '0')}-${yesterday.day.toString().padLeft(2, '0')}';
-        await prefs.setString('last_used_date', yesterdayStr);
+      // Simulate a new day to trigger _pushUsageSnapshot
+      final yesterday = DateTime.now().subtract(const Duration(days: 1));
+      final yesterdayStr =
+          '${yesterday.year.toString()}-${yesterday.month.toString().padLeft(2, '0')}-${yesterday.day.toString().padLeft(2, '0')}';
+      await prefs.setString('last_used_date', yesterdayStr);
 
-        await testService.logAppUsage();
+      await testService.logAppUsage();
 
-        // Allow microtasks to complete
-        await Future.delayed(Duration.zero);
+      // Allow microtasks to complete
+      await Future.delayed(Duration.zero);
 
-        final captured = verify(() => mockJokeCloudFn.trackUsage(
-              numDaysUsed: any(named: 'numDaysUsed'),
-              numSaved: any(named: 'numSaved'),
-              numViewed: any(named: 'numViewed'),
-              numShared: any(named: 'numShared'),
-              requestedReview: captureAny(named: 'requestedReview'),
-            )).captured;
+      final captured = verify(
+        () => mockJokeCloudFn.trackUsage(
+          numDaysUsed: any(named: 'numDaysUsed'),
+          numSaved: any(named: 'numSaved'),
+          numViewed: any(named: 'numViewed'),
+          numShared: any(named: 'numShared'),
+          requestedReview: captureAny(named: 'requestedReview'),
+        ),
+      ).captured;
 
-        expect(captured.first, isTrue);
-      },
-    );
+      expect(captured.first, isTrue);
+    });
   });
 }

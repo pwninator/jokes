@@ -27,8 +27,10 @@ final allFeedbackProvider = StreamProvider<List<FeedbackEntry>>((ref) {
 });
 
 /// Stream provider for a single feedback entry
-final feedbackProvider =
-    StreamProvider.family<FeedbackEntry?, String>((ref, id) {
+final feedbackProvider = StreamProvider.family<FeedbackEntry?, String>((
+  ref,
+  id,
+) {
   return ref
       .watch(feedbackRepositoryProvider)
       .watchAllFeedback()

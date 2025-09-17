@@ -7,7 +7,8 @@ import 'package:snickerdoodle/src/features/jokes/application/joke_category_provi
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_category.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_category_repository.dart';
 
-class MockJokeCategoryRepository extends Mock implements JokeCategoryRepository {}
+class MockJokeCategoryRepository extends Mock
+    implements JokeCategoryRepository {}
 
 class FakeJokeCategory extends Fake implements JokeCategory {}
 
@@ -27,20 +28,24 @@ void main() {
 
     setUp(() {
       mockJokeCategoryRepository = MockJokeCategoryRepository();
-      when(() => mockJokeCategoryRepository.watchCategoryImages(any()))
-          .thenAnswer((_) => Stream.value([]));
-      when(() => mockJokeCategoryRepository.deleteCategory(any()))
-          .thenAnswer((_) async => {});
-      when(() => mockJokeCategoryRepository.upsertCategory(any()))
-          .thenAnswer((_) async => {});
+      when(
+        () => mockJokeCategoryRepository.watchCategoryImages(any()),
+      ).thenAnswer((_) => Stream.value([]));
+      when(
+        () => mockJokeCategoryRepository.deleteCategory(any()),
+      ).thenAnswer((_) async => {});
+      when(
+        () => mockJokeCategoryRepository.upsertCategory(any()),
+      ).thenAnswer((_) async => {});
     });
 
     testWidgets('renders correctly', (WidgetTester tester) async {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-            jokeCategoryRepositoryProvider
-                .overrideWithValue(mockJokeCategoryRepository),
+            jokeCategoryRepositoryProvider.overrideWithValue(
+              mockJokeCategoryRepository,
+            ),
           ],
           child: MaterialApp(
             home: Scaffold(
@@ -59,8 +64,9 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-            jokeCategoryRepositoryProvider
-                .overrideWithValue(mockJokeCategoryRepository),
+            jokeCategoryRepositoryProvider.overrideWithValue(
+              mockJokeCategoryRepository,
+            ),
           ],
           child: MaterialApp(
             home: Scaffold(
@@ -78,13 +84,15 @@ void main() {
       expect(find.text('APPROVED'), findsOneWidget);
     });
 
-    testWidgets('update button calls upsertCategory',
-        (WidgetTester tester) async {
+    testWidgets('update button calls upsertCategory', (
+      WidgetTester tester,
+    ) async {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-            jokeCategoryRepositoryProvider
-                .overrideWithValue(mockJokeCategoryRepository),
+            jokeCategoryRepositoryProvider.overrideWithValue(
+              mockJokeCategoryRepository,
+            ),
           ],
           child: MaterialApp(
             home: Scaffold(
@@ -100,13 +108,15 @@ void main() {
       verify(() => mockJokeCategoryRepository.upsertCategory(any())).called(1);
     });
 
-    testWidgets('delete button calls deleteCategory',
-        (WidgetTester tester) async {
+    testWidgets('delete button calls deleteCategory', (
+      WidgetTester tester,
+    ) async {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-            jokeCategoryRepositoryProvider
-                .overrideWithValue(mockJokeCategoryRepository),
+            jokeCategoryRepositoryProvider.overrideWithValue(
+              mockJokeCategoryRepository,
+            ),
           ],
           child: MaterialApp(
             home: Scaffold(
@@ -120,8 +130,9 @@ void main() {
       await tester.press(deleteButton);
       await tester.pumpAndSettle(const Duration(seconds: 4));
 
-      verify(() => mockJokeCategoryRepository.deleteCategory(testCategory.id))
-          .called(1);
+      verify(
+        () => mockJokeCategoryRepository.deleteCategory(testCategory.id),
+      ).called(1);
     });
   });
 }

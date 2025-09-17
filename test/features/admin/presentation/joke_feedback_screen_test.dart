@@ -13,6 +13,18 @@ import '../../../test_helpers/firebase_mocks.dart';
 class _MockFeedbackRepository extends Mock implements FeedbackRepository {}
 
 class MockGoRouter extends Mock implements GoRouter {}
+extension _GoRouterStubs on MockGoRouter {
+  void stubPushNamed() {
+    when(
+      () => pushNamed(
+        any(),
+        pathParameters: any(named: 'pathParameters'),
+        queryParameters: any(named: 'queryParameters'),
+        extra: any(named: 'extra'),
+      ),
+    ).thenAnswer((_) async => null);
+  }
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -23,6 +35,7 @@ void main() {
   setUp(() {
     repo = _MockFeedbackRepository();
     mockGoRouter = MockGoRouter();
+    mockGoRouter.stubPushNamed();
   });
 
   Widget createWidget() {
@@ -96,6 +109,7 @@ void main() {
 
     expect(find.text('Help!'), findsOneWidget);
     expect(find.text('Thanks!'), findsOneWidget);
+    // When last message is from admin, title shows 'Admin response only'
     expect(find.text('Admin response only'), findsOneWidget);
 
     final icon1 = tester.widget<Icon>(
@@ -153,7 +167,7 @@ void main() {
     await tester.pumpAndSettle();
 
     verify(
-      () => mockGoRouter.goNamed(
+      () => mockGoRouter.pushNamed(
         RouteNames.adminFeedbackDetails,
         pathParameters: {'feedbackId': '1'},
       ),

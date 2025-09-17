@@ -43,7 +43,7 @@ Some examples of categories:
 Here are the existing categories:
 {{{constants.STATE_ALL_STORAGE_JOKE_CATEGORIES}}}
 
-Think deeply about the jokes and existing categories to decide what is the best set of categories that will be useful and fun for users. The final set of categories should be as close to MECE as possible, so that every joke can be assigned to exactly one category.
+Think deeply about the jokes and existing categories to decide what is the best set of categories that will be useful and fun for users. Your task is to propose new categories to fill any gaps in the existing categories. The final set of categories should be as close to MECE as possible, so that every joke can be assigned to exactly one category.
 
 After you have created the categories, use the get_num_search_results tool to search for jokes in each category (call the tool multiple times, once for each category). A category is only good if it contains at least 10 jokes. If the search for a category returns less than 10 jokes, you should revise the category and try again.
 
@@ -61,6 +61,8 @@ Each category should also have a short description of the image that will repres
 After you have finalized the categories, use the save_joke_categories tool to save the categories to the database. For each category to save, include the following:
 - display_name: The display name of the category that will be shown to users. It should have proper capitalization and spacing.
 - image_description: (Optional) A description of the category that will be used to generate an image for the category. Only set this for new categories that did not previously exist.
+
+Note that save_joke_categories only inserts new categories or updates existing ones. It does not delete categories. Therefore, you should only save new categories that do not significantly overlap with existing categories.
 
 ## All jokes:
 {{{constants.STATE_ALL_STORAGE_JOKES}}}

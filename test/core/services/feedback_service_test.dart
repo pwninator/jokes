@@ -12,6 +12,10 @@ class MockAnalyticsService extends Mock implements AnalyticsService {}
 class MockAppUser extends Mock implements AppUser {}
 
 void main() {
+  setUpAll(() {
+    registerFallbackValue(SpeakerType.user);
+  });
+
   group('FeedbackServiceImpl', () {
     late MockFeedbackRepository mockRepository;
     late MockAnalyticsService mockAnalyticsService;
@@ -90,7 +94,7 @@ void main() {
     test('addConversationMessage calls repository', () async {
       const docId = 'doc123';
       const text = 'Thank you for your feedback!';
-      const speaker = 'ADMIN';
+      const speaker = SpeakerType.admin;
 
       when(
         () => mockRepository.addConversationMessage(any(), any(), any()),

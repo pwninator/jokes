@@ -4,10 +4,7 @@ import 'package:snickerdoodle/src/core/data/repositories/feedback_repository.dar
 import 'package:snickerdoodle/src/core/providers/feedback_providers.dart';
 
 class FeedbackDetailsScreen extends ConsumerStatefulWidget {
-  const FeedbackDetailsScreen({
-    super.key,
-    required this.feedback,
-  });
+  const FeedbackDetailsScreen({super.key, required this.feedback});
 
   final FeedbackEntry feedback;
 
@@ -35,10 +32,12 @@ class _FeedbackDetailsScreenState extends ConsumerState<FeedbackDetailsScreen> {
     });
 
     try {
-      await ref.read(feedbackServiceProvider).addConversationMessage(
+      await ref
+          .read(feedbackServiceProvider)
+          .addConversationMessage(
             widget.feedback.id,
             _textController.text,
-            'ADMIN',
+            SpeakerType.admin,
           );
       _textController.clear();
     } catch (e) {
@@ -56,41 +55,32 @@ class _FeedbackDetailsScreenState extends ConsumerState<FeedbackDetailsScreen> {
   Widget build(BuildContext context) {
     final feedback = widget.feedback;
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Feedback from ${feedback.userId}'),
-      ),
+      appBar: AppBar(title: Text('Feedback from ${feedback.userId}')),
       body: Column(
         children: [
           Expanded(
             child: ListView.builder(
-              padding: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(16),
               itemCount: feedback.conversation.length,
               itemBuilder: (context, index) {
                 final message = feedback.conversation[index];
-                final isUser = message.speaker == 'USER';
-                return Align(
-                  alignment:
-                      isUser ? Alignment.centerLeft : Alignment.centerRight,
-                  child: Card(
-                    color: isUser
-                        ? Theme.of(context).colorScheme.surfaceVariant
-                        : Theme.of(context).colorScheme.primaryContainer,
-                    child: Padding(
-                      padding: const EdgeInsets.all(12.0),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            message.text,
-                            style: Theme.of(context).textTheme.bodyLarge,
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            '${message.speaker} - ${message.timestamp}',
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                        ],
-                      ),
+                final speakerName = message.speaker.value;
+
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12.0),
+                  child: RichText(
+                    text: TextSpan(
+                      children: [
+                        TextSpan(
+                          text: '$speakerName: ',
+                          style: Theme.of(context).textTheme.bodyLarge
+                              ?.copyWith(fontWeight: FontWeight.bold),
+                        ),
+                        TextSpan(
+                          text: message.text,
+                          style: Theme.of(context).textTheme.bodyLarge,
+                        ),
+                      ],
                     ),
                   ),
                 );

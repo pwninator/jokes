@@ -1,8 +1,31 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+/// Enum representing the speaker in a feedback conversation
+enum SpeakerType {
+  user('USER'),
+  admin('ADMIN');
+
+  const SpeakerType(this.value);
+
+  /// The string value used in Firestore
+  final String value;
+
+  /// Create SpeakerType from string value
+  static SpeakerType fromString(String value) {
+    switch (value.toUpperCase()) {
+      case 'USER':
+        return SpeakerType.user;
+      case 'ADMIN':
+        return SpeakerType.admin;
+      default:
+        return SpeakerType.user; // Default to user for unknown values
+    }
+  }
+}
+
 // Represents a single entry in a feedback conversation
 class FeedbackConversationEntry {
-  final String speaker; // "USER" or "ADMIN"
+  final SpeakerType speaker;
   final String text;
   final DateTime timestamp;
 
@@ -14,7 +37,7 @@ class FeedbackConversationEntry {
 
   factory FeedbackConversationEntry.fromMap(Map<String, dynamic> map) {
     return FeedbackConversationEntry(
-      speaker: map['speaker'] ?? 'USER',
+      speaker: SpeakerType.fromString(map['speaker'] ?? 'USER'),
       text: map['text'] ?? '',
       timestamp: (map['timestamp'] as Timestamp).toDate(),
     );
@@ -27,7 +50,11 @@ abstract class FeedbackRepository {
   Future<void> submitFeedback(String feedbackText, String userId);
 
   /// Add a message to a feedback conversation
-  Future<void> addConversationMessage(String docId, String text, String speaker);
+  Future<void> addConversationMessage(
+    String docId,
+    String text,
+    SpeakerType speaker,
+  );
 
   /// Stream all feedback ordered by creation_time descending
   Stream<List<FeedbackEntry>> watchAllFeedback();
@@ -45,7 +72,7 @@ class FirestoreFeedbackRepository implements FeedbackRepository {
   static const String _collectionName = 'joke_feedback';
 
   FirestoreFeedbackRepository({FirebaseFirestore? firestore})
-      : _firestore = firestore ?? FirebaseFirestore.instance;
+    : _firestore = firestore ?? FirebaseFirestore.instance;
 
   @override
   Future<void> submitFeedback(String feedbackText, String userId) async {
@@ -55,18 +82,20 @@ class FirestoreFeedbackRepository implements FeedbackRepository {
     }
 
     final now = DateTime.now();
-    final dateStr = now.year.toString().padLeft(4, '0') +
+    final dateStr =
+        now.year.toString().padLeft(4, '0') +
         now.month.toString().padLeft(2, '0') +
         now.day.toString().padLeft(2, '0');
-    final timeStr = now.hour.toString().padLeft(2, '0') +
+    final timeStr =
+        now.hour.toString().padLeft(2, '0') +
         now.minute.toString().padLeft(2, '0') +
         now.second.toString().padLeft(2, '0');
     final docId = '${dateStr}_${timeStr}_$userId';
 
     final conversationEntry = {
-      'speaker': 'USER',
+      'speaker': SpeakerType.user.value,
       'text': text,
-      'timestamp': FieldValue.serverTimestamp(),
+      'timestamp': Timestamp.fromDate(DateTime.now().toUtc()),
     };
 
     await _firestore.collection(_collectionName).doc(docId).set({
@@ -78,14 +107,18 @@ class FirestoreFeedbackRepository implements FeedbackRepository {
   }
 
   @override
-  Future<void> addConversationMessage(String docId, String text, String speaker) async {
+  Future<void> addConversationMessage(
+    String docId,
+    String text,
+    SpeakerType speaker,
+  ) async {
     final conversationEntry = {
-      'speaker': speaker,
+      'speaker': speaker.value,
       'text': text,
-      'timestamp': FieldValue.serverTimestamp(),
+      'timestamp': Timestamp.fromDate(DateTime.now().toUtc()),
     };
     await _firestore.collection(_collectionName).doc(docId).update({
-      'conversation': FieldValue.arrayUnion([conversationEntry])
+      'conversation': FieldValue.arrayUnion([conversationEntry]),
     });
   }
 
@@ -157,10 +190,35 @@ class FeedbackEntry {
         ? FeedbackState.READ
         : FeedbackState.NEW;
 
-    final conversationData = data['conversation'] as List<dynamic>? ?? [];
-    final conversation = conversationData
-        .map((e) => FeedbackConversationEntry.fromMap(e as Map<String, dynamic>))
-        .toList();
+    // Handle both new conversation format and legacy feedback_text format
+    List<FeedbackConversationEntry> conversation;
+    final conversationData = data['conversation'] as List<dynamic>?;
+
+    if (conversationData != null && conversationData.isNotEmpty) {
+      // New format: conversation array exists
+      conversation = conversationData
+          .map(
+            (e) => FeedbackConversationEntry.fromMap(e as Map<String, dynamic>),
+          )
+          .toList();
+    } else {
+      // Legacy format: check for feedback_text field
+      final feedbackText = data['feedback_text'] as String?;
+      if (feedbackText != null && feedbackText.isNotEmpty) {
+        // Create a single conversation entry from legacy feedback_text
+        conversation = [
+          FeedbackConversationEntry(
+            speaker: SpeakerType.user,
+            text: feedbackText,
+            timestamp:
+                created ?? DateTime.now(), // Use creation_time as timestamp
+          ),
+        ];
+      } else {
+        // No conversation data found
+        conversation = [];
+      }
+    }
 
     return FeedbackEntry(
       id: doc.id,

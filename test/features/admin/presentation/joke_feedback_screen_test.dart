@@ -5,7 +5,6 @@ import 'package:mocktail/mocktail.dart';
 import 'package:snickerdoodle/src/core/data/repositories/feedback_repository.dart';
 import 'package:snickerdoodle/src/core/providers/feedback_providers.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_feedback_screen.dart';
-import 'package:snickerdoodle/src/features/admin/presentation/feedback_details_screen.dart';
 
 import '../../../test_helpers/firebase_mocks.dart';
 
@@ -24,7 +23,7 @@ void main() {
         creationTime: now,
         conversation: [
           FeedbackConversationEntry(
-            speaker: 'USER',
+            speaker: SpeakerType.user,
             text: 'Love the jokes!',
             timestamp: now,
           ),
@@ -37,7 +36,7 @@ void main() {
         creationTime: now.subtract(const Duration(days: 1)),
         conversation: [
           FeedbackConversationEntry(
-            speaker: 'USER',
+            speaker: SpeakerType.user,
             text: 'Could use more puns',
             timestamp: now.subtract(const Duration(days: 1)),
           ),

@@ -55,9 +55,8 @@ class JokeFeedbackScreen extends ConsumerWidget implements TitledScreen {
                   onTap: () {
                     Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder: (context) => FeedbackDetailsScreen(
-                          feedback: entry,
-                        ),
+                        builder: (context) =>
+                            FeedbackDetailsScreen(feedback: entry),
                       ),
                     );
                   },
@@ -80,17 +79,19 @@ class JokeFeedbackScreen extends ConsumerWidget implements TitledScreen {
                         ),
                     ],
                   ),
-                  title: Text(entry.conversation.isNotEmpty
-                      ? entry.conversation.last.text
-                      : 'No messages'),
+                  title: Text(
+                    entry.conversation.isNotEmpty
+                        ? entry.conversation.last.text
+                        : 'No messages',
+                  ),
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         _formatTimestamp('Created', entry.creationTime),
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Theme.of(context).hintColor,
-                            ),
+                          color: Theme.of(context).hintColor,
+                        ),
                       ),
                       const SizedBox(height: 4),
                       usageAsync.when(
@@ -107,9 +108,7 @@ class JokeFeedbackScreen extends ConsumerWidget implements TitledScreen {
                                     'Last login',
                                     u!.lastLoginAt,
                                   ),
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .bodySmall
+                                  style: Theme.of(context).textTheme.bodySmall
                                       ?.copyWith(
                                         color: Theme.of(context).hintColor,
                                       ),

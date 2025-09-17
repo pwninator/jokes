@@ -8,7 +8,11 @@ abstract class FeedbackService {
   Future<void> submitFeedback(String feedbackText, AppUser? currentUser);
 
   /// Add a message to a feedback conversation
-  Future<void> addConversationMessage(String docId, String text, String speaker);
+  Future<void> addConversationMessage(
+    String docId,
+    String text,
+    SpeakerType speaker,
+  );
 }
 
 class FeedbackServiceImpl implements FeedbackService {
@@ -18,8 +22,8 @@ class FeedbackServiceImpl implements FeedbackService {
   FeedbackServiceImpl({
     required FeedbackRepository feedbackRepository,
     required AnalyticsService analyticsService,
-  })  : _feedbackRepository = feedbackRepository,
-        _analyticsService = analyticsService;
+  }) : _feedbackRepository = feedbackRepository,
+       _analyticsService = analyticsService;
 
   @override
   Future<void> submitFeedback(String feedbackText, AppUser? currentUser) async {
@@ -29,7 +33,11 @@ class FeedbackServiceImpl implements FeedbackService {
   }
 
   @override
-  Future<void> addConversationMessage(String docId, String text, String speaker) async {
+  Future<void> addConversationMessage(
+    String docId,
+    String text,
+    SpeakerType speaker,
+  ) async {
     await _feedbackRepository.addConversationMessage(docId, text, speaker);
   }
 }

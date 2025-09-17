@@ -1,5 +1,8 @@
 #! /bin/bash
 
+git fetch origin
+git merge origin/master
+
 # Configuration - Define all paths and URLs
 export FLUTTER_HOME="/usr/local/flutter"
 export ANDROID_HOME="/usr/local/android-sdk"

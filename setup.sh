@@ -1,10 +1,5 @@
 #! /bin/bash
 
-#!/bin/bash
-
-git checkout master
-git log -1
-
 # Configuration - Define all paths and URLs
 export FLUTTER_HOME="/usr/local/flutter"
 export ANDROID_HOME="/usr/local/android-sdk"
@@ -15,8 +10,6 @@ export ANDROID_SDK_URL="https://dl.google.com/android/repository/commandlinetool
 export PATH="$PATH:$FLUTTER_HOME/bin"
 export PATH="$PATH:$ANDROID_HOME/cmdline-tools/latest/bin"
 export PATH="$PATH:$ANDROID_HOME/platform-tools"
-
-
 
 echo "Install Basic dependencies"
 sudo apt-get update -y && sudo apt-get upgrade -y

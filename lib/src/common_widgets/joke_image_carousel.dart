@@ -24,6 +24,8 @@ import 'package:snickerdoodle/src/features/jokes/application/joke_search_provide
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_state.dart';
 
+enum JokeCarouselMode { REVEAL, VERTICAL, HORIZONTAL }
+
 /// Controller to allow parent widgets to imperatively control the
 /// `JokeImageCarousel` (e.g., reveal the punchline programmatically).
 class JokeImageCarouselController {
@@ -61,6 +63,7 @@ class JokeImageCarousel extends ConsumerStatefulWidget {
   final JokeImageCarouselController? controller;
   final String? overlayBadgeText;
   final bool showSimilarSearchButton;
+  final JokeCarouselMode mode;
 
   const JokeImageCarousel({
     super.key,
@@ -81,6 +84,7 @@ class JokeImageCarousel extends ConsumerStatefulWidget {
     this.controller,
     this.overlayBadgeText,
     this.showSimilarSearchButton = false,
+    this.mode = JokeCarouselMode.REVEAL,
   });
 
   @override
@@ -307,10 +311,14 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
       widget.onSetupTap!();
     }
     _lastNavigationMethod = AnalyticsNavigationMethod.ctaReveal;
-    _pageController.nextPage(
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeInOut,
-    );
+    
+    // Only use PageController in REVEAL mode
+    if (widget.mode == JokeCarouselMode.REVEAL) {
+      _pageController.nextPage(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    }
   }
 
   void _onImageLongPress() {
@@ -704,6 +712,46 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
     return widgets;
   }
 
+  double _getAspectRatio() {
+    switch (widget.mode) {
+      case JokeCarouselMode.REVEAL:
+        return 1.0; // Standard square aspect ratio for single image
+      case JokeCarouselMode.HORIZONTAL:
+        return 2.0; // Wider to accommodate two images side by side
+      case JokeCarouselMode.VERTICAL:
+        return 0.5; // Taller to accommodate two images stacked vertically
+    }
+  }
+
+  Widget _buildCarouselContent() {
+    final setupImage = _buildImagePage(imageUrl: widget.joke.setupImageUrl);
+    final punchlineImage =
+        _buildImagePage(imageUrl: widget.joke.punchlineImageUrl);
+
+    switch (widget.mode) {
+      case JokeCarouselMode.REVEAL:
+        return PageView(
+          controller: _pageController,
+          onPageChanged: _onPageChanged,
+          children: [setupImage, punchlineImage],
+        );
+      case JokeCarouselMode.VERTICAL:
+        return Column(
+          children: [
+            Expanded(child: setupImage),
+            Expanded(child: punchlineImage),
+          ],
+        );
+      case JokeCarouselMode.HORIZONTAL:
+        return Row(
+          children: [
+            Expanded(child: setupImage),
+            Expanded(child: punchlineImage),
+          ],
+        );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -736,7 +784,8 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
               child: Stack(
                 children: [
                   GestureDetector(
-                    onTap: _onImageTap,
+                    onTap:
+                        widget.mode == JokeCarouselMode.REVEAL ? _onImageTap : null,
                     onLongPress: widget.isAdminMode ? _onImageLongPress : null,
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(
@@ -748,21 +797,8 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
                           bottom: Radius.circular(16),
                         ),
                         child: AspectRatio(
-                          aspectRatio: 1.0,
-                          child: PageView(
-                            controller: _pageController,
-                            onPageChanged: _onPageChanged,
-                            children: [
-                              // Setup image
-                              _buildImagePage(
-                                imageUrl: widget.joke.setupImageUrl,
-                              ),
-                              // Punchline image
-                              _buildImagePage(
-                                imageUrl: widget.joke.punchlineImageUrl,
-                              ),
-                            ],
-                          ),
+                          aspectRatio: _getAspectRatio(),
+                          child: _buildCarouselContent(),
                         ),
                       ),
                     ),
@@ -809,7 +845,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
             ),
           ),
 
-          // Page indicators and reaction/count buttons row
+          // Controls row - always show, but conditionally show page indicators
           SizedBox(
             height: 36,
             child: Row(
@@ -817,21 +853,22 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
                 // Left spacer
                 Expanded(child: _buildLeftControls()),
 
-                // Page indicators (centered)
-                SmoothPageIndicator(
-                  controller: _pageController,
-                  count: 2,
-                  effect: WormEffect(
-                    dotHeight: 12,
-                    dotWidth: 12,
-                    spacing: 6,
-                    radius: 6,
-                    dotColor: theme.colorScheme.onSurface.withValues(
-                      alpha: 0.3,
+                // Page indicators (centered) - only show in REVEAL mode
+                if (widget.mode == JokeCarouselMode.REVEAL)
+                  SmoothPageIndicator(
+                    controller: _pageController,
+                    count: 2,
+                    effect: WormEffect(
+                      dotHeight: 12,
+                      dotWidth: 12,
+                      spacing: 6,
+                      radius: 6,
+                      dotColor: theme.colorScheme.onSurface.withValues(
+                        alpha: 0.3,
+                      ),
+                      activeDotColor: theme.colorScheme.primary,
                     ),
-                    activeDotColor: theme.colorScheme.primary,
                   ),
-                ),
 
                 // Right buttons (save, share, admin rating) or spacer
                 Expanded(child: _buildRightControls()),

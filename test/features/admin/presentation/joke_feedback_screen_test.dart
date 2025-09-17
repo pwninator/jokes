@@ -49,20 +49,22 @@ void main() {
             (userId) => StreamProvider((ref) {
               if (userId == 'userA') {
                 return Stream.value(
-                  const JokeUserUsage(
+                  JokeUserUsage(
                     clientNumDaysUsed: 3,
                     clientNumViewed: 10,
                     clientNumSaved: 2,
                     clientNumShared: 1,
+                    lastLoginAt: now.subtract(const Duration(hours: 2)),
                   ),
                 );
               }
               return Stream.value(
-                const JokeUserUsage(
+                JokeUserUsage(
                   clientNumDaysUsed: 1,
                   clientNumViewed: 4,
                   clientNumSaved: 0,
                   clientNumShared: 0,
+                  lastLoginAt: now.subtract(const Duration(days: 2)),
                 ),
               );
             }),

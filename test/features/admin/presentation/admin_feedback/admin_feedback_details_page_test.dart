@@ -18,7 +18,7 @@ void main() {
   setUp(() {
     repo = _MockFeedbackRepository();
   });
-  
+
   setUpAll(() {
     registerFallbackValue(SpeakerType.user);
   });

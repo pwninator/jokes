@@ -14,3 +14,15 @@ final jokeCategoryRepositoryProvider = Provider<JokeCategoryRepository>((ref) {
 final jokeCategoriesProvider = StreamProvider<List<JokeCategory>>((ref) {
   return ref.watch(jokeCategoryRepositoryProvider).watchCategories();
 });
+
+// Stream of images for a category
+final jokeCategoryImagesProvider =
+    StreamProvider.autoDispose.family<List<String>, String>((ref, categoryId) {
+  return ref.watch(jokeCategoryRepositoryProvider).watchCategoryImages(categoryId);
+});
+
+// Stream of a single category by ID (direct document stream)
+final jokeCategoryByIdProvider =
+    StreamProvider.autoDispose.family<JokeCategory?, String>((ref, categoryId) {
+  return ref.watch(jokeCategoryRepositoryProvider).watchCategory(categoryId);
+});

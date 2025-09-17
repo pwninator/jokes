@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_categories_screen.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
@@ -89,4 +90,92 @@ void main() {
 
     expect(find.text('Seasonal'), findsOneWidget);
   });
+
+  testWidgets('navigates to category editor when tile is tapped', (tester) async {
+    final repo = _MockJokeCategoryRepository();
+    final imageService = _MockImageService();
+    final analyticsService = _MockAnalyticsService();
+    final mockGoRouter = MockGoRouter();
+
+    when(() => repo.watchCategories()).thenAnswer(
+      (_) => Stream.value([
+        const JokeCategory(
+          id: 'test_category',
+          displayName: 'Test Category',
+          jokeDescriptionQuery: 'test',
+          imageUrl: null,
+        ),
+      ]),
+    );
+
+    when(() => imageService.getProcessedJokeImageUrl(any())).thenReturn(null);
+    when(() => imageService.isValidImageUrl(any())).thenReturn(false);
+    when(
+      () => analyticsService.logErrorImageLoad(
+        jokeId: any(named: 'jokeId'),
+        imageType: any(named: 'imageType'),
+        imageUrlHash: any(named: 'imageUrlHash'),
+        errorMessage: any(named: 'errorMessage'),
+      ),
+    ).thenAnswer((_) async {});
+
+    final container = ProviderContainer(
+      overrides: [
+        ...FirebaseMocks.getFirebaseProviderOverrides(),
+        jokeCategoryRepositoryProvider.overrideWithValue(repo),
+        imageServiceProvider.overrideWithValue(imageService),
+        analyticsServiceProvider.overrideWithValue(analyticsService),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    // Force portrait so AdaptiveAppBarScreen shows the title
+    final originalSize = tester.view.physicalSize;
+    tester.view.physicalSize = const Size(600, 800);
+    addTearDown(() => tester.view.physicalSize = originalSize);
+
+    // Stub pushNamed to return a Future
+    when(
+      () => mockGoRouter.pushNamed<Object?>(
+        'adminCategoryEditor',
+        pathParameters: {'categoryId': 'test_category'},
+        queryParameters: any(named: 'queryParameters'),
+        extra: any(named: 'extra'),
+      ),
+    ).thenAnswer((_) async => null);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          home: InheritedGoRouter(
+            goRouter: mockGoRouter,
+            child: const JokeCategoriesScreen(),
+          ),
+        ),
+      ),
+    );
+
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+
+    // Find and tap the category tile
+    final categoryTile = find.byType(InkWell);
+    expect(categoryTile, findsOneWidget);
+    
+    await tester.tap(categoryTile);
+    await tester.pump();
+
+    // Verify navigation was called with correct parameters
+    verify(
+      () => mockGoRouter.pushNamed<Object?>(
+        'adminCategoryEditor',
+        pathParameters: {'categoryId': 'test_category'},
+        queryParameters: any(named: 'queryParameters'),
+        extra: any(named: 'extra'),
+      ),
+    ).called(1);
+  });
 }
+
+class MockGoRouter extends Mock implements GoRouter {}

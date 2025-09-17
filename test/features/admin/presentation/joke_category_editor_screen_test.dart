@@ -50,7 +50,8 @@ void main() {
         ),
       );
 
-      expect(find.byType(TextField), findsOneWidget);
+      // One TextFormField: editable image description
+      expect(find.byType(TextFormField), findsNWidgets(1));
       expect(find.text('PROPOSED'), findsOneWidget);
     });
 

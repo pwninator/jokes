@@ -725,8 +725,9 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
 
   Widget _buildCarouselContent() {
     final setupImage = _buildImagePage(imageUrl: widget.joke.setupImageUrl);
-    final punchlineImage =
-        _buildImagePage(imageUrl: widget.joke.punchlineImageUrl);
+    final punchlineImage = _buildImagePage(
+      imageUrl: widget.joke.punchlineImageUrl,
+    );
 
     switch (widget.mode) {
       case JokeCarouselMode.REVEAL:
@@ -784,8 +785,9 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
               child: Stack(
                 children: [
                   GestureDetector(
-                    onTap:
-                        widget.mode == JokeCarouselMode.REVEAL ? _onImageTap : null,
+                    onTap: widget.mode == JokeCarouselMode.REVEAL
+                        ? _onImageTap
+                        : null,
                     onLongPress: widget.isAdminMode ? _onImageLongPress : null,
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(

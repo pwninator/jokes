@@ -4,6 +4,9 @@ abstract class JokeCategoryRepository {
   /// Stream of all joke categories ordered by display_name
   Stream<List<JokeCategory>> watchCategories();
 
+  /// Stream a single joke category by ID
+  Stream<JokeCategory?> watchCategory(String categoryId);
+
   /// Upsert a joke category
   Future<void> upsertCategory(JokeCategory category);
 

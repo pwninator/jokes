@@ -390,14 +390,32 @@ void main() {
             verify(() => mockCallable.call(captureAny())).captured.last
                 as Map<String, dynamic>;
         expect(captured['label'], 'jokeManagementSearch:similarJokes');
+
+        // Test with SearchLabel.category - should use "scope.name:label.name"
+        await service.searchJokes(
+          searchQuery: q,
+          maxResults: 10,
+          publicOnly: true,
+          matchMode: MatchMode.tight,
+          scope: SearchScope.userJokeSearch,
+          label: SearchLabel.category,
+        );
+
+        captured =
+            verify(() => mockCallable.call(captureAny())).captured.last
+                as Map<String, dynamic>;
+        expect(captured['label'], 'userJokeSearch:category');
       });
     });
 
     group('trackUsage', () {
       test('should call httpsCallable with correct parameters', () async {
-        when(() => mockFunctions.httpsCallable('usage'))
-            .thenReturn(mockCallable);
-        when(() => mockCallable.call(any())).thenAnswer((_) async => mockResult);
+        when(
+          () => mockFunctions.httpsCallable('usage'),
+        ).thenReturn(mockCallable);
+        when(
+          () => mockCallable.call(any()),
+        ).thenAnswer((_) async => mockResult);
 
         await service.trackUsage(
           numDaysUsed: 1,

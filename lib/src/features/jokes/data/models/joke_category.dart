@@ -1,10 +1,6 @@
 import 'package:flutter/foundation.dart';
 
-enum JokeCategoryState {
-  PROPOSED,
-  APPROVED,
-  REJECTED,
-}
+enum JokeCategoryState { PROPOSED, APPROVED, REJECTED }
 
 @immutable
 class JokeCategory {
@@ -12,6 +8,7 @@ class JokeCategory {
   final String displayName;
   final String jokeDescriptionQuery;
   final String? imageUrl;
+  final String? imageDescription;
   final JokeCategoryState state;
 
   const JokeCategory({
@@ -19,6 +16,7 @@ class JokeCategory {
     required this.displayName,
     required this.jokeDescriptionQuery,
     this.imageUrl,
+    this.imageDescription,
     this.state = JokeCategoryState.PROPOSED,
   });
 
@@ -29,6 +27,7 @@ class JokeCategory {
       jokeDescriptionQuery:
           (map['joke_description_query'] as String?)?.trim() ?? '',
       imageUrl: (map['image_url'] as String?)?.trim(),
+      imageDescription: (map['image_description'] as String?)?.trim(),
       state: JokeCategoryState.values.firstWhere(
         (e) => e.name == map['state'],
         orElse: () => JokeCategoryState.PROPOSED,

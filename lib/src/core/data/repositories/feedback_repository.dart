@@ -35,12 +35,23 @@ class FeedbackConversationEntry {
     required this.timestamp,
   });
 
+  bool get isFromAdmin => speaker == SpeakerType.admin;
+
   factory FeedbackConversationEntry.fromMap(Map<String, dynamic> map) {
     return FeedbackConversationEntry(
       speaker: SpeakerType.fromString(map['speaker'] ?? 'USER'),
       text: map['text'] ?? '',
       timestamp: (map['timestamp'] as Timestamp).toDate(),
     );
+  }
+
+  /// Convert to Firestore format
+  Map<String, dynamic> toFirestore() {
+    return {
+      'speaker': speaker.value,
+      'text': text,
+      'timestamp': Timestamp.fromDate(timestamp.toUtc()),
+    };
   }
 }
 
@@ -56,14 +67,14 @@ abstract class FeedbackRepository {
     SpeakerType speaker,
   );
 
+  /// Update last admin view time to server time
+  Future<void> updateLastAdminViewTime(String docId);
+
   /// Stream all feedback ordered by creation_time descending
   Stream<List<FeedbackEntry>> watchAllFeedback();
 
-  /// Stream the count of unread (NEW) feedback items
+  /// Stream the count of unread feedback items
   Stream<int> watchUnreadCount();
-
-  /// Mark a feedback document READ
-  Future<void> markFeedbackRead(String docId);
 }
 
 class FirestoreFeedbackRepository implements FeedbackRepository {
@@ -102,7 +113,7 @@ class FirestoreFeedbackRepository implements FeedbackRepository {
       'creation_time': FieldValue.serverTimestamp(),
       'conversation': [conversationEntry],
       'user_id': userId,
-      'state': FeedbackState.NEW.name,
+      'lastAdminViewTime': null,
     });
   }
 
@@ -112,13 +123,45 @@ class FirestoreFeedbackRepository implements FeedbackRepository {
     String text,
     SpeakerType speaker,
   ) async {
-    final conversationEntry = {
-      'speaker': speaker.value,
-      'text': text,
-      'timestamp': Timestamp.fromDate(DateTime.now().toUtc()),
+    final docRef = _firestore.collection(_collectionName).doc(docId);
+    final doc = await docRef.get();
+
+    if (!doc.exists) {
+      throw Exception('Feedback document not found: $docId');
+    }
+
+    final data = doc.data()!;
+
+    // Use existing fromFirestore logic to handle legacy migration
+    final feedbackEntry = FeedbackEntry.fromFirestore(doc);
+
+    // Create new conversation entry
+    final newEntry = FeedbackConversationEntry(
+      speaker: speaker,
+      text: text,
+      timestamp: DateTime.now(),
+    );
+
+    // Add to existing conversation (which already handles legacy migration)
+    final updatedConversation = [...feedbackEntry.conversation, newEntry];
+
+    // Convert back to Firestore format and update
+    final updates = <String, dynamic>{
+      'conversation': updatedConversation.map((e) => e.toFirestore()).toList(),
     };
+
+    // Remove legacy field if it exists
+    if (data.containsKey('feedback_text')) {
+      updates['feedback_text'] = FieldValue.delete();
+    }
+
+    await docRef.update(updates);
+  }
+
+  @override
+  Future<void> updateLastAdminViewTime(String docId) async {
     await _firestore.collection(_collectionName).doc(docId).update({
-      'conversation': FieldValue.arrayUnion([conversationEntry]),
+      'lastAdminViewTime': FieldValue.serverTimestamp(),
     });
   }
 
@@ -137,23 +180,23 @@ class FirestoreFeedbackRepository implements FeedbackRepository {
 
   @override
   Stream<int> watchUnreadCount() {
-    return _firestore
-        .collection(_collectionName)
-        .where('state', isEqualTo: FeedbackState.NEW.name)
-        .snapshots()
-        .map((s) => s.size);
-  }
-
-  @override
-  Future<void> markFeedbackRead(String docId) async {
-    await _firestore.collection(_collectionName).doc(docId).update({
-      'state': FeedbackState.READ.name,
+    return watchAllFeedback().map((entries) {
+      int count = 0;
+      for (final entry in entries) {
+        if (entry.conversation.isEmpty) {
+          continue;
+        }
+        final last = entry.conversation.last;
+        final lastView = entry.lastAdminViewTime;
+        final isUnread =
+            !last.isFromAdmin &&
+            (lastView == null || lastView.isBefore(last.timestamp));
+        if (isUnread) count++;
+      }
+      return count;
     });
   }
 }
-
-/// Enum representing feedback state stored in Firestore
-enum FeedbackState { NEW, READ }
 
 /// Feedback entry model used by admin UI
 class FeedbackEntry {
@@ -161,15 +204,18 @@ class FeedbackEntry {
   final DateTime? creationTime;
   final List<FeedbackConversationEntry> conversation;
   final String userId;
-  final FeedbackState state;
+  final DateTime? lastAdminViewTime;
 
   FeedbackEntry({
     required this.id,
     required this.creationTime,
     required this.conversation,
     required this.userId,
-    required this.state,
+    required this.lastAdminViewTime,
   });
+
+  FeedbackConversationEntry? get lastMessage =>
+      conversation.isNotEmpty ? conversation.last : null;
 
   static FeedbackEntry fromFirestore(
     DocumentSnapshot<Map<String, dynamic>> doc,
@@ -185,10 +231,14 @@ class FeedbackEntry {
       created = null;
     }
 
-    final stateStr = (data['state'] as String?) ?? FeedbackState.NEW.name;
-    final state = stateStr == FeedbackState.READ.name
-        ? FeedbackState.READ
-        : FeedbackState.NEW;
+    // Parse last admin view time
+    final lastViewRaw = data['lastAdminViewTime'];
+    DateTime? lastAdminViewTime;
+    if (lastViewRaw is Timestamp) {
+      lastAdminViewTime = lastViewRaw.toDate();
+    } else if (lastViewRaw is DateTime) {
+      lastAdminViewTime = lastViewRaw;
+    }
 
     // Handle both new conversation format and legacy feedback_text format
     List<FeedbackConversationEntry> conversation;
@@ -225,7 +275,7 @@ class FeedbackEntry {
       creationTime: created,
       conversation: conversation,
       userId: (data['user_id'] as String?) ?? 'anonymous',
-      state: state,
+      lastAdminViewTime: lastAdminViewTime,
     );
   }
 }

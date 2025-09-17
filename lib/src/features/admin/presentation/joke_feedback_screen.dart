@@ -16,17 +16,20 @@ class JokeFeedbackScreen extends ConsumerWidget implements TitledScreen {
   String get title => 'Feedback';
 
   Color _getIconColor(FeedbackEntry entry, BuildContext context) {
-    if (entry.lastMessage == null) {
-      return Theme.of(context).colorScheme.error;
+    if (entry.conversation.isEmpty) {
+      return Colors.red;
     }
-    if (entry.lastMessage!.isFromAdmin) {
+    final last = entry.conversation.last;
+    if (last.speaker == SpeakerType.admin) {
       return Colors.green;
     }
-    if (entry.lastAdminViewTime != null &&
-        entry.lastAdminViewTime!.isAfter(entry.lastMessage!.timestamp)) {
+    // If last message is from user but admin viewed after it, show yellow
+    final view = entry.lastAdminViewTime;
+    if (view != null && view.isAfter(last.timestamp)) {
       return Colors.yellow;
     }
-    return Theme.of(context).colorScheme.error;
+    // Otherwise treat as unread (red)
+    return Colors.red;
   }
 
   @override
@@ -52,16 +55,23 @@ class JokeFeedbackScreen extends ConsumerWidget implements TitledScreen {
 
               return Card(
                 child: ListTile(
-                  leading: Icon(Icons.feedback, color: _getIconColor(entry, context)),
-                  title: Text(entry.lastMessage?.text ?? 'No messages yet'),
+                  leading: Icon(
+                    Icons.feedback,
+                    color: _getIconColor(entry, context),
+                  ),
+                  title: Text(
+                    entry.conversation.isNotEmpty
+                        ? entry.conversation.last.text
+                        : 'No messages yet',
+                  ),
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         _formatTimestamp('Created', entry.creationTime),
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: Theme.of(context).hintColor,
-                            ),
+                          color: Theme.of(context).hintColor,
+                        ),
                       ),
                       const SizedBox(height: 4),
                       usageAsync.when(
@@ -78,9 +88,7 @@ class JokeFeedbackScreen extends ConsumerWidget implements TitledScreen {
                                     'Last login',
                                     u!.lastLoginAt,
                                   ),
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .bodySmall
+                                  style: Theme.of(context).textTheme.bodySmall
                                       ?.copyWith(
                                         color: Theme.of(context).hintColor,
                                       ),

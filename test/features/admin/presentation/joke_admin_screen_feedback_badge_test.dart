@@ -17,9 +17,14 @@ void main() {
         id: '1',
         creationTime: now,
         userId: 'userA',
+        conversation: [
+          FeedbackConversationEntry(
+            speaker: SpeakerType.user,
+            text: 'Help!',
+            timestamp: now,
+          ),
+        ],
         lastAdminViewTime: null,
-        messages: [Message(text: 'Help!', timestamp: now, isFromAdmin: false)],
-        lastMessage: Message(text: 'Help!', timestamp: now, isFromAdmin: false),
       ),
     ];
 

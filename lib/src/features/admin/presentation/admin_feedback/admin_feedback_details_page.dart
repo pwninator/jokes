@@ -35,12 +35,10 @@ class _AdminFeedbackDetailsPageState
     if (_messageController.text.trim().isEmpty) {
       return;
     }
-    final message = Message(
-      text: _messageController.text.trim(),
-      timestamp: DateTime.now(),
-      isFromAdmin: true,
-    );
-    ref.read(feedbackRepositoryProvider).addMessage(widget.feedbackId, message);
+    final text = _messageController.text.trim();
+    ref
+        .read(feedbackRepositoryProvider)
+        .addConversationMessage(widget.feedbackId, text, SpeakerType.admin);
     _messageController.clear();
   }
 
@@ -65,15 +63,16 @@ class _AdminFeedbackDetailsPageState
                 child: ListView.builder(
                   padding: const EdgeInsets.all(8.0),
                   reverse: true,
-                  itemCount: feedback.messages.length,
+                  itemCount: feedback.conversation.length,
                   itemBuilder: (context, index) {
-                    final message = feedback.messages.reversed.toList()[index];
+                    final message =
+                        feedback.conversation.reversed.toList()[index];
                     return Align(
-                      alignment: message.isFromAdmin
+                      alignment: (message.speaker == SpeakerType.admin)
                           ? Alignment.centerRight
                           : Alignment.centerLeft,
                       child: Card(
-                        color: message.isFromAdmin
+                        color: (message.speaker == SpeakerType.admin)
                             ? Theme.of(context).colorScheme.primaryContainer
                             : Theme.of(context).colorScheme.surfaceVariant,
                         child: Padding(

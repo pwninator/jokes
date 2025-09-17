@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:snickerdoodle/src/core/data/repositories/feedback_repository.dart';
@@ -15,53 +16,78 @@ void main() {
     test('submitFeedback creates a new feedback document', () async {
       await repository.submitFeedback('Test feedback', 'user1');
       final snapshot =
-          await fakeFirestore.collection('feedback').get();
+          await fakeFirestore.collection('joke_feedback').get();
       expect(snapshot.docs.length, 1);
       final doc = snapshot.docs.first.data();
       expect(doc['user_id'], 'user1');
-      expect(doc['messages'].length, 1);
-      expect(doc['messages'][0]['text'], 'Test feedback');
-      expect(doc['lastMessage']['text'], 'Test feedback');
+      expect(doc['conversation'].length, 1);
+      expect(doc['conversation'][0]['text'], 'Test feedback');
+      expect(doc['lastAdminViewTime'], isNull);
     });
 
-    test('addMessage adds a message and updates lastMessage', () async {
-      final docRef = await fakeFirestore.collection('feedback').add({
+    test('addConversationMessage appends an admin message', () async {
+      final docRef = await fakeFirestore.collection('joke_feedback').add({
         'user_id': 'user1',
-        'messages': [],
+        'conversation': [],
+        'lastAdminViewTime': null,
       });
 
-      final message = Message(
-        text: 'New message',
-        timestamp: DateTime.now(),
-        isFromAdmin: true,
+      await repository.addConversationMessage(
+        docRef.id,
+        'New message',
+        SpeakerType.admin,
       );
-
-      await repository.addMessage(docRef.id, message);
 
       final snapshot = await docRef.get();
       final doc = snapshot.data();
-      expect(doc!['messages'].length, 1);
-      expect(doc['messages'][0]['text'], 'New message');
-      expect(doc['lastMessage']['text'], 'New message');
+      expect(doc!['conversation'].length, 1);
+      expect(doc['conversation'][0]['text'], 'New message');
+      expect(doc['conversation'][0]['speaker'], 'ADMIN');
     });
 
-    test('updateLastAdminViewTime updates the timestamp', () async {
-      final docRef = await fakeFirestore.collection('feedback').add({
+    test('addConversationMessage migrates legacy feedback_text to conversation', () async {
+      final docRef = await fakeFirestore.collection('joke_feedback').add({
         'user_id': 'user1',
-        'last_admin_view_time': null,
+        'feedback_text': 'Legacy user message',
+        'creation_time': Timestamp.fromDate(DateTime(2023, 1, 1)),
+        'lastAdminViewTime': null,
+      });
+
+      await repository.addConversationMessage(
+        docRef.id,
+        'Admin reply',
+        SpeakerType.admin,
+      );
+
+      final snapshot = await docRef.get();
+      final doc = snapshot.data();
+      expect(doc!['conversation'].length, 2);
+      expect(doc['conversation'][0]['text'], 'Legacy user message');
+      expect(doc['conversation'][0]['speaker'], 'USER');
+      expect(doc['conversation'][1]['text'], 'Admin reply');
+      expect(doc['conversation'][1]['speaker'], 'ADMIN');
+      expect(doc['feedback_text'], isNull); // Should be removed
+    });
+
+    test('updateLastAdminViewTime writes server timestamp', () async {
+      final docRef = await fakeFirestore.collection('joke_feedback').add({
+        'user_id': 'user1',
+        'conversation': [],
+        'lastAdminViewTime': null,
       });
 
       await repository.updateLastAdminViewTime(docRef.id);
 
       final snapshot = await docRef.get();
-      expect(snapshot.data()!['last_admin_view_time'], isNotNull);
+      expect(snapshot.data()!['lastAdminViewTime'], isNotNull);
     });
 
     test('watchAllFeedback streams feedback entries', () async {
-      await fakeFirestore.collection('feedback').add({
+      await fakeFirestore.collection('joke_feedback').add({
         'user_id': 'user1',
         'creation_time': DateTime.now(),
-        'messages': [],
+        'conversation': [],
+        'state': 'NEW',
       });
 
       final stream = repository.watchAllFeedback();

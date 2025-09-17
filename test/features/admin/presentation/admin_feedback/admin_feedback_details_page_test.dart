@@ -10,8 +10,6 @@ import '../../../../test_helpers/firebase_mocks.dart';
 
 class _MockFeedbackRepository extends Mock implements FeedbackRepository {}
 
-class _FakeMessage extends Fake implements Message {}
-
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -19,7 +17,10 @@ void main() {
 
   setUp(() {
     repo = _MockFeedbackRepository();
-    registerFallbackValue(_FakeMessage());
+  });
+  
+  setUpAll(() {
+    registerFallbackValue(SpeakerType.user);
   });
 
   Widget createWidget(String feedbackId) {
@@ -34,25 +35,26 @@ void main() {
     );
   }
 
-  testWidgets('updates view time on init and displays messages',
+  testWidgets('updates last admin view time on init and displays conversation',
       (tester) async {
     final now = DateTime.now();
     final feedbackEntry = FeedbackEntry(
       id: '1',
       creationTime: now,
       userId: 'userA',
-      lastAdminViewTime: null,
-      messages: [
-        Message(text: 'Hello', timestamp: now, isFromAdmin: false),
-        Message(
-            text: 'Hi there',
-            timestamp: now.add(const Duration(minutes: 1)),
-            isFromAdmin: true),
-      ],
-      lastMessage: Message(
+      conversation: [
+        FeedbackConversationEntry(
+          speaker: SpeakerType.user,
+          text: 'Hello',
+          timestamp: now,
+        ),
+        FeedbackConversationEntry(
+          speaker: SpeakerType.admin,
           text: 'Hi there',
           timestamp: now.add(const Duration(minutes: 1)),
-          isFromAdmin: true),
+        ),
+      ],
+      lastAdminViewTime: null,
     );
 
     when(() => repo.watchAllFeedback())
@@ -74,15 +76,21 @@ void main() {
       id: '1',
       creationTime: now,
       userId: 'userA',
+      conversation: [
+        FeedbackConversationEntry(
+          speaker: SpeakerType.user,
+          text: 'Hello',
+          timestamp: now,
+        ),
+      ],
       lastAdminViewTime: null,
-      messages: [Message(text: 'Hello', timestamp: now, isFromAdmin: false)],
-      lastMessage: Message(text: 'Hello', timestamp: now, isFromAdmin: false),
     );
 
     when(() => repo.watchAllFeedback())
         .thenAnswer((_) => Stream.value([feedbackEntry]));
     when(() => repo.updateLastAdminViewTime('1')).thenAnswer((_) async {});
-    when(() => repo.addMessage(any(), any())).thenAnswer((_) async {});
+    when(() => repo.addConversationMessage(any(), any(), any()))
+        .thenAnswer((_) async {});
 
     await tester.pumpWidget(createWidget('1'));
     await tester.pumpAndSettle();
@@ -91,6 +99,7 @@ void main() {
     await tester.tap(find.byIcon(Icons.send));
     await tester.pumpAndSettle();
 
-    verify(() => repo.addMessage('1', any())).called(1);
+    verify(() => repo.addConversationMessage('1', 'Test reply', SpeakerType.admin))
+        .called(1);
   });
 }

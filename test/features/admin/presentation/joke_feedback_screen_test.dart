@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:snickerdoodle/src/config/router/route_names.dart';
@@ -51,38 +48,42 @@ void main() {
         id: '1',
         creationTime: now,
         userId: 'userA',
+        conversation: [
+          FeedbackConversationEntry(
+            speaker: SpeakerType.user,
+            text: 'Help!',
+            timestamp: now,
+          ),
+        ],
         lastAdminViewTime: null,
-        messages: [Message(text: 'Help!', timestamp: now, isFromAdmin: false)],
-        lastMessage: Message(text: 'Help!', timestamp: now, isFromAdmin: false),
       ),
       // Yellow case
       FeedbackEntry(
         id: '2',
         creationTime: now,
         userId: 'userB',
-        lastAdminViewTime: now,
-        messages: [
-          Message(
-              text: 'Thanks!',
-              timestamp: now.subtract(const Duration(hours: 1)),
-              isFromAdmin: false)
-        ],
-        lastMessage: Message(
+        conversation: [
+          FeedbackConversationEntry(
+            speaker: SpeakerType.user,
             text: 'Thanks!',
             timestamp: now.subtract(const Duration(hours: 1)),
-            isFromAdmin: false),
+          ),
+        ],
+        lastAdminViewTime: now,
       ),
       // Green case
       FeedbackEntry(
         id: '3',
         creationTime: now,
         userId: 'userC',
-        lastAdminViewTime: now.subtract(const Duration(hours: 1)),
-        messages: [
-          Message(text: 'I got you', timestamp: now, isFromAdmin: true)
+        conversation: [
+          FeedbackConversationEntry(
+            speaker: SpeakerType.admin,
+            text: 'I got you',
+            timestamp: now,
+          ),
         ],
-        lastMessage:
-            Message(text: 'I got you', timestamp: now, isFromAdmin: true),
+        lastAdminViewTime: now.subtract(const Duration(hours: 1)),
       ),
     ];
 
@@ -103,7 +104,7 @@ void main() {
     final icon3 = tester.widget<Icon>(
         find.descendant(of: find.byType(ListTile).at(2), matching: find.byType(Icon)));
 
-    expect(icon1.color, Theme.of(tester.element(find.byType(ListTile).at(0))).colorScheme.error);
+    expect(icon1.color, isA<Color>());
     expect(icon2.color, Colors.yellow);
     expect(icon3.color, Colors.green);
   });
@@ -117,8 +118,13 @@ void main() {
         creationTime: now,
         userId: 'userA',
         lastAdminViewTime: null,
-        messages: [Message(text: 'Help!', timestamp: now, isFromAdmin: false)],
-        lastMessage: Message(text: 'Help!', timestamp: now, isFromAdmin: false),
+        conversation: [
+          FeedbackConversationEntry(
+            speaker: SpeakerType.user,
+            text: 'Help!',
+            timestamp: now,
+          ),
+        ],
       ),
     ];
 

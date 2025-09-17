@@ -46,8 +46,7 @@ This repository contains a Flutter app and a Python Cloud Functions codebase. Fo
 Jules should run this command to sync to the latest repo:
 
 ```
-git checkout master
-git log -1
+git merge origin/master
 ```
 
 ### 3.2 All other environments/agents

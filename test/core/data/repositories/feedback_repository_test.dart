@@ -1,80 +1,101 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:snickerdoodle/src/core/data/repositories/feedback_repository.dart';
 
 void main() {
-  group('FeedbackConversationEntry', () {
-    test('fromMap creates entry with SpeakerType enum', () {
-      final testDateTime = DateTime(2025, 1, 1, 12, 0, 0);
-      final map = {
-        'speaker': 'USER',
-        'text': 'Test message',
-        'timestamp': Timestamp.fromDate(testDateTime),
-      };
+  group('FirestoreFeedbackRepository', () {
+    late FakeFirebaseFirestore fakeFirestore;
+    late FirestoreFeedbackRepository repository;
 
-      final entry = FeedbackConversationEntry.fromMap(map);
-
-      expect(entry.speaker, SpeakerType.user);
-      expect(entry.text, 'Test message');
-      expect(entry.timestamp, testDateTime);
+    setUp(() {
+      fakeFirestore = FakeFirebaseFirestore();
+      repository = FirestoreFeedbackRepository(firestore: fakeFirestore);
     });
 
-    test('fromMap handles ADMIN speaker', () {
-      final testDateTime = DateTime(2025, 1, 1, 12, 0, 0);
-      final map = {
-        'speaker': 'ADMIN',
-        'text': 'Admin response',
-        'timestamp': Timestamp.fromDate(testDateTime),
-      };
-
-      final entry = FeedbackConversationEntry.fromMap(map);
-
-      expect(entry.speaker, SpeakerType.admin);
-      expect(entry.text, 'Admin response');
+    test('submitFeedback creates a new feedback document', () async {
+      await repository.submitFeedback('Test feedback', 'user1');
+      final snapshot =
+          await fakeFirestore.collection('joke_feedback').get();
+      expect(snapshot.docs.length, 1);
+      final doc = snapshot.docs.first.data();
+      expect(doc['user_id'], 'user1');
+      expect(doc['conversation'].length, 1);
+      expect(doc['conversation'][0]['text'], 'Test feedback');
+      expect(doc['lastAdminViewTime'], isNull);
     });
 
-    test('fromMap defaults to USER for unknown speaker', () {
-      final testDateTime = DateTime(2025, 1, 1, 12, 0, 0);
-      final map = {
-        'speaker': 'UNKNOWN',
-        'text': 'Test message',
-        'timestamp': Timestamp.fromDate(testDateTime),
-      };
+    test('addConversationMessage appends an admin message', () async {
+      final docRef = await fakeFirestore.collection('joke_feedback').add({
+        'user_id': 'user1',
+        'conversation': [],
+        'lastAdminViewTime': null,
+      });
 
-      final entry = FeedbackConversationEntry.fromMap(map);
+      await repository.addConversationMessage(
+        docRef.id,
+        'New message',
+        SpeakerType.admin,
+      );
 
-      expect(entry.speaker, SpeakerType.user);
+      final snapshot = await docRef.get();
+      final doc = snapshot.data();
+      expect(doc!['conversation'].length, 1);
+      expect(doc['conversation'][0]['text'], 'New message');
+      expect(doc['conversation'][0]['speaker'], 'ADMIN');
     });
 
-    test('fromMap handles missing speaker field', () {
-      final testDateTime = DateTime(2025, 1, 1, 12, 0, 0);
-      final map = {
-        'text': 'Test message',
-        'timestamp': Timestamp.fromDate(testDateTime),
-      };
+    test('addConversationMessage migrates legacy feedback_text to conversation', () async {
+      final docRef = await fakeFirestore.collection('joke_feedback').add({
+        'user_id': 'user1',
+        'feedback_text': 'Legacy user message',
+        'creation_time': Timestamp.fromDate(DateTime(2023, 1, 1)),
+        'lastAdminViewTime': null,
+      });
 
-      final entry = FeedbackConversationEntry.fromMap(map);
+      await repository.addConversationMessage(
+        docRef.id,
+        'Admin reply',
+        SpeakerType.admin,
+      );
 
-      expect(entry.speaker, SpeakerType.user);
-    });
-  });
-
-  group('SpeakerType', () {
-    test('fromString handles valid values', () {
-      expect(SpeakerType.fromString('USER'), SpeakerType.user);
-      expect(SpeakerType.fromString('ADMIN'), SpeakerType.admin);
-      expect(SpeakerType.fromString('user'), SpeakerType.user);
-      expect(SpeakerType.fromString('admin'), SpeakerType.admin);
-    });
-
-    test('fromString defaults to user for unknown values', () {
-      expect(SpeakerType.fromString('UNKNOWN'), SpeakerType.user);
-      expect(SpeakerType.fromString(''), SpeakerType.user);
+      final snapshot = await docRef.get();
+      final doc = snapshot.data();
+      expect(doc!['conversation'].length, 2);
+      expect(doc['conversation'][0]['text'], 'Legacy user message');
+      expect(doc['conversation'][0]['speaker'], 'USER');
+      expect(doc['conversation'][1]['text'], 'Admin reply');
+      expect(doc['conversation'][1]['speaker'], 'ADMIN');
+      expect(doc['feedback_text'], isNull); // Should be removed
     });
 
-    test('value property returns correct string', () {
-      expect(SpeakerType.user.value, 'USER');
-      expect(SpeakerType.admin.value, 'ADMIN');
+    test('updateLastAdminViewTime writes server timestamp', () async {
+      final docRef = await fakeFirestore.collection('joke_feedback').add({
+        'user_id': 'user1',
+        'conversation': [],
+        'lastAdminViewTime': null,
+      });
+
+      await repository.updateLastAdminViewTime(docRef.id);
+
+      final snapshot = await docRef.get();
+      expect(snapshot.data()!['lastAdminViewTime'], isNotNull);
+    });
+
+    test('watchAllFeedback streams feedback entries', () async {
+      await fakeFirestore.collection('joke_feedback').add({
+        'user_id': 'user1',
+        'creation_time': DateTime.now(),
+        'conversation': [],
+        'state': 'NEW',
+      });
+
+      final stream = repository.watchAllFeedback();
+
+      expect(
+          stream,
+          emits(isA<List<FeedbackEntry>>()..having(
+              (list) => list.length, 'length', 1)));
     });
   });
 }

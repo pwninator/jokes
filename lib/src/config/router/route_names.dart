@@ -23,6 +23,7 @@ class AppRoutes {
   static const String adminDeepResearch = '/admin/deep_research';
   static const String adminCategories = '/admin/categories';
   static const String adminFeedback = '/admin/feedback';
+  static const String adminFeedbackDetails = '/admin/feedback/:feedbackId';
   static const String adminUsers = '/admin/users';
 }
 
@@ -44,6 +45,7 @@ class RouteNames {
   static const String adminDeepResearch = 'adminDeepResearch';
   static const String adminCategories = 'adminCategories';
   static const String adminFeedback = 'adminFeedback';
+  static const String adminFeedbackDetails = 'adminFeedbackDetails';
   static const String adminUsers = 'adminUsers';
 }
 

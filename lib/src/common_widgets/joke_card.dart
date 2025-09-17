@@ -73,6 +73,7 @@ class JokeCard extends StatelessWidget {
         controller: controller,
         overlayBadgeText: topRightBadgeText,
         showSimilarSearchButton: showSimilarSearchButton,
+        mode: JokeCarouselMode.VERTICAL,
       );
     } else {
       // No images or incomplete images - show text with populate button

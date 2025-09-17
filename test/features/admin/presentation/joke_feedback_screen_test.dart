@@ -66,7 +66,7 @@ void main() {
                     clientNumViewed: 10,
                     clientNumSaved: 2,
                     clientNumShared: 1,
-                    lastLoginAt: now,
+                    lastLoginAt: now.subtract(const Duration(hours: 2)),
                   ),
                 );
               }
@@ -76,7 +76,7 @@ void main() {
                   clientNumViewed: 4,
                   clientNumSaved: 0,
                   clientNumShared: 0,
-                  lastLoginAt: now.subtract(const Duration(days: 1)),
+                  lastLoginAt: now.subtract(const Duration(days: 2)),
                 ),
               );
             }),

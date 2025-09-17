@@ -38,7 +38,7 @@ void main() {
         ),
       ],
       userId: 'test_user',
-      state: FeedbackState.NEW,
+      lastAdminViewTime: null,
     );
 
     when(
@@ -86,7 +86,7 @@ void main() {
         ),
       ],
       userId: 'test_user',
-      state: FeedbackState.NEW,
+      lastAdminViewTime: null,
     );
 
     when(
@@ -148,7 +148,7 @@ void main() {
         ),
       ],
       userId: 'test_user',
-      state: FeedbackState.NEW,
+      lastAdminViewTime: null,
     );
 
     when(

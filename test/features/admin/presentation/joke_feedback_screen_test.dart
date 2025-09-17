@@ -47,13 +47,6 @@ void main() {
       FeedbackEntry(
         id: '1',
         creationTime: now,
-        conversation: [
-          FeedbackConversationEntry(
-            speaker: SpeakerType.user,
-            text: 'Love the jokes!',
-            timestamp: now,
-          ),
-        ],
         userId: 'userA',
         conversation: [
           FeedbackConversationEntry(
@@ -66,15 +59,6 @@ void main() {
       ),
       // Yellow case
       FeedbackEntry(
-        id: '20250101_020304_userB',
-        creationTime: now.subtract(const Duration(days: 1)),
-        conversation: [
-          FeedbackConversationEntry(
-            speaker: SpeakerType.user,
-            text: 'Could use more puns',
-            timestamp: now.subtract(const Duration(days: 1)),
-          ),
-        ],
         id: '2',
         creationTime: now,
         userId: 'userB',
@@ -103,8 +87,9 @@ void main() {
       ),
     ];
 
-    when(() => repo.watchAllFeedback())
-        .thenAnswer((_) => Stream.value(entries));
+    when(
+      () => repo.watchAllFeedback(),
+    ).thenAnswer((_) => Stream.value(entries));
 
     await tester.pumpWidget(createWidget());
     await tester.pumpAndSettle();
@@ -114,19 +99,32 @@ void main() {
     expect(find.text('I got you'), findsOneWidget);
 
     final icon1 = tester.widget<Icon>(
-        find.descendant(of: find.byType(ListTile).at(0), matching: find.byType(Icon)));
+      find.descendant(
+        of: find.byType(ListTile).at(0),
+        matching: find.byType(Icon),
+      ),
+    );
     final icon2 = tester.widget<Icon>(
-        find.descendant(of: find.byType(ListTile).at(1), matching: find.byType(Icon)));
+      find.descendant(
+        of: find.byType(ListTile).at(1),
+        matching: find.byType(Icon),
+      ),
+    );
     final icon3 = tester.widget<Icon>(
-        find.descendant(of: find.byType(ListTile).at(2), matching: find.byType(Icon)));
+      find.descendant(
+        of: find.byType(ListTile).at(2),
+        matching: find.byType(Icon),
+      ),
+    );
 
     expect(icon1.color, isA<Color>());
     expect(icon2.color, Colors.yellow);
     expect(icon3.color, Colors.green);
   });
 
-  testWidgets('tapping a feedback item navigates to details page',
-      (tester) async {
+  testWidgets('tapping a feedback item navigates to details page', (
+    tester,
+  ) async {
     final now = DateTime.now();
     final entries = [
       FeedbackEntry(
@@ -144,8 +142,9 @@ void main() {
       ),
     ];
 
-    when(() => repo.watchAllFeedback())
-        .thenAnswer((_) => Stream.value(entries));
+    when(
+      () => repo.watchAllFeedback(),
+    ).thenAnswer((_) => Stream.value(entries));
 
     await tester.pumpWidget(createWidget());
     await tester.pumpAndSettle();
@@ -153,7 +152,11 @@ void main() {
     await tester.tap(find.byType(ListTile));
     await tester.pumpAndSettle();
 
-    verify(() => mockGoRouter.goNamed(RouteNames.adminFeedbackDetails,
-        pathParameters: {'feedbackId': '1'})).called(1);
+    verify(
+      () => mockGoRouter.goNamed(
+        RouteNames.adminFeedbackDetails,
+        pathParameters: {'feedbackId': '1'},
+      ),
+    ).called(1);
   });
 }

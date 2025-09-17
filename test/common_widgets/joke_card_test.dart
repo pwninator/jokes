@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:snickerdoodle/src/common_widgets/joke_card.dart';
 import 'package:snickerdoodle/src/common_widgets/joke_image_carousel.dart';
 import 'package:snickerdoodle/src/common_widgets/joke_text_card.dart';
@@ -8,17 +9,25 @@ import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 
 import '../test_helpers/firebase_mocks.dart';
+import '../test_helpers/settings_mocks.dart';
 
 void main() {
   group('JokeCard Widget Tests', () {
+    setUp(() {
+      SharedPreferences.setMockInitialValues({});
+    });
+
     Widget createTestWidget({
       required Widget child,
       List<Override> additionalOverrides = const [],
     }) {
       return ProviderScope(
-        overrides: FirebaseMocks.getFirebaseProviderOverrides(
-          additionalOverrides: additionalOverrides,
-        ),
+        overrides: [
+          ...FirebaseMocks.getFirebaseProviderOverrides(
+            additionalOverrides: additionalOverrides,
+          ),
+          SettingsMocks.getJokeViewerModeProviderOverride(),
+        ],
         child: MaterialApp(
           theme: lightTheme,
           home: Scaffold(body: child),

@@ -90,7 +90,10 @@ enum AnalyticsEvent {
   // App review
   appReviewAttempt('app_review_attempt'),
   errorAppReviewAvailability('error_app_review_availability'),
-  errorAppReviewRequest('error_app_review_request');
+  errorAppReviewRequest('error_app_review_request'),
+
+  // Joke viewer
+  jokeViewerModeChanged('joke_viewer_mode_changed');
 
   const AnalyticsEvent(this.eventName);
 

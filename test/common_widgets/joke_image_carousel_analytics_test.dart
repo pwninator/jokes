@@ -7,9 +7,11 @@ import 'package:snickerdoodle/src/core/providers/image_providers.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
+import 'package:snickerdoodle/src/features/settings/domain/joke_viewer_mode.dart';
 
 import '../test_helpers/analytics_mocks.dart';
 import '../test_helpers/firebase_mocks.dart';
+import '../test_helpers/settings_mocks.dart';
 import 'joke_image_carousel_test.dart' show FakeJoke; // reuse existing FakeJoke
 
 class _MockImageService extends Mock implements ImageService {}
@@ -58,16 +60,17 @@ void main() {
   });
 
   Widget wrap(Widget child) => ProviderScope(
-    overrides: [
-      ...FirebaseMocks.getFirebaseProviderOverrides(),
-      ...AnalyticsMocks.getAnalyticsProviderOverrides(),
-      imageServiceProvider.overrideWithValue(mockImageService),
-    ],
-    child: MaterialApp(
-      theme: lightTheme,
-      home: Scaffold(body: child),
-    ),
-  );
+        overrides: [
+          ...FirebaseMocks.getFirebaseProviderOverrides(),
+          ...AnalyticsMocks.getAnalyticsProviderOverrides(),
+          SettingsMocks.getJokeViewerModeProviderOverride(),
+          imageServiceProvider.overrideWithValue(mockImageService),
+        ],
+        child: MaterialApp(
+          theme: lightTheme,
+          home: Scaffold(body: child),
+        ),
+      );
 
   const joke = Joke(
     id: 'j1',

@@ -9,6 +9,7 @@ import 'auth_mocks.dart';
 import 'core_mocks.dart';
 import 'firebase_mocks.dart';
 import 'joke_schedule_mocks.dart';
+import 'settings_mocks.dart';
 
 export 'analytics_mocks.dart';
 export 'auth_mocks.dart';
@@ -42,6 +43,9 @@ class TestHelpers {
 
       // Analytics mocks
       ...AnalyticsMocks.getAnalyticsProviderOverrides(),
+
+      // Settings mocks
+      SettingsMocks.getJokeViewerModeProviderOverride(),
 
       // Additional custom overrides
       ...additionalOverrides,

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_category_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
@@ -10,22 +11,27 @@ import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/search/presentation/search_screen.dart';
 
 import '../../../test_helpers/firebase_mocks.dart';
+import '../../../test_helpers/settings_mocks.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
+  });
 
   testWidgets('Submitting <2 chars shows banner and does not update query', (
     tester,
   ) async {
     final container = ProviderContainer(
-      overrides: FirebaseMocks.getFirebaseProviderOverrides(
-        additionalOverrides: [
-          // Prevent real cloud function calls during this test
-          searchResultsViewerProvider(
-            SearchScope.userJokeSearch,
-          ).overrideWith((ref) => const AsyncValue.data([])),
-        ],
-      ),
+      overrides: [
+        ...FirebaseMocks.getFirebaseProviderOverrides(),
+        SettingsMocks.getJokeViewerModeProviderOverride(),
+        // Prevent real cloud function calls during this test
+        searchResultsViewerProvider(
+          SearchScope.userJokeSearch,
+        ).overrideWith((ref) => const AsyncValue.data([])),
+      ],
     );
     addTearDown(container.dispose);
     await tester.pumpWidget(
@@ -59,23 +65,23 @@ void main() {
   });
 
   testWidgets('Shows results count for single result', (tester) async {
-    final overrides = FirebaseMocks.getFirebaseProviderOverrides(
-      additionalOverrides: [
-        searchResultsViewerProvider(SearchScope.userJokeSearch).overrideWith(
-          (ref) => const AsyncValue.data([
-            JokeWithDate(
-              joke: Joke(
-                id: '1',
-                setupText: 's',
-                punchlineText: 'p',
-                setupImageUrl: 'a',
-                punchlineImageUrl: 'b',
-              ),
+    final overrides = <Override>[
+      ...FirebaseMocks.getFirebaseProviderOverrides(),
+      SettingsMocks.getJokeViewerModeProviderOverride(),
+      searchResultsViewerProvider(SearchScope.userJokeSearch).overrideWith(
+        (ref) => const AsyncValue.data([
+          JokeWithDate(
+            joke: Joke(
+              id: '1',
+              setupText: 's',
+              punchlineText: 'p',
+              setupImageUrl: 'a',
+              punchlineImageUrl: 'b',
             ),
-          ]),
-        ),
-      ],
-    );
+          ),
+        ]),
+      ),
+    ];
 
     await tester.pumpWidget(
       ProviderScope(
@@ -96,41 +102,41 @@ void main() {
   testWidgets('Shows pluralized results count for multiple results', (
     tester,
   ) async {
-    final overrides = FirebaseMocks.getFirebaseProviderOverrides(
-      additionalOverrides: [
-        searchResultsViewerProvider(SearchScope.userJokeSearch).overrideWith(
-          (ref) => const AsyncValue.data([
-            JokeWithDate(
-              joke: Joke(
-                id: '1',
-                setupText: 's1',
-                punchlineText: 'p1',
-                setupImageUrl: 'a',
-                punchlineImageUrl: 'b',
-              ),
+    final overrides = <Override>[
+      ...FirebaseMocks.getFirebaseProviderOverrides(),
+      SettingsMocks.getJokeViewerModeProviderOverride(),
+      searchResultsViewerProvider(SearchScope.userJokeSearch).overrideWith(
+        (ref) => const AsyncValue.data([
+          JokeWithDate(
+            joke: Joke(
+              id: '1',
+              setupText: 's1',
+              punchlineText: 'p1',
+              setupImageUrl: 'a',
+              punchlineImageUrl: 'b',
             ),
-            JokeWithDate(
-              joke: Joke(
-                id: '2',
-                setupText: 's2',
-                punchlineText: 'p2',
-                setupImageUrl: 'a',
-                punchlineImageUrl: 'b',
-              ),
+          ),
+          JokeWithDate(
+            joke: Joke(
+              id: '2',
+              setupText: 's2',
+              punchlineText: 'p2',
+              setupImageUrl: 'a',
+              punchlineImageUrl: 'b',
             ),
-            JokeWithDate(
-              joke: Joke(
-                id: '3',
-                setupText: 's3',
-                punchlineText: 'p3',
-                setupImageUrl: 'a',
-                punchlineImageUrl: 'b',
-              ),
+          ),
+          JokeWithDate(
+            joke: Joke(
+              id: '3',
+              setupText: 's3',
+              punchlineText: 'p3',
+              setupImageUrl: 'a',
+              punchlineImageUrl: 'b',
             ),
-          ]),
-        ),
-      ],
-    );
+          ),
+        ]),
+      ),
+    ];
 
     await tester.pumpWidget(
       ProviderScope(
@@ -151,32 +157,32 @@ void main() {
   testWidgets('Search results show 1-based index titles on JokeCards', (
     tester,
   ) async {
-    final overrides = FirebaseMocks.getFirebaseProviderOverrides(
-      additionalOverrides: [
-        searchResultsViewerProvider(SearchScope.userJokeSearch).overrideWith(
-          (ref) => const AsyncValue.data([
-            JokeWithDate(
-              joke: Joke(
-                id: 'a',
-                setupText: 's1',
-                punchlineText: 'p1',
-                setupImageUrl: 'a',
-                punchlineImageUrl: 'b',
-              ),
+    final overrides = <Override>[
+      ...FirebaseMocks.getFirebaseProviderOverrides(),
+      SettingsMocks.getJokeViewerModeProviderOverride(),
+      searchResultsViewerProvider(SearchScope.userJokeSearch).overrideWith(
+        (ref) => const AsyncValue.data([
+          JokeWithDate(
+            joke: Joke(
+              id: 'a',
+              setupText: 's1',
+              punchlineText: 'p1',
+              setupImageUrl: 'a',
+              punchlineImageUrl: 'b',
             ),
-            JokeWithDate(
-              joke: Joke(
-                id: 'b',
-                setupText: 's2',
-                punchlineText: 'p2',
-                setupImageUrl: 'a',
-                punchlineImageUrl: 'b',
-              ),
+          ),
+          JokeWithDate(
+            joke: Joke(
+              id: 'b',
+              setupText: 's2',
+              punchlineText: 'p2',
+              setupImageUrl: 'a',
+              punchlineImageUrl: 'b',
             ),
-          ]),
-        ),
-      ],
-    );
+          ),
+        ]),
+      ),
+    ];
 
     await tester.pumpWidget(
       ProviderScope(
@@ -207,7 +213,10 @@ void main() {
     tester,
   ) async {
     final container = ProviderContainer(
-      overrides: FirebaseMocks.getFirebaseProviderOverrides(),
+      overrides: [
+        ...FirebaseMocks.getFirebaseProviderOverrides(),
+        SettingsMocks.getJokeViewerModeProviderOverride(),
+      ],
     );
     addTearDown(container.dispose);
     await tester.pumpWidget(
@@ -245,31 +254,31 @@ void main() {
     tester,
   ) async {
     final container = ProviderContainer(
-      overrides: FirebaseMocks.getFirebaseProviderOverrides(
-        additionalOverrides: [
-          // Provide fake categories
-          jokeCategoriesProvider.overrideWith(
-            (ref) => Stream.value(const [
-              JokeCategory(
-                id: 'animal_jokes',
-                displayName: 'Animal Jokes',
-                jokeDescriptionQuery: 'animal',
-                imageUrl: null,
-              ),
-              JokeCategory(
-                id: 'food',
-                displayName: 'Food',
-                jokeDescriptionQuery: 'food',
-                imageUrl: null,
-              ),
-            ]),
-          ),
-          // Avoid network search calls in tests
-          searchResultsViewerProvider(
-            SearchScope.userJokeSearch,
-          ).overrideWith((ref) => const AsyncValue.data([])),
-        ],
-      ),
+      overrides: [
+        ...FirebaseMocks.getFirebaseProviderOverrides(),
+        SettingsMocks.getJokeViewerModeProviderOverride(),
+        // Provide fake categories
+        jokeCategoriesProvider.overrideWith(
+          (ref) => Stream.value(const [
+            JokeCategory(
+              id: 'animal_jokes',
+              displayName: 'Animal Jokes',
+              jokeDescriptionQuery: 'animal',
+              imageUrl: null,
+            ),
+            JokeCategory(
+              id: 'food',
+              displayName: 'Food',
+              jokeDescriptionQuery: 'food',
+              imageUrl: null,
+            ),
+          ]),
+        ),
+        // Avoid network search calls in tests
+        searchResultsViewerProvider(
+          SearchScope.userJokeSearch,
+        ).overrideWith((ref) => const AsyncValue.data([])),
+      ],
     );
     addTearDown(container.dispose);
 
@@ -307,25 +316,25 @@ void main() {
     'Clear button is circular and clears query restoring categories',
     (tester) async {
       final container = ProviderContainer(
-        overrides: FirebaseMocks.getFirebaseProviderOverrides(
-          additionalOverrides: [
-            // Provide categories so grid can show when empty
-            jokeCategoriesProvider.overrideWith(
-              (ref) => Stream.value(const [
-                JokeCategory(
-                  id: 'tech',
-                  displayName: 'Tech',
-                  jokeDescriptionQuery: 'tech',
-                  imageUrl: null,
-                ),
-              ]),
-            ),
-            // Avoid network search calls in tests
-            searchResultsViewerProvider(
-              SearchScope.userJokeSearch,
-            ).overrideWith((ref) => const AsyncValue.data([])),
-          ],
-        ),
+        overrides: [
+          ...FirebaseMocks.getFirebaseProviderOverrides(),
+          SettingsMocks.getJokeViewerModeProviderOverride(),
+          // Provide categories so grid can show when empty
+          jokeCategoriesProvider.overrideWith(
+            (ref) => Stream.value(const [
+              JokeCategory(
+                id: 'tech',
+                displayName: 'Tech',
+                jokeDescriptionQuery: 'tech',
+                imageUrl: null,
+              ),
+            ]),
+          ),
+          // Avoid network search calls in tests
+          searchResultsViewerProvider(
+            SearchScope.userJokeSearch,
+          ).overrideWith((ref) => const AsyncValue.data([])),
+        ],
       );
       addTearDown(container.dispose);
 

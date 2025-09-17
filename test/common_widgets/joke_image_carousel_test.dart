@@ -17,74 +17,8 @@ import 'package:snickerdoodle/src/features/jokes/application/joke_schedule_provi
 import 'package:snickerdoodle/src/features/jokes/application/joke_schedule_service.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_schedule_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_state.dart';
-
 import '../test_helpers/firebase_mocks.dart';
-
-void main() {
-  Widget createTestWidget({required Widget child}) {
-    return ProviderScope(
-      overrides: FirebaseMocks.getFirebaseProviderOverrides(),
-      child: MaterialApp(
-        theme: lightTheme,
-        home: Scaffold(body: child),
-      ),
-    );
-  }
-
-  group('JokeImageCarousel Counts Icons', () {
-    testWidgets('icons are gray when counts are 0', (tester) async {
-      const joke = Joke(
-        id: '1',
-        setupText: 'setup',
-        punchlineText: 'punch',
-        setupImageUrl: 'https://example.com/a.jpg',
-        punchlineImageUrl: 'https://example.com/b.jpg',
-        numSaves: 0,
-        numShares: 0,
-      );
-
-      const widget = JokeImageCarousel(
-        joke: joke,
-        showNumSaves: true,
-        showNumShares: true,
-        jokeContext: 'test',
-      );
-
-      await tester.pumpWidget(createTestWidget(child: widget));
-
-      // We can only assert presence, not exact color easily.
-      expect(find.byIcon(Icons.favorite), findsOneWidget);
-      expect(find.byIcon(Icons.share), findsOneWidget);
-      expect(find.text('0'), findsNWidgets(2));
-    });
-
-    testWidgets('icons are colored when counts are > 0', (tester) async {
-      const joke = Joke(
-        id: '1',
-        setupText: 'setup',
-        punchlineText: 'punch',
-        setupImageUrl: 'https://example.com/a.jpg',
-        punchlineImageUrl: 'https://example.com/b.jpg',
-        numSaves: 1,
-        numShares: 2,
-      );
-
-      const widget = JokeImageCarousel(
-        joke: joke,
-        showNumSaves: true,
-        showNumShares: true,
-        jokeContext: 'test',
-      );
-
-      await tester.pumpWidget(createTestWidget(child: widget));
-
-      expect(find.byIcon(Icons.favorite), findsOneWidget);
-      expect(find.byIcon(Icons.share), findsOneWidget);
-      expect(find.text('1'), findsOneWidget);
-      expect(find.text('2'), findsOneWidget);
-    });
-  });
-}
+import '../test_helpers/settings_mocks.dart';
 
 // Mock class for ImageService
 class MockImageService extends Mock implements ImageService {}
@@ -98,10 +32,10 @@ class FakeJoke extends Fake implements Joke {}
 // Simple spy service to capture calls triggered by the dialog
 class _SpyScheduleService extends JokeScheduleAutoFillService {
   _SpyScheduleService()
-    : super(
-        jokeRepository: _NoopJokeRepository(),
-        scheduleRepository: _NoopJokeScheduleRepository(),
-      );
+      : super(
+          jokeRepository: _NoopJokeRepository(),
+          scheduleRepository: _NoopJokeScheduleRepository(),
+        );
 
   String? lastJokeId;
   DateTime? lastDate;
@@ -124,7 +58,7 @@ class _NoopJokeRepository extends Mock implements JokeRepository {}
 class _NoopJokeScheduleRepository extends Mock
     implements JokeScheduleRepository {}
 
-void mainCountsAndButtonsSuite() {
+void main() {
   late MockImageService mockImageService;
   late MockJokeRepository mockJokeRepository;
   // No schedule service mock needed here
@@ -188,24 +122,85 @@ void mainCountsAndButtonsSuite() {
     when(() => mockJokeRepository.deleteJoke(any())).thenAnswer((_) async {});
   });
 
-  Widget createTestWidget({required Widget child}) {
+  Widget createTestWidget({
+    required Widget child,
+    List<Override> overrides = const [],
+    GlobalKey<NavigatorState>? navigatorKey,
+  }) {
     return ProviderScope(
       overrides: [
         ...FirebaseMocks.getFirebaseProviderOverrides(),
         imageServiceProvider.overrideWithValue(mockImageService),
         jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
+        SettingsMocks.getJokeViewerModeProviderOverride(),
         // Override schedule service to a test double (spy not needed for most tests)
         jokeScheduleAutoFillServiceProvider.overrideWithValue(
           _SpyScheduleService(),
         ),
+        scheduleBatchesProvider.overrideWith((ref) => Stream.value([])),
+        ...overrides,
       ],
       child: MaterialApp(
+        navigatorKey: navigatorKey,
         theme: lightTheme,
         home: Scaffold(body: child),
       ),
     );
   }
 
+  group('JokeImageCarousel Counts Icons', () {
+    testWidgets('icons are gray when counts are 0', (tester) async {
+      const joke = Joke(
+        id: '1',
+        setupText: 'setup',
+        punchlineText: 'punch',
+        setupImageUrl: 'https://example.com/a.jpg',
+        punchlineImageUrl: 'https://example.com/b.jpg',
+        numSaves: 0,
+        numShares: 0,
+      );
+
+      const widget = JokeImageCarousel(
+        joke: joke,
+        showNumSaves: true,
+        showNumShares: true,
+        jokeContext: 'test',
+      );
+
+      await tester.pumpWidget(createTestWidget(child: widget));
+
+      // We can only assert presence, not exact color easily.
+      expect(find.byIcon(Icons.favorite), findsOneWidget);
+      expect(find.byIcon(Icons.share), findsOneWidget);
+      expect(find.text('0'), findsNWidgets(2));
+    });
+
+    testWidgets('icons are colored when counts are > 0', (tester) async {
+      const joke = Joke(
+        id: '1',
+        setupText: 'setup',
+        punchlineText: 'punch',
+        setupImageUrl: 'https://example.com/a.jpg',
+        punchlineImageUrl: 'https://example.com/b.jpg',
+        numSaves: 1,
+        numShares: 2,
+      );
+
+      const widget = JokeImageCarousel(
+        joke: joke,
+        showNumSaves: true,
+        showNumShares: true,
+        jokeContext: 'test',
+      );
+
+      await tester.pumpWidget(createTestWidget(child: widget));
+
+      expect(find.byIcon(Icons.favorite), findsOneWidget);
+      expect(find.byIcon(Icons.share), findsOneWidget);
+      expect(find.text('1'), findsOneWidget);
+      expect(find.text('2'), findsOneWidget);
+    });
+  });
   group('JokeImageCarousel', () {
     testWidgets('displays correctly with valid image URLs', (tester) async {
       // arrange
@@ -542,7 +537,7 @@ void mainCountsAndButtonsSuite() {
 
           // assert
           expect(find.byType(AlertDialog), findsOneWidget);
-          expect(find.text('Generation Metadata'), findsOneWidget);
+          expect(find.text('Joke Details'), findsOneWidget);
           expect(find.text('Close'), findsOneWidget);
           // Check that some metadata content is displayed (not empty message)
           expect(
@@ -586,7 +581,7 @@ void mainCountsAndButtonsSuite() {
 
           // assert
           expect(find.byType(AlertDialog), findsOneWidget);
-          expect(find.text('Generation Metadata'), findsOneWidget);
+          expect(find.text('Joke Details'), findsOneWidget);
           expect(
             find.text('No generation metadata available for this joke.'),
             findsOneWidget,
@@ -630,7 +625,7 @@ void mainCountsAndButtonsSuite() {
 
         // assert
         expect(find.byType(AlertDialog), findsOneWidget);
-        expect(find.text('Generation Metadata'), findsOneWidget);
+        expect(find.text('Joke Details'), findsOneWidget);
         expect(find.text('Close'), findsOneWidget);
         // Check that some metadata content is displayed (not empty message)
         expect(
@@ -667,29 +662,22 @@ void mainCountsAndButtonsSuite() {
         // Spy service
         final spyService = _SpyScheduleService();
 
-        final widget = ProviderScope(
-          overrides: [
-            ...FirebaseMocks.getFirebaseProviderOverrides(),
-            imageServiceProvider.overrideWithValue(mockImageService),
-            jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
-            jokeScheduleAutoFillServiceProvider.overrideWithValue(spyService),
-          ],
-          child: MaterialApp(
-            theme: lightTheme,
-            home: Scaffold(
-              body: JokeImageCarousel(joke: joke, jokeContext: 'test'),
-            ),
-          ),
-        );
+        final widget =
+            JokeImageCarousel(joke: joke, jokeContext: 'test', isAdminMode: true);
 
         // act
-        await tester.pumpWidget(widget);
+        await tester.pumpWidget(createTestWidget(
+          child: widget,
+          overrides: [
+            jokeScheduleAutoFillServiceProvider.overrideWithValue(spyService),
+          ],
+        ));
         await tester.pump();
 
         // Tap the state badge
         expect(find.byKey(const Key('daily-state-badge')), findsOneWidget);
         await tester.tap(find.byKey(const Key('daily-state-badge')));
-        await tester.pumpAndSettle();
+        await tester.pump(const Duration(milliseconds: 500));
 
         // Dialog should appear with Change date button
         expect(find.text('Change scheduled date'), findsOneWidget);
@@ -697,7 +685,7 @@ void mainCountsAndButtonsSuite() {
 
         // Tap change date
         await tester.tap(find.byKey(const Key('change-date-btn')));
-        await tester.pumpAndSettle();
+        await tester.pump(const Duration(milliseconds: 500));
 
         // assert - service called
         expect(spyService.lastJokeId, equals('daily-future-1'));
@@ -1048,21 +1036,11 @@ void mainCountsAndButtonsSuite() {
 
         // Create widget wrapped in Navigator for proper navigation testing
         final navigatorKey = GlobalKey<NavigatorState>();
-        final testWidget = ProviderScope(
-          overrides: [
-            ...FirebaseMocks.getFirebaseProviderOverrides(),
-            imageServiceProvider.overrideWithValue(mockImageService),
-            jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
-          ],
-          child: MaterialApp(
-            navigatorKey: navigatorKey,
-            theme: lightTheme,
-            home: Scaffold(body: widget),
-          ),
-        );
 
         // act
-        await tester.pumpWidget(testWidget);
+        await tester.pumpWidget(
+          createTestWidget(child: widget, navigatorKey: navigatorKey),
+        );
         await tester.pump();
 
         // Simulate hold complete by directly triggering the onHoldComplete callback

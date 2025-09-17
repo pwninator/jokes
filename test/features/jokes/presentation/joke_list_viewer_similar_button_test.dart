@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:snickerdoodle/src/config/router/app_router.dart' show RailHost;
 import 'package:snickerdoodle/src/config/router/router_providers.dart';
 import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
@@ -13,6 +14,7 @@ import 'package:snickerdoodle/src/features/jokes/presentation/joke_list_viewer.d
 
 import '../../../test_helpers/analytics_mocks.dart';
 import '../../../test_helpers/firebase_mocks.dart';
+import '../../../test_helpers/settings_mocks.dart';
 
 // Stub navigation helpers to avoid real routing in tests
 class StubNavigationHelpers extends NavigationHelpers {
@@ -29,8 +31,13 @@ class StubNavigationHelpers extends NavigationHelpers {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
   setUpAll(() {
     registerAnalyticsFallbackValues();
+  });
+
+  setUp(() {
+    SharedPreferences.setMockInitialValues({});
   });
 
   testWidgets('Similar button visible only when flag enabled', (tester) async {
@@ -43,7 +50,10 @@ void main() {
       tags: ['animals'],
     );
 
-    final overrides = FirebaseMocks.getFirebaseProviderOverrides();
+    final overrides = <Override>[
+      ...FirebaseMocks.getFirebaseProviderOverrides(),
+      SettingsMocks.getJokeViewerModeProviderOverride(),
+    ];
 
     // With flag off
     await tester.pumpWidget(
@@ -97,6 +107,7 @@ void main() {
       overrides: [
         ...FirebaseMocks.getFirebaseProviderOverrides(),
         analyticsServiceProvider.overrideWithValue(analyticsMock),
+        SettingsMocks.getJokeViewerModeProviderOverride(),
         navigationHelpersProvider.overrideWith(
           (ref) => StubNavigationHelpers(ref),
         ),

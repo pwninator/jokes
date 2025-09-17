@@ -1,9 +1,13 @@
 // ignore_for_file: subtype_of_sealed_class
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
+import 'package:snickerdoodle/src/core/providers/shared_preferences_provider.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_population_providers.dart';
@@ -11,6 +15,8 @@ import 'package:snickerdoodle/src/features/jokes/application/joke_search_provide
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_search_result.dart';
+
+import 'settings_mocks.dart';
 
 // Mock classes for Firebase services
 class MockJokeCloudFunctionService extends Mock
@@ -61,7 +67,23 @@ class FirebaseMocks {
   /// Get Firebase-specific provider overrides
   static List<Override> getFirebaseProviderOverrides({
     List<Override> additionalOverrides = const [],
+    MockSharedPreferences? mockSharedPreferences,
   }) {
+    // Use provided mock or create a new one
+    final prefs = mockSharedPreferences ?? MockSharedPreferences();
+
+    // Set default return values for SharedPreferences methods
+    when(() => prefs.getBool(any())).thenReturn(null);
+    when(() => prefs.getInt(any())).thenReturn(null);
+    when(() => prefs.getString(any())).thenReturn(null);
+    when(() => prefs.getStringList(any())).thenReturn(null);
+    when(() => prefs.setBool(any(), any())).thenAnswer((_) async => true);
+    when(() => prefs.setInt(any(), any())).thenAnswer((_) async => true);
+    when(() => prefs.setString(any(), any())).thenAnswer((_) async => true);
+    when(() => prefs.setStringList(any(), any())).thenAnswer((_) async => true);
+    when(() => prefs.remove(any())).thenAnswer((_) async => true);
+    when(() => prefs.clear()).thenAnswer((_) async => true);
+
     return [
       // Mock Firestore
       firebaseFirestoreProvider.overrideWithValue(mockFirebaseFirestore),
@@ -73,6 +95,9 @@ class FirebaseMocks {
 
       // Mock Firebase Analytics
       firebaseAnalyticsProvider.overrideWithValue(mockFirebaseAnalytics),
+      sharedPreferencesProvider.overrideWith(
+        (ref) async => prefs,
+      ),
 
       // Mock joke population provider to avoid Firebase calls
       jokePopulationProvider.overrideWith(

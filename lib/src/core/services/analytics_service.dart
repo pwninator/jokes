@@ -254,6 +254,11 @@ abstract class AnalyticsService {
     required String source,
     required String errorMessage,
   });
+
+  void logJokeViewerModeChanged({
+    required String mode,
+    required String source,
+  });
 }
 
 /// Firebase Analytics implementation of the analytics service
@@ -489,6 +494,18 @@ class FirebaseAnalyticsService implements AnalyticsService {
         AnalyticsParameters.exceptionType: exceptionType,
       AnalyticsParameters.userType: _getUserType(_currentUser),
     }, isError: true);
+  }
+
+  @override
+  void logJokeViewerModeChanged({
+    required String mode,
+    required String source,
+  }) {
+    _logEvent(AnalyticsEvent.jokeViewerModeChanged, {
+      'mode': mode,
+      AnalyticsParameters.source: source,
+      AnalyticsParameters.userType: _getUserType(_currentUser),
+    });
   }
 
   @override

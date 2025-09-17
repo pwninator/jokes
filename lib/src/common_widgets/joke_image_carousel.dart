@@ -23,6 +23,8 @@ import 'package:snickerdoodle/src/features/jokes/application/joke_schedule_provi
 import 'package:snickerdoodle/src/features/jokes/application/joke_search_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_state.dart';
+import 'package:snickerdoodle/src/features/settings/application/joke_viewer_settings_service.dart';
+import 'package:snickerdoodle/src/features/settings/domain/joke_viewer_mode.dart';
 
 /// Controller to allow parent widgets to imperatively control the
 /// `JokeImageCarousel` (e.g., reveal the punchline programmatically).
@@ -711,6 +713,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
     final isPopulating = populationState.populatingJokes.contains(
       widget.joke.id,
     );
+    final jokeViewerMode = ref.watch(jokeViewerModeProvider);
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 24.0),
@@ -735,38 +738,82 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
             child: Card(
               child: Stack(
                 children: [
-                  GestureDetector(
-                    onTap: _onImageTap,
-                    onLongPress: widget.isAdminMode ? _onImageLongPress : null,
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(
-                        minHeight: 200, // Ensure minimum usable height
-                      ),
-                      child: ClipRRect(
+                  LayoutBuilder(builder: (context, constraints) {
+                    if (jokeViewerMode == JokeViewerMode.auto) {
+                      final bool isHorizontal =
+                          constraints.maxWidth > constraints.maxHeight;
+                      return ClipRRect(
                         borderRadius: const BorderRadius.vertical(
                           top: Radius.circular(16),
                           bottom: Radius.circular(16),
                         ),
-                        child: AspectRatio(
-                          aspectRatio: 1.0,
-                          child: PageView(
-                            controller: _pageController,
-                            onPageChanged: _onPageChanged,
-                            children: [
-                              // Setup image
-                              _buildImagePage(
-                                imageUrl: widget.joke.setupImageUrl,
+                        child: isHorizontal
+                            ? Row(
+                                children: [
+                                  Expanded(
+                                    child: _buildImagePage(
+                                      imageUrl: widget.joke.setupImageUrl,
+                                    ),
+                                  ),
+                                  Expanded(
+                                    child: _buildImagePage(
+                                      imageUrl: widget.joke.punchlineImageUrl,
+                                    ),
+                                  ),
+                                ],
+                              )
+                            : Column(
+                                children: [
+                                  Expanded(
+                                    child: _buildImagePage(
+                                      imageUrl: widget.joke.setupImageUrl,
+                                    ),
+                                  ),
+                                  Expanded(
+                                    child: _buildImagePage(
+                                      imageUrl: widget.joke.punchlineImageUrl,
+                                    ),
+                                  ),
+                                ],
                               ),
-                              // Punchline image
-                              _buildImagePage(
-                                imageUrl: widget.joke.punchlineImageUrl,
+                      );
+                    } else {
+                      // Reveal mode
+                      return GestureDetector(
+                        onTap: _onImageTap,
+                        onLongPress:
+                            widget.isAdminMode ? _onImageLongPress : null,
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(
+                            minHeight: 200, // Ensure minimum usable height
+                          ),
+                          child: ClipRRect(
+                            borderRadius: const BorderRadius.vertical(
+                              top: Radius.circular(16),
+                              bottom: Radius.circular(16),
+                            ),
+                            child: AspectRatio(
+                              aspectRatio: 1.0,
+                              child: PageView(
+                                controller: _pageController,
+                                onPageChanged: _onPageChanged,
+                                children: [
+                                  // Setup image
+                                  _buildImagePage(
+                                    imageUrl: widget.joke.setupImageUrl,
+                                  ),
+                                  // Punchline image
+                                  _buildImagePage(
+                                    imageUrl: widget.joke.punchlineImageUrl,
+                                  ),
+                                ],
                               ),
-                            ],
+                            ),
                           ),
                         ),
-                      ),
-                    ),
-                  ),
+                      );
+                    }
+                  }),
                   if (widget.overlayBadgeText != null &&
                       widget.overlayBadgeText!.isNotEmpty)
                     Positioned(
@@ -818,20 +865,21 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
                 Expanded(child: _buildLeftControls()),
 
                 // Page indicators (centered)
-                SmoothPageIndicator(
-                  controller: _pageController,
-                  count: 2,
-                  effect: WormEffect(
-                    dotHeight: 12,
-                    dotWidth: 12,
-                    spacing: 6,
-                    radius: 6,
-                    dotColor: theme.colorScheme.onSurface.withValues(
-                      alpha: 0.3,
+                if (jokeViewerMode == JokeViewerMode.reveal)
+                  SmoothPageIndicator(
+                    controller: _pageController,
+                    count: 2,
+                    effect: WormEffect(
+                      dotHeight: 12,
+                      dotWidth: 12,
+                      spacing: 6,
+                      radius: 6,
+                      dotColor: theme.colorScheme.onSurface.withValues(
+                        alpha: 0.3,
+                      ),
+                      activeDotColor: theme.colorScheme.primary,
                     ),
-                    activeDotColor: theme.colorScheme.primary,
                   ),
-                ),
 
                 // Right buttons (save, share, admin rating) or spacer
                 Expanded(child: _buildRightControls()),

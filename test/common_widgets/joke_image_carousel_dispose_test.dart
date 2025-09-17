@@ -11,6 +11,7 @@ import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 
 import '../test_helpers/analytics_mocks.dart';
 import '../test_helpers/firebase_mocks.dart';
+import '../test_helpers/settings_mocks.dart';
 import 'joke_image_carousel_test.dart' show FakeJoke; // reuse existing FakeJoke
 
 class _MockImageService extends Mock implements ImageService {}
@@ -65,6 +66,7 @@ void main() {
           ...AnalyticsMocks.getAnalyticsProviderOverrides(),
           imageServiceProvider.overrideWithValue(mockImageService),
           appUsageServiceProvider.overrideWithValue(mockAppUsageService),
+          SettingsMocks.getJokeViewerModeProviderOverride(),
           ...additionalOverrides,
         ],
         child: MaterialApp(

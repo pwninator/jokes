@@ -14,7 +14,9 @@ import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
 import 'package:snickerdoodle/src/features/auth/data/models/app_user.dart';
+import 'package:snickerdoodle/src/features/settings/application/joke_viewer_settings_service.dart';
 import 'package:snickerdoodle/src/features/settings/application/theme_settings_service.dart';
+import 'package:snickerdoodle/src/features/settings/domain/joke_viewer_mode.dart';
 
 class UserSettingsScreen extends ConsumerStatefulWidget
     implements TitledScreen {
@@ -126,6 +128,25 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                       ),
                       const SizedBox(height: 16),
                       _buildThemeSettings(context, ref),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Joke Viewer Settings Section
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Joke Viewer',
+                        style: Theme.of(context).textTheme.headlineSmall,
+                      ),
+                      const SizedBox(height: 16),
+                      _buildJokeViewerSettings(context, ref),
                     ],
                   ),
                 ),
@@ -413,6 +434,63 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildJokeViewerSettings(BuildContext context, WidgetRef ref) {
+    final jokeViewerMode = ref.watch(jokeViewerModeProvider);
+    final jokeViewerModeNotifier = ref.read(jokeViewerModeProvider.notifier);
+
+    final bool hidePunchline = jokeViewerMode == JokeViewerMode.reveal;
+    return Row(
+      children: [
+        Icon(
+          hidePunchline ? Icons.visibility_off : Icons.visibility,
+          color: hidePunchline
+              ? Theme.of(context).colorScheme.primary
+              : Theme.of(
+                  context,
+                ).colorScheme.onSurface.withOpacity(0.6),
+        ),
+        const SizedBox(width: 16),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                hidePunchline ? 'Hide punchline image' : 'Show both images',
+                style: TextStyle(
+                  fontWeight: FontWeight.w500,
+                  color: hidePunchline
+                      ? Theme.of(context).colorScheme.primary
+                      : Theme.of(context).colorScheme.onSurface,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                hidePunchline
+                    ? 'Tap to reveal the punchline'
+                    : 'Setup and punchline are shown together',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withOpacity(0.6),
+                ),
+              ),
+            ],
+          ),
+        ),
+        Switch(
+          value: hidePunchline,
+          onChanged: (value) {
+            final newMode =
+                value ? JokeViewerMode.reveal : JokeViewerMode.auto;
+            jokeViewerModeNotifier.setJokeViewerMode(newMode);
+          },
+          activeColor: Theme.of(context).colorScheme.primary,
+        ),
+      ],
     );
   }
 

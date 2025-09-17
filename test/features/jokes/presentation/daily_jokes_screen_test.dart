@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:snickerdoodle/src/common_widgets/joke_card.dart';
 import 'package:snickerdoodle/src/common_widgets/joke_image_carousel.dart';
 import 'package:snickerdoodle/src/config/router/app_router.dart' show RailHost;
@@ -19,6 +20,7 @@ import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_schedule
 import 'package:snickerdoodle/src/features/jokes/presentation/daily_jokes_screen.dart';
 
 import '../../../test_helpers/firebase_mocks.dart';
+import '../../../test_helpers/settings_mocks.dart';
 
 // Mock classes
 class MockImageService extends Mock implements ImageService {}
@@ -84,6 +86,8 @@ void main() {
     }
 
     setUp(() {
+      SharedPreferences.setMockInitialValues({});
+
       // Create test jokes with images
       mockJokes = [
         Joke(
@@ -192,6 +196,7 @@ void main() {
         overrides: [
           imageServiceProvider.overrideWithValue(mockImageService),
           jokeScheduleRepositoryProvider.overrideWithValue(customRepository),
+          SettingsMocks.getJokeViewerModeProviderOverride(),
           ...FirebaseMocks.getFirebaseProviderOverrides(),
         ],
         child: MaterialApp.router(theme: lightTheme, routerConfig: router),
@@ -215,6 +220,7 @@ void main() {
         overrides: [
           imageServiceProvider.overrideWithValue(mockImageService),
           jokeScheduleRepositoryProvider.overrideWithValue(customRepository),
+          SettingsMocks.getJokeViewerModeProviderOverride(),
           ...FirebaseMocks.getFirebaseProviderOverrides(),
         ],
         child: MaterialApp(
@@ -293,6 +299,7 @@ void main() {
               jokeScheduleRepositoryProvider.overrideWithValue(
                 loadingRepository,
               ),
+              SettingsMocks.getJokeViewerModeProviderOverride(),
               ...FirebaseMocks.getFirebaseProviderOverrides(),
             ],
             child: MaterialApp.router(theme: lightTheme, routerConfig: router),
@@ -354,8 +361,8 @@ void main() {
         await tester.tap(find.byKey(const Key('joke_viewer_cta_button')));
         await tester.pump(const Duration(milliseconds: 400));
 
-        // Now CTA should say Next joke
-        expect(find.text('Next joke'), findsOneWidget);
+        // After revealing punchline, button should say "Next"
+        expect(find.text('Next'), findsOneWidget);
       });
 
       testWidgets('CTA disabled on last joke when showing Next joke', (
@@ -373,11 +380,11 @@ void main() {
         final button = tester.widget<ElevatedButton>(
           find.byKey(const Key('joke_viewer_cta_button')),
         );
-        expect(find.text('Next joke'), findsOneWidget);
+        expect(find.text('Next'), findsOneWidget);
         expect(button.onPressed, isNull);
       });
 
-      testWidgets('landscape CTA switches from Reveal to Next joke', (
+      testWidgets('landscape CTA switches from Reveal to Next', (
         tester,
       ) async {
         // Simulate landscape by making width > height
@@ -396,8 +403,8 @@ void main() {
         await tester.tap(find.byKey(const Key('joke_viewer_cta_button')));
         await tester.pump(const Duration(milliseconds: 400));
 
-        // Now label should be Next joke
-        expect(find.text('Next joke'), findsOneWidget);
+        // Now label should be Next
+        expect(find.text('Next'), findsOneWidget);
       });
 
       testWidgets('portrait places CTA as bottom overlay', (tester) async {
@@ -470,7 +477,7 @@ void main() {
         // Reveal first joke
         await tester.tap(find.byKey(const Key('joke_viewer_cta_button')));
         await tester.pump(const Duration(milliseconds: 400));
-        expect(find.text('Next joke'), findsOneWidget);
+        expect(find.text('Next'), findsOneWidget);
 
         // Advance to next joke
         await tester.tap(find.byKey(const Key('joke_viewer_cta_button')));

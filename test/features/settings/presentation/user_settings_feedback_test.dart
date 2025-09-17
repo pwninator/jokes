@@ -41,6 +41,8 @@ void main() {
     await tester.pumpAndSettle();
 
     final btn = find.byKey(const Key('settings-feedback-button'));
+    await tester.ensureVisible(btn);
+    await tester.pumpAndSettle();
     expect(btn, findsOneWidget);
     await tester.tap(btn);
     await tester.pumpAndSettle();
@@ -69,7 +71,10 @@ void main() {
     await tester.pumpAndSettle();
 
     // Open dialog
-    await tester.tap(find.byKey(const Key('settings-feedback-button')));
+    final button = find.byKey(const Key('settings-feedback-button'));
+    await tester.ensureVisible(button);
+    await tester.pumpAndSettle();
+    await tester.tap(button);
     await tester.pumpAndSettle();
 
     // Enter text

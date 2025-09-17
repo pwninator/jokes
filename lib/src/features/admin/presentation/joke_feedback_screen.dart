@@ -15,6 +15,17 @@ class JokeFeedbackScreen extends ConsumerWidget implements TitledScreen {
   @override
   String get title => 'Feedback';
 
+  /// Gets the latest message from a user in the conversation
+  FeedbackConversationEntry? _getLatestUserMessage(FeedbackEntry entry) {
+    for (int i = entry.conversation.length - 1; i >= 0; i--) {
+      final message = entry.conversation[i];
+      if (message.speaker == SpeakerType.user) {
+        return message;
+      }
+    }
+    return null;
+  }
+
   Color _getIconColor(FeedbackEntry entry, BuildContext context) {
     if (entry.conversation.isEmpty) {
       return Colors.red;
@@ -60,9 +71,15 @@ class JokeFeedbackScreen extends ConsumerWidget implements TitledScreen {
                     color: _getIconColor(entry, context),
                   ),
                   title: Text(
-                    entry.conversation.isNotEmpty
-                        ? entry.conversation.last.text
-                        : 'No messages yet',
+                    () {
+                      final latestUserMessage = _getLatestUserMessage(entry);
+                      if (latestUserMessage != null) {
+                        return latestUserMessage.text;
+                      }
+                      return entry.conversation.isNotEmpty
+                          ? 'Admin response only'
+                          : 'No messages yet';
+                    }(),
                   ),
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,

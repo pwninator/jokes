@@ -1,30 +1,46 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-class Message {
+/// Enum representing the speaker in a feedback conversation
+enum SpeakerType {
+  user('USER'),
+  admin('ADMIN');
+
+  const SpeakerType(this.value);
+
+  /// The string value used in Firestore
+  final String value;
+
+  /// Create SpeakerType from string value
+  static SpeakerType fromString(String value) {
+    switch (value.toUpperCase()) {
+      case 'USER':
+        return SpeakerType.user;
+      case 'ADMIN':
+        return SpeakerType.admin;
+      default:
+        return SpeakerType.user; // Default to user for unknown values
+    }
+  }
+}
+
+// Represents a single entry in a feedback conversation
+class FeedbackConversationEntry {
+  final SpeakerType speaker;
   final String text;
   final DateTime timestamp;
-  final bool isFromAdmin;
 
-  Message({
+  FeedbackConversationEntry({
+    required this.speaker,
     required this.text,
     required this.timestamp,
-    required this.isFromAdmin,
   });
 
-  factory Message.fromFirestore(Map<String, dynamic> data) {
-    return Message(
-      text: data['text'] ?? '',
-      timestamp: (data['timestamp'] as Timestamp).toDate(),
-      isFromAdmin: data['isFromAdmin'] ?? false,
+  factory FeedbackConversationEntry.fromMap(Map<String, dynamic> map) {
+    return FeedbackConversationEntry(
+      speaker: SpeakerType.fromString(map['speaker'] ?? 'USER'),
+      text: map['text'] ?? '',
+      timestamp: (map['timestamp'] as Timestamp).toDate(),
     );
-  }
-
-  Map<String, dynamic> toFirestore() {
-    return {
-      'text': text,
-      'timestamp': Timestamp.fromDate(timestamp),
-      'isFromAdmin': isFromAdmin,
-    };
   }
 }
 
@@ -33,23 +49,30 @@ abstract class FeedbackRepository {
   /// Submit user feedback to Firestore
   Future<void> submitFeedback(String feedbackText, String userId);
 
+  /// Add a message to a feedback conversation
+  Future<void> addConversationMessage(
+    String docId,
+    String text,
+    SpeakerType speaker,
+  );
+
   /// Stream all feedback ordered by creation_time descending
   Stream<List<FeedbackEntry>> watchAllFeedback();
 
-  /// Adds a message to a feedback document
-  Future<void> addMessage(String docId, Message message);
+  /// Stream the count of unread (NEW) feedback items
+  Stream<int> watchUnreadCount();
 
-  /// Updates the last admin view time for a feedback document
-  Future<void> updateLastAdminViewTime(String docId);
+  /// Mark a feedback document READ
+  Future<void> markFeedbackRead(String docId);
 }
 
 class FirestoreFeedbackRepository implements FeedbackRepository {
   final FirebaseFirestore _firestore;
 
-  static const String _collectionName = 'feedback';
+  static const String _collectionName = 'joke_feedback';
 
   FirestoreFeedbackRepository({FirebaseFirestore? firestore})
-      : _firestore = firestore ?? FirebaseFirestore.instance;
+    : _firestore = firestore ?? FirebaseFirestore.instance;
 
   @override
   Future<void> submitFeedback(String feedbackText, String userId) async {
@@ -59,18 +82,43 @@ class FirestoreFeedbackRepository implements FeedbackRepository {
     }
 
     final now = DateTime.now();
-    final initialMessage = Message(
-      text: text,
-      timestamp: now,
-      isFromAdmin: false,
-    );
+    final dateStr =
+        now.year.toString().padLeft(4, '0') +
+        now.month.toString().padLeft(2, '0') +
+        now.day.toString().padLeft(2, '0');
+    final timeStr =
+        now.hour.toString().padLeft(2, '0') +
+        now.minute.toString().padLeft(2, '0') +
+        now.second.toString().padLeft(2, '0');
+    final docId = '${dateStr}_${timeStr}_$userId';
 
-    await _firestore.collection(_collectionName).add({
+    final conversationEntry = {
+      'speaker': SpeakerType.user.value,
+      'text': text,
+      'timestamp': Timestamp.fromDate(DateTime.now().toUtc()),
+    };
+
+    await _firestore.collection(_collectionName).doc(docId).set({
       'creation_time': FieldValue.serverTimestamp(),
+      'conversation': [conversationEntry],
       'user_id': userId,
-      'last_admin_view_time': null,
-      'messages': [initialMessage.toFirestore()],
-      'lastMessage': initialMessage.toFirestore(),
+      'state': FeedbackState.NEW.name,
+    });
+  }
+
+  @override
+  Future<void> addConversationMessage(
+    String docId,
+    String text,
+    SpeakerType speaker,
+  ) async {
+    final conversationEntry = {
+      'speaker': speaker.value,
+      'text': text,
+      'timestamp': Timestamp.fromDate(DateTime.now().toUtc()),
+    };
+    await _firestore.collection(_collectionName).doc(docId).update({
+      'conversation': FieldValue.arrayUnion([conversationEntry]),
     });
   }
 
@@ -88,37 +136,39 @@ class FirestoreFeedbackRepository implements FeedbackRepository {
   }
 
   @override
-  Future<void> addMessage(String docId, Message message) async {
-    await _firestore.collection(_collectionName).doc(docId).update({
-      'messages': FieldValue.arrayUnion([message.toFirestore()]),
-      'lastMessage': message.toFirestore(),
-    });
+  Stream<int> watchUnreadCount() {
+    return _firestore
+        .collection(_collectionName)
+        .where('state', isEqualTo: FeedbackState.NEW.name)
+        .snapshots()
+        .map((s) => s.size);
   }
 
   @override
-  Future<void> updateLastAdminViewTime(String docId) async {
+  Future<void> markFeedbackRead(String docId) async {
     await _firestore.collection(_collectionName).doc(docId).update({
-      'last_admin_view_time': FieldValue.serverTimestamp(),
+      'state': FeedbackState.READ.name,
     });
   }
 }
+
+/// Enum representing feedback state stored in Firestore
+enum FeedbackState { NEW, READ }
 
 /// Feedback entry model used by admin UI
 class FeedbackEntry {
   final String id;
   final DateTime? creationTime;
+  final List<FeedbackConversationEntry> conversation;
   final String userId;
-  final DateTime? lastAdminViewTime;
-  final List<Message> messages;
-  final Message? lastMessage;
+  final FeedbackState state;
 
   FeedbackEntry({
     required this.id,
     required this.creationTime,
+    required this.conversation,
     required this.userId,
-    required this.lastAdminViewTime,
-    required this.messages,
-    this.lastMessage,
+    required this.state,
   });
 
   static FeedbackEntry fromFirestore(
@@ -135,27 +185,47 @@ class FeedbackEntry {
       created = null;
     }
 
-    final lastAdminViewTimeTs = data['last_admin_view_time'];
-    DateTime? lastAdminViewTime;
-    if (lastAdminViewTimeTs is Timestamp) {
-      lastAdminViewTime = lastAdminViewTimeTs.toDate();
+    final stateStr = (data['state'] as String?) ?? FeedbackState.NEW.name;
+    final state = stateStr == FeedbackState.READ.name
+        ? FeedbackState.READ
+        : FeedbackState.NEW;
+
+    // Handle both new conversation format and legacy feedback_text format
+    List<FeedbackConversationEntry> conversation;
+    final conversationData = data['conversation'] as List<dynamic>?;
+
+    if (conversationData != null && conversationData.isNotEmpty) {
+      // New format: conversation array exists
+      conversation = conversationData
+          .map(
+            (e) => FeedbackConversationEntry.fromMap(e as Map<String, dynamic>),
+          )
+          .toList();
+    } else {
+      // Legacy format: check for feedback_text field
+      final feedbackText = data['feedback_text'] as String?;
+      if (feedbackText != null && feedbackText.isNotEmpty) {
+        // Create a single conversation entry from legacy feedback_text
+        conversation = [
+          FeedbackConversationEntry(
+            speaker: SpeakerType.user,
+            text: feedbackText,
+            timestamp:
+                created ?? DateTime.now(), // Use creation_time as timestamp
+          ),
+        ];
+      } else {
+        // No conversation data found
+        conversation = [];
+      }
     }
-
-    final messagesData = data['messages'] as List<dynamic>? ?? [];
-    final messages =
-        messagesData.map((m) => Message.fromFirestore(m)).toList();
-
-    final lastMessageData = data['lastMessage'] as Map<String, dynamic>?;
-    final lastMessage =
-        lastMessageData != null ? Message.fromFirestore(lastMessageData) : null;
 
     return FeedbackEntry(
       id: doc.id,
       creationTime: created,
+      conversation: conversation,
       userId: (data['user_id'] as String?) ?? 'anonymous',
-      lastAdminViewTime: lastAdminViewTime,
-      messages: messages,
-      lastMessage: lastMessage,
+      state: state,
     );
   }
 }

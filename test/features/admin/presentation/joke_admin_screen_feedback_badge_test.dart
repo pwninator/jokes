@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:snickerdoodle/src/core/data/repositories/feedback_repository.dart';
 import 'package:snickerdoodle/src/core/providers/feedback_providers.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_admin_screen.dart';
 
@@ -10,10 +11,22 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   testWidgets('shows unread badge when unread feedback > 0', (tester) async {
+    final now = DateTime.now();
+    final entries = [
+      FeedbackEntry(
+        id: '1',
+        creationTime: now,
+        userId: 'userA',
+        lastAdminViewTime: null,
+        messages: [Message(text: 'Help!', timestamp: now, isFromAdmin: false)],
+        lastMessage: Message(text: 'Help!', timestamp: now, isFromAdmin: false),
+      ),
+    ];
+
     final container = ProviderContainer(
       overrides: FirebaseMocks.getFirebaseProviderOverrides(
         additionalOverrides: [
-          unreadFeedbackCountProvider.overrideWith((ref) => Stream.value(12)),
+          allFeedbackProvider.overrideWith((ref) => Stream.value(entries)),
         ],
       ),
     );
@@ -35,6 +48,6 @@ void main() {
 
     expect(find.text('Feedback'), findsOneWidget);
     // The badge text
-    expect(find.text('12'), findsOneWidget);
+    expect(find.text('1'), findsOneWidget);
   });
 }

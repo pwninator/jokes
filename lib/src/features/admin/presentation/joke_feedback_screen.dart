@@ -1,20 +1,33 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:snickerdoodle/src/common_widgets/adaptive_app_bar_screen.dart';
 import 'package:snickerdoodle/src/common_widgets/titled_screen.dart';
+import 'package:snickerdoodle/src/config/router/route_names.dart';
 import 'package:snickerdoodle/src/core/data/repositories/feedback_repository.dart';
 import 'package:snickerdoodle/src/core/providers/feedback_providers.dart';
 import 'package:timezone/data/latest.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
-
-// Track which feedback IDs have been scheduled for READ update to avoid duplicates
-final Set<String> _scheduledMarkReadIds = <String>{};
 
 class JokeFeedbackScreen extends ConsumerWidget implements TitledScreen {
   const JokeFeedbackScreen({super.key});
 
   @override
   String get title => 'Feedback';
+
+  Color _getIconColor(FeedbackEntry entry, BuildContext context) {
+    if (entry.lastMessage == null) {
+      return Theme.of(context).colorScheme.error;
+    }
+    if (entry.lastMessage!.isFromAdmin) {
+      return Colors.green;
+    }
+    if (entry.lastAdminViewTime != null &&
+        entry.lastAdminViewTime!.isAfter(entry.lastMessage!.timestamp)) {
+      return Colors.yellow;
+    }
+    return Theme.of(context).colorScheme.error;
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -37,48 +50,18 @@ class JokeFeedbackScreen extends ConsumerWidget implements TitledScreen {
               final entry = items[index];
               final usageAsync = ref.watch(jokeUserUsageProvider(entry.userId));
 
-              // Mark as READ if currently NEW, once per ID to prevent duplicates
-              if (entry.state == FeedbackState.NEW) {
-                if (!_scheduledMarkReadIds.contains(entry.id)) {
-                  _scheduledMarkReadIds.add(entry.id);
-                  Future.microtask(() async {
-                    await ref
-                        .read(feedbackRepositoryProvider)
-                        .markFeedbackRead(entry.id);
-                  });
-                }
-              }
-
               return Card(
                 child: ListTile(
-                  leading: Stack(
-                    clipBehavior: Clip.none,
-                    children: [
-                      const Icon(Icons.feedback),
-                      if (entry.state == FeedbackState.NEW)
-                        Positioned(
-                          right: -2,
-                          top: -2,
-                          child: Container(
-                            width: 10,
-                            height: 10,
-                            decoration: BoxDecoration(
-                              color: Theme.of(context).colorScheme.error,
-                              shape: BoxShape.circle,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                  title: Text(entry.feedbackText),
+                  leading: Icon(Icons.feedback, color: _getIconColor(entry, context)),
+                  title: Text(entry.lastMessage?.text ?? 'No messages yet'),
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         _formatTimestamp('Created', entry.creationTime),
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).hintColor,
-                        ),
+                              color: Theme.of(context).hintColor,
+                            ),
                       ),
                       const SizedBox(height: 4),
                       usageAsync.when(
@@ -95,7 +78,9 @@ class JokeFeedbackScreen extends ConsumerWidget implements TitledScreen {
                                     'Last login',
                                     u!.lastLoginAt,
                                   ),
-                                  style: Theme.of(context).textTheme.bodySmall
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodySmall
                                       ?.copyWith(
                                         color: Theme.of(context).hintColor,
                                       ),
@@ -136,6 +121,10 @@ class JokeFeedbackScreen extends ConsumerWidget implements TitledScreen {
                         },
                       ),
                     ],
+                  ),
+                  onTap: () => context.goNamed(
+                    RouteNames.adminFeedbackDetails,
+                    pathParameters: {'feedbackId': entry.id},
                   ),
                 ),
               );

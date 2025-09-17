@@ -78,6 +78,7 @@ dev_dependencies:
   build_runner: ^2.4.9
   mocktail: ^1.0.4
   android_notification_icons: ^0.0.1
+  fake_cloud_firestore: ^3.1.0
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec

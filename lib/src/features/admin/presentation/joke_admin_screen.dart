@@ -14,7 +14,19 @@ class JokeAdminScreen extends ConsumerWidget implements TitledScreen {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final unread = ref.watch(unreadFeedbackCountProvider).value ?? 0;
+    final allFeedback = ref.watch(allFeedbackProvider);
+    final unread = allFeedback.when(
+      data: (items) => items
+          .where((entry) =>
+              entry.lastMessage != null &&
+              !entry.lastMessage!.isFromAdmin &&
+              (entry.lastAdminViewTime == null ||
+                  entry.lastAdminViewTime!
+                      .isBefore(entry.lastMessage!.timestamp)))
+          .length,
+      loading: () => 0,
+      error: (e, st) => 0,
+    );
     return AdaptiveAppBarScreen(
       title: 'Admin',
       body: SingleChildScrollView(

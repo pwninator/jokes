@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:snickerdoodle/src/config/router/route_names.dart';
 import 'package:snickerdoodle/src/core/data/repositories/feedback_repository.dart';
 import 'package:snickerdoodle/src/core/providers/feedback_providers.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_feedback_screen.dart';
@@ -10,97 +15,123 @@ import '../../../test_helpers/firebase_mocks.dart';
 
 class _MockFeedbackRepository extends Mock implements FeedbackRepository {}
 
+class MockGoRouter extends Mock implements GoRouter {}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('renders feedback and marks NEW items as READ', (tester) async {
-    final repo = _MockFeedbackRepository();
+  late _MockFeedbackRepository repo;
+  late MockGoRouter mockGoRouter;
 
-    final now = DateTime(2025, 1, 2, 3, 4, 5);
-    final entries = [
-      FeedbackEntry(
-        id: '20250102_030405_userA',
-        creationTime: now,
-        feedbackText: 'Love the jokes!',
-        userId: 'userA',
-        state: FeedbackState.NEW,
+  setUp(() {
+    repo = _MockFeedbackRepository();
+    mockGoRouter = MockGoRouter();
+  });
+
+  Widget createWidget() {
+    return ProviderScope(
+      overrides: [
+        feedbackRepositoryProvider.overrideWithValue(repo),
+        ...FirebaseMocks.getFirebaseProviderOverrides(),
+      ],
+      child: MaterialApp(
+        home: InheritedGoRouter(
+          goRouter: mockGoRouter,
+          child: const JokeFeedbackScreen(),
+        ),
       ),
+    );
+  }
+
+  testWidgets('renders feedback and checks icon colors', (tester) async {
+    final now = DateTime.now();
+    final entries = [
+      // Red case
       FeedbackEntry(
-        id: '20250101_020304_userB',
-        creationTime: now.subtract(const Duration(days: 1)),
-        feedbackText: 'Could use more puns',
+        id: '1',
+        creationTime: now,
+        userId: 'userA',
+        lastAdminViewTime: null,
+        messages: [Message(text: 'Help!', timestamp: now, isFromAdmin: false)],
+        lastMessage: Message(text: 'Help!', timestamp: now, isFromAdmin: false),
+      ),
+      // Yellow case
+      FeedbackEntry(
+        id: '2',
+        creationTime: now,
         userId: 'userB',
-        state: FeedbackState.READ,
+        lastAdminViewTime: now,
+        messages: [
+          Message(
+              text: 'Thanks!',
+              timestamp: now.subtract(const Duration(hours: 1)),
+              isFromAdmin: false)
+        ],
+        lastMessage: Message(
+            text: 'Thanks!',
+            timestamp: now.subtract(const Duration(hours: 1)),
+            isFromAdmin: false),
+      ),
+      // Green case
+      FeedbackEntry(
+        id: '3',
+        creationTime: now,
+        userId: 'userC',
+        lastAdminViewTime: now.subtract(const Duration(hours: 1)),
+        messages: [
+          Message(text: 'I got you', timestamp: now, isFromAdmin: true)
+        ],
+        lastMessage:
+            Message(text: 'I got you', timestamp: now, isFromAdmin: true),
       ),
     ];
 
-    when(
-      () => repo.watchAllFeedback(),
-    ).thenAnswer((_) => Stream.value(entries));
-    when(() => repo.watchUnreadCount()).thenAnswer((_) => Stream.value(1));
-    when(() => repo.markFeedbackRead(any())).thenAnswer((_) async {});
+    when(() => repo.watchAllFeedback())
+        .thenAnswer((_) => Stream.value(entries));
 
-    final container = ProviderContainer(
-      overrides: FirebaseMocks.getFirebaseProviderOverrides(
-        additionalOverrides: [
-          feedbackRepositoryProvider.overrideWithValue(repo),
-          // Provide usage counters for each user
-          jokeUserUsageProvider.overrideWithProvider(
-            (userId) => StreamProvider((ref) {
-              if (userId == 'userA') {
-                return Stream.value(
-                  const JokeUserUsage(
-                    clientNumDaysUsed: 3,
-                    clientNumViewed: 10,
-                    clientNumSaved: 2,
-                    clientNumShared: 1,
-                  ),
-                );
-              }
-              return Stream.value(
-                const JokeUserUsage(
-                  clientNumDaysUsed: 1,
-                  clientNumViewed: 4,
-                  clientNumSaved: 0,
-                  clientNumShared: 0,
-                ),
-              );
-            }),
-          ),
-        ],
+    await tester.pumpWidget(createWidget());
+    await tester.pumpAndSettle();
+
+    expect(find.text('Help!'), findsOneWidget);
+    expect(find.text('Thanks!'), findsOneWidget);
+    expect(find.text('I got you'), findsOneWidget);
+
+    final icon1 = tester.widget<Icon>(
+        find.descendant(of: find.byType(ListTile).at(0), matching: find.byType(Icon)));
+    final icon2 = tester.widget<Icon>(
+        find.descendant(of: find.byType(ListTile).at(1), matching: find.byType(Icon)));
+    final icon3 = tester.widget<Icon>(
+        find.descendant(of: find.byType(ListTile).at(2), matching: find.byType(Icon)));
+
+    expect(icon1.color, Theme.of(tester.element(find.byType(ListTile).at(0))).colorScheme.error);
+    expect(icon2.color, Colors.yellow);
+    expect(icon3.color, Colors.green);
+  });
+
+  testWidgets('tapping a feedback item navigates to details page',
+      (tester) async {
+    final now = DateTime.now();
+    final entries = [
+      FeedbackEntry(
+        id: '1',
+        creationTime: now,
+        userId: 'userA',
+        lastAdminViewTime: null,
+        messages: [Message(text: 'Help!', timestamp: now, isFromAdmin: false)],
+        lastMessage: Message(text: 'Help!', timestamp: now, isFromAdmin: false),
       ),
-    );
-    addTearDown(container.dispose);
+    ];
 
-    // Force portrait so AdaptiveAppBarScreen shows title reliably
-    final originalSize = tester.view.physicalSize;
-    tester.view.physicalSize = const Size(600, 800);
-    addTearDown(() => tester.view.physicalSize = originalSize);
+    when(() => repo.watchAllFeedback())
+        .thenAnswer((_) => Stream.value(entries));
 
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: const MaterialApp(home: JokeFeedbackScreen()),
-      ),
-    );
+    await tester.pumpWidget(createWidget());
+    await tester.pumpAndSettle();
 
-    // Let streams emit
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 50));
-    await tester.pumpAndSettle(const Duration(milliseconds: 50));
+    await tester.tap(find.byType(ListTile));
+    await tester.pumpAndSettle();
 
-    expect(find.text('Feedback'), findsOneWidget);
-    expect(find.text('Love the jokes!'), findsOneWidget);
-    // Last login label appears when provided
-    expect(find.textContaining('Last login'), findsOneWidget);
-    // Scroll to build next items lazily
-    final scrollable = find.byType(Scrollable);
-    await tester.drag(scrollable, const Offset(0, -400));
-    await tester.pump();
-    expect(find.text('Could use more puns'), findsOneWidget);
-
-    // Mark-as-read should have been triggered for NEW entry
-    await tester.pump(const Duration(milliseconds: 50));
-    verify(() => repo.markFeedbackRead('20250102_030405_userA')).called(1);
+    verify(() => mockGoRouter.goNamed(RouteNames.adminFeedbackDetails,
+        pathParameters: {'feedbackId': '1'})).called(1);
   });
 }

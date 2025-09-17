@@ -6,6 +6,13 @@ import 'package:snickerdoodle/src/features/auth/data/models/app_user.dart';
 abstract class FeedbackService {
   /// Submit freeform user feedback to Firestore and log analytics
   Future<void> submitFeedback(String feedbackText, AppUser? currentUser);
+
+  /// Add a message to a feedback conversation
+  Future<void> addConversationMessage(
+    String docId,
+    String text,
+    SpeakerType speaker,
+  );
 }
 
 class FeedbackServiceImpl implements FeedbackService {
@@ -23,5 +30,14 @@ class FeedbackServiceImpl implements FeedbackService {
     final userId = currentUser?.id ?? 'anonymous';
     await _feedbackRepository.submitFeedback(feedbackText, userId);
     _analyticsService.logFeedbackSubmitted();
+  }
+
+  @override
+  Future<void> addConversationMessage(
+    String docId,
+    String text,
+    SpeakerType speaker,
+  ) async {
+    await _feedbackRepository.addConversationMessage(docId, text, speaker);
   }
 }

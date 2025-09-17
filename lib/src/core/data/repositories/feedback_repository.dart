@@ -109,6 +109,12 @@ class FirestoreFeedbackRepository implements FeedbackRepository {
       'timestamp': Timestamp.fromDate(DateTime.now().toUtc()),
     };
 
+    final conversationEntry = {
+      'speaker': SpeakerType.user.value,
+      'text': text,
+      'timestamp': Timestamp.fromDate(DateTime.now().toUtc()),
+    };
+
     await _firestore.collection(_collectionName).doc(docId).set({
       'creation_time': FieldValue.serverTimestamp(),
       'conversation': [conversationEntry],

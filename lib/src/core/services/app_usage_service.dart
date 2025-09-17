@@ -5,17 +5,22 @@ import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/providers/app_usage_events_provider.dart';
 import 'package:snickerdoodle/src/core/providers/shared_preferences_provider.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
+import 'package:snickerdoodle/src/core/services/review_prompt_state_store.dart';
 import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
+import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
 
 /// Provider for AppUsageService using the shared preferences instance provider
 final appUsageServiceProvider = Provider<AppUsageService>((ref) {
   final sharedPreferences = ref.watch(sharedPreferencesInstanceProvider);
   final analyticsService = ref.watch(analyticsServiceProvider);
+  final jokeCloudFn = ref.watch(jokeCloudFunctionServiceProvider);
   return AppUsageService(
     prefs: sharedPreferences,
     analyticsService: analyticsService,
     ref: ref,
+    jokeCloudFn: jokeCloudFn,
+    isDebugMode: kDebugMode,
   );
 });
 
@@ -26,15 +31,18 @@ class AppUsageService {
     AnalyticsService? analyticsService,
     Ref? ref,
     JokeCloudFunctionService? jokeCloudFn,
-  }) : _prefs = prefs,
-       _analyticsService = analyticsService,
-       _ref = ref,
-       _jokeCloudFn = jokeCloudFn ?? JokeCloudFunctionService();
+    bool? isDebugMode,
+  })  : _prefs = prefs,
+        _analyticsService = analyticsService,
+        _ref = ref,
+        _jokeCloudFn = jokeCloudFn ?? JokeCloudFunctionService(),
+        _isDebugMode = isDebugMode;
 
   final SharedPreferences _prefs;
   final AnalyticsService? _analyticsService;
   final Ref? _ref;
   final JokeCloudFunctionService _jokeCloudFn;
+  final bool? _isDebugMode;
 
   // Preference keys
   static const String _firstUsedDateKey = 'first_used_date';
@@ -234,7 +242,7 @@ class AppUsageService {
     try {
       // Skip backend sync in debug mode or for admin users (mirrors analytics behavior)
       final bool isAdmin = _ref?.read(isAdminProvider) ?? false;
-      if (kDebugMode || isAdmin) {
+      if ((_isDebugMode ?? kDebugMode) || isAdmin) {
         debugPrint(
           'APP_USAGE SKIPPED (${isAdmin ? 'ADMIN' : 'DEBUG'}): trackUsage snapshot not sent',
         );
@@ -246,6 +254,9 @@ class AppUsageService {
       final int numSaved = await getNumSavedJokes();
       final int numViewed = await getNumJokesViewed();
       final int numShared = await getNumSharedJokes();
+      final bool requestedReview =
+          await _ref?.read(reviewPromptStateStoreProvider).hasRequested() ??
+              false;
       futures.add(
         _jokeCloudFn
             .trackUsage(
@@ -253,6 +264,7 @@ class AppUsageService {
               numSaved: numSaved,
               numViewed: numViewed,
               numShared: numShared,
+              requestedReview: requestedReview,
             )
             .catchError((e, _) => debugPrint('APP_USAGE trackUsage error: $e')),
       );

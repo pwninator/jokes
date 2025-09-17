@@ -288,7 +288,13 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
                   child: Container(
                     width: isLandscape ? null : double.infinity,
                     height: isLandscape ? double.infinity : null,
-                    padding: EdgeInsets.all(isLandscape ? 0.0 : 16.0),
+                    padding: EdgeInsets.only(
+                      left: isLandscape ? 0.0 : 16.0,
+                      right: isLandscape ? 0.0 : 16.0,
+                      top: isLandscape ? 0.0 : 16.0,
+                      // Add bottom padding in portrait mode to account for CTA button
+                      bottom: isLandscape ? 0.0 : 50.0, // CTA button height + safe area
+                    ),
                     child: JokeCard(
                       key: Key(joke.id),
                       joke: joke,

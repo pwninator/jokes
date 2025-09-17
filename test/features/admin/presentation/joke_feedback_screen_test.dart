@@ -47,6 +47,13 @@ void main() {
       FeedbackEntry(
         id: '1',
         creationTime: now,
+        conversation: [
+          FeedbackConversationEntry(
+            speaker: SpeakerType.user,
+            text: 'Love the jokes!',
+            timestamp: now,
+          ),
+        ],
         userId: 'userA',
         conversation: [
           FeedbackConversationEntry(
@@ -59,6 +66,15 @@ void main() {
       ),
       // Yellow case
       FeedbackEntry(
+        id: '20250101_020304_userB',
+        creationTime: now.subtract(const Duration(days: 1)),
+        conversation: [
+          FeedbackConversationEntry(
+            speaker: SpeakerType.user,
+            text: 'Could use more puns',
+            timestamp: now.subtract(const Duration(days: 1)),
+          ),
+        ],
         id: '2',
         creationTime: now,
         userId: 'userB',

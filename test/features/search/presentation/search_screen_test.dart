@@ -51,11 +51,12 @@ void main() {
     // Verify MaterialBanner is shown
     expect(find.text('Please enter a longer search query'), findsOneWidget);
 
-    // Provider should still have empty query
-    expect(
-      container.read(searchQueryProvider(SearchScope.userJokeSearch)).query,
-      '',
+    // Provider should still have empty query and none label
+    final searchQuery = container.read(
+      searchQueryProvider(SearchScope.userJokeSearch),
     );
+    expect(searchQuery.query, '');
+    expect(searchQuery.label, SearchLabel.none);
   });
 
   testWidgets('Shows results count for single result', (tester) async {
@@ -255,12 +256,14 @@ void main() {
                 displayName: 'Animal Jokes',
                 jokeDescriptionQuery: 'animal',
                 imageUrl: null,
+                state: JokeCategoryState.APPROVED,
               ),
               JokeCategory(
                 id: 'food',
                 displayName: 'Food',
                 jokeDescriptionQuery: 'food',
                 imageUrl: null,
+                state: JokeCategoryState.APPROVED,
               ),
             ]),
           ),
@@ -293,11 +296,12 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 50));
 
-    // Provider should be updated with prefixed query
-    final query = container
-        .read(searchQueryProvider(SearchScope.userJokeSearch))
-        .query;
-    expect(query, '${JokeConstants.searchQueryPrefix}animal');
+    // Provider should be updated with prefixed query and category label
+    final searchQuery = container.read(
+      searchQueryProvider(SearchScope.userJokeSearch),
+    );
+    expect(searchQuery.query, '${JokeConstants.searchQueryPrefix}animal');
+    expect(searchQuery.label, SearchLabel.category);
 
     // The grid should no longer be visible after search starts
     expect(find.byKey(const Key('search-categories-grid')), findsNothing);
@@ -317,6 +321,7 @@ void main() {
                   displayName: 'Tech',
                   jokeDescriptionQuery: 'tech',
                   imageUrl: null,
+                  state: JokeCategoryState.APPROVED,
                 ),
               ]),
             ),
@@ -364,4 +369,41 @@ void main() {
       expect(find.byKey(const Key('search-categories-grid')), findsOneWidget);
     },
   );
+
+  testWidgets('Manual typing sets search label to none', (tester) async {
+    final container = ProviderContainer(
+      overrides: FirebaseMocks.getFirebaseProviderOverrides(
+        additionalOverrides: [
+          // Avoid network search calls in tests
+          searchResultsViewerProvider(
+            SearchScope.userJokeSearch,
+          ).overrideWith((ref) => const AsyncValue.data([])),
+        ],
+      ),
+    );
+    addTearDown(container.dispose);
+
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const MaterialApp(home: SearchScreen()),
+      ),
+    );
+
+    // Enter text manually and submit
+    final field = find.byKey(const Key('search-tab-search-field'));
+    await tester.enterText(field, 'manual search');
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.pump();
+
+    // Provider should have prefixed query and none label
+    final searchQuery = container.read(
+      searchQueryProvider(SearchScope.userJokeSearch),
+    );
+    expect(
+      searchQuery.query,
+      '${JokeConstants.searchQueryPrefix}manual search',
+    );
+    expect(searchQuery.label, SearchLabel.none);
+  });
 }

@@ -14,6 +14,8 @@ class _MockFeedbackRepository extends Mock implements FeedbackRepository {}
 
 class MockGoRouter extends Mock implements GoRouter {}
 
+class MockGoRouter extends Mock implements GoRouter {}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -97,6 +99,53 @@ void main() {
     expect(find.text('Help!'), findsOneWidget);
     expect(find.text('Thanks!'), findsOneWidget);
     expect(find.text('I got you'), findsOneWidget);
+
+    final icon1 = tester.widget<Icon>(
+      find.descendant(
+        of: find.byType(ListTile).at(0),
+        matching: find.byType(Icon),
+      ),
+    );
+    final icon2 = tester.widget<Icon>(
+      find.descendant(
+        of: find.byType(ListTile).at(1),
+        matching: find.byType(Icon),
+      ),
+    );
+    final icon3 = tester.widget<Icon>(
+      find.descendant(
+        of: find.byType(ListTile).at(2),
+        matching: find.byType(Icon),
+      ),
+    );
+
+    expect(icon1.color, isA<Color>());
+    expect(icon2.color, Colors.yellow);
+    expect(icon3.color, Colors.green);
+  });
+
+  testWidgets('tapping a feedback item navigates to details page', (
+    tester,
+  ) async {
+    final now = DateTime.now();
+    final entries = [
+      FeedbackEntry(
+        id: '1',
+        creationTime: now,
+        userId: 'userA',
+        lastAdminViewTime: null,
+        conversation: [
+          FeedbackConversationEntry(
+            speaker: SpeakerType.user,
+            text: 'Help!',
+            timestamp: now,
+
+    await tester.pumpWidget(createWidget());
+    await tester.pumpAndSettle();
+
+    expect(find.text('Help!'), findsOneWidget);
+    expect(find.text('Thanks!'), findsOneWidget);
+    expect(find.text('Admin response only'), findsOneWidget);
 
     final icon1 = tester.widget<Icon>(
       find.descendant(

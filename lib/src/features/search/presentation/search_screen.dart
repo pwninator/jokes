@@ -1,15 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:snickerdoodle/src/common_widgets/adaptive_app_bar_screen.dart';
 import 'package:snickerdoodle/src/config/router/router_providers.dart';
 import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
 import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
+import 'package:snickerdoodle/src/features/admin/presentation/joke_category_tile.dart';
+import 'package:snickerdoodle/src/features/jokes/application/joke_category_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_navigation_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_search_providers.dart';
+import 'package:snickerdoodle/src/features/jokes/data/models/joke_category.dart';
 import 'package:snickerdoodle/src/features/jokes/presentation/joke_list_viewer.dart';
-import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
-import 'package:snickerdoodle/src/features/jokes/application/joke_category_providers.dart';
-import 'package:snickerdoodle/src/features/admin/presentation/joke_category_tile.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key});
@@ -58,7 +59,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     super.dispose();
   }
 
-  void _onSubmitted(String raw) {
+  void _onSubmitted(String raw, {required SearchLabel label}) {
     final query = raw.trim();
     if (query.length < 2) {
       ScaffoldMessenger.of(context).clearMaterialBanners();
@@ -81,7 +82,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       publicOnly: JokeConstants.userSearchPublicOnly,
       matchMode: JokeConstants.userSearchMatchMode,
       excludeJokeIds: const [],
-      label: JokeConstants.userSearchLabel,
+      label: label,
     );
     // Reset viewer to first result
     _resetViewer?.call();
@@ -188,7 +189,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               ),
               maxLines: 1,
               textInputAction: TextInputAction.search,
-              onSubmitted: _onSubmitted,
+              onSubmitted: (value) =>
+                  _onSubmitted(value, label: SearchLabel.none),
             ),
           ),
           // Results count label under the search bar
@@ -236,8 +238,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   final categoriesAsync = ref.watch(jokeCategoriesProvider);
                   return categoriesAsync.when(
                     data: (categories) {
-                      if (categories.isEmpty) {
-                        return const Center(child: Text('No categories found'));
+                      final approved = categories
+                          .where((c) => c.state == JokeCategoryState.APPROVED)
+                          .toList();
+
+                      if (approved.isEmpty) {
+                        return const Center(child: Text('Search for jokes!'));
                       }
 
                       const double minTileWidth = 150.0;
@@ -275,17 +281,21 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                               crossAxisCount: columns,
                               mainAxisSpacing: spacing,
                               crossAxisSpacing: spacing,
-                              itemCount: categories.length,
+                              itemCount: approved.length,
                               itemBuilder: (context, index) {
-                                final cat = categories[index];
+                                final cat = approved[index];
                                 return JokeCategoryTile(
                                   category: cat,
+                                  showStateBorder: false,
                                   onTap: () {
                                     final rawQuery = cat.jokeDescriptionQuery
                                         .trim();
                                     if (rawQuery.isEmpty) return;
                                     _controller.text = rawQuery;
-                                    _onSubmitted(rawQuery);
+                                    _onSubmitted(
+                                      rawQuery,
+                                      label: SearchLabel.category,
+                                    );
                                   },
                                 );
                               },

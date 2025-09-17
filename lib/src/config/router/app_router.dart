@@ -11,6 +11,7 @@ import 'package:snickerdoodle/src/core/services/notification_service.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/deep_research_screen.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_admin_screen.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_categories_screen.dart';
+import 'package:snickerdoodle/src/features/admin/presentation/joke_category_editor_screen.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_creator_screen.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/admin_feedback/admin_feedback_details_page.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_feedback_screen.dart';
@@ -218,6 +219,16 @@ class AppRouter {
               path: AppRoutes.adminCategories,
               name: RouteNames.adminCategories,
               builder: (context, state) => const JokeCategoriesScreen(),
+            ),
+
+            // Admin Category Editor
+            GoRoute(
+              path: AppRoutes.adminCategoryEditor,
+              name: RouteNames.adminCategoryEditor,
+              builder: (context, state) {
+                final categoryId = state.pathParameters['categoryId']!;
+                return JokeCategoryEditorScreen(categoryId: categoryId);
+              },
             ),
 
             // Admin Feedback

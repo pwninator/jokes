@@ -14,7 +14,7 @@ enum SearchScope {
 }
 
 /// Label for search queries to provide additional context
-enum SearchLabel { none, similarJokes }
+enum SearchLabel { none, similarJokes, category }
 
 // Search query state: strongly typed object
 class SearchQuery {

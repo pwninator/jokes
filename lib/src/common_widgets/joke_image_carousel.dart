@@ -311,10 +311,14 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
       widget.onSetupTap!();
     }
     _lastNavigationMethod = AnalyticsNavigationMethod.ctaReveal;
-    _pageController.nextPage(
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeInOut,
-    );
+    
+    // Only use PageController in REVEAL mode
+    if (widget.mode == JokeCarouselMode.REVEAL) {
+      _pageController.nextPage(
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeInOut,
+      );
+    }
   }
 
   void _onImageLongPress() {
@@ -708,7 +712,17 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
     return widgets;
   }
 
-  @override
+  double _getAspectRatio() {
+    switch (widget.mode) {
+      case JokeCarouselMode.REVEAL:
+        return 1.0; // Standard square aspect ratio for single image
+      case JokeCarouselMode.HORIZONTAL:
+        return 2.0; // Wider to accommodate two images side by side
+      case JokeCarouselMode.VERTICAL:
+        return 0.5; // Taller to accommodate two images stacked vertically
+    }
+  }
+
   Widget _buildCarouselContent() {
     final setupImage = _buildImagePage(imageUrl: widget.joke.setupImageUrl);
     final punchlineImage =
@@ -783,8 +797,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
                           bottom: Radius.circular(16),
                         ),
                         child: AspectRatio(
-                          aspectRatio:
-                              widget.mode == JokeCarouselMode.HORIZONTAL ? 2.0 : 1.0,
+                          aspectRatio: _getAspectRatio(),
                           child: _buildCarouselContent(),
                         ),
                       ),
@@ -832,16 +845,16 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
             ),
           ),
 
-          // Page indicators and reaction/count buttons row
-          if (widget.mode == JokeCarouselMode.REVEAL)
-            SizedBox(
-              height: 36,
-              child: Row(
-                children: [
-                  // Left spacer
-                  Expanded(child: _buildLeftControls()),
+          // Controls row - always show, but conditionally show page indicators
+          SizedBox(
+            height: 36,
+            child: Row(
+              children: [
+                // Left spacer
+                Expanded(child: _buildLeftControls()),
 
-                  // Page indicators (centered)
+                // Page indicators (centered) - only show in REVEAL mode
+                if (widget.mode == JokeCarouselMode.REVEAL)
                   SmoothPageIndicator(
                     controller: _pageController,
                     count: 2,
@@ -857,11 +870,11 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
                     ),
                   ),
 
-                  // Right buttons (save, share, admin rating) or spacer
-                  Expanded(child: _buildRightControls()),
-                ],
-              ),
+                // Right buttons (save, share, admin rating) or spacer
+                Expanded(child: _buildRightControls()),
+              ],
             ),
+          ),
 
           // Admin buttons (only shown in admin mode)
           if (widget.isAdminMode)

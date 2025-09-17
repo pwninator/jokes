@@ -96,7 +96,7 @@ void main() {
 
     expect(find.text('Help!'), findsOneWidget);
     expect(find.text('Thanks!'), findsOneWidget);
-    expect(find.text('I got you'), findsOneWidget);
+    expect(find.text('Admin response only'), findsOneWidget);
 
     final icon1 = tester.widget<Icon>(
       find.descendant(

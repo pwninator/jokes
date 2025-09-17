@@ -1,8 +1,9 @@
 """Analytics and usage tracking functions."""
 
 from firebase_functions import https_fn, logger, options
-from functions.function_utils import (error_response, get_int_param,
-                                      get_user_id, success_response)
+from functions.function_utils import (error_response, get_bool_param,
+                                      get_int_param, get_user_id,
+                                      success_response)
 from services import firestore as firestore_service
 
 
@@ -33,7 +34,7 @@ def usage(req: https_fn.Request) -> https_fn.Response:
     client_num_saved_int = get_int_param(req, 'num_saved', default=None)
     client_num_viewed_int = get_int_param(req, 'num_viewed', default=None)
     client_num_shared_int = get_int_param(req, 'num_shared', default=None)
-    requested_review = req.data.get("requested_review", False)
+    requested_review = get_bool_param(req, "requested_review", default=False)
 
     final_days_used = firestore_service.upsert_joke_user_usage(
       user_id,

@@ -233,7 +233,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               builder: (context, ref, child) {
                 final bool isSearchEmpty = _controller.text.trim().isEmpty;
                 if (isSearchEmpty) {
-                  final categoriesAsync = ref.watch(jokeCategoriesProvider);
+                  final categoriesAsync =
+                      ref.watch(approvedJokeCategoriesProvider);
                   return categoriesAsync.when(
                     data: (categories) {
                       if (categories.isEmpty) {

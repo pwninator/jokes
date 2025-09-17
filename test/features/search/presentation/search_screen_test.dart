@@ -248,7 +248,7 @@ void main() {
       overrides: FirebaseMocks.getFirebaseProviderOverrides(
         additionalOverrides: [
           // Provide fake categories
-          jokeCategoriesProvider.overrideWith(
+          approvedJokeCategoriesProvider.overrideWith(
             (ref) => Stream.value(const [
               JokeCategory(
                 id: 'animal_jokes',
@@ -310,7 +310,7 @@ void main() {
         overrides: FirebaseMocks.getFirebaseProviderOverrides(
           additionalOverrides: [
             // Provide categories so grid can show when empty
-            jokeCategoriesProvider.overrideWith(
+            approvedJokeCategoriesProvider.overrideWith(
               (ref) => Stream.value(const [
                 JokeCategory(
                   id: 'tech',

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
+import 'package:go_router/go_router.dart';
 import 'package:snickerdoodle/src/common_widgets/adaptive_app_bar_screen.dart';
 import 'package:snickerdoodle/src/common_widgets/titled_screen.dart';
+import 'package:snickerdoodle/src/config/router/route_names.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_category_tile.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_category_providers.dart';
 
@@ -61,7 +63,15 @@ class JokeCategoriesScreen extends ConsumerWidget implements TitledScreen {
                   itemCount: categories.length,
                   itemBuilder: (context, index) {
                     final cat = categories[index];
-                    return JokeCategoryTile(category: cat);
+                    return JokeCategoryTile(
+                      category: cat,
+                      showBorder: true,
+                      onTap: () => context.go(
+                        AppRoutes.adminCategoryEditor
+                            .replaceFirst(':id', cat.id),
+                        extra: cat,
+                      ),
+                    );
                   },
                 ),
               );

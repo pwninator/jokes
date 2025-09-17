@@ -141,8 +141,7 @@ async def upsert_joke_categories(
   if not categories:
     return
 
-  # Validate and prepare payloads first to avoid partial writes
-  prepared: list[tuple[str, dict[str, str]]] = []
+  client = get_async_db()
   for category in categories:
     display_name = (category.display_name or '').strip()
     description_query = (category.joke_description_query or '').strip()
@@ -151,18 +150,40 @@ async def upsert_joke_categories(
       raise ValueError(
         "JokeCategory must have non-empty display_name and joke_description_query"
       )
+
+    doc_ref = client.collection('joke_categories').document(category.key)
+    existing_doc = await doc_ref.get()
+
+    if existing_doc.exists:
+      existing_data = existing_doc.to_dict()
+      existing_state = existing_data.get('state')
+      if existing_state == models.JokeCategoryState.APPROVED.value:
+        raise Exception(f"Cannot update category {category.key} because it is already approved.")
+      if existing_state == models.JokeCategoryState.REJECTED.value:
+        category.state = models.JokeCategoryState.PROPOSED
+
     payload: dict[str, str] = {
       'display_name': display_name,
       'joke_description_query': description_query,
+      'state': category.state.value,
     }
     if image_description:
       payload['image_description'] = image_description
-    prepared.append((category.key, payload))
+
+    await doc_ref.set(payload, merge=True)
+
+
+async def delete_joke_category(category_id: str) -> None:
+  """Delete a joke category from the 'joke_categories' collection.
+
+  Args:
+      category_id: The ID of the category to delete.
+  """
+  if not category_id:
+    return
 
   client = get_async_db()
-  for key, data in prepared:
-    await client.collection('joke_categories').document(key).set(data,
-                                                                 merge=True)
+  await client.collection('joke_categories').document(category_id).delete()
 
 
 def list_joke_schedules() -> list[str]:

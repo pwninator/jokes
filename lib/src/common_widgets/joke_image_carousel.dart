@@ -24,6 +24,8 @@ import 'package:snickerdoodle/src/features/jokes/application/joke_search_provide
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_state.dart';
 
+enum JokeCarouselMode { REVEAL, VERTICAL, HORIZONTAL }
+
 /// Controller to allow parent widgets to imperatively control the
 /// `JokeImageCarousel` (e.g., reveal the punchline programmatically).
 class JokeImageCarouselController {
@@ -61,6 +63,7 @@ class JokeImageCarousel extends ConsumerStatefulWidget {
   final JokeImageCarouselController? controller;
   final String? overlayBadgeText;
   final bool showSimilarSearchButton;
+  final JokeCarouselMode mode;
 
   const JokeImageCarousel({
     super.key,
@@ -81,6 +84,7 @@ class JokeImageCarousel extends ConsumerStatefulWidget {
     this.controller,
     this.overlayBadgeText,
     this.showSimilarSearchButton = false,
+    this.mode = JokeCarouselMode.REVEAL,
   });
 
   @override
@@ -705,6 +709,36 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
   }
 
   @override
+  Widget _buildCarouselContent() {
+    final setupImage = _buildImagePage(imageUrl: widget.joke.setupImageUrl);
+    final punchlineImage =
+        _buildImagePage(imageUrl: widget.joke.punchlineImageUrl);
+
+    switch (widget.mode) {
+      case JokeCarouselMode.REVEAL:
+        return PageView(
+          controller: _pageController,
+          onPageChanged: _onPageChanged,
+          children: [setupImage, punchlineImage],
+        );
+      case JokeCarouselMode.VERTICAL:
+        return Column(
+          children: [
+            Expanded(child: setupImage),
+            Expanded(child: punchlineImage),
+          ],
+        );
+      case JokeCarouselMode.HORIZONTAL:
+        return Row(
+          children: [
+            Expanded(child: setupImage),
+            Expanded(child: punchlineImage),
+          ],
+        );
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final populationState = ref.watch(jokePopulationProvider);
@@ -736,7 +770,8 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
               child: Stack(
                 children: [
                   GestureDetector(
-                    onTap: _onImageTap,
+                    onTap:
+                        widget.mode == JokeCarouselMode.REVEAL ? _onImageTap : null,
                     onLongPress: widget.isAdminMode ? _onImageLongPress : null,
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(
@@ -748,21 +783,9 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
                           bottom: Radius.circular(16),
                         ),
                         child: AspectRatio(
-                          aspectRatio: 1.0,
-                          child: PageView(
-                            controller: _pageController,
-                            onPageChanged: _onPageChanged,
-                            children: [
-                              // Setup image
-                              _buildImagePage(
-                                imageUrl: widget.joke.setupImageUrl,
-                              ),
-                              // Punchline image
-                              _buildImagePage(
-                                imageUrl: widget.joke.punchlineImageUrl,
-                              ),
-                            ],
-                          ),
+                          aspectRatio:
+                              widget.mode == JokeCarouselMode.HORIZONTAL ? 2.0 : 1.0,
+                          child: _buildCarouselContent(),
                         ),
                       ),
                     ),
@@ -810,34 +833,35 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
           ),
 
           // Page indicators and reaction/count buttons row
-          SizedBox(
-            height: 36,
-            child: Row(
-              children: [
-                // Left spacer
-                Expanded(child: _buildLeftControls()),
+          if (widget.mode == JokeCarouselMode.REVEAL)
+            SizedBox(
+              height: 36,
+              child: Row(
+                children: [
+                  // Left spacer
+                  Expanded(child: _buildLeftControls()),
 
-                // Page indicators (centered)
-                SmoothPageIndicator(
-                  controller: _pageController,
-                  count: 2,
-                  effect: WormEffect(
-                    dotHeight: 12,
-                    dotWidth: 12,
-                    spacing: 6,
-                    radius: 6,
-                    dotColor: theme.colorScheme.onSurface.withValues(
-                      alpha: 0.3,
+                  // Page indicators (centered)
+                  SmoothPageIndicator(
+                    controller: _pageController,
+                    count: 2,
+                    effect: WormEffect(
+                      dotHeight: 12,
+                      dotWidth: 12,
+                      spacing: 6,
+                      radius: 6,
+                      dotColor: theme.colorScheme.onSurface.withValues(
+                        alpha: 0.3,
+                      ),
+                      activeDotColor: theme.colorScheme.primary,
                     ),
-                    activeDotColor: theme.colorScheme.primary,
                   ),
-                ),
 
-                // Right buttons (save, share, admin rating) or spacer
-                Expanded(child: _buildRightControls()),
-              ],
+                  // Right buttons (save, share, admin rating) or spacer
+                  Expanded(child: _buildRightControls()),
+                ],
+              ),
             ),
-          ),
 
           // Admin buttons (only shown in admin mode)
           if (widget.isAdminMode)

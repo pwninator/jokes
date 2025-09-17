@@ -4,6 +4,7 @@ import 'package:snickerdoodle/src/common_widgets/adaptive_app_bar_screen.dart';
 import 'package:snickerdoodle/src/common_widgets/titled_screen.dart';
 import 'package:snickerdoodle/src/core/data/repositories/feedback_repository.dart';
 import 'package:snickerdoodle/src/core/providers/feedback_providers.dart';
+import 'package:snickerdoodle/src/features/admin/presentation/feedback_details_screen.dart';
 import 'package:timezone/data/latest.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
 
@@ -51,6 +52,14 @@ class JokeFeedbackScreen extends ConsumerWidget implements TitledScreen {
 
               return Card(
                 child: ListTile(
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (context) =>
+                            FeedbackDetailsScreen(feedback: entry),
+                      ),
+                    );
+                  },
                   leading: Stack(
                     clipBehavior: Clip.none,
                     children: [
@@ -70,7 +79,11 @@ class JokeFeedbackScreen extends ConsumerWidget implements TitledScreen {
                         ),
                     ],
                   ),
-                  title: Text(entry.feedbackText),
+                  title: Text(
+                    entry.conversation.isNotEmpty
+                        ? entry.conversation.last.text
+                        : 'No messages',
+                  ),
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [

@@ -1,9 +1,60 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+/// Enum representing the speaker in a feedback conversation
+enum SpeakerType {
+  user('USER'),
+  admin('ADMIN');
+
+  const SpeakerType(this.value);
+
+  /// The string value used in Firestore
+  final String value;
+
+  /// Create SpeakerType from string value
+  static SpeakerType fromString(String value) {
+    switch (value.toUpperCase()) {
+      case 'USER':
+        return SpeakerType.user;
+      case 'ADMIN':
+        return SpeakerType.admin;
+      default:
+        return SpeakerType.user; // Default to user for unknown values
+    }
+  }
+}
+
+// Represents a single entry in a feedback conversation
+class FeedbackConversationEntry {
+  final SpeakerType speaker;
+  final String text;
+  final DateTime timestamp;
+
+  FeedbackConversationEntry({
+    required this.speaker,
+    required this.text,
+    required this.timestamp,
+  });
+
+  factory FeedbackConversationEntry.fromMap(Map<String, dynamic> map) {
+    return FeedbackConversationEntry(
+      speaker: SpeakerType.fromString(map['speaker'] ?? 'USER'),
+      text: map['text'] ?? '',
+      timestamp: (map['timestamp'] as Timestamp).toDate(),
+    );
+  }
+}
+
 /// Repository for handling feedback-related Firestore operations
 abstract class FeedbackRepository {
   /// Submit user feedback to Firestore
   Future<void> submitFeedback(String feedbackText, String userId);
+
+  /// Add a message to a feedback conversation
+  Future<void> addConversationMessage(
+    String docId,
+    String text,
+    SpeakerType speaker,
+  );
 
   /// Stream all feedback ordered by creation_time descending
   Stream<List<FeedbackEntry>> watchAllFeedback();
@@ -30,7 +81,6 @@ class FirestoreFeedbackRepository implements FeedbackRepository {
       return;
     }
 
-    // Generate custom document ID: YYYYMMDD_HHMMSS_[userId]
     final now = DateTime.now();
     final dateStr =
         now.year.toString().padLeft(4, '0') +
@@ -42,11 +92,33 @@ class FirestoreFeedbackRepository implements FeedbackRepository {
         now.second.toString().padLeft(2, '0');
     final docId = '${dateStr}_${timeStr}_$userId';
 
+    final conversationEntry = {
+      'speaker': SpeakerType.user.value,
+      'text': text,
+      'timestamp': Timestamp.fromDate(DateTime.now().toUtc()),
+    };
+
     await _firestore.collection(_collectionName).doc(docId).set({
       'creation_time': FieldValue.serverTimestamp(),
-      'feedback_text': text,
+      'conversation': [conversationEntry],
       'user_id': userId,
       'state': FeedbackState.NEW.name,
+    });
+  }
+
+  @override
+  Future<void> addConversationMessage(
+    String docId,
+    String text,
+    SpeakerType speaker,
+  ) async {
+    final conversationEntry = {
+      'speaker': speaker.value,
+      'text': text,
+      'timestamp': Timestamp.fromDate(DateTime.now().toUtc()),
+    };
+    await _firestore.collection(_collectionName).doc(docId).update({
+      'conversation': FieldValue.arrayUnion([conversationEntry]),
     });
   }
 
@@ -87,14 +159,14 @@ enum FeedbackState { NEW, READ }
 class FeedbackEntry {
   final String id;
   final DateTime? creationTime;
-  final String feedbackText;
+  final List<FeedbackConversationEntry> conversation;
   final String userId;
   final FeedbackState state;
 
   FeedbackEntry({
     required this.id,
     required this.creationTime,
-    required this.feedbackText,
+    required this.conversation,
     required this.userId,
     required this.state,
   });
@@ -118,10 +190,40 @@ class FeedbackEntry {
         ? FeedbackState.READ
         : FeedbackState.NEW;
 
+    // Handle both new conversation format and legacy feedback_text format
+    List<FeedbackConversationEntry> conversation;
+    final conversationData = data['conversation'] as List<dynamic>?;
+
+    if (conversationData != null && conversationData.isNotEmpty) {
+      // New format: conversation array exists
+      conversation = conversationData
+          .map(
+            (e) => FeedbackConversationEntry.fromMap(e as Map<String, dynamic>),
+          )
+          .toList();
+    } else {
+      // Legacy format: check for feedback_text field
+      final feedbackText = data['feedback_text'] as String?;
+      if (feedbackText != null && feedbackText.isNotEmpty) {
+        // Create a single conversation entry from legacy feedback_text
+        conversation = [
+          FeedbackConversationEntry(
+            speaker: SpeakerType.user,
+            text: feedbackText,
+            timestamp:
+                created ?? DateTime.now(), // Use creation_time as timestamp
+          ),
+        ];
+      } else {
+        // No conversation data found
+        conversation = [];
+      }
+    }
+
     return FeedbackEntry(
       id: doc.id,
       creationTime: created,
-      feedbackText: (data['feedback_text'] as String?) ?? '',
+      conversation: conversation,
       userId: (data['user_id'] as String?) ?? 'anonymous',
       state: state,
     );

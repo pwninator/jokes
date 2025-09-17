@@ -21,14 +21,26 @@ void main() {
       FeedbackEntry(
         id: '20250102_030405_userA',
         creationTime: now,
-        feedbackText: 'Love the jokes!',
+        conversation: [
+          FeedbackConversationEntry(
+            speaker: SpeakerType.user,
+            text: 'Love the jokes!',
+            timestamp: now,
+          ),
+        ],
         userId: 'userA',
         state: FeedbackState.NEW,
       ),
       FeedbackEntry(
         id: '20250101_020304_userB',
         creationTime: now.subtract(const Duration(days: 1)),
-        feedbackText: 'Could use more puns',
+        conversation: [
+          FeedbackConversationEntry(
+            speaker: SpeakerType.user,
+            text: 'Could use more puns',
+            timestamp: now.subtract(const Duration(days: 1)),
+          ),
+        ],
         userId: 'userB',
         state: FeedbackState.READ,
       ),

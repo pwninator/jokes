@@ -86,5 +86,21 @@ void main() {
       ).called(1);
       verify(() => mockAnalyticsService.logFeedbackSubmitted()).called(1);
     });
+
+    test('addConversationMessage calls repository', () async {
+      const docId = 'doc123';
+      const text = 'Thank you for your feedback!';
+      const speaker = 'ADMIN';
+
+      when(
+        () => mockRepository.addConversationMessage(any(), any(), any()),
+      ).thenAnswer((_) async {});
+
+      await service.addConversationMessage(docId, text, speaker);
+
+      verify(
+        () => mockRepository.addConversationMessage(docId, text, speaker),
+      ).called(1);
+    });
   });
 }

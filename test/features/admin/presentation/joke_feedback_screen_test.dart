@@ -5,6 +5,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:snickerdoodle/src/core/data/repositories/feedback_repository.dart';
 import 'package:snickerdoodle/src/core/providers/feedback_providers.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_feedback_screen.dart';
+import 'package:snickerdoodle/src/features/admin/presentation/feedback_details_screen.dart';
 
 import '../../../test_helpers/firebase_mocks.dart';
 
@@ -21,14 +22,26 @@ void main() {
       FeedbackEntry(
         id: '20250102_030405_userA',
         creationTime: now,
-        feedbackText: 'Love the jokes!',
+        conversation: [
+          FeedbackConversationEntry(
+            speaker: 'USER',
+            text: 'Love the jokes!',
+            timestamp: now,
+          ),
+        ],
         userId: 'userA',
         state: FeedbackState.NEW,
       ),
       FeedbackEntry(
         id: '20250101_020304_userB',
         creationTime: now.subtract(const Duration(days: 1)),
-        feedbackText: 'Could use more puns',
+        conversation: [
+          FeedbackConversationEntry(
+            speaker: 'USER',
+            text: 'Could use more puns',
+            timestamp: now.subtract(const Duration(days: 1)),
+          ),
+        ],
         userId: 'userB',
         state: FeedbackState.READ,
       ),
@@ -49,20 +62,22 @@ void main() {
             (userId) => StreamProvider((ref) {
               if (userId == 'userA') {
                 return Stream.value(
-                  const JokeUserUsage(
+                  JokeUserUsage(
                     clientNumDaysUsed: 3,
                     clientNumViewed: 10,
                     clientNumSaved: 2,
                     clientNumShared: 1,
+                    lastLoginAt: now,
                   ),
                 );
               }
               return Stream.value(
-                const JokeUserUsage(
+                JokeUserUsage(
                   clientNumDaysUsed: 1,
                   clientNumViewed: 4,
                   clientNumSaved: 0,
                   clientNumShared: 0,
+                  lastLoginAt: now.subtract(const Duration(days: 1)),
                 ),
               );
             }),

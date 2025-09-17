@@ -1,9 +1,33 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+// Represents a single entry in a feedback conversation
+class FeedbackConversationEntry {
+  final String speaker; // "USER" or "ADMIN"
+  final String text;
+  final DateTime timestamp;
+
+  FeedbackConversationEntry({
+    required this.speaker,
+    required this.text,
+    required this.timestamp,
+  });
+
+  factory FeedbackConversationEntry.fromMap(Map<String, dynamic> map) {
+    return FeedbackConversationEntry(
+      speaker: map['speaker'] ?? 'USER',
+      text: map['text'] ?? '',
+      timestamp: (map['timestamp'] as Timestamp).toDate(),
+    );
+  }
+}
+
 /// Repository for handling feedback-related Firestore operations
 abstract class FeedbackRepository {
   /// Submit user feedback to Firestore
   Future<void> submitFeedback(String feedbackText, String userId);
+
+  /// Add a message to a feedback conversation
+  Future<void> addConversationMessage(String docId, String text, String speaker);
 
   /// Stream all feedback ordered by creation_time descending
   Stream<List<FeedbackEntry>> watchAllFeedback();
@@ -21,7 +45,7 @@ class FirestoreFeedbackRepository implements FeedbackRepository {
   static const String _collectionName = 'joke_feedback';
 
   FirestoreFeedbackRepository({FirebaseFirestore? firestore})
-    : _firestore = firestore ?? FirebaseFirestore.instance;
+      : _firestore = firestore ?? FirebaseFirestore.instance;
 
   @override
   Future<void> submitFeedback(String feedbackText, String userId) async {
@@ -30,23 +54,38 @@ class FirestoreFeedbackRepository implements FeedbackRepository {
       return;
     }
 
-    // Generate custom document ID: YYYYMMDD_HHMMSS_[userId]
     final now = DateTime.now();
-    final dateStr =
-        now.year.toString().padLeft(4, '0') +
+    final dateStr = now.year.toString().padLeft(4, '0') +
         now.month.toString().padLeft(2, '0') +
         now.day.toString().padLeft(2, '0');
-    final timeStr =
-        now.hour.toString().padLeft(2, '0') +
+    final timeStr = now.hour.toString().padLeft(2, '0') +
         now.minute.toString().padLeft(2, '0') +
         now.second.toString().padLeft(2, '0');
     final docId = '${dateStr}_${timeStr}_$userId';
 
+    final conversationEntry = {
+      'speaker': 'USER',
+      'text': text,
+      'timestamp': FieldValue.serverTimestamp(),
+    };
+
     await _firestore.collection(_collectionName).doc(docId).set({
       'creation_time': FieldValue.serverTimestamp(),
-      'feedback_text': text,
+      'conversation': [conversationEntry],
       'user_id': userId,
       'state': FeedbackState.NEW.name,
+    });
+  }
+
+  @override
+  Future<void> addConversationMessage(String docId, String text, String speaker) async {
+    final conversationEntry = {
+      'speaker': speaker,
+      'text': text,
+      'timestamp': FieldValue.serverTimestamp(),
+    };
+    await _firestore.collection(_collectionName).doc(docId).update({
+      'conversation': FieldValue.arrayUnion([conversationEntry])
     });
   }
 
@@ -87,14 +126,14 @@ enum FeedbackState { NEW, READ }
 class FeedbackEntry {
   final String id;
   final DateTime? creationTime;
-  final String feedbackText;
+  final List<FeedbackConversationEntry> conversation;
   final String userId;
   final FeedbackState state;
 
   FeedbackEntry({
     required this.id,
     required this.creationTime,
-    required this.feedbackText,
+    required this.conversation,
     required this.userId,
     required this.state,
   });
@@ -118,10 +157,15 @@ class FeedbackEntry {
         ? FeedbackState.READ
         : FeedbackState.NEW;
 
+    final conversationData = data['conversation'] as List<dynamic>? ?? [];
+    final conversation = conversationData
+        .map((e) => FeedbackConversationEntry.fromMap(e as Map<String, dynamic>))
+        .toList();
+
     return FeedbackEntry(
       id: doc.id,
       creationTime: created,
-      feedbackText: (data['feedback_text'] as String?) ?? '',
+      conversation: conversation,
       userId: (data['user_id'] as String?) ?? 'anonymous',
       state: state,
     );

@@ -70,17 +70,15 @@ class JokeFeedbackScreen extends ConsumerWidget implements TitledScreen {
                     Icons.feedback,
                     color: _getIconColor(entry, context),
                   ),
-                  title: Text(
-                    () {
-                      final latestUserMessage = _getLatestUserMessage(entry);
-                      if (latestUserMessage != null) {
-                        return latestUserMessage.text;
-                      }
-                      return entry.conversation.isNotEmpty
-                          ? 'Admin response only'
-                          : 'No messages yet';
-                    }(),
-                  ),
+                  title: Text(() {
+                    final latestUserMessage = _getLatestUserMessage(entry);
+                    if (latestUserMessage != null) {
+                      return latestUserMessage.text;
+                    }
+                    return entry.conversation.isNotEmpty
+                        ? 'Admin response only'
+                        : 'No messages yet';
+                  }()),
                   subtitle: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -147,7 +145,7 @@ class JokeFeedbackScreen extends ConsumerWidget implements TitledScreen {
                       ),
                     ],
                   ),
-                  onTap: () => context.goNamed(
+                  onTap: () => context.pushNamed(
                     RouteNames.adminFeedbackDetails,
                     pathParameters: {'feedbackId': entry.id},
                   ),

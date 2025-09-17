@@ -91,7 +91,9 @@ void main() {
     expect(find.text('Seasonal'), findsOneWidget);
   });
 
-  testWidgets('navigates to category editor when tile is tapped', (tester) async {
+  testWidgets('navigates to category editor when tile is tapped', (
+    tester,
+  ) async {
     final repo = _MockJokeCategoryRepository();
     final imageService = _MockImageService();
     final analyticsService = _MockAnalyticsService();
@@ -162,7 +164,7 @@ void main() {
     // Find and tap the category tile
     final categoryTile = find.byType(InkWell);
     expect(categoryTile, findsOneWidget);
-    
+
     await tester.tap(categoryTile);
     await tester.pump();
 

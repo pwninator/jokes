@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:snickerdoodle/src/common_widgets/app_bar_widget.dart';
+import 'package:snickerdoodle/src/common_widgets/adaptive_app_bar_screen.dart';
 import 'package:snickerdoodle/src/core/data/repositories/feedback_repository.dart';
 import 'package:snickerdoodle/src/core/providers/feedback_providers.dart';
 
@@ -47,68 +47,69 @@ class _AdminFeedbackDetailsPageState
   Widget build(BuildContext context) {
     final feedbackAsync = ref.watch(feedbackProvider(widget.feedbackId));
 
-    return Scaffold(
-      appBar: const AppBarWidget(
+    return PopScope(
+      canPop: true,
+      child: AdaptiveAppBarScreen(
         title: 'Feedback Details',
-      ),
-      body: feedbackAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (err, stack) => Center(child: Text('Error: $err')),
-        data: (feedback) {
-          if (feedback == null) {
-            return const Center(child: Text('Feedback not found.'));
-          }
-          return Column(
-            children: [
-              Expanded(
-                child: ListView.builder(
+        body: feedbackAsync.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (err, stack) => Center(child: Text('Error: $err')),
+          data: (feedback) {
+            if (feedback == null) {
+              return const Center(child: Text('Feedback not found.'));
+            }
+            return Column(
+              children: [
+                Expanded(
+                  child: ListView.builder(
+                    padding: const EdgeInsets.all(8.0),
+                    reverse: true,
+                    itemCount: feedback.conversation.length,
+                    itemBuilder: (context, index) {
+                      final message = feedback.conversation.reversed
+                          .toList()[index];
+                      return Align(
+                        alignment: (message.speaker == SpeakerType.admin)
+                            ? Alignment.centerRight
+                            : Alignment.centerLeft,
+                        child: Card(
+                          color: (message.speaker == SpeakerType.admin)
+                              ? Theme.of(context).colorScheme.primaryContainer
+                              : Theme.of(context).colorScheme.surfaceContainerHighest,
+                          child: Padding(
+                            padding: const EdgeInsets.all(12.0),
+                            child: Text(message.text),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                Padding(
                   padding: const EdgeInsets.all(8.0),
-                  reverse: true,
-                  itemCount: feedback.conversation.length,
-                  itemBuilder: (context, index) {
-                    final message =
-                        feedback.conversation.reversed.toList()[index];
-                    return Align(
-                      alignment: (message.speaker == SpeakerType.admin)
-                          ? Alignment.centerRight
-                          : Alignment.centerLeft,
-                      child: Card(
-                        color: (message.speaker == SpeakerType.admin)
-                            ? Theme.of(context).colorScheme.primaryContainer
-                            : Theme.of(context).colorScheme.surfaceVariant,
-                        child: Padding(
-                          padding: const EdgeInsets.all(12.0),
-                          child: Text(message.text),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: TextField(
+                          controller: _messageController,
+                          decoration: const InputDecoration(
+                            hintText: 'Type your message...',
+                            border: OutlineInputBorder(),
+                          ),
+                          onSubmitted: (_) => _sendMessage(),
                         ),
                       ),
-                    );
-                  },
-                ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _messageController,
-                        decoration: const InputDecoration(
-                          hintText: 'Type your message...',
-                          border: OutlineInputBorder(),
-                        ),
-                        onSubmitted: (_) => _sendMessage(),
+                      IconButton(
+                        icon: const Icon(Icons.send),
+                        onPressed: _sendMessage,
                       ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.send),
-                      onPressed: _sendMessage,
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            ],
-          );
-        },
+              ],
+            );
+          },
+        ),
       ),
     );
   }

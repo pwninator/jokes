@@ -108,12 +108,12 @@ class JokeCategoryEditorView extends ConsumerWidget {
           // 1) Display name (title style)
           Text(
             category.displayName,
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 8),
-          
+
           // 2) Joke description query (subtitle style)
           Text(
             editorState.jokeDescriptionQuery,

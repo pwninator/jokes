@@ -438,9 +438,12 @@ void main() {
 
     group('trackUsage', () {
       test('should call httpsCallable with correct parameters', () async {
-        when(() => mockFunctions.httpsCallable('usage'))
-            .thenReturn(mockCallable);
-        when(() => mockCallable.call(any())).thenAnswer((_) async => mockResult);
+        when(
+          () => mockFunctions.httpsCallable('usage'),
+        ).thenReturn(mockCallable);
+        when(
+          () => mockCallable.call(any()),
+        ).thenAnswer((_) async => mockResult);
 
         await service.trackUsage(
           numDaysUsed: 1,

@@ -84,9 +84,7 @@ class _JokeCategoryEditImageCarouselState
         child: SizedBox(
           width: 150,
           height: 150,
-          child: const Center(
-            child: Icon(Icons.add_a_photo, size: 50),
-          ),
+          child: const Center(child: Icon(Icons.add_a_photo, size: 50)),
         ),
       ),
     );

@@ -32,11 +32,11 @@ class AppUsageService {
     Ref? ref,
     JokeCloudFunctionService? jokeCloudFn,
     bool? isDebugMode,
-  })  : _prefs = prefs,
-        _analyticsService = analyticsService,
-        _ref = ref,
-        _jokeCloudFn = jokeCloudFn ?? JokeCloudFunctionService(),
-        _isDebugMode = isDebugMode;
+  }) : _prefs = prefs,
+       _analyticsService = analyticsService,
+       _ref = ref,
+       _jokeCloudFn = jokeCloudFn ?? JokeCloudFunctionService(),
+       _isDebugMode = isDebugMode;
 
   final SharedPreferences _prefs;
   final AnalyticsService? _analyticsService;
@@ -256,7 +256,7 @@ class AppUsageService {
       final int numShared = await getNumSharedJokes();
       final bool requestedReview =
           await _ref?.read(reviewPromptStateStoreProvider).hasRequested() ??
-              false;
+          false;
       futures.add(
         _jokeCloudFn
             .trackUsage(

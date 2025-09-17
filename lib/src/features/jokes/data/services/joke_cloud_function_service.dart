@@ -19,6 +19,7 @@ class JokeCloudFunctionService {
     required int numSaved,
     required int numViewed,
     required int numShared,
+    bool? requestedReview,
   }) async {
     try {
       final callable = _fns.httpsCallable('usage');
@@ -27,6 +28,7 @@ class JokeCloudFunctionService {
         'num_saved': numSaved.toString(),
         'num_viewed': numViewed.toString(),
         'num_shared': numShared.toString(),
+        'requested_review': requestedReview,
       });
     } catch (e) {
       debugPrint('CLOUD FUNCTIONS trackUsage exception: $e');

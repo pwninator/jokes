@@ -594,7 +594,8 @@ def _upsert_joke_user_usage_logic(transaction: Transaction,
                                   client_num_days_used: int | None = None,
                                   client_num_saved: int | None = None,
                                   client_num_viewed: int | None = None,
-                                  client_num_shared: int | None = None) -> int:
+                                  client_num_shared: int | None = None,
+                                  requested_review: bool | None = None) -> int:
   """Transactional helper to upsert joke user usage and return final count.
 
   Args:
@@ -609,7 +610,7 @@ def _upsert_joke_user_usage_logic(transaction: Transaction,
   snapshot = doc_ref.get(transaction=transaction)
 
   # Collect client counters if provided
-  client_updates: dict[str, int] = {}
+  client_updates: dict[str, int | bool] = {}
   if client_num_days_used is not None:
     client_updates['client_num_days_used'] = int(client_num_days_used)
   if client_num_saved is not None:
@@ -618,6 +619,8 @@ def _upsert_joke_user_usage_logic(transaction: Transaction,
     client_updates['client_num_viewed'] = int(client_num_viewed)
   if client_num_shared is not None:
     client_updates['client_num_shared'] = int(client_num_shared)
+  if requested_review is not None:
+    client_updates['requested_review'] = requested_review
 
   # Insert path
   if not snapshot.exists:
@@ -681,7 +684,8 @@ def _upsert_joke_user_usage_in_txn(
     client_num_days_used: int | None = None,
     client_num_saved: int | None = None,
     client_num_viewed: int | None = None,
-    client_num_shared: int | None = None) -> int:
+    client_num_shared: int | None = None,
+    requested_review: bool | None = None) -> int:
   """Transactional wrapper that handles the transaction."""
   # The actual logic is in a separate function for testability
   return _upsert_joke_user_usage_logic(
@@ -692,6 +696,7 @@ def _upsert_joke_user_usage_in_txn(
     client_num_saved=client_num_saved,
     client_num_viewed=client_num_viewed,
     client_num_shared=client_num_shared,
+    requested_review=requested_review,
   )
 
 
@@ -701,7 +706,8 @@ def upsert_joke_user_usage(user_id: str,
                            client_num_days_used: int | None = None,
                            client_num_saved: int | None = None,
                            client_num_viewed: int | None = None,
-                           client_num_shared: int | None = None) -> int:
+                           client_num_shared: int | None = None,
+                           requested_review: bool | None = None) -> int:
   """Create or update the joke user usage document and return final count.
 
   Args:
@@ -724,4 +730,5 @@ def upsert_joke_user_usage(user_id: str,
     client_num_saved=client_num_saved,
     client_num_viewed=client_num_viewed,
     client_num_shared=client_num_shared,
+    requested_review=requested_review,
   )

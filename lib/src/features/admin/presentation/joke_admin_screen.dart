@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:snickerdoodle/src/common_widgets/adaptive_app_bar_screen.dart';
 import 'package:snickerdoodle/src/common_widgets/titled_screen.dart';
 import 'package:snickerdoodle/src/config/router/route_names.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:snickerdoodle/src/core/data/repositories/feedback_repository.dart';
 import 'package:snickerdoodle/src/core/providers/feedback_providers.dart';
 
 class JokeAdminScreen extends ConsumerWidget implements TitledScreen {
@@ -14,7 +15,18 @@ class JokeAdminScreen extends ConsumerWidget implements TitledScreen {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final unread = ref.watch(unreadFeedbackCountProvider).value ?? 0;
+    final allFeedback = ref.watch(allFeedbackProvider);
+    final unread = allFeedback.when(
+      data: (items) => items.where((entry) {
+        if (entry.conversation.isEmpty) return false;
+        final last = entry.conversation.last;
+        if (last.speaker == SpeakerType.admin) return false;
+        final view = entry.lastAdminViewTime;
+        return view == null || view.isBefore(last.timestamp);
+      }).length,
+      loading: () => 0,
+      error: (e, st) => 0,
+    );
     return AdaptiveAppBarScreen(
       title: 'Admin',
       body: SingleChildScrollView(
@@ -39,13 +51,13 @@ class JokeAdminScreen extends ConsumerWidget implements TitledScreen {
                             vertical: 4,
                           ),
                           decoration: BoxDecoration(
-                            color: Theme.of(context).colorScheme.error,
+                            color: Colors.red.shade600,
                             borderRadius: BorderRadius.circular(12),
                           ),
                           child: Text(
                             unread > 99 ? '99+' : '$unread',
                             style: TextStyle(
-                              color: Theme.of(context).colorScheme.onError,
+                              color: Colors.white,
                               fontWeight: FontWeight.bold,
                             ),
                           ),

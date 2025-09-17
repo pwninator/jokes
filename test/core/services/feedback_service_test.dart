@@ -12,6 +12,10 @@ class MockAnalyticsService extends Mock implements AnalyticsService {}
 class MockAppUser extends Mock implements AppUser {}
 
 void main() {
+  setUpAll(() {
+    registerFallbackValue(SpeakerType.user);
+  });
+
   group('FeedbackServiceImpl', () {
     late MockFeedbackRepository mockRepository;
     late MockAnalyticsService mockAnalyticsService;
@@ -85,6 +89,22 @@ void main() {
         () => mockRepository.submitFeedback(feedbackText, 'user123'),
       ).called(1);
       verify(() => mockAnalyticsService.logFeedbackSubmitted()).called(1);
+    });
+
+    test('addConversationMessage calls repository', () async {
+      const docId = 'doc123';
+      const text = 'Thank you for your feedback!';
+      const speaker = SpeakerType.admin;
+
+      when(
+        () => mockRepository.addConversationMessage(any(), any(), any()),
+      ).thenAnswer((_) async {});
+
+      await service.addConversationMessage(docId, text, speaker);
+
+      verify(
+        () => mockRepository.addConversationMessage(docId, text, speaker),
+      ).called(1);
     });
   });
 }

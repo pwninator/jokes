@@ -26,9 +26,13 @@ final allFeedbackProvider = StreamProvider<List<FeedbackEntry>>((ref) {
   return ref.watch(feedbackRepositoryProvider).watchAllFeedback();
 });
 
-/// Stream provider for unread feedback count
-final unreadFeedbackCountProvider = StreamProvider<int>((ref) {
-  return ref.watch(feedbackRepositoryProvider).watchUnreadCount();
+/// Stream provider for a single feedback entry
+final feedbackProvider =
+    StreamProvider.family<FeedbackEntry?, String>((ref, id) {
+  return ref
+      .watch(feedbackRepositoryProvider)
+      .watchAllFeedback()
+      .map((list) => list.firstWhere((item) => item.id == id));
 });
 
 /// Model for joke user usage counters

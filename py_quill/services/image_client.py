@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import logging
+import os
 import time
 from abc import ABC, abstractmethod
 from enum import Enum
@@ -15,6 +16,7 @@ from google import genai
 from openai import OpenAI
 from PIL import Image
 from services import cloud_storage, firestore
+from vertexai.preview.vision_models import Image as VertexImage
 from vertexai.preview.vision_models import ImageGenerationModel
 
 _T = TypeVar("_T")
@@ -68,6 +70,11 @@ class ImageModel(Enum):
       "images": 0.02
     },
     ImageProvider.IMAGEN,
+  )
+  IMAGEN_1 = (
+      "imagegeneration@002",
+      {"upscale_images": 0.003, "images": 0.02},
+      ImageProvider.IMAGEN,
   )
 
   # https://openai.com/api/pricing
@@ -155,6 +162,12 @@ OTHER_TOKEN_COSTS = {
 }
 
 
+def _get_upscaled_gcs_uri(gcs_uri: str, new_size: int) -> str:
+    """Constructs a GCS URI for the upscaled image."""
+    base, ext = os.path.splitext(gcs_uri)
+    return f"{base}_upscale_{new_size}{ext}"
+
+
 def get_client(
   label: str,
   model: ImageModel,
@@ -239,6 +252,56 @@ class ImageClient(ABC, Generic[_T]):
 
     return image
 
+  def upscale_image(
+    self,
+    new_size: int,
+    image: models.Image | None = None,
+    gcs_uri: str | None = None,
+    save_to_firestore: bool = True,
+  ) -> models.Image:
+    """Upscale an image."""
+    if not (image or gcs_uri) or (image and gcs_uri):
+        raise ValueError("Exactly one of 'image' or 'gcs_uri' must be provided.")
+
+    source_gcs_uri = image.gcs_uri if image else gcs_uri
+    if not source_gcs_uri:
+        raise ValueError("The provided image must have a gcs_uri.")
+
+    start_time = time.perf_counter()
+    upscaled_gcs_uri = self._upscale_image_internal(source_gcs_uri, new_size)
+
+    generation_metadata = _build_generation_metadata(
+        label=self.label,
+        model_name=self.model.model_name,
+        usage_dict={"upscale_images": 1},
+        token_costs=self.model.token_costs,
+        generation_time_sec=time.perf_counter() - start_time,
+    )
+
+    if image:
+        image.gcs_uri_upscaled = upscaled_gcs_uri
+        image.url_upscaled = cloud_storage.get_final_image_url(upscaled_gcs_uri, width=new_size)
+        if not image.generation_metadata:
+            image.generation_metadata = models.GenerationMetadata()
+        image.generation_metadata.add_generation(generation_metadata)
+        if save_to_firestore:
+            logging.info(f"Updating image {image.key} with upscaled version.")
+            firestore.update_image(image)
+        return image
+    else:
+        new_image = models.Image(
+            gcs_uri=source_gcs_uri,
+            url=cloud_storage.get_final_image_url(source_gcs_uri),
+            gcs_uri_upscaled=upscaled_gcs_uri,
+            url_upscaled=cloud_storage.get_final_image_url(upscaled_gcs_uri, width=new_size),
+            generation_metadata=models.GenerationMetadata(),
+        )
+        new_image.generation_metadata.add_generation(generation_metadata)
+        if save_to_firestore:
+            logging.info("Creating new image with upscaled version.")
+            firestore.create_image(new_image)
+        return new_image
+
   @abstractmethod
   def _create_model_client(self) -> _T:
     """Create the model."""
@@ -263,6 +326,22 @@ class ImageClient(ABC, Generic[_T]):
 
     Returns:
       The generated image.
+    """
+    raise NotImplementedError
+
+  def _upscale_image_internal(
+    self,
+    gcs_uri: str,
+    new_size: int,
+  ) -> str:
+    """Upscale an image.
+
+    Args:
+      gcs_uri: The GCS URI of the image to upscale.
+      new_size: The new size of the image.
+
+    Returns:
+      The GCS URI of the upscaled image.
     """
     raise NotImplementedError
 
@@ -347,6 +426,32 @@ class ImagenClient(ImageClient[ImageGenerationModel]):
       ))
 
     return image_model
+
+  def _upscale_image_internal(
+    self,
+    gcs_uri: str,
+    new_size: int,
+  ) -> str:
+    """Upscales an image using the Imagen model."""
+    if self.model != ImageModel.IMAGEN_1:
+        raise ValueError(f"Upscaling is only supported for the {ImageModel.IMAGEN_1.model_name} model with ImagenClient.")
+    image_to_upscale = VertexImage.load_from_file(gcs_uri)
+
+    upscaled_images = self.model_client.upscale_image(
+        image=image_to_upscale,
+        new_size=new_size,
+    )
+
+    if not upscaled_images:
+        raise ValueError("No upscaled images returned from Imagen")
+
+    upscaled_image = upscaled_images[0]
+    image_bytes = upscaled_image.load_image_bytes()
+
+    output_gcs_uri = _get_upscaled_gcs_uri(gcs_uri, new_size)
+    final_gcs_uri = cloud_storage.upload_bytes_to_gcs(image_bytes, output_gcs_uri, content_type="image/png")
+
+    return final_gcs_uri
 
 
 class OpenAiImageClient(ImageClient[OpenAI]):

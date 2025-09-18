@@ -208,13 +208,13 @@ def get_public_image_cdn_url(
   return f"https://images.quillsstorybook.com/cdn-cgi/image/width={width},format={image_format},quality={quality}/{object_path}"
 
 
-def get_final_image_url(gcs_uri: str) -> str:
+def get_final_image_url(gcs_uri: str, width: int = 1024) -> str:
   """Get the final image URL for an image."""
   if utils.is_emulator():
     # In emulator mode, the image is not accessible via CDN
     return get_emulator_accessible_url(gcs_uri)
   else:
-    return get_public_image_cdn_url(gcs_uri)
+    return get_public_image_cdn_url(gcs_uri, width=width)
 
 
 def set_image_cdn_params(

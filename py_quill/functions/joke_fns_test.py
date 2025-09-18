@@ -1504,3 +1504,64 @@ class TestModifyJokeImage:
     assert "At least one instruction" in resp["data"]["error"]
     mock_image_generation.modify_image.assert_not_called()
     mock_firestore_service.upsert_punny_joke.assert_not_called()
+
+
+class TestUpscaleJoke:
+    """Tests for the upscale_joke cloud function."""
+
+    @pytest.fixture(name="mock_services")
+    def mock_services_fixture(self, monkeypatch):
+        """Fixture that mocks external services using monkeypatch."""
+        mock_firestore = Mock()
+        mock_image_client = Mock()
+        mock_cloud_storage = Mock()
+
+        monkeypatch.setattr('functions.joke_fns.firestore', mock_firestore)
+        monkeypatch.setattr('functions.joke_fns.image_client', mock_image_client)
+        monkeypatch.setattr('functions.joke_fns.cloud_storage', mock_cloud_storage)
+
+        return mock_firestore, mock_image_client, mock_cloud_storage
+
+    def test_upscale_joke_success(self, mock_services):
+        """Test that upscale_joke successfully upscales a joke's images."""
+        # Arrange
+        mock_firestore, mock_image_client, mock_cloud_storage = mock_services
+
+        req = DummyReq(data={"jokeId": "joke1"})
+
+        mock_joke = models.PunnyJoke(
+            key="joke1",
+            setup_text="test",
+            punchline_text="test",
+            setup_image_url="https://storage.googleapis.com/example/setup.png",
+            punchline_image_url="https://storage.googleapis.com/example/punchline.png",
+            generation_metadata=models.GenerationMetadata(),
+        )
+        mock_firestore.get_punny_joke.return_value = mock_joke
+
+        mock_client_instance = MagicMock()
+        mock_image_client.get_client.return_value = mock_client_instance
+
+        mock_upscaled_setup_image = models.Image(url_upscaled="http://example.com/new_setup.png", generation_metadata=models.GenerationMetadata())
+        mock_upscaled_punchline_image = models.Image(url_upscaled="http://example.com/new_punchline.png", generation_metadata=models.GenerationMetadata())
+        mock_client_instance.upscale_image.side_effect = [mock_upscaled_setup_image, mock_upscaled_punchline_image]
+
+        mock_cloud_storage.extract_gcs_uri_from_image_url.side_effect = ["gs://example/setup.png", "gs://example/punchline.png"]
+
+        # Act
+        resp = joke_fns.upscale_joke(req)
+
+        # Assert
+        mock_firestore.get_punny_joke.assert_called_once_with("joke1")
+        assert mock_client_instance.upscale_image.call_count == 2
+        mock_client_instance.upscale_image.assert_called_with(gcs_uri="gs://example/punchline.png", new_size=4096)
+        mock_firestore.update_punny_joke.assert_called_once()
+
+        update_data = mock_firestore.update_punny_joke.call_args[0][1]
+        assert update_data['setup_image_url_upscaled'] == "http://example.com/new_setup.png"
+        assert update_data['punchline_image_url_upscaled'] == "http://example.com/new_punchline.png"
+        assert "generation_metadata" in update_data
+
+        assert "data" in resp
+        assert resp["data"]["joke_data"]["setup_image_url_upscaled"] == "http://example.com/new_setup.png"
+        assert resp["data"]["joke_data"]["punchline_image_url_upscaled"] == "http://example.com/new_punchline.png"

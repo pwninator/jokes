@@ -172,6 +172,8 @@ class Image:
   key: str | None = None
   url: str | None = None
   gcs_uri: str | None = None
+  url_upscaled: str | None = None
+  gcs_uri_upscaled: str | None = None
   original_prompt: str | None = None
   final_prompt: str | None = None
   error: str | None = None
@@ -194,6 +196,8 @@ class Image:
     return {
       'url': self.url,
       'gcs_uri': self.gcs_uri,
+      'url_upscaled': self.url_upscaled,
+      'gcs_uri_upscaled': self.gcs_uri_upscaled,
       'original_prompt': self.original_prompt,
       'final_prompt': self.final_prompt,
       'error': self.error,
@@ -215,6 +219,8 @@ class Image:
       key=key if key else data.get("key"),
       url=data.get("url"),
       gcs_uri=data.get("gcs_uri"),
+      url_upscaled=data.get("url_upscaled"),
+      gcs_uri_upscaled=data.get("gcs_uri_upscaled"),
       original_prompt=data.get("original_prompt"),
       final_prompt=data.get("final_prompt"),
       error=data.get("error"),
@@ -688,6 +694,9 @@ class PunnyJoke:
 
   setup_image_url: str | None = None
   punchline_image_url: str | None = None
+
+  setup_image_url_upscaled: str | None = None
+  punchline_image_url_upscaled: str | None = None
 
   all_setup_image_urls: list[str] = field(default_factory=list)
   all_punchline_image_urls: list[str] = field(default_factory=list)

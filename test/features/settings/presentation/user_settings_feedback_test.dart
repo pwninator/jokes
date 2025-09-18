@@ -42,6 +42,8 @@ void main() {
 
     final btn = find.byKey(const Key('settings-feedback-button'));
     expect(btn, findsOneWidget);
+    await tester.ensureVisible(btn);
+    await tester.pump();
     await tester.tap(btn);
     await tester.pumpAndSettle();
 
@@ -69,12 +71,25 @@ void main() {
     await tester.pumpAndSettle();
 
     // Open dialog
-    await tester.tap(find.byKey(const Key('settings-feedback-button')));
+    final btn = find.byKey(const Key('settings-feedback-button'));
+    expect(btn, findsOneWidget);
+    await tester.ensureVisible(btn);
+    await tester.pump();
+    await tester.tap(btn);
     await tester.pumpAndSettle();
+
+    expect(find.text('Help Us Perfect the Recipe! 🍪'), findsOneWidget);
+    expect(find.text('Submit'), findsOneWidget);
+    expect(find.text('Cancel'), findsOneWidget);
 
     // Enter text
     const feedback = 'Love the jokes! Maybe add categories.';
-    await tester.enterText(find.byType(TextField), feedback);
+    final dialogTextField = find.descendant(
+      of: find.byType(AlertDialog),
+      matching: find.byType(TextField),
+    );
+    expect(dialogTextField, findsOneWidget);
+    await tester.enterText(dialogTextField, feedback);
     await tester.pump();
 
     // Submit

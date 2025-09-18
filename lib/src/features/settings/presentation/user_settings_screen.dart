@@ -14,8 +14,8 @@ import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
 import 'package:snickerdoodle/src/features/auth/data/models/app_user.dart';
-import 'package:snickerdoodle/src/features/settings/application/theme_settings_service.dart';
 import 'package:snickerdoodle/src/features/settings/application/joke_viewer_settings_service.dart';
+import 'package:snickerdoodle/src/features/settings/application/theme_settings_service.dart';
 
 class UserSettingsScreen extends ConsumerStatefulWidget
     implements TitledScreen {
@@ -114,7 +114,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
               // Theme Settings Section
               Card(
                 child: Padding(
-                  padding: const EdgeInsets.all(16.0),
+                  padding: const EdgeInsets.all(12.0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -129,31 +129,6 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                       _buildThemeSettings(context, ref),
                     ],
                   ),
-                ),
-              ),
-              const SizedBox(height: 8),
-
-              // Suggestions/Feedback button (keep near top for accessibility/tests)
-              Align(
-                alignment: Alignment.center,
-                child: OutlinedButton.icon(
-                  key: const Key('settings-feedback-button'),
-                  icon: const Icon(Icons.feedback_outlined),
-                  label: const Text('Suggestions/Feedback'),
-                  style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 16,
-                      horizontal: 16,
-                    ),
-                    visualDensity: VisualDensity.compact,
-                    minimumSize: const Size(0, 32),
-                  ),
-                  onPressed: () {
-                    showDialog<bool>(
-                      context: context,
-                      builder: (context) => const FeedbackDialog(),
-                    );
-                  },
                 ),
               ),
 
@@ -219,6 +194,8 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                 ),
               ),
 
+              const SizedBox(height: 8),
+
               // Notification Settings Section
               Card(
                 child: Padding(
@@ -237,6 +214,32 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                       _buildNotificationSettings(context, ref),
                     ],
                   ),
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              // Suggestions/Feedback button
+              Align(
+                alignment: Alignment.center,
+                child: OutlinedButton.icon(
+                  key: const Key('settings-feedback-button'),
+                  icon: const Icon(Icons.feedback_outlined),
+                  label: const Text('Suggestions/Feedback'),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 16,
+                      horizontal: 16,
+                    ),
+                    visualDensity: VisualDensity.compact,
+                    minimumSize: const Size(0, 32),
+                  ),
+                  onPressed: () {
+                    showDialog<bool>(
+                      context: context,
+                      builder: (context) => const FeedbackDialog(),
+                    );
+                  },
                 ),
               ),
 

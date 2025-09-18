@@ -83,7 +83,7 @@ class JokeImageCarousel extends ConsumerStatefulWidget {
     required this.jokeContext,
     this.controller,
     this.overlayBadgeText,
-    this.showSimilarSearchButton = false,
+    this.showSimilarSearchButton = true,
     this.mode = JokeCarouselMode.REVEAL,
   });
 

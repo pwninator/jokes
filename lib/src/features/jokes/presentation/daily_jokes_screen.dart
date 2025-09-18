@@ -37,7 +37,6 @@ class _DailyJokesScreenState extends ConsumerState<DailyJokesScreen> {
         jokesAsyncValue: jokesWithDateAsyncValue,
         jokeContext: AnalyticsJokeContext.dailyJokes,
         viewerId: 'daily_jokes',
-        showSimilarSearchButton: true,
       ),
     );
   }

@@ -17,6 +17,7 @@ const bool kAdminJokeCardShowShareButton = false;
 const bool kAdminJokeCardShowAdminRatingButtons = true;
 const bool kAdminJokeCardShowNumSaves = true;
 const bool kAdminJokeCardShowNumShares = true;
+const bool kAdminJokeCardShowSimilarSearchButton = true;
 const String kAdminJokeCardContext = 'admin';
 
 class JokeManagementScreen extends ConsumerStatefulWidget {
@@ -418,6 +419,8 @@ class _JokeManagementScreenState extends ConsumerState<JokeManagementScreen> {
                           showNumSaves: kAdminJokeCardShowNumSaves,
                           showNumShares: kAdminJokeCardShowNumShares,
                           jokeContext: kAdminJokeCardContext,
+                          showSimilarSearchButton:
+                              kAdminJokeCardShowSimilarSearchButton,
                           topRightBadgeText: jvd.vectorDistance
                               ?.toStringAsFixed(2),
                         );

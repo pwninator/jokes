@@ -186,18 +186,13 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
               widget.emptyState ??
               const Center(child: Text('No jokes found! Try adding some.'));
           if (isLandscape && railPresent) return empty;
-          return Stack(
+          return Column(
             children: [
-              empty,
+              Expanded(child: empty),
               if (widget.showCtaWhenEmpty)
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  child: _buildCTAButton(
-                    context: context,
-                    jokesWithDates: jokesWithDates,
-                  ),
+                _buildCTAButton(
+                  context: context,
+                  jokesWithDates: jokesWithDates,
                 ),
             ],
           );
@@ -222,120 +217,113 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
           });
         }
 
-        return Stack(
+        return Column(
           children: [
-            PageView.builder(
-              key: const Key('joke_viewer_page_view'),
-              controller: _pageController,
-              scrollDirection: Axis.vertical,
-              itemCount: jokesWithDates.length,
-              onPageChanged: (index) {
-                if (mounted) {
-                  setState(() {
-                    _currentPage = index;
-                  });
-                  ref
-                          .read(
-                            jokeViewerPageIndexProvider(
-                              widget.viewerId,
-                            ).notifier,
-                          )
-                          .state =
-                      index;
+            Expanded(
+              child: PageView.builder(
+                key: const Key('joke_viewer_page_view'),
+                controller: _pageController,
+                scrollDirection: Axis.vertical,
+                itemCount: jokesWithDates.length,
+                onPageChanged: (index) {
+                  if (mounted) {
+                    setState(() {
+                      _currentPage = index;
+                    });
+                    ref
+                            .read(
+                              jokeViewerPageIndexProvider(
+                                widget.viewerId,
+                              ).notifier,
+                            )
+                            .state =
+                        index;
 
+                    final jokeWithDate = jokesWithDates[index];
+                    final joke = jokeWithDate.joke;
+                    final jokeScrollDepth = index;
+
+                    final analyticsService = ref.read(analyticsServiceProvider);
+                    analyticsService.logJokeNavigation(
+                      joke.id,
+                      jokeScrollDepth,
+                      method: _lastNavigationMethod,
+                      jokeContext: widget.jokeContext,
+                    );
+
+                    _lastNavigationMethod = AnalyticsNavigationMethod.swipe;
+                  }
+                },
+                itemBuilder: (context, index) {
                   final jokeWithDate = jokesWithDates[index];
                   final joke = jokeWithDate.joke;
-                  final jokeScrollDepth = index;
+                  final date = jokeWithDate.date;
 
-                  final analyticsService = ref.read(analyticsServiceProvider);
-                  analyticsService.logJokeNavigation(
-                    joke.id,
-                    jokeScrollDepth,
-                    method: _lastNavigationMethod,
-                    jokeContext: widget.jokeContext,
-                  );
+                  final formattedDate = date != null
+                      ? '${date.month}/${date.day}/${date.year}'
+                      : null;
 
-                  _lastNavigationMethod = AnalyticsNavigationMethod.swipe;
-                }
-              },
-              itemBuilder: (context, index) {
-                final jokeWithDate = jokesWithDates[index];
-                final joke = jokeWithDate.joke;
-                final date = jokeWithDate.date;
+                  final List<Joke> jokesToPreload = [];
+                  if (index + 1 < jokesWithDates.length) {
+                    jokesToPreload.add(jokesWithDates[index + 1].joke);
+                  }
+                  if (index + 2 < jokesWithDates.length) {
+                    jokesToPreload.add(jokesWithDates[index + 2].joke);
+                  }
 
-                final formattedDate = date != null
-                    ? '${date.month}/${date.day}/${date.year}'
-                    : null;
+                  final isLandscape =
+                      MediaQuery.of(context).orientation ==
+                      Orientation.landscape;
 
-                final List<Joke> jokesToPreload = [];
-                if (index + 1 < jokesWithDates.length) {
-                  jokesToPreload.add(jokesWithDates[index + 1].joke);
-                }
-                if (index + 2 < jokesWithDates.length) {
-                  jokesToPreload.add(jokesWithDates[index + 2].joke);
-                }
+                  final controller =
+                      _carouselControllers[index] ??
+                      (_carouselControllers[index] =
+                          JokeImageCarouselController());
 
-                final isLandscape =
-                    MediaQuery.of(context).orientation == Orientation.landscape;
+                  // Title shows index (1-based) for search context, otherwise date (if any)
+                  final String? titleForCard =
+                      widget.jokeContext == AnalyticsJokeContext.search
+                      ? '${index + 1}'
+                      : formattedDate;
 
-                final controller =
-                    _carouselControllers[index] ??
-                    (_carouselControllers[index] =
-                        JokeImageCarouselController());
-
-                // Title shows index (1-based) for search context, otherwise date (if any)
-                final String? titleForCard =
-                    widget.jokeContext == AnalyticsJokeContext.search
-                    ? '${index + 1}'
-                    : formattedDate;
-
-                return Center(
-                  child: Container(
-                    width: isLandscape ? null : double.infinity,
-                    height: isLandscape ? double.infinity : null,
-                    padding: EdgeInsets.only(
-                      left: isLandscape ? 0.0 : 16.0,
-                      right: isLandscape ? 0.0 : 16.0,
-                      top: isLandscape ? 0.0 : 16.0,
-                      // Add bottom padding in portrait mode to account for CTA button
-                      bottom: isLandscape
-                          ? 0.0
-                          : 50.0, // CTA button height + safe area
-                    ),
-                    child: JokeCard(
-                      key: Key(joke.id),
-                      joke: joke,
-                      index: index,
-                      title: titleForCard,
-                      onPunchlineTap: () => _goToNextJoke(
-                        jokesWithDates.length,
-                        method: AnalyticsNavigationMethod.tap,
+                  return Center(
+                    child: Container(
+                      width: isLandscape ? null : double.infinity,
+                      height: isLandscape ? double.infinity : null,
+                      padding: EdgeInsets.only(
+                        left: 16.0,
+                        right: 16.0,
+                        top: isLandscape ? 4.0 : 16.0,
+                        // In column layout, CTA sits below; only small spacing needed
+                        bottom: isLandscape ? 4.0 : 16.0,
                       ),
-                      onImageStateChanged: (imageIndex) =>
-                          _onImageStateChanged(index, imageIndex),
-                      isAdminMode: false,
-                      jokesToPreload: jokesToPreload,
-                      showSaveButton: true,
-                      showShareButton: true,
-                      showAdminRatingButtons: false,
-                      jokeContext: widget.jokeContext,
-                      controller: controller,
-                      showSimilarSearchButton: widget.showSimilarSearchButton,
+                      child: JokeCard(
+                        key: Key(joke.id),
+                        joke: joke,
+                        index: index,
+                        title: titleForCard,
+                        onPunchlineTap: () => _goToNextJoke(
+                          jokesWithDates.length,
+                          method: AnalyticsNavigationMethod.tap,
+                        ),
+                        onImageStateChanged: (imageIndex) =>
+                            _onImageStateChanged(index, imageIndex),
+                        isAdminMode: false,
+                        jokesToPreload: jokesToPreload,
+                        showSaveButton: true,
+                        showShareButton: true,
+                        showAdminRatingButtons: false,
+                        jokeContext: widget.jokeContext,
+                        controller: controller,
+                        showSimilarSearchButton: widget.showSimilarSearchButton,
+                      ),
                     ),
-                  ),
-                );
-              },
+                  );
+                },
+              ),
             ),
             if ((!isLandscape || !railPresent) && jokesWithDates.isNotEmpty)
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: 0,
-                child: _buildCTAButton(
-                  context: context,
-                  jokesWithDates: jokesWithDates,
-                ),
-              ),
+              _buildCTAButton(context: context, jokesWithDates: jokesWithDates),
           ],
         );
       },

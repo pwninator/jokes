@@ -9,38 +9,38 @@ const Map<RemoteParam, RemoteParamDescriptor> remoteParams = {
     key: 'subscription_prompt_min_jokes_viewed',
     type: RemoteParamType.intType,
     defaultInt: 5,
-    isValid: _validatePositiveInt,
+    isValid: _validateNonNegativeInt,
   ),
   RemoteParam.feedbackMinJokesViewed: RemoteParamDescriptor(
     key: 'feedback_min_jokes_viewed',
     type: RemoteParamType.intType,
     defaultInt: 10,
-    isValid: _validatePositiveInt,
+    isValid: _validateNonNegativeInt,
   ),
   RemoteParam.reviewMinDaysUsed: RemoteParamDescriptor(
     key: 'review_min_days_used',
     type: RemoteParamType.intType,
     // Default to never show review prompt
     defaultInt: 10000,
-    isValid: _validatePositiveInt,
+    isValid: _validateNonNegativeInt,
   ),
   RemoteParam.reviewMinSavedJokes: RemoteParamDescriptor(
     key: 'review_min_saved_jokes',
     type: RemoteParamType.intType,
     defaultInt: 3,
-    isValid: _validatePositiveInt,
+    isValid: _validateNonNegativeInt,
   ),
   RemoteParam.reviewMinSharedJokes: RemoteParamDescriptor(
     key: 'review_min_shared_jokes',
     type: RemoteParamType.intType,
     defaultInt: 1,
-    isValid: _validatePositiveInt,
+    isValid: _validateNonNegativeInt,
   ),
   RemoteParam.reviewMinViewedJokes: RemoteParamDescriptor(
     key: 'review_min_viewed_jokes',
     type: RemoteParamType.intType,
     defaultInt: 30,
-    isValid: _validatePositiveInt,
+    isValid: _validateNonNegativeInt,
   ),
 };
 
@@ -89,8 +89,8 @@ class RemoteParamDescriptor {
 }
 
 // Validation helpers
-bool _validatePositiveInt(Object value) {
-  return value is int && value > 0;
+bool _validateNonNegativeInt(Object value) {
+  return value is int && value >= 0;
 }
 
 /// Abstraction over Firebase Remote Config for testability

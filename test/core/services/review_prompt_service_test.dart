@@ -214,6 +214,34 @@ void main() {
       },
     );
 
+    test('zero thresholds allow immediate eligibility when other thresholds met', () async {
+      // Set minSaved and minShared to 0; keep minDays at 1 to avoid prompting on day 0
+      final values = _FakeRemoteValues(minDays: 1, minSaved: 0, minShared: 0);
+      when(() => store.hasRequested()).thenAnswer((_) async => false);
+
+      // Meet minDays by setting num_days_used to 1
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('num_days_used', 1);
+
+      // Do not save/share any jokes; with zero thresholds it should still be eligible
+      when(
+        () => review.requestReview(source: any(named: 'source')),
+      ).thenAnswer((_) async => ReviewRequestResult.notAvailable);
+
+      final coordinator = ReviewPromptCoordinator(
+        getRemoteValues: () => values,
+        appUsageService: usage,
+        appReviewService: review,
+        stateStore: store,
+      );
+
+      await coordinator.maybePromptForReview(source: ReviewRequestSource.auto);
+
+      verify(
+        () => review.requestReview(source: any(named: 'source')),
+      ).called(1);
+    });
+
     test('ineligible when viewed jokes below threshold', () async {
       // Arrange thresholds include viewed
       final values = _FakeRemoteValues(

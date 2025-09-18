@@ -89,5 +89,48 @@ void main() {
         expect(values.getInt(RemoteParam.subscriptionPromptMinJokesViewed), 5);
       },
     );
+
+    test('getInt accepts zero for non-negative integer params', () async {
+      final client = _MockRemoteConfigClient();
+      final analytics = _MockAnalyticsService();
+
+      when(() => client.setConfigSettings(any())).thenAnswer((_) async {});
+      when(() => client.setDefaults(any())).thenAnswer((_) async {});
+      when(() => client.fetchAndActivate()).thenAnswer((_) async => true);
+
+      // Return zero specifically for review_min_saved_jokes
+      when(() => client.getInt('review_min_saved_jokes')).thenReturn(0);
+
+      final service = RemoteConfigService(
+        client: client,
+        analyticsService: analytics,
+      );
+      await service.initialize();
+
+      final values = service.currentValues;
+      expect(values.getInt(RemoteParam.reviewMinSavedJokes), 0);
+    });
+
+    test('negative values fall back to default for integer params', () async {
+      final client = _MockRemoteConfigClient();
+      final analytics = _MockAnalyticsService();
+
+      when(() => client.setConfigSettings(any())).thenAnswer((_) async {});
+      when(() => client.setDefaults(any())).thenAnswer((_) async {});
+      when(() => client.fetchAndActivate()).thenAnswer((_) async => true);
+
+      // Return negative specifically for review_min_saved_jokes
+      when(() => client.getInt('review_min_saved_jokes')).thenReturn(-1);
+
+      final service = RemoteConfigService(
+        client: client,
+        analyticsService: analytics,
+      );
+      await service.initialize();
+
+      final values = service.currentValues;
+      // Default for reviewMinSavedJokes is 3
+      expect(values.getInt(RemoteParam.reviewMinSavedJokes), 3);
+    });
   });
 }

@@ -155,10 +155,10 @@ class Joke {
     if (value == null) return null;
     try {
       if (value is Timestamp) {
-        return value.toDate();
+        return value.toDate().toUtc();
       }
       if (value is String) {
-        return DateTime.tryParse(value);
+        return DateTime.tryParse(value)?.toUtc();
       }
       if (value is int) {
         if (value > 1000000000000) {

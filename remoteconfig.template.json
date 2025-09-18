@@ -41,7 +41,7 @@
         },
         "review_min_saved_jokes": {
           "defaultValue": {
-            "value": "5"
+            "value": "1"
           },
           "description": "Min number of jokes saved before eligible for review request",
           "valueType": "NUMBER"

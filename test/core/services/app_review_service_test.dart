@@ -11,81 +11,93 @@ class _MockAnalyticsService extends Mock implements AnalyticsService {}
 class _MockStateStore extends Mock implements ReviewPromptStateStore {}
 
 void main() {
+  late _MockNativeReviewAdapter native;
+  late _MockAnalyticsService analytics;
+  late AppReviewService service;
+  late _MockStateStore store;
+
   setUpAll(() {
-    registerFallbackValue('');
+    registerFallbackValue(ReviewRequestSource.adminTest);
+  });
+
+  setUp(() {
+    native = _MockNativeReviewAdapter();
+    analytics = _MockAnalyticsService();
+    store = _MockStateStore();
+    service = AppReviewService(
+      nativeAdapter: native,
+      stateStore: store,
+      analyticsService: analytics,
+    );
+
+    // Mock successful analytics calls by default
+    when(() => analytics.logAppReviewAttempt(source: any(named: 'source')))
+        .thenAnswer((_) async {});
+    when(() => analytics.logErrorAppReviewAvailability(
+        source: any(named: 'source'),
+        errorMessage: any(named: 'errorMessage'))).thenAnswer((_) async {});
+    when(() => analytics.logErrorAppReviewRequest(
+        source: any(named: 'source'),
+        errorMessage: any(named: 'errorMessage'))).thenAnswer((_) async {});
   });
 
   group('AppReviewService', () {
-    late _MockNativeReviewAdapter native;
-    late _MockAnalyticsService analytics;
-    late AppReviewService service;
-    late _MockStateStore store;
+    group('isAvailable', () {
+      test('returns true when native is available', () async {
+        when(() => native.isAvailable()).thenAnswer((_) async => true);
+        expect(await service.isAvailable(), isTrue);
+        verify(() => native.isAvailable()).called(1);
+        verifyNever(() => analytics.logErrorAppReviewAvailability(
+            source: any(named: 'source'),
+            errorMessage: any(named: 'errorMessage')));
+      });
 
-    setUp(() {
-      native = _MockNativeReviewAdapter();
-      analytics = _MockAnalyticsService();
-      store = _MockStateStore();
-      service = AppReviewService(
-        nativeAdapter: native,
-        stateStore: store,
-        analyticsService: analytics,
-      );
+      test('returns false and logs analytics when native throws', () async {
+        when(() => native.isAvailable()).thenThrow(Exception('boom'));
+        expect(await service.isAvailable(), isFalse);
+        verify(() => native.isAvailable()).called(1);
+        verify(() => analytics.logErrorAppReviewAvailability(
+              source: 'service',
+              errorMessage: 'app_review_is_available_failed',
+            )).called(1);
+      });
     });
 
-    test('isAvailable returns true when native is available', () async {
-      when(() => native.isAvailable()).thenAnswer((_) async => true);
+    group('requestReview', () {
+      test('returns notAvailable when API not available', () async {
+        when(() => native.isAvailable()).thenAnswer((_) async => false);
 
-      final result = await service.isAvailable();
+        final result = await service.requestReview(
+          source: ReviewRequestSource.settings,
+        );
 
-      expect(result, isTrue);
-      verify(() => native.isAvailable()).called(1);
-    });
+        expect(result, ReviewRequestResult.notAvailable);
+        verify(() => analytics.logAppReviewAttempt(source: 'settings'))
+            .called(1);
+        verifyNever(() => native.requestReview());
+        verifyNever(() => store.markRequested());
+      });
 
-    test('isAvailable returns false when native throws', () async {
-      when(() => native.isAvailable()).thenThrow(Exception('boom'));
-
-      final result = await service.isAvailable();
-
-      expect(result, isFalse);
-      verify(() => native.isAvailable()).called(1);
-    });
-
-    test('requestReview returns notAvailable when API not available', () async {
-      when(() => native.isAvailable()).thenAnswer((_) async => false);
-
-      final result = await service.requestReview(
-        source: ReviewRequestSource.adminTest,
-      );
-
-      expect(result, ReviewRequestResult.notAvailable);
-      verify(() => native.isAvailable()).called(1);
-      verifyNever(() => native.requestReview());
-      verifyNever(() => store.markRequested());
-    });
-
-    test(
-      'requestReview returns shown and marks requested on success',
-      () async {
+      test('returns shown and marks requested on success', () async {
         when(() => native.isAvailable()).thenAnswer((_) async => true);
         when(() => native.requestReview()).thenAnswer((_) async {});
         when(() => store.markRequested()).thenAnswer((_) async {});
 
         final result = await service.requestReview(
-          source: ReviewRequestSource.adminTest,
+          source: ReviewRequestSource.auto,
         );
 
         expect(result, ReviewRequestResult.shown);
         verifyInOrder([
+          () => analytics.logAppReviewAttempt(source: 'auto'),
           () => native.isAvailable(),
           () => native.requestReview(),
+          () => store.markRequested(),
         ]);
-        verify(() => store.markRequested()).called(1);
-      },
-    );
+      });
 
-    test(
-      'requestReview returns error and does not mark requested on failure',
-      () async {
+      test('returns error, logs analytics, and does not mark requested on failure',
+          () async {
         when(() => native.isAvailable()).thenAnswer((_) async => true);
         when(() => native.requestReview()).thenThrow(Exception('nope'));
 
@@ -94,12 +106,12 @@ void main() {
         );
 
         expect(result, ReviewRequestResult.error);
-        verifyInOrder([
-          () => native.isAvailable(),
-          () => native.requestReview(),
-        ]);
+        verify(() => analytics.logErrorAppReviewRequest(
+              source: 'admin_test',
+              errorMessage: 'app_review_request_failed',
+            )).called(1);
         verifyNever(() => store.markRequested());
-      },
-    );
+      });
+    });
   });
 }

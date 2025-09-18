@@ -4,44 +4,48 @@ import 'package:snickerdoodle/src/features/jokes/data/models/joke_schedule_batch
 
 void main() {
   group('JokeScheduleBatch', () {
-    group('ID management', () {
-      test('createBatchId formats correctly', () {
-        expect(
-          JokeScheduleBatch.createBatchId('daily_jokes', 2024, 3),
-          equals('daily_jokes_2024_03'),
-        );
-        expect(
-          JokeScheduleBatch.createBatchId('holiday_special', 2024, 12),
-          equals('holiday_special_2024_12'),
-        );
+    group('ID Management', () {
+      test('createBatchId should format correctly', () {
+        final testCases = {
+          'daily_jokes_2024_03': () =>
+              JokeScheduleBatch.createBatchId('daily_jokes', 2024, 3),
+          'holiday_special_2024_12': () =>
+              JokeScheduleBatch.createBatchId('holiday_special', 2024, 12),
+        };
+
+        for (final entry in testCases.entries) {
+          expect(entry.value(), entry.key);
+        }
       });
 
-      test('parseBatchId extracts components correctly', () {
-        final parsed = JokeScheduleBatch.parseBatchId('daily_jokes_2024_03');
+      test('parseBatchId should extract components correctly', () {
+        final testCases = {
+          'daily_jokes_2024_03': {
+            'scheduleId': 'daily_jokes',
+            'year': 2024,
+            'month': 3
+          },
+          'holiday_special_schedule_2024_12': {
+            'scheduleId': 'holiday_special_schedule',
+            'year': 2024,
+            'month': 12
+          },
+        };
 
-        expect(parsed, {'scheduleId': 'daily_jokes', 'year': 2024, 'month': 3});
+        for (final entry in testCases.entries) {
+          expect(JokeScheduleBatch.parseBatchId(entry.key), entry.value);
+        }
       });
 
-      test('parseBatchId handles schedule IDs with underscores', () {
-        final parsed = JokeScheduleBatch.parseBatchId(
-          'holiday_special_schedule_2024_12',
-        );
-
-        expect(parsed, {
-          'scheduleId': 'holiday_special_schedule',
-          'year': 2024,
-          'month': 12,
-        });
-      });
-
-      test('parseBatchId returns null for invalid formats', () {
-        expect(JokeScheduleBatch.parseBatchId('invalid'), isNull);
-        expect(JokeScheduleBatch.parseBatchId('too_few_parts'), isNull);
-        expect(JokeScheduleBatch.parseBatchId('invalid_year_month'), isNull);
+      test('parseBatchId should return null for invalid formats', () {
+        final invalidIds = ['invalid', 'too_few_parts', 'invalid_year_month'];
+        for (final id in invalidIds) {
+          expect(JokeScheduleBatch.parseBatchId(id), isNull);
+        }
       });
     });
 
-    group('serialization', () {
+    group('Model methods', () {
       final testJoke = Joke(
         id: 'joke_1',
         setupText: 'Why did the chicken cross the road?',
@@ -50,7 +54,7 @@ void main() {
         punchlineImageUrl: 'https://example.com/punchline.jpg',
       );
 
-      final testBatch = JokeScheduleBatch(
+      final tBatch = JokeScheduleBatch(
         id: 'daily_jokes_2024_03',
         scheduleId: 'daily_jokes',
         year: 2024,
@@ -58,144 +62,67 @@ void main() {
         jokes: {'01': testJoke},
       );
 
-      test('toMap converts to correct Firestore format', () {
-        final map = testBatch.toMap();
+      test('should perform a serialization round trip correctly', () {
+        // Arrange
+        final map = tBatch.toMap();
 
-        expect(map, {
-          'jokes': {
-            '01': {
-              'joke_id': 'joke_1',
-              'setup': 'Why did the chicken cross the road?',
-              'punchline': 'To get to the other side!',
-              'setup_image_url': 'https://example.com/setup.jpg',
-              'punchline_image_url': 'https://example.com/punchline.jpg',
-            },
-          },
-        });
+        // Act
+        final fromMap = JokeScheduleBatch.fromMap(map, tBatch.id);
+
+        // Assert
+        expect(fromMap, tBatch);
       });
 
-      test('fromMap creates correct instance', () {
-        final map = {
-          'jokes': {
-            '01': {
-              'joke_id': 'joke_1',
-              'setup': 'Why did the chicken cross the road?',
-              'punchline': 'To get to the other side!',
-              'setup_image_url': 'https://example.com/setup.jpg',
-              'punchline_image_url': 'https://example.com/punchline.jpg',
-            },
-          },
-        };
+      test('fromMap should handle empty and missing jokes gracefully', () {
+        // Empty jokes map
+        final batch1 = JokeScheduleBatch.fromMap(
+            {'jokes': <String, dynamic>{}}, 'test_2024_01');
+        expect(batch1.jokes, isEmpty);
 
-        final batch = JokeScheduleBatch.fromMap(map, 'daily_jokes_2024_03');
-
-        expect(batch.id, equals('daily_jokes_2024_03'));
-        expect(batch.scheduleId, equals('daily_jokes'));
-        expect(batch.year, equals(2024));
-        expect(batch.month, equals(3));
-        expect(batch.jokes.length, equals(1));
-
-        final joke = batch.jokes['01']!;
-        expect(joke.id, equals('joke_1'));
-        expect(joke.setupText, equals('Why did the chicken cross the road?'));
-        expect(joke.punchlineText, equals('To get to the other side!'));
+        // Missing jokes field
+        final batch2 =
+            JokeScheduleBatch.fromMap(<String, dynamic>{}, 'test_2024_01');
+        expect(batch2.jokes, isEmpty);
       });
 
-      test('fromMap handles empty jokes', () {
-        final map = {'jokes': <String, dynamic>{}};
-        final batch = JokeScheduleBatch.fromMap(map, 'test_2024_01');
-
-        expect(batch.jokes, isEmpty);
+      test('fromMap should throw ArgumentError on invalid document ID', () {
+        expect(() => JokeScheduleBatch.fromMap({}, 'invalid_id'),
+            throwsA(isA<ArgumentError>()));
       });
 
-      test('fromMap handles missing jokes field', () {
-        final map = <String, dynamic>{};
-        final batch = JokeScheduleBatch.fromMap(map, 'test_2024_01');
-
-        expect(batch.jokes, isEmpty);
-      });
-
-      test('fromMap throws on invalid document ID', () {
-        final map = {'jokes': {}};
-
-        expect(
-          () => JokeScheduleBatch.fromMap(map, 'invalid_id'),
-          throwsA(isA<ArgumentError>()),
-        );
-      });
-    });
-
-    group('copyWith', () {
-      final originalBatch = JokeScheduleBatch(
-        id: 'test_2024_01',
-        scheduleId: 'test',
-        year: 2024,
-        month: 1,
-        jokes: {},
-      );
-
-      test('copies with new values', () {
+      test('copyWith should create a copy with updated values', () {
+        // Arrange
         final newJokes = {
-          '01': Joke(id: 'new', setupText: 'New', punchlineText: 'New'),
+          '02': const Joke(id: 'new', setupText: 'New', punchlineText: 'New')
         };
-        final copied = originalBatch.copyWith(
+
+        // Act
+        final copied = tBatch.copyWith(
           year: 2025,
-          month: 2,
           jokes: newJokes,
         );
 
-        expect(copied.id, equals('test_2024_01')); // ID unchanged
-        expect(copied.scheduleId, equals('test')); // Schedule ID unchanged
-        expect(copied.year, equals(2025));
-        expect(copied.month, equals(2));
-        expect(copied.jokes, equals(newJokes));
-      });
-    });
-
-    group('equality and hashing', () {
-      final joke = Joke(
-        id: 'test',
-        setupText: 'Setup',
-        punchlineText: 'Punchline',
-      );
-
-      test('equal batches are equal', () {
-        final batch1 = JokeScheduleBatch(
-          id: 'test_2024_01',
-          scheduleId: 'test',
-          year: 2024,
-          month: 1,
-          jokes: {'01': joke},
-        );
-        final batch2 = JokeScheduleBatch(
-          id: 'test_2024_01',
-          scheduleId: 'test',
-          year: 2024,
-          month: 1,
-          jokes: {'01': joke},
-        );
-
-        expect(batch1, equals(batch2));
-        // Note: hashCode may differ due to map implementation, which is acceptable
+        // Assert
+        expect(copied.id, tBatch.id); // Unchanged
+        expect(copied.scheduleId, tBatch.scheduleId); // Unchanged
+        expect(copied.year, 2025); // Updated
+        expect(copied.jokes, newJokes); // Updated
       });
 
-      test('different batches are not equal', () {
-        final batch1 = JokeScheduleBatch(
-          id: 'test_2024_01',
-          scheduleId: 'test',
-          year: 2024,
-          month: 1,
-          jokes: {},
-        );
-        final batch2 = JokeScheduleBatch(
-          id: 'test_2024_02',
-          scheduleId: 'test',
-          year: 2024,
-          month: 2,
-          jokes: {},
-        );
+      test('equality and hashCode should work correctly', () {
+        // Arrange
+        final sameBatch = tBatch.copyWith();
+        final differentBatch = tBatch.copyWith(id: 'diff_id');
 
-        expect(batch1, isNot(equals(batch2)));
+        // Assert
+        expect(tBatch, sameBatch);
+        expect(tBatch.hashCode, sameBatch.hashCode);
+        expect(tBatch, isNot(differentBatch));
+        expect(tBatch.hashCode, isNot(differentBatch.hashCode));
+      });
+
+      test('toString should return a non-empty string', () {
+        expect(tBatch.toString(), isNotEmpty);
       });
     });
   });

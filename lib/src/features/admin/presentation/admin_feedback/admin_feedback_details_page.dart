@@ -75,7 +75,9 @@ class _AdminFeedbackDetailsPageState
                         child: Card(
                           color: (message.speaker == SpeakerType.admin)
                               ? Theme.of(context).colorScheme.primaryContainer
-                              : Theme.of(context).colorScheme.surfaceContainerHighest,
+                              : Theme.of(
+                                  context,
+                                ).colorScheme.surfaceContainerHighest,
                           child: Padding(
                             padding: const EdgeInsets.all(12.0),
                             child: Text(message.text),

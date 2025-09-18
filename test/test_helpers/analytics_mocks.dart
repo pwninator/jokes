@@ -308,6 +308,11 @@ class AnalyticsMocks {
         numDaysUsed: any(named: 'numDaysUsed'),
       ),
     ).thenAnswer((_) async {});
+
+    // Settings: joke viewer changed
+    when(
+      () => mock.logJokeViewerSettingChanged(mode: any(named: 'mode')),
+    ).thenAnswer((_) async {});
   }
 }
 

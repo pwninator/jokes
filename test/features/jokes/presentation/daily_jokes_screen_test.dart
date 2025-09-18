@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:snickerdoodle/src/common_widgets/joke_card.dart';
 import 'package:snickerdoodle/src/common_widgets/joke_image_carousel.dart';
 import 'package:snickerdoodle/src/config/router/app_router.dart' show RailHost;
@@ -84,6 +85,8 @@ void main() {
     }
 
     setUp(() {
+      // Default tests expect Reveal mode enabled
+      SharedPreferences.setMockInitialValues({'joke_viewer_reveal': true});
       // Create test jokes with images
       mockJokes = [
         Joke(
@@ -337,6 +340,19 @@ void main() {
     });
 
     group('CTA Behavior', () {
+      testWidgets('shows Next joke when reveal disabled via settings', (
+        tester,
+      ) async {
+        // Override preference to disable reveal (show both images)
+        SharedPreferences.setMockInitialValues({'joke_viewer_reveal': false});
+
+        await tester.pumpWidget(createTestWidget());
+        await tester.pump();
+        await tester.pump(); // allow post-frame rail slot update
+
+        expect(find.byKey(const Key('joke_viewer_cta_button')), findsOneWidget);
+        expect(find.text('Next joke'), findsOneWidget);
+      });
       testWidgets('shows CTA button and toggles label based on state', (
         tester,
       ) async {
@@ -420,6 +436,8 @@ void main() {
         await tester.pumpWidget(createLandscapeShellTestWidget());
         await tester.pump();
         await tester.pump();
+        // Allow async settings provider to load reveal preference
+        await tester.pump(const Duration(milliseconds: 250));
         expect(find.byType(NavigationRail), findsOneWidget);
         expect(find.byKey(const Key('joke_viewer_cta_button')), findsOneWidget);
         expect(find.text('Reveal'), findsOneWidget);

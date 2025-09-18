@@ -4,15 +4,19 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:snickerdoodle/src/common_widgets/joke_image_carousel.dart';
 import 'package:snickerdoodle/src/core/providers/image_providers.dart';
+import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 
 import '../test_helpers/analytics_mocks.dart';
+import '../test_helpers/core_mocks.dart';
 import '../test_helpers/firebase_mocks.dart';
 import 'joke_image_carousel_test.dart' show FakeJoke; // reuse existing FakeJoke
 
 class _MockImageService extends Mock implements ImageService {}
+
+class _MockAppUsageService extends Mock implements AppUsageService {}
 
 void main() {
   setUpAll(() {
@@ -21,6 +25,7 @@ void main() {
   });
 
   late _MockImageService mockImageService;
+  late _MockAppUsageService mockAppUsageService;
   late MockAnalyticsService mockAnalyticsService;
 
   const String dataUrl =
@@ -28,6 +33,7 @@ void main() {
 
   setUp(() {
     mockImageService = _MockImageService();
+    mockAppUsageService = _MockAppUsageService();
     mockAnalyticsService = AnalyticsMocks.mockAnalyticsService;
     // Ensure FakeJoke is registered for any(Joke)
     registerFallbackValue(FakeJoke());
@@ -55,13 +61,24 @@ void main() {
     when(
       () => mockImageService.precacheMultipleJokeImages(any()),
     ).thenAnswer((_) async {});
+
+    // App usage stubs required by full-view flow
+    when(() => mockAppUsageService.logJokeViewed()).thenAnswer((_) async {});
+    when(
+      () => mockAppUsageService.getNumJokesViewed(),
+    ).thenAnswer((_) async => 1);
   });
 
   Widget wrap(Widget child) => ProviderScope(
     overrides: [
-      ...FirebaseMocks.getFirebaseProviderOverrides(),
-      ...AnalyticsMocks.getAnalyticsProviderOverrides(),
-      imageServiceProvider.overrideWithValue(mockImageService),
+      ...CoreMocks.getCoreProviderOverrides(
+        additionalOverrides: [
+          ...FirebaseMocks.getFirebaseProviderOverrides(),
+          ...AnalyticsMocks.getAnalyticsProviderOverrides(),
+          imageServiceProvider.overrideWithValue(mockImageService),
+          appUsageServiceProvider.overrideWithValue(mockAppUsageService),
+        ],
+      ),
     ],
     child: MaterialApp(
       theme: lightTheme,
@@ -149,4 +166,39 @@ void main() {
       ),
     ).called(greaterThan(0));
   });
+
+  testWidgets(
+    'non-REVEAL modes auto-log punchline and fully viewed after setup',
+    (tester) async {
+      Future<void> runForMode(JokeCarouselMode mode) async {
+        final widget = SizedBox(
+          width: 800,
+          height: 600,
+          child: JokeImageCarousel(
+            joke: joke,
+            isAdminMode: false,
+            jokeContext: 'feed',
+            mode: mode,
+          ),
+        );
+        await tester.pumpWidget(wrap(widget));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 2100)); // setup timer
+        await tester.pump(const Duration(milliseconds: 2100)); // chained timer
+      }
+
+      // Run sequentially to avoid overflow/layout complexities
+      await runForMode(JokeCarouselMode.HORIZONTAL);
+      await runForMode(JokeCarouselMode.VERTICAL);
+      await runForMode(JokeCarouselMode.BOTH_ADAPTIVE);
+
+      verify(
+        () => mockAnalyticsService.logJokePunchlineViewed(
+          any(),
+          navigationMethod: any(named: 'navigationMethod'),
+          jokeContext: any(named: 'jokeContext'),
+        ),
+      ).called(greaterThan(0));
+    },
+  );
 }

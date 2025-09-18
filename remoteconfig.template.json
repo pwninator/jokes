@@ -61,6 +61,17 @@
           "valueType": "NUMBER"
         }
       }
+    },
+    "Joke Viewer": {
+      "parameters": {
+        "default_joke_viewer_reveal": {
+          "defaultValue": {
+            "value": "false"
+          },
+          "description": "Default reveal mode for joke viewer when no local pref exists",
+          "valueType": "BOOLEAN"
+        }
+      }
     }
   }
 }

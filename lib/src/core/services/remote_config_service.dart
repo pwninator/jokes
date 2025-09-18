@@ -42,6 +42,12 @@ const Map<RemoteParam, RemoteParamDescriptor> remoteParams = {
     defaultInt: 30,
     isValid: _validateNonNegativeInt,
   ),
+  // Controls the default for the Joke Viewer setting when no local pref exists
+  RemoteParam.defaultJokeViewerReveal: RemoteParamDescriptor(
+    key: 'default_joke_viewer_reveal',
+    type: RemoteParamType.boolType,
+    defaultBool: false,
+  ),
 };
 
 enum RemoteParam {
@@ -51,6 +57,7 @@ enum RemoteParam {
   reviewMinSavedJokes,
   reviewMinSharedJokes,
   reviewMinViewedJokes,
+  defaultJokeViewerReveal,
 }
 
 enum RemoteParamType { intType, boolType, doubleType, stringType }

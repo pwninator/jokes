@@ -24,7 +24,7 @@ import 'package:snickerdoodle/src/features/jokes/application/joke_search_provide
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_state.dart';
 
-enum JokeCarouselMode { REVEAL, VERTICAL, HORIZONTAL }
+enum JokeCarouselMode { REVEAL, VERTICAL, HORIZONTAL, BOTH_ADAPTIVE }
 
 /// Controller to allow parent widgets to imperatively control the
 /// `JokeImageCarousel` (e.g., reveal the punchline programmatically).
@@ -145,6 +145,34 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
               missingParts: 'setup',
             );
           }
+        }
+        // For non-REVEAL modes (VERTICAL, HORIZONTAL, BOTH_ADAPTIVE),
+        // automatically chain a second 2s timer to count punchline viewed
+        // and then consider the joke fully viewed.
+        if (widget.mode != JokeCarouselMode.REVEAL) {
+          // Set navigation attribution for punchline + full view to programmatic
+          _navMethodPunchline = AnalyticsNavigationMethod.programmatic;
+          _lastNavigationMethod = AnalyticsNavigationMethod.programmatic;
+          _viewTimer = Timer(_jokeImageViewThreshold, () async {
+            if (!mounted || _jokeViewedLogged) return;
+            _punchlineThresholdMet = true;
+            if (!_punchlineEventLogged) {
+              _punchlineEventLogged = true;
+              if (!widget.isAdminMode) {
+                final analyticsServiceInner = ref.read(
+                  analyticsServiceProvider,
+                );
+                analyticsServiceInner.logJokePunchlineViewed(
+                  widget.joke.id,
+                  navigationMethod:
+                      _navMethodPunchline ??
+                      AnalyticsNavigationMethod.programmatic,
+                  jokeContext: widget.jokeContext,
+                );
+              }
+            }
+            await _maybeLogJokeFullyViewed();
+          });
         }
       } else if (index == 1) {
         _punchlineThresholdMet = true;
@@ -720,6 +748,9 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
         return 2.0; // Wider to accommodate two images side by side
       case JokeCarouselMode.VERTICAL:
         return 0.5; // Taller to accommodate two images stacked vertically
+      case JokeCarouselMode.BOTH_ADAPTIVE:
+        // Not used directly; adaptive handled in build with LayoutBuilder
+        return 1.0;
     }
   }
 
@@ -750,6 +781,10 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
             Expanded(child: punchlineImage),
           ],
         );
+      case JokeCarouselMode.BOTH_ADAPTIVE:
+        // Handled in build() where we know constraints and can pick aspect ratio
+        // This path should not be used directly
+        return const SizedBox.shrink();
     }
   }
 
@@ -798,9 +833,49 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
                           top: Radius.circular(16),
                           bottom: Radius.circular(16),
                         ),
-                        child: AspectRatio(
-                          aspectRatio: _getAspectRatio(),
-                          child: _buildCarouselContent(),
+                        child: Builder(
+                          builder: (context) {
+                            if (widget.mode != JokeCarouselMode.BOTH_ADAPTIVE) {
+                              return AspectRatio(
+                                aspectRatio: _getAspectRatio(),
+                                child: _buildCarouselContent(),
+                              );
+                            }
+                            // Adaptive: decide orientation & aspect ratio together
+                            return LayoutBuilder(
+                              builder: (context, constraints) {
+                                final setupImage = _buildImagePage(
+                                  imageUrl: widget.joke.setupImageUrl,
+                                );
+                                final punchlineImage = _buildImagePage(
+                                  imageUrl: widget.joke.punchlineImageUrl,
+                                );
+                                final bool preferHorizontal =
+                                    constraints.maxWidth >=
+                                    constraints.maxHeight;
+                                final double aspectRatio = preferHorizontal
+                                    ? 2.0
+                                    : 0.5;
+                                final Widget content = preferHorizontal
+                                    ? Row(
+                                        children: [
+                                          Expanded(child: setupImage),
+                                          Expanded(child: punchlineImage),
+                                        ],
+                                      )
+                                    : Column(
+                                        children: [
+                                          Expanded(child: setupImage),
+                                          Expanded(child: punchlineImage),
+                                        ],
+                                      );
+                                return AspectRatio(
+                                  aspectRatio: aspectRatio,
+                                  child: content,
+                                );
+                              },
+                            );
+                          },
                         ),
                       ),
                     ),

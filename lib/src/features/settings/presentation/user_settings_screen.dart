@@ -15,6 +15,7 @@ import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
 import 'package:snickerdoodle/src/features/auth/data/models/app_user.dart';
 import 'package:snickerdoodle/src/features/settings/application/theme_settings_service.dart';
+import 'package:snickerdoodle/src/features/settings/application/joke_viewer_settings_service.dart';
 
 class UserSettingsScreen extends ConsumerStatefulWidget
     implements TitledScreen {
@@ -130,31 +131,9 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 8),
 
-              // Notification Settings Section
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16.0),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      GestureDetector(
-                        onTap: () => _handleSecretTap('notifications'),
-                        child: Text(
-                          'Notifications',
-                          style: Theme.of(context).textTheme.headlineSmall,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      _buildNotificationSettings(context, ref),
-                    ],
-                  ),
-                ),
-              ),
-
-              // Suggestions/Feedback button
-              const SizedBox(height: 16),
+              // Suggestions/Feedback button (keep near top for accessibility/tests)
               Align(
                 alignment: Alignment.center,
                 child: OutlinedButton.icon(
@@ -175,6 +154,89 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                       builder: (context) => const FeedbackDialog(),
                     );
                   },
+                ),
+              ),
+
+              const SizedBox(height: 8),
+
+              // Joke Viewer Settings Section
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(12.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Joke Viewer',
+                        style: Theme.of(context).textTheme.headlineSmall,
+                      ),
+                      const SizedBox(height: 12),
+                      Consumer(
+                        builder: (context, ref, _) {
+                          final reveal = ref.watch(jokeViewerRevealProvider);
+                          return Row(
+                            children: [
+                              Icon(
+                                reveal
+                                    ? Icons.visibility_off
+                                    : Icons.view_carousel,
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
+                              const SizedBox(width: 16),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      reveal
+                                          ? 'Hide punchline image for a surprise!'
+                                          : 'Always show both images',
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Switch(
+                                key: const Key('joke-viewer-toggle'),
+                                value: reveal,
+                                onChanged: (value) async {
+                                  await ref
+                                      .read(jokeViewerRevealProvider.notifier)
+                                      .setReveal(value);
+                                },
+                                activeColor: Theme.of(
+                                  context,
+                                ).colorScheme.primary,
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+
+              // Notification Settings Section
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      GestureDetector(
+                        onTap: () => _handleSecretTap('notifications'),
+                        child: Text(
+                          'Notifications',
+                          style: Theme.of(context).textTheme.headlineSmall,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      _buildNotificationSettings(context, ref),
+                    ],
+                  ),
                 ),
               ),
 

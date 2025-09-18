@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:snickerdoodle/src/common_widgets/joke_image_carousel.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:snickerdoodle/src/features/settings/application/joke_viewer_settings_service.dart';
 import 'package:snickerdoodle/src/common_widgets/joke_text_card.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 
-class JokeCard extends StatelessWidget {
+class JokeCard extends ConsumerWidget {
   final Joke joke;
   final int? index;
   final VoidCallback? onSetupTap;
@@ -44,7 +46,7 @@ class JokeCard extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     // Determine which state to show based on image URLs
     // Check for non-null, non-empty, and non-whitespace URLs
     final hasSetupImage =
@@ -54,6 +56,10 @@ class JokeCard extends StatelessWidget {
         joke.punchlineImageUrl!.trim().isNotEmpty;
 
     if (hasSetupImage && hasPunchlineImage) {
+      final bool reveal = ref.watch(jokeViewerRevealProvider);
+      final mode = reveal
+          ? JokeCarouselMode.REVEAL
+          : JokeCarouselMode.BOTH_ADAPTIVE;
       // Both images available - show carousel
       return JokeImageCarousel(
         joke: joke,
@@ -73,7 +79,7 @@ class JokeCard extends StatelessWidget {
         controller: controller,
         overlayBadgeText: topRightBadgeText,
         showSimilarSearchButton: showSimilarSearchButton,
-        mode: JokeCarouselMode.VERTICAL,
+        mode: mode,
       );
     } else {
       // No images or incomplete images - show text with populate button

@@ -10,6 +10,7 @@ import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_navigation_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
+import 'package:snickerdoodle/src/features/settings/application/joke_viewer_settings_service.dart';
 
 /// Reusable vertical viewer for a list of jokes with CTA button
 class JokeListViewer extends ConsumerStatefulWidget {
@@ -117,7 +118,11 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
         currentJoke.punchlineImageUrl!.trim().isNotEmpty;
     final int currentImageIndex = _currentImageStates[_currentPage] ?? 0;
 
-    final bool showReveal = hasPunchlineImage && currentImageIndex == 0;
+    // Respect user preference: if reveal mode is disabled (show both),
+    // there is nothing to reveal, so CTA should be "Next joke" only.
+    final bool revealModeEnabled = ref.watch(jokeViewerRevealProvider);
+    final bool showReveal =
+        revealModeEnabled && hasPunchlineImage && currentImageIndex == 0;
     final String label = showReveal ? 'Reveal' : 'Next joke';
     final bool disabled = isEmpty || (!showReveal && isLast);
 

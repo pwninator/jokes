@@ -13,6 +13,7 @@ import '../../../test_helpers/firebase_mocks.dart';
 class _MockFeedbackRepository extends Mock implements FeedbackRepository {}
 
 class MockGoRouter extends Mock implements GoRouter {}
+
 extension _GoRouterStubs on MockGoRouter {
   void stubPushNamed() {
     when(

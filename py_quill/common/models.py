@@ -695,6 +695,9 @@ class PunnyJoke:
   setup_image_url: str | None = None
   punchline_image_url: str | None = None
 
+  setup_image_url_upscaled: str | None = None
+  punchline_image_url_upscaled: str | None = None
+
   all_setup_image_urls: list[str] = field(default_factory=list)
   all_punchline_image_urls: list[str] = field(default_factory=list)
 

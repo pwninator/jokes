@@ -105,6 +105,22 @@ python -m pytest py_quill --cov=py_quill --cov-report=term-missing
 pytest py_quill --cov=py_quill --cov-report=term-missing
 ```
 
+**IMPORTANT**: Because `py_quill` is installed as a package, all python imports inside the `py_quill` directory must be relative to the `py_quill` root.
+
+For example, to import `models.py` from `common/` into a file inside `functions/`, you would use:
+```python
+from common import models
+```
+
+NOT:
+```python
+from py_quill.common import models
+
+or 
+
+from ..common import models
+```
+
 ## 4. Architecture
 
 ### 4.1 Flutter

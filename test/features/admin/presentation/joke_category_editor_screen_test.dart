@@ -57,7 +57,7 @@ void main() {
 
       // One TextFormField: editable image description
       expect(find.byType(TextFormField), findsNWidgets(1));
-      expect(find.text('PROPOSED'), findsOneWidget);
+      expect(find.text('Proposed'), findsOneWidget);
     });
 
     testWidgets('can update state', (WidgetTester tester) async {
@@ -78,10 +78,10 @@ void main() {
 
       await tester.tap(find.byType(DropdownButtonFormField<JokeCategoryState>));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('APPROVED').last);
+      await tester.tap(find.text('Approved').last);
       await tester.pumpAndSettle();
 
-      expect(find.text('APPROVED'), findsOneWidget);
+      expect(find.text('Approved'), findsOneWidget);
     });
 
     testWidgets('update button calls upsertCategory', (

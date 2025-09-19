@@ -39,7 +39,7 @@ class FirestoreJokeCategoryRepository implements JokeCategoryRepository {
       'joke_description_query': category.jokeDescriptionQuery,
       'image_description': category.imageDescription,
       'image_url': category.imageUrl,
-      'state': category.state.name,
+      'state': category.state.value,
     }, SetOptions(merge: true));
   }
 

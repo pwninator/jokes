@@ -85,29 +85,26 @@ class ImageClientTest(unittest.TestCase):
         self.assertEqual(result.generation_metadata.generations[0].token_counts, {"upscale_images": 1})
 
     @patch('services.image_client.ImagenClient._create_model_client')
-    @patch('services.cloud_storage.upload_bytes_to_gcs')
     @patch('services.image_client._get_upscaled_gcs_uri')
-    @patch('PIL.Image.open')
     @patch('vertexai.preview.vision_models.Image.load_from_file')
-    def test_upscale_image_internal_imagen(self, mock_load_from_file, mock_pil_open, mock_get_upscaled_uri, mock_upload_bytes, mock_create_client):
+    def test_upscale_image_internal_imagen(self, mock_load_from_file, mock_get_upscaled_uri, mock_create_client):
         """Test the ImagenClient._upscale_image_internal method."""
         mock_model_client = MagicMock()
         mock_create_client.return_value = mock_model_client
 
         mock_upscaled_image = MagicMock()
-        mock_upscaled_image.load_image_bytes.return_value = _get_dummy_image_bytes()
-        mock_model_client.upscale_image.return_value = [mock_upscaled_image]
+        mock_upscaled_image._gcs_uri = "gs://test/image_upscale_2048.png"
+        mock_model_client.upscale_image.return_value = mock_upscaled_image
 
         mock_get_upscaled_uri.return_value = "gs://test/image_upscale_2048.png"
-        mock_upload_bytes.return_value = "gs://test/image_upscale_2048.png"
 
         gcs_uri = self.imagen1_client._upscale_image_internal("gs://test/image.png", 2048)
 
         mock_load_from_file.assert_called_once_with("gs://test/image.png")
         mock_model_client.upscale_image.assert_called_once_with(
             image=mock_load_from_file.return_value,
-            new_size=2048
+            new_size=2048,
+            output_gcs_uri="gs://test/image_upscale_2048.png",
         )
         mock_get_upscaled_uri.assert_called_once_with("gs://test/image.png", 2048)
-        mock_upload_bytes.assert_called_once_with(_get_dummy_image_bytes(), "gs://test/image_upscale_2048.png", content_type="image/png")
         self.assertEqual(gcs_uri, "gs://test/image_upscale_2048.png")

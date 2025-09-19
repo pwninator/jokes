@@ -293,9 +293,8 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
                       padding: EdgeInsets.only(
                         left: 16.0,
                         right: 16.0,
-                        top: isLandscape ? 4.0 : 16.0,
-                        // In column layout, CTA sits below; only small spacing needed
-                        bottom: isLandscape ? 4.0 : 16.0,
+                        top: 4.0,
+                        bottom: 4.0,
                       ),
                       child: JokeCard(
                         key: Key(joke.id),

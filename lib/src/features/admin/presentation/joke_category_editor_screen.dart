@@ -126,12 +126,13 @@ class JokeCategoryEditorView extends ConsumerWidget {
           // 3) State selector
           DropdownButtonFormField<JokeCategoryState>(
             initialValue: editorState.state,
-            items: JokeCategoryState.values
-                .map(
-                  (state) =>
-                      DropdownMenuItem(value: state, child: Text(state.name)),
-                )
-                .toList(),
+            items: JokeCategoryState.values.map((state) {
+              // Format like JokeState: first letter uppercase, rest lowercase
+              final displayText = state.value.toLowerCase();
+              final formattedText =
+                  displayText[0].toUpperCase() + displayText.substring(1);
+              return DropdownMenuItem(value: state, child: Text(formattedText));
+            }).toList(),
             onChanged: (value) {
               if (value != null) {
                 editorNotifier.updateState(value);

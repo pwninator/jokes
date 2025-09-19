@@ -1,6 +1,23 @@
 import 'package:flutter/foundation.dart';
 
-enum JokeCategoryState { proposed, approved, rejected }
+/// Joke category state values stored in Firestore as uppercase strings
+enum JokeCategoryState {
+  proposed('PROPOSED'),
+  approved('APPROVED'),
+  rejected('REJECTED');
+
+  const JokeCategoryState(this.value);
+
+  final String value;
+
+  static JokeCategoryState? fromString(String? value) {
+    if (value == null) return null;
+    for (final s in JokeCategoryState.values) {
+      if (s.value == value) return s;
+    }
+    return null;
+  }
+}
 
 @immutable
 class JokeCategory {
@@ -28,10 +45,9 @@ class JokeCategory {
           (map['joke_description_query'] as String?)?.trim() ?? '',
       imageUrl: (map['image_url'] as String?)?.trim(),
       imageDescription: (map['image_description'] as String?)?.trim(),
-      state: JokeCategoryState.values.firstWhere(
-        (e) => e.name == map['state'],
-        orElse: () => JokeCategoryState.proposed,
-      ),
+      state:
+          JokeCategoryState.fromString(map['state'] as String?) ??
+          JokeCategoryState.proposed,
     );
   }
 }

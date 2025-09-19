@@ -903,9 +903,9 @@ def upscale_joke(req: https_fn.Request) -> https_fn.Response:
     if req.method not in ['GET', 'POST']:
       return error_response(f'Method not allowed: {req.method}')
 
-    joke_id = get_param(req, 'jokeId')
+    joke_id = get_param(req, 'joke_id')
     if not joke_id:
-      return error_response('jokeId is required')
+      return error_response('joke_id is required')
 
     new_size = 4096
 

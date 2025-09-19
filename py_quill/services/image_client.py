@@ -442,23 +442,24 @@ class ImagenClient(ImageClient[ImageGenerationModel]):
       raise ValueError(
         f"Upscaling is only supported for the {ImageModel.IMAGEN_1.model_name} model with ImagenClient."
       )
+
+    print(f"Upscaling image with Imagen to size {new_size}")
     image_to_upscale = VertexImage.load_from_file(gcs_uri)
 
-    upscaled_images = self.model_client.upscale_image(
+    output_gcs_uri = _get_upscaled_gcs_uri(gcs_uri, new_size)
+    upscaled_image = self.model_client.upscale_image(
       image=image_to_upscale,
       new_size=new_size,
+      output_gcs_uri=output_gcs_uri,
     )
 
-    if not upscaled_images:
-      raise ValueError("No upscaled images returned from Imagen")
+    if not upscaled_image:
+      raise ValueError("No upscaled image returned from Imagen")
 
-    upscaled_image = upscaled_images[0]
-    image_bytes = upscaled_image.load_image_bytes()
-
-    output_gcs_uri = _get_upscaled_gcs_uri(gcs_uri, new_size)
-    final_gcs_uri = cloud_storage.upload_bytes_to_gcs(image_bytes,
-                                                      output_gcs_uri,
-                                                      content_type="image/png")
+    final_gcs_uri = upscaled_image._gcs_uri  # pylint: disable=protected-access
+    if not final_gcs_uri:
+      raise ValueError(
+        f"No GCS URI returned for upscaled image (label={self.label})")
 
     return final_gcs_uri
 

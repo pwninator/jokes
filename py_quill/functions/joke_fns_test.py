@@ -1527,7 +1527,7 @@ class TestUpscaleJoke:
     # Arrange
     mock_firestore, mock_image_client, mock_cloud_storage = mock_services
 
-    req = DummyReq(data={"jokeId": "joke1"})
+    req = DummyReq(data={"joke_id": "joke1"})
 
     mock_joke = models.PunnyJoke(
       key="joke1",

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/common_widgets/adaptive_app_bar_screen.dart';
+import 'package:snickerdoodle/src/config/router/router_providers.dart';
 import 'package:snickerdoodle/src/core/data/repositories/feedback_repository.dart';
 import 'package:snickerdoodle/src/core/providers/feedback_providers.dart';
 
@@ -21,6 +22,12 @@ class _AdminFeedbackDetailsPageState
   @override
   void initState() {
     super.initState();
+
+    // Enable keyboard resizing for this screen
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(keyboardResizeProvider.notifier).state = true;
+    });
+
     ref
         .read(feedbackRepositoryProvider)
         .updateLastAdminViewTime(widget.feedbackId);
@@ -98,6 +105,8 @@ class _AdminFeedbackDetailsPageState
                             hintText: 'Type your message...',
                             border: OutlineInputBorder(),
                           ),
+                          // expands: true,
+                          maxLines: null,
                           onSubmitted: (_) => _sendMessage(),
                         ),
                       ),

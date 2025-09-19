@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:snickerdoodle/src/common_widgets/feedback_dialog.dart';
+import 'package:snickerdoodle/src/common_widgets/feedback_notification_icon.dart';
 import 'package:snickerdoodle/src/core/providers/feedback_prompt_providers.dart';
 
 /// A custom AppBar widget that provides consistent styling across the app
@@ -45,38 +45,18 @@ class AppBarWidget extends ConsumerWidget implements PreferredSizeWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final shouldShow = ref.watch(shouldShowFeedbackActionProvider);
 
-    final trailing = actions ?? <Widget>[];
-
-    final eligibility = ref.watch(shouldShowFeedbackActionProvider);
-    Widget? feedbackAction;
-    feedbackAction = eligibility.when(
-      data: (show) {
-        if (!show) return null;
-        return IconButton(
-          key: const Key('appbar-feedback-button'),
-          icon: const Icon(Icons.feedback_outlined),
-          color: theme.colorScheme.primary,
-          tooltip: 'Feedback',
-          onPressed: () async {
-            if (context.mounted) {
-              // Show dialog
-              showDialog<bool>(
-                context: context,
-                builder: (context) => const FeedbackDialog(),
-              );
-            }
-          },
-        );
-      },
-      loading: () => null,
-      error: (_, __) => null,
-    );
+    final allActions = <Widget>[
+      ...?actions,
+      if (shouldShow.maybeWhen(data: (v) => v, orElse: () => false))
+        const FeedbackNotificationIcon(key: Key('feedback-notification-icon')),
+    ];
 
     return AppBar(
       title: Text(title),
       leading: leading,
-      actions: [...trailing, if (feedbackAction != null) feedbackAction],
+      actions: allActions,
       backgroundColor: backgroundColor ?? theme.colorScheme.surface,
       foregroundColor: foregroundColor,
       elevation: elevation ?? 0,

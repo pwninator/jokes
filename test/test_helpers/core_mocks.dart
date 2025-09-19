@@ -5,6 +5,7 @@ import 'package:snickerdoodle/src/core/providers/app_version_provider.dart';
 import 'package:snickerdoodle/src/core/providers/image_providers.dart';
 import 'package:snickerdoodle/src/core/providers/shared_preferences_provider.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
+import 'package:snickerdoodle/src/core/services/feedback_service.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
 import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
 
@@ -15,6 +16,8 @@ class MockSettingsService extends Mock implements SettingsService {}
 
 class MockDailyJokeSubscriptionService extends Mock
     implements DailyJokeSubscriptionService {}
+
+class MockFeedbackService extends Mock implements FeedbackService {}
 
 class MockSharedPreferences extends Mock implements SharedPreferences {}
 

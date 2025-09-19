@@ -25,6 +25,7 @@ void main() {
           ),
         ],
         lastAdminViewTime: null,
+        lastUserViewTime: null,
       ),
     ];
 

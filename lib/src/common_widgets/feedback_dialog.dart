@@ -1,13 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:snickerdoodle/src/core/providers/feedback_providers.dart';
-import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
+import 'package:snickerdoodle/src/core/data/repositories/feedback_repository.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/providers/app_usage_events_provider.dart';
+import 'package:snickerdoodle/src/core/providers/feedback_providers.dart';
 import 'package:snickerdoodle/src/core/services/feedback_prompt_state_store.dart';
+import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
 
 class FeedbackDialog extends ConsumerStatefulWidget {
-  const FeedbackDialog({super.key});
+  final FeedbackEntry? feedbackEntry;
+  const FeedbackDialog({super.key, this.feedbackEntry});
 
   @override
   ConsumerState<FeedbackDialog> createState() => _FeedbackDialogState();
@@ -21,23 +23,32 @@ class _FeedbackDialogState extends ConsumerState<FeedbackDialog> {
   @override
   void initState() {
     super.initState();
-    // Focus the text field after the dialog is built
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _focusNode.requestFocus();
-    });
-    // Log analytics for dialog shown and mark viewed
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      try {
-        final analytics = ref.read(analyticsServiceProvider);
-        analytics.logFeedbackDialogShown();
-      } catch (_) {}
-      try {
-        final store = ref.read(feedbackPromptStateStoreProvider);
-        await store.markViewed();
-        // Invalidate eligibility so the app bar button hides immediately
-        ref.read(appUsageEventsProvider.notifier).state++;
-      } catch (_) {}
-    });
+    if (widget.feedbackEntry == null) {
+      // Focus the text field after the dialog is built
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _focusNode.requestFocus();
+      });
+      // Log analytics for dialog shown and mark viewed
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        try {
+          final analytics = ref.read(analyticsServiceProvider);
+          analytics.logFeedbackDialogShown();
+        } catch (_) {}
+        try {
+          final store = ref.read(feedbackPromptStateStoreProvider);
+          await store.markViewed();
+          // Invalidate eligibility so the app bar button hides immediately
+          ref.read(appUsageEventsProvider.notifier).state++;
+        } catch (_) {}
+      });
+    } else {
+      // Mark as read if there's a specific feedback entry
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        ref
+            .read(feedbackServiceProvider)
+            .updateLastUserViewTime(widget.feedbackEntry!.id);
+      });
+    }
   }
 
   @override
@@ -49,6 +60,41 @@ class _FeedbackDialogState extends ConsumerState<FeedbackDialog> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.feedbackEntry != null) {
+      return AlertDialog(
+        title: const Text('Thank you for your feedback!'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                widget.feedbackEntry!.conversation.first.text,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  fontStyle: FontStyle.italic,
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.onSurface.withValues(alpha: 0.6),
+                ),
+              ),
+              const SizedBox(height: 18),
+              Text(
+                widget.feedbackEntry!.conversation.last.text,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurface,
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      );
+    }
     return AlertDialog(
       title: const Text('Help Us Perfect the Recipe! 🍪'),
       content: SingleChildScrollView(

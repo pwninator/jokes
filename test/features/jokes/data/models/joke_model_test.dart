@@ -49,23 +49,25 @@ void main() {
         expect(result, tFullJoke);
       });
 
-      test('should handle minimal data, setting defaults for missing fields',
-          () {
-        // Arrange
-        final map = {
-          'setup_text': tMinimalJoke.setupText,
-          'punchline_text': tMinimalJoke.punchlineText,
-        };
+      test(
+        'should handle minimal data, setting defaults for missing fields',
+        () {
+          // Arrange
+          final map = {
+            'setup_text': tMinimalJoke.setupText,
+            'punchline_text': tMinimalJoke.punchlineText,
+          };
 
-        // Act
-        final result = Joke.fromMap(map, tMinimalJoke.id);
+          // Act
+          final result = Joke.fromMap(map, tMinimalJoke.id);
 
-        // Assert
-        expect(result, tMinimalJoke);
-        expect(result.numThumbsUp, 0);
-        expect(result.tags, isEmpty);
-        expect(result.setupImageUrl, isNull);
-      });
+          // Assert
+          expect(result, tMinimalJoke);
+          expect(result.numThumbsUp, 0);
+          expect(result.tags, isEmpty);
+          expect(result.setupImageUrl, isNull);
+        },
+      );
 
       group('_parsePublicTimestamp', () {
         test('should parse Timestamp object', () {
@@ -77,10 +79,7 @@ void main() {
 
         test('should parse String object', () {
           const dateString = '2023-01-01T12:00:00.000Z';
-          final map = {
-            ...tMinimalJoke.toMap(),
-            'public_timestamp': dateString
-          };
+          final map = {...tMinimalJoke.toMap(), 'public_timestamp': dateString};
           final result = Joke.fromMap(map, tMinimalJoke.id);
           expect(result.publicTimestamp, DateTime.parse(dateString).toUtc());
         });
@@ -89,24 +88,29 @@ void main() {
           final milliseconds = DateTime.utc(2023).millisecondsSinceEpoch;
           final map = {
             ...tMinimalJoke.toMap(),
-            'public_timestamp': milliseconds
+            'public_timestamp': milliseconds,
           };
           final result = Joke.fromMap(map, tMinimalJoke.id);
-          expect(result.publicTimestamp, DateTime.fromMillisecondsSinceEpoch(milliseconds, isUtc: true));
+          expect(
+            result.publicTimestamp,
+            DateTime.fromMillisecondsSinceEpoch(milliseconds, isUtc: true),
+          );
         });
 
         test('should parse int (seconds)', () {
           final seconds = DateTime.utc(2023).millisecondsSinceEpoch ~/ 1000;
           final map = {...tMinimalJoke.toMap(), 'public_timestamp': seconds};
           final result = Joke.fromMap(map, tMinimalJoke.id);
-          expect(result.publicTimestamp,
-              DateTime.fromMillisecondsSinceEpoch(seconds * 1000, isUtc: true));
+          expect(
+            result.publicTimestamp,
+            DateTime.fromMillisecondsSinceEpoch(seconds * 1000, isUtc: true),
+          );
         });
 
         test('should return null for invalid data', () {
           final map = {
             ...tMinimalJoke.toMap(),
-            'public_timestamp': 'not-a-date'
+            'public_timestamp': 'not-a-date',
           };
           final result = Joke.fromMap(map, tMinimalJoke.id);
           expect(result.publicTimestamp, isNull);
@@ -115,13 +119,15 @@ void main() {
     });
 
     group('copyWith', () {
-      test('should return an identical object when no parameters are provided',
-          () {
-        // Act
-        final result = tFullJoke.copyWith();
-        // Assert
-        expect(result, tFullJoke);
-      });
+      test(
+        'should return an identical object when no parameters are provided',
+        () {
+          // Act
+          final result = tFullJoke.copyWith();
+          // Assert
+          expect(result, tFullJoke);
+        },
+      );
 
       test('should update only the specified fields', () {
         // Act
@@ -177,12 +183,15 @@ void main() {
 
       test('hashCode should be different if any property is different', () {
         // Assert
-        expect(tFullJoke.hashCode,
-            isNot(tFullJoke.copyWith(id: '_').hashCode));
-        expect(tFullJoke.hashCode,
-            isNot(tFullJoke.copyWith(setupText: '_').hashCode));
-        expect(tFullJoke.hashCode,
-            isNot(tFullJoke.copyWith(punchlineText: '_').hashCode));
+        expect(tFullJoke.hashCode, isNot(tFullJoke.copyWith(id: '_').hashCode));
+        expect(
+          tFullJoke.hashCode,
+          isNot(tFullJoke.copyWith(setupText: '_').hashCode),
+        );
+        expect(
+          tFullJoke.hashCode,
+          isNot(tFullJoke.copyWith(punchlineText: '_').hashCode),
+        );
       });
     });
 

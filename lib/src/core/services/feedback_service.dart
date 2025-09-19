@@ -13,6 +13,9 @@ abstract class FeedbackService {
     String text,
     SpeakerType speaker,
   );
+
+  /// Update last user view time to server time
+  Future<void> updateLastUserViewTime(String docId);
 }
 
 class FeedbackServiceImpl implements FeedbackService {
@@ -39,5 +42,10 @@ class FeedbackServiceImpl implements FeedbackService {
     SpeakerType speaker,
   ) async {
     await _feedbackRepository.addConversationMessage(docId, text, speaker);
+  }
+
+  @override
+  Future<void> updateLastUserViewTime(String docId) async {
+    await _feedbackRepository.updateLastUserViewTime(docId);
   }
 }

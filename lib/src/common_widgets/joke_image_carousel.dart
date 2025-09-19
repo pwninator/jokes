@@ -74,7 +74,7 @@ class JokeImageCarousel extends ConsumerStatefulWidget {
     this.onImageStateChanged,
     this.isAdminMode = false,
     this.jokesToPreload,
-    this.showSaveButton = true,
+    this.showSaveButton = false,
     this.showShareButton = false,
     this.showAdminRatingButtons = false,
     this.showNumSaves = false,
@@ -83,7 +83,7 @@ class JokeImageCarousel extends ConsumerStatefulWidget {
     required this.jokeContext,
     this.controller,
     this.overlayBadgeText,
-    this.showSimilarSearchButton = true,
+    this.showSimilarSearchButton = false,
     this.mode = JokeCarouselMode.REVEAL,
   });
 
@@ -1172,10 +1172,14 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
       return const SizedBox();
     }
 
-    // Return aligned row of buttons
+    // Return aligned row of buttons, scaling down to avoid overflow in tight widths
     return Align(
       alignment: Alignment.centerRight,
-      child: Row(mainAxisSize: MainAxisSize.min, children: buttons),
+      child: FittedBox(
+        fit: BoxFit.scaleDown,
+        alignment: Alignment.centerRight,
+        child: Row(mainAxisSize: MainAxisSize.min, children: buttons),
+      ),
     );
   }
 

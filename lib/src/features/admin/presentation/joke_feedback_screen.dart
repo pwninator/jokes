@@ -31,16 +31,30 @@ class JokeFeedbackScreen extends ConsumerWidget implements TitledScreen {
       return Colors.red;
     }
     final last = entry.conversation.last;
-    if (last.speaker == SpeakerType.admin) {
-      return Colors.green;
+    // Yellow for user messages, Green for admin messages
+    return last.speaker == SpeakerType.user ? Colors.yellow : Colors.green;
+  }
+
+  IconData _getIcon(FeedbackEntry entry) {
+    if (entry.conversation.isEmpty) {
+      return Icons.feedback;
     }
-    // If last message is from user but admin viewed after it, show yellow
-    final view = entry.lastAdminViewTime;
-    if (view != null && view.isAfter(last.timestamp)) {
-      return Colors.yellow;
+    final last = entry.conversation.last;
+
+    // Check if the last message has been read based on who sent it
+    bool isRead = false;
+    if (last.speaker == SpeakerType.user) {
+      // User message - check if admin has viewed it
+      final adminViewTime = entry.lastAdminViewTime;
+      isRead = adminViewTime != null && adminViewTime.isAfter(last.timestamp);
+    } else {
+      // Admin message - check if user has viewed it
+      final userViewTime = entry.lastUserViewTime;
+      isRead = userViewTime != null && userViewTime.isAfter(last.timestamp);
     }
-    // Otherwise treat as unread (red)
-    return Colors.red;
+
+    // Solid icon if unread, outline icon if read
+    return isRead ? Icons.feedback_outlined : Icons.feedback;
   }
 
   @override
@@ -59,7 +73,7 @@ class JokeFeedbackScreen extends ConsumerWidget implements TitledScreen {
           return ListView.separated(
             padding: const EdgeInsets.all(8),
             itemCount: items.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 8),
+            separatorBuilder: (context, index) => const SizedBox(height: 8),
             itemBuilder: (context, index) {
               final entry = items[index];
               final usageAsync = ref.watch(jokeUserUsageProvider(entry.userId));
@@ -67,7 +81,7 @@ class JokeFeedbackScreen extends ConsumerWidget implements TitledScreen {
               return Card(
                 child: ListTile(
                   leading: Icon(
-                    Icons.feedback,
+                    _getIcon(entry),
                     color: _getIconColor(entry, context),
                   ),
                   title: Text(() {

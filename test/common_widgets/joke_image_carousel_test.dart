@@ -57,7 +57,6 @@ void main() {
       // assert
       expect(find.byType(SmoothPageIndicator), findsOneWidget);
       expect(find.byType(PageView), findsOneWidget);
-      expect(find.byType(SaveJokeButton), findsOneWidget);
     });
 
     testWidgets('VERTICAL mode hides page indicators but shows controls', (
@@ -85,7 +84,6 @@ void main() {
       // assert: indicators hidden, controls visible, no PageView
       expect(find.byType(SmoothPageIndicator), findsNothing);
       expect(find.byType(PageView), findsNothing);
-      expect(find.byType(SaveJokeButton), findsOneWidget);
 
       // assert: aspect ratio reflects two stacked images (0.5)
       final ar = tester.widget<AspectRatio>(find.byType(AspectRatio));
@@ -117,7 +115,6 @@ void main() {
       // assert: indicators hidden, controls visible, no PageView
       expect(find.byType(SmoothPageIndicator), findsNothing);
       expect(find.byType(PageView), findsNothing);
-      expect(find.byType(SaveJokeButton), findsOneWidget);
 
       // assert: aspect ratio reflects two side-by-side images (2.0)
       final ar = tester.widget<AspectRatio>(find.byType(AspectRatio));

@@ -54,10 +54,10 @@ void main() {
     );
   }
 
-  testWidgets('renders feedback and checks icon colors', (tester) async {
+  testWidgets('renders feedback and checks icon colors and styles', (tester) async {
     final now = DateTime.now();
     final entries = [
-      // Red case
+      // User message - unread by admin (yellow, solid)
       FeedbackEntry(
         id: '1',
         creationTime: now,
@@ -70,8 +70,9 @@ void main() {
           ),
         ],
         lastAdminViewTime: null,
+        lastUserViewTime: null,
       ),
-      // Yellow case
+      // User message - read by admin (yellow, outline)
       FeedbackEntry(
         id: '2',
         creationTime: now,
@@ -83,9 +84,10 @@ void main() {
             timestamp: now.subtract(const Duration(hours: 1)),
           ),
         ],
-        lastAdminViewTime: now,
+        lastAdminViewTime: now, // Admin viewed after user's message
+        lastUserViewTime: null,
       ),
-      // Green case
+      // Admin message - unread by user (green, solid)
       FeedbackEntry(
         id: '3',
         creationTime: now,
@@ -98,6 +100,22 @@ void main() {
           ),
         ],
         lastAdminViewTime: now.subtract(const Duration(hours: 1)),
+        lastUserViewTime: null,
+      ),
+      // Admin message - read by user (green, outline)
+      FeedbackEntry(
+        id: '4',
+        creationTime: now,
+        userId: 'userD',
+        conversation: [
+          FeedbackConversationEntry(
+            speaker: SpeakerType.admin,
+            text: 'How can I help?',
+            timestamp: now.subtract(const Duration(hours: 1)),
+          ),
+        ],
+        lastAdminViewTime: now.subtract(const Duration(hours: 2)),
+        lastUserViewTime: now, // User viewed after admin's message
       ),
     ];
 
@@ -111,7 +129,8 @@ void main() {
     expect(find.text('Help!'), findsOneWidget);
     expect(find.text('Thanks!'), findsOneWidget);
     // When last message is from admin, title shows 'Admin response only'
-    expect(find.text('Admin response only'), findsOneWidget);
+    expect(find.text('Admin response only'), findsNWidgets(2));
+    expect(find.text('How can I help?'), findsNothing); // Admin message shown as 'Admin response only'
 
     final icon1 = tester.widget<Icon>(
       find.descendant(
@@ -131,10 +150,24 @@ void main() {
         matching: find.byType(Icon),
       ),
     );
+    final icon4 = tester.widget<Icon>(
+      find.descendant(
+        of: find.byType(ListTile).at(3),
+        matching: find.byType(Icon),
+      ),
+    );
 
-    expect(icon1.color, isA<Color>());
-    expect(icon2.color, Colors.yellow);
-    expect(icon3.color, Colors.green);
+    // Check colors
+    expect(icon1.color, Colors.yellow); // User message - yellow
+    expect(icon2.color, Colors.yellow); // User message - yellow
+    expect(icon3.color, Colors.green);  // Admin message - green
+    expect(icon4.color, Colors.green);  // Admin message - green
+
+    // Check icon types
+    expect(icon1.icon, Icons.feedback); // User message, unread by admin - solid
+    expect(icon2.icon, Icons.feedback_outlined); // User message, read by admin - outline
+    expect(icon3.icon, Icons.feedback); // Admin message, unread by user - solid
+    expect(icon4.icon, Icons.feedback_outlined); // Admin message, read by user - outline
   });
 
   testWidgets('tapping a feedback item navigates to details page', (
@@ -147,6 +180,7 @@ void main() {
         creationTime: now,
         userId: 'userA',
         lastAdminViewTime: null,
+        lastUserViewTime: null,
         conversation: [
           FeedbackConversationEntry(
             speaker: SpeakerType.user,

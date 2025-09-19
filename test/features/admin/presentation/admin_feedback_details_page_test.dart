@@ -35,6 +35,7 @@ void main() {
       creationTime: now,
       userId: userId,
       lastAdminViewTime: lastAdminViewTime,
+      lastUserViewTime: null,
       conversation:
           conversation ??
           [

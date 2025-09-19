@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/common_widgets/feedback_notification_icon.dart';
 import 'package:snickerdoodle/src/core/providers/feedback_prompt_providers.dart';
-import 'package:snickerdoodle/src/core/providers/feedback_providers.dart';
 
 /// A custom AppBar widget that provides consistent styling across the app
 /// while allowing for flexible customization when needed.
@@ -47,17 +46,11 @@ class AppBarWidget extends ConsumerWidget implements PreferredSizeWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final shouldShow = ref.watch(shouldShowFeedbackActionProvider);
-    final unreadFeedback = ref.watch(unreadFeedbackProvider);
 
     final allActions = <Widget>[
       ...?actions,
       if (shouldShow.maybeWhen(data: (v) => v, orElse: () => false))
-        FeedbackNotificationIcon(
-          key: const Key('feedback-notification-icon'),
-          feedbackEntry: unreadFeedback.isNotEmpty
-              ? unreadFeedback.first
-              : null,
-        ),
+        const FeedbackNotificationIcon(key: Key('feedback-notification-icon')),
     ];
 
     return AppBar(

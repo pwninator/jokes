@@ -34,7 +34,18 @@ This repository contains a Flutter app and a Python Cloud Functions codebase. Fo
 - Flutter: run `dart format .` and `flutter analyze` before submitting.
 - Python: keep names clear, functions small, docstrings concise; match existing style in `py_quill`.
 
-### 2.3 Analytics and error reporting
+### 2.3 Widget keys for interactive elements
+
+- **All interactive widgets must have unique keys** for testing, automation, and debugging purposes.
+- Interactive widgets include: buttons (ElevatedButton, TextButton, OutlinedButton, IconButton, FloatingActionButton), text inputs (TextField, TextFormField), toggles (Switch, Checkbox, Radio), sliders, dropdowns, gesture detectors (GestureDetector, InkWell), list tiles, and any other widget users can interact with.
+- **Key naming convention**: Use the file name (without extension) as a prefix, followed by a descriptive identifier: `Key('filename-widget-description')`
+  - Example: In `feedback_dialog.dart`: `Key('feedback_dialog-submit-button')`
+  - Example: In `user_settings_screen.dart`: `Key('user_settings_screen-google-sign-in-button')`
+  - For widgets with dynamic IDs: `Key('filename-widget-description-$dynamicId')`
+  - Example: `Key('save_joke_button-$jokeId')`
+- This ensures global uniqueness across the entire app and makes widgets easily identifiable in tests and automation scripts.
+
+### 2.4 Analytics and error reporting
 
 - Flutter: error-like analytics events must also log a Crashlytics non-fatal via `AnalyticsService`; tests should verify both.
 - Python: use Cloud Logging (do not call Flutter Analytics/Crashlytics from Python).
@@ -191,6 +202,7 @@ from ..common import models
 
 - Flutter change:
   - [ ] Tests under `test/`
+  - [ ] All interactive widgets have unique keys following naming convention
   - [ ] `dart format .`
   - [ ] `flutter analyze`
   - [ ] `flutter test`

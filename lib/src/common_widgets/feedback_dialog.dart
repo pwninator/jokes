@@ -6,8 +6,11 @@ import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/providers/app_usage_events_provider.dart';
 import 'package:snickerdoodle/src/core/services/feedback_prompt_state_store.dart';
 
+import 'package:snickerdoodle/src/core/data/repositories/feedback_repository.dart';
+
 class FeedbackDialog extends ConsumerStatefulWidget {
-  const FeedbackDialog({super.key});
+  final FeedbackEntry? feedbackEntry;
+  const FeedbackDialog({super.key, this.feedbackEntry});
 
   @override
   ConsumerState<FeedbackDialog> createState() => _FeedbackDialogState();
@@ -21,23 +24,25 @@ class _FeedbackDialogState extends ConsumerState<FeedbackDialog> {
   @override
   void initState() {
     super.initState();
-    // Focus the text field after the dialog is built
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _focusNode.requestFocus();
-    });
-    // Log analytics for dialog shown and mark viewed
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      try {
-        final analytics = ref.read(analyticsServiceProvider);
-        analytics.logFeedbackDialogShown();
-      } catch (_) {}
-      try {
-        final store = ref.read(feedbackPromptStateStoreProvider);
-        await store.markViewed();
-        // Invalidate eligibility so the app bar button hides immediately
-        ref.read(appUsageEventsProvider.notifier).state++;
-      } catch (_) {}
-    });
+    if (widget.feedbackEntry == null) {
+      // Focus the text field after the dialog is built
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _focusNode.requestFocus();
+      });
+      // Log analytics for dialog shown and mark viewed
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        try {
+          final analytics = ref.read(analyticsServiceProvider);
+          analytics.logFeedbackDialogShown();
+        } catch (_) {}
+        try {
+          final store = ref.read(feedbackPromptStateStoreProvider);
+          await store.markViewed();
+          // Invalidate eligibility so the app bar button hides immediately
+          ref.read(appUsageEventsProvider.notifier).state++;
+        } catch (_) {}
+      });
+    }
   }
 
   @override
@@ -49,6 +54,32 @@ class _FeedbackDialogState extends ConsumerState<FeedbackDialog> {
 
   @override
   Widget build(BuildContext context) {
+    if (widget.feedbackEntry != null) {
+      return AlertDialog(
+        title: const Text('New Message from Admin'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Your Original Message:',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+              Text(widget.feedbackEntry!.conversation.first.text),
+              const SizedBox(height: 12),
+              const Text('Admin Response:',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+              Text(widget.feedbackEntry!.conversation.last.text),
+            ],
+          ),
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Close'),
+          ),
+        ],
+      );
+    }
     return AlertDialog(
       title: const Text('Help Us Perfect the Recipe! 🍪'),
       content: SingleChildScrollView(

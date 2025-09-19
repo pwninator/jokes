@@ -47,12 +47,19 @@ service cloud.firestore {
     }
 
     match /joke_feedback/{jokeFeedbackId} {
-      // Read access: Only allowed for admin users
+      // Read access: Admin can read all, users can read their own.
       allow read:
-        if request.auth != null && request.auth.token.role == 'admin';
+        if request.auth != null && (request.auth.token.role == 'admin' || resource.data.user_id == request.auth.uid);
 
-      // Update/delete access: Only allowed for admin users
-      allow update, delete:
+      // Update access: Admin can update any field. Users can only update their own lastUserViewTime.
+      allow update:
+        if request.auth != null &&
+           (request.auth.token.role == 'admin' ||
+            (resource.data.user_id == request.auth.uid &&
+             request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastUserViewTime'])));
+
+      // Delete access: Only allowed for admin users
+      allow delete:
         if request.auth != null && request.auth.token.role == 'admin';
 
       // Anyone can submit feedback

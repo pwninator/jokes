@@ -70,6 +70,7 @@ void main() {
           ),
         ],
         lastAdminViewTime: null,
+        lastUserViewTime: null,
       ),
       // Yellow case
       FeedbackEntry(
@@ -84,6 +85,7 @@ void main() {
           ),
         ],
         lastAdminViewTime: now,
+        lastUserViewTime: null,
       ),
       // Green case
       FeedbackEntry(
@@ -98,6 +100,7 @@ void main() {
           ),
         ],
         lastAdminViewTime: now.subtract(const Duration(hours: 1)),
+        lastUserViewTime: null,
       ),
     ];
 
@@ -147,6 +150,7 @@ void main() {
         creationTime: now,
         userId: 'userA',
         lastAdminViewTime: null,
+        lastUserViewTime: null,
         conversation: [
           FeedbackConversationEntry(
             speaker: SpeakerType.user,

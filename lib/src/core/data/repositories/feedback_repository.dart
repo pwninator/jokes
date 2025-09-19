@@ -70,8 +70,14 @@ abstract class FeedbackRepository {
   /// Update last admin view time to server time
   Future<void> updateLastAdminViewTime(String docId);
 
+  /// Update last user view time to server time
+  Future<void> updateLastUserViewTime(String docId);
+
   /// Stream all feedback ordered by creation_time descending
   Stream<List<FeedbackEntry>> watchAllFeedback();
+
+  /// Stream all feedback for a user ordered by creation_time descending
+  Stream<List<FeedbackEntry>> watchAllFeedbackForUser(String userId);
 
   /// Stream the count of unread feedback items
   Stream<int> watchUnreadCount();
@@ -114,6 +120,7 @@ class FirestoreFeedbackRepository implements FeedbackRepository {
       'conversation': [conversationEntry],
       'user_id': userId,
       'lastAdminViewTime': null,
+      'lastUserViewTime': null,
     });
   }
 
@@ -179,6 +186,27 @@ class FirestoreFeedbackRepository implements FeedbackRepository {
   }
 
   @override
+  Future<void> updateLastUserViewTime(String docId) async {
+    await _firestore.collection(_collectionName).doc(docId).update({
+      'lastUserViewTime': FieldValue.serverTimestamp(),
+    });
+  }
+
+  @override
+  Stream<List<FeedbackEntry>> watchAllFeedbackForUser(String userId) {
+    return _firestore
+        .collection(_collectionName)
+        .where('user_id', isEqualTo: userId)
+        .orderBy('creation_time', descending: true)
+        .snapshots()
+        .map(
+          (snapshot) => snapshot.docs
+              .map((doc) => FeedbackEntry.fromFirestore(doc))
+              .toList(),
+        );
+  }
+
+  @override
   Stream<int> watchUnreadCount() {
     return watchAllFeedback().map((entries) {
       int count = 0;
@@ -205,6 +233,7 @@ class FeedbackEntry {
   final List<FeedbackConversationEntry> conversation;
   final String userId;
   final DateTime? lastAdminViewTime;
+  final DateTime? lastUserViewTime;
 
   FeedbackEntry({
     required this.id,
@@ -212,6 +241,7 @@ class FeedbackEntry {
     required this.conversation,
     required this.userId,
     required this.lastAdminViewTime,
+    required this.lastUserViewTime,
   });
 
   FeedbackConversationEntry? get lastMessage =>
@@ -232,12 +262,21 @@ class FeedbackEntry {
     }
 
     // Parse last admin view time
-    final lastViewRaw = data['lastAdminViewTime'];
+    final lastAdminViewRaw = data['lastAdminViewTime'];
     DateTime? lastAdminViewTime;
-    if (lastViewRaw is Timestamp) {
-      lastAdminViewTime = lastViewRaw.toDate();
-    } else if (lastViewRaw is DateTime) {
-      lastAdminViewTime = lastViewRaw;
+    if (lastAdminViewRaw is Timestamp) {
+      lastAdminViewTime = lastAdminViewRaw.toDate();
+    } else if (lastAdminViewRaw is DateTime) {
+      lastAdminViewTime = lastAdminViewRaw;
+    }
+
+    // Parse last user view time
+    final lastUserViewRaw = data['lastUserViewTime'];
+    DateTime? lastUserViewTime;
+    if (lastUserViewRaw is Timestamp) {
+      lastUserViewTime = lastUserViewRaw.toDate();
+    } else if (lastUserViewRaw is DateTime) {
+      lastUserViewTime = lastUserViewRaw;
     }
 
     // Handle both new conversation format and legacy feedback_text format
@@ -276,6 +315,7 @@ class FeedbackEntry {
       conversation: conversation,
       userId: (data['user_id'] as String?) ?? 'anonymous',
       lastAdminViewTime: lastAdminViewTime,
+      lastUserViewTime: lastUserViewTime,
     );
   }
 }

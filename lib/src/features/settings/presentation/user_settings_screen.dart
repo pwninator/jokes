@@ -120,6 +120,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       GestureDetector(
+                        key: const Key('user_settings_screen-theme-settings-secret-tap'),
                         onTap: () => _handleSecretTap('theme'),
                         child: Text(
                           'Theme Settings',
@@ -205,6 +206,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       GestureDetector(
+                        key: const Key('user_settings_screen-notifications-secret-tap'),
                         onTap: () => _handleSecretTap('notifications'),
                         child: Text(
                           'Notifications',
@@ -365,6 +367,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                         if (currentUser?.isAnonymous == true) ...[
                           // Show Google sign-in option for anonymous users
                           ElevatedButton.icon(
+                            key: const Key('user_settings_screen-google-sign-in-button'),
                             onPressed: () =>
                                 _signInWithGoogle(context, authController),
                             icon: const Icon(Icons.login),
@@ -379,6 +382,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                         ] else ...[
                           // Show sign out option for authenticated users
                           ElevatedButton.icon(
+                            key: const Key('user_settings_screen-switch-to-guest-button'),
                             onPressed: () =>
                                 _confirmSignOut(context, authController),
                             icon: const Icon(Icons.logout),
@@ -411,6 +415,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                         const SizedBox(height: 16),
 
                         ElevatedButton.icon(
+                          key: const Key('user_settings_screen-test-subscribe-prompt-button'),
                           onPressed: () => _testSubscribePrompt(context),
                           icon: const Icon(Icons.notifications),
                           label: const Text('Test Subscribe Prompt'),
@@ -459,6 +464,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
               // Version text (for secret sequence)
               Center(
                 child: GestureDetector(
+                  key: const Key('user_settings_screen-version-secret-tap'),
                   onTap: () => _handleSecretTap('version'),
                   child: Container(
                     padding: const EdgeInsets.symmetric(vertical: 16.0),
@@ -698,6 +704,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
               ),
             ),
             Switch(
+              key: const Key('user_settings_screen-notifications-toggle'),
               value: isSubscribed,
               onChanged: (value) => _toggleNotifications(context, ref, value),
               activeThumbColor: Theme.of(context).colorScheme.primary,
@@ -724,6 +731,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
     final isSelected = themeMode == currentThemeMode;
 
     return InkWell(
+      key: Key('user_settings_screen-theme-option-${title.toLowerCase().replaceAll(' ', '-')}'),
       onTap: onTap,
       borderRadius: BorderRadius.circular(8),
       child: Padding(
@@ -766,6 +774,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
               ),
             ),
             Radio<ThemeMode>(
+              key: Key('user_settings_screen-theme-radio-${title.toLowerCase().replaceAll(' ', '-')}'),
               value: themeMode,
               groupValue: currentThemeMode,
               onChanged: (value) => onTap(),
@@ -872,6 +881,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                     content: SingleChildScrollView(child: Text(e.toString())),
                     actions: [
                       TextButton(
+                        key: const Key('user_settings_screen-error-dialog-ok-button'),
                         onPressed: () => Navigator.of(context).pop(),
                         child: const Text('OK'),
                       ),
@@ -896,10 +906,12 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
         ),
         actions: [
           TextButton(
+            key: const Key('user_settings_screen-sign-out-cancel-button'),
             onPressed: () => Navigator.of(context).pop(),
             child: const Text('Cancel'),
           ),
           ElevatedButton(
+            key: const Key('user_settings_screen-sign-out-confirm-button'),
             onPressed: () async {
               Navigator.of(context).pop();
               try {

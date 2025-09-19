@@ -125,6 +125,7 @@ class _ModifyImageDialogState extends ConsumerState<ModifyImageDialog> {
               SizedBox(
                 height: 100, // 5 lines * ~20px per line
                 child: TextField(
+                  key: const Key('modify_image_dialog-setup-text-field'),
                   controller: _setupController,
                   maxLines: 5,
                   decoration: const InputDecoration(
@@ -193,6 +194,7 @@ class _ModifyImageDialogState extends ConsumerState<ModifyImageDialog> {
               SizedBox(
                 height: 100, // 5 lines * ~20px per line
                 child: TextField(
+                  key: const Key('modify_image_dialog-punchline-text-field'),
                   controller: _punchlineController,
                   maxLines: 5,
                   decoration: const InputDecoration(
@@ -208,10 +210,12 @@ class _ModifyImageDialogState extends ConsumerState<ModifyImageDialog> {
       ),
       actions: [
         TextButton(
+          key: const Key('modify_image_dialog-cancel-button'),
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('Cancel'),
         ),
         ElevatedButton(
+          key: const Key('modify_image_dialog-submit-button'),
           onPressed: !_canSubmit ? null : _submitModifications,
           child: const Text('Submit'),
         ),

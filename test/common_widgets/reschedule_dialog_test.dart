@@ -73,7 +73,7 @@ void main() {
 
       // Check change date button
       expect(find.text('Change date'), findsOneWidget);
-      expect(find.byKey(const Key('change-date-btn')), findsOneWidget);
+      expect(find.byKey(const Key('reschedule_dialog-change-date-button')), findsOneWidget);
 
       // Check calendar is present
       expect(find.byType(CalendarDatePicker), findsOneWidget);
@@ -103,7 +103,7 @@ void main() {
         await tester.pumpAndSettle();
 
         // Tap the change date button
-        await tester.tap(find.byKey(const Key('change-date-btn')));
+        await tester.tap(find.byKey(const Key('reschedule_dialog-change-date-button')));
         await tester.pumpAndSettle();
 
         // Verify the service was called with correct parameters
@@ -150,7 +150,7 @@ void main() {
       );
 
       // Tap the change date button
-      await tester.tap(find.byKey(const Key('change-date-btn')));
+      await tester.tap(find.byKey(const Key('reschedule_dialog-change-date-button')));
       await tester.pumpAndSettle();
 
       // Verify the service was called with default schedule ID
@@ -183,7 +183,7 @@ void main() {
       );
 
       // Tap the change date button
-      await tester.tap(find.byKey(const Key('change-date-btn')));
+      await tester.tap(find.byKey(const Key('reschedule_dialog-change-date-button')));
       await tester.pumpAndSettle();
 
       // Verify the service was called
@@ -223,7 +223,7 @@ void main() {
       );
 
       // Tap the change date button
-      await tester.tap(find.byKey(const Key('change-date-btn')));
+      await tester.tap(find.byKey(const Key('reschedule_dialog-change-date-button')));
       await tester.pumpAndSettle();
 
       // Verify the service was called

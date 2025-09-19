@@ -130,7 +130,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               ),
             ),
             child: TextField(
-              key: const Key('search-tab-search-field'),
+              key: const Key('search_screen-search-field'),
               controller: _controller,
               focusNode: _focusNode,
               decoration: InputDecoration(
@@ -142,7 +142,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     ? Padding(
                         padding: const EdgeInsets.only(right: 8.0),
                         child: IconButton(
-                          key: const Key('search-clear-button'),
+                          key: const Key('search_screen-clear-button'),
                           tooltip: 'Clear',
                           icon: const Icon(Icons.close),
                           padding: EdgeInsets.all(4),

@@ -38,6 +38,7 @@ class JokeAdminScreen extends ConsumerWidget implements TitledScreen {
               // Feedback Card with unread badge
               Card(
                 child: ListTile(
+                  key: const Key('joke_admin_screen-feedback-tile'),
                   leading: const Icon(Icons.feedback),
                   title: const Text('Feedback'),
                   subtitle: const Text('User-submitted feedback'),
@@ -76,6 +77,7 @@ class JokeAdminScreen extends ConsumerWidget implements TitledScreen {
               // Users Analytics Card
               Card(
                 child: ListTile(
+                  key: const Key('joke_admin_screen-users-tile'),
                   leading: const Icon(Icons.people_alt),
                   title: const Text('Users'),
                   subtitle: const Text('Daily logins by days-used bucket'),
@@ -90,6 +92,7 @@ class JokeAdminScreen extends ConsumerWidget implements TitledScreen {
               // Joke Categories Card
               Card(
                 child: ListTile(
+                  key: const Key('joke_admin_screen-categories-tile'),
                   leading: const Icon(Icons.category),
                   title: const Text('Joke Categories'),
                   subtitle: const Text('Browse categories and images'),
@@ -105,6 +108,7 @@ class JokeAdminScreen extends ConsumerWidget implements TitledScreen {
               // Joke Creator Card
               Card(
                 child: ListTile(
+                  key: const Key('joke_admin_screen-creator-tile'),
                   leading: const Icon(Icons.auto_awesome),
                   title: const Text('Joke Creator'),
                   subtitle: const Text(
@@ -122,6 +126,7 @@ class JokeAdminScreen extends ConsumerWidget implements TitledScreen {
               // Joke Management Card
               Card(
                 child: ListTile(
+                  key: const Key('joke_admin_screen-management-tile'),
                   leading: const Icon(Icons.mood),
                   title: const Text('Joke Management'),
                   subtitle: const Text('Add, edit, and moderate jokes'),
@@ -137,6 +142,7 @@ class JokeAdminScreen extends ConsumerWidget implements TitledScreen {
               // Joke Scheduler Card
               Card(
                 child: ListTile(
+                  key: const Key('joke_admin_screen-scheduler-tile'),
                   leading: const Icon(Icons.schedule),
                   title: const Text('Joke Scheduler'),
                   subtitle: const Text('Schedule jokes for daily delivery'),
@@ -152,6 +158,7 @@ class JokeAdminScreen extends ConsumerWidget implements TitledScreen {
               // Deep Research Card (last in menu)
               Card(
                 child: ListTile(
+                  key: const Key('joke_admin_screen-deep-research-tile'),
                   leading: const Icon(Icons.science),
                   title: const Text('Deep Research'),
                   subtitle: const Text(

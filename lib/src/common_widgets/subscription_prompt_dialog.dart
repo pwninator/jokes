@@ -67,6 +67,7 @@ class _SubscriptionPromptDialogState
               // Maybe Later button
               Expanded(
                 child: TextButton(
+                  key: const Key('subscription_prompt_dialog-maybe-later-button'),
                   onPressed: _isLoading ? null : () => _handleMaybeLater(),
                   style: TextButton.styleFrom(
                     backgroundColor: theme.colorScheme.surfaceContainerHighest,
@@ -87,6 +88,7 @@ class _SubscriptionPromptDialogState
               Expanded(
                 flex: 2,
                 child: ElevatedButton(
+                  key: const Key('subscription_prompt_dialog-subscribe-button'),
                   onPressed: _isLoading ? null : () => _handleSubscribe(),
                   child: _isLoading
                       ? const SizedBox(

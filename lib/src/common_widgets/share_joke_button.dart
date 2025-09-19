@@ -21,6 +21,7 @@ class ShareJokeButton extends ConsumerWidget {
     final theme = Theme.of(context);
 
     return GestureDetector(
+      key: Key('share_joke_button-${joke.id}'),
       onTap: () async {
         try {
           final shareService = ref.read(jokeShareServiceProvider);

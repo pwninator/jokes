@@ -59,11 +59,12 @@ class RescheduleDialog extends ConsumerWidget {
       ),
       actions: [
         TextButton(
+          key: const Key('reschedule_dialog-cancel-button'),
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('Cancel'),
         ),
         ElevatedButton(
-          key: const Key('change-date-btn'),
+          key: const Key('reschedule_dialog-change-date-button'),
           onPressed: () async {
             try {
               final service = ref.read(jokeScheduleAutoFillServiceProvider);

@@ -159,6 +159,7 @@ class _HourDisplayWidgetState extends ConsumerState<HourDisplayWidget> {
           ),
         ),
         TextButton(
+          key: const Key('notification_hour_widget-change-hour-button'),
           onPressed: () => _showHourPickerDialog(hour),
           child: Text(
             'Change',
@@ -202,10 +203,12 @@ class _HourDisplayWidgetState extends ConsumerState<HourDisplayWidget> {
         ),
         actions: [
           TextButton(
+            key: const Key('notification_hour_widget-cancel-button'),
             onPressed: () => Navigator.of(context).pop(),
             child: const Text('Cancel'),
           ),
           ElevatedButton(
+            key: const Key('notification_hour_widget-save-button'),
             onPressed: () => Navigator.of(context).pop(selectedHour),
             child: const Text('Save'),
           ),

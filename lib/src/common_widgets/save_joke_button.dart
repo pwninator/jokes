@@ -33,6 +33,7 @@ class SaveJokeButton extends ConsumerWidget {
     final isSavedAsync = ref.watch(isJokeSavedProvider(jokeId));
 
     return GestureDetector(
+      key: Key('save_joke_button-$jokeId'),
       onTap: () async {
         final service = ref.read(jokeReactionsServiceProvider);
         final analyticsService = ref.read(analyticsServiceProvider);

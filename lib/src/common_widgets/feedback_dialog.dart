@@ -89,6 +89,7 @@ class _FeedbackDialogState extends ConsumerState<FeedbackDialog> {
         ),
         actions: [
           ElevatedButton(
+            key: const Key('feedback_dialog-close-button'),
             onPressed: () => Navigator.of(context).pop(),
             child: const Text('Close'),
           ),
@@ -111,6 +112,7 @@ class _FeedbackDialogState extends ConsumerState<FeedbackDialog> {
             SizedBox(
               width: 500,
               child: TextField(
+                key: const Key('feedback_dialog-text-field'),
                 controller: _controller,
                 focusNode: _focusNode,
                 maxLines: 5,
@@ -122,10 +124,12 @@ class _FeedbackDialogState extends ConsumerState<FeedbackDialog> {
       ),
       actions: [
         TextButton(
+          key: const Key('feedback_dialog-cancel-button'),
           onPressed: _submitting ? null : () => Navigator.of(context).pop(),
           child: const Text('Cancel'),
         ),
         ElevatedButton(
+          key: const Key('feedback_dialog-submit-button'),
           onPressed: _submitting ? null : _handleSubmit,
           child: _submitting
               ? const SizedBox(

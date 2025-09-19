@@ -42,7 +42,7 @@ void main() {
     );
 
     // Enter 1-char query and submit
-    final field = find.byKey(const Key('search-tab-search-field'));
+    final field = find.byKey(const Key('search_screen-search-field'));
     expect(field, findsOneWidget);
     await tester.enterText(field, 'a');
     await tester.testTextInput.receiveAction(TextInputAction.search);
@@ -85,7 +85,7 @@ void main() {
       ),
     );
 
-    final field = find.byKey(const Key('search-tab-search-field'));
+    final field = find.byKey(const Key('search_screen-search-field'));
     await tester.enterText(field, 'cat');
     await tester.testTextInput.receiveAction(TextInputAction.search);
     await tester.pump();
@@ -140,7 +140,7 @@ void main() {
       ),
     );
 
-    final field = find.byKey(const Key('search-tab-search-field'));
+    final field = find.byKey(const Key('search_screen-search-field'));
     await tester.enterText(field, 'dog');
     await tester.testTextInput.receiveAction(TextInputAction.search);
     await tester.pump();
@@ -186,7 +186,7 @@ void main() {
       ),
     );
 
-    final field = find.byKey(const Key('search-tab-search-field'));
+    final field = find.byKey(const Key('search_screen-search-field'));
     await tester.enterText(field, 'fish');
     await tester.testTextInput.receiveAction(TextInputAction.search);
     await tester.pump();
@@ -218,7 +218,7 @@ void main() {
       ),
     );
 
-    final field = find.byKey(const Key('search-tab-search-field'));
+    final field = find.byKey(const Key('search_screen-search-field'));
     expect(field, findsOneWidget);
 
     // Simulate user entering text and submitting; provider adds prefix
@@ -236,7 +236,7 @@ void main() {
       ),
     );
 
-    final fieldAfter = find.byKey(const Key('search-tab-search-field'));
+    final fieldAfter = find.byKey(const Key('search_screen-search-field'));
     expect(fieldAfter, findsOneWidget);
     final textFieldWidget = tester.widget<TextField>(fieldAfter);
     expect(textFieldWidget.controller?.text, 'penguins');
@@ -346,12 +346,12 @@ void main() {
       expect(find.byKey(const Key('search-categories-grid')), findsOneWidget);
 
       // Enter text to make clear button appear
-      final field = find.byKey(const Key('search-tab-search-field'));
+      final field = find.byKey(const Key('search_screen-search-field'));
       await tester.enterText(field, 'robots');
       await tester.pump();
 
       // Clear button should be present and circular-styled
-      final clearBtn = find.byKey(const Key('search-clear-button'));
+      final clearBtn = find.byKey(const Key('search_screen-clear-button'));
       expect(clearBtn, findsOneWidget);
 
       // Submit search so categories disappear
@@ -391,7 +391,7 @@ void main() {
     );
 
     // Enter text manually and submit
-    final field = find.byKey(const Key('search-tab-search-field'));
+    final field = find.byKey(const Key('search_screen-search-field'));
     await tester.enterText(field, 'manual search');
     await tester.testTextInput.receiveAction(TextInputAction.search);
     await tester.pump();

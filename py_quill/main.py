@@ -47,6 +47,7 @@ create_joke = joke_fns.create_joke
 critique_jokes = joke_fns.critique_jokes
 populate_joke = joke_fns.populate_joke
 modify_joke_image = joke_fns.modify_joke_image
+upscale_joke = joke_fns.upscale_joke
 send_daily_joke_http = joke_fns.send_daily_joke_http
 send_daily_joke_scheduler = joke_fns.send_daily_joke_scheduler
 search_jokes = joke_fns.search_jokes

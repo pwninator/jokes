@@ -182,7 +182,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                                       .read(jokeViewerRevealProvider.notifier)
                                       .setReveal(value);
                                 },
-                                activeColor: Theme.of(
+                                activeThumbColor: Theme.of(
                                   context,
                                 ).colorScheme.primary,
                               ),
@@ -700,7 +700,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
             Switch(
               value: isSubscribed,
               onChanged: (value) => _toggleNotifications(context, ref, value),
-              activeColor: Theme.of(context).colorScheme.primary,
+              activeThumbColor: Theme.of(context).colorScheme.primary,
             ),
           ],
         ),
@@ -769,7 +769,6 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
               value: themeMode,
               groupValue: currentThemeMode,
               onChanged: (value) => onTap(),
-              activeColor: Theme.of(context).colorScheme.primary,
             ),
           ],
         ),

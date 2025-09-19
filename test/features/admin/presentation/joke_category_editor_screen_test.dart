@@ -23,7 +23,7 @@ void main() {
       id: '1',
       displayName: 'Test Category',
       jokeDescriptionQuery: 'test query',
-      state: JokeCategoryState.PROPOSED,
+      state: JokeCategoryState.proposed,
     );
 
     setUp(() {

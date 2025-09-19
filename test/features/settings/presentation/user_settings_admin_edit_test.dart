@@ -39,7 +39,7 @@ void main() {
       when(() => mockUsage.setNumSharedJokes(any())).thenAnswer((_) async {});
     });
 
-    ProviderScope _buildApp({List<Override> extra = const []}) => ProviderScope(
+    ProviderScope buildApp({List<Override> extra = const []}) => ProviderScope(
       overrides: [
         ...TestHelpers.getAllMockOverrides(testUser: TestHelpers.adminUser),
         appUsageServiceProvider.overrideWithValue(mockUsage),
@@ -56,7 +56,7 @@ void main() {
       ),
     );
 
-    Future<void> _enableDeveloperMode(WidgetTester tester) async {
+    Future<void> enableDeveloperMode(WidgetTester tester) async {
       await tester.ensureVisible(find.text('Theme Settings'));
       await tester.pump();
       await tester.tap(find.text('Theme Settings'), warnIfMissed: false);
@@ -91,10 +91,10 @@ void main() {
     }
 
     testWidgets('shows button in developer mode', (tester) async {
-      await tester.pumpWidget(_buildApp());
+      await tester.pumpWidget(buildApp());
       await tester.pumpAndSettle();
 
-      await _enableDeveloperMode(tester);
+      await enableDeveloperMode(tester);
 
       // Allow FutureBuilder to resolve
       await tester.pump(const Duration(milliseconds: 50));
@@ -118,10 +118,10 @@ void main() {
       when(() => mockUsage.getNumSavedJokes()).thenAnswer((_) async => 5);
       when(() => mockUsage.getNumSharedJokes()).thenAnswer((_) async => 7);
 
-      await tester.pumpWidget(_buildApp());
+      await tester.pumpWidget(buildApp());
       await tester.pumpAndSettle();
 
-      await _enableDeveloperMode(tester);
+      await enableDeveloperMode(tester);
 
       final editBtn = find.byKey(const Key('edit-usage-metrics-button'));
       await tester.ensureVisible(editBtn);
@@ -157,10 +157,10 @@ void main() {
     });
 
     testWidgets('submit calls setters with entered values', (tester) async {
-      await tester.pumpWidget(_buildApp());
+      await tester.pumpWidget(buildApp());
       await tester.pumpAndSettle();
 
-      await _enableDeveloperMode(tester);
+      await enableDeveloperMode(tester);
 
       final editBtn = find.byKey(const Key('edit-usage-metrics-button'));
       await tester.ensureVisible(editBtn);
@@ -193,10 +193,10 @@ void main() {
     });
 
     testWidgets('cancel does not call setters', (tester) async {
-      await tester.pumpWidget(_buildApp());
+      await tester.pumpWidget(buildApp());
       await tester.pumpAndSettle();
 
-      await _enableDeveloperMode(tester);
+      await enableDeveloperMode(tester);
 
       final editBtn = find.byKey(const Key('edit-usage-metrics-button'));
       await tester.ensureVisible(editBtn);

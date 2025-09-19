@@ -170,7 +170,7 @@ class _JokeSchedulerScreenState extends ConsumerState<JokeSchedulerScreen> {
     }
 
     return DropdownButtonFormField<String>(
-      value: selectedScheduleId,
+      initialValue: selectedScheduleId,
       decoration: const InputDecoration(
         labelText: 'Select Schedule',
         border: OutlineInputBorder(),

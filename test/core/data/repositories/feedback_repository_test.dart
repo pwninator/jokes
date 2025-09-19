@@ -97,8 +97,7 @@ void main() {
       expect(
         stream,
         emits(
-          isA<List<FeedbackEntry>>()
-            ..having((list) => list.length, 'length', 1),
+          isA<List<FeedbackEntry>>().having((list) => list.length, 'length', 1),
         ),
       );
     });

@@ -65,11 +65,11 @@ class JokeCategoryTile extends StatelessWidget {
 
   Color _getBorderColorForState(BuildContext context, JokeCategoryState state) {
     switch (state) {
-      case JokeCategoryState.PROPOSED:
+      case JokeCategoryState.proposed:
         return Colors.orange;
-      case JokeCategoryState.APPROVED:
+      case JokeCategoryState.approved:
         return Colors.green;
-      case JokeCategoryState.REJECTED:
+      case JokeCategoryState.rejected:
         return Colors.red;
     }
   }

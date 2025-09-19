@@ -23,7 +23,7 @@ void main() {
     registerFallbackValue(SpeakerType.user);
   });
 
-  FeedbackEntry _createTestFeedback({
+  FeedbackEntry createTestFeedback({
     String id = '1',
     String userId = 'user1',
     List<FeedbackConversationEntry>? conversation,
@@ -48,8 +48,8 @@ void main() {
     );
   }
 
-  Widget _createWidget(String feedbackId, {FeedbackEntry? feedbackEntry}) {
-    final entry = feedbackEntry ?? _createTestFeedback(id: feedbackId);
+  Widget createWidget(String feedbackId, {FeedbackEntry? feedbackEntry}) {
+    final entry = feedbackEntry ?? createTestFeedback(id: feedbackId);
 
     when(
       () => repo.watchAllFeedback(),
@@ -88,12 +88,12 @@ void main() {
         ),
       ];
 
-      final feedbackEntry = _createTestFeedback(
+      final feedbackEntry = createTestFeedback(
         id: '1',
         conversation: conversation,
       );
 
-      await tester.pumpWidget(_createWidget('1', feedbackEntry: feedbackEntry));
+      await tester.pumpWidget(createWidget('1', feedbackEntry: feedbackEntry));
       await tester.pumpAndSettle();
 
       // Verify last admin view time is updated
@@ -107,9 +107,9 @@ void main() {
     testWidgets('sending a message calls repository with correct parameters', (
       tester,
     ) async {
-      final feedbackEntry = _createTestFeedback(id: '1');
+      final feedbackEntry = createTestFeedback(id: '1');
 
-      await tester.pumpWidget(_createWidget('1', feedbackEntry: feedbackEntry));
+      await tester.pumpWidget(createWidget('1', feedbackEntry: feedbackEntry));
       await tester.pumpAndSettle();
 
       // Enter and send a message
@@ -124,9 +124,9 @@ void main() {
     });
 
     testWidgets('handles empty conversation', (tester) async {
-      final feedbackEntry = _createTestFeedback(id: '1', conversation: []);
+      final feedbackEntry = createTestFeedback(id: '1', conversation: []);
 
-      await tester.pumpWidget(_createWidget('1', feedbackEntry: feedbackEntry));
+      await tester.pumpWidget(createWidget('1', feedbackEntry: feedbackEntry));
       await tester.pumpAndSettle();
 
       // Should still update last admin view time even with empty conversation
@@ -143,7 +143,7 @@ void main() {
         () => repo.watchAllFeedback(),
       ).thenAnswer((_) => Stream.error('Network error'));
 
-      await tester.pumpWidget(_createWidget('1'));
+      await tester.pumpWidget(createWidget('1'));
       await tester.pumpAndSettle();
 
       // Should handle error without crashing

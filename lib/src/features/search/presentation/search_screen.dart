@@ -239,7 +239,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   return categoriesAsync.when(
                     data: (categories) {
                       final approved = categories
-                          .where((c) => c.state == JokeCategoryState.APPROVED)
+                          .where((c) => c.state == JokeCategoryState.approved)
                           .toList();
 
                       if (approved.isEmpty) {

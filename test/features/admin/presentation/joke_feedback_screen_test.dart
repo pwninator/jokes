@@ -54,7 +54,9 @@ void main() {
     );
   }
 
-  testWidgets('renders feedback and checks icon colors and styles', (tester) async {
+  testWidgets('renders feedback and checks icon colors and styles', (
+    tester,
+  ) async {
     final now = DateTime.now();
     final entries = [
       // User message - unread by admin (yellow, solid)
@@ -130,7 +132,10 @@ void main() {
     expect(find.text('Thanks!'), findsOneWidget);
     // When last message is from admin, title shows 'Admin response only'
     expect(find.text('Admin response only'), findsNWidgets(2));
-    expect(find.text('How can I help?'), findsNothing); // Admin message shown as 'Admin response only'
+    expect(
+      find.text('How can I help?'),
+      findsNothing,
+    ); // Admin message shown as 'Admin response only'
 
     final icon1 = tester.widget<Icon>(
       find.descendant(
@@ -160,14 +165,20 @@ void main() {
     // Check colors
     expect(icon1.color, Colors.yellow); // User message - yellow
     expect(icon2.color, Colors.yellow); // User message - yellow
-    expect(icon3.color, Colors.green);  // Admin message - green
-    expect(icon4.color, Colors.green);  // Admin message - green
+    expect(icon3.color, Colors.green); // Admin message - green
+    expect(icon4.color, Colors.green); // Admin message - green
 
     // Check icon types
     expect(icon1.icon, Icons.feedback); // User message, unread by admin - solid
-    expect(icon2.icon, Icons.feedback_outlined); // User message, read by admin - outline
+    expect(
+      icon2.icon,
+      Icons.feedback_outlined,
+    ); // User message, read by admin - outline
     expect(icon3.icon, Icons.feedback); // Admin message, unread by user - solid
-    expect(icon4.icon, Icons.feedback_outlined); // Admin message, read by user - outline
+    expect(
+      icon4.icon,
+      Icons.feedback_outlined,
+    ); // Admin message, read by user - outline
   });
 
   testWidgets('tapping a feedback item navigates to details page', (

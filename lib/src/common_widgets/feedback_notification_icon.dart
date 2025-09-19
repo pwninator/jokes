@@ -20,8 +20,7 @@ class FeedbackNotificationIcon extends ConsumerWidget {
           onPressed: () {
             showDialog(
               context: context,
-              builder: (context) =>
-                  FeedbackDialog(feedbackEntry: entryToShow),
+              builder: (context) => FeedbackDialog(feedbackEntry: entryToShow),
             );
           },
         ),

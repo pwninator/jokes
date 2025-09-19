@@ -150,11 +150,7 @@ void main() {
           punchlineText: 'Test punchline',
         );
 
-        final widget = JokeCard(
-          joke: joke,
-          index: 5,
-          jokeContext: 'test',
-        );
+        final widget = JokeCard(joke: joke, index: 5, jokeContext: 'test');
 
         // act
         await tester.pumpWidget(createTestWidget(child: widget));
@@ -179,11 +175,7 @@ void main() {
           punchlineImageUrl: 'https://example.com/punchline.jpg',
         );
 
-        final widget = JokeCard(
-          joke: joke,
-          index: 3,
-          jokeContext: 'test',
-        );
+        final widget = JokeCard(joke: joke, index: 3, jokeContext: 'test');
 
         // act
         await tester.pumpWidget(createTestWidget(child: widget));
@@ -313,9 +305,7 @@ void main() {
         expect(jokeTextCard.index, isNull);
       });
 
-      testWidgets('should handle joke without tap callback', (
-        tester,
-      ) async {
+      testWidgets('should handle joke without tap callback', (tester) async {
         // arrange
         const joke = Joke(
           id: '1',

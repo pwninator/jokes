@@ -46,7 +46,8 @@ This repository contains a Flutter app and a Python Cloud Functions codebase. Fo
 Jules should run this command to sync to the latest repo:
 
 ```
-git merge origin/master
+git fetch origin
+git rebase origin/master
 ```
 
 ### 3.2 All other environments/agents
@@ -103,6 +104,22 @@ pytest py_quill
 python -m pytest py_quill --cov=py_quill --cov-report=term-missing
 # or
 pytest py_quill --cov=py_quill --cov-report=term-missing
+```
+
+**IMPORTANT**: Because `py_quill` is installed as a package, all python imports inside the `py_quill` directory must be relative to the `py_quill` root.
+
+For example, to import `models.py` from `common/` into a file inside `functions/`, you would use:
+```python
+from common import models
+```
+
+NOT:
+```python
+from py_quill.common import models
+
+or 
+
+from ..common import models
 ```
 
 ## 4. Architecture

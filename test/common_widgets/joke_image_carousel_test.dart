@@ -47,7 +47,7 @@ void main() {
       const widget = JokeImageCarousel(
         joke: joke,
         jokeContext: 'test',
-        mode: JokeCarouselMode.REVEAL,
+        mode: JokeCarouselMode.reveal,
       );
 
       // act
@@ -74,7 +74,7 @@ void main() {
       const widget = JokeImageCarousel(
         joke: joke,
         jokeContext: 'test',
-        mode: JokeCarouselMode.VERTICAL,
+        mode: JokeCarouselMode.vertical,
       );
 
       // act
@@ -105,7 +105,7 @@ void main() {
       const widget = JokeImageCarousel(
         joke: joke,
         jokeContext: 'test',
-        mode: JokeCarouselMode.HORIZONTAL,
+        mode: JokeCarouselMode.horizontal,
       );
 
       // act

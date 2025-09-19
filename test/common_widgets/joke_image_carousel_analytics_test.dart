@@ -188,9 +188,9 @@ void main() {
       }
 
       // Run sequentially to avoid overflow/layout complexities
-      await runForMode(JokeCarouselMode.HORIZONTAL);
-      await runForMode(JokeCarouselMode.VERTICAL);
-      await runForMode(JokeCarouselMode.BOTH_ADAPTIVE);
+      await runForMode(JokeCarouselMode.horizontal);
+      await runForMode(JokeCarouselMode.vertical);
+      await runForMode(JokeCarouselMode.bothAdaptive);
 
       verify(
         () => mockAnalyticsService.logJokePunchlineViewed(

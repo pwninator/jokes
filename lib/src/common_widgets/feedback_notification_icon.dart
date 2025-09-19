@@ -1,54 +1,45 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:snickerdoodle/src/core/data/repositories/feedback_repository.dart';
 import 'package:snickerdoodle/src/common_widgets/feedback_dialog.dart';
-import 'package:snickerdoodle/src/core/providers/feedback_providers.dart';
+import 'package:snickerdoodle/src/core/data/repositories/feedback_repository.dart';
 
 class FeedbackNotificationIcon extends ConsumerWidget {
-  const FeedbackNotificationIcon({Key? key}) : super(key: key);
+  const FeedbackNotificationIcon({super.key, this.feedbackEntry});
+
+  /// Optional feedback entry to display. If null, shows regular feedback icon.
+  /// If provided, shows unread indicator and displays this specific feedback.
+  final FeedbackEntry? feedbackEntry;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final unreadFeedback = ref.watch(unreadFeedbackProvider);
-
-    if (unreadFeedback.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    final feedbackToShow = unreadFeedback.first;
-
     return Stack(
       children: [
         IconButton(
-          icon: const Icon(Icons.feedback),
+          icon: const Icon(Icons.feedback_outlined),
+          color: Theme.of(context).colorScheme.primary,
+          tooltip: 'Feedback',
           onPressed: () {
             showDialog(
               context: context,
-              builder: (context) => FeedbackDialog(
-                feedbackEntry: feedbackToShow,
-              ),
+              builder: (context) =>
+                  FeedbackDialog(feedbackEntry: feedbackEntry),
             );
-            // Mark as read
-            ref
-                .read(feedbackServiceProvider)
-                .updateLastUserViewTime(feedbackToShow.id);
           },
         ),
-        Positioned(
-          right: 8,
-          top: 8,
-          child: Container(
-            padding: const EdgeInsets.all(2),
-            decoration: BoxDecoration(
-              color: Colors.red,
-              borderRadius: BorderRadius.circular(6),
-            ),
-            constraints: const BoxConstraints(
-              minWidth: 12,
-              minHeight: 12,
+        // Indicator for unread feedback - only show when feedbackEntry is provided
+        if (feedbackEntry != null)
+          Positioned(
+            right: 8,
+            top: 8,
+            child: Container(
+              padding: const EdgeInsets.all(2),
+              decoration: BoxDecoration(
+                color: Colors.red,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              constraints: const BoxConstraints(minWidth: 12, minHeight: 12),
             ),
           ),
-        )
       ],
     );
   }

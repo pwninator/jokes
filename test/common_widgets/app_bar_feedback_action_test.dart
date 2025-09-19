@@ -38,42 +38,48 @@ void main() {
     registerFallbackValue(testFeedbackEntry);
   });
 
-  testWidgets('shows feedback icon when unread feedback exists and opens dialog on tap',
-      (tester) async {
-    when(() => mockFeedbackService.updateLastUserViewTime(any()))
-        .thenAnswer((_) async {});
+  testWidgets(
+    'shows feedback icon when unread feedback exists and opens dialog on tap',
+    (tester) async {
+      when(
+        () => mockFeedbackService.updateLastUserViewTime(any()),
+      ).thenAnswer((_) async {});
 
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          unreadFeedbackProvider.overrideWithValue([testFeedbackEntry]),
-          feedbackServiceProvider.overrideWithValue(mockFeedbackService),
-        ],
-        child: const MaterialApp(
-          home: Scaffold(appBar: AppBarWidget(title: 'Test')),
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            unreadFeedbackProvider.overrideWithValue([testFeedbackEntry]),
+            feedbackServiceProvider.overrideWithValue(mockFeedbackService),
+          ],
+          child: const MaterialApp(
+            home: Scaffold(appBar: AppBarWidget(title: 'Test')),
+          ),
         ),
-      ),
-    );
+      );
 
-    await tester.pumpAndSettle();
-    expect(find.byKey(const Key('feedback-notification-icon')), findsOneWidget);
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const Key('feedback-notification-icon')),
+        findsOneWidget,
+      );
 
-    await tester.tap(find.byKey(const Key('feedback-notification-icon')));
-    await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('feedback-notification-icon')));
+      await tester.pumpAndSettle();
 
-    expect(find.byType(FeedbackDialog), findsOneWidget);
+      expect(find.byType(FeedbackDialog), findsOneWidget);
 
-    verify(() => mockFeedbackService.updateLastUserViewTime(testFeedbackEntry.id))
-        .called(1);
-  });
+      verify(
+        () => mockFeedbackService.updateLastUserViewTime(testFeedbackEntry.id),
+      ).called(1);
+    },
+  );
 
-  testWidgets('does not show feedback icon when there is no unread feedback',
-      (tester) async {
+  testWidgets('does not show feedback icon when there is no unread feedback', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [
-          unreadFeedbackProvider.overrideWithValue([]),
-        ],
+        overrides: [unreadFeedbackProvider.overrideWithValue([])],
         child: const MaterialApp(
           home: Scaffold(appBar: AppBarWidget(title: 'Test')),
         ),

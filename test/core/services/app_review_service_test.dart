@@ -31,14 +31,21 @@ void main() {
     );
 
     // Mock successful analytics calls by default
-    when(() => analytics.logAppReviewAttempt(source: any(named: 'source')))
-        .thenAnswer((_) async {});
-    when(() => analytics.logErrorAppReviewAvailability(
+    when(
+      () => analytics.logAppReviewAttempt(source: any(named: 'source')),
+    ).thenAnswer((_) async {});
+    when(
+      () => analytics.logErrorAppReviewAvailability(
         source: any(named: 'source'),
-        errorMessage: any(named: 'errorMessage'))).thenAnswer((_) async {});
-    when(() => analytics.logErrorAppReviewRequest(
+        errorMessage: any(named: 'errorMessage'),
+      ),
+    ).thenAnswer((_) async {});
+    when(
+      () => analytics.logErrorAppReviewRequest(
         source: any(named: 'source'),
-        errorMessage: any(named: 'errorMessage'))).thenAnswer((_) async {});
+        errorMessage: any(named: 'errorMessage'),
+      ),
+    ).thenAnswer((_) async {});
   });
 
   group('AppReviewService', () {
@@ -47,19 +54,24 @@ void main() {
         when(() => native.isAvailable()).thenAnswer((_) async => true);
         expect(await service.isAvailable(), isTrue);
         verify(() => native.isAvailable()).called(1);
-        verifyNever(() => analytics.logErrorAppReviewAvailability(
+        verifyNever(
+          () => analytics.logErrorAppReviewAvailability(
             source: any(named: 'source'),
-            errorMessage: any(named: 'errorMessage')));
+            errorMessage: any(named: 'errorMessage'),
+          ),
+        );
       });
 
       test('returns false and logs analytics when native throws', () async {
         when(() => native.isAvailable()).thenThrow(Exception('boom'));
         expect(await service.isAvailable(), isFalse);
         verify(() => native.isAvailable()).called(1);
-        verify(() => analytics.logErrorAppReviewAvailability(
-              source: 'service',
-              errorMessage: 'app_review_is_available_failed',
-            )).called(1);
+        verify(
+          () => analytics.logErrorAppReviewAvailability(
+            source: 'service',
+            errorMessage: 'app_review_is_available_failed',
+          ),
+        ).called(1);
       });
     });
 
@@ -72,8 +84,9 @@ void main() {
         );
 
         expect(result, ReviewRequestResult.notAvailable);
-        verify(() => analytics.logAppReviewAttempt(source: 'settings'))
-            .called(1);
+        verify(
+          () => analytics.logAppReviewAttempt(source: 'settings'),
+        ).called(1);
         verifyNever(() => native.requestReview());
         verifyNever(() => store.markRequested());
       });
@@ -96,22 +109,26 @@ void main() {
         ]);
       });
 
-      test('returns error, logs analytics, and does not mark requested on failure',
-          () async {
-        when(() => native.isAvailable()).thenAnswer((_) async => true);
-        when(() => native.requestReview()).thenThrow(Exception('nope'));
+      test(
+        'returns error, logs analytics, and does not mark requested on failure',
+        () async {
+          when(() => native.isAvailable()).thenAnswer((_) async => true);
+          when(() => native.requestReview()).thenThrow(Exception('nope'));
 
-        final result = await service.requestReview(
-          source: ReviewRequestSource.adminTest,
-        );
+          final result = await service.requestReview(
+            source: ReviewRequestSource.adminTest,
+          );
 
-        expect(result, ReviewRequestResult.error);
-        verify(() => analytics.logErrorAppReviewRequest(
+          expect(result, ReviewRequestResult.error);
+          verify(
+            () => analytics.logErrorAppReviewRequest(
               source: 'admin_test',
               errorMessage: 'app_review_request_failed',
-            )).called(1);
-        verifyNever(() => store.markRequested());
-      });
+            ),
+          ).called(1);
+          verifyNever(() => store.markRequested());
+        },
+      );
     });
   });
 }

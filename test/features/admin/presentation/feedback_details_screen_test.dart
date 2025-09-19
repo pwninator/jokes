@@ -39,7 +39,7 @@ void main() {
       ],
       userId: 'test_user',
       lastAdminViewTime: null,
-        lastUserViewTime: null,
+      lastUserViewTime: null,
     );
 
     when(
@@ -88,7 +88,7 @@ void main() {
       ],
       userId: 'test_user',
       lastAdminViewTime: null,
-        lastUserViewTime: null,
+      lastUserViewTime: null,
     );
 
     when(
@@ -151,7 +151,7 @@ void main() {
       ],
       userId: 'test_user',
       lastAdminViewTime: null,
-        lastUserViewTime: null,
+      lastUserViewTime: null,
     );
 
     when(

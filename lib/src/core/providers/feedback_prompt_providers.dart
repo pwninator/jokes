@@ -3,12 +3,16 @@ import 'package:snickerdoodle/src/core/providers/app_usage_events_provider.dart'
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/feedback_prompt_state_store.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
+import 'package:snickerdoodle/src/core/providers/feedback_providers.dart';
 
 /// Computes whether the global app bar feedback action should be shown
 final shouldShowFeedbackActionProvider = FutureProvider<bool>((ref) async {
-  // Recompute when app usage changes (e.g., jokes viewed) or other listeners trigger
+  // Recompute when app usage changes and when unread changes
   ref.watch(appUsageEventsProvider);
+  final unread = ref.watch(unreadFeedbackProvider);
+  if (unread.isNotEmpty) return true;
 
+  // Otherwise, use the prompt eligibility rules
   final store = ref.read(feedbackPromptStateStoreProvider);
   final hasViewed = await store.hasViewed();
   if (hasViewed) return false;

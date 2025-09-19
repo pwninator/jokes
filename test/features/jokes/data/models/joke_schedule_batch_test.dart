@@ -23,12 +23,12 @@ void main() {
           'daily_jokes_2024_03': {
             'scheduleId': 'daily_jokes',
             'year': 2024,
-            'month': 3
+            'month': 3,
           },
           'holiday_special_schedule_2024_12': {
             'scheduleId': 'holiday_special_schedule',
             'year': 2024,
-            'month': 12
+            'month': 12,
           },
         };
 
@@ -75,32 +75,34 @@ void main() {
 
       test('fromMap should handle empty and missing jokes gracefully', () {
         // Empty jokes map
-        final batch1 = JokeScheduleBatch.fromMap(
-            {'jokes': <String, dynamic>{}}, 'test_2024_01');
+        final batch1 = JokeScheduleBatch.fromMap({
+          'jokes': <String, dynamic>{},
+        }, 'test_2024_01');
         expect(batch1.jokes, isEmpty);
 
         // Missing jokes field
-        final batch2 =
-            JokeScheduleBatch.fromMap(<String, dynamic>{}, 'test_2024_01');
+        final batch2 = JokeScheduleBatch.fromMap(
+          <String, dynamic>{},
+          'test_2024_01',
+        );
         expect(batch2.jokes, isEmpty);
       });
 
       test('fromMap should throw ArgumentError on invalid document ID', () {
-        expect(() => JokeScheduleBatch.fromMap({}, 'invalid_id'),
-            throwsA(isA<ArgumentError>()));
+        expect(
+          () => JokeScheduleBatch.fromMap({}, 'invalid_id'),
+          throwsA(isA<ArgumentError>()),
+        );
       });
 
       test('copyWith should create a copy with updated values', () {
         // Arrange
         final newJokes = {
-          '02': const Joke(id: 'new', setupText: 'New', punchlineText: 'New')
+          '02': const Joke(id: 'new', setupText: 'New', punchlineText: 'New'),
         };
 
         // Act
-        final copied = tBatch.copyWith(
-          year: 2025,
-          jokes: newJokes,
-        );
+        final copied = tBatch.copyWith(year: 2025, jokes: newJokes);
 
         // Assert
         expect(copied.id, tBatch.id); // Unchanged

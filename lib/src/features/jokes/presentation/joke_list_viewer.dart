@@ -23,7 +23,7 @@ class JokeListViewer extends ConsumerStatefulWidget {
     this.onInitRegisterReset,
     this.showCtaWhenEmpty = false,
     this.emptyState,
-    this.showSimilarSearchButton = false,
+    this.showSimilarSearchButton = true,
   });
 
   final AsyncValue<List<JokeWithDate>>? jokesAsyncValue;

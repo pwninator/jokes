@@ -27,34 +27,54 @@ void main() {
     );
 
     // Default mock responses
-    when(() => mockFirebaseAnalytics.setDefaultEventParameters(any()))
-        .thenAnswer((_) async {});
-    when(() => mockFirebaseAnalytics.setUserId(id: any(named: 'id')))
-        .thenAnswer((_) async {});
-    when(() => mockFirebaseAnalytics.setUserProperty(
+    when(
+      () => mockFirebaseAnalytics.setDefaultEventParameters(any()),
+    ).thenAnswer((_) async {});
+    when(
+      () => mockFirebaseAnalytics.setUserId(id: any(named: 'id')),
+    ).thenAnswer((_) async {});
+    when(
+      () => mockFirebaseAnalytics.setUserProperty(
         name: any(named: 'name'),
-        value: any(named: 'value'))).thenAnswer((_) async {});
-    when(() => mockFirebaseAnalytics.logEvent(
+        value: any(named: 'value'),
+      ),
+    ).thenAnswer((_) async {});
+    when(
+      () => mockFirebaseAnalytics.logEvent(
         name: any(named: 'name'),
-        parameters: any(named: 'parameters'))).thenAnswer((_) async {});
-    when(() => mockCrashService.recordNonFatal(any(),
+        parameters: any(named: 'parameters'),
+      ),
+    ).thenAnswer((_) async {});
+    when(
+      () => mockCrashService.recordNonFatal(
+        any(),
         stackTrace: any(named: 'stackTrace'),
-        keys: any(named: 'keys'))).thenAnswer((_) async {});
+        keys: any(named: 'keys'),
+      ),
+    ).thenAnswer((_) async {});
   });
 
   group('FirebaseAnalyticsService (in debug environment)', () {
-    test(
-        'does not send events to Firebase',
-        () async {
+    test('does not send events to Firebase', () async {
       // A list of all logging methods to test
       final allLogFunctions = [
-        () => analyticsService.logJokeSetupViewed('j1',
-            navigationMethod: 'swipe', jokeContext: 'daily'),
-        () => analyticsService.logJokePunchlineViewed('j2',
-            navigationMethod: 'tap', jokeContext: 'saved'),
+        () => analyticsService.logJokeSetupViewed(
+          'j1',
+          navigationMethod: 'swipe',
+          jokeContext: 'daily',
+        ),
+        () => analyticsService.logJokePunchlineViewed(
+          'j2',
+          navigationMethod: 'tap',
+          jokeContext: 'saved',
+        ),
         () => analyticsService.logSubscriptionOnSettings(),
-        () => analyticsService.logErrorJokeShare('j1',
-            jokeContext: 'ctx', shareMethod: 'img', errorMessage: 'err'),
+        () => analyticsService.logErrorJokeShare(
+          'j1',
+          jokeContext: 'ctx',
+          shareMethod: 'img',
+          errorMessage: 'err',
+        ),
       ];
 
       for (final logFunction in allLogFunctions) {
@@ -63,18 +83,27 @@ void main() {
 
       await Future.delayed(Duration.zero); // Allow microtasks to complete
 
-      verifyNever(() => mockFirebaseAnalytics.logEvent(
-          name: any(named: 'name'), parameters: any(named: 'parameters')));
+      verifyNever(
+        () => mockFirebaseAnalytics.logEvent(
+          name: any(named: 'name'),
+          parameters: any(named: 'parameters'),
+        ),
+      );
     });
 
     test('logs error events to Crashlytics', () async {
       analyticsService.logErrorJokesLoad(source: 'src', errorMessage: 'err');
       await Future.delayed(Duration.zero);
 
-      verify(() => mockCrashService.recordNonFatal(any(),
+      verify(
+        () => mockCrashService.recordNonFatal(
+          any(),
           keys: any(
-              named: 'keys',
-              that: containsPair('analytics_event', 'error_jokes_load')))).called(1);
+            named: 'keys',
+            that: containsPair('analytics_event', 'error_jokes_load'),
+          ),
+        ),
+      ).called(1);
     });
 
     test('initialization completes without error', () async {
@@ -83,10 +112,11 @@ void main() {
 
     test('setUserProperties completes without error', () async {
       const user = AppUser(
-          id: 'user1',
-          email: 'user@test.com',
-          isAnonymous: false,
-          role: UserRole.user);
+        id: 'user1',
+        email: 'user@test.com',
+        isAnonymous: false,
+        role: UserRole.user,
+      );
       await expectLater(analyticsService.setUserProperties(user), completes);
       await expectLater(analyticsService.setUserProperties(null), completes);
     });

@@ -197,7 +197,6 @@ class FirestoreFeedbackRepository implements FeedbackRepository {
     return _firestore
         .collection(_collectionName)
         .where('user_id', isEqualTo: userId)
-        .orderBy('creation_time', descending: true)
         .snapshots()
         .map(
           (snapshot) => snapshot.docs

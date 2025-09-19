@@ -25,8 +25,8 @@ class FeedbackServiceImpl implements FeedbackService {
   FeedbackServiceImpl({
     required FeedbackRepository feedbackRepository,
     required AnalyticsService analyticsService,
-  })  : _feedbackRepository = feedbackRepository,
-        _analyticsService = analyticsService;
+  }) : _feedbackRepository = feedbackRepository,
+       _analyticsService = analyticsService;
 
   @override
   Future<void> submitFeedback(String feedbackText, AppUser? currentUser) async {

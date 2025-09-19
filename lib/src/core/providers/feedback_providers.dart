@@ -1,14 +1,10 @@
-import 'package:riverpod_annotation/riverpod_annotation.dart';
-import 'package:snickerdoodle/src/core/data/repositories/feedback_repository.dart';
-import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
-import 'package:snickerdoodle/src/core/services/feedback_service.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
-import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:snickerdoodle/src/features/auth/data/models/app_user.dart';
-
-part 'feedback_providers.g.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:snickerdoodle/src/core/data/repositories/feedback_repository.dart';
+import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
+import 'package:snickerdoodle/src/core/services/feedback_service.dart';
+import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
+import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
 
 /// Provider for FeedbackRepository
 final feedbackRepositoryProvider = Provider<FeedbackRepository>((ref) {
@@ -36,22 +32,12 @@ final feedbackProvider = StreamProvider.family<FeedbackEntry?, String>((
   ref,
   id,
 ) {
-  return ref
-      .watch(feedbackRepositoryProvider)
-      .watchAllFeedback()
-      .map((list) => list.firstWhere((item) => item.id == id, orElse: () {
-            // This is a workaround for the fact that firstWhere doesn't support a nullable return type with orElse.
-            // We return a dummy entry and then filter it out.
-            return FeedbackEntry(
-              id: 'dummy',
-              creationTime: null,
-              conversation: [],
-              userId: '',
-              lastAdminViewTime: null,
-              lastUserViewTime: null,
-            );
-          }))
-      .map((entry) => entry.id == 'dummy' ? null : entry);
+  return ref.watch(feedbackRepositoryProvider).watchAllFeedback().map((list) {
+    for (final item in list) {
+      if (item.id == id) return item;
+    }
+    return null;
+  });
 });
 
 /// Model for joke user usage counters
@@ -97,18 +83,32 @@ final jokeUserUsageProvider = StreamProvider.family<JokeUserUsage?, String>((
   });
 });
 
-@riverpod
-Stream<List<FeedbackEntry>> userFeedback(UserFeedbackRef ref) {
+/// Stream provider of feedback entries for the current user
+final userFeedbackProvider = StreamProvider.autoDispose<List<FeedbackEntry>>((
+  ref,
+) {
   final feedbackRepository = ref.watch(feedbackRepositoryProvider);
   final user = ref.watch(currentUserProvider);
   if (user == null) {
     return Stream.value([]);
   }
-  return feedbackRepository.watchAllFeedbackForUser(user.id);
-}
+  return feedbackRepository.watchAllFeedbackForUser(user.id).map((entries) {
+    // Sort client-side by creation_time descending (newest first)
+    final list = [...entries];
+    list.sort((a, b) {
+      final aTime = a.creationTime;
+      final bTime = b.creationTime;
+      if (aTime == null && bTime == null) return 0;
+      if (aTime == null) return 1; // nulls last
+      if (bTime == null) return -1;
+      return bTime.compareTo(aTime);
+    });
+    return list;
+  });
+});
 
-@riverpod
-List<FeedbackEntry> unreadFeedback(UnreadFeedbackRef ref) {
+/// Derived provider computing unread feedback for the current user
+final unreadFeedbackProvider = Provider.autoDispose<List<FeedbackEntry>>((ref) {
   final userFeedbackAsyncValue = ref.watch(userFeedbackProvider);
   return userFeedbackAsyncValue.when(
     data: (feedbackEntries) {
@@ -137,6 +137,6 @@ List<FeedbackEntry> unreadFeedback(UnreadFeedbackRef ref) {
       return unread;
     },
     loading: () => [],
-    error: (_, __) => [],
+    error: (_, _) => [],
   );
-}
+});

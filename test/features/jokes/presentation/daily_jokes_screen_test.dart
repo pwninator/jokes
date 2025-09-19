@@ -474,7 +474,8 @@ void main() {
         // Give the StreamProvider an extra frame to emit
         await tester.pump(const Duration(milliseconds: 200));
 
-        // With new behavior, CTA is hidden when there is no reveal or next
+        // With current behavior, jokes missing punchline image are filtered out,
+        // so CTA is not rendered.
         expect(find.byKey(const Key('joke_viewer_cta_button')), findsNothing);
       });
 

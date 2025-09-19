@@ -88,7 +88,10 @@ void main() {
       test('equality and hashCode should work correctly', () {
         // Arrange
         const sameSchedule = JokeSchedule(id: 'test_id', name: 'Test Name');
-        const differentSchedule = JokeSchedule(id: 'diff_id', name: 'Diff Name');
+        const differentSchedule = JokeSchedule(
+          id: 'diff_id',
+          name: 'Diff Name',
+        );
 
         // Assert
         expect(tSchedule, sameSchedule);

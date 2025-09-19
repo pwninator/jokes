@@ -9,6 +9,7 @@ import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/providers/app_version_provider.dart';
 import 'package:snickerdoodle/src/core/services/app_review_service.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
+import 'package:snickerdoodle/src/core/providers/app_usage_events_provider.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
@@ -285,52 +286,60 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                           const Text('No user information available'),
 
                         const SizedBox(height: 12),
-                        FutureBuilder<_UsageMetrics>(
-                          future: _fetchUsageMetrics(ref),
-                          builder: (context, snapshot) {
-                            if (snapshot.connectionState ==
-                                ConnectionState.waiting) {
-                              return const SizedBox.shrink();
-                            }
-                            if (!snapshot.hasData) {
-                              return const SizedBox.shrink();
-                            }
-                            final metrics = snapshot.data!;
-                            final first = metrics.firstUsedDate ?? '—';
-                            final last = metrics.lastUsedDate ?? '—';
-                            final days = metrics.numDaysUsed;
-                            final summary = '$first - $last ($days)';
-                            return Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                _buildInfoRow('Usage', summary),
-                                _buildInfoRow(
-                                  'Num Jokes Viewed',
-                                  metrics.numJokesViewed.toString(),
-                                ),
-                                _buildInfoRow(
-                                  'Num Jokes Saved',
-                                  metrics.numJokesSaved.toString(),
-                                ),
-                                _buildInfoRow(
-                                  'Num Jokes Shared',
-                                  metrics.numJokesShared.toString(),
-                                ),
-                                const SizedBox(height: 12),
-                                Align(
-                                  alignment: Alignment.centerLeft,
-                                  child: OutlinedButton.icon(
-                                    key: const Key('edit-usage-metrics-button'),
-                                    icon: const Icon(Icons.edit_outlined),
-                                    label: const Text('Edit Usage Metrics'),
-                                    onPressed: () => _showEditUsageDialog(
-                                      context,
-                                      ref,
-                                      metrics,
+                        Consumer(
+                          builder: (context, ref, _) {
+                            // Rebuild usage metrics when app usage changes
+                            ref.watch(appUsageEventsProvider);
+                            return FutureBuilder<_UsageMetrics>(
+                              future: _fetchUsageMetrics(ref),
+                              builder: (context, snapshot) {
+                                if (snapshot.connectionState ==
+                                    ConnectionState.waiting) {
+                                  return const SizedBox.shrink();
+                                }
+                                if (!snapshot.hasData) {
+                                  return const SizedBox.shrink();
+                                }
+                                final metrics = snapshot.data!;
+                                final first = metrics.firstUsedDate ?? '—';
+                                final last = metrics.lastUsedDate ?? '—';
+                                final days = metrics.numDaysUsed;
+                                final summary = '$first - $last ($days)';
+                                return Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    _buildInfoRow('Usage', summary),
+                                    _buildInfoRow(
+                                      'Num Jokes Viewed',
+                                      metrics.numJokesViewed.toString(),
                                     ),
-                                  ),
-                                ),
-                              ],
+                                    _buildInfoRow(
+                                      'Num Jokes Saved',
+                                      metrics.numJokesSaved.toString(),
+                                    ),
+                                    _buildInfoRow(
+                                      'Num Jokes Shared',
+                                      metrics.numJokesShared.toString(),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    Align(
+                                      alignment: Alignment.centerLeft,
+                                      child: OutlinedButton.icon(
+                                        key: const Key(
+                                          'edit-usage-metrics-button',
+                                        ),
+                                        icon: const Icon(Icons.edit_outlined),
+                                        label: const Text('Edit Usage Metrics'),
+                                        onPressed: () => _showEditUsageDialog(
+                                          context,
+                                          ref,
+                                          metrics,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                );
+                              },
                             );
                           },
                         ),

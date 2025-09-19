@@ -48,8 +48,6 @@ class JokeImageCarouselController {
 class JokeImageCarousel extends ConsumerStatefulWidget {
   final Joke joke;
   final int? index;
-  final VoidCallback? onSetupTap;
-  final VoidCallback? onPunchlineTap;
   final Function(int)? onImageStateChanged;
   final bool isAdminMode;
   final List<Joke>? jokesToPreload;
@@ -69,8 +67,6 @@ class JokeImageCarousel extends ConsumerStatefulWidget {
     super.key,
     required this.joke,
     this.index,
-    this.onSetupTap,
-    this.onPunchlineTap,
     this.onImageStateChanged,
     this.isAdminMode = false,
     this.jokesToPreload,
@@ -302,42 +298,9 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
     _lastNavigationMethod = AnalyticsNavigationMethod.swipe;
   }
 
-  void _onImageTap() {
-    if (_currentIndex == 0) {
-      // Currently showing setup image
-      // Call callback if provided (for tracking)
-      if (widget.onSetupTap != null) {
-        widget.onSetupTap!();
-      }
-      // Set navigation method to tap before triggering page change
-      _lastNavigationMethod = AnalyticsNavigationMethod.tap;
-      // Always do default behavior: go to punchline
-      _pageController.nextPage(
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-      );
-    } else {
-      // Currently showing punchline image
-      if (widget.onPunchlineTap != null) {
-        widget.onPunchlineTap!();
-      } else {
-        // Set navigation method to tap before triggering page change
-        _lastNavigationMethod = AnalyticsNavigationMethod.tap;
-        // Default behavior: go back to setup
-        _pageController.previousPage(
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
-        );
-      }
-    }
-  }
-
   // Programmatic reveal that mirrors tapping the setup image, but attributed to the CTA
   void _revealPunchline() {
     if (_currentIndex != 0) return;
-    if (widget.onSetupTap != null) {
-      widget.onSetupTap!();
-    }
     _lastNavigationMethod = AnalyticsNavigationMethod.ctaReveal;
 
     // Only use PageController in REVEAL mode
@@ -820,9 +783,6 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
               child: Stack(
                 children: [
                   GestureDetector(
-                    onTap: widget.mode == JokeCarouselMode.REVEAL
-                        ? _onImageTap
-                        : null,
                     onLongPress: widget.isAdminMode ? _onImageLongPress : null,
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(

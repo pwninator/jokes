@@ -8,8 +8,6 @@ import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 class JokeCard extends ConsumerWidget {
   final Joke joke;
   final int? index;
-  final VoidCallback? onSetupTap;
-  final VoidCallback? onPunchlineTap;
   final Function(int)? onImageStateChanged;
   final bool isAdminMode;
   final List<Joke>? jokesToPreload;
@@ -28,8 +26,6 @@ class JokeCard extends ConsumerWidget {
     super.key,
     required this.joke,
     this.index,
-    this.onSetupTap,
-    this.onPunchlineTap,
     this.onImageStateChanged,
     this.isAdminMode = false,
     this.jokesToPreload,
@@ -64,8 +60,6 @@ class JokeCard extends ConsumerWidget {
       return JokeImageCarousel(
         joke: joke,
         index: index,
-        onSetupTap: onSetupTap,
-        onPunchlineTap: onPunchlineTap,
         onImageStateChanged: onImageStateChanged,
         isAdminMode: isAdminMode,
         jokesToPreload: jokesToPreload,
@@ -86,7 +80,6 @@ class JokeCard extends ConsumerWidget {
       return JokeTextCard(
         joke: joke,
         index: index,
-        onTap: onSetupTap,
         isAdminMode: isAdminMode,
         overlayBadgeText: topRightBadgeText,
       );

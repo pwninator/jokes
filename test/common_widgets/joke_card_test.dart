@@ -153,7 +153,6 @@ void main() {
         final widget = JokeCard(
           joke: joke,
           index: 5,
-          onSetupTap: () {},
           jokeContext: 'test',
         );
 
@@ -166,7 +165,6 @@ void main() {
         );
         expect(jokeTextCard.joke, equals(joke));
         expect(jokeTextCard.index, equals(5));
-        expect(jokeTextCard.onTap, isNotNull);
       });
 
       testWidgets('should pass properties to JokeImageCarousel', (
@@ -184,8 +182,6 @@ void main() {
         final widget = JokeCard(
           joke: joke,
           index: 3,
-          onSetupTap: () {},
-          onPunchlineTap: () {},
           jokeContext: 'test',
         );
 
@@ -198,8 +194,6 @@ void main() {
         );
         expect(jokeImageCarousel.joke, equals(joke));
         expect(jokeImageCarousel.index, equals(3));
-        expect(jokeImageCarousel.onSetupTap, isNotNull);
-        expect(jokeImageCarousel.onPunchlineTap, isNotNull);
         // Defaults
         expect(jokeImageCarousel.showSaveButton, isFalse);
         expect(jokeImageCarousel.showShareButton, isFalse);
@@ -319,7 +313,7 @@ void main() {
         expect(jokeTextCard.index, isNull);
       });
 
-      testWidgets('should handle joke without onSetupTap callback', (
+      testWidgets('should handle joke without tap callback', (
         tester,
       ) async {
         // arrange
@@ -339,6 +333,7 @@ void main() {
         final jokeTextCard = tester.widget<JokeTextCard>(
           find.byType(JokeTextCard),
         );
+        // No onTap callback should be passed
         expect(jokeTextCard.onTap, isNull);
       });
 

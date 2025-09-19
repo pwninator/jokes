@@ -302,10 +302,6 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
                         joke: joke,
                         index: index,
                         title: titleForCard,
-                        onPunchlineTap: () => _goToNextJoke(
-                          jokesWithDates.length,
-                          method: AnalyticsNavigationMethod.tap,
-                        ),
                         onImageStateChanged: (imageIndex) =>
                             _onImageStateChanged(index, imageIndex),
                         isAdminMode: false,

@@ -34,14 +34,14 @@
       "parameters": {
         "review_min_shared_jokes": {
           "defaultValue": {
-            "value": "1"
+            "value": "0"
           },
           "description": "Min number of jokes shared before eligible for review request",
           "valueType": "NUMBER"
         },
         "review_min_saved_jokes": {
           "defaultValue": {
-            "value": "1"
+            "value": "0"
           },
           "description": "Min number of jokes saved before eligible for review request",
           "valueType": "NUMBER"

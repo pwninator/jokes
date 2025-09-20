@@ -140,3 +140,55 @@ async def get_num_search_results(joke_description_query: str) -> int:
   """
   search_results = await search_for_jokes(joke_description_query)
   return len(search_results)
+
+
+async def update_joke(
+    joke_id: str,
+    pun_theme: str | None = None,
+    phrase_topic: str | None = None,
+    tags: list[str] | None = None,
+    for_kids: bool | None = None,
+    for_adults: bool | None = None,
+    seasonal: str | None = None,
+    pun_word: str | None = None,
+    punned_word: str | None = None,
+    setup_image_description: str | None = None,
+    punchline_image_description: str | None = None,
+) -> None:
+  """Updates a joke in Firestore.
+
+  Args:
+      joke_id: The ID of the joke to update.
+      pun_theme: The new pun theme for the joke.
+      phrase_topic: The new phrase topic for the joke.
+      tags: The new tags for the joke.
+      for_kids: Whether the joke is for kids.
+      for_adults: Whether the joke is for adults.
+      seasonal: The new seasonal theme for the joke.
+      pun_word: The new pun word for the joke.
+      punned_word: The new punned word for the joke.
+      setup_image_description: The new setup image description.
+      punchline_image_description: The new punchline image description.
+  """
+  if not joke_id:
+    raise ValueError("joke_id is required")
+
+  update_data = {
+      "pun_theme": pun_theme,
+      "phrase_topic": phrase_topic,
+      "tags": tags,
+      "for_kids": for_kids,
+      "for_adults": for_adults,
+      "seasonal": seasonal,
+      "pun_word": pun_word,
+      "punned_word": punned_word,
+      "setup_image_description": setup_image_description,
+      "punchline_image_description": punchline_image_description,
+  }
+
+  update_data = {k: v for k, v in update_data.items() if v is not None}
+
+  if not update_data:
+    raise ValueError("At least one optional parameter must be provided")
+
+  await asyncio.to_thread(firestore.update_punny_joke, joke_id, update_data)

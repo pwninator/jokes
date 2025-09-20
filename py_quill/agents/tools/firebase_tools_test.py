@@ -259,3 +259,47 @@ async def test_get_num_search_results_delegates_to_search(tool, monkeypatch):
 
   count = await tool.get_num_search_results("anything")
   assert count == 3
+
+
+@pytest.mark.asyncio
+async def test_update_joke(tool, monkeypatch):
+  # Arrange
+  captured = {}
+
+  def fake_update_punny_joke(joke_id, update_data):
+    captured["joke_id"] = joke_id
+    captured["update_data"] = update_data
+
+  async def fake_to_thread(func, *args, **kwargs):
+    return func(*args, **kwargs)
+
+  monkeypatch.setattr("asyncio.to_thread", fake_to_thread)
+  monkeypatch.setattr("services.firestore.update_punny_joke",
+                      fake_update_punny_joke)
+
+  # Act
+  await tool.update_joke(
+      joke_id="test_joke_id",
+      pun_theme="animal",
+      for_kids=True,
+  )
+
+  # Assert
+  assert captured["joke_id"] == "test_joke_id"
+  assert captured["update_data"] == {
+      "pun_theme": "animal",
+      "for_kids": True,
+  }
+
+
+@pytest.mark.asyncio
+async def test_update_joke_no_joke_id(tool):
+  with pytest.raises(ValueError, match="joke_id is required"):
+    await tool.update_joke(joke_id="")
+
+
+@pytest.mark.asyncio
+async def test_update_joke_no_optional_params(tool):
+  with pytest.raises(ValueError,
+                     match="At least one optional parameter must be provided"):
+    await tool.update_joke(joke_id="test_joke_id")

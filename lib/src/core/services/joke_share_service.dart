@@ -35,8 +35,10 @@ class PlatformShareServiceImpl implements PlatformShareService {
     String? subject,
     String? text,
   }) async {
-    final result = await SharePlus.instance.share(
-      ShareParams(subject: subject, files: files, text: text),
+    final result = await Share.shareXFiles(
+      files,
+      subject: subject,
+      text: text,
     );
     debugPrint('PlatformShareServiceImpl shareFiles result: $result');
     return result;

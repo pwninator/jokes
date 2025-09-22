@@ -62,11 +62,13 @@ void main() {
           'j1',
           navigationMethod: 'swipe',
           jokeContext: 'daily',
+          jokeViewerMode: 'reveal',
         ),
         () => analyticsService.logJokePunchlineViewed(
           'j2',
           navigationMethod: 'tap',
           jokeContext: 'saved',
+          jokeViewerMode: 'reveal',
         ),
         () => analyticsService.logSubscriptionOnSettings(),
         () => analyticsService.logErrorJokeShare(

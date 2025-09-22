@@ -146,7 +146,7 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
                   } else {
                     _goToNextJoke(
                       total,
-                      method: AnalyticsNavigationMethod.ctaReveal,
+                      method: AnalyticsNavigationMethod.ctaNextJoke,
                     );
                   }
                 },
@@ -245,11 +245,15 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
                     final jokeScrollDepth = index;
 
                     final analyticsService = ref.read(analyticsServiceProvider);
+                    final revealModeEnabled =
+                        ref.read(jokeViewerRevealProvider);
                     analyticsService.logJokeNavigation(
                       joke.id,
                       jokeScrollDepth,
                       method: _lastNavigationMethod,
                       jokeContext: widget.jokeContext,
+                      jokeViewerMode:
+                          revealModeEnabled ? 'reveal' : 'showAll',
                     );
 
                     _lastNavigationMethod = AnalyticsNavigationMethod.swipe;

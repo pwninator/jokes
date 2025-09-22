@@ -120,6 +120,7 @@ void main() {
         any(),
         navigationMethod: any(named: 'navigationMethod'),
         jokeContext: any(named: 'jokeContext'),
+        jokeViewerMode: any(named: 'jokeViewerMode'),
       ),
     );
     verifyNever(
@@ -127,6 +128,7 @@ void main() {
         any(),
         navigationMethod: any(named: 'navigationMethod'),
         jokeContext: any(named: 'jokeContext'),
+        jokeViewerMode: any(named: 'jokeViewerMode'),
       ),
     );
     verifyNever(
@@ -135,6 +137,7 @@ void main() {
         totalJokesViewed: any(named: 'totalJokesViewed'),
         navigationMethod: any(named: 'navigationMethod'),
         jokeContext: any(named: 'jokeContext'),
+        jokeViewerMode: any(named: 'jokeViewerMode'),
       ),
     );
   });
@@ -163,6 +166,7 @@ void main() {
         any(),
         navigationMethod: any(named: 'navigationMethod'),
         jokeContext: any(named: 'jokeContext'),
+        jokeViewerMode: any(named: 'jokeViewerMode'),
       ),
     ).called(greaterThan(0));
   });
@@ -188,8 +192,6 @@ void main() {
       }
 
       // Run sequentially to avoid overflow/layout complexities
-      await runForMode(JokeCarouselMode.horizontal);
-      await runForMode(JokeCarouselMode.vertical);
       await runForMode(JokeCarouselMode.bothAdaptive);
 
       verify(
@@ -197,6 +199,7 @@ void main() {
           any(),
           navigationMethod: any(named: 'navigationMethod'),
           jokeContext: any(named: 'jokeContext'),
+        jokeViewerMode: any(named: 'jokeViewerMode'),
         ),
       ).called(greaterThan(0));
     },

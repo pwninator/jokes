@@ -56,6 +56,7 @@ class AnalyticsMocks {
         any(),
         navigationMethod: any(named: 'navigationMethod'),
         jokeContext: any(named: 'jokeContext'),
+        jokeViewerMode: any(named: 'jokeViewerMode'),
       ),
     ).thenAnswer((_) async {});
 
@@ -64,6 +65,7 @@ class AnalyticsMocks {
         any(),
         navigationMethod: any(named: 'navigationMethod'),
         jokeContext: any(named: 'jokeContext'),
+        jokeViewerMode: any(named: 'jokeViewerMode'),
       ),
     ).thenAnswer((_) async {});
 
@@ -73,6 +75,7 @@ class AnalyticsMocks {
         totalJokesViewed: any(named: 'totalJokesViewed'),
         navigationMethod: any(named: 'navigationMethod'),
         jokeContext: any(named: 'jokeContext'),
+        jokeViewerMode: any(named: 'jokeViewerMode'),
       ),
     ).thenAnswer((_) async {});
 
@@ -82,6 +85,7 @@ class AnalyticsMocks {
         any(),
         method: any(named: 'method'),
         jokeContext: any(named: 'jokeContext'),
+        jokeViewerMode: any(named: 'jokeViewerMode'),
       ),
     ).thenAnswer((_) async {});
 

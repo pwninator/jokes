@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+import 'package:rxdart/rxdart.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_admin_rating.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
@@ -155,6 +156,48 @@ class JokeRepository {
     } catch (e) {
       throw Exception('Failed to get jokes by IDs: $e');
     }
+  }
+
+  Stream<List<Joke>> watchJokesByIds(List<String> jokeIds) {
+    if (jokeIds.isEmpty) {
+      return Stream.value([]);
+    }
+
+    // Batches the jokeIds into chunks of 10.
+    final batches = <List<String>>[];
+    for (var i = 0; i < jokeIds.length; i += 10) {
+      batches.add(
+        jokeIds.sublist(
+          i,
+          i + 10 > jokeIds.length ? jokeIds.length : i + 10,
+        ),
+      );
+    }
+
+    // Creates a list of streams, one for each batch.
+    final streams = batches.map((batch) {
+      return _firestore
+          .collection('jokes')
+          .where(FieldPath.documentId, whereIn: batch)
+          .snapshots()
+          .map(
+            (snapshot) => snapshot.docs
+                .map((doc) => Joke.fromMap(doc.data(), doc.id))
+                .toList(),
+          );
+    }).toList();
+
+    // Combines the streams into a single stream that emits a list of all jokes.
+    return CombineLatestStream.list(streams).map((listOfLists) {
+      final jokes = listOfLists.expand((list) => list).toList();
+      // Reorder the jokes to match the original order of jokeIds
+      final jokeMap = {for (var joke in jokes) joke.id: joke};
+      return jokeIds
+          .map((id) => jokeMap[id])
+          .where((joke) => joke != null)
+          .cast<Joke>()
+          .toList();
+    });
   }
 
   Future<void> updateJoke({

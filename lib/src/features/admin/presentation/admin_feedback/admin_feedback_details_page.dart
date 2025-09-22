@@ -87,7 +87,7 @@ class _AdminFeedbackDetailsPageState
                                 ).colorScheme.surfaceContainerHighest,
                           child: Padding(
                             padding: const EdgeInsets.all(12.0),
-                            child: SelectableText(message.text),
+                            child: Text(message.text),
                           ),
                         ),
                       );

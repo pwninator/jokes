@@ -113,70 +113,93 @@ class JokeWithVectorDistance {
 }
 
 final searchResultsLiveProvider =
-    FutureProvider.family<List<JokeWithVectorDistance>, SearchScope>((
-      ref,
-      scope,
-    ) async {
-      final results = await ref.watch(searchResultIdsProvider(scope).future);
+    StreamProvider.family<List<JokeWithVectorDistance>, SearchScope>((
+  ref,
+  scope,
+) {
+  final resultsAsync = ref.watch(searchResultIdsProvider(scope));
 
-      if (results.isEmpty) {
-        return <JokeWithVectorDistance>[];
-      }
-      final jokeIds = results.map((r) => r.id).toList();
-      final jokes = await ref.watch(jokesByIdsProvider(jokeIds).future);
+  if (resultsAsync.hasError) {
+    return Stream.error(resultsAsync.error!);
+  }
+  if (!resultsAsync.hasValue) {
+    return Stream.value([]);
+  }
 
-      final jokeMap = {for (var joke in jokes) joke.id: joke};
-      var ordered = <JokeWithVectorDistance>[];
-      for (final result in results) {
-        final joke = jokeMap[result.id];
-        if (joke != null) {
-          ordered.add(
-            JokeWithVectorDistance(
-              joke: joke,
-              vectorDistance: result.vectorDistance,
-            ),
-          );
-        }
-      }
+  final results = resultsAsync.value!;
+  if (results.isEmpty) {
+    return Stream.value([]);
+  }
 
-      // Apply admin filters only for admin scope
-      if (scope == SearchScope.jokeManagementSearch) {
-        final filterState = ref.watch(jokeFilterProvider);
-        if (filterState.hasStateFilter) {
-          ordered = ordered.where((jvd) {
-            return jvd.joke.state != null &&
-                filterState.selectedStates.contains(jvd.joke.state!);
-          }).toList();
-        }
+  final jokeIds = results.map((r) => r.id).toList();
+  final jokesStream = ref.watch(jokesByIdsStreamProvider(jokeIds).stream);
+
+  return jokesStream.map((jokes) {
+    final jokeMap = {for (var joke in jokes) joke.id: joke};
+    var ordered = <JokeWithVectorDistance>[];
+    for (final result in results) {
+      final joke = jokeMap[result.id];
+      if (joke != null) {
+        ordered.add(
+          JokeWithVectorDistance(
+            joke: joke,
+            vectorDistance: result.vectorDistance,
+          ),
+        );
       }
-      return ordered;
-    });
+    }
+
+    // Apply admin filters only for admin scope
+    if (scope == SearchScope.jokeManagementSearch) {
+      final filterState = ref.watch(jokeFilterProvider);
+      if (filterState.hasStateFilter) {
+        ordered = ordered.where((jvd) {
+          return jvd.joke.state != null &&
+              filterState.selectedStates.contains(jvd.joke.state!);
+        }).toList();
+      }
+    }
+
+    return ordered;
+  });
+});
 
 /// Search results adapted for the viewer (JokeWithDate, images only)
 final searchResultsViewerProvider =
-    FutureProvider.family<List<JokeWithDate>, SearchScope>((ref, scope) async {
-      final results = await ref.watch(searchResultIdsProvider(scope).future);
+    StreamProvider.family<List<JokeWithDate>, SearchScope>((ref, scope) {
+  final resultsAsync = ref.watch(searchResultIdsProvider(scope));
 
-      if (results.isEmpty) {
-        return <JokeWithDate>[];
-      }
-      final jokeIds = results.map((r) => r.id).toList();
-      final jokes = await ref.watch(jokesByIdsProvider(jokeIds).future);
+  if (resultsAsync.hasError) {
+    return Stream.error(resultsAsync.error!);
+  }
+  if (!resultsAsync.hasValue) {
+    return Stream.value([]);
+  }
 
-      final jokeMap = {for (var joke in jokes) joke.id: joke};
-      final ordered = <JokeWithDate>[];
-      for (final result in results) {
-        final joke = jokeMap[result.id];
-        if (joke != null) {
-          final hasImages =
-              joke.setupImageUrl != null &&
-              joke.setupImageUrl!.isNotEmpty &&
-              joke.punchlineImageUrl != null &&
-              joke.punchlineImageUrl!.isNotEmpty;
-          if (hasImages) {
-            ordered.add(JokeWithDate(joke: joke));
-          }
+  final results = resultsAsync.value!;
+  if (results.isEmpty) {
+    return Stream.value([]);
+  }
+
+  final jokeIds = results.map((r) => r.id).toList();
+  final jokesStream = ref.watch(jokesByIdsStreamProvider(jokeIds).stream);
+
+  return jokesStream.map((jokes) {
+    final jokeMap = {for (var joke in jokes) joke.id: joke};
+    final ordered = <JokeWithDate>[];
+    for (final result in results) {
+      final joke = jokeMap[result.id];
+      if (joke != null) {
+        final hasImages =
+            joke.setupImageUrl != null &&
+            joke.setupImageUrl!.isNotEmpty &&
+            joke.punchlineImageUrl != null &&
+            joke.punchlineImageUrl!.isNotEmpty;
+        if (hasImages) {
+          ordered.add(JokeWithDate(joke: joke));
         }
       }
-      return ordered;
-    });
+    }
+    return ordered;
+  });
+});

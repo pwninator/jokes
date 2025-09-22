@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -23,7 +25,7 @@ void main() {
           // Prevent real cloud function calls during this test
           searchResultsViewerProvider(
             SearchScope.userJokeSearch,
-          ).overrideWith((ref) => Future.value([])),
+          ).overrideWith((ref) => Stream.value([])),
         ],
       ),
     );
@@ -63,7 +65,7 @@ void main() {
     final overrides = FirebaseMocks.getFirebaseProviderOverrides(
       additionalOverrides: [
         searchResultsViewerProvider(SearchScope.userJokeSearch).overrideWith(
-          (ref) => Future.value([
+          (ref) => Stream.value([
             const JokeWithDate(
               joke: Joke(
                 id: '1',
@@ -100,7 +102,7 @@ void main() {
     final overrides = FirebaseMocks.getFirebaseProviderOverrides(
       additionalOverrides: [
         searchResultsViewerProvider(SearchScope.userJokeSearch).overrideWith(
-          (ref) => Future.value([
+          (ref) => Stream.value([
             const JokeWithDate(
               joke: Joke(
                 id: '1',
@@ -155,7 +157,7 @@ void main() {
     final overrides = FirebaseMocks.getFirebaseProviderOverrides(
       additionalOverrides: [
         searchResultsViewerProvider(SearchScope.userJokeSearch).overrideWith(
-          (ref) => Future.value([
+          (ref) => Stream.value([
             const JokeWithDate(
               joke: Joke(
                 id: 'a',
@@ -208,7 +210,13 @@ void main() {
     tester,
   ) async {
     final container = ProviderContainer(
-      overrides: FirebaseMocks.getFirebaseProviderOverrides(),
+      overrides: FirebaseMocks.getFirebaseProviderOverrides(
+        additionalOverrides: [
+          searchResultsViewerProvider(
+            SearchScope.userJokeSearch,
+          ).overrideWith((ref) => Stream.value([])),
+        ],
+      ),
     );
     addTearDown(container.dispose);
     await tester.pumpWidget(
@@ -270,7 +278,7 @@ void main() {
           // Avoid network search calls in tests
           searchResultsViewerProvider(
             SearchScope.userJokeSearch,
-          ).overrideWith((ref) => Future.value([])),
+          ).overrideWith((ref) => Stream.value([])),
         ],
       ),
     );
@@ -328,7 +336,7 @@ void main() {
             // Avoid network search calls in tests
             searchResultsViewerProvider(
               SearchScope.userJokeSearch,
-            ).overrideWith((ref) => Future.value([])),
+            ).overrideWith((ref) => Stream.value([])),
           ],
         ),
       );
@@ -377,7 +385,7 @@ void main() {
           // Avoid network search calls in tests
           searchResultsViewerProvider(
             SearchScope.userJokeSearch,
-          ).overrideWith((ref) => Future.value([])),
+          ).overrideWith((ref) => Stream.value([])),
         ],
       ),
     );

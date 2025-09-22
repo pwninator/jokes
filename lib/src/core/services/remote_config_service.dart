@@ -48,6 +48,11 @@ const Map<RemoteParam, RemoteParamDescriptor> remoteParams = {
     type: RemoteParamType.boolType,
     defaultBool: false,
   ),
+  RemoteParam.shareJokeImageStacked: RemoteParamDescriptor(
+    key: 'share_joke_image_stacked',
+    type: RemoteParamType.boolType,
+    defaultBool: false,
+  ),
 };
 
 enum RemoteParam {
@@ -58,6 +63,7 @@ enum RemoteParam {
   reviewMinSharedJokes,
   reviewMinViewedJokes,
   defaultJokeViewerReveal,
+  shareJokeImageStacked,
 }
 
 enum RemoteParamType { intType, boolType, doubleType, stringType }

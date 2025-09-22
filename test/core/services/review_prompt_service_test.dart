@@ -47,6 +47,8 @@ class _FakeRemoteValues implements RemoteConfigValues {
         return 0;
       case RemoteParam.defaultJokeViewerReveal:
         return 0;
+      case RemoteParam.shareJokeImageStacked:
+        return 0;
     }
   }
 

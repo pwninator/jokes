@@ -72,6 +72,17 @@
           "valueType": "BOOLEAN"
         }
       }
+    },
+    "Sharing": {
+      "parameters": {
+        "share_joke_image_stacked": {
+          "defaultValue": {
+            "value": "false"
+          },
+          "description": "If true, setup and punchline images are stacked into a single file for sharing. If false, they are shared as two separate files.",
+          "valueType": "BOOLEAN"
+        }
+      }
     }
   }
 }

@@ -1,5 +1,12 @@
+import 'dart:io';
+import 'dart:typed_data';
+
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image/image.dart' as img;
 import 'package:mocktail/mocktail.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 
@@ -423,6 +430,68 @@ void main() {
           contains('quality=${ImageService.defaultFullSizeQuality}'),
         );
         expect(result, contains('format=webp'));
+      });
+    });
+
+    group('stackImagesVertically', () {
+      late Directory tempDir;
+
+      setUp(() async {
+        tempDir = await Directory.systemTemp.createTemp('test_');
+      });
+
+      tearDown(() {
+        tempDir.deleteSync(recursive: true);
+      });
+
+      Future<XFile> createTestImage(
+        String path,
+        int width,
+        int height,
+        int r,
+        int g,
+        int b,
+      ) async {
+        final image = img.Image(width: width, height: height);
+        img.fill(image, color: img.ColorRgb8(r, g, b));
+        final bytes = img.encodePng(image);
+        final file = File(path);
+        await file.writeAsBytes(bytes);
+        return XFile(path);
+      }
+
+      test('should stack two images vertically', () async {
+        // arrange
+        final topImageFile = await createTestImage(
+          '${tempDir.path}/top.png',
+          100,
+          50,
+          255,
+          0,
+          0,
+        );
+        final bottomImageFile = await createTestImage(
+          '${tempDir.path}/bottom.png',
+          100,
+          50,
+          0,
+          0,
+          255,
+        );
+
+        // act
+        final result = await imageService.stackImagesVertically(
+          topImageFile,
+          bottomImageFile,
+        );
+
+        // assert
+        expect(result, isNotNull);
+        final resultBytes = await result!.readAsBytes();
+        final resultImage = img.decodeImage(resultBytes);
+        expect(resultImage, isNotNull);
+        expect(resultImage!.width, equals(100));
+        expect(resultImage.height, equals(100));
       });
     });
   });

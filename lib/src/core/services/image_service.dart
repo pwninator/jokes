@@ -319,4 +319,62 @@ class ImageService {
     }
     return results;
   }
+
+  /// Stacks two images vertically and returns a new XFile.
+  /// The width of the final image will be the width of the first (top) image.
+  /// The second (bottom) image will be resized to match the width of the top image.
+  /// If processing fails, returns null.
+  Future<XFile?> stackImagesVertically(XFile topFile, XFile bottomFile) async {
+    try {
+      final topBytes = await topFile.readAsBytes();
+      final bottomBytes = await bottomFile.readAsBytes();
+
+      final topImage = img.decodeImage(topBytes);
+      final bottomImage = img.decodeImage(bottomBytes);
+
+      if (topImage == null || bottomImage == null) {
+        return null;
+      }
+
+      // Resize bottom image to match the width of the top image, maintaining aspect ratio
+      final bottomImageResized = img.copyResize(
+        bottomImage,
+        width: topImage.width,
+        interpolation: img.Interpolation.linear,
+      );
+
+      // Create a new image with the combined height
+      final stackedImage = img.Image(
+        width: topImage.width,
+        height: topImage.height + bottomImageResized.height,
+      );
+
+      // Draw the top image
+      img.compositeImage(stackedImage, topImage, dstX: 0, dstY: 0);
+
+      // Draw the bottom image
+      img.compositeImage(
+        stackedImage,
+        bottomImageResized,
+        dstX: 0,
+        dstY: topImage.height,
+      );
+
+      // Encode to PNG
+      final outBytes = img.encodePng(stackedImage);
+
+      // Write to a temp file
+      final String tempDir = Directory.systemTemp.path;
+      final String outPath = p.join(
+        tempDir,
+        'snickerdoodle_share_stacked_${DateTime.now().millisecondsSinceEpoch}.png',
+      );
+      final outFile = File(outPath);
+      await outFile.writeAsBytes(outBytes, flush: true);
+      return XFile(outFile.path);
+    } catch (e) {
+      debugPrint('stackImagesVertically failed: $e');
+      return null;
+    }
+  }
 }

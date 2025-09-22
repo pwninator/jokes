@@ -7,6 +7,7 @@ import 'package:snickerdoodle/src/core/services/app_review_service.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
 import 'package:snickerdoodle/src/core/services/joke_share_service.dart';
+import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:snickerdoodle/src/core/services/review_prompt_service.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_service.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
@@ -23,6 +24,8 @@ class MockPlatformShareService extends Mock implements PlatformShareService {}
 class MockReviewPromptCoordinator extends Mock
     implements ReviewPromptCoordinator {}
 
+class MockRemoteConfigValues extends Mock implements RemoteConfigValues {}
+
 class FakeJoke extends Fake implements Joke {}
 
 class FakeXFile extends Fake implements XFile {}
@@ -36,12 +39,14 @@ void main() {
     late MockPlatformShareService mockPlatformShareService;
     late AppUsageService appUsageService;
     late ReviewPromptCoordinator mockCoordinator;
+    late MockRemoteConfigValues mockRemoteConfig;
 
     setUpAll(() {
       registerFallbackValue(FakeJoke());
       registerFallbackValue(JokeReactionType.share);
       registerFallbackValue(FakeXFile());
       registerFallbackValue(ReviewRequestSource.auto);
+      registerFallbackValue(RemoteParam.shareJokeImageStacked);
     });
 
     setUp(() async {
@@ -50,6 +55,7 @@ void main() {
       mockJokeReactionsService = MockJokeReactionsService();
       mockPlatformShareService = MockPlatformShareService();
       mockCoordinator = MockReviewPromptCoordinator();
+      mockRemoteConfig = MockRemoteConfigValues();
       when(
         () =>
             mockCoordinator.maybePromptForReview(source: any(named: 'source')),
@@ -66,6 +72,7 @@ void main() {
         platformShareService: mockPlatformShareService,
         appUsageService: appUsageService,
         reviewPromptCoordinator: mockCoordinator,
+        remoteConfig: mockRemoteConfig,
       );
 
       // Default watermark behavior: passthrough original files
@@ -74,6 +81,11 @@ void main() {
           invocation.positionalArguments.first as List<XFile>,
         ),
       );
+      when(() => mockImageService.addWatermarkToFile(any())).thenAnswer(
+        (invocation) async =>
+            invocation.positionalArguments.first as XFile,
+      );
+      when(() => mockRemoteConfig.getBool(any())).thenReturn(false);
     });
 
     test(
@@ -163,14 +175,14 @@ void main() {
           () => mockAnalyticsService.logJokeShareInitiated(
             'test-joke-id',
             jokeContext: 'test-context',
-            shareMethod: 'images',
+            shareMethod: 'images_separate',
           ),
         ).called(1);
         verify(
           () => mockAnalyticsService.logJokeShareSuccess(
             'test-joke-id',
             jokeContext: 'test-context',
-            shareMethod: 'images',
+            shareMethod: 'images_separate',
             shareDestination: any(named: 'shareDestination'),
             totalJokesShared: any(named: 'totalJokesShared'),
           ),
@@ -254,14 +266,14 @@ void main() {
           () => mockAnalyticsService.logJokeShareInitiated(
             'test-joke-id',
             jokeContext: 'test-context',
-            shareMethod: 'images',
+            shareMethod: 'images_separate',
           ),
         ).called(1);
         verify(
           () => mockAnalyticsService.logJokeShareCanceled(
             'test-joke-id',
             jokeContext: 'test-context',
-            shareMethod: 'images',
+            shareMethod: 'images_separate',
             shareDestination: any(named: 'shareDestination'),
           ),
         ).called(1);
@@ -353,5 +365,79 @@ void main() {
         ).called(1);
       },
     );
+
+    group('with stacked images enabled', () {
+      setUp(() {
+        when(() => mockRemoteConfig.getBool(RemoteParam.shareJokeImageStacked))
+            .thenReturn(true);
+      });
+
+      test('should call stackImagesVertically when sharing succeeds', () async {
+        // Arrange
+        const joke = Joke(
+          id: 'test-joke-id',
+          setupText: 'Test setup',
+          punchlineText: 'Test punchline',
+          setupImageUrl: 'https://example.com/setup.jpg',
+          punchlineImageUrl: 'https://example.com/punchline.jpg',
+        );
+        final mockSetupFile = XFile('setup.jpg');
+        final mockPunchlineFile = XFile('punchline.jpg');
+        final mockStackedFile = XFile('stacked.jpg');
+
+        when(() => mockImageService.precacheJokeImages(any())).thenAnswer(
+          (_) async => (
+            setupUrl: 'https://example.com/setup.jpg',
+            punchlineUrl: 'https://example.com/punchline.jpg',
+          ),
+        );
+        when(() => mockImageService.getCachedFileFromUrl(any()))
+            .thenAnswer((invocation) async {
+          if (invocation.positionalArguments.first
+              .contains('setup')) return mockSetupFile;
+          return mockPunchlineFile;
+        });
+        when(() => mockImageService.stackImagesVertically(any(), any()))
+            .thenAnswer((_) async => mockStackedFile);
+        when(() => mockPlatformShareService.shareFiles(any(),
+                subject: any(named: 'subject'), text: any(named: 'text')))
+            .thenAnswer(
+                (_) async => const ShareResult('', ShareResultStatus.success));
+        when(() => mockJokeReactionsService.addUserReaction(any(), any()))
+            .thenAnswer((_) async {});
+        when(() => mockAnalyticsService.logJokeShareInitiated(any(),
+            jokeContext: any(named: 'jokeContext'),
+            shareMethod: any(named: 'shareMethod'))).thenAnswer((_) async {});
+        when(() => mockAnalyticsService.logJokeShareSuccess(any(),
+            jokeContext: any(named: 'jokeContext'),
+            shareMethod: any(named: 'shareMethod'),
+            shareDestination: any(named: 'shareDestination'),
+            totalJokesShared:
+                any(named: 'totalJokesShared'))).thenAnswer((_) async {});
+
+        // Act
+        final result = await service.shareJoke(joke, jokeContext: 'test');
+
+        // Assert
+        expect(result, isTrue);
+        verify(() =>
+                mockImageService.stackImagesVertically(any(), any()))
+            .called(1);
+        verify(() => mockImageService.addWatermarkToFile(mockStackedFile))
+            .called(1);
+        verify(() => mockAnalyticsService.logJokeShareInitiated(
+              'test-joke-id',
+              jokeContext: 'test',
+              shareMethod: 'image_stacked',
+            )).called(1);
+        verify(() => mockAnalyticsService.logJokeShareSuccess(
+              'test-joke-id',
+              jokeContext: 'test',
+              shareMethod: 'image_stacked',
+              shareDestination: any(named: 'shareDestination'),
+              totalJokesShared: any(named: 'totalJokesShared'),
+            )).called(1);
+      });
+    });
   });
 }

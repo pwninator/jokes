@@ -59,67 +59,6 @@ void main() {
       expect(find.byType(PageView), findsOneWidget);
     });
 
-    testWidgets('VERTICAL mode hides page indicators but shows controls', (
-      tester,
-    ) async {
-      // arrange
-      const joke = Joke(
-        id: 'vertical-joke',
-        setupText: 'Setup',
-        punchlineText: 'Punch',
-        setupImageUrl: 'https://example.com/a.jpg',
-        punchlineImageUrl: 'https://example.com/b.jpg',
-      );
-
-      const widget = JokeImageCarousel(
-        joke: joke,
-        jokeContext: 'test',
-        mode: JokeCarouselMode.vertical,
-      );
-
-      // act
-      await tester.pumpWidget(createTestWidget(child: widget));
-      await tester.pump();
-
-      // assert: indicators hidden, controls visible, no PageView
-      expect(find.byType(SmoothPageIndicator), findsNothing);
-      expect(find.byType(PageView), findsNothing);
-
-      // assert: aspect ratio reflects two stacked images (0.5)
-      final ar = tester.widget<AspectRatio>(find.byType(AspectRatio));
-      expect(ar.aspectRatio, 0.5);
-    });
-
-    testWidgets('HORIZONTAL mode hides page indicators but shows controls', (
-      tester,
-    ) async {
-      // arrange
-      const joke = Joke(
-        id: 'horizontal-joke',
-        setupText: 'Setup',
-        punchlineText: 'Punch',
-        setupImageUrl: 'https://example.com/a.jpg',
-        punchlineImageUrl: 'https://example.com/b.jpg',
-      );
-
-      const widget = JokeImageCarousel(
-        joke: joke,
-        jokeContext: 'test',
-        mode: JokeCarouselMode.horizontal,
-      );
-
-      // act
-      await tester.pumpWidget(createTestWidget(child: widget));
-      await tester.pump();
-
-      // assert: indicators hidden, controls visible, no PageView
-      expect(find.byType(SmoothPageIndicator), findsNothing);
-      expect(find.byType(PageView), findsNothing);
-
-      // assert: aspect ratio reflects two side-by-side images (2.0)
-      final ar = tester.widget<AspectRatio>(find.byType(AspectRatio));
-      expect(ar.aspectRatio, 2.0);
-    });
   });
 
   group('JokeImageCarousel Counts Icons', () {

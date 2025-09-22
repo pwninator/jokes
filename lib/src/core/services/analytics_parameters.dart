@@ -11,6 +11,7 @@ class AnalyticsParameters {
   static const String jokeCreationDate = 'joke_creation_date';
   static const String jokeHasImages = 'joke_has_images';
   static const String jokeContext = 'joke_context';
+  static const String jokeViewerMode = 'joke_viewer_mode';
   static const String totalJokesViewed = 'total_jokes_viewed';
   static const String totalJokesSaved = 'total_jokes_saved';
   static const String totalJokesShared = 'total_jokes_shared';
@@ -73,7 +74,8 @@ class AnalyticsNavigationMethod {
   static const String swipe = 'swipe';
   static const String notification = 'notification';
   static const String programmatic = 'programmatic';
-  static const String ctaReveal = 'cta_reveal';
+  static const String ctaRevealPunchline = 'cta_reveal_punchline';
+  static const String ctaNextJoke = 'cta_next_joke';
 }
 
 /// Joke context values for analytics

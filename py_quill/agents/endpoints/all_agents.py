@@ -5,6 +5,7 @@ from typing import Callable
 from agents.endpoints.joke_categorizer import agent as joke_categorizer
 from agents.endpoints.joke_critic import agent as joke_critic
 from agents.endpoints.joke_populator import agent as joke_populator
+from agents.endpoints.joke_updater import agent as joke_updater
 from common import utils
 from google.adk.agents import BaseAgent
 from vertexai import agent_engines
@@ -41,15 +42,24 @@ def get_joke_categorizer_agent_adk_app() -> agent_engines.AgentEngine:
   )
 
 
+def get_joke_updater_agent_adk_app() -> agent_engines.AgentEngine:
+  """Get the ADK app for the joke updater agent."""
+  return _get_agent_adk_app(
+    agent_name="JokeUpdater",
+    get_local_agent_fn=joke_updater.get_joke_updater_agent,
+    remote_agent_id=None,
+  )
+
+
 def _get_agent_adk_app(
   agent_name: str,
   get_local_agent_fn: Callable[[], BaseAgent],
-  remote_agent_id: str,
+  remote_agent_id: str | None,
 ) -> agent_engines.AgentEngine:
   """Get the ADK app for the agent."""
 
   if agent_name not in _ADK_APPS_BY_AGENT_NAME:
-    if utils.is_emulator():
+    if utils.is_emulator() or remote_agent_id is None:
       agent_adk_app = AdkApp(agent=get_local_agent_fn())
     else:
       agent_adk_app = agent_engines.get(remote_agent_id)

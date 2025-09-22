@@ -6,7 +6,7 @@ import 'package:snickerdoodle/src/config/router/router_providers.dart';
 import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
 import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_category_tile.dart';
-import 'package:snickerdoodle/src/features/jokes/application/joke_category_providers.dart';
+import 'package:snickerdoodle/src/features/search/presentation/special_tiles.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_navigation_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_search_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_category.dart';
@@ -235,7 +235,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               builder: (context, ref, child) {
                 final bool isSearchEmpty = _controller.text.trim().isEmpty;
                 if (isSearchEmpty) {
-                  final categoriesAsync = ref.watch(jokeCategoriesProvider);
+                  final categoriesAsync =
+                      ref.watch(categoriesWithSpecialTilesProvider);
                   return categoriesAsync.when(
                     data: (categories) {
                       final approved = categories
@@ -288,14 +289,26 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                                   category: cat,
                                   showStateBorder: false,
                                   onTap: () {
-                                    final rawQuery = cat.jokeDescriptionQuery
-                                        .trim();
-                                    if (rawQuery.isEmpty) return;
-                                    _controller.text = rawQuery;
-                                    _onSubmitted(
-                                      rawQuery,
-                                      label: SearchLabel.category,
-                                    );
+                                    if (cat.id
+                                        .startsWith(specialTileIdPrefix)) {
+                                      final tileNumber =
+                                          cat.id.substring(specialTileIdPrefix.length);
+                                      ScaffoldMessenger.of(context)
+                                          .showSnackBar(
+                                        SnackBar(
+                                          content: Text(tileNumber),
+                                        ),
+                                      );
+                                    } else {
+                                      final rawQuery =
+                                          cat.jokeDescriptionQuery.trim();
+                                      if (rawQuery.isEmpty) return;
+                                      _controller.text = rawQuery;
+                                      _onSubmitted(
+                                        rawQuery,
+                                        label: SearchLabel.category,
+                                      );
+                                    }
                                   },
                                 );
                               },

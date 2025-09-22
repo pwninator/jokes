@@ -9,6 +9,7 @@ class AdaptiveAppBarScreen extends StatelessWidget {
     super.key,
     required this.title,
     required this.body,
+    this.leading,
     this.floatingActionButton,
     this.resizeToAvoidBottomInset = false,
   });
@@ -18,6 +19,9 @@ class AdaptiveAppBarScreen extends StatelessWidget {
 
   /// The body content of the screen
   final Widget body;
+
+  /// Optional leading widget for the app bar
+  final Widget? leading;
 
   /// Optional floating action button
   final Widget? floatingActionButton;
@@ -42,7 +46,10 @@ class AdaptiveAppBarScreen extends StatelessWidget {
                 scrolledUnderElevation: 0,
               ),
             )
-          : AppBarWidget(title: title),
+          : AppBarWidget(
+              title: title,
+              leading: leading,
+            ),
       body: body,
       floatingActionButton: floatingActionButton,
     );

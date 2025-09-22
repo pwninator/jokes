@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
+import 'package:go_router/go_router.dart';
 import 'package:snickerdoodle/src/common_widgets/adaptive_app_bar_screen.dart';
 import 'package:snickerdoodle/src/config/router/router_providers.dart';
 import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
@@ -59,6 +60,28 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     super.dispose();
   }
 
+  void _clearSearch() {
+    _controller.clear();
+    final current = ref.read(
+      searchQueryProvider(SearchScope.userJokeSearch),
+    );
+    ref
+        .read(
+          searchQueryProvider(
+            SearchScope.userJokeSearch,
+          ).notifier,
+        )
+        .state = current.copyWith(
+      query: '',
+      maxResults: JokeConstants.userSearchMaxResults,
+      publicOnly: JokeConstants.userSearchPublicOnly,
+      matchMode: JokeConstants.userSearchMatchMode,
+      excludeJokeIds: const [],
+      label: JokeConstants.userSearchLabel,
+    );
+    FocusScope.of(context).unfocus();
+  }
+
   void _onSubmitted(String raw, {required SearchLabel label}) {
     final query = raw.trim();
     if (query.length < 2) {
@@ -109,8 +132,28 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       _hasHandledFocusTrigger = false;
     }
 
+    final searchQuery = ref.watch(
+      searchQueryProvider(SearchScope.userJokeSearch),
+    );
+    final isPushedRoute = searchQuery.label == SearchLabel.similarJokes;
+    final hasQuery = searchQuery.query.isNotEmpty;
+
     return AdaptiveAppBarScreen(
       title: 'Search',
+      leading: isPushedRoute || hasQuery
+          ? IconButton(
+              icon: const Icon(Icons.arrow_back),
+              onPressed: () {
+                if (isPushedRoute) {
+                  if (GoRouter.of(context).canPop()) {
+                    GoRouter.of(context).pop();
+                  }
+                } else {
+                  _clearSearch();
+                }
+              },
+            )
+          : null,
       body: Column(
         children: [
           Container(
@@ -157,27 +200,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                             shape: const CircleBorder(),
                             visualDensity: VisualDensity.compact,
                           ),
-                          onPressed: () {
-                            _controller.clear();
-                            final current = ref.read(
-                              searchQueryProvider(SearchScope.userJokeSearch),
-                            );
-                            ref
-                                .read(
-                                  searchQueryProvider(
-                                    SearchScope.userJokeSearch,
-                                  ).notifier,
-                                )
-                                .state = current.copyWith(
-                              query: '',
-                              maxResults: JokeConstants.userSearchMaxResults,
-                              publicOnly: JokeConstants.userSearchPublicOnly,
-                              matchMode: JokeConstants.userSearchMatchMode,
-                              excludeJokeIds: const [],
-                              label: JokeConstants.userSearchLabel,
-                            );
-                            FocusScope.of(context).unfocus();
-                          },
+                          onPressed: _clearSearch,
                         ),
                       )
                     : null,
@@ -327,7 +350,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   emptyState: emptyStateMessage.isEmpty
                       ? const SizedBox.shrink()
                       : Center(child: Text(emptyStateMessage)),
-                  showSimilarSearchButton: false,
+                  showSimilarSearchButton: true,
                 );
               },
             ),

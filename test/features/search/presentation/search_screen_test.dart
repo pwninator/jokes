@@ -23,7 +23,7 @@ void main() {
           // Prevent real cloud function calls during this test
           searchResultsViewerProvider(
             SearchScope.userJokeSearch,
-          ).overrideWith((ref) => const AsyncValue.data([])),
+          ).overrideWith((ref) => Future.value([])),
         ],
       ),
     );
@@ -63,8 +63,8 @@ void main() {
     final overrides = FirebaseMocks.getFirebaseProviderOverrides(
       additionalOverrides: [
         searchResultsViewerProvider(SearchScope.userJokeSearch).overrideWith(
-          (ref) => const AsyncValue.data([
-            JokeWithDate(
+          (ref) => Future.value([
+            const JokeWithDate(
               joke: Joke(
                 id: '1',
                 setupText: 's',
@@ -88,7 +88,7 @@ void main() {
     final field = find.byKey(const Key('search_screen-search-field'));
     await tester.enterText(field, 'cat');
     await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pump();
+    await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('search-results-count')), findsOneWidget);
     expect(find.text('1 result'), findsOneWidget);
@@ -100,8 +100,8 @@ void main() {
     final overrides = FirebaseMocks.getFirebaseProviderOverrides(
       additionalOverrides: [
         searchResultsViewerProvider(SearchScope.userJokeSearch).overrideWith(
-          (ref) => const AsyncValue.data([
-            JokeWithDate(
+          (ref) => Future.value([
+            const JokeWithDate(
               joke: Joke(
                 id: '1',
                 setupText: 's1',
@@ -110,7 +110,7 @@ void main() {
                 punchlineImageUrl: 'b',
               ),
             ),
-            JokeWithDate(
+            const JokeWithDate(
               joke: Joke(
                 id: '2',
                 setupText: 's2',
@@ -119,7 +119,7 @@ void main() {
                 punchlineImageUrl: 'b',
               ),
             ),
-            JokeWithDate(
+            const JokeWithDate(
               joke: Joke(
                 id: '3',
                 setupText: 's3',
@@ -143,7 +143,7 @@ void main() {
     final field = find.byKey(const Key('search_screen-search-field'));
     await tester.enterText(field, 'dog');
     await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pump();
+    await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('search-results-count')), findsOneWidget);
     expect(find.text('3 results'), findsOneWidget);
@@ -155,8 +155,8 @@ void main() {
     final overrides = FirebaseMocks.getFirebaseProviderOverrides(
       additionalOverrides: [
         searchResultsViewerProvider(SearchScope.userJokeSearch).overrideWith(
-          (ref) => const AsyncValue.data([
-            JokeWithDate(
+          (ref) => Future.value([
+            const JokeWithDate(
               joke: Joke(
                 id: 'a',
                 setupText: 's1',
@@ -165,7 +165,7 @@ void main() {
                 punchlineImageUrl: 'b',
               ),
             ),
-            JokeWithDate(
+            const JokeWithDate(
               joke: Joke(
                 id: 'b',
                 setupText: 's2',
@@ -189,7 +189,7 @@ void main() {
     final field = find.byKey(const Key('search_screen-search-field'));
     await tester.enterText(field, 'fish');
     await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pump();
+    await tester.pumpAndSettle();
 
     // Title should be the index (1-based) for the first card
     expect(find.text('1'), findsOneWidget);
@@ -270,7 +270,7 @@ void main() {
           // Avoid network search calls in tests
           searchResultsViewerProvider(
             SearchScope.userJokeSearch,
-          ).overrideWith((ref) => const AsyncValue.data([])),
+          ).overrideWith((ref) => Future.value([])),
         ],
       ),
     );
@@ -328,7 +328,7 @@ void main() {
             // Avoid network search calls in tests
             searchResultsViewerProvider(
               SearchScope.userJokeSearch,
-            ).overrideWith((ref) => const AsyncValue.data([])),
+            ).overrideWith((ref) => Future.value([])),
           ],
         ),
       );
@@ -377,7 +377,7 @@ void main() {
           // Avoid network search calls in tests
           searchResultsViewerProvider(
             SearchScope.userJokeSearch,
-          ).overrideWith((ref) => const AsyncValue.data([])),
+          ).overrideWith((ref) => Future.value([])),
         ],
       ),
     );

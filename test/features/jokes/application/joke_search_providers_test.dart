@@ -187,6 +187,7 @@ void main() {
             publicOnly: any(named: 'publicOnly'),
             matchMode: any(named: 'matchMode'),
             scope: any(named: 'scope'),
+            excludeJokeIds: any(named: 'excludeJokeIds'),
             label: any(named: 'label'),
           ),
         ).thenAnswer(
@@ -197,20 +198,31 @@ void main() {
           ],
         );
 
-        // Per-joke streams
-        final streamA = StreamController<Joke?>();
-        final streamB = StreamController<Joke?>();
-        final streamC = StreamController<Joke?>();
-
-        when(
-          () => mockJokeRepository.getJokeByIdStream('a'),
-        ).thenAnswer((_) => streamA.stream);
-        when(
-          () => mockJokeRepository.getJokeByIdStream('b'),
-        ).thenAnswer((_) => streamB.stream);
-        when(
-          () => mockJokeRepository.getJokeByIdStream('c'),
-        ).thenAnswer((_) => streamC.stream);
+        when(() => mockJokeRepository.getJokesByIds(any())).thenAnswer(
+          (_) async => [
+            const Joke(
+              id: 'a',
+              setupText: 'Sa',
+              punchlineText: 'Pa',
+              numSaves: 0,
+              numShares: 1,
+            ),
+            const Joke(
+              id: 'b',
+              setupText: 'Sb',
+              punchlineText: 'Pb',
+              numSaves: 11,
+              numShares: 0,
+            ),
+            const Joke(
+              id: 'c',
+              setupText: 'Sc',
+              punchlineText: 'Pc',
+              numSaves: 2,
+              numShares: 1,
+            ),
+          ],
+        );
 
         final container = createContainer(
           extra: [jokeRepositoryProvider.overrideWithValue(mockJokeRepository)],
@@ -225,60 +237,18 @@ void main() {
           publicOnly: true,
           matchMode: MatchMode.tight,
         );
-        await container.read(
-          searchResultIdsProvider(SearchScope.userJokeSearch).future,
-        );
-
-        // Push initial values
-        streamC.add(
-          const Joke(
-            id: 'c',
-            setupText: 'Sc',
-            punchlineText: 'Pc',
-            numSaves: 2,
-            numShares: 1,
-          ),
-        );
-        streamA.add(
-          const Joke(
-            id: 'a',
-            setupText: 'Sa',
-            punchlineText: 'Pa',
-            numSaves: 0,
-            numShares: 1,
-          ),
-        );
-        streamB.add(
-          const Joke(
-            id: 'b',
-            setupText: 'Sb',
-            punchlineText: 'Pb',
-            numSaves: 11,
-            numShares: 0,
-          ),
-        );
 
         // Read results (should preserve ids order: c, a, b)
-        var value1 = container.read(
-          searchResultsLiveProvider(SearchScope.userJokeSearch),
-        );
-        if (value1.isLoading) {
-          await Future.delayed(const Duration(milliseconds: 1));
-          value1 = container.read(
-            searchResultsLiveProvider(SearchScope.userJokeSearch),
-          );
-        }
-        expect(value1.hasValue, isTrue);
-        expect(value1.value!.map((jvd) => jvd.joke.id).toList(), [
+        final result =
+            await container.read(searchResultsLiveProvider(
+          SearchScope.userJokeSearch,
+        ).future);
+
+        expect(result.map((jvd) => jvd.joke.id).toList(), [
           'c',
           'a',
           'b',
         ]);
-
-        await streamA.close();
-        await streamB.close();
-        await streamC.close();
-        container.dispose();
       },
     );
 
@@ -290,16 +260,27 @@ void main() {
           publicOnly: any(named: 'publicOnly'),
           matchMode: any(named: 'matchMode'),
           scope: any(named: 'scope'),
+          excludeJokeIds: any(named: 'excludeJokeIds'),
           label: any(named: 'label'),
         ),
       ).thenAnswer(
         (_) async => const [JokeSearchResult(id: 'j1', vectorDistance: 0.42)],
       );
 
-      final stream = StreamController<Joke?>();
-      when(
-        () => mockJokeRepository.getJokeByIdStream('j1'),
-      ).thenAnswer((_) => stream.stream);
+      final joke1 = const Joke(
+        id: 'j1',
+        setupText: 'S',
+        punchlineText: 'P',
+        setupImageUrl: null,
+        punchlineImageUrl: null,
+      );
+      final joke1Updated = joke1.copyWith(
+        setupImageUrl: 's.jpg',
+        punchlineImageUrl: 'p.jpg',
+      );
+
+      when(() => mockJokeRepository.getJokesByIds(any()))
+          .thenAnswer((_) async => [joke1]);
 
       final container = createContainer(
         extra: [jokeRepositoryProvider.overrideWithValue(mockJokeRepository)],
@@ -313,63 +294,28 @@ void main() {
         publicOnly: true,
         matchMode: MatchMode.tight,
       );
-      await container.read(
-        searchResultIdsProvider(SearchScope.userJokeSearch).future,
+
+      var value = await container.read(
+        searchResultsLiveProvider(SearchScope.userJokeSearch).future,
       );
 
-      // Initial emit without images
-      stream.add(
-        const Joke(
-          id: 'j1',
-          setupText: 'S',
-          punchlineText: 'P',
-          setupImageUrl: null,
-          punchlineImageUrl: null,
-        ),
-      );
-      var value = container.read(
-        searchResultsLiveProvider(SearchScope.userJokeSearch),
-      );
-      if (value.isLoading) {
-        await Future.delayed(const Duration(milliseconds: 1));
-        value = container.read(
-          searchResultsLiveProvider(SearchScope.userJokeSearch),
-        );
-      }
-      expect(value.hasValue, isTrue);
-      expect(value.value!.first.joke.id, 'j1');
-      expect(value.value!.first.joke.setupImageUrl, isNull);
+      expect(value.first.joke.id, 'j1');
+      expect(value.first.joke.setupImageUrl, isNull);
 
       // Update with images -> provider should now reflect images
-      stream.add(
-        const Joke(
-          id: 'j1',
-          setupText: 'S',
-          punchlineText: 'P',
-          setupImageUrl: 's.jpg',
-          punchlineImageUrl: 'p.jpg',
-        ),
-      );
-      // Poll briefly until update propagates
-      for (int i = 0; i < 20; i++) {
-        value = container.read(
-          searchResultsLiveProvider(SearchScope.userJokeSearch),
-        );
-        if (!value.isLoading &&
-            value.hasValue &&
-            value.value!.isNotEmpty &&
-            value.value!.first.joke.setupImageUrl != null &&
-            value.value!.first.joke.punchlineImageUrl != null) {
-          break;
-        }
-        await Future.delayed(const Duration(milliseconds: 5));
-      }
-      expect(value.hasValue, isTrue);
-      expect(value.value!.first.joke.setupImageUrl, isNotNull);
-      expect(value.value!.first.joke.punchlineImageUrl, isNotNull);
+      when(() => mockJokeRepository.getJokesByIds(any()))
+          .thenAnswer((_) async => [joke1Updated]);
 
-      await stream.close();
-      container.dispose();
+      // Invalidate the provider to force a refetch
+      container.invalidate(searchResultIdsProvider(SearchScope.userJokeSearch));
+      container.invalidate(jokesByIdsProvider(['j1']));
+
+      value = await container.read(
+        searchResultsLiveProvider(SearchScope.userJokeSearch).future,
+      );
+
+      expect(value.first.joke.setupImageUrl, isNotNull);
+      expect(value.first.joke.punchlineImageUrl, isNotNull);
     });
   });
 }

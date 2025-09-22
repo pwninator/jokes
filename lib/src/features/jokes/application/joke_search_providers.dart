@@ -113,59 +113,27 @@ class JokeWithVectorDistance {
 }
 
 final searchResultsLiveProvider =
-    Provider.family<AsyncValue<List<JokeWithVectorDistance>>, SearchScope>((
+    FutureProvider.family<List<JokeWithVectorDistance>, SearchScope>((
       ref,
       scope,
-    ) {
-      final resultsAsync = ref.watch(searchResultIdsProvider(scope));
+    ) async {
+      final results = await ref.watch(searchResultIdsProvider(scope).future);
 
-      // Propagate loading/error from ids fetch
-      if (resultsAsync.isLoading) {
-        return const AsyncValue.loading();
-      }
-      if (resultsAsync.hasError) {
-        return AsyncValue.error(
-          resultsAsync.error!,
-          resultsAsync.stackTrace ?? StackTrace.current,
-        );
-      }
-
-      final results = resultsAsync.value ?? const <JokeSearchResult>[];
       if (results.isEmpty) {
-        return const AsyncValue.data(<JokeWithVectorDistance>[]);
+        return <JokeWithVectorDistance>[];
       }
+      final jokeIds = results.map((r) => r.id).toList();
+      final jokes = await ref.watch(jokesByIdsProvider(jokeIds).future);
 
-      // Watch each joke by id
-      final perJoke = <AsyncValue<Joke?>>[];
-      for (final r in results) {
-        perJoke.add(ref.watch(jokeByIdProvider(r.id)));
-      }
-
-      // If any still loading, show loading to keep UX consistent with other lists
-      if (perJoke.any((j) => j.isLoading)) {
-        return const AsyncValue.loading();
-      }
-      // Surface first error if any
-      final firstError = perJoke.firstWhere(
-        (j) => j.hasError,
-        orElse: () => const AsyncValue.data(null),
-      );
-      if (firstError.hasError) {
-        return AsyncValue.error(
-          firstError.error!,
-          firstError.stackTrace ?? StackTrace.current,
-        );
-      }
-
-      // Build ordered list based on ids, skipping nulls
+      final jokeMap = {for (var joke in jokes) joke.id: joke};
       var ordered = <JokeWithVectorDistance>[];
-      for (var i = 0; i < results.length; i++) {
-        final value = perJoke[i].value;
-        if (value != null) {
+      for (final result in results) {
+        final joke = jokeMap[result.id];
+        if (joke != null) {
           ordered.add(
             JokeWithVectorDistance(
-              joke: value,
-              vectorDistance: results[i].vectorDistance,
+              joke: joke,
+              vectorDistance: result.vectorDistance,
             ),
           );
         }
@@ -174,74 +142,41 @@ final searchResultsLiveProvider =
       // Apply admin filters only for admin scope
       if (scope == SearchScope.jokeManagementSearch) {
         final filterState = ref.watch(jokeFilterProvider);
-
-        // 1) State filter (filter by selected states if any are selected)
         if (filterState.hasStateFilter) {
           ordered = ordered.where((jvd) {
             return jvd.joke.state != null &&
                 filterState.selectedStates.contains(jvd.joke.state!);
           }).toList();
         }
-
-        // note: do not apply popular sorting here; handled globally below
       }
-
-      return AsyncValue.data(ordered);
+      return ordered;
     });
 
 /// Search results adapted for the viewer (JokeWithDate, images only)
 final searchResultsViewerProvider =
-    Provider.family<AsyncValue<List<JokeWithDate>>, SearchScope>((ref, scope) {
-      final resultsAsync = ref.watch(searchResultIdsProvider(scope));
+    FutureProvider.family<List<JokeWithDate>, SearchScope>((ref, scope) async {
+      final results = await ref.watch(searchResultIdsProvider(scope).future);
 
-      if (resultsAsync.isLoading) {
-        return const AsyncValue.loading();
-      }
-      if (resultsAsync.hasError) {
-        return AsyncValue.error(
-          resultsAsync.error!,
-          resultsAsync.stackTrace ?? StackTrace.current,
-        );
-      }
-
-      final results = resultsAsync.value ?? const <JokeSearchResult>[];
       if (results.isEmpty) {
-        return const AsyncValue.data(<JokeWithDate>[]);
+        return <JokeWithDate>[];
       }
+      final jokeIds = results.map((r) => r.id).toList();
+      final jokes = await ref.watch(jokesByIdsProvider(jokeIds).future);
 
-      final perJoke = <AsyncValue<Joke?>>[];
-      for (final r in results) {
-        perJoke.add(ref.watch(jokeByIdProvider(r.id)));
-      }
-
-      if (perJoke.any((j) => j.isLoading)) {
-        return const AsyncValue.loading();
-      }
-      final firstError = perJoke.firstWhere(
-        (j) => j.hasError,
-        orElse: () => const AsyncValue.data(null),
-      );
-      if (firstError.hasError) {
-        return AsyncValue.error(
-          firstError.error!,
-          firstError.stackTrace ?? StackTrace.current,
-        );
-      }
-
+      final jokeMap = {for (var joke in jokes) joke.id: joke};
       final ordered = <JokeWithDate>[];
-      for (var i = 0; i < results.length; i++) {
-        final value = perJoke[i].value;
-        if (value != null) {
+      for (final result in results) {
+        final joke = jokeMap[result.id];
+        if (joke != null) {
           final hasImages =
-              value.setupImageUrl != null &&
-              value.setupImageUrl!.isNotEmpty &&
-              value.punchlineImageUrl != null &&
-              value.punchlineImageUrl!.isNotEmpty;
+              joke.setupImageUrl != null &&
+              joke.setupImageUrl!.isNotEmpty &&
+              joke.punchlineImageUrl != null &&
+              joke.punchlineImageUrl!.isNotEmpty;
           if (hasImages) {
-            ordered.add(JokeWithDate(joke: value));
+            ordered.add(JokeWithDate(joke: joke));
           }
         }
       }
-
-      return AsyncValue.data(ordered);
+      return ordered;
     });

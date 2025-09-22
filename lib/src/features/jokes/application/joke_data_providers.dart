@@ -15,6 +15,16 @@ final jokeByIdProvider = StreamProvider.family<Joke?, String>((ref, jokeId) {
   return repository.getJokeByIdStream(jokeId);
 });
 
+// Provider for getting multiple jokes by their IDs in a single batch
+final jokesByIdsProvider =
+    FutureProvider.family<List<Joke>, List<String>>((ref, ids) async {
+  if (ids.isEmpty) {
+    return [];
+  }
+  final repository = ref.watch(jokeRepositoryProvider);
+  return repository.getJokesByIds(ids);
+});
+
 // Provider for JokeCloudFunctionService
 final jokeCloudFunctionServiceProvider = Provider<JokeCloudFunctionService>((
   ref,

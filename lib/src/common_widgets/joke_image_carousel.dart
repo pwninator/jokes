@@ -110,6 +110,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
   bool _punchlineEventLogged = false;
   String? _navMethodSetup;
   String? _navMethodPunchline;
+  bool _nextPrecacheScheduled = false;
 
   bool get _hasBothImages {
     final joke = widget.joke;
@@ -262,13 +263,8 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
       final imageService = ref.read(imageServiceProvider);
 
       try {
-        // Preload images for the current joke
+        // Preload images for the current joke immediately
         await imageService.precacheJokeImages(widget.joke);
-
-        // Preload images for the next jokes
-        if (widget.jokesToPreload != null && mounted) {
-          await imageService.precacheMultipleJokeImages(widget.jokesToPreload!);
-        }
       } catch (e) {
         // Silently handle any precaching errors
         AppLogger.warn('Error during image precaching: $e');
@@ -1123,6 +1119,17 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
           name: TraceName.carouselToVisible,
           key: widget.joke.id,
         );
+
+        // After the first image is actually visible, defer preloading of next jokes
+        if (!_nextPrecacheScheduled) {
+          _nextPrecacheScheduled = true;
+          final nextJokes = widget.jokesToPreload;
+          if (nextJokes != null && nextJokes.isNotEmpty) {
+            // Fire-and-forget; do not await to avoid blocking UI thread
+            final imageService = ref.read(imageServiceProvider);
+            imageService.precacheMultipleJokeImages(nextJokes);
+          }
+        }
       },
     );
   }

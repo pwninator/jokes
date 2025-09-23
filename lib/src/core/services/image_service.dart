@@ -6,8 +6,8 @@ import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:image/image.dart' as img;
 import 'package:path/path.dart' as p;
 import 'package:share_plus/share_plus.dart';
-import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
+import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 
 class ImageService {
   // Watermark asset path

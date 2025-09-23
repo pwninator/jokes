@@ -4,8 +4,8 @@ import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/app_review_service.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
-import 'package:snickerdoodle/src/core/services/review_prompt_service.dart';
 import 'package:snickerdoodle/src/core/services/performance_service.dart';
+import 'package:snickerdoodle/src/core/services/review_prompt_service.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_service.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
@@ -167,10 +167,12 @@ class JokeShareServiceImpl implements JokeShareService {
       }
 
       // Compute processed URLs directly and fetch both files in parallel
-      final setupProcessedUrl =
-          _imageService.getProcessedJokeImageUrl(joke.setupImageUrl);
-      final punchlineProcessedUrl =
-          _imageService.getProcessedJokeImageUrl(joke.punchlineImageUrl);
+      final setupProcessedUrl = _imageService.getProcessedJokeImageUrl(
+        joke.setupImageUrl,
+      );
+      final punchlineProcessedUrl = _imageService.getProcessedJokeImageUrl(
+        joke.punchlineImageUrl,
+      );
 
       final List<XFile> files = [];
       if (setupProcessedUrl != null && punchlineProcessedUrl != null) {

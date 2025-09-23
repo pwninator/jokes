@@ -99,11 +99,12 @@ void main() {
 
         final mockFiles = [XFile('setup.jpg'), XFile('punchline.jpg')];
 
-        when(() => mockImageService.getProcessedJokeImageUrl(any()))
-            .thenAnswer((invocation) {
-          final arg = invocation.positionalArguments.first as String?;
-          return arg; // passthrough
-        });
+        when(() => mockImageService.getProcessedJokeImageUrl(any())).thenAnswer(
+          (invocation) {
+            final arg = invocation.positionalArguments.first as String?;
+            return arg; // passthrough
+          },
+        );
 
         when(
           () => mockImageService.getCachedFileFromUrl(
@@ -215,11 +216,12 @@ void main() {
 
         final mockFiles = [XFile('setup.jpg'), XFile('punchline.jpg')];
 
-        when(() => mockImageService.getProcessedJokeImageUrl(any()))
-            .thenAnswer((invocation) {
-          final arg = invocation.positionalArguments.first as String?;
-          return arg; // passthrough
-        });
+        when(() => mockImageService.getProcessedJokeImageUrl(any())).thenAnswer(
+          (invocation) {
+            final arg = invocation.positionalArguments.first as String?;
+            return arg; // passthrough
+          },
+        );
 
         when(
           () => mockImageService.getCachedFileFromUrl(
@@ -319,11 +321,12 @@ void main() {
 
         final mockFiles = [XFile('setup.jpg'), XFile('punchline.jpg')];
 
-        when(() => mockImageService.getProcessedJokeImageUrl(any()))
-            .thenAnswer((invocation) {
-          final arg = invocation.positionalArguments.first as String?;
-          return arg; // passthrough
-        });
+        when(() => mockImageService.getProcessedJokeImageUrl(any())).thenAnswer(
+          (invocation) {
+            final arg = invocation.positionalArguments.first as String?;
+            return arg; // passthrough
+          },
+        );
 
         when(
           () => mockImageService.getCachedFileFromUrl(

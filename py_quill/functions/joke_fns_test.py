@@ -1708,6 +1708,7 @@ class TestOnJokeWriteSearchSync:
       "text_embedding": existing_embedding,
       "state": models.JokeState.UNREVIEWED,
       "public_timestamp": None,
+      "popularity_score": 0,
     }
 
     # Arrange: A joke's state is changed
@@ -1717,6 +1718,7 @@ class TestOnJokeWriteSearchSync:
       punchline_text="A punchline.",
       state=models.JokeState.UNREVIEWED,
       zzz_joke_text_embedding=existing_embedding,
+      popularity_score=0,
     )
     after_joke = models.PunnyJoke(
       key="joke1",
@@ -1724,6 +1726,7 @@ class TestOnJokeWriteSearchSync:
       punchline_text="A punchline.",
       state=models.JokeState.PUBLISHED,  # State changed
       zzz_joke_text_embedding=existing_embedding,
+      popularity_score=0,
     )
     event = self._create_mock_event(before_data=before_joke.to_dict(),
                                     after_data=after_joke.to_dict())
@@ -1739,3 +1742,53 @@ class TestOnJokeWriteSearchSync:
     synced_data = search_doc_state["doc"]
     assert synced_data["state"] == models.JokeState.PUBLISHED
     assert synced_data["text_embedding"] == existing_embedding  # Should not change
+
+  def test_popularity_score_change_updates_search_doc(self, monkeypatch,
+                                                       mock_firestore_db):
+    """Verify that changing a joke's popularity score updates the search subcollection document."""
+    mock_sub_doc_ref, search_doc_state = mock_firestore_db
+
+    # Pre-fill the search doc state
+    existing_embedding = Vector([1.0, 2.0])
+    search_doc_state["doc"] = {
+      "text_embedding": existing_embedding,
+      "state": models.JokeState.PUBLISHED,
+      "public_timestamp": None,
+      "popularity_score": 0,
+    }
+
+    # Arrange: A joke's save/share count changes
+    before_joke = models.PunnyJoke(
+      key="joke1",
+      setup_text="A joke.",
+      punchline_text="A punchline.",
+      state=models.JokeState.PUBLISHED,
+      zzz_joke_text_embedding=existing_embedding,
+      num_saves=0,
+      num_shares=0,
+      popularity_score=0,
+    )
+    after_joke = models.PunnyJoke(
+      key="joke1",
+      setup_text="A joke.",
+      punchline_text="A punchline.",
+      state=models.JokeState.PUBLISHED,
+      zzz_joke_text_embedding=existing_embedding,
+      num_saves=10,
+      num_shares=2,
+      popularity_score=0,  # This is now incorrect, will be recalculated
+    )
+    event = self._create_mock_event(before_data=before_joke.to_dict(),
+                                    after_data=after_joke.to_dict())
+
+    # Act
+    joke_fns.on_joke_write.__wrapped__(event)
+
+    # Assert
+    expected_score = 10 + (2 * 5)  # 20
+    mock_sub_doc_ref.set.assert_called_once_with(
+      {
+        "popularity_score": expected_score
+      }, merge=True)
+    synced_data = search_doc_state["doc"]
+    assert synced_data["popularity_score"] == expected_score

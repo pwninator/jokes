@@ -349,8 +349,8 @@ def calculate_popularity_score(joke: models.PunnyJoke) -> int:
 
 def _sync_joke_to_search_subcollection(
   joke: models.PunnyJoke,
-  embedding_changed: bool,
   new_embedding: Vector | None,
+  new_popularity_score: int,
 ) -> None:
   """Syncs joke data to a search subcollection document."""
   if not joke.key:
@@ -365,9 +365,8 @@ def _sync_joke_to_search_subcollection(
   update_payload = {}
 
   # 1. Sync embedding
-  if embedding_changed:
-    if new_embedding:
-      update_payload["text_embedding"] = new_embedding
+  if new_embedding:
+    update_payload["text_embedding"] = new_embedding
   elif "text_embedding" not in search_data and joke.zzz_joke_text_embedding:
     update_payload["text_embedding"] = joke.zzz_joke_text_embedding
 
@@ -378,6 +377,10 @@ def _sync_joke_to_search_subcollection(
   # 3. Sync public_timestamp
   if search_data.get("public_timestamp") != joke.public_timestamp:
     update_payload["public_timestamp"] = joke.public_timestamp
+
+  # 4. Sync popularity_score
+  if search_data.get("popularity_score") != new_popularity_score:
+    update_payload["popularity_score"] = new_popularity_score
 
   if update_payload:
     logger.info(
@@ -468,8 +471,8 @@ def on_joke_write(event: firestore_fn.Event[firestore_fn.Change]) -> None:
 
   _sync_joke_to_search_subcollection(
     joke=after_joke,
-    embedding_changed=should_update_embedding,
     new_embedding=new_embedding,
+    new_popularity_score=expected_popularity_score,
   )
 
   # Perform single Firestore update if any updates are needed

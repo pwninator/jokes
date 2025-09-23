@@ -213,10 +213,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               if (currentQuery.length < 2) {
                 return const SizedBox.shrink();
               }
-              final resultsAsync = ref.watch(
-                searchResultsViewerProvider(SearchScope.userJokeSearch),
+              final idsAsync = ref.watch(
+                searchResultIdsProvider(SearchScope.userJokeSearch),
               );
-              return resultsAsync.when(
+              return idsAsync.when(
                 data: (list) {
                   final count = list.length;
                   final label = count == 1 ? '1 result' : '$count results';
@@ -243,7 +243,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           Expanded(
             child: Consumer(
               builder: (context, ref, child) {
-                final bool isSearchEmpty = _controller.text.trim().isEmpty;
+                final providerQuery = ref
+                    .watch(searchQueryProvider(SearchScope.userJokeSearch))
+                    .query;
+                const String prefix = JokeConstants.searchQueryPrefix;
+                final effectiveQuery = providerQuery.startsWith(prefix)
+                    ? providerQuery.substring(prefix.length)
+                    : providerQuery;
+                final bool isSearchEmpty = effectiveQuery.trim().isEmpty;
                 if (isSearchEmpty) {
                   final categoriesAsync = ref.watch(jokeCategoriesProvider);
                   return categoriesAsync.when(
@@ -301,11 +308,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                                     final rawQuery = cat.jokeDescriptionQuery
                                         .trim();
                                     if (rawQuery.isEmpty) return;
-                                    _controller.text = rawQuery;
                                     _onSubmitted(
                                       rawQuery,
                                       label: SearchLabel.category,
                                     );
+                                    _controller.text = rawQuery;
                                   },
                                 );
                               },

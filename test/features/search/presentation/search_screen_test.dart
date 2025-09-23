@@ -23,7 +23,7 @@ void main() {
           // Prevent real cloud function calls during this test
           searchResultsViewerProvider(
             SearchScope.userJokeSearch,
-          ).overrideWith((ref) async => const <JokeWithDate>[]),
+          ).overrideWith((ref) => Stream.value(const <JokeWithDate>[])),
         ],
       ),
     );
@@ -65,7 +65,7 @@ void main() {
     final overrides = FirebaseMocks.getFirebaseProviderOverrides(
       additionalOverrides: [
         searchResultsViewerProvider(SearchScope.userJokeSearch).overrideWith(
-          (ref) async => const [
+          (ref) => Stream.value(const [
             JokeWithDate(
               joke: Joke(
                 id: '1',
@@ -75,7 +75,7 @@ void main() {
                 punchlineImageUrl: 'b',
               ),
             ),
-          ],
+          ]),
         ),
       ],
     );
@@ -104,7 +104,7 @@ void main() {
     final overrides = FirebaseMocks.getFirebaseProviderOverrides(
       additionalOverrides: [
         searchResultsViewerProvider(SearchScope.userJokeSearch).overrideWith(
-          (ref) async => const [
+          (ref) => Stream.value(const [
             JokeWithDate(
               joke: Joke(
                 id: '1',
@@ -132,7 +132,7 @@ void main() {
                 punchlineImageUrl: 'b',
               ),
             ),
-          ],
+          ]),
         ),
       ],
     );
@@ -161,7 +161,7 @@ void main() {
     final overrides = FirebaseMocks.getFirebaseProviderOverrides(
       additionalOverrides: [
         searchResultsViewerProvider(SearchScope.userJokeSearch).overrideWith(
-          (ref) async => const [
+          (ref) => Stream.value(const [
             JokeWithDate(
               joke: Joke(
                 id: 'a',
@@ -180,7 +180,7 @@ void main() {
                 punchlineImageUrl: 'b',
               ),
             ),
-          ],
+          ]),
         ),
       ],
     );
@@ -276,7 +276,7 @@ void main() {
           // Avoid network search calls in tests
           searchResultsViewerProvider(
             SearchScope.userJokeSearch,
-          ).overrideWith((ref) async => const <JokeWithDate>[]),
+          ).overrideWith((ref) => Stream.value(const <JokeWithDate>[])),
         ],
       ),
     );
@@ -334,7 +334,7 @@ void main() {
             // Avoid network search calls in tests
             searchResultsViewerProvider(
               SearchScope.userJokeSearch,
-            ).overrideWith((ref) async => const <JokeWithDate>[]),
+            ).overrideWith((ref) => Stream.value(const <JokeWithDate>[])),
           ],
         ),
       );
@@ -383,7 +383,7 @@ void main() {
           // Avoid network search calls in tests
           searchResultsViewerProvider(
             SearchScope.userJokeSearch,
-          ).overrideWith((ref) async => const <JokeWithDate>[]),
+          ).overrideWith((ref) => Stream.value(const <JokeWithDate>[])),
         ],
       ),
     );

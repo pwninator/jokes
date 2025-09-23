@@ -439,9 +439,22 @@ void main() {
           matchMode: MatchMode.tight,
         );
 
-        final list = await container.read(
-          searchResultsViewerProvider(SearchScope.userJokeSearch).future,
+        // Listen for the second emission (full list after batches)
+        final fullListCompleter = Completer<List<JokeWithDate>>();
+        final sub = container.listen(
+          searchResultsViewerProvider(SearchScope.userJokeSearch),
+          (prev, next) {
+            if (next.hasValue && (next.value?.length ?? 0) >= 2) {
+              if (!fullListCompleter.isCompleted) {
+                fullListCompleter.complete(next.value!);
+              }
+            }
+          },
+          fireImmediately: true,
         );
+
+        final list = await fullListCompleter.future;
+        sub.close();
         expect(list.map((e) => e.joke.id).toList(), ['id1', 'id2']);
         verify(
           () => mockJokeRepository.getJokesByIds(['id2', 'id3']),

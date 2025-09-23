@@ -206,6 +206,9 @@ final searchResultsLiveProvider =
 /// Emits progressively: first the top result (if it has images), then the full list.
 final searchResultsViewerProvider =
     StreamProvider.family<List<JokeWithDate>, SearchScope>((ref, scope) async* {
+      var cancelled = false;
+      ref.onDispose(() => cancelled = true);
+
       final results = await ref.watch(searchResultIdsProvider(scope).future);
       if (results.isEmpty) {
         yield const <JokeWithDate>[];
@@ -214,6 +217,7 @@ final searchResultsViewerProvider =
 
       // 1) Fetch the first result synchronously (single get)
       final firstId = results.first.id;
+      if (cancelled) return;
       final firstJoke = await ref.read(jokeByIdGetProvider(firstId).future);
 
       // If first joke missing or lacks images, nothing to render
@@ -232,6 +236,7 @@ final searchResultsViewerProvider =
       // 2) Fetch remaining jokes via batch provider
       final remainingIds = results.skip(1).map((r) => r.id).toList();
       if (remainingIds.isEmpty) return;
+      if (cancelled) return;
       final remaining = await ref.read(
         jokesByIdsGetProvider(remainingIds).future,
       );
@@ -249,5 +254,5 @@ final searchResultsViewerProvider =
         }
       }
 
-      yield ordered;
+      if (!cancelled) yield ordered;
     });

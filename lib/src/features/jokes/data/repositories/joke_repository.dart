@@ -280,20 +280,25 @@ class JokeRepository {
       const batchSize = 10;
       final fetched = <Joke>[];
 
+      // Build all batch futures first, then run in parallel
+      final futures = <Future<QuerySnapshot<Map<String, dynamic>>>>[];
       for (int i = 0; i < orderedUnique.length; i += batchSize) {
         final batch = orderedUnique.skip(i).take(batchSize).toList();
-
-        final querySnapshot = await _traceFs(
-          traceName: TraceName.fsRead,
-          op: 'where_in_get',
-          collection: 'jokes',
-          action: () => _firestore
-              .collection('jokes')
-              .where(FieldPath.documentId, whereIn: batch)
-              .get(),
-          extra: {'count': batch.length.toString()},
+        futures.add(
+          _traceFs(
+            traceName: TraceName.fsRead,
+            op: 'where_in_get',
+            collection: 'jokes',
+            action: () => _firestore
+                .collection('jokes')
+                .where(FieldPath.documentId, whereIn: batch)
+                .get(),
+            extra: {'count': batch.length.toString()},
+          ),
         );
-
+      }
+      final snapshots = await Future.wait(futures);
+      for (final querySnapshot in snapshots) {
         fetched.addAll(
           querySnapshot.docs.map((doc) {
             return Joke.fromMap(doc.data(), doc.id);

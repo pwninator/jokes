@@ -150,10 +150,7 @@ class JokeShareServiceImpl implements JokeShareService {
     _performanceService.startNamedTrace(
       name: TraceName.sharePreparation,
       key: traceKey,
-      attributes: {
-        'method': 'images',
-        'joke_id': joke.id,
-      },
+      attributes: {'method': 'images', 'joke_id': joke.id},
     );
     bool shareSuccessful = false;
     ShareResultStatus shareStatus = ShareResultStatus.dismissed; // default
@@ -169,18 +166,20 @@ class JokeShareServiceImpl implements JokeShareService {
         throw Exception('Joke has no images for sharing');
       }
 
-      // Get processed URLs and ensure images are cached
-      final urls = await _imageService.precacheJokeImages(joke);
-      final List<XFile> files = [];
+      // Compute processed URLs directly and fetch both files in parallel
+      final setupProcessedUrl =
+          _imageService.getProcessedJokeImageUrl(joke.setupImageUrl);
+      final punchlineProcessedUrl =
+          _imageService.getProcessedJokeImageUrl(joke.punchlineImageUrl);
 
-      // Only share images if both are available
-      if (urls.setupUrl != null && urls.punchlineUrl != null) {
-        final setupFile = await _imageService.getCachedFileFromUrl(
-          urls.setupUrl!,
-        );
-        final punchlineFile = await _imageService.getCachedFileFromUrl(
-          urls.punchlineUrl!,
-        );
+      final List<XFile> files = [];
+      if (setupProcessedUrl != null && punchlineProcessedUrl != null) {
+        final results = await Future.wait([
+          _imageService.getCachedFileFromUrl(setupProcessedUrl),
+          _imageService.getCachedFileFromUrl(punchlineProcessedUrl),
+        ]);
+        final setupFile = results[0];
+        final punchlineFile = results[1];
         if (setupFile != null && punchlineFile != null) {
           files.add(setupFile);
           files.add(punchlineFile);

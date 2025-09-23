@@ -287,10 +287,9 @@ class ImageService {
 
   /// Convenience helper to watermark multiple files
   Future<List<XFile>> addWatermarkToFiles(List<XFile> files) async {
-    final List<XFile> results = [];
-    for (final file in files) {
-      results.add(await addWatermarkToFile(file));
-    }
+    final results = await Future.wait(
+      files.map((file) => addWatermarkToFile(file)),
+    );
     return results;
   }
 }

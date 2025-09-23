@@ -13,10 +13,12 @@ import 'package:snickerdoodle/src/config/router/route_names.dart';
 import 'package:snickerdoodle/src/config/router/router_providers.dart';
 import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
+import 'package:snickerdoodle/src/core/providers/app_providers.dart';
 import 'package:snickerdoodle/src/core/providers/image_providers.dart';
 import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
+import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_population_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_schedule_providers.dart';
@@ -93,6 +95,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
 
   late PageController _pageController;
   int _currentIndex = 0;
+  late PerformanceService _perf;
 
   // Track the navigation method that triggered the current page change
   String _lastNavigationMethod = AnalyticsNavigationMethod.swipe;
@@ -228,6 +231,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
   @override
   void initState() {
     super.initState();
+    _perf = ref.read(performanceServiceProvider);
     _pageController = PageController();
     _preloadImages();
     // Expose imperative controls to parent if a controller is provided
@@ -242,6 +246,12 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
       // Record navigation method and start timing for setup image being visible
       _navMethodSetup = AnalyticsNavigationMethod.none;
       _startViewTimerForIndex(0);
+
+      // Start a carousel_to_visible trace once per carousel instance (per joke)
+      _perf.startNamedTrace(
+        name: TraceName.carouselToVisible,
+        key: widget.joke.id,
+      );
     });
   }
 
@@ -267,6 +277,11 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
 
   @override
   void dispose() {
+    // Drop any in-flight carousel trace if we never showed pixels
+    _perf.dropNamedTrace(
+      name: TraceName.carouselToVisible,
+      key: widget.joke.id,
+    );
     _viewTimer?.cancel();
     widget.controller?._detach();
     _pageController.dispose();
@@ -1095,6 +1110,18 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
       fit: BoxFit.cover,
       showLoadingIndicator: true,
       showErrorIcon: true,
+      onFirstImagePaint: () {
+        // Stop only for the very first search result's setup image.
+        if (widget.index == 0 && _currentIndex == 0 &&
+            widget.jokeContext == AnalyticsJokeContext.search) {
+          _perf.stopNamedTrace(name: TraceName.searchToFirstImage);
+        }
+        // Also stop the carousel_to_visible trace for this carousel (stop on first pixel of any image)
+        _perf.stopNamedTrace(
+          name: TraceName.carouselToVisible,
+          key: widget.joke.id,
+        );
+      },
     );
   }
 
@@ -1379,6 +1406,13 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
     analyticsService.logJokeSearchSimilar(
       queryLength: baseQuery.length,
       jokeContext: widget.jokeContext,
+    );
+
+    // Start performance trace for similar search
+    final perf = refLocal.read(performanceServiceProvider);
+    perf.startNamedTrace(
+      name: TraceName.searchToFirstImage,
+      attributes: {'query_type': 'similar'},
     );
 
     // Update search query provider

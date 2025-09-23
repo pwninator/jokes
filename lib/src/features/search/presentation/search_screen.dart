@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:snickerdoodle/src/common_widgets/adaptive_app_bar_screen.dart';
+import 'package:snickerdoodle/src/core/providers/app_providers.dart';
 import 'package:snickerdoodle/src/config/router/router_providers.dart';
 import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
 import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
+import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_category_tile.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_category_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_navigation_providers.dart';
@@ -71,6 +73,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       );
       return;
     }
+    // Start performance trace for custom or similar-category search
+    final perf = ref.read(performanceServiceProvider);
+    perf.startNamedTrace(
+      name: TraceName.searchToFirstImage,
+      attributes: {
+        'query_type': label == SearchLabel.category ? 'category' : 'custom',
+      },
+    );
     ref.read(jokeViewerPageIndexProvider('search_user').notifier).state = 0;
 
     final current = ref.read(searchQueryProvider(SearchScope.userJokeSearch));
@@ -291,6 +301,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                                     final rawQuery = cat.jokeDescriptionQuery
                                         .trim();
                                     if (rawQuery.isEmpty) return;
+                                    final perf = ref.read(
+                                      performanceServiceProvider,
+                                    );
+                                    perf.startNamedTrace(
+                                      name: TraceName.searchToFirstImage,
+                                      attributes: {'query_type': 'category'},
+                                    );
                                     _controller.text = rawQuery;
                                     _onSubmitted(
                                       rawQuery,

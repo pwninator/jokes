@@ -1,5 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:snickerdoodle/src/core/providers/app_providers.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
+import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_filter_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
@@ -100,6 +102,17 @@ final searchResultIdsProvider =
               : scope.name,
           resultsCount: results.length,
         );
+
+        // Update performance trace with result_count if a trace is active
+        final perf = ref.read(performanceServiceProvider);
+        perf.putNamedTraceAttributes(
+          name: TraceName.searchToFirstImage,
+          attributes: {'result_count': results.length.toString()},
+        );
+        if (results.isEmpty) {
+          // No image will appear; stop now so empty searches are recorded
+          perf.stopNamedTrace(name: TraceName.searchToFirstImage);
+        }
       }
 
       return results;

@@ -117,7 +117,9 @@ class AdminApprovalControls extends ConsumerWidget {
         : Colors.grey.shade600;
 
     return GestureDetector(
-      key: Key('admin_approval_controls-${icon == kApprovedIcon ? 'approve' : 'reject'}-$jokeId'),
+      key: Key(
+        'admin_approval_controls-${icon == kApprovedIcon ? 'approve' : 'reject'}-$jokeId',
+      ),
       onTap: onTap,
       child: Container(
         width: size,

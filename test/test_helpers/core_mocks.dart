@@ -2,11 +2,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:snickerdoodle/src/core/providers/app_version_provider.dart';
+import 'package:snickerdoodle/src/core/providers/app_providers.dart';
 import 'package:snickerdoodle/src/core/providers/image_providers.dart';
 import 'package:snickerdoodle/src/core/providers/shared_preferences_provider.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
 import 'package:snickerdoodle/src/core/services/feedback_service.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
+import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
 
 // Mock classes for core services
@@ -19,6 +21,8 @@ class MockDailyJokeSubscriptionService extends Mock
 
 class MockFeedbackService extends Mock implements FeedbackService {}
 
+class MockPerformanceService extends Mock implements PerformanceService {}
+
 class MockSharedPreferences extends Mock implements SharedPreferences {}
 
 /// Core service mocks for unit tests
@@ -27,6 +31,7 @@ class CoreMocks {
   static MockSettingsService? _mockSettingsService;
   static MockDailyJokeSubscriptionService? _mockSubscriptionService;
   static SharedPreferences? _mockSharedPreferences;
+  static MockPerformanceService? _mockPerformanceService;
 
   /// Get or create mock image service
   static MockImageService get mockImageService {
@@ -64,6 +69,7 @@ class CoreMocks {
     _mockSettingsService = null;
     _mockSubscriptionService = null;
     _mockSharedPreferences = null;
+    _mockPerformanceService = null;
   }
 
   /// Get core service provider overrides (synchronous version for simple tests)
@@ -110,6 +116,11 @@ class CoreMocks {
       // Mock app version provider
       appVersionProvider.overrideWith((_) async => 'Snickerdoodle v0.0.1+1'),
 
+      // Mock performance service (Firebase Performance)
+      performanceServiceProvider.overrideWithValue(
+        _mockPerformanceService ??= MockPerformanceService(),
+      ),
+
       // Include additional overrides
       ...additionalOverrides,
     ];
@@ -144,6 +155,11 @@ class CoreMocks {
 
       // Mock app version provider
       appVersionProvider.overrideWith((_) async => 'Test App v1.0.0'),
+
+      // Mock performance service (Firebase Performance)
+      performanceServiceProvider.overrideWithValue(
+        _mockPerformanceService ??= MockPerformanceService(),
+      ),
 
       // Include additional overrides
       ...additionalOverrides,

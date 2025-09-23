@@ -44,8 +44,8 @@ class SubscriptionState {
 class SubscriptionNotifier extends StateNotifier<SubscriptionState> {
   SubscriptionNotifier(this._sharedPreferences, this._syncService)
     : super(_loadFromPrefs(_sharedPreferences)) {
-    // Trigger background sync on startup
-    _syncInBackground();
+    // Trigger background sync on startup (subscribe only; do not unsubscribe others)
+    _syncInBackground(unsubscribeOthers: false);
   }
 
   final SharedPreferences _sharedPreferences;
@@ -134,19 +134,23 @@ class SubscriptionNotifier extends StateNotifier<SubscriptionState> {
   }
 
   /// SYNCER: Background FCM sync (doesn't block UI)
-  void _syncInBackground() {
+  void _syncInBackground({bool unsubscribeOthers = true}) {
     // Don't await - let it run in background
-    _syncService.ensureSubscriptionSync().catchError((e) {
-      AppLogger.warn('Background sync failed: $e');
-      return false;
-    });
+    _syncService
+        .ensureSubscriptionSync(unsubscribeOthers: unsubscribeOthers)
+        .catchError((e) {
+          AppLogger.warn('Background sync failed: $e');
+          return false;
+        });
   }
 }
 
 /// Abstract interface for FCM sync operations (kept for separation of concerns)
 abstract class DailyJokeSubscriptionService {
   /// Ensure subscription is synced with FCM server (background operation)
-  Future<bool> ensureSubscriptionSync();
+  /// If [unsubscribeOthers] is true, unsubscribe from all other possible topics.
+  /// On app startup this should be false to avoid mass-unsubscribe.
+  Future<bool> ensureSubscriptionSync({bool unsubscribeOthers = true});
 }
 
 /// Concrete implementation of FCM sync service
@@ -222,7 +226,7 @@ class DailyJokeSubscriptionServiceImpl implements DailyJokeSubscriptionService {
   /// Ensure subscription is synced with FCM server
   /// Uses debouncing + latest-wins + mutex to handle rapid changes efficiently
   @override
-  Future<bool> ensureSubscriptionSync() async {
+  Future<bool> ensureSubscriptionSync({bool unsubscribeOthers = true}) async {
     // 1. DEBOUNCING: Cancel any pending timer and complete previous operation
     _debounceTimer?.cancel();
 
@@ -243,7 +247,7 @@ class DailyJokeSubscriptionServiceImpl implements DailyJokeSubscriptionService {
       AppLogger.debug(
         'Executing debounced subscription sync operation $operationId',
       );
-      final result = await _performSync(operationId);
+      final result = await _performSync(operationId, unsubscribeOthers);
 
       // Only complete if this completer is still current and not already completed
       if (_currentCompleter == completer && !completer.isCompleted) {
@@ -255,7 +259,7 @@ class DailyJokeSubscriptionServiceImpl implements DailyJokeSubscriptionService {
   }
 
   /// Perform the actual sync operation with cancellation checks
-  Future<bool> _performSync(int operationId) async {
+  Future<bool> _performSync(int operationId, bool unsubscribeOthers) async {
     try {
       // Check if we're still the current operation
       if (_currentOperationId != operationId) {
@@ -295,20 +299,23 @@ class DailyJokeSubscriptionServiceImpl implements DailyJokeSubscriptionService {
         return false;
       }
 
-      // Get all topics and process them with cancellation checks
-      final allTopics = _getAllPossibleTopics();
-      for (final topic in allTopics) {
-        // Check before each unsubscribe operation
-        if (_currentOperationId != operationId) {
-          AppLogger.debug(
-            'Sync operation $operationId cancelled during unsubscribe loop',
-          );
-          return false;
-        }
+      // Optionally unsubscribe from other topics (e.g., when settings change)
+      if (unsubscribeOthers) {
+        // Get all topics and process them with cancellation checks
+        final allTopics = _getAllPossibleTopics();
+        for (final topic in allTopics) {
+          // Check before each unsubscribe operation
+          if (_currentOperationId != operationId) {
+            AppLogger.debug(
+              'Sync operation $operationId cancelled during unsubscribe loop',
+            );
+            return false;
+          }
 
-        if (topicToSubscribe == null || topic != topicToSubscribe) {
-          await _firebaseMessaging.unsubscribeFromTopic(topic);
-          AppLogger.debug('Unsubscribed from $topic');
+          if (topicToSubscribe == null || topic != topicToSubscribe) {
+            await _firebaseMessaging.unsubscribeFromTopic(topic);
+            AppLogger.debug('Unsubscribed from $topic');
+          }
         }
       }
 

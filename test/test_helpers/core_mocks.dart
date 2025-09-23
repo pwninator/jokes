@@ -227,6 +227,10 @@ class CoreMocks {
     MockDailyJokeSubscriptionService mock,
   ) {
     // Setup default behaviors for FCM sync service
-    when(() => mock.ensureSubscriptionSync()).thenAnswer((_) async => true);
+    when(
+      () => mock.ensureSubscriptionSync(
+        unsubscribeOthers: any(named: 'unsubscribeOthers'),
+      ),
+    ).thenAnswer((_) async => true);
   }
 }

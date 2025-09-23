@@ -69,7 +69,7 @@ def run_jokes_test_migration(dry_run: bool, max_jokes: int) -> dict:
   """Copies all documents from 'jokes' to 'jokes_test' collection.
 
   Skips documents that already exist in the target collection.
-  Removes the 'zzz_joke_text_embedding' field from the copied documents.
+  Removes the 'zzz_joke_text_embedding' and 'generation_metadata' fields from the copied documents.
 
   Args:
     dry_run: If True, the migration will only log the changes that would be made.
@@ -102,9 +102,11 @@ def run_jokes_test_migration(dry_run: bool, max_jokes: int) -> dict:
       skipped_count += 1
       continue
 
-    # Remove the zzz_joke_text_embedding field
+    # Remove the zzz_joke_text_embedding and generation_metadata fields
     if 'zzz_joke_text_embedding' in joke_data:
       del joke_data['zzz_joke_text_embedding']
+    if 'generation_metadata' in joke_data:
+      del joke_data['generation_metadata']
 
     logger.info(
       f"Joke {joke_id} will be migrated to jokes_test. Dry run: {dry_run}")

@@ -1,6 +1,5 @@
 """Tests for jokes fields migration in util_fns.py."""
 
-from unittest import mock
 import pytest
 from functions import util_fns
 
@@ -8,7 +7,10 @@ from functions import util_fns
 class FakeDoc:
   """A fake Firestore document."""
 
-  def __init__(self, doc_id: str, data: dict | None, collection: 'FakeCollection' = None):
+  def __init__(self,
+               doc_id: str,
+               data: dict | None,
+               collection: 'FakeCollection' = None):
     self.id = doc_id
     self._data = data
     self.reference = self
@@ -47,7 +49,7 @@ class FakeCollection:
   def document(self, doc_id: str) -> FakeDoc:
     return self._docs.get(doc_id, FakeDoc(doc_id, None, collection=self))
 
-  def _add_doc(self, doc: FakeDoc):
+  def _add_doc(self, doc: FakeDoc):  # pylint: disable=protected-access
     self._docs[doc.id] = doc
 
 
@@ -98,12 +100,17 @@ def test_migration_copies_joke(monkeypatch):
   assert new_joke.to_dict() == {'text': 'Why did the chicken cross the road?'}
 
 
-def test_migration_removes_embedding(monkeypatch):
-  """Test that the 'zzz_joke_text_embedding' field is removed during migration."""
-  joke1 = _make_joke_doc('j1', {
-    'text': 'A funny joke',
-    'zzz_joke_text_embedding': [0.1, 0.2]
-  })
+def test_migration_removes_embedding_and_metadata(monkeypatch):
+  """Test that the 'zzz_joke_text_embedding' and 'generation_metadata' fields are removed during migration."""
+  joke1 = _make_joke_doc(
+    'j1', {
+      'text': 'A funny joke',
+      'zzz_joke_text_embedding': [0.1, 0.2],
+      'generation_metadata': {
+        'model': 'test_model',
+        'cost': 0.01
+      }
+    })
   client = FakeFirestoreClient(jokes_docs=[joke1])
   monkeypatch.setattr(util_fns, 'db', lambda: client)
 
@@ -112,7 +119,34 @@ def test_migration_removes_embedding(monkeypatch):
   new_joke = client.collection('jokes_test').document('j1').get()
   assert new_joke.exists
   assert 'zzz_joke_text_embedding' not in new_joke.to_dict()
+  assert 'generation_metadata' not in new_joke.to_dict()
   assert new_joke.to_dict() == {'text': 'A funny joke'}
+
+
+def test_migration_removes_generation_metadata_only(monkeypatch):
+  """Test that only the 'generation_metadata' field is removed when present."""
+  joke1 = _make_joke_doc(
+    'j1', {
+      'text': 'A funny joke',
+      'generation_metadata': {
+        'model': 'test_model',
+        'cost': 0.01,
+        'tokens': 100
+      },
+      'other_field': 'should_be_preserved'
+    })
+  client = FakeFirestoreClient(jokes_docs=[joke1])
+  monkeypatch.setattr(util_fns, 'db', lambda: client)
+
+  util_fns.run_jokes_test_migration(dry_run=False, max_jokes=0)
+
+  new_joke = client.collection('jokes_test').document('j1').get()
+  assert new_joke.exists
+  assert 'generation_metadata' not in new_joke.to_dict()
+  assert new_joke.to_dict() == {
+    'text': 'A funny joke',
+    'other_field': 'should_be_preserved'
+  }
 
 
 def test_migration_skips_existing_joke(monkeypatch):
@@ -162,7 +196,7 @@ def test_migration_respects_max_jokes_limit(monkeypatch):
   # Check that only one joke was migrated
   j1_in_test = client.collection('jokes_test').document('j1').get()
   j2_in_test = client.collection('jokes_test').document('j2').get()
-  assert j1_in_test.exists != j2_in_test.exists # XOR
+  assert j1_in_test.exists != j2_in_test.exists  # XOR
 
 
 def test_migration_handles_multiple_jokes_and_skips(monkeypatch):
@@ -172,11 +206,15 @@ def test_migration_handles_multiple_jokes_and_skips(monkeypatch):
   # Joke to be skipped
   joke2 = _make_joke_doc('j2', {'text': 'new joke 2'})
   existing_joke2 = _make_joke_doc('j2', {'text': 'old joke 2'})
-  # Joke to be migrated with embedding
+  # Joke to be migrated with embedding and metadata
   joke3 = _make_joke_doc(
     'j3', {
       'text': 'new joke 3',
-      'zzz_joke_text_embedding': [0.3, 0.4]
+      'zzz_joke_text_embedding': [0.3, 0.4],
+      'generation_metadata': {
+        'model': 'test_model',
+        'cost': 0.02
+      }
     })
 
   client = FakeFirestoreClient(jokes_docs=[joke1, joke2, joke3],
@@ -204,3 +242,5 @@ def test_migration_handles_multiple_jokes_and_skips(monkeypatch):
   j3_migrated = client.collection('jokes_test').document('j3').get()
   assert j3_migrated.exists
   assert j3_migrated.to_dict() == {'text': 'new joke 3'}
+  assert 'zzz_joke_text_embedding' not in j3_migrated.to_dict()
+  assert 'generation_metadata' not in j3_migrated.to_dict()

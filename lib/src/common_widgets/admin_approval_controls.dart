@@ -47,7 +47,7 @@ class AdminApprovalControls extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final jokeAsync = ref.watch(jokeByIdProvider(jokeId));
+    final jokeAsync = ref.watch(jokeStreamByIdProvider(jokeId));
 
     return jokeAsync.when(
       data: (joke) {

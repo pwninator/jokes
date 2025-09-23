@@ -36,7 +36,9 @@ void main() {
           jokeCloudFunctionServiceProvider.overrideWithValue(mockJokeService),
           jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
           if (joke != null)
-            jokeByIdProvider(joke.id).overrideWith((ref) => Stream.value(joke)),
+            jokeStreamByIdProvider(
+              joke.id,
+            ).overrideWith((ref) => Stream.value(joke)),
         ],
         child: MaterialApp(
           theme: lightTheme,

@@ -54,7 +54,7 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
     // Handle different ways of getting the joke
     if (widget.jokeId != null) {
       // Joke ID provided - fetch joke from provider
-      final jokeAsync = ref.watch(jokeByIdProvider(widget.jokeId!));
+      final jokeAsync = ref.watch(jokeStreamByIdProvider(widget.jokeId!));
 
       return jokeAsync.when(
         data: (joke) {

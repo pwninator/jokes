@@ -10,9 +10,32 @@ import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart'
 import 'package:snickerdoodle/src/core/providers/app_providers.dart';
 
 // Provider for getting a specific joke by ID
-final jokeByIdProvider = StreamProvider.family<Joke?, String>((ref, jokeId) {
+final jokeStreamByIdProvider = StreamProvider.family<Joke?, String>((
+  ref,
+  jokeId,
+) {
   final repository = ref.watch(jokeRepositoryProvider);
   return repository.getJokeByIdStream(jokeId);
+});
+
+// Direct-get provider for a specific joke by ID (single snapshot, no live updates)
+final jokeByIdGetProvider = FutureProvider.family<Joke?, String>((
+  ref,
+  jokeId,
+) async {
+  final repository = ref.watch(jokeRepositoryProvider);
+  final jokes = await repository.getJokesByIds([jokeId]);
+  return jokes.isNotEmpty ? jokes.first : null;
+});
+
+// Direct-get provider for multiple jokes by IDs (single snapshot, no live updates)
+final jokesByIdsGetProvider = FutureProvider.family<List<Joke>, List<String>>((
+  ref,
+  ids,
+) async {
+  if (ids.isEmpty) return const <Joke>[];
+  final repository = ref.watch(jokeRepositoryProvider);
+  return repository.getJokesByIds(ids);
 });
 
 // Provider for JokeCloudFunctionService

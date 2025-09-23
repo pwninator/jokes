@@ -1,11 +1,13 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_admin_rating.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_state.dart';
-import 'package:snickerdoodle/src/core/services/app_logger.dart';
 
 @immutable
 class JokeListPageCursor {
@@ -42,6 +44,76 @@ class JokeRepository {
     PerformanceService? perf,
   }) : _perf = perf;
 
+  /// Wrap a Firestore stream and record a Performance trace from subscription
+  /// until the first event is received. If the stream errors or is cancelled
+  /// before any event, the trace is dropped.
+  Stream<T> _traceFirstSnapshot<T>({
+    required Stream<T> source,
+    required String key,
+    required String op,
+    String? collection,
+    String? docId,
+    Map<String, String>? extra,
+    Map<String, String> Function(T firstEvent)? firstAttributes,
+  }) {
+    final perf = _perf;
+    if (perf == null) return source; // Perf disabled in some contexts
+
+    final controller = StreamController<T>();
+    StreamSubscription<T>? sub;
+    bool firstEvent = true;
+
+    final attrs = <String, String>{'op': op};
+    if (collection != null) attrs['collection'] = collection;
+    if (docId != null) attrs['docId'] = docId;
+    if (extra != null) attrs.addAll(extra);
+
+    perf.startNamedTrace(name: TraceName.fsRead, key: key, attributes: attrs);
+
+    sub = source.listen(
+      (event) {
+        if (firstEvent) {
+          firstEvent = false;
+          final fa = firstAttributes?.call(event);
+          if (fa != null && fa.isNotEmpty) {
+            perf.putNamedTraceAttributes(
+              name: TraceName.fsRead,
+              key: key,
+              attributes: fa,
+            );
+          }
+          perf.stopNamedTrace(name: TraceName.fsRead, key: key);
+        }
+        controller.add(event);
+      },
+      onError: (Object error, StackTrace st) {
+        if (firstEvent) {
+          firstEvent = false;
+          perf.dropNamedTrace(name: TraceName.fsRead, key: key);
+        }
+        controller.addError(error, st);
+      },
+      onDone: () async {
+        if (firstEvent) {
+          firstEvent = false;
+          perf.dropNamedTrace(name: TraceName.fsRead, key: key);
+        }
+        await controller.close();
+      },
+      cancelOnError: false,
+    );
+
+    controller.onCancel = () async {
+      if (firstEvent) {
+        firstEvent = false;
+        perf.dropNamedTrace(name: TraceName.fsRead, key: key);
+      }
+      await sub?.cancel();
+    };
+
+    return controller.stream;
+  }
+
   Future<T> _traceFs<T>({
     required TraceName traceName,
     required String op,
@@ -72,24 +144,25 @@ class JokeRepository {
   }
 
   Stream<List<Joke>> getJokes() {
-    // Streaming reads aren't individually traced; trace subscription start
-    _perf?.startNamedTrace(
-      name: TraceName.fsRead,
-      key: 'jokes',
-      attributes: {'op': 'stream_snapshots', 'collection': 'jokes'},
-    );
-    final stream = _firestore
+    final source = _firestore
         .collection('jokes')
         .orderBy('creation_time', descending: true)
-        .snapshots()
-        .map((snapshot) {
-          return snapshot.docs.map((doc) {
-            return Joke.fromMap(doc.data(), doc.id);
-          }).toList();
-        });
-    // Stop immediately; duration of stream is not meaningful
-    _perf?.stopNamedTrace(name: TraceName.fsRead, key: 'jokes');
-    return stream;
+        .snapshots();
+
+    final traced = _traceFirstSnapshot<QuerySnapshot<Map<String, dynamic>>>(
+      source: source,
+      key: 'jokes:list',
+      op: 'query_snapshots',
+      collection: 'jokes',
+      extra: {'order': 'creation_time_desc'},
+      firstAttributes: (snap) => {'result_count': snap.docs.length.toString()},
+    );
+
+    return traced.map((snapshot) {
+      return snapshot.docs.map((doc) {
+        return Joke.fromMap(doc.data(), doc.id);
+      }).toList();
+    });
   }
 
   /// Fetch a paginated snapshot of joke IDs filtered and sorted in Firestore.
@@ -169,10 +242,18 @@ class JokeRepository {
 
   /// Get a real-time stream of a joke by ID
   Stream<Joke?> getJokeByIdStream(String jokeId) {
-    // See note on streaming traces above
-    return _firestore.collection('jokes').doc(jokeId).snapshots().map((
-      snapshot,
-    ) {
+    final source = _firestore.collection('jokes').doc(jokeId).snapshots();
+    final traced = _traceFirstSnapshot<DocumentSnapshot<Map<String, dynamic>>>(
+      source: source,
+      key: 'jokes:$jokeId',
+      op: 'doc_snapshots',
+      collection: 'jokes',
+      docId: jokeId,
+      firstAttributes: (snap) => {
+        'exists': (snap.exists && snap.data() != null).toString(),
+      },
+    );
+    return traced.map((snapshot) {
       if (snapshot.exists && snapshot.data() != null) {
         return Joke.fromMap(snapshot.data()!, snapshot.id);
       }
@@ -187,13 +268,20 @@ class JokeRepository {
     }
 
     try {
+      // Deduplicate while preserving the first occurrence order
+      final seen = <String>{};
+      final orderedUnique = <String>[];
+      for (final id in jokeIds) {
+        if (seen.add(id)) orderedUnique.add(id);
+      }
+
       // Use 'in' query to fetch multiple documents in a single request
       // Note: Firestore 'in' queries are limited to 10 items, so we need to batch them
       const batchSize = 10;
-      final allJokes = <Joke>[];
+      final fetched = <Joke>[];
 
-      for (int i = 0; i < jokeIds.length; i += batchSize) {
-        final batch = jokeIds.skip(i).take(batchSize).toList();
+      for (int i = 0; i < orderedUnique.length; i += batchSize) {
+        final batch = orderedUnique.skip(i).take(batchSize).toList();
 
         final querySnapshot = await _traceFs(
           traceName: TraceName.fsRead,
@@ -206,14 +294,22 @@ class JokeRepository {
           extra: {'count': batch.length.toString()},
         );
 
-        final jokes = querySnapshot.docs.map((doc) {
-          return Joke.fromMap(doc.data(), doc.id);
-        }).toList();
-
-        allJokes.addAll(jokes);
+        fetched.addAll(
+          querySnapshot.docs.map((doc) {
+            return Joke.fromMap(doc.data(), doc.id);
+          }),
+        );
       }
 
-      return allJokes;
+      // Reorder to match the original requested order, skipping missing
+      final byId = {for (final j in fetched) j.id: j};
+      final ordered = <Joke>[];
+      for (final id in orderedUnique) {
+        final j = byId[id];
+        if (j != null) ordered.add(j);
+      }
+
+      return ordered;
     } catch (e) {
       throw Exception('Failed to get jokes by IDs: $e');
     }

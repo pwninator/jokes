@@ -301,13 +301,6 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                                     final rawQuery = cat.jokeDescriptionQuery
                                         .trim();
                                     if (rawQuery.isEmpty) return;
-                                    final perf = ref.read(
-                                      performanceServiceProvider,
-                                    );
-                                    perf.startNamedTrace(
-                                      name: TraceName.searchToFirstImage,
-                                      attributes: {'query_type': 'category'},
-                                    );
                                     _controller.text = rawQuery;
                                     _onSubmitted(
                                       rawQuery,

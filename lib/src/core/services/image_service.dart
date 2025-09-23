@@ -1,12 +1,13 @@
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:image/image.dart' as img;
 import 'package:path/path.dart' as p;
 import 'package:share_plus/share_plus.dart';
-import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
+import 'package:snickerdoodle/src/core/services/app_logger.dart';
 
 class ImageService {
   // Watermark asset path
@@ -255,46 +256,18 @@ class ImageService {
   }) async {
     try {
       final baseBytes = await baseFile.readAsBytes();
-      final baseImage = img.decodeImage(baseBytes);
-      if (baseImage == null) {
-        return baseFile;
-      }
-
-      // Load watermark asset
       final ByteData wmData = await rootBundle.load(watermarkAssetPath);
-      final wmImage = img.decodeImage(wmData.buffer.asUint8List());
-      if (wmImage == null) {
-        return baseFile;
-      }
+      final Uint8List wmBytes = wmData.buffer.asUint8List();
 
-      // Resize watermark to a fraction of base width
-      final int targetWidth = (baseImage.width * targetWidthFraction).round();
-      final img.Image resizedWm = img.copyResize(
-        wmImage,
-        width: targetWidth.clamp(1, baseImage.width),
-        interpolation: img.Interpolation.linear,
-      );
-
-      // Compute placement: bottom-left with padding
-      const int leftPaddingPx = 16;
-      final int dstX = leftPaddingPx.clamp(
-        0,
-        baseImage.width - resizedWm.width,
-      );
-      final int dstY = (baseImage.height - resizedWm.height - bottomPaddingPx)
-          .clamp(0, baseImage.height - resizedWm.height)
-          .toInt();
-
-      // Composite watermark onto base image with alpha blending
-      final img.Image composed = img.compositeImage(
-        baseImage.clone(),
-        resizedWm,
-        dstX: dstX,
-        dstY: dstY,
-      );
-
-      // Encode to PNG
-      final outBytes = img.encodePng(composed);
+      // Offload CPU-heavy composition to a background isolate
+      final Uint8List outBytes = await Isolate.run(() {
+        return composeWatermarkSync(
+          baseBytes,
+          wmBytes,
+          targetWidthFraction: targetWidthFraction,
+          bottomPaddingPx: bottomPaddingPx,
+        );
+      });
 
       // Write to a temp file (use system temp to avoid platform channel dependency)
       final String tempDir = Directory.systemTemp.path;
@@ -320,4 +293,44 @@ class ImageService {
     }
     return results;
   }
+}
+
+/// Pure function: compose a watermark PNG over a base image and return PNG bytes.
+/// Safe to call in an isolate. Throws if decoding fails.
+Uint8List composeWatermarkSync(
+  Uint8List baseBytes,
+  Uint8List watermarkPngBytes, {
+  double targetWidthFraction = 0.35,
+  int bottomPaddingPx = 16,
+}) {
+  final img.Image? baseImage = img.decodeImage(baseBytes);
+  if (baseImage == null) {
+    throw StateError('Failed to decode base image');
+  }
+  final img.Image? wmImage = img.decodeImage(watermarkPngBytes);
+  if (wmImage == null) {
+    throw StateError('Failed to decode watermark image');
+  }
+
+  final int targetWidth = (baseImage.width * targetWidthFraction).round();
+  final img.Image resizedWm = img.copyResize(
+    wmImage,
+    width: targetWidth.clamp(1, baseImage.width),
+    interpolation: img.Interpolation.linear,
+  );
+
+  const int leftPaddingPx = 16;
+  final int dstX = leftPaddingPx.clamp(0, baseImage.width - resizedWm.width);
+  final int dstY = (baseImage.height - resizedWm.height - bottomPaddingPx)
+      .clamp(0, baseImage.height - resizedWm.height)
+      .toInt();
+
+  final img.Image composed = img.compositeImage(
+    baseImage.clone(),
+    resizedWm,
+    dstX: dstX,
+    dstY: dstY,
+  );
+
+  return Uint8List.fromList(img.encodePng(composed));
 }

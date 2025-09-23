@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
+import 'dart:async';
 
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
@@ -42,7 +43,6 @@ class NotificationService {
   void _initializeBackgroundServices() {
     // Run in background without awaiting
     // Note: Permission request only happens when user subscribes
-
     _initializeFCMListeners().catchError((e) {
       AppLogger.warn('Background FCM initialization failed: $e');
     });
@@ -207,8 +207,10 @@ class NotificationService {
         cachingFutures.add(_cacheImage(jokeData['punchline_image_url']));
       }
 
-      if (cachingFutures.isNotEmpty) {
-        await Future.wait(cachingFutures);
+      // Non-blocking: fire-and-forget with timeout and concurrency cap
+      // Cap to at most 2 concurrent caching ops here (we only have up to 2 URLs)
+      for (final f in cachingFutures) {
+        unawaited(_withTimeout(f, const Duration(seconds: 8)));
       }
 
       AppLogger.debug('Images pre-cached for joke: $jokeId');
@@ -239,6 +241,13 @@ class NotificationService {
         );
       }
     }
+  }
+
+  // Helper to wrap a future with a timeout without throwing up-stack
+  Future<void> _withTimeout(Future<void> future, Duration timeout) async {
+    try {
+      await future.timeout(timeout);
+    } catch (_) {}
   }
 
   /// Get FCM token for server-side targeting (if needed)

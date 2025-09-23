@@ -9,7 +9,15 @@ import 'package:flutter/foundation.dart';
 /// - Only successful flows (first image shown) or empty-result flows should
 ///   call stop() so they appear in the dashboard.
 /// Centralized names for Firebase Performance traces used in the app
-enum TraceName { searchToFirstImage, imageDownload, carouselToVisible }
+enum TraceName {
+  searchToFirstImage,
+  imageDownload,
+  carouselToVisible,
+  cfCall,
+  fsRead,
+  fsWrite,
+  fsWriteBatch,
+}
 
 extension TraceNameWire on TraceName {
   String get wireName {
@@ -20,6 +28,14 @@ extension TraceNameWire on TraceName {
         return 'image_download';
       case TraceName.carouselToVisible:
         return 'carousel_to_visible';
+      case TraceName.cfCall:
+        return 'cf_call';
+      case TraceName.fsRead:
+        return 'fs_read';
+      case TraceName.fsWrite:
+        return 'fs_write';
+      case TraceName.fsWriteBatch:
+        return 'fs_write_batch';
     }
   }
 }

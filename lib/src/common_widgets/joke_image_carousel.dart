@@ -1112,7 +1112,8 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
       showErrorIcon: true,
       onFirstImagePaint: () {
         // Stop only for the very first search result's setup image.
-        if (widget.index == 0 && _currentIndex == 0 &&
+        if (widget.index == 0 &&
+            _currentIndex == 0 &&
             widget.jokeContext == AnalyticsJokeContext.search) {
           _perf.stopNamedTrace(name: TraceName.searchToFirstImage);
         }

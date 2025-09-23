@@ -8,6 +8,7 @@ import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
+import 'package:snickerdoodle/src/core/providers/app_providers.dart';
 
 // Provider for getting a specific joke by ID
 final jokeByIdProvider = StreamProvider.family<Joke?, String>((ref, jokeId) {
@@ -19,7 +20,8 @@ final jokeByIdProvider = StreamProvider.family<Joke?, String>((ref, jokeId) {
 final jokeCloudFunctionServiceProvider = Provider<JokeCloudFunctionService>((
   ref,
 ) {
-  return JokeCloudFunctionService();
+  final perf = ref.read(performanceServiceProvider);
+  return JokeCloudFunctionService(perf: perf);
 });
 
 // Data class to hold a joke with its associated date

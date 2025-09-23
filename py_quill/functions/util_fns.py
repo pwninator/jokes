@@ -42,8 +42,7 @@ def run_firestore_migration(req: https_fn.Request) -> https_fn.Response:
     dry_run = get_bool_param(req, 'dry_run', True)
     max_jokes = get_int_param(req, 'max_jokes', 0)
 
-    results = run_popularity_score_migration(dry_run=dry_run,
-                                             max_jokes=max_jokes)
+    results = run_jokes_test_migration(dry_run=dry_run, max_jokes=max_jokes)
     return https_fn.Response(
       json.dumps({
         "success": True,
@@ -66,11 +65,11 @@ def run_firestore_migration(req: https_fn.Request) -> https_fn.Response:
     )
 
 
-def run_popularity_score_migration(dry_run: bool, max_jokes: int) -> dict:
-  """Populates `popularity_score` for all jokes.
+def run_jokes_test_migration(dry_run: bool, max_jokes: int) -> dict:
+  """Copies all documents from 'jokes' to 'jokes_test' collection.
 
-  The popularity_score is calculated as:
-    `num_saves + (num_shares * 5)`
+  Skips documents that already exist in the target collection.
+  Removes the 'zzz_joke_text_embedding' field from the copied documents.
 
   Args:
     dry_run: If True, the migration will only log the changes that would be made.
@@ -79,12 +78,13 @@ def run_popularity_score_migration(dry_run: bool, max_jokes: int) -> dict:
   Returns:
     A dictionary containing the results of the migration.
   """
-  logger.info("Starting popularity score migration...")
+  logger.info("Starting jokes_test migration...")
   jokes_collection = db().collection('jokes')
+  jokes_test_collection = db().collection('jokes_test')
   jokes_stream = jokes_collection.stream()
 
-  updated_count = 0
-  unchanged_count = 0
+  migrated_count = 0
+  skipped_count = 0
   processed_count = 0
 
   for joke_doc in jokes_stream:
@@ -94,28 +94,29 @@ def run_popularity_score_migration(dry_run: bool, max_jokes: int) -> dict:
 
     processed_count += 1
     joke_data = joke_doc.to_dict() or {}
-    num_saves = joke_data.get('num_saves', 0)
-    num_shares = joke_data.get('num_shares', 0)
+    joke_id = joke_doc.id
 
-    popularity_score = num_saves + (num_shares * 5)
-
-    if joke_data.get('popularity_score') == popularity_score:
-      logger.info(
-        f"Joke {joke_doc.id} already has the correct popularity score.")
-      unchanged_count += 1
+    # Check if the document already exists in the new collection
+    if jokes_test_collection.document(joke_id).get().exists:
+      logger.info(f"Joke {joke_id} already exists in jokes_test. Skipping.")
+      skipped_count += 1
       continue
 
+    # Remove the zzz_joke_text_embedding field
+    if 'zzz_joke_text_embedding' in joke_data:
+      del joke_data['zzz_joke_text_embedding']
+
     logger.info(
-      f"Joke {joke_doc.id} will be updated with popularity_score: {popularity_score}. Dry run: {dry_run}"
-    )
+      f"Joke {joke_id} will be migrated to jokes_test. Dry run: {dry_run}")
     if not dry_run:
-      joke_doc.reference.update({'popularity_score': popularity_score})
-      updated_count += 1
+      jokes_test_collection.document(joke_id).set(joke_data)
+      migrated_count += 1
     else:
-      unchanged_count += 1
+      # In dry run, we don't actually migrate, so we consider it skipped
+      skipped_count += 1
 
   return {
     'total_jokes_processed': processed_count,
-    'updated_jokes': updated_count,
-    'unchanged_jokes': unchanged_count,
+    'migrated_jokes': migrated_count,
+    'skipped_jokes': skipped_count,
   }

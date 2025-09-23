@@ -5,6 +5,7 @@ import 'package:snickerdoodle/src/core/services/app_review_service.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
 import 'package:snickerdoodle/src/core/services/review_prompt_service.dart';
+import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_service.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
@@ -64,6 +65,7 @@ class JokeShareServiceImpl implements JokeShareService {
   final PlatformShareService _platformShareService;
   final AppUsageService _appUsageService;
   final ReviewPromptCoordinator _reviewPromptCoordinator;
+  final PerformanceService _performanceService;
 
   JokeShareServiceImpl({
     required ImageService imageService,
@@ -72,12 +74,14 @@ class JokeShareServiceImpl implements JokeShareService {
     required PlatformShareService platformShareService,
     required AppUsageService appUsageService,
     required ReviewPromptCoordinator reviewPromptCoordinator,
+    required PerformanceService performanceService,
   }) : _imageService = imageService,
        _analyticsService = analyticsService,
        _reactionsService = reactionsService,
        _platformShareService = platformShareService,
        _appUsageService = appUsageService,
-       _reviewPromptCoordinator = reviewPromptCoordinator;
+       _reviewPromptCoordinator = reviewPromptCoordinator,
+       _performanceService = performanceService;
 
   @override
   Future<bool> shareJoke(
@@ -142,6 +146,15 @@ class JokeShareServiceImpl implements JokeShareService {
     required String subject,
     required String text,
   }) async {
+    final String traceKey = 'images:${joke.id}';
+    _performanceService.startNamedTrace(
+      name: TraceName.sharePreparation,
+      key: traceKey,
+      attributes: {
+        'method': 'images',
+        'joke_id': joke.id,
+      },
+    );
     bool shareSuccessful = false;
     ShareResultStatus shareStatus = ShareResultStatus.dismissed; // default
     String shareDestination = "unknown";
@@ -183,6 +196,11 @@ class JokeShareServiceImpl implements JokeShareService {
         files,
       );
 
+      // Stop preparation trace right before invoking platform share
+      _performanceService.stopNamedTrace(
+        name: TraceName.sharePreparation,
+        key: traceKey,
+      );
       final result = await _platformShareService.shareFiles(
         brandedFiles,
         subject: subject,
@@ -194,6 +212,11 @@ class JokeShareServiceImpl implements JokeShareService {
       shareStatus = result.status;
       shareDestination = result.raw;
     } catch (e, _) {
+      // Ensure the preparation trace is stopped on error paths
+      _performanceService.stopNamedTrace(
+        name: TraceName.sharePreparation,
+        key: traceKey,
+      );
       AppLogger.warn('Error sharing joke images: $e');
       // Log error-specific analytics
       _analyticsService.logErrorJokeShare(

@@ -18,6 +18,7 @@ enum TraceName {
   fsRead,
   fsWrite,
   fsWriteBatch,
+  sharePreparation,
 }
 
 extension TraceNameWire on TraceName {
@@ -37,6 +38,8 @@ extension TraceNameWire on TraceName {
         return 'fs_write';
       case TraceName.fsWriteBatch:
         return 'fs_write_batch';
+      case TraceName.sharePreparation:
+        return 'share_preparation';
     }
   }
 }

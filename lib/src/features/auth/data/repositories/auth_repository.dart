@@ -1,7 +1,9 @@
 import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
+// ignore: unused_import
 import 'package:flutter/foundation.dart';
+import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:snickerdoodle/src/features/auth/data/models/app_user.dart';
 
@@ -29,23 +31,23 @@ class AuthRepository {
   /// Sign in anonymously
   Future<AppUser> signInAnonymously() async {
     try {
-      debugPrint('DEBUG: Starting anonymous sign-in...');
+      AppLogger.debug('DEBUG: Starting anonymous sign-in...');
       final credential = await _firebaseAuth.signInAnonymously();
       final firebaseUser = credential.user!;
-      debugPrint(
+      AppLogger.debug(
         'DEBUG: Anonymous sign-in successful. User ID: ${firebaseUser.uid}',
       );
       return AppUser.anonymous(firebaseUser.uid);
     } catch (e, stackTrace) {
-      debugPrint('DEBUG: Anonymous sign-in failed: $e');
-      debugPrint('DEBUG: Stack trace: $stackTrace');
+      AppLogger.warn('DEBUG: Anonymous sign-in failed: $e');
+      AppLogger.debug('DEBUG: Stack trace: $stackTrace');
       throw AuthException('Failed to sign in anonymously: $e');
     }
   }
 
   Future<AppUser> signInWithGoogle() async {
     try {
-      debugPrint('DEBUG: Starting Google sign-in flow...');
+      AppLogger.debug('DEBUG: Starting Google sign-in flow...');
 
       // Sign in with Google (v6.2.1 API)
       final GoogleSignInAccount? googleUser = await _googleSignIn.signIn();
@@ -54,7 +56,7 @@ class AuthRepository {
         throw AuthException('Google sign-in was cancelled by user');
       }
 
-      debugPrint('DEBUG: Google user signed in: ${googleUser.email}');
+      AppLogger.debug('DEBUG: Google user signed in: ${googleUser.email}');
 
       // Get the authentication object (requires await in v6.2.1)
       final GoogleSignInAuthentication googleAuth =
@@ -62,7 +64,7 @@ class AuthRepository {
       final String? idToken = googleAuth.idToken;
       final String? accessToken = googleAuth.accessToken;
 
-      debugPrint(
+      AppLogger.debug(
         'DEBUG: Google auth tokens obtained - accessToken: $accessToken, idToken: $idToken',
       );
 
@@ -72,7 +74,7 @@ class AuthRepository {
         idToken: idToken,
       );
 
-      debugPrint('DEBUG: Firebase credential created, signing in...');
+      AppLogger.debug('DEBUG: Firebase credential created, signing in...');
 
       // Sign in to Firebase with the Google credential
       final userCredential = await _firebaseAuth.signInWithCredential(
@@ -80,19 +82,19 @@ class AuthRepository {
       );
       final firebaseUser = userCredential.user!;
 
-      debugPrint(
+      AppLogger.debug(
         'DEBUG: Firebase sign-in successful. User: ${firebaseUser.uid}, Email: ${firebaseUser.email}',
       );
 
       final appUser = await _createAppUser(firebaseUser);
-      debugPrint(
+      AppLogger.debug(
         'DEBUG: AppUser created successfully: ${appUser.email}, Role: ${appUser.role}',
       );
 
       return appUser;
     } catch (e, stackTrace) {
-      debugPrint('DEBUG: Google sign-in failed with error: $e');
-      debugPrint('DEBUG: Stack trace: $stackTrace');
+      AppLogger.warn('DEBUG: Google sign-in failed with error: $e');
+      AppLogger.debug('DEBUG: Stack trace: $stackTrace');
       throw AuthException('Failed to sign in with Google: $e');
     }
   }
@@ -100,18 +102,18 @@ class AuthRepository {
   /// Sign out and automatically sign in anonymously - Updated for v6.2.1
   Future<void> signOut() async {
     try {
-      debugPrint('DEBUG: Starting sign out process...');
+      AppLogger.debug('DEBUG: Starting sign out process...');
 
       // Sign out from Google (v6.2.1 API)
       await _googleSignIn.signOut();
       await _firebaseAuth.signOut();
-      debugPrint('DEBUG: Sign out successful, signing in anonymously...');
+      AppLogger.debug('DEBUG: Sign out successful, signing in anonymously...');
 
       // Automatically sign in anonymously after signing out
       await signInAnonymously();
-      debugPrint('DEBUG: Switched to anonymous authentication');
+      AppLogger.debug('DEBUG: Switched to anonymous authentication');
     } catch (e) {
-      debugPrint('DEBUG: Sign out failed: $e');
+      AppLogger.warn('DEBUG: Sign out failed: $e');
       throw AuthException('Failed to sign out: $e');
     }
   }
@@ -136,7 +138,7 @@ class AuthRepository {
   /// Get user role from Firebase Auth custom claims
   Future<UserRole> _getUserRoleFromClaims(User firebaseUser) async {
     try {
-      debugPrint(
+      AppLogger.debug(
         'DEBUG: Getting user role from custom claims for UID: ${firebaseUser.uid}',
       );
 
@@ -146,11 +148,11 @@ class AuthRepository {
 
       // Extract role from custom claims
       final roleString = claims?['role'] as String?;
-      debugPrint('DEBUG: User role found in custom claims: $roleString');
+      AppLogger.debug('DEBUG: User role found in custom claims: $roleString');
 
       return _parseUserRole(roleString);
     } catch (e) {
-      debugPrint(
+      AppLogger.warn(
         'DEBUG: Error getting user role from claims: $e, defaulting to user role',
       );
       return UserRole.user; // Default role on error

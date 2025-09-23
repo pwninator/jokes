@@ -1,11 +1,11 @@
 import 'dart:io';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:image/image.dart' as img;
 import 'package:path/path.dart' as p;
 import 'package:share_plus/share_plus.dart';
+import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 
 class ImageService {
@@ -60,7 +60,7 @@ class ImageService {
             'format',
           ); // For URLs with format query
     } catch (e) {
-      debugPrint('Invalid image URL: $url, Error: $e');
+      AppLogger.debug('Invalid image URL: $url, Error: $e');
       return false;
     }
   }
@@ -149,7 +149,7 @@ class ImageService {
 
       return optimizedUrl;
     } catch (e) {
-      debugPrint('Error optimizing Cloudflare URL: $e');
+      AppLogger.debug('Error optimizing Cloudflare URL: $e');
       return url; // Return original URL if optimization fails
     }
   }
@@ -173,9 +173,9 @@ class ImageService {
   Future<void> clearCache() async {
     try {
       await DefaultCacheManager().emptyCache();
-      debugPrint('Image cache cleared successfully');
+      AppLogger.debug('Image cache cleared successfully');
     } catch (e) {
-      debugPrint('Error clearing image cache: $e');
+      AppLogger.debug('Error clearing image cache: $e');
     }
   }
 
@@ -199,11 +199,11 @@ class ImageService {
       // Download and cache to disk using DefaultCacheManager
       // CachedNetworkImage will find this in disk cache and load instantly
       await DefaultCacheManager().downloadFile(processedUrl);
-      debugPrint('Precached image: $processedUrl');
+      AppLogger.debug('Precached image: $processedUrl');
       return processedUrl;
-    } catch (error, stackTrace) {
+    } catch (error, _) {
       // Silently handle preload errors - the actual image widget will show error state
-      debugPrint('Failed to precache image $imageUrl: $error\n$stackTrace');
+      AppLogger.warn('Failed to precache image $imageUrl: $error');
       return null;
     }
   }
@@ -229,7 +229,7 @@ class ImageService {
       final imageFile = await DefaultCacheManager().getSingleFile(url);
       return XFile(imageFile.path);
     } catch (e) {
-      debugPrint('Error getting cached file from URL: $e');
+      AppLogger.debug('Error getting cached file from URL: $e');
       return null;
     }
   }
@@ -241,7 +241,7 @@ class ImageService {
       try {
         await precacheJokeImages(joke);
       } catch (e) {
-        debugPrint('Failed to precache images for joke ${joke.id}: $e');
+        AppLogger.warn('Failed to precache images for joke ${joke.id}: $e');
       }
     }
   }
@@ -306,7 +306,8 @@ class ImageService {
       await outFile.writeAsBytes(outBytes, flush: true);
       return XFile(outFile.path);
     } catch (e) {
-      debugPrint('addWatermarkToFile failed: $e');
+      // Surface to crash reporting as non-fatal via caller-specific service when appropriate
+      AppLogger.warn('addWatermarkToFile failed: $e');
       return baseFile;
     }
   }

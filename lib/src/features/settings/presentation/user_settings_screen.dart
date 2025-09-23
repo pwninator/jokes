@@ -16,6 +16,7 @@ import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
 import 'package:snickerdoodle/src/features/auth/data/models/app_user.dart';
 import 'package:snickerdoodle/src/features/settings/application/joke_viewer_settings_service.dart';
+import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/features/settings/application/theme_settings_service.dart';
 
 class UserSettingsScreen extends ConsumerStatefulWidget
@@ -54,11 +55,11 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
 
     // Reset sequence if more than 2 seconds passed since last tap
     if (_lastTap != null && now.difference(_lastTap!).inSeconds > 2) {
-      debugPrint('DEBUG: Settings screen - sequence reset due to timeout');
+      AppLogger.debug('DEBUG: Settings screen - sequence reset due to timeout');
       _tapSequence.clear();
     }
 
-    debugPrint('DEBUG: Settings screen - adding tap: $tapType');
+    AppLogger.debug('DEBUG: Settings screen - adding tap: $tapType');
     _tapSequence.add(tapType);
     _lastTap = now;
 
@@ -75,7 +76,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
     if (!sequenceValid) {
       // Reset on wrong sequence
       _tapSequence.clear();
-      debugPrint('DEBUG: Settings screen - sequence invalid');
+      AppLogger.debug('DEBUG: Settings screen - sequence invalid');
       return;
     }
 
@@ -852,9 +853,9 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
     AuthController authController,
   ) async {
     try {
-      debugPrint('DEBUG: Settings screen - starting Google sign-in...');
+      AppLogger.debug('DEBUG: Settings screen - starting Google sign-in...');
       await authController.signInWithGoogle();
-      debugPrint(
+      AppLogger.debug(
         'DEBUG: Settings screen - Google sign-in completed successfully',
       );
       if (context.mounted) {
@@ -867,7 +868,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
         );
       }
     } catch (e) {
-      debugPrint('DEBUG: Settings screen - Google sign-in failed: $e');
+      AppLogger.warn('DEBUG: Settings screen - Google sign-in failed: $e');
       // Log analytics/crash for sign-in failure
       try {
         final analytics = ref.read(analyticsServiceProvider);
@@ -886,7 +887,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
               label: 'Details',
               textColor: Colors.white,
               onPressed: () {
-                debugPrint('ERROR DETAILS: $e');
+                AppLogger.debug('ERROR DETAILS: $e');
                 // Show dialog with full error
                 showDialog(
                   context: context,
@@ -1008,7 +1009,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
         }
       }
     } catch (e) {
-      debugPrint('ERROR: _toggleNotifications: $e');
+      AppLogger.warn('ERROR: _toggleNotifications: $e');
       // Log analytics/crash for notification toggle failure (fire-and-forget)
       final analytics = ref.read(analyticsServiceProvider);
       analytics.logErrorSubscriptionToggle(

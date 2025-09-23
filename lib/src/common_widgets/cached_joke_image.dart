@@ -1,10 +1,12 @@
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/providers/app_providers.dart';
 import 'package:snickerdoodle/src/core/providers/image_providers.dart';
+import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
 import 'package:snickerdoodle/src/core/services/performance_service.dart';
 
@@ -144,19 +146,23 @@ class CachedJokeImage extends ConsumerWidget {
   }
 
   void _logImageInfo(String url) async {
+    if (!kDebugMode) return;
+
     try {
       final fileInfo = await DefaultCacheManager().getFileFromCache(url);
       if (fileInfo != null) {
         final sizeInBytes = await fileInfo.file.length();
         final sizeInKB = (sizeInBytes / 1024).toStringAsFixed(1);
-        debugPrint("Loading image (CachedJokeImage): $url (${sizeInKB}KB)");
+        AppLogger.debug(
+          "Loading image (CachedJokeImage): $url (${sizeInKB}KB)",
+        );
       } else {
-        debugPrint(
+        AppLogger.debug(
           "Loading image (CachedJokeImage): $url (size unknown - not cached)",
         );
       }
     } catch (e) {
-      debugPrint("Loading image (CachedJokeImage): $url (size error: $e)");
+      AppLogger.debug("Loading image (CachedJokeImage): $url (size error: $e)");
     }
   }
 

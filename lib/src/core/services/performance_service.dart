@@ -1,5 +1,6 @@
 import 'package:firebase_performance/firebase_performance.dart';
 import 'package:flutter/foundation.dart';
+import 'package:snickerdoodle/src/core/services/app_logger.dart';
 
 /// Service to manage Firebase Performance custom traces.
 ///
@@ -77,7 +78,7 @@ class FirebasePerformanceService implements PerformanceService {
       attributes.forEach((k, v) => trace.putAttribute(k, v));
     }
     if (kDebugMode) {
-      debugPrint(
+      AppLogger.debug(
         'PERFORMANCE: starting trace ${name.wireName} key=${key ?? '(none)'} attrs=${attributes ?? {}}',
       );
     }
@@ -97,7 +98,7 @@ class FirebasePerformanceService implements PerformanceService {
     if (trace == null) return;
     attributes.forEach((k, v) => trace.putAttribute(k, v));
     if (kDebugMode) {
-      debugPrint(
+      AppLogger.debug(
         'PERFORMANCE: put attributes on ${name.wireName} key=${key ?? '(none)'} attrs=$attributes',
       );
     }
@@ -113,7 +114,7 @@ class FirebasePerformanceService implements PerformanceService {
           ? 'unknown'
           : DateTime.now().difference(startedAt).inMilliseconds.toString();
       if (kDebugMode) {
-        debugPrint(
+        AppLogger.debug(
           'PERFORMANCE: stopping trace ${name.wireName} key=${key ?? '(none)'} duration=${elapsedMs}ms attrs=${trace.getAttributes()}',
         );
       }
@@ -125,7 +126,7 @@ class FirebasePerformanceService implements PerformanceService {
   void dropNamedTrace({required TraceName name, String? key}) {
     final composed = _composeKey(name, key);
     if (kDebugMode && _namedTraces.containsKey(composed)) {
-      debugPrint(
+      AppLogger.debug(
         'PERFORMANCE: dropping trace ${name.wireName} key=${key ?? '(none)'}',
       );
     }

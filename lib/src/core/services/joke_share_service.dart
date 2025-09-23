@@ -1,6 +1,6 @@
-import 'package:flutter/foundation.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
+import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/app_review_service.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
@@ -8,6 +8,7 @@ import 'package:snickerdoodle/src/core/services/review_prompt_service.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_service.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
+// Crash reporting for share errors is handled via analytics service
 
 /// Result of a share operation
 class ShareOperationResult {
@@ -38,7 +39,7 @@ class PlatformShareServiceImpl implements PlatformShareService {
     final result = await SharePlus.instance.share(
       ShareParams(subject: subject, files: files, text: text),
     );
-    debugPrint('PlatformShareServiceImpl shareFiles result: $result');
+    AppLogger.debug('PlatformShareServiceImpl shareFiles result: $result');
     return result;
   }
 }
@@ -192,8 +193,8 @@ class JokeShareServiceImpl implements JokeShareService {
       shareSuccessful = result.status == ShareResultStatus.success;
       shareStatus = result.status;
       shareDestination = result.raw;
-    } catch (e) {
-      debugPrint('Error sharing joke images: $e');
+    } catch (e, _) {
+      AppLogger.warn('Error sharing joke images: $e');
       // Log error-specific analytics
       _analyticsService.logErrorJokeShare(
         joke.id,

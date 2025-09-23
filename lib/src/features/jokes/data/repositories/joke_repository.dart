@@ -5,6 +5,7 @@ import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_admin_rating.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_state.dart';
+import 'package:snickerdoodle/src/core/services/app_logger.dart';
 
 @immutable
 class JokeListPageCursor {
@@ -264,7 +265,7 @@ class JokeRepository {
     // Suppress Firestore writes for admin users or in debug mode
     if (_isAdmin || _debugMode) {
       final action = increment > 0 ? 'increment' : 'decrement';
-      debugPrint(
+      AppLogger.debug(
         'JOKE REPO ADMIN/DEBUG reaction suppressed: $action $reactionType for joke $jokeId',
       );
       return;
@@ -317,7 +318,7 @@ class JokeRepository {
       extra: {'reaction': reactionType.firestoreField},
     );
 
-    debugPrint(
+    AppLogger.debug(
       'REPO: JokeRepository updateReactionAndPopularity: $jokeId, $reactionType, $increment, $newSaves, $newShares, $newPopularityScore',
     );
   }

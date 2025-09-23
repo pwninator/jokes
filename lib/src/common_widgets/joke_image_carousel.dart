@@ -20,6 +20,7 @@ import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
 import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
+import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_population_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_schedule_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_search_providers.dart';
@@ -270,7 +271,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
         }
       } catch (e) {
         // Silently handle any precaching errors
-        debugPrint('Error during image precaching: $e');
+        AppLogger.warn('Error during image precaching: $e');
       }
     });
   }

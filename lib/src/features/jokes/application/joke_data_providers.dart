@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_service.dart';
@@ -163,7 +162,7 @@ final savedJokesProvider = StreamProvider<List<JokeWithDate>>((ref) async* {
     yield savedJokes;
   } catch (e) {
     // Handle errors gracefully
-    debugPrint('Error loading saved jokes: $e');
+    // Keep logs minimal; analytics will handle error event
     yield <JokeWithDate>[];
   }
 });

@@ -1,8 +1,8 @@
 import 'package:cloud_functions/cloud_functions.dart';
-import 'package:flutter/foundation.dart';
 import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_search_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_search_result.dart';
+import 'package:snickerdoodle/src/core/services/app_logger.dart';
 
 /// How strictly to match the search query
 enum MatchMode { tight, loose }
@@ -64,7 +64,7 @@ class JokeCloudFunctionService {
         },
       );
     } catch (e) {
-      debugPrint('CLOUD FUNCTIONS trackUsage exception: $e');
+      AppLogger.warn('CLOUD FUNCTIONS trackUsage exception: $e');
     }
   }
 
@@ -92,17 +92,17 @@ class JokeCloudFunctionService {
         },
       );
 
-      debugPrint('Joke created successfully: ${result.data}');
+      AppLogger.debug('Joke created successfully: ${result.data}');
       return {'success': true, 'data': result.data};
     } on FirebaseFunctionsException catch (e) {
-      debugPrint('Firebase Functions error: ${e.code} - ${e.message}');
+      AppLogger.warn('Firebase Functions error: ${e.code} - ${e.message}');
       return {
         'success': false,
         'error': 'Function error: ${e.message}',
         'code': e.code,
       };
     } catch (e) {
-      debugPrint('Error creating joke: $e');
+      AppLogger.warn('Error creating joke: $e');
       return {'success': false, 'error': 'Unexpected error: $e'};
     }
   }
@@ -139,17 +139,17 @@ class JokeCloudFunctionService {
         },
       );
 
-      debugPrint('Joke populated successfully: ${result.data}');
+      AppLogger.debug('Joke populated successfully: ${result.data}');
       return {'success': true, 'data': result.data};
     } on FirebaseFunctionsException catch (e) {
-      debugPrint('Firebase Functions error: ${e.code} - ${e.message}');
+      AppLogger.warn('Firebase Functions error: ${e.code} - ${e.message}');
       return {
         'success': false,
         'error': 'Function error: ${e.message}',
         'code': e.code,
       };
     } catch (e) {
-      debugPrint('Error populating joke: $e');
+      AppLogger.warn('Error populating joke: $e');
       return {'success': false, 'error': 'Unexpected error: $e'};
     }
   }
@@ -178,17 +178,17 @@ class JokeCloudFunctionService {
         },
       );
 
-      debugPrint('Joke updated successfully: ${result.data}');
+      AppLogger.debug('Joke updated successfully: ${result.data}');
       return {'success': true, 'data': result.data};
     } on FirebaseFunctionsException catch (e) {
-      debugPrint('Firebase Functions error: ${e.code} - ${e.message}');
+      AppLogger.warn('Firebase Functions error: ${e.code} - ${e.message}');
       return {
         'success': false,
         'error': 'Function error: ${e.message}',
         'code': e.code,
       };
     } catch (e) {
-      debugPrint('Error updating joke: $e');
+      AppLogger.warn('Error updating joke: $e');
       return {'success': false, 'error': 'Unexpected error: $e'};
     }
   }
@@ -217,17 +217,17 @@ class JokeCloudFunctionService {
         },
       );
 
-      debugPrint('Jokes critiqued successfully: ${result.data}');
+      AppLogger.debug('Jokes critiqued successfully: ${result.data}');
       return {'success': true, 'data': result.data};
     } on FirebaseFunctionsException catch (e) {
-      debugPrint('Firebase Functions error: ${e.code} - ${e.message}');
+      AppLogger.warn('Firebase Functions error: ${e.code} - ${e.message}');
       return {
         'success': false,
         'error': 'Function error: ${e.message}',
         'code': e.code,
       };
     } catch (e) {
-      debugPrint('Error critiquing jokes: $e');
+      AppLogger.warn('Error critiquing jokes: $e');
       return {'success': false, 'error': 'Unexpected error: $e'};
     }
   }
@@ -263,17 +263,17 @@ class JokeCloudFunctionService {
         },
       );
 
-      debugPrint('Joke modified successfully: ${result.data}');
+      AppLogger.debug('Joke modified successfully: ${result.data}');
       return {'success': true, 'data': result.data};
     } on FirebaseFunctionsException catch (e) {
-      debugPrint('Firebase Functions error: ${e.code} - ${e.message}');
+      AppLogger.warn('Firebase Functions error: ${e.code} - ${e.message}');
       return {
         'success': false,
         'error': 'Function error: ${e.message}',
         'code': e.code,
       };
     } catch (e) {
-      debugPrint('Error modifying joke: $e');
+      AppLogger.warn('Error modifying joke: $e');
       return {'success': false, 'error': 'Unexpected error: $e'};
     }
   }
@@ -344,15 +344,15 @@ class JokeCloudFunctionService {
         return parsed;
       }
 
-      debugPrint('Unexpected search_jokes response: $data');
+      AppLogger.warn('Unexpected search_jokes response: $data');
       return <JokeSearchResult>[];
     } on FirebaseFunctionsException catch (e) {
-      debugPrint(
+      AppLogger.warn(
         'Firebase Functions error (search_jokes): ${e.code} - ${e.message}',
       );
       return <JokeSearchResult>[];
     } catch (e) {
-      debugPrint('Error calling search_jokes: $e');
+      AppLogger.warn('Error calling search_jokes: $e');
       return <JokeSearchResult>[];
     }
   }

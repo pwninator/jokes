@@ -1,8 +1,8 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:snickerdoodle/src/core/services/app_review_service.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
+import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/review_prompt_service.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
@@ -161,9 +161,8 @@ class JokeReactionsService {
             // Log error but don't throw - this shouldn't affect UI state
             // since SharedPreferences has already been updated
             final action = increment > 0 ? 'increment' : 'decrement';
-            debugPrint(
-              'Failed to $action Firestore reaction for joke $jokeId, '
-              'reaction $reactionType: $error',
+            AppLogger.warn(
+              'Failed to $action Firestore reaction for joke $jokeId, reaction $reactionType: $error',
             );
           });
     }

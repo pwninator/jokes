@@ -32,15 +32,11 @@ class UsersAnalyticsScreen extends ConsumerWidget implements TitledScreen {
 
             final theme = Theme.of(context);
             final colorStops = {
-              1: ColorStop(background: Colors.grey, foreground: Colors.white),
-              2: ColorStop(
-                  background: Color.fromARGB(255, 0, 89, 255),
-                  foreground: Colors.white),
-              4: ColorStop(background: Colors.yellow, foreground: Colors.black),
-              7: ColorStop(background: Colors.orange, foreground: Colors.black),
-              10: ColorStop(
-                  background: Color.fromARGB(255, 255, 70, 57),
-                  foreground: Colors.white),
+              1: Colors.grey,
+              2: Colors.blue,
+              4: Colors.yellow,
+              7: Colors.orange,
+              10: Colors.red,
             };
 
             // Build chart groups
@@ -58,10 +54,9 @@ class UsersAnalyticsScreen extends ConsumerWidget implements TitledScreen {
               for (int bucket = 10; bucket >= 1; bucket--) {
                 final value = (buckets[bucket] ?? 0).toDouble();
                 if (value <= 0) continue;
-                final colors = getColorsForBucket(bucket, colorStops);
+                final color = getBackgroundColorForBucket(bucket, colorStops);
                 stacks.add(
-                  BarChartRodStackItem(
-                      running, running + value, colors.background),
+                  BarChartRodStackItem(running, running + value, color),
                 );
                 running += value;
               }
@@ -106,7 +101,8 @@ class UsersAnalyticsScreen extends ConsumerWidget implements TitledScreen {
                       final idx = group.x;
                       final date = hist.orderedDates[idx];
                       final buckets = hist.countsByDateThenBucket[date] ?? {};
-                      final textStyle = Theme.of(context).textTheme.bodySmall ??
+                      final textStyle =
+                          Theme.of(context).textTheme.bodySmall ??
                           const TextStyle();
 
                       return buildUsersAnalyticsTooltip(

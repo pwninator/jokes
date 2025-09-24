@@ -13,7 +13,6 @@ import 'package:snickerdoodle/src/features/jokes/application/joke_navigation_pro
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_viewer_mode.dart';
 import 'package:snickerdoodle/src/features/settings/application/joke_viewer_settings_service.dart';
-import 'package:snickerdoodle/src/core/services/app_logger.dart';
 
 /// Reusable vertical viewer for a list of jokes with CTA button
 class JokeListViewer extends ConsumerStatefulWidget {

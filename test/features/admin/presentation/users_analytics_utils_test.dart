@@ -43,26 +43,11 @@ void main() {
       };
 
       test('returns correct colors for defined buckets', () {
-        expect(
-          getBackgroundColorForBucket(1, colorStops),
-          colorStops[1]!,
-        );
-        expect(
-          getBackgroundColorForBucket(2, colorStops),
-          colorStops[2]!,
-        );
-        expect(
-          getBackgroundColorForBucket(4, colorStops),
-          colorStops[4]!,
-        );
-        expect(
-          getBackgroundColorForBucket(7, colorStops),
-          colorStops[7]!,
-        );
-        expect(
-          getBackgroundColorForBucket(10, colorStops),
-          colorStops[10]!,
-        );
+        expect(getBackgroundColorForBucket(1, colorStops), colorStops[1]!);
+        expect(getBackgroundColorForBucket(2, colorStops), colorStops[2]!);
+        expect(getBackgroundColorForBucket(4, colorStops), colorStops[4]!);
+        expect(getBackgroundColorForBucket(7, colorStops), colorStops[7]!);
+        expect(getBackgroundColorForBucket(10, colorStops), colorStops[10]!);
       });
 
       test('interpolates colors for undefined buckets', () {

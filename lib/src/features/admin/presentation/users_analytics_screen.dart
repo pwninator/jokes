@@ -34,7 +34,7 @@ class UsersAnalyticsScreen extends ConsumerWidget implements TitledScreen {
             final colorStops = {
               1: Colors.grey,
               2: Colors.blue,
-              4: Colors.yellow,
+              5: Colors.yellow,
               7: Colors.orange,
               10: Colors.red,
             };

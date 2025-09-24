@@ -36,6 +36,13 @@ class AnalyticsParameters {
   static const String subscriptionSource = 'subscription_source';
   static const String subscriptionHour = 'subscription_hour';
   static const String permissionGranted = 'permission_granted';
+  static const String subscriptionOnCount = 'subscription_on_count';
+
+  // Subscription prompt parameters
+  static const String subscriptionPromptShownCount = 'subscription_prompt_shown_count';
+  static const String subscriptionPromptAcceptedCount = 'subscription_prompt_accepted_count';
+  static const String subscriptionPromptDeclinedCount = 'subscription_prompt_declined_count';
+  static const String subscriptionPromptErrorCount = 'subscription_prompt_error_count';
 
   // Notification parameters
   static const String notificationId = 'notification_id';

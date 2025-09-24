@@ -558,4 +558,35 @@ class JokeRepository {
       extra: {'count': ids.length.toString()},
     );
   }
+
+  Future<JokeListPage> getPopularJokes({
+    required int limit,
+    JokeListPageCursor? lastDoc,
+  }) async {
+    Query<Map<String, dynamic>> query = _firestore
+        .collection('jokes')
+        .orderBy('popularity_score', descending: true)
+        .orderBy(FieldPath.documentId, descending: true)
+        .limit(limit);
+
+    if (lastDoc != null) {
+      query = query.startAfter([lastDoc.orderValue, lastDoc.docId]);
+    }
+
+    final snapshot = await query.get();
+    final jokes = snapshot.docs.map((doc) {
+      return Joke.fromMap(doc.data(), doc.id);
+    }).toList();
+
+    return JokeListPage(
+      ids: jokes.map((e) => e.id).toList(),
+      cursor: snapshot.docs.isNotEmpty
+          ? JokeListPageCursor(
+              orderValue: snapshot.docs.last['popularity_score'],
+              docId: snapshot.docs.last.id,
+            )
+          : null,
+      hasMore: jokes.length == limit,
+    );
+  }
 }

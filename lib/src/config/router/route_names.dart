@@ -9,6 +9,7 @@ class AppRoutes {
 
   // Main app routes (shell route)
   static const String jokes = '/jokes';
+  static const String popular = '/popular';
   static const String saved = '/saved';
   static const String search = '/search';
   static const String settings = '/settings';
@@ -34,6 +35,7 @@ class RouteNames {
 
   static const String auth = 'auth';
   static const String jokes = 'jokes';
+  static const String popular = 'popular';
   static const String saved = 'saved';
   static const String search = 'search';
   static const String settings = 'settings';

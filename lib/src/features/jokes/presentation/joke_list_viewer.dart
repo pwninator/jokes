@@ -9,6 +9,7 @@ import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_navigation_providers.dart';
+import 'package:snickerdoodle/src/features/jokes/application/popular_jokes_paginator_provider.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/settings/application/joke_viewer_settings_service.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
@@ -19,6 +20,7 @@ class JokeListViewer extends ConsumerStatefulWidget {
     super.key,
     this.jokesAsyncValue,
     this.jokesAsyncProvider,
+    this.paginatorNotifierProvider,
     required this.jokeContext,
     required this.viewerId,
     this.onInitRegisterReset,
@@ -29,6 +31,8 @@ class JokeListViewer extends ConsumerStatefulWidget {
 
   final AsyncValue<List<JokeWithDate>>? jokesAsyncValue;
   final ProviderListenable<AsyncValue<List<JokeWithDate>>>? jokesAsyncProvider;
+  final StateNotifierProvider<PopularJokesPaginatorNotifier, PopularJokesPaginator>?
+      paginatorNotifierProvider;
   final String jokeContext;
   final String viewerId;
   final Function(VoidCallback)? onInitRegisterReset;
@@ -253,6 +257,14 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
                     );
 
                     _lastNavigationMethod = AnalyticsNavigationMethod.swipe;
+
+                    if (widget.paginatorNotifierProvider != null &&
+                        index >= jokesWithDates.length - 2) {
+                      ref
+                          .read(
+                              widget.paginatorNotifierProvider!.notifier)
+                          .loadMore();
+                    }
                   }
                 },
                 itemBuilder: (context, index) {

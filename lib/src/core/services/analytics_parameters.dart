@@ -79,6 +79,7 @@ class AnalyticsNavigationMethod {
 /// Joke context values for analytics
 class AnalyticsJokeContext {
   static const String dailyJokes = 'daily_jokes';
+  static const String popularJokes = 'popular_jokes';
   static const String savedJokes = 'saved_jokes';
   static const String search = 'search';
 }

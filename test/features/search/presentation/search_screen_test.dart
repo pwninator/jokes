@@ -7,6 +7,7 @@ import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers
 import 'package:snickerdoodle/src/features/jokes/application/joke_search_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_category.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
+import 'package:snickerdoodle/src/features/jokes/domain/joke_search_result.dart';
 import 'package:snickerdoodle/src/features/search/presentation/search_screen.dart';
 
 import '../../../test_helpers/firebase_mocks.dart';
@@ -77,6 +78,11 @@ void main() {
             ),
           ]),
         ),
+        searchResultIdsProvider(SearchScope.userJokeSearch).overrideWith(
+          (ref) => Future.value([
+            const JokeSearchResult(id: '1', vectorDistance: 1.0),
+          ]),
+        ),
       ],
     );
 
@@ -132,6 +138,13 @@ void main() {
                 punchlineImageUrl: 'b',
               ),
             ),
+          ]),
+        ),
+        searchResultIdsProvider(SearchScope.userJokeSearch).overrideWith(
+          (ref) => Future.value([
+            const JokeSearchResult(id: '1', vectorDistance: 1.0),
+            const JokeSearchResult(id: '2', vectorDistance: 1.0),
+            const JokeSearchResult(id: '3', vectorDistance: 1.0),
           ]),
         ),
       ],
@@ -195,9 +208,11 @@ void main() {
     final field = find.byKey(const Key('search_screen-search-field'));
     await tester.enterText(field, 'fish');
     await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pump();
+    await tester.pumpAndSettle();
+    debugDumpApp();
 
     // Title should be the index (1-based) for the first card
+    expect(find.byKey(const Key('joke-card-title')), findsOneWidget);
     expect(find.text('1'), findsOneWidget);
 
     // Swipe up to move to the second joke (vertical PageView)
@@ -207,6 +222,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Now the title should show '2' for the second card
+    expect(find.byKey(const Key('joke-card-title')), findsOneWidget);
     expect(find.text('2'), findsOneWidget);
   });
 

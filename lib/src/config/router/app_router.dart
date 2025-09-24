@@ -22,6 +22,7 @@ import 'package:snickerdoodle/src/features/admin/presentation/users_analytics_sc
 import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
 import 'package:snickerdoodle/src/features/auth/presentation/auth_wrapper.dart';
 import 'package:snickerdoodle/src/features/jokes/presentation/daily_jokes_screen.dart';
+import 'package:snickerdoodle/src/features/jokes/presentation/popular_jokes/popular_jokes_screen.dart';
 import 'package:snickerdoodle/src/features/jokes/presentation/saved_jokes_screen.dart';
 import 'package:snickerdoodle/src/features/search/presentation/search_screen.dart';
 import 'package:snickerdoodle/src/features/settings/presentation/user_settings_screen.dart';
@@ -32,6 +33,12 @@ const List<TabConfig> _allTabs = [
     route: AppRoutes.jokes,
     label: 'Daily Jokes',
     icon: Icons.mood,
+  ),
+  TabConfig(
+    id: TabId.popular,
+    route: AppRoutes.popular,
+    label: 'Popular',
+    icon: Icons.trending_up,
   ),
   TabConfig(
     id: TabId.discover,
@@ -61,7 +68,7 @@ const List<TabConfig> _allTabs = [
 ];
 
 /// Bottom navigation: central configuration
-enum TabId { daily, discover, saved, settings, admin }
+enum TabId { daily, popular, discover, saved, settings, admin }
 
 class TabConfig {
   final TabId id;
@@ -150,6 +157,13 @@ class AppRouter {
               path: AppRoutes.saved,
               name: RouteNames.saved,
               builder: (context, state) => const SavedJokesScreen(),
+            ),
+
+            // Popular Jokes
+            GoRoute(
+              path: AppRoutes.popular,
+              name: RouteNames.popular,
+              builder: (context, state) => const PopularJokesScreen(),
             ),
 
             // Search

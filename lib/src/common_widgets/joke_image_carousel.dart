@@ -776,26 +776,12 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Title (if provided)
-          if (widget.title != null)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 8.0),
-              child: Text(
-                widget.title!,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  color: theme.colorScheme.onSurface,
-                  fontWeight: FontWeight.w500,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ),
           // Image carousel
           Flexible(
             child: Card(
               child: Stack(
                 children: [
                   GestureDetector(
-                    onLongPress: widget.isAdminMode ? _onImageLongPress : null,
                     child: ConstrainedBox(
                       constraints: const BoxConstraints(
                         minHeight: 200, // Ensure minimum usable height
@@ -888,6 +874,35 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
                       top: 8,
                       left: 8,
                       child: _buildStateBadgeText(context),
+                    ),
+
+                  // Display the title over the image, offset if admin badge is present
+                  if (widget.title != null && widget.title!.isNotEmpty)
+                    Positioned(
+                      top: 8,
+                      left: 8,
+                      right: 8,
+                      child: Center(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.5),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            widget.title!,
+                            key: const Key('joke-card-title'),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
                 ],
               ),

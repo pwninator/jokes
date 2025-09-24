@@ -67,7 +67,9 @@ class _SubscriptionPromptDialogState
               // Maybe Later button
               Expanded(
                 child: TextButton(
-                  key: const Key('subscription_prompt_dialog-maybe-later-button'),
+                  key: const Key(
+                    'subscription_prompt_dialog-maybe-later-button',
+                  ),
                   onPressed: _isLoading ? null : () => _handleMaybeLater(),
                   style: TextButton.styleFrom(
                     backgroundColor: theme.colorScheme.surfaceContainerHighest,

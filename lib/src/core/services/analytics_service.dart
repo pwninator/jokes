@@ -7,6 +7,7 @@ import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
 import 'package:snickerdoodle/src/core/services/crash_reporting_service.dart';
 import 'package:snickerdoodle/src/features/auth/data/models/app_user.dart';
 import 'package:snickerdoodle/src/utils/device_utils.dart';
+import 'package:snickerdoodle/src/core/services/app_logger.dart';
 
 /// Abstract interface for analytics service
 /// This allows for easy mocking in tests
@@ -279,7 +280,7 @@ class FirebaseAnalyticsService implements AnalyticsService {
         final isPhysicalDevice = await DeviceUtils.isPhysicalDevice;
         return !isPhysicalDevice;
       } catch (e) {
-        debugPrint('ANALYTICS WARN: Device check failed - $e');
+        AppLogger.warn('ANALYTICS WARN: Device check failed - $e');
         return true;
       }
     }
@@ -290,7 +291,7 @@ class FirebaseAnalyticsService implements AnalyticsService {
   Future<void> initialize() async {
     try {
       if (await _shouldUseFakeAnalytics()) {
-        debugPrint(
+        AppLogger.debug(
           'ANALYTICS: Initializing in debug mode on non-physical device (events will not be sent)',
         );
         return;
@@ -301,9 +302,9 @@ class FirebaseAnalyticsService implements AnalyticsService {
         AnalyticsParameters.userType: AnalyticsUserType.anonymous,
       });
 
-      debugPrint('ANALYTICS: Firebase Analytics initialized');
+      AppLogger.debug('ANALYTICS: Firebase Analytics initialized');
     } catch (e) {
-      debugPrint('ANALYTICS ERROR: Failed to initialize - $e');
+      AppLogger.warn('ANALYTICS ERROR: Failed to initialize - $e');
     }
   }
 
@@ -315,7 +316,7 @@ class FirebaseAnalyticsService implements AnalyticsService {
       final userType = _getUserType(user);
 
       if (await _shouldUseFakeAnalytics()) {
-        debugPrint(
+        AppLogger.debug(
           'ANALYTICS (DEBUG): Setting user properties - userType: $userType',
         );
         return;
@@ -329,9 +330,9 @@ class FirebaseAnalyticsService implements AnalyticsService {
         value: userType,
       );
 
-      debugPrint('ANALYTICS: User properties set - type: $userType');
+      AppLogger.debug('ANALYTICS: User properties set - type: $userType');
     } catch (e) {
-      debugPrint('ANALYTICS ERROR: Failed to set user properties - $e');
+      AppLogger.warn('ANALYTICS ERROR: Failed to set user properties - $e');
     }
   }
 
@@ -919,14 +920,14 @@ class FirebaseAnalyticsService implements AnalyticsService {
 
         // Handle debug/admin short-circuits but still record Crashlytics for errors
         if (await _shouldUseFakeAnalytics()) {
-          debugPrint(
+          AppLogger.debug(
             'ANALYTICS SKIPPED (DEBUG): ${event.eventName} - $analyticsParameters',
           );
           return;
         }
 
         if (_getUserType(_currentUser) == AnalyticsUserType.admin) {
-          debugPrint(
+          AppLogger.debug(
             'ANALYTICS SKIPPED (ADMIN): ${event.eventName} - $analyticsParameters',
           );
           return;
@@ -937,11 +938,13 @@ class FirebaseAnalyticsService implements AnalyticsService {
           parameters: analyticsParameters,
         );
 
-        debugPrint(
+        AppLogger.debug(
           'ANALYTICS: ${event.eventName} logged: $analyticsParameters',
         );
       } catch (e) {
-        debugPrint('ANALYTICS ERROR: Failed to log ${event.eventName} - $e');
+        AppLogger.warn(
+          'ANALYTICS ERROR: Failed to log ${event.eventName} - $e',
+        );
         // Don't recursively log analytics errors to avoid infinite loops
         if (event != AnalyticsEvent.analyticsError) {
           logAnalyticsError(e.toString(), event.eventName);

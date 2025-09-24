@@ -165,7 +165,7 @@ final adminJokesLiveProvider =
       // Watch each joke by id
       final perJoke = <AsyncValue<Joke?>>[];
       for (final id in ids) {
-        perJoke.add(ref.watch(jokeByIdProvider(id)));
+        perJoke.add(ref.watch(jokeStreamByIdProvider(id)));
       }
 
       // Surface first error if any

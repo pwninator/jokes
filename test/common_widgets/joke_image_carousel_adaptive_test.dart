@@ -2,7 +2,30 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/common_widgets/joke_image_carousel.dart';
+import 'package:snickerdoodle/src/core/providers/image_providers.dart';
+import 'package:snickerdoodle/src/core/services/image_service.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
+
+import '../test_helpers/core_mocks.dart';
+
+class _NoopImageService extends ImageService {
+  @override
+  String? getProcessedJokeImageUrl(String? imageUrl) => null;
+
+  @override
+  bool isValidImageUrl(String? url) => true;
+
+  @override
+  Future<String?> precacheJokeImage(String? imageUrl) async => null;
+
+  @override
+  Future<({String? setupUrl, String? punchlineUrl})> precacheJokeImages(
+    Joke joke,
+  ) async => (setupUrl: null, punchlineUrl: null);
+
+  @override
+  Future<void> precacheMultipleJokeImages(List<Joke> jokes) async {}
+}
 
 void main() {
   testWidgets('BOTH_ADAPTIVE is horizontal in wide constraints', (
@@ -10,8 +33,13 @@ void main() {
   ) async {
     // Wide constraints should choose Row
     await tester.pumpWidget(
-      const ProviderScope(
-        child: MaterialApp(
+      ProviderScope(
+        overrides: [
+          ...CoreMocks.getCoreProviderOverrides(),
+          // Ensure no network/plugin calls by making image URLs resolve to null
+          imageServiceProvider.overrideWithValue(_NoopImageService()),
+        ],
+        child: const MaterialApp(
           home: Scaffold(
             body: SizedBox(
               width: 800,
@@ -40,8 +68,12 @@ void main() {
 
   testWidgets('BOTH_ADAPTIVE is vertical in tall constraints', (tester) async {
     await tester.pumpWidget(
-      const ProviderScope(
-        child: MaterialApp(
+      ProviderScope(
+        overrides: [
+          ...CoreMocks.getCoreProviderOverrides(),
+          imageServiceProvider.overrideWithValue(_NoopImageService()),
+        ],
+        child: const MaterialApp(
           home: Scaffold(
             body: SizedBox(
               width: 400,

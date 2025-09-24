@@ -31,10 +31,17 @@ class UsersAnalyticsScreen extends ConsumerWidget implements TitledScreen {
             }
 
             final theme = Theme.of(context);
-            final blue = const Color.fromARGB(255, 0, 89, 255);
-            final yellow = Colors.yellow;
-            final orange = Colors.orange;
-            final red = const Color.fromARGB(255, 255, 70, 57);
+            final colorStops = {
+              1: ColorStop(background: Colors.grey, foreground: Colors.white),
+              2: ColorStop(
+                  background: Color.fromARGB(255, 0, 89, 255),
+                  foreground: Colors.white),
+              4: ColorStop(background: Colors.yellow, foreground: Colors.black),
+              7: ColorStop(background: Colors.orange, foreground: Colors.black),
+              10: ColorStop(
+                  background: Color.fromARGB(255, 255, 70, 57),
+                  foreground: Colors.white),
+            };
 
             // Build chart groups
             final groups = <BarChartGroupData>[];
@@ -51,15 +58,10 @@ class UsersAnalyticsScreen extends ConsumerWidget implements TitledScreen {
               for (int bucket = 10; bucket >= 1; bucket--) {
                 final value = (buckets[bucket] ?? 0).toDouble();
                 if (value <= 0) continue;
-                final color = colorForBucket(
-                  bucket,
-                  blue: blue,
-                  yellow: yellow,
-                  orange: orange,
-                  red: red,
-                );
+                final colors = getColorsForBucket(bucket, colorStops);
                 stacks.add(
-                  BarChartRodStackItem(running, running + value, color),
+                  BarChartRodStackItem(
+                      running, running + value, colors.background),
                 );
                 running += value;
               }
@@ -111,10 +113,7 @@ class UsersAnalyticsScreen extends ConsumerWidget implements TitledScreen {
                         date: date,
                         buckets: buckets,
                         textStyle: textStyle,
-                        blue: blue,
-                        yellow: yellow,
-                        orange: orange,
-                        red: red,
+                        colorStops: colorStops,
                       );
                     },
                   ),
@@ -159,7 +158,7 @@ class UsersAnalyticsScreen extends ConsumerWidget implements TitledScreen {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _Legend(blue: blue, yellow: yellow, orange: orange, red: red),
+                Legend(colorStops: colorStops),
                 const SizedBox(height: 12),
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
@@ -170,62 +169,6 @@ class UsersAnalyticsScreen extends ConsumerWidget implements TitledScreen {
           },
         ),
       ),
-    );
-  }
-}
-
-class _Legend extends StatelessWidget {
-  final Color blue;
-  final Color yellow;
-  final Color orange;
-  final Color red;
-  const _Legend({
-    required this.blue,
-    required this.yellow,
-    required this.orange,
-    required this.red,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final items = List.generate(10, (i) => i + 1);
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        for (final b in items)
-          _LegendChip(
-            color: colorForBucket(
-              b,
-              blue: blue,
-              yellow: yellow,
-              orange: orange,
-              red: red,
-            ),
-            label: b == 10 ? '10+' : '$b',
-            textStyle: theme.textTheme.bodySmall,
-          ),
-      ],
-    );
-  }
-}
-
-class _LegendChip extends StatelessWidget {
-  final Color color;
-  final String label;
-  final TextStyle? textStyle;
-  const _LegendChip({required this.color, required this.label, this.textStyle});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withAlpha((255 * 0.8).round()),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text(label, style: textStyle?.copyWith(color: Colors.black)),
     );
   }
 }

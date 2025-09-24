@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:snickerdoodle/src/config/router/route_names.dart';
 import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
+import 'package:snickerdoodle/src/core/services/app_logger.dart';
 
 /// Auth guard that handles authentication state and redirects
 class AuthGuard {
@@ -20,7 +21,7 @@ class AuthGuard {
         // Only guard admin routes.
         if (currentPath.isAdminRoute) {
           if (user == null || !user.isAdmin) {
-            debugPrint(
+            AppLogger.warn(
               'ROUTER: Blocking admin route for non-admin/unauthenticated: $currentPath',
             );
             return AppRoutes.jokes;
@@ -41,7 +42,9 @@ class AuthGuard {
       error: (error, stackTrace) {
         // On error, be permissive on main routes but block admin.
         if (currentPath.isAdminRoute) {
-          debugPrint('ROUTER: Auth error on admin route, redirecting: $error');
+          AppLogger.warn(
+            'ROUTER: Auth error on admin route, redirecting: $error',
+          );
           return AppRoutes.jokes;
         }
         return null;
@@ -67,7 +70,7 @@ class RouteRefreshNotifier extends ChangeNotifier {
   RouteRefreshNotifier(this._ref) {
     // Listen to auth state changes and refresh routes
     _ref.listen(authStateProvider, (previous, next) {
-      debugPrint('ROUTER: Auth state changed, refreshing routes');
+      AppLogger.debug('ROUTER: Auth state changed, refreshing routes');
       notifyListeners();
     });
   }

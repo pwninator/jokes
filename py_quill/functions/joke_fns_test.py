@@ -752,8 +752,24 @@ class TestOnJokeWrite:
   def mock_firestore_service_fixture(self, monkeypatch):
     """Fixture that mocks the firestore service."""
     mock_firestore = Mock()
-    # Mock the update_punny_joke function that's actually called
     mock_firestore.update_punny_joke = Mock()
+
+    # Mock the db call chain for search subcollection
+    mock_db = MagicMock()
+    mock_collection = MagicMock()
+    mock_doc_ref = MagicMock()
+    mock_sub_collection = MagicMock()
+    mock_sub_doc_ref = MagicMock()
+    mock_snapshot = MagicMock()
+
+    mock_db.collection.return_value = mock_collection
+    mock_collection.document.return_value = mock_doc_ref
+    mock_doc_ref.collection.return_value = mock_sub_collection
+    mock_sub_collection.document.return_value = mock_sub_doc_ref
+    mock_sub_doc_ref.get.return_value = mock_snapshot
+    mock_snapshot.exists = False
+
+    mock_firestore.db = lambda: mock_db
     monkeypatch.setattr(joke_fns, "firestore", mock_firestore)
     return mock_firestore
 
@@ -1579,3 +1595,200 @@ class TestUpscaleJoke:
       "setup_image_url_upscaled"] == "http://example.com/new_setup.png"
     assert resp["data"]["joke_data"][
       "punchline_image_url_upscaled"] == "http://example.com/new_punchline.png"
+
+
+class TestOnJokeWriteSearchSync:
+  """Tests for the on_joke_write cloud function search sync."""
+
+  @pytest.fixture(name="mock_firestore_db")
+  def mock_firestore_db_fixture(self, monkeypatch):
+    """Fixture that mocks firestore.db() for subcollection testing."""
+    mock_db = MagicMock()
+    mock_collection = MagicMock()
+    mock_doc_ref = MagicMock()
+    mock_sub_collection = MagicMock()
+    mock_sub_doc_ref = MagicMock()
+
+    mock_db.collection.return_value = mock_collection
+    mock_collection.document.return_value = mock_doc_ref
+    mock_doc_ref.collection.return_value = mock_sub_collection
+    mock_sub_collection.document.return_value = mock_sub_doc_ref
+
+    # The object to hold the state of the search doc
+    search_doc_state = {"doc": None}
+
+    def mock_get():
+      mock_snapshot = MagicMock()
+      if search_doc_state["doc"]:
+        mock_snapshot.exists = True
+        mock_snapshot.to_dict.return_value = search_doc_state["doc"]
+      else:
+        mock_snapshot.exists = False
+        mock_snapshot.to_dict.return_value = None
+      return mock_snapshot
+
+    def mock_set(data, merge=False):
+      if not search_doc_state["doc"] or not merge:
+        search_doc_state["doc"] = {}
+      search_doc_state["doc"].update(data)
+
+    mock_sub_doc_ref.get.side_effect = mock_get
+    mock_sub_doc_ref.set.side_effect = mock_set
+
+    monkeypatch.setattr(joke_fns.firestore, "db", lambda: mock_db)
+    # also mock the direct update call on the main joke
+    monkeypatch.setattr(joke_fns.firestore, "update_punny_joke", MagicMock())
+
+    return mock_sub_doc_ref, search_doc_state
+
+  def _create_mock_event(self, before_data, after_data):
+    """Helper to create a mock firestore event."""
+    event = MagicMock()
+    event.params = {"joke_id": "joke1"}
+    event.data = MagicMock()
+
+    if before_data:
+      event.data.before = MagicMock()
+      event.data.before.to_dict.return_value = before_data
+    else:
+      event.data.before = None
+
+    if after_data:
+      event.data.after = MagicMock()
+      event.data.after.to_dict.return_value = after_data
+    else:
+      event.data.after = None
+
+    return event
+
+  def test_new_joke_creates_search_doc(self, monkeypatch, mock_firestore_db):
+    """Verify that creating a new joke also creates the search subcollection document."""
+    mock_sub_doc_ref, search_doc_state = mock_firestore_db
+
+    # Mock get_joke_embedding
+    embedding_vector = Vector([1.1, 2.2, 3.3])
+    mock_get_embedding = Mock(
+      return_value=(embedding_vector, models.GenerationMetadata()))
+    monkeypatch.setattr(joke_fns, "get_joke_embedding", mock_get_embedding)
+
+    # Arrange: A new joke is created
+    joke_date = datetime.datetime.now(zoneinfo.ZoneInfo("America/Los_Angeles"))
+    after_joke = models.PunnyJoke(
+      key="joke1",
+      setup_text="Why did the scarecrow win an award?",
+      punchline_text="Because he was outstanding in his field.",
+      state=models.JokeState.UNREVIEWED,
+      public_timestamp=joke_date,
+    )
+    event = self._create_mock_event(before_data=None,
+                                    after_data=after_joke.to_dict())
+
+    # Act
+    joke_fns.on_joke_write.__wrapped__(event)
+
+    # Assert
+    mock_get_embedding.assert_called_once()
+    mock_sub_doc_ref.set.assert_called_once()
+
+    # Check the content of the search doc
+    synced_data = search_doc_state["doc"]
+    assert synced_data is not None
+    assert synced_data["text_embedding"] == embedding_vector
+    assert synced_data["state"] == models.JokeState.UNREVIEWED
+    assert synced_data["public_timestamp"] == joke_date
+
+  def test_joke_state_change_updates_search_doc(self, monkeypatch,
+                                                mock_firestore_db):
+    """Verify that changing a joke's state updates the search subcollection document."""
+    mock_sub_doc_ref, search_doc_state = mock_firestore_db
+
+    # Pre-fill the search doc state
+    existing_embedding = Vector([1.0, 2.0])
+    search_doc_state["doc"] = {
+      "text_embedding": existing_embedding,
+      "state": models.JokeState.UNREVIEWED,
+      "public_timestamp": None,
+      "popularity_score": 0,
+    }
+
+    # Arrange: A joke's state is changed
+    before_joke = models.PunnyJoke(
+      key="joke1",
+      setup_text="A joke.",
+      punchline_text="A punchline.",
+      state=models.JokeState.UNREVIEWED,
+      zzz_joke_text_embedding=existing_embedding,
+      popularity_score=0,
+    )
+    after_joke = models.PunnyJoke(
+      key="joke1",
+      setup_text="A joke.",
+      punchline_text="A punchline.",
+      state=models.JokeState.PUBLISHED,  # State changed
+      zzz_joke_text_embedding=existing_embedding,
+      popularity_score=0,
+    )
+    event = self._create_mock_event(before_data=before_joke.to_dict(),
+                                    after_data=after_joke.to_dict())
+
+    # Act
+    joke_fns.on_joke_write.__wrapped__(event)
+
+    # Assert
+    mock_sub_doc_ref.set.assert_called_once_with(
+      {
+        "state": models.JokeState.PUBLISHED
+      }, merge=True)
+    synced_data = search_doc_state["doc"]
+    assert synced_data["state"] == models.JokeState.PUBLISHED
+    assert synced_data["text_embedding"] == existing_embedding  # Should not change
+
+  def test_popularity_score_change_updates_search_doc(self, monkeypatch,
+                                                       mock_firestore_db):
+    """Verify that changing a joke's popularity score updates the search subcollection document."""
+    mock_sub_doc_ref, search_doc_state = mock_firestore_db
+
+    # Pre-fill the search doc state
+    existing_embedding = Vector([1.0, 2.0])
+    search_doc_state["doc"] = {
+      "text_embedding": existing_embedding,
+      "state": models.JokeState.PUBLISHED,
+      "public_timestamp": None,
+      "popularity_score": 0,
+    }
+
+    # Arrange: A joke's save/share count changes
+    before_joke = models.PunnyJoke(
+      key="joke1",
+      setup_text="A joke.",
+      punchline_text="A punchline.",
+      state=models.JokeState.PUBLISHED,
+      zzz_joke_text_embedding=existing_embedding,
+      num_saves=0,
+      num_shares=0,
+      popularity_score=0,
+    )
+    after_joke = models.PunnyJoke(
+      key="joke1",
+      setup_text="A joke.",
+      punchline_text="A punchline.",
+      state=models.JokeState.PUBLISHED,
+      zzz_joke_text_embedding=existing_embedding,
+      num_saves=10,
+      num_shares=2,
+      popularity_score=0,  # This is now incorrect, will be recalculated
+    )
+    event = self._create_mock_event(before_data=before_joke.to_dict(),
+                                    after_data=after_joke.to_dict())
+
+    # Act
+    joke_fns.on_joke_write.__wrapped__(event)
+
+    # Assert
+    expected_score = 10 + (2 * 5)  # 20
+    mock_sub_doc_ref.set.assert_called_once_with(
+      {
+        "popularity_score": expected_score
+      }, merge=True)
+    synced_data = search_doc_state["doc"]
+    assert synced_data["popularity_score"] == expected_score

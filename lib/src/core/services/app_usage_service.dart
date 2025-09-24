@@ -5,6 +5,7 @@ import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/providers/app_usage_events_provider.dart';
 import 'package:snickerdoodle/src/core/providers/shared_preferences_provider.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
+import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/review_prompt_state_store.dart';
 import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
@@ -89,7 +90,7 @@ class AppUsageService {
         try {
           service.logAppUsageDayIncremented(numDaysUsed: newNumDaysUsed);
         } catch (e) {
-          debugPrint('APP_USAGE analytics error: $e');
+          AppLogger.warn('APP_USAGE analytics error: $e');
         }
       }
       // Do not await remote sync to keep UI responsive
@@ -101,7 +102,7 @@ class AppUsageService {
     changes.add('first_used_date: ${oldFirstUsed ?? '(null)'} -> $today');
     changes.add('last_used_date: ${oldLastUsed ?? '(null)'} -> $newLastUsed');
     changes.add('num_days_used: $oldNumDaysUsed -> $newNumDaysUsed');
-    debugPrint('APP_USAGE logAppUsage: { ${changes.join(', ')} }');
+    AppLogger.debug('APP_USAGE logAppUsage: { ${changes.join(', ')} }');
   }
 
   /// Increment the number of jokes viewed counter.
@@ -116,7 +117,7 @@ class AppUsageService {
 
     // Fire-and-forget usage snapshot to backend
     _pushUsageSnapshot();
-    debugPrint(
+    AppLogger.debug(
       'APP_USAGE logJokeViewed: { num_jokes_viewed: $oldCount -> $newCount }',
     );
   }
@@ -130,7 +131,7 @@ class AppUsageService {
 
     // Fire-and-forget usage snapshot to backend
     _pushUsageSnapshot();
-    debugPrint(
+    AppLogger.debug(
       'APP_USAGE incrementSavedJokesCount: { num_saved_jokes: $oldCount -> $newCount }',
     );
   }
@@ -144,7 +145,7 @@ class AppUsageService {
 
     // Fire-and-forget usage snapshot to backend
     _pushUsageSnapshot();
-    debugPrint(
+    AppLogger.debug(
       'APP_USAGE decrementSavedJokesCount: { num_saved_jokes: $oldCount -> $newCount }',
     );
   }
@@ -158,7 +159,7 @@ class AppUsageService {
 
     // Fire-and-forget usage snapshot to backend
     _pushUsageSnapshot();
-    debugPrint(
+    AppLogger.debug(
       'APP_USAGE incrementSharedJokesCount: { num_shared_jokes: $oldCount -> $newCount }',
     );
   }
@@ -243,7 +244,7 @@ class AppUsageService {
       // Skip backend sync in debug mode or for admin users (mirrors analytics behavior)
       final bool isAdmin = _ref?.read(isAdminProvider) ?? false;
       if ((_isDebugMode ?? kDebugMode) || isAdmin) {
-        debugPrint(
+        AppLogger.debug(
           'APP_USAGE SKIPPED (${isAdmin ? 'ADMIN' : 'DEBUG'}): trackUsage snapshot not sent',
         );
         return;
@@ -266,11 +267,13 @@ class AppUsageService {
               numShared: numShared,
               requestedReview: requestedReview,
             )
-            .catchError((e, _) => debugPrint('APP_USAGE trackUsage error: $e')),
+            .catchError(
+              (e, _) => AppLogger.warn('APP_USAGE trackUsage error: $e'),
+            ),
       );
       await Future.wait(futures);
     } catch (e) {
-      debugPrint('APP_USAGE pushUsageSnapshot error: $e');
+      AppLogger.warn('APP_USAGE pushUsageSnapshot error: $e');
     }
   }
 }

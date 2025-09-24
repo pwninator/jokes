@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
+import 'package:snickerdoodle/src/core/services/app_logger.dart';
 
 /// Formats hour (0-23) to 12-hour format with AM/PM
 String _formatHour(int hour) {
@@ -257,7 +258,7 @@ class _HourDisplayWidgetState extends ConsumerState<HourDisplayWidget> {
         );
       }
     } catch (e) {
-      debugPrint('ERROR: _updateNotificationHour: $e');
+      AppLogger.warn('ERROR: _updateNotificationHour: $e');
       // Log analytics/crash for hour update failure
       final analytics = ref.read(analyticsServiceProvider);
       analytics.logErrorSubscriptionTimeUpdate(

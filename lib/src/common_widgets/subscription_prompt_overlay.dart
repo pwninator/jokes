@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/common_widgets/subscription_prompt_dialog.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
+import 'package:snickerdoodle/src/core/services/app_logger.dart';
 
 /// Global overlay that listens to subscription prompt state and shows dialog when needed
 class SubscriptionPromptOverlay extends ConsumerStatefulWidget {
@@ -61,7 +62,7 @@ class _SubscriptionPromptOverlayState
         );
         analyticsService.logSubscriptionPromptShown();
       } catch (e) {
-        debugPrint('Error showing subscription dialog: $e');
+        AppLogger.warn('Error showing subscription dialog: $e');
         analyticsService.logErrorSubscriptionPrompt(
           errorMessage: e.toString(),
           phase: 'show_dialog',

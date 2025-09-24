@@ -6,6 +6,7 @@ import 'package:snickerdoodle/src/core/providers/app_usage_events_provider.dart'
 import 'package:snickerdoodle/src/core/providers/feedback_providers.dart';
 import 'package:snickerdoodle/src/core/services/feedback_prompt_state_store.dart';
 import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
+import 'package:snickerdoodle/src/core/services/app_logger.dart';
 
 class FeedbackDialog extends ConsumerStatefulWidget {
   final FeedbackEntry? feedbackEntry;
@@ -160,7 +161,7 @@ class _FeedbackDialogState extends ConsumerState<FeedbackDialog> {
         );
       }
     } catch (e) {
-      debugPrint('ERROR: feedback_dialog: _handleSubmit: $e');
+      AppLogger.warn('ERROR: feedback_dialog: _handleSubmit: $e');
       // Log analytics/crash for feedback submission failure
       try {
         final analytics = ref.read(analyticsServiceProvider);

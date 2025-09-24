@@ -17,28 +17,40 @@ List<(String, int)> buildUsersTooltipLines(Map<int, int> buckets) {
   return lines;
 }
 
-// Color ramp helper: 1 -> grey, 2 -> blue, 4 -> yellow, 7 -> orange, 10+ -> red
-Color colorForBucket(
-  int bucket, {
-  required Color blue,
-  required Color yellow,
-  required Color orange,
-  required Color red,
-}) {
-  if (bucket <= 1) return Colors.grey;
-  if (bucket >= 10) return red;
-  if (bucket <= 4) {
-    // 2,3,4 -> blue to yellow
-    final t = (bucket - 2) / (4 - 2);
-    return Color.lerp(blue, yellow, t)!;
+class ColorStop {
+  final Color background;
+  final Color foreground;
+  const ColorStop({required this.background, required this.foreground});
+
+  static ColorStop lerp(
+      ColorStop a, ColorStop b, double t) {
+    return ColorStop(
+      background: Color.lerp(a.background, b.background, t)!,
+      foreground: Color.lerp(a.foreground, b.foreground, t)!,
+    );
   }
-  if (bucket <= 7) {
-    final t = (bucket - 4) / (7 - 4); // 0..1
-    return Color.lerp(yellow, orange, t)!;
+}
+
+ColorStop getColorsForBucket(
+  int bucket,
+  Map<int, ColorStop> colorStops,
+) {
+  if (colorStops.containsKey(bucket)) {
+    return colorStops[bucket]!;
   }
-  // 8..9 -> orange->red
-  final t = (bucket - 7) / (10 - 7); // 0..1 for 8..9
-  return Color.lerp(orange, red, t)!;
+
+  final sortedKeys = colorStops.keys.toList()..sort();
+  if (bucket < sortedKeys.first) return colorStops[sortedKeys.first]!;
+  if (bucket > sortedKeys.last) return colorStops[sortedKeys.last]!;
+
+  int p = 0;
+  while (p < sortedKeys.length && sortedKeys[p] < bucket) {
+    p++;
+  }
+  final prevKey = sortedKeys[p - 1];
+  final nextKey = sortedKeys[p];
+  final t = (bucket - prevKey) / (nextKey - prevKey);
+  return ColorStop.lerp(colorStops[prevKey]!, colorStops[nextKey]!, t);
 }
 
 String formatShortDate(DateTime utcDay) {
@@ -64,10 +76,7 @@ BarTooltipItem buildUsersAnalyticsTooltip({
   required DateTime date,
   required Map<int, int> buckets,
   required TextStyle textStyle,
-  required Color blue,
-  required Color yellow,
-  required Color orange,
-  required Color red,
+  required Map<int, ColorStop> colorStops,
 }) {
   final lines = buildUsersTooltipLines(buckets);
 
@@ -84,17 +93,21 @@ BarTooltipItem buildUsersAnalyticsTooltip({
   for (final lineData in lines) {
     final label = lineData.$1;
     final bucket = lineData.$2;
-    final color = bucket == -1
-        ? textStyle.color
-        : colorForBucket(
+    final colors = bucket == -1
+        ? ColorStop(
+            background: Colors.transparent,
+            foreground: textStyle.color ?? Colors.black)
+        : getColorsForBucket(
             bucket,
-            blue: blue,
-            yellow: yellow,
-            orange: orange,
-            red: red,
+            colorStops,
           );
     children.add(
-      TextSpan(text: '$label\n', style: textStyle.copyWith(color: color)),
+      TextSpan(
+          text: '$label\n',
+          style: textStyle.copyWith(
+            color: colors.foreground,
+            backgroundColor: colors.background,
+          )),
     );
   }
   if (children.isNotEmpty) {
@@ -111,4 +124,48 @@ BarTooltipItem buildUsersAnalyticsTooltip({
     children: children,
     textAlign: TextAlign.left,
   );
+}
+
+class Legend extends StatelessWidget {
+  final Map<int, ColorStop> colorStops;
+  const Legend({required this.colorStops});
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final items = List.generate(10, (i) => i + 1);
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (final b in items)
+          LegendChip(
+            colors: getColorsForBucket(b, colorStops),
+            label: b == 10 ? '10+' : '$b',
+            textStyle: theme.textTheme.bodySmall,
+          ),
+      ],
+    );
+  }
+}
+
+class LegendChip extends StatelessWidget {
+  final String label;
+  final TextStyle? textStyle;
+  final ColorStop colors;
+
+  const LegendChip(
+      {required this.label, required this.colors, this.textStyle});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: colors.background,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(label, style: textStyle?.copyWith(color: colors.foreground)),
+    );
+  }
 }

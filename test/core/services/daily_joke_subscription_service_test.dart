@@ -52,7 +52,9 @@ void main() {
       // Set up mock sync service
       mockSyncService = MockDailyJokeSubscriptionService();
       when(
-        () => mockSyncService.ensureSubscriptionSync(),
+        () => mockSyncService.ensureSubscriptionSync(
+          unsubscribeOthers: any(named: 'unsubscribeOthers'),
+        ),
       ).thenAnswer((_) async => true);
 
       // Create container with overrides
@@ -155,7 +157,9 @@ void main() {
         expect(container.read(subscriptionProvider).isSubscribed, isTrue);
         expect(sharedPreferences.getBool('daily_jokes_subscribed'), isTrue);
         verify(
-          () => mockSyncService.ensureSubscriptionSync(),
+          () => mockSyncService.ensureSubscriptionSync(
+            unsubscribeOthers: any(named: 'unsubscribeOthers'),
+          ),
         ).called(2); // Once on init, once on change
       });
 
@@ -174,8 +178,21 @@ void main() {
           equals(14),
         );
         verify(
-          () => mockSyncService.ensureSubscriptionSync(),
+          () => mockSyncService.ensureSubscriptionSync(
+            unsubscribeOthers: any(named: 'unsubscribeOthers'),
+          ),
         ).called(2); // Once on init, once on change
+      });
+
+      test('startup sync should not unsubscribe others', () async {
+        // Force provider instantiation to trigger constructor sync
+        container.read(subscriptionProvider.notifier);
+
+        // Verify it was called with unsubscribeOthers: false
+        verify(
+          () =>
+              mockSyncService.ensureSubscriptionSync(unsubscribeOthers: false),
+        ).called(1);
       });
 
       test('should reject invalid hours', () async {
@@ -286,7 +303,7 @@ void main() {
 
         // Verify no subscribe calls (not subscribed)
         verifyNever(() => mockFirebaseMessaging.subscribeToTopic(any()));
-        // Should still unsubscribe from all topics to clean up
+        // Should unsubscribe from all topics to clean up (default unsubscribeOthers=true)
         verify(
           () => mockFirebaseMessaging.unsubscribeFromTopic(any()),
         ).called(greaterThan(0));
@@ -301,7 +318,7 @@ void main() {
 
         // Should subscribe to the correct topic
         verify(() => mockFirebaseMessaging.subscribeToTopic(any())).called(1);
-        // Should unsubscribe from other topics
+        // Should unsubscribe from other topics (default unsubscribeOthers=true)
         verify(
           () => mockFirebaseMessaging.unsubscribeFromTopic(any()),
         ).called(greaterThan(0));
@@ -421,7 +438,9 @@ void main() {
 
       mockSyncService = MockDailyJokeSubscriptionService();
       when(
-        () => mockSyncService.ensureSubscriptionSync(),
+        () => mockSyncService.ensureSubscriptionSync(
+          unsubscribeOthers: any(named: 'unsubscribeOthers'),
+        ),
       ).thenAnswer((_) async => true);
 
       container = ProviderContainer(

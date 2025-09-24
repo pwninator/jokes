@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_category_providers.dart';
+import 'package:snickerdoodle/src/features/jokes/domain/joke_search_result.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_search_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_category.dart';
@@ -98,8 +99,6 @@ void main() {
     final field = find.byKey(const Key('search_screen-search-field'));
     await tester.enterText(field, 'cat');
     await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 50));
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('search-results-count')), findsOneWidget);
@@ -164,8 +163,6 @@ void main() {
     final field = find.byKey(const Key('search_screen-search-field'));
     await tester.enterText(field, 'dog');
     await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 50));
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('search-results-count')), findsOneWidget);
@@ -177,6 +174,12 @@ void main() {
   ) async {
     final overrides = FirebaseMocks.getFirebaseProviderOverrides(
       additionalOverrides: [
+        searchResultIdsProvider(SearchScope.userJokeSearch).overrideWith(
+          (ref) => Future.value([
+            const JokeSearchResult(id: 'a', vectorDistance: 0),
+            const JokeSearchResult(id: 'b', vectorDistance: 0),
+          ]),
+        ),
         searchResultsViewerProvider(SearchScope.userJokeSearch).overrideWith(
           (ref) => Stream.value(const [
             JokeWithDate(
@@ -212,8 +215,6 @@ void main() {
     final field = find.byKey(const Key('search_screen-search-field'));
     await tester.enterText(field, 'fish');
     await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 50));
     await tester.pumpAndSettle();
 
     // Title should be the index (1-based) for the first card

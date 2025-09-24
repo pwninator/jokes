@@ -4,10 +4,10 @@ import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter/foundation.dart';
 import 'package:snickerdoodle/src/core/services/analytics_events.dart';
 import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
+import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/crash_reporting_service.dart';
 import 'package:snickerdoodle/src/features/auth/data/models/app_user.dart';
 import 'package:snickerdoodle/src/utils/device_utils.dart';
-import 'package:snickerdoodle/src/core/services/app_logger.dart';
 
 /// Abstract interface for analytics service
 /// This allows for easy mocking in tests
@@ -71,10 +71,7 @@ abstract class AnalyticsService {
   });
 
   /// Share funnel: user initiated sharing
-  void logJokeShareInitiated(
-    String jokeId, {
-    required String jokeContext,
-  });
+  void logJokeShareInitiated(String jokeId, {required String jokeContext});
 
   /// Share funnel: user canceled/dismissed share sheet (failure, not error)
   void logJokeShareCanceled(
@@ -431,21 +428,18 @@ class FirebaseAnalyticsService implements AnalyticsService {
       AnalyticsParameters.jokeId: jokeId,
       AnalyticsParameters.jokeContext: jokeContext,
       AnalyticsParameters.totalJokesShared: totalJokesShared,
-      'share_success_count': 1,
+      AnalyticsParameters.shareSuccessCount: 1,
       if (shareDestination != null)
         AnalyticsParameters.shareDestination: shareDestination,
     });
   }
 
   @override
-  void logJokeShareInitiated(
-    String jokeId, {
-    required String jokeContext,
-  }) {
+  void logJokeShareInitiated(String jokeId, {required String jokeContext}) {
     _logEvent(AnalyticsEvent.jokeShareInitiated, {
       AnalyticsParameters.jokeId: jokeId,
       AnalyticsParameters.jokeContext: jokeContext,
-      'share_initiated_count': 1,
+      AnalyticsParameters.shareInitiatedCount: 1,
     });
   }
 
@@ -458,7 +452,7 @@ class FirebaseAnalyticsService implements AnalyticsService {
     _logEvent(AnalyticsEvent.jokeShareCanceled, {
       AnalyticsParameters.jokeId: jokeId,
       AnalyticsParameters.jokeContext: jokeContext,
-      'share_canceled_count': 1,
+      AnalyticsParameters.shareCanceledCount: 1,
       if (shareDestination != null)
         AnalyticsParameters.shareDestination: shareDestination,
     });
@@ -476,7 +470,7 @@ class FirebaseAnalyticsService implements AnalyticsService {
       AnalyticsParameters.jokeId: jokeId,
       AnalyticsParameters.jokeContext: jokeContext,
       AnalyticsParameters.errorMessage: errorMessage,
-      'share_error_count': 1,
+      AnalyticsParameters.shareErrorCount: 1,
       if (errorContext != null) AnalyticsParameters.errorContext: errorContext,
       if (exceptionType != null)
         AnalyticsParameters.exceptionType: exceptionType,

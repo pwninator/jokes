@@ -57,6 +57,12 @@ class AnalyticsParameters {
   static const String imageType = 'image_type';
   static const String imageUrlHash = 'image_url_hash';
   static const String exceptionType = 'exception_type';
+
+  // Share count parameters
+  static const String shareSuccessCount = 'share_success_count';
+  static const String shareInitiatedCount = 'share_initiated_count';
+  static const String shareCanceledCount = 'share_canceled_count';
+  static const String shareErrorCount = 'share_error_count';
 }
 
 /// User type values for analytics

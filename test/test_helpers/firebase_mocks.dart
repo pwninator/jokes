@@ -188,15 +188,16 @@ class FirebaseMocks {
     when(() => mock.collection('jokes')).thenReturn(mockCollection);
 
     final mockQuery = MockQuery<Map<String, dynamic>>();
-    when(() => mockCollection.where(any,
-        whereIn: any(named: 'whereIn'))).thenReturn(mockQuery);
+    when(
+      () => mockCollection.where(any, whereIn: any(named: 'whereIn')),
+    ).thenReturn(mockQuery);
 
     final mockQuerySnapshot = MockQuerySnapshot();
     when(() => mockQuery.get(any())).thenAnswer((_) async => mockQuerySnapshot);
 
-    when(() => mockCollection.get(any())).thenAnswer(
-      (_) async => MockQuerySnapshot(),
-    );
+    when(
+      () => mockCollection.get(any()),
+    ).thenAnswer((_) async => MockQuerySnapshot());
 
     final mockDocRef = MockDocumentReference();
     when(() => mockCollection.doc(any())).thenReturn(mockDocRef);
@@ -206,7 +207,8 @@ class FirebaseMocks {
   }
 }
 
-class MockQuerySnapshot extends Mock implements QuerySnapshot<Map<String, dynamic>> {
+class MockQuerySnapshot extends Mock
+    implements QuerySnapshot<Map<String, dynamic>> {
   @override
   List<QueryDocumentSnapshot<Map<String, dynamic>>> get docs => [];
 }

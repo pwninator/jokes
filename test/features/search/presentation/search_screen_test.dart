@@ -72,7 +72,13 @@ void main() {
         ),
         jokeStreamByIdProvider('1').overrideWith(
           (ref) => Stream.value(
-            const Joke(id: '1', setupText: 's', punchlineText: 'p', setupImageUrl: 'a', punchlineImageUrl: 'b'),
+            const Joke(
+              id: '1',
+              setupText: 's',
+              punchlineText: 'p',
+              setupImageUrl: 'a',
+              punchlineImageUrl: 'b',
+            ),
           ),
         ),
       ],
@@ -80,7 +86,9 @@ void main() {
     addTearDown(container.dispose);
 
     // Set query so provider returns a result
-    final notifier = container.read(searchQueryProvider(SearchScope.userJokeSearch).notifier);
+    final notifier = container.read(
+      searchQueryProvider(SearchScope.userJokeSearch).notifier,
+    );
     notifier.state = notifier.state.copyWith(query: 'cat');
 
     await tester.pumpWidget(
@@ -111,15 +119,47 @@ void main() {
             const JokeSearchResult(id: '3', vectorDistance: 0.3),
           ],
         ),
-        jokeStreamByIdProvider('1').overrideWith((ref) => Stream.value(const Joke(id: '1', setupText: 's1', punchlineText: 'p1', setupImageUrl: 'a', punchlineImageUrl: 'b'))),
-        jokeStreamByIdProvider('2').overrideWith((ref) => Stream.value(const Joke(id: '2', setupText: 's2', punchlineText: 'p2', setupImageUrl: 'a', punchlineImageUrl: 'b'))),
-        jokeStreamByIdProvider('3').overrideWith((ref) => Stream.value(const Joke(id: '3', setupText: 's3', punchlineText: 'p3', setupImageUrl: 'a', punchlineImageUrl: 'b'))),
+        jokeStreamByIdProvider('1').overrideWith(
+          (ref) => Stream.value(
+            const Joke(
+              id: '1',
+              setupText: 's1',
+              punchlineText: 'p1',
+              setupImageUrl: 'a',
+              punchlineImageUrl: 'b',
+            ),
+          ),
+        ),
+        jokeStreamByIdProvider('2').overrideWith(
+          (ref) => Stream.value(
+            const Joke(
+              id: '2',
+              setupText: 's2',
+              punchlineText: 'p2',
+              setupImageUrl: 'a',
+              punchlineImageUrl: 'b',
+            ),
+          ),
+        ),
+        jokeStreamByIdProvider('3').overrideWith(
+          (ref) => Stream.value(
+            const Joke(
+              id: '3',
+              setupText: 's3',
+              punchlineText: 'p3',
+              setupImageUrl: 'a',
+              punchlineImageUrl: 'b',
+            ),
+          ),
+        ),
       ],
     );
     addTearDown(container.dispose);
 
     // Set query so provider returns results
-    final notifier = container.read(searchQueryProvider(SearchScope.userJokeSearch).notifier);
+    final notifier = container.read(
+      searchQueryProvider(SearchScope.userJokeSearch).notifier,
+    );
     notifier.state = notifier.state.copyWith(query: 'dog');
 
     await tester.pumpWidget(
@@ -165,14 +205,17 @@ void main() {
     final container = ProviderContainer(
       overrides: [
         ...FirebaseMocks.getFirebaseProviderOverrides(),
-        searchResultsViewerProvider(SearchScope.userJokeSearch)
-            .overrideWith((ref) => Stream.value(jokes)),
+        searchResultsViewerProvider(
+          SearchScope.userJokeSearch,
+        ).overrideWith((ref) => Stream.value(jokes)),
       ],
     );
     addTearDown(container.dispose);
 
     // Set query so provider returns results
-    final notifier = container.read(searchQueryProvider(SearchScope.userJokeSearch).notifier);
+    final notifier = container.read(
+      searchQueryProvider(SearchScope.userJokeSearch).notifier,
+    );
     notifier.state = notifier.state.copyWith(query: 'fish');
 
     await tester.pumpWidget(

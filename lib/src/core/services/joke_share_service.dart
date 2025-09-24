@@ -92,10 +92,7 @@ class JokeShareServiceImpl implements JokeShareService {
   }) async {
     // For now, use the images sharing method as default
     // Track share initiation
-    _analyticsService.logJokeShareInitiated(
-      joke.id,
-      jokeContext: jokeContext,
-    );
+    _analyticsService.logJokeShareInitiated(joke.id, jokeContext: jokeContext);
     // This can be expanded to use different strategies based on joke content
     final shareResult = await _shareJokeImagesWithResult(
       joke,

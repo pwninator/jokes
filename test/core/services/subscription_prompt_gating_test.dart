@@ -21,7 +21,11 @@ void main() {
     final prefs = await SharedPreferences.getInstance();
     final sync = _MockSyncService();
 
-    when(() => sync.ensureSubscriptionSync()).thenAnswer((_) async => true);
+    when(
+      () => sync.ensureSubscriptionSync(
+        unsubscribeOthers: any(named: 'unsubscribeOthers'),
+      ),
+    ).thenAnswer((_) async => true);
     final subscriptionNotifier = SubscriptionNotifier(prefs, sync);
     final rcValues = _TestRCValues(threshold: 7);
     final promptNotifier = SubscriptionPromptNotifier(
@@ -38,7 +42,11 @@ void main() {
     final prefs = await SharedPreferences.getInstance();
     final sync = _MockSyncService();
 
-    when(() => sync.ensureSubscriptionSync()).thenAnswer((_) async => true);
+    when(
+      () => sync.ensureSubscriptionSync(
+        unsubscribeOthers: any(named: 'unsubscribeOthers'),
+      ),
+    ).thenAnswer((_) async => true);
     final subscriptionNotifier = SubscriptionNotifier(prefs, sync);
     final rcValues = _TestRCValues(threshold: 5);
     final promptNotifier = SubscriptionPromptNotifier(

@@ -1,9 +1,9 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/core/services/app_review_service.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:snickerdoodle/src/core/services/review_prompt_state_store.dart';
+import 'package:snickerdoodle/src/core/services/app_logger.dart';
 
 /// Coordinates eligibility checks and attempts an in-app review prompt
 class ReviewPromptCoordinator {
@@ -26,11 +26,13 @@ class ReviewPromptCoordinator {
     required ReviewRequestSource source,
   }) async {
     try {
-      debugPrint('REVIEW_COORDINATOR maybePromptForReview');
+      AppLogger.debug('REVIEW_COORDINATOR maybePromptForReview');
 
       // Early out if previously requested
       if (await _store.hasRequested()) {
-        debugPrint('REVIEW_COORDINATOR maybePromptForReview already requested');
+        AppLogger.debug(
+          'REVIEW_COORDINATOR maybePromptForReview already requested',
+        );
         return;
       }
 
@@ -54,11 +56,13 @@ class ReviewPromptCoordinator {
           viewed >= minViewed;
       if (!eligible) return;
 
-      debugPrint('REVIEW_COORDINATOR maybePromptForReview requesting review');
+      AppLogger.debug(
+        'REVIEW_COORDINATOR maybePromptForReview requesting review',
+      );
       // The review service is responsible for marking attempts
       await _review.requestReview(source: source);
     } catch (e) {
-      debugPrint('REVIEW_COORDINATOR maybePromptForReview error: $e');
+      AppLogger.warn('REVIEW_COORDINATOR maybePromptForReview error: $e');
     }
   }
 }

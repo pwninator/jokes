@@ -1,11 +1,12 @@
 import 'dart:io';
+import 'dart:isolate';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:image/image.dart' as img;
 import 'package:path/path.dart' as p;
 import 'package:share_plus/share_plus.dart';
+import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 
 class ImageService {
@@ -60,7 +61,7 @@ class ImageService {
             'format',
           ); // For URLs with format query
     } catch (e) {
-      debugPrint('Invalid image URL: $url, Error: $e');
+      AppLogger.debug('Invalid image URL: $url, Error: $e');
       return false;
     }
   }
@@ -149,7 +150,7 @@ class ImageService {
 
       return optimizedUrl;
     } catch (e) {
-      debugPrint('Error optimizing Cloudflare URL: $e');
+      AppLogger.debug('Error optimizing Cloudflare URL: $e');
       return url; // Return original URL if optimization fails
     }
   }
@@ -173,9 +174,9 @@ class ImageService {
   Future<void> clearCache() async {
     try {
       await DefaultCacheManager().emptyCache();
-      debugPrint('Image cache cleared successfully');
+      AppLogger.debug('Image cache cleared successfully');
     } catch (e) {
-      debugPrint('Error clearing image cache: $e');
+      AppLogger.debug('Error clearing image cache: $e');
     }
   }
 
@@ -199,11 +200,11 @@ class ImageService {
       // Download and cache to disk using DefaultCacheManager
       // CachedNetworkImage will find this in disk cache and load instantly
       await DefaultCacheManager().downloadFile(processedUrl);
-      debugPrint('Precached image: $processedUrl');
+      AppLogger.debug('Precached image: $processedUrl');
       return processedUrl;
-    } catch (error, stackTrace) {
+    } catch (error, _) {
       // Silently handle preload errors - the actual image widget will show error state
-      debugPrint('Failed to precache image $imageUrl: $error\n$stackTrace');
+      AppLogger.warn('Failed to precache image $imageUrl: $error');
       return null;
     }
   }
@@ -229,7 +230,7 @@ class ImageService {
       final imageFile = await DefaultCacheManager().getSingleFile(url);
       return XFile(imageFile.path);
     } catch (e) {
-      debugPrint('Error getting cached file from URL: $e');
+      AppLogger.debug('Error getting cached file from URL: $e');
       return null;
     }
   }
@@ -241,7 +242,7 @@ class ImageService {
       try {
         await precacheJokeImages(joke);
       } catch (e) {
-        debugPrint('Failed to precache images for joke ${joke.id}: $e');
+        AppLogger.warn('Failed to precache images for joke ${joke.id}: $e');
       }
     }
   }
@@ -255,46 +256,18 @@ class ImageService {
   }) async {
     try {
       final baseBytes = await baseFile.readAsBytes();
-      final baseImage = img.decodeImage(baseBytes);
-      if (baseImage == null) {
-        return baseFile;
-      }
-
-      // Load watermark asset
       final ByteData wmData = await rootBundle.load(watermarkAssetPath);
-      final wmImage = img.decodeImage(wmData.buffer.asUint8List());
-      if (wmImage == null) {
-        return baseFile;
-      }
+      final Uint8List wmBytes = wmData.buffer.asUint8List();
 
-      // Resize watermark to a fraction of base width
-      final int targetWidth = (baseImage.width * targetWidthFraction).round();
-      final img.Image resizedWm = img.copyResize(
-        wmImage,
-        width: targetWidth.clamp(1, baseImage.width),
-        interpolation: img.Interpolation.linear,
-      );
-
-      // Compute placement: bottom-left with padding
-      const int leftPaddingPx = 16;
-      final int dstX = leftPaddingPx.clamp(
-        0,
-        baseImage.width - resizedWm.width,
-      );
-      final int dstY = (baseImage.height - resizedWm.height - bottomPaddingPx)
-          .clamp(0, baseImage.height - resizedWm.height)
-          .toInt();
-
-      // Composite watermark onto base image with alpha blending
-      final img.Image composed = img.compositeImage(
-        baseImage.clone(),
-        resizedWm,
-        dstX: dstX,
-        dstY: dstY,
-      );
-
-      // Encode to PNG
-      final outBytes = img.encodePng(composed);
+      // Offload CPU-heavy composition to a background isolate
+      final Uint8List outBytes = await Isolate.run(() {
+        return composeWatermarkSync(
+          baseBytes,
+          wmBytes,
+          targetWidthFraction: targetWidthFraction,
+          bottomPaddingPx: bottomPaddingPx,
+        );
+      });
 
       // Write to a temp file (use system temp to avoid platform channel dependency)
       final String tempDir = Directory.systemTemp.path;
@@ -306,17 +279,57 @@ class ImageService {
       await outFile.writeAsBytes(outBytes, flush: true);
       return XFile(outFile.path);
     } catch (e) {
-      debugPrint('addWatermarkToFile failed: $e');
+      // Surface to crash reporting as non-fatal via caller-specific service when appropriate
+      AppLogger.warn('addWatermarkToFile failed: $e');
       return baseFile;
     }
   }
 
   /// Convenience helper to watermark multiple files
   Future<List<XFile>> addWatermarkToFiles(List<XFile> files) async {
-    final List<XFile> results = [];
-    for (final file in files) {
-      results.add(await addWatermarkToFile(file));
-    }
+    final results = await Future.wait(
+      files.map((file) => addWatermarkToFile(file)),
+    );
     return results;
   }
+}
+
+/// Pure function: compose a watermark PNG over a base image and return PNG bytes.
+/// Safe to call in an isolate. Throws if decoding fails.
+Uint8List composeWatermarkSync(
+  Uint8List baseBytes,
+  Uint8List watermarkPngBytes, {
+  double targetWidthFraction = 0.35,
+  int bottomPaddingPx = 16,
+}) {
+  final img.Image? baseImage = img.decodeImage(baseBytes);
+  if (baseImage == null) {
+    throw StateError('Failed to decode base image');
+  }
+  final img.Image? wmImage = img.decodeImage(watermarkPngBytes);
+  if (wmImage == null) {
+    throw StateError('Failed to decode watermark image');
+  }
+
+  final int targetWidth = (baseImage.width * targetWidthFraction).round();
+  final img.Image resizedWm = img.copyResize(
+    wmImage,
+    width: targetWidth.clamp(1, baseImage.width),
+    interpolation: img.Interpolation.linear,
+  );
+
+  const int leftPaddingPx = 16;
+  final int dstX = leftPaddingPx.clamp(0, baseImage.width - resizedWm.width);
+  final int dstY = (baseImage.height - resizedWm.height - bottomPaddingPx)
+      .clamp(0, baseImage.height - resizedWm.height)
+      .toInt();
+
+  final img.Image composed = img.compositeImage(
+    baseImage.clone(),
+    resizedWm,
+    dstX: dstX,
+    dstY: dstY,
+  );
+
+  return Uint8List.fromList(img.encodePng(composed));
 }

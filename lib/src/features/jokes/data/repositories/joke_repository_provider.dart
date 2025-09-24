@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
+import 'package:snickerdoodle/src/core/providers/app_providers.dart';
 
 // Provider for FirebaseFirestore instance (local to jokes feature)
 final firebaseFirestoreProvider = Provider<FirebaseFirestore>((ref) {
@@ -13,5 +14,6 @@ final firebaseFirestoreProvider = Provider<FirebaseFirestore>((ref) {
 final jokeRepositoryProvider = Provider<JokeRepository>((ref) {
   final firestore = ref.watch(firebaseFirestoreProvider);
   final isAdmin = ref.watch(isAdminProvider);
-  return JokeRepository(firestore, isAdmin, kDebugMode);
+  final perf = ref.read(performanceServiceProvider);
+  return JokeRepository(firestore, isAdmin, kDebugMode, perf: perf);
 });

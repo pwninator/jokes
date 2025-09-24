@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/core/providers/joke_share_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
+import 'package:snickerdoodle/src/core/services/app_logger.dart';
 
 /// Button that shares a joke using the share functionality
 class ShareJokeButton extends ConsumerWidget {
@@ -27,7 +28,7 @@ class ShareJokeButton extends ConsumerWidget {
           final shareService = ref.read(jokeShareServiceProvider);
           await shareService.shareJoke(joke, jokeContext: jokeContext);
         } catch (e) {
-          debugPrint('ERROR: share_joke_button: Failed to share joke: $e');
+          AppLogger.warn('ERROR: share_joke_button: Failed to share joke: $e');
         }
       },
       child: AnimatedContainer(

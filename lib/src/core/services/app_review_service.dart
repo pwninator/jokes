@@ -1,9 +1,9 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:in_app_review/in_app_review.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/review_prompt_state_store.dart';
+import 'package:snickerdoodle/src/core/services/app_logger.dart';
 
 /// Outcome of attempting to request an in-app review
 enum ReviewRequestResult {
@@ -74,7 +74,7 @@ class AppReviewService {
     try {
       return await _native.isAvailable();
     } catch (e) {
-      debugPrint('APP_REVIEW isAvailable error: $e');
+      AppLogger.warn('APP_REVIEW isAvailable error: $e');
       // Log analytics/crash for availability check failure
       try {
         _analytics?.logErrorAppReviewAvailability(
@@ -113,7 +113,7 @@ class AppReviewService {
       // The API does not guarantee UI will be shown; return shown as best-effort.
       return ReviewRequestResult.shown;
     } catch (e) {
-      debugPrint('APP_REVIEW requestReview error: $e');
+      AppLogger.warn('APP_REVIEW requestReview error: $e');
       // Log analytics/crash for request review failure
       try {
         _analytics?.logErrorAppReviewRequest(

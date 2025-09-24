@@ -32,10 +32,8 @@ void main() {
       final original = XFile(tempFile.path);
       final watermarked = await service.addWatermarkToFile(original);
 
-      // Watermarked file should exist and be different in bytes
-      expect(await File(watermarked.path).exists(), isTrue);
-
-      final outBytes = await File(watermarked.path).readAsBytes();
+      // Read watermarked bytes directly from XFile (may be in-memory)
+      final outBytes = await watermarked.readAsBytes();
       final outImage = img.decodeImage(outBytes);
 
       expect(outImage, isNotNull);

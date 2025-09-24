@@ -54,7 +54,7 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
     // Handle different ways of getting the joke
     if (widget.jokeId != null) {
       // Joke ID provided - fetch joke from provider
-      final jokeAsync = ref.watch(jokeByIdProvider(widget.jokeId!));
+      final jokeAsync = ref.watch(jokeStreamByIdProvider(widget.jokeId!));
 
       return jokeAsync.when(
         data: (joke) {
@@ -340,7 +340,7 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
         await _createJoke(setup, punchline);
       }
     } catch (e) {
-      debugPrint('Error saving joke (id=${widget.jokeId}): $e');
+      // Keep admin screen silent on errors; analytics handles error logging elsewhere
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(

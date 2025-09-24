@@ -10,6 +10,7 @@ import 'package:snickerdoodle/src/app.dart';
 import 'package:snickerdoodle/src/core/providers/crash_reporting_provider.dart';
 import 'package:snickerdoodle/src/core/services/notification_service.dart';
 import 'package:snickerdoodle/src/utils/device_utils.dart';
+import 'package:snickerdoodle/src/core/services/app_logger.dart';
 
 import 'firebase_options.dart';
 
@@ -31,13 +32,13 @@ void main() async {
   if (kDebugMode && useEmulatorInDebugMode) {
     bool isPhysicalDevice = await DeviceUtils.isPhysicalDevice;
     if (!isPhysicalDevice) {
-      debugPrint("DEBUG: Using Firebase emulator");
+      AppLogger.debug("DEBUG: Using Firebase emulator");
       try {
         FirebaseFirestore.instance.useFirestoreEmulator('localhost', 8080);
         FirebaseFunctions.instance.useFunctionsEmulator('localhost', 5001);
         await FirebaseAuth.instance.useAuthEmulator('localhost', 9099);
       } catch (e) {
-        debugPrint('Firebase emulator connection error: $e');
+        AppLogger.warn('Firebase emulator connection error: $e');
       }
     }
   }

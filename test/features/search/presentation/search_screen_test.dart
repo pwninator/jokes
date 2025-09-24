@@ -7,6 +7,7 @@ import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers
 import 'package:snickerdoodle/src/features/jokes/application/joke_search_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_category.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
+import 'package:snickerdoodle/src/features/jokes/domain/joke_search_result.dart';
 import 'package:snickerdoodle/src/features/search/presentation/search_screen.dart';
 
 import '../../../test_helpers/firebase_mocks.dart';
@@ -23,7 +24,7 @@ void main() {
           // Prevent real cloud function calls during this test
           searchResultsViewerProvider(
             SearchScope.userJokeSearch,
-          ).overrideWith((ref) => const AsyncValue.data([])),
+          ).overrideWith((ref) => Stream.value(const <JokeWithDate>[])),
         ],
       ),
     );
@@ -47,6 +48,8 @@ void main() {
     await tester.enterText(field, 'a');
     await tester.testTextInput.receiveAction(TextInputAction.search);
     await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.pumpAndSettle();
 
     // Verify MaterialBanner is shown
     expect(find.text('Please enter a longer search query'), findsOneWidget);
@@ -63,7 +66,7 @@ void main() {
     final overrides = FirebaseMocks.getFirebaseProviderOverrides(
       additionalOverrides: [
         searchResultsViewerProvider(SearchScope.userJokeSearch).overrideWith(
-          (ref) => const AsyncValue.data([
+          (ref) => Stream.value(const [
             JokeWithDate(
               joke: Joke(
                 id: '1',
@@ -74,6 +77,11 @@ void main() {
               ),
             ),
           ]),
+        ),
+        searchResultIdsProvider(SearchScope.userJokeSearch).overrideWith(
+          (ref) => Future.value(
+            [const JokeSearchResult(id: '1', vectorDistance: 0.1)],
+          ),
         ),
       ],
     );
@@ -89,6 +97,8 @@ void main() {
     await tester.enterText(field, 'cat');
     await tester.testTextInput.receiveAction(TextInputAction.search);
     await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('search-results-count')), findsOneWidget);
     expect(find.text('1 result'), findsOneWidget);
@@ -100,7 +110,7 @@ void main() {
     final overrides = FirebaseMocks.getFirebaseProviderOverrides(
       additionalOverrides: [
         searchResultsViewerProvider(SearchScope.userJokeSearch).overrideWith(
-          (ref) => const AsyncValue.data([
+          (ref) => Stream.value(const [
             JokeWithDate(
               joke: Joke(
                 id: '1',
@@ -130,6 +140,13 @@ void main() {
             ),
           ]),
         ),
+        searchResultIdsProvider(SearchScope.userJokeSearch).overrideWith(
+          (ref) => Future.value([
+            const JokeSearchResult(id: '1', vectorDistance: 0.1),
+            const JokeSearchResult(id: '2', vectorDistance: 0.2),
+            const JokeSearchResult(id: '3', vectorDistance: 0.3),
+          ]),
+        ),
       ],
     );
 
@@ -144,6 +161,8 @@ void main() {
     await tester.enterText(field, 'dog');
     await tester.testTextInput.receiveAction(TextInputAction.search);
     await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('search-results-count')), findsOneWidget);
     expect(find.text('3 results'), findsOneWidget);
@@ -155,7 +174,7 @@ void main() {
     final overrides = FirebaseMocks.getFirebaseProviderOverrides(
       additionalOverrides: [
         searchResultsViewerProvider(SearchScope.userJokeSearch).overrideWith(
-          (ref) => const AsyncValue.data([
+          (ref) => Stream.value(const [
             JokeWithDate(
               joke: Joke(
                 id: 'a',
@@ -176,6 +195,12 @@ void main() {
             ),
           ]),
         ),
+        searchResultIdsProvider(SearchScope.userJokeSearch).overrideWith(
+          (ref) => Future.value([
+            const JokeSearchResult(id: 'a', vectorDistance: 0.1),
+            const JokeSearchResult(id: 'b', vectorDistance: 0.2),
+          ]),
+        ),
       ],
     );
 
@@ -189,7 +214,7 @@ void main() {
     final field = find.byKey(const Key('search_screen-search-field'));
     await tester.enterText(field, 'fish');
     await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pump();
+    await tester.pumpAndSettle();
 
     // Title should be the index (1-based) for the first card
     expect(find.text('1'), findsOneWidget);
@@ -270,7 +295,7 @@ void main() {
           // Avoid network search calls in tests
           searchResultsViewerProvider(
             SearchScope.userJokeSearch,
-          ).overrideWith((ref) => const AsyncValue.data([])),
+          ).overrideWith((ref) => Stream.value(const <JokeWithDate>[])),
         ],
       ),
     );
@@ -328,7 +353,7 @@ void main() {
             // Avoid network search calls in tests
             searchResultsViewerProvider(
               SearchScope.userJokeSearch,
-            ).overrideWith((ref) => const AsyncValue.data([])),
+            ).overrideWith((ref) => Stream.value(const <JokeWithDate>[])),
           ],
         ),
       );
@@ -377,7 +402,7 @@ void main() {
           // Avoid network search calls in tests
           searchResultsViewerProvider(
             SearchScope.userJokeSearch,
-          ).overrideWith((ref) => const AsyncValue.data([])),
+          ).overrideWith((ref) => Stream.value(const <JokeWithDate>[])),
         ],
       ),
     );

@@ -1,11 +1,11 @@
 import 'dart:async';
 
 import 'package:firebase_messaging/firebase_messaging.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
 import 'package:snickerdoodle/src/core/providers/shared_preferences_provider.dart';
+import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/notification_service.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 
@@ -44,8 +44,8 @@ class SubscriptionState {
 class SubscriptionNotifier extends StateNotifier<SubscriptionState> {
   SubscriptionNotifier(this._sharedPreferences, this._syncService)
     : super(_loadFromPrefs(_sharedPreferences)) {
-    // Trigger background sync on startup
-    _syncInBackground();
+    // Trigger background sync on startup (subscribe only; do not unsubscribe others)
+    _syncInBackground(unsubscribeOthers: false);
   }
 
   final SharedPreferences _sharedPreferences;
@@ -75,14 +75,14 @@ class SubscriptionNotifier extends StateNotifier<SubscriptionState> {
       state = state.copyWith(isSubscribed: subscribed);
       _syncInBackground(); // Trigger background sync
     } catch (e) {
-      debugPrint('Failed to save subscription preference: $e');
+      AppLogger.warn('Failed to save subscription preference: $e');
     }
   }
 
   /// SETTER: Set subscription hour (fast - only updates SharedPreferences + notifies)
   Future<void> setHour(int hour) async {
     if (hour < 0 || hour > 23) {
-      debugPrint('Invalid hour: $hour. Must be 0-23.');
+      AppLogger.warn('Invalid hour: $hour. Must be 0-23.');
       return;
     }
 
@@ -91,7 +91,7 @@ class SubscriptionNotifier extends StateNotifier<SubscriptionState> {
       state = state.copyWith(hour: hour);
       _syncInBackground(); // Trigger background sync
     } catch (e) {
-      debugPrint('Failed to save subscription hour: $e');
+      AppLogger.warn('Failed to save subscription hour: $e');
     }
   }
 
@@ -117,7 +117,7 @@ class SubscriptionNotifier extends StateNotifier<SubscriptionState> {
         return false;
       }
     } catch (e) {
-      debugPrint('Error in subscription flow: $e');
+      AppLogger.warn('Error in subscription flow: $e');
       await setSubscribed(false);
       return false;
     }
@@ -134,19 +134,23 @@ class SubscriptionNotifier extends StateNotifier<SubscriptionState> {
   }
 
   /// SYNCER: Background FCM sync (doesn't block UI)
-  void _syncInBackground() {
+  void _syncInBackground({bool unsubscribeOthers = true}) {
     // Don't await - let it run in background
-    _syncService.ensureSubscriptionSync().catchError((e) {
-      debugPrint('Background sync failed: $e');
-      return false;
-    });
+    _syncService
+        .ensureSubscriptionSync(unsubscribeOthers: unsubscribeOthers)
+        .catchError((e) {
+          AppLogger.warn('Background sync failed: $e');
+          return false;
+        });
   }
 }
 
 /// Abstract interface for FCM sync operations (kept for separation of concerns)
 abstract class DailyJokeSubscriptionService {
   /// Ensure subscription is synced with FCM server (background operation)
-  Future<bool> ensureSubscriptionSync();
+  /// If [unsubscribeOthers] is true, unsubscribe from all other possible topics.
+  /// On app startup this should be false to avoid mass-unsubscribe.
+  Future<bool> ensureSubscriptionSync({bool unsubscribeOthers = true});
 }
 
 /// Concrete implementation of FCM sync service
@@ -186,7 +190,7 @@ class DailyJokeSubscriptionServiceImpl implements DailyJokeSubscriptionService {
     try {
       offsetHours = localOffset.inMinutes / 60.0;
     } catch (e) {
-      debugPrint('Failed to get timezone offset, defaulting to PST: $e');
+      AppLogger.warn('Failed to get timezone offset, defaulting to PST: $e');
       offsetHours = -8.0; // PST
     }
 
@@ -222,7 +226,7 @@ class DailyJokeSubscriptionServiceImpl implements DailyJokeSubscriptionService {
   /// Ensure subscription is synced with FCM server
   /// Uses debouncing + latest-wins + mutex to handle rapid changes efficiently
   @override
-  Future<bool> ensureSubscriptionSync() async {
+  Future<bool> ensureSubscriptionSync({bool unsubscribeOthers = true}) async {
     // 1. DEBOUNCING: Cancel any pending timer and complete previous operation
     _debounceTimer?.cancel();
 
@@ -233,17 +237,17 @@ class DailyJokeSubscriptionServiceImpl implements DailyJokeSubscriptionService {
 
     // 2. LATEST-WINS: Increment operation ID (invalidates previous operations)
     final operationId = ++_currentOperationId;
-    debugPrint('Starting subscription sync operation $operationId');
+    AppLogger.debug('Starting subscription sync operation $operationId');
 
     // 3. MUTEX: The operation ID acts as our mutex - only current operation proceeds
     final completer = Completer<bool>();
     _currentCompleter = completer;
 
     _debounceTimer = Timer(_debounceDelay, () async {
-      debugPrint(
+      AppLogger.debug(
         'Executing debounced subscription sync operation $operationId',
       );
-      final result = await _performSync(operationId);
+      final result = await _performSync(operationId, unsubscribeOthers);
 
       // Only complete if this completer is still current and not already completed
       if (_currentCompleter == completer && !completer.isCompleted) {
@@ -255,11 +259,11 @@ class DailyJokeSubscriptionServiceImpl implements DailyJokeSubscriptionService {
   }
 
   /// Perform the actual sync operation with cancellation checks
-  Future<bool> _performSync(int operationId) async {
+  Future<bool> _performSync(int operationId, bool unsubscribeOthers) async {
     try {
       // Check if we're still the current operation
       if (_currentOperationId != operationId) {
-        debugPrint('Sync operation $operationId cancelled before start');
+        AppLogger.debug('Sync operation $operationId cancelled before start');
         return false;
       }
 
@@ -278,42 +282,47 @@ class DailyJokeSubscriptionServiceImpl implements DailyJokeSubscriptionService {
 
       // Check again after reading state
       if (_currentOperationId != operationId) {
-        debugPrint('Sync operation $operationId cancelled during setup');
+        AppLogger.debug('Sync operation $operationId cancelled during setup');
         return false;
       }
 
       if (topicToSubscribe != null) {
         await _firebaseMessaging.subscribeToTopic(topicToSubscribe);
-        debugPrint('Subscribed to $topicToSubscribe');
+        AppLogger.debug('Subscribed to $topicToSubscribe');
       }
 
       // Check after subscribe operation
       if (_currentOperationId != operationId) {
-        debugPrint('Sync operation $operationId cancelled after subscribe');
+        AppLogger.debug(
+          'Sync operation $operationId cancelled after subscribe',
+        );
         return false;
       }
 
-      // Get all topics and process them with cancellation checks
-      final allTopics = _getAllPossibleTopics();
-      for (final topic in allTopics) {
-        // Check before each unsubscribe operation
-        if (_currentOperationId != operationId) {
-          debugPrint(
-            'Sync operation $operationId cancelled during unsubscribe loop',
-          );
-          return false;
-        }
+      // Optionally unsubscribe from other topics (e.g., when settings change)
+      if (unsubscribeOthers) {
+        // Get all topics and process them with cancellation checks
+        final allTopics = _getAllPossibleTopics();
+        for (final topic in allTopics) {
+          // Check before each unsubscribe operation
+          if (_currentOperationId != operationId) {
+            AppLogger.debug(
+              'Sync operation $operationId cancelled during unsubscribe loop',
+            );
+            return false;
+          }
 
-        if (topicToSubscribe == null || topic != topicToSubscribe) {
-          await _firebaseMessaging.unsubscribeFromTopic(topic);
-          debugPrint('Unsubscribed from $topic');
+          if (topicToSubscribe == null || topic != topicToSubscribe) {
+            await _firebaseMessaging.unsubscribeFromTopic(topic);
+            AppLogger.debug('Unsubscribed from $topic');
+          }
         }
       }
 
-      debugPrint('Sync operation $operationId completed successfully');
+      AppLogger.debug('Sync operation $operationId completed successfully');
       return true;
     } catch (e) {
-      debugPrint('Sync operation $operationId failed: $e');
+      AppLogger.warn('Sync operation $operationId failed: $e');
       return false;
     }
   }
@@ -399,7 +408,7 @@ class SubscriptionPromptNotifier
         hasUserMadeChoice: hasUserMadeChoice,
       );
     } catch (e) {
-      debugPrint('Failed to initialize subscription prompt state: $e');
+      AppLogger.warn('Failed to initialize subscription prompt state: $e');
     }
   }
 

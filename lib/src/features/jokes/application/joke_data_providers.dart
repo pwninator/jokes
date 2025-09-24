@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_service.dart';
@@ -8,18 +7,43 @@ import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
+import 'package:snickerdoodle/src/core/providers/app_providers.dart';
 
 // Provider for getting a specific joke by ID
-final jokeByIdProvider = StreamProvider.family<Joke?, String>((ref, jokeId) {
+final jokeStreamByIdProvider = StreamProvider.family<Joke?, String>((
+  ref,
+  jokeId,
+) {
   final repository = ref.watch(jokeRepositoryProvider);
   return repository.getJokeByIdStream(jokeId);
+});
+
+// Direct-get provider for a specific joke by ID (single snapshot, no live updates)
+final jokeByIdGetProvider = FutureProvider.family<Joke?, String>((
+  ref,
+  jokeId,
+) async {
+  final repository = ref.watch(jokeRepositoryProvider);
+  final jokes = await repository.getJokesByIds([jokeId]);
+  return jokes.isNotEmpty ? jokes.first : null;
+});
+
+// Direct-get provider for multiple jokes by IDs (single snapshot, no live updates)
+final jokesByIdsGetProvider = FutureProvider.family<List<Joke>, List<String>>((
+  ref,
+  ids,
+) async {
+  if (ids.isEmpty) return const <Joke>[];
+  final repository = ref.watch(jokeRepositoryProvider);
+  return repository.getJokesByIds(ids);
 });
 
 // Provider for JokeCloudFunctionService
 final jokeCloudFunctionServiceProvider = Provider<JokeCloudFunctionService>((
   ref,
 ) {
-  return JokeCloudFunctionService();
+  final perf = ref.read(performanceServiceProvider);
+  return JokeCloudFunctionService(perf: perf);
 });
 
 // Data class to hold a joke with its associated date
@@ -161,7 +185,7 @@ final savedJokesProvider = StreamProvider<List<JokeWithDate>>((ref) async* {
     yield savedJokes;
   } catch (e) {
     // Handle errors gracefully
-    debugPrint('Error loading saved jokes: $e');
+    // Keep logs minimal; analytics will handle error event
     yield <JokeWithDate>[];
   }
 });

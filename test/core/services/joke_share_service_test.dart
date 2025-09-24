@@ -7,6 +7,7 @@ import 'package:snickerdoodle/src/core/services/app_review_service.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
 import 'package:snickerdoodle/src/core/services/joke_share_service.dart';
+import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/core/services/review_prompt_service.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_service.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
@@ -23,6 +24,8 @@ class MockPlatformShareService extends Mock implements PlatformShareService {}
 class MockReviewPromptCoordinator extends Mock
     implements ReviewPromptCoordinator {}
 
+class MockPerformanceService extends Mock implements PerformanceService {}
+
 class FakeJoke extends Fake implements Joke {}
 
 class FakeXFile extends Fake implements XFile {}
@@ -34,6 +37,7 @@ void main() {
     late MockAnalyticsService mockAnalyticsService;
     late MockJokeReactionsService mockJokeReactionsService;
     late MockPlatformShareService mockPlatformShareService;
+    late MockPerformanceService mockPerformanceService;
     late AppUsageService appUsageService;
     late ReviewPromptCoordinator mockCoordinator;
 
@@ -50,6 +54,7 @@ void main() {
       mockJokeReactionsService = MockJokeReactionsService();
       mockPlatformShareService = MockPlatformShareService();
       mockCoordinator = MockReviewPromptCoordinator();
+      mockPerformanceService = MockPerformanceService();
       when(
         () =>
             mockCoordinator.maybePromptForReview(source: any(named: 'source')),
@@ -66,6 +71,7 @@ void main() {
         platformShareService: mockPlatformShareService,
         appUsageService: appUsageService,
         reviewPromptCoordinator: mockCoordinator,
+        performanceService: mockPerformanceService,
       );
 
       // Default watermark behavior: passthrough original files
@@ -93,11 +99,11 @@ void main() {
 
         final mockFiles = [XFile('setup.jpg'), XFile('punchline.jpg')];
 
-        when(() => mockImageService.precacheJokeImages(any())).thenAnswer(
-          (_) async => (
-            setupUrl: 'https://example.com/setup.jpg',
-            punchlineUrl: 'https://example.com/punchline.jpg',
-          ),
+        when(() => mockImageService.getProcessedJokeImageUrl(any())).thenAnswer(
+          (invocation) {
+            final arg = invocation.positionalArguments.first as String?;
+            return arg; // passthrough
+          },
         );
 
         when(
@@ -152,6 +158,21 @@ void main() {
         // Assert
         expect(result, isTrue);
 
+        // Verify performance trace start/stop
+        verify(
+          () => mockPerformanceService.startNamedTrace(
+            name: TraceName.sharePreparation,
+            key: 'images:test-joke-id',
+            attributes: any(named: 'attributes'),
+          ),
+        ).called(1);
+        verify(
+          () => mockPerformanceService.stopNamedTrace(
+            name: TraceName.sharePreparation,
+            key: 'images:test-joke-id',
+          ),
+        ).called(1);
+
         verify(
           () => mockJokeReactionsService.addUserReaction(
             'test-joke-id',
@@ -195,11 +216,11 @@ void main() {
 
         final mockFiles = [XFile('setup.jpg'), XFile('punchline.jpg')];
 
-        when(() => mockImageService.precacheJokeImages(any())).thenAnswer(
-          (_) async => (
-            setupUrl: 'https://example.com/setup.jpg',
-            punchlineUrl: 'https://example.com/punchline.jpg',
-          ),
+        when(() => mockImageService.getProcessedJokeImageUrl(any())).thenAnswer(
+          (invocation) {
+            final arg = invocation.positionalArguments.first as String?;
+            return arg; // passthrough
+          },
         );
 
         when(
@@ -250,6 +271,21 @@ void main() {
         expect(result, isFalse);
         expect(await appUsageService.getNumSharedJokes(), 0);
 
+        // Verify performance trace start/stop
+        verify(
+          () => mockPerformanceService.startNamedTrace(
+            name: TraceName.sharePreparation,
+            key: 'images:test-joke-id',
+            attributes: any(named: 'attributes'),
+          ),
+        ).called(1);
+        verify(
+          () => mockPerformanceService.stopNamedTrace(
+            name: TraceName.sharePreparation,
+            key: 'images:test-joke-id',
+          ),
+        ).called(1);
+
         verify(
           () => mockAnalyticsService.logJokeShareInitiated(
             'test-joke-id',
@@ -285,11 +321,11 @@ void main() {
 
         final mockFiles = [XFile('setup.jpg'), XFile('punchline.jpg')];
 
-        when(() => mockImageService.precacheJokeImages(any())).thenAnswer(
-          (_) async => (
-            setupUrl: 'https://example.com/setup.jpg',
-            punchlineUrl: 'https://example.com/punchline.jpg',
-          ),
+        when(() => mockImageService.getProcessedJokeImageUrl(any())).thenAnswer(
+          (invocation) {
+            final arg = invocation.positionalArguments.first as String?;
+            return arg; // passthrough
+          },
         );
 
         when(

@@ -1,33 +1,42 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_category_providers.dart';
-import 'package:snickerdoodle/src/features/jokes/data/models/joke_category.dart';
+import 'package:snickerdoodle/src/features/search/presentation/search_grid_item.dart';
+import 'package:snickerdoodle/src/features/search/presentation/special_tile_widget.dart';
 
-const specialTileIdPrefix = 'special_tile_';
+final specialTilesProvider = Provider<List<SpecialTile>>((ref) {
+  return [
+    SpecialTile(
+      title: '1',
+      onTap: (context) =>
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('1'),
+      )),
+    ),
+    SpecialTile(
+      title: '2',
+      onTap: (context) =>
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('2'),
+      )),
+    ),
+    SpecialTile(
+      title: '3',
+      onTap: (context) =>
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('3'),
+      )),
+    ),
+  ];
+});
 
-final specialTiles = [
-  JokeCategory(
-    id: '${specialTileIdPrefix}1',
-    displayName: 'Special Tile 1',
-    jokeDescriptionQuery: '',
-    state: JokeCategoryState.approved,
-  ),
-  JokeCategory(
-    id: '${specialTileIdPrefix}2',
-    displayName: 'Special Tile 2',
-    jokeDescriptionQuery: '',
-    state: JokeCategoryState.approved,
-  ),
-  JokeCategory(
-    id: '${specialTileIdPrefix}3',
-    displayName: 'Special Tile 3',
-    jokeDescriptionQuery: '',
-    state: JokeCategoryState.approved,
-  ),
-];
-
-final categoriesWithSpecialTilesProvider = StreamProvider<List<JokeCategory>>((ref) {
+final searchGridItemsProvider = StreamProvider<List<SearchGridItem>>((ref) {
   final categoriesStream = ref.watch(jokeCategoriesProvider.stream);
+  final specialTiles = ref.watch(specialTilesProvider);
+
   return categoriesStream.map((categories) {
-    return [...categories, ...specialTiles];
+    final categoryItems = categories.map((c) => CategoryGridItem(c));
+    final specialTileItems = specialTiles.map((t) => SpecialTileGridItem(t));
+    return [...specialTileItems, ...categoryItems];
   });
 });

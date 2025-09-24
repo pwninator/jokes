@@ -6,11 +6,13 @@ import 'package:snickerdoodle/src/config/router/router_providers.dart';
 import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
 import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_category_tile.dart';
-import 'package:snickerdoodle/src/features/search/presentation/special_tiles.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_navigation_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_search_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_category.dart';
 import 'package:snickerdoodle/src/features/jokes/presentation/joke_list_viewer.dart';
+import 'package:snickerdoodle/src/features/search/presentation/search_grid_item.dart';
+import 'package:snickerdoodle/src/features/search/presentation/special_tile_widget.dart';
+import 'package:snickerdoodle/src/features/search/presentation/special_tiles.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key});
@@ -235,13 +237,16 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               builder: (context, ref, child) {
                 final bool isSearchEmpty = _controller.text.trim().isEmpty;
                 if (isSearchEmpty) {
-                  final categoriesAsync =
-                      ref.watch(categoriesWithSpecialTilesProvider);
+                  final categoriesAsync = ref.watch(searchGridItemsProvider);
                   return categoriesAsync.when(
-                    data: (categories) {
-                      final approved = categories
-                          .where((c) => c.state == JokeCategoryState.approved)
-                          .toList();
+                    data: (items) {
+                      final approved = items.where((item) {
+                        if (item is CategoryGridItem) {
+                          return item.category.state ==
+                              JokeCategoryState.approved;
+                        }
+                        return true;
+                      }).toList();
 
                       if (approved.isEmpty) {
                         return const Center(child: Text('Search for jokes!'));
@@ -284,22 +289,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                               crossAxisSpacing: spacing,
                               itemCount: approved.length,
                               itemBuilder: (context, index) {
-                                final cat = approved[index];
-                                return JokeCategoryTile(
-                                  category: cat,
-                                  showStateBorder: false,
-                                  onTap: () {
-                                    if (cat.id
-                                        .startsWith(specialTileIdPrefix)) {
-                                      final tileNumber =
-                                          cat.id.substring(specialTileIdPrefix.length);
-                                      ScaffoldMessenger.of(context)
-                                          .showSnackBar(
-                                        SnackBar(
-                                          content: Text(tileNumber),
-                                        ),
-                                      );
-                                    } else {
+                                final item = approved[index];
+                                if (item is CategoryGridItem) {
+                                  final cat = item.category;
+                                  return JokeCategoryTile(
+                                    category: cat,
+                                    showStateBorder: false,
+                                    onTap: () {
                                       final rawQuery =
                                           cat.jokeDescriptionQuery.trim();
                                       if (rawQuery.isEmpty) return;
@@ -308,9 +304,13 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                                         rawQuery,
                                         label: SearchLabel.category,
                                       );
-                                    }
-                                  },
-                                );
+                                    },
+                                  );
+                                } else if (item is SpecialTileGridItem) {
+                                  return SpecialTileWidget(tile: item.tile);
+                                } else {
+                                  return const SizedBox.shrink();
+                                }
                               },
                             ),
                           );

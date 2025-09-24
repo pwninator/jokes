@@ -52,7 +52,10 @@ void main() {
         // arrange
         when(() => mockImageService.isValidImageUrl(null)).thenReturn(false);
         when(
-          () => mockImageService.getProcessedJokeImageUrl(null),
+          () => mockImageService.getProcessedJokeImageUrl(
+            null,
+            width: any(named: 'width'),
+          ),
         ).thenReturn(null);
         const widget = CachedJokeImage(imageUrl: null);
 
@@ -74,7 +77,10 @@ void main() {
           () => mockImageService.isValidImageUrl(invalidUrl),
         ).thenReturn(false);
         when(
-          () => mockImageService.getProcessedJokeImageUrl(invalidUrl),
+          () => mockImageService.getProcessedJokeImageUrl(
+            invalidUrl,
+            width: any(named: 'width'),
+          ),
         ).thenReturn(null);
 
         const widget = CachedJokeImage(imageUrl: invalidUrl);
@@ -104,7 +110,10 @@ void main() {
 
         when(() => mockImageService.isValidImageUrl(validUrl)).thenReturn(true);
         when(
-          () => mockImageService.getProcessedJokeImageUrl(validUrl),
+          () => mockImageService.getProcessedJokeImageUrl(
+            validUrl,
+            width: any(named: 'width'),
+          ),
         ).thenReturn(validUrl);
         when(
           () => mockImageService.processImageUrl(validUrl),
@@ -145,7 +154,10 @@ void main() {
 
         when(() => mockImageService.isValidImageUrl(validUrl)).thenReturn(true);
         when(
-          () => mockImageService.getProcessedJokeImageUrl(validUrl),
+          () => mockImageService.getProcessedJokeImageUrl(
+            validUrl,
+            width: any(named: 'width'),
+          ),
         ).thenReturn(validUrl);
         when(
           () => mockImageService.processImageUrl(validUrl),
@@ -197,7 +209,10 @@ void main() {
 
         when(() => mockImageService.isValidImageUrl(validUrl)).thenReturn(true);
         when(
-          () => mockImageService.getProcessedJokeImageUrl(validUrl),
+          () => mockImageService.getProcessedJokeImageUrl(
+            validUrl,
+            width: any(named: 'width'),
+          ),
         ).thenReturn(validUrl);
         when(
           () => mockImageService.processImageUrl(validUrl),
@@ -223,6 +238,136 @@ void main() {
         // assert
         expect(find.byType(ClipRRect), findsOneWidget);
       });
+
+      testWidgets('applies explicit width when within allowed range', (
+        tester,
+      ) async {
+        const validUrl = 'https://example.com/image.jpg';
+        const explicitWidth = 200.0;
+
+        when(() => mockImageService.isValidImageUrl(validUrl)).thenReturn(true);
+        when(
+          () => mockImageService.getProcessedJokeImageUrl(
+            validUrl,
+            width: explicitWidth.round(),
+          ),
+        ).thenReturn(validUrl);
+        when(
+          () => mockImageService.processImageUrl(validUrl),
+        ).thenReturn(validUrl);
+        when(
+          () => mockImageService.processImageUrl(
+            validUrl,
+            width: any(named: 'width'),
+            height: any(named: 'height'),
+            quality: any(named: 'quality'),
+          ),
+        ).thenReturn(validUrl);
+
+        final widget = SizedBox(
+          width: 500,
+          child: CachedJokeImage(
+            imageUrl: validUrl,
+            width: explicitWidth,
+            height: 100,
+          ),
+        );
+
+        await tester.pumpWidget(createTestWidget(child: widget));
+        await tester.pump();
+
+        verify(
+          () => mockImageService.getProcessedJokeImageUrl(
+            validUrl,
+            width: explicitWidth.round(),
+          ),
+        ).called(1);
+      });
+
+      testWidgets(
+        'falls back to layout constraint width when explicit width out of range',
+        (tester) async {
+          const validUrl = 'https://example.com/image.jpg';
+          const explicitWidth = 2000.0; // outside allowed range
+          const constraintWidth = 240.0;
+
+          when(
+            () => mockImageService.isValidImageUrl(validUrl),
+          ).thenReturn(true);
+          when(
+            () => mockImageService.getProcessedJokeImageUrl(
+              validUrl,
+              width: constraintWidth.round(),
+            ),
+          ).thenReturn(validUrl);
+          when(
+            () => mockImageService.processImageUrl(validUrl),
+          ).thenReturn(validUrl);
+          when(
+            () => mockImageService.processImageUrl(
+              validUrl,
+              width: any(named: 'width'),
+              height: any(named: 'height'),
+              quality: any(named: 'quality'),
+            ),
+          ).thenReturn(validUrl);
+
+          final widget = SizedBox(
+            width: constraintWidth,
+            child: CachedJokeImage(
+              imageUrl: validUrl,
+              width: explicitWidth,
+              height: 100,
+            ),
+          );
+
+          await tester.pumpWidget(createTestWidget(child: widget));
+          await tester.pump();
+
+          verify(
+            () => mockImageService.getProcessedJokeImageUrl(
+              validUrl,
+              width: constraintWidth.round(),
+            ),
+          ).called(1);
+        },
+      );
+
+      testWidgets('passes no width when constraints are unbounded', (
+        tester,
+      ) async {
+        const validUrl = 'https://example.com/image.jpg';
+
+        when(() => mockImageService.isValidImageUrl(validUrl)).thenReturn(true);
+        when(
+          () =>
+              mockImageService.getProcessedJokeImageUrl(validUrl, width: null),
+        ).thenReturn(validUrl);
+        when(
+          () => mockImageService.processImageUrl(validUrl),
+        ).thenReturn(validUrl);
+        when(
+          () => mockImageService.processImageUrl(
+            validUrl,
+            width: any(named: 'width'),
+            height: any(named: 'height'),
+            quality: any(named: 'quality'),
+          ),
+        ).thenReturn(validUrl);
+
+        final widget = SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: CachedJokeImage(imageUrl: validUrl, height: 100),
+        );
+
+        await tester.pumpWidget(createTestWidget(child: widget));
+        await tester.pump();
+
+        verify(
+          () =>
+              mockImageService.getProcessedJokeImageUrl(validUrl, width: null),
+        ).called(1);
+      });
     });
 
     group('CachedJokeThumbnail', () {
@@ -241,7 +386,10 @@ void main() {
           () => mockImageService.isValidImageUrl(thumbnailUrl),
         ).thenReturn(true);
         when(
-          () => mockImageService.getProcessedJokeImageUrl(thumbnailUrl),
+          () => mockImageService.getProcessedJokeImageUrl(
+            thumbnailUrl,
+            width: any(named: 'width'),
+          ),
         ).thenReturn(thumbnailUrl);
         when(
           () => mockImageService.processImageUrl(thumbnailUrl),

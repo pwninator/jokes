@@ -16,12 +16,10 @@ import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/providers/app_providers.dart';
 import 'package:snickerdoodle/src/core/providers/image_providers.dart';
 import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
-import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
 import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
-import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_population_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_schedule_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_search_providers.dart';
@@ -239,7 +237,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
     super.initState();
     _perf = ref.read(performanceServiceProvider);
     _pageController = PageController();
-    _preloadImages();
+
     // Expose imperative controls to parent if a controller is provided
     widget.controller?._attach(revealPunchline: _revealPunchline);
 
@@ -258,21 +256,6 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
         name: TraceName.carouselToVisible,
         key: widget.joke.id,
       );
-    });
-  }
-
-  void _preloadImages() {
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      if (!mounted) return; // Ensure the widget is still in the tree
-      final imageService = ref.read(imageServiceProvider);
-
-      try {
-        // Preload images for the current joke immediately
-        await imageService.precacheJokeImages(widget.joke);
-      } catch (e) {
-        // Silently handle any precaching errors
-        AppLogger.warn('Error during image precaching: $e');
-      }
     });
   }
 
@@ -1093,7 +1076,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
       fit: BoxFit.cover,
       showLoadingIndicator: true,
       showErrorIcon: true,
-      onFirstImagePaint: () {
+      onFirstImagePaint: (widthHint) {
         // Stop only for the very first search result's setup image.
         if (widget.index == 0 &&
             _currentIndex == 0 &&
@@ -1107,13 +1090,16 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
         );
 
         // After the first image is actually visible, defer preloading of next jokes
-        if (!_nextPrecacheScheduled) {
+        if (!_nextPrecacheScheduled && widthHint != null) {
           _nextPrecacheScheduled = true;
           final nextJokes = widget.jokesToPreload;
           if (nextJokes != null && nextJokes.isNotEmpty) {
             // Fire-and-forget; do not await to avoid blocking UI thread
             final imageService = ref.read(imageServiceProvider);
-            imageService.precacheMultipleJokeImages(nextJokes);
+            imageService.precacheMultipleJokeImages(
+              nextJokes,
+              width: widthHint,
+            );
           }
         }
       },

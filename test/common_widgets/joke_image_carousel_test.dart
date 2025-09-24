@@ -202,16 +202,25 @@ void mainCountsAndButtonsSuite() {
       () => mockImageService.getProcessedJokeImageUrl(any()),
     ).thenReturn(transparentImageDataUrl);
     when(
-      () => mockImageService.precacheJokeImage(any()),
+      () =>
+          mockImageService.precacheJokeImage(any(), width: any(named: 'width')),
     ).thenAnswer((_) async => transparentImageDataUrl);
-    when(() => mockImageService.precacheJokeImages(any())).thenAnswer(
+    when(
+      () => mockImageService.precacheJokeImages(
+        any(),
+        width: any(named: 'width'),
+      ),
+    ).thenAnswer(
       (_) async => (
         setupUrl: transparentImageDataUrl,
         punchlineUrl: transparentImageDataUrl,
       ),
     );
     when(
-      () => mockImageService.precacheMultipleJokeImages(any()),
+      () => mockImageService.precacheMultipleJokeImages(
+        any(),
+        width: any(named: 'width'),
+      ),
     ).thenAnswer((_) async {});
 
     // Mock joke repository
@@ -478,7 +487,10 @@ void mainCountsAndButtonsSuite() {
           () => mockImageService.precacheJokeImages(any()),
         ).called(greaterThan(0));
         verify(
-          () => mockImageService.precacheMultipleJokeImages(any()),
+          () => mockImageService.precacheMultipleJokeImages(
+            any(),
+            width: any(named: 'width'),
+          ),
         ).called(greaterThan(0));
       });
     });

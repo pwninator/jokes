@@ -180,20 +180,27 @@ class ImageService {
     }
   }
 
-  /// Returns the processed image URL for jokes, or null if invalid
-  String? getProcessedJokeImageUrl(String? imageUrl) {
+  /// Returns the processed image URL for jokes, or null if invalid.
+  ///
+  /// [width] is an optional hint (in logical pixels) that will be forwarded to
+  /// the CDN optimizer when available to improve resizing.
+  String? getProcessedJokeImageUrl(String? imageUrl, {int? width}) {
     if (imageUrl == null || !isValidImageUrl(imageUrl)) {
       return null;
     }
 
-    return processImageUrl(imageUrl, quality: jokeImageQuality.toString());
+    return processImageUrl(
+      imageUrl,
+      width: width,
+      quality: jokeImageQuality.toString(),
+    );
   }
 
   /// Precaches a single joke image with optimized configuration
   /// Uses disk caching for efficiency and works in both foreground and background
   /// Returns the processed URL if successful, null otherwise
-  Future<String?> precacheJokeImage(String? imageUrl) async {
-    final processedUrl = getProcessedJokeImageUrl(imageUrl);
+  Future<String?> precacheJokeImage(String? imageUrl, {int? width}) async {
+    final processedUrl = getProcessedJokeImageUrl(imageUrl, width: width);
     if (processedUrl == null) return null;
 
     try {
@@ -212,12 +219,13 @@ class ImageService {
   /// Precaches both setup and punchline images for a joke
   /// Returns the processed URLs for both images
   Future<({String? setupUrl, String? punchlineUrl})> precacheJokeImages(
-    Joke joke,
-  ) async {
+    Joke joke, {
+    int? width,
+  }) async {
     // Precache both images in parallel and get their processed URLs
     final results = await Future.wait([
-      precacheJokeImage(joke.setupImageUrl),
-      precacheJokeImage(joke.punchlineImageUrl),
+      precacheJokeImage(joke.setupImageUrl, width: width),
+      precacheJokeImage(joke.punchlineImageUrl, width: width),
     ]);
 
     return (setupUrl: results[0], punchlineUrl: results[1]);
@@ -236,11 +244,14 @@ class ImageService {
   }
 
   /// Precaches images for multiple jokes
-  Future<void> precacheMultipleJokeImages(List<Joke> jokes) async {
+  Future<void> precacheMultipleJokeImages(
+    List<Joke> jokes, {
+    int? width,
+  }) async {
     // Precache all jokes sequentially to avoid overwhelming the cache
     for (final joke in jokes) {
       try {
-        await precacheJokeImages(joke);
+        await precacheJokeImages(joke, width: width);
       } catch (e) {
         AppLogger.warn('Failed to precache images for joke ${joke.id}: $e');
       }

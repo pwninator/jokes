@@ -30,119 +30,146 @@ class CachedJokeImage extends ConsumerWidget {
   final BorderRadius? borderRadius;
   final bool showLoadingIndicator;
   final bool showErrorIcon;
-  final VoidCallback? onFirstImagePaint;
+  final void Function(int? width)? onFirstImagePaint;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final imageService = ref.read(imageServiceProvider);
-    final perf = ref.read(performanceServiceProvider);
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final effectiveWidth = _resolveEffectiveWidth(constraints.maxWidth);
 
-    // Use ImageService for URL processing
-    final processedUrl = imageService.getProcessedJokeImageUrl(imageUrl);
-    if (processedUrl == null) {
-      return _buildErrorWidget(context);
-    }
+        final imageService = ref.read(imageServiceProvider);
+        final perf = ref.read(performanceServiceProvider);
 
-    bool invokedFirstPaint = false;
+        // Use ImageService for URL processing
+        final processedUrl = imageService.getProcessedJokeImageUrl(
+          imageUrl,
+          width: effectiveWidth,
+        );
+        if (processedUrl == null) {
+          return _buildErrorWidget(context);
+        }
 
-    String? downloadTraceKey;
-    Widget imageWidget = CachedNetworkImage(
-      imageUrl: processedUrl,
-      width: width,
-      height: height,
-      fit: fit,
-      httpHeaders: ImageService.jokeImageHttpHeaders,
-      // Use progressIndicatorBuilder instead of placeholder to avoid Octo assertion
-      placeholder: null,
-      progressIndicatorBuilder: (context, url, progress) {
-        // When progress is first reported (<1.0), start download trace if not started
-        if (progress.progress != null && progress.progress! < 1.0) {
-          if (downloadTraceKey == null) {
-            downloadTraceKey = url.hashCode.toRadixString(16);
-            perf.startNamedTrace(
-              name: TraceName.imageDownload,
-              key: downloadTraceKey!,
-              attributes: {'url_hash': downloadTraceKey!},
-            );
-          }
-        }
-        return showLoadingIndicator
-            ? _buildLoadingWidget(context)
-            : const SizedBox.shrink();
-      },
-      imageBuilder: (context, imageProvider) {
-        // Called when the actual image data is ready; schedule callback after paint
-        if (!invokedFirstPaint && onFirstImagePaint != null) {
-          invokedFirstPaint = true;
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            onFirstImagePaint?.call();
-          });
-        }
-        // If a download trace is active for this URL, stop it now (download complete)
-        if (downloadTraceKey != null) {
-          perf.stopNamedTrace(
-            name: TraceName.imageDownload,
-            key: downloadTraceKey!,
-          );
-          downloadTraceKey = null;
-        }
-        return Image(
-          image: imageProvider,
+        bool invokedFirstPaint = false;
+
+        String? downloadTraceKey;
+        Widget imageWidget = CachedNetworkImage(
+          imageUrl: processedUrl,
           width: width,
           height: height,
           fit: fit,
-        );
-      },
-      errorWidget: showErrorIcon
-          ? (context, url, error) {
-              final analytics = ref.read(analyticsServiceProvider);
-              // Hash the url lightly to avoid logging full URLs
-              final urlHash = url.hashCode.toRadixString(16);
-              analytics.logErrorImageLoad(
-                imageType: null,
-                imageUrlHash: urlHash,
-                errorMessage: error.toString(),
-              );
-              // Drop any active download trace since it failed
-              if (downloadTraceKey != null) {
-                perf.dropNamedTrace(
+          httpHeaders: ImageService.jokeImageHttpHeaders,
+          // Use progressIndicatorBuilder instead of placeholder to avoid Octo assertion
+          placeholder: null,
+          progressIndicatorBuilder: (context, url, progress) {
+            // When progress is first reported (<1.0), start download trace if not started
+            if (progress.progress != null && progress.progress! < 1.0) {
+              if (downloadTraceKey == null) {
+                downloadTraceKey = url.hashCode.toRadixString(16);
+                perf.startNamedTrace(
                   name: TraceName.imageDownload,
                   key: downloadTraceKey!,
+                  attributes: {'url_hash': downloadTraceKey!},
                 );
-                downloadTraceKey = null;
               }
-              return _buildErrorWidget(context);
             }
-          : (context, url, error) {
-              final analytics = ref.read(analyticsServiceProvider);
-              final urlHash = url.hashCode.toRadixString(16);
-              analytics.logErrorImageLoad(
-                imageType: null,
-                imageUrlHash: urlHash,
-                errorMessage: error.toString(),
+            return showLoadingIndicator
+                ? _buildLoadingWidget(context)
+                : const SizedBox.shrink();
+          },
+          imageBuilder: (context, imageProvider) {
+            // Called when the actual image data is ready; schedule callback after paint
+            if (!invokedFirstPaint && onFirstImagePaint != null) {
+              invokedFirstPaint = true;
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                onFirstImagePaint?.call(effectiveWidth);
+              });
+            }
+            // If a download trace is active for this URL, stop it now (download complete)
+            if (downloadTraceKey != null) {
+              perf.stopNamedTrace(
+                name: TraceName.imageDownload,
+                key: downloadTraceKey!,
               );
-              if (downloadTraceKey != null) {
-                perf.dropNamedTrace(
-                  name: TraceName.imageDownload,
-                  key: downloadTraceKey!,
-                );
-                downloadTraceKey = null;
-              }
-              return const SizedBox.shrink();
-            },
-      fadeInDuration: const Duration(milliseconds: 300),
-      fadeOutDuration: const Duration(milliseconds: 100),
+              downloadTraceKey = null;
+            }
+            return Image(
+              image: imageProvider,
+              width: width,
+              height: height,
+              fit: fit,
+            );
+          },
+          errorWidget: showErrorIcon
+              ? (context, url, error) {
+                  final analytics = ref.read(analyticsServiceProvider);
+                  // Hash the url lightly to avoid logging full URLs
+                  final urlHash = url.hashCode.toRadixString(16);
+                  analytics.logErrorImageLoad(
+                    imageType: null,
+                    imageUrlHash: urlHash,
+                    errorMessage: error.toString(),
+                  );
+                  // Drop any active download trace since it failed
+                  if (downloadTraceKey != null) {
+                    perf.dropNamedTrace(
+                      name: TraceName.imageDownload,
+                      key: downloadTraceKey!,
+                    );
+                    downloadTraceKey = null;
+                  }
+                  return _buildErrorWidget(context);
+                }
+              : (context, url, error) {
+                  final analytics = ref.read(analyticsServiceProvider);
+                  final urlHash = url.hashCode.toRadixString(16);
+                  analytics.logErrorImageLoad(
+                    imageType: null,
+                    imageUrlHash: urlHash,
+                    errorMessage: error.toString(),
+                  );
+                  if (downloadTraceKey != null) {
+                    perf.dropNamedTrace(
+                      name: TraceName.imageDownload,
+                      key: downloadTraceKey!,
+                    );
+                    downloadTraceKey = null;
+                  }
+                  return const SizedBox.shrink();
+                },
+          fadeInDuration: const Duration(milliseconds: 300),
+          fadeOutDuration: const Duration(milliseconds: 100),
+        );
+
+        // Log image info with size
+        _logImageInfo(processedUrl);
+
+        // Apply border radius if specified
+        if (borderRadius != null) {
+          imageWidget = ClipRRect(
+            borderRadius: borderRadius!,
+            child: imageWidget,
+          );
+        }
+
+        return imageWidget;
+      },
     );
+  }
 
-    // Log image info with size
-    _logImageInfo(processedUrl);
-
-    // Apply border radius if specified
-    if (borderRadius != null) {
-      imageWidget = ClipRRect(borderRadius: borderRadius!, child: imageWidget);
+  int? _resolveEffectiveWidth(double constraintWidth) {
+    final explicitWidth = width;
+    if (explicitWidth != null && explicitWidth.isFinite) {
+      if (explicitWidth >= 50 && explicitWidth <= 1024) {
+        return explicitWidth.round();
+      }
     }
 
-    return imageWidget;
+    if (constraintWidth.isFinite && constraintWidth >= 50) {
+      return constraintWidth.clamp(50, 4096).round();
+    }
+
+    return null;
   }
 
   void _logImageInfo(String url) async {

@@ -245,6 +245,20 @@ void main() {
           expect(result, equals(validUrl)); // Currently returns same URL
         });
 
+        test('should forward width hint to processImageUrl', () {
+          // arrange
+          const validUrl = 'https://example.com/joke.jpg';
+
+          // act
+          final result = imageService.getProcessedJokeImageUrl(
+            validUrl,
+            width: 200,
+          );
+
+          // assert
+          expect(result, equals(validUrl));
+        });
+
         test('should return null for invalid URL', () {
           // arrange
           const invalidUrl = 'not-a-url';
@@ -314,7 +328,7 @@ void main() {
 
           // act & assert (should not throw)
           await expectLater(
-            imageService.precacheMultipleJokeImages(jokes),
+            imageService.precacheMultipleJokeImages(jokes, width: 200),
             completes,
           );
         });

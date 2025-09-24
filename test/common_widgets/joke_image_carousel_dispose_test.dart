@@ -45,16 +45,20 @@ void main() {
       ),
     ).thenReturn(dataUrl);
     when(
-      () => mockImageService.getProcessedJokeImageUrl(any()),
+      () => mockImageService.getProcessedJokeImageUrl(
+        any(),
+        width: any(named: 'width'),
+      ),
     ).thenReturn(dataUrl);
     when(
-      () => mockImageService.precacheJokeImage(any()),
+      () =>
+          mockImageService.precacheJokeImage(any(), width: any(named: 'width')),
     ).thenAnswer((_) async => dataUrl);
     when(
-      () => mockImageService.precacheJokeImages(any()),
-    ).thenAnswer((_) async => (setupUrl: dataUrl, punchlineUrl: dataUrl));
-    when(
-      () => mockImageService.precacheMultipleJokeImages(any()),
+      () => mockImageService.precacheMultipleJokeImages(
+        any(),
+        width: any(named: 'width'),
+      ),
     ).thenAnswer((_) async {});
   });
 

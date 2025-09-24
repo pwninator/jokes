@@ -137,7 +137,12 @@ void main() {
       ).thenReturn('https://example.com/image.jpg');
       when(() => mockImageService.clearCache()).thenAnswer((_) async {});
       // Mock precacheJokeImages method that returns the expected record type
-      when(() => mockImageService.precacheJokeImages(any())).thenAnswer(
+      when(
+        () => mockImageService.precacheJokeImages(
+          any(),
+          width: any(named: 'width'),
+        ),
+      ).thenAnswer(
         (_) async => (
           setupUrl: 'https://example.com/setup.jpg',
           punchlineUrl: 'https://example.com/punchline.jpg',
@@ -145,16 +150,25 @@ void main() {
       );
       // Mock other ImageService methods that might be called
       when(
-        () => mockImageService.getProcessedJokeImageUrl(any()),
+        () => mockImageService.getProcessedJokeImageUrl(
+          any(),
+          width: any(named: 'width'),
+        ),
       ).thenReturn('https://example.com/processed.jpg');
       when(
         () => mockImageService.getThumbnailUrl(any()),
       ).thenReturn('https://example.com/thumbnail.jpg');
       when(
-        () => mockImageService.precacheJokeImage(any()),
+        () => mockImageService.precacheJokeImage(
+          any(),
+          width: any(named: 'width'),
+        ),
       ).thenAnswer((_) async => 'https://example.com/cached.jpg');
       when(
-        () => mockImageService.precacheMultipleJokeImages(any()),
+        () => mockImageService.precacheMultipleJokeImages(
+          any(),
+          width: any(named: 'width'),
+        ),
       ).thenAnswer((_) async {});
     });
 

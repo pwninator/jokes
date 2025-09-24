@@ -11,21 +11,26 @@ import '../test_helpers/core_mocks.dart';
 
 class _NoopImageService extends ImageService {
   @override
-  String? getProcessedJokeImageUrl(String? imageUrl) => null;
+  String? getProcessedJokeImageUrl(String? imageUrl, {int? width}) => null;
 
   @override
   bool isValidImageUrl(String? url) => true;
 
   @override
-  Future<String?> precacheJokeImage(String? imageUrl) async => null;
+  Future<String?> precacheJokeImage(String? imageUrl, {int? width}) async =>
+      null;
 
   @override
   Future<({String? setupUrl, String? punchlineUrl})> precacheJokeImages(
-    Joke joke,
-  ) async => (setupUrl: null, punchlineUrl: null);
+    Joke joke, {
+    int? width,
+  }) async => (setupUrl: null, punchlineUrl: null);
 
   @override
-  Future<void> precacheMultipleJokeImages(List<Joke> jokes) async {}
+  Future<void> precacheMultipleJokeImages(
+    List<Joke> jokes, {
+    int? width,
+  }) async {}
 }
 
 void main() {

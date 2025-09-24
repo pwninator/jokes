@@ -51,16 +51,26 @@ void main() {
       ),
     ).thenReturn(dataUrl);
     when(
-      () => mockImageService.getProcessedJokeImageUrl(any()),
+      () => mockImageService.getProcessedJokeImageUrl(
+        any(),
+        width: any(named: 'width'),
+      ),
     ).thenReturn(dataUrl);
     when(
-      () => mockImageService.precacheJokeImage(any()),
+      () =>
+          mockImageService.precacheJokeImage(any(), width: any(named: 'width')),
     ).thenAnswer((_) async => dataUrl);
     when(
-      () => mockImageService.precacheJokeImages(any()),
+      () => mockImageService.precacheJokeImages(
+        any(),
+        width: any(named: 'width'),
+      ),
     ).thenAnswer((_) async => (setupUrl: dataUrl, punchlineUrl: dataUrl));
     when(
-      () => mockImageService.precacheMultipleJokeImages(any()),
+      () => mockImageService.precacheMultipleJokeImages(
+        any(),
+        width: any(named: 'width'),
+      ),
     ).thenAnswer((_) async {});
 
     // App usage stubs required by full-view flow

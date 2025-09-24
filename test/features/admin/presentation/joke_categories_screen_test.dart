@@ -44,7 +44,12 @@ void main() {
     );
 
     // Prevent real network image loads by making processed URL null
-    when(() => imageService.getProcessedJokeImageUrl(any())).thenReturn(null);
+    when(
+      () => imageService.getProcessedJokeImageUrl(
+        any(),
+        width: any(named: 'width'),
+      ),
+    ).thenReturn(null);
     when(() => imageService.isValidImageUrl(any())).thenReturn(false);
     when(
       () => analyticsService.logErrorImageLoad(
@@ -110,7 +115,12 @@ void main() {
       ]),
     );
 
-    when(() => imageService.getProcessedJokeImageUrl(any())).thenReturn(null);
+    when(
+      () => imageService.getProcessedJokeImageUrl(
+        any(),
+        width: any(named: 'width'),
+      ),
+    ).thenReturn(null);
     when(() => imageService.isValidImageUrl(any())).thenReturn(false);
     when(
       () => analyticsService.logErrorImageLoad(

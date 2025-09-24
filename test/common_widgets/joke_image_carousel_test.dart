@@ -17,6 +17,7 @@ import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_reposito
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_schedule_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_state.dart';
+import 'package:snickerdoodle/src/features/jokes/domain/joke_viewer_mode.dart';
 
 import '../test_helpers/firebase_mocks.dart';
 
@@ -47,7 +48,7 @@ void main() {
       const widget = JokeImageCarousel(
         joke: joke,
         jokeContext: 'test',
-        mode: JokeCarouselMode.reveal,
+        mode: JokeViewerMode.reveal,
       );
 
       // act

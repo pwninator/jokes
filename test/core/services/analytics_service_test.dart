@@ -4,6 +4,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/crash_reporting_service.dart';
 import 'package:snickerdoodle/src/features/auth/data/models/app_user.dart';
+import 'package:snickerdoodle/src/features/jokes/domain/joke_viewer_mode.dart';
 
 class MockFirebaseAnalytics extends Mock implements FirebaseAnalytics {}
 
@@ -62,13 +63,13 @@ void main() {
           'j1',
           navigationMethod: 'swipe',
           jokeContext: 'daily',
-          jokeViewerMode: 'reveal',
+          jokeViewerMode: JokeViewerMode.reveal,
         ),
         () => analyticsService.logJokePunchlineViewed(
           'j2',
           navigationMethod: 'tap',
           jokeContext: 'saved',
-          jokeViewerMode: 'reveal',
+          jokeViewerMode: JokeViewerMode.reveal,
         ),
         () => analyticsService.logSubscriptionOnSettings(),
         () => analyticsService.logErrorJokeShare(

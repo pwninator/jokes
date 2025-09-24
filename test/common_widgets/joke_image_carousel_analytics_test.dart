@@ -8,6 +8,7 @@ import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
+import 'package:snickerdoodle/src/features/jokes/domain/joke_viewer_mode.dart';
 
 import '../test_helpers/analytics_mocks.dart';
 import '../test_helpers/core_mocks.dart';
@@ -174,7 +175,7 @@ void main() {
   testWidgets(
     'non-REVEAL modes auto-log punchline and fully viewed after setup',
     (tester) async {
-      Future<void> runForMode(JokeCarouselMode mode) async {
+      Future<void> runForMode(JokeViewerMode mode) async {
         final widget = SizedBox(
           width: 800,
           height: 600,
@@ -192,7 +193,7 @@ void main() {
       }
 
       // Run sequentially to avoid overflow/layout complexities
-      await runForMode(JokeCarouselMode.bothAdaptive);
+      await runForMode(JokeViewerMode.bothAdaptive);
 
       verify(
         () => mockAnalyticsService.logJokePunchlineViewed(

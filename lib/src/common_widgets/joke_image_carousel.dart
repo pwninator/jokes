@@ -16,18 +16,17 @@ import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/providers/app_providers.dart';
 import 'package:snickerdoodle/src/core/providers/image_providers.dart';
 import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
+import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
 import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
-import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_population_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_schedule_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_search_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_state.dart';
-
-enum JokeCarouselMode { reveal, bothAdaptive }
+import 'package:snickerdoodle/src/features/jokes/domain/joke_viewer_mode.dart';
 
 /// Controller to allow parent widgets to imperatively control the
 /// `JokeImageCarousel` (e.g., reveal the punchline programmatically).
@@ -64,7 +63,7 @@ class JokeImageCarousel extends ConsumerStatefulWidget {
   final JokeImageCarouselController? controller;
   final String? overlayBadgeText;
   final bool showSimilarSearchButton;
-  final JokeCarouselMode mode;
+  final JokeViewerMode mode;
 
   const JokeImageCarousel({
     super.key,
@@ -83,7 +82,7 @@ class JokeImageCarousel extends ConsumerStatefulWidget {
     this.controller,
     this.overlayBadgeText,
     this.showSimilarSearchButton = false,
-    this.mode = JokeCarouselMode.reveal,
+    this.mode = JokeViewerMode.reveal,
   });
 
   @override
@@ -136,7 +135,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
               navigationMethod:
                   _navMethodSetup ?? AnalyticsNavigationMethod.none,
               jokeContext: widget.jokeContext,
-              jokeViewerMode: widget.mode.name,
+              jokeViewerMode: widget.mode,
             );
           }
           // If image missing, log error context for missing parts
@@ -151,7 +150,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
         // For non-REVEAL modes (VERTICAL, HORIZONTAL, BOTH_ADAPTIVE),
         // automatically chain a second 2s timer to count punchline viewed
         // and then consider the joke fully viewed.
-        if (widget.mode != JokeCarouselMode.reveal) {
+        if (widget.mode != JokeViewerMode.reveal) {
           // Set navigation attribution for punchline + full view to programmatic
           _navMethodPunchline = AnalyticsNavigationMethod.programmatic;
           _lastNavigationMethod = AnalyticsNavigationMethod.programmatic;
@@ -170,7 +169,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
                       _navMethodPunchline ??
                       AnalyticsNavigationMethod.programmatic,
                   jokeContext: widget.jokeContext,
-                  jokeViewerMode: widget.mode.name,
+                  jokeViewerMode: widget.mode,
                 );
               }
             }
@@ -187,7 +186,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
               navigationMethod:
                   _navMethodPunchline ?? AnalyticsNavigationMethod.swipe,
               jokeContext: widget.jokeContext,
-              jokeViewerMode: widget.mode.name,
+              jokeViewerMode: widget.mode,
             );
           }
           if (widget.joke.punchlineImageUrl == null ||
@@ -220,7 +219,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
           totalJokesViewed: jokesViewedCount,
           navigationMethod: _lastNavigationMethod,
           jokeContext: widget.jokeContext,
-          jokeViewerMode: widget.mode.name,
+          jokeViewerMode: widget.mode,
         );
         // Re-check mounted before reading another provider
         if (!mounted) return;
@@ -320,7 +319,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
     _lastNavigationMethod = AnalyticsNavigationMethod.ctaRevealPunchline;
 
     // Only use PageController in REVEAL mode
-    if (widget.mode == JokeCarouselMode.reveal) {
+    if (widget.mode == JokeViewerMode.reveal) {
       _pageController.nextPage(
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeInOut,
@@ -721,9 +720,9 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
 
   double _getAspectRatio() {
     switch (widget.mode) {
-      case JokeCarouselMode.reveal:
+      case JokeViewerMode.reveal:
         return 1.0; // Standard square aspect ratio for single image
-      case JokeCarouselMode.bothAdaptive:
+      case JokeViewerMode.bothAdaptive:
         // Not used directly; adaptive handled in build with LayoutBuilder
         return 1.0;
     }
@@ -736,13 +735,13 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
     );
 
     switch (widget.mode) {
-      case JokeCarouselMode.reveal:
+      case JokeViewerMode.reveal:
         return PageView(
           controller: _pageController,
           onPageChanged: _onPageChanged,
           children: [setupImage, punchlineImage],
         );
-      case JokeCarouselMode.bothAdaptive:
+      case JokeViewerMode.bothAdaptive:
         // Handled in build() where we know constraints and can pick aspect ratio
         // This path should not be used directly
         return const SizedBox.shrink();
@@ -793,7 +792,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
                         ),
                         child: Builder(
                           builder: (context) {
-                            if (widget.mode != JokeCarouselMode.bothAdaptive) {
+                            if (widget.mode != JokeViewerMode.bothAdaptive) {
                               return AspectRatio(
                                 aspectRatio: _getAspectRatio(),
                                 child: _buildCarouselContent(),
@@ -889,7 +888,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
                 Expanded(child: _buildLeftControls()),
 
                 // Page indicators (centered) - only show in REVEAL mode
-                if (widget.mode == JokeCarouselMode.reveal)
+                if (widget.mode == JokeViewerMode.reveal)
                   SmoothPageIndicator(
                     controller: _pageController,
                     count: 2,

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/common_widgets/joke_image_carousel.dart';
 import 'package:snickerdoodle/src/common_widgets/joke_text_card.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
+import 'package:snickerdoodle/src/features/jokes/domain/joke_viewer_mode.dart';
 import 'package:snickerdoodle/src/features/settings/application/joke_viewer_settings_service.dart';
 
 class JokeCard extends ConsumerWidget {
@@ -53,9 +54,7 @@ class JokeCard extends ConsumerWidget {
 
     if (hasSetupImage && hasPunchlineImage) {
       final bool reveal = ref.watch(jokeViewerRevealProvider);
-      final mode = reveal
-          ? JokeCarouselMode.reveal
-          : JokeCarouselMode.bothAdaptive;
+      final mode = reveal ? JokeViewerMode.reveal : JokeViewerMode.bothAdaptive;
       // Both images available - show carousel
       return JokeImageCarousel(
         joke: joke,

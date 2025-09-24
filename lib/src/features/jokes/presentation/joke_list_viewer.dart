@@ -11,6 +11,7 @@ import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_navigation_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
+import 'package:snickerdoodle/src/features/jokes/domain/joke_viewer_mode.dart';
 import 'package:snickerdoodle/src/features/settings/application/joke_viewer_settings_service.dart';
 
 /// Reusable vertical viewer for a list of jokes with CTA button
@@ -253,7 +254,9 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
                       jokeScrollDepth,
                       method: _lastNavigationMethod,
                       jokeContext: widget.jokeContext,
-                      jokeViewerMode: revealModeEnabled ? 'reveal' : 'showAll',
+                      jokeViewerMode: revealModeEnabled
+                          ? JokeViewerMode.reveal
+                          : JokeViewerMode.bothAdaptive,
                     );
 
                     _lastNavigationMethod = AnalyticsNavigationMethod.swipe;

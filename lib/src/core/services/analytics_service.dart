@@ -7,6 +7,7 @@ import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/crash_reporting_service.dart';
 import 'package:snickerdoodle/src/features/auth/data/models/app_user.dart';
+import 'package:snickerdoodle/src/features/jokes/domain/joke_viewer_mode.dart';
 import 'package:snickerdoodle/src/utils/device_utils.dart';
 
 /// Abstract interface for analytics service
@@ -23,7 +24,7 @@ abstract class AnalyticsService {
     String jokeId, {
     required String navigationMethod,
     required String jokeContext,
-    required String jokeViewerMode,
+    required JokeViewerMode jokeViewerMode,
   });
 
   /// Log when user views a joke punchline
@@ -31,7 +32,7 @@ abstract class AnalyticsService {
     String jokeId, {
     required String navigationMethod,
     required String jokeContext,
-    required String jokeViewerMode,
+    required JokeViewerMode jokeViewerMode,
   });
 
   /// Log when a joke is fully viewed (setup and punchline each viewed ≥ 2s sequentially)
@@ -40,7 +41,7 @@ abstract class AnalyticsService {
     required int totalJokesViewed,
     required String navigationMethod,
     required String jokeContext,
-    required String jokeViewerMode,
+    required JokeViewerMode jokeViewerMode,
   });
 
   /// Log when user navigates through jokes
@@ -49,7 +50,7 @@ abstract class AnalyticsService {
     int jokeScrollDepth, {
     required String method,
     required String jokeContext,
-    required String jokeViewerMode,
+    required JokeViewerMode jokeViewerMode,
   });
 
   /// Log when a joke is saved
@@ -338,13 +339,13 @@ class FirebaseAnalyticsService implements AnalyticsService {
     String jokeId, {
     required String navigationMethod,
     required String jokeContext,
-    required String jokeViewerMode,
+    required JokeViewerMode jokeViewerMode,
   }) {
     _logEvent(AnalyticsEvent.jokeSetupViewed, {
       AnalyticsParameters.jokeId: jokeId,
       AnalyticsParameters.navigationMethod: navigationMethod,
       AnalyticsParameters.jokeContext: jokeContext,
-      AnalyticsParameters.jokeViewerMode: jokeViewerMode,
+      AnalyticsParameters.jokeViewerMode: jokeViewerMode.name,
     });
   }
 
@@ -353,13 +354,13 @@ class FirebaseAnalyticsService implements AnalyticsService {
     String jokeId, {
     required String navigationMethod,
     required String jokeContext,
-    required String jokeViewerMode,
+    required JokeViewerMode jokeViewerMode,
   }) {
     _logEvent(AnalyticsEvent.jokePunchlineViewed, {
       AnalyticsParameters.jokeId: jokeId,
       AnalyticsParameters.navigationMethod: navigationMethod,
       AnalyticsParameters.jokeContext: jokeContext,
-      AnalyticsParameters.jokeViewerMode: jokeViewerMode,
+      AnalyticsParameters.jokeViewerMode: jokeViewerMode.name,
     });
   }
 
@@ -369,14 +370,14 @@ class FirebaseAnalyticsService implements AnalyticsService {
     required int totalJokesViewed,
     required String navigationMethod,
     required String jokeContext,
-    required String jokeViewerMode,
+    required JokeViewerMode jokeViewerMode,
   }) {
     _logEvent(AnalyticsEvent.jokeViewed, {
       AnalyticsParameters.jokeId: jokeId,
       AnalyticsParameters.totalJokesViewed: totalJokesViewed,
       AnalyticsParameters.navigationMethod: navigationMethod,
       AnalyticsParameters.jokeContext: jokeContext,
-      AnalyticsParameters.jokeViewerMode: jokeViewerMode,
+      AnalyticsParameters.jokeViewerMode: jokeViewerMode.name,
       AnalyticsParameters.jokeViewedCount: 1,
     });
   }
@@ -387,14 +388,14 @@ class FirebaseAnalyticsService implements AnalyticsService {
     int jokeScrollDepth, {
     required String method,
     required String jokeContext,
-    required String jokeViewerMode,
+    required JokeViewerMode jokeViewerMode,
   }) {
     _logEvent(AnalyticsEvent.jokeNavigated, {
       AnalyticsParameters.jokeId: jokeId,
       AnalyticsParameters.jokeScrollDepth: jokeScrollDepth,
       AnalyticsParameters.navigationMethod: method,
       AnalyticsParameters.jokeContext: jokeContext,
-      AnalyticsParameters.jokeViewerMode: jokeViewerMode,
+      AnalyticsParameters.jokeViewerMode: jokeViewerMode.name,
       AnalyticsParameters.jokeNavigatedCount: 1,
     });
   }

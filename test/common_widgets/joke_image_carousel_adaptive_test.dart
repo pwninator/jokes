@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
 import 'package:snickerdoodle/src/common_widgets/joke_image_carousel.dart';
 import 'package:snickerdoodle/src/core/providers/image_providers.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
+import 'package:snickerdoodle/src/features/jokes/domain/joke_viewer_mode.dart';
 
 import '../test_helpers/core_mocks.dart';
 
@@ -53,7 +54,7 @@ void main() {
                   punchlineImageUrl: 'b',
                 ),
                 jokeContext: 'test',
-                mode: JokeCarouselMode.bothAdaptive,
+                mode: JokeViewerMode.bothAdaptive,
               ),
             ),
           ),
@@ -87,7 +88,7 @@ void main() {
                   punchlineImageUrl: 'b',
                 ),
                 jokeContext: 'test',
-                mode: JokeCarouselMode.bothAdaptive,
+                mode: JokeViewerMode.bothAdaptive,
               ),
             ),
           ),

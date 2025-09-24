@@ -66,9 +66,7 @@ void main() {
       additionalOverrides: [
         // Deterministic count: return 1 ID
         searchResultIdsProvider(SearchScope.userJokeSearch).overrideWith(
-          (ref) async => const [
-            JokeSearchResult(id: '1', vectorDistance: 0.0),
-          ],
+          (ref) async => const [JokeSearchResult(id: '1', vectorDistance: 0.0)],
         ),
         // Viewer shows the actual joke content
         searchResultsViewerProvider(SearchScope.userJokeSearch).overrideWith(

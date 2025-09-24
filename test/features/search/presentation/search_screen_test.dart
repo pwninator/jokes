@@ -4,7 +4,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_category_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
-import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_search_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_category.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
@@ -48,8 +47,6 @@ void main() {
     expect(field, findsOneWidget);
     await tester.enterText(field, 'a');
     await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 50));
     await tester.pumpAndSettle();
 
     // Verify MaterialBanner is shown
@@ -67,8 +64,9 @@ void main() {
     final container = ProviderContainer(
       overrides: [
         ...FirebaseMocks.getFirebaseProviderOverrides(),
+        // Deterministic count: return 1 ID
         searchResultIdsProvider(SearchScope.userJokeSearch).overrideWith(
-          (ref) async => [const JokeSearchResult(id: '1', vectorDistance: 0.1)],
+          (ref) async => const [JokeSearchResult(id: '1', vectorDistance: 0.0)],
         ),
         jokeStreamByIdProvider('1').overrideWith(
           (ref) => Stream.value(
@@ -98,8 +96,9 @@ void main() {
       ),
     );
 
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 50));
+    final field = find.byKey(const Key('search_screen-search-field'));
+    await tester.enterText(field, 'cat');
+    await tester.testTextInput.receiveAction(TextInputAction.search);
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('search-results-count')), findsOneWidget);
@@ -169,8 +168,9 @@ void main() {
       ),
     );
 
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 50));
+    final field = find.byKey(const Key('search_screen-search-field'));
+    await tester.enterText(field, 'dog');
+    await tester.testTextInput.receiveAction(TextInputAction.search);
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('search-results-count')), findsOneWidget);
@@ -225,8 +225,9 @@ void main() {
       ),
     );
 
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 50));
+    final field = find.byKey(const Key('search_screen-search-field'));
+    await tester.enterText(field, 'fish');
+    await tester.testTextInput.receiveAction(TextInputAction.search);
     await tester.pumpAndSettle();
 
     // Title should be the index (1-based) for the first card

@@ -31,10 +31,13 @@ class UsersAnalyticsScreen extends ConsumerWidget implements TitledScreen {
             }
 
             final theme = Theme.of(context);
-            final blue = const Color.fromARGB(255, 0, 89, 255);
-            final yellow = Colors.yellow;
-            final orange = Colors.orange;
-            final red = const Color.fromARGB(255, 255, 70, 57);
+            final colorStops = {
+              1: Colors.grey,
+              2: Colors.blue,
+              5: Colors.yellow,
+              7: Colors.orange,
+              10: Colors.red,
+            };
 
             // Build chart groups
             final groups = <BarChartGroupData>[];
@@ -51,13 +54,7 @@ class UsersAnalyticsScreen extends ConsumerWidget implements TitledScreen {
               for (int bucket = 10; bucket >= 1; bucket--) {
                 final value = (buckets[bucket] ?? 0).toDouble();
                 if (value <= 0) continue;
-                final color = _colorForBucket(
-                  bucket,
-                  blue: blue,
-                  yellow: yellow,
-                  orange: orange,
-                  red: red,
-                );
+                final color = getBackgroundColorForBucket(bucket, colorStops);
                 stacks.add(
                   BarChartRodStackItem(running, running + value, color),
                 );
@@ -82,7 +79,7 @@ class UsersAnalyticsScreen extends ConsumerWidget implements TitledScreen {
               if (i == 0 ||
                   i == dateCount - 1 ||
                   i % max(1, dateCount ~/ 8) == 0) {
-                labels[i] = _formatShortDate(d);
+                labels[i] = formatShortDate(d);
               }
             }
 
@@ -104,11 +101,15 @@ class UsersAnalyticsScreen extends ConsumerWidget implements TitledScreen {
                       final idx = group.x;
                       final date = hist.orderedDates[idx];
                       final buckets = hist.countsByDateThenBucket[date] ?? {};
-                      final lines = buildUsersTooltipLines(buckets);
-                      return BarTooltipItem(
-                        lines.join('\n'),
-                        Theme.of(context).textTheme.bodySmall ??
-                            const TextStyle(),
+                      final textStyle =
+                          Theme.of(context).textTheme.bodySmall ??
+                          const TextStyle();
+
+                      return buildUsersAnalyticsTooltip(
+                        date: date,
+                        buckets: buckets,
+                        textStyle: textStyle,
+                        colorStops: colorStops,
                       );
                     },
                   ),
@@ -153,7 +154,7 @@ class UsersAnalyticsScreen extends ConsumerWidget implements TitledScreen {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _Legend(blue: blue, yellow: yellow, orange: orange, red: red),
+                Legend(colorStops: colorStops),
                 const SizedBox(height: 12),
                 SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
@@ -166,102 +167,4 @@ class UsersAnalyticsScreen extends ConsumerWidget implements TitledScreen {
       ),
     );
   }
-
-  String _formatShortDate(DateTime utcDay) {
-    final d = utcDay.toLocal();
-    const months = [
-      'Jan',
-      'Feb',
-      'Mar',
-      'Apr',
-      'May',
-      'Jun',
-      'Jul',
-      'Aug',
-      'Sep',
-      'Oct',
-      'Nov',
-      'Dec',
-    ];
-    return '${months[d.month - 1]} ${d.day}';
-  }
-}
-
-class _Legend extends StatelessWidget {
-  final Color blue;
-  final Color yellow;
-  final Color orange;
-  final Color red;
-  const _Legend({
-    required this.blue,
-    required this.yellow,
-    required this.orange,
-    required this.red,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final items = List.generate(10, (i) => i + 1);
-    return Wrap(
-      spacing: 8,
-      runSpacing: 8,
-      children: [
-        for (final b in items)
-          _LegendChip(
-            color: _colorForBucket(
-              b,
-              blue: blue,
-              yellow: yellow,
-              orange: orange,
-              red: red,
-            ),
-            label: b == 10 ? '10+' : '$b',
-            textStyle: theme.textTheme.bodySmall,
-          ),
-      ],
-    );
-  }
-}
-
-class _LegendChip extends StatelessWidget {
-  final Color color;
-  final String label;
-  final TextStyle? textStyle;
-  const _LegendChip({required this.color, required this.label, this.textStyle});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.8),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text(label, style: textStyle?.copyWith(color: Colors.black)),
-    );
-  }
-}
-
-// Color ramp helper: 1 -> blue, 4 -> yellow, 7 -> orange, 10+ -> red
-Color _colorForBucket(
-  int bucket, {
-  required Color blue,
-  required Color yellow,
-  required Color orange,
-  required Color red,
-}) {
-  if (bucket <= 1) return blue;
-  if (bucket >= 10) return red;
-  if (bucket <= 4) {
-    final t = (bucket - 1) / (4 - 1); // 0..1
-    return Color.lerp(blue, yellow, t)!;
-  }
-  if (bucket <= 7) {
-    final t = (bucket - 4) / (7 - 4); // 0..1
-    return Color.lerp(yellow, orange, t)!;
-  }
-  // 8..9 -> orange->red
-  final t = (bucket - 7) / (10 - 7); // 0..1 for 8..9
-  return Color.lerp(orange, red, t)!;
 }

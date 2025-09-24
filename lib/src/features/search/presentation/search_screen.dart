@@ -60,28 +60,6 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     super.dispose();
   }
 
-  void _clearSearch() {
-    _controller.clear();
-    final current = ref.read(
-      searchQueryProvider(SearchScope.userJokeSearch),
-    );
-    ref
-        .read(
-          searchQueryProvider(
-            SearchScope.userJokeSearch,
-          ).notifier,
-        )
-        .state = current.copyWith(
-      query: '',
-      maxResults: JokeConstants.userSearchMaxResults,
-      publicOnly: JokeConstants.userSearchPublicOnly,
-      matchMode: JokeConstants.userSearchMatchMode,
-      excludeJokeIds: const [],
-      label: JokeConstants.userSearchLabel,
-    );
-    FocusScope.of(context).unfocus();
-  }
-
   void _onSubmitted(String raw, {required SearchLabel label}) {
     final query = raw.trim();
     if (query.length < 2) {
@@ -149,7 +127,25 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     GoRouter.of(context).pop();
                   }
                 } else {
-                  _clearSearch();
+                  _controller.clear();
+                  final current = ref.read(
+                    searchQueryProvider(SearchScope.userJokeSearch),
+                  );
+                  ref
+                      .read(
+                        searchQueryProvider(
+                          SearchScope.userJokeSearch,
+                        ).notifier,
+                      )
+                      .state = current.copyWith(
+                    query: '',
+                    maxResults: JokeConstants.userSearchMaxResults,
+                    publicOnly: JokeConstants.userSearchPublicOnly,
+                    matchMode: JokeConstants.userSearchMatchMode,
+                    excludeJokeIds: const [],
+                    label: JokeConstants.userSearchLabel,
+                  );
+                  FocusScope.of(context).unfocus();
                 }
               },
             )
@@ -200,7 +196,27 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                             shape: const CircleBorder(),
                             visualDensity: VisualDensity.compact,
                           ),
-                          onPressed: _clearSearch,
+                          onPressed: () {
+                            _controller.clear();
+                            final current = ref.read(
+                              searchQueryProvider(SearchScope.userJokeSearch),
+                            );
+                            ref
+                                .read(
+                                  searchQueryProvider(
+                                    SearchScope.userJokeSearch,
+                                  ).notifier,
+                                )
+                                .state = current.copyWith(
+                              query: '',
+                              maxResults: JokeConstants.userSearchMaxResults,
+                              publicOnly: JokeConstants.userSearchPublicOnly,
+                              matchMode: JokeConstants.userSearchMatchMode,
+                              excludeJokeIds: const [],
+                              label: JokeConstants.userSearchLabel,
+                            );
+                            FocusScope.of(context).unfocus();
+                          },
                         ),
                       )
                     : null,

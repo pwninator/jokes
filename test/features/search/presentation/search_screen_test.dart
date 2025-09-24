@@ -8,8 +8,14 @@ import 'package:snickerdoodle/src/features/jokes/application/joke_search_provide
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_category.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/search/presentation/search_screen.dart';
+import 'package:mocktail/mocktail.dart';
+import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
+import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
+import 'package:snickerdoodle/src/features/jokes/domain/joke_search_result.dart';
 
 import '../../../test_helpers/firebase_mocks.dart';
+
+class MockJokeRepository extends Mock implements JokeRepository {}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -60,8 +66,22 @@ void main() {
   });
 
   testWidgets('Shows results count for single result', (tester) async {
-    final overrides = FirebaseMocks.getFirebaseProviderOverrides(
-      additionalOverrides: [
+    final mockJokeRepository = MockJokeRepository();
+    when(() => mockJokeRepository.getJokesByIds(any())).thenAnswer(
+      (_) async => [
+        const Joke(
+          id: '1',
+          setupText: 's',
+          punchlineText: 'p',
+          setupImageUrl: 's.jpg',
+          punchlineImageUrl: 'p.jpg',
+        ),
+      ],
+    );
+    final container = ProviderContainer(
+      overrides: [
+        ...FirebaseMocks.getFirebaseProviderOverrides(),
+        jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
         searchResultsViewerProvider(SearchScope.userJokeSearch).overrideWith(
           (ref) => const AsyncValue.data([
             JokeWithDate(
@@ -77,10 +97,11 @@ void main() {
         ),
       ],
     );
+    addTearDown(container.dispose);
 
     await tester.pumpWidget(
-      ProviderScope(
-        overrides: overrides,
+      UncontrolledProviderScope(
+        container: container,
         child: const MaterialApp(home: SearchScreen()),
       ),
     );
@@ -97,8 +118,36 @@ void main() {
   testWidgets('Shows pluralized results count for multiple results', (
     tester,
   ) async {
-    final overrides = FirebaseMocks.getFirebaseProviderOverrides(
-      additionalOverrides: [
+    final mockJokeRepository = MockJokeRepository();
+    when(() => mockJokeRepository.getJokesByIds(any())).thenAnswer(
+      (_) async => [
+        const Joke(
+          id: '1',
+          setupText: 's1',
+          punchlineText: 'p1',
+          setupImageUrl: 's1.jpg',
+          punchlineImageUrl: 'p1.jpg',
+        ),
+        const Joke(
+          id: '2',
+          setupText: 's2',
+          punchlineText: 'p2',
+          setupImageUrl: 's2.jpg',
+          punchlineImageUrl: 'p2.jpg',
+        ),
+        const Joke(
+          id: '3',
+          setupText: 's3',
+          punchlineText: 'p3',
+          setupImageUrl: 's3.jpg',
+          punchlineImageUrl: 'p3.jpg',
+        ),
+      ],
+    );
+    final container = ProviderContainer(
+      overrides: [
+        ...FirebaseMocks.getFirebaseProviderOverrides(),
+        jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
         searchResultsViewerProvider(SearchScope.userJokeSearch).overrideWith(
           (ref) => const AsyncValue.data([
             JokeWithDate(
@@ -132,10 +181,11 @@ void main() {
         ),
       ],
     );
+    addTearDown(container.dispose);
 
     await tester.pumpWidget(
-      ProviderScope(
-        overrides: overrides,
+      UncontrolledProviderScope(
+        container: container,
         child: const MaterialApp(home: SearchScreen()),
       ),
     );
@@ -152,8 +202,29 @@ void main() {
   testWidgets('Search results show 1-based index titles on JokeCards', (
     tester,
   ) async {
-    final overrides = FirebaseMocks.getFirebaseProviderOverrides(
-      additionalOverrides: [
+    final mockJokeRepository = MockJokeRepository();
+    when(() => mockJokeRepository.getJokesByIds(any())).thenAnswer(
+      (_) async => [
+        const Joke(
+          id: 'a',
+          setupText: 's1',
+          punchlineText: 'p1',
+          setupImageUrl: 's1.jpg',
+          punchlineImageUrl: 'p1.jpg',
+        ),
+        const Joke(
+          id: 'b',
+          setupText: 's2',
+          punchlineText: 'p2',
+          setupImageUrl: 's2.jpg',
+          punchlineImageUrl: 'p2.jpg',
+        ),
+      ],
+    );
+    final container = ProviderContainer(
+      overrides: [
+        ...FirebaseMocks.getFirebaseProviderOverrides(),
+        jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
         searchResultsViewerProvider(SearchScope.userJokeSearch).overrideWith(
           (ref) => const AsyncValue.data([
             JokeWithDate(
@@ -178,10 +249,11 @@ void main() {
         ),
       ],
     );
+    addTearDown(container.dispose);
 
     await tester.pumpWidget(
-      ProviderScope(
-        overrides: overrides,
+      UncontrolledProviderScope(
+        container: container,
         child: const MaterialApp(home: SearchScreen()),
       ),
     );

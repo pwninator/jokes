@@ -6,17 +6,17 @@ import 'package:snickerdoodle/src/common_widgets/notification_hour_widget.dart';
 import 'package:snickerdoodle/src/common_widgets/subscription_prompt_dialog.dart';
 import 'package:snickerdoodle/src/common_widgets/titled_screen.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
+import 'package:snickerdoodle/src/core/providers/app_usage_events_provider.dart';
 import 'package:snickerdoodle/src/core/providers/app_version_provider.dart';
+import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/app_review_service.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
-import 'package:snickerdoodle/src/core/providers/app_usage_events_provider.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
 import 'package:snickerdoodle/src/features/auth/data/models/app_user.dart';
 import 'package:snickerdoodle/src/features/settings/application/joke_viewer_settings_service.dart';
-import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/features/settings/application/theme_settings_service.dart';
 
 class UserSettingsScreen extends ConsumerStatefulWidget
@@ -511,36 +511,44 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
     final currentThemeMode = ref.watch(themeModeProvider);
     final themeModeNotifier = ref.read(themeModeProvider.notifier);
 
-    return Column(
-      children: [
-        _buildThemeOption(
-          context,
-          ThemeMode.system,
-          currentThemeMode,
-          Icons.brightness_auto,
-          'Use System Setting',
-          'Automatically switch between light and dark themes based on your device settings',
-          () => themeModeNotifier.setThemeMode(ThemeMode.system),
-        ),
-        _buildThemeOption(
-          context,
-          ThemeMode.light,
-          currentThemeMode,
-          Icons.light_mode,
-          'Always Light',
-          'Use light theme regardless of system settings',
-          () => themeModeNotifier.setThemeMode(ThemeMode.light),
-        ),
-        _buildThemeOption(
-          context,
-          ThemeMode.dark,
-          currentThemeMode,
-          Icons.dark_mode,
-          'Always Dark',
-          'Use dark theme regardless of system settings',
-          () => themeModeNotifier.setThemeMode(ThemeMode.dark),
-        ),
-      ],
+    return RadioGroup(
+      groupValue: currentThemeMode,
+      onChanged: (ThemeMode? value) {
+        if (value != null) {
+          themeModeNotifier.setThemeMode(value);
+        }
+      },
+      child: Column(
+        children: [
+          _buildThemeOption(
+            context,
+            ThemeMode.system,
+            currentThemeMode,
+            Icons.brightness_auto,
+            'Use System Setting',
+            'Automatically switch between light and dark themes based on your device settings',
+            () => themeModeNotifier.setThemeMode(ThemeMode.system),
+          ),
+          _buildThemeOption(
+            context,
+            ThemeMode.light,
+            currentThemeMode,
+            Icons.light_mode,
+            'Always Light',
+            'Use light theme regardless of system settings',
+            () => themeModeNotifier.setThemeMode(ThemeMode.light),
+          ),
+          _buildThemeOption(
+            context,
+            ThemeMode.dark,
+            currentThemeMode,
+            Icons.dark_mode,
+            'Always Dark',
+            'Use dark theme regardless of system settings',
+            () => themeModeNotifier.setThemeMode(ThemeMode.dark),
+          ),
+        ],
+      ),
     );
   }
 
@@ -741,62 +749,34 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
   ) {
     final isSelected = themeMode == currentThemeMode;
 
-    return InkWell(
+    return RadioListTile<ThemeMode>(
       key: Key(
         'user_settings_screen-theme-option-${title.toLowerCase().replaceAll(' ', '-')}',
       ),
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 4.0),
-        child: Row(
-          children: [
-            Icon(
-              icon,
-              color: isSelected
-                  ? Theme.of(context).colorScheme.primary
-                  : Theme.of(
-                      context,
-                    ).colorScheme.onSurface.withValues(alpha: 0.6),
-            ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: TextStyle(
-                      fontWeight: FontWeight.w500,
-                      color: isSelected
-                          ? Theme.of(context).colorScheme.primary
-                          : Theme.of(context).colorScheme.onSurface,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.onSurface.withValues(alpha: 0.6),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Radio<ThemeMode>(
-              key: Key(
-                'user_settings_screen-theme-radio-${title.toLowerCase().replaceAll(' ', '-')}',
-              ),
-              value: themeMode,
-              groupValue: currentThemeMode,
-              onChanged: (value) => onTap(),
-            ),
-          ],
+      value: themeMode,
+      title: Text(
+        title,
+        style: TextStyle(
+          fontWeight: FontWeight.w500,
+          color: isSelected
+              ? Theme.of(context).colorScheme.primary
+              : Theme.of(context).colorScheme.onSurface,
         ),
       ),
+      subtitle: Text(
+        subtitle,
+        style: TextStyle(
+          fontSize: 12,
+          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+        ),
+      ),
+      secondary: Icon(
+        icon,
+        color: isSelected
+            ? Theme.of(context).colorScheme.primary
+            : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
+      ),
+      selected: isSelected,
     );
   }
 

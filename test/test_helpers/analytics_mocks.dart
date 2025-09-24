@@ -5,6 +5,7 @@ import 'package:snickerdoodle/src/core/services/analytics_events.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/features/auth/data/models/app_user.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
+import 'package:snickerdoodle/src/features/jokes/domain/joke_viewer_mode.dart';
 
 import 'firebase_mocks.dart';
 
@@ -20,6 +21,11 @@ class AnalyticsMocks {
     _mockAnalyticsService ??= MockAnalyticsService();
     _setupAnalyticsServiceDefaults(_mockAnalyticsService!);
     return _mockAnalyticsService!;
+  }
+
+  /// Register fallback values for mocktail
+  static void registerFallbackValues() {
+    registerFallbackValue(JokeViewerMode.reveal);
   }
 
   /// Reset all analytics mocks (call this in setUp if needed)
@@ -56,6 +62,7 @@ class AnalyticsMocks {
         any(),
         navigationMethod: any(named: 'navigationMethod'),
         jokeContext: any(named: 'jokeContext'),
+        jokeViewerMode: any(named: 'jokeViewerMode'),
       ),
     ).thenAnswer((_) async {});
 
@@ -64,6 +71,7 @@ class AnalyticsMocks {
         any(),
         navigationMethod: any(named: 'navigationMethod'),
         jokeContext: any(named: 'jokeContext'),
+        jokeViewerMode: any(named: 'jokeViewerMode'),
       ),
     ).thenAnswer((_) async {});
 
@@ -73,6 +81,7 @@ class AnalyticsMocks {
         totalJokesViewed: any(named: 'totalJokesViewed'),
         navigationMethod: any(named: 'navigationMethod'),
         jokeContext: any(named: 'jokeContext'),
+        jokeViewerMode: any(named: 'jokeViewerMode'),
       ),
     ).thenAnswer((_) async {});
 
@@ -82,6 +91,7 @@ class AnalyticsMocks {
         any(),
         method: any(named: 'method'),
         jokeContext: any(named: 'jokeContext'),
+        jokeViewerMode: any(named: 'jokeViewerMode'),
       ),
     ).thenAnswer((_) async {});
 
@@ -319,6 +329,7 @@ class FakeAppUser extends Fake implements AppUser {}
 void registerAnalyticsFallbackValues() {
   registerFallbackValue(FakeAppUser());
   registerFallbackValue(JokeReactionType.save);
+  registerFallbackValue(JokeViewerMode.reveal);
   // No subscription-specific enum fallbacks needed after API changes
   registerFallbackValue(AppTab.dailyJokes);
 }

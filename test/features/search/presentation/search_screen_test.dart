@@ -7,6 +7,7 @@ import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers
 import 'package:snickerdoodle/src/features/jokes/application/joke_search_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_category.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
+import 'package:snickerdoodle/src/features/jokes/domain/joke_search_result.dart';
 import 'package:snickerdoodle/src/features/search/presentation/search_screen.dart';
 
 import '../../../test_helpers/firebase_mocks.dart';
@@ -64,6 +65,13 @@ void main() {
   testWidgets('Shows results count for single result', (tester) async {
     final overrides = FirebaseMocks.getFirebaseProviderOverrides(
       additionalOverrides: [
+        // Deterministic count: return 1 ID
+        searchResultIdsProvider(SearchScope.userJokeSearch).overrideWith(
+          (ref) async => const [
+            JokeSearchResult(id: '1', vectorDistance: 0.0),
+          ],
+        ),
+        // Viewer shows the actual joke content
         searchResultsViewerProvider(SearchScope.userJokeSearch).overrideWith(
           (ref) => Stream.value(const [
             JokeWithDate(
@@ -103,6 +111,15 @@ void main() {
   ) async {
     final overrides = FirebaseMocks.getFirebaseProviderOverrides(
       additionalOverrides: [
+        // Deterministic count: return 3 IDs
+        searchResultIdsProvider(SearchScope.userJokeSearch).overrideWith(
+          (ref) async => const [
+            JokeSearchResult(id: '1', vectorDistance: 0.0),
+            JokeSearchResult(id: '2', vectorDistance: 0.0),
+            JokeSearchResult(id: '3', vectorDistance: 0.0),
+          ],
+        ),
+        // Viewer shows the actual jokes
         searchResultsViewerProvider(SearchScope.userJokeSearch).overrideWith(
           (ref) => Stream.value(const [
             JokeWithDate(
@@ -196,6 +213,8 @@ void main() {
     await tester.enterText(field, 'fish');
     await tester.testTextInput.receiveAction(TextInputAction.search);
     await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.pumpAndSettle();
 
     // Title should be the index (1-based) for the first card
     expect(find.text('1'), findsOneWidget);

@@ -199,7 +199,7 @@ void main() {
           any(),
           navigationMethod: any(named: 'navigationMethod'),
           jokeContext: any(named: 'jokeContext'),
-        jokeViewerMode: any(named: 'jokeViewerMode'),
+          jokeViewerMode: any(named: 'jokeViewerMode'),
         ),
       ).called(greaterThan(0));
     },

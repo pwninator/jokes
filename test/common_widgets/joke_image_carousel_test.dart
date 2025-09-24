@@ -58,7 +58,6 @@ void main() {
       expect(find.byType(SmoothPageIndicator), findsOneWidget);
       expect(find.byType(PageView), findsOneWidget);
     });
-
   });
 
   group('JokeImageCarousel Counts Icons', () {

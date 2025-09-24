@@ -7,11 +7,11 @@ import 'package:snickerdoodle/src/config/router/app_router.dart' show RailHost;
 import 'package:snickerdoodle/src/config/router/router_providers.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
+import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_navigation_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/settings/application/joke_viewer_settings_service.dart';
-import 'package:snickerdoodle/src/core/services/app_logger.dart';
 
 /// Reusable vertical viewer for a list of jokes with CTA button
 class JokeListViewer extends ConsumerStatefulWidget {
@@ -245,15 +245,15 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
                     final jokeScrollDepth = index;
 
                     final analyticsService = ref.read(analyticsServiceProvider);
-                    final revealModeEnabled =
-                        ref.read(jokeViewerRevealProvider);
+                    final revealModeEnabled = ref.read(
+                      jokeViewerRevealProvider,
+                    );
                     analyticsService.logJokeNavigation(
                       joke.id,
                       jokeScrollDepth,
                       method: _lastNavigationMethod,
                       jokeContext: widget.jokeContext,
-                      jokeViewerMode:
-                          revealModeEnabled ? 'reveal' : 'showAll',
+                      jokeViewerMode: revealModeEnabled ? 'reveal' : 'showAll',
                     );
 
                     _lastNavigationMethod = AnalyticsNavigationMethod.swipe;

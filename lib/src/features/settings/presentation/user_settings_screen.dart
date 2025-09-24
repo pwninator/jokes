@@ -16,6 +16,7 @@ import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
 import 'package:snickerdoodle/src/features/auth/data/models/app_user.dart';
 import 'package:snickerdoodle/src/features/settings/application/joke_viewer_settings_service.dart';
+import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/features/settings/application/theme_settings_service.dart';
 
 class UserSettingsScreen extends ConsumerStatefulWidget
@@ -54,11 +55,11 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
 
     // Reset sequence if more than 2 seconds passed since last tap
     if (_lastTap != null && now.difference(_lastTap!).inSeconds > 2) {
-      debugPrint('DEBUG: Settings screen - sequence reset due to timeout');
+      AppLogger.debug('DEBUG: Settings screen - sequence reset due to timeout');
       _tapSequence.clear();
     }
 
-    debugPrint('DEBUG: Settings screen - adding tap: $tapType');
+    AppLogger.debug('DEBUG: Settings screen - adding tap: $tapType');
     _tapSequence.add(tapType);
     _lastTap = now;
 
@@ -75,7 +76,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
     if (!sequenceValid) {
       // Reset on wrong sequence
       _tapSequence.clear();
-      debugPrint('DEBUG: Settings screen - sequence invalid');
+      AppLogger.debug('DEBUG: Settings screen - sequence invalid');
       return;
     }
 
@@ -120,7 +121,9 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       GestureDetector(
-                        key: const Key('user_settings_screen-theme-settings-secret-tap'),
+                        key: const Key(
+                          'user_settings_screen-theme-settings-secret-tap',
+                        ),
                         onTap: () => _handleSecretTap('theme'),
                         child: Text(
                           'Theme Settings',
@@ -206,7 +209,9 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       GestureDetector(
-                        key: const Key('user_settings_screen-notifications-secret-tap'),
+                        key: const Key(
+                          'user_settings_screen-notifications-secret-tap',
+                        ),
                         onTap: () => _handleSecretTap('notifications'),
                         child: Text(
                           'Notifications',
@@ -367,7 +372,9 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                         if (currentUser?.isAnonymous == true) ...[
                           // Show Google sign-in option for anonymous users
                           ElevatedButton.icon(
-                            key: const Key('user_settings_screen-google-sign-in-button'),
+                            key: const Key(
+                              'user_settings_screen-google-sign-in-button',
+                            ),
                             onPressed: () =>
                                 _signInWithGoogle(context, authController),
                             icon: const Icon(Icons.login),
@@ -382,7 +389,9 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                         ] else ...[
                           // Show sign out option for authenticated users
                           ElevatedButton.icon(
-                            key: const Key('user_settings_screen-switch-to-guest-button'),
+                            key: const Key(
+                              'user_settings_screen-switch-to-guest-button',
+                            ),
                             onPressed: () =>
                                 _confirmSignOut(context, authController),
                             icon: const Icon(Icons.logout),
@@ -415,7 +424,9 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                         const SizedBox(height: 16),
 
                         ElevatedButton.icon(
-                          key: const Key('user_settings_screen-test-subscribe-prompt-button'),
+                          key: const Key(
+                            'user_settings_screen-test-subscribe-prompt-button',
+                          ),
                           onPressed: () => _testSubscribePrompt(context),
                           icon: const Icon(Icons.notifications),
                           label: const Text('Test Subscribe Prompt'),
@@ -731,7 +742,9 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
     final isSelected = themeMode == currentThemeMode;
 
     return InkWell(
-      key: Key('user_settings_screen-theme-option-${title.toLowerCase().replaceAll(' ', '-')}'),
+      key: Key(
+        'user_settings_screen-theme-option-${title.toLowerCase().replaceAll(' ', '-')}',
+      ),
       onTap: onTap,
       borderRadius: BorderRadius.circular(8),
       child: Padding(
@@ -774,7 +787,9 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
               ),
             ),
             Radio<ThemeMode>(
-              key: Key('user_settings_screen-theme-radio-${title.toLowerCase().replaceAll(' ', '-')}'),
+              key: Key(
+                'user_settings_screen-theme-radio-${title.toLowerCase().replaceAll(' ', '-')}',
+              ),
               value: themeMode,
               groupValue: currentThemeMode,
               onChanged: (value) => onTap(),
@@ -838,9 +853,9 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
     AuthController authController,
   ) async {
     try {
-      debugPrint('DEBUG: Settings screen - starting Google sign-in...');
+      AppLogger.debug('DEBUG: Settings screen - starting Google sign-in...');
       await authController.signInWithGoogle();
-      debugPrint(
+      AppLogger.debug(
         'DEBUG: Settings screen - Google sign-in completed successfully',
       );
       if (context.mounted) {
@@ -853,7 +868,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
         );
       }
     } catch (e) {
-      debugPrint('DEBUG: Settings screen - Google sign-in failed: $e');
+      AppLogger.warn('DEBUG: Settings screen - Google sign-in failed: $e');
       // Log analytics/crash for sign-in failure
       try {
         final analytics = ref.read(analyticsServiceProvider);
@@ -872,7 +887,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
               label: 'Details',
               textColor: Colors.white,
               onPressed: () {
-                debugPrint('ERROR DETAILS: $e');
+                AppLogger.debug('ERROR DETAILS: $e');
                 // Show dialog with full error
                 showDialog(
                   context: context,
@@ -881,7 +896,9 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                     content: SingleChildScrollView(child: Text(e.toString())),
                     actions: [
                       TextButton(
-                        key: const Key('user_settings_screen-error-dialog-ok-button'),
+                        key: const Key(
+                          'user_settings_screen-error-dialog-ok-button',
+                        ),
                         onPressed: () => Navigator.of(context).pop(),
                         child: const Text('OK'),
                       ),
@@ -992,7 +1009,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
         }
       }
     } catch (e) {
-      debugPrint('ERROR: _toggleNotifications: $e');
+      AppLogger.warn('ERROR: _toggleNotifications: $e');
       // Log analytics/crash for notification toggle failure (fire-and-forget)
       final analytics = ref.read(analyticsServiceProvider);
       analytics.logErrorSubscriptionToggle(

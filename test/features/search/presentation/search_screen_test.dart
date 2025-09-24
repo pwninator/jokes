@@ -1,18 +1,35 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_category_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_search_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_category.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
+import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
+import 'package:snickerdoodle/src/features/jokes/domain/joke_search_result.dart';
 import 'package:snickerdoodle/src/features/search/presentation/search_screen.dart';
 
 import '../../../test_helpers/firebase_mocks.dart';
 
+import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
+import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
+
+class MockJokeCloudFunctionService extends Mock
+    implements JokeCloudFunctionService {}
+
+class MockJokeRepository extends Mock implements JokeRepository {}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUpAll(() {
+    registerFallbackValue(MatchMode.tight);
+    registerFallbackValue(SearchScope.userJokeSearch);
+    registerFallbackValue(SearchLabel.none);
+  });
 
   testWidgets('Submitting <2 chars shows banner and does not update query', (
     tester,
@@ -23,7 +40,7 @@ void main() {
           // Prevent real cloud function calls during this test
           searchResultsViewerProvider(
             SearchScope.userJokeSearch,
-          ).overrideWith((ref) => const AsyncValue.data([])),
+          ).overrideWith((ref) => Stream.value(const <JokeWithDate>[])),
         ],
       ),
     );
@@ -47,6 +64,8 @@ void main() {
     await tester.enterText(field, 'a');
     await tester.testTextInput.receiveAction(TextInputAction.search);
     await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.pumpAndSettle();
 
     // Verify MaterialBanner is shown
     expect(find.text('Please enter a longer search query'), findsOneWidget);
@@ -60,21 +79,34 @@ void main() {
   });
 
   testWidgets('Shows results count for single result', (tester) async {
+    final cloudFunctionService = MockJokeCloudFunctionService();
+    when(
+      () => cloudFunctionService.searchJokes(
+        searchQuery: any(named: 'searchQuery'),
+        maxResults: any(named: 'maxResults'),
+        publicOnly: any(named: 'publicOnly'),
+        matchMode: any(named: 'matchMode'),
+        scope: any(named: 'scope'),
+        label: any(named: 'label'),
+        excludeJokeIds: any(named: 'excludeJokeIds'),
+      ),
+    ).thenAnswer((_) async => const [
+          JokeSearchResult(id: '1', vectorDistance: 0.1),
+        ]);
+
     final overrides = FirebaseMocks.getFirebaseProviderOverrides(
       additionalOverrides: [
-        searchResultsViewerProvider(SearchScope.userJokeSearch).overrideWith(
-          (ref) => const AsyncValue.data([
-            JokeWithDate(
-              joke: Joke(
-                id: '1',
-                setupText: 's',
-                punchlineText: 'p',
-                setupImageUrl: 'a',
-                punchlineImageUrl: 'b',
-              ),
-            ),
-          ]),
+        jokeCloudFunctionServiceProvider.overrideWithValue(cloudFunctionService),
+        jokeByIdGetProvider('1').overrideWith(
+          (ref) => Future.value(const Joke(
+            id: '1',
+            setupText: 's',
+            punchlineText: 'p',
+            setupImageUrl: 'a',
+            punchlineImageUrl: 'b',
+          )),
         ),
+        jokesByIdsGetProvider([]).overrideWith((ref) async => []),
       ],
     );
 
@@ -89,6 +121,8 @@ void main() {
     await tester.enterText(field, 'cat');
     await tester.testTextInput.receiveAction(TextInputAction.search);
     await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('search-results-count')), findsOneWidget);
     expect(find.text('1 result'), findsOneWidget);
@@ -97,38 +131,61 @@ void main() {
   testWidgets('Shows pluralized results count for multiple results', (
     tester,
   ) async {
+    final cloudFunctionService = MockJokeCloudFunctionService();
+    when(
+      () => cloudFunctionService.searchJokes(
+        searchQuery: any(named: 'searchQuery'),
+        maxResults: any(named: 'maxResults'),
+        publicOnly: any(named: 'publicOnly'),
+        matchMode: any(named: 'matchMode'),
+        scope: any(named: 'scope'),
+        label: any(named: 'label'),
+        excludeJokeIds: any(named: 'excludeJokeIds'),
+      ),
+    ).thenAnswer((_) async => const [
+          JokeSearchResult(id: '1', vectorDistance: 0.1),
+          JokeSearchResult(id: '2', vectorDistance: 0.2),
+          JokeSearchResult(id: '3', vectorDistance: 0.3),
+        ]);
+
+    final mockJokeRepository = MockJokeRepository();
+    when(() => mockJokeRepository.getJokesByIds(any())).thenAnswer(
+      (invocation) async {
+        final ids = invocation.positionalArguments.first as List<String>;
+        if (ids.toSet().containsAll(['2', '3'])) {
+          return const [
+            Joke(
+              id: '2',
+              setupText: 's2',
+              punchlineText: 'p2',
+              setupImageUrl: 'a',
+              punchlineImageUrl: 'b',
+            ),
+            Joke(
+              id: '3',
+              setupText: 's3',
+              punchlineText: 'p3',
+              setupImageUrl: 'a',
+              punchlineImageUrl: 'b',
+            ),
+          ];
+        }
+        return [];
+      },
+    );
+
     final overrides = FirebaseMocks.getFirebaseProviderOverrides(
       additionalOverrides: [
-        searchResultsViewerProvider(SearchScope.userJokeSearch).overrideWith(
-          (ref) => const AsyncValue.data([
-            JokeWithDate(
-              joke: Joke(
-                id: '1',
-                setupText: 's1',
-                punchlineText: 'p1',
-                setupImageUrl: 'a',
-                punchlineImageUrl: 'b',
-              ),
-            ),
-            JokeWithDate(
-              joke: Joke(
-                id: '2',
-                setupText: 's2',
-                punchlineText: 'p2',
-                setupImageUrl: 'a',
-                punchlineImageUrl: 'b',
-              ),
-            ),
-            JokeWithDate(
-              joke: Joke(
-                id: '3',
-                setupText: 's3',
-                punchlineText: 'p3',
-                setupImageUrl: 'a',
-                punchlineImageUrl: 'b',
-              ),
-            ),
-          ]),
+        jokeCloudFunctionServiceProvider.overrideWithValue(cloudFunctionService),
+        jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
+        jokeByIdGetProvider('1').overrideWith(
+          (ref) => Future.value(const Joke(
+            id: '1',
+            setupText: 's1',
+            punchlineText: 'p1',
+            setupImageUrl: 'a',
+            punchlineImageUrl: 'b',
+          )),
         ),
       ],
     );
@@ -144,6 +201,8 @@ void main() {
     await tester.enterText(field, 'dog');
     await tester.testTextInput.receiveAction(TextInputAction.search);
     await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
+    await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('search-results-count')), findsOneWidget);
     expect(find.text('3 results'), findsOneWidget);
@@ -152,29 +211,53 @@ void main() {
   testWidgets('Search results show 1-based index titles on JokeCards', (
     tester,
   ) async {
+    final cloudFunctionService = MockJokeCloudFunctionService();
+    when(
+      () => cloudFunctionService.searchJokes(
+        searchQuery: any(named: 'searchQuery'),
+        maxResults: any(named: 'maxResults'),
+        publicOnly: any(named: 'publicOnly'),
+        matchMode: any(named: 'matchMode'),
+        scope: any(named: 'scope'),
+        label: any(named: 'label'),
+        excludeJokeIds: any(named: 'excludeJokeIds'),
+      ),
+    ).thenAnswer((_) async => const [
+          JokeSearchResult(id: 'a', vectorDistance: 0.1),
+          JokeSearchResult(id: 'b', vectorDistance: 0.2),
+        ]);
+
+    final mockJokeRepository = MockJokeRepository();
+    when(() => mockJokeRepository.getJokesByIds(any())).thenAnswer(
+      (invocation) async {
+        final ids = invocation.positionalArguments.first as List<String>;
+        if (ids.toSet().contains('b')) {
+          return const [
+            Joke(
+              id: 'b',
+              setupText: 's2',
+              punchlineText: 'p2',
+              setupImageUrl: 'a',
+              punchlineImageUrl: 'b',
+            ),
+          ];
+        }
+        return [];
+      },
+    );
+
     final overrides = FirebaseMocks.getFirebaseProviderOverrides(
       additionalOverrides: [
-        searchResultsViewerProvider(SearchScope.userJokeSearch).overrideWith(
-          (ref) => const AsyncValue.data([
-            JokeWithDate(
-              joke: Joke(
-                id: 'a',
-                setupText: 's1',
-                punchlineText: 'p1',
-                setupImageUrl: 'a',
-                punchlineImageUrl: 'b',
-              ),
-            ),
-            JokeWithDate(
-              joke: Joke(
-                id: 'b',
-                setupText: 's2',
-                punchlineText: 'p2',
-                setupImageUrl: 'a',
-                punchlineImageUrl: 'b',
-              ),
-            ),
-          ]),
+        jokeCloudFunctionServiceProvider.overrideWithValue(cloudFunctionService),
+        jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
+        jokeByIdGetProvider('a').overrideWith(
+          (ref) => Future.value(const Joke(
+            id: 'a',
+            setupText: 's1',
+            punchlineText: 'p1',
+            setupImageUrl: 'a',
+            punchlineImageUrl: 'b',
+          )),
         ),
       ],
     );
@@ -189,7 +272,7 @@ void main() {
     final field = find.byKey(const Key('search_screen-search-field'));
     await tester.enterText(field, 'fish');
     await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pump();
+    await tester.pumpAndSettle();
 
     // Title should be the index (1-based) for the first card
     expect(find.text('1'), findsOneWidget);
@@ -270,7 +353,7 @@ void main() {
           // Avoid network search calls in tests
           searchResultsViewerProvider(
             SearchScope.userJokeSearch,
-          ).overrideWith((ref) => const AsyncValue.data([])),
+          ).overrideWith((ref) => Stream.value(const <JokeWithDate>[])),
         ],
       ),
     );
@@ -328,7 +411,7 @@ void main() {
             // Avoid network search calls in tests
             searchResultsViewerProvider(
               SearchScope.userJokeSearch,
-            ).overrideWith((ref) => const AsyncValue.data([])),
+            ).overrideWith((ref) => Stream.value(const <JokeWithDate>[])),
           ],
         ),
       );
@@ -377,7 +460,7 @@ void main() {
           // Avoid network search calls in tests
           searchResultsViewerProvider(
             SearchScope.userJokeSearch,
-          ).overrideWith((ref) => const AsyncValue.data([])),
+          ).overrideWith((ref) => Stream.value(const <JokeWithDate>[])),
         ],
       ),
     );

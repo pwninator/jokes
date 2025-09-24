@@ -78,7 +78,9 @@ void main() {
 
       // Set up default mock returns
       when(
-        () => mockSyncService.ensureSubscriptionSync(),
+        () => mockSyncService.ensureSubscriptionSync(
+          unsubscribeOthers: any(named: 'unsubscribeOthers'),
+        ),
       ).thenAnswer((_) async => true);
       when(
         () => mockAnalyticsService.logSubscriptionTimeChanged(

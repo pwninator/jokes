@@ -1,12 +1,12 @@
 import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
 import 'package:snickerdoodle/src/features/auth/data/repositories/auth_repository.dart';
+import 'package:snickerdoodle/src/core/services/app_logger.dart';
 
 /// Coordinates background authentication at app startup.
 ///
@@ -74,7 +74,7 @@ class AuthStartupManager {
         return;
       }
       try {
-        debugPrint(
+        AppLogger.debug(
           'AuthStartupManager: attempting anonymous sign-in (attempt ${_attemptIndex + 1})',
         );
         await _authRepository.signInAnonymously();
@@ -87,9 +87,8 @@ class AuthStartupManager {
             errorMessage: e.toString(),
           );
         } catch (_) {}
-        debugPrint(
-          'AuthStartupManager: anonymous sign-in failed: $e\n$stackTrace',
-        );
+        AppLogger.warn('AuthStartupManager: anonymous sign-in failed: $e');
+        AppLogger.debug('STACKTRACE: $stackTrace');
         // Schedule next attempt with backoff if still unsigned.
         if (_firebaseAuth.currentUser == null) {
           _attemptIndex = (_attemptIndex + 1).clamp(

@@ -4,6 +4,8 @@ import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
+import 'package:snickerdoodle/src/core/providers/app_providers.dart';
+import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_population_providers.dart';
@@ -83,6 +85,11 @@ class FirebaseMocks {
       // Remote Config: override values to avoid platform calls in tests
       remoteConfigValuesProvider.overrideWithValue(_TestRemoteConfigValues()),
       remoteConfigInitializationProvider.overrideWith((ref) async {}),
+
+      // No-op performance service to avoid calling Firebase in tests
+      performanceServiceProvider.overrideWithValue(
+        _TestNoopPerformanceService(),
+      ),
       // Additional overrides after base ones so tests can replace any of these
       ...additionalOverrides,
     ];
@@ -169,6 +176,28 @@ class FirebaseMocks {
   static void _setupFirebaseFirestoreDefaults(MockFirebaseFirestore mock) {
     // Basic mock setup - methods will be mocked as needed in individual tests
   }
+}
+
+class _TestNoopPerformanceService implements PerformanceService {
+  @override
+  void startNamedTrace({
+    required TraceName name,
+    String? key,
+    Map<String, String>? attributes,
+  }) {}
+
+  @override
+  void putNamedTraceAttributes({
+    required TraceName name,
+    String? key,
+    required Map<String, String> attributes,
+  }) {}
+
+  @override
+  void stopNamedTrace({required TraceName name, String? key}) {}
+
+  @override
+  void dropNamedTrace({required TraceName name, String? key}) {}
 }
 
 class _TestRemoteConfigValues implements RemoteConfigValues {

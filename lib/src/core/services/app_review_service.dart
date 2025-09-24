@@ -21,17 +21,19 @@ enum ReviewRequestResult {
 }
 
 /// Source of the review request for analytics/telemetry
-enum ReviewRequestSource { adminTest, settings, auto }
+enum ReviewRequestSource { adminTest, jokeViewed, jokeSaved, jokeShared }
 
 extension ReviewRequestSourceX on ReviewRequestSource {
   String get value {
     switch (this) {
       case ReviewRequestSource.adminTest:
         return 'admin_test';
-      case ReviewRequestSource.settings:
-        return 'settings';
-      case ReviewRequestSource.auto:
-        return 'auto';
+      case ReviewRequestSource.jokeViewed:
+        return 'joke_viewed';
+      case ReviewRequestSource.jokeSaved:
+        return 'joke_saved';
+      case ReviewRequestSource.jokeShared:
+        return 'joke_shared';
     }
   }
 }

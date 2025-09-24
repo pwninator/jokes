@@ -9,7 +9,6 @@ import 'package:snickerdoodle/src/core/services/crash_reporting_service.dart';
 import 'package:snickerdoodle/src/features/auth/data/models/app_user.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_viewer_mode.dart';
 import 'package:snickerdoodle/src/utils/device_utils.dart';
-import 'package:snickerdoodle/src/core/services/app_logger.dart';
 
 /// Abstract interface for analytics service
 /// This allows for easy mocking in tests
@@ -819,7 +818,6 @@ class FirebaseAnalyticsService implements AnalyticsService {
     _logEvent(AnalyticsEvent.appReviewAttempt, {
       AnalyticsParameters.source: source,
     });
-    // Intentionally no Crashlytics for non-error attempt events
   }
 
   @override

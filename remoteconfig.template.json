@@ -48,7 +48,7 @@
         },
         "review_min_viewed_jokes": {
           "defaultValue": {
-            "value": "30"
+            "value": "50"
           },
           "description": "Min number of jokes viewed before eligible for review request",
           "valueType": "NUMBER"

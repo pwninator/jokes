@@ -120,7 +120,7 @@ class JokeShareServiceImpl implements JokeShareService {
 
       // Trigger review check only on successful share
       await _reviewPromptCoordinator.maybePromptForReview(
-        source: ReviewRequestSource.auto,
+        source: ReviewRequestSource.jokeShared,
       );
     } else {
       // Log cancellation or failure

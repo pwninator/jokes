@@ -72,7 +72,6 @@ void main() {
         () => analyticsService.logErrorJokeShare(
           'j1',
           jokeContext: 'ctx',
-          shareMethod: 'img',
           errorMessage: 'err',
         ),
       ];

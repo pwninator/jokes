@@ -4,10 +4,10 @@ import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter/foundation.dart';
 import 'package:snickerdoodle/src/core/services/analytics_events.dart';
 import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
+import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/crash_reporting_service.dart';
 import 'package:snickerdoodle/src/features/auth/data/models/app_user.dart';
 import 'package:snickerdoodle/src/utils/device_utils.dart';
-import 'package:snickerdoodle/src/core/services/app_logger.dart';
 
 /// Abstract interface for analytics service
 /// This allows for easy mocking in tests
@@ -66,23 +66,17 @@ abstract class AnalyticsService {
   void logJokeShareSuccess(
     String jokeId, {
     required String jokeContext,
-    String? shareMethod,
     String? shareDestination,
     required int totalJokesShared,
   });
 
   /// Share funnel: user initiated sharing
-  void logJokeShareInitiated(
-    String jokeId, {
-    required String jokeContext,
-    required String shareMethod,
-  });
+  void logJokeShareInitiated(String jokeId, {required String jokeContext});
 
   /// Share funnel: user canceled/dismissed share sheet (failure, not error)
   void logJokeShareCanceled(
     String jokeId, {
     required String jokeContext,
-    required String shareMethod,
     String? shareDestination,
   });
 
@@ -90,7 +84,6 @@ abstract class AnalyticsService {
   void logErrorJokeShare(
     String jokeId, {
     required String jokeContext,
-    required String shareMethod,
     required String errorMessage,
     String? errorContext,
     String? exceptionType,
@@ -346,7 +339,6 @@ class FirebaseAnalyticsService implements AnalyticsService {
       AnalyticsParameters.jokeId: jokeId,
       AnalyticsParameters.navigationMethod: navigationMethod,
       AnalyticsParameters.jokeContext: jokeContext,
-      AnalyticsParameters.userType: _getUserType(_currentUser),
     });
   }
 
@@ -360,7 +352,6 @@ class FirebaseAnalyticsService implements AnalyticsService {
       AnalyticsParameters.jokeId: jokeId,
       AnalyticsParameters.navigationMethod: navigationMethod,
       AnalyticsParameters.jokeContext: jokeContext,
-      AnalyticsParameters.userType: _getUserType(_currentUser),
     });
   }
 
@@ -376,7 +367,7 @@ class FirebaseAnalyticsService implements AnalyticsService {
       AnalyticsParameters.totalJokesViewed: totalJokesViewed,
       AnalyticsParameters.navigationMethod: navigationMethod,
       AnalyticsParameters.jokeContext: jokeContext,
-      AnalyticsParameters.userType: _getUserType(_currentUser),
+      AnalyticsParameters.jokeViewedCount: 1,
     });
   }
 
@@ -392,7 +383,7 @@ class FirebaseAnalyticsService implements AnalyticsService {
       AnalyticsParameters.jokeScrollDepth: jokeScrollDepth,
       AnalyticsParameters.navigationMethod: method,
       AnalyticsParameters.jokeContext: jokeContext,
-      AnalyticsParameters.userType: _getUserType(_currentUser),
+      AnalyticsParameters.jokeNavigatedCount: 1,
     });
   }
 
@@ -406,7 +397,7 @@ class FirebaseAnalyticsService implements AnalyticsService {
       AnalyticsParameters.jokeId: jokeId,
       AnalyticsParameters.jokeContext: jokeContext,
       AnalyticsParameters.totalJokesSaved: totalJokesSaved,
-      AnalyticsParameters.userType: _getUserType(_currentUser),
+      AnalyticsParameters.jokeSavedCount: 1,
     });
   }
 
@@ -420,7 +411,7 @@ class FirebaseAnalyticsService implements AnalyticsService {
       AnalyticsParameters.jokeId: jokeId,
       AnalyticsParameters.jokeContext: jokeContext,
       AnalyticsParameters.totalJokesSaved: totalJokesSaved,
-      AnalyticsParameters.userType: _getUserType(_currentUser),
+      AnalyticsParameters.jokeSavedCount: -1,
     });
   }
 
@@ -428,32 +419,25 @@ class FirebaseAnalyticsService implements AnalyticsService {
   void logJokeShareSuccess(
     String jokeId, {
     required String jokeContext,
-    String? shareMethod,
     String? shareDestination,
     required int totalJokesShared,
   }) {
     _logEvent(AnalyticsEvent.jokeShareSuccess, {
       AnalyticsParameters.jokeId: jokeId,
       AnalyticsParameters.jokeContext: jokeContext,
-      AnalyticsParameters.userType: _getUserType(_currentUser),
       AnalyticsParameters.totalJokesShared: totalJokesShared,
-      if (shareMethod != null) AnalyticsParameters.shareMethod: shareMethod,
+      AnalyticsParameters.shareSuccessCount: 1,
       if (shareDestination != null)
         AnalyticsParameters.shareDestination: shareDestination,
     });
   }
 
   @override
-  void logJokeShareInitiated(
-    String jokeId, {
-    required String jokeContext,
-    required String shareMethod,
-  }) {
+  void logJokeShareInitiated(String jokeId, {required String jokeContext}) {
     _logEvent(AnalyticsEvent.jokeShareInitiated, {
       AnalyticsParameters.jokeId: jokeId,
       AnalyticsParameters.jokeContext: jokeContext,
-      AnalyticsParameters.shareMethod: shareMethod,
-      AnalyticsParameters.userType: _getUserType(_currentUser),
+      AnalyticsParameters.shareInitiatedCount: 1,
     });
   }
 
@@ -461,14 +445,12 @@ class FirebaseAnalyticsService implements AnalyticsService {
   void logJokeShareCanceled(
     String jokeId, {
     required String jokeContext,
-    required String shareMethod,
     String? shareDestination,
   }) {
     _logEvent(AnalyticsEvent.jokeShareCanceled, {
       AnalyticsParameters.jokeId: jokeId,
       AnalyticsParameters.jokeContext: jokeContext,
-      AnalyticsParameters.shareMethod: shareMethod,
-      AnalyticsParameters.userType: _getUserType(_currentUser),
+      AnalyticsParameters.shareCanceledCount: 1,
       if (shareDestination != null)
         AnalyticsParameters.shareDestination: shareDestination,
     });
@@ -478,7 +460,6 @@ class FirebaseAnalyticsService implements AnalyticsService {
   void logErrorJokeShare(
     String jokeId, {
     required String jokeContext,
-    required String shareMethod,
     required String errorMessage,
     String? errorContext,
     String? exceptionType,
@@ -486,12 +467,11 @@ class FirebaseAnalyticsService implements AnalyticsService {
     _logEvent(AnalyticsEvent.errorJokeShare, {
       AnalyticsParameters.jokeId: jokeId,
       AnalyticsParameters.jokeContext: jokeContext,
-      AnalyticsParameters.shareMethod: shareMethod,
       AnalyticsParameters.errorMessage: errorMessage,
+      AnalyticsParameters.shareErrorCount: 1,
       if (errorContext != null) AnalyticsParameters.errorContext: errorContext,
       if (exceptionType != null)
         AnalyticsParameters.exceptionType: exceptionType,
-      AnalyticsParameters.userType: _getUserType(_currentUser),
     }, isError: true);
   }
 
@@ -500,7 +480,7 @@ class FirebaseAnalyticsService implements AnalyticsService {
     _logEvent(AnalyticsEvent.subscriptionOnSettings, {
       AnalyticsParameters.subscriptionSource: SubscriptionSource.settings.value,
       AnalyticsParameters.permissionGranted: true,
-      AnalyticsParameters.userType: _getUserType(_currentUser),
+      AnalyticsParameters.subscriptionOnCount: 1,
     });
   }
 
@@ -509,7 +489,8 @@ class FirebaseAnalyticsService implements AnalyticsService {
     _logEvent(AnalyticsEvent.subscriptionOnPrompt, {
       AnalyticsParameters.subscriptionSource: SubscriptionSource.popup.value,
       AnalyticsParameters.permissionGranted: true,
-      AnalyticsParameters.userType: _getUserType(_currentUser),
+      AnalyticsParameters.subscriptionPromptAcceptedCount: 1,
+      AnalyticsParameters.subscriptionOnCount: 1,
     });
   }
 
@@ -517,7 +498,7 @@ class FirebaseAnalyticsService implements AnalyticsService {
   void logSubscriptionOffSettings() {
     _logEvent(AnalyticsEvent.subscriptionOffSettings, {
       AnalyticsParameters.subscriptionSource: SubscriptionSource.settings.value,
-      AnalyticsParameters.userType: _getUserType(_currentUser),
+      AnalyticsParameters.subscriptionOnCount: -1,
     });
   }
 
@@ -527,7 +508,6 @@ class FirebaseAnalyticsService implements AnalyticsService {
       AnalyticsParameters.subscriptionSource: SubscriptionSource.settings.value,
       AnalyticsParameters.permissionGranted: true,
       AnalyticsParameters.subscriptionHour: subscriptionHour,
-      AnalyticsParameters.userType: _getUserType(_currentUser),
     });
   }
 
@@ -535,7 +515,7 @@ class FirebaseAnalyticsService implements AnalyticsService {
   void logSubscriptionDeclinedMaybeLater() {
     _logEvent(AnalyticsEvent.subscriptionDeclinedMaybeLater, {
       AnalyticsParameters.subscriptionSource: SubscriptionSource.popup.value,
-      AnalyticsParameters.userType: _getUserType(_currentUser),
+      AnalyticsParameters.subscriptionPromptDeclinedCount: 1,
     });
   }
 
@@ -544,7 +524,6 @@ class FirebaseAnalyticsService implements AnalyticsService {
     _logEvent(AnalyticsEvent.subscriptionDeclinedPermissions, {
       AnalyticsParameters.subscriptionSource: SubscriptionSource.settings.value,
       AnalyticsParameters.permissionGranted: false,
-      AnalyticsParameters.userType: _getUserType(_currentUser),
     });
   }
 
@@ -553,14 +532,14 @@ class FirebaseAnalyticsService implements AnalyticsService {
     _logEvent(AnalyticsEvent.subscriptionDeclinedPermissions, {
       AnalyticsParameters.subscriptionSource: SubscriptionSource.popup.value,
       AnalyticsParameters.permissionGranted: false,
-      AnalyticsParameters.userType: _getUserType(_currentUser),
+      AnalyticsParameters.subscriptionPromptDeclinedCount: 1,
     });
   }
 
   @override
   void logSubscriptionPromptShown() {
     _logEvent(AnalyticsEvent.subscriptionPromptShown, {
-      AnalyticsParameters.userType: _getUserType(_currentUser),
+      AnalyticsParameters.subscriptionPromptShownCount: 1,
     });
   }
 
@@ -572,7 +551,7 @@ class FirebaseAnalyticsService implements AnalyticsService {
     _logEvent(AnalyticsEvent.errorSubscriptionPrompt, {
       AnalyticsParameters.errorMessage: errorMessage,
       if (phase != null) AnalyticsParameters.phase: phase,
-      AnalyticsParameters.userType: _getUserType(_currentUser),
+      AnalyticsParameters.subscriptionPromptErrorCount: 1,
     }, isError: true);
   }
 
@@ -584,7 +563,6 @@ class FirebaseAnalyticsService implements AnalyticsService {
     _logEvent(AnalyticsEvent.errorSubscriptionPermission, {
       AnalyticsParameters.source: source,
       AnalyticsParameters.errorMessage: errorMessage,
-      AnalyticsParameters.userType: _getUserType(_currentUser),
     }, isError: true);
   }
 
@@ -594,7 +572,6 @@ class FirebaseAnalyticsService implements AnalyticsService {
       if (jokeId != null) AnalyticsParameters.jokeId: jokeId,
       if (notificationId != null)
         AnalyticsParameters.notificationId: notificationId,
-      AnalyticsParameters.userType: _getUserType(_currentUser),
     });
   }
 
@@ -609,7 +586,6 @@ class FirebaseAnalyticsService implements AnalyticsService {
         AnalyticsParameters.notificationId: notificationId,
       if (phase != null) AnalyticsParameters.phase: phase,
       AnalyticsParameters.errorMessage: errorMessage,
-      AnalyticsParameters.userType: _getUserType(_currentUser),
     }, isError: true);
   }
 
@@ -618,7 +594,6 @@ class FirebaseAnalyticsService implements AnalyticsService {
     _logEvent(AnalyticsEvent.errorRemoteConfig, {
       if (phase != null) AnalyticsParameters.phase: phase,
       AnalyticsParameters.errorMessage: errorMessage,
-      AnalyticsParameters.userType: _getUserType(_currentUser),
     }, isError: true);
   }
 
@@ -632,7 +607,6 @@ class FirebaseAnalyticsService implements AnalyticsService {
       AnalyticsParameters.previousTab: previousTab.value,
       AnalyticsParameters.newTab: newTab.value,
       AnalyticsParameters.navigationMethod: method,
-      AnalyticsParameters.userType: _getUserType(_currentUser),
     });
   }
 
@@ -648,7 +622,6 @@ class FirebaseAnalyticsService implements AnalyticsService {
       if (newRoute != null) AnalyticsParameters.newTab: newRoute,
       if (method != null) AnalyticsParameters.navigationMethod: method,
       AnalyticsParameters.errorMessage: errorMessage,
-      AnalyticsParameters.userType: _getUserType(_currentUser),
     }, isError: true);
   }
 
@@ -670,7 +643,6 @@ class FirebaseAnalyticsService implements AnalyticsService {
       AnalyticsParameters.jokeId: jokeId,
       AnalyticsParameters.action: action,
       AnalyticsParameters.errorMessage: errorMessage,
-      AnalyticsParameters.userType: _getUserType(_currentUser),
     }, isError: true);
   }
 
@@ -686,7 +658,6 @@ class FirebaseAnalyticsService implements AnalyticsService {
       if (imageType != null) AnalyticsParameters.imageType: imageType,
       if (imageUrlHash != null) AnalyticsParameters.imageUrlHash: imageUrlHash,
       AnalyticsParameters.errorMessage: errorMessage,
-      AnalyticsParameters.userType: _getUserType(_currentUser),
     }, isError: true);
   }
 
@@ -702,7 +673,6 @@ class FirebaseAnalyticsService implements AnalyticsService {
       if (imageType != null) AnalyticsParameters.imageType: imageType,
       if (imageUrlHash != null) AnalyticsParameters.imageUrlHash: imageUrlHash,
       AnalyticsParameters.errorMessage: errorMessage,
-      AnalyticsParameters.userType: _getUserType(_currentUser),
     }, isError: true);
   }
 
@@ -714,7 +684,6 @@ class FirebaseAnalyticsService implements AnalyticsService {
     _logEvent(AnalyticsEvent.errorJokeImagesMissing, {
       AnalyticsParameters.jokeId: jokeId,
       AnalyticsParameters.errorContext: missingParts,
-      AnalyticsParameters.userType: _getUserType(_currentUser),
     }, isError: true);
   }
 
@@ -726,7 +695,6 @@ class FirebaseAnalyticsService implements AnalyticsService {
     _logEvent(AnalyticsEvent.errorJokesLoad, {
       AnalyticsParameters.source: source,
       AnalyticsParameters.errorMessage: errorMessage,
-      AnalyticsParameters.userType: _getUserType(_currentUser),
     }, isError: true);
   }
 
@@ -738,7 +706,6 @@ class FirebaseAnalyticsService implements AnalyticsService {
     _logEvent(AnalyticsEvent.errorJokeFetch, {
       AnalyticsParameters.jokeId: jokeId,
       AnalyticsParameters.errorMessage: errorMessage,
-      AnalyticsParameters.userType: _getUserType(_currentUser),
     }, isError: true);
   }
 
@@ -746,7 +713,6 @@ class FirebaseAnalyticsService implements AnalyticsService {
   void logAppUsageDayIncremented({required int numDaysUsed}) {
     _logEvent(AnalyticsEvent.appUsageDayIncremented, {
       AnalyticsParameters.numDaysUsed: numDaysUsed,
-      AnalyticsParameters.userType: _getUserType(_currentUser),
     });
   }
 
@@ -760,7 +726,6 @@ class FirebaseAnalyticsService implements AnalyticsService {
       'query_length': queryLength,
       'scope': scope,
       'results_count': resultsCount,
-      AnalyticsParameters.userType: _getUserType(_currentUser),
     });
   }
 
@@ -772,16 +737,12 @@ class FirebaseAnalyticsService implements AnalyticsService {
     _logEvent(AnalyticsEvent.jokeSearchSimilar, {
       'query_length': queryLength,
       AnalyticsParameters.jokeContext: jokeContext,
-      AnalyticsParameters.userType: _getUserType(_currentUser),
     });
   }
 
   @override
   void logJokeViewerSettingChanged({required String mode}) {
-    _logEvent(AnalyticsEvent.jokeViewerSettingChanged, {
-      'mode': mode,
-      AnalyticsParameters.userType: _getUserType(_currentUser),
-    });
+    _logEvent(AnalyticsEvent.jokeViewerSettingChanged, {'mode': mode});
   }
 
   @override
@@ -804,7 +765,6 @@ class FirebaseAnalyticsService implements AnalyticsService {
     _logEvent(AnalyticsEvent.errorAuthSignIn, {
       AnalyticsParameters.source: source,
       AnalyticsParameters.errorMessage: errorMessage,
-      AnalyticsParameters.userType: _getUserType(_currentUser),
     }, isError: true);
   }
 
@@ -817,7 +777,6 @@ class FirebaseAnalyticsService implements AnalyticsService {
     _logEvent(AnalyticsEvent.errorSubscriptionToggle, {
       AnalyticsParameters.source: source,
       AnalyticsParameters.errorMessage: errorMessage,
-      AnalyticsParameters.userType: _getUserType(_currentUser),
     }, isError: true);
   }
 
@@ -829,7 +788,6 @@ class FirebaseAnalyticsService implements AnalyticsService {
     _logEvent(AnalyticsEvent.errorSubscriptionTimeUpdate, {
       AnalyticsParameters.source: source,
       AnalyticsParameters.errorMessage: errorMessage,
-      AnalyticsParameters.userType: _getUserType(_currentUser),
     }, isError: true);
   }
 
@@ -838,7 +796,6 @@ class FirebaseAnalyticsService implements AnalyticsService {
   void logErrorFeedbackSubmit({required String errorMessage}) {
     _logEvent(AnalyticsEvent.errorFeedbackSubmit, {
       AnalyticsParameters.errorMessage: errorMessage,
-      AnalyticsParameters.userType: _getUserType(_currentUser),
     }, isError: true);
   }
 
@@ -847,7 +804,6 @@ class FirebaseAnalyticsService implements AnalyticsService {
   void logAppReviewAttempt({required String source}) {
     _logEvent(AnalyticsEvent.appReviewAttempt, {
       AnalyticsParameters.source: source,
-      AnalyticsParameters.userType: _getUserType(_currentUser),
     });
     // Intentionally no Crashlytics for non-error attempt events
   }
@@ -860,7 +816,6 @@ class FirebaseAnalyticsService implements AnalyticsService {
     _logEvent(AnalyticsEvent.errorAppReviewAvailability, {
       AnalyticsParameters.source: source,
       AnalyticsParameters.errorMessage: errorMessage,
-      AnalyticsParameters.userType: _getUserType(_currentUser),
     }, isError: true);
   }
 
@@ -872,7 +827,6 @@ class FirebaseAnalyticsService implements AnalyticsService {
     _logEvent(AnalyticsEvent.errorAppReviewRequest, {
       AnalyticsParameters.source: source,
       AnalyticsParameters.errorMessage: errorMessage,
-      AnalyticsParameters.userType: _getUserType(_currentUser),
     }, isError: true);
   }
 

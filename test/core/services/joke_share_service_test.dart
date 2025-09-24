@@ -136,14 +136,12 @@ void main() {
           () => mockAnalyticsService.logJokeShareInitiated(
             any(),
             jokeContext: any(named: 'jokeContext'),
-            shareMethod: any(named: 'shareMethod'),
           ),
         ).thenAnswer((_) async {});
         when(
           () => mockAnalyticsService.logJokeShareSuccess(
             any(),
             jokeContext: any(named: 'jokeContext'),
-            shareMethod: any(named: 'shareMethod'),
             shareDestination: any(named: 'shareDestination'),
             totalJokesShared: any(named: 'totalJokesShared'),
           ),
@@ -184,14 +182,12 @@ void main() {
           () => mockAnalyticsService.logJokeShareInitiated(
             'test-joke-id',
             jokeContext: 'test-context',
-            shareMethod: 'images',
           ),
         ).called(1);
         verify(
           () => mockAnalyticsService.logJokeShareSuccess(
             'test-joke-id',
             jokeContext: 'test-context',
-            shareMethod: 'images',
             shareDestination: any(named: 'shareDestination'),
             totalJokesShared: any(named: 'totalJokesShared'),
           ),
@@ -249,14 +245,12 @@ void main() {
           () => mockAnalyticsService.logJokeShareInitiated(
             any(),
             jokeContext: any(named: 'jokeContext'),
-            shareMethod: any(named: 'shareMethod'),
           ),
         ).thenAnswer((_) async {});
         when(
           () => mockAnalyticsService.logJokeShareCanceled(
             any(),
             jokeContext: any(named: 'jokeContext'),
-            shareMethod: any(named: 'shareMethod'),
             shareDestination: any(named: 'shareDestination'),
           ),
         ).thenAnswer((_) async {});
@@ -290,14 +284,12 @@ void main() {
           () => mockAnalyticsService.logJokeShareInitiated(
             'test-joke-id',
             jokeContext: 'test-context',
-            shareMethod: 'images',
           ),
         ).called(1);
         verify(
           () => mockAnalyticsService.logJokeShareCanceled(
             'test-joke-id',
             jokeContext: 'test-context',
-            shareMethod: 'images',
             shareDestination: any(named: 'shareDestination'),
           ),
         ).called(1);
@@ -358,14 +350,12 @@ void main() {
           () => mockAnalyticsService.logJokeShareInitiated(
             any(),
             jokeContext: any(named: 'jokeContext'),
-            shareMethod: any(named: 'shareMethod'),
           ),
         ).thenAnswer((_) async {});
         when(
           () => mockAnalyticsService.logJokeShareSuccess(
             any(),
             jokeContext: any(named: 'jokeContext'),
-            shareMethod: any(named: 'shareMethod'),
             shareDestination: any(named: 'shareDestination'),
             totalJokesShared: any(named: 'totalJokesShared'),
           ),

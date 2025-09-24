@@ -22,9 +22,19 @@ class MockFirebaseAnalytics extends Mock implements FirebaseAnalytics {}
 
 class MockFirebaseFirestore extends Mock implements FirebaseFirestore {}
 
-class MockCollectionReference extends Mock implements CollectionReference {}
+class MockCollectionReference extends Mock
+    implements CollectionReference<Map<String, dynamic>> {}
 
-class MockDocumentReference extends Mock implements DocumentReference {}
+class MockDocumentReference extends Mock
+    implements DocumentReference<Map<String, dynamic>> {}
+
+class MockQuery<T> extends Mock implements Query<T> {}
+
+class MockQueryDocumentSnapshot<T extends Object?> extends Mock
+    implements QueryDocumentSnapshot<T> {}
+
+class MockDocumentSnapshot extends Mock
+    implements DocumentSnapshot<Map<String, dynamic>> {}
 
 /// Firebase-specific service mocks for unit tests
 class FirebaseMocks {
@@ -174,8 +184,33 @@ class FirebaseMocks {
   }
 
   static void _setupFirebaseFirestoreDefaults(MockFirebaseFirestore mock) {
-    // Basic mock setup - methods will be mocked as needed in individual tests
+    final mockCollection = MockCollectionReference();
+    when(() => mock.collection('jokes')).thenReturn(mockCollection);
+
+    final mockQuery = MockQuery<Map<String, dynamic>>();
+    when(
+      () => mockCollection.where(any, whereIn: any(named: 'whereIn')),
+    ).thenReturn(mockQuery);
+
+    final mockQuerySnapshot = MockQuerySnapshot();
+    when(() => mockQuery.get(any())).thenAnswer((_) async => mockQuerySnapshot);
+
+    when(
+      () => mockCollection.get(any()),
+    ).thenAnswer((_) async => MockQuerySnapshot());
+
+    final mockDocRef = MockDocumentReference();
+    when(() => mockCollection.doc(any())).thenReturn(mockDocRef);
+    final mockDocSnapshot = MockDocumentSnapshot();
+    when(() => mockDocRef.get(any())).thenAnswer((_) async => mockDocSnapshot);
+    when(() => mockDocSnapshot.exists).thenReturn(false);
   }
+}
+
+class MockQuerySnapshot extends Mock
+    implements QuerySnapshot<Map<String, dynamic>> {
+  @override
+  List<QueryDocumentSnapshot<Map<String, dynamic>>> get docs => [];
 }
 
 class _TestNoopPerformanceService implements PerformanceService {

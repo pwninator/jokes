@@ -28,48 +28,6 @@ class _NoopImageService extends ImageService {
   Future<void> precacheMultipleJokeImages(List<Joke> jokes) async {}
 }
 
-import '../test_helpers/core_mocks.dart';
-
-class _NoopImageService extends ImageService {
-  @override
-  String? getProcessedJokeImageUrl(String? imageUrl) => null;
-
-  @override
-  bool isValidImageUrl(String? url) => true;
-
-  @override
-  Future<String?> precacheJokeImage(String? imageUrl) async => null;
-
-  @override
-  Future<({String? setupUrl, String? punchlineUrl})> precacheJokeImages(
-    Joke joke,
-  ) async => (setupUrl: null, punchlineUrl: null);
-
-  @override
-  Future<void> precacheMultipleJokeImages(List<Joke> jokes) async {}
-}
-
-import '../test_helpers/core_mocks.dart';
-
-class _NoopImageService extends ImageService {
-  @override
-  String? getProcessedJokeImageUrl(String? imageUrl) => null;
-
-  @override
-  bool isValidImageUrl(String? url) => true;
-
-  @override
-  Future<String?> precacheJokeImage(String? imageUrl) async => null;
-
-  @override
-  Future<({String? setupUrl, String? punchlineUrl})> precacheJokeImages(
-    Joke joke,
-  ) async => (setupUrl: null, punchlineUrl: null);
-
-  @override
-  Future<void> precacheMultipleJokeImages(List<Joke> jokes) async {}
-}
-
 void main() {
   testWidgets('BOTH_ADAPTIVE is horizontal in wide constraints', (
     tester,

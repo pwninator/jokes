@@ -347,6 +347,50 @@ def calculate_popularity_score(joke: models.PunnyJoke) -> int:
   return num_saves + (num_shares * 5)
 
 
+def _sync_joke_to_search_subcollection(
+  joke: models.PunnyJoke,
+  new_embedding: Vector | None,
+  new_popularity_score: int,
+) -> None:
+  """Syncs joke data to a search subcollection document."""
+  if not joke.key:
+    return
+
+  joke_id = joke.key
+  search_doc_ref = firestore.db().collection("jokes").document(joke_id).collection(
+    "search").document(joke_id)
+  search_doc = search_doc_ref.get()
+  search_data = search_doc.to_dict() if search_doc.exists else {}
+
+  update_payload = {}
+
+  # 1. Sync embedding
+  if new_embedding:
+    update_payload["text_embedding"] = new_embedding
+  elif "text_embedding" not in search_data and joke.zzz_joke_text_embedding:
+    update_payload["text_embedding"] = joke.zzz_joke_text_embedding
+
+  # 2. Sync state
+  if search_data.get("state") != joke.state:
+    update_payload["state"] = joke.state
+
+  # 3. Sync public_timestamp
+  if search_data.get("public_timestamp") != joke.public_timestamp:
+    update_payload["public_timestamp"] = joke.public_timestamp
+
+  # 4. Sync popularity_score
+  if search_data.get("popularity_score") != new_popularity_score:
+    update_payload["popularity_score"] = new_popularity_score
+
+  if update_payload:
+    logger.info(
+      "Syncing joke to search subcollection: %s with payload keys %s",
+      joke_id,
+      list(update_payload.keys()),
+    )
+    search_doc_ref.set(update_payload, merge=True)
+
+
 @firestore_fn.on_document_written(
   document="jokes/{joke_id}",
   memory=options.MemoryOption.GB_1,
@@ -399,9 +443,11 @@ def on_joke_write(event: firestore_fn.Event[firestore_fn.Change]) -> None:
 
   # Prepare update data for Firestore
   update_data = {}
+  new_embedding = None
 
   if should_update_embedding:
     embedding, metadata = get_joke_embedding(after_joke)
+    new_embedding = embedding
 
     current_metadata = after_joke.generation_metadata
     if isinstance(current_metadata, dict):
@@ -422,6 +468,12 @@ def on_joke_write(event: firestore_fn.Event[firestore_fn.Change]) -> None:
     logger.info(
       "Joke popularity score mismatch, updating from %s to %s for: %s",
       after_joke.popularity_score, expected_popularity_score, after_joke.key)
+
+  _sync_joke_to_search_subcollection(
+    joke=after_joke,
+    new_embedding=new_embedding,
+    new_popularity_score=expected_popularity_score,
+  )
 
   # Perform single Firestore update if any updates are needed
   if update_data and after_joke.key:

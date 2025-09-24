@@ -1,5 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
+import 'package:snickerdoodle/src/core/providers/app_providers.dart';
+import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_filter_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
@@ -100,6 +102,17 @@ final searchResultIdsProvider =
               : scope.name,
           resultsCount: results.length,
         );
+
+        // Update performance trace with result_count if a trace is active
+        final perf = ref.read(performanceServiceProvider);
+        perf.putNamedTraceAttributes(
+          name: TraceName.searchToFirstImage,
+          attributes: {'result_count': results.length.toString()},
+        );
+        if (results.isEmpty) {
+          // No image will appear; stop now so empty searches are recorded
+          perf.stopNamedTrace(name: TraceName.searchToFirstImage);
+        }
       }
 
       return results;
@@ -138,7 +151,7 @@ final searchResultsLiveProvider =
       // Watch each joke by id
       final perJoke = <AsyncValue<Joke?>>[];
       for (final r in results) {
-        perJoke.add(ref.watch(jokeByIdProvider(r.id)));
+        perJoke.add(ref.watch(jokeStreamByIdProvider(r.id)));
       }
 
       // If any still loading, show loading to keep UX consistent with other lists
@@ -190,58 +203,56 @@ final searchResultsLiveProvider =
     });
 
 /// Search results adapted for the viewer (JokeWithDate, images only)
+/// Emits progressively: first the top result (if it has images), then the full list.
 final searchResultsViewerProvider =
-    Provider.family<AsyncValue<List<JokeWithDate>>, SearchScope>((ref, scope) {
-      final resultsAsync = ref.watch(searchResultIdsProvider(scope));
+    StreamProvider.family<List<JokeWithDate>, SearchScope>((ref, scope) async* {
+      var cancelled = false;
+      ref.onDispose(() => cancelled = true);
 
-      if (resultsAsync.isLoading) {
-        return const AsyncValue.loading();
-      }
-      if (resultsAsync.hasError) {
-        return AsyncValue.error(
-          resultsAsync.error!,
-          resultsAsync.stackTrace ?? StackTrace.current,
-        );
-      }
-
-      final results = resultsAsync.value ?? const <JokeSearchResult>[];
+      final results = await ref.watch(searchResultIdsProvider(scope).future);
       if (results.isEmpty) {
-        return const AsyncValue.data(<JokeWithDate>[]);
+        yield const <JokeWithDate>[];
+        return;
       }
 
-      final perJoke = <AsyncValue<Joke?>>[];
-      for (final r in results) {
-        perJoke.add(ref.watch(jokeByIdProvider(r.id)));
+      // 1) Fetch the first result synchronously (single get)
+      final firstId = results.first.id;
+      if (cancelled) return;
+      final firstJoke = await ref.read(jokeByIdGetProvider(firstId).future);
+
+      // If first joke missing or lacks images, nothing to render
+      if (firstJoke == null ||
+          firstJoke.setupImageUrl == null ||
+          firstJoke.setupImageUrl!.isEmpty ||
+          firstJoke.punchlineImageUrl == null ||
+          firstJoke.punchlineImageUrl!.isEmpty) {
+        yield const <JokeWithDate>[];
+        return;
       }
 
-      if (perJoke.any((j) => j.isLoading)) {
-        return const AsyncValue.loading();
-      }
-      final firstError = perJoke.firstWhere(
-        (j) => j.hasError,
-        orElse: () => const AsyncValue.data(null),
+      // Emit immediately with the first item so UI can render
+      yield [JokeWithDate(joke: firstJoke)];
+
+      // 2) Fetch remaining jokes via batch provider
+      final remainingIds = results.skip(1).map((r) => r.id).toList();
+      if (remainingIds.isEmpty) return;
+      if (cancelled) return;
+      final remaining = await ref.read(
+        jokesByIdsGetProvider(remainingIds).future,
       );
-      if (firstError.hasError) {
-        return AsyncValue.error(
-          firstError.error!,
-          firstError.stackTrace ?? StackTrace.current,
-        );
-      }
 
-      final ordered = <JokeWithDate>[];
-      for (var i = 0; i < results.length; i++) {
-        final value = perJoke[i].value;
-        if (value != null) {
-          final hasImages =
-              value.setupImageUrl != null &&
-              value.setupImageUrl!.isNotEmpty &&
-              value.punchlineImageUrl != null &&
-              value.punchlineImageUrl!.isNotEmpty;
-          if (hasImages) {
-            ordered.add(JokeWithDate(joke: value));
-          }
+      // 3) Build ordered list, filtering to jokes with both images
+      final ordered = <JokeWithDate>[JokeWithDate(joke: firstJoke)];
+      for (final j in remaining) {
+        final hasImages =
+            j.setupImageUrl != null &&
+            j.setupImageUrl!.isNotEmpty &&
+            j.punchlineImageUrl != null &&
+            j.punchlineImageUrl!.isNotEmpty;
+        if (hasImages) {
+          ordered.add(JokeWithDate(joke: j));
         }
       }
 
-      return AsyncValue.data(ordered);
+      if (!cancelled) yield ordered;
     });

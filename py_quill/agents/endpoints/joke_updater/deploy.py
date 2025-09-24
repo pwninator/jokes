@@ -12,7 +12,7 @@ from . import agent
 
 app_init.init()
 
-agent_to_deploy = agent.get_joke_updater_agent()
+agent_to_deploy = agent.get_root_agent()
 
 kwargs = {
   "agent_engine": agent_to_deploy,

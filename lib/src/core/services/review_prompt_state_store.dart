@@ -1,7 +1,7 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:snickerdoodle/src/core/providers/shared_preferences_provider.dart';
+import 'package:snickerdoodle/src/core/services/app_logger.dart';
 
 /// Simple persistence for the one-time review prompt attempt flag
 class ReviewPromptStateStore {
@@ -14,7 +14,7 @@ class ReviewPromptStateStore {
     try {
       return _prefs.getBool(_requestedKey) ?? false;
     } catch (e) {
-      debugPrint('REVIEW_STORE read error: $e');
+      AppLogger.warn('REVIEW_STORE read error: $e');
       return false;
     }
   }
@@ -23,7 +23,7 @@ class ReviewPromptStateStore {
     try {
       await _prefs.setBool(_requestedKey, true);
     } catch (e) {
-      debugPrint('REVIEW_STORE write error: $e');
+      AppLogger.warn('REVIEW_STORE write error: $e');
     }
   }
 }

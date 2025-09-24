@@ -1,7 +1,7 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:snickerdoodle/src/core/providers/shared_preferences_provider.dart';
+import 'package:snickerdoodle/src/core/services/app_logger.dart';
 
 /// Simple persistence for the one-time feedback dialog viewed flag
 class FeedbackPromptStateStore {
@@ -14,7 +14,7 @@ class FeedbackPromptStateStore {
     try {
       return _prefs.getBool(_viewedKey) ?? false;
     } catch (e) {
-      debugPrint('FEEDBACK_STORE read error: $e');
+      AppLogger.warn('FEEDBACK_STORE read error: $e');
       return false;
     }
   }
@@ -23,7 +23,7 @@ class FeedbackPromptStateStore {
     try {
       await _prefs.setBool(_viewedKey, true);
     } catch (e) {
-      debugPrint('FEEDBACK_STORE write error: $e');
+      AppLogger.warn('FEEDBACK_STORE write error: $e');
     }
   }
 }

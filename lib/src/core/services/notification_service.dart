@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
+import 'package:snickerdoodle/src/core/services/app_logger.dart';
+import 'dart:async';
 
 class NotificationService {
   static final NotificationService _instance = NotificationService._internal();
@@ -41,9 +43,8 @@ class NotificationService {
   void _initializeBackgroundServices() {
     // Run in background without awaiting
     // Note: Permission request only happens when user subscribes
-
     _initializeFCMListeners().catchError((e) {
-      debugPrint('Background FCM initialization failed: $e');
+      AppLogger.warn('Background FCM initialization failed: $e');
     });
   }
 
@@ -59,10 +60,10 @@ class NotificationService {
 
       final granted =
           settings.authorizationStatus == AuthorizationStatus.authorized;
-      debugPrint('FCM permissions requested - granted: $granted');
+      AppLogger.debug('FCM permissions requested - granted: $granted');
       return granted;
     } catch (e) {
-      debugPrint('Failed to request FCM permissions: $e');
+      AppLogger.warn('Failed to request FCM permissions: $e');
       return false;
     }
   }
@@ -73,13 +74,13 @@ class NotificationService {
       final initialMessage = await FirebaseMessaging.instance
           .getInitialMessage();
       if (initialMessage != null) {
-        debugPrint(
+        AppLogger.debug(
           'App launched from notification: ${initialMessage.messageId}',
         );
         await _handleMessageOpenedApp(initialMessage);
       }
     } catch (e) {
-      debugPrint('Failed to check initial message: $e');
+      AppLogger.warn('Failed to check initial message: $e');
       if (_analyticsService != null) {
         _analyticsService!.logErrorNotificationHandling(
           notificationId: null,
@@ -95,7 +96,7 @@ class NotificationService {
     try {
       // Get FCM token for debugging
       final token = await FirebaseMessaging.instance.getToken();
-      debugPrint('FCM Token: $token');
+      AppLogger.debug('FCM Token: $token');
 
       // Handle foreground messages
       FirebaseMessaging.onMessage.listen(_handleForegroundMessage);
@@ -103,9 +104,9 @@ class NotificationService {
       // Handle notification taps when app is in background/terminated
       FirebaseMessaging.onMessageOpenedApp.listen(_handleMessageOpenedApp);
 
-      debugPrint('FCM listeners initialized');
+      AppLogger.debug('FCM listeners initialized');
     } catch (e) {
-      debugPrint('Failed to initialize FCM listeners: $e');
+      AppLogger.warn('Failed to initialize FCM listeners: $e');
       if (_analyticsService != null) {
         _analyticsService!.logErrorNotificationHandling(
           notificationId: null,
@@ -118,7 +119,7 @@ class NotificationService {
 
   /// Handle foreground FCM messages
   Future<void> _handleForegroundMessage(RemoteMessage message) async {
-    debugPrint('Received foreground FCM message: ${message.messageId}');
+    AppLogger.debug('Received foreground FCM message: ${message.messageId}');
     try {
       await _processJokeNotification(message);
     } catch (e) {
@@ -134,7 +135,7 @@ class NotificationService {
 
   /// Handle FCM message when app is opened from notification
   Future<void> _handleMessageOpenedApp(RemoteMessage message) async {
-    debugPrint('App opened from FCM notification: ${message.messageId}');
+    AppLogger.debug('App opened from FCM notification: ${message.messageId}');
 
     // Track analytics for notification tap
     if (_analyticsService != null) {
@@ -168,15 +169,15 @@ class NotificationService {
         if (context != null && context.mounted) {
           // Use GoRouter to navigate to jokes screen
           GoRouter.of(context).go('/jokes');
-          debugPrint('Navigated to jokes screen via GoRouter');
+          AppLogger.debug('Navigated to jokes screen via GoRouter');
         } else {
-          debugPrint(
+          AppLogger.warn(
             'Navigator context not available for notification navigation',
           );
         }
       });
     } catch (e) {
-      debugPrint('Failed to navigate to jokes screen: $e');
+      AppLogger.warn('Failed to navigate to jokes screen: $e');
       if (_analyticsService != null) {
         _analyticsService!.logErrorNotificationHandling(
           notificationId: null,
@@ -194,7 +195,7 @@ class NotificationService {
       final jokeData = message.data;
       final jokeId = jokeData['joke_id'];
 
-      debugPrint('Processing joke notification for joke: $jokeId');
+      AppLogger.debug('Processing joke notification for joke: $jokeId');
 
       // Pre-cache images in parallel so they load instantly when user opens the app
       final List<Future<void>> cachingFutures = [];
@@ -206,13 +207,15 @@ class NotificationService {
         cachingFutures.add(_cacheImage(jokeData['punchline_image_url']));
       }
 
-      if (cachingFutures.isNotEmpty) {
-        await Future.wait(cachingFutures);
+      // Non-blocking: fire-and-forget with timeout and concurrency cap
+      // Cap to at most 2 concurrent caching ops here (we only have up to 2 URLs)
+      for (final f in cachingFutures) {
+        unawaited(_withTimeout(f, const Duration(seconds: 8)));
       }
 
-      debugPrint('Images pre-cached for joke: $jokeId');
+      AppLogger.debug('Images pre-cached for joke: $jokeId');
     } catch (e) {
-      debugPrint('Error processing joke notification: $e');
+      AppLogger.warn('Error processing joke notification: $e');
       // FCM will still show the notification even if image caching fails
       if (_analyticsService != null) {
         _analyticsService!.logErrorNotificationHandling(
@@ -230,7 +233,7 @@ class NotificationService {
       final imageService = ImageService();
       await imageService.precacheJokeImage(imageUrl);
     } catch (e) {
-      debugPrint('Failed to cache image $imageUrl: $e');
+      AppLogger.warn('Failed to cache image $imageUrl: $e');
       if (_analyticsService != null) {
         _analyticsService!.logErrorImagePrecache(
           imageUrlHash: imageUrl.hashCode.toRadixString(16),
@@ -238,6 +241,13 @@ class NotificationService {
         );
       }
     }
+  }
+
+  // Helper to wrap a future with a timeout without throwing up-stack
+  Future<void> _withTimeout(Future<void> future, Duration timeout) async {
+    try {
+      await future.timeout(timeout);
+    } catch (_) {}
   }
 
   /// Get FCM token for server-side targeting (if needed)
@@ -249,7 +259,7 @@ class NotificationService {
 /// Background message handler - must be top-level function
 @pragma('vm:entry-point')
 Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  debugPrint('Handling background FCM message: ${message.messageId}');
+  AppLogger.debug('Handling background FCM message: ${message.messageId}');
 
   // Initialize Firebase if not already done
   await Firebase.initializeApp();

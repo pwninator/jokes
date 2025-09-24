@@ -1,13 +1,15 @@
-import 'package:flutter/foundation.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
+import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/app_review_service.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
+import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/core/services/review_prompt_service.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_service.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
+// Crash reporting for share errors is handled via analytics service
 
 /// Result of a share operation
 class ShareOperationResult {
@@ -38,7 +40,7 @@ class PlatformShareServiceImpl implements PlatformShareService {
     final result = await SharePlus.instance.share(
       ShareParams(subject: subject, files: files, text: text),
     );
-    debugPrint('PlatformShareServiceImpl shareFiles result: $result');
+    AppLogger.debug('PlatformShareServiceImpl shareFiles result: $result');
     return result;
   }
 }
@@ -63,6 +65,7 @@ class JokeShareServiceImpl implements JokeShareService {
   final PlatformShareService _platformShareService;
   final AppUsageService _appUsageService;
   final ReviewPromptCoordinator _reviewPromptCoordinator;
+  final PerformanceService _performanceService;
 
   JokeShareServiceImpl({
     required ImageService imageService,
@@ -71,12 +74,14 @@ class JokeShareServiceImpl implements JokeShareService {
     required PlatformShareService platformShareService,
     required AppUsageService appUsageService,
     required ReviewPromptCoordinator reviewPromptCoordinator,
+    required PerformanceService performanceService,
   }) : _imageService = imageService,
        _analyticsService = analyticsService,
        _reactionsService = reactionsService,
        _platformShareService = platformShareService,
        _appUsageService = appUsageService,
-       _reviewPromptCoordinator = reviewPromptCoordinator;
+       _reviewPromptCoordinator = reviewPromptCoordinator,
+       _performanceService = performanceService;
 
   @override
   Future<bool> shareJoke(
@@ -141,6 +146,12 @@ class JokeShareServiceImpl implements JokeShareService {
     required String subject,
     required String text,
   }) async {
+    final String traceKey = 'images:${joke.id}';
+    _performanceService.startNamedTrace(
+      name: TraceName.sharePreparation,
+      key: traceKey,
+      attributes: {'method': 'images', 'joke_id': joke.id},
+    );
     bool shareSuccessful = false;
     ShareResultStatus shareStatus = ShareResultStatus.dismissed; // default
     String shareDestination = "unknown";
@@ -155,18 +166,22 @@ class JokeShareServiceImpl implements JokeShareService {
         throw Exception('Joke has no images for sharing');
       }
 
-      // Get processed URLs and ensure images are cached
-      final urls = await _imageService.precacheJokeImages(joke);
-      final List<XFile> files = [];
+      // Compute processed URLs directly and fetch both files in parallel
+      final setupProcessedUrl = _imageService.getProcessedJokeImageUrl(
+        joke.setupImageUrl,
+      );
+      final punchlineProcessedUrl = _imageService.getProcessedJokeImageUrl(
+        joke.punchlineImageUrl,
+      );
 
-      // Only share images if both are available
-      if (urls.setupUrl != null && urls.punchlineUrl != null) {
-        final setupFile = await _imageService.getCachedFileFromUrl(
-          urls.setupUrl!,
-        );
-        final punchlineFile = await _imageService.getCachedFileFromUrl(
-          urls.punchlineUrl!,
-        );
+      final List<XFile> files = [];
+      if (setupProcessedUrl != null && punchlineProcessedUrl != null) {
+        final results = await Future.wait([
+          _imageService.getCachedFileFromUrl(setupProcessedUrl),
+          _imageService.getCachedFileFromUrl(punchlineProcessedUrl),
+        ]);
+        final setupFile = results[0];
+        final punchlineFile = results[1];
         if (setupFile != null && punchlineFile != null) {
           files.add(setupFile);
           files.add(punchlineFile);
@@ -182,6 +197,11 @@ class JokeShareServiceImpl implements JokeShareService {
         files,
       );
 
+      // Stop preparation trace right before invoking platform share
+      _performanceService.stopNamedTrace(
+        name: TraceName.sharePreparation,
+        key: traceKey,
+      );
       final result = await _platformShareService.shareFiles(
         brandedFiles,
         subject: subject,
@@ -192,8 +212,13 @@ class JokeShareServiceImpl implements JokeShareService {
       shareSuccessful = result.status == ShareResultStatus.success;
       shareStatus = result.status;
       shareDestination = result.raw;
-    } catch (e) {
-      debugPrint('Error sharing joke images: $e');
+    } catch (e, _) {
+      // Ensure the preparation trace is stopped on error paths
+      _performanceService.stopNamedTrace(
+        name: TraceName.sharePreparation,
+        key: traceKey,
+      );
+      AppLogger.warn('Error sharing joke images: $e');
       // Log error-specific analytics
       _analyticsService.logErrorJokeShare(
         joke.id,

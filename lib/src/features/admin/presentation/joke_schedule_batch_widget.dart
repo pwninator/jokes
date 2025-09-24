@@ -375,7 +375,7 @@ class JokeScheduleBatchWidget extends ConsumerWidget {
     } catch (e) {
       if (context.mounted) {
         final errorMessage = 'Failed to delete batch: $e';
-        debugPrint('ERROR: $errorMessage');
+        // Silent in UI; errors are surfaced via on-screen UI and analytics
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(errorMessage),

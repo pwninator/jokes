@@ -1,17 +1,44 @@
 import 'package:cloud_functions/cloud_functions.dart';
-import 'package:flutter/foundation.dart';
+import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_search_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_search_result.dart';
+import 'package:snickerdoodle/src/core/services/app_logger.dart';
 
 /// How strictly to match the search query
 enum MatchMode { tight, loose }
 
 class JokeCloudFunctionService {
-  JokeCloudFunctionService({FirebaseFunctions? functions})
-    : _functions = functions;
+  JokeCloudFunctionService({
+    FirebaseFunctions? functions,
+    PerformanceService? perf,
+  }) : _functions = functions,
+       _perf = perf;
 
   final FirebaseFunctions? _functions;
   FirebaseFunctions get _fns => _functions ?? FirebaseFunctions.instance;
+  final PerformanceService? _perf;
+
+  Future<T> _traceCf<T>({
+    required String functionName,
+    required Future<T> Function() action,
+    Map<String, String>? attributes,
+  }) async {
+    final key = functionName;
+    final perf = _perf;
+    perf?.startNamedTrace(
+      name: TraceName.cfCall,
+      key: key,
+      attributes: {
+        'function': functionName,
+        if (attributes != null) ...attributes,
+      },
+    );
+    try {
+      return await action();
+    } finally {
+      perf?.stopNamedTrace(name: TraceName.cfCall, key: key);
+    }
+  }
 
   /// Track app usage in Cloud Functions (HTTP on_request endpoint).
   Future<void> trackUsage({
@@ -22,16 +49,22 @@ class JokeCloudFunctionService {
     bool? requestedReview,
   }) async {
     try {
-      final callable = _fns.httpsCallable('usage');
-      await callable.call({
-        'num_days_used': numDaysUsed.toString(),
-        'num_saved': numSaved.toString(),
-        'num_viewed': numViewed.toString(),
-        'num_shared': numShared.toString(),
-        'requested_review': requestedReview,
-      });
+      await _traceCf(
+        functionName: 'usage',
+        action: () async {
+          final callable = _fns.httpsCallable('usage');
+          await callable.call({
+            'num_days_used': numDaysUsed.toString(),
+            'num_saved': numSaved.toString(),
+            'num_viewed': numViewed.toString(),
+            'num_shared': numShared.toString(),
+            'requested_review': requestedReview,
+          });
+          return null;
+        },
+      );
     } catch (e) {
-      debugPrint('CLOUD FUNCTIONS trackUsage exception: $e');
+      AppLogger.warn('CLOUD FUNCTIONS trackUsage exception: $e');
     }
   }
 
@@ -43,29 +76,33 @@ class JokeCloudFunctionService {
     String? punchlineImageUrl,
   }) async {
     try {
-      final callable = _fns.httpsCallable('create_joke');
-
-      final result = await callable.call({
-        'admin_owned': adminOwned,
-        'joke_data': {
-          'setup_text': setupText,
-          'punchline_text': punchlineText,
-          'setup_image_url': setupImageUrl,
-          'punchline_image_url': punchlineImageUrl,
+      final result = await _traceCf(
+        functionName: 'create_joke',
+        action: () async {
+          final callable = _fns.httpsCallable('create_joke');
+          return await callable.call({
+            'admin_owned': adminOwned,
+            'joke_data': {
+              'setup_text': setupText,
+              'punchline_text': punchlineText,
+              'setup_image_url': setupImageUrl,
+              'punchline_image_url': punchlineImageUrl,
+            },
+          });
         },
-      });
+      );
 
-      debugPrint('Joke created successfully: ${result.data}');
+      AppLogger.debug('Joke created successfully: ${result.data}');
       return {'success': true, 'data': result.data};
     } on FirebaseFunctionsException catch (e) {
-      debugPrint('Firebase Functions error: ${e.code} - ${e.message}');
+      AppLogger.warn('Firebase Functions error: ${e.code} - ${e.message}');
       return {
         'success': false,
         'error': 'Function error: ${e.message}',
         'code': e.code,
       };
     } catch (e) {
-      debugPrint('Error creating joke: $e');
+      AppLogger.warn('Error creating joke: $e');
       return {'success': false, 'error': 'Unexpected error: $e'};
     }
   }
@@ -76,35 +113,43 @@ class JokeCloudFunctionService {
     Map<String, dynamic>? additionalParams,
   }) async {
     try {
-      final callable = _fns.httpsCallable(
-        'populate_joke',
-        options: HttpsCallableOptions(timeout: const Duration(seconds: 300)),
+      final result = await _traceCf(
+        functionName: 'populate_joke',
+        attributes: {'images_only': imagesOnly.toString()},
+        action: () async {
+          final callable = _fns.httpsCallable(
+            'populate_joke',
+            options: HttpsCallableOptions(
+              timeout: const Duration(seconds: 300),
+            ),
+          );
+
+          final requestData = <String, dynamic>{
+            'joke_id': jokeId,
+            'overwrite': true,
+          };
+          if (imagesOnly) {
+            requestData['images_only'] = true;
+          }
+          if (additionalParams != null) {
+            requestData.addAll(additionalParams);
+          }
+
+          return await callable.call(requestData);
+        },
       );
 
-      final requestData = <String, dynamic>{
-        'joke_id': jokeId,
-        'overwrite': true,
-      };
-      if (imagesOnly) {
-        requestData['images_only'] = true;
-      }
-      if (additionalParams != null) {
-        requestData.addAll(additionalParams);
-      }
-
-      final result = await callable.call(requestData);
-
-      debugPrint('Joke populated successfully: ${result.data}');
+      AppLogger.debug('Joke populated successfully: ${result.data}');
       return {'success': true, 'data': result.data};
     } on FirebaseFunctionsException catch (e) {
-      debugPrint('Firebase Functions error: ${e.code} - ${e.message}');
+      AppLogger.warn('Firebase Functions error: ${e.code} - ${e.message}');
       return {
         'success': false,
         'error': 'Function error: ${e.message}',
         'code': e.code,
       };
     } catch (e) {
-      debugPrint('Error populating joke: $e');
+      AppLogger.warn('Error populating joke: $e');
       return {'success': false, 'error': 'Unexpected error: $e'};
     }
   }
@@ -117,29 +162,33 @@ class JokeCloudFunctionService {
     String? punchlineImageUrl,
   }) async {
     try {
-      final callable = _fns.httpsCallable('update_joke');
-
-      final result = await callable.call({
-        'joke_id': jokeId,
-        'joke_data': {
-          'setup_text': setupText,
-          'punchline_text': punchlineText,
-          'setup_image_url': setupImageUrl,
-          'punchline_image_url': punchlineImageUrl,
+      final result = await _traceCf(
+        functionName: 'update_joke',
+        action: () async {
+          final callable = _fns.httpsCallable('update_joke');
+          return await callable.call({
+            'joke_id': jokeId,
+            'joke_data': {
+              'setup_text': setupText,
+              'punchline_text': punchlineText,
+              'setup_image_url': setupImageUrl,
+              'punchline_image_url': punchlineImageUrl,
+            },
+          });
         },
-      });
+      );
 
-      debugPrint('Joke updated successfully: ${result.data}');
+      AppLogger.debug('Joke updated successfully: ${result.data}');
       return {'success': true, 'data': result.data};
     } on FirebaseFunctionsException catch (e) {
-      debugPrint('Firebase Functions error: ${e.code} - ${e.message}');
+      AppLogger.warn('Firebase Functions error: ${e.code} - ${e.message}');
       return {
         'success': false,
         'error': 'Function error: ${e.message}',
         'code': e.code,
       };
     } catch (e) {
-      debugPrint('Error updating joke: $e');
+      AppLogger.warn('Error updating joke: $e');
       return {'success': false, 'error': 'Unexpected error: $e'};
     }
   }
@@ -149,29 +198,36 @@ class JokeCloudFunctionService {
     Map<String, dynamic>? additionalParameters,
   }) async {
     try {
-      final callable = _fns.httpsCallable(
-        'critique_jokes',
-        options: HttpsCallableOptions(timeout: const Duration(seconds: 300)),
+      final result = await _traceCf(
+        functionName: 'critique_jokes',
+        action: () async {
+          final callable = _fns.httpsCallable(
+            'critique_jokes',
+            options: HttpsCallableOptions(
+              timeout: const Duration(seconds: 300),
+            ),
+          );
+
+          final requestData = {
+            'instructions': instructions,
+            if (additionalParameters != null) ...additionalParameters,
+          };
+
+          return await callable.call(requestData);
+        },
       );
 
-      final requestData = {
-        'instructions': instructions,
-        if (additionalParameters != null) ...additionalParameters,
-      };
-
-      final result = await callable.call(requestData);
-
-      debugPrint('Jokes critiqued successfully: ${result.data}');
+      AppLogger.debug('Jokes critiqued successfully: ${result.data}');
       return {'success': true, 'data': result.data};
     } on FirebaseFunctionsException catch (e) {
-      debugPrint('Firebase Functions error: ${e.code} - ${e.message}');
+      AppLogger.warn('Firebase Functions error: ${e.code} - ${e.message}');
       return {
         'success': false,
         'error': 'Function error: ${e.message}',
         'code': e.code,
       };
     } catch (e) {
-      debugPrint('Error critiquing jokes: $e');
+      AppLogger.warn('Error critiquing jokes: $e');
       return {'success': false, 'error': 'Unexpected error: $e'};
     }
   }
@@ -182,34 +238,42 @@ class JokeCloudFunctionService {
     String? punchlineInstructions,
   }) async {
     try {
-      final callable = _fns.httpsCallable(
-        'modify_joke_image',
-        options: HttpsCallableOptions(timeout: const Duration(seconds: 300)),
+      final result = await _traceCf(
+        functionName: 'modify_joke_image',
+        action: () async {
+          final callable = _fns.httpsCallable(
+            'modify_joke_image',
+            options: HttpsCallableOptions(
+              timeout: const Duration(seconds: 300),
+            ),
+          );
+
+          final requestData = <String, dynamic>{'joke_id': jokeId};
+
+          if (setupInstructions != null && setupInstructions.isNotEmpty) {
+            requestData['setup_instruction'] = setupInstructions;
+          }
+
+          if (punchlineInstructions != null &&
+              punchlineInstructions.isNotEmpty) {
+            requestData['punchline_instruction'] = punchlineInstructions;
+          }
+
+          return await callable.call(requestData);
+        },
       );
 
-      final requestData = <String, dynamic>{'joke_id': jokeId};
-
-      if (setupInstructions != null && setupInstructions.isNotEmpty) {
-        requestData['setup_instruction'] = setupInstructions;
-      }
-
-      if (punchlineInstructions != null && punchlineInstructions.isNotEmpty) {
-        requestData['punchline_instruction'] = punchlineInstructions;
-      }
-
-      final result = await callable.call(requestData);
-
-      debugPrint('Joke modified successfully: ${result.data}');
+      AppLogger.debug('Joke modified successfully: ${result.data}');
       return {'success': true, 'data': result.data};
     } on FirebaseFunctionsException catch (e) {
-      debugPrint('Firebase Functions error: ${e.code} - ${e.message}');
+      AppLogger.warn('Firebase Functions error: ${e.code} - ${e.message}');
       return {
         'success': false,
         'error': 'Function error: ${e.message}',
         'code': e.code,
       };
     } catch (e) {
-      debugPrint('Error modifying joke: $e');
+      AppLogger.warn('Error modifying joke: $e');
       return {'success': false, 'error': 'Unexpected error: $e'};
     }
   }
@@ -228,8 +292,6 @@ class JokeCloudFunctionService {
     required SearchLabel label,
   }) async {
     try {
-      final callable = _fns.httpsCallable('search_jokes');
-
       // Build label: if SearchLabel is none, use scope.name; otherwise use "scope.name:label.name"
       final String labelValue = label == SearchLabel.none
           ? scope.name
@@ -245,7 +307,20 @@ class JokeCloudFunctionService {
         if (excludeJokeIds.isNotEmpty) 'exclude_joke_ids': excludeJokeIds,
       };
 
-      final result = await callable.call(payload);
+      final result = await _traceCf(
+        functionName: 'search_jokes',
+        attributes: {
+          'scope': scope.name,
+          'label': labelValue,
+          'match_mode': matchMode == MatchMode.tight ? 'TIGHT' : 'LOOSE',
+          'query_len': searchQuery.length.toString(),
+          'exclude_count': excludeJokeIds.length.toString(),
+        },
+        action: () async {
+          final callable = _fns.httpsCallable('search_jokes');
+          return await callable.call(payload);
+        },
+      );
 
       final data = result.data;
       // Accept either: { jokes: [...] } or [...] directly
@@ -269,15 +344,15 @@ class JokeCloudFunctionService {
         return parsed;
       }
 
-      debugPrint('Unexpected search_jokes response: $data');
+      AppLogger.warn('Unexpected search_jokes response: $data');
       return <JokeSearchResult>[];
     } on FirebaseFunctionsException catch (e) {
-      debugPrint(
+      AppLogger.warn(
         'Firebase Functions error (search_jokes): ${e.code} - ${e.message}',
       );
       return <JokeSearchResult>[];
     } catch (e) {
-      debugPrint('Error calling search_jokes: $e');
+      AppLogger.warn('Error calling search_jokes: $e');
       return <JokeSearchResult>[];
     }
   }

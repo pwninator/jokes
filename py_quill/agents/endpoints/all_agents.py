@@ -46,8 +46,8 @@ def get_joke_updater_agent_adk_app() -> agent_engines.AgentEngine:
   """Get the ADK app for the joke updater agent."""
   return _get_agent_adk_app(
     agent_name="JokeUpdater",
-    get_local_agent_fn=joke_updater.get_joke_updater_agent,
-    remote_agent_id=None,
+    get_local_agent_fn=joke_updater.get_root_agent,
+    remote_agent_id=joke_updater.DEPLOYED_AGENT_ID,
   )
 
 

@@ -20,10 +20,14 @@ agents/endpoints/joke_critic/deploy.py
 agents/endpoints/joke_populator/__init__.py
 agents/endpoints/joke_populator/agent.py
 agents/endpoints/joke_populator/deploy.py
+agents/endpoints/joke_updater/__init__.py
+agents/endpoints/joke_updater/agent.py
+agents/endpoints/joke_updater/deploy.py
 agents/jokes/__init__.py
 agents/jokes/categorizer_agent.py
 agents/jokes/jokes_agent.py
 agents/jokes/punny_joke_agents.py
+agents/jokes/updater_agent.py
 agents/puns/__init__.py
 agents/puns/pun_evaluator_agent.py
 agents/puns/pun_expansion_agent.py

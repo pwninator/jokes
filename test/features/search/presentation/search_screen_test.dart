@@ -79,6 +79,11 @@ void main() {
             ),
           ),
         ),
+        searchResultIdsProvider(SearchScope.userJokeSearch).overrideWith(
+          (ref) => Future.value([
+            const JokeSearchResult(id: '1', vectorDistance: 0.1),
+          ]),
+        ),
       ],
     );
     addTearDown(container.dispose);
@@ -150,6 +155,20 @@ void main() {
               punchlineImageUrl: 'b',
             ),
           ),
+        ),
+        searchResultIdsProvider(SearchScope.userJokeSearch).overrideWith(
+          (ref) => Future.value([
+            const JokeSearchResult(id: '1', vectorDistance: 0.1),
+            const JokeSearchResult(id: '2', vectorDistance: 0.2),
+            const JokeSearchResult(id: '3', vectorDistance: 0.3),
+          ]),
+        ),
+        searchResultIdsProvider(SearchScope.userJokeSearch).overrideWith(
+          (ref) => Future.value([
+            const JokeSearchResult(id: '1', vectorDistance: 0.1),
+            const JokeSearchResult(id: '2', vectorDistance: 0.2),
+            const JokeSearchResult(id: '3', vectorDistance: 0.3),
+          ]),
         ),
       ],
     );

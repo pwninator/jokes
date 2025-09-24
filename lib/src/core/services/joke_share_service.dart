@@ -95,7 +95,6 @@ class JokeShareServiceImpl implements JokeShareService {
     _analyticsService.logJokeShareInitiated(
       joke.id,
       jokeContext: jokeContext,
-      shareMethod: 'images',
     );
     // This can be expanded to use different strategies based on joke content
     final shareResult = await _shareJokeImagesWithResult(
@@ -118,7 +117,6 @@ class JokeShareServiceImpl implements JokeShareService {
       _analyticsService.logJokeShareSuccess(
         joke.id,
         jokeContext: jokeContext,
-        shareMethod: 'images',
         shareDestination: shareResult.shareDestination,
         totalJokesShared: totalShared,
       );
@@ -132,7 +130,6 @@ class JokeShareServiceImpl implements JokeShareService {
       _analyticsService.logJokeShareCanceled(
         joke.id,
         jokeContext: jokeContext,
-        shareMethod: 'images',
         shareDestination: shareResult.shareDestination,
       );
     }
@@ -223,7 +220,6 @@ class JokeShareServiceImpl implements JokeShareService {
       _analyticsService.logErrorJokeShare(
         joke.id,
         jokeContext: jokeContext,
-        shareMethod: 'images',
         errorMessage: e.toString(),
         errorContext: 'share_images',
         exceptionType: e.runtimeType.toString(),

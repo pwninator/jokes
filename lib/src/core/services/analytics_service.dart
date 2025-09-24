@@ -66,7 +66,6 @@ abstract class AnalyticsService {
   void logJokeShareSuccess(
     String jokeId, {
     required String jokeContext,
-    String? shareMethod,
     String? shareDestination,
     required int totalJokesShared,
   });
@@ -75,14 +74,12 @@ abstract class AnalyticsService {
   void logJokeShareInitiated(
     String jokeId, {
     required String jokeContext,
-    required String shareMethod,
   });
 
   /// Share funnel: user canceled/dismissed share sheet (failure, not error)
   void logJokeShareCanceled(
     String jokeId, {
     required String jokeContext,
-    required String shareMethod,
     String? shareDestination,
   });
 
@@ -90,7 +87,6 @@ abstract class AnalyticsService {
   void logErrorJokeShare(
     String jokeId, {
     required String jokeContext,
-    required String shareMethod,
     required String errorMessage,
     String? errorContext,
     String? exceptionType,
@@ -428,16 +424,14 @@ class FirebaseAnalyticsService implements AnalyticsService {
   void logJokeShareSuccess(
     String jokeId, {
     required String jokeContext,
-    String? shareMethod,
     String? shareDestination,
     required int totalJokesShared,
   }) {
     _logEvent(AnalyticsEvent.jokeShareSuccess, {
       AnalyticsParameters.jokeId: jokeId,
       AnalyticsParameters.jokeContext: jokeContext,
-      AnalyticsParameters.userType: _getUserType(_currentUser),
       AnalyticsParameters.totalJokesShared: totalJokesShared,
-      if (shareMethod != null) AnalyticsParameters.shareMethod: shareMethod,
+      'share_success_count': 1,
       if (shareDestination != null)
         AnalyticsParameters.shareDestination: shareDestination,
     });
@@ -447,13 +441,11 @@ class FirebaseAnalyticsService implements AnalyticsService {
   void logJokeShareInitiated(
     String jokeId, {
     required String jokeContext,
-    required String shareMethod,
   }) {
     _logEvent(AnalyticsEvent.jokeShareInitiated, {
       AnalyticsParameters.jokeId: jokeId,
       AnalyticsParameters.jokeContext: jokeContext,
-      AnalyticsParameters.shareMethod: shareMethod,
-      AnalyticsParameters.userType: _getUserType(_currentUser),
+      'share_initiated_count': 1,
     });
   }
 
@@ -461,14 +453,12 @@ class FirebaseAnalyticsService implements AnalyticsService {
   void logJokeShareCanceled(
     String jokeId, {
     required String jokeContext,
-    required String shareMethod,
     String? shareDestination,
   }) {
     _logEvent(AnalyticsEvent.jokeShareCanceled, {
       AnalyticsParameters.jokeId: jokeId,
       AnalyticsParameters.jokeContext: jokeContext,
-      AnalyticsParameters.shareMethod: shareMethod,
-      AnalyticsParameters.userType: _getUserType(_currentUser),
+      'share_canceled_count': 1,
       if (shareDestination != null)
         AnalyticsParameters.shareDestination: shareDestination,
     });
@@ -478,7 +468,6 @@ class FirebaseAnalyticsService implements AnalyticsService {
   void logErrorJokeShare(
     String jokeId, {
     required String jokeContext,
-    required String shareMethod,
     required String errorMessage,
     String? errorContext,
     String? exceptionType,
@@ -486,12 +475,11 @@ class FirebaseAnalyticsService implements AnalyticsService {
     _logEvent(AnalyticsEvent.errorJokeShare, {
       AnalyticsParameters.jokeId: jokeId,
       AnalyticsParameters.jokeContext: jokeContext,
-      AnalyticsParameters.shareMethod: shareMethod,
       AnalyticsParameters.errorMessage: errorMessage,
+      'share_error_count': 1,
       if (errorContext != null) AnalyticsParameters.errorContext: errorContext,
       if (exceptionType != null)
         AnalyticsParameters.exceptionType: exceptionType,
-      AnalyticsParameters.userType: _getUserType(_currentUser),
     }, isError: true);
   }
 
@@ -657,6 +645,7 @@ class FirebaseAnalyticsService implements AnalyticsService {
     _logEvent(AnalyticsEvent.analyticsError, {
       AnalyticsParameters.errorMessage: errorMessage,
       AnalyticsParameters.errorContext: context,
+      AnalyticsParameters.userType: _getUserType(_currentUser),
     }, isError: true);
   }
 

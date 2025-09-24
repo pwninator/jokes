@@ -47,8 +47,6 @@ void main() {
     expect(field, findsOneWidget);
     await tester.enterText(field, 'a');
     await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 50));
     await tester.pumpAndSettle();
 
     // Verify MaterialBanner is shown
@@ -67,9 +65,7 @@ void main() {
       additionalOverrides: [
         // Deterministic count: return 1 ID
         searchResultIdsProvider(SearchScope.userJokeSearch).overrideWith(
-          (ref) async => const [
-            JokeSearchResult(id: '1', vectorDistance: 0.0),
-          ],
+          (ref) async => const [JokeSearchResult(id: '1', vectorDistance: 0.0)],
         ),
         // Viewer shows the actual joke content
         searchResultsViewerProvider(SearchScope.userJokeSearch).overrideWith(
@@ -98,8 +94,6 @@ void main() {
     final field = find.byKey(const Key('search_screen-search-field'));
     await tester.enterText(field, 'cat');
     await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 50));
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('search-results-count')), findsOneWidget);
@@ -164,8 +158,6 @@ void main() {
     final field = find.byKey(const Key('search_screen-search-field'));
     await tester.enterText(field, 'dog');
     await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 50));
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('search-results-count')), findsOneWidget);
@@ -177,6 +169,12 @@ void main() {
   ) async {
     final overrides = FirebaseMocks.getFirebaseProviderOverrides(
       additionalOverrides: [
+        searchResultIdsProvider(SearchScope.userJokeSearch).overrideWith(
+          (ref) => Future.value([
+            const JokeSearchResult(id: 'a', vectorDistance: 0),
+            const JokeSearchResult(id: 'b', vectorDistance: 0),
+          ]),
+        ),
         searchResultsViewerProvider(SearchScope.userJokeSearch).overrideWith(
           (ref) => Stream.value(const [
             JokeWithDate(
@@ -212,8 +210,6 @@ void main() {
     final field = find.byKey(const Key('search_screen-search-field'));
     await tester.enterText(field, 'fish');
     await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 50));
     await tester.pumpAndSettle();
 
     // Title should be the index (1-based) for the first card

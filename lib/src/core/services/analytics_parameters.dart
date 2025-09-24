@@ -39,10 +39,14 @@ class AnalyticsParameters {
   static const String subscriptionOnCount = 'subscription_on_count';
 
   // Subscription prompt parameters
-  static const String subscriptionPromptShownCount = 'subscription_prompt_shown_count';
-  static const String subscriptionPromptAcceptedCount = 'subscription_prompt_accepted_count';
-  static const String subscriptionPromptDeclinedCount = 'subscription_prompt_declined_count';
-  static const String subscriptionPromptErrorCount = 'subscription_prompt_error_count';
+  static const String subscriptionPromptShownCount =
+      'subscription_prompt_shown_count';
+  static const String subscriptionPromptAcceptedCount =
+      'subscription_prompt_accepted_count';
+  static const String subscriptionPromptDeclinedCount =
+      'subscription_prompt_declined_count';
+  static const String subscriptionPromptErrorCount =
+      'subscription_prompt_error_count';
 
   // Notification parameters
   static const String notificationId = 'notification_id';
@@ -66,10 +70,15 @@ class AnalyticsParameters {
   static const String exceptionType = 'exception_type';
 
   // Share count parameters
-  static const String shareSuccessCount = 'share_success_count';
   static const String shareInitiatedCount = 'share_initiated_count';
+  static const String shareSuccessCount = 'share_success_count';
   static const String shareCanceledCount = 'share_canceled_count';
   static const String shareErrorCount = 'share_error_count';
+
+  // Other joke interaction counters
+  static const String jokeNavigatedCount = 'joke_navigated_count';
+  static const String jokeViewedCount = 'joke_viewed_count';
+  static const String jokeSavedCount = 'joke_saved_count';
 }
 
 /// User type values for analytics

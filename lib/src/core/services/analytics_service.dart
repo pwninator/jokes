@@ -367,6 +367,7 @@ class FirebaseAnalyticsService implements AnalyticsService {
       AnalyticsParameters.totalJokesViewed: totalJokesViewed,
       AnalyticsParameters.navigationMethod: navigationMethod,
       AnalyticsParameters.jokeContext: jokeContext,
+      AnalyticsParameters.jokeViewedCount: 1,
     });
   }
 
@@ -382,6 +383,7 @@ class FirebaseAnalyticsService implements AnalyticsService {
       AnalyticsParameters.jokeScrollDepth: jokeScrollDepth,
       AnalyticsParameters.navigationMethod: method,
       AnalyticsParameters.jokeContext: jokeContext,
+      AnalyticsParameters.jokeNavigatedCount: 1,
     });
   }
 
@@ -395,6 +397,7 @@ class FirebaseAnalyticsService implements AnalyticsService {
       AnalyticsParameters.jokeId: jokeId,
       AnalyticsParameters.jokeContext: jokeContext,
       AnalyticsParameters.totalJokesSaved: totalJokesSaved,
+      AnalyticsParameters.jokeSavedCount: 1,
     });
   }
 
@@ -408,6 +411,7 @@ class FirebaseAnalyticsService implements AnalyticsService {
       AnalyticsParameters.jokeId: jokeId,
       AnalyticsParameters.jokeContext: jokeContext,
       AnalyticsParameters.totalJokesSaved: totalJokesSaved,
+      AnalyticsParameters.jokeSavedCount: -1,
     });
   }
 

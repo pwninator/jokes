@@ -3,8 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:snickerdoodle/src/core/services/review_prompt_state_store.dart';
 import 'package:snickerdoodle/src/core/services/app_review_service.dart';
+import 'package:snickerdoodle/src/core/services/review_prompt_state_store.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/settings/presentation/user_settings_screen.dart';
 
@@ -91,7 +91,7 @@ void main() {
         await tester.pumpWidget(createTestWidget());
         await tester.pumpAndSettle();
 
-        expect(find.byType(Radio<ThemeMode>), findsNWidgets(3));
+        expect(find.byType(RadioListTile<ThemeMode>), findsNWidgets(3));
       });
     });
 
@@ -125,17 +125,22 @@ void main() {
       });
 
       testWidgets('can select system theme', (tester) async {
+        final mockSettings = CoreMocks.mockSettingsService;
+        // Start with a non-system theme by selecting Light first
         await tester.pumpWidget(createTestWidget());
         await tester.pumpAndSettle();
 
-        // Tap on the system theme option
+        // Select Light to ensure current theme is not system
+        await tester.tap(find.text('Always Light'));
+        await tester.pumpAndSettle();
+        verify(() => mockSettings.setString('theme_mode', 'light')).called(1);
+
+        // Now select System
         await tester.tap(find.text('Use System Setting'));
         await tester.pumpAndSettle();
 
         // Verify the setting was saved
-        verify(
-          () => CoreMocks.mockSettingsService.setString('theme_mode', 'system'),
-        ).called(1);
+        verify(() => mockSettings.setString('theme_mode', 'system')).called(1);
       });
 
       testWidgets('can tap on radio button to change theme', (tester) async {
@@ -144,7 +149,7 @@ void main() {
 
         // Find and tap the radio button for dark theme
         final darkRadio = find
-            .byType(Radio<ThemeMode>)
+            .byType(RadioListTile<ThemeMode>)
             .at(2); // Third radio button (dark)
         await tester.tap(darkRadio);
         await tester.pumpAndSettle();
@@ -161,8 +166,11 @@ void main() {
         await tester.pumpWidget(createTestWidget());
         await tester.pumpAndSettle();
 
-        // Find the InkWell containing the light theme option
-        final lightThemeRow = find.widgetWithText(InkWell, 'Always Light');
+        // Find the RadioListTile containing the light theme option
+        final lightThemeRow = find.widgetWithText(
+          RadioListTile<ThemeMode>,
+          'Always Light',
+        );
         await tester.tap(lightThemeRow);
         await tester.pumpAndSettle();
 
@@ -178,14 +186,13 @@ void main() {
         await tester.pumpWidget(createTestWidget());
         await tester.pumpAndSettle();
 
-        // Find all radio buttons and check which one is selected
-        final radioButtons = tester.widgetList<Radio<ThemeMode>>(
-          find.byType(Radio<ThemeMode>),
+        // The system option tile should be selected by default
+        final systemTile = tester.widget<RadioListTile<ThemeMode>>(
+          find.byKey(
+            const Key('user_settings_screen-theme-option-use-system-setting'),
+          ),
         );
-
-        // The first radio button (system) should be selected
-        expect(radioButtons.first.groupValue, ThemeMode.system);
-        expect(radioButtons.first.value, ThemeMode.system);
+        expect(systemTile.selected, isTrue);
       });
     });
 
@@ -198,7 +205,7 @@ void main() {
         await tester.pump(const Duration(milliseconds: 100));
 
         // Find all radio buttons
-        final radioButtons = find.byType(Radio<ThemeMode>);
+        final radioButtons = find.byType(RadioListTile<ThemeMode>);
         expect(radioButtons, findsNWidgets(3));
 
         // Check that radio buttons are present (detailed state checking would require more complex setup)

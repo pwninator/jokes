@@ -109,7 +109,6 @@ class AnalyticsMocks {
       () => mock.logJokeShareSuccess(
         any(),
         jokeContext: any(named: 'jokeContext'),
-        shareMethod: any(named: 'shareMethod'),
         shareDestination: any(named: 'shareDestination'),
         totalJokesShared: any(named: 'totalJokesShared'),
       ),
@@ -170,7 +169,6 @@ class AnalyticsMocks {
       () => mock.logJokeShareInitiated(
         any(),
         jokeContext: any(named: 'jokeContext'),
-        shareMethod: any(named: 'shareMethod'),
       ),
     ).thenAnswer((_) async {});
 
@@ -178,7 +176,6 @@ class AnalyticsMocks {
       () => mock.logJokeShareCanceled(
         any(),
         jokeContext: any(named: 'jokeContext'),
-        shareMethod: any(named: 'shareMethod'),
         shareDestination: any(named: 'shareDestination'),
       ),
     ).thenAnswer((_) async {});
@@ -187,7 +184,6 @@ class AnalyticsMocks {
       () => mock.logErrorJokeShare(
         any(),
         jokeContext: any(named: 'jokeContext'),
-        shareMethod: any(named: 'shareMethod'),
         errorMessage: any(named: 'errorMessage'),
         errorContext: any(named: 'errorContext'),
         exceptionType: any(named: 'exceptionType'),

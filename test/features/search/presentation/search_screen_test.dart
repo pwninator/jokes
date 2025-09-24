@@ -47,8 +47,6 @@ void main() {
     expect(field, findsOneWidget);
     await tester.enterText(field, 'a');
     await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 50));
     await tester.pumpAndSettle();
 
     // Verify MaterialBanner is shown
@@ -63,32 +61,42 @@ void main() {
   });
 
   testWidgets('Shows results count for single result', (tester) async {
-    final overrides = FirebaseMocks.getFirebaseProviderOverrides(
-      additionalOverrides: [
-        searchResultsViewerProvider(SearchScope.userJokeSearch).overrideWith(
-          (ref) => Stream.value(const [
-            JokeWithDate(
-              joke: Joke(
-                id: '1',
-                setupText: 's',
-                punchlineText: 'p',
-                setupImageUrl: 'a',
-                punchlineImageUrl: 'b',
-              ),
+    final container = ProviderContainer(
+      overrides: [
+        ...FirebaseMocks.getFirebaseProviderOverrides(),
+        // Deterministic count: return 1 ID
+        searchResultIdsProvider(SearchScope.userJokeSearch).overrideWith(
+          (ref) async => const [JokeSearchResult(id: '1', vectorDistance: 0.0)],
+        ),
+        jokeStreamByIdProvider('1').overrideWith(
+          (ref) => Stream.value(
+            const Joke(
+              id: '1',
+              setupText: 's',
+              punchlineText: 'p',
+              setupImageUrl: 'a',
+              punchlineImageUrl: 'b',
             ),
-          ]),
+          ),
         ),
         searchResultIdsProvider(SearchScope.userJokeSearch).overrideWith(
-          (ref) => Future.value(
-            [const JokeSearchResult(id: '1', vectorDistance: 0.1)],
-          ),
+          (ref) => Future.value([
+            const JokeSearchResult(id: '1', vectorDistance: 0.1),
+          ]),
         ),
       ],
     );
+    addTearDown(container.dispose);
+
+    // Set query so provider returns a result
+    final notifier = container.read(
+      searchQueryProvider(SearchScope.userJokeSearch).notifier,
+    );
+    notifier.state = notifier.state.copyWith(query: 'cat');
 
     await tester.pumpWidget(
-      ProviderScope(
-        overrides: overrides,
+      UncontrolledProviderScope(
+        container: container,
         child: const MaterialApp(home: SearchScreen()),
       ),
     );
@@ -96,8 +104,6 @@ void main() {
     final field = find.byKey(const Key('search_screen-search-field'));
     await tester.enterText(field, 'cat');
     await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 50));
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('search-results-count')), findsOneWidget);
@@ -107,37 +113,54 @@ void main() {
   testWidgets('Shows pluralized results count for multiple results', (
     tester,
   ) async {
-    final overrides = FirebaseMocks.getFirebaseProviderOverrides(
-      additionalOverrides: [
-        searchResultsViewerProvider(SearchScope.userJokeSearch).overrideWith(
-          (ref) => Stream.value(const [
-            JokeWithDate(
-              joke: Joke(
-                id: '1',
-                setupText: 's1',
-                punchlineText: 'p1',
-                setupImageUrl: 'a',
-                punchlineImageUrl: 'b',
-              ),
+    final container = ProviderContainer(
+      overrides: [
+        ...FirebaseMocks.getFirebaseProviderOverrides(),
+        searchResultIdsProvider(SearchScope.userJokeSearch).overrideWith(
+          (ref) async => [
+            const JokeSearchResult(id: '1', vectorDistance: 0.1),
+            const JokeSearchResult(id: '2', vectorDistance: 0.2),
+            const JokeSearchResult(id: '3', vectorDistance: 0.3),
+          ],
+        ),
+        jokeStreamByIdProvider('1').overrideWith(
+          (ref) => Stream.value(
+            const Joke(
+              id: '1',
+              setupText: 's1',
+              punchlineText: 'p1',
+              setupImageUrl: 'a',
+              punchlineImageUrl: 'b',
             ),
-            JokeWithDate(
-              joke: Joke(
-                id: '2',
-                setupText: 's2',
-                punchlineText: 'p2',
-                setupImageUrl: 'a',
-                punchlineImageUrl: 'b',
-              ),
+          ),
+        ),
+        jokeStreamByIdProvider('2').overrideWith(
+          (ref) => Stream.value(
+            const Joke(
+              id: '2',
+              setupText: 's2',
+              punchlineText: 'p2',
+              setupImageUrl: 'a',
+              punchlineImageUrl: 'b',
             ),
-            JokeWithDate(
-              joke: Joke(
-                id: '3',
-                setupText: 's3',
-                punchlineText: 'p3',
-                setupImageUrl: 'a',
-                punchlineImageUrl: 'b',
-              ),
+          ),
+        ),
+        jokeStreamByIdProvider('3').overrideWith(
+          (ref) => Stream.value(
+            const Joke(
+              id: '3',
+              setupText: 's3',
+              punchlineText: 'p3',
+              setupImageUrl: 'a',
+              punchlineImageUrl: 'b',
             ),
+          ),
+        ),
+        searchResultIdsProvider(SearchScope.userJokeSearch).overrideWith(
+          (ref) => Future.value([
+            const JokeSearchResult(id: '1', vectorDistance: 0.1),
+            const JokeSearchResult(id: '2', vectorDistance: 0.2),
+            const JokeSearchResult(id: '3', vectorDistance: 0.3),
           ]),
         ),
         searchResultIdsProvider(SearchScope.userJokeSearch).overrideWith(
@@ -149,10 +172,17 @@ void main() {
         ),
       ],
     );
+    addTearDown(container.dispose);
+
+    // Set query so provider returns results
+    final notifier = container.read(
+      searchQueryProvider(SearchScope.userJokeSearch).notifier,
+    );
+    notifier.state = notifier.state.copyWith(query: 'dog');
 
     await tester.pumpWidget(
-      ProviderScope(
-        overrides: overrides,
+      UncontrolledProviderScope(
+        container: container,
         child: const MaterialApp(home: SearchScreen()),
       ),
     );
@@ -160,8 +190,6 @@ void main() {
     final field = find.byKey(const Key('search_screen-search-field'));
     await tester.enterText(field, 'dog');
     await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 50));
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('search-results-count')), findsOneWidget);
@@ -171,42 +199,47 @@ void main() {
   testWidgets('Search results show 1-based index titles on JokeCards', (
     tester,
   ) async {
-    final overrides = FirebaseMocks.getFirebaseProviderOverrides(
-      additionalOverrides: [
-        searchResultsViewerProvider(SearchScope.userJokeSearch).overrideWith(
-          (ref) => Stream.value(const [
-            JokeWithDate(
-              joke: Joke(
-                id: 'a',
-                setupText: 's1',
-                punchlineText: 'p1',
-                setupImageUrl: 'a',
-                punchlineImageUrl: 'b',
-              ),
-            ),
-            JokeWithDate(
-              joke: Joke(
-                id: 'b',
-                setupText: 's2',
-                punchlineText: 'p2',
-                setupImageUrl: 'a',
-                punchlineImageUrl: 'b',
-              ),
-            ),
-          ]),
+    final jokes = [
+      JokeWithDate(
+        joke: const Joke(
+          id: 'a',
+          setupText: 's1',
+          punchlineText: 'p1',
+          setupImageUrl: 'a',
+          punchlineImageUrl: 'b',
         ),
-        searchResultIdsProvider(SearchScope.userJokeSearch).overrideWith(
-          (ref) => Future.value([
-            const JokeSearchResult(id: 'a', vectorDistance: 0.1),
-            const JokeSearchResult(id: 'b', vectorDistance: 0.2),
-          ]),
+        date: DateTime.now(),
+      ),
+      JokeWithDate(
+        joke: const Joke(
+          id: 'b',
+          setupText: 's2',
+          punchlineText: 'p2',
+          setupImageUrl: 'a',
+          punchlineImageUrl: 'b',
         ),
+        date: DateTime.now(),
+      ),
+    ];
+    final container = ProviderContainer(
+      overrides: [
+        ...FirebaseMocks.getFirebaseProviderOverrides(),
+        searchResultsViewerProvider(
+          SearchScope.userJokeSearch,
+        ).overrideWith((ref) => Stream.value(jokes)),
       ],
     );
+    addTearDown(container.dispose);
+
+    // Set query so provider returns results
+    final notifier = container.read(
+      searchQueryProvider(SearchScope.userJokeSearch).notifier,
+    );
+    notifier.state = notifier.state.copyWith(query: 'fish');
 
     await tester.pumpWidget(
-      ProviderScope(
-        overrides: overrides,
+      UncontrolledProviderScope(
+        container: container,
         child: const MaterialApp(home: SearchScreen()),
       ),
     );

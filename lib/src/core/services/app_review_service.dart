@@ -21,7 +21,14 @@ enum ReviewRequestResult {
 }
 
 /// Source of the review request for analytics/telemetry
-enum ReviewRequestSource { adminTest, jokeViewed, jokeSaved, jokeShared }
+enum ReviewRequestSource {
+  adminTest,
+  jokeViewed,
+  jokeSaved,
+  jokeShared,
+  settings,
+  auto
+}
 
 extension ReviewRequestSourceX on ReviewRequestSource {
   String get value {
@@ -34,6 +41,10 @@ extension ReviewRequestSourceX on ReviewRequestSource {
         return 'joke_saved';
       case ReviewRequestSource.jokeShared:
         return 'joke_shared';
+      case ReviewRequestSource.settings:
+        return 'settings';
+      case ReviewRequestSource.auto:
+        return 'auto';
     }
   }
 }

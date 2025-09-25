@@ -15,7 +15,7 @@ class JokeConstants {
   static const bool userSearchPublicOnly = true;
   static const MatchMode userSearchMatchMode = MatchMode.tight;
   static const SearchLabel userSearchLabel = SearchLabel.none;
-  static const SearchLabel similarJokesLabel = SearchLabel.similarJokes;
+  static const SearchLabel similarJokesLabel = SearchLabel.similar;
 
   static const int adminSearchMaxResults = 50;
   static const bool adminSearchPublicOnly = false;

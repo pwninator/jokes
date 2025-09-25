@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
+import 'package:go_router/go_router.dart';
 import 'package:snickerdoodle/src/common_widgets/adaptive_app_bar_screen.dart';
 import 'package:snickerdoodle/src/core/providers/app_providers.dart';
 import 'package:snickerdoodle/src/config/router/router_providers.dart';
@@ -121,6 +122,31 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
     return AdaptiveAppBarScreen(
       title: 'Search',
+      leading: IconButton(
+        icon: const Icon(Icons.arrow_back),
+        onPressed: () {
+          final search =
+              ref.read(searchQueryProvider(SearchScope.userJokeSearch));
+          final label = search.label;
+          if (label == SearchLabel.similarFromDaily ||
+              label == SearchLabel.similarFromSaved) {
+            context.pop();
+          } else {
+            _controller.clear();
+            ref
+                .read(searchQueryProvider(SearchScope.userJokeSearch).notifier)
+                .state = search.copyWith(
+              query: '',
+              maxResults: JokeConstants.userSearchMaxResults,
+              publicOnly: JokeConstants.userSearchPublicOnly,
+              matchMode: JokeConstants.userSearchMatchMode,
+              excludeJokeIds: const [],
+              label: JokeConstants.userSearchLabel,
+            );
+            FocusScope.of(context).unfocus();
+          }
+        },
+      ),
       body: Column(
         children: [
           Container(
@@ -344,7 +370,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   emptyState: emptyStateMessage.isEmpty
                       ? const SizedBox.shrink()
                       : Center(child: Text(emptyStateMessage)),
-                  showSimilarSearchButton: false,
+                  showSimilarSearchButton: true,
                 );
               },
             ),

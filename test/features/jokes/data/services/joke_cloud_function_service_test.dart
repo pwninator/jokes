@@ -361,20 +361,20 @@ void main() {
                 as Map<String, dynamic>;
         expect(captured['label'], 'userJokeSearch');
 
-        // Test with SearchLabel.similarJokes - should use "scope.name:label.name"
+        // Test with SearchLabel.similar - should use "scope.name:label.name"
         await service.searchJokes(
           searchQuery: q,
           maxResults: 10,
           publicOnly: true,
           matchMode: MatchMode.tight,
           scope: SearchScope.userJokeSearch,
-          label: SearchLabel.similarJokes,
+          label: SearchLabel.similar,
         );
 
         captured =
             verify(() => mockCallable.call(captureAny())).captured.last
                 as Map<String, dynamic>;
-        expect(captured['label'], 'userJokeSearch:similarJokes');
+        expect(captured['label'], 'userJokeSearch:similar');
 
         // Test with different scope
         await service.searchJokes(
@@ -383,13 +383,13 @@ void main() {
           publicOnly: true,
           matchMode: MatchMode.tight,
           scope: SearchScope.jokeManagementSearch,
-          label: SearchLabel.similarJokes,
+          label: SearchLabel.similar,
         );
 
         captured =
             verify(() => mockCallable.call(captureAny())).captured.last
                 as Map<String, dynamic>;
-        expect(captured['label'], 'jokeManagementSearch:similarJokes');
+        expect(captured['label'], 'jokeManagementSearch:similar');
 
         // Test with SearchLabel.category - should use "scope.name:label.name"
         await service.searchJokes(

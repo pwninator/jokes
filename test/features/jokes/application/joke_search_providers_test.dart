@@ -167,13 +167,13 @@ void main() {
       container
           .read(searchQueryProvider(SearchScope.userJokeSearch).notifier)
           .state = initial.copyWith(
-        label: SearchLabel.similarJokes,
+        label: SearchLabel.similar,
       );
 
       final updated = container.read(
         searchQueryProvider(SearchScope.userJokeSearch),
       );
-      expect(updated.label, SearchLabel.similarJokes);
+      expect(updated.label, SearchLabel.similar);
     });
 
     test(

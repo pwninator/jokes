@@ -1426,7 +1426,11 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
       publicOnly: JokeConstants.userSearchPublicOnly,
       matchMode: JokeConstants.userSearchMatchMode,
       excludeJokeIds: [widget.joke.id],
-      label: JokeConstants.similarJokesLabel,
+      label: widget.jokeContext == AnalyticsJokeContext.dailyJokes
+          ? SearchLabel.similarFromDaily
+          : widget.jokeContext == AnalyticsJokeContext.savedJokes
+              ? SearchLabel.similarFromSaved
+              : SearchLabel.similar,
     );
 
     // Navigate to search using push so that back returns to previous page

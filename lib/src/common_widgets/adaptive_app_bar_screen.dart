@@ -9,12 +9,16 @@ class AdaptiveAppBarScreen extends StatelessWidget {
     super.key,
     required this.title,
     required this.body,
+    this.leading,
     this.floatingActionButton,
     this.resizeToAvoidBottomInset = false,
   });
 
   /// The title to display in the app bar when in portrait mode
   final String title;
+
+  /// Optional leading widget for the app bar
+  final Widget? leading;
 
   /// The body content of the screen
   final Widget body;
@@ -42,7 +46,10 @@ class AdaptiveAppBarScreen extends StatelessWidget {
                 scrolledUnderElevation: 0,
               ),
             )
-          : AppBarWidget(title: title),
+          : AppBarWidget(
+              title: title,
+              leading: leading,
+            ),
       body: body,
       floatingActionButton: floatingActionButton,
     );

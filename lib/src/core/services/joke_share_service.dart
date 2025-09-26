@@ -132,9 +132,6 @@ class JokeShareServiceImpl implements JokeShareService {
       await _reviewPromptCoordinator.maybePromptForReview(
         source: ReviewRequestSource.jokeShared,
       );
-    } else {
-      // Log cancellation or failure
-      _analyticsService.logJokeShareCanceled(joke.id, jokeContext: jokeContext);
     }
 
     return shareResult.success;
@@ -251,6 +248,12 @@ class JokeShareServiceImpl implements JokeShareService {
         filesToShare,
         subject: subject,
       );
+      if (result.status == ShareResultStatus.dismissed) {
+        _analyticsService.logJokeShareCanceled(
+          joke.id,
+          jokeContext: jokeContext,
+        );
+      }
 
       // Check if user actually shared (not dismissed)
       shareSuccessful = result.status == ShareResultStatus.success;

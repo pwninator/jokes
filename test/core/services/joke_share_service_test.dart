@@ -342,7 +342,7 @@ void main() {
             subject: any(named: 'subject'),
           ),
         ).thenAnswer(
-          (_) async => const ShareResult('', ShareResultStatus.unavailable),
+          (_) async => const ShareResult('', ShareResultStatus.dismissed),
         );
 
         when(

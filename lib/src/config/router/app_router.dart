@@ -412,30 +412,9 @@ class AppRouter {
       return;
     }
 
-    // Special handling for Discover (Search) tab: focus field if already there
     final selectedTab = tabs[index];
-    if (selectedTab.route == AppRoutes.discover) {
-      final currentLocation = GoRouterState.of(context).uri.path;
-      if (currentLocation.startsWith(AppRoutes.discover)) {
-        // Already on search screen, trigger focus instead of navigating
-        final container = ProviderScope.containerOf(context);
-        container.read(searchFieldFocusTriggerProvider.notifier).state = true;
 
-        // Reset the trigger after a short delay to allow the SearchScreen to handle it
-        Future.delayed(const Duration(milliseconds: 100), () {
-          if (context.mounted) {
-            final resetContainer = ProviderScope.containerOf(context);
-            resetContainer
-                    .read(searchFieldFocusTriggerProvider.notifier)
-                    .state =
-                false;
-          }
-        });
-        return;
-      }
-    }
-
-    context.go(selectedTab.route);
+    context.push(selectedTab.route);
   }
 }
 

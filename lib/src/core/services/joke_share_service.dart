@@ -257,7 +257,8 @@ class JokeShareServiceImpl implements JokeShareService {
       final result = await _platformShareService.shareFiles(
         filesToShare,
         subject: subject,
-        text: text,
+        // Do not pass text, since it doesn't look good in the share screen
+        // text: text,
       );
 
       // Check if user actually shared (not dismissed)

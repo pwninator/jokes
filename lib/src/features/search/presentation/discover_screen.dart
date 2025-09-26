@@ -224,7 +224,7 @@ class _CategoryGrid extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final categoriesAsync = ref.watch(jokeCategoriesProvider);
+    final categoriesAsync = ref.watch(discoverCategoriesProvider);
 
     return categoriesAsync.when(
       data: (categories) {

@@ -25,7 +25,21 @@ class _FakeRemoteValues implements RemoteConfigValues {
   final int minViewed;
 
   @override
-  bool getBool(RemoteParam param) => false;
+  bool getBool(RemoteParam param) {
+    switch (param) {
+      case RemoteParam.defaultJokeViewerReveal:
+        return false;
+      case RemoteParam.shareImagesMode:
+        return false;
+      case RemoteParam.subscriptionPromptMinJokesViewed:
+      case RemoteParam.feedbackMinJokesViewed:
+      case RemoteParam.reviewMinDaysUsed:
+      case RemoteParam.reviewMinSavedJokes:
+      case RemoteParam.reviewMinSharedJokes:
+      case RemoteParam.reviewMinViewedJokes:
+        return false;
+    }
+  }
 
   @override
   double getDouble(RemoteParam param) => 0.0;
@@ -47,11 +61,19 @@ class _FakeRemoteValues implements RemoteConfigValues {
         return 0;
       case RemoteParam.defaultJokeViewerReveal:
         return 0;
+      case RemoteParam.shareImagesMode:
+        return 0;
     }
   }
 
   @override
   String getString(RemoteParam param) => '';
+
+  @override
+  T getEnum<T>(RemoteParam param) {
+    final descriptor = remoteParams[param]!;
+    return (descriptor.enumDefault ?? '') as T;
+  }
 }
 
 void main() {

@@ -358,7 +358,7 @@ def _sync_joke_to_search_subcollection(
 
   joke_id = joke.key
   search_doc_ref = firestore.db().collection("jokes").document(joke_id).collection(
-    "search").document(joke_id)
+    "search").document("search")
   search_doc = search_doc_ref.get()
   search_data = search_doc.to_dict() if search_doc.exists else {}
 
@@ -371,8 +371,8 @@ def _sync_joke_to_search_subcollection(
     update_payload["text_embedding"] = joke.zzz_joke_text_embedding
 
   # 2. Sync state
-  if search_data.get("state") != joke.state:
-    update_payload["state"] = joke.state
+  if search_data.get("state") != joke.state.value:
+    update_payload["state"] = joke.state.value
 
   # 3. Sync public_timestamp
   if search_data.get("public_timestamp") != joke.public_timestamp:

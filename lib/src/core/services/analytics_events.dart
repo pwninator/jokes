@@ -25,6 +25,8 @@ enum AnalyticsEvent {
   // Share funnel flow events
   jokeShareInitiated('joke_share_initiated'),
   jokeShareCanceled('joke_share_canceled'),
+  // Share aborted explicitly by user via preparation dialog
+  jokeShareAborted('joke_share_aborted'),
   // Share funnel error events
   errorJokeShare('error_joke_share'),
 

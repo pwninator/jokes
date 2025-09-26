@@ -78,4 +78,10 @@ class _TestRCValues implements RemoteConfigValues {
 
   @override
   String getString(RemoteParam param) => '';
+
+  @override
+  T getEnum<T>(RemoteParam param) {
+    final descriptor = remoteParams[param]!;
+    return (descriptor.enumDefault ?? '') as T;
+  }
 }

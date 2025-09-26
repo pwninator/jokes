@@ -189,7 +189,6 @@ class AnalyticsMocks {
       () => mock.logJokeShareCanceled(
         any(),
         jokeContext: any(named: 'jokeContext'),
-        shareDestination: any(named: 'shareDestination'),
       ),
     ).thenAnswer((_) async {});
 

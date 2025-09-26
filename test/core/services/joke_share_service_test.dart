@@ -138,7 +138,6 @@ void main() {
           () => mockPlatformShareService.shareFiles(
             any(),
             subject: any(named: 'subject'),
-            text: any(named: 'text'),
           ),
         ).thenAnswer(
           (_) async => const ShareResult('', ShareResultStatus.success),
@@ -255,7 +254,6 @@ void main() {
           () => mockPlatformShareService.shareFiles(
             any(),
             subject: any(named: 'subject'),
-            text: any(named: 'text'),
           ),
         ).thenThrow(Exception('Should not be called'));
 
@@ -342,7 +340,6 @@ void main() {
           () => mockPlatformShareService.shareFiles(
             any(),
             subject: any(named: 'subject'),
-            text: any(named: 'text'),
           ),
         ).thenAnswer(
           (_) async => const ShareResult('', ShareResultStatus.unavailable),
@@ -444,7 +441,6 @@ void main() {
           () => mockPlatformShareService.shareFiles(
             any(),
             subject: any(named: 'subject'),
-            text: any(named: 'text'),
           ),
         ).thenAnswer(
           (_) async => const ShareResult('', ShareResultStatus.success),
@@ -474,7 +470,6 @@ void main() {
           joke,
           jokeContext: 'test-context',
           subject: 'Test subject',
-          text: 'Test text',
         );
 
         // Assert
@@ -482,7 +477,6 @@ void main() {
           () => mockPlatformShareService.shareFiles(
             any(),
             subject: 'Test subject',
-            text: 'Test text',
           ),
         ).called(1);
       },

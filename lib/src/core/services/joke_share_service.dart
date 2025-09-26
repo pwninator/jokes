@@ -57,7 +57,6 @@ abstract class JokeShareService {
     Joke joke, {
     required String jokeContext,
     String subject = 'Thought this might make you smile 😊',
-    String text = 'Freshly baked laughs from snickerdoodlejokes.com 🍪',
     SharePreparationController? controller,
   });
 }
@@ -99,7 +98,6 @@ class JokeShareServiceImpl implements JokeShareService {
     Joke joke, {
     required String jokeContext,
     String subject = 'Thought this might make you smile 😊',
-    String text = 'Freshly baked laughs from snickerdoodlejokes.com 🍪',
     SharePreparationController? controller,
   }) async {
     // For now, use the images sharing method as default
@@ -110,7 +108,6 @@ class JokeShareServiceImpl implements JokeShareService {
       joke,
       jokeContext: jokeContext,
       subject: subject,
-      text: text,
       controller: controller,
     );
 
@@ -137,10 +134,7 @@ class JokeShareServiceImpl implements JokeShareService {
       );
     } else {
       // Log cancellation or failure
-      _analyticsService.logJokeShareCanceled(
-        joke.id,
-        jokeContext: jokeContext,
-      );
+      _analyticsService.logJokeShareCanceled(joke.id, jokeContext: jokeContext);
     }
 
     return shareResult.success;
@@ -150,7 +144,6 @@ class JokeShareServiceImpl implements JokeShareService {
     Joke joke, {
     required String jokeContext,
     required String subject,
-    required String text,
     SharePreparationController? controller,
   }) async {
     controller?.setProgress(0);
@@ -257,8 +250,6 @@ class JokeShareServiceImpl implements JokeShareService {
       final result = await _platformShareService.shareFiles(
         filesToShare,
         subject: subject,
-        // Do not pass text, since it doesn't look good in the share screen
-        // text: text,
       );
 
       // Check if user actually shared (not dismissed)

@@ -45,7 +45,7 @@ void main() {
       registerFallbackValue(FakeJoke());
       registerFallbackValue(JokeReactionType.share);
       registerFallbackValue(FakeXFile());
-      registerFallbackValue(ReviewRequestSource.auto);
+      registerFallbackValue(ReviewRequestSource.jokeShared);
     });
 
     setUp(() async {

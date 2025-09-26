@@ -33,8 +33,9 @@ void main() {
         () => mockRepository.submitFeedback(any(), any()),
       ).thenAnswer((_) async {});
       when(
-        () => mockAnalyticsService.logFeedbackSubmitted(),
+        () => mockRepository.addConversationMessage(any(), any(), any()),
       ).thenAnswer((_) async {});
+      when(() => mockAnalyticsService.logFeedbackSubmitted()).thenReturn(null);
     });
 
     test(
@@ -71,7 +72,6 @@ void main() {
 
       await service.submitFeedback(feedbackText, mockUser);
 
-      // Repository should handle empty text, analytics still called
       verify(
         () => mockRepository.submitFeedback(feedbackText, 'user123'),
       ).called(1);
@@ -91,20 +91,36 @@ void main() {
       verify(() => mockAnalyticsService.logFeedbackSubmitted()).called(1);
     });
 
-    test('addConversationMessage calls repository', () async {
+    test(
+      'addConversationMessage does not log analytics for admin speaker',
+      () async {
+        const docId = 'doc123';
+        const text = 'Thank you for your feedback!';
+        const speaker = SpeakerType.admin;
+
+        await service.addConversationMessage(docId, text, speaker);
+
+        verify(
+          () => mockRepository.addConversationMessage(docId, text, speaker),
+        ).called(1);
+        verifyNever(() => mockAnalyticsService.logFeedbackSubmitted());
+      },
+    );
+
+    test('addConversationMessage logs analytics for user speaker', () async {
       const docId = 'doc123';
-      const text = 'Thank you for your feedback!';
-      const speaker = SpeakerType.admin;
+      const text = 'Follow-up from user';
 
-      when(
-        () => mockRepository.addConversationMessage(any(), any(), any()),
-      ).thenAnswer((_) async {});
-
-      await service.addConversationMessage(docId, text, speaker);
+      await service.addConversationMessage(docId, text, SpeakerType.user);
 
       verify(
-        () => mockRepository.addConversationMessage(docId, text, speaker),
+        () => mockRepository.addConversationMessage(
+          docId,
+          text,
+          SpeakerType.user,
+        ),
       ).called(1);
+      verify(() => mockAnalyticsService.logFeedbackSubmitted()).called(1);
     });
   });
 }

@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:snickerdoodle/src/common_widgets/adaptive_app_bar_screen.dart';
-import 'package:snickerdoodle/src/common_widgets/feedback_dialog.dart';
 import 'package:snickerdoodle/src/common_widgets/notification_hour_widget.dart';
 import 'package:snickerdoodle/src/common_widgets/subscription_prompt_dialog.dart';
 import 'package:snickerdoodle/src/common_widgets/titled_screen.dart';
+import 'package:snickerdoodle/src/config/router/route_names.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/providers/app_usage_events_provider.dart';
 import 'package:snickerdoodle/src/core/providers/app_version_provider.dart';
@@ -16,6 +17,7 @@ import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
 import 'package:snickerdoodle/src/features/auth/data/models/app_user.dart';
+import 'package:snickerdoodle/src/features/feedback/presentation/user_feedback_screen.dart';
 import 'package:snickerdoodle/src/features/settings/application/joke_viewer_settings_service.dart';
 import 'package:snickerdoodle/src/features/settings/application/theme_settings_service.dart';
 
@@ -242,10 +244,34 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                     visualDensity: VisualDensity.compact,
                     minimumSize: const Size(0, 32),
                   ),
-                  onPressed: () {
-                    showDialog<bool>(
-                      context: context,
-                      builder: (context) => const FeedbackDialog(),
+                  onPressed: () async {
+                    final router = GoRouter.maybeOf(context);
+                    final messenger = ScaffoldMessenger.of(context);
+                    final successColor = Theme.of(context).colorScheme.primary;
+
+                    Future<bool?> navigationFuture;
+                    if (router != null) {
+                      navigationFuture = router.pushNamed<bool>(
+                        RouteNames.feedback,
+                      );
+                    } else {
+                      navigationFuture = Navigator.of(context).push<bool>(
+                        MaterialPageRoute(
+                          builder: (_) => const UserFeedbackScreen(),
+                        ),
+                      );
+                    }
+
+                    final result = await navigationFuture;
+                    if (!context.mounted || result != true) {
+                      return;
+                    }
+
+                    messenger.showSnackBar(
+                      SnackBar(
+                        content: const Text('Thanks for your feedback!'),
+                        backgroundColor: successColor,
+                      ),
                     );
                   },
                 ),

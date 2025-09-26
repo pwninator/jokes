@@ -1,16 +1,29 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:snickerdoodle/src/common_widgets/app_bar_widget.dart';
-import 'package:snickerdoodle/src/common_widgets/feedback_dialog.dart';
 import 'package:snickerdoodle/src/core/data/repositories/feedback_repository.dart';
+import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/providers/feedback_providers.dart';
+import 'package:snickerdoodle/src/core/services/analytics_service.dart';
+import 'package:snickerdoodle/src/core/services/feedback_prompt_state_store.dart';
 import 'package:snickerdoodle/src/core/services/feedback_service.dart';
+import 'package:snickerdoodle/src/features/feedback/presentation/user_feedback_screen.dart';
 
 class MockFeedbackService extends Mock implements FeedbackService {}
 
+class MockFeedbackPromptStateStore extends Mock
+    implements FeedbackPromptStateStore {}
+
+class MockAnalyticsService extends Mock implements AnalyticsService {}
+
 void main() {
+  setUpAll(() {
+    registerFallbackValue(SpeakerType.user);
+  });
+
   final testFeedbackEntry = FeedbackEntry(
     id: 'test-id',
     userId: 'test-user-id',
@@ -32,24 +45,37 @@ void main() {
   );
 
   late MockFeedbackService mockFeedbackService;
+  late MockFeedbackPromptStateStore mockPromptStore;
+  late MockAnalyticsService mockAnalyticsService;
 
   setUp(() {
     mockFeedbackService = MockFeedbackService();
-    registerFallbackValue(testFeedbackEntry);
+    mockPromptStore = MockFeedbackPromptStateStore();
+    mockAnalyticsService = MockAnalyticsService();
+
+    when(() => mockPromptStore.markViewed()).thenAnswer((_) async {});
+    when(() => mockAnalyticsService.logFeedbackDialogShown()).thenReturn(null);
+    when(
+      () => mockFeedbackService.updateLastUserViewTime(any()),
+    ).thenAnswer((_) async {});
+    when(
+      () => mockFeedbackService.addConversationMessage(any(), any(), any()),
+    ).thenAnswer((_) async {});
   });
 
   testWidgets(
-    'shows feedback icon when unread feedback exists and opens dialog on tap',
+    'shows feedback icon when unread feedback exists and opens screen on tap',
     (tester) async {
-      when(
-        () => mockFeedbackService.updateLastUserViewTime(any()),
-      ).thenAnswer((_) async {});
-
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-            unreadFeedbackProvider.overrideWithValue([testFeedbackEntry]),
+            unreadFeedbackProvider.overrideWith((ref) => [testFeedbackEntry]),
             feedbackServiceProvider.overrideWithValue(mockFeedbackService),
+            analyticsServiceProvider.overrideWithValue(mockAnalyticsService),
+            feedbackPromptStateStoreProvider.overrideWithValue(mockPromptStore),
+            userFeedbackProvider.overrideWith(
+              (ref) => Stream.value([testFeedbackEntry]),
+            ),
           ],
           child: const MaterialApp(
             home: Scaffold(appBar: AppBarWidget(title: 'Test')),
@@ -63,11 +89,17 @@ void main() {
         findsOneWidget,
       );
 
-      await tester.tap(find.byKey(const Key('feedback-notification-icon')));
+      expect(
+        find.byKey(const Key('feedback_notification_icon-open-button')),
+        findsOneWidget,
+      );
+
+      await tester.tap(
+        find.byKey(const Key('feedback_notification_icon-open-button')),
+      );
       await tester.pumpAndSettle();
 
-      expect(find.byType(FeedbackDialog), findsOneWidget);
-
+      expect(find.byType(UserFeedbackScreen), findsOneWidget);
       verify(
         () => mockFeedbackService.updateLastUserViewTime(testFeedbackEntry.id),
       ).called(1);

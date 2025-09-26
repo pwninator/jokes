@@ -1,31 +1,54 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:snickerdoodle/src/core/data/repositories/feedback_repository.dart';
+import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/providers/feedback_providers.dart';
+import 'package:snickerdoodle/src/core/services/feedback_prompt_state_store.dart';
+import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
+import 'package:snickerdoodle/src/features/feedback/presentation/user_feedback_screen.dart';
 import 'package:snickerdoodle/src/features/settings/presentation/user_settings_screen.dart';
 
 import '../../../test_helpers/test_helpers.dart';
 
 class MockFeedbackRepository extends Mock implements FeedbackRepository {}
 
+class MockFeedbackPromptStateStore extends Mock
+    implements FeedbackPromptStateStore {}
+
+class MockAnalyticsService extends Mock implements AnalyticsService {}
+
 void main() {
   setUpAll(() {
     registerAnalyticsFallbackValues();
+    registerFallbackValue(SpeakerType.user);
   });
 
   setUp(() {
     TestHelpers.resetAllMocks();
   });
 
-  Widget wrapWidget(Widget child, {List<Override> overrides = const []}) {
-    return ProviderScope(
-      overrides: [
-        ...TestHelpers.getAllMockOverrides(testUser: TestHelpers.anonymousUser),
-        ...overrides,
+  ProviderScope wrapWidget(
+    Widget child, {
+    required MockFeedbackPromptStateStore mockPromptStore,
+    required MockAnalyticsService mockAnalytics,
+    List<Override> additionalOverrides = const [],
+  }) {
+    final overrides = TestHelpers.getAllMockOverrides(
+      testUser: TestHelpers.anonymousUser,
+      additionalOverrides: [
+        feedbackPromptStateStoreProvider.overrideWithValue(mockPromptStore),
+        analyticsServiceProvider.overrideWithValue(mockAnalytics),
+        userFeedbackProvider.overrideWith((ref) => Stream.value([])),
+        ...additionalOverrides,
       ],
+    );
+
+    return ProviderScope(
+      overrides: overrides,
       child: MaterialApp(
         theme: lightTheme,
         darkTheme: darkTheme,
@@ -34,10 +57,22 @@ void main() {
     );
   }
 
-  testWidgets('Shows Suggestions/Feedback button and opens dialog', (
+  testWidgets('Shows Suggestions/Feedback button and opens screen', (
     tester,
   ) async {
-    await tester.pumpWidget(wrapWidget(const UserSettingsScreen()));
+    final mockPromptStore = MockFeedbackPromptStateStore();
+    final mockAnalytics = MockAnalyticsService();
+
+    when(() => mockPromptStore.markViewed()).thenAnswer((_) async {});
+    when(() => mockAnalytics.logFeedbackDialogShown()).thenReturn(null);
+
+    await tester.pumpWidget(
+      wrapWidget(
+        const UserSettingsScreen(),
+        mockPromptStore: mockPromptStore,
+        mockAnalytics: mockAnalytics,
+      ),
+    );
     await tester.pumpAndSettle();
 
     final btn = find.byKey(const Key('settings-feedback-button'));
@@ -47,16 +82,20 @@ void main() {
     await tester.tap(btn);
     await tester.pumpAndSettle();
 
-    expect(find.text('Help Us Perfect the Recipe! 🍪'), findsOneWidget);
-    expect(find.text('Submit'), findsOneWidget);
-    expect(find.text('Cancel'), findsOneWidget);
+    expect(find.byType(UserFeedbackScreen), findsOneWidget);
+    expect(find.text('Help Us Perfect the Recipe!'), findsOneWidget);
   });
 
-  testWidgets('Submitting feedback calls repository and logs analytics', (
+  testWidgets('Submitting feedback calls service and logs analytics', (
     tester,
   ) async {
-    // Arrange repository mock
     final mockRepository = MockFeedbackRepository();
+    final mockPromptStore = MockFeedbackPromptStateStore();
+    final mockAnalytics = MockAnalyticsService();
+
+    when(() => mockPromptStore.markViewed()).thenAnswer((_) async {});
+    when(() => mockAnalytics.logFeedbackDialogShown()).thenReturn(null);
+    when(() => mockAnalytics.logFeedbackSubmitted()).thenReturn(null);
     when(
       () => mockRepository.submitFeedback(any(), any()),
     ).thenAnswer((_) async {});
@@ -66,46 +105,33 @@ void main() {
     ];
 
     await tester.pumpWidget(
-      wrapWidget(const UserSettingsScreen(), overrides: overrides),
+      wrapWidget(
+        const UserSettingsScreen(),
+        mockPromptStore: mockPromptStore,
+        mockAnalytics: mockAnalytics,
+        additionalOverrides: overrides,
+      ),
     );
     await tester.pumpAndSettle();
 
-    // Open dialog
     final btn = find.byKey(const Key('settings-feedback-button'));
-    expect(btn, findsOneWidget);
     await tester.ensureVisible(btn);
-    await tester.pump();
     await tester.tap(btn);
     await tester.pumpAndSettle();
 
-    expect(find.text('Help Us Perfect the Recipe! 🍪'), findsOneWidget);
-    expect(find.text('Submit'), findsOneWidget);
-    expect(find.text('Cancel'), findsOneWidget);
-
-    // Enter text
     const feedback = 'Love the jokes! Maybe add categories.';
-    final dialogTextField = find.descendant(
-      of: find.byType(AlertDialog),
-      matching: find.byType(TextField),
+    await tester.enterText(
+      find.byKey(const Key('feedback_screen-initial-message-field')),
+      feedback,
     );
-    expect(dialogTextField, findsOneWidget);
-    await tester.enterText(dialogTextField, feedback);
-    await tester.pump();
-
-    // Submit
-    await tester.tap(find.text('Submit'));
+    await tester.tap(find.byKey(const Key('feedback_screen-submit-button')));
     await tester.pumpAndSettle();
 
-    // Assert repository call with any user ID (could be anonymous user from test helpers)
-    verify(() => mockRepository.submitFeedback(feedback, any())).called(1);
-
-    // Analytics is handled by AnalyticsMocks; ensure method was called
     verify(
-      () => AnalyticsMocks.mockAnalyticsService.logFeedbackSubmitted(),
+      () =>
+          mockRepository.submitFeedback(feedback, TestHelpers.anonymousUser.id),
     ).called(1);
-
-    // Dialog closed and thanks snackbar shown
-    expect(find.text('Help Us Perfect the Recipe! 🍪'), findsNothing);
+    verify(() => mockAnalytics.logFeedbackSubmitted()).called(1);
     expect(find.text('Thanks for your feedback!'), findsOneWidget);
   });
 }

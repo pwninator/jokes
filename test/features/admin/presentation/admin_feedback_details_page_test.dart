@@ -4,19 +4,24 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:snickerdoodle/src/core/data/repositories/feedback_repository.dart';
 import 'package:snickerdoodle/src/core/providers/feedback_providers.dart';
-import 'package:snickerdoodle/src/features/admin/presentation/admin_feedback/admin_feedback_details_page.dart';
+import 'package:snickerdoodle/src/core/services/feedback_service.dart';
+import 'package:snickerdoodle/src/features/feedback/presentation/feedback_conversation_screen.dart';
 
 import '../../../test_helpers/firebase_mocks.dart';
 
 class _MockFeedbackRepository extends Mock implements FeedbackRepository {}
 
+class _MockFeedbackService extends Mock implements FeedbackService {}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   late _MockFeedbackRepository repo;
+  late _MockFeedbackService service;
 
   setUp(() {
     repo = _MockFeedbackRepository();
+    service = _MockFeedbackService();
   });
 
   setUpAll(() {
@@ -48,29 +53,34 @@ void main() {
     );
   }
 
-  Widget createWidget(String feedbackId, {FeedbackEntry? feedbackEntry}) {
+  Widget createWidget(
+    String feedbackId, {
+    FeedbackEntry? feedbackEntry,
+    Stream<List<FeedbackEntry>>? streamOverride,
+  }) {
     final entry = feedbackEntry ?? createTestFeedback(id: feedbackId);
 
     when(
       () => repo.watchAllFeedback(),
-    ).thenAnswer((_) => Stream.value([entry]));
+    ).thenAnswer((_) => streamOverride ?? Stream.value([entry]));
     when(() => repo.updateLastAdminViewTime(any())).thenAnswer((_) async {});
     when(
-      () => repo.addConversationMessage(any(), any(), any()),
+      () => service.addConversationMessage(any(), any(), any()),
     ).thenAnswer((_) async {});
 
     return ProviderScope(
       overrides: [
-        feedbackRepositoryProvider.overrideWithValue(repo),
         ...FirebaseMocks.getFirebaseProviderOverrides(),
+        feedbackRepositoryProvider.overrideWithValue(repo),
+        feedbackServiceProvider.overrideWithValue(service),
       ],
-      child: MaterialApp(
-        home: AdminFeedbackDetailsPage(feedbackId: feedbackId),
+      child: const MaterialApp(
+        home: FeedbackConversationScreen.admin(feedbackId: '1'),
       ),
     );
   }
 
-  group('AdminFeedbackDetailsPage', () {
+  group('FeedbackConversationScreen.admin', () {
     testWidgets('displays conversation and updates last admin view time', (
       tester,
     ) async {
@@ -96,15 +106,12 @@ void main() {
       await tester.pumpWidget(createWidget('1', feedbackEntry: feedbackEntry));
       await tester.pumpAndSettle();
 
-      // Verify last admin view time is updated
       verify(() => repo.updateLastAdminViewTime('1')).called(1);
-
-      // Verify conversation is displayed
       expect(find.text('Hello'), findsOneWidget);
       expect(find.text('Hi there'), findsOneWidget);
     });
 
-    testWidgets('sending a message calls repository with correct parameters', (
+    testWidgets('sending a message calls service with correct parameters', (
       tester,
     ) async {
       final feedbackEntry = createTestFeedback(id: '1');
@@ -112,14 +119,21 @@ void main() {
       await tester.pumpWidget(createWidget('1', feedbackEntry: feedbackEntry));
       await tester.pumpAndSettle();
 
-      // Enter and send a message
-      await tester.enterText(find.byType(TextField), 'Test reply');
-      await tester.tap(find.byIcon(Icons.send));
+      await tester.enterText(
+        find.byKey(const Key('feedback_conversation-message-field-admin')),
+        'Test reply',
+      );
+      await tester.tap(
+        find.byKey(const Key('feedback_conversation-send-button-admin')),
+      );
       await tester.pumpAndSettle();
 
-      // Verify repository method was called with correct parameters
       verify(
-        () => repo.addConversationMessage('1', 'Test reply', SpeakerType.admin),
+        () => service.addConversationMessage(
+          '1',
+          'Test reply',
+          SpeakerType.admin,
+        ),
       ).called(1);
     });
 
@@ -129,25 +143,27 @@ void main() {
       await tester.pumpWidget(createWidget('1', feedbackEntry: feedbackEntry));
       await tester.pumpAndSettle();
 
-      // Should still update last admin view time even with empty conversation
       verify(() => repo.updateLastAdminViewTime('1')).called(1);
-
-      // Should still show send interface
-      expect(find.byType(TextField), findsOneWidget);
-      expect(find.byIcon(Icons.send), findsOneWidget);
+      expect(
+        find.byKey(const Key('feedback_conversation-message-field-admin')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('feedback_conversation-send-button-admin')),
+        findsOneWidget,
+      );
     });
 
     testWidgets('handles repository error gracefully', (tester) async {
-      // Mock repository to throw error
-      when(
-        () => repo.watchAllFeedback(),
-      ).thenAnswer((_) => Stream.error('Network error'));
-
-      await tester.pumpWidget(createWidget('1'));
+      await tester.pumpWidget(
+        createWidget(
+          '1',
+          streamOverride: Stream<List<FeedbackEntry>>.error('Network error'),
+        ),
+      );
       await tester.pumpAndSettle();
 
-      // Should handle error without crashing
-      expect(find.byType(AdminFeedbackDetailsPage), findsOneWidget);
+      expect(find.text('Error: Network error'), findsOneWidget);
     });
   });
 }

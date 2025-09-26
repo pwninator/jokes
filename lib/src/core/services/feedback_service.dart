@@ -42,6 +42,9 @@ class FeedbackServiceImpl implements FeedbackService {
     SpeakerType speaker,
   ) async {
     await _feedbackRepository.addConversationMessage(docId, text, speaker);
+    if (speaker == SpeakerType.user) {
+      _analyticsService.logFeedbackSubmitted();
+    }
   }
 
   @override

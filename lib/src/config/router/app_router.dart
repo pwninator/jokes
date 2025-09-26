@@ -13,7 +13,6 @@ import 'package:snickerdoodle/src/features/admin/presentation/joke_admin_screen.
 import 'package:snickerdoodle/src/features/admin/presentation/joke_categories_screen.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_category_editor_screen.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_creator_screen.dart';
-import 'package:snickerdoodle/src/features/admin/presentation/admin_feedback/admin_feedback_details_page.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_feedback_screen.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_editor_screen.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_management_screen.dart';
@@ -25,6 +24,8 @@ import 'package:snickerdoodle/src/features/jokes/presentation/daily_jokes_screen
 import 'package:snickerdoodle/src/features/jokes/presentation/saved_jokes_screen.dart';
 import 'package:snickerdoodle/src/features/search/presentation/discover_screen.dart';
 import 'package:snickerdoodle/src/features/search/presentation/search_screen.dart';
+import 'package:snickerdoodle/src/features/feedback/presentation/feedback_conversation_screen.dart';
+import 'package:snickerdoodle/src/features/feedback/presentation/user_feedback_screen.dart';
 import 'package:snickerdoodle/src/features/settings/presentation/user_settings_screen.dart';
 
 const List<TabConfig> _allTabs = [
@@ -173,6 +174,11 @@ class AppRouter {
               name: RouteNames.settings,
               builder: (context, state) => const UserSettingsScreen(),
             ),
+            GoRoute(
+              path: AppRoutes.feedback,
+              name: RouteNames.feedback,
+              builder: (context, state) => const UserFeedbackScreen(),
+            ),
 
             // Admin home/dashboard
             GoRoute(
@@ -251,7 +257,7 @@ class AppRouter {
               name: RouteNames.adminFeedbackDetails,
               builder: (context, state) {
                 final feedbackId = state.pathParameters['feedbackId']!;
-                return AdminFeedbackDetailsPage(feedbackId: feedbackId);
+                return FeedbackConversationScreen.admin(feedbackId: feedbackId);
               },
             ),
 

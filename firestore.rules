@@ -51,12 +51,11 @@ service cloud.firestore {
       allow read:
         if request.auth != null && (request.auth.token.role == 'admin' || resource.data.user_id == request.auth.uid);
 
-      // Update access: Admin can update any field. Users can only update their own lastUserViewTime.
+      // Update access: Admin and owner user can update.
       allow update:
         if request.auth != null &&
            (request.auth.token.role == 'admin' ||
-            (resource.data.user_id == request.auth.uid &&
-             request.resource.data.diff(resource.data).affectedKeys().hasOnly(['lastUserViewTime'])));
+            (resource.data.user_id == request.auth.uid));
 
       // Delete access: Only allowed for admin users
       allow delete:

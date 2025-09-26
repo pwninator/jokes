@@ -13,6 +13,7 @@ class AppRoutes {
   static const String discover = '/discover';
   static const String discoverSearch = '/discover/search';
   static const String settings = '/settings';
+  static const String feedback = '/settings/feedback';
   static const String admin = '/admin';
 
   // Admin sub-routes
@@ -39,6 +40,7 @@ class RouteNames {
   static const String discover = 'discover';
   static const String discoverSearch = 'discoverSearch';
   static const String settings = 'settings';
+  static const String feedback = 'feedback';
   static const String admin = 'admin';
   static const String adminCreator = 'adminCreator';
   static const String adminManagement = 'adminManagement';
@@ -76,6 +78,8 @@ extension AppRoutesExtension on String {
         return RouteNames.discoverSearch;
       case AppRoutes.settings:
         return RouteNames.settings;
+      case AppRoutes.feedback:
+        return RouteNames.feedback;
       case AppRoutes.admin:
         return RouteNames.admin;
       case AppRoutes.adminCreator:

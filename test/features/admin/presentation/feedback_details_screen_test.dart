@@ -5,11 +5,13 @@ import 'package:mocktail/mocktail.dart';
 import 'package:snickerdoodle/src/core/data/repositories/feedback_repository.dart';
 import 'package:snickerdoodle/src/core/providers/feedback_providers.dart';
 import 'package:snickerdoodle/src/core/services/feedback_service.dart';
-import 'package:snickerdoodle/src/features/admin/presentation/feedback_details_screen.dart';
+import 'package:snickerdoodle/src/features/feedback/presentation/feedback_conversation_screen.dart';
 
 import '../../../test_helpers/firebase_mocks.dart';
 
 class _MockFeedbackService extends Mock implements FeedbackService {}
+
+class _MockFeedbackRepository extends Mock implements FeedbackRepository {}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -18,169 +20,157 @@ void main() {
     registerFallbackValue(SpeakerType.user);
   });
 
-  testWidgets('displays conversation and input controls', (tester) async {
-    final mockService = _MockFeedbackService();
-
-    final now = DateTime(2025, 1, 2, 3, 4, 5);
-    final feedback = FeedbackEntry(
-      id: 'test_feedback_id',
-      creationTime: now,
-      conversation: [
-        FeedbackConversationEntry(
-          speaker: SpeakerType.user,
-          text: 'Love the jokes!',
-          timestamp: now,
-        ),
-        FeedbackConversationEntry(
-          speaker: SpeakerType.admin,
-          text: 'Thank you for the feedback!',
-          timestamp: now.add(const Duration(minutes: 5)),
-        ),
+  ProviderContainer createContainer(
+    FeedbackEntry entry,
+    FeedbackService service,
+    FeedbackRepository repository,
+  ) {
+    return ProviderContainer(
+      overrides: [
+        ...FirebaseMocks.getFirebaseProviderOverrides(),
+        feedbackRepositoryProvider.overrideWithValue(repository),
+        feedbackServiceProvider.overrideWithValue(service),
+        feedbackProvider.overrideWith((ref, id) {
+          if (id == entry.id) {
+            return Stream.value(entry);
+          }
+          return const Stream.empty();
+        }),
       ],
-      userId: 'test_user',
-      lastAdminViewTime: null,
-      lastUserViewTime: null,
     );
+  }
 
-    when(
-      () => mockService.addConversationMessage(any(), any(), any()),
-    ).thenAnswer((_) async {});
+  group('FeedbackConversationScreen.admin', () {
+    late _MockFeedbackService mockService;
+    late _MockFeedbackRepository mockRepository;
+    late FeedbackEntry feedback;
 
-    final container = ProviderContainer(
-      overrides: FirebaseMocks.getFirebaseProviderOverrides(
-        additionalOverrides: [
-          feedbackServiceProvider.overrideWithValue(mockService),
+    setUp(() {
+      mockService = _MockFeedbackService();
+      mockRepository = _MockFeedbackRepository();
+      final timestamp = DateTime(2025, 1, 2, 3, 4, 5);
+      feedback = FeedbackEntry(
+        id: 'test_feedback_id',
+        creationTime: timestamp,
+        conversation: [
+          FeedbackConversationEntry(
+            speaker: SpeakerType.user,
+            text: 'Love the jokes!',
+            timestamp: timestamp,
+          ),
+          FeedbackConversationEntry(
+            speaker: SpeakerType.admin,
+            text: 'Thank you for the feedback!',
+            timestamp: timestamp.add(const Duration(minutes: 5)),
+          ),
         ],
-      ),
-    );
-    addTearDown(container.dispose);
+        userId: 'test_user',
+        lastAdminViewTime: null,
+        lastUserViewTime: null,
+      );
 
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: MaterialApp(home: FeedbackDetailsScreen(feedback: feedback)),
-      ),
-    );
+      when(
+        () => mockService.addConversationMessage(any(), any(), any()),
+      ).thenAnswer((_) async {});
+      when(
+        () => mockRepository.updateLastAdminViewTime(any()),
+      ).thenAnswer((_) async {});
+    });
 
-    await tester.pumpAndSettle();
+    testWidgets('displays conversation and input controls', (tester) async {
+      final container = createContainer(feedback, mockService, mockRepository);
+      addTearDown(container.dispose);
 
-    // Verify that the screen displays the feedback details
-    expect(find.text('Feedback from test_user'), findsOneWidget);
-
-    // Verify that the text input and send button are present
-    expect(find.byType(TextField), findsOneWidget);
-    expect(find.byIcon(Icons.send), findsOneWidget);
-  });
-
-  testWidgets('sends message when send button is tapped', (tester) async {
-    final mockService = _MockFeedbackService();
-
-    final now = DateTime(2025, 1, 2, 3, 4, 5);
-    final feedback = FeedbackEntry(
-      id: 'test_feedback_id',
-      creationTime: now,
-      conversation: [
-        FeedbackConversationEntry(
-          speaker: SpeakerType.user,
-          text: 'Initial feedback',
-          timestamp: now,
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(
+            home: FeedbackConversationScreen.admin(
+              feedbackId: 'test_feedback_id',
+            ),
+          ),
         ),
-      ],
-      userId: 'test_user',
-      lastAdminViewTime: null,
-      lastUserViewTime: null,
-    );
+      );
 
-    when(
-      () => mockService.addConversationMessage(any(), any(), any()),
-    ).thenAnswer((_) async {});
+      await tester.pumpAndSettle();
 
-    final container = ProviderContainer(
-      overrides: FirebaseMocks.getFirebaseProviderOverrides(
-        additionalOverrides: [
-          feedbackServiceProvider.overrideWithValue(mockService),
-        ],
-      ),
-    );
-    addTearDown(container.dispose);
+      expect(find.text('Feedback from test_user'), findsOneWidget);
+      expect(
+        find.byKey(const Key('feedback_conversation-message-field-admin')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('feedback_conversation-send-button-admin')),
+        findsOneWidget,
+      );
+    });
 
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: MaterialApp(home: FeedbackDetailsScreen(feedback: feedback)),
-      ),
-    );
+    testWidgets('sends message when send button is tapped', (tester) async {
+      final container = createContainer(feedback, mockService, mockRepository);
+      addTearDown(container.dispose);
 
-    await tester.pumpAndSettle();
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(
+            home: FeedbackConversationScreen.admin(
+              feedbackId: 'test_feedback_id',
+            ),
+          ),
+        ),
+      );
 
-    // Type a message
-    await tester.enterText(find.byType(TextField), 'Admin response');
+      await tester.pumpAndSettle();
 
-    // Tap send button
-    await tester.tap(find.byIcon(Icons.send));
-    await tester.pumpAndSettle();
-
-    // Verify that the service was called with correct parameters
-    verify(
-      () => mockService.addConversationMessage(
-        'test_feedback_id',
+      await tester.enterText(
+        find.byKey(const Key('feedback_conversation-message-field-admin')),
         'Admin response',
-        SpeakerType.admin,
-      ),
-    ).called(1);
+      );
 
-    // Verify that the text field is cleared
-    expect(find.byType(TextField), findsOneWidget);
-    final textField = tester.widget<TextField>(find.byType(TextField));
-    expect(textField.controller?.text, isEmpty);
-  });
+      await tester.tap(
+        find.byKey(const Key('feedback_conversation-send-button-admin')),
+      );
+      await tester.pumpAndSettle();
 
-  testWidgets('does not send empty message', (tester) async {
-    final mockService = _MockFeedbackService();
-
-    final now = DateTime(2025, 1, 2, 3, 4, 5);
-    final feedback = FeedbackEntry(
-      id: 'test_feedback_id',
-      creationTime: now,
-      conversation: [
-        FeedbackConversationEntry(
-          speaker: SpeakerType.user,
-          text: 'Initial feedback',
-          timestamp: now,
+      verify(
+        () => mockService.addConversationMessage(
+          'test_feedback_id',
+          'Admin response',
+          SpeakerType.admin,
         ),
-      ],
-      userId: 'test_user',
-      lastAdminViewTime: null,
-      lastUserViewTime: null,
-    );
+      ).called(1);
 
-    when(
-      () => mockService.addConversationMessage(any(), any(), any()),
-    ).thenAnswer((_) async {});
+      final textField = tester.widget<TextField>(
+        find.byKey(const Key('feedback_conversation-message-field-admin')),
+      );
+      expect(textField.controller?.text, isEmpty);
+    });
 
-    final container = ProviderContainer(
-      overrides: FirebaseMocks.getFirebaseProviderOverrides(
-        additionalOverrides: [
-          feedbackServiceProvider.overrideWithValue(mockService),
-        ],
-      ),
-    );
-    addTearDown(container.dispose);
+    testWidgets('does not send empty message', (tester) async {
+      final container = createContainer(feedback, mockService, mockRepository);
+      addTearDown(container.dispose);
 
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: MaterialApp(home: FeedbackDetailsScreen(feedback: feedback)),
-      ),
-    );
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: const MaterialApp(
+            home: FeedbackConversationScreen.admin(
+              feedbackId: 'test_feedback_id',
+            ),
+          ),
+        ),
+      );
 
-    await tester.pumpAndSettle();
+      await tester.pumpAndSettle();
 
-    // Tap send button without entering any text
-    await tester.tap(find.byIcon(Icons.send));
-    await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const Key('feedback_conversation-send-button-admin')),
+      );
+      await tester.pumpAndSettle();
 
-    // Verify that the service was not called
-    verifyNever(() => mockService.addConversationMessage(any(), any(), any()));
+      verifyNever(
+        () => mockService.addConversationMessage(any(), any(), any()),
+      );
+    });
   });
 }

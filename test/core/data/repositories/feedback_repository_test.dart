@@ -13,41 +13,69 @@ void main() {
       repository = FirestoreFeedbackRepository(firestore: fakeFirestore);
     });
 
-    test('submitFeedback creates a new feedback document', () async {
+    test('submitFeedback creates a user-scoped feedback document', () async {
       await repository.submitFeedback('Test feedback', 'user1');
-      final snapshot = await fakeFirestore.collection('joke_feedback').get();
-      expect(snapshot.docs.length, 1);
-      final doc = snapshot.docs.first.data();
-      expect(doc['user_id'], 'user1');
-      expect(doc['conversation'].length, 1);
-      expect(doc['conversation'][0]['text'], 'Test feedback');
-      expect(doc['lastAdminViewTime'], isNull);
+
+      final docSnapshot =
+          await fakeFirestore.collection('joke_feedback').doc('user1').get();
+      expect(docSnapshot.exists, isTrue);
+      final data = docSnapshot.data();
+      expect(data, isNotNull);
+      expect(data!['user_id'], 'user1');
+      final conversation = data['conversation'] as List<dynamic>;
+      expect(conversation.length, 1);
+      expect(conversation.first['text'], 'Test feedback');
+      expect(conversation.first['speaker'], 'USER');
+      expect(data['lastAdminViewTime'], isNull);
+    });
+
+    test('submitFeedback appends additional messages for same user', () async {
+      await repository.submitFeedback('First message', 'user1');
+      await repository.submitFeedback('Second message', 'user1');
+
+      final docSnapshot =
+          await fakeFirestore.collection('joke_feedback').doc('user1').get();
+      final data = docSnapshot.data()!;
+      final conversation = data['conversation'] as List<dynamic>;
+      expect(conversation.length, 2);
+      expect(conversation[0]['text'], 'First message');
+      expect(conversation[1]['text'], 'Second message');
     });
 
     test('addConversationMessage appends an admin message', () async {
-      final docRef = await fakeFirestore.collection('joke_feedback').add({
+      final docRef = fakeFirestore.collection('joke_feedback').doc('user1');
+      await docRef.set({
         'user_id': 'user1',
-        'conversation': [],
+        'conversation': [
+          {
+            'speaker': SpeakerType.user.value,
+            'text': 'Hi there',
+            'timestamp': Timestamp.fromDate(DateTime(2023, 1, 1).toUtc()),
+          },
+        ],
         'lastAdminViewTime': null,
+        'lastUserViewTime': null,
       });
 
       await repository.addConversationMessage(
-        docRef.id,
+        'user1',
         'New message',
         SpeakerType.admin,
       );
 
       final snapshot = await docRef.get();
-      final doc = snapshot.data();
-      expect(doc!['conversation'].length, 1);
-      expect(doc['conversation'][0]['text'], 'New message');
-      expect(doc['conversation'][0]['speaker'], 'ADMIN');
+      final doc = snapshot.data()!;
+      final conversation = doc['conversation'] as List<dynamic>;
+      expect(conversation.length, 2);
+      expect(conversation.last['text'], 'New message');
+      expect(conversation.last['speaker'], 'ADMIN');
     });
 
     test(
       'addConversationMessage migrates legacy feedback_text to conversation',
       () async {
-        final docRef = await fakeFirestore.collection('joke_feedback').add({
+        final docRef = fakeFirestore.collection('joke_feedback').doc('user1');
+        await docRef.set({
           'user_id': 'user1',
           'feedback_text': 'Legacy user message',
           'creation_time': Timestamp.fromDate(DateTime(2023, 1, 1)),
@@ -55,39 +83,58 @@ void main() {
         });
 
         await repository.addConversationMessage(
-          docRef.id,
+          'user1',
           'Admin reply',
           SpeakerType.admin,
         );
 
         final snapshot = await docRef.get();
-        final doc = snapshot.data();
-        expect(doc!['conversation'].length, 2);
-        expect(doc['conversation'][0]['text'], 'Legacy user message');
-        expect(doc['conversation'][0]['speaker'], 'USER');
-        expect(doc['conversation'][1]['text'], 'Admin reply');
-        expect(doc['conversation'][1]['speaker'], 'ADMIN');
-        expect(doc['feedback_text'], isNull); // Should be removed
+        final doc = snapshot.data()!;
+        final conversation = doc['conversation'] as List<dynamic>;
+        expect(conversation.length, 2);
+        expect(conversation[0]['text'], 'Legacy user message');
+        expect(conversation[0]['speaker'], 'USER');
+        expect(conversation[1]['text'], 'Admin reply');
+        expect(conversation[1]['speaker'], 'ADMIN');
+        expect(doc.containsKey('feedback_text'), isFalse);
       },
     );
 
+    test('addConversationMessage creates document when missing', () async {
+      await repository.addConversationMessage(
+        'user1',
+        'Hello from admin',
+        SpeakerType.admin,
+      );
+
+      final snapshot =
+          await fakeFirestore.collection('joke_feedback').doc('user1').get();
+      expect(snapshot.exists, isTrue);
+      final doc = snapshot.data()!;
+      final conversation = doc['conversation'] as List<dynamic>;
+      expect(conversation.length, 1);
+      expect(conversation.first['text'], 'Hello from admin');
+      expect(conversation.first['speaker'], 'ADMIN');
+    });
+
     test('updateLastAdminViewTime writes server timestamp', () async {
-      final docRef = await fakeFirestore.collection('joke_feedback').add({
+      final docRef = fakeFirestore.collection('joke_feedback').doc('user1');
+      await docRef.set({
         'user_id': 'user1',
         'conversation': [],
         'lastAdminViewTime': null,
       });
 
-      await repository.updateLastAdminViewTime(docRef.id);
+      await repository.updateLastAdminViewTime('user1');
 
       final snapshot = await docRef.get();
       expect(snapshot.data()!['lastAdminViewTime'], isNotNull);
     });
 
     test('watchAllFeedback streams feedback entries', () async {
-      await fakeFirestore.collection('joke_feedback').add({
+      await fakeFirestore.collection('joke_feedback').doc('user1').set({
         'user_id': 'user1',
-        'creation_time': DateTime.now(),
+        'creation_time': Timestamp.fromDate(DateTime.now()),
         'conversation': [],
         'state': 'NEW',
       });

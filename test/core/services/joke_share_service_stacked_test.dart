@@ -79,6 +79,7 @@ void main() {
         reviewPromptCoordinator: mockCoordinator,
         performanceService: mockPerformanceService,
         remoteConfigValues: mockRemoteConfigValues,
+        getRevealModeEnabled: () => true,
       );
 
       when(() => mockImageService.addWatermarkToFiles(any())).thenAnswer(

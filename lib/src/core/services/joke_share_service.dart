@@ -68,6 +68,7 @@ class JokeShareServiceImpl implements JokeShareService {
   final ReviewPromptCoordinator _reviewPromptCoordinator;
   final PerformanceService _performanceService;
   final RemoteConfigValues _remoteConfigValues;
+  final bool Function() _getRevealModeEnabled;
 
   JokeShareServiceImpl({
     required ImageService imageService,
@@ -78,6 +79,7 @@ class JokeShareServiceImpl implements JokeShareService {
     required ReviewPromptCoordinator reviewPromptCoordinator,
     required PerformanceService performanceService,
     required RemoteConfigValues remoteConfigValues,
+    required bool Function() getRevealModeEnabled,
   }) : _imageService = imageService,
        _analyticsService = analyticsService,
        _reactionsService = reactionsService,
@@ -85,7 +87,8 @@ class JokeShareServiceImpl implements JokeShareService {
        _appUsageService = appUsageService,
        _reviewPromptCoordinator = reviewPromptCoordinator,
        _performanceService = performanceService,
-       _remoteConfigValues = remoteConfigValues;
+       _remoteConfigValues = remoteConfigValues,
+       _getRevealModeEnabled = getRevealModeEnabled;
 
   @override
   Future<bool> shareJoke(
@@ -191,9 +194,14 @@ class JokeShareServiceImpl implements JokeShareService {
       }
 
       final List<XFile> filesToWatermark;
-      final mode = _remoteConfigValues.getEnum<ShareImagesMode>(
+      ShareImagesMode mode = _remoteConfigValues.getEnum<ShareImagesMode>(
         RemoteParam.shareImagesMode,
       );
+      if (mode == ShareImagesMode.auto) {
+        mode = _getRevealModeEnabled()
+            ? ShareImagesMode.separate
+            : ShareImagesMode.stacked;
+      }
       if (mode == ShareImagesMode.stacked) {
         filesToWatermark = [await _imageService.stackImages(files)];
       } else {

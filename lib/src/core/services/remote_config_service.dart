@@ -53,7 +53,7 @@ const Map<RemoteParam, RemoteParamDescriptor> remoteParams = {
     key: 'share_images_mode',
     type: RemoteParamType.enumType,
     enumValues: ShareImagesMode.values,
-    enumDefault: ShareImagesMode.separate,
+    enumDefault: ShareImagesMode.auto,
   ),
 };
 
@@ -69,7 +69,7 @@ enum RemoteParam {
 }
 
 // Enum used by share images mode configuration
-enum ShareImagesMode { separate, stacked }
+enum ShareImagesMode { auto, separate, stacked }
 
 enum RemoteParamType { intType, boolType, doubleType, stringType, enumType }
 
@@ -278,8 +278,8 @@ class RemoteConfigService {
     final raw = readString(param).trim().toLowerCase();
     if (d.enumValues != null && d.enumValues!.isNotEmpty) {
       for (final value in d.enumValues!) {
-        final name = (value as dynamic).name as String?;
-        if (name != null && name.toLowerCase() == raw) {
+        final name = _enumName(value);
+        if (name.toLowerCase() == raw) {
           return value as T;
         }
       }

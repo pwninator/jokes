@@ -84,6 +84,7 @@ void main() {
         reviewPromptCoordinator: mockCoordinator,
         performanceService: mockPerformanceService,
         remoteConfigValues: mockRemoteConfigValues,
+        getRevealModeEnabled: () => true,
       );
 
       // Default watermark behavior: passthrough original files

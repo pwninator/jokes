@@ -75,12 +75,12 @@
     },
     "Joke Sharing": {
       "parameters": {
-        "share_stacked_images": {
+        "share_images_mode": {
           "defaultValue": {
-            "value": "false"
+            "value": "separate"
           },
-          "description": "Share joke as single stacked image vs two separate images",
-          "valueType": "BOOLEAN"
+          "description": "Mode for how to share images: separate|stacked",
+          "valueType": "STRING"
         }
       }
     }

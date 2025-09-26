@@ -191,10 +191,10 @@ class JokeShareServiceImpl implements JokeShareService {
       }
 
       final List<XFile> filesToWatermark;
-      final bool stackImages = _remoteConfigValues.getBool(
-        RemoteParam.shareStackedImages,
+      final mode = _remoteConfigValues.getEnum<ShareImagesMode>(
+        RemoteParam.shareImagesMode,
       );
-      if (stackImages) {
+      if (mode == ShareImagesMode.stacked) {
         filesToWatermark = [await _imageService.stackImages(files)];
       } else {
         filesToWatermark = files;

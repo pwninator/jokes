@@ -70,8 +70,10 @@ void main() {
       appUsageService = AppUsageService(prefs: prefs);
 
       when(
-        () => mockRemoteConfigValues.getBool(RemoteParam.shareStackedImages),
-      ).thenReturn(false);
+        () => mockRemoteConfigValues.getEnum<ShareImagesMode>(
+          RemoteParam.shareImagesMode,
+        ),
+      ).thenReturn(ShareImagesMode.separate);
 
       service = JokeShareServiceImpl(
         imageService: mockImageService,

@@ -98,8 +98,10 @@ void main() {
       'shareJoke should call stackImages when remote config is true',
       () async {
         when(
-          () => mockRemoteConfigValues.getBool(RemoteParam.shareStackedImages),
-        ).thenReturn(true);
+          () => mockRemoteConfigValues.getEnum<ShareImagesMode>(
+            RemoteParam.shareImagesMode,
+          ),
+        ).thenReturn(ShareImagesMode.stacked);
 
         const joke = Joke(
           id: 'test-joke-id',
@@ -173,8 +175,10 @@ void main() {
       'shareJoke should not call stackImages when remote config is false',
       () async {
         when(
-          () => mockRemoteConfigValues.getBool(RemoteParam.shareStackedImages),
-        ).thenReturn(false);
+          () => mockRemoteConfigValues.getEnum<ShareImagesMode>(
+            RemoteParam.shareImagesMode,
+          ),
+        ).thenReturn(ShareImagesMode.separate);
 
         const joke = Joke(
           id: 'test-joke-id',

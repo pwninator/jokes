@@ -376,7 +376,8 @@ class JokeCloudFunctionService {
       return {'success': true, 'data': result.data};
     } on FirebaseFunctionsException catch (e) {
       AppLogger.warn(
-          'Firebase Functions error (upscale_joke): ${e.code} - ${e.message}');
+        'Firebase Functions error (upscale_joke): ${e.code} - ${e.message}',
+      );
       return {
         'success': false,
         'error': 'Function error: ${e.message}',

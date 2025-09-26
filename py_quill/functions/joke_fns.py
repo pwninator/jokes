@@ -357,8 +357,8 @@ def _sync_joke_to_search_subcollection(
     return
 
   joke_id = joke.key
-  search_doc_ref = firestore.db().collection("jokes").document(joke_id).collection(
-    "search").document("search")
+  search_doc_ref = firestore.db().collection("jokes").document(
+    joke_id).collection("search").document("search")
   search_doc = search_doc_ref.get()
   search_data = search_doc.to_dict() if search_doc.exists else {}
 

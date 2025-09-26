@@ -1013,7 +1013,8 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
                         jokeId: widget.joke.id,
                         theme: theme,
                         isLoading: isPopulating,
-                        hasUpscaledImage: widget.joke.setupImageUrlUpscaled != null ||
+                        hasUpscaledImage:
+                            widget.joke.setupImageUrlUpscaled != null ||
                             widget.joke.punchlineImageUrlUpscaled != null,
                       ),
                     )
@@ -1028,7 +1029,8 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
                       isLoading: isPopulating,
                       setupImageUrl: widget.joke.setupImageUrl,
                       punchlineImageUrl: widget.joke.punchlineImageUrl,
-                      hasUpscaledImage: widget.joke.setupImageUrlUpscaled != null ||
+                      hasUpscaledImage:
+                          widget.joke.setupImageUrlUpscaled != null ||
                           widget.joke.punchlineImageUrlUpscaled != null,
                     ),
                   ),

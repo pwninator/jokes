@@ -58,7 +58,7 @@ abstract class JokeShareService {
     required String jokeContext,
     String subject = 'Thought this might make you smile 😊',
     String text = 'Freshly baked laughs from snickerdoodlejokes.com 🍪',
-    ShareCancellationController? controller,
+    SharePreparationController? controller,
   });
 }
 
@@ -100,7 +100,7 @@ class JokeShareServiceImpl implements JokeShareService {
     required String jokeContext,
     String subject = 'Thought this might make you smile 😊',
     String text = 'Freshly baked laughs from snickerdoodlejokes.com 🍪',
-    ShareCancellationController? controller,
+    SharePreparationController? controller,
   }) async {
     // For now, use the images sharing method as default
     // Track share initiation
@@ -152,8 +152,10 @@ class JokeShareServiceImpl implements JokeShareService {
     required String jokeContext,
     required String subject,
     required String text,
-    ShareCancellationController? controller,
+    SharePreparationController? controller,
   }) async {
+    controller?.setProgress(0);
+
     final String traceKey = 'images:${joke.id}';
     _performanceService.startNamedTrace(
       name: TraceName.sharePreparation,
@@ -179,6 +181,8 @@ class JokeShareServiceImpl implements JokeShareService {
         throw SharePreparationCanceledException();
       }
 
+      controller?.setProgress(1);
+
       // Compute processed URLs directly and fetch both files in parallel
       final setupProcessedUrl = _imageService.getProcessedJokeImageUrl(
         joke.setupImageUrl,
@@ -199,6 +203,7 @@ class JokeShareServiceImpl implements JokeShareService {
           files.add(setupFile);
           files.add(punchlineFile);
         }
+        controller?.setProgress(4);
       }
 
       // Cancellation after download
@@ -224,6 +229,7 @@ class JokeShareServiceImpl implements JokeShareService {
       } else {
         filesToWatermark = files;
       }
+      controller?.setProgress(6);
 
       // Cancellation after stacking
       if (controller?.isCanceled == true) {
@@ -233,6 +239,7 @@ class JokeShareServiceImpl implements JokeShareService {
       final filesToShare = await _imageService.addWatermarkToFiles(
         filesToWatermark,
       );
+      controller?.setProgress(9);
 
       // Cancellation after watermarking
       if (controller?.isCanceled == true) {
@@ -246,6 +253,7 @@ class JokeShareServiceImpl implements JokeShareService {
       );
 
       // Notify UI to close progress just before OS sheet
+      controller?.setProgress(10);
       controller?.onBeforePlatformShare?.call();
       final result = await _platformShareService.shareFiles(
         filesToShare,
@@ -291,15 +299,29 @@ class JokeShareServiceImpl implements JokeShareService {
   }
 }
 
-/// Controller for cooperative cancellation and UI hooks during share preparation
-class ShareCancellationController {
+/// Controller for cooperative cancellation and progress reporting during share preparation
+class SharePreparationController extends ChangeNotifier {
   bool _canceled = false;
   bool get isCanceled => _canceled;
 
   /// Invoked by UI right before platform share opens
   VoidCallback? onBeforePlatformShare;
 
+  final int _totalUnits = 10;
+  int _completedUnits = 0;
+
+  int get totalUnits => _totalUnits;
+  int get completedUnits => _completedUnits;
+  double get fraction => _totalUnits == 0 ? 0.0 : _completedUnits / _totalUnits;
+
   void cancel() {
     _canceled = true;
+    notifyListeners();
+  }
+
+  /// Sets progress to a specific value within [0, totalUnits]
+  void setProgress(int value) {
+    _completedUnits = value.clamp(0, _totalUnits);
+    notifyListeners();
   }
 }

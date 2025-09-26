@@ -272,7 +272,7 @@ void main() {
           ),
         ).thenAnswer((_) async {});
 
-        final controller = ShareCancellationController();
+        final controller = SharePreparationController();
 
         // Act - cancel immediately after downloads (simulate UI cancel early)
         controller.cancel();

@@ -29,7 +29,7 @@ class ShareJokeButton extends ConsumerWidget {
           final shareService = ref.read(jokeShareServiceProvider);
 
           // Create controller and show modal progress dialog
-          final controller = ShareCancellationController();
+          final controller = SharePreparationController();
           VoidCallback? closeDialog;
           bool shareCompleted = false;
 
@@ -54,16 +54,25 @@ class ShareJokeButton extends ConsumerWidget {
               }
               return AlertDialog(
                 key: Key('share_joke_button-progress-dialog-${joke.id}'),
-                content: Row(
-                  children: const [
-                    SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: CircularProgressIndicator(strokeWidth: 3),
-                    ),
-                    SizedBox(width: 12),
-                    Expanded(child: Text('Preparing images for sharing…')),
-                  ],
+                content: AnimatedBuilder(
+                  animation: controller,
+                  builder: (context, _) {
+                    return Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        LinearProgressIndicator(
+                          key: Key('share_joke_button-progress-bar-${joke.id}'),
+                          value: controller.fraction,
+                        ),
+                        const SizedBox(height: 12),
+                        const Text(
+                          'Preparing images for sharing…',
+                          key: Key('share_joke_button-progress-text-static'),
+                        ),
+                      ],
+                    );
+                  },
                 ),
                 actions: [
                   TextButton(

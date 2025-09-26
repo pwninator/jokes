@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
@@ -10,7 +11,9 @@ import 'package:snickerdoodle/src/core/services/review_prompt_service.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_service.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
-// Crash reporting for share errors is handled via analytics service
+
+/// Internal exception to signal that the user aborted share preparation.
+class SharePreparationCanceledException implements Exception {}
 
 /// Result of a share operation
 class ShareOperationResult {
@@ -55,6 +58,7 @@ abstract class JokeShareService {
     required String jokeContext,
     String subject = 'Thought this might make you smile 😊',
     String text = 'Freshly baked laughs from snickerdoodlejokes.com 🍪',
+    ShareCancellationController? controller,
   });
 }
 
@@ -96,6 +100,7 @@ class JokeShareServiceImpl implements JokeShareService {
     required String jokeContext,
     String subject = 'Thought this might make you smile 😊',
     String text = 'Freshly baked laughs from snickerdoodlejokes.com 🍪',
+    ShareCancellationController? controller,
   }) async {
     // For now, use the images sharing method as default
     // Track share initiation
@@ -106,6 +111,7 @@ class JokeShareServiceImpl implements JokeShareService {
       jokeContext: jokeContext,
       subject: subject,
       text: text,
+      controller: controller,
     );
 
     // Only perform follow-up actions if user actually shared
@@ -146,6 +152,7 @@ class JokeShareServiceImpl implements JokeShareService {
     required String jokeContext,
     required String subject,
     required String text,
+    ShareCancellationController? controller,
   }) async {
     final String traceKey = 'images:${joke.id}';
     _performanceService.startNamedTrace(
@@ -154,7 +161,7 @@ class JokeShareServiceImpl implements JokeShareService {
       attributes: {'method': 'images', 'joke_id': joke.id},
     );
     bool shareSuccessful = false;
-    ShareResultStatus shareStatus = ShareResultStatus.dismissed; // default
+    ShareResultStatus shareStatus = ShareResultStatus.dismissed;
     String shareDestination = "unknown";
     try {
       // Check if joke has images
@@ -165,6 +172,11 @@ class JokeShareServiceImpl implements JokeShareService {
 
       if (!hasSetupImage || !hasPunchlineImage) {
         throw Exception('Joke has no images for sharing');
+      }
+
+      // Early cancellation check
+      if (controller?.isCanceled == true) {
+        throw SharePreparationCanceledException();
       }
 
       // Compute processed URLs directly and fetch both files in parallel
@@ -189,6 +201,11 @@ class JokeShareServiceImpl implements JokeShareService {
         }
       }
 
+      // Cancellation after download
+      if (controller?.isCanceled == true) {
+        throw SharePreparationCanceledException();
+      }
+
       if (files.isEmpty) {
         throw Exception('No images could be downloaded for sharing');
       }
@@ -208,15 +225,28 @@ class JokeShareServiceImpl implements JokeShareService {
         filesToWatermark = files;
       }
 
+      // Cancellation after stacking
+      if (controller?.isCanceled == true) {
+        throw SharePreparationCanceledException();
+      }
+
       final filesToShare = await _imageService.addWatermarkToFiles(
         filesToWatermark,
       );
+
+      // Cancellation after watermarking
+      if (controller?.isCanceled == true) {
+        throw SharePreparationCanceledException();
+      }
 
       // Stop preparation trace right before invoking platform share
       _performanceService.stopNamedTrace(
         name: TraceName.sharePreparation,
         key: traceKey,
       );
+
+      // Notify UI to close progress just before OS sheet
+      controller?.onBeforePlatformShare?.call();
       final result = await _platformShareService.shareFiles(
         filesToShare,
         subject: subject,
@@ -228,24 +258,48 @@ class JokeShareServiceImpl implements JokeShareService {
       shareStatus = result.status;
       shareDestination = result.raw;
     } catch (e, _) {
-      // Ensure the preparation trace is stopped on error paths
+      if (e is SharePreparationCanceledException) {
+        _analyticsService.logJokeShareAborted(
+          joke.id,
+          jokeContext: jokeContext,
+        );
+        // User canceled: no error logging
+        shareSuccessful = false;
+        shareStatus = ShareResultStatus.dismissed;
+      } else {
+        AppLogger.warn('Error sharing joke images: $e');
+        // Log error-specific analytics
+        _analyticsService.logErrorJokeShare(
+          joke.id,
+          jokeContext: jokeContext,
+          errorMessage: e.toString(),
+          errorContext: 'share_images',
+          exceptionType: e.runtimeType.toString(),
+        );
+        shareSuccessful = false;
+        shareStatus = ShareResultStatus.unavailable; // error state
+      }
+    } finally {
+      // Safe to stop multiple times; underlying service guards this
       _performanceService.stopNamedTrace(
         name: TraceName.sharePreparation,
         key: traceKey,
       );
-      AppLogger.warn('Error sharing joke images: $e');
-      // Log error-specific analytics
-      _analyticsService.logErrorJokeShare(
-        joke.id,
-        jokeContext: jokeContext,
-        errorMessage: e.toString(),
-        errorContext: 'share_images',
-        exceptionType: e.runtimeType.toString(),
-      );
-      shareSuccessful = false;
-      shareStatus = ShareResultStatus.unavailable; // error state
     }
 
     return ShareOperationResult(shareSuccessful, shareStatus, shareDestination);
+  }
+}
+
+/// Controller for cooperative cancellation and UI hooks during share preparation
+class ShareCancellationController {
+  bool _canceled = false;
+  bool get isCanceled => _canceled;
+
+  /// Invoked by UI right before platform share opens
+  VoidCallback? onBeforePlatformShare;
+
+  void cancel() {
+    _canceled = true;
   }
 }

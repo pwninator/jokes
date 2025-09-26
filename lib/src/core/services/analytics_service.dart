@@ -85,6 +85,9 @@ abstract class AnalyticsService {
     String? shareDestination,
   });
 
+  /// Share funnel: user aborted sharing during preparation (via cancel button)
+  void logJokeShareAborted(String jokeId, {required String jokeContext});
+
   /// Share funnel: error occurred during sharing
   void logErrorJokeShare(
     String jokeId, {
@@ -466,6 +469,14 @@ class FirebaseAnalyticsService implements AnalyticsService {
       AnalyticsParameters.shareCanceledCount: 1,
       if (shareDestination != null)
         AnalyticsParameters.shareDestination: shareDestination,
+    });
+  }
+
+  @override
+  void logJokeShareAborted(String jokeId, {required String jokeContext}) {
+    _logEvent(AnalyticsEvent.jokeShareAborted, {
+      AnalyticsParameters.jokeId: jokeId,
+      AnalyticsParameters.jokeContext: jokeContext,
     });
   }
 

@@ -16,8 +16,10 @@ void main() {
     test('submitFeedback creates a user-scoped feedback document', () async {
       await repository.submitFeedback('Test feedback', 'user1');
 
-      final docSnapshot =
-          await fakeFirestore.collection('joke_feedback').doc('user1').get();
+      final docSnapshot = await fakeFirestore
+          .collection('joke_feedback')
+          .doc('user1')
+          .get();
       expect(docSnapshot.exists, isTrue);
       final data = docSnapshot.data();
       expect(data, isNotNull);
@@ -33,8 +35,10 @@ void main() {
       await repository.submitFeedback('First message', 'user1');
       await repository.submitFeedback('Second message', 'user1');
 
-      final docSnapshot =
-          await fakeFirestore.collection('joke_feedback').doc('user1').get();
+      final docSnapshot = await fakeFirestore
+          .collection('joke_feedback')
+          .doc('user1')
+          .get();
       final data = docSnapshot.data()!;
       final conversation = data['conversation'] as List<dynamic>;
       expect(conversation.length, 2);
@@ -107,8 +111,10 @@ void main() {
         SpeakerType.admin,
       );
 
-      final snapshot =
-          await fakeFirestore.collection('joke_feedback').doc('user1').get();
+      final snapshot = await fakeFirestore
+          .collection('joke_feedback')
+          .doc('user1')
+          .get();
       expect(snapshot.exists, isTrue);
       final doc = snapshot.data()!;
       final conversation = doc['conversation'] as List<dynamic>;

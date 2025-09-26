@@ -8,10 +8,10 @@ import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
 import 'package:snickerdoodle/src/core/services/joke_share_service.dart';
 import 'package:snickerdoodle/src/core/services/performance_service.dart';
+import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:snickerdoodle/src/core/services/review_prompt_service.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_service.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
-import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
 
 class MockImageService extends Mock implements ImageService {}
@@ -185,7 +185,7 @@ void main() {
             name: TraceName.sharePreparation,
             key: 'images:test-joke-id',
           ),
-        ).called(1);
+        ).called(2);
 
         verify(
           () => mockJokeReactionsService.addUserReaction(
@@ -211,6 +211,94 @@ void main() {
         expect(await appUsageService.getNumSharedJokes(), 1);
       },
     );
+    test(
+      'shareJoke should allow user abort during preparation and log aborted',
+      () async {
+        // Arrange
+        const joke = Joke(
+          id: 'test-joke-id',
+          setupText: 'Test setup',
+          punchlineText: 'Test punchline',
+          setupImageUrl: 'https://example.com/setup.jpg',
+          punchlineImageUrl: 'https://example.com/punchline.jpg',
+          numThumbsUp: 0,
+          numThumbsDown: 0,
+          adminRating: null,
+        );
+
+        final mockFiles = [XFile('setup.jpg'), XFile('punchline.jpg')];
+
+        when(
+          () => mockImageService.getProcessedJokeImageUrl(
+            any(),
+            width: any(named: 'width'),
+          ),
+        ).thenAnswer((invocation) {
+          final arg = invocation.positionalArguments.first as String?;
+          return arg; // passthrough
+        });
+
+        when(
+          () => mockImageService.getCachedFileFromUrl(
+            'https://example.com/setup.jpg',
+          ),
+        ).thenAnswer((_) async => mockFiles[0]);
+
+        when(
+          () => mockImageService.getCachedFileFromUrl(
+            'https://example.com/punchline.jpg',
+          ),
+        ).thenAnswer((_) async => mockFiles[1]);
+
+        // Platform share should never be called when aborted pre-share
+        when(
+          () => mockPlatformShareService.shareFiles(
+            any(),
+            subject: any(named: 'subject'),
+            text: any(named: 'text'),
+          ),
+        ).thenThrow(Exception('Should not be called'));
+
+        when(
+          () => mockAnalyticsService.logJokeShareInitiated(
+            any(),
+            jokeContext: any(named: 'jokeContext'),
+          ),
+        ).thenAnswer((_) async {});
+        when(
+          () => mockAnalyticsService.logJokeShareAborted(
+            any(),
+            jokeContext: any(named: 'jokeContext'),
+          ),
+        ).thenAnswer((_) async {});
+
+        final controller = ShareCancellationController();
+
+        // Act - cancel immediately after downloads (simulate UI cancel early)
+        controller.cancel();
+        final result = await service.shareJoke(
+          joke,
+          jokeContext: 'test-context',
+          controller: controller,
+        );
+
+        // Assert
+        expect(result, isFalse);
+        verify(
+          () => mockAnalyticsService.logJokeShareInitiated(
+            'test-joke-id',
+            jokeContext: 'test-context',
+          ),
+        ).called(1);
+        verify(
+          () => mockAnalyticsService.logJokeShareAborted(
+            'test-joke-id',
+            jokeContext: 'test-context',
+          ),
+        ).called(1);
+      },
+    );
+
     test(
       'shareJoke should not increment shared counter when sharing fails',
       () async {
@@ -297,7 +385,7 @@ void main() {
             name: TraceName.sharePreparation,
             key: 'images:test-joke-id',
           ),
-        ).called(1);
+        ).called(2);
 
         verify(
           () => mockAnalyticsService.logJokeShareInitiated(

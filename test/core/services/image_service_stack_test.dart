@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
@@ -41,14 +40,18 @@ void main() {
       expect(decodedImage.height, 350);
     });
 
-    test('should throw an error if not exactly two images are provided',
-        () async {
-      final image1 = await createTestImage(100, 150, 'image1');
-      expect(() => imageService.stackImages([image1]), throwsArgumentError);
-      final image2 = await createTestImage(100, 200, 'image2');
-      final image3 = await createTestImage(100, 100, 'image3');
-      expect(
-          () => imageService.stackImages([image1, image2, image3]), throwsArgumentError);
-    });
+    test(
+      'should throw an error if not exactly two images are provided',
+      () async {
+        final image1 = await createTestImage(100, 150, 'image1');
+        expect(() => imageService.stackImages([image1]), throwsArgumentError);
+        final image2 = await createTestImage(100, 200, 'image2');
+        final image3 = await createTestImage(100, 100, 'image3');
+        expect(
+          () => imageService.stackImages([image1, image2, image3]),
+          throwsArgumentError,
+        );
+      },
+    );
   });
 }

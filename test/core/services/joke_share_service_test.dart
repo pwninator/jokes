@@ -11,7 +11,7 @@ import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/core/services/review_prompt_service.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_service.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
-import 'package:firebase_remote_config/firebase_remote_config.dart';
+import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
 
 class MockImageService extends Mock implements ImageService {}
@@ -27,7 +27,7 @@ class MockReviewPromptCoordinator extends Mock
 
 class MockPerformanceService extends Mock implements PerformanceService {}
 
-class MockRemoteConfig extends Mock implements FirebaseRemoteConfig {}
+class MockRemoteConfigValues extends Mock implements RemoteConfigValues {}
 
 class FakeJoke extends Fake implements Joke {}
 
@@ -43,7 +43,7 @@ void main() {
     late MockPerformanceService mockPerformanceService;
     late AppUsageService appUsageService;
     late ReviewPromptCoordinator mockCoordinator;
-    late MockRemoteConfig mockRemoteConfig;
+    late MockRemoteConfigValues mockRemoteConfigValues;
 
     setUpAll(() {
       registerFallbackValue(FakeJoke());
@@ -59,7 +59,7 @@ void main() {
       mockPlatformShareService = MockPlatformShareService();
       mockCoordinator = MockReviewPromptCoordinator();
       mockPerformanceService = MockPerformanceService();
-      mockRemoteConfig = MockRemoteConfig();
+      mockRemoteConfigValues = MockRemoteConfigValues();
       when(
         () =>
             mockCoordinator.maybePromptForReview(source: any(named: 'source')),
@@ -69,8 +69,9 @@ void main() {
       final prefs = await SharedPreferences.getInstance();
       appUsageService = AppUsageService(prefs: prefs);
 
-      when(() => mockRemoteConfig.getBool('share_stacked_images'))
-          .thenReturn(false);
+      when(
+        () => mockRemoteConfigValues.getBool(RemoteParam.shareStackedImages),
+      ).thenReturn(false);
 
       service = JokeShareServiceImpl(
         imageService: mockImageService,
@@ -80,7 +81,7 @@ void main() {
         appUsageService: appUsageService,
         reviewPromptCoordinator: mockCoordinator,
         performanceService: mockPerformanceService,
-        remoteConfig: mockRemoteConfig,
+        remoteConfigValues: mockRemoteConfigValues,
       );
 
       // Default watermark behavior: passthrough original files

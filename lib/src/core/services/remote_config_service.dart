@@ -48,6 +48,12 @@ const Map<RemoteParam, RemoteParamDescriptor> remoteParams = {
     type: RemoteParamType.boolType,
     defaultBool: false,
   ),
+  // Controls whether to stack setup + punchline into a single shared image
+  RemoteParam.shareStackedImages: RemoteParamDescriptor(
+    key: 'share_stacked_images',
+    type: RemoteParamType.boolType,
+    defaultBool: true,
+  ),
 };
 
 enum RemoteParam {
@@ -58,6 +64,7 @@ enum RemoteParam {
   reviewMinSharedJokes,
   reviewMinViewedJokes,
   defaultJokeViewerReveal,
+  shareStackedImages,
 }
 
 enum RemoteParamType { intType, boolType, doubleType, stringType }

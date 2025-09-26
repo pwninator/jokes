@@ -1,4 +1,4 @@
-import 'package:firebase_remote_config/firebase_remote_config.dart';
+import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:share_plus/share_plus.dart';
@@ -27,7 +27,7 @@ class MockReviewPromptCoordinator extends Mock
 
 class MockPerformanceService extends Mock implements PerformanceService {}
 
-class MockRemoteConfig extends Mock implements FirebaseRemoteConfig {}
+class MockRemoteConfigValues extends Mock implements RemoteConfigValues {}
 
 class FakeJoke extends Fake implements Joke {}
 
@@ -43,7 +43,7 @@ void main() {
     late MockPerformanceService mockPerformanceService;
     late AppUsageService appUsageService;
     late ReviewPromptCoordinator mockCoordinator;
-    late MockRemoteConfig mockRemoteConfig;
+    late MockRemoteConfigValues mockRemoteConfigValues;
 
     setUpAll(() {
       registerFallbackValue(FakeJoke());
@@ -59,10 +59,12 @@ void main() {
       mockPlatformShareService = MockPlatformShareService();
       mockCoordinator = MockReviewPromptCoordinator();
       mockPerformanceService = MockPerformanceService();
-      mockRemoteConfig = MockRemoteConfig();
+      mockRemoteConfigValues = MockRemoteConfigValues();
 
-      when(() => mockCoordinator.maybePromptForReview(source: any(named: 'source')))
-          .thenAnswer((_) async {});
+      when(
+        () =>
+            mockCoordinator.maybePromptForReview(source: any(named: 'source')),
+      ).thenAnswer((_) async {});
 
       SharedPreferences.setMockInitialValues({});
       final prefs = await SharedPreferences.getInstance();
@@ -76,26 +78,28 @@ void main() {
         appUsageService: appUsageService,
         reviewPromptCoordinator: mockCoordinator,
         performanceService: mockPerformanceService,
-        remoteConfig: mockRemoteConfig,
+        remoteConfigValues: mockRemoteConfigValues,
       );
 
       when(() => mockImageService.addWatermarkToFiles(any())).thenAnswer(
-        (invocation) async =>
-            List<XFile>.from(invocation.positionalArguments.first as List<XFile>),
+        (invocation) async => List<XFile>.from(
+          invocation.positionalArguments.first as List<XFile>,
+        ),
       );
       when(() => mockImageService.addWatermarkToFile(any())).thenAnswer(
         (invocation) async => invocation.positionalArguments.first as XFile,
       );
-      when(() => mockImageService.stackImages(any())).thenAnswer(
-        (invocation) async => XFile('stacked.jpg'),
-      );
+      when(
+        () => mockImageService.stackImages(any()),
+      ).thenAnswer((invocation) async => XFile('stacked.jpg'));
     });
 
     test(
       'shareJoke should call stackImages when remote config is true',
       () async {
-        when(() => mockRemoteConfig.getBool('share_stacked_images'))
-            .thenReturn(true);
+        when(
+          () => mockRemoteConfigValues.getBool(RemoteParam.shareStackedImages),
+        ).thenReturn(true);
 
         const joke = Joke(
           id: 'test-joke-id',
@@ -107,43 +111,70 @@ void main() {
 
         final mockFiles = [XFile('setup.jpg'), XFile('punchline.jpg')];
 
-        when(() => mockImageService.getProcessedJokeImageUrl(any(), width: any(named: 'width')))
-            .thenAnswer((invocation) => invocation.positionalArguments.first as String?);
+        when(
+          () => mockImageService.getProcessedJokeImageUrl(
+            any(),
+            width: any(named: 'width'),
+          ),
+        ).thenAnswer(
+          (invocation) => invocation.positionalArguments.first as String?,
+        );
 
-        when(() => mockImageService.getCachedFileFromUrl('https://example.com/setup.jpg'))
-            .thenAnswer((_) async => mockFiles[0]);
+        when(
+          () => mockImageService.getCachedFileFromUrl(
+            'https://example.com/setup.jpg',
+          ),
+        ).thenAnswer((_) async => mockFiles[0]);
 
-        when(() => mockImageService.getCachedFileFromUrl('https://example.com/punchline.jpg'))
-            .thenAnswer((_) async => mockFiles[1]);
+        when(
+          () => mockImageService.getCachedFileFromUrl(
+            'https://example.com/punchline.jpg',
+          ),
+        ).thenAnswer((_) async => mockFiles[1]);
 
-        when(() => mockPlatformShareService.shareFiles(any(), subject: any(named: 'subject'), text: any(named: 'text')))
-            .thenAnswer((_) async => const ShareResult('', ShareResultStatus.success));
+        when(
+          () => mockPlatformShareService.shareFiles(
+            any(),
+            subject: any(named: 'subject'),
+            text: any(named: 'text'),
+          ),
+        ).thenAnswer(
+          (_) async => const ShareResult('', ShareResultStatus.success),
+        );
 
-        when(() => mockJokeReactionsService.addUserReaction(any(), any()))
-            .thenAnswer((_) async {});
+        when(
+          () => mockJokeReactionsService.addUserReaction(any(), any()),
+        ).thenAnswer((_) async {});
 
-        when(() => mockAnalyticsService.logJokeShareInitiated(any(), jokeContext: any(named: 'jokeContext')))
-            .thenAnswer((_) async {});
-        when(() => mockAnalyticsService.logJokeShareSuccess(
-              any(),
-              jokeContext: any(named: 'jokeContext'),
-              shareDestination: any(named: 'shareDestination'),
-              totalJokesShared: any(named: 'totalJokesShared'),
-            )).thenAnswer((_) async {});
+        when(
+          () => mockAnalyticsService.logJokeShareInitiated(
+            any(),
+            jokeContext: any(named: 'jokeContext'),
+          ),
+        ).thenAnswer((_) async {});
+        when(
+          () => mockAnalyticsService.logJokeShareSuccess(
+            any(),
+            jokeContext: any(named: 'jokeContext'),
+            shareDestination: any(named: 'shareDestination'),
+            totalJokesShared: any(named: 'totalJokesShared'),
+          ),
+        ).thenAnswer((_) async {});
 
         await service.shareJoke(joke, jokeContext: 'test-context');
 
         verify(() => mockImageService.stackImages(any())).called(1);
-        verify(() => mockImageService.addWatermarkToFile(any())).called(1);
-        verifyNever(() => mockImageService.addWatermarkToFiles(any()));
+        verify(() => mockImageService.addWatermarkToFiles(any())).called(1);
+        verifyNever(() => mockImageService.addWatermarkToFile(any()));
       },
     );
 
     test(
       'shareJoke should not call stackImages when remote config is false',
       () async {
-        when(() => mockRemoteConfig.getBool('share_stacked_images'))
-            .thenReturn(false);
+        when(
+          () => mockRemoteConfigValues.getBool(RemoteParam.shareStackedImages),
+        ).thenReturn(false);
 
         const joke = Joke(
           id: 'test-joke-id',
@@ -155,29 +186,55 @@ void main() {
 
         final mockFiles = [XFile('setup.jpg'), XFile('punchline.jpg')];
 
-        when(() => mockImageService.getProcessedJokeImageUrl(any(), width: any(named: 'width')))
-            .thenAnswer((invocation) => invocation.positionalArguments.first as String?);
+        when(
+          () => mockImageService.getProcessedJokeImageUrl(
+            any(),
+            width: any(named: 'width'),
+          ),
+        ).thenAnswer(
+          (invocation) => invocation.positionalArguments.first as String?,
+        );
 
-        when(() => mockImageService.getCachedFileFromUrl('https://example.com/setup.jpg'))
-            .thenAnswer((_) async => mockFiles[0]);
+        when(
+          () => mockImageService.getCachedFileFromUrl(
+            'https://example.com/setup.jpg',
+          ),
+        ).thenAnswer((_) async => mockFiles[0]);
 
-        when(() => mockImageService.getCachedFileFromUrl('https://example.com/punchline.jpg'))
-            .thenAnswer((_) async => mockFiles[1]);
+        when(
+          () => mockImageService.getCachedFileFromUrl(
+            'https://example.com/punchline.jpg',
+          ),
+        ).thenAnswer((_) async => mockFiles[1]);
 
-        when(() => mockPlatformShareService.shareFiles(any(), subject: any(named: 'subject'), text: any(named: 'text')))
-            .thenAnswer((_) async => const ShareResult('', ShareResultStatus.success));
+        when(
+          () => mockPlatformShareService.shareFiles(
+            any(),
+            subject: any(named: 'subject'),
+            text: any(named: 'text'),
+          ),
+        ).thenAnswer(
+          (_) async => const ShareResult('', ShareResultStatus.success),
+        );
 
-        when(() => mockJokeReactionsService.addUserReaction(any(), any()))
-            .thenAnswer((_) async {});
+        when(
+          () => mockJokeReactionsService.addUserReaction(any(), any()),
+        ).thenAnswer((_) async {});
 
-        when(() => mockAnalyticsService.logJokeShareInitiated(any(), jokeContext: any(named: 'jokeContext')))
-            .thenAnswer((_) async {});
-        when(() => mockAnalyticsService.logJokeShareSuccess(
-              any(),
-              jokeContext: any(named: 'jokeContext'),
-              shareDestination: any(named: 'shareDestination'),
-              totalJokesShared: any(named: 'totalJokesShared'),
-            )).thenAnswer((_) async {});
+        when(
+          () => mockAnalyticsService.logJokeShareInitiated(
+            any(),
+            jokeContext: any(named: 'jokeContext'),
+          ),
+        ).thenAnswer((_) async {});
+        when(
+          () => mockAnalyticsService.logJokeShareSuccess(
+            any(),
+            jokeContext: any(named: 'jokeContext'),
+            shareDestination: any(named: 'shareDestination'),
+            totalJokesShared: any(named: 'totalJokesShared'),
+          ),
+        ).thenAnswer((_) async {});
 
         await service.shareJoke(joke, jokeContext: 'test-context');
 

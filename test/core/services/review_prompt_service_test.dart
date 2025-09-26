@@ -25,7 +25,21 @@ class _FakeRemoteValues implements RemoteConfigValues {
   final int minViewed;
 
   @override
-  bool getBool(RemoteParam param) => false;
+  bool getBool(RemoteParam param) {
+    switch (param) {
+      case RemoteParam.defaultJokeViewerReveal:
+        return false;
+      case RemoteParam.shareStackedImages:
+        return false;
+      case RemoteParam.subscriptionPromptMinJokesViewed:
+      case RemoteParam.feedbackMinJokesViewed:
+      case RemoteParam.reviewMinDaysUsed:
+      case RemoteParam.reviewMinSavedJokes:
+      case RemoteParam.reviewMinSharedJokes:
+      case RemoteParam.reviewMinViewedJokes:
+        return false;
+    }
+  }
 
   @override
   double getDouble(RemoteParam param) => 0.0;
@@ -46,6 +60,8 @@ class _FakeRemoteValues implements RemoteConfigValues {
       case RemoteParam.feedbackMinJokesViewed:
         return 0;
       case RemoteParam.defaultJokeViewerReveal:
+        return 0;
+      case RemoteParam.shareStackedImages:
         return 0;
     }
   }

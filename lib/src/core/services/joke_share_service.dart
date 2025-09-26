@@ -1,13 +1,11 @@
-import 'package:firebase_remote_config/firebase_remote_config.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:snickerdoodle/src/core/providers/remote_config_providers.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/app_review_service.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
 import 'package:snickerdoodle/src/core/services/performance_service.dart';
+import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:snickerdoodle/src/core/services/review_prompt_service.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_service.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
@@ -69,7 +67,7 @@ class JokeShareServiceImpl implements JokeShareService {
   final AppUsageService _appUsageService;
   final ReviewPromptCoordinator _reviewPromptCoordinator;
   final PerformanceService _performanceService;
-  final FirebaseRemoteConfig _remoteConfig;
+  final RemoteConfigValues _remoteConfigValues;
 
   JokeShareServiceImpl({
     required ImageService imageService,
@@ -79,15 +77,15 @@ class JokeShareServiceImpl implements JokeShareService {
     required AppUsageService appUsageService,
     required ReviewPromptCoordinator reviewPromptCoordinator,
     required PerformanceService performanceService,
-    required FirebaseRemoteConfig remoteConfig,
-  })  : _imageService = imageService,
-        _analyticsService = analyticsService,
-        _reactionsService = reactionsService,
-        _platformShareService = platformShareService,
-        _appUsageService = appUsageService,
-        _reviewPromptCoordinator = reviewPromptCoordinator,
-        _performanceService = performanceService,
-        _remoteConfig = remoteConfig;
+    required RemoteConfigValues remoteConfigValues,
+  }) : _imageService = imageService,
+       _analyticsService = analyticsService,
+       _reactionsService = reactionsService,
+       _platformShareService = platformShareService,
+       _appUsageService = appUsageService,
+       _reviewPromptCoordinator = reviewPromptCoordinator,
+       _performanceService = performanceService,
+       _remoteConfigValues = remoteConfigValues;
 
   @override
   Future<bool> shareJoke(
@@ -192,17 +190,19 @@ class JokeShareServiceImpl implements JokeShareService {
         throw Exception('No images could be downloaded for sharing');
       }
 
-      final List<XFile> filesToShare;
-      final bool stackImages = _remoteConfig.getBool('share_stacked_images');
-
+      final List<XFile> filesToWatermark;
+      final bool stackImages = _remoteConfigValues.getBool(
+        RemoteParam.shareStackedImages,
+      );
       if (stackImages) {
-        final stackedFile = await _imageService.stackImages(files);
-        final watermarkedFile =
-            await _imageService.addWatermarkToFile(stackedFile);
-        filesToShare = [watermarkedFile];
+        filesToWatermark = [await _imageService.stackImages(files)];
       } else {
-        filesToShare = await _imageService.addWatermarkToFiles(files);
+        filesToWatermark = files;
       }
+
+      final filesToShare = await _imageService.addWatermarkToFiles(
+        filesToWatermark,
+      );
 
       // Stop preparation trace right before invoking platform share
       _performanceService.stopNamedTrace(

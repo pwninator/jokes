@@ -309,12 +309,14 @@ class ImageService {
     if (files.length != 2) {
       throw ArgumentError('Exactly two files must be provided to stackImages.');
     }
-    final List<Uint8List> byteList = await Future.wait(
-      [files[0].readAsBytes(), files[1].readAsBytes()],
-    );
+    final List<Uint8List> byteList = await Future.wait([
+      files[0].readAsBytes(),
+      files[1].readAsBytes(),
+    ]);
 
-    final Uint8List outBytes =
-        await Isolate.run(() => combineImagesSync(byteList));
+    final Uint8List outBytes = await Isolate.run(
+      () => combineImagesSync(byteList),
+    );
 
     final String tempDir = Directory.systemTemp.path;
     final String outPath = p.join(

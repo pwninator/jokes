@@ -61,9 +61,20 @@ class ShareJokeButton extends ConsumerWidget {
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        LinearProgressIndicator(
-                          key: Key('share_joke_button-progress-bar-${joke.id}'),
-                          value: controller.fraction,
+                        TweenAnimationBuilder<double>(
+                          duration: const Duration(seconds: 1),
+                          tween: Tween<double>(
+                            begin: 0,
+                            end: controller.fraction,
+                          ),
+                          builder: (context, animatedValue, _) {
+                            return LinearProgressIndicator(
+                              key: Key(
+                                'share_joke_button-progress-bar-${joke.id}',
+                              ),
+                              value: animatedValue,
+                            );
+                          },
                         ),
                         const SizedBox(height: 12),
                         const Text(

@@ -140,7 +140,6 @@ class JokeShareServiceImpl implements JokeShareService {
       _analyticsService.logJokeShareCanceled(
         joke.id,
         jokeContext: jokeContext,
-        shareDestination: shareResult.shareDestination,
       );
     }
 

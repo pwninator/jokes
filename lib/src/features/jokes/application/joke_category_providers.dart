@@ -30,3 +30,27 @@ final jokeCategoryByIdProvider = StreamProvider.autoDispose
           .watch(jokeCategoryRepositoryProvider)
           .watchCategory(categoryId);
     });
+
+/// Merged provider for Discover: programmatic tiles first, then Firestore categories.
+final discoverCategoriesProvider = Provider<AsyncValue<List<JokeCategory>>>((
+  ref,
+) {
+  // Programmatic Popular tile (non-interactive: empty query)
+  const popularTile = JokeCategory(
+    id: 'programmatic:popular',
+    displayName: 'Popular',
+    jokeDescriptionQuery: '',
+    imageUrl:
+        'https://images.quillsstorybook.com/cdn-cgi/image/width=1024,format=auto,quality=75/pun_agent_image_20250903_051129_509211.png',
+    imageDescription: 'Popular jokes',
+    state: JokeCategoryState.approved,
+  );
+
+  final categoriesAsync = ref.watch(jokeCategoriesProvider);
+  return categoriesAsync.whenData((categories) {
+    final approved = categories
+        .where((c) => c.state == JokeCategoryState.approved)
+        .toList();
+    return [popularTile, ...approved];
+  });
+});

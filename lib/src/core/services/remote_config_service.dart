@@ -48,6 +48,13 @@ const Map<RemoteParam, RemoteParamDescriptor> remoteParams = {
     type: RemoteParamType.boolType,
     defaultBool: false,
   ),
+  // Enum-based param for share images mode (enum-like)
+  RemoteParam.shareImagesMode: RemoteParamDescriptor(
+    key: 'share_images_mode',
+    type: RemoteParamType.enumType,
+    enumValues: ShareImagesMode.values,
+    enumDefault: ShareImagesMode.auto,
+  ),
 };
 
 enum RemoteParam {
@@ -58,9 +65,13 @@ enum RemoteParam {
   reviewMinSharedJokes,
   reviewMinViewedJokes,
   defaultJokeViewerReveal,
+  shareImagesMode,
 }
 
-enum RemoteParamType { intType, boolType, doubleType, stringType }
+// Enum used by share images mode configuration
+enum ShareImagesMode { auto, separate, stacked }
+
+enum RemoteParamType { intType, boolType, doubleType, stringType, enumType }
 
 class RemoteParamDescriptor {
   final String key;
@@ -70,6 +81,9 @@ class RemoteParamDescriptor {
   final double? defaultDouble;
   final String? defaultString;
   final bool Function(Object value)? isValid;
+  // Enum-like support for string params
+  final List<Object>? enumValues;
+  final Object? enumDefault;
 
   const RemoteParamDescriptor({
     required this.key,
@@ -79,6 +93,8 @@ class RemoteParamDescriptor {
     this.defaultDouble,
     this.defaultString,
     this.isValid,
+    this.enumValues,
+    this.enumDefault,
   });
 
   Object get defaultValue {
@@ -91,6 +107,8 @@ class RemoteParamDescriptor {
         return defaultDouble!;
       case RemoteParamType.stringType:
         return defaultString!;
+      case RemoteParamType.enumType:
+        return _enumName(enumDefault!);
     }
   }
 }
@@ -154,6 +172,8 @@ class RemoteConfigService {
 
   /// Initialize Remote Config with sane defaults and attempt fetch/activate
   Future<void> initialize() async {
+    // Validate descriptor configuration up-front (fail fast on misconfiguration)
+    validateRemoteParams(remoteParams);
     try {
       // Configure fetch behavior (shorter in debug builds)
       await _client.setConfigSettings(
@@ -232,15 +252,103 @@ class RemoteConfigService {
 
   String readString(RemoteParam param) {
     final d = remoteParams[param]!;
-    if (!_isInitialized) return d.defaultString!;
-    try {
-      final value = _client.getString(d.key);
-      if (d.isValid != null && !d.isValid!(value)) return d.defaultString!;
-      return value;
-    } catch (_) {
+    if (!_isInitialized) {
+      if (d.type == RemoteParamType.enumType) return _enumName(d.enumDefault!);
       return d.defaultString!;
     }
+    try {
+      final value = _client.getString(d.key);
+      if (d.isValid != null && !d.isValid!(value)) {
+        return d.type == RemoteParamType.enumType
+            ? _enumName(d.enumDefault!)
+            : d.defaultString!;
+      }
+      return value;
+    } catch (_) {
+      return d.type == RemoteParamType.enumType
+          ? _enumName(d.enumDefault!)
+          : d.defaultString!;
+    }
   }
+
+  /// Generic: normalize an enum-like string param
+  T readEnum<T>(RemoteParam param) {
+    final d = remoteParams[param]!;
+    // Read primary string value
+    final raw = readString(param).trim().toLowerCase();
+    if (d.enumValues != null && d.enumValues!.isNotEmpty) {
+      for (final value in d.enumValues!) {
+        final name = _enumName(value);
+        if (name.toLowerCase() == raw) {
+          return value as T;
+        }
+      }
+      return d.enumDefault as T;
+    }
+    throw StateError('Param $param is not configured as enum');
+  }
+}
+
+/// Validates that all RemoteParam descriptors are correctly configured.
+/// Throws StateError with details if any validation fails.
+void validateRemoteParams(Map<RemoteParam, RemoteParamDescriptor> params) {
+  // Ensure unique, non-empty keys
+  final seenKeys = <String>{};
+  for (final entry in params.entries) {
+    final param = entry.key;
+    final d = entry.value;
+    if (d.key.isEmpty) {
+      throw StateError('RemoteParam $param has empty key');
+    }
+    if (!seenKeys.add(d.key)) {
+      throw StateError('Duplicate Remote Config key detected: ${d.key}');
+    }
+
+    switch (d.type) {
+      case RemoteParamType.intType:
+        if (d.defaultInt == null) {
+          throw StateError('RemoteParam $param (int) missing defaultInt');
+        }
+        break;
+      case RemoteParamType.boolType:
+        if (d.defaultBool == null) {
+          throw StateError('RemoteParam $param (bool) missing defaultBool');
+        }
+        break;
+      case RemoteParamType.doubleType:
+        if (d.defaultDouble == null) {
+          throw StateError('RemoteParam $param (double) missing defaultDouble');
+        }
+        break;
+      case RemoteParamType.stringType:
+        if (d.defaultString == null) {
+          throw StateError('RemoteParam $param (string) missing defaultString');
+        }
+        break;
+      case RemoteParamType.enumType:
+        if (d.enumValues == null || d.enumValues!.isEmpty) {
+          throw StateError('RemoteParam $param (enum) missing enumValues');
+        }
+        if (d.enumDefault == null) {
+          throw StateError('RemoteParam $param (enum) missing enumDefault');
+        }
+        // Ensure default is one of the enum values
+        final names = d.enumValues!.map(_enumName).toSet();
+        final defName = _enumName(d.enumDefault!);
+        if (!names.contains(defName)) {
+          throw StateError(
+            'RemoteParam $param (enum) default not in enumValues: $defName',
+          );
+        }
+        break;
+    }
+  }
+}
+
+String _enumName(Object value) {
+  final s = value.toString();
+  final idx = s.indexOf('.');
+  return idx == -1 ? s : s.substring(idx + 1);
 }
 
 /// Lightweight, generic values wrapper (minimize per-param code)
@@ -249,6 +357,7 @@ abstract class RemoteConfigValues {
   bool getBool(RemoteParam param);
   double getDouble(RemoteParam param);
   String getString(RemoteParam param);
+  T getEnum<T>(RemoteParam param);
 }
 
 class _RemoteConfigValues implements RemoteConfigValues {
@@ -266,6 +375,9 @@ class _RemoteConfigValues implements RemoteConfigValues {
 
   @override
   String getString(RemoteParam param) => _service.readString(param);
+
+  @override
+  T getEnum<T>(RemoteParam param) => _service.readEnum<T>(param);
 }
 
 /// Provider for RemoteConfigService

@@ -73,6 +73,7 @@ class AnalyticsParameters {
   // Share count parameters
   static const String shareInitiatedCount = 'share_initiated_count';
   static const String shareSuccessCount = 'share_success_count';
+  static const String shareAbortedCount = 'share_aborted_count';
   static const String shareCanceledCount = 'share_canceled_count';
   static const String shareErrorCount = 'share_error_count';
 

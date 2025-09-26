@@ -1085,6 +1085,9 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                       case RemoteParamType.stringType:
                         valueString = rc.getString(param);
                         break;
+                      case RemoteParamType.enumType:
+                        valueString = rc.getString(param);
+                        break;
                     }
                     return Text(
                       '$label: $valueString',

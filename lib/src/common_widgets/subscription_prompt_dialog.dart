@@ -22,91 +22,98 @@ class _SubscriptionPromptDialogState
     return AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       contentPadding: const EdgeInsets.all(24),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Fun emoji header
-          Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: theme.colorScheme.primaryContainer,
-              shape: BoxShape.circle,
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            // Fun emoji header
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.primaryContainer,
+                shape: BoxShape.circle,
+              ),
+              child: const Text('😄', style: TextStyle(fontSize: 32)),
             ),
-            child: const Text('😄', style: TextStyle(fontSize: 32)),
-          ),
-          const SizedBox(height: 20),
+            const SizedBox(height: 20),
 
-          // Main title
-          Text(
-            'Start Every Day with a Smile!',
-            style: theme.textTheme.headlineSmall?.copyWith(
-              fontWeight: FontWeight.bold,
-              color: theme.colorScheme.onSurface,
+            // Main title
+            Text(
+              'Start Every Day with a Smile!',
+              style: theme.textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.bold,
+                color: theme.colorScheme.onSurface,
+              ),
+              textAlign: TextAlign.center,
             ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 12),
+            const SizedBox(height: 12),
 
-          // Persuasive subtitle
-          Text(
-            "Keep the laughs coming! We can send one new, handpicked joke straight to your phone each day!",
-            style: theme.textTheme.bodyMedium?.copyWith(
-              color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
+            // Persuasive subtitle
+            Text(
+              "Keep the laughs coming! We can send one new, handpicked joke straight to your phone each day!",
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
+              ),
+              textAlign: TextAlign.center,
             ),
-            textAlign: TextAlign.center,
-          ),
-          const SizedBox(height: 20),
+            const SizedBox(height: 20),
 
-          // Benefits list
-          _buildBenefitsList(theme),
-          const SizedBox(height: 24),
+            // Benefits list
+            _buildBenefitsList(theme),
+            const SizedBox(height: 24),
 
-          // Action buttons
-          Row(
-            children: [
-              // Maybe Later button
-              Expanded(
-                child: TextButton(
-                  key: const Key(
-                    'subscription_prompt_dialog-maybe-later-button',
-                  ),
-                  onPressed: _isLoading ? null : () => _handleMaybeLater(),
-                  style: TextButton.styleFrom(
-                    backgroundColor: theme.colorScheme.surfaceContainerHighest,
-                    foregroundColor: theme.colorScheme.onSurface,
-                  ),
-                  child: Text(
-                    'Maybe Later',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+            // Action buttons
+            Row(
+              children: [
+                // Maybe Later button
+                Expanded(
+                  child: TextButton(
+                    key: const Key(
+                      'subscription_prompt_dialog-maybe-later-button',
+                    ),
+                    onPressed: _isLoading ? null : () => _handleMaybeLater(),
+                    style: TextButton.styleFrom(
+                      backgroundColor:
+                          theme.colorScheme.surfaceContainerHighest,
+                      foregroundColor: theme.colorScheme.onSurface,
+                    ),
+                    child: Text(
+                      'Maybe Later',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: theme.colorScheme.onSurface.withValues(
+                          alpha: 0.6,
+                        ),
+                      ),
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(width: 12),
+                const SizedBox(width: 12),
 
-              // Subscribe button
-              Expanded(
-                flex: 2,
-                child: ElevatedButton(
-                  key: const Key('subscription_prompt_dialog-subscribe-button'),
-                  onPressed: _isLoading ? null : () => _handleSubscribe(),
-                  child: _isLoading
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Text(
-                          'Yes, Send Jokes!',
-                          style: TextStyle(fontWeight: FontWeight.bold),
-                        ),
+                // Subscribe button
+                Expanded(
+                  flex: 2,
+                  child: ElevatedButton(
+                    key: const Key(
+                      'subscription_prompt_dialog-subscribe-button',
+                    ),
+                    onPressed: _isLoading ? null : () => _handleSubscribe(),
+                    child: _isLoading
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Text(
+                            'Yes, Send Jokes!',
+                            style: TextStyle(fontWeight: FontWeight.bold),
+                          ),
+                  ),
                 ),
-              ),
-            ],
-          ),
-        ],
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

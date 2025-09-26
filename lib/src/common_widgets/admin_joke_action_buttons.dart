@@ -116,12 +116,14 @@ class AdminRegenerateImagesButton extends ConsumerWidget {
   final String jokeId;
   final ThemeData theme;
   final bool isLoading;
+  final bool hasUpscaledImage;
 
   const AdminRegenerateImagesButton({
     super.key,
     required this.jokeId,
     required this.theme,
     required this.isLoading,
+    this.hasUpscaledImage = false,
   });
 
   @override
@@ -149,6 +151,8 @@ class AdminRegenerateImagesButton extends ConsumerWidget {
       isLoading: isLoading,
       theme: theme,
       color: theme.colorScheme.secondary,
+      borderColor: hasUpscaledImage ? Colors.amber : null,
+      borderWidth: hasUpscaledImage ? 2.0 : 0.0,
     );
   }
 }
@@ -289,6 +293,7 @@ class AdminModifyImageButton extends ConsumerWidget {
   final bool isLoading;
   final String? setupImageUrl;
   final String? punchlineImageUrl;
+  final bool hasUpscaledImage;
 
   const AdminModifyImageButton({
     super.key,
@@ -297,6 +302,7 @@ class AdminModifyImageButton extends ConsumerWidget {
     required this.isLoading,
     this.setupImageUrl,
     this.punchlineImageUrl,
+    this.hasUpscaledImage = false,
   });
 
   @override
@@ -312,11 +318,14 @@ class AdminModifyImageButton extends ConsumerWidget {
         _showModifyImageDialog(context, ref);
       },
       onHoldComplete: () {
-        // No hold action
+        final notifier = ref.read(jokeModificationProvider.notifier);
+        notifier.upscaleJoke(jokeId);
       },
       isLoading: isLoading || isModifying,
       theme: theme,
       color: theme.colorScheme.tertiary,
+      borderColor: hasUpscaledImage ? Colors.amber : null,
+      borderWidth: hasUpscaledImage ? 2.0 : 0.0,
     );
   }
 

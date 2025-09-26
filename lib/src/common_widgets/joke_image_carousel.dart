@@ -15,13 +15,13 @@ import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/providers/app_providers.dart';
 import 'package:snickerdoodle/src/core/providers/image_providers.dart';
-import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
-import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
+import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/app_review_service.dart';
-import 'package:snickerdoodle/src/core/services/review_prompt_service.dart';
+import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
 import 'package:snickerdoodle/src/core/services/performance_service.dart';
+import 'package:snickerdoodle/src/core/services/review_prompt_service.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_population_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_schedule_providers.dart';
@@ -1013,6 +1013,8 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
                         jokeId: widget.joke.id,
                         theme: theme,
                         isLoading: isPopulating,
+                        hasUpscaledImage: widget.joke.setupImageUrlUpscaled != null ||
+                            widget.joke.punchlineImageUrlUpscaled != null,
                       ),
                     )
                   else
@@ -1026,6 +1028,8 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
                       isLoading: isPopulating,
                       setupImageUrl: widget.joke.setupImageUrl,
                       punchlineImageUrl: widget.joke.punchlineImageUrl,
+                      hasUpscaledImage: widget.joke.setupImageUrlUpscaled != null ||
+                          widget.joke.punchlineImageUrlUpscaled != null,
                     ),
                   ),
                 ],
@@ -1095,12 +1099,9 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
       showLoadingIndicator: true,
       showErrorIcon: true,
       onFirstImagePaint: (widthHint) {
-        // Stop only for the very first search result's setup image.
-        if (widget.index == 0 &&
-            _currentIndex == 0 &&
-            widget.jokeContext == AnalyticsJokeContext.search) {
-          _perf.stopNamedTrace(name: TraceName.searchToFirstImage);
-        }
+        // Stop any active search traces
+        _perf.stopNamedTrace(name: TraceName.searchToFirstImage);
+
         // Also stop the carousel_to_visible trace for this carousel (stop on first pixel of any image)
         _perf.stopNamedTrace(
           name: TraceName.carouselToVisible,
@@ -1431,6 +1432,10 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
 
     // Navigate to search using push so that back returns to previous page
     final nav = refLocal.read(navigationHelpersProvider);
-    nav.navigateToRoute(AppRoutes.search, method: 'programmatic', push: true);
+    nav.navigateToRoute(
+      AppRoutes.discoverSearch,
+      method: 'programmatic',
+      push: true,
+    );
   }
 }

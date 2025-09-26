@@ -15,6 +15,8 @@ class HoldableButton extends StatefulWidget {
   final IconData? holdCompleteIcon;
   final Duration holdDuration;
   final Color? color;
+  final Color? borderColor;
+  final double borderWidth;
 
   const HoldableButton({
     super.key,
@@ -28,6 +30,8 @@ class HoldableButton extends StatefulWidget {
     this.holdCompleteIcon,
     this.holdDuration = const Duration(seconds: 3),
     this.color,
+    this.borderColor,
+    this.borderWidth = 0.0,
   });
 
   @override
@@ -231,7 +235,15 @@ class _HoldableButtonState extends State<HoldableButton>
               Container(
                 width: double.infinity,
                 height: 40,
-                color: _getBaseColor(),
+                decoration: BoxDecoration(
+                  color: _getBaseColor(),
+                  border: widget.borderColor != null && widget.borderWidth > 0
+                      ? Border.all(
+                          color: widget.borderColor!,
+                          width: widget.borderWidth,
+                        )
+                      : null,
+                ),
               ),
 
               // Animated fill overlay (fills from bottom to top, no icon)

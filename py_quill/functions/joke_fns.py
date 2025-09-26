@@ -721,6 +721,10 @@ def _populate_joke_images(
       f'Image generation returned insufficient images: expected 2, got {len(images)}'
     )
 
+  # Clear upscaled URLs since they are now out of date
+  joke.setup_image_url_upscaled = None
+  joke.punchline_image_url_upscaled = None
+
   return joke
 
 

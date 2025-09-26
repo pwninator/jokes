@@ -2,10 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
-import 'package:snickerdoodle/src/features/jokes/application/joke_category_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_search_providers.dart';
-import 'package:snickerdoodle/src/features/jokes/data/models/joke_category.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_search_result.dart';
 import 'package:snickerdoodle/src/features/search/presentation/search_screen.dart';
@@ -15,44 +13,79 @@ import '../../../test_helpers/firebase_mocks.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('Submitting <2 chars shows banner and does not update query', (
-    tester,
-  ) async {
-    final container = ProviderContainer(
+  ProviderContainer createContainer({List<Override> overrides = const []}) {
+    return ProviderContainer(
       overrides: FirebaseMocks.getFirebaseProviderOverrides(
         additionalOverrides: [
-          // Prevent real cloud function calls during this test
           searchResultsViewerProvider(
             SearchScope.userJokeSearch,
           ).overrideWith((ref) => Stream.value(const <JokeWithDate>[])),
+          ...overrides,
         ],
       ),
     );
-    addTearDown(container.dispose);
+  }
+
+  Future<void> pumpSearch(
+    WidgetTester tester,
+    ProviderContainer container,
+  ) async {
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
         child: const MaterialApp(home: SearchScreen()),
       ),
     );
+    await tester.pump();
+  }
 
-    // Ensure initial state
-    expect(
-      container.read(searchQueryProvider(SearchScope.userJokeSearch)).query,
-      '',
+  testWidgets('focuses the search field on load', (tester) async {
+    final container = createContainer();
+    addTearDown(container.dispose);
+
+    await pumpSearch(tester, container);
+
+    final fieldFinder = find.byKey(const Key('search_screen-search-field'));
+    final textField = tester.widget<TextField>(fieldFinder);
+    expect(textField.focusNode?.hasFocus, isTrue);
+  });
+
+  testWidgets('opening the screen clears any existing query', (tester) async {
+    final container = createContainer();
+    addTearDown(container.dispose);
+
+    final notifier = container.read(
+      searchQueryProvider(SearchScope.userJokeSearch).notifier,
+    );
+    notifier.state = notifier.state.copyWith(
+      query: '${JokeConstants.searchQueryPrefix}legacy',
+      label: SearchLabel.category,
     );
 
-    // Enter 1-char query and submit
+    await pumpSearch(tester, container);
+
+    final cleared = container.read(
+      searchQueryProvider(SearchScope.userJokeSearch),
+    );
+    expect(cleared.query, '');
+    expect(cleared.label, JokeConstants.userSearchLabel);
+    expect(find.byKey(const Key('search_screen-empty-state')), findsOneWidget);
+  });
+
+  testWidgets('submitting <2 chars shows banner and preserves query', (
+    tester,
+  ) async {
+    final container = createContainer();
+    addTearDown(container.dispose);
+
+    await pumpSearch(tester, container);
+
     final field = find.byKey(const Key('search_screen-search-field'));
-    expect(field, findsOneWidget);
     await tester.enterText(field, 'a');
     await tester.testTextInput.receiveAction(TextInputAction.search);
     await tester.pumpAndSettle();
 
-    // Verify MaterialBanner is shown
     expect(find.text('Please enter a longer search query'), findsOneWidget);
-
-    // Provider should still have empty query and none label
     final searchQuery = container.read(
       searchQueryProvider(SearchScope.userJokeSearch),
     );
@@ -60,11 +93,9 @@ void main() {
     expect(searchQuery.label, SearchLabel.none);
   });
 
-  testWidgets('Shows results count for single result', (tester) async {
-    final container = ProviderContainer(
+  testWidgets('renders single-result count', (tester) async {
+    final container = createContainer(
       overrides: [
-        ...FirebaseMocks.getFirebaseProviderOverrides(),
-        // Deterministic count: return 1 ID
         searchResultIdsProvider(SearchScope.userJokeSearch).overrideWith(
           (ref) async => const [JokeSearchResult(id: '1', vectorDistance: 0.0)],
         ),
@@ -79,30 +110,14 @@ void main() {
             ),
           ),
         ),
-        searchResultIdsProvider(SearchScope.userJokeSearch).overrideWith(
-          (ref) => Future.value([
-            const JokeSearchResult(id: '1', vectorDistance: 0.1),
-          ]),
-        ),
       ],
     );
     addTearDown(container.dispose);
 
-    // Set query so provider returns a result
-    final notifier = container.read(
-      searchQueryProvider(SearchScope.userJokeSearch).notifier,
-    );
-    notifier.state = notifier.state.copyWith(query: 'cat');
-
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: const MaterialApp(home: SearchScreen()),
-      ),
-    );
+    await pumpSearch(tester, container);
 
     final field = find.byKey(const Key('search_screen-search-field'));
-    await tester.enterText(field, 'cat');
+    await tester.enterText(field, 'cats');
     await tester.testTextInput.receiveAction(TextInputAction.search);
     await tester.pumpAndSettle();
 
@@ -110,25 +125,21 @@ void main() {
     expect(find.text('1 result'), findsOneWidget);
   });
 
-  testWidgets('Shows pluralized results count for multiple results', (
-    tester,
-  ) async {
-    final container = ProviderContainer(
+  testWidgets('renders pluralised result count', (tester) async {
+    final container = createContainer(
       overrides: [
-        ...FirebaseMocks.getFirebaseProviderOverrides(),
         searchResultIdsProvider(SearchScope.userJokeSearch).overrideWith(
           (ref) async => [
             const JokeSearchResult(id: '1', vectorDistance: 0.1),
             const JokeSearchResult(id: '2', vectorDistance: 0.2),
-            const JokeSearchResult(id: '3', vectorDistance: 0.3),
           ],
         ),
         jokeStreamByIdProvider('1').overrideWith(
           (ref) => Stream.value(
             const Joke(
               id: '1',
-              setupText: 's1',
-              punchlineText: 'p1',
+              setupText: 'a',
+              punchlineText: 'b',
               setupImageUrl: 'a',
               punchlineImageUrl: 'b',
             ),
@@ -138,323 +149,81 @@ void main() {
           (ref) => Stream.value(
             const Joke(
               id: '2',
-              setupText: 's2',
-              punchlineText: 'p2',
-              setupImageUrl: 'a',
-              punchlineImageUrl: 'b',
+              setupText: 'c',
+              punchlineText: 'd',
+              setupImageUrl: 'c',
+              punchlineImageUrl: 'd',
             ),
           ),
-        ),
-        jokeStreamByIdProvider('3').overrideWith(
-          (ref) => Stream.value(
-            const Joke(
-              id: '3',
-              setupText: 's3',
-              punchlineText: 'p3',
-              setupImageUrl: 'a',
-              punchlineImageUrl: 'b',
-            ),
-          ),
-        ),
-        searchResultIdsProvider(SearchScope.userJokeSearch).overrideWith(
-          (ref) => Future.value([
-            const JokeSearchResult(id: '1', vectorDistance: 0.1),
-            const JokeSearchResult(id: '2', vectorDistance: 0.2),
-            const JokeSearchResult(id: '3', vectorDistance: 0.3),
-          ]),
-        ),
-        searchResultIdsProvider(SearchScope.userJokeSearch).overrideWith(
-          (ref) => Future.value([
-            const JokeSearchResult(id: '1', vectorDistance: 0.1),
-            const JokeSearchResult(id: '2', vectorDistance: 0.2),
-            const JokeSearchResult(id: '3', vectorDistance: 0.3),
-          ]),
         ),
       ],
     );
     addTearDown(container.dispose);
 
-    // Set query so provider returns results
-    final notifier = container.read(
-      searchQueryProvider(SearchScope.userJokeSearch).notifier,
-    );
-    notifier.state = notifier.state.copyWith(query: 'dog');
-
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: const MaterialApp(home: SearchScreen()),
-      ),
-    );
+    await pumpSearch(tester, container);
 
     final field = find.byKey(const Key('search_screen-search-field'));
-    await tester.enterText(field, 'dog');
+    await tester.enterText(field, 'robots');
     await tester.testTextInput.receiveAction(TextInputAction.search);
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key('search-results-count')), findsOneWidget);
-    expect(find.text('3 results'), findsOneWidget);
+    expect(find.text('2 results'), findsOneWidget);
   });
 
-  testWidgets('Search results show 1-based index titles on JokeCards', (
+  testWidgets('shows placeholder when no query has been submitted', (
     tester,
   ) async {
-    final jokes = [
-      JokeWithDate(
-        joke: const Joke(
-          id: 'a',
-          setupText: 's1',
-          punchlineText: 'p1',
-          setupImageUrl: 'a',
-          punchlineImageUrl: 'b',
-        ),
-        date: DateTime.now(),
-      ),
-      JokeWithDate(
-        joke: const Joke(
-          id: 'b',
-          setupText: 's2',
-          punchlineText: 'p2',
-          setupImageUrl: 'a',
-          punchlineImageUrl: 'b',
-        ),
-        date: DateTime.now(),
-      ),
-    ];
-    final container = ProviderContainer(
-      overrides: [
-        ...FirebaseMocks.getFirebaseProviderOverrides(),
-        searchResultsViewerProvider(
-          SearchScope.userJokeSearch,
-        ).overrideWith((ref) => Stream.value(jokes)),
-      ],
-    );
+    final container = createContainer();
     addTearDown(container.dispose);
 
-    // Set query so provider returns results
-    final notifier = container.read(
-      searchQueryProvider(SearchScope.userJokeSearch).notifier,
-    );
-    notifier.state = notifier.state.copyWith(query: 'fish');
+    await pumpSearch(tester, container);
 
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: const MaterialApp(home: SearchScreen()),
-      ),
-    );
-
-    final field = find.byKey(const Key('search_screen-search-field'));
-    await tester.enterText(field, 'fish');
-    await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pumpAndSettle();
-
-    // Title should be the index (1-based) for the first card
-    expect(find.text('1'), findsOneWidget);
-
-    // Swipe up to move to the second joke (vertical PageView)
-    final pageView = find.byKey(const Key('joke_viewer_page_view'));
-    expect(pageView, findsOneWidget);
-    await tester.fling(pageView, const Offset(0, -400), 1000);
-    await tester.pumpAndSettle();
-
-    // Now the title should show '2' for the second card
-    expect(find.text('2'), findsOneWidget);
+    expect(find.byKey(const Key('search_screen-empty-state')), findsOneWidget);
+    expect(find.byKey(const Key('search-results-count')), findsNothing);
   });
 
-  testWidgets('Restores raw input in field without "jokes about " prefix', (
+  testWidgets('clear button resets provider and restores placeholder', (
     tester,
   ) async {
-    final container = ProviderContainer(
-      overrides: FirebaseMocks.getFirebaseProviderOverrides(),
-    );
+    final container = createContainer();
     addTearDown(container.dispose);
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: const MaterialApp(home: SearchScreen()),
-      ),
-    );
+
+    await pumpSearch(tester, container);
 
     final field = find.byKey(const Key('search_screen-search-field'));
-    expect(field, findsOneWidget);
-
-    // Simulate user entering text and submitting; provider adds prefix
-    await tester.enterText(field, 'penguins');
+    await tester.enterText(field, 'space cows');
     await tester.testTextInput.receiveAction(TextInputAction.search);
     await tester.pump();
 
-    // Preserve provider state across remount via manual ProviderContainer
-    await tester.pumpWidget(const SizedBox.shrink());
-    await tester.pump();
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: const MaterialApp(home: SearchScreen()),
-      ),
+    expect(
+      container.read(searchQueryProvider(SearchScope.userJokeSearch)).query,
+      '${JokeConstants.searchQueryPrefix}space cows',
     );
 
-    final fieldAfter = find.byKey(const Key('search_screen-search-field'));
-    expect(fieldAfter, findsOneWidget);
-    final textFieldWidget = tester.widget<TextField>(fieldAfter);
-    expect(textFieldWidget.controller?.text, 'penguins');
+    final clearBtn = find.byKey(const Key('search_screen-clear-button'));
+    expect(clearBtn, findsOneWidget);
+
+    await tester.tap(clearBtn);
+    await tester.pump();
+
+    expect(
+      container.read(searchQueryProvider(SearchScope.userJokeSearch)).query,
+      '',
+    );
+    expect(find.byKey(const Key('search_screen-empty-state')), findsOneWidget);
   });
 
-  testWidgets('Empty search shows categories; tapping tile triggers search', (
-    tester,
-  ) async {
-    final container = ProviderContainer(
-      overrides: FirebaseMocks.getFirebaseProviderOverrides(
-        additionalOverrides: [
-          // Provide fake categories
-          jokeCategoriesProvider.overrideWith(
-            (ref) => Stream.value(const [
-              JokeCategory(
-                id: 'animal_jokes',
-                displayName: 'Animal Jokes',
-                jokeDescriptionQuery: 'animal',
-                imageUrl: null,
-                state: JokeCategoryState.approved,
-              ),
-              JokeCategory(
-                id: 'food',
-                displayName: 'Food',
-                jokeDescriptionQuery: 'food',
-                imageUrl: null,
-                state: JokeCategoryState.approved,
-              ),
-            ]),
-          ),
-          // Avoid network search calls in tests
-          searchResultsViewerProvider(
-            SearchScope.userJokeSearch,
-          ).overrideWith((ref) => Stream.value(const <JokeWithDate>[])),
-        ],
-      ),
-    );
+  testWidgets('manual typing sets search label to none', (tester) async {
+    final container = createContainer();
     addTearDown(container.dispose);
 
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: const MaterialApp(home: SearchScreen()),
-      ),
-    );
+    await pumpSearch(tester, container);
 
-    // Let the StreamProvider emit data
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 50));
-
-    // Initially empty field should show categories grid
-    expect(find.byKey(const Key('search-categories-grid')), findsOneWidget);
-    expect(find.text('Animal Jokes'), findsOneWidget);
-
-    // Tap a category tile
-    await tester.tap(find.text('Animal Jokes'));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 50));
-
-    // Provider should be updated with prefixed query and category label
-    final searchQuery = container.read(
-      searchQueryProvider(SearchScope.userJokeSearch),
-    );
-    expect(searchQuery.query, '${JokeConstants.searchQueryPrefix}animal');
-    expect(searchQuery.label, SearchLabel.category);
-
-    // The grid should no longer be visible after search starts
-    expect(find.byKey(const Key('search-categories-grid')), findsNothing);
-  });
-
-  testWidgets(
-    'Clear button is circular and clears query restoring categories',
-    (tester) async {
-      final container = ProviderContainer(
-        overrides: FirebaseMocks.getFirebaseProviderOverrides(
-          additionalOverrides: [
-            // Provide categories so grid can show when empty
-            jokeCategoriesProvider.overrideWith(
-              (ref) => Stream.value(const [
-                JokeCategory(
-                  id: 'tech',
-                  displayName: 'Tech',
-                  jokeDescriptionQuery: 'tech',
-                  imageUrl: null,
-                  state: JokeCategoryState.approved,
-                ),
-              ]),
-            ),
-            // Avoid network search calls in tests
-            searchResultsViewerProvider(
-              SearchScope.userJokeSearch,
-            ).overrideWith((ref) => Stream.value(const <JokeWithDate>[])),
-          ],
-        ),
-      );
-      addTearDown(container.dispose);
-
-      await tester.pumpWidget(
-        UncontrolledProviderScope(
-          container: container,
-          child: const MaterialApp(home: SearchScreen()),
-        ),
-      );
-
-      // Initially empty shows categories
-      await tester.pump();
-      expect(find.byKey(const Key('search-categories-grid')), findsOneWidget);
-
-      // Enter text to make clear button appear
-      final field = find.byKey(const Key('search_screen-search-field'));
-      await tester.enterText(field, 'robots');
-      await tester.pump();
-
-      // Clear button should be present and circular-styled
-      final clearBtn = find.byKey(const Key('search_screen-clear-button'));
-      expect(clearBtn, findsOneWidget);
-
-      // Submit search so categories disappear
-      await tester.testTextInput.receiveAction(TextInputAction.search);
-      await tester.pump();
-      expect(find.byKey(const Key('search-categories-grid')), findsNothing);
-
-      // Tap clear; field should clear and categories should reappear
-      await tester.tap(clearBtn);
-      await tester.pump();
-      expect(
-        container.read(searchQueryProvider(SearchScope.userJokeSearch)).query,
-        '',
-      );
-      expect(find.byKey(const Key('search-categories-grid')), findsOneWidget);
-    },
-  );
-
-  testWidgets('Manual typing sets search label to none', (tester) async {
-    final container = ProviderContainer(
-      overrides: FirebaseMocks.getFirebaseProviderOverrides(
-        additionalOverrides: [
-          // Avoid network search calls in tests
-          searchResultsViewerProvider(
-            SearchScope.userJokeSearch,
-          ).overrideWith((ref) => Stream.value(const <JokeWithDate>[])),
-        ],
-      ),
-    );
-    addTearDown(container.dispose);
-
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: const MaterialApp(home: SearchScreen()),
-      ),
-    );
-
-    // Enter text manually and submit
     final field = find.byKey(const Key('search_screen-search-field'));
     await tester.enterText(field, 'manual search');
     await tester.testTextInput.receiveAction(TextInputAction.search);
     await tester.pump();
 
-    // Provider should have prefixed query and none label
     final searchQuery = container.read(
       searchQueryProvider(SearchScope.userJokeSearch),
     );

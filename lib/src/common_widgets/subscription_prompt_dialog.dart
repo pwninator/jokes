@@ -22,9 +22,10 @@ class _SubscriptionPromptDialogState
     return AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       contentPadding: const EdgeInsets.all(24),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
           // Fun emoji header
           Container(
             padding: const EdgeInsets.all(16),
@@ -107,6 +108,7 @@ class _SubscriptionPromptDialogState
             ],
           ),
         ],
+        ),
       ),
     );
   }

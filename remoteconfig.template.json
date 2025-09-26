@@ -72,6 +72,17 @@
           "valueType": "BOOLEAN"
         }
       }
+    },
+    "Joke Sharing": {
+      "parameters": {
+        "share_stacked_images": {
+          "defaultValue": {
+            "value": "false"
+          },
+          "description": "Share joke as single stacked image vs two separate images",
+          "valueType": "BOOLEAN"
+        }
+      }
     }
   }
 }

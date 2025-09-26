@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/providers/app_providers.dart';
 import 'package:snickerdoodle/src/core/providers/image_providers.dart';
+import 'package:snickerdoodle/src/core/providers/remote_config_providers.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/joke_share_service.dart';
 import 'package:snickerdoodle/src/core/services/review_prompt_service.dart';
@@ -21,6 +22,7 @@ final jokeShareServiceProvider = Provider<JokeShareService>((ref) {
   final appUsageService = ref.watch(appUsageServiceProvider);
   final reviewCoordinator = ref.watch(reviewPromptCoordinatorProvider);
   final performanceService = ref.watch(performanceServiceProvider);
+  final remoteConfig = ref.watch(remoteConfigProvider);
 
   return JokeShareServiceImpl(
     imageService: imageService,
@@ -30,5 +32,6 @@ final jokeShareServiceProvider = Provider<JokeShareService>((ref) {
     appUsageService: appUsageService,
     reviewPromptCoordinator: reviewCoordinator,
     performanceService: performanceService,
+    remoteConfig: remoteConfig,
   );
 });

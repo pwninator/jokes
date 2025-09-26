@@ -1,4 +1,7 @@
+import 'package:firebase_remote_config/firebase_remote_config.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:snickerdoodle/src/core/providers/remote_config_providers.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/app_review_service.dart';
@@ -66,6 +69,7 @@ class JokeShareServiceImpl implements JokeShareService {
   final AppUsageService _appUsageService;
   final ReviewPromptCoordinator _reviewPromptCoordinator;
   final PerformanceService _performanceService;
+  final FirebaseRemoteConfig _remoteConfig;
 
   JokeShareServiceImpl({
     required ImageService imageService,
@@ -75,13 +79,15 @@ class JokeShareServiceImpl implements JokeShareService {
     required AppUsageService appUsageService,
     required ReviewPromptCoordinator reviewPromptCoordinator,
     required PerformanceService performanceService,
-  }) : _imageService = imageService,
-       _analyticsService = analyticsService,
-       _reactionsService = reactionsService,
-       _platformShareService = platformShareService,
-       _appUsageService = appUsageService,
-       _reviewPromptCoordinator = reviewPromptCoordinator,
-       _performanceService = performanceService;
+    required FirebaseRemoteConfig remoteConfig,
+  })  : _imageService = imageService,
+        _analyticsService = analyticsService,
+        _reactionsService = reactionsService,
+        _platformShareService = platformShareService,
+        _appUsageService = appUsageService,
+        _reviewPromptCoordinator = reviewPromptCoordinator,
+        _performanceService = performanceService,
+        _remoteConfig = remoteConfig;
 
   @override
   Future<bool> shareJoke(
@@ -186,10 +192,17 @@ class JokeShareServiceImpl implements JokeShareService {
         throw Exception('No images could be downloaded for sharing');
       }
 
-      // Apply watermark overlay to each file before sharing
-      final List<XFile> brandedFiles = await _imageService.addWatermarkToFiles(
-        files,
-      );
+      final List<XFile> filesToShare;
+      final bool stackImages = _remoteConfig.getBool('share_stacked_images');
+
+      if (stackImages) {
+        final stackedFile = await _imageService.stackImages(files);
+        final watermarkedFile =
+            await _imageService.addWatermarkToFile(stackedFile);
+        filesToShare = [watermarkedFile];
+      } else {
+        filesToShare = await _imageService.addWatermarkToFiles(files);
+      }
 
       // Stop preparation trace right before invoking platform share
       _performanceService.stopNamedTrace(
@@ -197,7 +210,7 @@ class JokeShareServiceImpl implements JokeShareService {
         key: traceKey,
       );
       final result = await _platformShareService.shareFiles(
-        brandedFiles,
+        filesToShare,
         subject: subject,
         text: text,
       );

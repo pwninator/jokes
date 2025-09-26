@@ -356,4 +356,35 @@ class JokeCloudFunctionService {
       return <JokeSearchResult>[];
     }
   }
+
+  Future<Map<String, dynamic>?> upscaleJoke(String jokeId) async {
+    try {
+      final result = await _traceCf(
+        functionName: 'upscale_joke',
+        action: () async {
+          final callable = _fns.httpsCallable(
+            'upscale_joke',
+            options: HttpsCallableOptions(
+              timeout: const Duration(seconds: 600),
+            ),
+          );
+          return await callable.call({'joke_id': jokeId});
+        },
+      );
+
+      AppLogger.debug('Joke upscaled successfully: ${result.data}');
+      return {'success': true, 'data': result.data};
+    } on FirebaseFunctionsException catch (e) {
+      AppLogger.warn(
+          'Firebase Functions error (upscale_joke): ${e.code} - ${e.message}');
+      return {
+        'success': false,
+        'error': 'Function error: ${e.message}',
+        'code': e.code,
+      };
+    } catch (e) {
+      AppLogger.warn('Error upscaling joke: $e');
+      return {'success': false, 'error': 'Unexpected error: $e'};
+    }
+  }
 }

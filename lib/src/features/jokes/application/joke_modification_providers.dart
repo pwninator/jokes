@@ -84,6 +84,44 @@ class JokeModificationNotifier extends StateNotifier<JokeModificationState> {
     state = state.copyWith(clearError: true);
   }
 
+  Future<bool> upscaleJoke(String jokeId) async {
+    // Add joke to modifying set
+    state = state.copyWith(
+      modifyingJokes: {...state.modifyingJokes, jokeId},
+      error: null,
+      clearError: true,
+    );
+
+    try {
+      final result = await _cloudFunctionService.upscaleJoke(jokeId);
+
+      if (result != null && result['success'] == true) {
+        // Remove joke from modifying set
+        final updatedSet = Set<String>.from(state.modifyingJokes)
+          ..remove(jokeId);
+        state = state.copyWith(modifyingJokes: updatedSet, error: null);
+        return true;
+      } else {
+        // Remove joke from modifying set and set error
+        final updatedSet = Set<String>.from(state.modifyingJokes)
+          ..remove(jokeId);
+        state = state.copyWith(
+          modifyingJokes: updatedSet,
+          error: result?['error'] ?? 'Unknown error occurred during upscale',
+        );
+        return false;
+      }
+    } catch (e) {
+      // Remove joke from modifying set and set error
+      final updatedSet = Set<String>.from(state.modifyingJokes)..remove(jokeId);
+      state = state.copyWith(
+        modifyingJokes: updatedSet,
+        error: 'Failed to upscale joke: $e',
+      );
+      return false;
+    }
+  }
+
   bool isJokeModifying(String jokeId) {
     return state.modifyingJokes.contains(jokeId);
   }

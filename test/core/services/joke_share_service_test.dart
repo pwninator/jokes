@@ -358,7 +358,6 @@ void main() {
           () => mockAnalyticsService.logJokeShareCanceled(
             any(),
             jokeContext: any(named: 'jokeContext'),
-            shareDestination: any(named: 'shareDestination'),
           ),
         ).thenAnswer((_) async {});
 
@@ -397,7 +396,6 @@ void main() {
           () => mockAnalyticsService.logJokeShareCanceled(
             'test-joke-id',
             jokeContext: 'test-context',
-            shareDestination: any(named: 'shareDestination'),
           ),
         ).called(1);
       },

@@ -357,8 +357,8 @@ def _sync_joke_to_search_subcollection(
     return
 
   joke_id = joke.key
-  search_doc_ref = firestore.db().collection("jokes").document(joke_id).collection(
-    "search").document("search")
+  search_doc_ref = firestore.db().collection("jokes").document(
+    joke_id).collection("search").document("search")
   search_doc = search_doc_ref.get()
   search_data = search_doc.to_dict() if search_doc.exists else {}
 
@@ -720,6 +720,10 @@ def _populate_joke_images(
     raise JokePopulationError(
       f'Image generation returned insufficient images: expected 2, got {len(images)}'
     )
+
+  # Clear upscaled URLs since they are now out of date
+  joke.setup_image_url_upscaled = None
+  joke.punchline_image_url_upscaled = None
 
   return joke
 

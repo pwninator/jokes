@@ -10,6 +10,8 @@ class Joke {
   final String punchlineText;
   final String? setupImageUrl;
   final String? punchlineImageUrl;
+  final String? setupImageUrlUpscaled;
+  final String? punchlineImageUrlUpscaled;
   final String? setupImageDescription;
   final String? punchlineImageDescription;
   final List<String> allSetupImageUrls;
@@ -32,6 +34,8 @@ class Joke {
     required this.punchlineText,
     this.setupImageUrl,
     this.punchlineImageUrl,
+    this.setupImageUrlUpscaled,
+    this.punchlineImageUrlUpscaled,
     this.setupImageDescription,
     this.punchlineImageDescription,
     this.allSetupImageUrls = const [],
@@ -55,6 +59,8 @@ class Joke {
     String? punchlineText,
     String? setupImageUrl,
     String? punchlineImageUrl,
+    String? setupImageUrlUpscaled,
+    String? punchlineImageUrlUpscaled,
     String? setupImageDescription,
     String? punchlineImageDescription,
     List<String>? allSetupImageUrls,
@@ -77,6 +83,10 @@ class Joke {
       punchlineText: punchlineText ?? this.punchlineText,
       setupImageUrl: setupImageUrl ?? this.setupImageUrl,
       punchlineImageUrl: punchlineImageUrl ?? this.punchlineImageUrl,
+      setupImageUrlUpscaled:
+          setupImageUrlUpscaled ?? this.setupImageUrlUpscaled,
+      punchlineImageUrlUpscaled:
+          punchlineImageUrlUpscaled ?? this.punchlineImageUrlUpscaled,
       setupImageDescription:
           setupImageDescription ?? this.setupImageDescription,
       punchlineImageDescription:
@@ -104,6 +114,8 @@ class Joke {
       'punchline_text': punchlineText,
       'setup_image_url': setupImageUrl,
       'punchline_image_url': punchlineImageUrl,
+      'setup_image_url_upscaled': setupImageUrlUpscaled,
+      'punchline_image_url_upscaled': punchlineImageUrlUpscaled,
       'setup_image_description': setupImageDescription,
       'punchline_image_description': punchlineImageDescription,
       'all_setup_image_urls': allSetupImageUrls,
@@ -131,6 +143,8 @@ class Joke {
       punchlineText: map['punchline_text'] ?? '',
       setupImageUrl: map['setup_image_url'],
       punchlineImageUrl: map['punchline_image_url'],
+      setupImageUrlUpscaled: map['setup_image_url_upscaled'],
+      punchlineImageUrlUpscaled: map['punchline_image_url_upscaled'],
       setupImageDescription: map['setup_image_description'],
       punchlineImageDescription: map['punchline_image_description'],
       allSetupImageUrls: List<String>.from(map['all_setup_image_urls'] ?? []),
@@ -174,7 +188,7 @@ class Joke {
 
   @override
   String toString() =>
-      'Joke(id: $id, setupText: $setupText, punchlineText: $punchlineText, setupImageUrl: $setupImageUrl, punchlineImageUrl: $punchlineImageUrl, setupImageDescription: $setupImageDescription, punchlineImageDescription: $punchlineImageDescription, allSetupImageUrls: $allSetupImageUrls, allPunchlineImageUrls: $allPunchlineImageUrls, generationMetadata: $generationMetadata, numThumbsUp: $numThumbsUp, numThumbsDown: $numThumbsDown, numSaves: $numSaves, numShares: $numShares, popularityScore: $popularityScore, adminRating: $adminRating, state: $state, publicTimestamp: $publicTimestamp, tags: $tags, seasonal: $seasonal)';
+      'Joke(id: $id, setupText: $setupText, punchlineText: $punchlineText, setupImageUrl: $setupImageUrl, punchlineImageUrl: $punchlineImageUrl, setupImageUrlUpscaled: $setupImageUrlUpscaled, punchlineImageUrlUpscaled: $punchlineImageUrlUpscaled, setupImageDescription: $setupImageDescription, punchlineImageDescription: $punchlineImageDescription, allSetupImageUrls: $allSetupImageUrls, allPunchlineImageUrls: $allPunchlineImageUrls, generationMetadata: $generationMetadata, numThumbsUp: $numThumbsUp, numThumbsDown: $numThumbsDown, numSaves: $numSaves, numShares: $numShares, popularityScore: $popularityScore, adminRating: $adminRating, state: $state, publicTimestamp: $publicTimestamp, tags: $tags, seasonal: $seasonal)';
 
   @override
   bool operator ==(Object other) {
@@ -186,6 +200,8 @@ class Joke {
         other.punchlineText == punchlineText &&
         other.setupImageUrl == setupImageUrl &&
         other.punchlineImageUrl == punchlineImageUrl &&
+        other.setupImageUrlUpscaled == setupImageUrlUpscaled &&
+        other.punchlineImageUrlUpscaled == punchlineImageUrlUpscaled &&
         other.setupImageDescription == setupImageDescription &&
         other.punchlineImageDescription == punchlineImageDescription &&
         listEquals(other.allSetupImageUrls, allSetupImageUrls) &&
@@ -210,6 +226,8 @@ class Joke {
       punchlineText.hashCode ^
       setupImageUrl.hashCode ^
       punchlineImageUrl.hashCode ^
+      setupImageUrlUpscaled.hashCode ^
+      punchlineImageUrlUpscaled.hashCode ^
       setupImageDescription.hashCode ^
       punchlineImageDescription.hashCode ^
       allSetupImageUrls.hashCode ^

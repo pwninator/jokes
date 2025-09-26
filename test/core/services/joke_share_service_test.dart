@@ -11,6 +11,7 @@ import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/core/services/review_prompt_service.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_service.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
+import 'package:firebase_remote_config/firebase_remote_config.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
 
 class MockImageService extends Mock implements ImageService {}
@@ -26,6 +27,8 @@ class MockReviewPromptCoordinator extends Mock
 
 class MockPerformanceService extends Mock implements PerformanceService {}
 
+class MockRemoteConfig extends Mock implements FirebaseRemoteConfig {}
+
 class FakeJoke extends Fake implements Joke {}
 
 class FakeXFile extends Fake implements XFile {}
@@ -40,12 +43,13 @@ void main() {
     late MockPerformanceService mockPerformanceService;
     late AppUsageService appUsageService;
     late ReviewPromptCoordinator mockCoordinator;
+    late MockRemoteConfig mockRemoteConfig;
 
     setUpAll(() {
       registerFallbackValue(FakeJoke());
       registerFallbackValue(JokeReactionType.share);
       registerFallbackValue(FakeXFile());
-      registerFallbackValue(ReviewRequestSource.auto);
+      registerFallbackValue(ReviewRequestSource.jokeShared);
     });
 
     setUp(() async {
@@ -55,6 +59,7 @@ void main() {
       mockPlatformShareService = MockPlatformShareService();
       mockCoordinator = MockReviewPromptCoordinator();
       mockPerformanceService = MockPerformanceService();
+      mockRemoteConfig = MockRemoteConfig();
       when(
         () =>
             mockCoordinator.maybePromptForReview(source: any(named: 'source')),
@@ -64,6 +69,9 @@ void main() {
       final prefs = await SharedPreferences.getInstance();
       appUsageService = AppUsageService(prefs: prefs);
 
+      when(() => mockRemoteConfig.getBool('share_stacked_images'))
+          .thenReturn(false);
+
       service = JokeShareServiceImpl(
         imageService: mockImageService,
         analyticsService: mockAnalyticsService,
@@ -72,6 +80,7 @@ void main() {
         appUsageService: appUsageService,
         reviewPromptCoordinator: mockCoordinator,
         performanceService: mockPerformanceService,
+        remoteConfig: mockRemoteConfig,
       );
 
       // Default watermark behavior: passthrough original files

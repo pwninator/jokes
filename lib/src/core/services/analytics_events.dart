@@ -114,7 +114,7 @@ enum SubscriptionSource {
 enum AppTab {
   dailyJokes('daily_jokes'),
   savedJokes('saved_jokes'),
-  search('search'),
+  discover('discover'),
   settings('settings'),
   admin('admin');
 

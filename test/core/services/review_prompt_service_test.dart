@@ -85,7 +85,9 @@ void main() {
       );
 
       // Act
-      await coordinator.maybePromptForReview(source: ReviewRequestSource.jokeViewed);
+      await coordinator.maybePromptForReview(
+        source: ReviewRequestSource.jokeViewed,
+      );
 
       // Assert
       verify(() => store.hasRequested()).called(1);
@@ -115,7 +117,9 @@ void main() {
       expect(await usage.getNumSharedJokes(), 0);
 
       // Act
-      await coordinator.maybePromptForReview(source: ReviewRequestSource.jokeViewed);
+      await coordinator.maybePromptForReview(
+        source: ReviewRequestSource.jokeViewed,
+      );
 
       // Assert
       verifyNever(() => review.requestReview(source: any(named: 'source')));
@@ -146,7 +150,9 @@ void main() {
       );
 
       // Act
-      await coordinator.maybePromptForReview(source: ReviewRequestSource.jokeViewed);
+      await coordinator.maybePromptForReview(
+        source: ReviewRequestSource.jokeViewed,
+      );
 
       // Assert
       verify(
@@ -273,7 +279,9 @@ void main() {
       );
 
       // Act
-      await coordinator.maybePromptForReview(source: ReviewRequestSource.jokeViewed);
+      await coordinator.maybePromptForReview(
+        source: ReviewRequestSource.jokeViewed,
+      );
 
       // Assert: should not request review because viewed < minViewed
       verifyNever(() => review.requestReview(source: any(named: 'source')));
@@ -305,7 +313,9 @@ void main() {
         stateStore: store,
       );
 
-      await coordinator.maybePromptForReview(source: ReviewRequestSource.jokeViewed);
+      await coordinator.maybePromptForReview(
+        source: ReviewRequestSource.jokeViewed,
+      );
 
       verify(
         () => review.requestReview(source: any(named: 'source')),

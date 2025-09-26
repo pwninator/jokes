@@ -15,7 +15,8 @@ class _MockSubscriptionPromptNotifier extends Mock
 
 class _FakeRemoteConfigValues extends Fake implements RemoteConfigValues {}
 
-class _FakeSubscriptionPromptState extends Fake implements SubscriptionPromptState {}
+class _FakeSubscriptionPromptState extends Fake
+    implements SubscriptionPromptState {}
 
 void main() {
   group('SubscriptionPromptDialog', () {
@@ -32,31 +33,42 @@ void main() {
       mockSubscriptionNotifier = _MockSubscriptionPromptNotifier();
 
       // Setup default mock behavior
-      when(() => mockAnalytics.logSubscriptionPromptShown())
-          .thenAnswer((_) async {});
-      when(() => mockAnalytics.logSubscriptionOnPrompt())
-          .thenAnswer((_) async {});
-      when(() => mockAnalytics.logSubscriptionDeclinedMaybeLater())
-          .thenAnswer((_) async {});
-      when(() => mockAnalytics.logErrorSubscriptionPermission(
-            source: any(named: 'source'),
-            errorMessage: any(named: 'errorMessage'),
-          )).thenAnswer((_) async {});
-      when(() => mockAnalytics.logErrorSubscriptionPrompt(
-            errorMessage: any(named: 'errorMessage'),
-            phase: any(named: 'phase'),
-          )).thenAnswer((_) async {});
-      when(() => mockSubscriptionNotifier.subscribeUser())
-          .thenAnswer((_) async => true);
-      when(() => mockSubscriptionNotifier.dismissPrompt())
-          .thenAnswer((_) async {});
+      when(
+        () => mockAnalytics.logSubscriptionPromptShown(),
+      ).thenAnswer((_) async {});
+      when(
+        () => mockAnalytics.logSubscriptionOnPrompt(),
+      ).thenAnswer((_) async {});
+      when(
+        () => mockAnalytics.logSubscriptionDeclinedMaybeLater(),
+      ).thenAnswer((_) async {});
+      when(
+        () => mockAnalytics.logErrorSubscriptionPermission(
+          source: any(named: 'source'),
+          errorMessage: any(named: 'errorMessage'),
+        ),
+      ).thenAnswer((_) async {});
+      when(
+        () => mockAnalytics.logErrorSubscriptionPrompt(
+          errorMessage: any(named: 'errorMessage'),
+          phase: any(named: 'phase'),
+        ),
+      ).thenAnswer((_) async {});
+      when(
+        () => mockSubscriptionNotifier.subscribeUser(),
+      ).thenAnswer((_) async => true);
+      when(
+        () => mockSubscriptionNotifier.dismissPrompt(),
+      ).thenAnswer((_) async {});
     });
 
     Widget createTestWidget() {
       return ProviderScope(
         overrides: [
           analyticsServiceProvider.overrideWithValue(mockAnalytics),
-          subscriptionPromptProvider.overrideWith((ref) => mockSubscriptionNotifier),
+          subscriptionPromptProvider.overrideWith(
+            (ref) => mockSubscriptionNotifier,
+          ),
         ],
         child: MaterialApp(
           home: Scaffold(
@@ -109,15 +121,11 @@ void main() {
 
       // Verify buttons have correct keys
       expect(
-        find.byKey(
-          const Key('subscription_prompt_dialog-maybe-later-button'),
-        ),
+        find.byKey(const Key('subscription_prompt_dialog-maybe-later-button')),
         findsOneWidget,
       );
       expect(
-        find.byKey(
-          const Key('subscription_prompt_dialog-subscribe-button'),
-        ),
+        find.byKey(const Key('subscription_prompt_dialog-subscribe-button')),
         findsOneWidget,
       );
 
@@ -140,9 +148,7 @@ void main() {
 
       // Tap subscribe button
       await tester.tap(
-        find.byKey(
-          const Key('subscription_prompt_dialog-subscribe-button'),
-        ),
+        find.byKey(const Key('subscription_prompt_dialog-subscribe-button')),
       );
       await tester.pumpAndSettle();
 
@@ -154,7 +160,7 @@ void main() {
 
       // Wait for snackbar to appear
       await tester.pump(const Duration(milliseconds: 100));
-      
+
       // Verify success snackbar is shown
       expect(
         find.text('Successfully subscribed to daily jokes! 🎉'),
@@ -166,8 +172,9 @@ void main() {
       WidgetTester tester,
     ) async {
       // Override mock to throw error
-      when(() => mockSubscriptionNotifier.subscribeUser())
-          .thenThrow(Exception('Permission denied'));
+      when(
+        () => mockSubscriptionNotifier.subscribeUser(),
+      ).thenThrow(Exception('Permission denied'));
 
       await tester.pumpWidget(createTestWidget());
       await tester.pumpAndSettle();
@@ -178,31 +185,31 @@ void main() {
 
       // Tap subscribe button
       await tester.tap(
-        find.byKey(
-          const Key('subscription_prompt_dialog-subscribe-button'),
-        ),
+        find.byKey(const Key('subscription_prompt_dialog-subscribe-button')),
       );
       await tester.pumpAndSettle();
 
       // Verify error analytics call
-      verify(() => mockAnalytics.logErrorSubscriptionPermission(
-            source: 'prompt',
-            errorMessage: 'Exception: Permission denied',
-          )).called(1);
+      verify(
+        () => mockAnalytics.logErrorSubscriptionPermission(
+          source: 'prompt',
+          errorMessage: 'Exception: Permission denied',
+        ),
+      ).called(1);
 
       // Wait for snackbar to appear
       await tester.pump(const Duration(milliseconds: 100));
-      
+
       // Verify error snackbar is shown
       expect(
-        find.textContaining('Notification permission is required for daily jokes'),
+        find.textContaining(
+          'Notification permission is required for daily jokes',
+        ),
         findsOneWidget,
       );
     });
 
-    testWidgets('handles maybe later button tap', (
-      WidgetTester tester,
-    ) async {
+    testWidgets('handles maybe later button tap', (WidgetTester tester) async {
       await tester.pumpWidget(createTestWidget());
       await tester.pumpAndSettle();
 
@@ -212,9 +219,7 @@ void main() {
 
       // Tap maybe later button
       await tester.tap(
-        find.byKey(
-          const Key('subscription_prompt_dialog-maybe-later-button'),
-        ),
+        find.byKey(const Key('subscription_prompt_dialog-maybe-later-button')),
       );
       await tester.pumpAndSettle();
 
@@ -226,7 +231,7 @@ void main() {
 
       // Wait for snackbar to appear
       await tester.pump(const Duration(milliseconds: 100));
-      
+
       // Verify maybe later snackbar is shown
       expect(
         find.textContaining('No problem! If you ever change your mind'),
@@ -238,8 +243,9 @@ void main() {
       WidgetTester tester,
     ) async {
       // Make subscription take time
-      when(() => mockSubscriptionNotifier.subscribeUser())
-          .thenAnswer((_) async {
+      when(() => mockSubscriptionNotifier.subscribeUser()).thenAnswer((
+        _,
+      ) async {
         await Future.delayed(const Duration(milliseconds: 100));
         return true;
       });
@@ -253,9 +259,7 @@ void main() {
 
       // Tap subscribe button
       await tester.tap(
-        find.byKey(
-          const Key('subscription_prompt_dialog-subscribe-button'),
-        ),
+        find.byKey(const Key('subscription_prompt_dialog-subscribe-button')),
       );
       await tester.pump();
 
@@ -264,9 +268,7 @@ void main() {
 
       // Verify button is disabled during loading
       final subscribeButton = tester.widget<ElevatedButton>(
-        find.byKey(
-          const Key('subscription_prompt_dialog-subscribe-button'),
-        ),
+        find.byKey(const Key('subscription_prompt_dialog-subscribe-button')),
       );
       expect(subscribeButton.onPressed, isNull);
 
@@ -278,12 +280,11 @@ void main() {
       expect(find.byType(CircularProgressIndicator), findsNothing);
     });
 
-    testWidgets('disables buttons during loading', (
-      WidgetTester tester,
-    ) async {
+    testWidgets('disables buttons during loading', (WidgetTester tester) async {
       // Make subscription take time
-      when(() => mockSubscriptionNotifier.subscribeUser())
-          .thenAnswer((_) async {
+      when(() => mockSubscriptionNotifier.subscribeUser()).thenAnswer((
+        _,
+      ) async {
         await Future.delayed(const Duration(milliseconds: 100));
         return true;
       });
@@ -297,24 +298,18 @@ void main() {
 
       // Tap subscribe button
       await tester.tap(
-        find.byKey(
-          const Key('subscription_prompt_dialog-subscribe-button'),
-        ),
+        find.byKey(const Key('subscription_prompt_dialog-subscribe-button')),
       );
       await tester.pump();
 
       // Verify both buttons are disabled during loading
       final subscribeButton = tester.widget<ElevatedButton>(
-        find.byKey(
-          const Key('subscription_prompt_dialog-subscribe-button'),
-        ),
+        find.byKey(const Key('subscription_prompt_dialog-subscribe-button')),
       );
       expect(subscribeButton.onPressed, isNull);
 
       final maybeLaterButton = tester.widget<TextButton>(
-        find.byKey(
-          const Key('subscription_prompt_dialog-maybe-later-button'),
-        ),
+        find.byKey(const Key('subscription_prompt_dialog-maybe-later-button')),
       );
       expect(maybeLaterButton.onPressed, isNull);
 
@@ -327,8 +322,9 @@ void main() {
       WidgetTester tester,
     ) async {
       // Override mock to throw error on dismiss
-      when(() => mockSubscriptionNotifier.dismissPrompt())
-          .thenThrow(Exception('Dismiss error'));
+      when(
+        () => mockSubscriptionNotifier.dismissPrompt(),
+      ).thenThrow(Exception('Dismiss error'));
 
       await tester.pumpWidget(createTestWidget());
       await tester.pumpAndSettle();
@@ -339,21 +335,21 @@ void main() {
 
       // Tap maybe later button
       await tester.tap(
-        find.byKey(
-          const Key('subscription_prompt_dialog-maybe-later-button'),
-        ),
+        find.byKey(const Key('subscription_prompt_dialog-maybe-later-button')),
       );
       await tester.pumpAndSettle();
 
       // Verify error analytics call
-      verify(() => mockAnalytics.logErrorSubscriptionPrompt(
-            errorMessage: 'Exception: Dismiss error',
-            phase: 'dismiss_prompt',
-          )).called(1);
+      verify(
+        () => mockAnalytics.logErrorSubscriptionPrompt(
+          errorMessage: 'Exception: Dismiss error',
+          phase: 'dismiss_prompt',
+        ),
+      ).called(1);
 
       // Wait for snackbar to appear
       await tester.pump(const Duration(milliseconds: 100));
-      
+
       // Verify maybe later snackbar is still shown despite error
       expect(
         find.textContaining('No problem! If you ever change your mind'),

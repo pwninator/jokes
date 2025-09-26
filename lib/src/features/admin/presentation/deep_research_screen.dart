@@ -83,9 +83,7 @@ class _DeepResearchScreenState extends ConsumerState<DeepResearchScreen> {
         searchQueryProvider(SearchScope.jokeDeepResearch),
       );
       ref
-          .read(
-            searchQueryProvider(SearchScope.jokeDeepResearch).notifier,
-          )
+          .read(searchQueryProvider(SearchScope.jokeDeepResearch).notifier)
           .state = current.copyWith(
         query: topic,
         maxResults: 100,

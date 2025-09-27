@@ -4,6 +4,7 @@ import 'package:snickerdoodle/src/core/providers/app_providers.dart';
 import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_filter_providers.dart';
+import 'package:snickerdoodle/src/features/jokes/application/joke_list_pagination.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_search_result.dart';
@@ -256,4 +257,10 @@ final searchResultsViewerProvider =
       }
 
       if (!cancelled) yield ordered;
+    });
+
+final searchResultsPaginationProvider = Provider.autoDispose
+    .family<JokeListPaginationState, SearchScope>((ref, scope) {
+      final asyncValue = ref.watch(searchResultsViewerProvider(scope));
+      return JokeListPaginationState.fromAsyncValue(asyncValue);
     });

@@ -25,7 +25,21 @@ class _FakeRemoteValues implements RemoteConfigValues {
   final int minViewed;
 
   @override
-  bool getBool(RemoteParam param) => false;
+  bool getBool(RemoteParam param) {
+    switch (param) {
+      case RemoteParam.defaultJokeViewerReveal:
+        return false;
+      case RemoteParam.shareImagesMode:
+        return false;
+      case RemoteParam.subscriptionPromptMinJokesViewed:
+      case RemoteParam.feedbackMinJokesViewed:
+      case RemoteParam.reviewMinDaysUsed:
+      case RemoteParam.reviewMinSavedJokes:
+      case RemoteParam.reviewMinSharedJokes:
+      case RemoteParam.reviewMinViewedJokes:
+        return false;
+    }
+  }
 
   @override
   double getDouble(RemoteParam param) => 0.0;
@@ -47,16 +61,24 @@ class _FakeRemoteValues implements RemoteConfigValues {
         return 0;
       case RemoteParam.defaultJokeViewerReveal:
         return 0;
+      case RemoteParam.shareImagesMode:
+        return 0;
     }
   }
 
   @override
   String getString(RemoteParam param) => '';
+
+  @override
+  T getEnum<T>(RemoteParam param) {
+    final descriptor = remoteParams[param]!;
+    return (descriptor.enumDefault ?? '') as T;
+  }
 }
 
 void main() {
   setUpAll(() {
-    registerFallbackValue(ReviewRequestSource.auto);
+    registerFallbackValue(ReviewRequestSource.jokeViewed);
   });
 
   group('ReviewPromptCoordinator', () {
@@ -85,7 +107,9 @@ void main() {
       );
 
       // Act
-      await coordinator.maybePromptForReview(source: ReviewRequestSource.auto);
+      await coordinator.maybePromptForReview(
+        source: ReviewRequestSource.jokeViewed,
+      );
 
       // Assert
       verify(() => store.hasRequested()).called(1);
@@ -115,7 +139,9 @@ void main() {
       expect(await usage.getNumSharedJokes(), 0);
 
       // Act
-      await coordinator.maybePromptForReview(source: ReviewRequestSource.auto);
+      await coordinator.maybePromptForReview(
+        source: ReviewRequestSource.jokeViewed,
+      );
 
       // Assert
       verifyNever(() => review.requestReview(source: any(named: 'source')));
@@ -146,7 +172,9 @@ void main() {
       );
 
       // Act
-      await coordinator.maybePromptForReview(source: ReviewRequestSource.auto);
+      await coordinator.maybePromptForReview(
+        source: ReviewRequestSource.jokeViewed,
+      );
 
       // Assert
       verify(
@@ -178,7 +206,7 @@ void main() {
         );
 
         await coordinator.maybePromptForReview(
-          source: ReviewRequestSource.auto,
+          source: ReviewRequestSource.jokeViewed,
         );
 
         // Service marks internally; coordinator doesn't call store
@@ -209,7 +237,7 @@ void main() {
         );
 
         await coordinator.maybePromptForReview(
-          source: ReviewRequestSource.auto,
+          source: ReviewRequestSource.jokeViewed,
         );
 
         verifyNever(() => store.markRequested());
@@ -240,7 +268,7 @@ void main() {
         );
 
         await coordinator.maybePromptForReview(
-          source: ReviewRequestSource.auto,
+          source: ReviewRequestSource.jokeViewed,
         );
 
         verify(
@@ -273,7 +301,9 @@ void main() {
       );
 
       // Act
-      await coordinator.maybePromptForReview(source: ReviewRequestSource.auto);
+      await coordinator.maybePromptForReview(
+        source: ReviewRequestSource.jokeViewed,
+      );
 
       // Assert: should not request review because viewed < minViewed
       verifyNever(() => review.requestReview(source: any(named: 'source')));
@@ -305,7 +335,9 @@ void main() {
         stateStore: store,
       );
 
-      await coordinator.maybePromptForReview(source: ReviewRequestSource.auto);
+      await coordinator.maybePromptForReview(
+        source: ReviewRequestSource.jokeViewed,
+      );
 
       verify(
         () => review.requestReview(source: any(named: 'source')),

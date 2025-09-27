@@ -303,6 +303,50 @@ class ImageService {
     );
     return results;
   }
+
+  /// Stacks two images vertically and returns a new XFile.
+  Future<XFile> stackImages(List<XFile> files) async {
+    if (files.length != 2) {
+      throw ArgumentError('Exactly two files must be provided to stackImages.');
+    }
+    final List<Uint8List> byteList = await Future.wait([
+      files[0].readAsBytes(),
+      files[1].readAsBytes(),
+    ]);
+
+    final Uint8List outBytes = await Isolate.run(
+      () => combineImagesSync(byteList),
+    );
+
+    final String tempDir = Directory.systemTemp.path;
+    final String outPath = p.join(
+      tempDir,
+      'snickerdoodle_share_stacked_${DateTime.now().millisecondsSinceEpoch}.png',
+    );
+    final outFile = File(outPath);
+    await outFile.writeAsBytes(outBytes, flush: true);
+    return XFile(outFile.path);
+  }
+}
+
+/// Pure function to combine two images vertically
+Uint8List combineImagesSync(List<Uint8List> byteList) {
+  final img.Image? image1 = img.decodeImage(byteList[0]);
+  final img.Image? image2 = img.decodeImage(byteList[1]);
+
+  if (image1 == null || image2 == null) {
+    throw StateError('Failed to decode one or both images');
+  }
+
+  final int newWidth = image1.width;
+  final int newHeight = image1.height + image2.height;
+
+  final img.Image combinedImage = img.Image(width: newWidth, height: newHeight);
+
+  img.compositeImage(combinedImage, image1, dstX: 0, dstY: 0);
+  img.compositeImage(combinedImage, image2, dstX: 0, dstY: image1.height);
+
+  return Uint8List.fromList(img.encodePng(combinedImage));
 }
 
 /// Pure function: compose a watermark PNG over a base image and return PNG bytes.

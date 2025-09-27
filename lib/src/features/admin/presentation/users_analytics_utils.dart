@@ -31,6 +31,21 @@ List<(String, int)> buildUsersTooltipLines(Map<int, int> buckets) {
   return lines;
 }
 
+List<(String, int)> _buildPercentageUsersTooltipLines(Map<int, int> buckets) {
+  final total = buckets.values.fold<int>(0, (a, b) => a + b);
+  final lines = <(String, int)>[('Total: $total', -1)];
+  if (total == 0) return lines;
+
+  for (int bucket = 1; bucket <= 10; bucket++) {
+    final count = buckets[bucket] ?? 0;
+    if (count <= 0) continue;
+    final percentage = (count / total) * 100;
+    final label = bucket == 10 ? '10+' : '$bucket';
+    lines.add(('$label: ${percentage.toStringAsFixed(1)}% ($count)', bucket));
+  }
+  return lines;
+}
+
 Color getBackgroundColorForBucket(int bucket, Map<int, Color> colorStops) {
   if (colorStops.containsKey(bucket)) {
     return colorStops[bucket]!;
@@ -74,8 +89,11 @@ BarTooltipItem buildUsersAnalyticsTooltip({
   required Map<int, int> buckets,
   required TextStyle textStyle,
   required Map<int, Color> colorStops,
+  bool showAsPercentage = false,
 }) {
-  final lines = buildUsersTooltipLines(buckets);
+  final lines = showAsPercentage
+      ? _buildPercentageUsersTooltipLines(buckets)
+      : buildUsersTooltipLines(buckets);
 
   // Date at top
   final dateText = formatShortDate(date);

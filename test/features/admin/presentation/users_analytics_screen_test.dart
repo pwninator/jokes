@@ -48,7 +48,13 @@ void main() {
     await tester.pump();
 
     // Expect chart present
-    expect(find.byType(BarChart), findsOneWidget);
+    expect(find.byType(BarChart), findsNWidgets(3));
+
+    // Expect titles
+    expect(find.text('New Users per Day'), findsOneWidget);
+    expect(find.text('User Retention by Cohort (Absolute)'), findsOneWidget);
+    expect(find.text('User Retention by Cohort (Percentage)'), findsOneWidget);
+
     // Expect legend chips present (10 chips)
     for (final label in ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10+']) {
       expect(find.text(label), findsWidgets);

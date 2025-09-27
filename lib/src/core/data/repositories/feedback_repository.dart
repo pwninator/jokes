@@ -98,29 +98,49 @@ class FirestoreFeedbackRepository implements FeedbackRepository {
       return;
     }
 
-    final now = DateTime.now();
-    final dateStr =
-        now.year.toString().padLeft(4, '0') +
-        now.month.toString().padLeft(2, '0') +
-        now.day.toString().padLeft(2, '0');
-    final timeStr =
-        now.hour.toString().padLeft(2, '0') +
-        now.minute.toString().padLeft(2, '0') +
-        now.second.toString().padLeft(2, '0');
-    final docId = '${dateStr}_${timeStr}_$userId';
+    final docRef = _firestore.collection(_collectionName).doc(userId);
+    final newEntry = FeedbackConversationEntry(
+      speaker: SpeakerType.user,
+      text: text,
+      timestamp: DateTime.now().toUtc(),
+    );
 
-    final conversationEntry = {
-      'speaker': SpeakerType.user.value,
-      'text': text,
-      'timestamp': Timestamp.fromDate(DateTime.now().toUtc()),
-    };
+    await _firestore.runTransaction((transaction) async {
+      final snapshot = await transaction.get(docRef);
 
-    await _firestore.collection(_collectionName).doc(docId).set({
-      'creation_time': FieldValue.serverTimestamp(),
-      'conversation': [conversationEntry],
-      'user_id': userId,
-      'lastAdminViewTime': null,
-      'lastUserViewTime': null,
+      if (!snapshot.exists) {
+        transaction.set(docRef, {
+          'creation_time': FieldValue.serverTimestamp(),
+          'conversation': [newEntry.toFirestore()],
+          'user_id': userId,
+          'lastAdminViewTime': null,
+          'lastUserViewTime': null,
+        });
+        return;
+      }
+
+      final feedbackEntry = FeedbackEntry.fromFirestore(snapshot);
+      final updatedConversation = [...feedbackEntry.conversation, newEntry];
+
+      final updates = <String, dynamic>{
+        'conversation': updatedConversation
+            .map((e) => e.toFirestore())
+            .toList(),
+      };
+
+      final data = snapshot.data();
+      if (data != null) {
+        if (data.containsKey('feedback_text')) {
+          updates['feedback_text'] = FieldValue.delete();
+        }
+        if ((data['user_id'] as String?) != userId) {
+          updates['user_id'] = userId;
+        }
+      } else {
+        updates['user_id'] = userId;
+      }
+
+      transaction.update(docRef, updates);
     });
   }
 
@@ -130,39 +150,55 @@ class FirestoreFeedbackRepository implements FeedbackRepository {
     String text,
     SpeakerType speaker,
   ) async {
-    final docRef = _firestore.collection(_collectionName).doc(docId);
-    final doc = await docRef.get();
-
-    if (!doc.exists) {
-      throw Exception('Feedback document not found: $docId');
+    final trimmedText = text.trim();
+    if (trimmedText.isEmpty) {
+      return;
     }
 
-    final data = doc.data()!;
-
-    // Use existing fromFirestore logic to handle legacy migration
-    final feedbackEntry = FeedbackEntry.fromFirestore(doc);
-
-    // Create new conversation entry
+    final docRef = _firestore.collection(_collectionName).doc(docId);
     final newEntry = FeedbackConversationEntry(
       speaker: speaker,
-      text: text,
-      timestamp: DateTime.now(),
+      text: trimmedText,
+      timestamp: DateTime.now().toUtc(),
     );
 
-    // Add to existing conversation (which already handles legacy migration)
-    final updatedConversation = [...feedbackEntry.conversation, newEntry];
+    await _firestore.runTransaction((transaction) async {
+      final snapshot = await transaction.get(docRef);
 
-    // Convert back to Firestore format and update
-    final updates = <String, dynamic>{
-      'conversation': updatedConversation.map((e) => e.toFirestore()).toList(),
-    };
+      if (!snapshot.exists) {
+        transaction.set(docRef, {
+          'creation_time': FieldValue.serverTimestamp(),
+          'conversation': [newEntry.toFirestore()],
+          'user_id': docId,
+          'lastAdminViewTime': null,
+          'lastUserViewTime': null,
+        });
+        return;
+      }
 
-    // Remove legacy field if it exists
-    if (data.containsKey('feedback_text')) {
-      updates['feedback_text'] = FieldValue.delete();
-    }
+      final feedbackEntry = FeedbackEntry.fromFirestore(snapshot);
+      final updatedConversation = [...feedbackEntry.conversation, newEntry];
 
-    await docRef.update(updates);
+      final updates = <String, dynamic>{
+        'conversation': updatedConversation
+            .map((e) => e.toFirestore())
+            .toList(),
+      };
+
+      final data = snapshot.data();
+      if (data != null) {
+        if (data.containsKey('feedback_text')) {
+          updates['feedback_text'] = FieldValue.delete();
+        }
+        if ((data['user_id'] as String?) != docId) {
+          updates['user_id'] = docId;
+        }
+      } else {
+        updates['user_id'] = docId;
+      }
+
+      transaction.update(docRef, updates);
+    });
   }
 
   @override

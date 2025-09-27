@@ -8,6 +8,7 @@ import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
 import 'package:snickerdoodle/src/core/services/joke_share_service.dart';
 import 'package:snickerdoodle/src/core/services/performance_service.dart';
+import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:snickerdoodle/src/core/services/review_prompt_service.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_service.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
@@ -26,6 +27,8 @@ class MockReviewPromptCoordinator extends Mock
 
 class MockPerformanceService extends Mock implements PerformanceService {}
 
+class MockRemoteConfigValues extends Mock implements RemoteConfigValues {}
+
 class FakeJoke extends Fake implements Joke {}
 
 class FakeXFile extends Fake implements XFile {}
@@ -40,12 +43,13 @@ void main() {
     late MockPerformanceService mockPerformanceService;
     late AppUsageService appUsageService;
     late ReviewPromptCoordinator mockCoordinator;
+    late MockRemoteConfigValues mockRemoteConfigValues;
 
     setUpAll(() {
       registerFallbackValue(FakeJoke());
       registerFallbackValue(JokeReactionType.share);
       registerFallbackValue(FakeXFile());
-      registerFallbackValue(ReviewRequestSource.auto);
+      registerFallbackValue(ReviewRequestSource.jokeShared);
     });
 
     setUp(() async {
@@ -55,6 +59,7 @@ void main() {
       mockPlatformShareService = MockPlatformShareService();
       mockCoordinator = MockReviewPromptCoordinator();
       mockPerformanceService = MockPerformanceService();
+      mockRemoteConfigValues = MockRemoteConfigValues();
       when(
         () =>
             mockCoordinator.maybePromptForReview(source: any(named: 'source')),
@@ -64,6 +69,12 @@ void main() {
       final prefs = await SharedPreferences.getInstance();
       appUsageService = AppUsageService(prefs: prefs);
 
+      when(
+        () => mockRemoteConfigValues.getEnum<ShareImagesMode>(
+          RemoteParam.shareImagesMode,
+        ),
+      ).thenReturn(ShareImagesMode.separate);
+
       service = JokeShareServiceImpl(
         imageService: mockImageService,
         analyticsService: mockAnalyticsService,
@@ -72,6 +83,8 @@ void main() {
         appUsageService: appUsageService,
         reviewPromptCoordinator: mockCoordinator,
         performanceService: mockPerformanceService,
+        remoteConfigValues: mockRemoteConfigValues,
+        getRevealModeEnabled: () => true,
       );
 
       // Default watermark behavior: passthrough original files
@@ -125,7 +138,6 @@ void main() {
           () => mockPlatformShareService.shareFiles(
             any(),
             subject: any(named: 'subject'),
-            text: any(named: 'text'),
           ),
         ).thenAnswer(
           (_) async => const ShareResult('', ShareResultStatus.success),
@@ -172,7 +184,7 @@ void main() {
             name: TraceName.sharePreparation,
             key: 'images:test-joke-id',
           ),
-        ).called(1);
+        ).called(2);
 
         verify(
           () => mockJokeReactionsService.addUserReaction(
@@ -198,6 +210,93 @@ void main() {
         expect(await appUsageService.getNumSharedJokes(), 1);
       },
     );
+    test(
+      'shareJoke should allow user abort during preparation and log aborted',
+      () async {
+        // Arrange
+        const joke = Joke(
+          id: 'test-joke-id',
+          setupText: 'Test setup',
+          punchlineText: 'Test punchline',
+          setupImageUrl: 'https://example.com/setup.jpg',
+          punchlineImageUrl: 'https://example.com/punchline.jpg',
+          numThumbsUp: 0,
+          numThumbsDown: 0,
+          adminRating: null,
+        );
+
+        final mockFiles = [XFile('setup.jpg'), XFile('punchline.jpg')];
+
+        when(
+          () => mockImageService.getProcessedJokeImageUrl(
+            any(),
+            width: any(named: 'width'),
+          ),
+        ).thenAnswer((invocation) {
+          final arg = invocation.positionalArguments.first as String?;
+          return arg; // passthrough
+        });
+
+        when(
+          () => mockImageService.getCachedFileFromUrl(
+            'https://example.com/setup.jpg',
+          ),
+        ).thenAnswer((_) async => mockFiles[0]);
+
+        when(
+          () => mockImageService.getCachedFileFromUrl(
+            'https://example.com/punchline.jpg',
+          ),
+        ).thenAnswer((_) async => mockFiles[1]);
+
+        // Platform share should never be called when aborted pre-share
+        when(
+          () => mockPlatformShareService.shareFiles(
+            any(),
+            subject: any(named: 'subject'),
+          ),
+        ).thenThrow(Exception('Should not be called'));
+
+        when(
+          () => mockAnalyticsService.logJokeShareInitiated(
+            any(),
+            jokeContext: any(named: 'jokeContext'),
+          ),
+        ).thenAnswer((_) async {});
+        when(
+          () => mockAnalyticsService.logJokeShareAborted(
+            any(),
+            jokeContext: any(named: 'jokeContext'),
+          ),
+        ).thenAnswer((_) async {});
+
+        final controller = SharePreparationController();
+
+        // Act - cancel immediately after downloads (simulate UI cancel early)
+        controller.cancel();
+        final result = await service.shareJoke(
+          joke,
+          jokeContext: 'test-context',
+          controller: controller,
+        );
+
+        // Assert
+        expect(result, isFalse);
+        verify(
+          () => mockAnalyticsService.logJokeShareInitiated(
+            'test-joke-id',
+            jokeContext: 'test-context',
+          ),
+        ).called(1);
+        verify(
+          () => mockAnalyticsService.logJokeShareAborted(
+            'test-joke-id',
+            jokeContext: 'test-context',
+          ),
+        ).called(1);
+      },
+    );
+
     test(
       'shareJoke should not increment shared counter when sharing fails',
       () async {
@@ -241,10 +340,9 @@ void main() {
           () => mockPlatformShareService.shareFiles(
             any(),
             subject: any(named: 'subject'),
-            text: any(named: 'text'),
           ),
         ).thenAnswer(
-          (_) async => const ShareResult('', ShareResultStatus.unavailable),
+          (_) async => const ShareResult('', ShareResultStatus.dismissed),
         );
 
         when(
@@ -257,7 +355,6 @@ void main() {
           () => mockAnalyticsService.logJokeShareCanceled(
             any(),
             jokeContext: any(named: 'jokeContext'),
-            shareDestination: any(named: 'shareDestination'),
           ),
         ).thenAnswer((_) async {});
 
@@ -284,7 +381,7 @@ void main() {
             name: TraceName.sharePreparation,
             key: 'images:test-joke-id',
           ),
-        ).called(1);
+        ).called(2);
 
         verify(
           () => mockAnalyticsService.logJokeShareInitiated(
@@ -296,7 +393,6 @@ void main() {
           () => mockAnalyticsService.logJokeShareCanceled(
             'test-joke-id',
             jokeContext: 'test-context',
-            shareDestination: any(named: 'shareDestination'),
           ),
         ).called(1);
       },
@@ -345,7 +441,6 @@ void main() {
           () => mockPlatformShareService.shareFiles(
             any(),
             subject: any(named: 'subject'),
-            text: any(named: 'text'),
           ),
         ).thenAnswer(
           (_) async => const ShareResult('', ShareResultStatus.success),
@@ -375,7 +470,6 @@ void main() {
           joke,
           jokeContext: 'test-context',
           subject: 'Test subject',
-          text: 'Test text',
         );
 
         // Assert
@@ -383,7 +477,6 @@ void main() {
           () => mockPlatformShareService.shareFiles(
             any(),
             subject: 'Test subject',
-            text: 'Test text',
           ),
         ).called(1);
       },

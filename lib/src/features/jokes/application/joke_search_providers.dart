@@ -11,8 +11,9 @@ import 'package:snickerdoodle/src/features/jokes/domain/joke_search_result.dart'
 /// Scope for search providers
 enum SearchScope {
   userJokeSearch,
+  category,
   jokeManagementSearch,
-  jokeDeepResearchSearch,
+  jokeDeepResearch,
 }
 
 /// Label for search queries to provide additional context

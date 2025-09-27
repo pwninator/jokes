@@ -17,6 +17,11 @@ class _FakeRemoteValues implements RemoteConfigValues {
   double getDouble(RemoteParam param) => _map[param] as double;
   @override
   String getString(RemoteParam param) => _map[param] as String;
+  @override
+  T getEnum<T>(RemoteParam param) {
+    final descriptor = remoteParams[param]!;
+    return (descriptor.enumDefault ?? '') as T;
+  }
 }
 
 Widget _wrap(Widget child, {required RemoteConfigValues rcValues}) {

@@ -11,6 +11,8 @@ import 'package:snickerdoodle/src/core/services/image_service.dart';
 import 'package:snickerdoodle/src/core/services/performance_service.dart';
 
 class CachedJokeImage extends ConsumerWidget {
+  static const int _minProcessedWidth = 50;
+  static const int _maxProcessedWidth = 1024;
   const CachedJokeImage({
     super.key,
     required this.imageUrl,
@@ -158,18 +160,33 @@ class CachedJokeImage extends ConsumerWidget {
   }
 
   int? _resolveEffectiveWidth(double constraintWidth) {
+    int? targetWidth;
+
     final explicitWidth = width;
-    if (explicitWidth != null && explicitWidth.isFinite) {
-      if (explicitWidth >= 50 && explicitWidth <= 1024) {
-        return explicitWidth.round();
-      }
+    if (explicitWidth != null &&
+        explicitWidth.isFinite &&
+        explicitWidth >= _minProcessedWidth &&
+        explicitWidth <= _maxProcessedWidth) {
+      targetWidth = explicitWidth.round();
+    } else if (constraintWidth.isFinite) {
+      targetWidth = constraintWidth.round().clamp(
+        _minProcessedWidth,
+        _maxProcessedWidth,
+      );
+    } else {
+      return null;
     }
 
-    if (constraintWidth.isFinite && constraintWidth >= 50) {
-      return constraintWidth.clamp(50, 4096).round();
-    }
+    final roundedWidth = _roundUpToNearestHundred(targetWidth);
+    final clampedWidth = roundedWidth.clamp(
+      _minProcessedWidth,
+      _maxProcessedWidth,
+    );
+    return clampedWidth;
+  }
 
-    return null;
+  int _roundUpToNearestHundred(int value) {
+    return ((value + 99) ~/ 100) * 100;
   }
 
   void _logImageInfo(String url) async {

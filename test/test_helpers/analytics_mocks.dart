@@ -120,6 +120,13 @@ class AnalyticsMocks {
       ),
     ).thenAnswer((_) async {});
 
+    when(
+      () => mock.logJokeShareAborted(
+        any(),
+        jokeContext: any(named: 'jokeContext'),
+      ),
+    ).thenAnswer((_) async {});
+
     // Similar search CTA
     when(
       () => mock.logJokeSearchSimilar(
@@ -182,7 +189,6 @@ class AnalyticsMocks {
       () => mock.logJokeShareCanceled(
         any(),
         jokeContext: any(named: 'jokeContext'),
-        shareDestination: any(named: 'shareDestination'),
       ),
     ).thenAnswer((_) async {});
 

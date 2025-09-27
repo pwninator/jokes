@@ -11,7 +11,7 @@ class JokeConstants {
 
   // Search constants
   static const String searchQueryPrefix = 'jokes about ';
-  static const int userSearchMaxResults = 20;
+  static const int userSearchMaxResults = 50;
   static const bool userSearchPublicOnly = true;
   static const MatchMode userSearchMatchMode = MatchMode.tight;
   static const SearchLabel userSearchLabel = SearchLabel.none;

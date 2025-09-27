@@ -16,7 +16,7 @@ class MockReviewPromptCoordinator extends Mock
 void main() {
   setUpAll(() {
     registerFallbackValue(JokeReactionType.save);
-    registerFallbackValue(ReviewRequestSource.auto);
+    registerFallbackValue(ReviewRequestSource.jokeViewed);
   });
 
   group('JokeReactionsService', () {

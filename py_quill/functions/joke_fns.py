@@ -11,14 +11,13 @@ from typing import Any
 from agents import agents_common, constants
 from agents.endpoints import all_agents
 from agents.puns import pun_postprocessor_agent
-from common import config, image_generation, models, joke_operations
+from common import config, image_generation, joke_operations, models
 from firebase_functions import (firestore_fn, https_fn, logger, options,
                                 scheduler_fn)
 from functions.function_utils import (error_response, get_bool_param,
                                       get_param, get_user_id, success_response)
 from google.cloud.firestore_v1.vector import Vector
-from services import (cloud_storage, firebase_cloud_messaging, firestore,
-                      image_client, search)
+from services import cloud_storage, firebase_cloud_messaging, firestore, search
 
 
 class Error(Exception):
@@ -963,40 +962,10 @@ def upscale_joke(req: https_fn.Request) -> https_fn.Response:
     if not joke_id:
       return error_response('joke_id is required')
 
-    new_size = 4096
-
-    joke = firestore.get_punny_joke(joke_id)
-    if not joke:
-      return error_response(f'Joke not found: {joke_id}')
-
-    client = image_client.get_client(
-      label="upscale_joke",
-      model=image_client.ImageModel.IMAGEN_1,
-      file_name_base="upscaled_joke_image",
-    )
-
-    if joke.setup_image_url:
-      gcs_uri = cloud_storage.extract_gcs_uri_from_image_url(
-        joke.setup_image_url)
-      upscaled_image = client.upscale_image(gcs_uri=gcs_uri, new_size=new_size)
-      joke.setup_image_url_upscaled = upscaled_image.url_upscaled
-      joke.generation_metadata.add_generation(
-        upscaled_image.generation_metadata)
-
-    if joke.punchline_image_url:
-      gcs_uri = cloud_storage.extract_gcs_uri_from_image_url(
-        joke.punchline_image_url)
-      upscaled_image = client.upscale_image(gcs_uri=gcs_uri, new_size=new_size)
-      joke.punchline_image_url_upscaled = upscaled_image.url_upscaled
-      joke.generation_metadata.add_generation(
-        upscaled_image.generation_metadata)
-
-    update_data = {
-      "setup_image_url_upscaled": joke.setup_image_url_upscaled,
-      "punchline_image_url_upscaled": joke.punchline_image_url_upscaled,
-      "generation_metadata": joke.generation_metadata.as_dict,
-    }
-    firestore.update_punny_joke(joke.key, update_data)
+    try:
+      joke = joke_operations.upscale_joke(joke_id)
+    except Exception as e:
+      return error_response(f'Failed to upscale joke: {str(e)}')
 
     return success_response({"joke_data": _to_response_joke(joke)})
   except Exception as e:

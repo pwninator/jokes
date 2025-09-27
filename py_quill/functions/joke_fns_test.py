@@ -1525,76 +1525,65 @@ class TestModifyJokeImage:
 class TestUpscaleJoke:
   """Tests for the upscale_joke cloud function."""
 
-  @pytest.fixture(name="mock_services")
-  def mock_services_fixture(self, monkeypatch):
-    """Fixture that mocks external services using monkeypatch."""
-    mock_firestore = Mock()
-    mock_image_client = Mock()
-    mock_cloud_storage = Mock()
+  @pytest.fixture(name="mock_joke_operations")
+  def mock_joke_operations_fixture(self, monkeypatch):
+    """Fixture that mocks the joke_operations module."""
+    mock_operations = Mock()
+    monkeypatch.setattr('functions.joke_fns.joke_operations', mock_operations)
+    return mock_operations
 
-    monkeypatch.setattr('functions.joke_fns.firestore', mock_firestore)
-    monkeypatch.setattr('functions.joke_fns.image_client', mock_image_client)
-    monkeypatch.setattr('functions.joke_fns.cloud_storage', mock_cloud_storage)
-
-    return mock_firestore, mock_image_client, mock_cloud_storage
-
-  def test_upscale_joke_success(self, mock_services):
-    """Test that upscale_joke successfully upscales a joke's images."""
+  def test_upscale_joke_success(self, mock_joke_operations):
+    """Test that upscale_joke successfully calls joke_operations.upscale_joke."""
     # Arrange
-    mock_firestore, mock_image_client, mock_cloud_storage = mock_services
-
     req = DummyReq(data={"joke_id": "joke1"})
 
     mock_joke = models.PunnyJoke(
       key="joke1",
       setup_text="test",
       punchline_text="test",
-      setup_image_url="https://storage.googleapis.com/example/setup.png",
-      punchline_image_url=
-      "https://storage.googleapis.com/example/punchline.png",
-      generation_metadata=models.GenerationMetadata(),
+      setup_image_url_upscaled="http://example.com/new_setup.png",
+      punchline_image_url_upscaled="http://example.com/new_punchline.png",
     )
-    mock_firestore.get_punny_joke.return_value = mock_joke
-
-    mock_client_instance = MagicMock()
-    mock_image_client.get_client.return_value = mock_client_instance
-
-    mock_upscaled_setup_image = models.Image(
-      url_upscaled="http://example.com/new_setup.png",
-      generation_metadata=models.GenerationMetadata())
-    mock_upscaled_punchline_image = models.Image(
-      url_upscaled="http://example.com/new_punchline.png",
-      generation_metadata=models.GenerationMetadata())
-    mock_client_instance.upscale_image.side_effect = [
-      mock_upscaled_setup_image, mock_upscaled_punchline_image
-    ]
-
-    mock_cloud_storage.extract_gcs_uri_from_image_url.side_effect = [
-      "gs://example/setup.png", "gs://example/punchline.png"
-    ]
+    mock_joke_operations.upscale_joke.return_value = mock_joke
 
     # Act
     resp = joke_fns.upscale_joke(req)
 
     # Assert
-    mock_firestore.get_punny_joke.assert_called_once_with("joke1")
-    assert mock_client_instance.upscale_image.call_count == 2
-    mock_client_instance.upscale_image.assert_called_with(
-      gcs_uri="gs://example/punchline.png", new_size=4096)
-    mock_firestore.update_punny_joke.assert_called_once()
-
-    update_data = mock_firestore.update_punny_joke.call_args[0][1]
-    assert update_data[
-      'setup_image_url_upscaled'] == "http://example.com/new_setup.png"
-    assert update_data[
-      'punchline_image_url_upscaled'] == "http://example.com/new_punchline.png"
-    assert "generation_metadata" in update_data
-
+    mock_joke_operations.upscale_joke.assert_called_once_with("joke1")
     assert "data" in resp
+    assert resp["data"]["joke_data"]["key"] == "joke1"
     assert resp["data"]["joke_data"][
       "setup_image_url_upscaled"] == "http://example.com/new_setup.png"
     assert resp["data"]["joke_data"][
       "punchline_image_url_upscaled"] == "http://example.com/new_punchline.png"
+
+  def test_upscale_joke_missing_joke_id(self, mock_joke_operations):
+    """Test that upscale_joke returns error when joke_id is missing."""
+    # Arrange
+    req = DummyReq(data={})
+
+    # Act
+    resp = joke_fns.upscale_joke(req)
+
+    # Assert
+    mock_joke_operations.upscale_joke.assert_not_called()
+    assert "error" in resp["data"]
+    assert "joke_id is required" in resp["data"]["error"]
+
+  def test_upscale_joke_operation_fails(self, mock_joke_operations):
+    """Test that upscale_joke returns error when joke_operations.upscale_joke fails."""
+    # Arrange
+    req = DummyReq(data={"joke_id": "joke1"})
+    mock_joke_operations.upscale_joke.side_effect = Exception("Joke not found")
+
+    # Act
+    resp = joke_fns.upscale_joke(req)
+
+    # Assert
+    mock_joke_operations.upscale_joke.assert_called_once_with("joke1")
+    assert "error" in resp["data"]
+    assert "Failed to upscale joke: Joke not found" in resp["data"]["error"]
 
 
 class TestOnJokeWriteSearchSync:
@@ -1672,8 +1661,8 @@ class TestOnJokeWriteSearchSync:
 
     # Mock get_joke_embedding
     embedding_vector = Vector([1.1, 2.2, 3.3])
-    mock_get_embedding = Mock(
-      return_value=(embedding_vector, models.GenerationMetadata()))
+    mock_get_embedding = Mock(return_value=(embedding_vector,
+                                            models.GenerationMetadata()))
     monkeypatch.setattr(joke_fns, "get_joke_embedding", mock_get_embedding)
 
     # Arrange: A new joke is created
@@ -1742,19 +1731,18 @@ class TestOnJokeWriteSearchSync:
 
     # Assert
     mock_sub_doc_ref.set.assert_called_once_with(
-      {
-        "state": models.JokeState.PUBLISHED.value
-      }, merge=True)
+      {"state": models.JokeState.PUBLISHED.value}, merge=True)
     synced_data = search_doc_state["doc"]
     assert synced_data["state"] == models.JokeState.PUBLISHED.value
-    assert synced_data["text_embedding"] == existing_embedding  # Should not change
+    assert synced_data[
+      "text_embedding"] == existing_embedding  # Should not change
 
   def test_sync_uses_static_search_document_id(self, monkeypatch,
                                                mock_firestore_db):
     """Verify that the sync function writes to a doc named 'search' not the joke_id."""
     sub_collection_mock = mock_firestore_db["sub_collection"]
-    mock_get_embedding = Mock(
-      return_value=(Vector([1.0]), models.GenerationMetadata()))
+    mock_get_embedding = Mock(return_value=(Vector([1.0]),
+                                            models.GenerationMetadata()))
     monkeypatch.setattr(joke_fns, "get_joke_embedding", mock_get_embedding)
 
     # Arrange: A new joke is created
@@ -1775,7 +1763,7 @@ class TestOnJokeWriteSearchSync:
     sub_collection_mock.document.assert_called_once_with("search")
 
   def test_popularity_score_change_updates_search_doc(self, monkeypatch,
-                                                       mock_firestore_db):
+                                                      mock_firestore_db):
     """Verify that changing a joke's popularity score updates the search subcollection document."""
     mock_sub_doc_ref = mock_firestore_db["sub_doc_ref"]
     search_doc_state = mock_firestore_db["search_doc_state"]
@@ -1819,8 +1807,6 @@ class TestOnJokeWriteSearchSync:
     # Assert
     expected_score = 10 + (2 * 5)  # 20
     mock_sub_doc_ref.set.assert_called_once_with(
-      {
-        "popularity_score": expected_score
-      }, merge=True)
+      {"popularity_score": expected_score}, merge=True)
     synced_data = search_doc_state["doc"]
     assert synced_data["popularity_score"] == expected_score

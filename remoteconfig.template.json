@@ -72,17 +72,6 @@
           "valueType": "BOOLEAN"
         }
       }
-    },
-    "Joke Sharing": {
-      "parameters": {
-        "share_images_mode": {
-          "defaultValue": {
-            "value": "separate"
-          },
-          "description": "Mode for how to share images: separate|stacked",
-          "valueType": "STRING"
-        }
-      }
     }
   }
 }

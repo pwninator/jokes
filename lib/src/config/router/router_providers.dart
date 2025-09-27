@@ -14,6 +14,9 @@ final railBottomSlotProvider = StateProvider<Widget?>((ref) => null);
 /// Defaults to false so pages do not shift unless they opt-in.
 final keyboardResizeProvider = StateProvider<bool>((ref) => false);
 
+/// Provider to trigger search field focus when search tab is tapped while already on search screen
+final searchFieldFocusTriggerProvider = StateProvider<bool>((ref) => false);
+
 /// Provider for the main GoRouter instance
 final goRouterProvider = Provider<GoRouter>((ref) {
   final refreshNotifier = ref.watch(routeRefreshNotifierProvider);
@@ -65,7 +68,7 @@ class NavigationAnalytics {
   AppTab? _routeToAppTab(String route) {
     if (route.startsWith('/jokes')) return AppTab.dailyJokes;
     if (route.startsWith('/saved')) return AppTab.savedJokes;
-    if (route.startsWith('/discover')) return AppTab.discover;
+    if (route.startsWith('/search')) return AppTab.search;
     if (route.startsWith('/settings')) return AppTab.settings;
     if (route.startsWith('/admin')) return AppTab.admin;
     return null;

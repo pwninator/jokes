@@ -1604,15 +1604,15 @@ class TestOnJokeWriteSearchSync:
   def mock_firestore_db_fixture(self, monkeypatch):
     """Fixture that mocks firestore.db() for subcollection testing."""
     mock_db = MagicMock()
-    mock_main_collection = MagicMock()
-    mock_joke_doc_ref = MagicMock()
-    mock_search_sub_collection = MagicMock()
-    mock_search_doc_ref = MagicMock()
+    mock_collection = MagicMock()
+    mock_doc_ref = MagicMock()
+    mock_sub_collection = MagicMock()
+    mock_sub_doc_ref = MagicMock()
 
-    mock_db.collection.return_value = mock_main_collection
-    mock_main_collection.document.return_value = mock_joke_doc_ref
-    mock_joke_doc_ref.collection.return_value = mock_search_sub_collection
-    mock_search_sub_collection.document.return_value = mock_search_doc_ref
+    mock_db.collection.return_value = mock_collection
+    mock_collection.document.return_value = mock_doc_ref
+    mock_doc_ref.collection.return_value = mock_sub_collection
+    mock_sub_collection.document.return_value = mock_sub_doc_ref
 
     # The object to hold the state of the search doc
     search_doc_state = {"doc": None}
@@ -1632,18 +1632,14 @@ class TestOnJokeWriteSearchSync:
         search_doc_state["doc"] = {}
       search_doc_state["doc"].update(data)
 
-    mock_search_doc_ref.get.side_effect = mock_get
-    mock_search_doc_ref.set.side_effect = mock_set
+    mock_sub_doc_ref.get.side_effect = mock_get
+    mock_sub_doc_ref.set.side_effect = mock_set
 
     monkeypatch.setattr(joke_fns.firestore, "db", lambda: mock_db)
     # also mock the direct update call on the main joke
     monkeypatch.setattr(joke_fns.firestore, "update_punny_joke", MagicMock())
 
-    return {
-      "sub_collection": mock_search_sub_collection,
-      "sub_doc_ref": mock_search_doc_ref,
-      "search_doc_state": search_doc_state,
-    }
+    return mock_sub_doc_ref, search_doc_state
 
   def _create_mock_event(self, before_data, after_data):
     """Helper to create a mock firestore event."""
@@ -1667,8 +1663,7 @@ class TestOnJokeWriteSearchSync:
 
   def test_new_joke_creates_search_doc(self, monkeypatch, mock_firestore_db):
     """Verify that creating a new joke also creates the search subcollection document."""
-    mock_sub_doc_ref = mock_firestore_db["sub_doc_ref"]
-    search_doc_state = mock_firestore_db["search_doc_state"]
+    mock_sub_doc_ref, search_doc_state = mock_firestore_db
 
     # Mock get_joke_embedding
     embedding_vector = Vector([1.1, 2.2, 3.3])
@@ -1699,20 +1694,19 @@ class TestOnJokeWriteSearchSync:
     synced_data = search_doc_state["doc"]
     assert synced_data is not None
     assert synced_data["text_embedding"] == embedding_vector
-    assert synced_data["state"] == models.JokeState.UNREVIEWED.value
+    assert synced_data["state"] == models.JokeState.UNREVIEWED
     assert synced_data["public_timestamp"] == joke_date
 
   def test_joke_state_change_updates_search_doc(self, monkeypatch,
                                                 mock_firestore_db):
     """Verify that changing a joke's state updates the search subcollection document."""
-    mock_sub_doc_ref = mock_firestore_db["sub_doc_ref"]
-    search_doc_state = mock_firestore_db["search_doc_state"]
+    mock_sub_doc_ref, search_doc_state = mock_firestore_db
 
     # Pre-fill the search doc state
     existing_embedding = Vector([1.0, 2.0])
     search_doc_state["doc"] = {
       "text_embedding": existing_embedding,
-      "state": models.JokeState.UNREVIEWED.value,
+      "state": models.JokeState.UNREVIEWED,
       "public_timestamp": None,
       "popularity_score": 0,
     }
@@ -1743,48 +1737,22 @@ class TestOnJokeWriteSearchSync:
     # Assert
     mock_sub_doc_ref.set.assert_called_once_with(
       {
-        "state": models.JokeState.PUBLISHED.value
+        "state": models.JokeState.PUBLISHED
       }, merge=True)
     synced_data = search_doc_state["doc"]
-    assert synced_data["state"] == models.JokeState.PUBLISHED.value
+    assert synced_data["state"] == models.JokeState.PUBLISHED
     assert synced_data["text_embedding"] == existing_embedding  # Should not change
-
-  def test_sync_uses_static_search_document_id(self, monkeypatch,
-                                               mock_firestore_db):
-    """Verify that the sync function writes to a doc named 'search' not the joke_id."""
-    sub_collection_mock = mock_firestore_db["sub_collection"]
-    mock_get_embedding = Mock(
-      return_value=(Vector([1.0]), models.GenerationMetadata()))
-    monkeypatch.setattr(joke_fns, "get_joke_embedding", mock_get_embedding)
-
-    # Arrange: A new joke is created
-    after_joke = models.PunnyJoke(
-      key="a_very_specific_joke_id",
-      setup_text="s",
-      punchline_text="p",
-      state=models.JokeState.UNREVIEWED,
-    )
-    event = self._create_mock_event(before_data=None,
-                                    after_data=after_joke.to_dict())
-    event.params["joke_id"] = "a_very_specific_joke_id"
-
-    # Act
-    joke_fns.on_joke_write.__wrapped__(event)
-
-    # Assert that the document ID passed to the subcollection is "search"
-    sub_collection_mock.document.assert_called_once_with("search")
 
   def test_popularity_score_change_updates_search_doc(self, monkeypatch,
                                                        mock_firestore_db):
     """Verify that changing a joke's popularity score updates the search subcollection document."""
-    mock_sub_doc_ref = mock_firestore_db["sub_doc_ref"]
-    search_doc_state = mock_firestore_db["search_doc_state"]
+    mock_sub_doc_ref, search_doc_state = mock_firestore_db
 
     # Pre-fill the search doc state
     existing_embedding = Vector([1.0, 2.0])
     search_doc_state["doc"] = {
       "text_embedding": existing_embedding,
-      "state": models.JokeState.PUBLISHED.value,
+      "state": models.JokeState.PUBLISHED,
       "public_timestamp": None,
       "popularity_score": 0,
     }

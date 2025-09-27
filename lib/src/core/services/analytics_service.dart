@@ -79,10 +79,11 @@ abstract class AnalyticsService {
   void logJokeShareInitiated(String jokeId, {required String jokeContext});
 
   /// Share funnel: user canceled/dismissed share sheet (failure, not error)
-  void logJokeShareCanceled(String jokeId, {required String jokeContext});
-
-  /// Share funnel: user aborted sharing during preparation (via cancel button)
-  void logJokeShareAborted(String jokeId, {required String jokeContext});
+  void logJokeShareCanceled(
+    String jokeId, {
+    required String jokeContext,
+    String? shareDestination,
+  });
 
   /// Share funnel: error occurred during sharing
   void logErrorJokeShare(
@@ -454,20 +455,17 @@ class FirebaseAnalyticsService implements AnalyticsService {
   }
 
   @override
-  void logJokeShareCanceled(String jokeId, {required String jokeContext}) {
+  void logJokeShareCanceled(
+    String jokeId, {
+    required String jokeContext,
+    String? shareDestination,
+  }) {
     _logEvent(AnalyticsEvent.jokeShareCanceled, {
       AnalyticsParameters.jokeId: jokeId,
       AnalyticsParameters.jokeContext: jokeContext,
       AnalyticsParameters.shareCanceledCount: 1,
-    });
-  }
-
-  @override
-  void logJokeShareAborted(String jokeId, {required String jokeContext}) {
-    _logEvent(AnalyticsEvent.jokeShareAborted, {
-      AnalyticsParameters.jokeId: jokeId,
-      AnalyticsParameters.jokeContext: jokeContext,
-      AnalyticsParameters.shareAbortedCount: 1,
+      if (shareDestination != null)
+        AnalyticsParameters.shareDestination: shareDestination,
     });
   }
 

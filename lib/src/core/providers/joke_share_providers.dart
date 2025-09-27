@@ -4,10 +4,8 @@ import 'package:snickerdoodle/src/core/providers/app_providers.dart';
 import 'package:snickerdoodle/src/core/providers/image_providers.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/joke_share_service.dart';
-import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:snickerdoodle/src/core/services/review_prompt_service.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_service.dart';
-import 'package:snickerdoodle/src/features/settings/application/joke_viewer_settings_service.dart';
 
 /// Provider for platform sharing service
 final platformShareServiceProvider = Provider<PlatformShareService>((ref) {
@@ -23,8 +21,6 @@ final jokeShareServiceProvider = Provider<JokeShareService>((ref) {
   final appUsageService = ref.watch(appUsageServiceProvider);
   final reviewCoordinator = ref.watch(reviewPromptCoordinatorProvider);
   final performanceService = ref.watch(performanceServiceProvider);
-  final remoteConfigValues = ref.watch(remoteConfigValuesProvider);
-  bool getRevealModeEnabled() => ref.read(jokeViewerRevealProvider);
 
   return JokeShareServiceImpl(
     imageService: imageService,
@@ -34,7 +30,5 @@ final jokeShareServiceProvider = Provider<JokeShareService>((ref) {
     appUsageService: appUsageService,
     reviewPromptCoordinator: reviewCoordinator,
     performanceService: performanceService,
-    remoteConfigValues: remoteConfigValues,
-    getRevealModeEnabled: getRevealModeEnabled,
   );
 });

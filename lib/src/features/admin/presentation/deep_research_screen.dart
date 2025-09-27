@@ -80,10 +80,12 @@ class _DeepResearchScreenState extends ConsumerState<DeepResearchScreen> {
     try {
       // Trigger search
       final current = ref.read(
-        searchQueryProvider(SearchScope.jokeDeepResearch),
+        searchQueryProvider(SearchScope.jokeDeepResearchSearch),
       );
       ref
-          .read(searchQueryProvider(SearchScope.jokeDeepResearch).notifier)
+          .read(
+            searchQueryProvider(SearchScope.jokeDeepResearchSearch).notifier,
+          )
           .state = current.copyWith(
         query: topic,
         maxResults: 100,
@@ -93,7 +95,7 @@ class _DeepResearchScreenState extends ConsumerState<DeepResearchScreen> {
 
       // Await the ids result
       final ids = await ref.read(
-        searchResultIdsProvider(SearchScope.jokeDeepResearch).future,
+        searchResultIdsProvider(SearchScope.jokeDeepResearchSearch).future,
       );
       if (!mounted) return;
 

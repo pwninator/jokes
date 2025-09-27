@@ -80,12 +80,12 @@ void main() {
         when(() => native.isAvailable()).thenAnswer((_) async => false);
 
         final result = await service.requestReview(
-          source: ReviewRequestSource.jokeShared,
+          source: ReviewRequestSource.settings,
         );
 
         expect(result, ReviewRequestResult.notAvailable);
         verify(
-          () => analytics.logAppReviewAttempt(source: 'joke_shared'),
+          () => analytics.logAppReviewAttempt(source: 'settings'),
         ).called(1);
         verifyNever(() => native.requestReview());
         verifyNever(() => store.markRequested());
@@ -97,12 +97,12 @@ void main() {
         when(() => store.markRequested()).thenAnswer((_) async {});
 
         final result = await service.requestReview(
-          source: ReviewRequestSource.jokeViewed,
+          source: ReviewRequestSource.auto,
         );
 
         expect(result, ReviewRequestResult.shown);
         verifyInOrder([
-          () => analytics.logAppReviewAttempt(source: 'joke_viewed'),
+          () => analytics.logAppReviewAttempt(source: 'auto'),
           () => native.isAvailable(),
           () => native.requestReview(),
           () => store.markRequested(),

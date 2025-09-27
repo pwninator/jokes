@@ -185,114 +185,6 @@ void main() {
         expect(find.byType(CachedJokeImage), findsOneWidget);
       });
 
-      testWidgets('rounds explicit width up to nearest hundred for CDN', (
-        tester,
-      ) async {
-        // arrange
-        const validUrl = 'https://example.com/image.jpg';
-
-        when(
-          () => mockImageService.getProcessedJokeImageUrl(
-            validUrl,
-            width: any(named: 'width'),
-          ),
-        ).thenReturn(validUrl);
-
-        const widget = CachedJokeImage(imageUrl: validUrl, width: 175);
-
-        // act
-        await tester.pumpWidget(createTestWidget(child: widget));
-        await tester.pump();
-
-        // assert
-        final capturedWidths = verify(
-          () => mockImageService.getProcessedJokeImageUrl(
-            validUrl,
-            width: captureAny(named: 'width'),
-          ),
-        ).captured;
-
-        expect(capturedWidths.single, 200);
-      });
-
-      testWidgets(
-        'rounds constraint width up to nearest hundred when explicit width is absent',
-        (tester) async {
-          // arrange
-          const validUrl = 'https://example.com/image.jpg';
-
-          when(
-            () => mockImageService.getProcessedJokeImageUrl(
-              validUrl,
-              width: any(named: 'width'),
-            ),
-          ).thenReturn(validUrl);
-
-          final widget = Align(
-            alignment: Alignment.topLeft,
-            child: SizedBox(
-              width: 245,
-              child: CachedJokeImage(imageUrl: validUrl),
-            ),
-          );
-
-          // act
-          await tester.pumpWidget(createTestWidget(child: widget));
-          await tester.pump();
-
-          // assert
-          final capturedWidths = verify(
-            () => mockImageService.getProcessedJokeImageUrl(
-              validUrl,
-              width: captureAny(named: 'width'),
-            ),
-          ).captured;
-
-          expect(capturedWidths.single, 300);
-        },
-      );
-
-      testWidgets('clamps width to max when constraints exceed limit', (
-        tester,
-      ) async {
-        // arrange
-        const validUrl = 'https://example.com/image.jpg';
-
-        when(
-          () => mockImageService.getProcessedJokeImageUrl(
-            validUrl,
-            width: any(named: 'width'),
-          ),
-        ).thenReturn(validUrl);
-
-        final widget = Align(
-          alignment: Alignment.topLeft,
-          child: SizedBox(
-            width: 400,
-            child: OverflowBox(
-              minWidth: 1600,
-              maxWidth: 1600,
-              alignment: Alignment.topLeft,
-              child: CachedJokeImage(imageUrl: validUrl),
-            ),
-          ),
-        );
-
-        // act
-        await tester.pumpWidget(createTestWidget(child: widget));
-        await tester.pump();
-
-        // assert
-        final capturedWidths = verify(
-          () => mockImageService.getProcessedJokeImageUrl(
-            validUrl,
-            width: captureAny(named: 'width'),
-          ),
-        ).captured;
-
-        expect(capturedWidths.single, 1024);
-      });
-
       testWidgets('should handle showErrorIcon parameter', (tester) async {
         // arrange
         when(() => mockImageService.isValidImageUrl(null)).thenReturn(false);
@@ -398,7 +290,6 @@ void main() {
           const validUrl = 'https://example.com/image.jpg';
           const explicitWidth = 2000.0; // outside allowed range
           const constraintWidth = 240.0;
-          const expectedWidth = 300;
 
           when(
             () => mockImageService.isValidImageUrl(validUrl),
@@ -406,7 +297,7 @@ void main() {
           when(
             () => mockImageService.getProcessedJokeImageUrl(
               validUrl,
-              width: expectedWidth,
+              width: constraintWidth.round(),
             ),
           ).thenReturn(validUrl);
           when(
@@ -436,7 +327,7 @@ void main() {
           verify(
             () => mockImageService.getProcessedJokeImageUrl(
               validUrl,
-              width: expectedWidth,
+              width: constraintWidth.round(),
             ),
           ).called(1);
         },

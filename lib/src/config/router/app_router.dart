@@ -23,7 +23,6 @@ import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart'
 import 'package:snickerdoodle/src/features/auth/presentation/auth_wrapper.dart';
 import 'package:snickerdoodle/src/features/jokes/presentation/daily_jokes_screen.dart';
 import 'package:snickerdoodle/src/features/jokes/presentation/saved_jokes_screen.dart';
-import 'package:snickerdoodle/src/features/search/presentation/discover_screen.dart';
 import 'package:snickerdoodle/src/features/search/presentation/search_screen.dart';
 import 'package:snickerdoodle/src/features/settings/presentation/user_settings_screen.dart';
 
@@ -36,7 +35,7 @@ const List<TabConfig> _allTabs = [
   ),
   TabConfig(
     id: TabId.discover,
-    route: AppRoutes.discover,
+    route: AppRoutes.search,
     label: 'Discover',
     icon: Icons.explore,
   ),
@@ -153,18 +152,11 @@ class AppRouter {
               builder: (context, state) => const SavedJokesScreen(),
             ),
 
-            // Discover
+            // Search
             GoRoute(
-              path: AppRoutes.discover,
-              name: RouteNames.discover,
-              builder: (context, state) => const DiscoverScreen(),
-              routes: [
-                GoRoute(
-                  path: 'search',
-                  name: RouteNames.discoverSearch,
-                  builder: (context, state) => const SearchScreen(),
-                ),
-              ],
+              path: AppRoutes.search,
+              name: RouteNames.search,
+              builder: (context, state) => const SearchScreen(),
             ),
 
             // Settings
@@ -412,9 +404,30 @@ class AppRouter {
       return;
     }
 
+    // Special handling for Discover (Search) tab: focus field if already there
     final selectedTab = tabs[index];
+    if (selectedTab.route == AppRoutes.search) {
+      final currentLocation = GoRouterState.of(context).uri.path;
+      if (currentLocation.startsWith(AppRoutes.search)) {
+        // Already on search screen, trigger focus instead of navigating
+        final container = ProviderScope.containerOf(context);
+        container.read(searchFieldFocusTriggerProvider.notifier).state = true;
 
-    context.push(selectedTab.route);
+        // Reset the trigger after a short delay to allow the SearchScreen to handle it
+        Future.delayed(const Duration(milliseconds: 100), () {
+          if (context.mounted) {
+            final resetContainer = ProviderScope.containerOf(context);
+            resetContainer
+                    .read(searchFieldFocusTriggerProvider.notifier)
+                    .state =
+                false;
+          }
+        });
+        return;
+      }
+    }
+
+    context.go(selectedTab.route);
   }
 }
 

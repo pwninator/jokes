@@ -250,12 +250,6 @@ class _TestRemoteConfigValues implements RemoteConfigValues {
 
   @override
   String getString(RemoteParam param) => '';
-
-  @override
-  T getEnum<T>(RemoteParam param) {
-    final descriptor = remoteParams[param]!;
-    return (descriptor.enumDefault ?? '') as T;
-  }
 }
 
 /// Test joke population notifier that doesn't require Firebase

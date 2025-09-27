@@ -2,10 +2,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// Lightweight model representing a user's login summary
 class AppUserSummary {
+  final DateTime createdAtUtc;
   final DateTime lastLoginAtUtc;
   final int clientNumDaysUsed; // coerced to >= 1
 
   const AppUserSummary({
+    required this.createdAtUtc,
     required this.lastLoginAtUtc,
     required this.clientNumDaysUsed,
   });
@@ -30,12 +32,26 @@ class FirestoreUserRepository implements UserRepository {
     return _firestore.collection(_collection).snapshots().map((snapshot) {
       return snapshot.docs.map((doc) {
         final data = doc.data();
-        final ts = data['last_login_at'];
+
+        // Created at
+        final createdAtTs = data['created_at'];
+        DateTime createdAt;
+        if (createdAtTs is Timestamp) {
+          createdAt = createdAtTs.toDate();
+        } else if (createdAtTs is DateTime) {
+          createdAt = createdAtTs;
+        } else {
+          // Fallback to epoch if created_at is missing
+          createdAt = DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
+        }
+
+        // Last login
+        final lastLoginTs = data['last_login_at'];
         DateTime lastLogin;
-        if (ts is Timestamp) {
-          lastLogin = ts.toDate();
-        } else if (ts is DateTime) {
-          lastLogin = ts;
+        if (lastLoginTs is Timestamp) {
+          lastLogin = lastLoginTs.toDate();
+        } else if (lastLoginTs is DateTime) {
+          lastLogin = lastLoginTs;
         } else {
           // Per assumption: last_login_at always exists; if not, fallback to epoch
           lastLogin = DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
@@ -49,8 +65,13 @@ class FirestoreUserRepository implements UserRepository {
         } else {
           daysUsed = 1;
         }
-        final utc = lastLogin.isUtc ? lastLogin : lastLogin.toUtc();
-        return AppUserSummary(lastLoginAtUtc: utc, clientNumDaysUsed: daysUsed);
+        final createdAtUtc = createdAt.isUtc ? createdAt : createdAt.toUtc();
+        final lastLoginUtc = lastLogin.isUtc ? lastLogin : lastLogin.toUtc();
+        return AppUserSummary(
+          createdAtUtc: createdAtUtc,
+          lastLoginAtUtc: lastLoginUtc,
+          clientNumDaysUsed: daysUsed,
+        );
       }).toList();
     });
   }

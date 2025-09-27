@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/core/providers/joke_share_providers.dart';
-import 'package:snickerdoodle/src/core/services/app_logger.dart';
-import 'package:snickerdoodle/src/core/services/joke_share_service.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
+import 'package:snickerdoodle/src/core/services/app_logger.dart';
 
 /// Button that shares a joke using the share functionality
 class ShareJokeButton extends ConsumerWidget {
@@ -27,91 +26,7 @@ class ShareJokeButton extends ConsumerWidget {
       onTap: () async {
         try {
           final shareService = ref.read(jokeShareServiceProvider);
-
-          // Create controller and show modal progress dialog
-          final controller = SharePreparationController();
-          VoidCallback? closeDialog;
-          bool shareCompleted = false;
-
-          // Barrier dismiss disabled; cancel via button only
-          showDialog<void>(
-            context: context,
-            barrierDismissible: false,
-            builder: (ctx) {
-              closeDialog = () {
-                final nav = Navigator.of(ctx);
-                if (nav.mounted) {
-                  nav.pop();
-                }
-              };
-              controller.onBeforePlatformShare = () => closeDialog?.call();
-              // If share already finished before dialog build, close immediately
-              if (shareCompleted) {
-                // schedule after build to avoid popping during build
-                WidgetsBinding.instance.addPostFrameCallback((_) {
-                  closeDialog?.call();
-                });
-              }
-              return AlertDialog(
-                key: Key('share_joke_button-progress-dialog-${joke.id}'),
-                content: AnimatedBuilder(
-                  animation: controller,
-                  builder: (context, _) {
-                    return Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        TweenAnimationBuilder<double>(
-                          duration: const Duration(seconds: 1),
-                          tween: Tween<double>(
-                            begin: 0,
-                            end: controller.fraction,
-                          ),
-                          builder: (context, animatedValue, _) {
-                            return LinearProgressIndicator(
-                              key: Key(
-                                'share_joke_button-progress-bar-${joke.id}',
-                              ),
-                              value: animatedValue,
-                            );
-                          },
-                        ),
-                        const SizedBox(height: 12),
-                        const Text(
-                          'Preparing images for sharing…',
-                          key: Key('share_joke_button-progress-text-static'),
-                        ),
-                      ],
-                    );
-                  },
-                ),
-                actions: [
-                  TextButton(
-                    key: Key('share_joke_button-cancel-button-${joke.id}'),
-                    onPressed: () {
-                      controller.cancel();
-                      closeDialog?.call();
-                    },
-                    child: const Text('Cancel'),
-                  ),
-                ],
-              );
-            },
-          );
-
-          // Ensure the dialog builder runs before continuing; prevents race when service resolves immediately
-          await Future<void>.delayed(Duration.zero);
-
-          try {
-            await shareService.shareJoke(
-              joke,
-              jokeContext: jokeContext,
-              controller: controller,
-            );
-          } finally {
-            shareCompleted = true;
-            closeDialog?.call();
-          }
+          await shareService.shareJoke(joke, jokeContext: jokeContext);
         } catch (e) {
           AppLogger.warn('ERROR: share_joke_button: Failed to share joke: $e');
         }

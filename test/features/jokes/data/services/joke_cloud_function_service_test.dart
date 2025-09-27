@@ -266,7 +266,7 @@ void main() {
           maxResults: 5,
           publicOnly: true,
           matchMode: MatchMode.tight,
-          scope: SearchScope.jokeDeepResearch,
+          scope: SearchScope.jokeDeepResearchSearch,
           label: SearchLabel.none,
         );
         expect(results.map((r) => r.id).toList(), ['x']);

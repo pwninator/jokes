@@ -16,84 +16,104 @@ class UsersAnalyticsScreen extends ConsumerWidget implements TitledScreen {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final histogramAsync = ref.watch(usersLoginHistogramProvider);
+    final loginHistAsync = ref.watch(usersLoginHistogramProvider);
+    final retentionHistAsync = ref.watch(usersRetentionHistogramProvider);
 
     return AdaptiveAppBarScreen(
       title: title,
       body: Padding(
         padding: const EdgeInsets.all(16.0),
-        child: histogramAsync.when(
+        child: loginHistAsync.when(
           loading: () => const Center(child: CircularProgressIndicator()),
           error: (e, st) => Center(child: Text('Error: $e')),
-          data: (hist) {
-            if (hist.orderedDates.isEmpty) {
-              return const Center(child: Text('No users'));
-            }
+          data: (loginHist) {
+            return retentionHistAsync.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (e, st) => Center(child: Text('Error: $e')),
+              data: (retentionHist) {
+                if (loginHist.orderedDates.isEmpty) {
+                  return const Center(child: Text('No users'));
+                }
 
-            final theme = Theme.of(context);
-            final colorStops = {
-              1: Colors.grey,
-              2: Colors.blue,
-              5: Colors.yellow,
-              7: Colors.orange,
-              10: Colors.red,
-            };
+                final theme = Theme.of(context);
+                final colorStops = {
+                  1: Colors.grey,
+                  2: Colors.blue,
+                  5: Colors.yellow,
+                  7: Colors.orange,
+                  10: Colors.red,
+                };
 
-            final labels = <int, String>{};
-            final dateCount = hist.orderedDates.length;
-            for (int i = 0; i < dateCount; i++) {
-              final d = hist.orderedDates[i];
-              // Bottom labels for some ticks to reduce clutter
-              if (i == 0 ||
-                  i == dateCount - 1 ||
-                  i % max(1, dateCount ~/ 8) == 0) {
-                labels[i] = formatShortDate(d);
-              }
-            }
+                final loginLabels = <int, String>{};
+                final loginDateCount = loginHist.orderedDates.length;
+                for (int i = 0; i < loginDateCount; i++) {
+                  final d = loginHist.orderedDates[i];
+                  if (i == 0 ||
+                      i == loginDateCount - 1 ||
+                      i % max(1, loginDateCount ~/ 8) == 0) {
+                    loginLabels[i] = formatShortDate(d);
+                  }
+                }
+                final loginWidth = max(
+                  loginDateCount * 14.0,
+                  MediaQuery.of(context).size.width - 32,
+                );
 
-            // Allow horizontal scroll for many days
-            final width = max(
-              dateCount * 14.0,
-              MediaQuery.of(context).size.width - 32,
-            );
+                final retentionLabels = <int, String>{};
+                final retentionDateCount = retentionHist.orderedDates.length;
+                for (int i = 0; i < retentionDateCount; i++) {
+                  final d = retentionHist.orderedDates[i];
+                  if (i == 0 ||
+                      i == retentionDateCount - 1 ||
+                      i % max(1, retentionDateCount ~/ 8) == 0) {
+                    retentionLabels[i] = formatShortDate(d);
+                  }
+                }
+                final retentionWidth = max(
+                  retentionDateCount * 14.0,
+                  MediaQuery.of(context).size.width - 32,
+                );
 
-            return SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Legend(colorStops: colorStops),
-                  const SizedBox(height: 24),
-                  Text('New Users per Day', style: theme.textTheme.titleLarge),
-                  const SizedBox(height: 12),
-                  _RetentionChart(
-                    width: width,
-                    hist: hist,
-                    labels: labels,
-                    colorStops: colorStops,
+                return SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Legend(colorStops: colorStops),
+                      const SizedBox(height: 24),
+                      Text('New Users per Day',
+                          style: theme.textTheme.titleLarge),
+                      const SizedBox(height: 12),
+                      _RetentionChart(
+                        width: loginWidth,
+                        hist: loginHist,
+                        labels: loginLabels,
+                        colorStops: colorStops,
+                      ),
+                      const SizedBox(height: 24),
+                      Text('User Retention by Cohort (Absolute)',
+                          style: theme.textTheme.titleLarge),
+                      const SizedBox(height: 12),
+                      _RetentionChart(
+                        width: retentionWidth,
+                        hist: retentionHist,
+                        labels: retentionLabels,
+                        colorStops: colorStops,
+                      ),
+                      const SizedBox(height: 24),
+                      Text('User Retention by Cohort (Percentage)',
+                          style: theme.textTheme.titleLarge),
+                      const SizedBox(height: 12),
+                      _RetentionChart(
+                        width: retentionWidth,
+                        hist: retentionHist,
+                        labels: retentionLabels,
+                        colorStops: colorStops,
+                        showAsPercentage: true,
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 24),
-                  Text('User Retention by Cohort (Absolute)',
-                      style: theme.textTheme.titleLarge),
-                  const SizedBox(height: 12),
-                  _RetentionChart(
-                    width: width,
-                    hist: hist,
-                    labels: labels,
-                    colorStops: colorStops,
-                  ),
-                  const SizedBox(height: 24),
-                  Text('User Retention by Cohort (Percentage)',
-                      style: theme.textTheme.titleLarge),
-                  const SizedBox(height: 12),
-                  _RetentionChart(
-                    width: width,
-                    hist: hist,
-                    labels: labels,
-                    colorStops: colorStops,
-                    showAsPercentage: true,
-                  ),
-                ],
-              ),
+                );
+              },
             );
           },
         ),
@@ -117,7 +137,6 @@ class _RetentionChart extends StatelessWidget {
     this.showAsPercentage = false,
   });
 
-  @override
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);

@@ -15,13 +15,13 @@ import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/providers/app_providers.dart';
 import 'package:snickerdoodle/src/core/providers/image_providers.dart';
-import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
-import 'package:snickerdoodle/src/core/services/app_review_service.dart';
+import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
+import 'package:snickerdoodle/src/core/services/app_review_service.dart';
+import 'package:snickerdoodle/src/core/services/review_prompt_service.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
 import 'package:snickerdoodle/src/core/services/performance_service.dart';
-import 'package:snickerdoodle/src/core/services/review_prompt_service.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_population_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_schedule_providers.dart';
@@ -1095,9 +1095,12 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
       showLoadingIndicator: true,
       showErrorIcon: true,
       onFirstImagePaint: (widthHint) {
-        // Stop any active search traces
-        _perf.stopNamedTrace(name: TraceName.searchToFirstImage);
-
+        // Stop only for the very first search result's setup image.
+        if (widget.index == 0 &&
+            _currentIndex == 0 &&
+            widget.jokeContext == AnalyticsJokeContext.search) {
+          _perf.stopNamedTrace(name: TraceName.searchToFirstImage);
+        }
         // Also stop the carousel_to_visible trace for this carousel (stop on first pixel of any image)
         _perf.stopNamedTrace(
           name: TraceName.carouselToVisible,
@@ -1428,10 +1431,6 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
 
     // Navigate to search using push so that back returns to previous page
     final nav = refLocal.read(navigationHelpersProvider);
-    nav.navigateToRoute(
-      AppRoutes.discoverSearch,
-      method: 'programmatic',
-      push: true,
-    );
+    nav.navigateToRoute(AppRoutes.search, method: 'programmatic', push: true);
   }
 }

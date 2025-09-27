@@ -11,9 +11,6 @@ class AdaptiveAppBarScreen extends StatelessWidget {
     required this.body,
     this.floatingActionButton,
     this.resizeToAvoidBottomInset = false,
-    this.leading,
-    this.actions,
-    this.automaticallyImplyLeading,
   });
 
   /// The title to display in the app bar when in portrait mode
@@ -27,15 +24,6 @@ class AdaptiveAppBarScreen extends StatelessWidget {
 
   /// Whether the body should resize when the onscreen keyboard appears
   final bool resizeToAvoidBottomInset;
-
-  /// Optional leading widget to display in the portrait app bar
-  final Widget? leading;
-
-  /// Optional action widgets to display in the portrait app bar
-  final List<Widget>? actions;
-
-  /// Allows callers to toggle automatic leading inference for the portrait app bar
-  final bool? automaticallyImplyLeading;
 
   @override
   Widget build(BuildContext context) {
@@ -54,12 +42,7 @@ class AdaptiveAppBarScreen extends StatelessWidget {
                 scrolledUnderElevation: 0,
               ),
             )
-          : AppBarWidget(
-              title: title,
-              leading: leading,
-              actions: actions,
-              automaticallyImplyLeading: automaticallyImplyLeading ?? true,
-            ),
+          : AppBarWidget(title: title),
       body: body,
       floatingActionButton: floatingActionButton,
     );

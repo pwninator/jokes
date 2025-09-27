@@ -20,13 +20,23 @@ void main() {
     // Provide small dataset across 3 days with varied buckets
     final nowUtc = DateTime.utc(2025, 1, 10, 12);
     final users = <AppUserSummary>[
-      AppUserSummary(lastLoginAtUtc: nowUtc, clientNumDaysUsed: 1),
-      AppUserSummary(lastLoginAtUtc: nowUtc, clientNumDaysUsed: 2),
       AppUserSummary(
+        createdAtUtc: nowUtc.subtract(const Duration(days: 10)),
+        lastLoginAtUtc: nowUtc,
+        clientNumDaysUsed: 1,
+      ),
+      AppUserSummary(
+        createdAtUtc: nowUtc.subtract(const Duration(days: 5)),
+        lastLoginAtUtc: nowUtc,
+        clientNumDaysUsed: 2,
+      ),
+      AppUserSummary(
+        createdAtUtc: nowUtc.subtract(const Duration(days: 2)),
         lastLoginAtUtc: nowUtc.subtract(const Duration(days: 1)),
         clientNumDaysUsed: 10,
       ),
       AppUserSummary(
+        createdAtUtc: nowUtc.subtract(const Duration(days: 1)),
         lastLoginAtUtc: nowUtc.subtract(const Duration(days: 2)),
         clientNumDaysUsed: 5,
       ),
@@ -45,7 +55,7 @@ void main() {
     );
 
     // initial loading
-    await tester.pump();
+    await tester.pumpAndSettle();
 
     // Expect chart present
     expect(find.byType(BarChart), findsNWidgets(3));

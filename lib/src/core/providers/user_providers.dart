@@ -96,3 +96,63 @@ final usersLoginHistogramProvider = StreamProvider<UsersLoginHistogram>((ref) {
     );
   });
 });
+
+/// Same as above, but groups by user's *first* login date (cohort) and buckets
+/// by N days until last login date.
+final usersRetentionHistogramProvider =
+    StreamProvider<UsersLoginHistogram>((ref) {
+  // Initialize timezone database lazily
+  tzdata.initializeTimeZones();
+  final la = tz.getLocation('America/Los_Angeles');
+
+  return ref.watch(userRepositoryProvider).watchAllUsers().map((users) {
+    if (users.isEmpty) {
+      return const UsersLoginHistogram(
+        orderedDates: [],
+        countsByDateThenBucket: {},
+        maxDailyTotal: 0,
+      );
+    }
+
+    // Build counts
+    final Map<DateTime, Map<int, int>> counts = {};
+    DateTime? minDate;
+    DateTime? maxDate;
+
+    for (final u in users) {
+      final cohortDate = _laMidnight(u.createdAtUtc, la);
+      final daysSinceFirstUse = u.lastLoginAtUtc.difference(u.createdAtUtc).inDays;
+      final bucket = bucketDaysUsed(daysSinceFirstUse + 1); // 1-based
+      final dayMap = counts.putIfAbsent(cohortDate, () => {});
+      dayMap[bucket] = (dayMap[bucket] ?? 0) + 1;
+      if (minDate == null || cohortDate.isBefore(minDate)) minDate = cohortDate;
+      if (maxDate == null || cohortDate.isAfter(maxDate)) maxDate = cohortDate;
+    }
+
+    // Fill domain from min to max inclusive, step 1 day, preserving LA-midnight UTC hour
+    final ordered = <DateTime>[];
+    if (minDate != null && maxDate != null) {
+      var cursor = minDate; // already LA midnight converted to UTC
+      final end = maxDate; // same representation
+      while (!cursor.isAfter(end)) {
+        ordered.add(cursor);
+        counts.putIfAbsent(cursor, () => {});
+        cursor = cursor.add(const Duration(days: 1));
+      }
+    }
+
+    // Compute max daily total
+    int maxTotal = 0;
+    for (final entry in counts.entries) {
+      final total = entry.value.values.fold<int>(0, (a, b) => a + b);
+      if (total > maxTotal) maxTotal = total;
+    }
+
+    // Sort ordered by date asc (already built asc)
+    return UsersLoginHistogram(
+      orderedDates: ordered,
+      countsByDateThenBucket: counts,
+      maxDailyTotal: maxTotal,
+    );
+  });
+});

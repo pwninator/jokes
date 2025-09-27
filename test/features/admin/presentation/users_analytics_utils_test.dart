@@ -105,6 +105,42 @@ void main() {
         expect(bucket2Span.style?.color, calculateInverseColor(colorStops[2]!));
         expect(bucket2Span.style?.backgroundColor, colorStops[2]!);
       });
+
+      test('builds percentage tooltip correctly', () {
+        final date = DateTime.utc(2025, 1, 10, 12);
+        final buckets = {1: 1, 3: 3}; // Total 4
+        final textStyle = const TextStyle(fontSize: 12, color: Colors.black);
+
+        final tooltipItem = buildUsersAnalyticsTooltip(
+          date: date,
+          buckets: buckets,
+          textStyle: textStyle,
+          colorStops: colorStops,
+          showAsPercentage: true,
+        );
+
+        expect(tooltipItem.text, '');
+        final children = tooltipItem.children;
+        expect(children, isNotNull);
+        children!;
+        expect(children.length, 4);
+
+        // Date
+        expect(children[0].text, 'Jan 10\n');
+        expect(children[0].style?.fontWeight, FontWeight.bold);
+
+        // Total
+        expect(children[1].text, 'Total: 4\n');
+        expect(children[1].style?.color, textStyle.color);
+
+        // Bucket 1: 25%
+        final bucket1Span = children[2];
+        expect(bucket1Span.text, '1: 25.0% (1)\n');
+
+        // Bucket 3: 75%
+        final bucket3Span = children[3];
+        expect(bucket3Span.text, '3: 75.0% (3)');
+      });
     });
   });
 }

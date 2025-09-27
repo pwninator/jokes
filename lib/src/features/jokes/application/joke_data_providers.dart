@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
+import 'package:snickerdoodle/src/features/jokes/application/joke_list_pagination.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_service.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_schedule_providers.dart';
@@ -130,6 +131,11 @@ final monthlyJokesWithDateProvider = StreamProvider<List<JokeWithDate>>((ref) {
       });
 });
 
+final monthlyJokesPaginationProvider = Provider<JokeListPaginationState>((ref) {
+  final asyncValue = ref.watch(monthlyJokesWithDateProvider);
+  return JokeListPaginationState.fromAsyncValue(asyncValue);
+});
+
 // Saved jokes provider that loads saved jokes from SharedPreferences
 final savedJokesProvider = StreamProvider<List<JokeWithDate>>((ref) async* {
   final jokeRepository = ref.watch(jokeRepositoryProvider);
@@ -188,4 +194,9 @@ final savedJokesProvider = StreamProvider<List<JokeWithDate>>((ref) async* {
     // Keep logs minimal; analytics will handle error event
     yield <JokeWithDate>[];
   }
+});
+
+final savedJokesPaginationProvider = Provider<JokeListPaginationState>((ref) {
+  final asyncValue = ref.watch(savedJokesProvider);
+  return JokeListPaginationState.fromAsyncValue(asyncValue);
 });

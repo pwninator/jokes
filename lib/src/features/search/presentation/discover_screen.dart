@@ -168,8 +168,11 @@ class _CategoryResults extends ConsumerWidget {
               ? 'No jokes found in $categoryName'
               : 'No jokes found')
         : '';
+    final paginationState = ref.watch(
+      searchResultsPaginationProvider(SearchScope.category),
+    );
     return JokeListViewer(
-      jokesAsyncProvider: searchResultsViewerProvider(SearchScope.category),
+      paginationState: paginationState,
       jokeContext: AnalyticsJokeContext.search,
       viewerId: viewerId,
       onInitRegisterReset: onInitRegisterReset,

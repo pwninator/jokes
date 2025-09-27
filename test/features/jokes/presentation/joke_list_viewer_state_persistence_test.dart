@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
+import 'package:snickerdoodle/src/features/jokes/application/joke_list_pagination.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_navigation_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/presentation/joke_list_viewer.dart';
@@ -33,6 +34,9 @@ void main() {
     );
     addTearDown(container.dispose);
 
+    JokeListPaginationState buildState() =>
+        JokeListPaginationState.fromAsyncValue(AsyncValue.data(jokes));
+
     // Build with initial data
     await tester.pumpWidget(
       UncontrolledProviderScope(
@@ -49,7 +53,7 @@ void main() {
           home: TickerMode(
             enabled: false,
             child: JokeListViewer(
-              jokesAsyncValue: AsyncValue.data(jokes),
+              paginationState: buildState(),
               jokeContext: 'test_ctx',
               viewerId: viewerId,
             ),
@@ -84,7 +88,7 @@ void main() {
           home: TickerMode(
             enabled: false,
             child: JokeListViewer(
-              jokesAsyncValue: AsyncValue.data(jokes),
+              paginationState: buildState(),
               jokeContext: 'test_ctx',
               viewerId: viewerId,
             ),

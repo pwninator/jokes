@@ -223,10 +223,12 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 final emptyStateMessage = state.query.isNotEmpty
                     ? 'No jokes found'
                     : '';
+                final paginationProvider = searchResultsPaginationProvider(
+                  SearchScope.userJokeSearch,
+                );
+                final paginationState = ref.watch(paginationProvider);
                 return JokeListViewer(
-                  jokesAsyncProvider: searchResultsViewerProvider(
-                    SearchScope.userJokeSearch,
-                  ),
+                  paginationState: paginationState,
                   jokeContext: AnalyticsJokeContext.search,
                   viewerId: 'search_user',
                   onInitRegisterReset: (cb) => _resetViewer = cb,

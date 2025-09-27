@@ -80,8 +80,10 @@ class UsersAnalyticsScreen extends ConsumerWidget implements TitledScreen {
                     children: [
                       Legend(colorStops: colorStops),
                       const SizedBox(height: 24),
-                      Text('New Users per Day',
-                          style: theme.textTheme.titleLarge),
+                      Text(
+                        'New Users per Day',
+                        style: theme.textTheme.titleLarge,
+                      ),
                       const SizedBox(height: 12),
                       _RetentionChart(
                         width: loginWidth,
@@ -90,8 +92,10 @@ class UsersAnalyticsScreen extends ConsumerWidget implements TitledScreen {
                         colorStops: colorStops,
                       ),
                       const SizedBox(height: 24),
-                      Text('User Retention by Cohort (Absolute)',
-                          style: theme.textTheme.titleLarge),
+                      Text(
+                        'User Retention by Cohort (Absolute)',
+                        style: theme.textTheme.titleLarge,
+                      ),
                       const SizedBox(height: 12),
                       _RetentionChart(
                         width: retentionWidth,
@@ -100,8 +104,10 @@ class UsersAnalyticsScreen extends ConsumerWidget implements TitledScreen {
                         colorStops: colorStops,
                       ),
                       const SizedBox(height: 24),
-                      Text('User Retention by Cohort (Percentage)',
-                          style: theme.textTheme.titleLarge),
+                      Text(
+                        'User Retention by Cohort (Percentage)',
+                        style: theme.textTheme.titleLarge,
+                      ),
                       const SizedBox(height: 12),
                       _RetentionChart(
                         width: retentionWidth,
@@ -161,9 +167,7 @@ class _RetentionChart extends StatelessWidget {
         final itemValue = showAsPercentage
             ? (totalForDate > 0 ? (value / totalForDate) * 100 : 0)
             : value;
-        stacks.add(
-          BarChartRodStackItem(running, running + itemValue, color),
-        );
+        stacks.add(BarChartRodStackItem(running, running + itemValue, color));
         running += itemValue;
       }
       groups.add(
@@ -185,10 +189,7 @@ class _RetentionChart extends StatelessWidget {
       BarChartData(
         maxY: showAsPercentage
             ? 100
-            : (hist.maxDailyTotal.toDouble() * 1.1).clamp(
-                1,
-                double.infinity,
-              ),
+            : (hist.maxDailyTotal.toDouble() * 1.1).clamp(1, double.infinity),
         gridData: FlGridData(show: true, drawVerticalLine: false),
         borderData: FlBorderData(show: false),
         barTouchData: BarTouchData(
@@ -221,11 +222,15 @@ class _RetentionChart extends StatelessWidget {
               reservedSize: 48,
               getTitlesWidget: (value, meta) {
                 if (showAsPercentage) {
-                  return Text('${value.toInt()}%',
-                      style: theme.textTheme.bodySmall);
+                  return Text(
+                    '${value.toInt()}%',
+                    style: theme.textTheme.bodySmall,
+                  );
                 }
-                return Text(value.toInt().toString(),
-                    style: theme.textTheme.bodySmall);
+                return Text(
+                  value.toInt().toString(),
+                  style: theme.textTheme.bodySmall,
+                );
               },
             ),
           ),

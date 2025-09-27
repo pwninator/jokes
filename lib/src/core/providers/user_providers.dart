@@ -99,8 +99,9 @@ final usersLoginHistogramProvider = StreamProvider<UsersLoginHistogram>((ref) {
 
 /// Same as above, but groups by user's *first* login date (cohort) and buckets
 /// by N days until last login date.
-final usersRetentionHistogramProvider =
-    StreamProvider<UsersLoginHistogram>((ref) {
+final usersRetentionHistogramProvider = StreamProvider<UsersLoginHistogram>((
+  ref,
+) {
   // Initialize timezone database lazily
   tzdata.initializeTimeZones();
   final la = tz.getLocation('America/Los_Angeles');
@@ -121,7 +122,9 @@ final usersRetentionHistogramProvider =
 
     for (final u in users) {
       final cohortDate = _laMidnight(u.createdAtUtc, la);
-      final daysSinceFirstUse = u.lastLoginAtUtc.difference(u.createdAtUtc).inDays;
+      final daysSinceFirstUse = u.lastLoginAtUtc
+          .difference(u.createdAtUtc)
+          .inDays;
       final bucket = bucketDaysUsed(daysSinceFirstUse + 1); // 1-based
       final dayMap = counts.putIfAbsent(cohortDate, () => {});
       dayMap[bucket] = (dayMap[bucket] ?? 0) + 1;

@@ -66,7 +66,10 @@ void main() {
     final users = [
       // Day 1 cohort
       AppUserSummary(
-          createdAtUtc: now, lastLoginAtUtc: now, clientNumDaysUsed: 1),
+        createdAtUtc: now,
+        lastLoginAtUtc: now,
+        clientNumDaysUsed: 1,
+      ),
       AppUserSummary(
         createdAtUtc: now,
         lastLoginAtUtc: now.add(const Duration(days: 2)), // 2 days later

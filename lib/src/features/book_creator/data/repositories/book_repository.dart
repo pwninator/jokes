@@ -1,56 +1,43 @@
-import 'package:cloud_functions/cloud_functions.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
+import 'package:snickerdoodle/src/features/jokes/application/joke_search_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
+import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
 
 class BookRepository {
   BookRepository({
-    FirebaseFunctions? functions,
     required JokeRepository jokeRepository,
-  }) : _functions = functions ?? FirebaseFunctions.instance,
-       _jokeRepository = jokeRepository;
+    JokeCloudFunctionService? jokeCloudFunctionService,
+  }) : _jokeRepository = jokeRepository,
+       _jokeCloudFunctionService =
+           jokeCloudFunctionService ?? JokeCloudFunctionService();
 
-  final FirebaseFunctions _functions;
   final JokeRepository _jokeRepository;
+  final JokeCloudFunctionService _jokeCloudFunctionService;
 
   Future<List<Joke>> searchJokes(String query) async {
     if (query.isEmpty) {
       return [];
     }
     try {
-      final callable = _functions.httpsCallable('search_jokes');
-      final result = await callable.call({
-        'search_query': query,
-        'max_results': 20,
-        'public_only': true,
-        'match_mode': 'TIGHT',
-        'label': 'book_creator_search',
-      });
+      final searchResults = await _jokeCloudFunctionService.searchJokes(
+        searchQuery: query,
+        maxResults: 20,
+        publicOnly: false,
+        matchMode: MatchMode.loose,
+        scope: SearchScope
+            .jokeManagementSearch, // Using appropriate scope for book creator
+        label: SearchLabel.none,
+      );
 
-      AppLogger.debug('search_jokes result: $result'); 
-
-      final data = result.data;
-      final List<dynamic>? resultsList = (data is Map && data['jokes'] is List)
-          ? (data['jokes'] as List)
-          : (data is List)
-          ? data
-          : null;
-
-      if (resultsList == null) {
-        AppLogger.warn('Unexpected search_jokes response: $data');
+      if (searchResults.isEmpty) {
+        AppLogger.warn('search_jokes result: No search results found');
         return [];
       }
 
-      final jokeIds = resultsList
-          .whereType<Map>()
-          .map((e) => e['joke_id'] as String?)
-          .where((id) => id != null)
-          .cast<String>()
-          .toList();
+      final jokeIds = searchResults.map((result) => result.id).toList();
 
-      if (jokeIds.isEmpty) {
-        return [];
-      }
+      AppLogger.debug('search_jokes result: $searchResults');
 
       final jokes = await _jokeRepository.getJokesByIds(jokeIds);
 
@@ -62,24 +49,24 @@ class BookRepository {
       });
 
       return jokes;
-    } on FirebaseFunctionsException catch (e) {
-      AppLogger.warn(
-        'Firebase Functions error (search_jokes): ${e.code} - ${e.message}',
-      );
-      return [];
     } catch (e) {
-      AppLogger.warn('Error calling search_jokes: $e');
+      AppLogger.warn('Error searching jokes: $e');
       return [];
     }
   }
 
   Future<void> createBook(String title, List<String> jokeIds) async {
     try {
-      final callable = _functions.httpsCallable('create_book');
-      await callable.call({'book_name': title, 'joke_ids': jokeIds});
-    } on FirebaseFunctionsException catch (e) {
-      AppLogger.warn('Failed to create book: ${e.code} - ${e.message}');
-      rethrow;
+      final result = await _jokeCloudFunctionService.createBook(
+        title: title,
+        jokeIds: jokeIds,
+      );
+
+      if (result == null || result['success'] != true) {
+        final error = result?['error'] ?? 'Unknown error';
+        AppLogger.warn('Failed to create book: $error');
+        throw Exception('Failed to create book: $error');
+      }
     } catch (e) {
       AppLogger.warn('Failed to create book: $e');
       rethrow;

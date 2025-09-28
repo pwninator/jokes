@@ -125,6 +125,8 @@ class ImageClientTest(unittest.TestCase):
       image=mock_load_from_file.return_value,
       new_size=2048,
       output_gcs_uri="gs://test/image_upscale_2048.png",
+      output_mime_type="image/jpeg",
+      output_compression_quality=90,
     )
     mock_get_upscaled_uri.assert_called_once_with("gs://test/image.png", 2048)
     self.assertEqual(gcs_uri, "gs://test/image_upscale_2048.png")

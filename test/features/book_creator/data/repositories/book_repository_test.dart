@@ -1,41 +1,34 @@
-import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:snickerdoodle/src/features/book_creator/data/repositories/book_repository.dart';
+import 'package:snickerdoodle/src/features/jokes/application/joke_search_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
-
-class MockFirebaseFunctions extends Mock implements FirebaseFunctions {}
-
-class MockHttpsCallable extends Mock implements HttpsCallable {}
-
-class MockHttpsCallableResult extends Mock implements HttpsCallableResult {}
+import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
+import 'package:snickerdoodle/src/features/jokes/domain/joke_search_result.dart';
 
 class MockJokeRepository extends Mock implements JokeRepository {}
 
+class MockJokeCloudFunctionService extends Mock
+    implements JokeCloudFunctionService {}
+
 void main() {
+  setUpAll(() {
+    registerFallbackValue(MatchMode.tight);
+    registerFallbackValue(SearchScope.jokeManagementSearch);
+    registerFallbackValue(SearchLabel.none);
+  });
   late BookRepository bookRepository;
-  late MockFirebaseFunctions mockFirebaseFunctions;
   late MockJokeRepository mockJokeRepository;
-  late MockHttpsCallable mockSearchCallable;
-  late MockHttpsCallable mockCreateBookCallable;
+  late MockJokeCloudFunctionService mockJokeCloudFunctionService;
 
   setUp(() {
-    mockFirebaseFunctions = MockFirebaseFunctions();
     mockJokeRepository = MockJokeRepository();
-    mockSearchCallable = MockHttpsCallable();
-    mockCreateBookCallable = MockHttpsCallable();
-
-    when(
-      () => mockFirebaseFunctions.httpsCallable('search_jokes'),
-    ).thenReturn(mockSearchCallable);
-    when(
-      () => mockFirebaseFunctions.httpsCallable('create_book'),
-    ).thenReturn(mockCreateBookCallable);
+    mockJokeCloudFunctionService = MockJokeCloudFunctionService();
 
     bookRepository = BookRepository(
-      functions: mockFirebaseFunctions,
       jokeRepository: mockJokeRepository,
+      jokeCloudFunctionService: mockJokeCloudFunctionService,
     );
   });
 
@@ -43,16 +36,21 @@ void main() {
     group('searchJokes', () {
       test('returns a list of jokes on successful search', () async {
         // Arrange
-        final mockResult = MockHttpsCallableResult();
-        when(() => mockResult.data).thenReturn({
-          'jokes': [
-            {'joke_id': '1'},
-            {'joke_id': '2'},
-          ],
-        });
+        final mockSearchResults = [
+          const JokeSearchResult(id: '1', vectorDistance: 0.1),
+          const JokeSearchResult(id: '2', vectorDistance: 0.2),
+        ];
         when(
-          () => mockSearchCallable.call(any()),
-        ).thenAnswer((_) async => mockResult);
+          () => mockJokeCloudFunctionService.searchJokes(
+            searchQuery: any(named: 'searchQuery'),
+            maxResults: any(named: 'maxResults'),
+            publicOnly: any(named: 'publicOnly'),
+            matchMode: any(named: 'matchMode'),
+            scope: any(named: 'scope'),
+            label: any(named: 'label'),
+          ),
+        ).thenAnswer((_) async => mockSearchResults);
+
         final expectedJokes = [
           const Joke(id: '1', setupText: 's1', punchlineText: 'p1'),
           const Joke(id: '2', setupText: 's2', punchlineText: 'p2'),
@@ -67,13 +65,14 @@ void main() {
         // Assert
         expect(result, expectedJokes);
         verify(
-          () => mockSearchCallable.call({
-            'search_query': 'test',
-            'max_results': 20,
-            'public_only': true,
-            'match_mode': 'TIGHT',
-            'label': 'book_creator_search',
-          }),
+          () => mockJokeCloudFunctionService.searchJokes(
+            searchQuery: 'test',
+            maxResults: 20,
+            publicOnly: false,
+            matchMode: MatchMode.loose,
+            scope: SearchScope.jokeManagementSearch,
+            label: SearchLabel.none,
+          ),
         ).called(1);
         verify(() => mockJokeRepository.getJokesByIds(['1', '2'])).called(1);
       });
@@ -84,14 +83,30 @@ void main() {
 
         // Assert
         expect(result, isEmpty);
-        verifyNever(() => mockSearchCallable.call(any()));
+        verifyNever(
+          () => mockJokeCloudFunctionService.searchJokes(
+            searchQuery: any(named: 'searchQuery'),
+            maxResults: any(named: 'maxResults'),
+            publicOnly: any(named: 'publicOnly'),
+            matchMode: any(named: 'matchMode'),
+            scope: any(named: 'scope'),
+            label: any(named: 'label'),
+          ),
+        );
       });
 
-      test('returns an empty list on FirebaseFunctionsException', () async {
+      test('returns an empty list on search service exception', () async {
         // Arrange
-        when(() => mockSearchCallable.call(any())).thenThrow(
-          FirebaseFunctionsException(message: 'error', code: 'internal'),
-        );
+        when(
+          () => mockJokeCloudFunctionService.searchJokes(
+            searchQuery: any(named: 'searchQuery'),
+            maxResults: any(named: 'maxResults'),
+            publicOnly: any(named: 'publicOnly'),
+            matchMode: any(named: 'matchMode'),
+            scope: any(named: 'scope'),
+            label: any(named: 'label'),
+          ),
+        ).thenThrow(Exception('Search error'));
 
         // Act
         final result = await bookRepository.searchJokes('test');
@@ -105,29 +120,71 @@ void main() {
       test('completes successfully when book is created', () async {
         // Arrange
         when(
-          () => mockCreateBookCallable.call(any()),
-        ).thenAnswer((_) async => MockHttpsCallableResult());
+          () => mockJokeCloudFunctionService.createBook(
+            title: any(named: 'title'),
+            jokeIds: any(named: 'jokeIds'),
+          ),
+        ).thenAnswer((_) async => {'success': true, 'data': 'book-created'});
 
-        // Act & Assert
-        expect(bookRepository.createBook('My Book', ['1', '2']), completes);
+        // Act
+        await bookRepository.createBook('My Book', ['1', '2']);
+
+        // Assert
         verify(
-          () => mockCreateBookCallable.call({
-            'book_name': 'My Book',
-            'joke_ids': ['1', '2'],
-          }),
+          () => mockJokeCloudFunctionService.createBook(
+            title: 'My Book',
+            jokeIds: ['1', '2'],
+          ),
         ).called(1);
       });
 
-      test('throws an exception on FirebaseFunctionsException', () async {
+      test('throws an exception when createBook returns failure', () async {
         // Arrange
-        when(() => mockCreateBookCallable.call(any())).thenThrow(
-          FirebaseFunctionsException(message: 'error', code: 'internal'),
+        when(
+          () => mockJokeCloudFunctionService.createBook(
+            title: any(named: 'title'),
+            jokeIds: any(named: 'jokeIds'),
+          ),
+        ).thenAnswer(
+          (_) async => {'success': false, 'error': 'Book creation failed'},
         );
 
         // Act & Assert
         expect(
           () => bookRepository.createBook('My Book', ['1', '2']),
-          throwsA(isA<FirebaseFunctionsException>()),
+          throwsA(isA<Exception>()),
+        );
+      });
+
+      test('throws an exception when createBook returns null', () async {
+        // Arrange
+        when(
+          () => mockJokeCloudFunctionService.createBook(
+            title: any(named: 'title'),
+            jokeIds: any(named: 'jokeIds'),
+          ),
+        ).thenAnswer((_) async => null);
+
+        // Act & Assert
+        expect(
+          () => bookRepository.createBook('My Book', ['1', '2']),
+          throwsA(isA<Exception>()),
+        );
+      });
+
+      test('throws an exception when service throws', () async {
+        // Arrange
+        when(
+          () => mockJokeCloudFunctionService.createBook(
+            title: any(named: 'title'),
+            jokeIds: any(named: 'jokeIds'),
+          ),
+        ).thenThrow(Exception('Service error'));
+
+        // Act & Assert
+        expect(
+          () => bookRepository.createBook('My Book', ['1', '2']),
+          throwsA(isA<Exception>()),
         );
       });
     });

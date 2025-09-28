@@ -451,6 +451,8 @@ class ImagenClient(ImageClient[ImageGenerationModel]):
       image=image_to_upscale,
       new_size=new_size,
       output_gcs_uri=output_gcs_uri,
+      output_mime_type="image/jpeg",
+      output_compression_quality=90,
     )
 
     if not upscaled_image:

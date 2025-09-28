@@ -170,13 +170,12 @@ class _CategoryResults extends ConsumerWidget {
         : '';
     return JokeListViewer(
       jokesAsyncProvider: searchResultsViewerProvider(SearchScope.category),
-      jokeContext: AnalyticsJokeContext.search,
+      jokeContext: AnalyticsJokeContext.category,
       viewerId: viewerId,
       onInitRegisterReset: onInitRegisterReset,
       emptyState: emptyStateMessage.isEmpty
           ? const SizedBox.shrink()
           : Center(child: Text(emptyStateMessage)),
-      showSimilarSearchButton: false,
     );
   }
 }

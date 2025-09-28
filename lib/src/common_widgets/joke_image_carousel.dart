@@ -1418,12 +1418,9 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
     );
 
     // Update search query provider
-    final current = refLocal.read(
-      searchQueryProvider(SearchScope.userJokeSearch),
-    );
     refLocal
         .read(searchQueryProvider(SearchScope.userJokeSearch).notifier)
-        .state = current.copyWith(
+        .state = SearchQuery(
       query: '${JokeConstants.searchQueryPrefix}$baseQuery',
       maxResults: JokeConstants.userSearchMaxResults,
       publicOnly: JokeConstants.userSearchPublicOnly,

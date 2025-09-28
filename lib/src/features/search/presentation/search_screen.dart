@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/common_widgets/adaptive_app_bar_screen.dart';
-import 'package:snickerdoodle/src/core/providers/app_providers.dart';
 import 'package:snickerdoodle/src/config/router/router_providers.dart';
 import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
+import 'package:snickerdoodle/src/core/providers/app_providers.dart';
 import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
 import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_navigation_providers.dart';
@@ -37,9 +37,20 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
 
-      _clearSearchState();
       ref.read(keyboardResizeProvider.notifier).state = false;
-      _focusNode.requestFocus();
+
+      // If a query is already present (e.g., set programmatically for Similar Search),
+      // preserve it and reflect it in the text field instead of clearing.
+      final existing = ref.read(
+        searchQueryProvider(SearchScope.userJokeSearch),
+      );
+      if (existing.query.isNotEmpty &&
+          existing.label == SearchLabel.similarJokes) {
+        _controller.text = _effectiveQuery(existing.query);
+      } else {
+        _clearSearchState();
+        _focusNode.requestFocus();
+      }
     });
   }
 
@@ -54,7 +65,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final notifier = ref.read(
       searchQueryProvider(SearchScope.userJokeSearch).notifier,
     );
-    notifier.state = notifier.state.copyWith(
+    notifier.state = SearchQuery(
       query: '',
       maxResults: JokeConstants.userSearchMaxResults,
       publicOnly: JokeConstants.userSearchPublicOnly,
@@ -86,10 +97,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     );
     ref.read(jokeViewerPageIndexProvider('search_user').notifier).state = 0;
 
-    final current = ref.read(searchQueryProvider(SearchScope.userJokeSearch));
     ref
         .read(searchQueryProvider(SearchScope.userJokeSearch).notifier)
-        .state = current.copyWith(
+        .state = SearchQuery(
       query: '${JokeConstants.searchQueryPrefix}$query',
       maxResults: JokeConstants.userSearchMaxResults,
       publicOnly: JokeConstants.userSearchPublicOnly,
@@ -176,7 +186,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 ref
                     .watch(searchQueryProvider(SearchScope.userJokeSearch))
                     .query,
-              ).trim();
+              );
               if (trimmedQuery.length < 2) {
                 return const SizedBox.shrink();
               }
@@ -214,7 +224,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 final state = ref.watch(
                   searchQueryProvider(SearchScope.userJokeSearch),
                 );
-                final effectiveQuery = _effectiveQuery(state.query).trim();
+                final effectiveQuery = _effectiveQuery(state.query);
 
                 if (effectiveQuery.isEmpty) {
                   return const _SearchPlaceholder();
@@ -245,7 +255,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   String _effectiveQuery(String raw) {
     const prefix = JokeConstants.searchQueryPrefix;
-    return raw.startsWith(prefix) ? raw.substring(prefix.length) : raw;
+    return (raw.startsWith(prefix) ? raw.substring(prefix.length) : raw).trim();
   }
 }
 

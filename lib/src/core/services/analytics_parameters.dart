@@ -106,6 +106,7 @@ class AnalyticsJokeContext {
   static const String dailyJokes = 'daily_jokes';
   static const String savedJokes = 'saved_jokes';
   static const String search = 'search';
+  static const String category = 'category';
 }
 
 /// Share method values for analytics

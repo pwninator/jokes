@@ -29,6 +29,8 @@ class _FakeRemoteValues implements RemoteConfigValues {
     switch (param) {
       case RemoteParam.defaultJokeViewerReveal:
         return false;
+      case RemoteParam.reviewRequestFromJokeViewed:
+        return true;
       case RemoteParam.shareImagesMode:
         return false;
       case RemoteParam.subscriptionPromptMinJokesViewed:
@@ -62,6 +64,8 @@ class _FakeRemoteValues implements RemoteConfigValues {
       case RemoteParam.defaultJokeViewerReveal:
         return 0;
       case RemoteParam.shareImagesMode:
+        return 0;
+      case RemoteParam.reviewRequestFromJokeViewed:
         return 0;
     }
   }

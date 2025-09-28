@@ -17,6 +17,7 @@ class AppRoutes {
   static const String admin = '/admin';
 
   // Admin sub-routes
+  static const String adminBookCreator = '/admin/book-creator';
   static const String adminCreator = '/admin/creator';
   static const String adminManagement = '/admin/management';
   static const String adminScheduler = '/admin/scheduler';
@@ -42,6 +43,7 @@ class RouteNames {
   static const String settings = 'settings';
   static const String feedback = 'feedback';
   static const String admin = 'admin';
+  static const String adminBookCreator = 'adminBookCreator';
   static const String adminCreator = 'adminCreator';
   static const String adminManagement = 'adminManagement';
   static const String adminScheduler = 'adminScheduler';
@@ -82,6 +84,8 @@ extension AppRoutesExtension on String {
         return RouteNames.feedback;
       case AppRoutes.admin:
         return RouteNames.admin;
+      case AppRoutes.adminBookCreator:
+        return RouteNames.adminBookCreator;
       case AppRoutes.adminCreator:
         return RouteNames.adminCreator;
       case AppRoutes.adminManagement:

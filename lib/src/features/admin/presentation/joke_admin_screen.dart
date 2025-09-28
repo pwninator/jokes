@@ -74,6 +74,22 @@ class JokeAdminScreen extends ConsumerWidget implements TitledScreen {
 
               const SizedBox(height: 8),
 
+              // Book Creator Card
+              Card(
+                child: ListTile(
+                  key: const Key('joke_admin_screen-book-creator-tile'),
+                  leading: const Icon(Icons.book_online),
+                  title: const Text('Book Creator'),
+                  subtitle: const Text('Create books from existing jokes'),
+                  trailing: const Icon(Icons.arrow_forward_ios),
+                  onTap: () {
+                    context.push(AppRoutes.adminBookCreator);
+                  },
+                ),
+              ),
+
+              const SizedBox(height: 8),
+
               // Users Analytics Card
               Card(
                 child: ListTile(

@@ -13,6 +13,7 @@ import 'package:snickerdoodle/src/features/admin/presentation/joke_admin_screen.
 import 'package:snickerdoodle/src/features/admin/presentation/joke_categories_screen.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_category_editor_screen.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_creator_screen.dart';
+import 'package:snickerdoodle/src/features/book_creator/book_creator_screen.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_feedback_screen.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_editor_screen.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_management_screen.dart';
@@ -188,6 +189,11 @@ class AppRouter {
             ),
 
             // Admin sub-routes
+            GoRoute(
+              path: AppRoutes.adminBookCreator,
+              name: RouteNames.adminBookCreator,
+              builder: (context, state) => const BookCreatorScreen(),
+            ),
             GoRoute(
               path: AppRoutes.adminCreator,
               name: RouteNames.adminCreator,

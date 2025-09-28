@@ -3,26 +3,36 @@
 from __future__ import annotations
 
 import base64
-import logging
 import os
 import time
 from abc import ABC, abstractmethod
 from enum import Enum
 from io import BytesIO
-from typing import Any, Generic, TypeVar, override
+from typing import Any, Generic, Literal, TypeVar, override
 
 from common import config, models
 from google import genai
+from google.api_core import exceptions
+from google.genai import types
 from openai import OpenAI
 from PIL import Image
 from services import cloud_storage, firestore
 from vertexai.preview.vision_models import Image as VertexImage
 from vertexai.preview.vision_models import ImageGenerationModel
+from firebase_functions import logger
 
 _T = TypeVar("_T")
 
 # Lazily initialized clients by model name
 _CLIENTS_BY_MODEL: dict[ImageModel, Any] = {}
+
+
+class Error(Exception):
+  """Base class for exceptions in this module."""
+
+
+class ImageUpscaleTooLargeError(Error):
+  """Exception raised when the upscaled image is too large."""
 
 
 class ImageProvider(Enum):
@@ -165,10 +175,10 @@ OTHER_TOKEN_COSTS = {
 }
 
 
-def _get_upscaled_gcs_uri(gcs_uri: str, new_size: int) -> str:
+def _get_upscaled_gcs_uri(gcs_uri: str, upscale_factor: str) -> str:
   """Constructs a GCS URI for the upscaled image."""
   base, ext = os.path.splitext(gcs_uri)
-  return f"{base}_upscale_{new_size}{ext}"
+  return f"{base}_upscale_{upscale_factor}{ext}"
 
 
 def get_client(
@@ -250,14 +260,45 @@ class ImageClient(ABC, Generic[_T]):
       raise ValueError(f"Image generation failed: {image}")
 
     if save_to_firestore:
-      logging.info("Saving image to Firestore")
+      logger.info("Saving image to Firestore")
       image = firestore.create_image(image)
 
     return image
 
+  def upscale_image_flexible(
+    self,
+    mime_type: Literal["image/png", "image/jpeg"],
+    compression_quality: int | None,
+    image: models.Image | None = None,
+    gcs_uri: str | None = None,
+    save_to_firestore: bool = True,
+  ) -> models.Image:
+    """Upscale an image at 4x, falling back to 2x if it fails."""
+    try:
+      return self.upscale_image(
+        upscale_factor="x4",
+        mime_type=mime_type,
+        compression_quality=compression_quality,
+        image=image,
+        gcs_uri=gcs_uri,
+        save_to_firestore=save_to_firestore,
+      )
+    except ImageUpscaleTooLargeError:
+      logger.warn("Failed to upscale image at 4x, falling back to 2x")
+      return self.upscale_image(
+        upscale_factor="x2",
+        mime_type=mime_type,
+        compression_quality=compression_quality,
+        image=image,
+        gcs_uri=gcs_uri,
+        save_to_firestore=save_to_firestore,
+      )
+
   def upscale_image(
     self,
-    new_size: int,
+    upscale_factor: Literal["x2", "x4"],
+    mime_type: Literal["image/png", "image/jpeg"],
+    compression_quality: int | None,
     image: models.Image | None = None,
     gcs_uri: str | None = None,
     save_to_firestore: bool = True,
@@ -271,7 +312,12 @@ class ImageClient(ABC, Generic[_T]):
       raise ValueError("The provided image must have a gcs_uri.")
 
     start_time = time.perf_counter()
-    upscaled_gcs_uri = self._upscale_image_internal(source_gcs_uri, new_size)
+    upscaled_gcs_uri = self._upscale_image_internal(
+      source_gcs_uri,
+      upscale_factor=upscale_factor,
+      mime_type=mime_type,
+      compression_quality=compression_quality,
+    )
 
     generation_metadata = _build_generation_metadata(
       label=self.label,
@@ -281,15 +327,20 @@ class ImageClient(ABC, Generic[_T]):
       generation_time_sec=time.perf_counter() - start_time,
     )
 
+    # Calculate width based on upscale factor (assuming base width of 1024)
+    width = 1024 * (2 if upscale_factor == "x2" else 4)
+    url_upscaled = cloud_storage.get_final_image_url(
+      upscaled_gcs_uri,
+      width=width,
+    )
     if image:
       image.gcs_uri_upscaled = upscaled_gcs_uri
-      image.url_upscaled = cloud_storage.get_final_image_url(upscaled_gcs_uri,
-                                                             width=new_size)
+      image.url_upscaled = url_upscaled
       if not image.generation_metadata:
         image.generation_metadata = models.GenerationMetadata()
       image.generation_metadata.add_generation(generation_metadata)
       if save_to_firestore:
-        logging.info(f"Updating image {image.key} with upscaled version.")
+        logger.info(f"Updating image {image.key} with upscaled version.")
         firestore.update_image(image)
       return image
     else:
@@ -297,13 +348,12 @@ class ImageClient(ABC, Generic[_T]):
         gcs_uri=source_gcs_uri,
         url=cloud_storage.get_final_image_url(source_gcs_uri),
         gcs_uri_upscaled=upscaled_gcs_uri,
-        url_upscaled=cloud_storage.get_final_image_url(upscaled_gcs_uri,
-                                                       width=new_size),
+        url_upscaled=url_upscaled,
         generation_metadata=models.GenerationMetadata(),
       )
       new_image.generation_metadata.add_generation(generation_metadata)
       if save_to_firestore:
-        logging.info("Creating new image with upscaled version.")
+        logger.info("Creating new image with upscaled version.")
         firestore.create_image(new_image)
       return new_image
 
@@ -337,13 +387,17 @@ class ImageClient(ABC, Generic[_T]):
   def _upscale_image_internal(
     self,
     gcs_uri: str,
-    new_size: int,
+    upscale_factor: Literal["x2", "x4"],
+    mime_type: Literal["image/png", "image/jpeg"],
+    compression_quality: int | None,
   ) -> str:
     """Upscale an image.
 
     Args:
       gcs_uri: The GCS URI of the image to upscale.
-      new_size: The new size of the image.
+      upscale_factor: The upscale factor ("x2" or "x4").
+      mime_type: The MIME type of the image.
+      compression_quality: The compression quality of the image.
 
     Returns:
       The GCS URI of the upscaled image.
@@ -403,6 +457,20 @@ class ImagenClient(ImageClient[ImageGenerationModel]):
       person_generation="allow_adult",
     )
 
+    # GenAI version
+    # response = self.model_client.models.generate_images(
+    #   model=self.model.model_name,
+    #   prompt=prompt,
+    #   config=types.GenerateImagesConfig(
+    #     number_of_images=1,
+    #     language=types.ImagePromptLanguage.en,
+    #     aspect_ratio="1:1",
+    #     output_gcs_uri=output_gcs_uri,
+    #     safety_filter_level=types.SafetyFilterLevel.BLOCK_NONE,
+    #     person_generation=types.PersonGeneration.ALLOW_ADULT,
+    #   ),
+    # )
+
     # There should only be one image, since we only asked for one
     image = images[0]
 
@@ -435,7 +503,9 @@ class ImagenClient(ImageClient[ImageGenerationModel]):
   def _upscale_image_internal(
     self,
     gcs_uri: str,
-    new_size: int,
+    upscale_factor: Literal["x2", "x4"],
+    mime_type: Literal["image/png", "image/jpeg"],
+    compression_quality: int | None,
   ) -> str:
     """Upscales an image using the Imagen model."""
     if self.model != ImageModel.IMAGEN_1:
@@ -443,16 +513,40 @@ class ImagenClient(ImageClient[ImageGenerationModel]):
         f"Upscaling is only supported for the {ImageModel.IMAGEN_1.model_name} model with ImagenClient."
       )
 
-    print(f"Upscaling image with Imagen to size {new_size}")
-    image_to_upscale = VertexImage.load_from_file(gcs_uri)
-
-    output_gcs_uri = _get_upscaled_gcs_uri(gcs_uri, new_size)
-    upscaled_image = self.model_client.upscale_image(
-      image=image_to_upscale,
-      new_size=new_size,
-      output_gcs_uri=output_gcs_uri,
+    print(
+      f"Upscaling image with Imagen: upscale_factor={upscale_factor}, mime_type={mime_type}, compression_quality={compression_quality}"
     )
+    image_to_upscale = VertexImage.load_from_file(location=gcs_uri)
 
+    output_gcs_uri = _get_upscaled_gcs_uri(gcs_uri, upscale_factor)
+    try:
+      upscaled_image = self.model_client.upscale_image(
+        image=image_to_upscale,
+        upscale_factor=upscale_factor,
+        output_gcs_uri=output_gcs_uri,
+        output_mime_type=mime_type,
+        output_compression_quality=compression_quality,
+      )
+    except exceptions.FailedPrecondition as e:
+      if "Response size too large" in str(e):
+        raise ImageUpscaleTooLargeError(f"Failed to upscale image: {e}") from e
+      else:
+        raise e
+
+    # GenAI version, not supported yet as of 2025-09-28
+    # response = self.model_client.models.upscale_image(
+    #   model=self.model.model_name,
+    #   image=image_to_upscale,
+    #   upscale_factor=upscale_factor,
+    #   config=types.UpscaleImageConfig(
+    #     output_gcs_uri=output_gcs_uri,
+    #     output_mime_type=mime_type,
+    #     output_compression_quality=compression_quality,
+    #   ),
+    # )
+
+    # upscaled_image = response.generated_images[0]
+    # if not upscaled_image or not upscaled_image.image:
     if not upscaled_image:
       raise ValueError("No upscaled image returned from Imagen")
 
@@ -722,8 +816,9 @@ class GeminiImageClient(ImageClient[genai.Client]):
   @override
   def _create_model_client(self) -> genai.Client:
     return genai.Client(
-      # Use Google AI API because the image Gemini model isn't on Vertex AI yet
-      api_key=config.get_gemini_api_key(), )
+      api_key=config.get_gemini_api_key(),
+      http_options=types.HttpOptions(api_version="v1"),
+    )
 
   @override
   def _generate_image_internal(

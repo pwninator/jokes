@@ -15,7 +15,8 @@ from common import config, image_generation, joke_operations, models
 from firebase_functions import (firestore_fn, https_fn, logger, options,
                                 scheduler_fn)
 from functions.function_utils import (error_response, get_bool_param,
-                                      get_param, get_user_id, success_response)
+                                      get_int_param, get_param, get_user_id,
+                                      success_response)
 from google.cloud.firestore_v1.vector import Vector
 from services import cloud_storage, firebase_cloud_messaging, firestore, search
 
@@ -962,8 +963,17 @@ def upscale_joke(req: https_fn.Request) -> https_fn.Response:
     if not joke_id:
       return error_response('joke_id is required')
 
+    mime_type = get_param(req, 'mime_type', 'image/png')
+    compression_quality = get_int_param(req, 'compression_quality', 0)
+    if not compression_quality:
+      compression_quality = None
+
     try:
-      joke = joke_operations.upscale_joke(joke_id)
+      joke = joke_operations.upscale_joke(
+        joke_id,
+        mime_type=mime_type,
+        compression_quality=compression_quality,
+      )
     except Exception as e:
       return error_response(f'Failed to upscale joke: {str(e)}')
 

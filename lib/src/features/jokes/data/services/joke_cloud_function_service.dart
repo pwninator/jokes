@@ -1,8 +1,8 @@
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_search_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_search_result.dart';
-import 'package:snickerdoodle/src/core/services/app_logger.dart';
 
 /// How strictly to match the search query
 enum MatchMode { tight, loose }
@@ -385,6 +385,36 @@ class JokeCloudFunctionService {
       };
     } catch (e) {
       AppLogger.warn('Error upscaling joke: $e');
+      return {'success': false, 'error': 'Unexpected error: $e'};
+    }
+  }
+
+  Future<Map<String, dynamic>?> createBook({
+    required String title,
+    required List<String> jokeIds,
+  }) async {
+    try {
+      final result = await _traceCf(
+        functionName: 'create_book',
+        action: () async {
+          final callable = _fns.httpsCallable('create_book');
+          return await callable.call({'book_name': title, 'joke_ids': jokeIds});
+        },
+      );
+
+      AppLogger.debug('Book created successfully: ${result.data}');
+      return {'success': true, 'data': result.data};
+    } on FirebaseFunctionsException catch (e) {
+      AppLogger.warn(
+        'Firebase Functions error (create_book): ${e.code} - ${e.message}',
+      );
+      return {
+        'success': false,
+        'error': 'Function error: ${e.message}',
+        'code': e.code,
+      };
+    } catch (e) {
+      AppLogger.warn('Error creating book: $e');
       return {'success': false, 'error': 'Unexpected error: $e'};
     }
   }

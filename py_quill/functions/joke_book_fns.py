@@ -3,7 +3,6 @@ import traceback
 
 from common import joke_operations
 from common.utils import create_timestamped_firestore_key
-from firebase_admin import auth
 from firebase_functions import https_fn, options
 from functions.function_utils import (error_response, get_param, get_user_id,
                                       success_response)
@@ -27,10 +26,6 @@ def create_book(req: https_fn.Request) -> https_fn.Response:
     user_id = get_user_id(req)
     if not user_id:
       return error_response('User not authenticated')
-
-    user = auth.get_user(user_id)
-    if not user.custom_claims.get('admin'):
-      return error_response('User is not an admin')
 
     joke_ids = get_param(req, 'joke_ids')
     book_name = get_param(req, 'book_name')

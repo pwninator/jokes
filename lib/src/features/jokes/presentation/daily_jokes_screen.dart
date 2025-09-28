@@ -29,10 +29,12 @@ class _DailyJokesScreenState extends ConsumerState<DailyJokesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final jokesWithDateAsyncValue = ref.watch(monthlyJokesWithDateProvider);
+
     return AdaptiveAppBarScreen(
       title: 'Daily Jokes',
       body: JokeListViewer(
-        paginationStateProvider: monthlyJokesPaginationProvider,
+        jokesAsyncValue: jokesWithDateAsyncValue,
         jokeContext: AnalyticsJokeContext.dailyJokes,
         viewerId: 'daily_jokes',
       ),

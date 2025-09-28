@@ -14,6 +14,30 @@ import '../test_helpers/analytics_mocks.dart';
 import '../test_helpers/core_mocks.dart';
 import '../test_helpers/firebase_mocks.dart';
 import 'joke_image_carousel_test.dart' show FakeJoke; // reuse existing FakeJoke
+import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
+
+class _TestRCValues implements RemoteConfigValues {
+  _TestRCValues({required this.gateReview});
+  final bool gateReview;
+  @override
+  int getInt(RemoteParam param) => 0;
+  @override
+  bool getBool(RemoteParam param) {
+    if (param == RemoteParam.reviewRequestFromJokeViewed) return gateReview;
+    if (param == RemoteParam.defaultJokeViewerReveal) return false;
+    return false;
+  }
+
+  @override
+  double getDouble(RemoteParam param) => 0;
+  @override
+  String getString(RemoteParam param) => '';
+  @override
+  T getEnum<T>(RemoteParam param) {
+    final descriptor = remoteParams[param]!;
+    return (descriptor.enumDefault ?? '') as T;
+  }
+}
 
 class _MockImageService extends Mock implements ImageService {}
 
@@ -80,7 +104,7 @@ void main() {
     ).thenAnswer((_) async => 1);
   });
 
-  Widget wrap(Widget child) => ProviderScope(
+  Widget wrap(Widget child, {bool gateReview = true}) => ProviderScope(
     overrides: [
       ...CoreMocks.getCoreProviderOverrides(
         additionalOverrides: [
@@ -88,6 +112,10 @@ void main() {
           ...AnalyticsMocks.getAnalyticsProviderOverrides(),
           imageServiceProvider.overrideWithValue(mockImageService),
           appUsageServiceProvider.overrideWithValue(mockAppUsageService),
+          // Ensure review gating defaults as desired for tests
+          remoteConfigValuesProvider.overrideWithValue(
+            _TestRCValues(gateReview: gateReview),
+          ),
         ],
       ),
     ],
@@ -164,7 +192,7 @@ void main() {
     );
 
     // act
-    await tester.pumpWidget(wrap(w));
+    await tester.pumpWidget(wrap(w, gateReview: false));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 2100)); // setup viewed
     await tester.tap(find.byType(JokeImageCarousel));
@@ -196,7 +224,7 @@ void main() {
             mode: mode,
           ),
         );
-        await tester.pumpWidget(wrap(widget));
+        await tester.pumpWidget(wrap(widget, gateReview: false));
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 2100)); // setup timer
         await tester.pump(const Duration(milliseconds: 2100)); // chained timer

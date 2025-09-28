@@ -41,7 +41,7 @@
         },
         "review_min_saved_jokes": {
           "defaultValue": {
-            "value": "0"
+            "value": "1"
           },
           "description": "Min number of jokes saved before eligible for review request",
           "valueType": "NUMBER"
@@ -59,6 +59,13 @@
           },
           "description": "Min number of distinct days used before eligible for review request",
           "valueType": "NUMBER"
+        },
+        "review_request_from_joke_viewed": {
+          "defaultValue": {
+            "value": "false"
+          },
+          "description": "If true, allow review request from joke viewed event",
+          "valueType": "BOOLEAN"
         }
       }
     },

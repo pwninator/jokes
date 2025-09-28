@@ -168,18 +168,14 @@ class _CategoryResults extends ConsumerWidget {
               ? 'No jokes found in $categoryName'
               : 'No jokes found')
         : '';
-    final paginationState = ref.watch(
-      searchResultsPaginationProvider(SearchScope.category),
-    );
     return JokeListViewer(
-      paginationState: paginationState,
-      jokeContext: AnalyticsJokeContext.search,
+      jokesAsyncProvider: searchResultsViewerProvider(SearchScope.category),
+      jokeContext: AnalyticsJokeContext.category,
       viewerId: viewerId,
       onInitRegisterReset: onInitRegisterReset,
       emptyState: emptyStateMessage.isEmpty
           ? const SizedBox.shrink()
           : Center(child: Text(emptyStateMessage)),
-      showSimilarSearchButton: false,
     );
   }
 }

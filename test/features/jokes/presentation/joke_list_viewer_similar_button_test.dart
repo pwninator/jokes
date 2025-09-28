@@ -7,7 +7,6 @@ import 'package:snickerdoodle/src/config/router/router_providers.dart';
 import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
-import 'package:snickerdoodle/src/features/jokes/application/joke_list_pagination.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_search_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/presentation/joke_list_viewer.dart';
@@ -34,10 +33,6 @@ void main() {
     registerAnalyticsFallbackValues();
   });
 
-  JokeListPaginationState paginationFromJokes(List<JokeWithDate> jokes) {
-    return JokeListPaginationState.fromAsyncValue(AsyncValue.data(jokes));
-  }
-
   testWidgets('Similar button visible only when flag enabled', (tester) async {
     final joke = const Joke(
       id: '1',
@@ -50,15 +45,13 @@ void main() {
 
     final overrides = FirebaseMocks.getFirebaseProviderOverrides();
 
-    final jokes = [JokeWithDate(joke: joke)];
-
     // With flag off
     await tester.pumpWidget(
       ProviderScope(
         overrides: overrides,
         child: MaterialApp(
           home: JokeListViewer(
-            paginationState: paginationFromJokes(jokes),
+            jokesAsyncValue: AsyncValue.data([JokeWithDate(joke: joke)]),
             jokeContext: 'daily_jokes',
             viewerId: 'sim_button_off',
             showSimilarSearchButton: false,
@@ -75,7 +68,7 @@ void main() {
         overrides: overrides,
         child: MaterialApp(
           home: JokeListViewer(
-            paginationState: paginationFromJokes(jokes),
+            jokesAsyncValue: AsyncValue.data([JokeWithDate(joke: joke)]),
             jokeContext: 'daily_jokes',
             viewerId: 'sim_button_on',
             showSimilarSearchButton: true,
@@ -115,10 +108,6 @@ void main() {
     );
     addTearDown(container.dispose);
 
-    final paginationState = JokeListPaginationState.fromAsyncValue(
-      AsyncValue.data([JokeWithDate(joke: joke)]),
-    );
-
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
@@ -126,7 +115,7 @@ void main() {
           home: RailHost(
             railWidth: 180,
             child: JokeListViewer(
-              paginationState: paginationState,
+              jokesAsyncValue: AsyncValue.data([JokeWithDate(joke: joke)]),
               jokeContext: 'daily_jokes',
               viewerId: 'sim_button_nav',
               showSimilarSearchButton: true,

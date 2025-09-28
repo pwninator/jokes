@@ -233,4 +233,55 @@ void main() {
     );
     expect(searchQuery.label, SearchLabel.none);
   });
+
+  testWidgets('prefilled similar search preserves query and shows count', (
+    tester,
+  ) async {
+    final container = createContainer(
+      overrides: [
+        searchResultIdsProvider(SearchScope.userJokeSearch).overrideWith(
+          (ref) async => const [JokeSearchResult(id: '1', vectorDistance: 0.0)],
+        ),
+        jokeStreamByIdProvider('1').overrideWith(
+          (ref) => Stream.value(
+            const Joke(
+              id: '1',
+              setupText: 'setup',
+              punchlineText: 'punch',
+              setupImageUrl: 'a',
+              punchlineImageUrl: 'b',
+            ),
+          ),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    // Programmatically set a Similar Search before opening screen
+    final notifier = container.read(
+      searchQueryProvider(SearchScope.userJokeSearch).notifier,
+    );
+    notifier.state = notifier.state.copyWith(
+      query: '${JokeConstants.searchQueryPrefix}cats and dogs',
+      label: SearchLabel.similarJokes,
+    );
+
+    await pumpSearch(tester, container);
+    await tester.pumpAndSettle();
+
+    // Text field shows the effective query (without prefix)
+    final fieldFinder = find.byKey(const Key('search_screen-search-field'));
+    final textField = tester.widget<TextField>(fieldFinder);
+    expect(textField.controller?.text, 'cats and dogs');
+
+    // Results count appears (since query preserved and provider returns 1)
+    expect(find.byKey(const Key('search-results-count')), findsOneWidget);
+    expect(find.text('1 result'), findsOneWidget);
+
+    // Label remains similarJokes
+    final searchQuery = container.read(
+      searchQueryProvider(SearchScope.userJokeSearch),
+    );
+    expect(searchQuery.label, SearchLabel.similarJokes);
+  });
 }

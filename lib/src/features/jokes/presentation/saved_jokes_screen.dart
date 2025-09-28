@@ -42,7 +42,7 @@ class _SavedJokesScreenState extends ConsumerState<SavedJokesScreen> {
     return AdaptiveAppBarScreen(
       title: 'Saved Jokes',
       body: JokeListViewer(
-        paginationStateProvider: savedJokesPaginationProvider,
+        jokesAsyncProvider: savedJokesProvider,
         jokeContext: AnalyticsJokeContext.savedJokes,
         viewerId: 'saved_jokes',
       ),

@@ -21,6 +21,7 @@ import 'package:snickerdoodle/src/core/services/app_review_service.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
 import 'package:snickerdoodle/src/core/services/performance_service.dart';
+import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:snickerdoodle/src/core/services/review_prompt_service.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_population_providers.dart';
@@ -236,13 +237,24 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
           AppLogger.warn('JOKE_IMAGE_CAROUSEL subscription prompt error: $e');
         }
         try {
-          final reviewPromptCoordinator = ref.read(
-            reviewPromptCoordinatorProvider,
+          // Guard review prompt behind remote config flag
+          final remoteValues = ref.read(remoteConfigValuesProvider);
+          final shouldRequest = remoteValues.getBool(
+            RemoteParam.reviewRequestFromJokeViewed,
           );
-          AppLogger.debug('JOKE_IMAGE_CAROUSEL calling review prompt');
-          await reviewPromptCoordinator.maybePromptForReview(
-            source: ReviewRequestSource.jokeViewed,
-          );
+          if (shouldRequest) {
+            final reviewPromptCoordinator = ref.read(
+              reviewPromptCoordinatorProvider,
+            );
+            AppLogger.debug('JOKE_IMAGE_CAROUSEL calling review prompt');
+            await reviewPromptCoordinator.maybePromptForReview(
+              source: ReviewRequestSource.jokeViewed,
+            );
+          } else {
+            AppLogger.debug(
+              'JOKE_IMAGE_CAROUSEL review prompt gated by remote config',
+            );
+          }
         } catch (e) {
           AppLogger.warn('JOKE_IMAGE_CAROUSEL review prompt error: $e');
         }
@@ -1418,12 +1430,9 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
     );
 
     // Update search query provider
-    final current = refLocal.read(
-      searchQueryProvider(SearchScope.userJokeSearch),
-    );
     refLocal
         .read(searchQueryProvider(SearchScope.userJokeSearch).notifier)
-        .state = current.copyWith(
+        .state = SearchQuery(
       query: '${JokeConstants.searchQueryPrefix}$baseQuery',
       maxResults: JokeConstants.userSearchMaxResults,
       publicOnly: JokeConstants.userSearchPublicOnly,

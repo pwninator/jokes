@@ -10,35 +10,9 @@ class MockNavigatorObserver extends Mock implements NavigatorObserver {}
 
 class FakeRoute extends Fake implements Route<dynamic> {}
 
-class FakeSelectedJokes extends SelectedJokes {
-  FakeSelectedJokes(this.initialState);
-  final List<Joke> initialState;
+class FakeSelectedJokes extends SelectedJokes {}
 
-  @override
-  List<Joke> build() => initialState;
-
-  @override
-  void toggleJokeSelection(Joke joke) {
-    if (state.any((j) => j.id == joke.id)) {
-      state = state.where((j) => j.id != joke.id).toList();
-    } else {
-      state = [...state, joke];
-    }
-  }
-}
-
-class FakeJokeSearchQuery extends JokeSearchQuery {
-  FakeJokeSearchQuery(this.query);
-  final String query;
-
-  @override
-  String build() => query;
-
-  @override
-  void setQuery(String query) {
-    state = query;
-  }
-}
+class FakeJokeSearchQuery extends JokeSearchQuery {}
 
 void main() {
   setUpAll(() {
@@ -59,7 +33,7 @@ void main() {
   Widget createTestWidget(List<Override> overrides) {
     return ProviderScope(
       overrides: [
-        selectedJokesProvider.overrideWith(() => FakeSelectedJokes([])),
+        selectedJokesProvider.overrideWith((ref) => FakeSelectedJokes()),
         ...overrides,
       ],
       child: const MaterialApp(home: JokeSelectorScreen()),
@@ -108,11 +82,12 @@ void main() {
       await tester.pumpWidget(
         createTestWidget([
           searchedJokesProvider.overrideWith((ref) async => mockJokes),
-          jokeSearchQueryProvider.overrideWith(
-            () => FakeJokeSearchQuery('test'),
-          ),
+          jokeSearchQueryProvider.overrideWith((ref) => FakeJokeSearchQuery()),
         ]),
       );
+      final element = tester.element(find.byType(JokeSelectorScreen));
+      final container = ProviderScope.containerOf(element);
+      container.read(jokeSearchQueryProvider.notifier).setQuery('test');
       await tester.pumpAndSettle();
 
       expect(
@@ -129,12 +104,14 @@ void main() {
       await tester.pumpWidget(
         createTestWidget([
           searchedJokesProvider.overrideWith((ref) async => mockJokes),
-          jokeSearchQueryProvider.overrideWith(
-            () => FakeJokeSearchQuery('test'),
-          ),
-          selectedJokesProvider.overrideWith(() => FakeSelectedJokes([])),
+          jokeSearchQueryProvider.overrideWith((ref) => FakeJokeSearchQuery()),
+          selectedJokesProvider.overrideWith((ref) => FakeSelectedJokes()),
         ]),
       );
+      await tester.pumpAndSettle();
+      final element2 = tester.element(find.byType(JokeSelectorScreen));
+      final container2 = ProviderScope.containerOf(element2);
+      container2.read(jokeSearchQueryProvider.notifier).setQuery('test');
       await tester.pumpAndSettle();
 
       final element = tester.element(find.byType(JokeSelectorScreen));
@@ -164,7 +141,7 @@ void main() {
         ProviderScope(
           overrides: [
             searchedJokesProvider.overrideWith((ref) async => []),
-            selectedJokesProvider.overrideWith(() => FakeSelectedJokes([])),
+            selectedJokesProvider.overrideWith((ref) => FakeSelectedJokes()),
           ],
           child: MaterialApp(
             home: const JokeSelectorScreen(),

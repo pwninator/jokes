@@ -1,26 +1,26 @@
-import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/features/book_creator/data/repositories/book_repository_provider.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 
-part 'book_creator_providers.g.dart';
-
-@Riverpod(keepAlive: true)
-class BookTitle extends _$BookTitle {
-  @override
-  String build() => '';
+// Book title state + provider
+class BookTitle extends StateNotifier<String> {
+  BookTitle() : super('');
 
   void setTitle(String title) {
     state = title;
   }
 }
 
-@Riverpod(keepAlive: true)
-class SelectedJokes extends _$SelectedJokes {
-  @override
-  List<Joke> build() => [];
+final bookTitleProvider = StateNotifierProvider<BookTitle, String>(
+  (ref) => BookTitle(),
+);
+
+// Selected jokes state + provider
+class SelectedJokes extends StateNotifier<List<Joke>> {
+  SelectedJokes() : super(const []);
 
   void addJoke(Joke joke) {
-    if (!state.any((j) => j.id == joke.id)) {
+    if (!state.any((existing) => existing.id == joke.id)) {
       state = [...state, joke];
     }
   }
@@ -42,32 +42,39 @@ class SelectedJokes extends _$SelectedJokes {
   }
 }
 
-@Riverpod(keepAlive: true)
-class JokeSearchQuery extends _$JokeSearchQuery {
-  @override
-  String build() => '';
+final selectedJokesProvider = StateNotifierProvider<SelectedJokes, List<Joke>>(
+  (ref) => SelectedJokes(),
+);
+
+// Search query state + provider
+class JokeSearchQuery extends StateNotifier<String> {
+  JokeSearchQuery() : super('');
 
   void setQuery(String query) {
     state = query;
   }
 }
 
-@riverpod
-Future<List<Joke>> searchedJokes(SearchedJokesRef ref) async {
+final jokeSearchQueryProvider = StateNotifierProvider<JokeSearchQuery, String>(
+  (ref) => JokeSearchQuery(),
+);
+
+// Search results provider
+final searchedJokesProvider = FutureProvider.autoDispose<List<Joke>>((
+  ref,
+) async {
   final query = ref.watch(jokeSearchQueryProvider);
   if (query.isEmpty) {
     return [];
   }
   final bookRepository = ref.watch(bookRepositoryProvider);
-  return await bookRepository.searchJokes(query);
-}
+  return bookRepository.searchJokes(query);
+});
 
-@riverpod
-class BookCreatorController extends _$BookCreatorController {
+// Controller for creating a book
+class BookCreatorController extends AutoDisposeAsyncNotifier<void> {
   @override
-  Future<void> build() async {
-    // No-op
-  }
+  Future<void> build() async {}
 
   Future<bool> createBook() async {
     state = const AsyncLoading();
@@ -90,3 +97,8 @@ class BookCreatorController extends _$BookCreatorController {
     }
   }
 }
+
+final bookCreatorControllerProvider =
+    AutoDisposeAsyncNotifierProvider<BookCreatorController, void>(
+      BookCreatorController.new,
+    );

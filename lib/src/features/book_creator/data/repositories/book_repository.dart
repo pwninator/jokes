@@ -27,6 +27,8 @@ class BookRepository {
         'label': 'book_creator_search',
       });
 
+      AppLogger.debug('search_jokes result: $result'); 
+
       final data = result.data;
       final List<dynamic>? resultsList = (data is Map && data['jokes'] is List)
           ? (data['jokes'] as List)

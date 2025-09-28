@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/features/book_creator/book_creator_providers.dart';
-import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 
 class JokeSelectorScreen extends ConsumerWidget {
   const JokeSelectorScreen({super.key});

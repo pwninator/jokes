@@ -52,7 +52,7 @@ def test_upscale_joke_success(mock_firestore, mock_image_client,
   mock_upscaled_punchline_image = models.Image(
     url_upscaled="http://example.com/new_punchline.png",
     generation_metadata=models.GenerationMetadata())
-  mock_client_instance.upscale_image.side_effect = [
+  mock_client_instance.upscale_image_flexible.side_effect = [
     mock_upscaled_setup_image, mock_upscaled_punchline_image
   ]
 
@@ -65,7 +65,7 @@ def test_upscale_joke_success(mock_firestore, mock_image_client,
 
   # Assert
   mock_firestore.get_punny_joke.assert_called_once_with("joke1")
-  assert mock_client_instance.upscale_image.call_count == 2
+  assert mock_client_instance.upscale_image_flexible.call_count == 2
   assert upscaled_joke.setup_image_url_upscaled == "http://example.com/new_setup.png"
   assert upscaled_joke.punchline_image_url_upscaled == "http://example.com/new_punchline.png"
 
@@ -124,7 +124,7 @@ def test_upscale_joke_only_one_image(mock_firestore, mock_image_client,
   mock_upscaled_setup_image = models.Image(
     url_upscaled="http://example.com/new_setup.png",
     generation_metadata=models.GenerationMetadata())
-  mock_client_instance.upscale_image.return_value = mock_upscaled_setup_image
+  mock_client_instance.upscale_image_flexible.return_value = mock_upscaled_setup_image
 
   mock_cloud_storage.extract_gcs_uri_from_image_url.return_value = "gs://example/setup.png"
 
@@ -133,7 +133,7 @@ def test_upscale_joke_only_one_image(mock_firestore, mock_image_client,
 
   # Assert
   mock_firestore.get_punny_joke.assert_called_once_with("joke1")
-  mock_client_instance.upscale_image.assert_called_once()
+  mock_client_instance.upscale_image_flexible.assert_called_once()
   assert upscaled_joke.setup_image_url_upscaled == "http://example.com/new_setup.png"
   assert upscaled_joke.punchline_image_url_upscaled == "http://example.com/existing_punchline.png"
 
@@ -158,7 +158,7 @@ def test_upscale_joke_missing_one_image_url(mock_firestore, mock_image_client,
   mock_upscaled_setup_image = models.Image(
     url_upscaled="http://example.com/new_setup.png",
     generation_metadata=models.GenerationMetadata())
-  mock_client_instance.upscale_image.return_value = mock_upscaled_setup_image
+  mock_client_instance.upscale_image_flexible.return_value = mock_upscaled_setup_image
 
   mock_cloud_storage.extract_gcs_uri_from_image_url.return_value = "gs://example/setup.png"
 
@@ -167,7 +167,7 @@ def test_upscale_joke_missing_one_image_url(mock_firestore, mock_image_client,
 
   # Assert
   mock_firestore.get_punny_joke.assert_called_once_with("joke1")
-  mock_client_instance.upscale_image.assert_called_once()
+  mock_client_instance.upscale_image_flexible.assert_called_once()
   assert upscaled_joke.setup_image_url_upscaled == "http://example.com/new_setup.png"
   assert upscaled_joke.punchline_image_url_upscaled is None
 
@@ -200,7 +200,7 @@ def test_upscale_joke_updates_metadata(mock_firestore, mock_image_client,
   mock_upscaled_image = models.Image(
     url_upscaled="http://example.com/new_setup.png",
     generation_metadata=upscale_metadata)
-  mock_client_instance.upscale_image.return_value = mock_upscaled_image
+  mock_client_instance.upscale_image_flexible.return_value = mock_upscaled_image
 
   mock_cloud_storage.extract_gcs_uri_from_image_url.return_value = "gs://example/setup.png"
 

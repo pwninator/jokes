@@ -1550,7 +1550,11 @@ class TestUpscaleJoke:
     resp = joke_fns.upscale_joke(req)
 
     # Assert
-    mock_joke_operations.upscale_joke.assert_called_once_with("joke1")
+    mock_joke_operations.upscale_joke.assert_called_once_with(
+      "joke1",
+      mime_type="image/png",
+      compression_quality=None,
+    )
     assert "data" in resp
     assert resp["data"]["joke_data"]["key"] == "joke1"
     assert resp["data"]["joke_data"][
@@ -1581,7 +1585,11 @@ class TestUpscaleJoke:
     resp = joke_fns.upscale_joke(req)
 
     # Assert
-    mock_joke_operations.upscale_joke.assert_called_once_with("joke1")
+    mock_joke_operations.upscale_joke.assert_called_once_with(
+      "joke1",
+      mime_type="image/png",
+      compression_quality=None,
+    )
     assert "error" in resp["data"]
     assert "Failed to upscale joke: Joke not found" in resp["data"]["error"]
 

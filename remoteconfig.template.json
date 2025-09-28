@@ -55,7 +55,7 @@
         },
         "review_min_days_used": {
           "defaultValue": {
-            "value": "3"
+            "value": "5"
           },
           "description": "Min number of distinct days used before eligible for review request",
           "valueType": "NUMBER"

@@ -1422,13 +1422,6 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
       jokeContext: widget.jokeContext,
     );
 
-    // Start performance trace for similar search
-    final perf = refLocal.read(performanceServiceProvider);
-    perf.startNamedTrace(
-      name: TraceName.searchToFirstImage,
-      attributes: {'query_type': 'similar'},
-    );
-
     // Update search query provider
     refLocal
         .read(searchQueryProvider(SearchScope.userJokeSearch).notifier)

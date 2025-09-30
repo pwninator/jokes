@@ -21,4 +21,8 @@ class JokeConstants {
   static const bool adminSearchPublicOnly = false;
   static const MatchMode adminSearchMatchMode = MatchMode.loose;
   static const SearchLabel adminSearchLabel = SearchLabel.none;
+
+  // Viewer incremental loading
+  static const int viewerLoadMoreThreshold = 5; // trigger when <= N remaining
+  static const int searchPageDefaultBatchSize = 3; // CF page size
 }

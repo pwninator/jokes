@@ -34,6 +34,7 @@ class JokeCloudFunctionService {
       },
     );
     try {
+      AppLogger.debug('CLOUD_FUNCTIONS traceCf: Calling $functionName');
       return await action();
     } finally {
       perf?.stopNamedTrace(name: TraceName.cfCall, key: key);

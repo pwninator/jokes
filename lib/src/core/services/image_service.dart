@@ -207,7 +207,7 @@ class ImageService {
       // Download and cache to disk using DefaultCacheManager
       // CachedNetworkImage will find this in disk cache and load instantly
       await DefaultCacheManager().downloadFile(processedUrl);
-      AppLogger.debug('Precached image: $processedUrl');
+      // AppLogger.debug('Precached image: $processedUrl');
       return processedUrl;
     } catch (error, _) {
       // Silently handle preload errors - the actual image widget will show error state

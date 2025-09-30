@@ -7,6 +7,8 @@ import 'package:snickerdoodle/src/config/router/route_names.dart';
 import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
 import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_category_tile.dart';
+import 'package:snickerdoodle/src/features/jokes/application/category_search_data_source.dart';
+import 'package:snickerdoodle/src/features/jokes/application/generic_paging_data_source.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_category_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_navigation_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_search_providers.dart';
@@ -146,7 +148,7 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
   }
 }
 
-class _CategoryResults extends ConsumerWidget {
+class _CategoryResults extends ConsumerStatefulWidget {
   const _CategoryResults({
     required this.viewerId,
     required this.onInitRegisterReset,
@@ -158,21 +160,40 @@ class _CategoryResults extends ConsumerWidget {
   final String? categoryName;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_CategoryResults> createState() => _CategoryResultsState();
+}
+
+class _CategoryResultsState extends ConsumerState<_CategoryResults> {
+  late final PagingDataSource _dataSource;
+
+  @override
+  void initState() {
+    super.initState();
+    // Create the data source once and reuse it across rebuilds
+    // Initial load happens automatically when query changes (via reset trigger)
+    _dataSource = CategorySearchDataSource(ref);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final currentQuery = ref
         .watch(searchQueryProvider(SearchScope.category))
         .query;
     final hasQuery = currentQuery.isNotEmpty;
+    
+    // Empty state is only shown when data is empty (not loading)
+    // JokeListViewer handles loading state automatically
     final emptyStateMessage = hasQuery
-        ? (categoryName != null
-              ? 'No jokes found in $categoryName'
+        ? (widget.categoryName != null
+              ? 'No jokes found in ${widget.categoryName}'
               : 'No jokes found')
         : '';
+
     return JokeListViewer(
-      jokesAsyncProvider: searchResultsViewerProvider(SearchScope.category),
+      dataSource: _dataSource,
       jokeContext: AnalyticsJokeContext.category,
-      viewerId: viewerId,
-      onInitRegisterReset: onInitRegisterReset,
+      viewerId: widget.viewerId,
+      onInitRegisterReset: widget.onInitRegisterReset,
       emptyState: emptyStateMessage.isEmpty
           ? const SizedBox.shrink()
           : Center(child: Text(emptyStateMessage)),
@@ -189,29 +210,25 @@ class _ResultsSummary extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     if (categoryName == null) return const SizedBox.shrink();
 
-    final idsAsync = ref.watch(searchResultIdsProvider(SearchScope.category));
-    return idsAsync.when(
-      data: (list) {
-        final count = list.length;
-        final noun = count == 1 ? 'joke' : 'jokes';
-        final label = '$count $noun';
-        return Align(
-          alignment: Alignment.centerLeft,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 16.0,
-              vertical: 6.0,
-            ),
-            child: Text(
-              label,
-              key: const Key('search-results-count'),
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ),
-        );
-      },
-      loading: () => const SizedBox.shrink(),
-      error: (error, stackTrace) => const SizedBox.shrink(),
+    final countInfo = ref.watch(categorySearch.resultCount);
+    final count = countInfo.count;
+
+    // Don't show count until we have at least one joke loaded
+    if (count == 0) return const SizedBox.shrink();
+
+    final noun = count == 1 ? 'joke' : 'jokes';
+    final label = '$count $noun';
+
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 6.0),
+        child: Text(
+          label,
+          key: const Key('search-results-count'),
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+      ),
     );
   }
 }

@@ -89,6 +89,7 @@ class _DeepResearchScreenState extends ConsumerState<DeepResearchScreen> {
         maxResults: 100,
         publicOnly: false,
         matchMode: MatchMode.tight,
+        logTrace: false,
       );
 
       // Await the ids result

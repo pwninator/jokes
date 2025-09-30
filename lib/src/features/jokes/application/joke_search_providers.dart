@@ -27,6 +27,7 @@ class SearchQuery {
   final MatchMode matchMode;
   final List<String> excludeJokeIds;
   final SearchLabel label;
+  final bool logTrace;
 
   const SearchQuery({
     required this.query,
@@ -35,6 +36,7 @@ class SearchQuery {
     required this.matchMode,
     this.excludeJokeIds = const [],
     this.label = SearchLabel.none,
+    this.logTrace = true,
   });
 
   SearchQuery copyWith({
@@ -44,6 +46,7 @@ class SearchQuery {
     MatchMode? matchMode,
     List<String>? excludeJokeIds,
     SearchLabel? label,
+    bool? logTrace,
   }) {
     return SearchQuery(
       query: query ?? this.query,
@@ -52,6 +55,7 @@ class SearchQuery {
       matchMode: matchMode ?? this.matchMode,
       excludeJokeIds: excludeJokeIds ?? this.excludeJokeIds,
       label: label ?? this.label,
+      logTrace: logTrace ?? this.logTrace,
     );
   }
 }
@@ -82,6 +86,15 @@ final searchResultIdsProvider =
       final query = params.query.trim();
       if (query.length < 2) return <JokeSearchResult>[];
 
+      // Start performance trace for similar search
+      final perf = params.logTrace
+          ? ref.read(performanceServiceProvider)
+          : null;
+      perf?.startNamedTrace(
+        name: TraceName.searchToFirstImage,
+        attributes: {'query_type': scope.name},
+      );
+
       final service = ref.watch(jokeCloudFunctionServiceProvider);
       final results = await service.searchJokes(
         searchQuery: query,
@@ -103,17 +116,16 @@ final searchResultIdsProvider =
               : scope.name,
           resultsCount: results.length,
         );
+      }
 
-        // Update performance trace with result_count if a trace is active
-        final perf = ref.read(performanceServiceProvider);
-        perf.putNamedTraceAttributes(
-          name: TraceName.searchToFirstImage,
-          attributes: {'result_count': results.length.toString()},
-        );
-        if (results.isEmpty) {
-          // No image will appear; stop now so empty searches are recorded
-          perf.stopNamedTrace(name: TraceName.searchToFirstImage);
-        }
+      // Update performance trace with result_count if a trace is active
+      perf?.putNamedTraceAttributes(
+        name: TraceName.searchToFirstImage,
+        attributes: {'result_count': results.length.toString()},
+      );
+      if (results.isEmpty) {
+        // No image will appear; stop now so empty searches are recorded
+        perf?.stopNamedTrace(name: TraceName.searchToFirstImage);
       }
 
       return results;

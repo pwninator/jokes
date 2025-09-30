@@ -9,6 +9,7 @@ import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
+import 'package:snickerdoodle/src/features/jokes/application/joke_list_data_source.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_navigation_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_viewer_mode.dart';
@@ -20,6 +21,7 @@ class JokeListViewer extends ConsumerStatefulWidget {
     super.key,
     this.jokesAsyncValue,
     this.jokesAsyncProvider,
+    this.dataSource,
     required this.jokeContext,
     required this.viewerId,
     this.onInitRegisterReset,
@@ -30,6 +32,7 @@ class JokeListViewer extends ConsumerStatefulWidget {
 
   final AsyncValue<List<JokeWithDate>>? jokesAsyncValue;
   final ProviderListenable<AsyncValue<List<JokeWithDate>>>? jokesAsyncProvider;
+  final JokeListDataSource? dataSource;
   final String jokeContext;
   final String viewerId;
   final Function(VoidCallback)? onInitRegisterReset;
@@ -159,11 +162,24 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
 
   @override
   Widget build(BuildContext context) {
+    // If this viewer is not on the current (top) route, avoid any heavy work.
+    // This prevents offscreen rebuilds from watching providers, loading images,
+    // and stopping performance traces from unrelated screens still mounted in the stack.
+    final route = ModalRoute.of(context);
+    final bool isCurrentRoute = route?.isCurrent ?? true;
+    if (!isCurrentRoute) {
+      return const SizedBox.expand();
+    }
+
     final AsyncValue<List<JokeWithDate>> effectiveAsync =
-        widget.jokesAsyncValue ??
-        (widget.jokesAsyncProvider != null
-            ? ref.watch(widget.jokesAsyncProvider!)
-            : const AsyncValue<List<JokeWithDate>>.data(<JokeWithDate>[]));
+        widget.dataSource != null
+        ? ref.watch(widget.dataSource!.items)
+        : (widget.jokesAsyncValue ??
+              (widget.jokesAsyncProvider != null
+                  ? ref.watch(widget.jokesAsyncProvider!)
+                  : const AsyncValue<List<JokeWithDate>>.data(
+                      <JokeWithDate>[],
+                    )));
 
     return effectiveAsync.when(
       data: (jokesWithDates) {
@@ -184,6 +200,12 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
         });
 
         if (jokesWithDates.isEmpty) {
+          // Defensive: if a data source forgot to emit loading on first-load,
+          // fallback to loading UI when it reports loading and no items.
+          if (widget.dataSource != null &&
+              ref.watch(widget.dataSource!.isLoading) == true) {
+            return const Center(child: CircularProgressIndicator());
+          }
           final empty =
               widget.emptyState ??
               const Center(child: Text('No jokes found! Try adding some.'));
@@ -240,6 +262,9 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
                             )
                             .state =
                         index;
+
+                    // Report viewing position to data source for auto-loading
+                    widget.dataSource?.updateViewingIndex(index);
 
                     final jokeWithDate = jokesWithDates[index];
                     final joke = jokeWithDate.joke;

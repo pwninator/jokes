@@ -1,9 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/app_review_service.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
+import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:snickerdoodle/src/core/services/review_prompt_state_store.dart';
-import 'package:snickerdoodle/src/core/services/app_logger.dart';
 
 /// Coordinates eligibility checks and attempts an in-app review prompt
 class ReviewPromptCoordinator {
@@ -12,15 +13,18 @@ class ReviewPromptCoordinator {
     required AppUsageService appUsageService,
     required AppReviewService appReviewService,
     required ReviewPromptStateStore stateStore,
+    required bool Function() getIsDailySubscribed,
   }) : _getRemoteValues = getRemoteValues,
        _usage = appUsageService,
        _review = appReviewService,
-       _store = stateStore;
+       _store = stateStore,
+       _getIsDailySubscribed = getIsDailySubscribed;
 
   final RemoteConfigValues Function() _getRemoteValues;
   final AppUsageService _usage;
   final AppReviewService _review;
   final ReviewPromptStateStore _store;
+  final bool Function() _getIsDailySubscribed;
 
   Future<void> maybePromptForReview({
     required ReviewRequestSource source,
@@ -42,6 +46,9 @@ class ReviewPromptCoordinator {
       final int minSaved = rv.getInt(RemoteParam.reviewMinSavedJokes);
       final int minShared = rv.getInt(RemoteParam.reviewMinSharedJokes);
       final int minViewed = rv.getInt(RemoteParam.reviewMinViewedJokes);
+      final bool requireDailySub = rv.getBool(
+        RemoteParam.reviewRequireDailySubscription,
+      );
 
       // Read usage (fast SharedPreferences reads)
       final days = await _usage.getNumDaysUsed();
@@ -49,11 +56,16 @@ class ReviewPromptCoordinator {
       final shared = await _usage.getNumSharedJokes();
       final viewed = await _usage.getNumJokesViewed();
 
+      final subscriptionRequirementPassed = requireDailySub
+          ? _getIsDailySubscribed()
+          : true;
+
       final eligible =
           days >= minDays &&
           saved >= minSaved &&
           shared >= minShared &&
-          viewed >= minViewed;
+          viewed >= minViewed &&
+          subscriptionRequirementPassed;
       if (!eligible) return;
 
       AppLogger.debug(
@@ -78,5 +90,6 @@ final reviewPromptCoordinatorProvider = Provider<ReviewPromptCoordinator>((
     appUsageService: usage,
     appReviewService: review,
     stateStore: store,
+    getIsDailySubscribed: () => ref.read(isSubscribedProvider),
   );
 });

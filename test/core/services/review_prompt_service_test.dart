@@ -18,12 +18,14 @@ class _FakeRemoteValues implements RemoteConfigValues {
     required this.minSaved,
     required this.minShared,
     this.minViewed = 0,
+    this.requireDailySub = false,
   });
 
   final int minDays;
   final int minSaved;
   final int minShared;
   final int minViewed;
+  final bool requireDailySub;
 
   @override
   bool getBool(RemoteParam param) {
@@ -32,6 +34,8 @@ class _FakeRemoteValues implements RemoteConfigValues {
         return false;
       case RemoteParam.reviewRequestFromJokeViewed:
         return true;
+      case RemoteParam.reviewRequireDailySubscription:
+        return requireDailySub;
       case RemoteParam.shareImagesMode:
         return false;
       case RemoteParam.subscriptionPromptMinJokesViewed:
@@ -67,6 +71,8 @@ class _FakeRemoteValues implements RemoteConfigValues {
       case RemoteParam.shareImagesMode:
         return 0;
       case RemoteParam.reviewRequestFromJokeViewed:
+        return 0;
+      case RemoteParam.reviewRequireDailySubscription:
         return 0;
     }
   }
@@ -112,6 +118,7 @@ void main() {
         appUsageService: usage,
         appReviewService: review,
         stateStore: store,
+        getIsDailySubscribed: () => true,
       );
 
       // Act
@@ -139,6 +146,7 @@ void main() {
         appUsageService: usage,
         appReviewService: review,
         stateStore: store,
+        getIsDailySubscribed: () => true,
       );
 
       // Ensure some low usage values
@@ -177,6 +185,7 @@ void main() {
         appUsageService: usage,
         appReviewService: review,
         stateStore: store,
+        getIsDailySubscribed: () => true,
       );
 
       // Act
@@ -211,6 +220,7 @@ void main() {
           appUsageService: usage,
           appReviewService: review,
           stateStore: store,
+          getIsDailySubscribed: () => true,
         );
 
         await coordinator.maybePromptForReview(
@@ -242,6 +252,7 @@ void main() {
           appUsageService: usage,
           appReviewService: review,
           stateStore: store,
+          getIsDailySubscribed: () => true,
         );
 
         await coordinator.maybePromptForReview(
@@ -268,11 +279,12 @@ void main() {
           () => review.requestReview(source: any(named: 'source')),
         ).thenAnswer((_) async => ReviewRequestResult.notAvailable);
 
-        final coordinator = ReviewPromptCoordinator(
+      final coordinator = ReviewPromptCoordinator(
           getRemoteValues: () => values,
           appUsageService: usage,
           appReviewService: review,
-          stateStore: store,
+        stateStore: store,
+        getIsDailySubscribed: () => true,
         );
 
         await coordinator.maybePromptForReview(
@@ -306,6 +318,7 @@ void main() {
         appUsageService: usage,
         appReviewService: review,
         stateStore: store,
+        getIsDailySubscribed: () => true,
       );
 
       // Act
@@ -341,6 +354,7 @@ void main() {
         appUsageService: usage,
         appReviewService: review,
         stateStore: store,
+        getIsDailySubscribed: () => true,
       );
 
       await coordinator.maybePromptForReview(
@@ -350,6 +364,66 @@ void main() {
       verify(
         () => review.requestReview(source: any(named: 'source')),
       ).called(1);
+    });
+
+    test('gated by daily subscription when required and not subscribed', () async {
+      final values = _FakeRemoteValues(
+        minDays: 1,
+        minSaved: 0,
+        minShared: 0,
+        minViewed: 0,
+        requireDailySub: true,
+      );
+      when(() => store.hasRequested()).thenAnswer((_) async => false);
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('num_days_used', 1);
+
+      final coordinator = ReviewPromptCoordinator(
+        getRemoteValues: () => values,
+        appUsageService: usage,
+        appReviewService: review,
+        stateStore: store,
+        getIsDailySubscribed: () => false,
+      );
+
+      await coordinator.maybePromptForReview(
+        source: ReviewRequestSource.jokeViewed,
+      );
+
+      verifyNever(() => review.requestReview(source: any(named: 'source')));
+    });
+
+    test('allows when required and subscribed', () async {
+      final values = _FakeRemoteValues(
+        minDays: 1,
+        minSaved: 0,
+        minShared: 0,
+        minViewed: 0,
+        requireDailySub: true,
+      );
+      when(() => store.hasRequested()).thenAnswer((_) async => false);
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('num_days_used', 1);
+
+      when(
+        () => review.requestReview(source: any(named: 'source')),
+      ).thenAnswer((_) async => ReviewRequestResult.notAvailable);
+
+      final coordinator = ReviewPromptCoordinator(
+        getRemoteValues: () => values,
+        appUsageService: usage,
+        appReviewService: review,
+        stateStore: store,
+        getIsDailySubscribed: () => true,
+      );
+
+      await coordinator.maybePromptForReview(
+        source: ReviewRequestSource.jokeViewed,
+      );
+
+      verify(() => review.requestReview(source: any(named: 'source'))).called(1);
     });
   });
 }

@@ -66,6 +66,13 @@
           },
           "description": "If true, allow review request from joke viewed event",
           "valueType": "BOOLEAN"
+        },
+        "review_require_daily_subscription": {
+          "defaultValue": {
+            "value": "true"
+          },
+          "description": "If true, require daily subscription to be enabled for review request",
+          "valueType": "BOOLEAN"
         }
       }
     },

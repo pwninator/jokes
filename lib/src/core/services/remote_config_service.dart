@@ -48,6 +48,12 @@ const Map<RemoteParam, RemoteParamDescriptor> remoteParams = {
     type: RemoteParamType.boolType,
     defaultBool: false,
   ),
+  // Gate review prompt behind user's daily subscription preference
+  RemoteParam.reviewRequireDailySubscription: RemoteParamDescriptor(
+    key: 'review_require_daily_subscription',
+    type: RemoteParamType.boolType,
+    defaultBool: true,
+  ),
   // Controls the default for the Joke Viewer setting when no local pref exists
   RemoteParam.defaultJokeViewerReveal: RemoteParamDescriptor(
     key: 'default_joke_viewer_reveal',
@@ -71,6 +77,7 @@ enum RemoteParam {
   reviewMinSharedJokes,
   reviewMinViewedJokes,
   reviewRequestFromJokeViewed,
+  reviewRequireDailySubscription,
   defaultJokeViewerReveal,
   shareImagesMode,
 }

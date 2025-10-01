@@ -198,8 +198,11 @@ abstract class AnalyticsService {
     required String errorMessage,
   });
 
-  /// App usage: unique day incremented
-  void logAppUsageDayIncremented({required int numDaysUsed});
+  /// App usage: logged once per day when the app is used
+  void logAppUsageDays({
+    required int numDaysUsed,
+    required Brightness brightness,
+  });
 
   /// Log joke search completion
   void logJokeSearch({
@@ -725,9 +728,14 @@ class FirebaseAnalyticsService implements AnalyticsService {
   }
 
   @override
-  void logAppUsageDayIncremented({required int numDaysUsed}) {
+  void logAppUsageDays({
+    required int numDaysUsed,
+    required Brightness brightness,
+  }) {
+    final theme = brightness == Brightness.dark ? 'dark' : 'light';
     _logEvent(AnalyticsEvent.appUsageDayIncremented, {
       AnalyticsParameters.numDaysUsed: numDaysUsed,
+      AnalyticsParameters.appTheme: theme,
     });
   }
 

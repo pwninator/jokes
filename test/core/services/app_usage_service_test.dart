@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -17,6 +18,11 @@ class _MockReviewPromptStateStore extends Mock
     implements ReviewPromptStateStore {}
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+  setUpAll(() {
+    // Needed for mocktail named matcher on Brightness
+    registerFallbackValue(Brightness.light);
+  });
   String todayString() {
     final now = DateTime.now();
     final year = now.year.toString();
@@ -36,12 +42,16 @@ void main() {
         final prefs = await SharedPreferences.getInstance();
         final mockAnalytics = _MockAnalyticsService();
         when(
-          () => mockAnalytics.logAppUsageDayIncremented(
-            numDaysUsed: any(named: 'numDaysUsed'),
+          () => mockAnalytics.logAppUsageDays(
+            numDaysUsed: any<int>(named: 'numDaysUsed'),
+            brightness: any<Brightness>(named: 'brightness'),
           ),
         ).thenAnswer((_) async {});
+        final container = ProviderContainer();
+        final ref = container.read(Provider<Ref>((ref) => ref));
         final service = AppUsageService(
           prefs: prefs,
+          ref: ref,
           analyticsService: mockAnalytics,
         );
 
@@ -52,7 +62,10 @@ void main() {
         expect(await service.getNumDaysUsed(), 1);
 
         verify(
-          () => mockAnalytics.logAppUsageDayIncremented(numDaysUsed: 1),
+          () => mockAnalytics.logAppUsageDays(
+            numDaysUsed: 1,
+            brightness: any(named: 'brightness'),
+          ),
         ).called(1);
       },
     );
@@ -61,12 +74,16 @@ void main() {
       final prefs = await SharedPreferences.getInstance();
       final mockAnalytics = _MockAnalyticsService();
       when(
-        () => mockAnalytics.logAppUsageDayIncremented(
-          numDaysUsed: any(named: 'numDaysUsed'),
+        () => mockAnalytics.logAppUsageDays(
+          numDaysUsed: any<int>(named: 'numDaysUsed'),
+          brightness: any<Brightness>(named: 'brightness'),
         ),
       ).thenAnswer((_) async {});
+      final container = ProviderContainer();
+      final ref = container.read(Provider<Ref>((ref) => ref));
       final service = AppUsageService(
         prefs: prefs,
+        ref: ref,
         analyticsService: mockAnalytics,
       );
 
@@ -77,8 +94,9 @@ void main() {
       expect(await service.getLastUsedDate(), todayString());
 
       verify(
-        () => mockAnalytics.logAppUsageDayIncremented(
+        () => mockAnalytics.logAppUsageDays(
           numDaysUsed: any(named: 'numDaysUsed'),
+          brightness: any(named: 'brightness'),
         ),
       ).called(1);
     });
@@ -89,12 +107,16 @@ void main() {
         final prefs = await SharedPreferences.getInstance();
         final mockAnalytics = _MockAnalyticsService();
         when(
-          () => mockAnalytics.logAppUsageDayIncremented(
-            numDaysUsed: any(named: 'numDaysUsed'),
+          () => mockAnalytics.logAppUsageDays(
+            numDaysUsed: any<int>(named: 'numDaysUsed'),
+            brightness: any<Brightness>(named: 'brightness'),
           ),
         ).thenAnswer((_) async {});
+        final container = ProviderContainer();
+        final ref = container.read(Provider<Ref>((ref) => ref));
         final service = AppUsageService(
           prefs: prefs,
+          ref: ref,
           analyticsService: mockAnalytics,
         );
 
@@ -113,7 +135,10 @@ void main() {
         expect(await service.getLastUsedDate(), todayString());
 
         verify(
-          () => mockAnalytics.logAppUsageDayIncremented(numDaysUsed: 2),
+          () => mockAnalytics.logAppUsageDays(
+            numDaysUsed: 2,
+            brightness: any(named: 'brightness'),
+          ),
         ).called(1);
       },
     );
@@ -122,7 +147,9 @@ void main() {
   group('AppUsageService.logJokeViewed', () {
     test('increments num_jokes_viewed counter', () async {
       final prefs = await SharedPreferences.getInstance();
-      final service = AppUsageService(prefs: prefs);
+      final container = ProviderContainer();
+      final ref = container.read(Provider<Ref>((ref) => ref));
+      final service = AppUsageService(prefs: prefs, ref: ref);
 
       expect(await service.getNumJokesViewed(), 0);
       await service.logJokeViewed();
@@ -137,7 +164,9 @@ void main() {
       'incrementSavedJokesCount and decrementSavedJokesCount update counter with floor at 0',
       () async {
         final prefs = await SharedPreferences.getInstance();
-        final service = AppUsageService(prefs: prefs);
+        final container = ProviderContainer();
+        final ref = container.read(Provider<Ref>((ref) => ref));
+        final service = AppUsageService(prefs: prefs, ref: ref);
 
         expect(await service.getNumSavedJokes(), 0);
         await service.incrementSavedJokesCount();
@@ -156,7 +185,9 @@ void main() {
 
     test('incrementSharedJokesCount updates counter', () async {
       final prefs = await SharedPreferences.getInstance();
-      final service = AppUsageService(prefs: prefs);
+      final container = ProviderContainer();
+      final ref = container.read(Provider<Ref>((ref) => ref));
+      final service = AppUsageService(prefs: prefs, ref: ref);
 
       expect(await service.getNumSharedJokes(), 0);
       await service.incrementSharedJokesCount();
@@ -175,11 +206,11 @@ void main() {
       when(() => mockReviewStore.hasRequested()).thenAnswer((_) async => true);
       when(
         () => mockJokeCloudFn.trackUsage(
-          numDaysUsed: any(named: 'numDaysUsed'),
-          numSaved: any(named: 'numSaved'),
-          numViewed: any(named: 'numViewed'),
-          numShared: any(named: 'numShared'),
-          requestedReview: any(named: 'requestedReview'),
+          numDaysUsed: any<int>(named: 'numDaysUsed'),
+          numSaved: any<int>(named: 'numSaved'),
+          numViewed: any<int>(named: 'numViewed'),
+          numShared: any<int>(named: 'numShared'),
+          requestedReview: any<bool?>(named: 'requestedReview'),
         ),
       ).thenAnswer((_) async {});
 

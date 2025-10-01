@@ -1,3 +1,4 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -93,7 +94,10 @@ void main() {
     setUp(() async {
       SharedPreferences.setMockInitialValues({});
       final prefs = await SharedPreferences.getInstance();
-      usage = AppUsageService(prefs: prefs);
+      // Create a minimal Ref using a ProviderContainer
+      final container = ProviderContainer();
+      final ref = container.read(Provider<Ref>((ref) => ref));
+      usage = AppUsageService(prefs: prefs, ref: ref);
       review = _MockAppReviewService();
       store = _MockStateStore();
     });

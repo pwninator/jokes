@@ -1,4 +1,5 @@
 import 'package:firebase_analytics/firebase_analytics.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
@@ -11,6 +12,7 @@ class MockFirebaseAnalytics extends Mock implements FirebaseAnalytics {}
 class MockCrashReportingService extends Mock implements CrashReportingService {}
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   late MockFirebaseAnalytics mockFirebaseAnalytics;
   late FirebaseAnalyticsService analyticsService;
   late MockCrashReportingService mockCrashService;
@@ -77,6 +79,10 @@ void main() {
           jokeContext: 'ctx',
           errorMessage: 'err',
         ),
+        () => analyticsService.logAppUsageDays(
+          numDaysUsed: 3,
+          brightness: Brightness.light,
+        ),
       ];
 
       for (final logFunction in allLogFunctions) {
@@ -93,20 +99,30 @@ void main() {
       );
     });
 
-    test('logs error events to Crashlytics', () async {
-      analyticsService.logErrorJokesLoad(source: 'src', errorMessage: 'err');
-      await Future.delayed(Duration.zero);
+    test(
+      'logs error events to Crashlytics without app_theme parameter',
+      () async {
+        analyticsService.logErrorJokesLoad(source: 'src', errorMessage: 'err');
+        await Future.delayed(Duration.zero); // Allow microtasks to complete
 
-      verify(
-        () => mockCrashService.recordNonFatal(
-          any(),
-          keys: any(
-            named: 'keys',
-            that: containsPair('analytics_event', 'error_jokes_load'),
+        verify(
+          () => mockCrashService.recordNonFatal(
+            any(),
+            stackTrace: any(named: 'stackTrace'),
+            keys: any(
+              named: 'keys',
+              that: allOf(
+                containsPair('analytics_event', 'error_jokes_load'),
+                predicate<Map<String, Object>>(
+                  (m) => !m.containsKey('app_theme'),
+                  'does not include app_theme',
+                ),
+              ),
+            ),
           ),
-        ),
-      ).called(1);
-    });
+        ).called(1);
+      },
+    );
 
     test('initialization completes without error', () async {
       await expectLater(analyticsService.initialize(), completes);

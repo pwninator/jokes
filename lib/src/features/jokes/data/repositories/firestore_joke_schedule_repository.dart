@@ -64,6 +64,25 @@ class FirestoreJokeScheduleRepository implements JokeScheduleRepository {
   }
 
   @override
+  Future<JokeScheduleBatch?> getBatchForMonth(
+    String scheduleId,
+    int year,
+    int month,
+  ) async {
+    final batchId = JokeScheduleBatch.createBatchId(scheduleId, year, month);
+    final doc = await _firestore
+        .collection(_batchesCollection)
+        .doc(batchId)
+        .get();
+    if (!doc.exists) return null;
+    try {
+      return JokeScheduleBatch.fromMap(doc.data()!, doc.id);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  @override
   Future<void> createSchedule(String name) async {
     final sanitizedId = JokeSchedule.sanitizeId(name);
     await _firestore.collection(_schedulesCollection).doc(sanitizedId).set({

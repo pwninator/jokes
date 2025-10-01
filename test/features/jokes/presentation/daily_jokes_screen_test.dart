@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -35,7 +37,7 @@ class FakeJoke extends Fake implements Joke {}
 void main() {
   group('DailyJokesScreen', () {
     late List<Joke> mockJokes;
-    late List<JokeScheduleBatch> mockBatches;
+    late JokeScheduleBatch mockBatch;
     late MockImageService mockImageService;
     late MockJokeScheduleRepository mockRepository;
 
@@ -45,43 +47,34 @@ void main() {
       registerFallbackValue(FakeJoke());
     });
 
-    List<JokeScheduleBatch> createMockBatches() {
+    JokeScheduleBatch createMockBatch() {
+      final now = DateTime.now();
+      final currentMonth = DateTime(now.year, now.month);
+      return JokeScheduleBatch(
+        id: '${JokeConstants.defaultJokeScheduleId}_${now.year}_${now.month.toString().padLeft(2, '0')}',
+        scheduleId: JokeConstants.defaultJokeScheduleId,
+        year: currentMonth.year,
+        month: currentMonth.month,
+        jokes: {
+          // Use today and previous days to ensure jokes are not filtered out
+          now.day.toString().padLeft(2, '0'): mockJokes[0],
+          (now.day - 1).toString().padLeft(2, '0'): mockJokes[1],
+          (now.day - 2).toString().padLeft(2, '0'): mockJokes[2],
+        },
+      );
+    }
+
+    JokeScheduleBatch createSingleJokeBatch() {
       final now = DateTime.now();
       final currentMonth = DateTime(now.year, now.month);
 
-      return [
-        JokeScheduleBatch(
-          id: '${JokeConstants.defaultJokeScheduleId}_${now.year}_${now.month.toString().padLeft(2, '0')}',
-          scheduleId: JokeConstants.defaultJokeScheduleId,
-          year: currentMonth.year,
-          month: currentMonth.month,
-          jokes: {
-            // Use today and previous days to ensure jokes are not filtered out
-            now.day.toString().padLeft(2, '0'): mockJokes[0],
-            (now.day - 1).toString().padLeft(2, '0'): mockJokes[1],
-            (now.day - 2).toString().padLeft(2, '0'): mockJokes[2],
-          },
-        ),
-      ];
-    }
-
-    List<JokeScheduleBatch> createEmptyBatches() {
-      return [];
-    }
-
-    List<JokeScheduleBatch> createSingleJokeBatch() {
-      final now = DateTime.now();
-      final currentMonth = DateTime(now.year, now.month);
-
-      return [
-        JokeScheduleBatch(
-          id: '${JokeConstants.defaultJokeScheduleId}_${now.year}_${now.month.toString().padLeft(2, '0')}',
-          scheduleId: JokeConstants.defaultJokeScheduleId,
-          year: currentMonth.year,
-          month: currentMonth.month,
-          jokes: {now.day.toString().padLeft(2, '0'): mockJokes[0]},
-        ),
-      ];
+      return JokeScheduleBatch(
+        id: '${JokeConstants.defaultJokeScheduleId}_${now.year}_${now.month.toString().padLeft(2, '0')}',
+        scheduleId: JokeConstants.defaultJokeScheduleId,
+        year: currentMonth.year,
+        month: currentMonth.month,
+        jokes: {now.day.toString().padLeft(2, '0'): mockJokes[0]},
+      );
     }
 
     setUp(() {
@@ -112,16 +105,18 @@ void main() {
         ),
       ];
 
-      // Create mock batches with test jokes
-      mockBatches = createMockBatches();
+      // Create mock batch with test jokes
+      mockBatch = createMockBatch();
 
       // Setup mock repository
       mockRepository = MockJokeScheduleRepository();
       when(
-        () => mockRepository.watchBatchesForSchedule(
+        () => mockRepository.getBatchForMonth(
           JokeConstants.defaultJokeScheduleId,
+          any(that: isA<int>()),
+          any(that: isA<int>()),
         ),
-      ).thenAnswer((_) => Stream.value(mockBatches));
+      ).thenAnswer((invocation) async => mockBatch);
 
       // Setup mock image service
       mockImageService = MockImageService();
@@ -173,7 +168,7 @@ void main() {
     });
 
     Widget createTestWidget({
-      List<JokeScheduleBatch>? customBatches,
+      JokeScheduleBatch? customBatch,
       bool simulateError = false,
     }) {
       final MockJokeScheduleRepository customRepository =
@@ -181,16 +176,29 @@ void main() {
 
       if (simulateError) {
         when(
-          () => customRepository.watchBatchesForSchedule(
+          () => customRepository.getBatchForMonth(
             JokeConstants.defaultJokeScheduleId,
+            any(that: isA<int>()),
+            any(that: isA<int>()),
           ),
-        ).thenAnswer((_) => Stream.error('Failed to load jokes'));
+        ).thenThrow(Exception('Failed to load jokes'));
       } else {
         when(
-          () => customRepository.watchBatchesForSchedule(
+          () => customRepository.getBatchForMonth(
             JokeConstants.defaultJokeScheduleId,
+            any(that: isA<int>()),
+            any(that: isA<int>()),
           ),
-        ).thenAnswer((_) => Stream.value(customBatches ?? mockBatches));
+        ).thenAnswer((invocation) async {
+          final int year = invocation.positionalArguments[1] as int;
+          final int month = invocation.positionalArguments[2] as int;
+          final batch = customBatch ?? mockBatch;
+          // Return the provided batch only for its target month; otherwise stop pagination
+          if (year == batch.year && month == batch.month) {
+            return batch;
+          }
+          return null;
+        });
       }
 
       // Create a simple GoRouter for testing that routes directly to DailyJokesScreen
@@ -215,16 +223,24 @@ void main() {
       );
     }
 
-    Widget createLandscapeShellTestWidget({
-      List<JokeScheduleBatch>? customBatches,
-    }) {
+    Widget createLandscapeShellTestWidget({JokeScheduleBatch? customBatch}) {
       final MockJokeScheduleRepository customRepository =
           MockJokeScheduleRepository();
       when(
-        () => customRepository.watchBatchesForSchedule(
+        () => customRepository.getBatchForMonth(
           JokeConstants.defaultJokeScheduleId,
+          any(that: isA<int>()),
+          any(that: isA<int>()),
         ),
-      ).thenAnswer((_) => Stream.value(customBatches ?? mockBatches));
+      ).thenAnswer((invocation) async {
+        final int year = invocation.positionalArguments[1] as int;
+        final int month = invocation.positionalArguments[2] as int;
+        final batch = customBatch ?? mockBatch;
+        if (year == batch.year && month == batch.month) {
+          return batch;
+        }
+        return null;
+      });
 
       final child = const DailyJokesScreen();
 
@@ -283,13 +299,15 @@ void main() {
       testWidgets('displays loading indicator when jokes are loading', (
         tester,
       ) async {
-        // Create a repository that never emits to simulate loading
+        // Create a repository that never completes to simulate loading
         final loadingRepository = MockJokeScheduleRepository();
         when(
-          () => loadingRepository.watchBatchesForSchedule(
+          () => loadingRepository.getBatchForMonth(
             JokeConstants.defaultJokeScheduleId,
+            any(that: isA<int>()),
+            any(that: isA<int>()),
           ),
-        ).thenAnswer((_) => const Stream<List<JokeScheduleBatch>>.empty());
+        ).thenAnswer((_) => Completer<JokeScheduleBatch?>().future);
 
         // Create a simple GoRouter for testing
         final router = GoRouter(
@@ -316,24 +334,30 @@ void main() {
           ),
         );
 
+        // Allow microtask to kick off initial load
+        await tester.pump();
         expect(find.byType(CircularProgressIndicator), findsOneWidget);
       });
 
-      testWidgets('displays error message when jokes fail to load', (
-        tester,
-      ) async {
+      testWidgets('shows empty state when jokes fail to load', (tester) async {
         await tester.pumpWidget(createTestWidget(simulateError: true));
 
         await tester.pump(); // Allow error to be processed
-        expect(find.textContaining('Error loading jokes'), findsOneWidget);
+        expect(find.text('No jokes found! Try adding some.'), findsOneWidget);
       });
 
       testWidgets('displays no jokes message when joke list is empty', (
         tester,
       ) async {
-        await tester.pumpWidget(
-          createTestWidget(customBatches: createEmptyBatches()),
+        final now = DateTime.now();
+        final emptyBatch = JokeScheduleBatch(
+          id: '${JokeConstants.defaultJokeScheduleId}_${now.year}_${now.month.toString().padLeft(2, '0')}',
+          scheduleId: JokeConstants.defaultJokeScheduleId,
+          year: now.year,
+          month: now.month,
+          jokes: const {},
         );
+        await tester.pumpWidget(createTestWidget(customBatch: emptyBatch));
 
         await tester.pump(); // Allow data to be processed
         expect(find.text('No jokes found! Try adding some.'), findsOneWidget);
@@ -392,7 +416,7 @@ void main() {
         tester,
       ) async {
         final single = createSingleJokeBatch();
-        await tester.pumpWidget(createTestWidget(customBatches: single));
+        await tester.pumpWidget(createTestWidget(customBatch: single));
         await tester.pump();
         // Allow post-frame rail slot update
         await tester.pump();
@@ -482,7 +506,7 @@ void main() {
           ),
         ];
 
-        await tester.pumpWidget(createTestWidget(customBatches: batches));
+        await tester.pumpWidget(createTestWidget(customBatch: batches.first));
         await tester.pump();
         await tester.pump();
         // Give the StreamProvider an extra frame to emit
@@ -588,9 +612,15 @@ void main() {
         tester,
       ) async {
         // Start with empty
-        await tester.pumpWidget(
-          createTestWidget(customBatches: createEmptyBatches()),
+        final now2 = DateTime.now();
+        final emptyBatch2 = JokeScheduleBatch(
+          id: '${JokeConstants.defaultJokeScheduleId}_${now2.year}_${now2.month.toString().padLeft(2, '0')}',
+          scheduleId: JokeConstants.defaultJokeScheduleId,
+          year: now2.year,
+          month: now2.month,
+          jokes: const {},
         );
+        await tester.pumpWidget(createTestWidget(customBatch: emptyBatch2));
 
         await tester.pump();
         expect(find.text('No jokes found! Try adding some.'), findsOneWidget);

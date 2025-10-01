@@ -1,27 +1,38 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
-import 'package:snickerdoodle/src/features/jokes/application/joke_list_data_source.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
+import 'package:snickerdoodle/src/features/jokes/application/joke_list_data_source.dart';
+import 'package:snickerdoodle/src/features/jokes/application/joke_schedule_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_search_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
 
 /// Data source for category search
 class CategorySearchDataSource extends JokeListDataSource {
-  CategorySearchDataSource(WidgetRef ref) : super(ref, _categorySearch);
+  CategorySearchDataSource(WidgetRef ref)
+    : super(ref, _categorySearchProviders);
 }
 
 /// Data source for user joke search
 class UserJokeSearchDataSource extends JokeListDataSource {
-  UserJokeSearchDataSource(WidgetRef ref) : super(ref, _userJokeSearch);
+  UserJokeSearchDataSource(WidgetRef ref)
+    : super(ref, _userJokeSearchProviders);
+}
+
+/// Data source for daily jokes loaded from monthly schedule batches
+class DailyJokesDataSource extends JokeListDataSource {
+  DailyJokesDataSource(WidgetRef ref) : super(ref, _dailyJokesPagingProviders);
 }
 
 // Predefined provider bundles for common scopes
-final _categorySearch = createSearchPagingProviders(
+final _categorySearchProviders = createSearchPagingProviders(
   scope: SearchScope.category,
 );
-final _userJokeSearch = createSearchPagingProviders(
+final _userJokeSearchProviders = createSearchPagingProviders(
   scope: SearchScope.userJokeSearch,
 );
+
+final _dailyJokesPagingProviders = createDailyJokesPagingProviders();
 
 /// Creates a scope-specific set of paging providers for search
 PagingProviderBundle createSearchPagingProviders({
@@ -84,7 +95,7 @@ _makeLoadSearchPage(SearchScope scope) {
     final hasMore = nextOffset < allResults.length;
 
     AppLogger.debug(
-      'PAGINATION: Loaded page at offset $offset, fetched ${pageIds.length} jokes, total results: ${allResults.length}, hasMore: $hasMore',
+      'PAGINATION: Loaded search page at offset $offset, fetched ${pageIds.length} jokes, total results: ${allResults.length}, hasMore: $hasMore',
     );
 
     return PageResult(
@@ -94,4 +105,90 @@ _makeLoadSearchPage(SearchScope scope) {
       totalCount: allResults.length,
     );
   };
+}
+
+PagingProviderBundle createDailyJokesPagingProviders({
+  int initialPageSize = 5,
+  int loadPageSize = 10,
+  int loadMoreThreshold = 10,
+}) {
+  return createPagingProviders(
+    loadPage: _loadDailyJokesPage,
+    resetTriggers: const [],
+    errorAnalyticsSource: 'daily_jokes',
+    initialPageSize: initialPageSize,
+    loadPageSize: loadPageSize,
+    loadMoreThreshold: loadMoreThreshold,
+  );
+}
+
+Future<PageResult> _loadDailyJokesPage(
+  Ref ref,
+  int limit,
+  String? cursor,
+) async {
+  AppLogger.debug(
+    'PAGINATION: Loading daily jokes page with limit: $limit, cursor: $cursor',
+  );
+
+  final repository = ref.read(jokeScheduleRepositoryProvider);
+
+  final now = DateTime.now();
+  final today = DateTime(now.year, now.month, now.day);
+
+  // Determine target month to load
+  final DateTime targetMonth;
+  if (cursor == null) {
+    targetMonth = DateTime(now.year, now.month);
+  } else {
+    final parts = cursor.split('_');
+    final int year = int.parse(parts[0]);
+    final int month = int.parse(parts[1]);
+    targetMonth = DateTime(year, month);
+  }
+
+  // Fetch the batch for the target month
+  final batch = await repository.getBatchForMonth(
+    JokeConstants.defaultJokeScheduleId,
+    targetMonth.year,
+    targetMonth.month,
+  );
+
+  if (batch == null) {
+    AppLogger.debug('PAGINATION: No batch for this month: $targetMonth');
+    // No batch for this month: stop pagination
+    return const PageResult(jokes: [], cursor: null, hasMore: false);
+  }
+
+  // Extract jokes from batch; sort by day descending (newest first)
+  final jokesWithDates = <JokeWithDate>[];
+  final sortedDays = batch.jokes.keys.toList()..sort((a, b) => b.compareTo(a));
+
+  for (final dayKey in sortedDays) {
+    final joke = batch.jokes[dayKey];
+    if (joke == null) continue;
+
+    final int? day = int.tryParse(dayKey);
+    if (day == null) continue;
+
+    final jokeDate = DateTime(batch.year, batch.month, day);
+    final bool include = !jokeDate.isAfter(today);
+
+    if (include &&
+        joke.setupImageUrl != null &&
+        joke.setupImageUrl!.isNotEmpty &&
+        joke.punchlineImageUrl != null &&
+        joke.punchlineImageUrl!.isNotEmpty) {
+      jokesWithDates.add(JokeWithDate(joke: joke, date: jokeDate));
+    }
+  }
+
+  // Compute next cursor as previous month; keep paginating until no batch exists
+  final previousMonth = DateTime(targetMonth.year, targetMonth.month - 1);
+  final nextCursor = '${previousMonth.year}_${previousMonth.month.toString()}';
+
+  AppLogger.debug(
+    'PAGINATION: Loaded daily jokes page with cursor "$cursor", fetched ${jokesWithDates.length} jokes, next cursor: "$nextCursor"',
+  );
+  return PageResult(jokes: jokesWithDates, cursor: nextCursor, hasMore: true);
 }

@@ -4,7 +4,7 @@ import 'package:snickerdoodle/src/common_widgets/adaptive_app_bar_screen.dart';
 import 'package:snickerdoodle/src/common_widgets/titled_screen.dart';
 import 'package:snickerdoodle/src/config/router/router_providers.dart';
 import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
-import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
+import 'package:snickerdoodle/src/features/jokes/application/joke_list_data_sources.dart';
 import 'package:snickerdoodle/src/features/jokes/presentation/joke_list_viewer.dart';
 
 class DailyJokesScreen extends ConsumerStatefulWidget implements TitledScreen {
@@ -29,12 +29,10 @@ class _DailyJokesScreenState extends ConsumerState<DailyJokesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final jokesWithDateAsyncValue = ref.watch(monthlyJokesWithDateProvider);
-
     return AdaptiveAppBarScreen(
       title: 'Daily Jokes',
       body: JokeListViewer(
-        jokesAsyncValue: jokesWithDateAsyncValue,
+        dataSource: DailyJokesDataSource(ref),
         jokeContext: AnalyticsJokeContext.dailyJokes,
         viewerId: 'daily_jokes',
       ),

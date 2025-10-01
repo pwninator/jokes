@@ -35,15 +35,16 @@ final jokeCategoryByIdProvider = StreamProvider.autoDispose
 final discoverCategoriesProvider = Provider<AsyncValue<List<JokeCategory>>>((
   ref,
 ) {
-  // Programmatic Popular tile (non-interactive: empty query)
-  const popularTile = JokeCategory(
+  // Programmatic Popular tile
+  final popularTile = JokeCategory(
     id: 'programmatic:popular',
     displayName: 'Popular',
-    jokeDescriptionQuery: '',
+    jokeDescriptionQuery: null,
     imageUrl:
         'https://images.quillsstorybook.com/cdn-cgi/image/width=1024,format=auto,quality=75/pun_agent_image_20250903_051129_509211.png',
     imageDescription: 'Popular jokes',
     state: JokeCategoryState.approved,
+    type: CategoryType.popular,
   );
 
   final categoriesAsync = ref.watch(jokeCategoriesProvider);

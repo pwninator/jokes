@@ -27,41 +27,37 @@ class DiscoverScreen extends ConsumerStatefulWidget {
 class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
   static const _viewerId = 'discover_category';
   VoidCallback? _resetViewer;
-  String? _activeCategoryName;
   late final JokeListDataSource _dataSource;
 
   @override
   void initState() {
     super.initState();
-    // Create the data source once and reuse it across widgets on this screen
-    _dataSource = CategorySearchDataSource(ref);
+    // Use unified category data source that routes by activeCategoryProvider
+    _dataSource = CategoryDataSource(ref);
   }
 
   @override
   Widget build(BuildContext context) {
-    final searchState = ref.watch(searchQueryProvider(SearchScope.category));
-    final effectiveQuery = _effectiveQuery(searchState.query);
-    final hasActiveQuery = effectiveQuery.isNotEmpty;
-    final categoryName = hasActiveQuery
-        ? (_activeCategoryName ?? _deriveCategoryName(effectiveQuery))
-        : null;
-    final title = categoryName ?? 'Discover';
+    final activeCategory = ref.watch(activeCategoryProvider);
+    final hasActiveCategory = activeCategory != null;
+    final categoryName = activeCategory?.displayName;
+    final title = activeCategory?.displayName ?? 'Discover';
 
     return PopScope(
-      canPop: !hasActiveQuery,
+      canPop: !hasActiveCategory,
       onPopInvokedWithResult: (didPop, _) {
         if (didPop) return;
-        if (_clearCategorySearch()) return;
+        if (_clearCategory()) return;
         if (context.canPop()) context.pop();
       },
       child: AdaptiveAppBarScreen(
         title: title,
-        leading: hasActiveQuery
+        leading: hasActiveCategory
             ? IconButton(
                 key: const Key('discover_screen-back-button'),
                 icon: const Icon(Icons.arrow_back),
                 onPressed: () {
-                  if (_clearCategorySearch()) return;
+                  if (_clearCategory()) return;
                   if (context.canPop()) {
                     context.pop();
                   }
@@ -79,12 +75,9 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
         automaticallyImplyLeading: false,
         body: Column(
           children: [
-            _ResultsSummary(
-              categoryName: categoryName,
-              dataSource: _dataSource,
-            ),
+            _ResultsSummary(category: activeCategory, dataSource: _dataSource),
             Expanded(
-              child: hasActiveQuery
+              child: hasActiveCategory
                   ? _CategoryResults(
                       viewerId: _viewerId,
                       onInitRegisterReset: (cb) => _resetViewer = cb,
@@ -100,63 +93,51 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
   }
 
   void _onCategorySelected(WidgetRef ref, JokeCategory category) {
-    final rawQuery = category.jokeDescriptionQuery.trim();
-    if (rawQuery.isEmpty) return;
+    // Set active category so the unified data source routes and resets
+    ref.read(activeCategoryProvider.notifier).state = category;
 
-    setState(() {
-      _activeCategoryName = category.displayName;
-    });
-
-    final notifier = ref.read(
-      searchQueryProvider(SearchScope.category).notifier,
-    );
-    final current = notifier.state;
-    notifier.state = current.copyWith(
-      query: '${JokeConstants.searchQueryPrefix}$rawQuery',
-      maxResults: JokeConstants.userSearchMaxResults,
-      publicOnly: JokeConstants.userSearchPublicOnly,
-      matchMode: JokeConstants.userSearchMatchMode,
-      excludeJokeIds: const [],
-      label: SearchLabel.category,
-    );
+    // Update search query only for search-type categories
+    if (category.type == CategoryType.search) {
+      final rawQuery = (category.jokeDescriptionQuery ?? '').trim();
+      if (rawQuery.isNotEmpty) {
+        final notifier = ref.read(
+          searchQueryProvider(SearchScope.category).notifier,
+        );
+        final current = notifier.state;
+        notifier.state = current.copyWith(
+          query: '${JokeConstants.searchQueryPrefix}$rawQuery',
+          maxResults: JokeConstants.userSearchMaxResults,
+          publicOnly: JokeConstants.userSearchPublicOnly,
+          matchMode: JokeConstants.userSearchMatchMode,
+          excludeJokeIds: const [],
+          label: SearchLabel.category,
+        );
+      }
+    }
     ref.read(jokeViewerPageIndexProvider(_viewerId).notifier).state = 0;
     _resetViewer?.call();
   }
 
-  bool _clearCategorySearch() {
-    final notifier = ref.read(
-      searchQueryProvider(SearchScope.category).notifier,
-    );
-    final current = notifier.state;
-    if (_effectiveQuery(current.query).isEmpty) {
+  bool _clearCategory() {
+    final activeCategory = ref.read(activeCategoryProvider);
+    if (activeCategory == null) {
       return false;
     }
-    notifier.state = current.copyWith(
+
+    final searchQueryNotifier = ref.read(
+      searchQueryProvider(SearchScope.category).notifier,
+    );
+    final currentQuery = searchQueryNotifier.state;
+    searchQueryNotifier.state = currentQuery.copyWith(
       query: '',
       excludeJokeIds: const [],
       label: SearchLabel.none,
     );
+
+    ref.read(activeCategoryProvider.notifier).state = null;
     ref.read(jokeViewerPageIndexProvider(_viewerId).notifier).state = 0;
     _resetViewer?.call();
-    if (mounted) {
-      setState(() {
-        _activeCategoryName = null;
-      });
-    }
     return true;
-  }
-
-  String _effectiveQuery(String raw) {
-    const prefix = JokeConstants.searchQueryPrefix;
-    if (raw.startsWith(prefix)) {
-      return raw.substring(prefix.length).trim();
-    }
-    return raw.trim();
-  }
-
-  String _deriveCategoryName(String query) {
-    if (query.isEmpty) return 'Discover';
-    return query[0].toUpperCase() + query.substring(1);
   }
 }
 
@@ -193,9 +174,14 @@ class _CategoryResultsState extends ConsumerState<_CategoryResults> {
               : 'No jokes found')
         : '';
 
+    // Use popular context if active category type is popular
+    final active = ref.watch(activeCategoryProvider);
+    final jokeContext = (active?.type == CategoryType.popular)
+        ? AnalyticsJokeContext.popular
+        : AnalyticsJokeContext.category;
     return JokeListViewer(
       dataSource: widget.dataSource,
-      jokeContext: AnalyticsJokeContext.category,
+      jokeContext: jokeContext,
       viewerId: widget.viewerId,
       onInitRegisterReset: widget.onInitRegisterReset,
       emptyState: emptyStateMessage.isEmpty
@@ -206,23 +192,29 @@ class _CategoryResultsState extends ConsumerState<_CategoryResults> {
 }
 
 class _ResultsSummary extends ConsumerWidget {
-  const _ResultsSummary({required this.categoryName, required this.dataSource});
+  const _ResultsSummary({required this.category, required this.dataSource});
 
-  final String? categoryName;
+  final JokeCategory? category;
   final JokeListDataSource dataSource;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    if (categoryName == null) return const SizedBox.shrink();
+    // Don't show count for Popular category because there are many jokes
+    // so the partial count is misleading
+    if (category == null || category!.type == CategoryType.popular) {
+      return const SizedBox.shrink();
+    }
 
     final countInfo = ref.watch(dataSource.resultCount);
     final count = countInfo.count;
+    final hasMore = countInfo.hasMore;
 
     // Don't show count until we have at least one joke loaded
     if (count == 0) return const SizedBox.shrink();
 
+    final hasMoreLabel = hasMore ? '+' : '';
     final noun = count == 1 ? 'joke' : 'jokes';
-    final label = '$count $noun';
+    final label = '$count$hasMoreLabel $noun';
 
     return Align(
       alignment: Alignment.centerLeft,

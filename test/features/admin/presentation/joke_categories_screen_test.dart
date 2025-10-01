@@ -28,17 +28,19 @@ void main() {
 
     when(() => repo.watchCategories()).thenAnswer(
       (_) => Stream.value([
-        const JokeCategory(
+        JokeCategory(
           id: 'animal_jokes',
           displayName: 'Animal Jokes',
           jokeDescriptionQuery: 'animal',
           imageUrl: 'https://example.com/image.jpg',
+          type: CategoryType.search,
         ),
-        const JokeCategory(
+        JokeCategory(
           id: 'seasonal',
           displayName: 'Seasonal',
           jokeDescriptionQuery: 'season',
           imageUrl: null,
+          type: CategoryType.search,
         ),
       ]),
     );
@@ -106,11 +108,12 @@ void main() {
 
     when(() => repo.watchCategories()).thenAnswer(
       (_) => Stream.value([
-        const JokeCategory(
+        JokeCategory(
           id: 'test_category',
           displayName: 'Test Category',
           jokeDescriptionQuery: 'test',
           imageUrl: null,
+          type: CategoryType.search,
         ),
       ]),
     );

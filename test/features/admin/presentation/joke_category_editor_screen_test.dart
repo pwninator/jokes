@@ -24,6 +24,7 @@ void main() {
       displayName: 'Test Category',
       jokeDescriptionQuery: 'test query',
       state: JokeCategoryState.proposed,
+      type: CategoryType.search,
     );
 
     setUp(() {

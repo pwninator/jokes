@@ -1,13 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
-import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_service.dart';
+import 'package:snickerdoodle/src/core/providers/app_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_providers.dart';
-import 'package:snickerdoodle/src/features/jokes/application/joke_schedule_providers.dart';
+import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_service.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
-import 'package:snickerdoodle/src/core/providers/app_providers.dart';
 
 // Provider for getting a specific joke by ID
 final jokeStreamByIdProvider = StreamProvider.family<Joke?, String>((
@@ -16,26 +14,6 @@ final jokeStreamByIdProvider = StreamProvider.family<Joke?, String>((
 ) {
   final repository = ref.watch(jokeRepositoryProvider);
   return repository.getJokeByIdStream(jokeId);
-});
-
-// Direct-get provider for a specific joke by ID (single snapshot, no live updates)
-final jokeByIdGetProvider = FutureProvider.family<Joke?, String>((
-  ref,
-  jokeId,
-) async {
-  final repository = ref.watch(jokeRepositoryProvider);
-  final jokes = await repository.getJokesByIds([jokeId]);
-  return jokes.isNotEmpty ? jokes.first : null;
-});
-
-// Direct-get provider for multiple jokes by IDs (single snapshot, no live updates)
-final jokesByIdsGetProvider = FutureProvider.family<List<Joke>, List<String>>((
-  ref,
-  ids,
-) async {
-  if (ids.isEmpty) return const <Joke>[];
-  final repository = ref.watch(jokeRepositoryProvider);
-  return repository.getJokesByIds(ids);
 });
 
 // Provider for JokeCloudFunctionService
@@ -53,82 +31,6 @@ class JokeWithDate {
 
   const JokeWithDate({required this.joke, this.date});
 }
-
-// Monthly jokes provider that loads from joke_schedule_batches with dates
-final monthlyJokesWithDateProvider = StreamProvider<List<JokeWithDate>>((ref) {
-  final repository = ref.watch(jokeScheduleRepositoryProvider);
-
-  return repository
-      .watchBatchesForSchedule(JokeConstants.defaultJokeScheduleId)
-      .map((batches) {
-        // Get current date
-        final now = DateTime.now();
-
-        // Calculate 6-month window: 3 previous, current, 2 next
-        final targetMonths = <DateTime>[];
-        for (int i = -3; i <= 2; i++) {
-          targetMonths.add(DateTime(now.year, now.month + i));
-        }
-
-        // Filter batches for our target months
-        final relevantBatches = batches.where((batch) {
-          final batchDate = DateTime(batch.year, batch.month);
-          return targetMonths.any(
-            (target) =>
-                target.year == batchDate.year &&
-                target.month == batchDate.month,
-          );
-        }).toList();
-
-        // Convert batches to chronological joke list with dates
-        final jokesWithDates = <JokeWithDate>[];
-
-        // Sort batches in reverse chronological order (newest first)
-        relevantBatches.sort((a, b) {
-          final aDate = DateTime(a.year, a.month);
-          final bDate = DateTime(b.year, b.month);
-          return bDate.compareTo(aDate); // Reversed for newest first
-        });
-
-        // Extract jokes from each batch in reverse chronological order
-        for (final batch in relevantBatches) {
-          // Get all days in the batch and sort them in descending order
-          final sortedDays = batch.jokes.keys.toList()
-            ..sort(
-              (a, b) => b.compareTo(a),
-            ); // Reverse sort for newest day first
-
-          // Add jokes in day order, but only for dates that are not in the future
-          for (final day in sortedDays) {
-            final joke = batch.jokes[day];
-            if (joke != null) {
-              // Parse day string to int and create full date
-              final dayInt = int.tryParse(day);
-              if (dayInt != null) {
-                final jokeDate = DateTime(batch.year, batch.month, dayInt);
-                final today = DateTime.now();
-                final todayDate = DateTime(today.year, today.month, today.day);
-
-                // Only include jokes for today or past dates
-                if (!jokeDate.isAfter(todayDate)) {
-                  // Filter for jokes with images
-                  if (joke.setupImageUrl != null &&
-                      joke.setupImageUrl!.isNotEmpty &&
-                      joke.punchlineImageUrl != null &&
-                      joke.punchlineImageUrl!.isNotEmpty) {
-                    jokesWithDates.add(
-                      JokeWithDate(joke: joke, date: jokeDate),
-                    );
-                  }
-                }
-              }
-            }
-          }
-        }
-
-        return jokesWithDates;
-      });
-});
 
 // Saved jokes provider that loads saved jokes from SharedPreferences
 final savedJokesProvider = StreamProvider<List<JokeWithDate>>((ref) async* {

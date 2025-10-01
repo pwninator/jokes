@@ -8,6 +8,13 @@ abstract class JokeScheduleRepository {
   /// Stream of all batches for a specific schedule
   Stream<List<JokeScheduleBatch>> watchBatchesForSchedule(String scheduleId);
 
+  /// Fetch a single batch by schedule and month. Returns null if not found.
+  Future<JokeScheduleBatch?> getBatchForMonth(
+    String scheduleId,
+    int year,
+    int month,
+  );
+
   /// Create a new joke schedule
   Future<void> createSchedule(String name);
 

@@ -53,7 +53,7 @@ final discoverCategoriesProvider = Provider<AsyncValue<List<JokeCategory>>>((
   // Programmatic Popular tile
   final popularTile = JokeCategory(
     id: 'programmatic:popular',
-    displayName: 'Popular ❤️',
+    displayName: 'Most Popular ❤️',
     jokeDescriptionQuery: null,
     imageUrl:
         'https://images.quillsstorybook.com/cdn-cgi/image/width=1024,format=auto,quality=75/joke_assets/$randomImageName',

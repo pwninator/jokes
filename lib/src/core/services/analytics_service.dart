@@ -198,7 +198,7 @@ abstract class AnalyticsService {
     required String errorMessage,
   });
 
-  /// App usage: unique day incremented
+  /// App usage: logged once per day when the app is used
   void logAppUsageDays({
     required int numDaysUsed,
     required Brightness brightness,

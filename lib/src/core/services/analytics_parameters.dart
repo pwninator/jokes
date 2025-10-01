@@ -81,6 +81,9 @@ class AnalyticsParameters {
   static const String jokeNavigatedCount = 'joke_navigated_count';
   static const String jokeViewedCount = 'joke_viewed_count';
   static const String jokeSavedCount = 'joke_saved_count';
+
+  // App-level parameters
+  static const String appTheme = 'app_theme';
 }
 
 /// User type values for analytics

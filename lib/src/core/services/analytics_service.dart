@@ -2,12 +2,14 @@ import 'dart:async';
 
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/core/services/analytics_events.dart';
 import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/crash_reporting_service.dart';
 import 'package:snickerdoodle/src/features/auth/data/models/app_user.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_viewer_mode.dart';
+import 'package:snickerdoodle/src/features/settings/application/brightness_provider.dart';
 import 'package:snickerdoodle/src/utils/device_utils.dart';
 
 /// Abstract interface for analytics service
@@ -261,9 +263,11 @@ abstract class AnalyticsService {
 class FirebaseAnalyticsService implements AnalyticsService {
   final FirebaseAnalytics _analytics;
   final CrashReportingService _crashReportingService;
+  final Ref _ref;
   AppUser? _currentUser;
 
-  FirebaseAnalyticsService({
+  FirebaseAnalyticsService(
+    this._ref, {
     FirebaseAnalytics? analytics,
     CrashReportingService? crashReportingService,
   }) : _analytics = analytics ?? FirebaseAnalytics.instance,
@@ -853,9 +857,14 @@ class FirebaseAnalyticsService implements AnalyticsService {
     // Fire-and-forget: execute analytics work in a microtask
     scheduleMicrotask(() async {
       try {
+        final brightness = _ref.read(brightnessProvider);
+        final theme = brightness == Brightness.dark ? 'dark' : 'light';
+
         // Convert parameters to Map<String, Object> and filter out null values
         // Also convert non-string/non-num values to strings for Firebase Analytics
-        final analyticsParameters = <String, Object>{};
+        final analyticsParameters = <String, Object>{
+          AnalyticsParameters.appTheme: theme,
+        };
         for (final entry in parameters.entries) {
           if (entry.value != null) {
             final value = entry.value;

@@ -17,12 +17,13 @@ void main() {
 
   setUp(FirebaseMocks.reset);
 
-  const animalCategory = JokeCategory(
+  final animalCategory = JokeCategory(
     id: 'animal',
     displayName: 'Animal Jokes',
     jokeDescriptionQuery: 'animal',
     imageUrl: null,
     state: JokeCategoryState.approved,
+    type: CategoryType.search,
   );
 
   const sampleJoke = Joke(
@@ -40,7 +41,7 @@ void main() {
 
     return [
       jokeCategoriesProvider.overrideWith(
-        (ref) => Stream.value(const [animalCategory]),
+        (ref) => Stream.value([animalCategory]),
       ),
       // Legacy providers (still used by some parts of the code)
       searchResultIdsProvider(

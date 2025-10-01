@@ -271,7 +271,8 @@ PagingProviderBundle createPagingProviders({
     final state = ref.watch(pagingProvider);
     // Use totalCount if available, otherwise fall back to loaded count
     final count = state.totalCount ?? state.loadedJokes.length;
-    return (count: count, hasMore: state.hasMore);
+    final hasMore = state.hasMore && state.totalCount == null;
+    return (count: count, hasMore: hasMore);
   });
 
   return PagingProviderBundle(

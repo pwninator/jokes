@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
@@ -5,12 +7,15 @@ import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers
 import 'package:snickerdoodle/src/features/jokes/application/joke_list_data_source.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_schedule_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_search_providers.dart';
+import 'package:snickerdoodle/src/features/jokes/data/models/joke_category.dart';
+import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart'
+    show JokeListPageCursor;
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
+import 'package:snickerdoodle/src/features/jokes/domain/joke_state.dart';
 
-/// Data source for category search
-class CategorySearchDataSource extends JokeListDataSource {
-  CategorySearchDataSource(WidgetRef ref)
-    : super(ref, _categorySearchProviders);
+/// Data source for daily jokes loaded from monthly schedule batches
+class DailyJokesDataSource extends JokeListDataSource {
+  DailyJokesDataSource(WidgetRef ref) : super(ref, _dailyJokesPagingProviders);
 }
 
 /// Data source for user joke search
@@ -19,20 +24,111 @@ class UserJokeSearchDataSource extends JokeListDataSource {
     : super(ref, _userJokeSearchProviders);
 }
 
-/// Data source for daily jokes loaded from monthly schedule batches
-class DailyJokesDataSource extends JokeListDataSource {
-  DailyJokesDataSource(WidgetRef ref) : super(ref, _dailyJokesPagingProviders);
+/// Unified category data source that routes to search vs. popular loaders
+/// based on the currently active category.
+class CategoryDataSource extends JokeListDataSource {
+  CategoryDataSource(WidgetRef ref) : super(ref, _categoryPagingProviders);
 }
 
-// Predefined provider bundles for common scopes
-final _categorySearchProviders = createSearchPagingProviders(
-  scope: SearchScope.category,
-);
 final _userJokeSearchProviders = createSearchPagingProviders(
   scope: SearchScope.userJokeSearch,
 );
 
 final _dailyJokesPagingProviders = createDailyJokesPagingProviders();
+
+/// Active category selection for Discover. Changing this resets the unified
+/// category data source via its reset trigger.
+final activeCategoryProvider = StateProvider<JokeCategory?>((ref) => null);
+
+final _categoryPagingProviders = createPagingProviders(
+  loadPage: _loadCategoryPage,
+  resetTriggers: [
+    ResetTrigger(
+      provider: activeCategoryProvider,
+      shouldReset: (prev, next) =>
+          (prev as JokeCategory?)?.id != (next as JokeCategory?)?.id,
+    ),
+  ],
+  errorAnalyticsSource: 'category',
+  initialPageSize: 2,
+  loadPageSize: 5,
+  loadMoreThreshold: 5,
+);
+
+Future<PageResult> _loadCategoryPage(Ref ref, int limit, String? cursor) async {
+  final category = ref.read(activeCategoryProvider);
+  if (category == null) {
+    return const PageResult(jokes: [], cursor: null, hasMore: false);
+  }
+  switch (category.type) {
+    case CategoryType.search:
+      return _makeLoadSearchPage(SearchScope.category)(ref, limit, cursor);
+    case CategoryType.popular:
+      return _loadPopularCategoryPage(ref, limit, cursor);
+  }
+}
+
+Future<PageResult> _loadPopularCategoryPage(
+  Ref ref,
+  int limit,
+  String? cursor,
+) async {
+  AppLogger.debug(
+    'PAGINATION: Loading popular category page with limit: $limit, cursor: $cursor',
+  );
+
+  final repository = ref.read(jokeRepositoryProvider);
+
+  // Deserialize cursor JSON if present
+  final pageCursor = cursor != null ? _deserializePopularCursor(cursor) : null;
+
+  final page = await repository.getFilteredJokePage(
+    states: {JokeState.published, JokeState.daily},
+    popularOnly: true,
+    limit: limit,
+    cursor: pageCursor,
+  );
+
+  if (page.ids.isEmpty) {
+    return const PageResult(jokes: [], cursor: null, hasMore: false);
+  }
+
+  // Fetch full joke documents for the page
+  final jokes = await repository.getJokesByIds(page.ids);
+
+  // Require images
+  final jokesWithDate = jokes
+      .where(
+        (j) =>
+            (j.setupImageUrl != null && j.setupImageUrl!.isNotEmpty) &&
+            (j.punchlineImageUrl != null && j.punchlineImageUrl!.isNotEmpty),
+      )
+      .map((j) => JokeWithDate(joke: j))
+      .toList();
+
+  final nextCursor = page.cursor != null
+      ? _serializePopularCursor(page.cursor!)
+      : null;
+
+  return PageResult(
+    jokes: jokesWithDate,
+    cursor: nextCursor,
+    hasMore: page.hasMore,
+  );
+}
+
+String _serializePopularCursor(JokeListPageCursor cursor) {
+  // Compact JSON to avoid delimiter issues
+  return jsonEncode({'o': cursor.orderValue, 'd': cursor.docId});
+}
+
+JokeListPageCursor _deserializePopularCursor(String cursor) {
+  final Map<String, dynamic> data = jsonDecode(cursor) as Map<String, dynamic>;
+  return JokeListPageCursor(
+    orderValue: data['o'] as Object,
+    docId: data['d'] as String,
+  );
+}
 
 /// Creates a scope-specific set of paging providers for search
 PagingProviderBundle createSearchPagingProviders({

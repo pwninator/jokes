@@ -27,6 +27,7 @@ class JokeCategoryEditorNotifier extends StateNotifier<JokeCategory> {
       imageUrl: state.imageUrl,
       imageDescription: description,
       state: state.state,
+      type: state.type,
     );
   }
 
@@ -38,6 +39,7 @@ class JokeCategoryEditorNotifier extends StateNotifier<JokeCategory> {
       imageUrl: state.imageUrl,
       imageDescription: state.imageDescription,
       state: newState,
+      type: state.type,
     );
   }
 
@@ -49,6 +51,7 @@ class JokeCategoryEditorNotifier extends StateNotifier<JokeCategory> {
       imageUrl: imageUrl,
       imageDescription: state.imageDescription,
       state: state.state,
+      type: state.type,
     );
   }
 }
@@ -116,7 +119,7 @@ class JokeCategoryEditorView extends ConsumerWidget {
 
           // 2) Joke description query (subtitle style)
           Text(
-            editorState.jokeDescriptionQuery,
+            editorState.jokeDescriptionQuery ?? '',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
               color: Theme.of(context).colorScheme.onSurfaceVariant,
             ),

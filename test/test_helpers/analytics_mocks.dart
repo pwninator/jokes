@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
@@ -26,6 +27,7 @@ class AnalyticsMocks {
   /// Register fallback values for mocktail
   static void registerFallbackValues() {
     registerFallbackValue(JokeViewerMode.reveal);
+    registerFallbackValue(Brightness.light);
   }
 
   /// Reset all analytics mocks (call this in setUp if needed)
@@ -316,8 +318,9 @@ class AnalyticsMocks {
 
     // App usage
     when(
-      () => mock.logAppUsageDayIncremented(
+      () => mock.logAppUsageDays(
         numDaysUsed: any(named: 'numDaysUsed'),
+        brightness: any(named: 'brightness'),
       ),
     ).thenAnswer((_) async {});
 
@@ -338,4 +341,6 @@ void registerAnalyticsFallbackValues() {
   registerFallbackValue(JokeViewerMode.reveal);
   // No subscription-specific enum fallbacks needed after API changes
   registerFallbackValue(AppTab.dailyJokes);
+  // Brightness used as a named argument in analytics logAppUsageDays
+  registerFallbackValue(Brightness.light);
 }

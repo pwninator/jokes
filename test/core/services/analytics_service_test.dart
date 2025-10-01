@@ -1,26 +1,21 @@
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/crash_reporting_service.dart';
 import 'package:snickerdoodle/src/features/auth/data/models/app_user.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_viewer_mode.dart';
-import 'package:snickerdoodle/src/features/settings/application/brightness_provider.dart';
 
 class MockFirebaseAnalytics extends Mock implements FirebaseAnalytics {}
 
 class MockCrashReportingService extends Mock implements CrashReportingService {}
-
-class MockRef extends Mock implements Ref {}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   late MockFirebaseAnalytics mockFirebaseAnalytics;
   late FirebaseAnalyticsService analyticsService;
   late MockCrashReportingService mockCrashService;
-  late MockRef mockRef;
 
   setUpAll(() {
     registerFallbackValue(StackTrace.current);
@@ -29,14 +24,10 @@ void main() {
   setUp(() {
     mockFirebaseAnalytics = MockFirebaseAnalytics();
     mockCrashService = MockCrashReportingService();
-    mockRef = MockRef();
     analyticsService = FirebaseAnalyticsService(
-      mockRef,
       analytics: mockFirebaseAnalytics,
       crashReportingService: mockCrashService,
     );
-
-    when(() => mockRef.read(brightnessProvider)).thenReturn(Brightness.light);
 
     // Default mock responses
     when(
@@ -88,6 +79,10 @@ void main() {
           jokeContext: 'ctx',
           errorMessage: 'err',
         ),
+        () => analyticsService.logAppUsageDays(
+          numDaysUsed: 3,
+          brightness: Brightness.light,
+        ),
       ];
 
       for (final logFunction in allLogFunctions) {
@@ -104,45 +99,30 @@ void main() {
       );
     });
 
-    test('logs error events to Crashlytics with app_theme parameter', () async {
-      analyticsService.logErrorJokesLoad(source: 'src', errorMessage: 'err');
-      await Future.delayed(Duration.zero); // Allow microtasks to complete
-
-      verify(
-        () => mockCrashService.recordNonFatal(
-          any(),
-          keys: any(
-            named: 'keys',
-            that: allOf(
-              containsPair('analytics_event', 'error_jokes_load'),
-              containsPair('app_theme', 'light'),
-            ),
-          ),
-        ),
-      ).called(1);
-    });
-
     test(
-        'logs error events to Crashlytics with app_theme parameter for dark theme',
-        () async {
-      when(() => mockRef.read(brightnessProvider)).thenReturn(Brightness.dark);
+      'logs error events to Crashlytics without app_theme parameter',
+      () async {
+        analyticsService.logErrorJokesLoad(source: 'src', errorMessage: 'err');
+        await Future.delayed(Duration.zero); // Allow microtasks to complete
 
-      analyticsService.logErrorJokesLoad(source: 'src', errorMessage: 'err');
-      await Future.delayed(Duration.zero); // Allow microtasks to complete
-
-      verify(
-        () => mockCrashService.recordNonFatal(
-          any(),
-          keys: any(
-            named: 'keys',
-            that: allOf(
-              containsPair('analytics_event', 'error_jokes_load'),
-              containsPair('app_theme', 'dark'),
+        verify(
+          () => mockCrashService.recordNonFatal(
+            any(),
+            stackTrace: any(named: 'stackTrace'),
+            keys: any(
+              named: 'keys',
+              that: allOf(
+                containsPair('analytics_event', 'error_jokes_load'),
+                predicate<Map<String, Object>>(
+                  (m) => !m.containsKey('app_theme'),
+                  'does not include app_theme',
+                ),
+              ),
             ),
           ),
-        ),
-      ).called(1);
-    });
+        ).called(1);
+      },
+    );
 
     test('initialization completes without error', () async {
       await expectLater(analyticsService.initialize(), completes);

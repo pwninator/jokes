@@ -10,6 +10,7 @@ import 'package:snickerdoodle/src/core/services/review_prompt_state_store.dart';
 import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
+import 'package:snickerdoodle/src/features/settings/application/brightness_provider.dart';
 
 /// Provider for AppUsageService using the shared preferences instance provider
 final appUsageServiceProvider = Provider<AppUsageService>((ref) {
@@ -29,8 +30,8 @@ final appUsageServiceProvider = Provider<AppUsageService>((ref) {
 class AppUsageService {
   AppUsageService({
     required SharedPreferences prefs,
+    required Ref ref,
     AnalyticsService? analyticsService,
-    Ref? ref,
     JokeCloudFunctionService? jokeCloudFn,
     bool? isDebugMode,
   }) : _prefs = prefs,
@@ -41,7 +42,7 @@ class AppUsageService {
 
   final SharedPreferences _prefs;
   final AnalyticsService? _analyticsService;
-  final Ref? _ref;
+  final Ref _ref;
   final JokeCloudFunctionService _jokeCloudFn;
   final bool? _isDebugMode;
 
@@ -88,7 +89,11 @@ class AppUsageService {
       final service = _analyticsService;
       if (service != null) {
         try {
-          service.logAppUsageDayIncremented(numDaysUsed: newNumDaysUsed);
+          final brightness = _ref.read(brightnessProvider);
+          service.logAppUsageDays(
+            numDaysUsed: newNumDaysUsed,
+            brightness: brightness,
+          );
         } catch (e) {
           AppLogger.warn('APP_USAGE analytics error: $e');
         }
@@ -234,15 +239,15 @@ class AppUsageService {
 
   void _notifyUsageChanged() {
     try {
-      final notifier = _ref?.read(appUsageEventsProvider.notifier);
-      if (notifier != null) notifier.state++;
+      final notifier = _ref.read(appUsageEventsProvider.notifier);
+      notifier.state++;
     } catch (_) {}
   }
 
   Future<void> _pushUsageSnapshot() async {
     try {
       // Skip backend sync in debug mode or for admin users (mirrors analytics behavior)
-      final bool isAdmin = _ref?.read(isAdminProvider) ?? false;
+      final bool isAdmin = _ref.read(isAdminProvider);
       if ((_isDebugMode ?? kDebugMode) || isAdmin) {
         AppLogger.debug(
           'APP_USAGE SKIPPED (${isAdmin ? 'ADMIN' : 'DEBUG'}): trackUsage snapshot not sent',
@@ -255,9 +260,9 @@ class AppUsageService {
       final int numSaved = await getNumSavedJokes();
       final int numViewed = await getNumJokesViewed();
       final int numShared = await getNumSharedJokes();
-      final bool requestedReview =
-          await _ref?.read(reviewPromptStateStoreProvider).hasRequested() ??
-          false;
+      final bool requestedReview = await _ref
+          .read(reviewPromptStateStoreProvider)
+          .hasRequested();
       futures.add(
         _jokeCloudFn
             .trackUsage(

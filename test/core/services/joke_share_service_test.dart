@@ -1,3 +1,4 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:share_plus/share_plus.dart';
@@ -67,7 +68,9 @@ void main() {
       // Real AppUsageService with mock SharedPreferences
       SharedPreferences.setMockInitialValues({});
       final prefs = await SharedPreferences.getInstance();
-      appUsageService = AppUsageService(prefs: prefs);
+      final container = ProviderContainer();
+      final ref = container.read(Provider<Ref>((ref) => ref));
+      appUsageService = AppUsageService(prefs: prefs, ref: ref);
 
       when(
         () => mockRemoteConfigValues.getEnum<ShareImagesMode>(

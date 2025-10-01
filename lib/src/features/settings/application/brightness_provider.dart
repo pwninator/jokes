@@ -7,7 +7,7 @@ import 'package:snickerdoodle/src/features/settings/application/theme_settings_s
 final brightnessProvider = Provider<Brightness>((ref) {
   final themeMode = ref.watch(themeModeProvider);
   if (themeMode == ThemeMode.system) {
-    return WidgetsBinding.instance.window.platformBrightness;
+    return WidgetsBinding.instance.platformDispatcher.platformBrightness;
   } else {
     return themeMode == ThemeMode.light ? Brightness.light : Brightness.dark;
   }

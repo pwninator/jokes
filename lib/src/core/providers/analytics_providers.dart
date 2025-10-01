@@ -14,7 +14,6 @@ final analyticsServiceProvider = Provider<AnalyticsService>((ref) {
   final firebaseAnalytics = ref.watch(firebaseAnalyticsProvider);
   final crashService = ref.watch(crashReportingServiceProvider);
   return FirebaseAnalyticsService(
-    ref,
     analytics: firebaseAnalytics,
     crashReportingService: crashService,
   );

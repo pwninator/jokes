@@ -2,14 +2,12 @@ import 'dart:async';
 
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/core/services/analytics_events.dart';
 import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/crash_reporting_service.dart';
 import 'package:snickerdoodle/src/features/auth/data/models/app_user.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_viewer_mode.dart';
-import 'package:snickerdoodle/src/features/settings/application/brightness_provider.dart';
 import 'package:snickerdoodle/src/utils/device_utils.dart';
 
 /// Abstract interface for analytics service
@@ -201,7 +199,10 @@ abstract class AnalyticsService {
   });
 
   /// App usage: unique day incremented
-  void logAppUsageDayIncremented({required int numDaysUsed});
+  void logAppUsageDays({
+    required int numDaysUsed,
+    required Brightness brightness,
+  });
 
   /// Log joke search completion
   void logJokeSearch({
@@ -263,11 +264,9 @@ abstract class AnalyticsService {
 class FirebaseAnalyticsService implements AnalyticsService {
   final FirebaseAnalytics _analytics;
   final CrashReportingService _crashReportingService;
-  final Ref _ref;
   AppUser? _currentUser;
 
-  FirebaseAnalyticsService(
-    this._ref, {
+  FirebaseAnalyticsService({
     FirebaseAnalytics? analytics,
     CrashReportingService? crashReportingService,
   }) : _analytics = analytics ?? FirebaseAnalytics.instance,
@@ -729,9 +728,14 @@ class FirebaseAnalyticsService implements AnalyticsService {
   }
 
   @override
-  void logAppUsageDayIncremented({required int numDaysUsed}) {
+  void logAppUsageDays({
+    required int numDaysUsed,
+    required Brightness brightness,
+  }) {
+    final theme = brightness == Brightness.dark ? 'dark' : 'light';
     _logEvent(AnalyticsEvent.appUsageDayIncremented, {
       AnalyticsParameters.numDaysUsed: numDaysUsed,
+      AnalyticsParameters.appTheme: theme,
     });
   }
 
@@ -857,14 +861,9 @@ class FirebaseAnalyticsService implements AnalyticsService {
     // Fire-and-forget: execute analytics work in a microtask
     scheduleMicrotask(() async {
       try {
-        final brightness = _ref.read(brightnessProvider);
-        final theme = brightness == Brightness.dark ? 'dark' : 'light';
-
         // Convert parameters to Map<String, Object> and filter out null values
         // Also convert non-string/non-num values to strings for Firebase Analytics
-        final analyticsParameters = <String, Object>{
-          AnalyticsParameters.appTheme: theme,
-        };
+        final analyticsParameters = <String, Object>{};
         for (final entry in parameters.entries) {
           if (entry.value != null) {
             final value = entry.value;

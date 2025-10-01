@@ -1,3 +1,4 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -68,7 +69,9 @@ void main() {
 
       SharedPreferences.setMockInitialValues({});
       final prefs = await SharedPreferences.getInstance();
-      appUsageService = AppUsageService(prefs: prefs);
+      final container = ProviderContainer();
+      final ref = container.read(Provider<Ref>((ref) => ref));
+      appUsageService = AppUsageService(prefs: prefs, ref: ref);
 
       service = JokeShareServiceImpl(
         imageService: mockImageService,

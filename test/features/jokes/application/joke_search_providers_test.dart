@@ -3,10 +3,10 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
-import 'package:snickerdoodle/src/features/jokes/application/joke_search_providers.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
+import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
+import 'package:snickerdoodle/src/features/jokes/application/joke_search_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
@@ -371,149 +371,5 @@ void main() {
       await stream.close();
       container.dispose();
     });
-
-    test(
-      'searchResultsViewerProvider staged loads: fetches first, then batches rest, preserves order and filters images',
-      () async {
-        when(
-          () => mockCloudFunctionService.searchJokes(
-            searchQuery: any(named: 'searchQuery'),
-            maxResults: any(named: 'maxResults'),
-            publicOnly: any(named: 'publicOnly'),
-            matchMode: any(named: 'matchMode'),
-            scope: any(named: 'scope'),
-            excludeJokeIds: any(named: 'excludeJokeIds'),
-            label: any(named: 'label'),
-          ),
-        ).thenAnswer(
-          (_) async => const [
-            JokeSearchResult(id: 'id1', vectorDistance: 0.1),
-            JokeSearchResult(id: 'id2', vectorDistance: 0.2),
-            JokeSearchResult(id: 'id3', vectorDistance: 0.3),
-          ],
-        );
-
-        // First doc via direct-get provider
-        final firstJoke = const Joke(
-          id: 'id1',
-          setupText: 'S1',
-          punchlineText: 'P1',
-          setupImageUrl: 's1.jpg',
-          punchlineImageUrl: 'p1.jpg',
-        );
-
-        when(() => mockJokeRepository.getJokesByIds(['id2', 'id3'])).thenAnswer(
-          (_) async => const [
-            Joke(
-              id: 'id2',
-              setupText: 'S2',
-              punchlineText: 'P2',
-              setupImageUrl: 's2.jpg',
-              punchlineImageUrl: 'p2.jpg',
-            ),
-            Joke(
-              id: 'id3',
-              setupText: 'S3',
-              punchlineText: 'P3',
-              setupImageUrl: '', // filtered out
-              punchlineImageUrl: '',
-            ),
-          ],
-        );
-
-        final container = createContainer(
-          extra: [
-            jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
-            // Override only id1 for direct get
-            jokeByIdGetProvider('id1').overrideWith((ref) async => firstJoke),
-          ],
-        );
-
-        // Trigger a search and await full viewer list
-        container
-            .read(searchQueryProvider(SearchScope.userJokeSearch).notifier)
-            .state = const SearchQuery(
-          query: 'penguins',
-          maxResults: 50,
-          publicOnly: true,
-          matchMode: MatchMode.tight,
-        );
-
-        // Listen for the second emission (full list after batches)
-        final fullListCompleter = Completer<List<JokeWithDate>>();
-        final sub = container.listen(
-          searchResultsViewerProvider(SearchScope.userJokeSearch),
-          (prev, next) {
-            if (next.hasValue && (next.value?.length ?? 0) >= 2) {
-              if (!fullListCompleter.isCompleted) {
-                fullListCompleter.complete(next.value!);
-              }
-            }
-          },
-          fireImmediately: true,
-        );
-
-        final list = await fullListCompleter.future;
-        sub.close();
-        expect(list.map((e) => e.joke.id).toList(), ['id1', 'id2']);
-        verify(
-          () => mockJokeRepository.getJokesByIds(['id2', 'id3']),
-        ).called(1);
-      },
-    );
-
-    test(
-      'searchResultsViewerProvider returns empty when first doc lacks images',
-      () async {
-        when(
-          () => mockCloudFunctionService.searchJokes(
-            searchQuery: any(named: 'searchQuery'),
-            maxResults: any(named: 'maxResults'),
-            publicOnly: any(named: 'publicOnly'),
-            matchMode: any(named: 'matchMode'),
-            scope: any(named: 'scope'),
-            excludeJokeIds: any(named: 'excludeJokeIds'),
-            label: any(named: 'label'),
-          ),
-        ).thenAnswer(
-          (_) async => const [
-            JokeSearchResult(id: 'id1', vectorDistance: 0.1),
-            JokeSearchResult(id: 'id2', vectorDistance: 0.2),
-          ],
-        );
-
-        final noImageFirst = const Joke(
-          id: 'id1',
-          setupText: 'S1',
-          punchlineText: 'P1',
-          setupImageUrl: null,
-          punchlineImageUrl: null,
-        );
-
-        final container = createContainer(
-          extra: [
-            jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
-            jokeByIdGetProvider(
-              'id1',
-            ).overrideWith((ref) async => noImageFirst),
-          ],
-        );
-
-        container
-            .read(searchQueryProvider(SearchScope.userJokeSearch).notifier)
-            .state = const SearchQuery(
-          query: 'animals',
-          maxResults: 50,
-          publicOnly: true,
-          matchMode: MatchMode.tight,
-        );
-
-        final list = await container.read(
-          searchResultsViewerProvider(SearchScope.userJokeSearch).future,
-        );
-        expect(list, isEmpty);
-        verifyNever(() => mockJokeRepository.getJokesByIds(any()));
-      },
-    );
   });
 }

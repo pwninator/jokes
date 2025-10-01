@@ -7,11 +7,11 @@ import 'package:snickerdoodle/src/config/router/route_names.dart';
 import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
 import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_category_tile.dart';
-import 'package:snickerdoodle/src/features/jokes/application/category_search_data_source.dart';
 import 'package:snickerdoodle/src/features/jokes/application/generic_paging_data_source.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_category_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_navigation_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_search_providers.dart';
+import 'package:snickerdoodle/src/features/jokes/application/search_data_source.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_category.dart';
 import 'package:snickerdoodle/src/features/jokes/presentation/joke_list_viewer.dart';
 
@@ -28,6 +28,14 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
   static const _viewerId = 'discover_category';
   VoidCallback? _resetViewer;
   String? _activeCategoryName;
+  late final PagingDataSource _dataSource;
+
+  @override
+  void initState() {
+    super.initState();
+    // Create the data source once and reuse it across widgets on this screen
+    _dataSource = CategorySearchDataSource(ref);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -71,13 +79,17 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
         automaticallyImplyLeading: false,
         body: Column(
           children: [
-            _ResultsSummary(categoryName: categoryName),
+            _ResultsSummary(
+              categoryName: categoryName,
+              dataSource: _dataSource,
+            ),
             Expanded(
               child: hasActiveQuery
                   ? _CategoryResults(
                       viewerId: _viewerId,
                       onInitRegisterReset: (cb) => _resetViewer = cb,
                       categoryName: categoryName,
+                      dataSource: _dataSource,
                     )
                   : _CategoryGrid(onCategorySelected: _onCategorySelected),
             ),
@@ -153,34 +165,26 @@ class _CategoryResults extends ConsumerStatefulWidget {
     required this.viewerId,
     required this.onInitRegisterReset,
     required this.categoryName,
+    required this.dataSource,
   });
 
   final String viewerId;
   final ValueChanged<VoidCallback?> onInitRegisterReset;
   final String? categoryName;
+  final PagingDataSource dataSource;
 
   @override
   ConsumerState<_CategoryResults> createState() => _CategoryResultsState();
 }
 
 class _CategoryResultsState extends ConsumerState<_CategoryResults> {
-  late final PagingDataSource _dataSource;
-
-  @override
-  void initState() {
-    super.initState();
-    // Create the data source once and reuse it across rebuilds
-    // Initial load happens automatically when query changes (via reset trigger)
-    _dataSource = CategorySearchDataSource(ref);
-  }
-
   @override
   Widget build(BuildContext context) {
     final currentQuery = ref
         .watch(searchQueryProvider(SearchScope.category))
         .query;
     final hasQuery = currentQuery.isNotEmpty;
-    
+
     // Empty state is only shown when data is empty (not loading)
     // JokeListViewer handles loading state automatically
     final emptyStateMessage = hasQuery
@@ -190,7 +194,7 @@ class _CategoryResultsState extends ConsumerState<_CategoryResults> {
         : '';
 
     return JokeListViewer(
-      dataSource: _dataSource,
+      dataSource: widget.dataSource,
       jokeContext: AnalyticsJokeContext.category,
       viewerId: widget.viewerId,
       onInitRegisterReset: widget.onInitRegisterReset,
@@ -202,15 +206,16 @@ class _CategoryResultsState extends ConsumerState<_CategoryResults> {
 }
 
 class _ResultsSummary extends ConsumerWidget {
-  const _ResultsSummary({required this.categoryName});
+  const _ResultsSummary({required this.categoryName, required this.dataSource});
 
   final String? categoryName;
+  final PagingDataSource dataSource;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     if (categoryName == null) return const SizedBox.shrink();
 
-    final countInfo = ref.watch(categorySearch.resultCount);
+    final countInfo = ref.watch(dataSource.resultCount);
     final count = countInfo.count;
 
     // Don't show count until we have at least one joke loaded

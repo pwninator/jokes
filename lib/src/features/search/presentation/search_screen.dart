@@ -6,6 +6,8 @@ import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
 import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_navigation_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_search_providers.dart';
+import 'package:snickerdoodle/src/features/jokes/application/generic_paging_data_source.dart';
+import 'package:snickerdoodle/src/features/jokes/application/search_data_source.dart';
 import 'package:snickerdoodle/src/features/jokes/presentation/joke_list_viewer.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
@@ -21,6 +23,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   VoidCallback? _resetViewer;
   final FocusNode _focusNode = FocusNode();
   final TextEditingController _controller = TextEditingController();
+  late final PagingDataSource _dataSource;
 
   @override
   void initState() {
@@ -31,6 +34,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         setState(() {});
       }
     });
+
+    // Create the data source once and reuse it across rebuilds
+    _dataSource = UserJokeSearchDataSource(ref);
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -184,30 +190,23 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 return const SizedBox.shrink();
               }
 
-              final idsAsync = ref.watch(
-                searchResultIdsProvider(SearchScope.userJokeSearch),
-              );
-              return idsAsync.when(
-                data: (list) {
-                  final count = list.length;
-                  final label = count == 1 ? '1 result' : '$count results';
-                  return Align(
-                    alignment: Alignment.centerLeft,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16.0,
-                        vertical: 6.0,
-                      ),
-                      child: Text(
-                        label,
-                        key: const Key('search-results-count'),
-                        style: Theme.of(context).textTheme.bodySmall,
-                      ),
-                    ),
-                  );
-                },
-                loading: () => const SizedBox.shrink(),
-                error: (error, stackTrace) => const SizedBox.shrink(),
+              final countInfo = ref.watch(_dataSource.resultCount);
+              final count = countInfo.count;
+              if (count == 0) return const SizedBox.shrink();
+              final label = count == 1 ? '1 result' : '$count results';
+              return Align(
+                alignment: Alignment.centerLeft,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16.0,
+                    vertical: 6.0,
+                  ),
+                  child: Text(
+                    label,
+                    key: const Key('search-results-count'),
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
               );
             },
           ),
@@ -227,9 +226,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     ? 'No jokes found'
                     : '';
                 return JokeListViewer(
-                  jokesAsyncProvider: searchResultsViewerProvider(
-                    SearchScope.userJokeSearch,
-                  ),
+                  dataSource: _dataSource,
                   jokeContext: AnalyticsJokeContext.search,
                   viewerId: 'search_user',
                   onInitRegisterReset: (cb) => _resetViewer = cb,

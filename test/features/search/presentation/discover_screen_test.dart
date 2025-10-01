@@ -37,9 +37,6 @@ void main() {
     final ids = includeResults
         ? const [JokeSearchResult(id: 'j1', vectorDistance: 0.1)]
         : const <JokeSearchResult>[];
-    final viewerData = includeResults
-        ? const [JokeWithDate(joke: sampleJoke)]
-        : const <JokeWithDate>[];
 
     return [
       jokeCategoriesProvider.overrideWith(
@@ -49,9 +46,6 @@ void main() {
       searchResultIdsProvider(
         SearchScope.category,
       ).overrideWith((ref) async => ids),
-      searchResultsViewerProvider(
-        SearchScope.category,
-      ).overrideWith((ref) => Stream.value(viewerData)),
       jokeStreamByIdProvider(
         'j1',
       ).overrideWith((ref) => Stream.value(sampleJoke)),

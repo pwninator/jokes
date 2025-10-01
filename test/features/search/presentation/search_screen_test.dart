@@ -1,14 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_search_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
+import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
+import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_search_result.dart';
 import 'package:snickerdoodle/src/features/search/presentation/search_screen.dart';
 
 import '../../../test_helpers/firebase_mocks.dart';
+
+class MockJokeRepository extends Mock implements JokeRepository {}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -16,12 +21,7 @@ void main() {
   ProviderContainer createContainer({List<Override> overrides = const []}) {
     return ProviderContainer(
       overrides: FirebaseMocks.getFirebaseProviderOverrides(
-        additionalOverrides: [
-          searchResultsViewerProvider(
-            SearchScope.userJokeSearch,
-          ).overrideWith((ref) => Stream.value(const <JokeWithDate>[])),
-          ...overrides,
-        ],
+        additionalOverrides: [...overrides],
       ),
     );
   }
@@ -94,8 +94,25 @@ void main() {
   });
 
   testWidgets('renders single-result count', (tester) async {
+    final mockRepo = MockJokeRepository();
+    when(() => mockRepo.getJokesByIds(any())).thenAnswer((inv) async {
+      final ids = (inv.positionalArguments[0] as List<String>);
+      return ids
+          .map(
+            (id) => Joke(
+              id: id,
+              setupText: 'setup-$id',
+              punchlineText: 'punch-$id',
+              setupImageUrl: 'a',
+              punchlineImageUrl: 'b',
+            ),
+          )
+          .toList();
+    });
+
     final container = createContainer(
       overrides: [
+        jokeRepositoryProvider.overrideWithValue(mockRepo),
         searchResultIdsProvider(SearchScope.userJokeSearch).overrideWith(
           (ref) async => const [JokeSearchResult(id: '1', vectorDistance: 0.0)],
         ),
@@ -126,8 +143,25 @@ void main() {
   });
 
   testWidgets('renders pluralised result count', (tester) async {
+    final mockRepo = MockJokeRepository();
+    when(() => mockRepo.getJokesByIds(any())).thenAnswer((inv) async {
+      final ids = (inv.positionalArguments[0] as List<String>);
+      return ids
+          .map(
+            (id) => Joke(
+              id: id,
+              setupText: 'setup-$id',
+              punchlineText: 'punch-$id',
+              setupImageUrl: 'a',
+              punchlineImageUrl: 'b',
+            ),
+          )
+          .toList();
+    });
+
     final container = createContainer(
       overrides: [
+        jokeRepositoryProvider.overrideWithValue(mockRepo),
         searchResultIdsProvider(SearchScope.userJokeSearch).overrideWith(
           (ref) async => [
             const JokeSearchResult(id: '1', vectorDistance: 0.1),
@@ -237,8 +271,25 @@ void main() {
   testWidgets('prefilled similar search preserves query and shows count', (
     tester,
   ) async {
+    final mockRepo = MockJokeRepository();
+    when(() => mockRepo.getJokesByIds(any())).thenAnswer((inv) async {
+      final ids = (inv.positionalArguments[0] as List<String>);
+      return ids
+          .map(
+            (id) => Joke(
+              id: id,
+              setupText: 'setup-$id',
+              punchlineText: 'punch-$id',
+              setupImageUrl: 'a',
+              punchlineImageUrl: 'b',
+            ),
+          )
+          .toList();
+    });
+
     final container = createContainer(
       overrides: [
+        jokeRepositoryProvider.overrideWithValue(mockRepo),
         searchResultIdsProvider(SearchScope.userJokeSearch).overrideWith(
           (ref) async => const [JokeSearchResult(id: '1', vectorDistance: 0.0)],
         ),

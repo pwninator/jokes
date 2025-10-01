@@ -78,7 +78,7 @@ class GenericPagingNotifier extends StateNotifier<PagingState> {
         }
       });
     }
-    
+
     // Trigger initial load if conditions are already met
     // (listener only catches future changes, not current state)
     Future.microtask(() => loadFirstPage());
@@ -139,10 +139,7 @@ class GenericPagingNotifier extends StateNotifier<PagingState> {
   Future<void> loadMore() async {
     if (state.isLoading || !state.hasMore) return;
     state = state.copyWith(isLoading: true);
-    await _loadInternal(
-      limit: loadPageSize,
-      useCursor: state.cursor,
-    );
+    await _loadInternal(limit: loadPageSize, useCursor: state.cursor);
   }
 
   Future<void> _loadInternal({required int limit, String? useCursor}) async {
@@ -302,6 +299,10 @@ class PagingDataSource implements JokeListDataSource {
 
   @override
   ProviderListenable<bool> get isLoading => _bundle.isLoading;
+
+  /// Exposes total result count and whether more pages are available
+  ProviderListenable<({int count, bool hasMore})> get resultCount =>
+      _bundle.resultCount;
 
   @override
   Future<void> loadMore() async {

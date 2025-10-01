@@ -320,6 +320,7 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
                       : formattedDate;
 
                   return Center(
+                    key: ValueKey('page-${joke.id}'),
                     child: Container(
                       width: isLandscape ? null : double.infinity,
                       height: isLandscape ? double.infinity : null,

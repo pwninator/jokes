@@ -49,10 +49,12 @@ void main() {
           if (scope != SearchScope.jokeDeepResearch) {
             return FutureProvider((ref) async => const <JokeSearchResult>[]);
           }
-          return FutureProvider((ref) async => const [
-                JokeSearchResult(id: '1', vectorDistance: 0.1),
-                JokeSearchResult(id: '2', vectorDistance: 0.2),
-              ]);
+          return FutureProvider(
+            (ref) async => const [
+              JokeSearchResult(id: '1', vectorDistance: 0.1),
+              JokeSearchResult(id: '2', vectorDistance: 0.2),
+            ],
+          );
         }),
       ];
 

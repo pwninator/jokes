@@ -15,7 +15,7 @@ abstract class JokeListDataSource {
   ProviderListenable<bool> get isLoading;
 
   Future<void> loadMore();
-  
+
   /// Updates the current viewing index to enable auto-loading when within threshold
   void updateViewingIndex(int index);
 }

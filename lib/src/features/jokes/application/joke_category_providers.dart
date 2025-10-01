@@ -1,3 +1,5 @@
+import 'dart:math';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_category.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/firestore_joke_category_repository.dart';
@@ -31,17 +33,30 @@ final jokeCategoryByIdProvider = StreamProvider.autoDispose
           .watchCategory(categoryId);
     });
 
+final popularTileImageNames = [
+  'category_tile_popular_bunny.png',
+  'category_tile_popular_cat.png',
+  'category_tile_popular_hedgehog.png',
+  'category_tile_popular_lamb.png',
+  'category_tile_popular_puppy.png',
+  'category_tile_popular_panda.png',
+];
+
 /// Merged provider for Discover: programmatic tiles first, then Firestore categories.
 final discoverCategoriesProvider = Provider<AsyncValue<List<JokeCategory>>>((
   ref,
 ) {
+  // Randomly select an image name each time
+  final randomImageName =
+      popularTileImageNames[Random().nextInt(popularTileImageNames.length)];
+
   // Programmatic Popular tile
   final popularTile = JokeCategory(
     id: 'programmatic:popular',
-    displayName: 'Popular',
+    displayName: 'Popular ❤️',
     jokeDescriptionQuery: null,
     imageUrl:
-        'https://images.quillsstorybook.com/cdn-cgi/image/width=1024,format=auto,quality=75/pun_agent_image_20250903_051129_509211.png',
+        'https://images.quillsstorybook.com/cdn-cgi/image/width=1024,format=auto,quality=75/joke_assets/$randomImageName',
     imageDescription: 'Popular jokes',
     state: JokeCategoryState.approved,
     type: CategoryType.popular,

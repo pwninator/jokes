@@ -1,17 +1,17 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
-import 'package:snickerdoodle/src/features/jokes/application/generic_paging_data_source.dart';
+import 'package:snickerdoodle/src/features/jokes/application/joke_list_data_source.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_search_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
 
 /// Data source for category search
-class CategorySearchDataSource extends PagingDataSource {
+class CategorySearchDataSource extends JokeListDataSource {
   CategorySearchDataSource(WidgetRef ref) : super(ref, _categorySearch);
 }
 
 /// Data source for user joke search
-class UserJokeSearchDataSource extends PagingDataSource {
+class UserJokeSearchDataSource extends JokeListDataSource {
   UserJokeSearchDataSource(WidgetRef ref) : super(ref, _userJokeSearch);
 }
 

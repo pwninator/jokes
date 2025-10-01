@@ -4,10 +4,10 @@ import 'package:snickerdoodle/src/common_widgets/adaptive_app_bar_screen.dart';
 import 'package:snickerdoodle/src/config/router/router_providers.dart';
 import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
 import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
+import 'package:snickerdoodle/src/features/jokes/application/joke_list_data_source.dart';
+import 'package:snickerdoodle/src/features/jokes/application/joke_list_data_sources.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_navigation_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_search_providers.dart';
-import 'package:snickerdoodle/src/features/jokes/application/generic_paging_data_source.dart';
-import 'package:snickerdoodle/src/features/jokes/application/search_data_source.dart';
 import 'package:snickerdoodle/src/features/jokes/presentation/joke_list_viewer.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
@@ -23,7 +23,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   VoidCallback? _resetViewer;
   final FocusNode _focusNode = FocusNode();
   final TextEditingController _controller = TextEditingController();
-  late final PagingDataSource _dataSource;
+  late final JokeListDataSource _dataSource;
 
   @override
   void initState() {

@@ -7,11 +7,11 @@ import 'package:snickerdoodle/src/config/router/route_names.dart';
 import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
 import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_category_tile.dart';
-import 'package:snickerdoodle/src/features/jokes/application/generic_paging_data_source.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_category_providers.dart';
+import 'package:snickerdoodle/src/features/jokes/application/joke_list_data_source.dart';
+import 'package:snickerdoodle/src/features/jokes/application/joke_list_data_sources.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_navigation_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_search_providers.dart';
-import 'package:snickerdoodle/src/features/jokes/application/search_data_source.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_category.dart';
 import 'package:snickerdoodle/src/features/jokes/presentation/joke_list_viewer.dart';
 
@@ -28,7 +28,7 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
   static const _viewerId = 'discover_category';
   VoidCallback? _resetViewer;
   String? _activeCategoryName;
-  late final PagingDataSource _dataSource;
+  late final JokeListDataSource _dataSource;
 
   @override
   void initState() {
@@ -171,7 +171,7 @@ class _CategoryResults extends ConsumerStatefulWidget {
   final String viewerId;
   final ValueChanged<VoidCallback?> onInitRegisterReset;
   final String? categoryName;
-  final PagingDataSource dataSource;
+  final JokeListDataSource dataSource;
 
   @override
   ConsumerState<_CategoryResults> createState() => _CategoryResultsState();
@@ -209,7 +209,7 @@ class _ResultsSummary extends ConsumerWidget {
   const _ResultsSummary({required this.categoryName, required this.dataSource});
 
   final String? categoryName;
-  final PagingDataSource dataSource;
+  final JokeListDataSource dataSource;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

@@ -32,18 +32,11 @@
     },
     "Review Request": {
       "parameters": {
-        "review_min_shared_jokes": {
+        "review_min_days_used": {
           "defaultValue": {
-            "value": "0"
+            "value": "5"
           },
-          "description": "Min number of jokes shared before eligible for review request",
-          "valueType": "NUMBER"
-        },
-        "review_min_saved_jokes": {
-          "defaultValue": {
-            "value": "1"
-          },
-          "description": "Min number of jokes saved before eligible for review request",
+          "description": "Min number of distinct days used before eligible for review request",
           "valueType": "NUMBER"
         },
         "review_min_viewed_jokes": {
@@ -53,11 +46,18 @@
           "description": "Min number of jokes viewed before eligible for review request",
           "valueType": "NUMBER"
         },
-        "review_min_days_used": {
+        "review_min_saved_jokes": {
           "defaultValue": {
-            "value": "5"
+            "value": "1"
           },
-          "description": "Min number of distinct days used before eligible for review request",
+          "description": "Min number of jokes saved before eligible for review request",
+          "valueType": "NUMBER"
+        },
+        "review_min_shared_jokes": {
+          "defaultValue": {
+            "value": "0"
+          },
+          "description": "Min number of jokes shared before eligible for review request",
           "valueType": "NUMBER"
         },
         "review_request_from_joke_viewed": {
@@ -98,9 +98,9 @@
       "parameters": {
         "share_images_mode": {
           "defaultValue": {
-            "value": "separate"
+            "value": "auto"
           },
-          "description": "Mode for how to share images: separate|stacked",
+          "description": "Mode for how to share images: auto|separate|stacked",
           "valueType": "STRING"
         }
       }

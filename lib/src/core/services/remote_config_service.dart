@@ -5,23 +5,40 @@ import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 
 const Map<RemoteParam, RemoteParamDescriptor> remoteParams = {
-  RemoteParam.subscriptionPromptMinJokesViewed: RemoteParamDescriptor(
-    key: 'subscription_prompt_min_jokes_viewed',
-    type: RemoteParamType.intType,
-    defaultInt: 5,
-    isValid: _validateNonNegativeInt,
-  ),
+  //////////////
+  // Feedback //
+  //////////////
   RemoteParam.feedbackMinJokesViewed: RemoteParamDescriptor(
     key: 'feedback_min_jokes_viewed',
     type: RemoteParamType.intType,
     defaultInt: 10,
     isValid: _validateNonNegativeInt,
   ),
+
+  /////////////////////////
+  // Subscription Prompt //
+  /////////////////////////
+  RemoteParam.subscriptionPromptMinJokesViewed: RemoteParamDescriptor(
+    key: 'subscription_prompt_min_jokes_viewed',
+    type: RemoteParamType.intType,
+    defaultInt: 5,
+    isValid: _validateNonNegativeInt,
+  ),
+
+  ////////////////////
+  // Review Request //
+  ////////////////////
   RemoteParam.reviewMinDaysUsed: RemoteParamDescriptor(
     key: 'review_min_days_used',
     type: RemoteParamType.intType,
     // Default to never show review prompt
     defaultInt: 10000,
+    isValid: _validateNonNegativeInt,
+  ),
+  RemoteParam.reviewMinViewedJokes: RemoteParamDescriptor(
+    key: 'review_min_viewed_jokes',
+    type: RemoteParamType.intType,
+    defaultInt: 30,
     isValid: _validateNonNegativeInt,
   ),
   RemoteParam.reviewMinSavedJokes: RemoteParamDescriptor(
@@ -36,12 +53,6 @@ const Map<RemoteParam, RemoteParamDescriptor> remoteParams = {
     defaultInt: 1,
     isValid: _validateNonNegativeInt,
   ),
-  RemoteParam.reviewMinViewedJokes: RemoteParamDescriptor(
-    key: 'review_min_viewed_jokes',
-    type: RemoteParamType.intType,
-    defaultInt: 30,
-    isValid: _validateNonNegativeInt,
-  ),
   // Gate requesting a review from a joke viewed event
   RemoteParam.reviewRequestFromJokeViewed: RemoteParamDescriptor(
     key: 'review_request_from_joke_viewed',
@@ -54,25 +65,33 @@ const Map<RemoteParam, RemoteParamDescriptor> remoteParams = {
     type: RemoteParamType.boolType,
     defaultBool: true,
   ),
-  // Controls the default for the Joke Viewer setting when no local pref exists
-  RemoteParam.defaultJokeViewerReveal: RemoteParamDescriptor(
-    key: 'default_joke_viewer_reveal',
-    type: RemoteParamType.boolType,
-    defaultBool: false,
-  ),
-  // Enum-based param for share images mode (enum-like)
-  RemoteParam.shareImagesMode: RemoteParamDescriptor(
-    key: 'share_images_mode',
-    type: RemoteParamType.enumType,
-    enumValues: ShareImagesMode.values,
-    enumDefault: ShareImagesMode.auto,
-  ),
   // Review prompt variant (which image/message to show)
   RemoteParam.reviewPromptVariant: RemoteParamDescriptor(
     key: 'review_prompt_variant',
     type: RemoteParamType.enumType,
     enumValues: ReviewPromptVariant.values,
     enumDefault: ReviewPromptVariant.bunny,
+  ),
+
+  /////////////////
+  // Joke Viewer //
+  /////////////////
+  // Controls the default for the Joke Viewer setting when no local pref exists
+  RemoteParam.defaultJokeViewerReveal: RemoteParamDescriptor(
+    key: 'default_joke_viewer_reveal',
+    type: RemoteParamType.boolType,
+    defaultBool: false,
+  ),
+
+  //////////////////
+  // Joke Sharing //
+  //////////////////
+  // Enum-based param for share images mode (enum-like)
+  RemoteParam.shareImagesMode: RemoteParamDescriptor(
+    key: 'share_images_mode',
+    type: RemoteParamType.enumType,
+    enumValues: ShareImagesMode.values,
+    enumDefault: ShareImagesMode.auto,
   ),
 };
 

@@ -222,7 +222,7 @@ void main() {
       expect(config.variant, ReviewPromptVariant.kitten);
       expect(
         config.imagePath,
-        'assets/review_prompts/review_request_kitten_600.webp',
+        'assets/review_prompts/review_request_kitten2_600.webp',
       );
     });
   });

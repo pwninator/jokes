@@ -1,7 +1,11 @@
 import 'dart:math' as math;
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import 'package:snickerdoodle/src/config/router/route_names.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
+import 'package:snickerdoodle/src/features/feedback/presentation/user_feedback_screen.dart';
 
 /// Configuration for a review prompt variant
 class ReviewPromptConfig {
@@ -28,20 +32,20 @@ class ReviewPromptConfigs {
     ReviewPromptVariant.bunny: ReviewPromptConfig(
       variant: ReviewPromptVariant.bunny,
       imagePath: 'assets/review_prompts/review_request_bunny_garden_600.webp',
-      title: 'Your reviews help us grow!',
+      title: 'Help spread the smiles!',
       message:
-          "We're a small, family team that loves making you smile. A 5-star review from you would mean the world to us and help other families discover our little app!",
-      dismissButtonText: 'Maybe later',
-      acceptButtonText: 'Happy to help!',
+          "We're a small family team that loves making you smile. Your review helps more families find us!",
+      dismissButtonText: "No thanks",
+      acceptButtonText: 'Leave a review',
     ),
     ReviewPromptVariant.kitten: ReviewPromptConfig(
       variant: ReviewPromptVariant.kitten,
-      imagePath: 'assets/review_prompts/review_request_kitten_600.webp',
-      title: 'Enjoying the giggles?',
+      imagePath: 'assets/review_prompts/review_request_kitten2_600.webp',
+      title: 'Help spread the smiles!',
       message:
-          "We're a small, family team that loves making you smile. A 5-star review from you would mean the world to us and help other families discover our little app!",
-      dismissButtonText: 'Maybe later',
-      acceptButtonText: 'Happy to help!',
+          "Made by a small family team for families like yours. If the jokes helped brighten your day, a review helps others find us!",
+      dismissButtonText: "No thanks",
+      acceptButtonText: 'Leave a review',
     ),
   };
 
@@ -143,7 +147,7 @@ class AppReviewPromptDialog extends StatelessWidget {
               Text(
                 config.message,
                 style: theme.textTheme.bodyMedium?.copyWith(
-                  color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.9),
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -154,24 +158,24 @@ class AppReviewPromptDialog extends StatelessWidget {
                 children: [
                   // Dismiss button
                   Expanded(
-                    child: TextButton(
+                    child: OutlinedButton(
                       key: Key(
                         'app_review_prompt_dialog-dismiss-button-${variant.name}',
                       ),
                       onPressed: onDismiss,
-                      style: TextButton.styleFrom(
-                        backgroundColor:
-                            theme.colorScheme.surfaceContainerHighest,
-                        foregroundColor: theme.colorScheme.onSurface,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: theme.colorScheme.onSurface.withValues(
+                          alpha: 0.8,
+                        ),
+                        side: BorderSide(
+                          color: theme.colorScheme.outline,
+                          width: 1,
+                        ),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
                       ),
                       child: Text(
                         config.dismissButtonText,
                         textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: theme.colorScheme.onSurface.withValues(
-                            alpha: 0.6,
-                          ),
-                        ),
                       ),
                     ),
                   ),
@@ -179,19 +183,66 @@ class AppReviewPromptDialog extends StatelessWidget {
 
                   // Accept button
                   Expanded(
-                    flex: 2,
+                    // flex: 2,
                     child: ElevatedButton(
                       key: Key(
                         'app_review_prompt_dialog-accept-button-${variant.name}',
                       ),
                       onPressed: onAccept,
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
                       child: Text(
                         config.acceptButtonText,
+                        textAlign: TextAlign.center,
                         style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
                     ),
                   ),
                 ],
+              ),
+              const SizedBox(height: 24),
+
+              // Feedback link
+              RichText(
+                key: Key(
+                  'app_review_prompt_dialog-feedback-link-${variant.name}',
+                ),
+                textAlign: TextAlign.center,
+                text: TextSpan(
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                  ),
+                  children: [
+                    const TextSpan(text: 'Having issues? '),
+                    TextSpan(
+                      text: 'Send us feedback',
+                      style: TextStyle(
+                        color: theme.colorScheme.secondary,
+                        fontWeight: FontWeight.bold,
+                        decoration: TextDecoration.underline,
+                        decorationColor: theme.colorScheme.secondary,
+                      ),
+                      recognizer: TapGestureRecognizer()
+                        ..onTap = () async {
+                          // Close this dialog
+                          Navigator.of(context).pop();
+
+                          // Open feedback screen
+                          final router = GoRouter.maybeOf(context);
+                          if (router != null) {
+                            await router.pushNamed<bool>(RouteNames.feedback);
+                          } else {
+                            await Navigator.of(context).push<bool>(
+                              MaterialPageRoute(
+                                builder: (_) => const UserFeedbackScreen(),
+                              ),
+                            );
+                          }
+                        },
+                    ),
+                  ],
+                ),
               ),
             ],
           );

@@ -49,7 +49,11 @@ service cloud.firestore {
     match /joke_feedback/{jokeFeedbackId} {
       // Read access: Admin can read all, users can read their own.
       allow read:
-        if request.auth != null && (request.auth.token.role == 'admin' || resource.data.user_id == request.auth.uid);
+        if request.auth != null && (
+          request.auth.token.role == 'admin' ||
+          jokeFeedbackId == request.auth.uid ||
+          resource.data.user_id == request.auth.uid
+        );
 
       // Update access: Admin and owner user can update.
       allow update:

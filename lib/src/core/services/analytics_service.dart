@@ -832,6 +832,7 @@ class FirebaseAnalyticsService implements AnalyticsService {
     _logEvent(AnalyticsEvent.appReviewAttempt, {
       AnalyticsParameters.source: source,
       AnalyticsParameters.appReviewPromptVariant: variant,
+      AnalyticsParameters.appReviewAttemptedCount: 1,
     });
   }
 
@@ -840,6 +841,7 @@ class FirebaseAnalyticsService implements AnalyticsService {
     _logEvent(AnalyticsEvent.appReviewAccepted, {
       AnalyticsParameters.source: source,
       AnalyticsParameters.appReviewPromptVariant: variant,
+      AnalyticsParameters.appReviewAcceptedCount: 1,
     });
   }
 
@@ -848,6 +850,7 @@ class FirebaseAnalyticsService implements AnalyticsService {
     _logEvent(AnalyticsEvent.appReviewDeclined, {
       AnalyticsParameters.source: source,
       AnalyticsParameters.appReviewPromptVariant: variant,
+      AnalyticsParameters.appReviewDeclinedCount: 1,
     });
   }
 

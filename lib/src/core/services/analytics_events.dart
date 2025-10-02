@@ -91,6 +91,8 @@ enum AnalyticsEvent {
 
   // App review
   appReviewAttempt('app_review_attempt'),
+  appReviewAccepted('app_review_accepted'),
+  appReviewDeclined('app_review_declined'),
   errorAppReviewAvailability('error_app_review_availability'),
   errorAppReviewRequest('error_app_review_request'),
 

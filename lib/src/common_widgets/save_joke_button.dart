@@ -43,6 +43,7 @@ class SaveJokeButton extends ConsumerWidget {
           wasAdded = await service.toggleUserReaction(
             jokeId,
             JokeReactionType.save,
+            context: context,
           );
         } catch (e) {
           analyticsService.logErrorJokeSave(

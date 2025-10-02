@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -14,16 +15,23 @@ class MockJokeRepository extends Mock implements JokeRepository {}
 class MockReviewPromptCoordinator extends Mock
     implements ReviewPromptCoordinator {}
 
+class FakeBuildContext extends Fake implements BuildContext {
+  @override
+  bool get mounted => true;
+}
+
 void main() {
   setUpAll(() {
     registerFallbackValue(JokeReactionType.save);
     registerFallbackValue(ReviewRequestSource.jokeViewed);
+    registerFallbackValue(FakeBuildContext());
   });
 
   group('JokeReactionsService', () {
     late JokeReactionsService service;
     late AppUsageService appUsageService;
     late MockReviewPromptCoordinator mockCoordinator;
+    late BuildContext fakeContext;
 
     setUp(() async {
       SharedPreferences.setMockInitialValues({});
@@ -33,17 +41,19 @@ void main() {
       appUsageService = AppUsageService(prefs: prefs, ref: ref);
       mockCoordinator = MockReviewPromptCoordinator();
       when(
-        () =>
-            mockCoordinator.maybePromptForReview(source: any(named: 'source')),
+        () => mockCoordinator.maybePromptForReview(
+          source: any(named: 'source'),
+          context: any(named: 'context'),
+        ),
       ).thenAnswer((_) async {});
       service = JokeReactionsService(
         appUsageService: appUsageService,
         reviewPromptCoordinator: mockCoordinator,
       );
+      fakeContext = FakeBuildContext();
     });
 
     tearDown(() async {
-      // Clear SharedPreferences after each test
       final prefs = await SharedPreferences.getInstance();
       await prefs.clear();
     });
@@ -188,7 +198,11 @@ void main() {
         SharedPreferences.setMockInitialValues({});
 
         // Act
-        await service.addUserReaction('joke1', JokeReactionType.save);
+        await service.addUserReaction(
+          'joke1',
+          JokeReactionType.save,
+          context: fakeContext,
+        );
 
         // Assert
         final result = await service.hasUserReaction(
@@ -205,7 +219,11 @@ void main() {
         });
 
         // Act
-        await service.addUserReaction('joke2', JokeReactionType.save);
+        await service.addUserReaction(
+          'joke2',
+          JokeReactionType.save,
+          context: fakeContext,
+        );
 
         // Assert
         final result1 = await service.hasUserReaction(
@@ -227,7 +245,11 @@ void main() {
         });
 
         // Act
-        await service.addUserReaction('joke1', JokeReactionType.save);
+        await service.addUserReaction(
+          'joke1',
+          JokeReactionType.save,
+          context: fakeContext,
+        );
 
         // Assert
         final reactions = await service.getUserReactionsForJoke('joke1');
@@ -300,6 +322,7 @@ void main() {
         final wasAdded = await service.toggleUserReaction(
           'joke1',
           JokeReactionType.save,
+          context: fakeContext,
         );
 
         // Assert
@@ -322,6 +345,7 @@ void main() {
         final wasAdded = await service.toggleUserReaction(
           'joke1',
           JokeReactionType.save,
+          context: fakeContext,
         );
 
         // Assert
@@ -342,6 +366,7 @@ void main() {
         final result1 = await service.toggleUserReaction(
           'joke1',
           JokeReactionType.save,
+          context: fakeContext,
         );
         expect(result1, isTrue);
         expect(
@@ -354,6 +379,7 @@ void main() {
         final result2 = await service.toggleUserReaction(
           'joke1',
           JokeReactionType.save,
+          context: fakeContext,
         );
         expect(result2, isFalse);
         expect(
@@ -366,6 +392,7 @@ void main() {
         final result3 = await service.toggleUserReaction(
           'joke1',
           JokeReactionType.save,
+          context: fakeContext,
         );
         expect(result3, isTrue);
         expect(
@@ -383,7 +410,11 @@ void main() {
         expect(await appUsageService.getNumSavedJokes(), 0);
 
         // Act - add thumbsUp
-        await service.addUserReaction('j1', JokeReactionType.thumbsUp);
+        await service.addUserReaction(
+          'j1',
+          JokeReactionType.thumbsUp,
+          context: fakeContext,
+        );
         // Assert
         expect(await appUsageService.getNumSavedJokes(), 0);
 
@@ -402,6 +433,7 @@ void main() {
         final added = await service.toggleUserReaction(
           'j2',
           JokeReactionType.share,
+          context: fakeContext,
         );
         expect(added, isTrue);
         // Assert
@@ -411,6 +443,7 @@ void main() {
         final removed = await service.toggleUserReaction(
           'j2',
           JokeReactionType.share,
+          context: fakeContext,
         );
         expect(removed, isFalse);
         // Assert
@@ -450,6 +483,7 @@ void main() {
           await serviceWithRepository.addUserReaction(
             'joke1',
             JokeReactionType.thumbsUp,
+            context: fakeContext,
           );
           stopwatch.stop();
 
@@ -534,6 +568,7 @@ void main() {
         await serviceWithRepository.addUserReaction(
           'joke1',
           JokeReactionType.thumbsUp,
+          context: fakeContext,
         );
 
         // Assert - SharedPreferences should still be updated despite Firestore error
@@ -566,6 +601,7 @@ void main() {
         await serviceWithoutRepository.addUserReaction(
           'joke1',
           JokeReactionType.thumbsUp,
+          context: fakeContext,
         );
 
         // Assert - Should still work with SharedPreferences

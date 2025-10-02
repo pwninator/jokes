@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -12,19 +13,24 @@ import '../../../test_helpers/analytics_mocks.dart';
 // Mock classes using mocktail
 class MockJokeReactionsService extends Mock implements JokeReactionsService {}
 
+class FakeBuildContext extends Fake implements BuildContext {}
+
 void main() {
   group('jokeReactionsProvider', () {
     late MockJokeReactionsService mockReactionsService;
+    late BuildContext fakeContext;
 
     setUpAll(() {
       registerAnalyticsFallbackValues();
       // Fallbacks for new enums used with any(named: ...)
       registerFallbackValue(MatchMode.tight);
       registerFallbackValue(SearchScope.userJokeSearch);
+      registerFallbackValue(FakeBuildContext());
     });
 
     setUp(() {
       mockReactionsService = MockJokeReactionsService();
+      fakeContext = FakeBuildContext();
     });
 
     group('toggleReaction - thumbs exclusivity', () {
@@ -53,6 +59,7 @@ void main() {
           () => mockReactionsService.toggleUserReaction(
             jokeId,
             JokeReactionType.thumbsUp,
+            context: any(named: 'context'),
           ),
         ).thenAnswer((_) async => true); // returns true when adding
 
@@ -75,6 +82,7 @@ void main() {
           jokeId,
           JokeReactionType.thumbsUp,
           jokeContext: 'test',
+          context: fakeContext,
         );
 
         // assert
@@ -89,6 +97,7 @@ void main() {
           () => mockReactionsService.toggleUserReaction(
             jokeId,
             JokeReactionType.thumbsUp,
+            context: any(named: 'context'),
           ),
         ).called(1);
 
@@ -120,6 +129,7 @@ void main() {
           () => mockReactionsService.toggleUserReaction(
             jokeId,
             JokeReactionType.thumbsDown,
+            context: any(named: 'context'),
           ),
         ).thenAnswer((_) async => true); // returns true when adding
 
@@ -142,6 +152,7 @@ void main() {
           jokeId,
           JokeReactionType.thumbsDown,
           jokeContext: 'test',
+          context: fakeContext,
         );
 
         // assert
@@ -156,6 +167,7 @@ void main() {
           () => mockReactionsService.toggleUserReaction(
             jokeId,
             JokeReactionType.thumbsDown,
+            context: any(named: 'context'),
           ),
         ).called(1);
 
@@ -189,6 +201,7 @@ void main() {
             () => mockReactionsService.toggleUserReaction(
               jokeId,
               JokeReactionType.thumbsDown,
+              context: any(named: 'context'),
             ),
           ).thenAnswer((_) async => true); // returns true when adding
 
@@ -211,6 +224,7 @@ void main() {
             jokeId,
             JokeReactionType.thumbsDown,
             jokeContext: 'test',
+            context: fakeContext,
           );
 
           // assert
@@ -225,6 +239,7 @@ void main() {
             () => mockReactionsService.toggleUserReaction(
               jokeId,
               JokeReactionType.thumbsDown,
+              context: any(named: 'context'),
             ),
           ).called(1);
 
@@ -253,6 +268,7 @@ void main() {
             () => mockReactionsService.toggleUserReaction(
               jokeId,
               JokeReactionType.save,
+              context: any(named: 'context'),
             ),
           ).thenAnswer((_) async => true); // returns true when adding
 
@@ -275,6 +291,7 @@ void main() {
             jokeId,
             JokeReactionType.save,
             jokeContext: 'test',
+            context: fakeContext,
           );
 
           // assert
@@ -282,6 +299,7 @@ void main() {
             () => mockReactionsService.toggleUserReaction(
               jokeId,
               JokeReactionType.save,
+              context: any(named: 'context'),
             ),
           ).called(1);
 
@@ -313,6 +331,7 @@ void main() {
             () => mockReactionsService.toggleUserReaction(
               jokeId,
               JokeReactionType.share,
+              context: any(named: 'context'),
             ),
           ).thenAnswer((_) async => true); // returns true when adding
 
@@ -335,6 +354,7 @@ void main() {
             jokeId,
             JokeReactionType.share,
             jokeContext: 'test',
+            context: fakeContext,
           );
 
           // assert
@@ -342,6 +362,7 @@ void main() {
             () => mockReactionsService.toggleUserReaction(
               jokeId,
               JokeReactionType.share,
+              context: any(named: 'context'),
             ),
           ).called(1);
 
@@ -373,6 +394,7 @@ void main() {
           () => mockReactionsService.toggleUserReaction(
             jokeId,
             JokeReactionType.thumbsUp,
+            context: any(named: 'context'),
           ),
         ).thenAnswer((_) async => true); // returns true when adding
 
@@ -395,6 +417,7 @@ void main() {
           jokeId,
           JokeReactionType.thumbsUp,
           jokeContext: 'test',
+          context: fakeContext,
         );
 
         // assert
@@ -402,6 +425,7 @@ void main() {
           () => mockReactionsService.toggleUserReaction(
             jokeId,
             JokeReactionType.thumbsUp,
+            context: any(named: 'context'),
           ),
         ).called(1);
 
@@ -427,6 +451,7 @@ void main() {
             () => mockReactionsService.toggleUserReaction(
               jokeId,
               JokeReactionType.thumbsUp,
+              context: any(named: 'context'),
             ),
           ).thenThrow(Exception('Test error'));
 
@@ -449,6 +474,7 @@ void main() {
             jokeId,
             JokeReactionType.thumbsUp,
             jokeContext: 'test',
+            context: fakeContext,
           );
 
           // assert

@@ -67,6 +67,13 @@ const Map<RemoteParam, RemoteParamDescriptor> remoteParams = {
     enumValues: ShareImagesMode.values,
     enumDefault: ShareImagesMode.auto,
   ),
+  // Review prompt variant (which image/message to show)
+  RemoteParam.reviewPromptVariant: RemoteParamDescriptor(
+    key: 'review_prompt_variant',
+    type: RemoteParamType.enumType,
+    enumValues: ReviewPromptVariant.values,
+    enumDefault: ReviewPromptVariant.bunny,
+  ),
 };
 
 enum RemoteParam {
@@ -78,12 +85,16 @@ enum RemoteParam {
   reviewMinViewedJokes,
   reviewRequestFromJokeViewed,
   reviewRequireDailySubscription,
+  reviewPromptVariant,
   defaultJokeViewerReveal,
   shareImagesMode,
 }
 
 // Enum used by share images mode configuration
 enum ShareImagesMode { auto, separate, stacked }
+
+// Enum for review prompt variants
+enum ReviewPromptVariant { none, bunny, kitten }
 
 enum RemoteParamType { intType, boolType, doubleType, stringType, enumType }
 

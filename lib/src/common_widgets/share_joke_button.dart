@@ -107,6 +107,7 @@ class ShareJokeButton extends ConsumerWidget {
               joke,
               jokeContext: jokeContext,
               controller: controller,
+              context: context, // ignore: use_build_context_synchronously
             );
           } finally {
             shareCompleted = true;

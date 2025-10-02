@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_service.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
@@ -60,6 +61,7 @@ class JokeReactionsNotifier extends StateNotifier<JokeReactionsState> {
     String jokeId,
     JokeReactionType reactionType, {
     required String jokeContext,
+    required BuildContext context,
   }) async {
     final hadReaction = hasUserReaction(jokeId, reactionType);
 
@@ -106,7 +108,11 @@ class JokeReactionsNotifier extends StateNotifier<JokeReactionsState> {
       }
 
       // Update SharedPreferences and Firestore for the main reaction
-      await _reactionsService.toggleUserReaction(jokeId, reactionType);
+      await _reactionsService.toggleUserReaction(
+        jokeId,
+        reactionType,
+        context: context, // ignore: use_build_context_synchronously
+      );
 
       // Note: Analytics are handled by individual widgets (SaveJokeButton, etc.)
       // Note: This keeps the provider focused on core state management

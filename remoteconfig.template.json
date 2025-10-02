@@ -73,6 +73,13 @@
           },
           "description": "If true, require daily subscription to be enabled for review request",
           "valueType": "BOOLEAN"
+        },
+        "review_prompt_variant": {
+          "defaultValue": {
+            "value": "bunny"
+          },
+          "description": "Which review prompt variant to show: bunny|kitten",
+          "valueType": "STRING"
         }
       }
     },

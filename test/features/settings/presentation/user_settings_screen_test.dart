@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:snickerdoodle/src/core/services/app_review_service.dart';
+import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:snickerdoodle/src/core/services/review_prompt_state_store.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/settings/presentation/user_settings_screen.dart';
@@ -551,6 +552,7 @@ void main() {
                 AppReviewService(
                   nativeAdapter: _FakeAdapter(),
                   stateStore: store,
+                  getReviewPromptVariant: () => ReviewPromptVariant.bunny,
                   analyticsService: null,
                 ),
               ),

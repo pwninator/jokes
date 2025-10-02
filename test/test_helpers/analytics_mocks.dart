@@ -164,7 +164,10 @@ class AnalyticsMocks {
           mock.logErrorFeedbackSubmit(errorMessage: any(named: 'errorMessage')),
     ).thenAnswer((_) async {});
     when(
-      () => mock.logAppReviewAttempt(source: any(named: 'source')),
+      () => mock.logAppReviewAttempt(
+        source: any(named: 'source'),
+        variant: any(named: 'variant'),
+      ),
     ).thenAnswer((_) async {});
     when(
       () => mock.logErrorAppReviewAvailability(

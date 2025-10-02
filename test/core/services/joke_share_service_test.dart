@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -34,6 +35,8 @@ class FakeJoke extends Fake implements Joke {}
 
 class FakeXFile extends Fake implements XFile {}
 
+class FakeBuildContext extends Fake implements BuildContext {}
+
 void main() {
   group('JokeShareService', () {
     late JokeShareService service;
@@ -45,12 +48,14 @@ void main() {
     late AppUsageService appUsageService;
     late ReviewPromptCoordinator mockCoordinator;
     late MockRemoteConfigValues mockRemoteConfigValues;
+    late BuildContext fakeContext;
 
     setUpAll(() {
       registerFallbackValue(FakeJoke());
       registerFallbackValue(JokeReactionType.share);
       registerFallbackValue(FakeXFile());
       registerFallbackValue(ReviewRequestSource.jokeShared);
+      registerFallbackValue(FakeBuildContext());
     });
 
     setUp(() async {
@@ -61,9 +66,12 @@ void main() {
       mockCoordinator = MockReviewPromptCoordinator();
       mockPerformanceService = MockPerformanceService();
       mockRemoteConfigValues = MockRemoteConfigValues();
+      fakeContext = FakeBuildContext();
       when(
-        () =>
-            mockCoordinator.maybePromptForReview(source: any(named: 'source')),
+        () => mockCoordinator.maybePromptForReview(
+          source: any(named: 'source'),
+          context: any(named: 'context'),
+        ),
       ).thenAnswer((_) async {});
       // Real AppUsageService with mock SharedPreferences
       SharedPreferences.setMockInitialValues({});
@@ -84,7 +92,6 @@ void main() {
         reactionsService: mockJokeReactionsService,
         platformShareService: mockPlatformShareService,
         appUsageService: appUsageService,
-        reviewPromptCoordinator: mockCoordinator,
         performanceService: mockPerformanceService,
         remoteConfigValues: mockRemoteConfigValues,
         getRevealModeEnabled: () => true,
@@ -147,7 +154,11 @@ void main() {
         );
 
         when(
-          () => mockJokeReactionsService.addUserReaction(any(), any()),
+          () => mockJokeReactionsService.addUserReaction(
+            any(),
+            any(),
+            context: any(named: 'context'),
+          ),
         ).thenAnswer((_) async {});
 
         when(
@@ -169,6 +180,7 @@ void main() {
         final result = await service.shareJoke(
           joke,
           jokeContext: 'test-context',
+          context: fakeContext,
         );
 
         // Assert
@@ -193,6 +205,7 @@ void main() {
           () => mockJokeReactionsService.addUserReaction(
             'test-joke-id',
             JokeReactionType.share,
+            context: any(named: 'context'),
           ),
         ).called(1);
 
@@ -281,6 +294,7 @@ void main() {
           joke,
           jokeContext: 'test-context',
           controller: controller,
+          context: fakeContext,
         );
 
         // Assert
@@ -365,6 +379,7 @@ void main() {
         final result = await service.shareJoke(
           joke,
           jokeContext: 'test-context',
+          context: fakeContext,
         );
 
         // Assert
@@ -450,7 +465,11 @@ void main() {
         );
 
         when(
-          () => mockJokeReactionsService.addUserReaction(any(), any()),
+          () => mockJokeReactionsService.addUserReaction(
+            any(),
+            any(),
+            context: any(named: 'context'),
+          ),
         ).thenAnswer((_) async {});
 
         when(
@@ -473,6 +492,7 @@ void main() {
           joke,
           jokeContext: 'test-context',
           subject: 'Test subject',
+          context: fakeContext,
         );
 
         // Assert

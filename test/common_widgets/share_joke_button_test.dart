@@ -10,6 +10,8 @@ import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 
 class MockJokeShareService extends Mock implements JokeShareService {}
 
+class _FakeBuildContext extends Fake implements BuildContext {}
+
 void main() {
   group('ShareJokeButton', () {
     late MockJokeShareService mockJokeShareService;
@@ -23,6 +25,7 @@ void main() {
           punchlineText: 'Fallback punchline',
         ),
       );
+      registerFallbackValue(_FakeBuildContext());
     });
 
     Widget createTestWidget({
@@ -83,6 +86,7 @@ void main() {
           any(),
           jokeContext: any(named: 'jokeContext'),
           controller: any(named: 'controller'),
+          context: any(named: 'context'),
         ),
       ).thenAnswer((_) async => true);
 
@@ -106,6 +110,7 @@ void main() {
             any(),
             jokeContext: any(named: 'jokeContext'),
             controller: any(named: 'controller'),
+            context: any(named: 'context'),
           ),
         ).thenAnswer((invocation) async {
           // Capture controller and simulate pre-share callback
@@ -161,6 +166,7 @@ void main() {
           any(),
           jokeContext: any(named: 'jokeContext'),
           controller: any(named: 'controller'),
+          context: any(named: 'context'),
         ),
       ).thenAnswer((invocation) async {
         final controller =
@@ -208,6 +214,7 @@ void main() {
           any(),
           jokeContext: any(named: 'jokeContext'),
           controller: any(named: 'controller'),
+          context: any(named: 'context'),
         ),
       ).thenAnswer((_) async => true);
 
@@ -227,6 +234,7 @@ void main() {
           testJoke,
           jokeContext: jokeContext,
           controller: any(named: 'controller'),
+          context: any(named: 'context'),
         ),
       ).called(1);
     });
@@ -239,6 +247,7 @@ void main() {
           any(),
           jokeContext: any(named: 'jokeContext'),
           controller: any(named: 'controller'),
+          context: any(named: 'context'),
         ),
       ).thenThrow(Exception(errorMessage));
 

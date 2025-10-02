@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/app_review_service.dart';
@@ -28,6 +29,7 @@ class ReviewPromptCoordinator {
 
   Future<void> maybePromptForReview({
     required ReviewRequestSource source,
+    required BuildContext context,
   }) async {
     try {
       AppLogger.debug('REVIEW_COORDINATOR maybePromptForReview');
@@ -72,7 +74,9 @@ class ReviewPromptCoordinator {
         'REVIEW_COORDINATOR maybePromptForReview requesting review',
       );
       // The review service is responsible for marking attempts
-      await _review.requestReview(source: source);
+      if (context.mounted) {
+        await _review.requestReview(source: source, context: context);
+      }
     } catch (e) {
       AppLogger.warn('REVIEW_COORDINATOR maybePromptForReview error: $e');
     }

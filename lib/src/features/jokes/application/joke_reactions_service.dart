@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
@@ -85,8 +86,9 @@ class JokeReactionsService {
   /// Add a user reaction
   Future<void> addUserReaction(
     String jokeId,
-    JokeReactionType reactionType,
-  ) async {
+    JokeReactionType reactionType, {
+    required BuildContext context,
+  }) async {
     final prefs = await _prefs;
     final jokeIds = prefs.getStringList(reactionType.prefsKey) ?? [];
 
@@ -97,9 +99,17 @@ class JokeReactionsService {
       // Update usage counters for saved reaction
       if (reactionType == JokeReactionType.save) {
         await _appUsageService.incrementSavedJokesCount();
+      }
+
+      if (context.mounted &&
+          (reactionType == JokeReactionType.save ||
+              reactionType == JokeReactionType.share)) {
         // Trigger review check only on successful save addition
         await _reviewPromptCoordinator.maybePromptForReview(
-          source: ReviewRequestSource.jokeSaved,
+          source: reactionType == JokeReactionType.save
+              ? ReviewRequestSource.jokeSaved
+              : ReviewRequestSource.jokeShared,
+          context: context,
         );
       }
 
@@ -133,15 +143,20 @@ class JokeReactionsService {
   /// Toggle a user reaction (add if not present, remove if present)
   Future<bool> toggleUserReaction(
     String jokeId,
-    JokeReactionType reactionType,
-  ) async {
+    JokeReactionType reactionType, {
+    required BuildContext context,
+  }) async {
     final hasReaction = await hasUserReaction(jokeId, reactionType);
 
     if (hasReaction) {
       await removeUserReaction(jokeId, reactionType);
       return false; // Reaction was removed
     } else {
-      await addUserReaction(jokeId, reactionType);
+      await addUserReaction(
+        jokeId,
+        reactionType,
+        context: context, // ignore: use_build_context_synchronously
+      );
       return true; // Reaction was added
     }
   }

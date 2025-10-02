@@ -1,5 +1,5 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:share_plus/share_plus.dart';
@@ -10,6 +10,7 @@ import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
 import 'package:snickerdoodle/src/core/services/joke_share_service.dart';
 import 'package:snickerdoodle/src/core/services/performance_service.dart';
+import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:snickerdoodle/src/core/services/review_prompt_service.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_service.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
@@ -34,6 +35,8 @@ class FakeJoke extends Fake implements Joke {}
 
 class FakeXFile extends Fake implements XFile {}
 
+class FakeBuildContext extends Fake implements BuildContext {}
+
 void main() {
   group('JokeShareService with stacked images', () {
     late JokeShareService service;
@@ -45,12 +48,14 @@ void main() {
     late AppUsageService appUsageService;
     late ReviewPromptCoordinator mockCoordinator;
     late MockRemoteConfigValues mockRemoteConfigValues;
+    late BuildContext fakeContext;
 
     setUpAll(() {
       registerFallbackValue(FakeJoke());
       registerFallbackValue(FakeXFile());
       registerFallbackValue(ReviewRequestSource.jokeShared);
       registerFallbackValue(JokeReactionType.share);
+      registerFallbackValue(FakeBuildContext());
     });
 
     setUp(() async {
@@ -61,10 +66,13 @@ void main() {
       mockCoordinator = MockReviewPromptCoordinator();
       mockPerformanceService = MockPerformanceService();
       mockRemoteConfigValues = MockRemoteConfigValues();
+      fakeContext = FakeBuildContext();
 
       when(
-        () =>
-            mockCoordinator.maybePromptForReview(source: any(named: 'source')),
+        () => mockCoordinator.maybePromptForReview(
+          source: any(named: 'source'),
+          context: any(named: 'context'),
+        ),
       ).thenAnswer((_) async {});
 
       SharedPreferences.setMockInitialValues({});
@@ -79,7 +87,6 @@ void main() {
         reactionsService: mockJokeReactionsService,
         platformShareService: mockPlatformShareService,
         appUsageService: appUsageService,
-        reviewPromptCoordinator: mockCoordinator,
         performanceService: mockPerformanceService,
         remoteConfigValues: mockRemoteConfigValues,
         getRevealModeEnabled: () => true,
@@ -149,7 +156,11 @@ void main() {
         );
 
         when(
-          () => mockJokeReactionsService.addUserReaction(any(), any()),
+          () => mockJokeReactionsService.addUserReaction(
+            any(),
+            any(),
+            context: any(named: 'context'),
+          ),
         ).thenAnswer((_) async {});
 
         when(
@@ -167,7 +178,11 @@ void main() {
           ),
         ).thenAnswer((_) async {});
 
-        await service.shareJoke(joke, jokeContext: 'test-context');
+        await service.shareJoke(
+          joke,
+          jokeContext: 'test-context',
+          context: fakeContext,
+        );
 
         verify(() => mockImageService.stackImages(any())).called(1);
         verify(() => mockImageService.addWatermarkToFiles(any())).called(1);
@@ -226,7 +241,11 @@ void main() {
         );
 
         when(
-          () => mockJokeReactionsService.addUserReaction(any(), any()),
+          () => mockJokeReactionsService.addUserReaction(
+            any(),
+            any(),
+            context: any(named: 'context'),
+          ),
         ).thenAnswer((_) async {});
 
         when(
@@ -244,7 +263,11 @@ void main() {
           ),
         ).thenAnswer((_) async {});
 
-        await service.shareJoke(joke, jokeContext: 'test-context');
+        await service.shareJoke(
+          joke,
+          jokeContext: 'test-context',
+          context: fakeContext,
+        );
 
         verifyNever(() => mockImageService.stackImages(any()));
         verifyNever(() => mockImageService.addWatermarkToFile(any()));

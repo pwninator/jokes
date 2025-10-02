@@ -1,13 +1,11 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
-import 'package:snickerdoodle/src/core/services/app_review_service.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
 import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
-import 'package:snickerdoodle/src/core/services/review_prompt_service.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_service.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
@@ -58,6 +56,7 @@ abstract class JokeShareService {
     required String jokeContext,
     String subject = 'Thought this might make you smile 😊',
     SharePreparationController? controller,
+    required BuildContext context,
   });
 }
 
@@ -68,7 +67,6 @@ class JokeShareServiceImpl implements JokeShareService {
   final JokeReactionsService _reactionsService;
   final PlatformShareService _platformShareService;
   final AppUsageService _appUsageService;
-  final ReviewPromptCoordinator _reviewPromptCoordinator;
   final PerformanceService _performanceService;
   final RemoteConfigValues _remoteConfigValues;
   final bool Function() _getRevealModeEnabled;
@@ -79,7 +77,6 @@ class JokeShareServiceImpl implements JokeShareService {
     required JokeReactionsService reactionsService,
     required PlatformShareService platformShareService,
     required AppUsageService appUsageService,
-    required ReviewPromptCoordinator reviewPromptCoordinator,
     required PerformanceService performanceService,
     required RemoteConfigValues remoteConfigValues,
     required bool Function() getRevealModeEnabled,
@@ -88,7 +85,6 @@ class JokeShareServiceImpl implements JokeShareService {
        _reactionsService = reactionsService,
        _platformShareService = platformShareService,
        _appUsageService = appUsageService,
-       _reviewPromptCoordinator = reviewPromptCoordinator,
        _performanceService = performanceService,
        _remoteConfigValues = remoteConfigValues,
        _getRevealModeEnabled = getRevealModeEnabled;
@@ -99,6 +95,7 @@ class JokeShareServiceImpl implements JokeShareService {
     required String jokeContext,
     String subject = 'Thought this might make you smile 😊',
     SharePreparationController? controller,
+    required BuildContext context,
   }) async {
     // For now, use the images sharing method as default
     // Track share initiation
@@ -114,7 +111,11 @@ class JokeShareServiceImpl implements JokeShareService {
     // Only perform follow-up actions if user actually shared
     if (shareResult.success) {
       // Save share reaction to SharedPreferences and increment count in Firestore
-      await _reactionsService.addUserReaction(joke.id, JokeReactionType.share);
+      await _reactionsService.addUserReaction(
+        joke.id,
+        JokeReactionType.share,
+        context: context, // ignore: use_build_context_synchronously
+      );
 
       // Increment local shared jokes counter
       await _appUsageService.incrementSharedJokesCount();
@@ -126,11 +127,6 @@ class JokeShareServiceImpl implements JokeShareService {
         jokeContext: jokeContext,
         shareDestination: shareResult.shareDestination,
         totalJokesShared: totalShared,
-      );
-
-      // Trigger review check only on successful share
-      await _reviewPromptCoordinator.maybePromptForReview(
-        source: ReviewRequestSource.jokeShared,
       );
     }
 

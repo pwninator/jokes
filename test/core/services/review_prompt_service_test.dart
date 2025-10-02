@@ -1,3 +1,4 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -11,6 +12,14 @@ import 'package:snickerdoodle/src/core/services/review_prompt_state_store.dart';
 class _MockAppReviewService extends Mock implements AppReviewService {}
 
 class _MockStateStore extends Mock implements ReviewPromptStateStore {}
+
+class _FakeBuildContext extends Fake implements BuildContext {}
+
+/// Helper to get a BuildContext for tests that need it
+Future<BuildContext> _getTestContext(WidgetTester tester) async {
+  await tester.pumpWidget(MaterialApp(home: Container()));
+  return tester.element(find.byType(Container));
+}
 
 class _FakeRemoteValues implements RemoteConfigValues {
   _FakeRemoteValues({
@@ -37,6 +46,8 @@ class _FakeRemoteValues implements RemoteConfigValues {
       case RemoteParam.reviewRequireDailySubscription:
         return requireDailySub;
       case RemoteParam.shareImagesMode:
+        return false;
+      case RemoteParam.reviewPromptVariant:
         return false;
       case RemoteParam.subscriptionPromptMinJokesViewed:
       case RemoteParam.feedbackMinJokesViewed:
@@ -70,6 +81,8 @@ class _FakeRemoteValues implements RemoteConfigValues {
         return 0;
       case RemoteParam.shareImagesMode:
         return 0;
+      case RemoteParam.reviewPromptVariant:
+        return 0;
       case RemoteParam.reviewRequestFromJokeViewed:
         return 0;
       case RemoteParam.reviewRequireDailySubscription:
@@ -90,6 +103,7 @@ class _FakeRemoteValues implements RemoteConfigValues {
 void main() {
   setUpAll(() {
     registerFallbackValue(ReviewRequestSource.jokeViewed);
+    registerFallbackValue(_FakeBuildContext());
   });
 
   group('ReviewPromptCoordinator', () {
@@ -108,7 +122,9 @@ void main() {
       store = _MockStateStore();
     });
 
-    test('early return when already requested', () async {
+    testWidgets('early return when already requested', (tester) async {
+      final context = await _getTestContext(tester);
+
       // Arrange
       final values = _FakeRemoteValues(minDays: 5, minSaved: 3, minShared: 1);
       when(() => store.hasRequested()).thenAnswer((_) async => true);
@@ -124,15 +140,23 @@ void main() {
       // Act
       await coordinator.maybePromptForReview(
         source: ReviewRequestSource.jokeViewed,
+        context: context,
       );
 
       // Assert
       verify(() => store.hasRequested()).called(1);
-      verifyNever(() => review.requestReview(source: any(named: 'source')));
+      verifyNever(
+        () => review.requestReview(
+          source: any(named: 'source'),
+          context: any(named: 'context'),
+        ),
+      );
       verifyNever(() => store.markRequested());
     });
 
-    test('ineligible does not call review', () async {
+    testWidgets('ineligible does not call review', (tester) async {
+      final context = await _getTestContext(tester);
+
       // Arrange thresholds high
       final values = _FakeRemoteValues(
         minDays: 10,
@@ -157,14 +181,24 @@ void main() {
       // Act
       await coordinator.maybePromptForReview(
         source: ReviewRequestSource.jokeViewed,
+        context: context,
       );
 
       // Assert
-      verifyNever(() => review.requestReview(source: any(named: 'source')));
+      verifyNever(
+        () => review.requestReview(
+          source: any(named: 'source'),
+          context: any(named: 'context'),
+        ),
+      );
       verifyNever(() => store.markRequested());
     });
 
-    test('eligible + not available does not mark requested', () async {
+    testWidgets('eligible + not available does not mark requested', (
+      tester,
+    ) async {
+      final context = await _getTestContext(tester);
+
       // Arrange thresholds low
       final values = _FakeRemoteValues(minDays: 1, minSaved: 1, minShared: 1);
       when(() => store.hasRequested()).thenAnswer((_) async => false);
@@ -177,7 +211,10 @@ void main() {
       await prefs.setInt('num_days_used', 1);
 
       when(
-        () => review.requestReview(source: any(named: 'source')),
+        () => review.requestReview(
+          source: any(named: 'source'),
+          context: any(named: 'context'),
+        ),
       ).thenAnswer((_) async => ReviewRequestResult.notAvailable);
 
       final coordinator = ReviewPromptCoordinator(
@@ -191,18 +228,24 @@ void main() {
       // Act
       await coordinator.maybePromptForReview(
         source: ReviewRequestSource.jokeViewed,
+        context: context,
       );
 
       // Assert
       verify(
-        () => review.requestReview(source: any(named: 'source')),
+        () => review.requestReview(
+          source: any(named: 'source'),
+          context: any(named: 'context'),
+        ),
       ).called(1);
       verifyNever(() => store.markRequested());
     });
 
-    test(
+    testWidgets(
       'eligible + success marks requested (service handles marking)',
-      () async {
+      (tester) async {
+        final context = await _getTestContext(tester);
+
         final values = _FakeRemoteValues(minDays: 1, minSaved: 1, minShared: 1);
         when(() => store.hasRequested()).thenAnswer((_) async => false);
 
@@ -212,7 +255,10 @@ void main() {
         await prefs.setInt('num_days_used', 1);
 
         when(
-          () => review.requestReview(source: any(named: 'source')),
+          () => review.requestReview(
+            source: any(named: 'source'),
+            context: any(named: 'context'),
+          ),
         ).thenAnswer((_) async => ReviewRequestResult.shown);
 
         final coordinator = ReviewPromptCoordinator(
@@ -225,6 +271,7 @@ void main() {
 
         await coordinator.maybePromptForReview(
           source: ReviewRequestSource.jokeViewed,
+          context: context,
         );
 
         // Service marks internally; coordinator doesn't call store
@@ -232,9 +279,11 @@ void main() {
       },
     );
 
-    test(
+    testWidgets(
       'eligible + error does not mark requested (service handles marking)',
-      () async {
+      (tester) async {
+        final context = await _getTestContext(tester);
+
         final values = _FakeRemoteValues(minDays: 1, minSaved: 1, minShared: 1);
         when(() => store.hasRequested()).thenAnswer((_) async => false);
 
@@ -244,7 +293,10 @@ void main() {
         await prefs.setInt('num_days_used', 1);
 
         when(
-          () => review.requestReview(source: any(named: 'source')),
+          () => review.requestReview(
+            source: any(named: 'source'),
+            context: any(named: 'context'),
+          ),
         ).thenAnswer((_) async => ReviewRequestResult.error);
 
         final coordinator = ReviewPromptCoordinator(
@@ -257,15 +309,18 @@ void main() {
 
         await coordinator.maybePromptForReview(
           source: ReviewRequestSource.jokeViewed,
+          context: context,
         );
 
         verifyNever(() => store.markRequested());
       },
     );
 
-    test(
+    testWidgets(
       'zero thresholds allow immediate eligibility when other thresholds met',
-      () async {
+      (tester) async {
+        final context = await _getTestContext(tester);
+
         // Set minSaved and minShared to 0; keep minDays at 1 to avoid prompting on day 0
         final values = _FakeRemoteValues(minDays: 1, minSaved: 0, minShared: 0);
         when(() => store.hasRequested()).thenAnswer((_) async => false);
@@ -276,28 +331,37 @@ void main() {
 
         // Do not save/share any jokes; with zero thresholds it should still be eligible
         when(
-          () => review.requestReview(source: any(named: 'source')),
+          () => review.requestReview(
+            source: any(named: 'source'),
+            context: any(named: 'context'),
+          ),
         ).thenAnswer((_) async => ReviewRequestResult.notAvailable);
 
-      final coordinator = ReviewPromptCoordinator(
+        final coordinator = ReviewPromptCoordinator(
           getRemoteValues: () => values,
           appUsageService: usage,
           appReviewService: review,
-        stateStore: store,
-        getIsDailySubscribed: () => true,
+          stateStore: store,
+          getIsDailySubscribed: () => true,
         );
 
         await coordinator.maybePromptForReview(
           source: ReviewRequestSource.jokeViewed,
+          context: context,
         );
 
         verify(
-          () => review.requestReview(source: any(named: 'source')),
+          () => review.requestReview(
+            source: any(named: 'source'),
+            context: any(named: 'context'),
+          ),
         ).called(1);
       },
     );
 
-    test('ineligible when viewed jokes below threshold', () async {
+    testWidgets('ineligible when viewed jokes below threshold', (tester) async {
+      final context = await _getTestContext(tester);
+
       // Arrange thresholds include viewed
       final values = _FakeRemoteValues(
         minDays: 1,
@@ -324,13 +388,23 @@ void main() {
       // Act
       await coordinator.maybePromptForReview(
         source: ReviewRequestSource.jokeViewed,
+        context: context,
       );
 
       // Assert: should not request review because viewed < minViewed
-      verifyNever(() => review.requestReview(source: any(named: 'source')));
+      verifyNever(
+        () => review.requestReview(
+          source: any(named: 'source'),
+          context: any(named: 'context'),
+        ),
+      );
     });
 
-    test('eligible when viewed jokes meets threshold calls review', () async {
+    testWidgets('eligible when viewed jokes meets threshold calls review', (
+      tester,
+    ) async {
+      final context = await _getTestContext(tester);
+
       final values = _FakeRemoteValues(
         minDays: 1,
         minSaved: 1,
@@ -346,7 +420,10 @@ void main() {
       await prefs.setInt('num_days_used', 1);
 
       when(
-        () => review.requestReview(source: any(named: 'source')),
+        () => review.requestReview(
+          source: any(named: 'source'),
+          context: any(named: 'context'),
+        ),
       ).thenAnswer((_) async => ReviewRequestResult.notAvailable);
 
       final coordinator = ReviewPromptCoordinator(
@@ -359,42 +436,59 @@ void main() {
 
       await coordinator.maybePromptForReview(
         source: ReviewRequestSource.jokeViewed,
+        context: context,
       );
 
       verify(
-        () => review.requestReview(source: any(named: 'source')),
+        () => review.requestReview(
+          source: any(named: 'source'),
+          context: any(named: 'context'),
+        ),
       ).called(1);
     });
 
-    test('gated by daily subscription when required and not subscribed', () async {
-      final values = _FakeRemoteValues(
-        minDays: 1,
-        minSaved: 0,
-        minShared: 0,
-        minViewed: 0,
-        requireDailySub: true,
-      );
-      when(() => store.hasRequested()).thenAnswer((_) async => false);
+    testWidgets(
+      'gated by daily subscription when required and not subscribed',
+      (tester) async {
+        final context = await _getTestContext(tester);
 
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setInt('num_days_used', 1);
+        final values = _FakeRemoteValues(
+          minDays: 1,
+          minSaved: 0,
+          minShared: 0,
+          minViewed: 0,
+          requireDailySub: true,
+        );
+        when(() => store.hasRequested()).thenAnswer((_) async => false);
 
-      final coordinator = ReviewPromptCoordinator(
-        getRemoteValues: () => values,
-        appUsageService: usage,
-        appReviewService: review,
-        stateStore: store,
-        getIsDailySubscribed: () => false,
-      );
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setInt('num_days_used', 1);
 
-      await coordinator.maybePromptForReview(
-        source: ReviewRequestSource.jokeViewed,
-      );
+        final coordinator = ReviewPromptCoordinator(
+          getRemoteValues: () => values,
+          appUsageService: usage,
+          appReviewService: review,
+          stateStore: store,
+          getIsDailySubscribed: () => false,
+        );
 
-      verifyNever(() => review.requestReview(source: any(named: 'source')));
-    });
+        await coordinator.maybePromptForReview(
+          source: ReviewRequestSource.jokeViewed,
+          context: context,
+        );
 
-    test('allows when required and subscribed', () async {
+        verifyNever(
+          () => review.requestReview(
+            source: any(named: 'source'),
+            context: any(named: 'context'),
+          ),
+        );
+      },
+    );
+
+    testWidgets('allows when required and subscribed', (tester) async {
+      final context = await _getTestContext(tester);
+
       final values = _FakeRemoteValues(
         minDays: 1,
         minSaved: 0,
@@ -408,7 +502,10 @@ void main() {
       await prefs.setInt('num_days_used', 1);
 
       when(
-        () => review.requestReview(source: any(named: 'source')),
+        () => review.requestReview(
+          source: any(named: 'source'),
+          context: any(named: 'context'),
+        ),
       ).thenAnswer((_) async => ReviewRequestResult.notAvailable);
 
       final coordinator = ReviewPromptCoordinator(
@@ -421,9 +518,15 @@ void main() {
 
       await coordinator.maybePromptForReview(
         source: ReviewRequestSource.jokeViewed,
+        context: context,
       );
 
-      verify(() => review.requestReview(source: any(named: 'source'))).called(1);
+      verify(
+        () => review.requestReview(
+          source: any(named: 'source'),
+          context: any(named: 'context'),
+        ),
+      ).called(1);
     });
   });
 }

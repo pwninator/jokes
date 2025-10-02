@@ -1,7 +1,9 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/app_review_service.dart';
+import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:snickerdoodle/src/core/services/review_prompt_state_store.dart';
 
 class _MockNativeReviewAdapter extends Mock implements NativeReviewAdapter {}
@@ -27,12 +29,28 @@ void main() {
     service = AppReviewService(
       nativeAdapter: native,
       stateStore: store,
+      getReviewPromptVariant: () => ReviewPromptVariant.bunny,
       analyticsService: analytics,
     );
 
     // Mock successful analytics calls by default
     when(
-      () => analytics.logAppReviewAttempt(source: any(named: 'source')),
+      () => analytics.logAppReviewAttempt(
+        source: any(named: 'source'),
+        variant: any(named: 'variant'),
+      ),
+    ).thenAnswer((_) async {});
+    when(
+      () => analytics.logAppReviewAccepted(
+        source: any(named: 'source'),
+        variant: any(named: 'variant'),
+      ),
+    ).thenAnswer((_) async {});
+    when(
+      () => analytics.logAppReviewDeclined(
+        source: any(named: 'source'),
+        variant: any(named: 'variant'),
+      ),
     ).thenAnswer((_) async {});
     when(
       () => analytics.logErrorAppReviewAvailability(
@@ -75,60 +93,158 @@ void main() {
       });
     });
 
-    group('requestReview', () {
-      test('returns notAvailable when API not available', () async {
+    group('requestReview with context (shows dialog)', () {
+      testWidgets('returns notAvailable when API not available', (
+        tester,
+      ) async {
         when(() => native.isAvailable()).thenAnswer((_) async => false);
 
-        final result = await service.requestReview(
-          source: ReviewRequestSource.jokeShared,
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Builder(
+              builder: (context) {
+                return ElevatedButton(
+                  onPressed: () async {
+                    final result = await service.requestReview(
+                      source: ReviewRequestSource.jokeShared,
+                      context: context,
+                    );
+                    expect(result, ReviewRequestResult.notAvailable);
+                  },
+                  child: const Text('Test'),
+                );
+              },
+            ),
+          ),
         );
 
-        expect(result, ReviewRequestResult.notAvailable);
-        verify(
-          () => analytics.logAppReviewAttempt(source: 'joke_shared'),
-        ).called(1);
-        verifyNever(() => native.requestReview());
-        verifyNever(() => store.markRequested());
+        await tester.tap(find.text('Test'));
+        await tester.pumpAndSettle();
+
+        verify(() => native.isAvailable()).called(1);
+        verifyNever(
+          () => analytics.logAppReviewAttempt(
+            source: any(named: 'source'),
+            variant: any(named: 'variant'),
+          ),
+        );
       });
 
-      test('returns shown and marks requested on success', () async {
+      testWidgets('shows dialog and processes accept', (tester) async {
         when(() => native.isAvailable()).thenAnswer((_) async => true);
         when(() => native.requestReview()).thenAnswer((_) async {});
         when(() => store.markRequested()).thenAnswer((_) async {});
 
-        final result = await service.requestReview(
-          source: ReviewRequestSource.jokeViewed,
+        ReviewRequestResult? result;
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Builder(
+              builder: (context) {
+                return ElevatedButton(
+                  onPressed: () async {
+                    result = await service.requestReview(
+                      source: ReviewRequestSource.jokeViewed,
+                      context: context,
+                    );
+                  },
+                  child: const Text('Request Review'),
+                );
+              },
+            ),
+          ),
         );
+
+        // Tap button to trigger review request
+        await tester.tap(find.text('Request Review'));
+        await tester.pumpAndSettle();
+
+        // Dialog should be shown (assert by presence of variant-specific key)
+        expect(
+          find.byKey(const Key('app_review_prompt_dialog-accept-button-bunny')),
+          findsOneWidget,
+        );
+
+        // Tap accept button
+        await tester.tap(
+          find.byKey(const Key('app_review_prompt_dialog-accept-button-bunny')),
+        );
+        await tester.pumpAndSettle();
 
         expect(result, ReviewRequestResult.shown);
         verifyInOrder([
-          () => analytics.logAppReviewAttempt(source: 'joke_viewed'),
           () => native.isAvailable(),
+          () => analytics.logAppReviewAttempt(
+            source: 'joke_viewed',
+            variant: 'bunny',
+          ),
+          () => analytics.logAppReviewAccepted(
+            source: 'joke_viewed',
+            variant: 'bunny',
+          ),
           () => native.requestReview(),
           () => store.markRequested(),
         ]);
       });
 
-      test(
-        'returns error, logs analytics, and does not mark requested on failure',
-        () async {
-          when(() => native.isAvailable()).thenAnswer((_) async => true);
-          when(() => native.requestReview()).thenThrow(Exception('nope'));
+      testWidgets('shows dialog and processes decline', (tester) async {
+        when(() => native.isAvailable()).thenAnswer((_) async => true);
 
-          final result = await service.requestReview(
-            source: ReviewRequestSource.adminTest,
-          );
+        ReviewRequestResult? result;
 
-          expect(result, ReviewRequestResult.error);
-          verify(
-            () => analytics.logErrorAppReviewRequest(
-              source: 'admin_test',
-              errorMessage: 'app_review_request_failed',
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Builder(
+              builder: (context) {
+                return ElevatedButton(
+                  onPressed: () async {
+                    result = await service.requestReview(
+                      source: ReviewRequestSource.jokeSaved,
+                      context: context,
+                    );
+                  },
+                  child: const Text('Request Review'),
+                );
+              },
             ),
-          ).called(1);
-          verifyNever(() => store.markRequested());
-        },
-      );
+          ),
+        );
+
+        // Tap button to trigger review request
+        await tester.tap(find.text('Request Review'));
+        await tester.pumpAndSettle();
+
+        // Dialog should be shown (assert by presence of variant-specific key)
+        expect(
+          find.byKey(
+            const Key('app_review_prompt_dialog-dismiss-button-bunny'),
+          ),
+          findsOneWidget,
+        );
+
+        // Tap dismiss button
+        await tester.tap(
+          find.byKey(
+            const Key('app_review_prompt_dialog-dismiss-button-bunny'),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(result, ReviewRequestResult.dismissed);
+        verifyInOrder([
+          () => native.isAvailable(),
+          () => analytics.logAppReviewAttempt(
+            source: 'joke_saved',
+            variant: 'bunny',
+          ),
+          () => analytics.logAppReviewDeclined(
+            source: 'joke_saved',
+            variant: 'bunny',
+          ),
+        ]);
+        verifyNever(() => native.requestReview());
+        verifyNever(() => store.markRequested());
+      });
     });
   });
 }

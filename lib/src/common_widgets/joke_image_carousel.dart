@@ -249,6 +249,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
             AppLogger.debug('JOKE_IMAGE_CAROUSEL calling review prompt');
             await reviewPromptCoordinator.maybePromptForReview(
               source: ReviewRequestSource.jokeViewed,
+              context: context,
             );
           } else {
             AppLogger.debug(

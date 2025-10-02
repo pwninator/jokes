@@ -1046,6 +1046,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
     final reviewService = ref.read(appReviewServiceProvider);
     final result = await reviewService.requestReview(
       source: ReviewRequestSource.adminTest,
+      context: context,
       force: true,
     );
 
@@ -1061,8 +1062,8 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
         message = 'In-app review not available on this device.';
         bg = Theme.of(context).colorScheme.secondary;
         break;
-      case ReviewRequestResult.throttledOrNoop:
-        message = 'Review prompt throttled (no UI shown).';
+      case ReviewRequestResult.dismissed:
+        message = 'Review prompt dismissed.';
         bg = Theme.of(context).colorScheme.secondary;
         break;
       case ReviewRequestResult.error:

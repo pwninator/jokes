@@ -84,6 +84,12 @@ class AnalyticsParameters {
 
   // App-level parameters
   static const String appTheme = 'app_theme';
+
+  // Review prompt parameters
+  static const String appReviewAttemptedCount = 'app_review_attempted_count';
+  static const String appReviewAcceptedCount = 'app_review_accepted_count';
+  static const String appReviewDeclinedCount = 'app_review_declined_count';
+  static const String appReviewPromptVariant = 'app_review_prompt_variant';
 }
 
 /// User type values for analytics

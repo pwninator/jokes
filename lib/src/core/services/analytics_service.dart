@@ -244,7 +244,11 @@ abstract class AnalyticsService {
   void logErrorFeedbackSubmit({required String errorMessage});
 
   // App review
-  void logAppReviewAttempt({required String source});
+  void logAppReviewAttempt({required String source, required String variant});
+
+  void logAppReviewAccepted({required String source, required String variant});
+
+  void logAppReviewDeclined({required String source, required String variant});
 
   void logErrorAppReviewAvailability({
     required String source,
@@ -824,9 +828,26 @@ class FirebaseAnalyticsService implements AnalyticsService {
 
   // App review
   @override
-  void logAppReviewAttempt({required String source}) {
+  void logAppReviewAttempt({required String source, required String variant}) {
     _logEvent(AnalyticsEvent.appReviewAttempt, {
       AnalyticsParameters.source: source,
+      AnalyticsParameters.appReviewPromptVariant: variant,
+    });
+  }
+
+  @override
+  void logAppReviewAccepted({required String source, required String variant}) {
+    _logEvent(AnalyticsEvent.appReviewAccepted, {
+      AnalyticsParameters.source: source,
+      AnalyticsParameters.appReviewPromptVariant: variant,
+    });
+  }
+
+  @override
+  void logAppReviewDeclined({required String source, required String variant}) {
+    _logEvent(AnalyticsEvent.appReviewDeclined, {
+      AnalyticsParameters.source: source,
+      AnalyticsParameters.appReviewPromptVariant: variant,
     });
   }
 

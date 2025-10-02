@@ -1,9 +1,12 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:in_app_review/in_app_review.dart';
+import 'package:snickerdoodle/src/common_widgets/app_review_prompt_dialog.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
-import 'package:snickerdoodle/src/core/services/review_prompt_state_store.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
+import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
+import 'package:snickerdoodle/src/core/services/review_prompt_state_store.dart';
 
 /// Outcome of attempting to request an in-app review
 enum ReviewRequestResult {
@@ -13,8 +16,8 @@ enum ReviewRequestResult {
   /// The API was unavailable on this device/OS
   notAvailable,
 
-  /// The call was accepted but the system did not show UI (rate-limited/no-op)
-  throttledOrNoop,
+  /// The user dismissed the dialog
+  dismissed,
 
   /// An error occurred while attempting to request a review
   error,
@@ -62,13 +65,16 @@ class AppReviewService {
   AppReviewService({
     required NativeReviewAdapter nativeAdapter,
     required ReviewPromptStateStore stateStore,
+    required ReviewPromptVariant Function() getReviewPromptVariant,
     AnalyticsService? analyticsService,
   }) : _native = nativeAdapter,
-       _store = stateStore,
+       _promptHistoryStore = stateStore,
+       _getReviewPromptVariant = getReviewPromptVariant,
        _analytics = analyticsService;
 
   final NativeReviewAdapter _native;
-  final ReviewPromptStateStore _store;
+  final ReviewPromptStateStore _promptHistoryStore;
+  final ReviewPromptVariant Function() _getReviewPromptVariant;
   final AnalyticsService? _analytics;
 
   /// Check if in-app review API is available on this device/OS
@@ -90,26 +96,66 @@ class AppReviewService {
 
   /// Attempt to show the in-app review sheet
   ///
+  /// Shows a custom dialog first before the native review sheet.
+  ///
   /// Returns the outcome of the request. Internally marks the request as
   /// attempted when native API is available (regardless of success/error).
   Future<ReviewRequestResult> requestReview({
     required ReviewRequestSource source,
+    required BuildContext context,
     bool force = false,
   }) async {
-    // Attempt regardless of availability to mirror plugin guidance, but we
-    // prefer checking to short-circuit obvious unavailability.
-    _analytics?.logAppReviewAttempt(source: source.value);
-
     try {
+      // Check availability first
       final available = await _native.isAvailable();
       if (!available) {
         return ReviewRequestResult.notAvailable;
       }
 
+      if (!context.mounted) {
+        return ReviewRequestResult.error;
+      }
+
+      // Show custom dialog first
+      final variant = _getReviewPromptVariant();
+      _analytics?.logAppReviewAttempt(
+        source: source.value,
+        variant: variant.name,
+      );
+
+      final userAccepted = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) => AppReviewPromptDialog(
+          variant: variant,
+          onAccept: () {
+            Navigator.of(dialogContext).pop(true);
+          },
+          onDismiss: () {
+            Navigator.of(dialogContext).pop(false);
+          },
+        ),
+      );
+
+      if (userAccepted != true) {
+        // User dismissed dialog
+        _analytics?.logAppReviewDeclined(
+          source: source.value,
+          variant: variant.name,
+        );
+        return ReviewRequestResult.dismissed;
+      }
+
+      // User accepted - log and show native review
+      _analytics?.logAppReviewAccepted(
+        source: source.value,
+        variant: variant.name,
+      );
+
       await _native.requestReview();
       // Mark that we attempted to show the native review sheet
       try {
-        await _store.markRequested();
+        await _promptHistoryStore.markRequested();
       } catch (_) {}
 
       // The API does not guarantee UI will be shown; return shown as best-effort.
@@ -135,6 +181,12 @@ final appReviewServiceProvider = Provider<AppReviewService>((ref) {
   return AppReviewService(
     nativeAdapter: InAppReviewAdapter(),
     stateStore: stateStore,
+    getReviewPromptVariant: () {
+      final remoteValues = ref.read(remoteConfigValuesProvider);
+      return remoteValues.getEnum<ReviewPromptVariant>(
+        RemoteParam.reviewPromptVariant,
+      );
+    },
     analyticsService: analytics,
   );
 });

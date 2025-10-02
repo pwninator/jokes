@@ -34,12 +34,12 @@ final jokeCategoryByIdProvider = StreamProvider.autoDispose
     });
 
 final popularTileImageNames = [
-  'category_tile_popular_bunny.png',
-  'category_tile_popular_cat.png',
-  'category_tile_popular_hedgehog.png',
-  'category_tile_popular_lamb.png',
-  'category_tile_popular_puppy.png',
-  'category_tile_popular_panda.png',
+  'category_tile_popular_bunny1.png',
+  'category_tile_popular_cat1.png',
+  'category_tile_popular_hedgehog1.png',
+  'category_tile_popular_lamb1.png',
+  'category_tile_popular_puppy1.png',
+  'category_tile_popular_panda1.png',
 ];
 
 /// Merged provider for Discover: programmatic tiles first, then Firestore categories.

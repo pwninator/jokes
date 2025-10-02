@@ -3,8 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
 
-const String cookieIconAssetPath =
-    'assets/icon/icon_cookie_01_preshrunk.webp';
+const String cookieIconAssetPath = 'assets/icon/icon_cookie_01_preshrunk.webp';
 
 class SubscriptionPromptDialog extends ConsumerStatefulWidget {
   const SubscriptionPromptDialog({super.key});

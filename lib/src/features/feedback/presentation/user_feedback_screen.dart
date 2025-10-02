@@ -187,7 +187,7 @@ class _UserFeedbackScreenState extends ConsumerState<UserFeedbackScreen> {
         );
       }
     } catch (e) {
-      AppLogger.warn('FEEDBACK_SCREEN submit error: ');
+      AppLogger.warn('FEEDBACK_SCREEN submit error: ${e.toString()}');
       try {
         final analytics = ref.read(analyticsServiceProvider);
         analytics.logErrorFeedbackSubmit(
@@ -224,7 +224,7 @@ class _UserFeedbackScreenState extends ConsumerState<UserFeedbackScreen> {
       await service.addConversationMessage(docId, text, SpeakerType.user);
       _composerController.clear();
     } catch (e) {
-      AppLogger.warn('FEEDBACK_SCREEN send message error: ');
+      AppLogger.warn('FEEDBACK_SCREEN send message error: ${e.toString()}');
       try {
         final analytics = ref.read(analyticsServiceProvider);
         analytics.logErrorFeedbackSubmit(

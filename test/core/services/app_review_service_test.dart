@@ -245,6 +245,48 @@ void main() {
         verifyNever(() => native.requestReview());
         verifyNever(() => store.markRequested());
       });
+
+      testWidgets(
+        'handles feedback intent by dismissing and not calling native review',
+        (tester) async {
+          when(() => native.isAvailable()).thenAnswer((_) async => true);
+
+          await tester.pumpWidget(
+            MaterialApp(
+              home: Builder(
+                builder: (context) {
+                  return ElevatedButton(
+                    onPressed: () async {
+                      await service.requestReview(
+                        source: ReviewRequestSource.jokeSaved,
+                        context: context,
+                      );
+                    },
+                    child: const Text('Request Review'),
+                  );
+                },
+              ),
+            ),
+          );
+
+          // Trigger
+          await tester.tap(find.text('Request Review'));
+          await tester.pumpAndSettle();
+
+          // Tap the feedback link in dialog
+          final feedbackKey = find.byKey(
+            const Key('app_review_prompt_dialog-feedback-link-bunny'),
+          );
+          expect(feedbackKey, findsOneWidget);
+          await tester.tap(feedbackKey);
+          await tester.pumpAndSettle();
+
+          // Ensure no native review was requested
+          verify(() => native.isAvailable()).called(1);
+          verifyNever(() => native.requestReview());
+          verifyNever(() => store.markRequested());
+        },
+      );
     });
   });
 }

@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:in_app_review/in_app_review.dart';
 import 'package:snickerdoodle/src/common_widgets/app_review_prompt_dialog.dart';
+import 'package:snickerdoodle/src/config/router/route_names.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:snickerdoodle/src/core/services/review_prompt_state_store.dart';
+
+enum _DialogDecision { accept, dismiss, feedback }
 
 /// Outcome of attempting to request an in-app review
 enum ReviewRequestResult {
@@ -123,26 +127,41 @@ class AppReviewService {
         variant: variant.name,
       );
 
-      final userAccepted = await showDialog<bool>(
+      // Dialog now can signal three intents via callbacks; wire to pop values
+      final userDecision = await showDialog<_DialogDecision>(
         context: context,
         barrierDismissible: false,
         builder: (dialogContext) => AppReviewPromptDialog(
           variant: variant,
           onAccept: () {
-            Navigator.of(dialogContext).pop(true);
+            Navigator.of(dialogContext).pop(_DialogDecision.accept);
           },
           onDismiss: () {
-            Navigator.of(dialogContext).pop(false);
+            Navigator.of(dialogContext).pop(_DialogDecision.dismiss);
+          },
+          onFeedback: () {
+            Navigator.of(dialogContext).pop(_DialogDecision.feedback);
           },
         ),
       );
 
-      if (userAccepted != true) {
+      if (userDecision == _DialogDecision.dismiss) {
         // User dismissed dialog
         _analytics?.logAppReviewDeclined(
           source: source.value,
           variant: variant.name,
         );
+        return ReviewRequestResult.dismissed;
+      }
+
+      if (userDecision == _DialogDecision.feedback) {
+        // Navigate to feedback screen using the caller's context (GoRouter)
+        try {
+          if (context.mounted) {
+            // Use context extension to ensure push happens on the correct navigator
+            await context.pushNamed(RouteNames.feedback);
+          }
+        } catch (_) {}
         return ReviewRequestResult.dismissed;
       }
 

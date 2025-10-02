@@ -7,13 +7,15 @@ class AppRoutes {
   // Auth routes
   static const String auth = '/auth';
 
+  // Top-level app routes
+  static const String feedback = '/feedback';
+
   // Main app routes (shell route)
   static const String jokes = '/jokes';
   static const String saved = '/saved';
   static const String discover = '/discover';
   static const String discoverSearch = '/discover/search';
   static const String settings = '/settings';
-  static const String feedback = '/settings/feedback';
   static const String admin = '/admin';
 
   // Admin sub-routes

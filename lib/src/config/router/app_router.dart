@@ -108,6 +108,13 @@ class AppRouter {
       ],
       redirect: AuthGuard.redirect,
       routes: [
+        // Feedback - top-level utility route accessible from anywhere
+        GoRoute(
+          path: AppRoutes.feedback,
+          name: RouteNames.feedback,
+          builder: (context, state) => const UserFeedbackScreen(),
+        ),
+
         // Auth route
         GoRoute(
           path: AppRoutes.auth,
@@ -175,11 +182,6 @@ class AppRouter {
               path: AppRoutes.settings,
               name: RouteNames.settings,
               builder: (context, state) => const UserSettingsScreen(),
-            ),
-            GoRoute(
-              path: AppRoutes.feedback,
-              name: RouteNames.feedback,
-              builder: (context, state) => const UserFeedbackScreen(),
             ),
 
             // Admin home/dashboard

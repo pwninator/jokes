@@ -2,10 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:go_router/go_router.dart';
-import 'package:snickerdoodle/src/config/router/route_names.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
-import 'package:snickerdoodle/src/features/feedback/presentation/user_feedback_screen.dart';
 
 /// Configuration for a review prompt variant
 class ReviewPromptConfig {
@@ -61,12 +58,14 @@ class AppReviewPromptDialog extends StatelessWidget {
   final ReviewPromptVariant variant;
   final VoidCallback onAccept;
   final VoidCallback onDismiss;
+  final VoidCallback? onFeedback;
 
   const AppReviewPromptDialog({
     super.key,
     required this.variant,
     required this.onAccept,
     required this.onDismiss,
+    this.onFeedback,
   });
 
   @override
@@ -224,21 +223,9 @@ class AppReviewPromptDialog extends StatelessWidget {
                         decorationColor: theme.colorScheme.secondary,
                       ),
                       recognizer: TapGestureRecognizer()
-                        ..onTap = () async {
-                          // Close this dialog
-                          Navigator.of(context).pop();
-
-                          // Open feedback screen
-                          final router = GoRouter.maybeOf(context);
-                          if (router != null) {
-                            await router.pushNamed<bool>(RouteNames.feedback);
-                          } else {
-                            await Navigator.of(context).push<bool>(
-                              MaterialPageRoute(
-                                builder: (_) => const UserFeedbackScreen(),
-                              ),
-                            );
-                          }
+                        ..onTap = () {
+                          // Emit intent only; navigation handled by caller
+                          onFeedback?.call();
                         },
                     ),
                   ],

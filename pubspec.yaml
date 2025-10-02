@@ -18,7 +18,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # of the product and file versions while build-number is used as the build suffix.
 # The convention for the build name is based on the version number:
 # A.BB.CC+ABBCCN where N starts at 0 and increments for each build of the same version.
-version: 1.2.2+102020
+version: 1.2.2+102021
 
 environment:
   sdk: ^3.8.1
@@ -97,9 +97,10 @@ flutter:
 
   # To add assets to your application, add an assets section, like this:
   assets:
-    - assets/watermark/snickerdoodlejokes_watermark_01.png
+    - assets/icon/icon_cookie_01_preshrunk.webp
     - assets/review_prompts/review_request_bunny_garden_600.webp
     - assets/review_prompts/review_request_kitten_600.webp
+    - assets/watermark/snickerdoodlejokes_watermark_01.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

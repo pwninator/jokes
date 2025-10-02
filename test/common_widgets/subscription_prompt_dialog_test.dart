@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -18,12 +19,101 @@ class _FakeRemoteConfigValues extends Fake implements RemoteConfigValues {}
 class _FakeSubscriptionPromptState extends Fake
     implements SubscriptionPromptState {}
 
+const List<int> _transparentPixelPng = [
+  0x89,
+  0x50,
+  0x4E,
+  0x47,
+  0x0D,
+  0x0A,
+  0x1A,
+  0x0A,
+  0x00,
+  0x00,
+  0x00,
+  0x0D,
+  0x49,
+  0x48,
+  0x44,
+  0x52,
+  0x00,
+  0x00,
+  0x00,
+  0x01,
+  0x00,
+  0x00,
+  0x00,
+  0x01,
+  0x08,
+  0x06,
+  0x00,
+  0x00,
+  0x00,
+  0x1F,
+  0x15,
+  0xC4,
+  0x89,
+  0x00,
+  0x00,
+  0x00,
+  0x0A,
+  0x49,
+  0x44,
+  0x41,
+  0x54,
+  0x78,
+  0x9C,
+  0x63,
+  0x00,
+  0x01,
+  0x00,
+  0x00,
+  0x05,
+  0x00,
+  0x01,
+  0x0D,
+  0x0A,
+  0x2D,
+  0xB4,
+  0x00,
+  0x00,
+  0x00,
+  0x00,
+  0x49,
+  0x45,
+  0x4E,
+  0x44,
+  0xAE,
+  0x42,
+  0x60,
+  0x82,
+];
+
+final ByteData _testCookieImageData = Uint8List.fromList(
+  _transparentPixelPng,
+).buffer.asByteData();
+
+class _TestAssetBundle extends CachingAssetBundle {
+  _TestAssetBundle(this._imageData);
+
+  final ByteData _imageData;
+
+  @override
+  Future<ByteData> load(String key) {
+    if (key == cookieIconAssetPath) {
+      return Future.value(_imageData);
+    }
+    return rootBundle.load(key);
+  }
+}
+
 void main() {
   group('SubscriptionPromptDialog', () {
     late _MockAnalyticsService mockAnalytics;
     late _MockSubscriptionPromptNotifier mockSubscriptionNotifier;
 
     setUpAll(() {
+      TestWidgetsFlutterBinding.ensureInitialized();
       registerFallbackValue(_FakeRemoteConfigValues());
       registerFallbackValue(_FakeSubscriptionPromptState());
     });
@@ -70,15 +160,18 @@ void main() {
             (ref) => mockSubscriptionNotifier,
           ),
         ],
-        child: MaterialApp(
-          home: Scaffold(
-            body: Builder(
-              builder: (context) => ElevatedButton(
-                onPressed: () => showDialog(
-                  context: context,
-                  builder: (context) => const SubscriptionPromptDialog(),
+        child: DefaultAssetBundle(
+          bundle: _TestAssetBundle(_testCookieImageData),
+          child: MaterialApp(
+            home: Scaffold(
+              body: Builder(
+                builder: (context) => ElevatedButton(
+                  onPressed: () => showDialog(
+                    context: context,
+                    builder: (context) => const SubscriptionPromptDialog(),
+                  ),
+                  child: const Text('Show Dialog'),
                 ),
-                child: const Text('Show Dialog'),
               ),
             ),
           ),
@@ -89,6 +182,13 @@ void main() {
     testWidgets('displays dialog with correct content and scrollable behavior', (
       WidgetTester tester,
     ) async {
+      tester.view.physicalSize = const Size(400, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
       await tester.pumpWidget(createTestWidget());
       await tester.pumpAndSettle();
 
@@ -117,6 +217,15 @@ void main() {
 
       // Check action buttons
       expect(find.text('Maybe Later'), findsOneWidget);
+      expect(
+        find.byWidgetPredicate((widget) {
+          return widget is Image &&
+              widget.image is AssetImage &&
+              (widget.image as AssetImage).assetName == cookieIconAssetPath;
+        }),
+        findsOneWidget,
+      );
+
       expect(find.text('Yes, Send Jokes!'), findsOneWidget);
 
       // Verify buttons have correct keys
@@ -139,6 +248,13 @@ void main() {
     testWidgets('handles subscribe button tap successfully', (
       WidgetTester tester,
     ) async {
+      tester.view.physicalSize = const Size(400, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
       await tester.pumpWidget(createTestWidget());
       await tester.pumpAndSettle();
 
@@ -147,6 +263,9 @@ void main() {
       await tester.pumpAndSettle();
 
       // Tap subscribe button
+      await tester.ensureVisible(
+        find.byKey(const Key('subscription_prompt_dialog-subscribe-button')),
+      );
       await tester.tap(
         find.byKey(const Key('subscription_prompt_dialog-subscribe-button')),
       );
@@ -163,7 +282,10 @@ void main() {
 
       // Verify success snackbar is shown
       expect(
-        find.text('Successfully subscribed to daily jokes! 🎉'),
+        find.text(
+          'Successfully subscribed to daily jokes! 🎉',
+          skipOffstage: false,
+        ),
         findsOneWidget,
       );
     });
@@ -171,6 +293,13 @@ void main() {
     testWidgets('handles subscribe button tap with error', (
       WidgetTester tester,
     ) async {
+      tester.view.physicalSize = const Size(400, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
       // Override mock to throw error
       when(
         () => mockSubscriptionNotifier.subscribeUser(),
@@ -184,6 +313,9 @@ void main() {
       await tester.pumpAndSettle();
 
       // Tap subscribe button
+      await tester.ensureVisible(
+        find.byKey(const Key('subscription_prompt_dialog-subscribe-button')),
+      );
       await tester.tap(
         find.byKey(const Key('subscription_prompt_dialog-subscribe-button')),
       );
@@ -218,6 +350,9 @@ void main() {
       await tester.pumpAndSettle();
 
       // Tap maybe later button
+      await tester.ensureVisible(
+        find.byKey(const Key('subscription_prompt_dialog-maybe-later-button')),
+      );
       await tester.tap(
         find.byKey(const Key('subscription_prompt_dialog-maybe-later-button')),
       );
@@ -242,6 +377,13 @@ void main() {
     testWidgets('shows loading state during subscription', (
       WidgetTester tester,
     ) async {
+      tester.view.physicalSize = const Size(400, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
       // Make subscription take time
       when(() => mockSubscriptionNotifier.subscribeUser()).thenAnswer((
         _,
@@ -258,6 +400,9 @@ void main() {
       await tester.pumpAndSettle();
 
       // Tap subscribe button
+      await tester.ensureVisible(
+        find.byKey(const Key('subscription_prompt_dialog-subscribe-button')),
+      );
       await tester.tap(
         find.byKey(const Key('subscription_prompt_dialog-subscribe-button')),
       );
@@ -281,6 +426,13 @@ void main() {
     });
 
     testWidgets('disables buttons during loading', (WidgetTester tester) async {
+      tester.view.physicalSize = const Size(400, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
       // Make subscription take time
       when(() => mockSubscriptionNotifier.subscribeUser()).thenAnswer((
         _,
@@ -297,6 +449,9 @@ void main() {
       await tester.pumpAndSettle();
 
       // Tap subscribe button
+      await tester.ensureVisible(
+        find.byKey(const Key('subscription_prompt_dialog-subscribe-button')),
+      );
       await tester.tap(
         find.byKey(const Key('subscription_prompt_dialog-subscribe-button')),
       );
@@ -321,6 +476,13 @@ void main() {
     testWidgets('handles dismiss prompt error gracefully', (
       WidgetTester tester,
     ) async {
+      tester.view.physicalSize = const Size(400, 800);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
       // Override mock to throw error on dismiss
       when(
         () => mockSubscriptionNotifier.dismissPrompt(),
@@ -334,6 +496,9 @@ void main() {
       await tester.pumpAndSettle();
 
       // Tap maybe later button
+      await tester.ensureVisible(
+        find.byKey(const Key('subscription_prompt_dialog-maybe-later-button')),
+      );
       await tester.tap(
         find.byKey(const Key('subscription_prompt_dialog-maybe-later-button')),
       );
@@ -357,12 +522,43 @@ void main() {
       );
     });
 
+    testWidgets('lays out content side-by-side on wide screens', (
+      WidgetTester tester,
+    ) async {
+      tester.view.physicalSize = const Size(900, 500);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(createTestWidget());
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Show Dialog'));
+      await tester.pumpAndSettle();
+
+      final scrollView = tester.widget<SingleChildScrollView>(
+        find.byType(SingleChildScrollView),
+      );
+      expect(scrollView.child, isA<Row>());
+
+      final Text title = tester.widget<Text>(
+        find.text('Start Every Day with a Smile!'),
+      );
+      expect(title.textAlign, TextAlign.start);
+    });
+
     testWidgets('content is scrollable on small screens', (
       WidgetTester tester,
     ) async {
       // Set a small screen size to test scrolling
       tester.view.physicalSize = const Size(300, 400);
       tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
 
       await tester.pumpWidget(createTestWidget());
       await tester.pumpAndSettle();

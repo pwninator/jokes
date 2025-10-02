@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
 
+const String cookieIconAssetPath =
+    'assets/icon/icon_cookie_01_preshrunk.webp';
+
 class SubscriptionPromptDialog extends ConsumerStatefulWidget {
   const SubscriptionPromptDialog({super.key});
 
@@ -22,98 +25,178 @@ class _SubscriptionPromptDialogState
     return AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       contentPadding: const EdgeInsets.all(24),
-      content: SingleChildScrollView(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Fun emoji header
-            Container(
-              padding: const EdgeInsets.all(16),
+      content: Builder(
+        builder: (dialogContext) {
+          final Size screen = MediaQuery.of(dialogContext).size;
+          final bool isWide = screen.width > screen.height;
+
+          const double dialogToScreenRatio = 0.7;
+          final double maxDialogWidth = screen.width * dialogToScreenRatio;
+          final double maxDialogHeight = screen.height * dialogToScreenRatio;
+
+          final double headerSizeBase = isWide
+              ? (maxDialogHeight * 0.45)
+              : (maxDialogWidth * 0.4);
+          final double headerSize = headerSizeBase
+              .clamp(96.0, isWide ? 180.0 : 140.0)
+              .toDouble();
+
+          final TextAlign textAlignment = isWide
+              ? TextAlign.start
+              : TextAlign.center;
+
+          Widget buildHeaderImage() {
+            return Container(
+              width: headerSize,
+              height: headerSize,
               decoration: BoxDecoration(
                 color: theme.colorScheme.primaryContainer,
                 shape: BoxShape.circle,
               ),
-              child: const Text('😄', style: TextStyle(fontSize: 32)),
-            ),
-            const SizedBox(height: 20),
-
-            // Main title
-            Text(
-              'Start Every Day with a Smile!',
-              style: theme.textTheme.headlineSmall?.copyWith(
-                fontWeight: FontWeight.bold,
-                color: theme.colorScheme.onSurface,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 12),
-
-            // Persuasive subtitle
-            Text(
-              "Keep the laughs coming! We can send one new, handpicked joke straight to your phone each day!",
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 20),
-
-            // Benefits list
-            _buildBenefitsList(theme),
-            const SizedBox(height: 24),
-
-            // Action buttons
-            Row(
-              children: [
-                // Maybe Later button
-                Expanded(
-                  child: TextButton(
-                    key: const Key(
-                      'subscription_prompt_dialog-maybe-later-button',
-                    ),
-                    onPressed: _isLoading ? null : () => _handleMaybeLater(),
-                    style: TextButton.styleFrom(
-                      backgroundColor:
-                          theme.colorScheme.surfaceContainerHighest,
-                      foregroundColor: theme.colorScheme.onSurface,
-                    ),
-                    child: Text(
-                      'Maybe Later',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
+              padding: const EdgeInsets.all(4),
+              child: ClipOval(
+                child: Image.asset(
+                  cookieIconAssetPath,
+                  fit: BoxFit.cover,
+                  errorBuilder: (context, error, stackTrace) {
+                    return Center(
+                      child: Icon(
+                        Icons.image_not_supported,
+                        size: headerSize * 0.4,
                         color: theme.colorScheme.onSurface.withValues(
-                          alpha: 0.6,
+                          alpha: 0.3,
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            );
+          }
+
+          final Widget textAndActions = Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Main title
+              Text(
+                'Start Every Day with a Smile!',
+                style: theme.textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.bold,
+                  color: theme.colorScheme.onSurface,
+                ),
+                textAlign: textAlignment,
+              ),
+              const SizedBox(height: 12),
+
+              // Persuasive subtitle
+              Text(
+                "Keep the laughs coming! We can send one new, handpicked joke straight to your phone each day!",
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
+                ),
+                textAlign: textAlignment,
+              ),
+              const SizedBox(height: 20),
+
+              // Benefits list
+              _buildBenefitsList(theme),
+              const SizedBox(height: 24),
+
+              // Action buttons
+              Row(
+                children: [
+                  // Maybe Later button
+                  Expanded(
+                    child: TextButton(
+                      key: const Key(
+                        'subscription_prompt_dialog-maybe-later-button',
+                      ),
+                      onPressed: _isLoading ? null : () => _handleMaybeLater(),
+                      style: TextButton.styleFrom(
+                        backgroundColor:
+                            theme.colorScheme.surfaceContainerHighest,
+                        foregroundColor: theme.colorScheme.onSurface,
+                      ),
+                      child: Text(
+                        'Maybe Later',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: theme.colorScheme.onSurface.withValues(
+                            alpha: 0.6,
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 12),
+                  const SizedBox(width: 12),
 
-                // Subscribe button
-                Expanded(
-                  flex: 2,
-                  child: ElevatedButton(
-                    key: const Key(
-                      'subscription_prompt_dialog-subscribe-button',
+                  // Subscribe button
+                  Expanded(
+                    flex: 2,
+                    child: ElevatedButton(
+                      key: const Key(
+                        'subscription_prompt_dialog-subscribe-button',
+                      ),
+                      onPressed: _isLoading ? null : () => _handleSubscribe(),
+                      child: _isLoading
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Text(
+                              'Yes, Send Jokes!',
+                              style: TextStyle(fontWeight: FontWeight.bold),
+                            ),
                     ),
-                    onPressed: _isLoading ? null : () => _handleSubscribe(),
-                    child: _isLoading
-                        ? const SizedBox(
-                            height: 20,
-                            width: 20,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Text(
-                            'Yes, Send Jokes!',
-                            style: TextStyle(fontWeight: FontWeight.bold),
-                          ),
                   ),
-                ),
-              ],
+                ],
+              ),
+            ],
+          );
+
+          final Widget responsiveContent = isWide
+              ? Row(
+                  mainAxisSize: MainAxisSize.max,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(
+                      width: headerSize,
+                      child: Align(
+                        alignment: Alignment.topCenter,
+                        child: buildHeaderImage(),
+                      ),
+                    ),
+                    const SizedBox(width: 24),
+                    Expanded(
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 420),
+                        child: textAndActions,
+                      ),
+                    ),
+                  ],
+                )
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    buildHeaderImage(),
+                    const SizedBox(height: 20),
+                    textAndActions,
+                  ],
+                );
+
+          return SizedBox(
+            width: maxDialogWidth,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxHeight: maxDialogHeight),
+              child: SafeArea(
+                minimum: const EdgeInsets.all(12),
+                child: SingleChildScrollView(child: responsiveContent),
+              ),
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
@@ -185,11 +268,15 @@ class _SubscriptionPromptDialogState
       // Show success message
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Row(
+          content: Row(
             children: [
-              Icon(Icons.check_circle, color: Colors.white),
-              SizedBox(width: 8),
-              Text('Successfully subscribed to daily jokes! 🎉'),
+              const Icon(Icons.check_circle, color: Colors.white),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Successfully subscribed to daily jokes! \u{1F389}',
+                ),
+              ),
             ],
           ),
           backgroundColor: Theme.of(context).colorScheme.primary,

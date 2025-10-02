@@ -4,10 +4,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_category_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
+import 'package:snickerdoodle/src/features/jokes/application/joke_navigation_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_search_providers.dart';
+import 'package:snickerdoodle/src/config/router/route_names.dart';
+import 'package:snickerdoodle/src/config/router/router_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_category.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_search_result.dart';
+import 'package:snickerdoodle/src/features/search/application/discover_tab_state.dart';
 import 'package:snickerdoodle/src/features/search/presentation/discover_screen.dart';
 
 import '../../../test_helpers/firebase_mocks.dart';
@@ -34,7 +38,10 @@ void main() {
     punchlineImageUrl: 'punchline.png',
   );
 
-  List<Override> buildOverrides({required bool includeResults}) {
+  List<Override> buildOverrides({
+    required bool includeResults,
+    Override? navigationOverride,
+  }) {
     final ids = includeResults
         ? const [JokeSearchResult(id: 'j1', vectorDistance: 0.1)]
         : const <JokeSearchResult>[];
@@ -50,6 +57,7 @@ void main() {
       jokeStreamByIdProvider(
         'j1',
       ).overrideWith((ref) => Stream.value(sampleJoke)),
+      if (navigationOverride != null) navigationOverride,
     ];
   }
 
@@ -181,5 +189,78 @@ void main() {
       expect(appBarTitleFinder('Discover'), findsOneWidget);
       expect(find.byKey(const Key('search-results-count')), findsNothing);
     });
+
+    testWidgets('search button clears user search state before navigation', (
+      tester,
+    ) async {
+      final recordedNavigations = <Map<String, Object?>>[];
+      final container = ProviderContainer(
+        overrides: FirebaseMocks.getFirebaseProviderOverrides(
+          additionalOverrides: buildOverrides(
+            includeResults: false,
+            navigationOverride: navigationHelpersProvider.overrideWith(
+              (ref) => _TestNavigationHelpers((route, push, method) {
+                recordedNavigations.add({
+                  'route': route,
+                  'push': push,
+                  'method': method,
+                });
+              }, ref),
+            ),
+          ),
+        ),
+      );
+      addTearDown(container.dispose);
+
+      final userSearchNotifier = container.read(
+        searchQueryProvider(SearchScope.userJokeSearch).notifier,
+      );
+      userSearchNotifier.state = userSearchNotifier.state.copyWith(
+        query: '${JokeConstants.searchQueryPrefix}previous',
+        excludeJokeIds: const ['id1'],
+        label: SearchLabel.category,
+      );
+      container
+              .read(
+                jokeViewerPageIndexProvider(discoverSearchViewerId).notifier,
+              )
+              .state =
+          4;
+
+      await pumpDiscover(tester, container);
+
+      await tester.tap(find.byKey(const Key('discover_screen-search-button')));
+      await tester.pump();
+
+      final updatedSearchState = container.read(
+        searchQueryProvider(SearchScope.userJokeSearch),
+      );
+      expect(updatedSearchState.query, '');
+      expect(updatedSearchState.label, JokeConstants.userSearchLabel);
+      expect(updatedSearchState.excludeJokeIds, isEmpty);
+      expect(
+        container.read(jokeViewerPageIndexProvider(discoverSearchViewerId)),
+        0,
+      );
+      expect(recordedNavigations, hasLength(1));
+      expect(recordedNavigations.single['route'], AppRoutes.discoverSearch);
+      expect(recordedNavigations.single['push'], isTrue);
+      expect(recordedNavigations.single['method'], 'discover_search_button');
+    });
   });
+}
+
+class _TestNavigationHelpers extends NavigationHelpers {
+  _TestNavigationHelpers(this._onNavigate, Ref ref) : super(ref);
+
+  final void Function(String route, bool push, String method) _onNavigate;
+
+  @override
+  void navigateToRoute(
+    String route, {
+    String method = 'programmatic',
+    bool push = false,
+  }) {
+    _onNavigate(route, push, method);
+  }
 }

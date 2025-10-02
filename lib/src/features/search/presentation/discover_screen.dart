@@ -10,6 +10,8 @@ import 'package:snickerdoodle/src/features/admin/presentation/joke_category_tile
 import 'package:snickerdoodle/src/features/jokes/application/joke_category_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_list_data_source.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_list_data_sources.dart';
+import 'package:snickerdoodle/src/features/search/application/discover_tab_state.dart';
+import 'package:snickerdoodle/src/config/router/router_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_navigation_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_search_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_category.dart';
@@ -25,7 +27,7 @@ class DiscoverScreen extends ConsumerStatefulWidget {
 }
 
 class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
-  static const _viewerId = 'discover_category';
+  static const _viewerId = discoverViewerId;
   VoidCallback? _resetViewer;
   late final JokeListDataSource _dataSource;
 
@@ -69,7 +71,16 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
             key: const Key('discover_screen-search-button'),
             icon: const Icon(Icons.search),
             tooltip: 'Search',
-            onPressed: () => context.push(AppRoutes.discoverSearch),
+            onPressed: () {
+              resetDiscoverSearchState(ref);
+              ref
+                  .read(navigationHelpersProvider)
+                  .navigateToRoute(
+                    AppRoutes.discoverSearch,
+                    push: true,
+                    method: 'discover_search_button',
+                  );
+            },
           ),
         ],
         automaticallyImplyLeading: false,

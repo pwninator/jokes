@@ -24,6 +24,7 @@ import 'package:snickerdoodle/src/features/auth/presentation/auth_wrapper.dart';
 import 'package:snickerdoodle/src/features/jokes/presentation/daily_jokes_screen.dart';
 import 'package:snickerdoodle/src/features/jokes/presentation/saved_jokes_screen.dart';
 import 'package:snickerdoodle/src/features/search/presentation/discover_screen.dart';
+import 'package:snickerdoodle/src/features/search/application/discover_tab_state.dart';
 import 'package:snickerdoodle/src/features/search/presentation/search_screen.dart';
 import 'package:snickerdoodle/src/features/feedback/presentation/feedback_conversation_screen.dart';
 import 'package:snickerdoodle/src/features/feedback/presentation/user_feedback_screen.dart';
@@ -329,7 +330,14 @@ class AppRouter {
                                     destinations: railDestinations,
                                     selectedIndex: selectedIndex,
                                     onDestinationSelected: (index) {
-                                      _navigateToIndex(context, index, isAdmin);
+                                      _navigateToIndex(
+                                        context,
+                                        ref,
+                                        index,
+                                        selectedIndex,
+                                        isAdmin,
+                                        currentLocation,
+                                      );
                                     },
                                     backgroundColor: Theme.of(
                                       context,
@@ -400,7 +408,14 @@ class AppRouter {
                   ),
                   backgroundColor: Theme.of(context).colorScheme.surface,
                   onTap: (index) {
-                    _navigateToIndex(context, index, isAdmin);
+                    _navigateToIndex(
+                      context,
+                      ref,
+                      index,
+                      selectedIndex,
+                      isAdmin,
+                      currentLocation,
+                    );
                   },
                 ),
         );
@@ -417,16 +432,51 @@ class AppRouter {
   }
 
   /// Navigate to tab index
-  static void _navigateToIndex(BuildContext context, int index, bool isAdmin) {
+  static void _navigateToIndex(
+    BuildContext context,
+    WidgetRef ref,
+    int newIndex,
+    int currentIndex,
+    bool isAdmin,
+    String currentLocation,
+  ) {
     final tabs = _visibleTabs(isAdmin);
-    if (index < 0 || index >= tabs.length) {
+    if (newIndex < 0 || newIndex >= tabs.length) {
       context.go(AppRoutes.jokes);
       return;
     }
 
-    final selectedTab = tabs[index];
+    final targetTab = tabs[newIndex];
+    final shouldResetDiscover = shouldResetDiscoverOnNavigation(
+      newIndex: newIndex,
+      isAdmin: isAdmin,
+    );
 
-    context.push(selectedTab.route);
+    if (shouldResetDiscover) {
+      resetDiscoverTabState(ref);
+    }
+
+    if (newIndex == currentIndex) {
+      if (shouldResetDiscover && currentLocation != targetTab.route) {
+        context.go(targetTab.route);
+      }
+      return;
+    }
+
+    context.push(targetTab.route);
+  }
+
+  @visibleForTesting
+  static bool shouldResetDiscoverOnNavigation({
+    required int newIndex,
+    required bool isAdmin,
+  }) {
+    final tabs = _visibleTabs(isAdmin);
+    if (newIndex < 0 || newIndex >= tabs.length) {
+      return false;
+    }
+
+    return tabs[newIndex].id == TabId.discover;
   }
 }
 

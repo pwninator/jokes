@@ -5,6 +5,7 @@ import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_list_data_source.dart';
+import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_service.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_schedule_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_search_providers.dart';
@@ -13,6 +14,7 @@ import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart'
     show JokeListPageCursor;
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
+import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_state.dart';
 
 /// Data source for daily jokes loaded from monthly schedule batches
@@ -45,7 +47,17 @@ final _dailyJokesPagingProviders = createDailyJokesPagingProviders();
 
 final _savedJokesPagingProviders = createPagingProviders(
   loadPage: _loadSavedJokesPage,
-  resetTriggers: const [],
+  resetTriggers: [
+    ResetTrigger(
+      provider: jokeReactionsProvider,
+      shouldReset: (prev, next) {
+        final prevReactions = prev as JokeReactionsState?;
+        final nextReactions = next as JokeReactionsState;
+        return !_areSavedJokeIdsEqual(prevReactions, nextReactions);
+      },
+    ),
+  ],
+
   errorAnalyticsSource: 'saved_jokes',
   initialPageSize: 3,
   loadPageSize: 10,
@@ -366,4 +378,24 @@ Future<PageResult> _loadSavedJokesPage(
     hasMore: hasMore,
     totalCount: savedJokeIds.length,
   );
+}
+
+/// Helper to compare saved joke IDs between two reaction states
+bool _areSavedJokeIdsEqual(JokeReactionsState? prev, JokeReactionsState next) {
+  final prevSavedIds = _extractSavedJokeIds(prev);
+  final nextSavedIds = _extractSavedJokeIds(next);
+
+  if (prevSavedIds.length != nextSavedIds.length) return false;
+
+  return prevSavedIds.toSet().difference(nextSavedIds.toSet()).isEmpty;
+}
+
+/// Extract saved joke IDs from a reaction state
+Set<String> _extractSavedJokeIds(JokeReactionsState? state) {
+  if (state == null) return {};
+
+  return state.userReactions.entries
+      .where((entry) => entry.value.contains(JokeReactionType.save))
+      .map((entry) => entry.key)
+      .toSet();
 }

@@ -219,4 +219,63 @@ void main() {
       ),
     ).called(1);
   });
+  testWidgets('shows first and last login with stats', (tester) async {
+    final entry = FeedbackEntry(
+      id: 'user-1',
+      creationTime: DateTime.utc(2024, 1, 10, 12),
+      conversation: [
+        FeedbackConversationEntry(
+          speaker: SpeakerType.admin,
+          text: 'Thanks for the feedback!',
+          timestamp: DateTime.utc(2024, 1, 12, 18),
+        ),
+      ],
+      userId: 'user-1',
+      lastAdminViewTime: null,
+      lastUserViewTime: null,
+    );
+
+    when(
+      () => repo.watchAllFeedback(),
+    ).thenAnswer((_) => Stream.value([entry]));
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          feedbackRepositoryProvider.overrideWithValue(repo),
+          jokeUserUsageProvider('user-1').overrideWith(
+            (ref) => Stream.value(
+              JokeUserUsage(
+                createdAt: DateTime.utc(2024, 1, 5, 12),
+                lastLoginAt: DateTime.utc(2024, 1, 20, 12),
+                clientNumDaysUsed: 3,
+                clientNumViewed: 12,
+                clientNumSaved: 4,
+                clientNumShared: 1,
+              ),
+            ),
+          ),
+          ...FirebaseMocks.getFirebaseProviderOverrides(),
+        ],
+        child: MaterialApp(
+          home: InheritedGoRouter(
+            goRouter: mockGoRouter,
+            child: const JokeFeedbackScreen(),
+          ),
+        ),
+      ),
+    );
+
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.textContaining('First login: 2024-01-05'), findsOneWidget);
+    expect(find.textContaining('Last login: 2024-01-20'), findsOneWidget);
+    expect(find.byIcon(Icons.calendar_today), findsOneWidget);
+    expect(find.byIcon(Icons.visibility), findsOneWidget);
+    expect(find.byIcon(Icons.favorite), findsOneWidget);
+    expect(find.byIcon(Icons.share), findsOneWidget);
+
+    expect(find.textContaining('Created'), findsNothing);
+  });
 }

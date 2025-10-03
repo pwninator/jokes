@@ -47,6 +47,7 @@ class JokeUserUsage {
   final int? clientNumViewed;
   final int? clientNumShared;
   final DateTime? lastLoginAt;
+  final DateTime? createdAt;
 
   const JokeUserUsage({
     this.clientNumDaysUsed,
@@ -54,6 +55,7 @@ class JokeUserUsage {
     this.clientNumViewed,
     this.clientNumShared,
     this.lastLoginAt,
+    this.createdAt,
   });
 }
 
@@ -66,19 +68,23 @@ final jokeUserUsageProvider = StreamProvider.family<JokeUserUsage?, String>((
   return firestore.collection('joke_users').doc(userId).snapshots().map((d) {
     if (!d.exists) return null;
     final data = d.data() ?? <String, dynamic>{};
-    final ts = data['last_login_at'];
-    DateTime? lastLogin;
-    if (ts is Timestamp) {
-      lastLogin = ts.toDate();
-    } else if (ts is DateTime) {
-      lastLogin = ts;
+
+    DateTime? parseDate(dynamic value) {
+      if (value is Timestamp) return value.toDate();
+      if (value is DateTime) return value;
+      return null;
     }
+
+    final lastLogin = parseDate(data['last_login_at']);
+    final createdAt = parseDate(data['created_at']);
+
     return JokeUserUsage(
       clientNumDaysUsed: (data['client_num_days_used'] as num?)?.toInt(),
       clientNumSaved: (data['client_num_saved'] as num?)?.toInt(),
       clientNumViewed: (data['client_num_viewed'] as num?)?.toInt(),
       clientNumShared: (data['client_num_shared'] as num?)?.toInt(),
       lastLoginAt: lastLogin,
+      createdAt: createdAt,
     );
   });
 });

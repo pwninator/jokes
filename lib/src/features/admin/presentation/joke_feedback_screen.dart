@@ -93,71 +93,58 @@ class JokeFeedbackScreen extends ConsumerWidget implements TitledScreen {
                         ? 'Admin response only'
                         : 'No messages yet';
                   }()),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _formatTimestamp('Created', entry.creationTime),
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Theme.of(context).hintColor,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      usageAsync.when(
-                        loading: () => const Text('Loading usage…'),
-                        error: (e, st) => const Text('Usage unavailable'),
-                        data: (usage) {
-                          final u = usage;
-                          return Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                  subtitle: usageAsync.when(
+                    loading: () => const Text('Loading usage...'),
+                    error: (e, st) => const Text('Usage unavailable'),
+                    data: (usage) {
+                      final style = Theme.of(context).textTheme.bodySmall
+                          ?.copyWith(color: Theme.of(context).hintColor);
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            _formatTimestamp('First login', usage?.createdAt),
+                            style: style,
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            _formatTimestamp('Last login', usage?.lastLoginAt),
+                            style: style,
+                          ),
+                          const SizedBox(height: 4),
+                          Wrap(
+                            spacing: 16,
+                            runSpacing: 8,
                             children: [
-                              if (u?.lastLoginAt != null)
-                                Text(
-                                  _formatTimestamp(
-                                    'Last login',
-                                    u!.lastLoginAt,
-                                  ),
-                                  style: Theme.of(context).textTheme.bodySmall
-                                      ?.copyWith(
-                                        color: Theme.of(context).hintColor,
-                                      ),
-                                ),
-                              const SizedBox(height: 4),
-                              Wrap(
-                                spacing: 16,
-                                runSpacing: 8,
-                                children: [
-                                  _metric(
-                                    context,
-                                    Icons.calendar_today,
-                                    u?.clientNumDaysUsed,
-                                    'days',
-                                  ),
-                                  _metric(
-                                    context,
-                                    Icons.visibility,
-                                    u?.clientNumViewed,
-                                    'views',
-                                  ),
-                                  _metric(
-                                    context,
-                                    Icons.favorite,
-                                    u?.clientNumSaved,
-                                    'saves',
-                                  ),
-                                  _metric(
-                                    context,
-                                    Icons.share,
-                                    u?.clientNumShared,
-                                    'shares',
-                                  ),
-                                ],
+                              _metric(
+                                context,
+                                Icons.calendar_today,
+                                usage?.clientNumDaysUsed,
+                                'days',
+                              ),
+                              _metric(
+                                context,
+                                Icons.visibility,
+                                usage?.clientNumViewed,
+                                'views',
+                              ),
+                              _metric(
+                                context,
+                                Icons.favorite,
+                                usage?.clientNumSaved,
+                                'saves',
+                              ),
+                              _metric(
+                                context,
+                                Icons.share,
+                                usage?.clientNumShared,
+                                'shares',
                               ),
                             ],
-                          );
-                        },
-                      ),
-                    ],
+                          ),
+                        ],
+                      );
+                    },
                   ),
                   onTap: () => context.pushNamed(
                     RouteNames.adminFeedbackDetails,

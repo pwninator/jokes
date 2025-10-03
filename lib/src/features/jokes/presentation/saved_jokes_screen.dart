@@ -4,7 +4,7 @@ import 'package:snickerdoodle/src/common_widgets/adaptive_app_bar_screen.dart';
 import 'package:snickerdoodle/src/common_widgets/titled_screen.dart';
 import 'package:snickerdoodle/src/config/router/router_providers.dart';
 import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
-import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
+import 'package:snickerdoodle/src/features/jokes/application/joke_list_data_sources.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/presentation/joke_list_viewer.dart';
 
@@ -19,9 +19,14 @@ class SavedJokesScreen extends ConsumerStatefulWidget implements TitledScreen {
 }
 
 class _SavedJokesScreenState extends ConsumerState<SavedJokesScreen> {
+  late final SavedJokesDataSource _dataSource;
+
   @override
   void initState() {
     super.initState();
+
+    // Create the data source once and reuse it across rebuilds
+    _dataSource = SavedJokesDataSource(ref);
 
     // Refresh user reactions from SharedPreferences when entering the screen
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -42,7 +47,7 @@ class _SavedJokesScreenState extends ConsumerState<SavedJokesScreen> {
     return AdaptiveAppBarScreen(
       title: 'Saved Jokes',
       body: JokeListViewer(
-        jokesAsyncProvider: savedJokesProvider,
+        dataSource: _dataSource,
         jokeContext: AnalyticsJokeContext.savedJokes,
         viewerId: 'saved_jokes',
       ),

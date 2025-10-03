@@ -254,7 +254,9 @@ class FirestoreFeedbackRepository implements FeedbackRepository {
 
           // 1) creation_time = earlier
           final DateTime? oldCreated = parseDate(oldData['creation_time']);
-          final DateTime? existingCreated = parseDate(existingData['creation_time']);
+          final DateTime? existingCreated = parseDate(
+            existingData['creation_time'],
+          );
           DateTime? mergedCreated;
           if (oldCreated == null) {
             mergedCreated = existingCreated;
@@ -267,27 +269,31 @@ class FirestoreFeedbackRepository implements FeedbackRepository {
           }
 
           // 2) lastAdminViewTime/lastUserViewTime = later
-          final DateTime? oldLastAdmin = parseDate(oldData['lastAdminViewTime']);
-          final DateTime? existingLastAdmin =
-              parseDate(existingData['lastAdminViewTime']);
+          final DateTime? oldLastAdmin = parseDate(
+            oldData['lastAdminViewTime'],
+          );
+          final DateTime? existingLastAdmin = parseDate(
+            existingData['lastAdminViewTime'],
+          );
           final DateTime? mergedLastAdmin = (oldLastAdmin == null)
               ? existingLastAdmin
               : (existingLastAdmin == null
-                  ? oldLastAdmin
-                  : (oldLastAdmin.isAfter(existingLastAdmin)
-                      ? oldLastAdmin
-                      : existingLastAdmin));
+                    ? oldLastAdmin
+                    : (oldLastAdmin.isAfter(existingLastAdmin)
+                          ? oldLastAdmin
+                          : existingLastAdmin));
 
           final DateTime? oldLastUser = parseDate(oldData['lastUserViewTime']);
-          final DateTime? existingLastUser =
-              parseDate(existingData['lastUserViewTime']);
+          final DateTime? existingLastUser = parseDate(
+            existingData['lastUserViewTime'],
+          );
           final DateTime? mergedLastUser = (oldLastUser == null)
               ? existingLastUser
               : (existingLastUser == null
-                  ? oldLastUser
-                  : (oldLastUser.isAfter(existingLastUser)
-                      ? oldLastUser
-                      : existingLastUser));
+                    ? oldLastUser
+                    : (oldLastUser.isAfter(existingLastUser)
+                          ? oldLastUser
+                          : existingLastUser));
 
           // 3) user_id must be the same (or one missing)
           final String? oldUserId = oldData['user_id'] as String?;
@@ -312,18 +318,22 @@ class FirestoreFeedbackRepository implements FeedbackRepository {
               (existingData['conversation'] as List<dynamic>?) ?? <dynamic>[];
 
           List<FeedbackConversationEntry> mergedConversation = [
-            ...oldConversationRaw.map((e) =>
-                FeedbackConversationEntry.fromMap(e as Map<String, dynamic>)),
-            ...existingConversationRaw.map((e) =>
-                FeedbackConversationEntry.fromMap(e as Map<String, dynamic>)),
+            ...oldConversationRaw.map(
+              (e) =>
+                  FeedbackConversationEntry.fromMap(e as Map<String, dynamic>),
+            ),
+            ...existingConversationRaw.map(
+              (e) =>
+                  FeedbackConversationEntry.fromMap(e as Map<String, dynamic>),
+            ),
           ];
 
           // 5) Merge feedback_text into conversation if present
           void addLegacyTextIfPresent(Map<String, dynamic> data) {
             final String? legacy = data['feedback_text'] as String?;
             if (legacy != null && legacy.trim().isNotEmpty) {
-              final DateTime ts = parseDate(data['creation_time']) ??
-                  DateTime.now().toUtc();
+              final DateTime ts =
+                  parseDate(data['creation_time']) ?? DateTime.now().toUtc();
               mergedConversation.add(
                 FeedbackConversationEntry(
                   speaker: SpeakerType.user,
@@ -340,7 +350,8 @@ class FirestoreFeedbackRepository implements FeedbackRepository {
           // De-duplicate conversation entries by (speaker|text|timestamp)
           final Map<String, FeedbackConversationEntry> uniqueByKey = {};
           for (final entry in mergedConversation) {
-            final String key = '${entry.speaker.value}|${entry.text}|${entry.timestamp.toUtc().microsecondsSinceEpoch}';
+            final String key =
+                '${entry.speaker.value}|${entry.text}|${entry.timestamp.toUtc().microsecondsSinceEpoch}';
             uniqueByKey[key] = entry;
           }
 

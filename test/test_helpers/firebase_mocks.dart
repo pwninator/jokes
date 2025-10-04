@@ -13,6 +13,8 @@ import 'package:snickerdoodle/src/features/jokes/application/joke_search_provide
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_search_result.dart';
+import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
+import 'core_mocks.dart';
 
 // Mock classes for Firebase services
 class MockJokeCloudFunctionService extends Mock
@@ -41,6 +43,7 @@ class FirebaseMocks {
   static MockJokeCloudFunctionService? _mockCloudFunctionService;
   static MockFirebaseAnalytics? _mockFirebaseAnalytics;
   static MockFirebaseFirestore? _mockFirebaseFirestore;
+  static MockSettingsService? _mockSettingsService;
 
   /// Get or create mock cloud function service
   static MockJokeCloudFunctionService get mockCloudFunctionService {
@@ -75,6 +78,8 @@ class FirebaseMocks {
     List<Override> additionalOverrides = const [],
   }) {
     return [
+      // Mock settings service to satisfy synchronous SettingsService consumers
+      settingsServiceProvider.overrideWithValue(CoreMocks.mockSettingsService),
       // Mock Firestore
       firebaseFirestoreProvider.overrideWithValue(mockFirebaseFirestore),
 
@@ -104,6 +109,10 @@ class FirebaseMocks {
       ...additionalOverrides,
     ];
   }
+
+  /// Get or create mock SettingsService (use CoreMocks)
+  static MockSettingsService get mockSettingsService =>
+      CoreMocks.mockSettingsService;
 
   static void _setupFirebaseAnalyticsDefaults(MockFirebaseAnalytics mock) {
     // Setup default behaviors that won't throw
@@ -237,7 +246,12 @@ class _TestNoopPerformanceService implements PerformanceService {
 
 class _TestRemoteConfigValues implements RemoteConfigValues {
   @override
-  bool getBool(RemoteParam param) => false;
+  bool getBool(RemoteParam param) {
+    if (param == RemoteParam.defaultJokeViewerReveal) {
+      return true;
+    }
+    return false;
+  }
 
   @override
   double getDouble(RemoteParam param) => 0;

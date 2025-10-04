@@ -20,6 +20,7 @@ import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_schedule_batch.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_schedule_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/presentation/daily_jokes_screen.dart';
+import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
 
 import '../../../test_helpers/firebase_mocks.dart';
 
@@ -40,6 +41,7 @@ void main() {
     late JokeScheduleBatch mockBatch;
     late MockImageService mockImageService;
     late MockJokeScheduleRepository mockRepository;
+    late SettingsService settingsService;
 
     setUpAll(() {
       // Register fallback values for mocktail
@@ -77,9 +79,11 @@ void main() {
       );
     }
 
-    setUp(() {
+    setUp(() async {
       // Default tests expect Reveal mode enabled
       SharedPreferences.setMockInitialValues({'joke_viewer_reveal': true});
+      final prefs = await SharedPreferences.getInstance();
+      settingsService = SettingsService(prefs);
       // Create test jokes with images
       mockJokes = [
         Joke(
@@ -218,6 +222,7 @@ void main() {
           imageServiceProvider.overrideWithValue(mockImageService),
           jokeScheduleRepositoryProvider.overrideWithValue(customRepository),
           ...FirebaseMocks.getFirebaseProviderOverrides(),
+          settingsServiceProvider.overrideWithValue(settingsService),
         ],
         child: MaterialApp.router(theme: lightTheme, routerConfig: router),
       );
@@ -249,6 +254,7 @@ void main() {
           imageServiceProvider.overrideWithValue(mockImageService),
           jokeScheduleRepositoryProvider.overrideWithValue(customRepository),
           ...FirebaseMocks.getFirebaseProviderOverrides(),
+          settingsServiceProvider.overrideWithValue(settingsService),
         ],
         child: MaterialApp(
           theme: lightTheme,
@@ -383,6 +389,7 @@ void main() {
       ) async {
         // Override preference to disable reveal (show both images)
         SharedPreferences.setMockInitialValues({'joke_viewer_reveal': false});
+        await settingsService.setBool('joke_viewer_reveal', false);
 
         await tester.pumpWidget(createTestWidget());
         await tester.pump();

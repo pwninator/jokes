@@ -19,7 +19,7 @@ class ThemeSettingsService {
   static const String _themeModeKey = 'theme_mode';
 
   Future<ThemeMode> getThemeMode() async {
-    final themeModeString = await _settingsService.getString(_themeModeKey);
+    final themeModeString = _settingsService.getString(_themeModeKey);
     return _parseThemeMode(themeModeString);
   }
 

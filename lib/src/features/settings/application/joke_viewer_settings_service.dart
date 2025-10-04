@@ -37,7 +37,7 @@ class JokeViewerSettingsService {
   /// Returns whether the user prefers REVEAL mode.
   /// If the preference is missing, uses Remote Config default and persists it.
   Future<bool> getReveal() async {
-    final stored = await _settings.getBool(_prefKeyReveal);
+    final stored = _settings.getBool(_prefKeyReveal);
     if (stored != null) return stored;
     final defaultReveal = _rc.getBool(RemoteParam.defaultJokeViewerReveal);
     await _settings.setBool(_prefKeyReveal, defaultReveal);

@@ -6,11 +6,13 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:snickerdoodle/src/app.dart';
 import 'package:snickerdoodle/src/core/providers/crash_reporting_provider.dart';
-import 'package:snickerdoodle/src/core/services/notification_service.dart';
-import 'package:snickerdoodle/src/utils/device_utils.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
+import 'package:snickerdoodle/src/core/services/notification_service.dart';
+import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
+import 'package:snickerdoodle/src/utils/device_utils.dart';
 
 import 'firebase_options.dart';
 
@@ -60,5 +62,15 @@ void main() async {
     };
   }
 
-  runApp(const ProviderScope(child: App()));
+  // Initialize SharedPreferences and provide a concrete SettingsService
+  final sharedPrefs = await SharedPreferences.getInstance();
+
+  runApp(
+    ProviderScope(
+      overrides: [
+        settingsServiceProvider.overrideWithValue(SettingsService(sharedPrefs)),
+      ],
+      child: const App(),
+    ),
+  );
 }

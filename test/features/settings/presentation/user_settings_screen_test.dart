@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:snickerdoodle/src/core/services/app_review_service.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:snickerdoodle/src/core/services/review_prompt_state_store.dart';
+import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/settings/presentation/user_settings_screen.dart';
 
@@ -540,7 +541,8 @@ void main() {
       ) async {
         SharedPreferences.setMockInitialValues({});
         final prefs = await SharedPreferences.getInstance();
-        final store = ReviewPromptStateStore(prefs: prefs);
+        final settingsService = SettingsService(prefs);
+        final store = ReviewPromptStateStore(settingsService: settingsService);
 
         Widget withOverrides() {
           return ProviderScope(

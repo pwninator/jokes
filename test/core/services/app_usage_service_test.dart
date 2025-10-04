@@ -8,6 +8,7 @@ import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/review_prompt_state_store.dart';
 import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
+import 'package:snickerdoodle/src/features/settings/application/brightness_provider.dart';
 
 class _MockAnalyticsService extends Mock implements AnalyticsService {}
 
@@ -47,7 +48,9 @@ void main() {
             brightness: any<Brightness>(named: 'brightness'),
           ),
         ).thenAnswer((_) async {});
-        final container = ProviderContainer();
+        final container = ProviderContainer(
+          overrides: [brightnessProvider.overrideWithValue(Brightness.light)],
+        );
         final ref = container.read(Provider<Ref>((ref) => ref));
         final service = AppUsageService(
           prefs: prefs,
@@ -79,7 +82,9 @@ void main() {
           brightness: any<Brightness>(named: 'brightness'),
         ),
       ).thenAnswer((_) async {});
-      final container = ProviderContainer();
+      final container = ProviderContainer(
+        overrides: [brightnessProvider.overrideWithValue(Brightness.light)],
+      );
       final ref = container.read(Provider<Ref>((ref) => ref));
       final service = AppUsageService(
         prefs: prefs,
@@ -112,7 +117,9 @@ void main() {
             brightness: any<Brightness>(named: 'brightness'),
           ),
         ).thenAnswer((_) async {});
-        final container = ProviderContainer();
+        final container = ProviderContainer(
+          overrides: [brightnessProvider.overrideWithValue(Brightness.light)],
+        );
         final ref = container.read(Provider<Ref>((ref) => ref));
         final service = AppUsageService(
           prefs: prefs,
@@ -147,7 +154,9 @@ void main() {
   group('AppUsageService.logJokeViewed', () {
     test('increments num_jokes_viewed counter', () async {
       final prefs = await SharedPreferences.getInstance();
-      final container = ProviderContainer();
+      final container = ProviderContainer(
+        overrides: [brightnessProvider.overrideWithValue(Brightness.light)],
+      );
       final ref = container.read(Provider<Ref>((ref) => ref));
       final service = AppUsageService(prefs: prefs, ref: ref);
 
@@ -185,7 +194,9 @@ void main() {
 
     test('incrementSharedJokesCount updates counter', () async {
       final prefs = await SharedPreferences.getInstance();
-      final container = ProviderContainer();
+      final container = ProviderContainer(
+        overrides: [brightnessProvider.overrideWithValue(Brightness.light)],
+      );
       final ref = container.read(Provider<Ref>((ref) => ref));
       final service = AppUsageService(prefs: prefs, ref: ref);
 
@@ -217,6 +228,7 @@ void main() {
       final testRefProvider = Provider<Ref>((ref) => ref);
       final container = ProviderContainer(
         overrides: [
+          brightnessProvider.overrideWithValue(Brightness.light),
           reviewPromptStateStoreProvider.overrideWithValue(mockReviewStore),
           isAdminProvider.overrideWithValue(false),
         ],

@@ -12,6 +12,7 @@ import 'package:snickerdoodle/src/features/jokes/domain/joke_search_result.dart'
 import 'package:snickerdoodle/src/features/search/presentation/search_screen.dart';
 
 import '../../../test_helpers/firebase_mocks.dart';
+import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
 
 class MockJokeRepository extends Mock implements JokeRepository {}
 
@@ -21,7 +22,13 @@ void main() {
   ProviderContainer createContainer({List<Override> overrides = const []}) {
     return ProviderContainer(
       overrides: FirebaseMocks.getFirebaseProviderOverrides(
-        additionalOverrides: [...overrides],
+        additionalOverrides: [
+          // Ensure SettingsService is available for widgets that read it
+          settingsServiceProvider.overrideWithValue(
+            FirebaseMocks.mockSettingsService,
+          ),
+          ...overrides,
+        ],
       ),
     );
   }

@@ -22,7 +22,7 @@ void main() {
       test('returns ThemeMode.system when no preference is stored', () async {
         when(
           () => mockSettingsService.getString('theme_mode'),
-        ).thenAnswer((_) async => null);
+        ).thenReturn(null);
 
         final result = await themeSettingsService.getThemeMode();
 
@@ -33,7 +33,7 @@ void main() {
       test('returns ThemeMode.light when light preference is stored', () async {
         when(
           () => mockSettingsService.getString('theme_mode'),
-        ).thenAnswer((_) async => 'light');
+        ).thenReturn('light');
 
         final result = await themeSettingsService.getThemeMode();
 
@@ -44,7 +44,7 @@ void main() {
       test('returns ThemeMode.dark when dark preference is stored', () async {
         when(
           () => mockSettingsService.getString('theme_mode'),
-        ).thenAnswer((_) async => 'dark');
+        ).thenReturn('dark');
 
         final result = await themeSettingsService.getThemeMode();
 
@@ -57,7 +57,7 @@ void main() {
         () async {
           when(
             () => mockSettingsService.getString('theme_mode'),
-          ).thenAnswer((_) async => 'system');
+          ).thenReturn('system');
 
           final result = await themeSettingsService.getThemeMode();
 
@@ -69,7 +69,7 @@ void main() {
       test('returns ThemeMode.system for invalid preference string', () async {
         when(
           () => mockSettingsService.getString('theme_mode'),
-        ).thenAnswer((_) async => 'invalid_theme_mode');
+        ).thenReturn('invalid_theme_mode');
 
         final result = await themeSettingsService.getThemeMode();
 
@@ -142,7 +142,7 @@ void main() {
       test('loads saved theme mode on initialization', () async {
         when(
           () => mockSettingsService.getString('theme_mode'),
-        ).thenAnswer((_) async => 'dark');
+        ).thenReturn('dark');
 
         container.read(themeModeProvider.notifier);
 
@@ -156,7 +156,7 @@ void main() {
       test('defaults to system theme when no preference is saved', () async {
         when(
           () => mockSettingsService.getString('theme_mode'),
-        ).thenAnswer((_) async => null);
+        ).thenReturn(null);
 
         container.read(themeModeProvider.notifier);
 
@@ -174,7 +174,7 @@ void main() {
         () async {
           when(
             () => mockSettingsService.getString('theme_mode'),
-          ).thenAnswer((_) async => null);
+          ).thenReturn(null);
           when(
             () => mockSettingsService.setString('theme_mode', 'light'),
           ).thenAnswer((_) async => {});
@@ -197,7 +197,7 @@ void main() {
       test('can switch between all theme modes', () async {
         when(
           () => mockSettingsService.getString('theme_mode'),
-        ).thenAnswer((_) async => null);
+        ).thenReturn(null);
         when(
           () => mockSettingsService.setString(any(), any()),
         ).thenAnswer((_) async => {});

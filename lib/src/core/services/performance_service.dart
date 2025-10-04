@@ -80,11 +80,9 @@ class FirebasePerformanceService implements PerformanceService {
     if (attributes != null && attributes.isNotEmpty) {
       attributes.forEach((k, v) => trace.putAttribute(k, v));
     }
-    if (kDebugMode) {
-      AppLogger.debug(
-        'PERFORMANCE: starting trace ${name.wireName} key=${key ?? '(none)'} attrs=${attributes ?? {}}',
-      );
-    }
+    AppLogger.debug(
+      'PERFORMANCE: starting trace ${name.wireName} key=${key ?? '(none)'} attrs=${attributes ?? {}}',
+    );
     trace.start();
     _namedTraces[composed] = trace;
     _traceStartedAt[composed] = DateTime.now();
@@ -100,11 +98,9 @@ class FirebasePerformanceService implements PerformanceService {
     final trace = _namedTraces[composed];
     if (trace == null) return;
     attributes.forEach((k, v) => trace.putAttribute(k, v));
-    if (kDebugMode) {
-      AppLogger.debug(
-        'PERFORMANCE: put attributes on ${name.wireName} key=${key ?? '(none)'} attrs=$attributes',
-      );
-    }
+    AppLogger.debug(
+      'PERFORMANCE: put attributes on ${name.wireName} key=${key ?? '(none)'} attrs=$attributes',
+    );
   }
 
   @override
@@ -116,11 +112,11 @@ class FirebasePerformanceService implements PerformanceService {
       final elapsedMs = startedAt == null
           ? 'unknown'
           : DateTime.now().difference(startedAt).inMilliseconds.toString();
-      if (kDebugMode) {
-        AppLogger.debug(
-          'PERFORMANCE: stopping trace ${name.wireName} key=${key ?? '(none)'} duration=${elapsedMs}ms attrs=${trace.getAttributes()}',
-        );
-      }
+      // trace.getAttributes() doesn't work on web
+      final attrStr = kIsWeb ? 'N/A' : trace.getAttributes().toString();
+      AppLogger.debug(
+        'PERFORMANCE: stopping trace ${name.wireName} key=${key ?? '(none)'} duration=${elapsedMs}ms attrs=$attrStr',
+      );
       trace.stop();
     }
   }
@@ -128,7 +124,7 @@ class FirebasePerformanceService implements PerformanceService {
   @override
   void dropNamedTrace({required TraceName name, String? key}) {
     final composed = _composeKey(name, key);
-    if (kDebugMode && _namedTraces.containsKey(composed)) {
+    if (_namedTraces.containsKey(composed)) {
       AppLogger.debug(
         'PERFORMANCE: dropping trace ${name.wireName} key=${key ?? '(none)'}',
       );

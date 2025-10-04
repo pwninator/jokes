@@ -1,8 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:snickerdoodle/src/core/providers/app_version_provider.dart';
 import 'package:snickerdoodle/src/core/providers/app_providers.dart';
+import 'package:snickerdoodle/src/core/providers/app_version_provider.dart';
 import 'package:snickerdoodle/src/core/providers/image_providers.dart';
 import 'package:snickerdoodle/src/core/providers/shared_preferences_provider.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
@@ -213,14 +213,19 @@ class CoreMocks {
 
   static void _setupSettingsServiceDefaults(MockSettingsService mock) {
     // Setup default behaviors for settings
-    when(() => mock.getString(any())).thenAnswer((_) async => null);
-    when(() => mock.setString(any(), any())).thenAnswer((_) async => {});
-    when(() => mock.getBool(any())).thenAnswer((_) async => null);
-    when(() => mock.setBool(any(), any())).thenAnswer((_) async => {});
-    when(() => mock.getInt(any())).thenAnswer((_) async => null);
-    when(() => mock.setInt(any(), any())).thenAnswer((_) async => {});
-    when(() => mock.getDouble(any())).thenAnswer((_) async => null);
-    when(() => mock.setDouble(any(), any())).thenAnswer((_) async => {});
+    when(() => mock.getString(any())).thenReturn(null);
+    when(() => mock.setString(any(), any())).thenAnswer((_) async {});
+    when(() => mock.getBool(any())).thenReturn(null);
+    when(() => mock.setBool(any(), any())).thenAnswer((_) async {});
+    when(() => mock.getInt(any())).thenReturn(null);
+    when(() => mock.setInt(any(), any())).thenAnswer((_) async {});
+    when(() => mock.getDouble(any())).thenReturn(null);
+    when(() => mock.setDouble(any(), any())).thenAnswer((_) async {});
+    when(() => mock.getStringList(any())).thenReturn(null);
+    when(() => mock.setStringList(any(), any())).thenAnswer((_) async {});
+    when(() => mock.containsKey(any())).thenReturn(false);
+    when(() => mock.remove(any())).thenAnswer((_) async {});
+    when(() => mock.clear()).thenAnswer((_) async {});
   }
 
   static void _setupSubscriptionServiceDefaults(

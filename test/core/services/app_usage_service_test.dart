@@ -5,6 +5,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
+import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
 import 'package:snickerdoodle/src/core/services/review_prompt_state_store.dart';
 import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
@@ -41,6 +42,7 @@ void main() {
       'first run initializes dates and increments unique day count',
       () async {
         final prefs = await SharedPreferences.getInstance();
+        final settingsService = SettingsService(prefs);
         final mockAnalytics = _MockAnalyticsService();
         when(
           () => mockAnalytics.logAppUsageDays(
@@ -53,7 +55,7 @@ void main() {
         );
         final ref = container.read(Provider<Ref>((ref) => ref));
         final service = AppUsageService(
-          prefs: prefs,
+          settingsService: settingsService,
           ref: ref,
           analyticsService: mockAnalytics,
         );
@@ -75,6 +77,7 @@ void main() {
 
     test('same day run does not increment unique day count', () async {
       final prefs = await SharedPreferences.getInstance();
+      final settingsService = SettingsService(prefs);
       final mockAnalytics = _MockAnalyticsService();
       when(
         () => mockAnalytics.logAppUsageDays(
@@ -87,7 +90,7 @@ void main() {
       );
       final ref = container.read(Provider<Ref>((ref) => ref));
       final service = AppUsageService(
-        prefs: prefs,
+        settingsService: settingsService,
         ref: ref,
         analyticsService: mockAnalytics,
       );
@@ -110,6 +113,7 @@ void main() {
       'new day increments unique day count and updates last_used_date',
       () async {
         final prefs = await SharedPreferences.getInstance();
+        final settingsService = SettingsService(prefs);
         final mockAnalytics = _MockAnalyticsService();
         when(
           () => mockAnalytics.logAppUsageDays(
@@ -122,7 +126,7 @@ void main() {
         );
         final ref = container.read(Provider<Ref>((ref) => ref));
         final service = AppUsageService(
-          prefs: prefs,
+          settingsService: settingsService,
           ref: ref,
           analyticsService: mockAnalytics,
         );
@@ -134,7 +138,7 @@ void main() {
         final yesterday = DateTime.now().subtract(const Duration(days: 1));
         final yesterdayStr =
             '${yesterday.year.toString()}-${yesterday.month.toString().padLeft(2, '0')}-${yesterday.day.toString().padLeft(2, '0')}';
-        await prefs.setString('last_used_date', yesterdayStr);
+        await settingsService.setString('last_used_date', yesterdayStr);
 
         await service.logAppUsage();
 
@@ -154,11 +158,15 @@ void main() {
   group('AppUsageService.logJokeViewed', () {
     test('increments num_jokes_viewed counter', () async {
       final prefs = await SharedPreferences.getInstance();
+      final settingsService = SettingsService(prefs);
       final container = ProviderContainer(
         overrides: [brightnessProvider.overrideWithValue(Brightness.light)],
       );
       final ref = container.read(Provider<Ref>((ref) => ref));
-      final service = AppUsageService(prefs: prefs, ref: ref);
+      final service = AppUsageService(
+        settingsService: settingsService,
+        ref: ref,
+      );
 
       expect(await service.getNumJokesViewed(), 0);
       await service.logJokeViewed();
@@ -173,9 +181,13 @@ void main() {
       'incrementSavedJokesCount and decrementSavedJokesCount update counter with floor at 0',
       () async {
         final prefs = await SharedPreferences.getInstance();
+        final settingsService = SettingsService(prefs);
         final container = ProviderContainer();
         final ref = container.read(Provider<Ref>((ref) => ref));
-        final service = AppUsageService(prefs: prefs, ref: ref);
+        final service = AppUsageService(
+          settingsService: settingsService,
+          ref: ref,
+        );
 
         expect(await service.getNumSavedJokes(), 0);
         await service.incrementSavedJokesCount();
@@ -194,11 +206,15 @@ void main() {
 
     test('incrementSharedJokesCount updates counter', () async {
       final prefs = await SharedPreferences.getInstance();
+      final settingsService = SettingsService(prefs);
       final container = ProviderContainer(
         overrides: [brightnessProvider.overrideWithValue(Brightness.light)],
       );
       final ref = container.read(Provider<Ref>((ref) => ref));
-      final service = AppUsageService(prefs: prefs, ref: ref);
+      final service = AppUsageService(
+        settingsService: settingsService,
+        ref: ref,
+      );
 
       expect(await service.getNumSharedJokes(), 0);
       await service.incrementSharedJokesCount();
@@ -211,6 +227,7 @@ void main() {
   group('AppUsageService._pushUsageSnapshot', () {
     test('passes correct requestedReview value to cloud function', () async {
       final prefs = await SharedPreferences.getInstance();
+      final settingsService = SettingsService(prefs);
       final mockJokeCloudFn = _MockJokeCloudFunctionService();
       final mockReviewStore = _MockReviewPromptStateStore();
 
@@ -236,7 +253,7 @@ void main() {
       final ref = container.read(testRefProvider);
 
       final testService = AppUsageService(
-        prefs: prefs,
+        settingsService: settingsService,
         ref: ref,
         jokeCloudFn: mockJokeCloudFn,
         isDebugMode: false,
@@ -246,7 +263,7 @@ void main() {
       final yesterday = DateTime.now().subtract(const Duration(days: 1));
       final yesterdayStr =
           '${yesterday.year.toString()}-${yesterday.month.toString().padLeft(2, '0')}-${yesterday.day.toString().padLeft(2, '0')}';
-      await prefs.setString('last_used_date', yesterdayStr);
+      await settingsService.setString('last_used_date', yesterdayStr);
 
       await testService.logAppUsage();
 

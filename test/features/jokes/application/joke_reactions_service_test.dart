@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:snickerdoodle/src/core/services/app_review_service.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/review_prompt_service.dart';
+import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_service.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
@@ -36,9 +37,13 @@ void main() {
     setUp(() async {
       SharedPreferences.setMockInitialValues({});
       final prefs = await SharedPreferences.getInstance();
+      final settingsService = SettingsService(prefs);
       final container = ProviderContainer();
       final ref = container.read(Provider<Ref>((ref) => ref));
-      appUsageService = AppUsageService(prefs: prefs, ref: ref);
+      appUsageService = AppUsageService(
+        settingsService: settingsService,
+        ref: ref,
+      );
       mockCoordinator = MockReviewPromptCoordinator();
       when(
         () => mockCoordinator.maybePromptForReview(

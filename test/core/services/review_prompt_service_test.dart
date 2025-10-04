@@ -8,6 +8,7 @@ import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:snickerdoodle/src/core/services/review_prompt_service.dart';
 import 'package:snickerdoodle/src/core/services/review_prompt_state_store.dart';
+import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
 
 class _MockAppReviewService extends Mock implements AppReviewService {}
 
@@ -114,10 +115,11 @@ void main() {
     setUp(() async {
       SharedPreferences.setMockInitialValues({});
       final prefs = await SharedPreferences.getInstance();
+      final settingsService = SettingsService(prefs);
       // Create a minimal Ref using a ProviderContainer
       final container = ProviderContainer();
       final ref = container.read(Provider<Ref>((ref) => ref));
-      usage = AppUsageService(prefs: prefs, ref: ref);
+      usage = AppUsageService(settingsService: settingsService, ref: ref);
       review = _MockAppReviewService();
       store = _MockStateStore();
     });

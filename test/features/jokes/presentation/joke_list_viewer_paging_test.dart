@@ -16,6 +16,16 @@ void main() {
 
   setUp(FirebaseMocks.reset);
 
+  Future<void> pumpFrames(
+    WidgetTester tester, {
+    int iterations = 5,
+    Duration step = const Duration(milliseconds: 50),
+  }) async {
+    for (var i = 0; i < iterations; i++) {
+      await tester.pump(step);
+    }
+  }
+
   group('JokeListViewer Incremental Loading', () {
     testWidgets(
       'shows loading indicator on first-load when data source is loading',
@@ -132,7 +142,7 @@ void main() {
 
       // Jump to page 5
       pageController.jumpToPage(5);
-      await tester.pumpAndSettle();
+      await pumpFrames(tester);
 
       // Verify viewer reported viewing index to data source (threshold logic lives in notifier)
       verify(() => mockDataSource.updateViewingIndex(5)).called(1);
@@ -187,7 +197,7 @@ void main() {
         ),
       );
 
-      await tester.pumpAndSettle();
+      await pumpFrames(tester);
 
       // Scroll to page 5
       final pageView = find.byKey(const Key('joke_viewer_page_view'));
@@ -195,7 +205,7 @@ void main() {
           tester.widget<PageView>(pageView).controller as PageController;
 
       pageController.jumpToPage(5);
-      await tester.pumpAndSettle();
+      await pumpFrames(tester);
 
       // Verify loadMore was NOT called (hasMore is false)
       verifyNever(() => mockDataSource.loadMore());
@@ -252,7 +262,7 @@ void main() {
         ),
       );
 
-      await tester.pumpAndSettle();
+      await pumpFrames(tester);
 
       // Scroll to page 5
       final pageView = find.byKey(const Key('joke_viewer_page_view'));
@@ -260,7 +270,7 @@ void main() {
           tester.widget<PageView>(pageView).controller as PageController;
 
       pageController.jumpToPage(5);
-      await tester.pumpAndSettle();
+      await pumpFrames(tester);
 
       // Verify loadMore was NOT called (isLoading is true)
       verifyNever(() => mockDataSource.loadMore());

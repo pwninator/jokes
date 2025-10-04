@@ -2,9 +2,8 @@ import 'dart:async';
 
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
-import 'package:snickerdoodle/src/core/providers/shared_preferences_provider.dart';
+import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/notification_service.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
@@ -42,13 +41,13 @@ class SubscriptionState {
 /// Reactive StateNotifier that manages subscription state.
 /// Sets subscription values, notifies on changes, and triggers background sync.
 class SubscriptionNotifier extends StateNotifier<SubscriptionState> {
-  SubscriptionNotifier(this._sharedPreferences, this._syncService)
-    : super(_loadFromPrefs(_sharedPreferences)) {
+  SubscriptionNotifier(this._settings, this._syncService)
+    : super(_loadFromSettings(_settings)) {
     // Trigger background sync on startup (subscribe only; do not unsubscribe others)
     _syncInBackground(unsubscribeOthers: false);
   }
 
-  final SharedPreferences _sharedPreferences;
+  final SettingsService _settings;
   final DailyJokeSubscriptionService _syncService;
 
   static const String _subscriptionKey = 'daily_jokes_subscribed';
@@ -56,9 +55,9 @@ class SubscriptionNotifier extends StateNotifier<SubscriptionState> {
   static const int defaultHour = 9; // 9 AM default
 
   /// Load initial state from SharedPreferences
-  static SubscriptionState _loadFromPrefs(SharedPreferences prefs) {
-    final isSubscribed = prefs.getBool(_subscriptionKey) ?? false;
-    int hour = prefs.getInt(_subscriptionHourKey) ?? -1;
+  static SubscriptionState _loadFromSettings(SettingsService settings) {
+    final isSubscribed = settings.getBool(_subscriptionKey) ?? false;
+    int hour = settings.getInt(_subscriptionHourKey) ?? -1;
 
     // Apply default hour logic
     if (hour < 0 || hour > 23) {
@@ -71,7 +70,7 @@ class SubscriptionNotifier extends StateNotifier<SubscriptionState> {
   /// SETTER: Set subscription status (fast - only updates SharedPreferences + notifies)
   Future<void> setSubscribed(bool subscribed) async {
     try {
-      await _sharedPreferences.setBool(_subscriptionKey, subscribed);
+      await _settings.setBool(_subscriptionKey, subscribed);
       state = state.copyWith(isSubscribed: subscribed);
       _syncInBackground(); // Trigger background sync
     } catch (e) {
@@ -87,7 +86,7 @@ class SubscriptionNotifier extends StateNotifier<SubscriptionState> {
     }
 
     try {
-      await _sharedPreferences.setInt(_subscriptionHourKey, hour);
+      await _settings.setInt(_subscriptionHourKey, hour);
       state = state.copyWith(hour: hour);
       _syncInBackground(); // Trigger background sync
     } catch (e) {
@@ -130,7 +129,7 @@ class SubscriptionNotifier extends StateNotifier<SubscriptionState> {
 
   /// Check if user has ever made a subscription choice
   bool hasUserMadeChoice() {
-    return _sharedPreferences.containsKey(_subscriptionKey);
+    return _settings.containsKey(_subscriptionKey);
   }
 
   /// SYNCER: Background FCM sync (doesn't block UI)
@@ -156,12 +155,12 @@ abstract class DailyJokeSubscriptionService {
 /// Concrete implementation of FCM sync service
 class DailyJokeSubscriptionServiceImpl implements DailyJokeSubscriptionService {
   DailyJokeSubscriptionServiceImpl({
-    required SharedPreferences sharedPreferences,
+    required SettingsService settingsService,
     required FirebaseMessaging firebaseMessaging,
-  }) : _sharedPreferences = sharedPreferences,
+  }) : _settings = settingsService,
        _firebaseMessaging = firebaseMessaging;
 
-  final SharedPreferences _sharedPreferences;
+  final SettingsService _settings;
   final FirebaseMessaging _firebaseMessaging;
 
   static const String _subscriptionKey = 'daily_jokes_subscribed';
@@ -268,12 +267,10 @@ class DailyJokeSubscriptionServiceImpl implements DailyJokeSubscriptionService {
       }
 
       String? topicToSubscribe;
-      final isLocallySubscribed =
-          _sharedPreferences.getBool(_subscriptionKey) ?? false;
+      final isLocallySubscribed = _settings.getBool(_subscriptionKey) ?? false;
 
       if (isLocallySubscribed) {
-        int hour =
-            _sharedPreferences.getInt(_subscriptionHourKey) ?? defaultHour;
+        int hour = _settings.getInt(_subscriptionHourKey) ?? defaultHour;
         if (hour < 0 || hour > 23) {
           hour = defaultHour;
         }
@@ -331,9 +328,9 @@ class DailyJokeSubscriptionServiceImpl implements DailyJokeSubscriptionService {
 /// Provider for the FCM sync service
 final dailyJokeSubscriptionServiceProvider =
     Provider<DailyJokeSubscriptionService>((ref) {
-      final sharedPreferences = ref.watch(sharedPreferencesInstanceProvider);
+      final settingsService = ref.watch(settingsServiceProvider);
       return DailyJokeSubscriptionServiceImpl(
-        sharedPreferences: sharedPreferences,
+        settingsService: settingsService,
         firebaseMessaging: FirebaseMessaging.instance,
       );
     });
@@ -341,9 +338,9 @@ final dailyJokeSubscriptionServiceProvider =
 /// Main reactive subscription provider (combines Notifier + Setter + Syncer)
 final subscriptionProvider =
     StateNotifierProvider<SubscriptionNotifier, SubscriptionState>((ref) {
-      final sharedPreferences = ref.watch(sharedPreferencesInstanceProvider);
+      final settingsService = ref.watch(settingsServiceProvider);
       final syncService = ref.watch(dailyJokeSubscriptionServiceProvider);
-      return SubscriptionNotifier(sharedPreferences, syncService);
+      return SubscriptionNotifier(settingsService, syncService);
     });
 
 /// Convenience providers for specific parts of the state

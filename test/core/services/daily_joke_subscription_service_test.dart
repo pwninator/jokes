@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
-import 'package:snickerdoodle/src/core/providers/shared_preferences_provider.dart';
+import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 
@@ -43,11 +43,13 @@ void main() {
     late ProviderContainer container;
     late MockDailyJokeSubscriptionService mockSyncService;
     late SharedPreferences sharedPreferences;
+    late SettingsService settingsService;
 
     setUp(() async {
       // Set up mock SharedPreferences
       SharedPreferences.setMockInitialValues({});
       sharedPreferences = await SharedPreferences.getInstance();
+      settingsService = SettingsService(sharedPreferences);
 
       // Set up mock sync service
       mockSyncService = MockDailyJokeSubscriptionService();
@@ -60,9 +62,7 @@ void main() {
       // Create container with overrides
       container = ProviderContainer(
         overrides: [
-          sharedPreferencesInstanceProvider.overrideWithValue(
-            sharedPreferences,
-          ),
+          settingsServiceProvider.overrideWithValue(settingsService),
           dailyJokeSubscriptionServiceProvider.overrideWithValue(
             mockSyncService,
           ),
@@ -93,15 +93,13 @@ void main() {
 
       test('should load existing preferences', () async {
         // Set up existing preferences
-        await sharedPreferences.setBool('daily_jokes_subscribed', true);
-        await sharedPreferences.setInt('daily_jokes_subscribed_hour', 14);
+        await settingsService.setBool('daily_jokes_subscribed', true);
+        await settingsService.setInt('daily_jokes_subscribed_hour', 14);
 
         // Create new container to reload state
         final newContainer = ProviderContainer(
           overrides: [
-            sharedPreferencesInstanceProvider.overrideWithValue(
-              sharedPreferences,
-            ),
+            settingsServiceProvider.overrideWithValue(settingsService),
             dailyJokeSubscriptionServiceProvider.overrideWithValue(
               mockSyncService,
             ),
@@ -120,15 +118,13 @@ void main() {
 
       test('should apply default hour for invalid stored hour', () async {
         // Set up invalid hour
-        await sharedPreferences.setBool('daily_jokes_subscribed', true);
-        await sharedPreferences.setInt('daily_jokes_subscribed_hour', -1);
+        await settingsService.setBool('daily_jokes_subscribed', true);
+        await settingsService.setInt('daily_jokes_subscribed_hour', -1);
 
         // Create new container to reload state
         final newContainer = ProviderContainer(
           overrides: [
-            sharedPreferencesInstanceProvider.overrideWithValue(
-              sharedPreferences,
-            ),
+            settingsServiceProvider.overrideWithValue(settingsService),
             dailyJokeSubscriptionServiceProvider.overrideWithValue(
               mockSyncService,
             ),
@@ -155,7 +151,7 @@ void main() {
         await notifier.setSubscribed(true);
 
         expect(container.read(subscriptionProvider).isSubscribed, isTrue);
-        expect(sharedPreferences.getBool('daily_jokes_subscribed'), isTrue);
+        expect(settingsService.getBool('daily_jokes_subscribed'), isTrue);
         verify(
           () => mockSyncService.ensureSubscriptionSync(
             unsubscribeOthers: any(named: 'unsubscribeOthers'),
@@ -174,7 +170,7 @@ void main() {
 
         expect(container.read(subscriptionProvider).hour, equals(14));
         expect(
-          sharedPreferences.getInt('daily_jokes_subscribed_hour'),
+          settingsService.getInt('daily_jokes_subscribed_hour'),
           equals(14),
         );
         verify(
@@ -220,7 +216,7 @@ void main() {
         // Then unsubscribe
         await notifier.unsubscribe();
         expect(container.read(subscriptionProvider).isSubscribed, isFalse);
-        expect(sharedPreferences.getBool('daily_jokes_subscribed'), isFalse);
+        expect(settingsService.getBool('daily_jokes_subscribed'), isFalse);
       });
     });
 
@@ -274,11 +270,13 @@ void main() {
   group('DailyJokeSubscriptionServiceImpl', () {
     late DailyJokeSubscriptionServiceImpl service;
     late SharedPreferences sharedPreferences;
+    late SettingsService settingsService;
     late MockFirebaseMessaging mockFirebaseMessaging;
 
     setUp(() async {
       SharedPreferences.setMockInitialValues({});
       sharedPreferences = await SharedPreferences.getInstance();
+      settingsService = SettingsService(sharedPreferences);
 
       // Set up mock Firebase Messaging
       mockFirebaseMessaging = MockFirebaseMessaging();
@@ -290,7 +288,7 @@ void main() {
       ).thenAnswer((_) async {});
 
       service = DailyJokeSubscriptionServiceImpl(
-        sharedPreferences: sharedPreferences,
+        settingsService: settingsService,
         firebaseMessaging: mockFirebaseMessaging,
       );
     });
@@ -310,8 +308,8 @@ void main() {
       });
 
       test('should handle subscribed state with valid hour', () async {
-        await sharedPreferences.setBool('daily_jokes_subscribed', true);
-        await sharedPreferences.setInt('daily_jokes_subscribed_hour', 14);
+        await settingsService.setBool('daily_jokes_subscribed', true);
+        await settingsService.setInt('daily_jokes_subscribed_hour', 14);
 
         final result = await service.ensureSubscriptionSync();
         expect(result, isTrue);
@@ -325,8 +323,8 @@ void main() {
       });
 
       test('should handle subscribed state with invalid hour', () async {
-        await sharedPreferences.setBool('daily_jokes_subscribed', true);
-        await sharedPreferences.setInt('daily_jokes_subscribed_hour', -1);
+        await settingsService.setBool('daily_jokes_subscribed', true);
+        await settingsService.setInt('daily_jokes_subscribed_hour', -1);
 
         final result = await service.ensureSubscriptionSync();
         expect(result, isTrue);
@@ -349,8 +347,8 @@ void main() {
         'should debounce rapid calls and cancel previous operations',
         () async {
           // Set up subscription to trigger sync operations
-          await sharedPreferences.setBool('daily_jokes_subscribed', true);
-          await sharedPreferences.setInt('daily_jokes_subscribed_hour', 14);
+          await settingsService.setBool('daily_jokes_subscribed', true);
+          await settingsService.setInt('daily_jokes_subscribed_hour', 14);
 
           // Start operations in rapid succession
           final future1 = service.ensureSubscriptionSync();
@@ -376,8 +374,8 @@ void main() {
 
       test('should debounce rapid calls with proper timing', () async {
         // Set up subscription
-        await sharedPreferences.setBool('daily_jokes_subscribed', true);
-        await sharedPreferences.setInt('daily_jokes_subscribed_hour', 14);
+        await settingsService.setBool('daily_jokes_subscribed', true);
+        await settingsService.setInt('daily_jokes_subscribed_hour', 14);
 
         final stopwatch = Stopwatch()..start();
 
@@ -403,8 +401,8 @@ void main() {
 
       test('should handle cancellation during different phases', () async {
         // Test that operations can be cancelled at various points
-        await sharedPreferences.setBool('daily_jokes_subscribed', true);
-        await sharedPreferences.setInt('daily_jokes_subscribed_hour', 14);
+        await settingsService.setBool('daily_jokes_subscribed', true);
+        await settingsService.setInt('daily_jokes_subscribed_hour', 14);
 
         // Start operations with small delays to test cancellation at different phases
         service.ensureSubscriptionSync();
@@ -431,10 +429,12 @@ void main() {
     late ProviderContainer container;
     late MockDailyJokeSubscriptionService mockSyncService;
     late SharedPreferences sharedPreferences;
+    late SettingsService settingsService;
 
     setUp(() async {
       SharedPreferences.setMockInitialValues({});
       sharedPreferences = await SharedPreferences.getInstance();
+      settingsService = SettingsService(sharedPreferences);
 
       mockSyncService = MockDailyJokeSubscriptionService();
       when(
@@ -445,9 +445,7 @@ void main() {
 
       container = ProviderContainer(
         overrides: [
-          sharedPreferencesInstanceProvider.overrideWithValue(
-            sharedPreferences,
-          ),
+          settingsServiceProvider.overrideWithValue(settingsService),
           dailyJokeSubscriptionServiceProvider.overrideWithValue(
             mockSyncService,
           ),
@@ -490,15 +488,13 @@ void main() {
 
     test('does not show prompt if user already made a choice', () async {
       // Mark that user already made a choice (preference exists)
-      await sharedPreferences.setBool('daily_jokes_subscribed', false);
+      await settingsService.setBool('daily_jokes_subscribed', false);
 
       // Recreate container so SubscriptionPromptNotifier initializes from prefs
       container.dispose();
       container = ProviderContainer(
         overrides: [
-          sharedPreferencesInstanceProvider.overrideWithValue(
-            sharedPreferences,
-          ),
+          settingsServiceProvider.overrideWithValue(settingsService),
           dailyJokeSubscriptionServiceProvider.overrideWithValue(
             mockSyncService,
           ),
@@ -527,8 +523,8 @@ void main() {
 
     test('does not show prompt if user subscribed from settings screen', () async {
       // Simulate user subscribing from settings screen by directly updating SharedPreferences
-      await sharedPreferences.setBool('daily_jokes_subscribed', true);
-      await sharedPreferences.setInt('daily_jokes_subscribed_hour', 9);
+      await settingsService.setBool('daily_jokes_subscribed', true);
+      await settingsService.setInt('daily_jokes_subscribed_hour', 9);
 
       // Get the subscription notifier and update its state to reflect the subscription
       final subscriptionNotifier = container.read(

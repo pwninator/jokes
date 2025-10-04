@@ -46,6 +46,20 @@ void main() {
     await tester.pump();
   }
 
+  Future<void> pumpUntil(
+    WidgetTester tester,
+    bool Function() condition, {
+    int maxTicks = 20,
+    Duration step = const Duration(milliseconds: 50),
+  }) async {
+    for (var i = 0; i < maxTicks; i++) {
+      await tester.pump(step);
+      if (condition()) {
+        return;
+      }
+    }
+  }
+
   testWidgets('focuses the search field on load', (tester) async {
     final container = createContainer();
     addTearDown(container.dispose);
@@ -90,7 +104,11 @@ void main() {
     final field = find.byKey(const Key('search_screen-search-field'));
     await tester.enterText(field, 'a');
     await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pumpAndSettle();
+    await pumpUntil(
+      tester,
+      () =>
+          find.text('Please enter a longer search query').evaluate().isNotEmpty,
+    );
 
     expect(find.text('Please enter a longer search query'), findsOneWidget);
     final searchQuery = container.read(
@@ -143,7 +161,7 @@ void main() {
     final field = find.byKey(const Key('search_screen-search-field'));
     await tester.enterText(field, 'cats');
     await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pumpAndSettle();
+    await pumpUntil(tester, () => find.text('1 result').evaluate().isNotEmpty);
 
     expect(find.byKey(const Key('search-results-count')), findsOneWidget);
     expect(find.text('1 result'), findsOneWidget);
@@ -206,7 +224,7 @@ void main() {
     final field = find.byKey(const Key('search_screen-search-field'));
     await tester.enterText(field, 'robots');
     await tester.testTextInput.receiveAction(TextInputAction.search);
-    await tester.pumpAndSettle();
+    await pumpUntil(tester, () => find.text('2 results').evaluate().isNotEmpty);
 
     expect(find.text('2 results'), findsOneWidget);
   });
@@ -325,7 +343,10 @@ void main() {
     );
 
     await pumpSearch(tester, container);
-    await tester.pumpAndSettle();
+    await pumpUntil(
+      tester,
+      () => find.byKey(const Key('search-results-count')).evaluate().isNotEmpty,
+    );
 
     // Text field shows the effective query (without prefix)
     final fieldFinder = find.byKey(const Key('search_screen-search-field'));

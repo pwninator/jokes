@@ -3,6 +3,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
+import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
 
 class _FakeRemoteConfigValues extends Fake implements RemoteConfigValues {}
 
@@ -20,13 +21,14 @@ void main() {
   test('does not show prompt if jokes viewed below remote threshold', () async {
     final prefs = await SharedPreferences.getInstance();
     final sync = _MockSyncService();
+    final settingsService = SettingsService(prefs);
 
     when(
       () => sync.ensureSubscriptionSync(
         unsubscribeOthers: any(named: 'unsubscribeOthers'),
       ),
     ).thenAnswer((_) async => true);
-    final subscriptionNotifier = SubscriptionNotifier(prefs, sync);
+    final subscriptionNotifier = SubscriptionNotifier(settingsService, sync);
     final rcValues = _TestRCValues(threshold: 7);
     final promptNotifier = SubscriptionPromptNotifier(
       subscriptionNotifier,
@@ -41,13 +43,14 @@ void main() {
   test('shows prompt when jokes viewed meets remote threshold', () async {
     final prefs = await SharedPreferences.getInstance();
     final sync = _MockSyncService();
+    final settingsService = SettingsService(prefs);
 
     when(
       () => sync.ensureSubscriptionSync(
         unsubscribeOthers: any(named: 'unsubscribeOthers'),
       ),
     ).thenAnswer((_) async => true);
-    final subscriptionNotifier = SubscriptionNotifier(prefs, sync);
+    final subscriptionNotifier = SubscriptionNotifier(settingsService, sync);
     final rcValues = _TestRCValues(threshold: 5);
     final promptNotifier = SubscriptionPromptNotifier(
       subscriptionNotifier,

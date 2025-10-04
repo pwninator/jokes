@@ -6,9 +6,9 @@ import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:snickerdoodle/src/common_widgets/notification_hour_widget.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
-import 'package:snickerdoodle/src/core/providers/shared_preferences_provider.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
+import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
 
 // Mock classes
 class MockAnalyticsService extends Mock implements AnalyticsService {}
@@ -66,12 +66,14 @@ void main() {
     late MockAnalyticsService mockAnalyticsService;
     late MockDailyJokeSubscriptionService mockSyncService;
     late SharedPreferences sharedPreferences;
+    late SettingsService settingsService;
 
     setUp(() async {
       TestWidgetsFlutterBinding.ensureInitialized();
 
       SharedPreferences.setMockInitialValues({});
       sharedPreferences = await SharedPreferences.getInstance();
+      settingsService = SettingsService(sharedPreferences);
 
       mockAnalyticsService = MockAnalyticsService();
       mockSyncService = MockDailyJokeSubscriptionService();
@@ -92,20 +94,18 @@ void main() {
     Widget createTestWidget({bool isSubscribed = true, int hour = 9}) {
       return ProviderScope(
         overrides: [
-          sharedPreferencesInstanceProvider.overrideWithValue(
-            sharedPreferences,
-          ),
+          settingsServiceProvider.overrideWithValue(settingsService),
           dailyJokeSubscriptionServiceProvider.overrideWithValue(
             mockSyncService,
           ),
           analyticsServiceProvider.overrideWithValue(mockAnalyticsService),
           // Override the subscription provider with test data
           subscriptionProvider.overrideWith((ref) {
-            // Set up SharedPreferences with test data
-            sharedPreferences.setBool('daily_jokes_subscribed', isSubscribed);
-            sharedPreferences.setInt('daily_jokes_subscribed_hour', hour);
+            // Set up settings with test data
+            settingsService.setBool('daily_jokes_subscribed', isSubscribed);
+            settingsService.setInt('daily_jokes_subscribed_hour', hour);
 
-            return SubscriptionNotifier(sharedPreferences, mockSyncService);
+            return SubscriptionNotifier(settingsService, mockSyncService);
           }),
         ],
         child: const MaterialApp(home: Scaffold(body: HourDisplayWidget())),

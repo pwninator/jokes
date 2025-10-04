@@ -2,19 +2,64 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/config/router/router_providers.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
-import 'package:snickerdoodle/src/core/providers/crash_reporting_provider.dart';
 import 'package:snickerdoodle/src/core/providers/app_usage_providers.dart';
-import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
+import 'package:snickerdoodle/src/core/providers/crash_reporting_provider.dart';
+import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/notification_service.dart';
+import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
-import 'package:snickerdoodle/src/features/settings/application/theme_settings_service.dart';
 import 'package:snickerdoodle/src/features/auth/application/auth_startup_manager.dart';
+import 'package:snickerdoodle/src/features/settings/application/theme_settings_service.dart';
 
-class App extends ConsumerWidget {
+class App extends ConsumerStatefulWidget {
   const App({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<App> createState() => _AppState();
+}
+
+class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // App came to foreground - refresh Remote Config
+      // Firebase SDK handles throttling based on minimumFetchInterval
+      _refreshRemoteConfig();
+    }
+  }
+
+  void _refreshRemoteConfig() {
+    try {
+      final remoteConfigService = ref.read(remoteConfigServiceProvider);
+      remoteConfigService
+          .refresh()
+          .then((activated) {
+            if (activated) {
+              AppLogger.debug('Remote Config refreshed with new values');
+            }
+          })
+          .catchError((e) {
+            AppLogger.debug('Remote Config refresh skipped or failed: $e');
+          });
+    } catch (e) {
+      AppLogger.debug('Error triggering Remote Config refresh: $e');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final themeMode = ref.watch(themeModeProvider);
     final router = ref.watch(goRouterProvider);
     // Trigger app usage initialization

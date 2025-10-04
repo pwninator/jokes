@@ -331,6 +331,163 @@ void main() {
     });
   });
 
+  group('RemoteConfigService.refresh', () {
+    test('calls initialize if not yet initialized', () async {
+      final client = _MockRemoteConfigClient();
+      final analytics = _MockAnalyticsService();
+
+      when(() => client.setConfigSettings(any())).thenAnswer((_) async {});
+      when(() => client.setDefaults(any())).thenAnswer((_) async {});
+      when(() => client.fetchAndActivate()).thenAnswer((_) async => true);
+
+      final service = RemoteConfigService(
+        client: client,
+        analyticsService: analytics,
+      );
+
+      // Call refresh before initialize
+      final result = await service.refresh();
+
+      expect(result, true);
+      verify(() => client.setConfigSettings(any())).called(1);
+      verify(() => client.setDefaults(any())).called(1);
+      verify(() => client.fetchAndActivate()).called(1);
+    });
+
+    test('returns true when new values are activated', () async {
+      final client = _MockRemoteConfigClient();
+      final analytics = _MockAnalyticsService();
+
+      when(() => client.setConfigSettings(any())).thenAnswer((_) async {});
+      when(() => client.setDefaults(any())).thenAnswer((_) async {});
+      when(() => client.fetchAndActivate()).thenAnswer((_) async => true);
+
+      final service = RemoteConfigService(
+        client: client,
+        analyticsService: analytics,
+      );
+
+      await service.initialize();
+      final result = await service.refresh();
+
+      expect(result, true);
+      verify(
+        () => client.fetchAndActivate(),
+      ).called(2); // Once for init, once for refresh
+      verifyNever(
+        () => analytics.logErrorRemoteConfig(
+          phase: any(named: 'phase'),
+          errorMessage: any(named: 'errorMessage'),
+        ),
+      );
+    });
+
+    test('returns false when values are throttled/cached', () async {
+      final client = _MockRemoteConfigClient();
+      final analytics = _MockAnalyticsService();
+
+      when(() => client.setConfigSettings(any())).thenAnswer((_) async {});
+      when(() => client.setDefaults(any())).thenAnswer((_) async {});
+      when(() => client.fetchAndActivate()).thenAnswer((_) async => false);
+
+      final service = RemoteConfigService(
+        client: client,
+        analyticsService: analytics,
+      );
+
+      await service.initialize();
+      final result = await service.refresh();
+
+      expect(result, false);
+      verify(() => client.fetchAndActivate()).called(2);
+      verifyNever(
+        () => analytics.logErrorRemoteConfig(
+          phase: any(named: 'phase'),
+          errorMessage: any(named: 'errorMessage'),
+        ),
+      );
+    });
+
+    test('logs error and returns false when refresh fails', () async {
+      final client = _MockRemoteConfigClient();
+      final analytics = _MockAnalyticsService();
+
+      when(() => client.setConfigSettings(any())).thenAnswer((_) async {});
+      when(() => client.setDefaults(any())).thenAnswer((_) async {});
+
+      // First call succeeds (initialize), second call fails (refresh)
+      var callCount = 0;
+      when(() => client.fetchAndActivate()).thenAnswer((_) async {
+        callCount++;
+        if (callCount == 1) {
+          return true; // succeed on init
+        } else {
+          throw Exception('network error'); // fail on refresh
+        }
+      });
+
+      when(
+        () => analytics.logErrorRemoteConfig(
+          phase: any(named: 'phase'),
+          errorMessage: any(named: 'errorMessage'),
+        ),
+      ).thenAnswer((_) async {});
+
+      final service = RemoteConfigService(
+        client: client,
+        analyticsService: analytics,
+      );
+
+      await service.initialize();
+      final result = await service.refresh();
+
+      expect(result, false);
+      verify(
+        () => analytics.logErrorRemoteConfig(
+          phase: 'refresh',
+          errorMessage: any(named: 'errorMessage'),
+        ),
+      ).called(1);
+    });
+
+    test('returns false and continues when analytics logging fails', () async {
+      final client = _MockRemoteConfigClient();
+      final analytics = _MockAnalyticsService();
+
+      when(() => client.setConfigSettings(any())).thenAnswer((_) async {});
+      when(() => client.setDefaults(any())).thenAnswer((_) async {});
+
+      // First call succeeds (initialize), second call fails (refresh)
+      var callCount = 0;
+      when(() => client.fetchAndActivate()).thenAnswer((_) async {
+        callCount++;
+        if (callCount == 1) {
+          return true;
+        } else {
+          throw Exception('network error');
+        }
+      });
+
+      when(
+        () => analytics.logErrorRemoteConfig(
+          phase: any(named: 'phase'),
+          errorMessage: any(named: 'errorMessage'),
+        ),
+      ).thenThrow(Exception('analytics error'));
+
+      final service = RemoteConfigService(
+        client: client,
+        analyticsService: analytics,
+      );
+
+      await service.initialize();
+
+      // Should not throw even when analytics fails
+      final result = await service.refresh();
+      expect(result, false);
+    });
+  });
+
   group('FirebaseRemoteConfigClient (adapter)', () {
     test('delegates to underlying FirebaseRemoteConfig', () async {
       final inner = _MockFirebaseRemoteConfig();

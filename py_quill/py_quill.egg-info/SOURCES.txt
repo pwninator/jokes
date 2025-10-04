@@ -40,6 +40,8 @@ common/config.py
 common/firebase_init.py
 common/image_generation.py
 common/image_generation_test.py
+common/joke_operations.py
+common/joke_operations_test.py
 common/models.py
 common/models_joke_category_test.py
 common/models_test.py
@@ -51,6 +53,8 @@ functions/book_fns.py
 functions/character_fns.py
 functions/dummy_fns.py
 functions/function_utils.py
+functions/joke_book_fns.py
+functions/joke_book_fns_test.py
 functions/joke_fns.py
 functions/joke_fns_test.py
 functions/story_prompt_fns.py

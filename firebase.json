@@ -49,6 +49,14 @@
     ],
     "rewrites": [
       {
+        "source": "/joke-book/**",
+        "function": {
+          "functionId": "get_joke_book",
+          "region": "us-central1",
+          "codebase": "default"
+        }
+      },
+      {
         "source": "**",
         "function": {
           "functionId": "web_search_page",

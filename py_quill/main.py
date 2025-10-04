@@ -56,6 +56,7 @@ on_joke_category_write = joke_fns.on_joke_category_write
 
 # Export the joke book functions
 create_book = joke_book_fns.create_book
+get_joke_book = joke_book_fns.get_joke_book
 
 # Export the admin functions
 set_user_role = admin_fns.set_user_role

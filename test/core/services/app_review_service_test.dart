@@ -98,7 +98,7 @@ void main() {
         tester,
       ) async {
         when(() => native.isAvailable()).thenAnswer((_) async => false);
-        when(() => store.hasRequested()).thenAnswer((_) async => false);
+        when(() => store.hasRequested()).thenAnswer((_) => false);
 
         await tester.pumpWidget(
           MaterialApp(
@@ -133,7 +133,7 @@ void main() {
 
       testWidgets('shows dialog and processes accept', (tester) async {
         when(() => native.isAvailable()).thenAnswer((_) async => true);
-        when(() => store.hasRequested()).thenAnswer((_) async => false);
+        when(() => store.hasRequested()).thenAnswer((_) => false);
         when(() => native.requestReview()).thenAnswer((_) async {});
         when(() => store.markRequested()).thenAnswer((_) async {});
 
@@ -192,7 +192,7 @@ void main() {
 
       testWidgets('shows dialog and processes decline', (tester) async {
         when(() => native.isAvailable()).thenAnswer((_) async => true);
-        when(() => store.hasRequested()).thenAnswer((_) async => false);
+        when(() => store.hasRequested()).thenAnswer((_) => false);
         when(() => store.markRequested()).thenAnswer((_) async {});
 
         ReviewRequestResult? result;
@@ -256,7 +256,7 @@ void main() {
         'handles feedback intent by dismissing and not calling native review',
         (tester) async {
           when(() => native.isAvailable()).thenAnswer((_) async => true);
-          when(() => store.hasRequested()).thenAnswer((_) async => false);
+          when(() => store.hasRequested()).thenAnswer((_) => false);
           when(() => store.markRequested()).thenAnswer((_) async {});
 
           await tester.pumpWidget(
@@ -304,7 +304,7 @@ void main() {
         when(() => store.markRequested()).thenAnswer((_) async {});
 
         // First call: not requested yet
-        when(() => store.hasRequested()).thenAnswer((_) async => false);
+        when(() => store.hasRequested()).thenAnswer((_) => false);
 
         ReviewRequestResult? firstResult;
         ReviewRequestResult? secondResult;
@@ -344,7 +344,7 @@ void main() {
         );
 
         // Update mock: after markRequested is called, hasRequested should return true
-        when(() => store.hasRequested()).thenAnswer((_) async => true);
+        when(() => store.hasRequested()).thenAnswer((_) => true);
 
         // User dismisses the dialog
         await tester.tap(

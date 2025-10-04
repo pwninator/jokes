@@ -13,7 +13,10 @@ import '../../../test_helpers/analytics_mocks.dart';
 // Mock classes using mocktail
 class MockJokeReactionsService extends Mock implements JokeReactionsService {}
 
-class FakeBuildContext extends Fake implements BuildContext {}
+class FakeBuildContext extends Fake implements BuildContext {
+  @override
+  bool get mounted => true;
+}
 
 void main() {
   group('jokeReactionsProvider', () {

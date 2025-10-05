@@ -4,10 +4,12 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class AppUserSummary {
   final DateTime lastLoginAtUtc;
   final int clientNumDaysUsed; // coerced to >= 1
+  final int numJokesViewed;
 
   const AppUserSummary({
     required this.lastLoginAtUtc,
     required this.clientNumDaysUsed,
+    required this.numJokesViewed,
   });
 }
 
@@ -50,7 +52,17 @@ class FirestoreUserRepository implements UserRepository {
           daysUsed = 1;
         }
         final utc = lastLogin.isUtc ? lastLogin : lastLogin.toUtc();
-        return AppUserSummary(lastLoginAtUtc: utc, clientNumDaysUsed: daysUsed);
+        final jokesViewedRaw = data['num_jokes_viewed'];
+        int jokesViewed = 0;
+        if (jokesViewedRaw is num) {
+          jokesViewed = jokesViewedRaw.toInt();
+        }
+
+        return AppUserSummary(
+          lastLoginAtUtc: utc,
+          clientNumDaysUsed: daysUsed,
+          numJokesViewed: jokesViewed,
+        );
       }).toList();
     });
   }

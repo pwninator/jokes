@@ -24,14 +24,20 @@ final feedbackServiceProvider = Provider<FeedbackService>((ref) {
 
 /// Stream provider for all feedback entries ordered by creation_time desc
 final allFeedbackProvider = StreamProvider<List<FeedbackEntry>>((ref) {
-  return ref.watch(feedbackRepositoryProvider).watchAllFeedback().map((entries) {
+  return ref.watch(feedbackRepositoryProvider).watchAllFeedback().map((
+    entries,
+  ) {
     final sortedEntries = [...entries];
     sortedEntries.sort((a, b) {
       final aTime = a.lastUserMessageTime;
       final bTime = b.lastUserMessageTime;
       if (aTime == null && bTime == null) return 0;
-      if (aTime == null) return 1; // Put entries without user messages at the end
-      if (bTime == null) return -1;
+      if (aTime == null) {
+        return 1; // Put entries without user messages at the end
+      }
+      if (bTime == null) {
+        return -1;
+      }
       return bTime.compareTo(aTime); // Sort by most recent user message
     });
     return sortedEntries;

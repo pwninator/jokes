@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/common_widgets/adaptive_app_bar_screen.dart';
 import 'package:snickerdoodle/src/common_widgets/titled_screen.dart';
 import 'package:snickerdoodle/src/core/providers/user_providers.dart';
+import 'package:snickerdoodle/src/features/admin/presentation/user_jokes_chart.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/users_analytics_utils.dart';
 
 class UsersAnalyticsScreen extends ConsumerWidget implements TitledScreen {
@@ -151,16 +152,25 @@ class UsersAnalyticsScreen extends ConsumerWidget implements TitledScreen {
               MediaQuery.of(context).size.width - 32,
             );
 
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Legend(colorStops: colorStops),
-                const SizedBox(height: 12),
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: SizedBox(width: width, height: 260, child: chart),
-                ),
-              ],
+            return SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Daily Active Users (Last Login)',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 12),
+                  Legend(colorStops: colorStops),
+                  const SizedBox(height: 12),
+                  SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: SizedBox(width: width, height: 260, child: chart),
+                  ),
+                  const SizedBox(height: 32),
+                  const UserJokesChart(),
+                ],
+              ),
             );
           },
         ),

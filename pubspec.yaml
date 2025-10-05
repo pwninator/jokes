@@ -49,6 +49,7 @@ dependencies:
   fl_chart: ^0.68.0
   flutter_cache_manager: ^3.4.1
   flutter_local_notifications: ^19.3.0
+  flutter_native_splash: ^2.4.6
   flutter_riverpod: ^2.6.1
   flutter_staggered_grid_view: ^0.7.0
   google_sign_in: ^6.2.1
@@ -98,7 +99,9 @@ flutter:
   # To add assets to your application, add an assets section, like this:
   assets:
     - assets/icon/icon_cookie_01_preshrunk.webp
-    - assets/images/icon_cookie_01_preshrunk_transparent_dark_300.webp
+    - assets/images/icon_cookie_01_transparent_dark_300.png
+    - assets/images/icon_cookie_01_transparent_dark_1200.png
+    - assets/images/icon_cookie_01_transparent_dark_preshrunk_android_loading_image_1152.png
     - assets/review_prompts/review_request_bunny_garden_600.webp
     - assets/review_prompts/review_request_kitten2_600.webp
     - assets/watermark/snickerdoodlejokes_watermark_01.png

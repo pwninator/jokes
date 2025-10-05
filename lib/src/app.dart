@@ -2,15 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/config/router/router_providers.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
-import 'package:snickerdoodle/src/core/providers/app_usage_providers.dart';
 import 'package:snickerdoodle/src/core/providers/crash_reporting_provider.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
-import 'package:snickerdoodle/src/core/services/notification_service.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
-import 'package:snickerdoodle/src/features/auth/application/auth_startup_manager.dart';
 import 'package:snickerdoodle/src/features/settings/application/theme_settings_service.dart';
 
+/// Main app widget rendered after startup tasks complete.
+///
+/// All initialization (Firebase, SharedPreferences, Analytics, etc.) is
+/// handled by the StartupOrchestrator before this widget is created.
 class App extends ConsumerStatefulWidget {
   const App({super.key});
 
@@ -62,26 +63,11 @@ class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     final themeMode = ref.watch(themeModeProvider);
     final router = ref.watch(goRouterProvider);
-    // Trigger app usage initialization
-    ref.watch(appUsageInitializationProvider);
 
-    // Trigger Remote Config initialization
-    ref.watch(remoteConfigInitializationProvider);
-
-    // Trigger crash reporting initialization and user syncing
+    // Set up ongoing listeners for auth state changes
+    // (These sync user properties and crash reporting user ID throughout app lifecycle)
+    ref.watch(analyticsUserTrackingProvider);
     ref.watch(crashReportingInitializationProvider);
-
-    // Trigger background auth startup (non-blocking)
-    ref.watch(authStartupInitializationProvider);
-
-    // Initialize analytics and set up notification service
-    ref.listen(analyticsInitializationProvider, (previous, current) {
-      current.whenData((_) {
-        // Set up notification service with analytics
-        final analyticsService = ref.read(analyticsServiceProvider);
-        NotificationService().setAnalyticsService(analyticsService);
-      });
-    });
 
     return MaterialApp.router(
       title: 'Snickerdoodle Jokes',

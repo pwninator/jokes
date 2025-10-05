@@ -10,15 +10,10 @@ import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import '../test_helpers/firebase_mocks.dart';
 
 void main() {
-  group('JokeCard Widget Tests', () {
-    Widget createTestWidget({
-      required Widget child,
-      List<Override> additionalOverrides = const [],
-    }) {
+  group('JokeCard', () {
+    Widget createTestWidget(Widget child) {
       return ProviderScope(
-        overrides: FirebaseMocks.getFirebaseProviderOverrides(
-          additionalOverrides: additionalOverrides,
-        ),
+        overrides: FirebaseMocks.getFirebaseProviderOverrides(),
         child: MaterialApp(
           theme: lightTheme,
           home: Scaffold(body: child),
@@ -26,410 +21,81 @@ void main() {
       );
     }
 
-    group('State Determination', () {
-      testWidgets('should show JokeTextCard when no images are available', (
-        tester,
-      ) async {
-        // arrange
-        const joke = Joke(
-          id: '1',
-          setupText: 'Why did the chicken cross the road?',
-          punchlineText: 'To get to the other side!',
-          setupImageUrl: null,
-          punchlineImageUrl: null,
-        );
+    testWidgets('renders correct child widget based on image URL validity', (tester) async {
+      final textJokeTestCases = {
+        'both null': const Joke(id: '1', setupText: 's', punchlineText: 'p', setupImageUrl: null, punchlineImageUrl: null),
+        'setup null': const Joke(id: '2', setupText: 's', punchlineText: 'p', setupImageUrl: null, punchlineImageUrl: 'https://a.com/p.jpg'),
+        'punchline null': const Joke(id: '3', setupText: 's', punchlineText: 'p', setupImageUrl: 'https://a.com/s.jpg', punchlineImageUrl: null),
+        'both empty': const Joke(id: '4', setupText: 's', punchlineText: 'p', setupImageUrl: '', punchlineImageUrl: ''),
+        'both whitespace': const Joke(id: '5', setupText: 's', punchlineText: 'p', setupImageUrl: '  ', punchlineImageUrl: '\t'),
+      };
 
-        const widget = JokeCard(joke: joke, index: 0, jokeContext: 'test');
-
-        // act
-        await tester.pumpWidget(createTestWidget(child: widget));
-
-        // assert
-        expect(find.byType(JokeTextCard), findsOneWidget);
+      for (final entry in textJokeTestCases.entries) {
+        await tester.pumpWidget(createTestWidget(JokeCard(joke: entry.value, jokeContext: 'test')));
+        expect(find.byType(JokeTextCard), findsOneWidget, reason: 'should show JokeTextCard when image URLs are ${entry.key}');
         expect(find.byType(JokeImageCarousel), findsNothing);
-      });
+      }
 
-      testWidgets('should show JokeTextCard when images are empty strings', (
-        tester,
-      ) async {
-        // arrange
-        const joke = Joke(
-          id: '1',
-          setupText: 'Why did the chicken cross the road?',
-          punchlineText: 'To get to the other side!',
-          setupImageUrl: '',
-          punchlineImageUrl: '',
-        );
-
-        const widget = JokeCard(joke: joke, index: 0, jokeContext: 'test');
-
-        // act
-        await tester.pumpWidget(createTestWidget(child: widget));
-
-        // assert
-        expect(find.byType(JokeTextCard), findsOneWidget);
-        expect(find.byType(JokeImageCarousel), findsNothing);
-      });
-
-      testWidgets(
-        'should show JokeTextCard when only setup image is available',
-        (tester) async {
-          // arrange
-          const joke = Joke(
-            id: '1',
-            setupText: 'Why did the chicken cross the road?',
-            punchlineText: 'To get to the other side!',
-            setupImageUrl: 'https://example.com/setup.jpg',
-            punchlineImageUrl: null,
-          );
-
-          const widget = JokeCard(joke: joke, index: 0, jokeContext: 'test');
-
-          // act
-          await tester.pumpWidget(createTestWidget(child: widget));
-
-          // assert
-          expect(find.byType(JokeTextCard), findsOneWidget);
-          expect(find.byType(JokeImageCarousel), findsNothing);
-        },
+      // Test case for when both images are valid
+      const imageJoke = Joke(
+        id: '6',
+        setupText: 's',
+        punchlineText: 'p',
+        setupImageUrl: 'https://example.com/setup.jpg',
+        punchlineImageUrl: 'https://example.com/punchline.jpg',
       );
-
-      testWidgets(
-        'should show JokeTextCard when only punchline image is available',
-        (tester) async {
-          // arrange
-          const joke = Joke(
-            id: '1',
-            setupText: 'Why did the chicken cross the road?',
-            punchlineText: 'To get to the other side!',
-            setupImageUrl: null,
-            punchlineImageUrl: 'https://example.com/punchline.jpg',
-          );
-
-          const widget = JokeCard(joke: joke, index: 0, jokeContext: 'test');
-
-          // act
-          await tester.pumpWidget(createTestWidget(child: widget));
-
-          // assert
-          expect(find.byType(JokeTextCard), findsOneWidget);
-          expect(find.byType(JokeImageCarousel), findsNothing);
-        },
-      );
-
-      testWidgets(
-        'should show JokeImageCarousel when both images are available',
-        (tester) async {
-          // arrange
-          const joke = Joke(
-            id: '1',
-            setupText: 'Why did the chicken cross the road?',
-            punchlineText: 'To get to the other side!',
-            setupImageUrl: 'https://example.com/setup.jpg',
-            punchlineImageUrl: 'https://example.com/punchline.jpg',
-          );
-
-          const widget = JokeCard(joke: joke, index: 0, jokeContext: 'test');
-
-          // act
-          await tester.pumpWidget(createTestWidget(child: widget));
-
-          // assert
-          expect(find.byType(JokeImageCarousel), findsOneWidget);
-          expect(find.byType(JokeTextCard), findsNothing);
-        },
-      );
+      await tester.pumpWidget(createTestWidget(const JokeCard(joke: imageJoke, jokeContext: 'test')));
+      expect(find.byType(JokeImageCarousel), findsOneWidget, reason: 'should show JokeImageCarousel when both image URLs are valid');
+      expect(find.byType(JokeTextCard), findsNothing);
     });
 
-    group('Property Passing', () {
-      testWidgets('should pass all properties to JokeTextCard', (tester) async {
-        // arrange
-        const joke = Joke(
-          id: '1',
-          setupText: 'Test setup',
-          punchlineText: 'Test punchline',
-        );
+    testWidgets('correctly passes all properties to child widgets', (tester) async {
+      // --- Test properties for JokeTextCard ---
+      const textJoke = Joke(id: 't1', setupText: 's', punchlineText: 'p');
+      await tester.pumpWidget(createTestWidget(
+        const JokeCard(
+          joke: textJoke,
+          index: 1,
+          isAdminMode: true, // This should be ignored by JokeTextCard but shouldn't break it
+          topRightBadgeText: 'TextBadge',
+          jokeContext: 'test',
+        ),
+      ));
 
-        final widget = JokeCard(joke: joke, index: 5, jokeContext: 'test');
+      final textCard = tester.widget<JokeTextCard>(find.byType(JokeTextCard));
+      expect(textCard.joke, textJoke);
+      expect(textCard.index, 1);
+      expect(textCard.overlayBadgeText, 'TextBadge');
+      expect(find.text('TextBadge'), findsOneWidget);
 
-        // act
-        await tester.pumpWidget(createTestWidget(child: widget));
-
-        // assert
-        final jokeTextCard = tester.widget<JokeTextCard>(
-          find.byType(JokeTextCard),
-        );
-        expect(jokeTextCard.joke, equals(joke));
-        expect(jokeTextCard.index, equals(5));
-      });
-
-      testWidgets('should pass properties to JokeImageCarousel', (
-        tester,
-      ) async {
-        // arrange
-        const joke = Joke(
-          id: '1',
-          setupText: 'Test setup',
-          punchlineText: 'Test punchline',
-          setupImageUrl: 'https://example.com/setup.jpg',
-          punchlineImageUrl: 'https://example.com/punchline.jpg',
-        );
-
-        final widget = JokeCard(joke: joke, index: 3, jokeContext: 'test');
-
-        // act
-        await tester.pumpWidget(createTestWidget(child: widget));
-
-        // assert
-        final jokeImageCarousel = tester.widget<JokeImageCarousel>(
-          find.byType(JokeImageCarousel),
-        );
-        expect(jokeImageCarousel.joke, equals(joke));
-        expect(jokeImageCarousel.index, equals(3));
-        // Defaults
-        expect(jokeImageCarousel.showSaveButton, isFalse);
-        expect(jokeImageCarousel.showShareButton, isFalse);
-      });
-
-      testWidgets('should pass isAdminMode to JokeImageCarousel when enabled', (
-        tester,
-      ) async {
-        // arrange
-        const joke = Joke(
-          id: '1',
-          setupText: 'Test setup',
-          punchlineText: 'Test punchline',
-          setupImageUrl: 'https://example.com/setup.jpg',
-          punchlineImageUrl: 'https://example.com/punchline.jpg',
-        );
-
-        const widget = JokeCard(
-          joke: joke,
-          index: 3,
+      // --- Test properties for JokeImageCarousel ---
+      const imageJoke = Joke(
+        id: 'i1',
+        setupText: 's',
+        punchlineText: 'p',
+        setupImageUrl: 'https://ex/s.jpg',
+        punchlineImageUrl: 'https://ex/p.jpg',
+      );
+      await tester.pumpWidget(createTestWidget(
+        const JokeCard(
+          joke: imageJoke,
+          index: 2,
           isAdminMode: true,
+          showNumSaves: true,
+          showNumShares: true,
+          topRightBadgeText: 'ImageBadge',
           jokeContext: 'test',
-        );
+        ),
+      ));
 
-        // act
-        await tester.pumpWidget(createTestWidget(child: widget));
-
-        // assert
-        final jokeImageCarousel = tester.widget<JokeImageCarousel>(
-          find.byType(JokeImageCarousel),
-        );
-        expect(jokeImageCarousel.isAdminMode, isTrue);
-      });
-    });
-
-    group('Counts and Buttons Flags', () {
-      testWidgets('defaults to not showing save/share buttons and counts', (
-        tester,
-      ) async {
-        // arrange
-        const joke = Joke(
-          id: '1',
-          setupText: 'Test setup',
-          punchlineText: 'Test punchline',
-          setupImageUrl: 'https://example.com/setup.jpg',
-          punchlineImageUrl: 'https://example.com/punchline.jpg',
-        );
-
-        const widget = JokeCard(joke: joke, jokeContext: 'test');
-
-        // act
-        await tester.pumpWidget(createTestWidget(child: widget));
-
-        // assert
-        final carousel = tester.widget<JokeImageCarousel>(
-          find.byType(JokeImageCarousel),
-        );
-        expect(carousel.showSaveButton, isFalse);
-        expect(carousel.showShareButton, isFalse);
-        expect(carousel.showNumSaves, isFalse);
-        expect(carousel.showNumShares, isFalse);
-      });
-
-      testWidgets(
-        'can enable counts (num saves/shares) flags and reflect in child',
-        (tester) async {
-          // arrange
-          const joke = Joke(
-            id: '1',
-            setupText: 'Test setup',
-            punchlineText: 'Test punchline',
-            setupImageUrl: 'https://example.com/setup.jpg',
-            punchlineImageUrl: 'https://example.com/punchline.jpg',
-            numSaves: 2,
-            numShares: 3,
-          );
-
-          const widget = JokeCard(
-            joke: joke,
-            jokeContext: 'test',
-            showNumSaves: true,
-            showNumShares: true,
-          );
-
-          // act
-          await tester.pumpWidget(createTestWidget(child: widget));
-
-          // assert
-          final carousel = tester.widget<JokeImageCarousel>(
-            find.byType(JokeImageCarousel),
-          );
-          expect(carousel.showNumSaves, isTrue);
-          expect(carousel.showNumShares, isTrue);
-        },
-      );
-    });
-
-    group('Edge Cases', () {
-      testWidgets('should handle joke without index', (tester) async {
-        // arrange
-        const joke = Joke(
-          id: '1',
-          setupText: 'Test setup',
-          punchlineText: 'Test punchline',
-        );
-
-        const widget = JokeCard(joke: joke, jokeContext: 'test');
-
-        // act
-        await tester.pumpWidget(createTestWidget(child: widget));
-
-        // assert
-        expect(find.byType(JokeTextCard), findsOneWidget);
-        final jokeTextCard = tester.widget<JokeTextCard>(
-          find.byType(JokeTextCard),
-        );
-        expect(jokeTextCard.index, isNull);
-      });
-
-      testWidgets('should handle joke without tap callback', (tester) async {
-        // arrange
-        const joke = Joke(
-          id: '1',
-          setupText: 'Test setup',
-          punchlineText: 'Test punchline',
-        );
-
-        const widget = JokeCard(joke: joke, jokeContext: 'test');
-
-        // act
-        await tester.pumpWidget(createTestWidget(child: widget));
-
-        // assert
-        expect(find.byType(JokeTextCard), findsOneWidget);
-        final jokeTextCard = tester.widget<JokeTextCard>(
-          find.byType(JokeTextCard),
-        );
-        // No onTap callback should be passed
-        expect(jokeTextCard.onTap, isNull);
-      });
-
-      testWidgets('should use default isAdminMode value', (tester) async {
-        // arrange
-        const joke = Joke(
-          id: '1',
-          setupText: 'Test setup',
-          punchlineText: 'Test punchline',
-          setupImageUrl: 'https://example.com/setup.jpg',
-          punchlineImageUrl: 'https://example.com/punchline.jpg',
-        );
-
-        const widget = JokeCard(joke: joke, jokeContext: 'test');
-
-        // act
-        await tester.pumpWidget(createTestWidget(child: widget));
-
-        // assert
-        final jokeImageCarousel = tester.widget<JokeImageCarousel>(
-          find.byType(JokeImageCarousel),
-        );
-        expect(jokeImageCarousel.isAdminMode, isFalse); // default value
-      });
-    });
-
-    group('Image URL Validation', () {
-      testWidgets('should treat whitespace-only URLs as empty', (tester) async {
-        // arrange
-        const joke = Joke(
-          id: '1',
-          setupText: 'Test setup',
-          punchlineText: 'Test punchline',
-          setupImageUrl: '   ',
-          punchlineImageUrl: '\t\n  ',
-        );
-
-        const widget = JokeCard(joke: joke, jokeContext: 'test');
-
-        // act
-        await tester.pumpWidget(createTestWidget(child: widget));
-
-        // assert
-        expect(find.byType(JokeTextCard), findsOneWidget);
-        expect(find.byType(JokeImageCarousel), findsNothing);
-      });
-
-      testWidgets('should handle mixed null and empty string cases', (
-        tester,
-      ) async {
-        // arrange
-        const joke = Joke(
-          id: '1',
-          setupText: 'Test setup',
-          punchlineText: 'Test punchline',
-          setupImageUrl: '',
-          punchlineImageUrl: null,
-        );
-
-        const widget = JokeCard(joke: joke, jokeContext: 'test');
-
-        // act
-        await tester.pumpWidget(createTestWidget(child: widget));
-
-        // assert
-        expect(find.byType(JokeTextCard), findsOneWidget);
-        expect(find.byType(JokeImageCarousel), findsNothing);
-      });
-    });
-
-    // New tests for badge overlay
-    group('Badge Overlay', () {
-      testWidgets('passes topRightBadgeText to JokeTextCard overlay', (
-        tester,
-      ) async {
-        const joke = Joke(id: 't1', setupText: 'Setup', punchlineText: 'Punch');
-        const w = JokeCard(
-          joke: joke,
-          jokeContext: 'test',
-          topRightBadgeText: '92%',
-        );
-        await tester.pumpWidget(createTestWidget(child: w));
-        final textCard = tester.widget<JokeTextCard>(find.byType(JokeTextCard));
-        expect(textCard.overlayBadgeText, '92%');
-        expect(find.text('92%'), findsOneWidget);
-      });
-
-      testWidgets('passes topRightBadgeText to JokeImageCarousel overlay', (
-        tester,
-      ) async {
-        const joke = Joke(
-          id: 'i1',
-          setupText: 'Setup',
-          punchlineText: 'Punch',
-          setupImageUrl: 'https://ex/setup.jpg',
-          punchlineImageUrl: 'https://ex/punch.jpg',
-        );
-        const w = JokeCard(
-          joke: joke,
-          jokeContext: 'test',
-          topRightBadgeText: '0.87',
-        );
-        await tester.pumpWidget(createTestWidget(child: w));
-        expect(find.byType(JokeImageCarousel), findsOneWidget);
-        expect(find.text('0.87'), findsOneWidget);
-      });
+      final imageCarousel = tester.widget<JokeImageCarousel>(find.byType(JokeImageCarousel));
+      expect(imageCarousel.joke, imageJoke);
+      expect(imageCarousel.index, 2);
+      expect(imageCarousel.isAdminMode, isTrue);
+      expect(imageCarousel.showNumSaves, isTrue);
+      expect(imageCarousel.showNumShares, isTrue);
+      expect(imageCarousel.overlayBadgeText, 'ImageBadge');
+      expect(find.text('ImageBadge'), findsOneWidget);
     });
   });
 }

@@ -6,72 +6,19 @@ import 'package:snickerdoodle/src/core/providers/feedback_prompt_providers.dart'
 
 void main() {
   group('AppBarWidget', () {
-    testWidgets('displays title correctly', (WidgetTester tester) async {
+    testWidgets('renders correctly with all properties',
+        (WidgetTester tester) async {
       const title = 'Test Title';
-
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            shouldShowFeedbackActionProvider.overrideWith((ref) async => false),
-          ],
-          child: MaterialApp(
-            home: Scaffold(appBar: const AppBarWidget(title: title)),
-          ),
-        ),
-      );
-
-      expect(find.text(title), findsOneWidget);
-    });
-
-    testWidgets('uses custom background color when provided', (
-      WidgetTester tester,
-    ) async {
       const customColor = Colors.red;
-
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            shouldShowFeedbackActionProvider.overrideWith((ref) async => false),
-          ],
-          child: MaterialApp(
-            home: Scaffold(
-              appBar: const AppBarWidget(
-                title: 'Test',
-                backgroundColor: customColor,
-              ),
-            ),
-          ),
-        ),
-      );
-
-      final appBar = tester.widget<AppBar>(find.byType(AppBar));
-      expect(appBar.backgroundColor, customColor);
-    });
-
-    testWidgets('displays custom leading widget', (WidgetTester tester) async {
       const leadingIcon = Icon(Icons.menu, key: Key('custom-leading'));
-
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            shouldShowFeedbackActionProvider.overrideWith((ref) async => false),
-          ],
-          child: MaterialApp(
-            home: Scaffold(
-              appBar: const AppBarWidget(title: 'Test', leading: leadingIcon),
-            ),
-          ),
-        ),
-      );
-
-      expect(find.byKey(const Key('custom-leading')), findsOneWidget);
-    });
-
-    testWidgets('displays action widgets', (WidgetTester tester) async {
       final actions = [
         const Icon(Icons.search, key: Key('search-action')),
         const Icon(Icons.more_vert, key: Key('menu-action')),
       ];
+      const foregroundColor = Colors.green;
+      const elevation = 8.0;
+      const centerTitle = true;
+      const automaticallyImplyLeading = false;
 
       await tester.pumpWidget(
         ProviderScope(
@@ -80,107 +27,63 @@ void main() {
           ],
           child: MaterialApp(
             home: Scaffold(
-              appBar: AppBarWidget(title: 'Test', actions: actions),
+              appBar: AppBarWidget(
+                title: title,
+                backgroundColor: customColor,
+                leading: leadingIcon,
+                actions: actions,
+                foregroundColor: foregroundColor,
+                elevation: elevation,
+                centerTitle: centerTitle,
+                automaticallyImplyLeading: automaticallyImplyLeading,
+              ),
             ),
           ),
         ),
       );
 
+      // Verify title
+      expect(find.text(title), findsOneWidget);
+
+      // Verify custom leading widget
+      expect(find.byKey(const Key('custom-leading')), findsOneWidget);
+
+      // Verify action widgets
       expect(find.byKey(const Key('search-action')), findsOneWidget);
       expect(find.byKey(const Key('menu-action')), findsOneWidget);
-    });
 
-    testWidgets('applies custom foreground color', (WidgetTester tester) async {
-      const customColor = Colors.green;
-
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            shouldShowFeedbackActionProvider.overrideWith((ref) async => false),
-          ],
-          child: MaterialApp(
-            home: Scaffold(
-              appBar: const AppBarWidget(
-                title: 'Test',
-                foregroundColor: customColor,
-              ),
-            ),
-          ),
-        ),
-      );
-
+      // Verify properties on the AppBar widget itself
       final appBar = tester.widget<AppBar>(find.byType(AppBar));
-      expect(appBar.foregroundColor, customColor);
-    });
-
-    testWidgets('applies custom elevation', (WidgetTester tester) async {
-      const customElevation = 8.0;
-
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            shouldShowFeedbackActionProvider.overrideWith((ref) async => false),
-          ],
-          child: MaterialApp(
-            home: Scaffold(
-              appBar: const AppBarWidget(
-                title: 'Test',
-                elevation: customElevation,
-              ),
-            ),
-          ),
-        ),
-      );
-
-      final appBar = tester.widget<AppBar>(find.byType(AppBar));
-      expect(appBar.elevation, customElevation);
-    });
-
-    testWidgets('applies centerTitle setting', (WidgetTester tester) async {
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            shouldShowFeedbackActionProvider.overrideWith((ref) async => false),
-          ],
-          child: MaterialApp(
-            home: Scaffold(
-              appBar: const AppBarWidget(title: 'Test', centerTitle: true),
-            ),
-          ),
-        ),
-      );
-
-      final appBar = tester.widget<AppBar>(find.byType(AppBar));
-      expect(appBar.centerTitle, true);
+      expect(appBar.backgroundColor, customColor);
+      expect(appBar.foregroundColor, foregroundColor);
+      expect(appBar.elevation, elevation);
+      expect(appBar.centerTitle, centerTitle);
+      expect(appBar.automaticallyImplyLeading, automaticallyImplyLeading);
     });
 
     testWidgets('has correct preferred size', (WidgetTester tester) async {
       const appBarWidget = AppBarWidget(title: 'Test');
-
       expect(appBarWidget.preferredSize, const Size.fromHeight(kToolbarHeight));
     });
 
-    testWidgets('handles automaticallyImplyLeading setting', (
-      WidgetTester tester,
-    ) async {
+    testWidgets('displays feedback icon when shouldShowFeedbackAction is true',
+        (WidgetTester tester) async {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-            shouldShowFeedbackActionProvider.overrideWith((ref) async => false),
+            shouldShowFeedbackActionProvider.overrideWith((ref) async => true),
           ],
           child: MaterialApp(
             home: Scaffold(
-              appBar: const AppBarWidget(
-                title: 'Test',
-                automaticallyImplyLeading: false,
-              ),
+              appBar: const AppBarWidget(title: 'Test'),
             ),
           ),
         ),
       );
 
-      final appBar = tester.widget<AppBar>(find.byType(AppBar));
-      expect(appBar.automaticallyImplyLeading, false);
+      await tester.pump(); // Let the future resolve
+      expect(find.byKey(const Key('feedback-notification-icon')),
+          findsOneWidget);
     });
   });
 }

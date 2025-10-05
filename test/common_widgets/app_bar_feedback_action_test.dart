@@ -64,61 +64,59 @@ void main() {
   });
 
   testWidgets(
-    'shows feedback icon when unread feedback exists and opens screen on tap',
+    'AppBarWidget should show feedback icon with unread feedback and hide it without',
     (tester) async {
+      // This StateProvider will allow us to control the state of unreadFeedbackProvider
+      final unreadFeedbackStateProvider =
+          StateProvider<List<FeedbackEntry>>((ref) => [testFeedbackEntry]);
+
+      final container = ProviderContainer(
+        overrides: [
+          // Make unreadFeedbackProvider listen to our local state provider
+          unreadFeedbackProvider.overrideWith(
+            (ref) => ref.watch(unreadFeedbackStateProvider),
+          ),
+          feedbackServiceProvider.overrideWithValue(mockFeedbackService),
+          analyticsServiceProvider.overrideWithValue(mockAnalyticsService),
+          feedbackPromptStateStoreProvider.overrideWithValue(mockPromptStore),
+          userFeedbackProvider.overrideWith(
+            (ref) => Stream.value([testFeedbackEntry]),
+          ),
+        ],
+      );
+
       await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            unreadFeedbackProvider.overrideWith((ref) => [testFeedbackEntry]),
-            feedbackServiceProvider.overrideWithValue(mockFeedbackService),
-            analyticsServiceProvider.overrideWithValue(mockAnalyticsService),
-            feedbackPromptStateStoreProvider.overrideWithValue(mockPromptStore),
-            userFeedbackProvider.overrideWith(
-              (ref) => Stream.value([testFeedbackEntry]),
-            ),
-          ],
+        UncontrolledProviderScope(
+          container: container,
           child: const MaterialApp(
             home: Scaffold(appBar: AppBarWidget(title: 'Test')),
           ),
         ),
       );
 
+      // At first, we have unread feedback, so the icon should be visible.
       await tester.pumpAndSettle();
       expect(
-        find.byKey(const Key('feedback-notification-icon')),
-        findsOneWidget,
-      );
+          find.byKey(const Key('feedback-notification-icon')), findsOneWidget);
 
-      expect(
-        find.byKey(const Key('feedback_notification_icon-open-button')),
-        findsOneWidget,
-      );
-
-      await tester.tap(
-        find.byKey(const Key('feedback_notification_icon-open-button')),
-      );
+      // Tapping the icon should navigate to the feedback screen.
+      await tester
+          .tap(find.byKey(const Key('feedback_notification_icon-open-button')));
       await tester.pumpAndSettle();
-
       expect(find.byType(UserFeedbackScreen), findsOneWidget);
-      verify(
-        () => mockFeedbackService.updateLastUserViewTime(testFeedbackEntry.id),
-      ).called(1);
+      verify(() => mockFeedbackService.updateLastUserViewTime(testFeedbackEntry.id))
+          .called(1);
+
+      // After navigating back...
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+
+      // ...we update the state to have no unread feedback.
+      container.read(unreadFeedbackStateProvider.notifier).state = [];
+      await tester.pump();
+
+      // The icon should now be hidden.
+      expect(find.byKey(const Key('feedback-notification-icon')), findsNothing);
     },
   );
-
-  testWidgets('does not show feedback icon when there is no unread feedback', (
-    tester,
-  ) async {
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [unreadFeedbackProvider.overrideWithValue([])],
-        child: const MaterialApp(
-          home: Scaffold(appBar: AppBarWidget(title: 'Test')),
-        ),
-      ),
-    );
-
-    await tester.pumpAndSettle();
-    expect(find.byKey(const Key('feedback-notification-icon')), findsNothing);
-  });
 }

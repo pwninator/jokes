@@ -24,58 +24,54 @@ void main() {
     );
   }
 
-  group('JokeTextCard admin/non-admin action buttons', () {
-    testWidgets('non-admin shows only regenerate images icon button', (
+  group('JokeTextCard', () {
+    const textJoke = Joke(
+      id: 'ad1',
+      setupText: 'Setup',
+      punchlineText: 'Punch',
+      setupImageUrl: null,
+      punchlineImageUrl: null,
+    );
+
+    testWidgets('shows or hides admin buttons based on isAdminMode flag', (
       tester,
     ) async {
-      const joke = Joke(
-        id: 'na1',
-        setupText: 'Setup',
-        punchlineText: 'Punch',
-        setupImageUrl: null,
-        punchlineImageUrl: null,
-      );
+      // --- Test 1: Non-admin mode should NOT show admin buttons ---
+      await tester.pumpWidget(createTestWidget(
+        child: const JokeCard(
+          joke: textJoke,
+          jokeContext: 'test',
+          isAdminMode: false, // Explicitly false
+        ),
+      ));
 
-      // Render via JokeCard to reflect real usage
-      const widget = JokeCard(joke: joke, jokeContext: 'test');
-
-      await tester.pumpWidget(createTestWidget(child: widget));
-
-      // Ensure text card is being used
+      // Ensure we're testing the right widget
       expect(find.byType(JokeTextCard), findsOneWidget);
 
-      // No admin buttons should be shown
-      expect(find.byKey(const Key('delete-joke-button')), findsNothing);
-      expect(find.byKey(const Key('edit-joke-button')), findsNothing);
-      expect(find.byKey(const Key('populate-joke-button')), findsNothing);
-    });
+      // Verify no admin buttons are present
+      expect(find.byKey(const Key('delete-joke-button')), findsNothing,
+          reason: 'Delete button should not be visible in non-admin mode');
+      expect(find.byKey(const Key('edit-joke-button')), findsNothing,
+          reason: 'Edit button should not be visible in non-admin mode');
+      expect(find.byKey(const Key('populate-joke-button')), findsNothing,
+          reason: 'Populate button should not be visible in non-admin mode');
 
-    testWidgets('admin shows delete, edit, and regenerate icon buttons', (
-      tester,
-    ) async {
-      const joke = Joke(
-        id: 'ad1',
-        setupText: 'Setup',
-        punchlineText: 'Punch',
-        setupImageUrl: null,
-        punchlineImageUrl: null,
-      );
+      // --- Test 2: Admin mode SHOULD show admin buttons ---
+      await tester.pumpWidget(createTestWidget(
+        child: const JokeCard(
+          joke: textJoke,
+          jokeContext: 'test',
+          isAdminMode: true,
+        ),
+      ));
 
-      const widget = JokeCard(
-        joke: joke,
-        jokeContext: 'test',
-        isAdminMode: true,
-      );
-
-      await tester.pumpWidget(createTestWidget(child: widget));
-
-      // Ensure text card is being used
-      expect(find.byType(JokeTextCard), findsOneWidget);
-
-      // All three admin buttons should exist
-      expect(find.byKey(const Key('delete-joke-button')), findsOneWidget);
-      expect(find.byKey(const Key('edit-joke-button')), findsOneWidget);
-      expect(find.byKey(const Key('populate-joke-button')), findsOneWidget);
+      // All three admin buttons should now be visible
+      expect(find.byKey(const Key('delete-joke-button')), findsOneWidget,
+          reason: 'Delete button should be visible in admin mode');
+      expect(find.byKey(const Key('edit-joke-button')), findsOneWidget,
+          reason: 'Edit button should be visible in admin mode');
+      expect(find.byKey(const Key('populate-joke-button')), findsOneWidget,
+          reason: 'Populate button should be visible in admin mode');
     });
   });
 }

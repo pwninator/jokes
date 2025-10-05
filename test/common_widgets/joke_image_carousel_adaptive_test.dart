@@ -12,20 +12,16 @@ import '../test_helpers/core_mocks.dart';
 class _NoopImageService extends ImageService {
   @override
   String? getProcessedJokeImageUrl(String? imageUrl, {int? width}) => null;
-
   @override
   bool isValidImageUrl(String? url) => true;
-
   @override
-  Future<String?> precacheJokeImage(String? imageUrl, {int? width}) async =>
-      null;
-
+  Future<String?> precacheJokeImage(String? imageUrl, {int? width}) async => null;
   @override
   Future<({String? setupUrl, String? punchlineUrl})> precacheJokeImages(
     Joke joke, {
     int? width,
-  }) async => (setupUrl: null, punchlineUrl: null);
-
+  }) async =>
+      (setupUrl: null, punchlineUrl: null);
   @override
   Future<void> precacheMultipleJokeImages(
     List<Joke> jokes, {
@@ -34,74 +30,68 @@ class _NoopImageService extends ImageService {
 }
 
 void main() {
-  testWidgets('BOTH_ADAPTIVE is horizontal in wide constraints', (
-    tester,
-  ) async {
-    // Wide constraints should choose Row
-    await tester.pumpWidget(
-      ProviderScope(
+  testWidgets('BOTH_ADAPTIVE mode adapts layout to wide and tall constraints', (tester) async {
+    const testJoke = Joke(
+      id: '1',
+      setupText: 's',
+      punchlineText: 'p',
+      setupImageUrl: 'a',
+      punchlineImageUrl: 'b',
+    );
+
+    Widget buildTestableWidget(double width, double height) {
+      return ProviderScope(
         overrides: [
           ...CoreMocks.getCoreProviderOverrides(),
-          // Ensure no network/plugin calls by making image URLs resolve to null
           imageServiceProvider.overrideWithValue(_NoopImageService()),
         ],
-        child: const MaterialApp(
+        child: MaterialApp(
           home: Scaffold(
             body: SizedBox(
-              width: 800,
-              height: 400,
-              child: JokeImageCarousel(
-                joke: Joke(
-                  id: '1',
-                  setupText: 's',
-                  punchlineText: 'p',
-                  setupImageUrl: 'a',
-                  punchlineImageUrl: 'b',
-                ),
+              width: width,
+              height: height,
+              child: const JokeImageCarousel(
+                joke: testJoke,
                 jokeContext: 'test',
                 mode: JokeViewerMode.bothAdaptive,
               ),
             ),
           ),
         ),
-      ),
+      );
+    }
+
+    // --- Test 1: Wide constraints should use a Row ---
+    await tester.pumpWidget(buildTestableWidget(800, 400));
+    await tester.pumpAndSettle();
+    final cardFinder = find.byType(Card);
+    expect(cardFinder, findsOneWidget);
+    // The adaptive layout is inside the Card, so we scope our search to its descendants.
+    expect(
+      find.descendant(of: cardFinder, matching: find.byType(Row)),
+      findsOneWidget,
+      reason: 'A Row should be used for image layout in wide mode',
+    );
+    expect(
+      find.descendant(of: cardFinder, matching: find.byType(Column)),
+      findsNothing,
+      reason: 'A Column should not be used for image layout in wide mode',
     );
 
+    // --- Test 2: Tall constraints should use a Column ---
+    await tester.pumpWidget(buildTestableWidget(400, 800));
     await tester.pumpAndSettle();
-    // Row is expected inside Card->Stack->GestureDetector->... AspectRatio child
-    expect(find.byType(Row), findsWidgets);
-  });
-
-  testWidgets('BOTH_ADAPTIVE is vertical in tall constraints', (tester) async {
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          ...CoreMocks.getCoreProviderOverrides(),
-          imageServiceProvider.overrideWithValue(_NoopImageService()),
-        ],
-        child: const MaterialApp(
-          home: Scaffold(
-            body: SizedBox(
-              width: 400,
-              height: 800,
-              child: JokeImageCarousel(
-                joke: Joke(
-                  id: '2',
-                  setupText: 's',
-                  punchlineText: 'p',
-                  setupImageUrl: 'a',
-                  punchlineImageUrl: 'b',
-                ),
-                jokeContext: 'test',
-                mode: JokeViewerMode.bothAdaptive,
-              ),
-            ),
-          ),
-        ),
-      ),
+    // The card finder is still valid.
+    expect(cardFinder, findsOneWidget);
+    expect(
+      find.descendant(of: cardFinder, matching: find.byType(Column)),
+      findsOneWidget,
+      reason: 'A Column should be used for image layout in tall mode',
     );
-
-    await tester.pumpAndSettle();
-    expect(find.byType(Column), findsWidgets);
+    expect(
+      find.descendant(of: cardFinder, matching: find.byType(Row)),
+      findsNothing,
+      reason: 'A Row should not be used for image layout in tall mode',
+    );
   });
 }

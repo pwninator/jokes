@@ -20,15 +20,25 @@ void main() {
     // Provide small dataset across 3 days with varied buckets
     final nowUtc = DateTime.utc(2025, 1, 10, 12);
     final users = <AppUserSummary>[
-      AppUserSummary(lastLoginAtUtc: nowUtc, clientNumDaysUsed: 1),
-      AppUserSummary(lastLoginAtUtc: nowUtc, clientNumDaysUsed: 2),
+      AppUserSummary(
+        lastLoginAtUtc: nowUtc,
+        clientNumDaysUsed: 1,
+        numJokesViewed: 0,
+      ),
+      AppUserSummary(
+        lastLoginAtUtc: nowUtc,
+        clientNumDaysUsed: 2,
+        numJokesViewed: 0,
+      ),
       AppUserSummary(
         lastLoginAtUtc: nowUtc.subtract(const Duration(days: 1)),
         clientNumDaysUsed: 10,
+        numJokesViewed: 0,
       ),
       AppUserSummary(
         lastLoginAtUtc: nowUtc.subtract(const Duration(days: 2)),
         clientNumDaysUsed: 5,
+        numJokesViewed: 0,
       ),
     ];
     when(() => mockRepo.watchAllUsers()).thenAnswer((_) => Stream.value(users));

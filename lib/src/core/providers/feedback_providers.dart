@@ -31,10 +31,15 @@ final allFeedbackProvider = StreamProvider<List<FeedbackEntry>>((ref) {
     sortedEntries.sort((a, b) {
       final aTime = a.lastUserMessageTime;
       final bTime = b.lastUserMessageTime;
-      if (aTime == null && bTime == null) return 0;
-      // Put entries without user messages at the end
-      if (aTime == null) return 1;
-      if (bTime == null) return -1;
+      if (aTime == null && bTime == null) {
+        return 0;
+      }
+      if (aTime == null) {
+        return 1; // Put entries without user messages at the end
+      }
+      if (bTime == null) {
+        return -1;
+      }
       return bTime.compareTo(aTime); // Sort by most recent user message
     });
     return sortedEntries;

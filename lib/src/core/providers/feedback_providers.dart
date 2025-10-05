@@ -31,7 +31,9 @@ final allFeedbackProvider = StreamProvider<List<FeedbackEntry>>((ref) {
     sortedEntries.sort((a, b) {
       final aTime = a.lastUserMessageTime;
       final bTime = b.lastUserMessageTime;
-      if (aTime == null && bTime == null) return 0;
+      if (aTime == null && bTime == null) {
+        return 0;
+      }
       if (aTime == null) {
         return 1; // Put entries without user messages at the end
       }

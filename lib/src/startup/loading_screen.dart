@@ -74,7 +74,7 @@ class _LoadingScreenState extends State<LoadingScreen>
                   // Image centered on screen
                   Center(
                     child: Image.asset(
-                      'assets/images/icon_cookie_01_preshrunk_transparent_dark_300.webp',
+                      'assets/images/icon_cookie_01_transparent_dark_300.png',
                       width: 250,
                       height: 250,
                       fit: BoxFit.cover,

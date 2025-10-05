@@ -455,6 +455,15 @@ class FeedbackEntry {
   FeedbackConversationEntry? get lastMessage =>
       conversation.isNotEmpty ? conversation.last : null;
 
+  DateTime? get lastUserMessageTime {
+    final userMessages = conversation
+        .where((m) => m.speaker == SpeakerType.user)
+        .toList();
+    if (userMessages.isEmpty) return null;
+    userMessages.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    return userMessages.first.timestamp;
+  }
+
   static FeedbackEntry fromFirestore(
     DocumentSnapshot<Map<String, dynamic>> doc,
   ) {

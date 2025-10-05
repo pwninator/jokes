@@ -35,7 +35,7 @@ class ReviewPromptCoordinator {
       AppLogger.debug('REVIEW_COORDINATOR maybePromptForReview');
 
       // Early out if previously requested
-      if (await _store.hasRequested()) {
+      if (_store.hasRequested()) {
         AppLogger.debug(
           'REVIEW_COORDINATOR maybePromptForReview already requested',
         );

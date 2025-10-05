@@ -17,12 +17,12 @@ void main() {
   });
 
   test('hasRequested returns false when flag absent', () async {
-    expect(await stateStore.hasRequested(), isFalse);
+    expect(stateStore.hasRequested(), isFalse);
   });
 
   test('markRequested persists flag', () async {
     await stateStore.markRequested();
 
-    expect(await stateStore.hasRequested(), isTrue);
+    expect(stateStore.hasRequested(), isTrue);
   });
 }

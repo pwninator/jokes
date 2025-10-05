@@ -5,11 +5,11 @@ import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
-import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
 import 'package:snickerdoodle/src/core/services/review_prompt_state_store.dart';
 import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
 import 'package:snickerdoodle/src/features/settings/application/brightness_provider.dart';
+import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
 
 class _MockAnalyticsService extends Mock implements AnalyticsService {}
 
@@ -231,7 +231,7 @@ void main() {
       final mockJokeCloudFn = _MockJokeCloudFunctionService();
       final mockReviewStore = _MockReviewPromptStateStore();
 
-      when(() => mockReviewStore.hasRequested()).thenAnswer((_) async => true);
+      when(() => mockReviewStore.hasRequested()).thenAnswer((_) => true);
       when(
         () => mockJokeCloudFn.trackUsage(
           numDaysUsed: any<int>(named: 'numDaysUsed'),

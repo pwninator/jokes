@@ -65,7 +65,7 @@ class AppReviewPromptDialog extends StatelessWidget {
     required this.variant,
     required this.onAccept,
     required this.onDismiss,
-    this.onFeedback,
+    required this.onFeedback,
   });
 
   @override

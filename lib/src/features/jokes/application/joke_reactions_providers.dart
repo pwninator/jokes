@@ -115,6 +115,7 @@ class JokeReactionsNotifier extends StateNotifier<JokeReactionsState> {
     currentReactions[jokeId] = currentForJoke;
     state = state.copyWith(userReactions: currentReactions);
 
+    if (!context.mounted) return;
     try {
       final bool added = await _reactionsService.toggleUserReaction(
         jokeId,

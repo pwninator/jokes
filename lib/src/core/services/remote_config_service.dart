@@ -254,6 +254,33 @@ class RemoteConfigService {
     }
   }
 
+  /// Refresh Remote Config by fetching latest values from server.
+  /// Safe to call frequently; Firebase SDK handles throttling based on minimumFetchInterval.
+  /// Returns true if new values were activated, false if using cached/throttled values.
+  Future<bool> refresh() async {
+    if (!_isInitialized) {
+      // Not initialized yet, do full initialization
+      await initialize();
+      return _isInitialized;
+    }
+
+    try {
+      final activated = await _client.fetchAndActivate();
+      return activated;
+    } catch (e) {
+      // Log error but don't crash - continue using current values
+      try {
+        _analyticsService.logErrorRemoteConfig(
+          phase: 'refresh',
+          errorMessage: e.toString(),
+        );
+      } catch (_) {
+        // Swallow secondary errors
+      }
+      return false;
+    }
+  }
+
   /// Expose a typed values reader (no per-param fields)
   RemoteConfigValues get currentValues => _RemoteConfigValues(this);
 

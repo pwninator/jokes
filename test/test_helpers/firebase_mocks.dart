@@ -14,6 +14,7 @@ import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_reposito
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_search_result.dart';
 import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
+
 import 'core_mocks.dart';
 
 // Mock classes for Firebase services
@@ -43,7 +44,6 @@ class FirebaseMocks {
   static MockJokeCloudFunctionService? _mockCloudFunctionService;
   static MockFirebaseAnalytics? _mockFirebaseAnalytics;
   static MockFirebaseFirestore? _mockFirebaseFirestore;
-  static MockSettingsService? _mockSettingsService;
 
   /// Get or create mock cloud function service
   static MockJokeCloudFunctionService get mockCloudFunctionService {

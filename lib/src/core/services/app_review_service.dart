@@ -112,9 +112,14 @@ class AppReviewService {
     try {
       // Check availability first
       final available = await _native.isAvailable();
-      if (!available) {
+      final alreadyRequested = _promptHistoryStore.hasRequested();
+      if (!available || alreadyRequested) {
         return ReviewRequestResult.notAvailable;
       }
+
+      try {
+        await _promptHistoryStore.markRequested();
+      } catch (_) {}
 
       if (!context.mounted) {
         return ReviewRequestResult.error;
@@ -172,10 +177,6 @@ class AppReviewService {
       );
 
       await _native.requestReview();
-      // Mark that we attempted to show the native review sheet
-      try {
-        await _promptHistoryStore.markRequested();
-      } catch (_) {}
 
       // The API does not guarantee UI will be shown; return shown as best-effort.
       return ReviewRequestResult.shown;

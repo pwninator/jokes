@@ -129,7 +129,7 @@ void main() {
 
       // Arrange
       final values = _FakeRemoteValues(minDays: 5, minSaved: 3, minShared: 1);
-      when(() => store.hasRequested()).thenAnswer((_) async => true);
+      when(() => store.hasRequested()).thenAnswer((_) => true);
 
       final coordinator = ReviewPromptCoordinator(
         getRemoteValues: () => values,
@@ -165,7 +165,7 @@ void main() {
         minSaved: 10,
         minShared: 10,
       );
-      when(() => store.hasRequested()).thenAnswer((_) async => false);
+      when(() => store.hasRequested()).thenAnswer((_) => false);
 
       final coordinator = ReviewPromptCoordinator(
         getRemoteValues: () => values,
@@ -203,7 +203,7 @@ void main() {
 
       // Arrange thresholds low
       final values = _FakeRemoteValues(minDays: 1, minSaved: 1, minShared: 1);
-      when(() => store.hasRequested()).thenAnswer((_) async => false);
+      when(() => store.hasRequested()).thenAnswer((_) => false);
 
       // Set usage to thresholds
       await usage.incrementSavedJokesCount();
@@ -249,7 +249,7 @@ void main() {
         final context = await _getTestContext(tester);
 
         final values = _FakeRemoteValues(minDays: 1, minSaved: 1, minShared: 1);
-        when(() => store.hasRequested()).thenAnswer((_) async => false);
+        when(() => store.hasRequested()).thenAnswer((_) => false);
 
         await usage.incrementSavedJokesCount();
         await usage.incrementSharedJokesCount();
@@ -287,7 +287,7 @@ void main() {
         final context = await _getTestContext(tester);
 
         final values = _FakeRemoteValues(minDays: 1, minSaved: 1, minShared: 1);
-        when(() => store.hasRequested()).thenAnswer((_) async => false);
+        when(() => store.hasRequested()).thenAnswer((_) => false);
 
         await usage.incrementSavedJokesCount();
         await usage.incrementSharedJokesCount();
@@ -325,7 +325,7 @@ void main() {
 
         // Set minSaved and minShared to 0; keep minDays at 1 to avoid prompting on day 0
         final values = _FakeRemoteValues(minDays: 1, minSaved: 0, minShared: 0);
-        when(() => store.hasRequested()).thenAnswer((_) async => false);
+        when(() => store.hasRequested()).thenAnswer((_) => false);
 
         // Meet minDays by setting num_days_used to 1
         final prefs = await SharedPreferences.getInstance();
@@ -371,7 +371,7 @@ void main() {
         minShared: 1,
         minViewed: 2,
       );
-      when(() => store.hasRequested()).thenAnswer((_) async => false);
+      when(() => store.hasRequested()).thenAnswer((_) => false);
 
       // Set other usage to thresholds but do not log views
       await usage.incrementSavedJokesCount();
@@ -413,7 +413,7 @@ void main() {
         minShared: 1,
         minViewed: 1,
       );
-      when(() => store.hasRequested()).thenAnswer((_) async => false);
+      when(() => store.hasRequested()).thenAnswer((_) => false);
 
       await usage.incrementSavedJokesCount();
       await usage.incrementSharedJokesCount();
@@ -461,7 +461,7 @@ void main() {
           minViewed: 0,
           requireDailySub: true,
         );
-        when(() => store.hasRequested()).thenAnswer((_) async => false);
+        when(() => store.hasRequested()).thenAnswer((_) => false);
 
         final prefs = await SharedPreferences.getInstance();
         await prefs.setInt('num_days_used', 1);
@@ -498,7 +498,7 @@ void main() {
         minViewed: 0,
         requireDailySub: true,
       );
-      when(() => store.hasRequested()).thenAnswer((_) async => false);
+      when(() => store.hasRequested()).thenAnswer((_) => false);
 
       final prefs = await SharedPreferences.getInstance();
       await prefs.setInt('num_days_used', 1);

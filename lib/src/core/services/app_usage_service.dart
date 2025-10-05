@@ -2,7 +2,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/providers/app_usage_events_provider.dart';
-import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/review_prompt_state_store.dart';
@@ -10,6 +9,7 @@ import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart'
 import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
 import 'package:snickerdoodle/src/features/settings/application/brightness_provider.dart';
+import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
 
 /// Provider for AppUsageService using the shared preferences instance provider
 final appUsageServiceProvider = Provider<AppUsageService>((ref) {
@@ -261,7 +261,7 @@ class AppUsageService {
       final int numSaved = await getNumSavedJokes();
       final int numViewed = await getNumJokesViewed();
       final int numShared = await getNumSharedJokes();
-      final bool requestedReview = await _ref
+      final bool requestedReview = _ref
           .read(reviewPromptStateStoreProvider)
           .hasRequested();
       futures.add(

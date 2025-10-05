@@ -10,7 +10,7 @@ class ReviewPromptStateStore {
   static const String _requestedKey = 'review_prompt_requested';
   final SettingsService _settings;
 
-  Future<bool> hasRequested() async {
+  bool hasRequested() {
     try {
       return _settings.getBool(_requestedKey) ?? false;
     } catch (e) {

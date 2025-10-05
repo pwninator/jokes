@@ -19,6 +19,12 @@ enum TraceName {
   fsWrite,
   fsWriteBatch,
   sharePreparation,
+  startupPostCritical,
+  startupTaskRemoteConfig,
+  startupTaskAuth,
+  startupTaskAnalytics,
+  startupTaskAppUsage,
+  startupTaskNotifications,
 }
 
 extension TraceNameWire on TraceName {
@@ -40,6 +46,18 @@ extension TraceNameWire on TraceName {
         return 'fs_write_batch';
       case TraceName.sharePreparation:
         return 'share_preparation';
+      case TraceName.startupPostCritical:
+        return 'startup_post_critical';
+      case TraceName.startupTaskRemoteConfig:
+        return 'startup_task_remote_config';
+      case TraceName.startupTaskAuth:
+        return 'startup_task_auth';
+      case TraceName.startupTaskAnalytics:
+        return 'startup_task_analytics';
+      case TraceName.startupTaskAppUsage:
+        return 'startup_task_app_usage';
+      case TraceName.startupTaskNotifications:
+        return 'startup_task_notifications';
     }
   }
 }

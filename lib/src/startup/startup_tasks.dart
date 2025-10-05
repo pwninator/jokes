@@ -9,6 +9,7 @@ import 'package:snickerdoodle/src/core/providers/crash_reporting_provider.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/notification_service.dart';
+import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:snickerdoodle/src/features/auth/application/auth_startup_manager.dart';
 import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
@@ -42,10 +43,26 @@ const List<StartupTask> criticalBlockingTasks = [
 ///
 /// Tasks in this list run in parallel with each other and with background tasks.
 const List<StartupTask> bestEffortBlockingTasks = [
-  StartupTask(id: 'remote_config', execute: _initializeRemoteConfig),
-  StartupTask(id: 'auth', execute: _initializeAuth),
-  StartupTask(id: 'analytics', execute: _initializeAnalytics),
-  StartupTask(id: 'app_usage', execute: _initializeAppUsage),
+  StartupTask(
+    id: 'remote_config',
+    execute: _initializeRemoteConfig,
+    traceName: TraceName.startupTaskRemoteConfig,
+  ),
+  StartupTask(
+    id: 'auth',
+    execute: _initializeAuth,
+    traceName: TraceName.startupTaskAuth,
+  ),
+  StartupTask(
+    id: 'analytics',
+    execute: _initializeAnalytics,
+    traceName: TraceName.startupTaskAnalytics,
+  ),
+  StartupTask(
+    id: 'app_usage',
+    execute: _initializeAppUsage,
+    traceName: TraceName.startupTaskAppUsage,
+  ),
 ];
 
 /// Background tasks that run without blocking the first frame.
@@ -55,7 +72,11 @@ const List<StartupTask> bestEffortBlockingTasks = [
 ///
 /// Tasks in this list run in parallel with each other and with best effort tasks.
 const List<StartupTask> backgroundTasks = [
-  StartupTask(id: 'notifications', execute: _initializeNotifications),
+  StartupTask(
+    id: 'notifications',
+    execute: _initializeNotifications,
+    traceName: TraceName.startupTaskNotifications,
+  ),
 ];
 
 // ============================================================================

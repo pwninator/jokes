@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/app.dart';
+import 'package:snickerdoodle/src/core/providers/app_providers.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
+import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/startup/error_screen.dart';
 import 'package:snickerdoodle/src/startup/loading_screen.dart';
 import 'package:snickerdoodle/src/startup/startup_task.dart';
@@ -69,6 +71,13 @@ class _StartupOrchestratorState extends State<StartupOrchestrator> {
         widget.initialOverrides,
       );
 
+      // Start performance trace for post-critical startup phase
+      // (Firebase is now initialized, so Performance SDK is available)
+      final perfService = enrichedContext.container.read(
+        performanceServiceProvider,
+      );
+      perfService.startNamedTrace(name: TraceName.startupPostCritical);
+
       // Dispose the initial container since we now have an enriched one
       try {
         initialContext.container.dispose();
@@ -82,10 +91,14 @@ class _StartupOrchestratorState extends State<StartupOrchestrator> {
       // until ALL tasks complete (even those that timeout or run in background)
       AppLogger.debug('Starting best effort and background tasks...');
       final bestEffortFutures = bestEffortBlockingTasks
-          .map((task) => _runBestEffortTask(task, enrichedContext!))
+          .map(
+            (task) => _runBestEffortTask(task, enrichedContext!, perfService),
+          )
           .toList();
       final backgroundFutures = backgroundTasks
-          .map((task) => _runBackgroundTask(task, enrichedContext!))
+          .map(
+            (task) => _runBackgroundTask(task, enrichedContext!, perfService),
+          )
           .toList();
 
       // Set up disposal callback IMMEDIATELY to prevent memory leaks if exceptions occur
@@ -128,7 +141,11 @@ class _StartupOrchestratorState extends State<StartupOrchestrator> {
       });
       await Future.delayed(Duration(milliseconds: 1000));
 
+      // Stop the post-critical startup trace before transitioning to ready state
+      perfService.stopNamedTrace(name: TraceName.startupPostCritical);
+
       if (!mounted) return;
+
       setState(() {
         _state = _StartupState.ready;
       });
@@ -224,13 +241,26 @@ class _StartupOrchestratorState extends State<StartupOrchestrator> {
   Future<void> _runBestEffortTask(
     StartupTask task,
     StartupContext context,
+    PerformanceService perfService,
   ) async {
+    if (task.traceName != null) {
+      perfService.startNamedTrace(name: task.traceName!);
+    }
+
     try {
       await task.execute(context);
       _incrementProgress();
       AppLogger.debug('Best effort task completed: ${task.id}');
+
+      if (task.traceName != null) {
+        perfService.stopNamedTrace(name: task.traceName!);
+      }
     } catch (e) {
       AppLogger.warn('Best effort task failed: ${task.id} - $e');
+      // Drop the trace on failure (don't report failed tasks)
+      if (task.traceName != null) {
+        perfService.dropNamedTrace(name: task.traceName!);
+      }
       // Errors are already logged to crashlytics in task implementations
     }
   }
@@ -241,12 +271,25 @@ class _StartupOrchestratorState extends State<StartupOrchestrator> {
   Future<void> _runBackgroundTask(
     StartupTask task,
     StartupContext context,
+    PerformanceService perfService,
   ) async {
+    if (task.traceName != null) {
+      perfService.startNamedTrace(name: task.traceName!);
+    }
+
     try {
       await task.execute(context);
       AppLogger.debug('Background task completed: ${task.id}');
+
+      if (task.traceName != null) {
+        perfService.stopNamedTrace(name: task.traceName!);
+      }
     } catch (e) {
       AppLogger.warn('Background task failed: ${task.id} - $e');
+      // Drop the trace on failure (don't report failed tasks)
+      if (task.traceName != null) {
+        perfService.dropNamedTrace(name: task.traceName!);
+      }
       // Errors are already logged to crashlytics in task implementations
     }
   }

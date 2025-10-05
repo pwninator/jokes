@@ -21,13 +21,13 @@ class UserJokesChart extends ConsumerWidget {
         final theme = Theme.of(context);
         final colorStops = {
           0: Colors.grey,
-          1: Colors.blue,
-          5: Colors.green,
+          1: Colors.red,
+          5: Colors.orange,
           10: Colors.yellow,
-          20: Colors.orange,
-          50: Colors.red,
-          100: Colors.purple,
-          101: Colors.black,
+          20: Colors.green,
+          50: Colors.cyan,
+          100: Colors.blue,
+          101: Colors.purple,
         };
 
         final groups = <BarChartGroupData>[];
@@ -173,21 +173,21 @@ class JokesLegend extends StatelessWidget {
     final labels = {
       0: '0',
       1: '1',
-      5: '2-5',
-      10: '6-10',
-      20: '11-20',
-      30: '21-30',
-      40: '31-40',
-      50: '41-50',
-      70: '51-70',
-      100: '71-100',
+      5: '5',
+      10: '10',
+      20: '20',
+      30: '30',
+      40: '40',
+      50: '50',
+      70: '70',
+      100: '100',
       101: '101+',
     };
     return Wrap(
       spacing: 8,
       runSpacing: 8,
       children: [
-        for (final b in jokeViewBuckets..add(101))
+        for (final b in [...jokeViewBuckets, 101])
           LegendChip(
             backgroundColor: getBackgroundColorForBucket(b, colorStops),
             label: labels[b]!,

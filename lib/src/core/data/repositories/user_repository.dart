@@ -52,7 +52,7 @@ class FirestoreUserRepository implements UserRepository {
           daysUsed = 1;
         }
         final utc = lastLogin.isUtc ? lastLogin : lastLogin.toUtc();
-        final jokesViewedRaw = data['num_jokes_viewed'];
+        final jokesViewedRaw = data['client_num_viewed'];
         int jokesViewed = 0;
         if (jokesViewedRaw is num) {
           jokesViewed = jokesViewedRaw.toInt();

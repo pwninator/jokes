@@ -31,6 +31,7 @@ class _DailyJokesScreenState extends ConsumerState<DailyJokesScreen> {
   Widget build(BuildContext context) {
     return AdaptiveAppBarScreen(
       title: 'Daily Jokes',
+      automaticallyImplyLeading: false,
       body: JokeListViewer(
         dataSource: DailyJokesDataSource(ref),
         jokeContext: AnalyticsJokeContext.dailyJokes,

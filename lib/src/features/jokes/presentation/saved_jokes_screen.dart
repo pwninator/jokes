@@ -46,6 +46,7 @@ class _SavedJokesScreenState extends ConsumerState<SavedJokesScreen> {
   Widget build(BuildContext context) {
     return AdaptiveAppBarScreen(
       title: 'Saved Jokes',
+      automaticallyImplyLeading: false,
       body: JokeListViewer(
         dataSource: _dataSource,
         jokeContext: AnalyticsJokeContext.savedJokes,

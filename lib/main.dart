@@ -3,14 +3,11 @@ import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:snickerdoodle/src/core/services/notification_service.dart';
 import 'package:snickerdoodle/src/startup/startup_orchestrator.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  GoogleFonts.config.allowRuntimeFetching = false;
 
   // Set up FCM background message handler before runApp
   // (This must be done here, not in a startup task)

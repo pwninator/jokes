@@ -42,8 +42,8 @@ const AppBarTheme appBarTheme = AppBarTheme(
 ElevatedButtonThemeData buildElevatedButtonTheme(ColorScheme colorScheme) {
   return ElevatedButtonThemeData(
     style: ElevatedButton.styleFrom(
-      backgroundColor: colorScheme.primary,
-      foregroundColor: colorScheme.onPrimary,
+      backgroundColor: colorScheme.primaryContainer,
+      foregroundColor: colorScheme.onPrimaryContainer,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(buttonRadius),
       ),

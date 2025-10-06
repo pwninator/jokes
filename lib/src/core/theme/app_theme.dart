@@ -1,27 +1,58 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 
-const Color primaryColor = Color.fromARGB(255, 193, 122, 45);
+const Color primaryColor = Color(0xFFB8860B); // Warm golden sugar cookie
+const Color accentColor = Color(0xFF1976D2); // Complementary blue
+const Color secondaryAccent = Color(0xFF42A5F5); // Lighter blue accent
 
 ColorScheme lightColorScheme = ColorScheme.fromSeed(
-  // seedColor: Colors.deepPurple,
-  seedColor: Color(0xFFC59B6D),
   brightness: Brightness.light,
-).copyWith(primary: primaryColor, error: Color.fromARGB(255, 239, 118, 118));
+  dynamicSchemeVariant: DynamicSchemeVariant.content,
+  seedColor: Color.fromARGB(255, 239, 167, 22),
+  primary: Color.fromARGB(255, 198, 109, 0),
+  // tertiary: Color.fromARGB(255, 118, 83, 247),
+  // onTertiary: Colors.white,
+  // tertiaryContainer: Color.fromARGB(255, 154, 127, 250),
+  // onTertiaryContainer: Colors.white,
+  error: Color.fromARGB(255, 198, 41, 41),
+);
 
 ColorScheme darkColorScheme = ColorScheme.fromSeed(
-  // seedColor: Colors.deepPurple,
-  seedColor: Color(0xFFC59B6D),
   brightness: Brightness.dark,
-).copyWith(error: Color.fromARGB(255, 163, 34, 34));
+  dynamicSchemeVariant: DynamicSchemeVariant.content,
+  seedColor: Color.fromARGB(255, 229, 156, 72),
+  // tertiary: Color.fromARGB(255, 118, 83, 247),
+  // onTertiary: Colors.white,
+  // tertiaryContainer: Color.fromARGB(255, 154, 127, 250),
+  // onTertiaryContainer: Colors.white,
+  error: Color.fromARGB(255, 198, 41, 41),
+);
 
-const TextTheme textTheme = TextTheme(
-  headlineMedium: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+final TextTheme textTheme = GoogleFonts.nunitoSansTextTheme(
+  const TextTheme(
+    headlineMedium: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+  ),
 );
 
 const AppBarTheme appBarTheme = AppBarTheme(
   backgroundColor: Colors.transparent,
   elevation: 0,
 );
+
+ElevatedButtonThemeData buildElevatedButtonTheme(ColorScheme colorScheme) {
+  return ElevatedButtonThemeData(
+    style: ElevatedButton.styleFrom(
+      backgroundColor: colorScheme.primary,
+      foregroundColor: colorScheme.onPrimary,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(buttonRadius),
+      ),
+      elevation: 4,
+    ),
+  );
+}
+
+const double buttonRadius = 64;
 
 final ThemeData lightTheme =
     ThemeData.from(
@@ -30,26 +61,18 @@ final ThemeData lightTheme =
     ).copyWith(
       extensions: [AppColorExtension.light],
       appBarTheme: appBarTheme,
-      elevatedButtonTheme: ElevatedButtonThemeData(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: lightColorScheme.primary,
-          foregroundColor: lightColorScheme.onPrimary,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-        ),
-      ),
+      elevatedButtonTheme: buildElevatedButtonTheme(lightColorScheme),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(buttonRadius),
           ),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(buttonRadius),
           ),
         ),
       ),
@@ -67,21 +90,21 @@ final ThemeData darkTheme =
           backgroundColor: darkColorScheme.primary,
           foregroundColor: darkColorScheme.onPrimary,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(buttonRadius),
           ),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(buttonRadius),
           ),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(buttonRadius),
           ),
         ),
       ),

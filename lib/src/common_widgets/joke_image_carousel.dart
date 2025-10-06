@@ -1391,14 +1391,18 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.search, size: 24, color: theme.colorScheme.primary),
+              Icon(
+                Icons.search,
+                size: 24,
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+              ),
               const SizedBox(width: 4),
               Text(
                 'Similar',
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
-                  color: theme.colorScheme.primary,
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
                 ),
               ),
             ],

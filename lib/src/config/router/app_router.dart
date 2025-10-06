@@ -13,21 +13,21 @@ import 'package:snickerdoodle/src/features/admin/presentation/joke_admin_screen.
 import 'package:snickerdoodle/src/features/admin/presentation/joke_categories_screen.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_category_editor_screen.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_creator_screen.dart';
-import 'package:snickerdoodle/src/features/book_creator/book_creator_screen.dart';
-import 'package:snickerdoodle/src/features/admin/presentation/joke_feedback_screen.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_editor_screen.dart';
+import 'package:snickerdoodle/src/features/admin/presentation/joke_feedback_screen.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_management_screen.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_scheduler_screen.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/users_analytics_screen.dart';
 import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
 import 'package:snickerdoodle/src/features/auth/presentation/auth_wrapper.dart';
-import 'package:snickerdoodle/src/features/jokes/presentation/daily_jokes_screen.dart';
-import 'package:snickerdoodle/src/features/jokes/presentation/saved_jokes_screen.dart';
-import 'package:snickerdoodle/src/features/search/presentation/discover_screen.dart';
-import 'package:snickerdoodle/src/features/search/application/discover_tab_state.dart';
-import 'package:snickerdoodle/src/features/search/presentation/search_screen.dart';
+import 'package:snickerdoodle/src/features/book_creator/book_creator_screen.dart';
 import 'package:snickerdoodle/src/features/feedback/presentation/feedback_conversation_screen.dart';
 import 'package:snickerdoodle/src/features/feedback/presentation/user_feedback_screen.dart';
+import 'package:snickerdoodle/src/features/jokes/presentation/daily_jokes_screen.dart';
+import 'package:snickerdoodle/src/features/jokes/presentation/saved_jokes_screen.dart';
+import 'package:snickerdoodle/src/features/search/application/discover_tab_state.dart';
+import 'package:snickerdoodle/src/features/search/presentation/discover_screen.dart';
+import 'package:snickerdoodle/src/features/search/presentation/search_screen.dart';
 import 'package:snickerdoodle/src/features/settings/presentation/user_settings_screen.dart';
 
 const List<TabConfig> _allTabs = [
@@ -309,6 +309,11 @@ class AppRouter {
         )
         .toList();
 
+    final Color selectedColor = Theme.of(context).colorScheme.primary;
+    final Color unselectedColor = Theme.of(
+      context,
+    ).colorScheme.onSurface.withValues(alpha: 0.7);
+
     return Consumer(
       builder: (context, ref, _) {
         final resize = ref.watch(keyboardResizeProvider);
@@ -345,28 +350,18 @@ class AppRouter {
                                       context,
                                     ).colorScheme.surface,
                                     selectedIconTheme: IconThemeData(
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.primary,
+                                      color: selectedColor,
                                     ),
                                     unselectedIconTheme: IconThemeData(
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .onSurface
-                                          .withValues(alpha: 0.6),
+                                      color: unselectedColor,
                                     ),
                                     selectedLabelTextStyle: TextStyle(
                                       fontWeight: FontWeight.w600,
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.primary,
+                                      color: selectedColor,
                                     ),
                                     unselectedLabelTextStyle: TextStyle(
                                       fontWeight: FontWeight.normal,
-                                      color: Theme.of(context)
-                                          .colorScheme
-                                          .onSurface
-                                          .withValues(alpha: 0.6),
+                                      color: unselectedColor,
                                     ),
                                     extended: true,
                                     useIndicator: false,
@@ -394,21 +389,28 @@ class AppRouter {
                   type: BottomNavigationBarType.fixed,
                   items: navItems,
                   currentIndex: selectedIndex,
-                  selectedItemColor: Theme.of(context).colorScheme.primary,
-                  unselectedItemColor: Theme.of(
-                    context,
-                  ).colorScheme.onSurface.withValues(alpha: 0.6),
+                  selectedItemColor: selectedColor,
+                  unselectedItemColor: unselectedColor,
                   selectedLabelStyle: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: Theme.of(context).colorScheme.primary,
+                    fontWeight: FontWeight.w700,
+                    color: selectedColor,
+                    fontSize: 12,
                   ),
                   unselectedLabelStyle: TextStyle(
-                    fontWeight: FontWeight.normal,
-                    color: Theme.of(
-                      context,
-                    ).colorScheme.onSurface.withValues(alpha: 0.6),
+                    fontWeight: FontWeight.w500,
+                    color: unselectedColor,
+                    fontSize: 11,
                   ),
                   backgroundColor: Theme.of(context).colorScheme.surface,
+                  elevation: 8,
+                  selectedIconTheme: IconThemeData(
+                    size: 26,
+                    color: selectedColor,
+                  ),
+                  unselectedIconTheme: IconThemeData(
+                    size: 24,
+                    color: unselectedColor,
+                  ),
                   onTap: (index) {
                     _navigateToIndex(
                       context,

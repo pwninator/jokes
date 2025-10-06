@@ -139,6 +139,10 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
             : const EdgeInsets.only(left: 16, right: 16, bottom: 16),
         child: ElevatedButton(
           key: const Key('joke_viewer_cta_button'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+            foregroundColor: Theme.of(context).colorScheme.onPrimaryContainer,
+          ),
           onPressed: disabled
               ? null
               : () {
@@ -154,7 +158,14 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
                     );
                   }
                 },
-          child: Text(label),
+          child: Text(
+            label,
+            style: const TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.5,
+            ),
+          ),
         ),
       ),
     );

@@ -11,11 +11,11 @@ String _formatHour(int hour) {
   if (hour == 0) {
     return '12:00 AM';
   } else if (hour < 12) {
-    return '${hour.toString().padLeft(1, '0')}:00 AM';
+    return '${hour.toString()}:00 AM';
   } else if (hour == 12) {
     return '12:00 PM';
   } else {
-    return '${(hour - 12).toString().padLeft(2, '0')}:00 PM';
+    return '${(hour - 12).toString()}:00 PM';
   }
 }
 

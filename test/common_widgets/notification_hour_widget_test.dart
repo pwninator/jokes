@@ -41,7 +41,7 @@ void main() {
       expect(find.byType(CupertinoPicker), findsOneWidget);
 
       // Verify hour formatting (9 AM should be displayed)
-      expect(find.text('09:00 AM'), findsOneWidget);
+      expect(find.text('9:00 AM'), findsOneWidget);
 
       // The CupertinoPicker is complex to test directly due to framework limitations
       // We'll focus on the essential functionality
@@ -116,30 +116,15 @@ void main() {
       await tester.pumpWidget(createTestWidget(isSubscribed: true, hour: 14));
       await tester.pumpAndSettle();
 
-      expect(find.text('Notification time: 02:00 PM'), findsOneWidget);
-      expect(find.text('Change'), findsOneWidget);
+      expect(find.text('Notification time: 2:00 PM'), findsOneWidget);
     });
 
     testWidgets('displays different hours correctly', (tester) async {
       await tester.pumpWidget(createTestWidget(isSubscribed: true, hour: 0));
       await tester.pumpAndSettle();
 
+      // Check that the button contains the correct time text for midnight
       expect(find.text('Notification time: 12:00 AM'), findsOneWidget);
-    });
-
-    testWidgets('is tappable to open hour picker', (tester) async {
-      await tester.pumpWidget(createTestWidget(isSubscribed: true, hour: 9));
-      await tester.pumpAndSettle();
-
-      // Verify the change button is tappable
-      expect(find.text('Change'), findsOneWidget);
-
-      // Tap on the change button (dialog functionality tested separately)
-      await tester.tap(find.text('Change'));
-      await tester.pump(); // Just pump once to trigger the tap
-
-      // Should show the dialog
-      expect(find.text('Change Notification Time'), findsOneWidget);
     });
 
     testWidgets('updates hour when dialog is confirmed', (tester) async {
@@ -147,17 +132,21 @@ void main() {
       await tester.pumpAndSettle();
 
       // Initial state
-      expect(find.text('Notification time: 09:00 AM'), findsOneWidget);
+      expect(find.text('Notification time: 9:00 AM'), findsOneWidget);
 
       // Tap change button
-      await tester.tap(find.text('Change'));
+      await tester.tap(
+        find.byKey(const Key('notification_hour_widget-change-hour-button')),
+      );
       await tester.pumpAndSettle();
 
       // Dialog should be open
       expect(find.text('Change Notification Time'), findsOneWidget);
 
       // Cancel the dialog instead of trying to change the hour
-      await tester.tap(find.text('Cancel'));
+      await tester.tap(
+        find.byKey(const Key('notification_hour_widget-cancel-button')),
+      );
       await tester.pumpAndSettle();
 
       // Dialog should be closed
@@ -179,7 +168,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Verify the UI updated reactively
-      expect(find.text('Notification time: 02:00 PM'), findsOneWidget);
+      expect(find.text('Notification time: 2:00 PM'), findsOneWidget);
 
       // The analytics call happens in _updateNotificationHour which is private
       // and only called through the dialog flow. For unit testing, we focus

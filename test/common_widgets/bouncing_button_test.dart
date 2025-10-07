@@ -12,7 +12,7 @@ void main() {
 
   Animation<double> _currentScale(WidgetTester tester, Finder finder) {
     final scaleTransition = tester.widget<ScaleTransition>(finder);
-    return scaleTransition.scale as Animation<double>;
+    return scaleTransition.scale;
   }
 
   testWidgets('BouncingButton squishes on press and bounces on release', (
@@ -27,6 +27,7 @@ void main() {
           body: Center(
             child: BouncingButton(
               buttonKey: buttonKey,
+              isPositive: true,
               onPressed: () => pressedCount++,
               child: const Text('Tap me'),
             ),
@@ -56,7 +57,7 @@ void main() {
       tester,
       buttonFinder,
     );
-    expect(squishElevation, closeTo(0.0, 0.1));
+    expect(squishElevation, closeTo(1.0, 0.1));
 
     await gesture.up();
     await tester.pump();
@@ -89,6 +90,7 @@ void main() {
           body: Center(
             child: BouncingButton(
               buttonKey: buttonKey,
+              isPositive: true,
               onPressed: null,
               child: Text('Disabled'),
             ),

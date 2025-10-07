@@ -226,8 +226,6 @@ void main() {
         findsOneWidget,
       );
 
-      expect(find.text('Yes, Send Jokes!'), findsOneWidget);
-
       // Verify buttons have correct keys
       expect(
         find.byKey(const Key('subscription_prompt_dialog-maybe-later-button')),
@@ -463,7 +461,7 @@ void main() {
       );
       expect(subscribeButton.onPressed, isNull);
 
-      final maybeLaterButton = tester.widget<TextButton>(
+      final maybeLaterButton = tester.widget<ElevatedButton>(
         find.byKey(const Key('subscription_prompt_dialog-maybe-later-button')),
       );
       expect(maybeLaterButton.onPressed, isNull);

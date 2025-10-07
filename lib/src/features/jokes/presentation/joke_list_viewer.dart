@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:snickerdoodle/src/common_widgets/bouncing_button.dart';
 import 'package:snickerdoodle/src/common_widgets/joke_card.dart';
 import 'package:snickerdoodle/src/common_widgets/joke_image_carousel.dart'
     show JokeImageCarouselController;
@@ -137,8 +138,9 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
         minimum: isLandscape
             ? EdgeInsets.zero
             : const EdgeInsets.only(left: 16, right: 16, bottom: 16),
-        child: ElevatedButton(
-          key: const Key('joke_viewer_cta_button'),
+        child: BouncingButton(
+          buttonKey: const Key('joke_list_viewer-cta-button'),
+          isPositive: true,
           onPressed: disabled
               ? null
               : () {

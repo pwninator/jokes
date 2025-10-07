@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:snickerdoodle/src/common_widgets/adaptive_app_bar_screen.dart';
+import 'package:snickerdoodle/src/common_widgets/bouncing_button.dart';
 import 'package:snickerdoodle/src/common_widgets/notification_hour_widget.dart';
 import 'package:snickerdoodle/src/common_widgets/subscription_prompt_dialog.dart';
 import 'package:snickerdoodle/src/common_widgets/titled_screen.dart';
@@ -109,6 +110,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
 
     return AdaptiveAppBarScreen(
       title: 'Settings',
+      automaticallyImplyLeading: false,
       body: Padding(
         padding: const EdgeInsets.all(16.0),
         child: SingleChildScrollView(
@@ -161,7 +163,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                               Icon(
                                 reveal
                                     ? Icons.visibility_off
-                                    : Icons.view_carousel,
+                                    : Icons.view_agenda,
                                 color: Theme.of(context).colorScheme.primary,
                               ),
                               const SizedBox(width: 16),
@@ -173,9 +175,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                                       reveal
                                           ? 'Hide punchline image for a surprise!'
                                           : 'Always show both images',
-                                      style: const TextStyle(
-                                        fontWeight: FontWeight.w500,
-                                      ),
+                                      style: menuTitleTextStyle(context),
                                     ),
                                   ],
                                 ),
@@ -188,9 +188,6 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                                       .read(jokeViewerRevealProvider.notifier)
                                       .setReveal(value);
                                 },
-                                activeThumbColor: Theme.of(
-                                  context,
-                                ).colorScheme.primary,
                               ),
                             ],
                           );
@@ -357,17 +354,18 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                                     const SizedBox(height: 12),
                                     Align(
                                       alignment: Alignment.centerLeft,
-                                      child: OutlinedButton.icon(
-                                        key: const Key(
+                                      child: BouncingButton(
+                                        buttonKey: const Key(
                                           'edit-usage-metrics-button',
                                         ),
-                                        icon: const Icon(Icons.edit_outlined),
-                                        label: const Text('Edit Usage Metrics'),
+                                        isPositive: false,
                                         onPressed: () => _showEditUsageDialog(
                                           context,
                                           ref,
                                           metrics,
                                         ),
+                                        icon: const Icon(Icons.edit_outlined),
+                                        child: const Text('Edit Usage Metrics'),
                                       ),
                                     ),
                                   ],
@@ -397,37 +395,39 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
 
                         if (currentUser?.isAnonymous == true) ...[
                           // Show Google sign-in option for anonymous users
-                          ElevatedButton.icon(
-                            key: const Key(
+                          BouncingButton(
+                            buttonKey: const Key(
                               'user_settings_screen-google-sign-in-button',
                             ),
+                            isPositive: true,
                             onPressed: () =>
                                 _signInWithGoogle(context, authController),
-                            icon: const Icon(Icons.login),
-                            label: const Text('Sign in with Google'),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Theme.of(
                                 context,
                               ).appColors.googleBlue,
                               foregroundColor: Colors.white,
                             ),
+                            icon: const Icon(Icons.login),
+                            child: const Text('Sign in with Google'),
                           ),
                         ] else ...[
                           // Show sign out option for authenticated users
-                          ElevatedButton.icon(
-                            key: const Key(
+                          BouncingButton(
+                            buttonKey: const Key(
                               'user_settings_screen-switch-to-guest-button',
                             ),
+                            isPositive: true,
                             onPressed: () =>
                                 _confirmSignOut(context, authController),
-                            icon: const Icon(Icons.logout),
-                            label: const Text('Switch to Guest Mode'),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Theme.of(
                                 context,
                               ).appColors.authError,
                               foregroundColor: Colors.white,
                             ),
+                            icon: const Icon(Icons.logout),
+                            child: const Text('Switch to Guest Mode'),
                           ),
                         ],
                       ],
@@ -449,39 +449,40 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                         ),
                         const SizedBox(height: 16),
 
-                        ElevatedButton.icon(
-                          key: const Key(
+                        BouncingButton(
+                          buttonKey: const Key(
                             'user_settings_screen-test-subscribe-prompt-button',
                           ),
+                          isPositive: true,
                           onPressed: () => _testSubscribePrompt(context),
-                          icon: const Icon(Icons.notifications),
-                          label: const Text('Test Subscribe Prompt'),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Theme.of(
                               context,
                             ).colorScheme.tertiary,
                             foregroundColor: Colors.white,
                           ),
+                          icon: const Icon(Icons.notifications),
+                          child: const Text('Test Subscribe Prompt'),
                         ),
                         const SizedBox(height: 12),
-                        ElevatedButton.icon(
-                          key: const Key('settings-review-button'),
+                        BouncingButton(
+                          buttonKey: const Key('settings-review-button'),
+                          isPositive: true,
                           onPressed: () => _testReviewPrompt(context),
-                          icon: const Icon(Icons.rate_review),
-                          label: const Text('Test Review Prompt'),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Theme.of(
                               context,
                             ).colorScheme.secondary,
                             foregroundColor: Colors.white,
                           ),
+                          icon: const Icon(Icons.rate_review),
+                          child: const Text('Test Review Prompt'),
                         ),
                         const SizedBox(height: 12),
-                        ElevatedButton.icon(
-                          key: const Key('settings-remote-config-button'),
+                        BouncingButton(
+                          buttonKey: const Key('settings-remote-config-button'),
+                          isPositive: true,
                           onPressed: () => _showRemoteConfigDialog(context),
-                          icon: const Icon(Icons.tune),
-                          label: const Text('See Remote Config'),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Theme.of(
                               context,
@@ -490,6 +491,8 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                               context,
                             ).colorScheme.onPrimaryContainer,
                           ),
+                          icon: const Icon(Icons.tune),
+                          child: const Text('See Remote Config'),
                         ),
                       ],
                     ),
@@ -514,12 +517,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                             loading: () => 'Loading version...',
                             error: (error, stack) => 'Snickerdoodle Jokes',
                           ),
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.onSurface.withValues(alpha: 0.6),
-                          ),
+                          style: Theme.of(context).textTheme.labelMedium,
                         );
                       },
                     ),
@@ -666,13 +664,15 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
             ),
           ),
           actions: [
-            TextButton(
-              key: const Key('edit-usage-cancel'),
+            BouncingButton(
+              buttonKey: const Key('edit-usage-cancel'),
+              isPositive: false,
               onPressed: () => Navigator.of(context).pop(),
               child: const Text('Cancel'),
             ),
-            ElevatedButton(
-              key: const Key('edit-usage-submit'),
+            BouncingButton(
+              buttonKey: const Key('edit-usage-submit'),
+              isPositive: true,
               onPressed: () async {
                 final usage = ref.read(appUsageServiceProvider);
                 final int parsedDays =
@@ -726,24 +726,14 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                 children: [
                   Text(
                     'Daily Joke Notifications',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w500,
-                      color: isSubscribed
-                          ? Theme.of(context).colorScheme.primary
-                          : Theme.of(context).colorScheme.onSurface,
-                    ),
+                    style: menuTitleTextStyle(context),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     isSubscribed
                         ? 'Receive daily joke notifications'
                         : 'Get notified when new jokes are available',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Theme.of(
-                        context,
-                      ).colorScheme.onSurface.withValues(alpha: 0.6),
-                    ),
+                    style: menuSubtitleTextStyle(context),
                   ),
                 ],
               ),
@@ -752,7 +742,6 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
               key: const Key('user_settings_screen-notifications-toggle'),
               value: isSubscribed,
               onChanged: (value) => _toggleNotifications(context, ref, value),
-              activeThumbColor: Theme.of(context).colorScheme.primary,
             ),
           ],
         ),
@@ -780,22 +769,8 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
         'user_settings_screen-theme-option-${title.toLowerCase().replaceAll(' ', '-')}',
       ),
       value: themeMode,
-      title: Text(
-        title,
-        style: TextStyle(
-          fontWeight: FontWeight.w500,
-          color: isSelected
-              ? Theme.of(context).colorScheme.primary
-              : Theme.of(context).colorScheme.onSurface,
-        ),
-      ),
-      subtitle: Text(
-        subtitle,
-        style: TextStyle(
-          fontSize: 12,
-          color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
-        ),
-      ),
+      title: Text(title, style: menuTitleTextStyle(context)),
+      subtitle: Text(subtitle, style: menuSubtitleTextStyle(context)),
       secondary: Icon(
         icon,
         color: isSelected
@@ -1118,7 +1093,9 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                     }
                     return Text(
                       '$label: $valueString',
-                      style: const TextStyle(fontSize: 13),
+                      style: Theme.of(
+                        context,
+                      ).textTheme.bodyMedium?.copyWith(fontSize: 13),
                       softWrap: true,
                     );
                   }),

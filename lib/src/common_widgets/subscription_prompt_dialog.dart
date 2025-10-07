@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:snickerdoodle/src/common_widgets/bouncing_button.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
 
@@ -107,16 +108,12 @@ class _SubscriptionPromptDialogState
                 children: [
                   // Maybe Later button
                   Expanded(
-                    child: TextButton(
-                      key: const Key(
+                    child: BouncingButton(
+                      buttonKey: const Key(
                         'subscription_prompt_dialog-maybe-later-button',
                       ),
+                      isPositive: false,
                       onPressed: _isLoading ? null : () => _handleMaybeLater(),
-                      style: TextButton.styleFrom(
-                        backgroundColor:
-                            theme.colorScheme.surfaceContainerHighest,
-                        foregroundColor: theme.colorScheme.onSurface,
-                      ),
                       child: Text(
                         'Maybe Later',
                         textAlign: TextAlign.center,
@@ -132,11 +129,11 @@ class _SubscriptionPromptDialogState
 
                   // Subscribe button
                   Expanded(
-                    flex: 2,
-                    child: ElevatedButton(
-                      key: const Key(
+                    child: BouncingButton(
+                      buttonKey: const Key(
                         'subscription_prompt_dialog-subscribe-button',
                       ),
+                      isPositive: true,
                       onPressed: _isLoading ? null : () => _handleSubscribe(),
                       child: _isLoading
                           ? const SizedBox(
@@ -145,7 +142,8 @@ class _SubscriptionPromptDialogState
                               child: CircularProgressIndicator(strokeWidth: 2),
                             )
                           : const Text(
-                              'Yes, Send Jokes!',
+                              'Send Jokes!',
+                              textAlign: TextAlign.center,
                               style: TextStyle(fontWeight: FontWeight.bold),
                             ),
                     ),

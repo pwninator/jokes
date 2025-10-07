@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:snickerdoodle/src/common_widgets/bouncing_button.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_modification_providers.dart';
 import 'package:snickerdoodle/src/core/providers/crash_reporting_provider.dart';
 
@@ -209,13 +210,15 @@ class _ModifyImageDialogState extends ConsumerState<ModifyImageDialog> {
         ),
       ),
       actions: [
-        TextButton(
-          key: const Key('modify_image_dialog-cancel-button'),
+        BouncingButton(
+          buttonKey: const Key('modify_image_dialog-cancel-button'),
+          isPositive: false,
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('Cancel'),
         ),
-        ElevatedButton(
-          key: const Key('modify_image_dialog-submit-button'),
+        BouncingButton(
+          buttonKey: const Key('modify_image_dialog-submit-button'),
+          isPositive: true,
           onPressed: !_canSubmit ? null : _submitModifications,
           child: const Text('Submit'),
         ),

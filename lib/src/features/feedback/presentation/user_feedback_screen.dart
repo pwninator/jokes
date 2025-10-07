@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:snickerdoodle/src/common_widgets/bouncing_button.dart';
 import 'package:snickerdoodle/src/config/router/router_providers.dart';
 import 'package:snickerdoodle/src/core/data/repositories/feedback_repository.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
@@ -286,8 +287,9 @@ class _InitialFeedbackView extends StatelessWidget {
           const SizedBox(height: 16),
           Row(
             children: [
-              TextButton(
-                key: const Key('feedback_screen-cancel-button'),
+              BouncingButton(
+                buttonKey: const Key('feedback_screen-cancel-button'),
+                isPositive: false,
                 onPressed: submitting
                     ? null
                     : () {
@@ -298,8 +300,9 @@ class _InitialFeedbackView extends StatelessWidget {
                 child: const Text('Cancel'),
               ),
               const SizedBox(width: 12),
-              ElevatedButton(
-                key: const Key('feedback_screen-submit-button'),
+              BouncingButton(
+                buttonKey: const Key('feedback_screen-submit-button'),
+                isPositive: true,
                 onPressed: submitting ? null : onSubmit,
                 child: submitting
                     ? const SizedBox(

@@ -1,16 +1,17 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:snickerdoodle/src/common_widgets/bouncing_button.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
-import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
+import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
 
 /// Formats hour (0-23) to 12-hour format with AM/PM
 String _formatHour(int hour) {
   if (hour == 0) {
     return '12:00 AM';
   } else if (hour < 12) {
-    return '${hour.toString().padLeft(2, '0')}:00 AM';
+    return '${hour.toString().padLeft(1, '0')}:00 AM';
   } else if (hour == 12) {
     return '12:00 PM';
   } else {
@@ -150,25 +151,11 @@ class _HourDisplayWidgetState extends ConsumerState<HourDisplayWidget> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(
-          'Notification time: $hourDisplay',
-          style: TextStyle(
-            color: Theme.of(
-              context,
-            ).colorScheme.onSurface.withValues(alpha: 0.7),
-            fontSize: 14,
-          ),
-        ),
-        TextButton(
-          key: const Key('notification_hour_widget-change-hour-button'),
+        BouncingButton(
+          buttonKey: const Key('notification_hour_widget-change-hour-button'),
+          isPositive: false,
           onPressed: () => _showHourPickerDialog(hour),
-          child: Text(
-            'Change',
-            style: TextStyle(
-              color: Theme.of(context).colorScheme.primary,
-              fontSize: 14,
-            ),
-          ),
+          child: Text('Notification time: $hourDisplay'),
         ),
       ],
     );
@@ -203,13 +190,15 @@ class _HourDisplayWidgetState extends ConsumerState<HourDisplayWidget> {
           ],
         ),
         actions: [
-          TextButton(
-            key: const Key('notification_hour_widget-cancel-button'),
+          BouncingButton(
+            buttonKey: const Key('notification_hour_widget-cancel-button'),
+            isPositive: false,
             onPressed: () => Navigator.of(context).pop(),
             child: const Text('Cancel'),
           ),
-          ElevatedButton(
-            key: const Key('notification_hour_widget-save-button'),
+          BouncingButton(
+            buttonKey: const Key('notification_hour_widget-save-button'),
+            isPositive: true,
             onPressed: () => Navigator.of(context).pop(selectedHour),
             child: const Text('Save'),
           ),

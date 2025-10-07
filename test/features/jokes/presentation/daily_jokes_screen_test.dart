@@ -395,7 +395,10 @@ void main() {
         await tester.pump();
         await tester.pump(); // allow post-frame rail slot update
 
-        expect(find.byKey(const Key('joke_viewer_cta_button')), findsOneWidget);
+        expect(
+          find.byKey(const Key('joke_list_viewer-cta-button')),
+          findsOneWidget,
+        );
         expect(find.text('Next joke'), findsOneWidget);
       });
       testWidgets('shows CTA button and toggles label based on state', (
@@ -408,11 +411,14 @@ void main() {
         await tester.pump();
 
         // Initially on setup image: CTA should say Reveal
-        expect(find.byKey(const Key('joke_viewer_cta_button')), findsOneWidget);
+        expect(
+          find.byKey(const Key('joke_list_viewer-cta-button')),
+          findsOneWidget,
+        );
         expect(find.text('Reveal'), findsOneWidget);
 
         // Tap CTA to reveal punchline
-        await tester.tap(find.byKey(const Key('joke_viewer_cta_button')));
+        await tester.tap(find.byKey(const Key('joke_list_viewer-cta-button')));
         await tester.pump(const Duration(milliseconds: 400));
 
         // Now CTA should say Next joke
@@ -428,11 +434,11 @@ void main() {
         // Allow post-frame rail slot update
         await tester.pump();
         // Reveal first
-        await tester.tap(find.byKey(const Key('joke_viewer_cta_button')));
+        await tester.tap(find.byKey(const Key('joke_list_viewer-cta-button')));
         await tester.pump(const Duration(milliseconds: 400));
         // Should show Next joke and be disabled (no onPressed)
         final button = tester.widget<ElevatedButton>(
-          find.byKey(const Key('joke_viewer_cta_button')),
+          find.byKey(const Key('joke_list_viewer-cta-button')),
         );
         expect(find.text('Next joke'), findsOneWidget);
         expect(button.onPressed, isNull);
@@ -450,11 +456,14 @@ void main() {
         await tester.pump(); // allow post-frame rail slot update
 
         // CTA is rendered via the rail bottom slot
-        expect(find.byKey(const Key('joke_viewer_cta_button')), findsOneWidget);
+        expect(
+          find.byKey(const Key('joke_list_viewer-cta-button')),
+          findsOneWidget,
+        );
         expect(find.text('Reveal'), findsOneWidget);
 
         // Tap to reveal punchline
-        await tester.tap(find.byKey(const Key('joke_viewer_cta_button')));
+        await tester.tap(find.byKey(const Key('joke_list_viewer-cta-button')));
         await tester.pump(const Duration(milliseconds: 400));
 
         // Now label should be Next joke
@@ -469,7 +478,10 @@ void main() {
         await tester.pump();
         await tester.pump();
         expect(find.byType(NavigationRail), findsNothing);
-        expect(find.byKey(const Key('joke_viewer_cta_button')), findsOneWidget);
+        expect(
+          find.byKey(const Key('joke_list_viewer-cta-button')),
+          findsOneWidget,
+        );
         expect(find.text('Reveal'), findsOneWidget);
       });
 
@@ -484,7 +496,10 @@ void main() {
         // Allow async settings provider to load reveal preference
         await tester.pump(const Duration(milliseconds: 250));
         expect(find.byType(NavigationRail), findsOneWidget);
-        expect(find.byKey(const Key('joke_viewer_cta_button')), findsOneWidget);
+        expect(
+          find.byKey(const Key('joke_list_viewer-cta-button')),
+          findsOneWidget,
+        );
         expect(find.text('Reveal'), findsOneWidget);
       });
 
@@ -521,7 +536,10 @@ void main() {
 
         // With current behavior, jokes missing punchline image are filtered out,
         // so CTA is not rendered.
-        expect(find.byKey(const Key('joke_viewer_cta_button')), findsNothing);
+        expect(
+          find.byKey(const Key('joke_list_viewer-cta-button')),
+          findsNothing,
+        );
       });
 
       testWidgets('after advancing, CTA label resets to Reveal on next joke', (
@@ -532,12 +550,12 @@ void main() {
         await tester.pump();
 
         // Reveal first joke
-        await tester.tap(find.byKey(const Key('joke_viewer_cta_button')));
+        await tester.tap(find.byKey(const Key('joke_list_viewer-cta-button')));
         await tester.pump(const Duration(milliseconds: 400));
         expect(find.text('Next joke'), findsOneWidget);
 
         // Advance to next joke
-        await tester.tap(find.byKey(const Key('joke_viewer_cta_button')));
+        await tester.tap(find.byKey(const Key('joke_list_viewer-cta-button')));
         await tester.pump(const Duration(milliseconds: 400));
         await tester.pump(const Duration(milliseconds: 400));
 

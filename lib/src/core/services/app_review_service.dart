@@ -113,7 +113,7 @@ class AppReviewService {
       // Check availability first
       final available = await _native.isAvailable();
       final alreadyRequested = _promptHistoryStore.hasRequested();
-      if (!available || alreadyRequested) {
+      if ((!available || alreadyRequested) && !force) {
         return ReviewRequestResult.notAvailable;
       }
 

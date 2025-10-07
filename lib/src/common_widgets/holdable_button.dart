@@ -227,8 +227,8 @@ class _HoldableButtonState extends State<HoldableButton>
           20,
         ), // Apply curved border to outer container
         child: SizedBox(
-          width: 40, // Default width when not expanded
-          height: 40, // Match ElevatedButton height
+          width: 40,
+          height: 40,
           child: Stack(
             children: [
               // Base button (rectangular, no border radius, no icon)

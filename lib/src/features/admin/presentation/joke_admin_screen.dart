@@ -29,6 +29,7 @@ class JokeAdminScreen extends ConsumerWidget implements TitledScreen {
     );
     return AdaptiveAppBarScreen(
       title: 'Admin',
+      automaticallyImplyLeading: false,
       body: SingleChildScrollView(
         child: Padding(
           padding: const EdgeInsets.all(16.0),

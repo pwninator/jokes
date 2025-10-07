@@ -792,6 +792,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
           // Image carousel
           Flexible(
             child: Card(
+              elevation: 4,
               child: Stack(
                 children: [
                   GestureDetector(

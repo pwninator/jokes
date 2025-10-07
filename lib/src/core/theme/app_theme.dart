@@ -8,8 +8,9 @@ const Color secondaryAccent = Color(0xFF42A5F5); // Lighter blue accent
 ColorScheme lightColorScheme = ColorScheme.fromSeed(
   brightness: Brightness.light,
   dynamicSchemeVariant: DynamicSchemeVariant.content,
-  seedColor: Color.fromARGB(255, 239, 167, 22),
+  seedColor: Color.fromARGB(255, 243, 179, 51),
   primary: Color.fromARGB(255, 198, 109, 0),
+  secondaryContainer: Color.fromARGB(255, 227, 215, 190),
   // tertiary: Color.fromARGB(255, 118, 83, 247),
   // onTertiary: Colors.white,
   // tertiaryContainer: Color.fromARGB(255, 154, 127, 250),
@@ -28,16 +29,14 @@ ColorScheme darkColorScheme = ColorScheme.fromSeed(
   error: Color.fromARGB(255, 198, 41, 41),
 );
 
-final TextTheme textTheme = GoogleFonts.nunitoSansTextTheme(
-  const TextTheme(
-    headlineMedium: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-  ),
-);
+final TextTheme textTheme = GoogleFonts.nunitoSansTextTheme(const TextTheme());
 
 const AppBarTheme appBarTheme = AppBarTheme(
   backgroundColor: Colors.transparent,
   elevation: 0,
 );
+
+const double buttonRadius = 64;
 
 ElevatedButtonThemeData buildElevatedButtonTheme(ColorScheme colorScheme) {
   return ElevatedButtonThemeData(
@@ -47,12 +46,71 @@ ElevatedButtonThemeData buildElevatedButtonTheme(ColorScheme colorScheme) {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(buttonRadius),
       ),
-      elevation: 4,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
     ),
   );
 }
 
-const double buttonRadius = 64;
+OutlinedButtonThemeData buildOutlinedButtonTheme(ColorScheme colorScheme) {
+  return OutlinedButtonThemeData(
+    style: OutlinedButton.styleFrom(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(buttonRadius),
+      ),
+    ),
+  );
+}
+
+TextButtonThemeData buildTextButtonTheme(ColorScheme colorScheme) {
+  return TextButtonThemeData(
+    style: TextButton.styleFrom(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(buttonRadius),
+      ),
+    ),
+  );
+}
+
+SwitchThemeData buildSwitchTheme(ColorScheme colorScheme) {
+  return SwitchThemeData(
+    thumbColor: WidgetStateProperty.resolveWith<Color?>((
+      Set<WidgetState> states,
+    ) {
+      if (states.contains(WidgetState.disabled)) {
+        return null;
+      }
+      if (states.contains(WidgetState.selected)) {
+        return lightColorScheme.primary;
+      }
+      return null;
+    }),
+    trackColor: WidgetStateProperty.resolveWith<Color?>((
+      Set<WidgetState> states,
+    ) {
+      if (states.contains(WidgetState.disabled)) {
+        return null;
+      }
+      if (states.contains(WidgetState.selected)) {
+        return lightColorScheme.primary.withValues(alpha: 0.5);
+      }
+      return null;
+    }),
+  );
+}
+
+CardThemeData buildCardTheme(ColorScheme colorScheme) {
+  return CardThemeData(
+    color: colorScheme.surfaceContainerHigh,
+    elevation: 0,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(12),
+      side: BorderSide(
+        color: colorScheme.outline.withValues(alpha: 0.2),
+        width: 0.5,
+      ),
+    ),
+  );
+}
 
 final ThemeData lightTheme =
     ThemeData.from(
@@ -62,63 +120,20 @@ final ThemeData lightTheme =
       extensions: [AppColorExtension.light],
       appBarTheme: appBarTheme,
       elevatedButtonTheme: buildElevatedButtonTheme(lightColorScheme),
-      outlinedButtonTheme: OutlinedButtonThemeData(
-        style: OutlinedButton.styleFrom(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(buttonRadius),
-          ),
-        ),
-      ),
-      textButtonTheme: TextButtonThemeData(
-        style: TextButton.styleFrom(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(buttonRadius),
-          ),
-        ),
-      ),
-      cardTheme: CardThemeData(
-        color: lightColorScheme.surfaceContainerHigh,
-        elevation: 4,
-      ),
+      outlinedButtonTheme: buildOutlinedButtonTheme(lightColorScheme),
+      textButtonTheme: buildTextButtonTheme(lightColorScheme),
+      cardTheme: buildCardTheme(lightColorScheme),
+      switchTheme: buildSwitchTheme(lightColorScheme),
     );
 
 final ThemeData darkTheme =
     ThemeData.from(colorScheme: darkColorScheme, textTheme: textTheme).copyWith(
       extensions: [AppColorExtension.dark],
-      elevatedButtonTheme: ElevatedButtonThemeData(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: darkColorScheme.primary,
-          foregroundColor: darkColorScheme.onPrimary,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(buttonRadius),
-          ),
-        ),
-      ),
-      outlinedButtonTheme: OutlinedButtonThemeData(
-        style: OutlinedButton.styleFrom(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(buttonRadius),
-          ),
-        ),
-      ),
-      textButtonTheme: TextButtonThemeData(
-        style: TextButton.styleFrom(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(buttonRadius),
-          ),
-        ),
-      ),
-      cardTheme: CardThemeData(
-        color: darkColorScheme.surfaceContainerHigh,
-        elevation: 1,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-          side: BorderSide(
-            color: darkColorScheme.outline.withValues(alpha: 0.2),
-            width: 0.5,
-          ),
-        ),
-      ),
+      elevatedButtonTheme: buildElevatedButtonTheme(darkColorScheme),
+      outlinedButtonTheme: buildOutlinedButtonTheme(darkColorScheme),
+      textButtonTheme: buildTextButtonTheme(darkColorScheme),
+      cardTheme: buildCardTheme(darkColorScheme),
+      switchTheme: buildSwitchTheme(darkColorScheme),
     );
 
 @immutable
@@ -180,4 +195,14 @@ class AppColorExtension extends ThemeExtension<AppColorExtension> {
 
 extension AppThemeExtension on ThemeData {
   AppColorExtension get appColors => extension<AppColorExtension>()!;
+}
+
+TextStyle menuTitleTextStyle(BuildContext context) {
+  return Theme.of(context).textTheme.bodyMedium!;
+}
+
+TextStyle menuSubtitleTextStyle(BuildContext context) {
+  return Theme.of(context).textTheme.bodySmall!.copyWith(
+    color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
+  );
 }

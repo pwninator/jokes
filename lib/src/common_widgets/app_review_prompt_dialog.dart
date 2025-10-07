@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:snickerdoodle/src/common_widgets/bouncing_button.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 
 /// Configuration for a review prompt variant
@@ -157,21 +158,12 @@ class AppReviewPromptDialog extends StatelessWidget {
                 children: [
                   // Dismiss button
                   Expanded(
-                    child: OutlinedButton(
-                      key: Key(
+                    child: BouncingButton(
+                      buttonKey: Key(
                         'app_review_prompt_dialog-dismiss-button-${variant.name}',
                       ),
+                      isPositive: false,
                       onPressed: onDismiss,
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: theme.colorScheme.onSurface.withValues(
-                          alpha: 0.8,
-                        ),
-                        side: BorderSide(
-                          color: theme.colorScheme.outline,
-                          width: 1,
-                        ),
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
                       child: Text(
                         config.dismissButtonText,
                         textAlign: TextAlign.center,
@@ -182,15 +174,12 @@ class AppReviewPromptDialog extends StatelessWidget {
 
                   // Accept button
                   Expanded(
-                    // flex: 2,
-                    child: ElevatedButton(
-                      key: Key(
+                    child: BouncingButton(
+                      buttonKey: Key(
                         'app_review_prompt_dialog-accept-button-${variant.name}',
                       ),
+                      isPositive: true,
                       onPressed: onAccept,
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                      ),
                       child: Text(
                         config.acceptButtonText,
                         textAlign: TextAlign.center,

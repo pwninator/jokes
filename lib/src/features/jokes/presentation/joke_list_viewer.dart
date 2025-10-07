@@ -283,6 +283,7 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
                     final revealModeEnabled = ref.read(
                       jokeViewerRevealProvider,
                     );
+                    final brightness = Theme.of(context).brightness;
                     analyticsService.logJokeNavigation(
                       joke.id,
                       jokeScrollDepth,
@@ -291,6 +292,7 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
                       jokeViewerMode: revealModeEnabled
                           ? JokeViewerMode.reveal
                           : JokeViewerMode.bothAdaptive,
+                      brightness: brightness,
                     );
 
                     _lastNavigationMethod = AnalyticsNavigationMethod.swipe;

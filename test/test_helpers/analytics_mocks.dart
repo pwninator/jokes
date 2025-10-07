@@ -94,6 +94,7 @@ class AnalyticsMocks {
         method: any(named: 'method'),
         jokeContext: any(named: 'jokeContext'),
         jokeViewerMode: any(named: 'jokeViewerMode'),
+        brightness: any(named: 'brightness'),
       ),
     ).thenAnswer((_) async {});
 

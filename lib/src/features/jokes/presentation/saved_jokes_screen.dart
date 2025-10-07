@@ -47,10 +47,43 @@ class _SavedJokesScreenState extends ConsumerState<SavedJokesScreen> {
     return AdaptiveAppBarScreen(
       title: 'Saved Jokes',
       automaticallyImplyLeading: false,
-      body: JokeListViewer(
-        dataSource: _dataSource,
-        jokeContext: AnalyticsJokeContext.savedJokes,
-        viewerId: 'saved_jokes',
+      body: Column(
+        children: [
+          Consumer(
+            builder: (context, ref, _) {
+              final countInfo = ref.watch(_dataSource.resultCount);
+              final count = countInfo.count;
+
+              if (count == 0) return const SizedBox.shrink();
+
+              final hasMoreLabel = countInfo.hasMore ? '+' : '';
+              final noun = count == 1 ? 'saved joke' : 'saved jokes';
+              final label = '$count$hasMoreLabel $noun';
+
+              return Align(
+                alignment: Alignment.centerLeft,
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16.0,
+                    vertical: 6.0,
+                  ),
+                  child: Text(
+                    label,
+                    key: const Key('saved_jokes_screen-results-count'),
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ),
+              );
+            },
+          ),
+          Expanded(
+            child: JokeListViewer(
+              dataSource: _dataSource,
+              jokeContext: AnalyticsJokeContext.savedJokes,
+              viewerId: 'saved_jokes',
+            ),
+          ),
+        ],
       ),
     );
   }

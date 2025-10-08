@@ -5,12 +5,12 @@ class UsersJokesHistogram {
   // Map of days used to a map of joke view buckets to user count
   final Map<int, Map<int, int>> countsByDaysUsed;
   final List<int> orderedDaysUsed;
-  final int maxUsersPerDay;
+  final int maxUsersInADaysUsedBucket;
 
   const UsersJokesHistogram({
     required this.countsByDaysUsed,
     required this.orderedDaysUsed,
-    required this.maxUsersPerDay,
+    required this.maxUsersInADaysUsedBucket,
   });
 }
 
@@ -32,7 +32,7 @@ int getJokeViewBucket(int jokesViewed) {
 }
 
 final usersJokesHistogramProvider = StreamProvider<UsersJokesHistogram>((ref) {
-  return ref.watch(userRepositoryProvider).watchAllUsers().map((users) {
+  return ref.watch(allUsersProvider.stream).map((users) {
     final now = DateTime.now().toUtc();
     final yesterday = now.subtract(const Duration(days: 1));
     final dayBeforeYesterday = DateTime(
@@ -49,7 +49,7 @@ final usersJokesHistogramProvider = StreamProvider<UsersJokesHistogram>((ref) {
       return const UsersJokesHistogram(
         countsByDaysUsed: {},
         orderedDaysUsed: [],
-        maxUsersPerDay: 0,
+        maxUsersInADaysUsedBucket: 0,
       );
     }
 
@@ -73,7 +73,7 @@ final usersJokesHistogramProvider = StreamProvider<UsersJokesHistogram>((ref) {
     return UsersJokesHistogram(
       countsByDaysUsed: counts,
       orderedDaysUsed: orderedDaysUsed,
-      maxUsersPerDay: maxUsers,
+      maxUsersInADaysUsedBucket: maxUsers,
     );
   });
 });

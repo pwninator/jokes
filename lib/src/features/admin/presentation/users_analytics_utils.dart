@@ -69,6 +69,71 @@ String formatShortDate(DateTime utcDay) {
   return '${months[d.month - 1]} ${d.day}';
 }
 
+BarTooltipItem buildUsersJokesCountTooltip({
+  required int daysUsed,
+  required Map<int, int> buckets,
+  required TextStyle textStyle,
+  required Map<int, Color> colorStops,
+}) {
+  final totalUsers = buckets.values.fold(0, (a, b) => a + b);
+  final children = <TextSpan>[
+    TextSpan(
+      text: 'Days Used: $daysUsed\n',
+      style: textStyle.copyWith(fontWeight: FontWeight.bold),
+    ),
+    TextSpan(
+      text: 'Total Users: $totalUsers\n',
+      style: textStyle.copyWith(fontWeight: FontWeight.bold),
+    ),
+  ];
+
+  final labels = {
+    0: '0',
+    1: '1',
+    5: '2-5',
+    10: '6-10',
+    20: '11-20',
+    30: '21-30',
+    40: '31-40',
+    50: '41-50',
+    70: '51-70',
+    100: '71-100',
+    101: '101+',
+  };
+
+  final sortedBuckets = buckets.keys.toList()..sort();
+  for (final bucket in sortedBuckets) {
+    final count = buckets[bucket]!;
+    final label = labels[bucket]!;
+    final background = getBackgroundColorForBucket(bucket, colorStops);
+    final foreground = calculateInverseColor(background);
+    children.add(
+      TextSpan(
+        text: '$label: $count\n',
+        style: textStyle.copyWith(
+          color: foreground,
+          backgroundColor: background,
+        ),
+      ),
+    );
+  }
+
+  if (children.isNotEmpty) {
+    final last = children.last;
+    children[children.length - 1] = TextSpan(
+      text: last.text!.trimRight(),
+      style: last.style,
+    );
+  }
+
+  return BarTooltipItem(
+    '',
+    textStyle,
+    children: children,
+    textAlign: TextAlign.left,
+  );
+}
+
 BarTooltipItem buildUsersAnalyticsTooltip({
   required DateTime date,
   required Map<int, int> buckets,

@@ -57,7 +57,7 @@ void main() {
       expect(histogram.countsByDaysUsed[5]!.length, 2);
       expect(histogram.countsByDaysUsed[5]![20], 1); // 15 jokes -> bucket 20
       expect(histogram.countsByDaysUsed[5]![10], 1); // 8 jokes -> bucket 10
-      expect(histogram.maxUsersPerDay, 2);
+      expect(histogram.maxUsersInADaysUsedBucket, 2);
     });
   });
 }

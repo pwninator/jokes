@@ -18,7 +18,7 @@ void main() {
         5: {10: 1, 20: 2},
         10: {5: 3, 50: 1},
       });
-      when(() => mockHistogram.maxUsersPerDay).thenReturn(4);
+      when(() => mockHistogram.maxUsersInADaysUsedBucket).thenReturn(4);
     });
 
     testWidgets('renders chart correctly with data', (

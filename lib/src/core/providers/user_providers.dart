@@ -10,6 +10,11 @@ final userRepositoryProvider = Provider<UserRepository>((ref) {
   return FirestoreUserRepository(firestore: firestore);
 });
 
+/// Shared provider to fetch all users once
+final allUsersProvider = StreamProvider<List<AppUserSummary>>((ref) {
+  return ref.watch(userRepositoryProvider).watchAllUsers();
+});
+
 /// Bucket for 1..10 where 10 == 10+
 int bucketDaysUsed(int value) {
   if (value <= 1) return 1;
@@ -46,7 +51,7 @@ final usersLoginHistogramProvider = StreamProvider<UsersLoginHistogram>((ref) {
   tzdata.initializeTimeZones();
   final la = tz.getLocation('America/Los_Angeles');
 
-  return ref.watch(userRepositoryProvider).watchAllUsers().map((users) {
+  return ref.watch(allUsersProvider.stream).map((users) {
     if (users.isEmpty) {
       return const UsersLoginHistogram(
         orderedDates: [],

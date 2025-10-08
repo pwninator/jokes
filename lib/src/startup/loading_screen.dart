@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 
 /// Loading screen shown while startup tasks are executing.
@@ -80,7 +81,7 @@ class _LoadingScreenState extends State<LoadingScreen>
                   // Image centered on screen
                   Center(
                     child: Image.asset(
-                      'assets/images/icon_cookie_01_transparent_dark_300.png',
+                      JokeConstants.iconCookie01TransparentDark300,
                       width: 250,
                       height: 250,
                       fit: BoxFit.cover,

@@ -6,6 +6,8 @@ import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_functi
 class JokeConstants {
   JokeConstants._();
 
+  static const String iconCookie01TransparentDark300 = 'assets/images/icon_cookie_01_transparent_dark2_300.png';
+
   static const String defaultJokeScheduleId = 'daily_jokes';
   static const int subscriptionPromptJokesViewedThreshold = 5;
 

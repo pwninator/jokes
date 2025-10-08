@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 
 /// Error screen shown when critical startup tasks fail after all retries.
@@ -35,7 +36,7 @@ class ErrorScreen extends StatelessWidget {
                 children: [
                   Center(
                     child: Image.asset(
-                      'assets/images/icon_cookie_01_transparent_dark_300.png',
+                      JokeConstants.iconCookie01TransparentDark300,
                       width: 250,
                       height: 250,
                       fit: BoxFit.cover,

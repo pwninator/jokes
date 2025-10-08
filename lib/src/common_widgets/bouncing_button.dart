@@ -195,7 +195,6 @@ class _BouncingButtonState extends State<BouncingButton>
               return widget.isPositive
                   ? colorScheme.primaryContainer
                   : colorScheme.secondaryContainer;
-              ;
             }),
             foregroundColor: WidgetStateProperty.resolveWith((states) {
               if (states.contains(WidgetState.disabled)) {
@@ -204,7 +203,6 @@ class _BouncingButtonState extends State<BouncingButton>
               return widget.isPositive
                   ? colorScheme.onPrimaryContainer
                   : colorScheme.onSecondaryContainer;
-              ;
             }),
             animationDuration: Duration.zero,
           );

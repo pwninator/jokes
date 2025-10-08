@@ -6,7 +6,11 @@ import 'package:snickerdoodle/src/core/services/performance_service.dart';
 /// Each task has a unique [id] and an [execute] function that performs
 /// the initialization work.
 class StartupTask {
-  const StartupTask({required this.id, required this.execute, this.traceName});
+  const StartupTask({
+    required this.id,
+    required this.execute,
+    required this.traceName,
+  });
 
   /// Unique identifier for this task (used for logging and debugging).
   final String id;
@@ -17,10 +21,10 @@ class StartupTask {
   /// and register provider overrides that will be used when the app starts.
   final Future<void> Function(StartupContext context) execute;
 
-  /// Optional trace name for Firebase Performance monitoring.
+  /// Required trace name for Firebase Performance monitoring.
   ///
-  /// If provided, a performance trace will be recorded for this task.
-  final TraceName? traceName;
+  /// A performance trace will be recorded for this task.
+  final TraceName traceName;
 }
 
 /// Context provided to startup tasks during execution.

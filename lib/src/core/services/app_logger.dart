@@ -51,29 +51,53 @@ class AppLogger {
   static void debug(String message) => instance._debug(message);
   static void info(String message) => instance._info(message);
   static void warn(String message) => instance._warn(message);
+  static void error(String message, {StackTrace? stackTrace}) =>
+      instance._error(message, stackTrace: stackTrace);
+  static void fatal(String message, {StackTrace? stackTrace}) =>
+      instance._fatal(message, stackTrace: stackTrace);
 
   // Instance methods
   void _debug(String message) {
-    if (!_isRelease) {
-      // Debug prints only in debug/profile
-      debugPrint(message);
-    }
+    _maybeDebugPrint(message);
   }
 
   void _info(String message) {
-    if (!_isRelease) {
-      debugPrint(message);
-    }
+    _maybeDebugPrint(message);
   }
 
   void _warn(String message) async {
-    if (_isRelease) {
-      // Lightweight breadcrumb in release
-      try {
-        await _crashReportingService.log('WARN: $message');
-      } catch (_) {}
-    } else {
-      debugPrint('WARN: $message');
+    _maybeDebugPrint('WARN: $message');
+
+    try {
+      await _crashReportingService.log('WARN: $message');
+    } catch (_) {}
+  }
+
+  void _error(String message, {StackTrace? stackTrace}) async {
+    _maybeDebugPrint('ERROR: $message');
+
+    try {
+      await _crashReportingService.recordNonFatal(
+        'ERROR: $message',
+        stackTrace: stackTrace ?? StackTrace.current,
+      );
+    } catch (_) {}
+  }
+
+  void _fatal(String message, {StackTrace? stackTrace}) async {
+    _maybeDebugPrint('FATAL: $message');
+
+    try {
+      await _crashReportingService.recordFatal(
+        'FATAL: $message',
+        stackTrace ?? StackTrace.current,
+      );
+    } catch (_) {}
+  }
+
+  void _maybeDebugPrint(String message) {
+    if (!_isRelease) {
+      debugPrint(message);
     }
   }
 }

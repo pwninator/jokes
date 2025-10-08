@@ -3,14 +3,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:snickerdoodle/src/common_widgets/bouncing_button.dart';
 
 void main() {
-  Future<double> _resolveElevation(WidgetTester tester, Finder finder) async {
+  Future<double> resolveElevation(WidgetTester tester, Finder finder) async {
     final ElevatedButton button = tester.widget<ElevatedButton>(finder);
-    final MaterialStateProperty<double?>? property = button.style?.elevation;
+    final WidgetStateProperty<double?>? property = button.style?.elevation;
     expect(property, isNotNull, reason: 'Expected button elevation to be set');
-    return property!.resolve(<MaterialState>{})!;
+    return property!.resolve(<WidgetState>{})!;
   }
 
-  Animation<double> _currentScale(WidgetTester tester, Finder finder) {
+  Animation<double> currentScale(WidgetTester tester, Finder finder) {
     final scaleTransition = tester.widget<ScaleTransition>(finder);
     return scaleTransition.scale;
   }
@@ -42,8 +42,8 @@ void main() {
       matching: find.byType(ScaleTransition),
     );
 
-    final double baseElevation = await _resolveElevation(tester, buttonFinder);
-    expect(_currentScale(tester, scaleFinder).value, closeTo(1.0, 0.0001));
+    final double baseElevation = await resolveElevation(tester, buttonFinder);
+    expect(currentScale(tester, scaleFinder).value, closeTo(1.0, 0.0001));
 
     final TestGesture gesture = await tester.startGesture(
       tester.getCenter(buttonFinder),
@@ -51,29 +51,26 @@ void main() {
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 90));
 
-    final double squishScale = _currentScale(tester, scaleFinder).value;
+    final double squishScale = currentScale(tester, scaleFinder).value;
     expect(squishScale, lessThan(1.0));
-    final double squishElevation = await _resolveElevation(
-      tester,
-      buttonFinder,
-    );
+    final double squishElevation = await resolveElevation(tester, buttonFinder);
     expect(squishElevation, closeTo(1.0, 0.1));
 
     await gesture.up();
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 140));
 
-    final double overshootScale = _currentScale(tester, scaleFinder).value;
+    final double overshootScale = currentScale(tester, scaleFinder).value;
     expect(overshootScale, greaterThan(1.0));
-    final double overshootElevation = await _resolveElevation(
+    final double overshootElevation = await resolveElevation(
       tester,
       buttonFinder,
     );
     expect(overshootElevation, greaterThan(baseElevation));
 
     await tester.pumpAndSettle();
-    expect(_currentScale(tester, scaleFinder).value, closeTo(1.0, 0.0001));
-    final double settledElevation = await _resolveElevation(
+    expect(currentScale(tester, scaleFinder).value, closeTo(1.0, 0.0001));
+    final double settledElevation = await resolveElevation(
       tester,
       buttonFinder,
     );
@@ -110,12 +107,12 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 120));
 
-    final Animation<double> animation = _currentScale(tester, scaleFinder);
+    final Animation<double> animation = currentScale(tester, scaleFinder);
     expect(animation, isA<AlwaysStoppedAnimation<double>>());
     expect(animation.value, 1.0);
 
     await gesture.up();
     await tester.pumpAndSettle();
-    expect(_currentScale(tester, scaleFinder).value, closeTo(1.0, 0.0001));
+    expect(currentScale(tester, scaleFinder).value, closeTo(1.0, 0.0001));
   });
 }

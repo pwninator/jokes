@@ -1,7 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
@@ -16,13 +15,13 @@ import 'package:snickerdoodle/src/features/settings/application/settings_service
 import 'package:snickerdoodle/src/startup/startup_task.dart';
 import 'package:snickerdoodle/src/utils/device_utils.dart';
 
-import '../../firebase_options.dart';
-
 /// Timeout duration for best effort blocking tasks.
 ///
 /// All best effort tasks share this timeout. If they don't complete within
 /// this time, the app will proceed to render but tasks continue in background.
 const Duration bestEffortTimeout = Duration(seconds: 4);
+
+const useEmulatorInDebugMode = true;
 
 /// Critical blocking tasks that must complete before rendering the first frame.
 ///
@@ -31,8 +30,16 @@ const Duration bestEffortTimeout = Duration(seconds: 4);
 ///
 /// Tasks in this list run in parallel with each other.
 const List<StartupTask> criticalBlockingTasks = [
-  StartupTask(id: 'firebase', execute: _initializeFirebase),
-  StartupTask(id: 'shared_prefs', execute: _initializeSharedPreferences),
+  StartupTask(
+    id: 'emulators',
+    execute: _initializeEmulators,
+    traceName: TraceName.startupTaskEmulators,
+  ),
+  StartupTask(
+    id: 'shared_prefs',
+    execute: _initializeSharedPreferences,
+    traceName: TraceName.startupTaskSharedPrefs,
+  ),
 ];
 
 /// Best effort blocking tasks that block the first frame for up to [bestEffortTimeout].
@@ -84,10 +91,7 @@ const List<StartupTask> backgroundTasks = [
 // ============================================================================
 
 /// Initialize Firebase and configure emulators in debug mode.
-Future<void> _initializeFirebase(StartupContext context) async {
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-
-  const useEmulatorInDebugMode = true;
+Future<void> _initializeEmulators(StartupContext context) async {
   // ignore: dead_code
   if (kDebugMode && useEmulatorInDebugMode) {
     final isPhysicalDevice = await DeviceUtils.isPhysicalDevice;

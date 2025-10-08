@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/app.dart';
 import 'package:snickerdoodle/src/core/providers/app_providers.dart';
+import 'package:snickerdoodle/src/core/providers/crash_reporting_provider.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
+import 'package:snickerdoodle/src/core/services/crash_reporting_service.dart';
 import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/startup/error_screen.dart';
 import 'package:snickerdoodle/src/startup/loading_screen.dart';
@@ -25,7 +27,6 @@ class StartupOrchestrator extends StatefulWidget {
 
 class _StartupOrchestratorState extends State<StartupOrchestrator> {
   _StartupState _state = _StartupState.loading;
-  String _errorMessage = '';
   int _completedTasks = 0;
   List<Override> _collectedOverrides = [];
 
@@ -41,24 +42,40 @@ class _StartupOrchestratorState extends State<StartupOrchestrator> {
 
   /// Main startup sequence orchestration.
   Future<void> _runStartupSequence() async {
-    if (!mounted) return;
-    setState(() {
-      _state = _StartupState.loading;
-      _completedTasks = 0;
-      _collectedOverrides = [];
-    });
-
-    final initialContext = StartupContext(
-      ProviderContainer(overrides: widget.initialOverrides),
-    );
+    StartupContext? initialContext;
     StartupContext? enrichedContext;
-    bool tasksLaunched =
-        false; // Track if we launched tasks (for cleanup on error)
+    // Track if we launched tasks (for cleanup on error)
+    bool tasksLaunched = false;
 
     try {
+      if (!mounted) return;
+      setState(() {
+        _state = _StartupState.loading;
+        _completedTasks = 0;
+        _collectedOverrides = [];
+      });
+
+      initialContext = StartupContext(
+        ProviderContainer(overrides: widget.initialOverrides),
+      );
+      // Read services from initial context for critical tasks
+      final perfService = initialContext.container.read(
+        performanceServiceProvider,
+      );
+      // Start performance trace for startup phase
+      perfService.startNamedTrace(name: TraceName.startupOverall);
+
+      final crashlyticsService = initialContext.container.read(
+        crashReportingServiceProvider,
+      );
+
       // Phase 1: Critical blocking tasks (with retry)
       AppLogger.debug('Starting critical tasks...');
-      await _runCriticalTasksWithRetry(initialContext);
+      await _runCriticalTasksWithRetry(
+        initialContext,
+        perfService,
+        crashlyticsService,
+      );
       AppLogger.debug('Critical tasks completed');
 
       // Recreate container with accumulated overrides from critical tasks
@@ -70,13 +87,6 @@ class _StartupOrchestratorState extends State<StartupOrchestrator> {
       enrichedContext = initialContext.recreateWithOverrides(
         widget.initialOverrides,
       );
-
-      // Start performance trace for post-critical startup phase
-      // (Firebase is now initialized, so Performance SDK is available)
-      final perfService = enrichedContext.container.read(
-        performanceServiceProvider,
-      );
-      perfService.startNamedTrace(name: TraceName.startupPostCritical);
 
       // Dispose the initial container since we now have an enriched one
       try {
@@ -92,12 +102,22 @@ class _StartupOrchestratorState extends State<StartupOrchestrator> {
       AppLogger.debug('Starting best effort and background tasks...');
       final bestEffortFutures = bestEffortBlockingTasks
           .map(
-            (task) => _runBestEffortTask(task, enrichedContext!, perfService),
+            (task) => _runBestEffortTask(
+              task,
+              enrichedContext!,
+              perfService,
+              crashlyticsService,
+            ),
           )
           .toList();
       final backgroundFutures = backgroundTasks
           .map(
-            (task) => _runBackgroundTask(task, enrichedContext!, perfService),
+            (task) => _runBackgroundTask(
+              task,
+              enrichedContext!,
+              perfService,
+              crashlyticsService,
+            ),
           )
           .toList();
 
@@ -139,10 +159,12 @@ class _StartupOrchestratorState extends State<StartupOrchestrator> {
         // Force 100% completion for UX even if best effort tasks failed
         _completedTasks = _totalTrackedTasks;
       });
-      await Future.delayed(Duration(milliseconds: 1000));
+
+      // Give the progress bar time to fill
+      await Future.delayed(LoadingScreen.progressBarAnimationDuration);
 
       // Stop the post-critical startup trace before transitioning to ready state
-      perfService.stopNamedTrace(name: TraceName.startupPostCritical);
+      perfService.stopNamedTrace(name: TraceName.startupOverall);
 
       if (!mounted) return;
 
@@ -150,23 +172,18 @@ class _StartupOrchestratorState extends State<StartupOrchestrator> {
         _state = _StartupState.ready;
       });
     } catch (e) {
-      AppLogger.warn('Startup sequence failed: $e');
+      AppLogger.fatal('Startup sequence failed: $e');
 
       // Clean up containers if tasks weren't launched
       // If tasks were launched, they'll dispose the container when they complete
       if (!tasksLaunched) {
-        if (enrichedContext != null) {
-          enrichedContext.container.dispose();
-        } else {
-          // Error during critical tasks, enrichedContext was never created
-          initialContext.container.dispose();
-        }
+        initialContext?.container.dispose();
+        enrichedContext?.container.dispose();
       }
 
       if (!mounted) return;
       setState(() {
         _state = _StartupState.error;
-        _errorMessage = e.toString();
       });
     }
   }
@@ -174,64 +191,95 @@ class _StartupOrchestratorState extends State<StartupOrchestrator> {
   /// Run critical tasks with retry logic.
   ///
   /// Each task is retried up to 3 times on failure. Only failed tasks are
-  /// retried, not successful ones.
-  Future<void> _runCriticalTasksWithRetry(StartupContext context) async {
+  /// retried, not successful ones. Traces cover all retries and only complete
+  /// on success or after 3 failures.
+  Future<void> _runCriticalTasksWithRetry(
+    StartupContext context,
+    PerformanceService perfService,
+    CrashReportingService crashService,
+  ) async {
     const maxRetries = 3;
     final failedTasks = <StartupTask>[];
     final tasksToRun = List<StartupTask>.from(criticalBlockingTasks);
 
-    for (int attempt = 1; attempt <= maxRetries; attempt++) {
-      failedTasks.clear();
+    // Start traces for all critical tasks at the beginning
+    // Each trace will measure from start until completion (including retries)
+    for (final task in criticalBlockingTasks) {
+      perfService.startNamedTrace(name: task.traceName);
+    }
 
-      // Run all tasks (or retry only failed ones) in parallel
-      final results = await Future.wait(
-        tasksToRun.map((task) async {
-          try {
-            await task.execute(context);
-            _incrementProgress();
-            AppLogger.debug('Critical task completed: ${task.id}');
-            return _TaskResult(task, success: true);
-          } catch (e) {
-            AppLogger.warn(
-              'Critical task failed (attempt $attempt): ${task.id} - $e',
-            );
-            if (attempt == maxRetries) {
-              // Log to console but don't try to use crashlytics if it's not initialized
-              AppLogger.warn(
-                'Critical task failed after $maxRetries attempts: ${task.id} - $e',
+    try {
+      for (int attempt = 1; attempt <= maxRetries; attempt++) {
+        failedTasks.clear();
+
+        // Run all tasks (or retry only failed ones) in parallel
+        final results = await Future.wait(
+          tasksToRun.map((task) async {
+            try {
+              await task.execute(context);
+              _incrementProgress();
+              AppLogger.debug('Startup Critical Task completed: ${task.id}');
+
+              // Stop trace on success
+              perfService.stopNamedTrace(name: task.traceName);
+              return _TaskResult(task, success: true);
+            } catch (e, stackTrace) {
+              if (attempt == maxRetries) {
+                AppLogger.fatal(
+                  'Startup Critical Task failed after $maxRetries attempts: ${task.id} - $e',
+                  stackTrace: stackTrace,
+                );
+                // Stop trace on final failure
+                perfService.stopNamedTrace(name: task.traceName);
+              } else {
+                AppLogger.error(
+                  'Startup Critical Task ${task.id} failed (attempt $attempt): $e',
+                  stackTrace: stackTrace,
+                );
+              }
+              return _TaskResult(
+                task,
+                success: false,
+                error: e,
+                stackTrace: stackTrace.toString(),
               );
             }
-            return _TaskResult(task, success: false, error: e);
+          }),
+        );
+
+        // Collect failed tasks for retry
+        for (final result in results) {
+          if (!result.success) {
+            failedTasks.add(result.task);
           }
-        }),
-      );
-
-      // Collect failed tasks for retry
-      for (final result in results) {
-        if (!result.success) {
-          failedTasks.add(result.task);
         }
-      }
 
-      // If all succeeded, we're done
-      if (failedTasks.isEmpty) {
-        return;
-      }
+        // If all succeeded, we're done
+        if (failedTasks.isEmpty) {
+          return;
+        }
 
-      // If this was the last attempt, throw
-      if (attempt == maxRetries) {
-        throw Exception(
-          'Critical tasks failed after $maxRetries attempts: '
-          '${failedTasks.map((t) => t.id).join(", ")}',
+        // If this was the last attempt, throw
+        if (attempt == maxRetries) {
+          throw Exception(
+            'Critical tasks failed after $maxRetries attempts: '
+            '${failedTasks.map((t) => t.id).join(", ")}',
+          );
+        }
+
+        // Prepare to retry only failed tasks
+        tasksToRun.clear();
+        tasksToRun.addAll(failedTasks);
+        AppLogger.debug(
+          'Retrying ${failedTasks.length} failed tasks (attempt ${attempt + 1})...',
         );
       }
-
-      // Prepare to retry only failed tasks
-      tasksToRun.clear();
-      tasksToRun.addAll(failedTasks);
-      AppLogger.debug(
-        'Retrying ${failedTasks.length} failed tasks (attempt ${attempt + 1})...',
-      );
+    } catch (e) {
+      // Ensure any remaining traces are stopped on unexpected error
+      for (final task in criticalBlockingTasks) {
+        perfService.stopNamedTrace(name: task.traceName);
+      }
+      rethrow;
     }
   }
 
@@ -242,26 +290,24 @@ class _StartupOrchestratorState extends State<StartupOrchestrator> {
     StartupTask task,
     StartupContext context,
     PerformanceService perfService,
+    CrashReportingService crashService,
   ) async {
-    if (task.traceName != null) {
-      perfService.startNamedTrace(name: task.traceName!);
-    }
+    perfService.startNamedTrace(name: task.traceName);
 
     try {
       await task.execute(context);
       _incrementProgress();
-      AppLogger.debug('Best effort task completed: ${task.id}');
+      AppLogger.debug('Startup Best effort task completed: ${task.id}');
 
-      if (task.traceName != null) {
-        perfService.stopNamedTrace(name: task.traceName!);
-      }
-    } catch (e) {
-      AppLogger.warn('Best effort task failed: ${task.id} - $e');
+      perfService.stopNamedTrace(name: task.traceName);
+    } catch (e, stack) {
+      AppLogger.fatal(
+        'Startup Best effort task failed: ${task.id} - $e',
+        stackTrace: stack,
+      );
+
       // Drop the trace on failure (don't report failed tasks)
-      if (task.traceName != null) {
-        perfService.dropNamedTrace(name: task.traceName!);
-      }
-      // Errors are already logged to crashlytics in task implementations
+      perfService.dropNamedTrace(name: task.traceName);
     }
   }
 
@@ -272,25 +318,23 @@ class _StartupOrchestratorState extends State<StartupOrchestrator> {
     StartupTask task,
     StartupContext context,
     PerformanceService perfService,
+    CrashReportingService crashService,
   ) async {
-    if (task.traceName != null) {
-      perfService.startNamedTrace(name: task.traceName!);
-    }
+    perfService.startNamedTrace(name: task.traceName);
 
     try {
       await task.execute(context);
-      AppLogger.debug('Background task completed: ${task.id}');
+      AppLogger.debug('Startup Background task completed: ${task.id}');
 
-      if (task.traceName != null) {
-        perfService.stopNamedTrace(name: task.traceName!);
-      }
-    } catch (e) {
-      AppLogger.warn('Background task failed: ${task.id} - $e');
+      perfService.stopNamedTrace(name: task.traceName);
+    } catch (e, stack) {
+      AppLogger.fatal(
+        'Startup Background task failed: ${task.id} - $e',
+        stackTrace: stack,
+      );
+
       // Drop the trace on failure (don't report failed tasks)
-      if (task.traceName != null) {
-        perfService.dropNamedTrace(name: task.traceName!);
-      }
-      // Errors are already logged to crashlytics in task implementations
+      perfService.dropNamedTrace(name: task.traceName);
     }
   }
 
@@ -312,7 +356,7 @@ class _StartupOrchestratorState extends State<StartupOrchestrator> {
         );
 
       case _StartupState.error:
-        return ErrorScreen(error: _errorMessage, onRetry: _runStartupSequence);
+        return ErrorScreen(onRetry: _runStartupSequence);
 
       case _StartupState.ready:
         return ProviderScope(
@@ -328,9 +372,10 @@ enum _StartupState { loading, error, ready }
 
 /// Result of a task execution (used internally for retry logic).
 class _TaskResult {
-  _TaskResult(this.task, {required this.success, this.error});
+  _TaskResult(this.task, {required this.success, this.error, this.stackTrace});
 
   final StartupTask task;
   final bool success;
   final Object? error;
+  final String? stackTrace;
 }

@@ -11,6 +11,12 @@ class LoadingScreen extends StatefulWidget {
     super.key,
   });
 
+  // Time to animate the progress bar
+  static const Duration progressBarAnimationDuration = Duration(
+    milliseconds: 500,
+  );
+  static const Duration fadeAnimationDuration = Duration(milliseconds: 800);
+
   /// Number of tasks completed.
   final int completed;
 
@@ -30,7 +36,7 @@ class _LoadingScreenState extends State<LoadingScreen>
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: const Duration(milliseconds: 800),
+      duration: LoadingScreen.fadeAnimationDuration,
       vsync: this,
     );
 
@@ -108,7 +114,8 @@ class _LoadingScreenState extends State<LoadingScreen>
                               SizedBox(
                                 height: 5,
                                 child: TweenAnimationBuilder<double>(
-                                  duration: const Duration(milliseconds: 1000),
+                                  duration: LoadingScreen
+                                      .progressBarAnimationDuration,
                                   curve: Curves.easeInOut,
                                   tween: Tween<double>(begin: 0, end: progress),
                                   builder: (context, value, _) =>

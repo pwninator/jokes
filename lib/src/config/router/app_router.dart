@@ -309,7 +309,7 @@ class AppRouter {
         )
         .toList();
 
-    final Color selectedColor = Theme.of(context).colorScheme.primaryContainer;
+    final Color selectedColor = Theme.of(context).colorScheme.primary;
     final Color unselectedColor = Theme.of(
       context,
     ).colorScheme.onSurface.withValues(alpha: 0.7);

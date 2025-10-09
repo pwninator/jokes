@@ -1,11 +1,16 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:snickerdoodle/src/core/providers/settings_providers.dart';
 
-final settingsServiceProvider = Provider<SettingsService>((ref) {
-  throw UnimplementedError(
-    'settingsServiceProvider must be overridden with a concrete SettingsService that has a SharedPreferences instance.',
-  );
-});
+part 'settings_service.g.dart';
+
+@Riverpod(keepAlive: true)
+SettingsService settingsService(Ref ref) {
+  // Initialized in startup tasks
+  final prefs = ref.watch(sharedPreferencesProvider).value!;
+  return SettingsService(prefs);
+}
 
 class SettingsService {
   SettingsService(this._prefs);

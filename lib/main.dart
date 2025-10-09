@@ -3,6 +3,7 @@ import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/firebase_options.dart';
 import 'package:snickerdoodle/src/core/services/notification_service.dart';
 import 'package:snickerdoodle/src/startup/startup_orchestrator.dart';
@@ -37,6 +38,7 @@ void main() async {
 
   // Start the app with the startup orchestrator
   // All initialization (Firebase, SharedPreferences, etc.) is handled by startup tasks
-  // This keeps main() fast and allows the loading screen to appear quickly
-  runApp(const StartupOrchestrator(initialOverrides: []));
+  // The single ProviderScope ensures providers initialized during startup are
+  // available to the App
+  runApp(const ProviderScope(child: StartupOrchestrator()));
 }

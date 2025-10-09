@@ -51,10 +51,16 @@ class AppLogger {
   static void debug(String message) => instance._debug(message);
   static void info(String message) => instance._info(message);
   static void warn(String message) => instance._warn(message);
-  static void error(String message, {StackTrace? stackTrace}) =>
-      instance._error(message, stackTrace: stackTrace);
-  static void fatal(String message, {StackTrace? stackTrace}) =>
-      instance._fatal(message, stackTrace: stackTrace);
+  static void error(
+    String message, {
+    StackTrace? stackTrace,
+    Map<String, Object?>? keys,
+  }) => instance._error(message, stackTrace: stackTrace, keys: keys);
+  static void fatal(
+    String message, {
+    StackTrace? stackTrace,
+    Map<String, Object?>? keys,
+  }) => instance._fatal(message, stackTrace: stackTrace, keys: keys);
 
   // Instance methods
   void _debug(String message) {
@@ -73,24 +79,34 @@ class AppLogger {
     } catch (_) {}
   }
 
-  void _error(String message, {StackTrace? stackTrace}) async {
+  void _error(
+    String message, {
+    StackTrace? stackTrace,
+    Map<String, Object?>? keys,
+  }) async {
     _maybeDebugPrint('ERROR: $message');
 
     try {
       await _crashReportingService.recordNonFatal(
         'ERROR: $message',
         stackTrace: stackTrace ?? StackTrace.current,
+        keys: keys,
       );
     } catch (_) {}
   }
 
-  void _fatal(String message, {StackTrace? stackTrace}) async {
+  void _fatal(
+    String message, {
+    StackTrace? stackTrace,
+    Map<String, Object?>? keys,
+  }) async {
     _maybeDebugPrint('FATAL: $message');
 
     try {
       await _crashReportingService.recordFatal(
         'FATAL: $message',
         stackTrace ?? StackTrace.current,
+        keys: keys,
       );
     } catch (_) {}
   }

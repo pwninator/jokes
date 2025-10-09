@@ -11,7 +11,11 @@ abstract class CrashReportingService {
 
   Future<void> recordFlutterError(FlutterErrorDetails details);
 
-  Future<void> recordFatal(Object error, StackTrace stackTrace);
+  Future<void> recordFatal(
+    Object error,
+    StackTrace stackTrace, {
+    Map<String, Object?>? keys,
+  });
 
   Future<void> recordNonFatal(
     Object error, {
@@ -51,7 +55,14 @@ class FirebaseCrashReportingService implements CrashReportingService {
   }
 
   @override
-  Future<void> recordFatal(Object error, StackTrace stackTrace) async {
+  Future<void> recordFatal(
+    Object error,
+    StackTrace stackTrace, {
+    Map<String, Object?>? keys,
+  }) async {
+    if (keys != null && keys.isNotEmpty) {
+      await setKeys(keys);
+    }
     await _crashlytics.recordError(error, stackTrace, fatal: true);
     AppLogger.debug('CRASHLYTICS: Fatal error recorded: $error');
   }
@@ -112,7 +123,11 @@ class NoopCrashReportingService implements CrashReportingService {
   }
 
   @override
-  Future<void> recordFatal(Object error, StackTrace stackTrace) async {
+  Future<void> recordFatal(
+    Object error,
+    StackTrace stackTrace, {
+    Map<String, Object?>? keys,
+  }) async {
     AppLogger.debug('CRASHLYTICS NO-OP: Fatal error recorded: $error');
   }
 

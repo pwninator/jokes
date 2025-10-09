@@ -2,16 +2,15 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
-import 'package:snickerdoodle/src/core/providers/crash_reporting_provider.dart';
+import 'package:snickerdoodle/src/core/providers/settings_providers.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/notification_service.dart';
 import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:snickerdoodle/src/features/auth/application/auth_startup_manager.dart';
-import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
 import 'package:snickerdoodle/src/startup/startup_task.dart';
 import 'package:snickerdoodle/src/utils/device_utils.dart';
 
@@ -91,7 +90,7 @@ const List<StartupTask> backgroundTasks = [
 // ============================================================================
 
 /// Initialize Firebase and configure emulators in debug mode.
-Future<void> _initializeEmulators(StartupContext context) async {
+Future<void> _initializeEmulators(WidgetRef ref) async {
   // ignore: dead_code
   if (kDebugMode && useEmulatorInDebugMode) {
     final isPhysicalDevice = await DeviceUtils.isPhysicalDevice;
@@ -108,73 +107,70 @@ Future<void> _initializeEmulators(StartupContext context) async {
   }
 }
 
-/// Initialize SharedPreferences and register it as a provider override.
-Future<void> _initializeSharedPreferences(StartupContext context) async {
-  final sharedPrefs = await SharedPreferences.getInstance();
-  context.addOverride(
-    settingsServiceProvider.overrideWithValue(SettingsService(sharedPrefs)),
-  );
+/// Initialize SharedPreferences
+Future<void> _initializeSharedPreferences(WidgetRef ref) async {
+  final sharedPrefs = await ref.read(sharedPreferencesProvider.future);
+  debugPrint('SharedPreferences initialized: $sharedPrefs');
 }
 
 /// Initialize Remote Config (fetch and activate).
-Future<void> _initializeRemoteConfig(StartupContext context) async {
+Future<void> _initializeRemoteConfig(WidgetRef ref) async {
   try {
-    final service = context.container.read(remoteConfigServiceProvider);
+    final service = ref.read(remoteConfigServiceProvider);
     await service.initialize();
   } catch (e, stack) {
-    AppLogger.warn('Remote Config initialization failed: $e');
-    final crashService = context.container.read(crashReportingServiceProvider);
-    await crashService.recordFatal(e, stack);
+    AppLogger.fatal(
+      'Remote Config initialization failed: $e',
+      stackTrace: stack,
+    );
   }
 }
 
 /// Initialize auth startup manager (background auth state sync).
-Future<void> _initializeAuth(StartupContext context) async {
+Future<void> _initializeAuth(WidgetRef ref) async {
   try {
-    final manager = context.container.read(authStartupManagerProvider);
+    final manager = ref.read(authStartupManagerProvider);
     manager.start();
   } catch (e, stack) {
-    AppLogger.warn('Auth startup initialization failed: $e');
-    final crashService = context.container.read(crashReportingServiceProvider);
-    await crashService.recordFatal(e, stack);
+    AppLogger.fatal(
+      'Auth startup initialization failed: $e',
+      stackTrace: stack,
+    );
   }
 }
 
 /// Initialize analytics service.
-Future<void> _initializeAnalytics(StartupContext context) async {
+Future<void> _initializeAnalytics(WidgetRef ref) async {
   try {
-    final service = context.container.read(analyticsServiceProvider);
+    final service = ref.read(analyticsServiceProvider);
     await service.initialize();
 
     // User properties will be set automatically when auth state changes
     // via the analyticsUserTrackingProvider listener in the running app
   } catch (e, stack) {
-    AppLogger.warn('Analytics initialization failed: $e');
-    final crashService = context.container.read(crashReportingServiceProvider);
-    await crashService.recordFatal(e, stack);
+    AppLogger.fatal('Analytics initialization failed: $e', stackTrace: stack);
   }
 }
 
 /// Log app usage for analytics.
-Future<void> _initializeAppUsage(StartupContext context) async {
+Future<void> _initializeAppUsage(WidgetRef ref) async {
   try {
-    final service = context.container.read(appUsageServiceProvider);
+    final service = ref.read(appUsageServiceProvider);
     await service.logAppUsage();
   } catch (e, stack) {
-    AppLogger.warn('App usage logging failed: $e');
-    final crashService = context.container.read(crashReportingServiceProvider);
-    await crashService.recordFatal(e, stack);
+    AppLogger.fatal('App usage logging failed: $e', stackTrace: stack);
   }
 }
 
 /// Initialize notification service.
-Future<void> _initializeNotifications(StartupContext context) async {
-  final crashService = context.container.read(crashReportingServiceProvider);
+Future<void> _initializeNotifications(WidgetRef ref) async {
   try {
     final notificationService = NotificationService();
-    await notificationService.initialize(crashReportingService: crashService);
+    await notificationService.initialize();
   } catch (e, stack) {
-    AppLogger.warn('Notification service initialization failed: $e');
-    await crashService.recordFatal(e, stack);
+    AppLogger.fatal(
+      'Notification service initialization failed: $e',
+      stackTrace: stack,
+    );
   }
 }

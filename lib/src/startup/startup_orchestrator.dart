@@ -2,9 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/app.dart';
 import 'package:snickerdoodle/src/core/providers/app_providers.dart';
-import 'package:snickerdoodle/src/core/providers/crash_reporting_provider.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
-import 'package:snickerdoodle/src/core/services/crash_reporting_service.dart';
 import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/startup/error_screen.dart';
 import 'package:snickerdoodle/src/startup/loading_screen.dart';
@@ -15,20 +13,20 @@ import 'package:snickerdoodle/src/startup/startup_tasks.dart';
 ///
 /// Manages execution of critical, best effort, and background tasks,
 /// showing appropriate UI states and handling errors with retry logic.
-class StartupOrchestrator extends StatefulWidget {
-  const StartupOrchestrator({required this.initialOverrides, super.key});
-
-  /// Initial provider overrides (e.g., from main.dart setup).
-  final List<Override> initialOverrides;
+///
+/// This widget uses the parent ProviderScope from main.dart, ensuring all
+/// providers initialized during startup are available to the App.
+class StartupOrchestrator extends ConsumerStatefulWidget {
+  const StartupOrchestrator({super.key});
 
   @override
-  State<StartupOrchestrator> createState() => _StartupOrchestratorState();
+  ConsumerState<StartupOrchestrator> createState() =>
+      _StartupOrchestratorState();
 }
 
-class _StartupOrchestratorState extends State<StartupOrchestrator> {
+class _StartupOrchestratorState extends ConsumerState<StartupOrchestrator> {
   _StartupState _state = _StartupState.loading;
   int _completedTasks = 0;
-  List<Override> _collectedOverrides = [];
 
   // Total tasks we track for progress (critical + best effort)
   final int _totalTrackedTasks =
@@ -42,99 +40,48 @@ class _StartupOrchestratorState extends State<StartupOrchestrator> {
 
   /// Main startup sequence orchestration.
   Future<void> _runStartupSequence() async {
-    StartupContext? initialContext;
-    StartupContext? enrichedContext;
-    // Track if we launched tasks (for cleanup on error)
-    bool tasksLaunched = false;
-
     try {
       if (!mounted) return;
       setState(() {
         _state = _StartupState.loading;
         _completedTasks = 0;
-        _collectedOverrides = [];
       });
 
-      initialContext = StartupContext(
-        ProviderContainer(overrides: widget.initialOverrides),
-      );
-      // Read services from initial context for critical tasks
-      final perfService = initialContext.container.read(
-        performanceServiceProvider,
-      );
+      // Read services from ref for all tasks
+      final perfService = ref.read(performanceServiceProvider);
       // Start performance trace for startup phase
-      perfService.startNamedTrace(name: TraceName.startupOverall);
-
-      final crashlyticsService = initialContext.container.read(
-        crashReportingServiceProvider,
-      );
+      perfService.startNamedTrace(name: TraceName.startupOverallBlocking);
+      perfService.startNamedTrace(name: TraceName.startupOverallBackground);
 
       // Phase 1: Critical blocking tasks (with retry)
       AppLogger.debug('Starting critical tasks...');
-      await _runCriticalTasksWithRetry(
-        initialContext,
-        perfService,
-        crashlyticsService,
-      );
+      await _runCriticalTasksWithRetry(perfService);
       AppLogger.debug('Critical tasks completed');
 
-      // Recreate container with accumulated overrides from critical tasks
-      // This container will be used by both best-effort and background tasks
-      // and must stay alive until ALL tasks complete
-      AppLogger.debug(
-        'Recreating container with ${initialContext.overrides.length} overrides',
-      );
-      enrichedContext = initialContext.recreateWithOverrides(
-        widget.initialOverrides,
-      );
-
-      // Dispose the initial container since we now have an enriched one
-      try {
-        initialContext.container.dispose();
-      } catch (e) {
-        AppLogger.warn('Error disposing initial container: $e');
-        // Continue anyway - enrichedContext is ready
-      }
-
       // Phase 2: Best effort and background tasks (parallel)
-      // Both task types use the enrichedContext container which stays alive
-      // until ALL tasks complete (even those that timeout or run in background)
       AppLogger.debug('Starting best effort and background tasks...');
       final bestEffortFutures = bestEffortBlockingTasks
-          .map(
-            (task) => _runBestEffortTask(
-              task,
-              enrichedContext!,
-              perfService,
-              crashlyticsService,
-            ),
-          )
+          .map((task) => _runBestEffortTask(task, perfService))
           .toList();
       final backgroundFutures = backgroundTasks
-          .map(
-            (task) => _runBackgroundTask(
-              task,
-              enrichedContext!,
-              perfService,
-              crashlyticsService,
-            ),
-          )
+          .map((task) => _runBackgroundTask(task, perfService))
           .toList();
 
-      // Set up disposal callback IMMEDIATELY to prevent memory leaks if exceptions occur
-      // This must happen before setting tasksLaunched or awaiting any futures
+      // Set up completion callback for background tasks
       // ignore: unawaited_futures
       Future.wait([...bestEffortFutures, ...backgroundFutures])
           .then((_) {
             AppLogger.debug('All tasks completed');
-            enrichedContext?.container.dispose();
+            perfService.stopNamedTrace(
+              name: TraceName.startupOverallBackground,
+            );
           })
           .catchError((e) {
             AppLogger.warn('Task error: $e');
-            enrichedContext?.container.dispose();
+            perfService.stopNamedTrace(
+              name: TraceName.startupOverallBackground,
+            );
           });
-
-      tasksLaunched = true; // Tasks are now running and disposal is registered
 
       // Wait for best effort tasks with timeout (for UI progression)
       await Future.wait(bestEffortFutures).timeout(
@@ -147,12 +94,6 @@ class _StartupOrchestratorState extends State<StartupOrchestrator> {
 
       AppLogger.debug('Startup sequence completed successfully');
 
-      // Collect all overrides accumulated during critical tasks
-      _collectedOverrides = [
-        ...widget.initialOverrides,
-        ...initialContext.overrides,
-      ];
-
       // Give the progress bar time to fill
       if (!mounted) return;
       setState(() {
@@ -164,7 +105,7 @@ class _StartupOrchestratorState extends State<StartupOrchestrator> {
       await Future.delayed(LoadingScreen.progressBarAnimationDuration);
 
       // Stop the post-critical startup trace before transitioning to ready state
-      perfService.stopNamedTrace(name: TraceName.startupOverall);
+      perfService.stopNamedTrace(name: TraceName.startupOverallBlocking);
 
       if (!mounted) return;
 
@@ -173,13 +114,6 @@ class _StartupOrchestratorState extends State<StartupOrchestrator> {
       });
     } catch (e) {
       AppLogger.fatal('Startup sequence failed: $e');
-
-      // Clean up containers if tasks weren't launched
-      // If tasks were launched, they'll dispose the container when they complete
-      if (!tasksLaunched) {
-        initialContext?.container.dispose();
-        enrichedContext?.container.dispose();
-      }
 
       if (!mounted) return;
       setState(() {
@@ -194,9 +128,7 @@ class _StartupOrchestratorState extends State<StartupOrchestrator> {
   /// retried, not successful ones. Traces cover all retries and only complete
   /// on success or after 3 failures.
   Future<void> _runCriticalTasksWithRetry(
-    StartupContext context,
     PerformanceService perfService,
-    CrashReportingService crashService,
   ) async {
     const maxRetries = 3;
     final failedTasks = <StartupTask>[];
@@ -216,7 +148,7 @@ class _StartupOrchestratorState extends State<StartupOrchestrator> {
         final results = await Future.wait(
           tasksToRun.map((task) async {
             try {
-              await task.execute(context);
+              await task.execute(ref);
               _incrementProgress();
               AppLogger.debug('Startup Critical Task completed: ${task.id}');
 
@@ -288,14 +220,12 @@ class _StartupOrchestratorState extends State<StartupOrchestrator> {
   /// Failures are logged to crashlytics but don't prevent startup.
   Future<void> _runBestEffortTask(
     StartupTask task,
-    StartupContext context,
     PerformanceService perfService,
-    CrashReportingService crashService,
   ) async {
     perfService.startNamedTrace(name: task.traceName);
 
     try {
-      await task.execute(context);
+      await task.execute(ref);
       _incrementProgress();
       AppLogger.debug('Startup Best effort task completed: ${task.id}');
 
@@ -316,14 +246,12 @@ class _StartupOrchestratorState extends State<StartupOrchestrator> {
   /// Failures are logged to crashlytics but don't prevent startup.
   Future<void> _runBackgroundTask(
     StartupTask task,
-    StartupContext context,
     PerformanceService perfService,
-    CrashReportingService crashService,
   ) async {
     perfService.startNamedTrace(name: task.traceName);
 
     try {
-      await task.execute(context);
+      await task.execute(ref);
       AppLogger.debug('Startup Background task completed: ${task.id}');
 
       perfService.stopNamedTrace(name: task.traceName);
@@ -359,10 +287,7 @@ class _StartupOrchestratorState extends State<StartupOrchestrator> {
         return ErrorScreen(onRetry: _runStartupSequence);
 
       case _StartupState.ready:
-        return ProviderScope(
-          overrides: _collectedOverrides,
-          child: const App(),
-        );
+        return const App();
     }
   }
 }

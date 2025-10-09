@@ -19,7 +19,8 @@ enum TraceName {
   fsWrite,
   fsWriteBatch,
   sharePreparation,
-  startupOverall,
+  startupOverallBlocking,
+  startupOverallBackground,
   startupTaskEmulators,
   startupTaskSharedPrefs,
   startupTaskRemoteConfig,
@@ -48,8 +49,10 @@ extension TraceNameWire on TraceName {
         return 'fs_write_batch';
       case TraceName.sharePreparation:
         return 'share_preparation';
-      case TraceName.startupOverall:
-        return 'startup_overall';
+      case TraceName.startupOverallBlocking:
+        return 'startup_overall_blocking';
+      case TraceName.startupOverallBackground:
+        return 'startup_overall_background';
       case TraceName.startupTaskEmulators:
         return 'startup_task_emulators';
       case TraceName.startupTaskSharedPrefs:

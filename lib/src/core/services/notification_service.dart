@@ -13,7 +13,6 @@ class NotificationService {
   NotificationService._internal();
 
   bool _isInitialized = false;
-  CrashReportingService? _crashReportingService;
 
   // Global navigation key for notifications
   static final GlobalKey<NavigatorState> navigatorKey =
@@ -25,8 +24,6 @@ class NotificationService {
     CrashReportingService? crashReportingService,
   }) async {
     if (_isInitialized) return;
-
-    _crashReportingService = crashReportingService;
 
     // Start background initialization (non-blocking)
     _initializeBackgroundServices();
@@ -40,8 +37,10 @@ class NotificationService {
     // Run in background without awaiting
     // Note: Permission request only happens when user subscribes
     _initializeFCMListeners().catchError((e, stack) {
-      AppLogger.warn('Background FCM initialization failed: $e');
-      _crashReportingService?.recordNonFatal(e, stackTrace: stack);
+      AppLogger.error(
+        'Background FCM initialization failed: $e',
+        stackTrace: stack,
+      );
     });
   }
 
@@ -60,8 +59,10 @@ class NotificationService {
       AppLogger.debug('FCM permissions requested - granted: $granted');
       return granted;
     } catch (e, stack) {
-      AppLogger.warn('Failed to request FCM permissions: $e');
-      _crashReportingService?.recordNonFatal(e, stackTrace: stack);
+      AppLogger.error(
+        'Failed to request FCM permissions: $e',
+        stackTrace: stack,
+      );
       return false;
     }
   }
@@ -78,8 +79,10 @@ class NotificationService {
 
       AppLogger.debug('FCM listeners initialized');
     } catch (e, stack) {
-      AppLogger.warn('Failed to initialize FCM listeners: $e');
-      _crashReportingService?.recordNonFatal(e, stackTrace: stack);
+      AppLogger.error(
+        'Failed to initialize FCM listeners: $e',
+        stackTrace: stack,
+      );
     }
   }
 
@@ -89,9 +92,8 @@ class NotificationService {
     try {
       await _processJokeNotification(message);
     } catch (e, stack) {
-      AppLogger.warn('Failed to process joke notification: $e');
-      _crashReportingService?.recordNonFatal(
-        e,
+      AppLogger.error(
+        'Failed to process joke notification: $e',
         stackTrace: stack,
         keys: {'message_id': message.messageId ?? 'unknown'},
       );
@@ -125,9 +127,8 @@ class NotificationService {
 
       AppLogger.debug('Images pre-cached for joke: $jokeId');
     } catch (e, stack) {
-      AppLogger.warn('Error processing joke notification: $e');
-      _crashReportingService?.recordNonFatal(
-        e,
+      AppLogger.error(
+        'Error processing joke notification: $e',
         stackTrace: stack,
         keys: {
           'message_id': message.messageId ?? 'unknown',
@@ -143,9 +144,8 @@ class NotificationService {
       final imageService = ImageService();
       await imageService.precacheJokeImage(imageUrl);
     } catch (e, stack) {
-      AppLogger.warn('Failed to cache image $imageUrl: $e');
-      _crashReportingService?.recordNonFatal(
-        e,
+      AppLogger.error(
+        'Failed to cache image $imageUrl: $e',
         stackTrace: stack,
         keys: {'image_url': imageUrl},
       );

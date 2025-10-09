@@ -99,7 +99,6 @@ class FirebaseMocks {
       // Add any additional overrides
       // Remote Config: override values to avoid platform calls in tests
       remoteConfigValuesProvider.overrideWithValue(_TestRemoteConfigValues()),
-      remoteConfigInitializationProvider.overrideWith((ref) async {}),
 
       // No-op performance service to avoid calling Firebase in tests
       performanceServiceProvider.overrideWithValue(

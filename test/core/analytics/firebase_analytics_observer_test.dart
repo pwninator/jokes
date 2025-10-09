@@ -20,12 +20,6 @@ void main() {
       final router = GoRouter(
         initialLocation: '/home',
         routes: [
-          // Root auth for parity with app setup
-          GoRoute(
-            path: '/auth',
-            name: RouteNames.auth,
-            builder: (context, state) => const Scaffold(body: Text('Auth')),
-          ),
           // Shell with tabs including admin
           ShellRoute(
             observers: [FirebaseAnalyticsObserver(analytics: mockAnalytics)],

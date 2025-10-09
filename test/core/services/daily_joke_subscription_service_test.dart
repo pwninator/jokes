@@ -4,9 +4,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
-import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
+import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
 
 // Mock classes
 class MockDailyJokeSubscriptionService extends Mock
@@ -72,7 +72,6 @@ void main() {
               threshold: JokeConstants.subscriptionPromptJokesViewedThreshold,
             ),
           ),
-          remoteConfigInitializationProvider.overrideWith((ref) async {}),
         ],
       );
     });
@@ -455,7 +454,6 @@ void main() {
               threshold: JokeConstants.subscriptionPromptJokesViewedThreshold,
             ),
           ),
-          remoteConfigInitializationProvider.overrideWith((ref) async {}),
         ],
       );
     });
@@ -504,7 +502,6 @@ void main() {
               threshold: JokeConstants.subscriptionPromptJokesViewedThreshold,
             ),
           ),
-          remoteConfigInitializationProvider.overrideWith((ref) async {}),
         ],
       );
 

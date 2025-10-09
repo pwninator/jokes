@@ -19,7 +19,6 @@ import 'package:snickerdoodle/src/features/admin/presentation/joke_management_sc
 import 'package:snickerdoodle/src/features/admin/presentation/joke_scheduler_screen.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/users_analytics_screen.dart';
 import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
-import 'package:snickerdoodle/src/features/auth/presentation/auth_wrapper.dart';
 import 'package:snickerdoodle/src/features/book_creator/book_creator_screen.dart';
 import 'package:snickerdoodle/src/features/feedback/presentation/feedback_conversation_screen.dart';
 import 'package:snickerdoodle/src/features/feedback/presentation/user_feedback_screen.dart';
@@ -113,13 +112,6 @@ class AppRouter {
           path: AppRoutes.feedback,
           name: RouteNames.feedback,
           builder: (context, state) => const UserFeedbackScreen(),
-        ),
-
-        // Auth route
-        GoRoute(
-          path: AppRoutes.auth,
-          name: RouteNames.auth,
-          builder: (context, state) => const AuthWrapper(),
         ),
 
         // Main shell route with tab navigation

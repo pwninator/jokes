@@ -1,7 +1,7 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/crash_reporting_service.dart';
-import 'package:flutter/foundation.dart';
 
 class _CrashSpy implements CrashReportingService {
   final List<String> logs = [];
@@ -17,7 +17,11 @@ class _CrashSpy implements CrashReportingService {
   Future<void> recordFlutterError(FlutterErrorDetails details) async {}
 
   @override
-  Future<void> recordFatal(Object error, StackTrace stackTrace) async {}
+  Future<void> recordFatal(
+    Object error,
+    StackTrace stackTrace, {
+    Map<String, Object?>? keys,
+  }) async {}
 
   @override
   Future<void> recordNonFatal(

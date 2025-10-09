@@ -130,15 +130,15 @@ class _StartupOrchestratorState extends ConsumerState<StartupOrchestrator> {
   Future<void> _runCriticalTasksWithRetry(
     PerformanceService perfService,
   ) async {
-    const maxRetries = 3;
-    final failedTasks = <StartupTask>[];
-    final tasksToRun = List<StartupTask>.from(criticalBlockingTasks);
-
     // Start traces for all critical tasks at the beginning
     // Each trace will measure from start until completion (including retries)
     for (final task in criticalBlockingTasks) {
       perfService.startNamedTrace(name: task.traceName);
     }
+
+    const maxRetries = 3;
+    final failedTasks = <StartupTask>[];
+    final tasksToRun = List<StartupTask>.from(criticalBlockingTasks);
 
     try {
       for (int attempt = 1; attempt <= maxRetries; attempt++) {

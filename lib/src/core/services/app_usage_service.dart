@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/providers/app_usage_events_provider.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
@@ -11,8 +12,10 @@ import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_functi
 import 'package:snickerdoodle/src/features/settings/application/brightness_provider.dart';
 import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
 
-/// Provider for AppUsageService using the shared preferences instance provider
-final appUsageServiceProvider = Provider<AppUsageService>((ref) {
+part 'app_usage_service.g.dart';
+
+@Riverpod(keepAlive: true)
+AppUsageService appUsageService(Ref ref) {
   final settingsService = ref.watch(settingsServiceProvider);
   final analyticsService = ref.watch(analyticsServiceProvider);
   final jokeCloudFn = ref.watch(jokeCloudFunctionServiceProvider);
@@ -23,7 +26,7 @@ final appUsageServiceProvider = Provider<AppUsageService>((ref) {
     jokeCloudFn: jokeCloudFn,
     isDebugMode: kDebugMode,
   );
-});
+}
 
 /// Service responsible for tracking local app usage metrics via SharedPreferences
 class AppUsageService {

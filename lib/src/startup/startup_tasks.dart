@@ -109,8 +109,7 @@ Future<void> _initializeEmulators(WidgetRef ref) async {
 
 /// Initialize SharedPreferences
 Future<void> _initializeSharedPreferences(WidgetRef ref) async {
-  final sharedPrefs = await ref.read(sharedPreferencesProvider.future);
-  debugPrint('SharedPreferences initialized: $sharedPrefs');
+  await ref.read(sharedPreferencesProvider.future);
 }
 
 /// Initialize Remote Config (fetch and activate).
@@ -156,7 +155,9 @@ Future<void> _initializeAnalytics(WidgetRef ref) async {
 Future<void> _initializeAppUsage(WidgetRef ref) async {
   try {
     final service = ref.read(appUsageServiceProvider);
-    await service.logAppUsage();
+
+    // Fire and forget
+    service.logAppUsage();
   } catch (e, stack) {
     AppLogger.fatal('App usage logging failed: $e', stackTrace: stack);
   }

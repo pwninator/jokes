@@ -32,8 +32,10 @@ void main() {
 
       final imageWidget = tester.widget<Image>(find.byType(Image));
       expect(imageWidget.image, isA<AssetImage>());
-      expect((imageWidget.image as AssetImage).assetName,
-          JokeConstants.iconCookie01TransparentDark300);
+      expect(
+        (imageWidget.image as AssetImage).assetName,
+        JokeConstants.iconCookie01TransparentDark300,
+      );
 
       final retryButton = find.byKey(const Key('error_screen-retry-button'));
       expect(retryButton, findsOneWidget);

@@ -2,11 +2,14 @@ import 'dart:async';
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
 import 'package:snickerdoodle/src/features/auth/data/repositories/auth_repository.dart';
+
+part 'auth_startup_manager.g.dart';
 
 /// Coordinates background authentication at app startup.
 ///
@@ -115,7 +118,8 @@ class AuthStartupManager {
 }
 
 /// Provider for AuthStartupManager
-final authStartupManagerProvider = Provider<AuthStartupManager>((ref) {
+@Riverpod(keepAlive: true)
+AuthStartupManager authStartupManager(Ref ref) {
   final firebaseAuth = ref.watch(firebaseAuthProvider);
   final authRepo = ref.watch(authRepositoryProvider);
   final analytics = ref.watch(analyticsServiceProvider);
@@ -128,11 +132,4 @@ final authStartupManagerProvider = Provider<AuthStartupManager>((ref) {
 
   ref.onDispose(manager.dispose);
   return manager;
-});
-
-/// Initialization provider that kicks off background auth without blocking UI.
-final authStartupInitializationProvider = Provider<void>((ref) {
-  final manager = ref.watch(authStartupManagerProvider);
-  // Defer start until after first build microtask to avoid extra work during build.
-  scheduleMicrotask(manager.start);
-});
+}

@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:snickerdoodle/src/config/router/route_names.dart';
-import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
+import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
 
 /// Auth guard that handles authentication state and redirects
 class AuthGuard {
@@ -26,11 +26,6 @@ class AuthGuard {
             );
             return AppRoutes.jokes;
           }
-        }
-
-        // Prevent showing auth route if already authenticated
-        if (user != null && currentPath == AppRoutes.auth) {
-          return AppRoutes.jokes;
         }
 
         return null;

@@ -1,8 +1,11 @@
 import 'package:firebase_remote_config/firebase_remote_config.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
+
+part 'remote_config_service.g.dart';
 
 const Map<RemoteParam, RemoteParamDescriptor> remoteParams = {
   //////////////
@@ -451,18 +454,12 @@ class _RemoteConfigValues implements RemoteConfigValues {
   T getEnum<T>(RemoteParam param) => _service.readEnum<T>(param);
 }
 
-/// Provider for RemoteConfigService
-final remoteConfigServiceProvider = Provider<RemoteConfigService>((ref) {
+@Riverpod(keepAlive: true)
+RemoteConfigService remoteConfigService(Ref ref) {
   final analytics = ref.watch(analyticsServiceProvider);
   final client = FirebaseRemoteConfigClient(FirebaseRemoteConfig.instance);
   return RemoteConfigService(client: client, analyticsService: analytics);
-});
-
-/// Kicks off Remote Config initialization once per app launch
-final remoteConfigInitializationProvider = FutureProvider<void>((ref) async {
-  final service = ref.read(remoteConfigServiceProvider);
-  await service.initialize();
-});
+}
 
 /// Exposes typed Remote Config values to the app
 final remoteConfigValuesProvider = Provider<RemoteConfigValues>((ref) {

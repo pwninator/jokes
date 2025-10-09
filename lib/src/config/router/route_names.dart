@@ -4,9 +4,6 @@ class AppRoutes {
   // Private constructor to prevent instantiation
   AppRoutes._();
 
-  // Auth routes
-  static const String auth = '/auth';
-
   // Top-level app routes
   static const String feedback = '/feedback';
 
@@ -37,7 +34,6 @@ class AppRoutes {
 class RouteNames {
   RouteNames._();
 
-  static const String auth = 'auth';
   static const String jokes = 'jokes';
   static const String saved = 'saved';
   static const String discover = 'discover';
@@ -64,14 +60,9 @@ extension AppRoutesExtension on String {
   /// Check if this route path is an admin route
   bool get isAdminRoute => startsWith('/admin');
 
-  /// Check if this route path requires authentication
-  bool get requiresAuth => this != AppRoutes.auth;
-
   /// Get the route name from path for analytics
   String get routeName {
     switch (this) {
-      case AppRoutes.auth:
-        return RouteNames.auth;
       case AppRoutes.jokes:
         return RouteNames.jokes;
       case AppRoutes.saved:

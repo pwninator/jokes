@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -8,11 +7,12 @@ import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:snickerdoodle/src/core/services/review_prompt_service.dart';
 import 'package:snickerdoodle/src/core/services/review_prompt_state_store.dart';
-import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
 
 class _MockAppReviewService extends Mock implements AppReviewService {}
 
 class _MockStateStore extends Mock implements ReviewPromptStateStore {}
+
+class _MockAppUsageService extends Mock implements AppUsageService {}
 
 class _FakeBuildContext extends Fake implements BuildContext {}
 
@@ -108,20 +108,24 @@ void main() {
   });
 
   group('ReviewPromptCoordinator', () {
-    late AppUsageService usage;
+    late _MockAppUsageService usage;
     late _MockAppReviewService review;
     late _MockStateStore store;
 
     setUp(() async {
       SharedPreferences.setMockInitialValues({});
-      final prefs = await SharedPreferences.getInstance();
-      final settingsService = SettingsService(prefs);
-      // Create a minimal Ref using a ProviderContainer
-      final container = ProviderContainer();
-      final ref = container.read(Provider<Ref>((ref) => ref));
-      usage = AppUsageService(settingsService: settingsService, ref: ref);
+      usage = _MockAppUsageService();
       review = _MockAppReviewService();
       store = _MockStateStore();
+
+      // Mock AppUsageService methods used in tests
+      when(() => usage.getNumDaysUsed()).thenAnswer((_) async => 0);
+      when(() => usage.getNumSavedJokes()).thenAnswer((_) async => 0);
+      when(() => usage.getNumSharedJokes()).thenAnswer((_) async => 0);
+      when(() => usage.getNumJokesViewed()).thenAnswer((_) async => 0);
+      when(() => usage.incrementSavedJokesCount()).thenAnswer((_) async {});
+      when(() => usage.incrementSharedJokesCount()).thenAnswer((_) async {});
+      when(() => usage.logJokeViewed()).thenAnswer((_) async {});
     });
 
     testWidgets('early return when already requested', (tester) async {
@@ -175,7 +179,7 @@ void main() {
         getIsDailySubscribed: () => true,
       );
 
-      // Ensure some low usage values
+      // Ensure some low usage values (already mocked to return 0)
       expect(await usage.getNumDaysUsed(), 0);
       expect(await usage.getNumSavedJokes(), 0);
       expect(await usage.getNumSharedJokes(), 0);
@@ -206,11 +210,9 @@ void main() {
       when(() => store.hasRequested()).thenAnswer((_) => false);
 
       // Set usage to thresholds
-      await usage.incrementSavedJokesCount();
-      await usage.incrementSharedJokesCount();
-      // Simulate days used by writing key directly
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setInt('num_days_used', 1);
+      when(() => usage.getNumDaysUsed()).thenAnswer((_) async => 1);
+      when(() => usage.getNumSavedJokes()).thenAnswer((_) async => 1);
+      when(() => usage.getNumSharedJokes()).thenAnswer((_) async => 1);
 
       when(
         () => review.requestReview(
@@ -251,10 +253,9 @@ void main() {
         final values = _FakeRemoteValues(minDays: 1, minSaved: 1, minShared: 1);
         when(() => store.hasRequested()).thenAnswer((_) => false);
 
-        await usage.incrementSavedJokesCount();
-        await usage.incrementSharedJokesCount();
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setInt('num_days_used', 1);
+        when(() => usage.getNumDaysUsed()).thenAnswer((_) async => 1);
+        when(() => usage.getNumSavedJokes()).thenAnswer((_) async => 1);
+        when(() => usage.getNumSharedJokes()).thenAnswer((_) async => 1);
 
         when(
           () => review.requestReview(
@@ -289,10 +290,9 @@ void main() {
         final values = _FakeRemoteValues(minDays: 1, minSaved: 1, minShared: 1);
         when(() => store.hasRequested()).thenAnswer((_) => false);
 
-        await usage.incrementSavedJokesCount();
-        await usage.incrementSharedJokesCount();
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setInt('num_days_used', 1);
+        when(() => usage.getNumDaysUsed()).thenAnswer((_) async => 1);
+        when(() => usage.getNumSavedJokes()).thenAnswer((_) async => 1);
+        when(() => usage.getNumSharedJokes()).thenAnswer((_) async => 1);
 
         when(
           () => review.requestReview(
@@ -328,8 +328,7 @@ void main() {
         when(() => store.hasRequested()).thenAnswer((_) => false);
 
         // Meet minDays by setting num_days_used to 1
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setInt('num_days_used', 1);
+        when(() => usage.getNumDaysUsed()).thenAnswer((_) async => 1);
 
         // Do not save/share any jokes; with zero thresholds it should still be eligible
         when(
@@ -374,10 +373,9 @@ void main() {
       when(() => store.hasRequested()).thenAnswer((_) => false);
 
       // Set other usage to thresholds but do not log views
-      await usage.incrementSavedJokesCount();
-      await usage.incrementSharedJokesCount();
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setInt('num_days_used', 1);
+      when(() => usage.getNumDaysUsed()).thenAnswer((_) async => 1);
+      when(() => usage.getNumSavedJokes()).thenAnswer((_) async => 1);
+      when(() => usage.getNumSharedJokes()).thenAnswer((_) async => 1);
 
       final coordinator = ReviewPromptCoordinator(
         getRemoteValues: () => values,
@@ -415,11 +413,10 @@ void main() {
       );
       when(() => store.hasRequested()).thenAnswer((_) => false);
 
-      await usage.incrementSavedJokesCount();
-      await usage.incrementSharedJokesCount();
-      await usage.logJokeViewed();
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setInt('num_days_used', 1);
+      when(() => usage.getNumDaysUsed()).thenAnswer((_) async => 1);
+      when(() => usage.getNumSavedJokes()).thenAnswer((_) async => 1);
+      when(() => usage.getNumSharedJokes()).thenAnswer((_) async => 1);
+      when(() => usage.getNumJokesViewed()).thenAnswer((_) async => 1);
 
       when(
         () => review.requestReview(
@@ -463,8 +460,7 @@ void main() {
         );
         when(() => store.hasRequested()).thenAnswer((_) => false);
 
-        final prefs = await SharedPreferences.getInstance();
-        await prefs.setInt('num_days_used', 1);
+        when(() => usage.getNumDaysUsed()).thenAnswer((_) async => 1);
 
         final coordinator = ReviewPromptCoordinator(
           getRemoteValues: () => values,
@@ -500,8 +496,7 @@ void main() {
       );
       when(() => store.hasRequested()).thenAnswer((_) => false);
 
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setInt('num_days_used', 1);
+      when(() => usage.getNumDaysUsed()).thenAnswer((_) async => 1);
 
       when(
         () => review.requestReview(

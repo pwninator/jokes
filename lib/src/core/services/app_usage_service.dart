@@ -7,7 +7,6 @@ import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/review_prompt_state_store.dart';
 import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
-import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
 import 'package:snickerdoodle/src/features/settings/application/brightness_provider.dart';
 import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
@@ -20,9 +19,9 @@ AppUsageService appUsageService(Ref ref) {
   final analyticsService = ref.watch(analyticsServiceProvider);
   final jokeCloudFn = ref.watch(jokeCloudFunctionServiceProvider);
   return AppUsageService(
+    ref: ref,
     settingsService: settingsService,
     analyticsService: analyticsService,
-    ref: ref,
     jokeCloudFn: jokeCloudFn,
     isDebugMode: kDebugMode,
   );
@@ -31,20 +30,20 @@ AppUsageService appUsageService(Ref ref) {
 /// Service responsible for tracking local app usage metrics via SharedPreferences
 class AppUsageService {
   AppUsageService({
-    required SettingsService settingsService,
     required Ref ref,
-    AnalyticsService? analyticsService,
-    JokeCloudFunctionService? jokeCloudFn,
+    required SettingsService settingsService,
+    required AnalyticsService analyticsService,
+    required JokeCloudFunctionService jokeCloudFn,
     bool? isDebugMode,
   }) : _settings = settingsService,
        _analyticsService = analyticsService,
        _ref = ref,
-       _jokeCloudFn = jokeCloudFn ?? JokeCloudFunctionService(),
+       _jokeCloudFn = jokeCloudFn,
        _isDebugMode = isDebugMode;
 
-  final SettingsService _settings;
-  final AnalyticsService? _analyticsService;
   final Ref _ref;
+  final SettingsService _settings;
+  final AnalyticsService _analyticsService;
   final JokeCloudFunctionService _jokeCloudFn;
   final bool? _isDebugMode;
 
@@ -88,18 +87,16 @@ class AppUsageService {
       _notifyUsageChanged();
 
       // Fire-and-forget analytics + backend usage snapshot
-      final service = _analyticsService;
-      if (service != null) {
-        try {
-          final brightness = _ref.read(brightnessProvider);
-          service.logAppUsageDays(
-            numDaysUsed: newNumDaysUsed,
-            brightness: brightness,
-          );
-        } catch (e) {
-          AppLogger.warn('APP_USAGE analytics error: $e');
-        }
+      try {
+        final brightness = _ref.read(brightnessProvider);
+        _analyticsService.logAppUsageDays(
+          numDaysUsed: newNumDaysUsed,
+          brightness: brightness,
+        );
+      } catch (e) {
+        AppLogger.warn('APP_USAGE analytics error: $e');
       }
+
       // Do not await remote sync to keep UI responsive
       _pushUsageSnapshot();
     }

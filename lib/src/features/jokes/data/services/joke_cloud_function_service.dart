@@ -1,22 +1,34 @@
 import 'package:cloud_functions/cloud_functions.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:snickerdoodle/src/core/providers/app_providers.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_search_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_search_result.dart';
 
+part 'joke_cloud_function_service.g.dart';
+
 /// How strictly to match the search query
 enum MatchMode { tight, loose }
 
+@Riverpod(keepAlive: true)
+JokeCloudFunctionService jokeCloudFunctionService(Ref ref) {
+  final functions = FirebaseFunctions.instance;
+  final perf = ref.watch(performanceServiceProvider);
+  return JokeCloudFunctionService(functions: functions, perf: perf);
+}
+
 class JokeCloudFunctionService {
   JokeCloudFunctionService({
-    FirebaseFunctions? functions,
-    PerformanceService? perf,
+    required FirebaseFunctions functions,
+    required PerformanceService perf,
   }) : _functions = functions,
        _perf = perf;
 
-  final FirebaseFunctions? _functions;
-  FirebaseFunctions get _fns => _functions ?? FirebaseFunctions.instance;
-  final PerformanceService? _perf;
+  final FirebaseFunctions _functions;
+  FirebaseFunctions get _fns => _functions;
+  final PerformanceService _perf;
 
   Future<T> _traceCf<T>({
     required String functionName,
@@ -24,8 +36,7 @@ class JokeCloudFunctionService {
     Map<String, String>? attributes,
   }) async {
     final key = functionName;
-    final perf = _perf;
-    perf?.startNamedTrace(
+    _perf.startNamedTrace(
       name: TraceName.cfCall,
       key: key,
       attributes: {
@@ -37,7 +48,7 @@ class JokeCloudFunctionService {
       AppLogger.debug('CLOUD_FUNCTIONS traceCf: Calling $functionName');
       return await action();
     } finally {
-      perf?.stopNamedTrace(name: TraceName.cfCall, key: key);
+      _perf.stopNamedTrace(name: TraceName.cfCall, key: key);
     }
   }
 

@@ -54,10 +54,12 @@ void main() {
           overrides: [brightnessProvider.overrideWithValue(Brightness.light)],
         );
         final ref = container.read(Provider<Ref>((ref) => ref));
+        final mockJokeCloudFn = _MockJokeCloudFunctionService();
         final service = AppUsageService(
           settingsService: settingsService,
           ref: ref,
           analyticsService: mockAnalytics,
+          jokeCloudFn: mockJokeCloudFn,
         );
 
         await service.logAppUsage();
@@ -89,10 +91,12 @@ void main() {
         overrides: [brightnessProvider.overrideWithValue(Brightness.light)],
       );
       final ref = container.read(Provider<Ref>((ref) => ref));
+      final mockJokeCloudFn = _MockJokeCloudFunctionService();
       final service = AppUsageService(
         settingsService: settingsService,
         ref: ref,
         analyticsService: mockAnalytics,
+        jokeCloudFn: mockJokeCloudFn,
       );
 
       await service.logAppUsage();
@@ -125,10 +129,12 @@ void main() {
           overrides: [brightnessProvider.overrideWithValue(Brightness.light)],
         );
         final ref = container.read(Provider<Ref>((ref) => ref));
+        final mockJokeCloudFn = _MockJokeCloudFunctionService();
         final service = AppUsageService(
           settingsService: settingsService,
           ref: ref,
           analyticsService: mockAnalytics,
+          jokeCloudFn: mockJokeCloudFn,
         );
 
         await service.logAppUsage();
@@ -159,6 +165,8 @@ void main() {
     test('increments num_jokes_viewed counter', () async {
       final prefs = await SharedPreferences.getInstance();
       final settingsService = SettingsService(prefs);
+      final mockAnalytics = _MockAnalyticsService();
+      final mockJokeCloudFn = _MockJokeCloudFunctionService();
       final container = ProviderContainer(
         overrides: [brightnessProvider.overrideWithValue(Brightness.light)],
       );
@@ -166,6 +174,8 @@ void main() {
       final service = AppUsageService(
         settingsService: settingsService,
         ref: ref,
+        analyticsService: mockAnalytics,
+        jokeCloudFn: mockJokeCloudFn,
       );
 
       expect(await service.getNumJokesViewed(), 0);
@@ -182,11 +192,15 @@ void main() {
       () async {
         final prefs = await SharedPreferences.getInstance();
         final settingsService = SettingsService(prefs);
+        final mockAnalytics = _MockAnalyticsService();
+        final mockJokeCloudFn = _MockJokeCloudFunctionService();
         final container = ProviderContainer();
         final ref = container.read(Provider<Ref>((ref) => ref));
         final service = AppUsageService(
           settingsService: settingsService,
           ref: ref,
+          analyticsService: mockAnalytics,
+          jokeCloudFn: mockJokeCloudFn,
         );
 
         expect(await service.getNumSavedJokes(), 0);
@@ -207,6 +221,8 @@ void main() {
     test('incrementSharedJokesCount updates counter', () async {
       final prefs = await SharedPreferences.getInstance();
       final settingsService = SettingsService(prefs);
+      final mockAnalytics = _MockAnalyticsService();
+      final mockJokeCloudFn = _MockJokeCloudFunctionService();
       final container = ProviderContainer(
         overrides: [brightnessProvider.overrideWithValue(Brightness.light)],
       );
@@ -214,6 +230,8 @@ void main() {
       final service = AppUsageService(
         settingsService: settingsService,
         ref: ref,
+        analyticsService: mockAnalytics,
+        jokeCloudFn: mockJokeCloudFn,
       );
 
       expect(await service.getNumSharedJokes(), 0);
@@ -252,9 +270,11 @@ void main() {
       );
       final ref = container.read(testRefProvider);
 
+      final mockAnalytics = _MockAnalyticsService();
       final testService = AppUsageService(
         settingsService: settingsService,
         ref: ref,
+        analyticsService: mockAnalytics,
         jokeCloudFn: mockJokeCloudFn,
         isDebugMode: false,
       );

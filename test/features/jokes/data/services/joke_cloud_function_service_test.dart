@@ -1,9 +1,9 @@
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_search_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
-// joke_search_result.dart imported transitively via service tests; keep imports minimal
 
 // Mock classes using mocktail
 class MockFirebaseFunctions extends Mock implements FirebaseFunctions {}
@@ -12,18 +12,25 @@ class MockHttpsCallable extends Mock implements HttpsCallable {}
 
 class MockHttpsCallableResult extends Mock implements HttpsCallableResult {}
 
+class MockPerformanceService extends Mock implements PerformanceService {}
+
 void main() {
   group('JokeCloudFunctionService', () {
     late JokeCloudFunctionService service;
     late MockFirebaseFunctions mockFunctions;
     late MockHttpsCallable mockCallable;
     late MockHttpsCallableResult mockResult;
+    late MockPerformanceService mockPerf;
 
     setUp(() {
       mockFunctions = MockFirebaseFunctions();
       mockCallable = MockHttpsCallable();
       mockResult = MockHttpsCallableResult();
-      service = JokeCloudFunctionService(functions: mockFunctions);
+      mockPerf = MockPerformanceService();
+      service = JokeCloudFunctionService(
+        functions: mockFunctions,
+        perf: mockPerf,
+      );
     });
 
     group('populateJoke', () {

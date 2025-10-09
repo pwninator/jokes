@@ -40,6 +40,10 @@ class _StartupOrchestratorState extends ConsumerState<StartupOrchestrator> {
 
   /// Main startup sequence orchestration.
   Future<void> _runStartupSequence() async {
+    bool tasksStarted = false;
+    late final PerformanceService perfService;
+    var perfServiceInitialized = false;
+
     try {
       if (!mounted) return;
       setState(() {
@@ -48,7 +52,8 @@ class _StartupOrchestratorState extends ConsumerState<StartupOrchestrator> {
       });
 
       // Read services from ref for all tasks
-      final perfService = ref.read(performanceServiceProvider);
+      perfService = ref.read(performanceServiceProvider);
+      perfServiceInitialized = true;
       // Start performance trace for startup phase
       perfService.startNamedTrace(name: TraceName.startupOverallBlocking);
       perfService.startNamedTrace(name: TraceName.startupOverallBackground);
@@ -82,6 +87,7 @@ class _StartupOrchestratorState extends ConsumerState<StartupOrchestrator> {
               name: TraceName.startupOverallBackground,
             );
           });
+      tasksStarted = true;
 
       // Wait for best effort tasks with timeout (for UI progression)
       await Future.wait(bestEffortFutures).timeout(
@@ -104,9 +110,6 @@ class _StartupOrchestratorState extends ConsumerState<StartupOrchestrator> {
       // Give the progress bar time to fill
       await Future.delayed(LoadingScreen.progressBarAnimationDuration);
 
-      // Stop the post-critical startup trace before transitioning to ready state
-      perfService.stopNamedTrace(name: TraceName.startupOverallBlocking);
-
       if (!mounted) return;
 
       setState(() {
@@ -119,6 +122,13 @@ class _StartupOrchestratorState extends ConsumerState<StartupOrchestrator> {
       setState(() {
         _state = _StartupState.error;
       });
+    } finally {
+      if (perfServiceInitialized) {
+        perfService.stopNamedTrace(name: TraceName.startupOverallBlocking);
+        if (!tasksStarted) {
+          perfService.dropNamedTrace(name: TraceName.startupOverallBackground);
+        }
+      }
     }
   }
 

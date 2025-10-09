@@ -12,10 +12,11 @@ import 'package:snickerdoodle/src/core/services/joke_share_service.dart';
 import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:snickerdoodle/src/core/services/review_prompt_service.dart';
-import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_service.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
+import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
+import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
 
 class MockImageService extends Mock implements ImageService {}
 
@@ -31,6 +32,9 @@ class MockReviewPromptCoordinator extends Mock
 class MockPerformanceService extends Mock implements PerformanceService {}
 
 class MockRemoteConfigValues extends Mock implements RemoteConfigValues {}
+
+class MockJokeCloudFunctionService extends Mock
+    implements JokeCloudFunctionService {}
 
 class FakeJoke extends Fake implements Joke {}
 
@@ -84,6 +88,8 @@ void main() {
       appUsageService = AppUsageService(
         settingsService: settingsService,
         ref: ref,
+        analyticsService: mockAnalyticsService,
+        jokeCloudFn: MockJokeCloudFunctionService(),
       );
       service = JokeShareServiceImpl(
         imageService: mockImageService,

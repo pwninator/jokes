@@ -1,16 +1,30 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_search_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
+import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
+
+part 'book_repository.g.dart';
+
+@Riverpod(keepAlive: true)
+BookRepository bookRepository(Ref ref) {
+  final jokeRepository = ref.watch(jokeRepositoryProvider);
+  final jokeCloudFunctionService = ref.watch(jokeCloudFunctionServiceProvider);
+  return BookRepository(
+    jokeRepository: jokeRepository,
+    jokeCloudFunctionService: jokeCloudFunctionService,
+  );
+}
 
 class BookRepository {
   BookRepository({
     required JokeRepository jokeRepository,
-    JokeCloudFunctionService? jokeCloudFunctionService,
+    required JokeCloudFunctionService jokeCloudFunctionService,
   }) : _jokeRepository = jokeRepository,
-       _jokeCloudFunctionService =
-           jokeCloudFunctionService ?? JokeCloudFunctionService();
+       _jokeCloudFunctionService = jokeCloudFunctionService;
 
   final JokeRepository _jokeRepository;
   final JokeCloudFunctionService _jokeCloudFunctionService;

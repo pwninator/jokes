@@ -8,7 +8,6 @@ import 'package:mocktail/mocktail.dart';
 import 'package:snickerdoodle/src/features/book_creator/book_creator_providers.dart';
 import 'package:snickerdoodle/src/features/book_creator/book_creator_screen.dart';
 import 'package:snickerdoodle/src/features/book_creator/data/repositories/book_repository.dart';
-import 'package:snickerdoodle/src/features/book_creator/data/repositories/book_repository_provider.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 
 // --- Mocks ---

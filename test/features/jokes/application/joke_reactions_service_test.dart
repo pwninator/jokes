@@ -3,18 +3,25 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/app_review_service.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/review_prompt_service.dart';
-import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_service.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
+import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
+import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
 
 class MockJokeRepository extends Mock implements JokeRepository {}
 
 class MockReviewPromptCoordinator extends Mock
     implements ReviewPromptCoordinator {}
+
+class MockAnalyticsService extends Mock implements AnalyticsService {}
+
+class MockJokeCloudFunctionService extends Mock
+    implements JokeCloudFunctionService {}
 
 class FakeBuildContext extends Fake implements BuildContext {
   @override
@@ -40,9 +47,13 @@ void main() {
       final settingsService = SettingsService(prefs);
       final container = ProviderContainer();
       final ref = container.read(Provider<Ref>((ref) => ref));
+      final mockAnalytics = MockAnalyticsService();
+      final mockJokeCloudFn = MockJokeCloudFunctionService();
       appUsageService = AppUsageService(
         settingsService: settingsService,
         ref: ref,
+        analyticsService: mockAnalytics,
+        jokeCloudFn: mockJokeCloudFn,
       );
       mockCoordinator = MockReviewPromptCoordinator();
       when(

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -157,7 +159,11 @@ Future<void> _initializeAppUsage(WidgetRef ref) async {
     final service = ref.read(appUsageServiceProvider);
 
     // Fire and forget
-    service.logAppUsage();
+    unawaited(
+      service.logAppUsage().catchError((Object e, StackTrace stack) {
+        AppLogger.fatal('App usage logging failed: $e', stackTrace: stack);
+      }),
+    );
   } catch (e, stack) {
     AppLogger.fatal('App usage logging failed: $e', stackTrace: stack);
   }

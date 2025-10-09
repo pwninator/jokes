@@ -1,13 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:snickerdoodle/src/common_widgets/joke_image_carousel.dart';
 import 'package:snickerdoodle/src/core/providers/image_providers.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
+import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_viewer_mode.dart';
 
 import '../test_helpers/core_mocks.dart';
+
+class _MockJokeCloudFunctionService extends Mock
+    implements JokeCloudFunctionService {}
 
 class _NoopImageService extends ImageService {
   @override
@@ -44,6 +49,9 @@ void main() {
           ...CoreMocks.getCoreProviderOverrides(),
           // Ensure no network/plugin calls by making image URLs resolve to null
           imageServiceProvider.overrideWithValue(_NoopImageService()),
+          // Mock JokeCloudFunctionService to avoid Firebase initialization
+          jokeCloudFunctionServiceProvider
+              .overrideWithValue(_MockJokeCloudFunctionService()),
         ],
         child: const MaterialApp(
           home: Scaffold(
@@ -78,6 +86,9 @@ void main() {
         overrides: [
           ...CoreMocks.getCoreProviderOverrides(),
           imageServiceProvider.overrideWithValue(_NoopImageService()),
+          // Mock JokeCloudFunctionService to avoid Firebase initialization
+          jokeCloudFunctionServiceProvider
+              .overrideWithValue(_MockJokeCloudFunctionService()),
         ],
         child: const MaterialApp(
           home: Scaffold(

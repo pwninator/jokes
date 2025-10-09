@@ -54,16 +54,19 @@ void main() {
       },
     );
 
-    test('submitFeedback handles null user with anonymous ID', () async {
-      const feedbackText = 'Great app! Love the jokes.';
+    test(
+      'submitFeedback handles null user by delegating with null userId',
+      () async {
+        const feedbackText = 'Great app! Love the jokes.';
 
-      await service.submitFeedback(feedbackText, null);
+        await service.submitFeedback(feedbackText, null);
 
-      verify(
-        () => mockRepository.submitFeedback(feedbackText, 'anonymous'),
-      ).called(1);
-      verify(() => mockAnalyticsService.logFeedbackSubmitted()).called(1);
-    });
+        verify(
+          () => mockRepository.submitFeedback(feedbackText, null),
+        ).called(1);
+        verify(() => mockAnalyticsService.logFeedbackSubmitted()).called(1);
+      },
+    );
 
     test('submitFeedback handles empty feedback', () async {
       const feedbackText = '';

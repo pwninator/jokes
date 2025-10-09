@@ -59,14 +59,26 @@ service cloud.firestore {
       allow update:
         if request.auth != null &&
            (request.auth.token.role == 'admin' ||
+            (jokeFeedbackId == request.auth.uid) ||
             (resource.data.user_id == request.auth.uid));
 
       // Delete access: Only allowed for admin users
       allow delete:
         if request.auth != null && request.auth.token.role == 'admin';
 
-      // Anyone can submit feedback
-      allow create: if true;
+      // Create access:
+      // - If authenticated: only allow creating own doc and enforce user_id matches
+      // - If unauthenticated: allow creating docs only when user_id is not set
+      allow create:
+        if (
+          (request.auth != null &&
+            // Doc ID commented out to support legacy app versions
+            // jokeFeedbackId == request.auth.uid &&
+            request.resource.data.user_id == request.auth.uid)
+          ||
+          (request.auth == null &&
+            !request.resource.data.keys().hasAny(['user_id']))
+        );
     }
 
     match /joke_users/{jokeUserId} {

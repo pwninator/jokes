@@ -30,8 +30,7 @@ class FeedbackServiceImpl implements FeedbackService {
 
   @override
   Future<void> submitFeedback(String feedbackText, AppUser? currentUser) async {
-    final userId = currentUser?.id ?? 'anonymous';
-    await _feedbackRepository.submitFeedback(feedbackText, userId);
+    await _feedbackRepository.submitFeedback(feedbackText, currentUser?.id);
     _analyticsService.logFeedbackSubmitted();
   }
 

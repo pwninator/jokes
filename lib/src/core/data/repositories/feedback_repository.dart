@@ -1,4 +1,7 @@
+import 'dart:math';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:snickerdoodle/src/core/services/app_logger.dart';
 
 /// Enum representing the speaker in a feedback conversation
 enum SpeakerType {
@@ -58,7 +61,7 @@ class FeedbackConversationEntry {
 /// Repository for handling feedback-related Firestore operations
 abstract class FeedbackRepository {
   /// Submit user feedback to Firestore
-  Future<void> submitFeedback(String feedbackText, String userId);
+  Future<void> submitFeedback(String feedbackText, String? userId);
 
   /// Add a message to a feedback conversation
   Future<void> addConversationMessage(
@@ -93,13 +96,15 @@ class FirestoreFeedbackRepository implements FeedbackRepository {
     : _firestore = firestore ?? FirebaseFirestore.instance;
 
   @override
-  Future<void> submitFeedback(String feedbackText, String userId) async {
+  Future<void> submitFeedback(String feedbackText, String? userId) async {
     final text = feedbackText.trim();
     if (text.isEmpty) {
       return;
     }
 
-    final docRef = _firestore.collection(_collectionName).doc(userId);
+    final effectiveUserId = userId ?? _generateAnonymousId();
+
+    final docRef = _firestore.collection(_collectionName).doc(effectiveUserId);
     final newEntry = FeedbackConversationEntry(
       speaker: SpeakerType.user,
       text: text,
@@ -107,16 +112,22 @@ class FirestoreFeedbackRepository implements FeedbackRepository {
     );
 
     await _firestore.runTransaction((transaction) async {
-      final snapshot = await transaction.get(docRef);
+      final snapshot = userId != null ? await transaction.get(docRef) : null;
 
-      if (!snapshot.exists) {
-        transaction.set(docRef, {
+      if (snapshot == null || !snapshot.exists) {
+        final Map<String, dynamic> createData = {
           'creation_time': FieldValue.serverTimestamp(),
           'conversation': [newEntry.toFirestore()],
-          'user_id': userId,
           'lastAdminViewTime': null,
           'lastUserViewTime': null,
-        });
+        };
+        if (userId != null) {
+          createData['user_id'] = userId;
+        }
+        transaction.set(docRef, createData);
+        AppLogger.info(
+          "FEEDBACK_REPOSITORY: Created new feedback document for user $effectiveUserId",
+        );
         return;
       }
 
@@ -134,14 +145,18 @@ class FirestoreFeedbackRepository implements FeedbackRepository {
         if (data.containsKey('feedback_text')) {
           updates['feedback_text'] = FieldValue.delete();
         }
-        if ((data['user_id'] as String?) != userId) {
-          updates['user_id'] = userId;
+        if ((data['user_id'] as String?) != effectiveUserId) {
+          updates['user_id'] = effectiveUserId;
         }
       } else {
-        updates['user_id'] = userId;
+        updates['user_id'] = effectiveUserId;
       }
 
       transaction.update(docRef, updates);
+
+      AppLogger.info(
+        "FEEDBACK_REPOSITORY: Updated feedback document for user $effectiveUserId",
+      );
     });
   }
 
@@ -174,6 +189,9 @@ class FirestoreFeedbackRepository implements FeedbackRepository {
           'lastAdminViewTime': null,
           'lastUserViewTime': null,
         });
+        AppLogger.info(
+          "FEEDBACK_REPOSITORY: Created new feedback conversation document for user $docId",
+        );
         return;
       }
 
@@ -199,6 +217,9 @@ class FirestoreFeedbackRepository implements FeedbackRepository {
       }
 
       transaction.update(docRef, updates);
+      AppLogger.info(
+        "FEEDBACK_REPOSITORY: Updated feedback conversation document for user $docId",
+      );
     });
   }
 
@@ -216,182 +237,196 @@ class FirestoreFeedbackRepository implements FeedbackRepository {
         .orderBy('creation_time', descending: true);
 
     return query.snapshots().asyncMap((snapshot) async {
-      QueryDocumentSnapshot<Map<String, dynamic>>? prefixedDoc;
-      for (final doc in snapshot.docs) {
-        if (_datePrefixedIdRegex.hasMatch(doc.id)) {
-          prefixedDoc = doc;
-          break;
-        }
-      }
-
-      final selected = prefixedDoc;
-      if (selected != null) {
-        final match = _datePrefixedIdRegex.firstMatch(selected.id);
-        final newId = match!.group(1)!;
-        final oldRef = selected.reference;
-        final newRef = _firestore.collection(_collectionName).doc(newId);
-
-        await _firestore.runTransaction((transaction) async {
-          final newSnap = await transaction.get(newRef);
-
-          if (!newSnap.exists) {
-            // No conflict: write selected data as-is to the truncated ID
-            transaction.set(newRef, selected.data());
-            transaction.delete(oldRef);
-            return;
-          }
-
-          // Conflict: merge according to rules
-          final Map<String, dynamic> oldData = selected.data();
-          final Map<String, dynamic> existingData =
-              newSnap.data() ?? <String, dynamic>{};
-
-          DateTime? parseDate(dynamic value) {
-            if (value is Timestamp) return value.toDate();
-            if (value is DateTime) return value;
-            return null;
-          }
-
-          // 1) creation_time = earlier
-          final DateTime? oldCreated = parseDate(oldData['creation_time']);
-          final DateTime? existingCreated = parseDate(
-            existingData['creation_time'],
-          );
-          DateTime? mergedCreated;
-          if (oldCreated == null) {
-            mergedCreated = existingCreated;
-          } else if (existingCreated == null) {
-            mergedCreated = oldCreated;
-          } else {
-            mergedCreated = oldCreated.isBefore(existingCreated)
-                ? oldCreated
-                : existingCreated;
-          }
-
-          // 2) lastAdminViewTime/lastUserViewTime = later
-          final DateTime? oldLastAdmin = parseDate(
-            oldData['lastAdminViewTime'],
-          );
-          final DateTime? existingLastAdmin = parseDate(
-            existingData['lastAdminViewTime'],
-          );
-          final DateTime? mergedLastAdmin = (oldLastAdmin == null)
-              ? existingLastAdmin
-              : (existingLastAdmin == null
-                    ? oldLastAdmin
-                    : (oldLastAdmin.isAfter(existingLastAdmin)
-                          ? oldLastAdmin
-                          : existingLastAdmin));
-
-          final DateTime? oldLastUser = parseDate(oldData['lastUserViewTime']);
-          final DateTime? existingLastUser = parseDate(
-            existingData['lastUserViewTime'],
-          );
-          final DateTime? mergedLastUser = (oldLastUser == null)
-              ? existingLastUser
-              : (existingLastUser == null
-                    ? oldLastUser
-                    : (oldLastUser.isAfter(existingLastUser)
-                          ? oldLastUser
-                          : existingLastUser));
-
-          // 3) user_id must be the same (or one missing)
-          final String? oldUserId = oldData['user_id'] as String?;
-          final String? existingUserId = existingData['user_id'] as String?;
-          String? mergedUserId;
-          if (oldUserId == null) {
-            mergedUserId = existingUserId;
-          } else if (existingUserId == null) {
-            mergedUserId = oldUserId;
-          } else if (oldUserId == existingUserId) {
-            mergedUserId = oldUserId;
-          } else {
-            throw StateError(
-              'Mismatched user_id while merging feedback docs: old=$oldUserId new=$existingUserId',
-            );
-          }
-
-          // 4) Merge conversation arrays
-          List<dynamic> oldConversationRaw =
-              (oldData['conversation'] as List<dynamic>?) ?? <dynamic>[];
-          List<dynamic> existingConversationRaw =
-              (existingData['conversation'] as List<dynamic>?) ?? <dynamic>[];
-
-          List<FeedbackConversationEntry> mergedConversation = [
-            ...oldConversationRaw.map(
-              (e) =>
-                  FeedbackConversationEntry.fromMap(e as Map<String, dynamic>),
-            ),
-            ...existingConversationRaw.map(
-              (e) =>
-                  FeedbackConversationEntry.fromMap(e as Map<String, dynamic>),
-            ),
-          ];
-
-          // 5) Merge feedback_text into conversation if present
-          void addLegacyTextIfPresent(Map<String, dynamic> data) {
-            final String? legacy = data['feedback_text'] as String?;
-            if (legacy != null && legacy.trim().isNotEmpty) {
-              final DateTime ts =
-                  parseDate(data['creation_time']) ?? DateTime.now().toUtc();
-              mergedConversation.add(
-                FeedbackConversationEntry(
-                  speaker: SpeakerType.user,
-                  text: legacy,
-                  timestamp: ts,
-                ),
-              );
-            }
-          }
-
-          addLegacyTextIfPresent(oldData);
-          addLegacyTextIfPresent(existingData);
-
-          // De-duplicate conversation entries by (speaker|text|timestamp)
-          final Map<String, FeedbackConversationEntry> uniqueByKey = {};
-          for (final entry in mergedConversation) {
-            final String key =
-                '${entry.speaker.value}|${entry.text}|${entry.timestamp.toUtc().microsecondsSinceEpoch}';
-            uniqueByKey[key] = entry;
-          }
-
-          final List<FeedbackConversationEntry> mergedConversationUnique =
-              uniqueByKey.values.toList();
-
-          // Sort by timestamp ascending
-          mergedConversationUnique.sort(
-            (a, b) => a.timestamp.compareTo(b.timestamp),
-          );
-
-          final Map<String, dynamic> mergedDoc = <String, dynamic>{
-            if (mergedCreated != null)
-              'creation_time': Timestamp.fromDate(mergedCreated.toUtc()),
-            'conversation': mergedConversationUnique
-                .map((e) => e.toFirestore())
-                .toList(),
-            if (mergedUserId != null) 'user_id': mergedUserId,
-            'lastAdminViewTime': mergedLastAdmin == null
-                ? null
-                : Timestamp.fromDate(mergedLastAdmin.toUtc()),
-            'lastUserViewTime': mergedLastUser == null
-                ? null
-                : Timestamp.fromDate(mergedLastUser.toUtc()),
-          };
-
-          transaction.set(newRef, mergedDoc);
-          transaction.delete(oldRef);
-        });
-
-        final fresh = await query.get();
-        return fresh.docs
+      final selectedForMigration = _findFirstDatePrefixed(snapshot.docs);
+      if (selectedForMigration == null) {
+        return snapshot.docs
             .map((doc) => FeedbackEntry.fromFirestore(doc))
             .toList();
+      }
+
+      // Skip migration for anonymous-like docs (no user_id present)
+      final selectedData = selectedForMigration.data();
+      if (!selectedData.containsKey('user_id') ||
+          selectedData['user_id'] == null) {
+        return snapshot.docs
+            .map((doc) => FeedbackEntry.fromFirestore(doc))
+            .toList();
+      }
+
+      final migrated = await _migrateDatePrefixedDoc(
+        query,
+        selectedForMigration,
+      );
+      if (migrated != null) {
+        return migrated.map((doc) => FeedbackEntry.fromFirestore(doc)).toList();
       }
 
       return snapshot.docs
           .map((doc) => FeedbackEntry.fromFirestore(doc))
           .toList();
     });
+  }
+
+  QueryDocumentSnapshot<Map<String, dynamic>>? _findFirstDatePrefixed(
+    List<QueryDocumentSnapshot<Map<String, dynamic>>> docs,
+  ) {
+    for (final doc in docs) {
+      if (_datePrefixedIdRegex.hasMatch(doc.id)) {
+        return doc;
+      }
+    }
+    return null;
+  }
+
+  Future<List<QueryDocumentSnapshot<Map<String, dynamic>>>?>
+  _migrateDatePrefixedDoc(
+    Query<Map<String, dynamic>> query,
+    QueryDocumentSnapshot<Map<String, dynamic>> selected,
+  ) async {
+    final match = _datePrefixedIdRegex.firstMatch(selected.id);
+    if (match == null) return null;
+    final newId = match.group(1)!;
+    final oldRef = selected.reference;
+    final newRef = _firestore.collection(_collectionName).doc(newId);
+
+    await _firestore.runTransaction((transaction) async {
+      final newSnap = await transaction.get(newRef);
+      if (!newSnap.exists) {
+        transaction.set(newRef, selected.data());
+        transaction.delete(oldRef);
+        return;
+      }
+
+      final Map<String, dynamic> oldData = selected.data();
+      final Map<String, dynamic> existingData =
+          newSnap.data() ?? <String, dynamic>{};
+
+      DateTime? parseDate(dynamic value) {
+        if (value is Timestamp) return value.toDate();
+        if (value is DateTime) return value;
+        return null;
+      }
+
+      final DateTime? oldCreated = parseDate(oldData['creation_time']);
+      final DateTime? existingCreated = parseDate(
+        existingData['creation_time'],
+      );
+      DateTime? mergedCreated;
+      if (oldCreated == null) {
+        mergedCreated = existingCreated;
+      } else if (existingCreated == null) {
+        mergedCreated = oldCreated;
+      } else {
+        mergedCreated = oldCreated.isBefore(existingCreated)
+            ? oldCreated
+            : existingCreated;
+      }
+
+      final DateTime? oldLastAdmin = parseDate(oldData['lastAdminViewTime']);
+      final DateTime? existingLastAdmin = parseDate(
+        existingData['lastAdminViewTime'],
+      );
+      final DateTime? mergedLastAdmin = (oldLastAdmin == null)
+          ? existingLastAdmin
+          : (existingLastAdmin == null
+                ? oldLastAdmin
+                : (oldLastAdmin.isAfter(existingLastAdmin)
+                      ? oldLastAdmin
+                      : existingLastAdmin));
+
+      final DateTime? oldLastUser = parseDate(oldData['lastUserViewTime']);
+      final DateTime? existingLastUser = parseDate(
+        existingData['lastUserViewTime'],
+      );
+      final DateTime? mergedLastUser = (oldLastUser == null)
+          ? existingLastUser
+          : (existingLastUser == null
+                ? oldLastUser
+                : (oldLastUser.isAfter(existingLastUser)
+                      ? oldLastUser
+                      : existingLastUser));
+
+      final String? oldUserId = oldData['user_id'] as String?;
+      final String? existingUserId = existingData['user_id'] as String?;
+      String? mergedUserId;
+      if (oldUserId == null) {
+        mergedUserId = existingUserId;
+      } else if (existingUserId == null) {
+        mergedUserId = oldUserId;
+      } else if (oldUserId == existingUserId) {
+        mergedUserId = oldUserId;
+      } else {
+        throw StateError(
+          'Mismatched user_id while merging feedback docs: old=$oldUserId new=$existingUserId',
+        );
+      }
+
+      List<dynamic> oldConversationRaw =
+          (oldData['conversation'] as List<dynamic>?) ?? <dynamic>[];
+      List<dynamic> existingConversationRaw =
+          (existingData['conversation'] as List<dynamic>?) ?? <dynamic>[];
+
+      List<FeedbackConversationEntry> mergedConversation = [
+        ...oldConversationRaw.map(
+          (e) => FeedbackConversationEntry.fromMap(e as Map<String, dynamic>),
+        ),
+        ...existingConversationRaw.map(
+          (e) => FeedbackConversationEntry.fromMap(e as Map<String, dynamic>),
+        ),
+      ];
+
+      void addLegacyTextIfPresent(Map<String, dynamic> data) {
+        final String? legacy = data['feedback_text'] as String?;
+        if (legacy != null && legacy.trim().isNotEmpty) {
+          final DateTime ts =
+              parseDate(data['creation_time']) ?? DateTime.now().toUtc();
+          mergedConversation.add(
+            FeedbackConversationEntry(
+              speaker: SpeakerType.user,
+              text: legacy,
+              timestamp: ts,
+            ),
+          );
+        }
+      }
+
+      addLegacyTextIfPresent(oldData);
+      addLegacyTextIfPresent(existingData);
+
+      final Map<String, FeedbackConversationEntry> uniqueByKey = {};
+      for (final entry in mergedConversation) {
+        final String key =
+            '${entry.speaker.value}|${entry.text}|${entry.timestamp.toUtc().microsecondsSinceEpoch}';
+        uniqueByKey[key] = entry;
+      }
+
+      final List<FeedbackConversationEntry> mergedConversationUnique =
+          uniqueByKey.values.toList();
+      mergedConversationUnique.sort(
+        (a, b) => a.timestamp.compareTo(b.timestamp),
+      );
+
+      final Map<String, dynamic> mergedDoc = <String, dynamic>{
+        if (mergedCreated != null)
+          'creation_time': Timestamp.fromDate(mergedCreated.toUtc()),
+        'conversation': mergedConversationUnique
+            .map((e) => e.toFirestore())
+            .toList(),
+        if (mergedUserId != null) 'user_id': mergedUserId,
+        'lastAdminViewTime': mergedLastAdmin == null
+            ? null
+            : Timestamp.fromDate(mergedLastAdmin.toUtc()),
+        'lastUserViewTime': mergedLastUser == null
+            ? null
+            : Timestamp.fromDate(mergedLastUser.toUtc()),
+      };
+
+      transaction.set(newRef, mergedDoc);
+      transaction.delete(oldRef);
+    });
+
+    final fresh = await query.get();
+    return fresh.docs;
   }
 
   @override
@@ -432,6 +467,15 @@ class FirestoreFeedbackRepository implements FeedbackRepository {
       return count;
     });
   }
+}
+
+String _generateAnonymousId() {
+  final now = DateTime.now().toUtc();
+  String p2(int n) => n.toString().padLeft(2, '0');
+  final date = '${now.year}${p2(now.month)}${p2(now.day)}';
+  final time = '${p2(now.hour)}${p2(now.minute)}${p2(now.second)}';
+  final rand = Random().nextInt(900) + 100; // 100-999
+  return 'anonymous_${date}_${time}_$rand';
 }
 
 /// Feedback entry model used by admin UI

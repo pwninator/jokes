@@ -31,6 +31,22 @@ void main() {
       expect(data['lastAdminViewTime'], isNull);
     });
 
+    test(
+      'submitFeedback (unauth) creates anonymous doc without user_id',
+      () async {
+        await repository.submitFeedback('Anon feedback', null);
+
+        final querySnap = await fakeFirestore.collection('joke_feedback').get();
+        expect(querySnap.docs.length, 1);
+        final data = querySnap.docs.first.data();
+        expect(data.containsKey('user_id'), isFalse);
+        final conversation = data['conversation'] as List<dynamic>;
+        expect(conversation.length, 1);
+        expect(conversation.first['text'], 'Anon feedback');
+        expect(conversation.first['speaker'], 'USER');
+      },
+    );
+
     test('submitFeedback appends additional messages for same user', () async {
       await repository.submitFeedback('First message', 'user1');
       await repository.submitFeedback('Second message', 'user1');

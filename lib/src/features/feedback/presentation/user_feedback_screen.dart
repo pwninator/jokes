@@ -188,7 +188,10 @@ class _UserFeedbackScreenState extends ConsumerState<UserFeedbackScreen> {
         );
       }
     } catch (e) {
-      AppLogger.warn('FEEDBACK_SCREEN submit error: ${e.toString()}');
+      final userId = user?.id ?? 'anonymous';
+      AppLogger.warn(
+        'FEEDBACK_SCREEN submit error for user "$userId": ${e.toString()}',
+      );
       try {
         final analytics = ref.read(analyticsServiceProvider);
         analytics.logErrorFeedbackSubmit(

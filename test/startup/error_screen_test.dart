@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
 import 'package:snickerdoodle/src/startup/error_screen.dart';
 
 void main() {
@@ -31,10 +32,8 @@ void main() {
 
       final imageWidget = tester.widget<Image>(find.byType(Image));
       expect(imageWidget.image, isA<AssetImage>());
-      expect(
-        (imageWidget.image as AssetImage).assetName,
-        'assets/images/icon_cookie_01_transparent_dark_300.png',
-      );
+      expect((imageWidget.image as AssetImage).assetName,
+          JokeConstants.iconCookie01TransparentDark300);
 
       final retryButton = find.byKey(const Key('error_screen-retry-button'));
       expect(retryButton, findsOneWidget);

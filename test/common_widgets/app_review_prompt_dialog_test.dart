@@ -1,222 +1,144 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:snickerdoodle/src/common_widgets/app_review_prompt_dialog.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 
+class _FailingAssetBundle extends CachingAssetBundle {
+  @override
+  Future<ByteData> load(String key) => Future.error('missing asset: $key');
+}
+
+Future<void> _pumpDialog(
+  WidgetTester tester, {
+  required ReviewPromptVariant variant,
+  VoidCallback? onAccept,
+  VoidCallback? onDismiss,
+  VoidCallback? onFeedback,
+  AssetBundle? assetBundle,
+}) async {
+  await tester.pumpWidget(
+    DefaultAssetBundle(
+      bundle: assetBundle ?? rootBundle,
+      child: MaterialApp(
+        home: Scaffold(
+          body: AppReviewPromptDialog(
+            variant: variant,
+            onAccept: onAccept ?? () {},
+            onDismiss: onDismiss ?? () {},
+            onFeedback: onFeedback,
+          ),
+        ),
+      ),
+    ),
+  );
+  await tester.pump();
+}
+
 void main() {
   group('AppReviewPromptDialog', () {
-    testWidgets('renders bunny variant with correct variant keys and image', (
-      tester,
-    ) async {
-      bool acceptCalled = false;
-      bool dismissCalled = false;
+    for (final variant in ReviewPromptVariant.values) {
+      testWidgets('displays ${variant.name} copy and actions', (tester) async {
+        await _pumpDialog(tester, variant: variant);
+        final config = ReviewPromptConfigs.getConfig(variant);
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: AppReviewPromptDialog(
-              variant: ReviewPromptVariant.bunny,
-              onAccept: () => acceptCalled = true,
-              onDismiss: () => dismissCalled = true,
-              onFeedback: () {},
-            ),
-          ),
-        ),
+        expect(find.text(config.title), findsOneWidget);
+        expect(find.text(config.message), findsOneWidget);
+        expect(
+          find.byKey(Key('app_review_prompt_dialog-dismiss-button-${variant.name}')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(Key('app_review_prompt_dialog-accept-button-${variant.name}')),
+          findsOneWidget,
+        );
+      });
+    }
+
+    testWidgets('tapping accept and dismiss triggers callbacks', (tester) async {
+      var accepted = 0;
+      var dismissed = 0;
+
+      await _pumpDialog(
+        tester,
+        variant: ReviewPromptVariant.bunny,
+        onAccept: () => accepted++,
+        onDismiss: () => dismissed++,
       );
 
-      // Assert: variant-specific keys exist
-      expect(
-        find.byKey(const Key('app_review_prompt_dialog-dismiss-button-bunny')),
-        findsOneWidget,
-      );
-      expect(
-        find.byKey(const Key('app_review_prompt_dialog-accept-button-bunny')),
-        findsOneWidget,
-      );
-
-      // Assert: an image is present
-      expect(find.byType(Image), findsOneWidget);
-
-      // Verify buttons are not called yet
-      expect(acceptCalled, false);
-      expect(dismissCalled, false);
-    });
-
-    testWidgets('renders kitten variant with correct variant keys and image', (
-      tester,
-    ) async {
-      bool acceptCalled = false;
-      bool dismissCalled = false;
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: AppReviewPromptDialog(
-              variant: ReviewPromptVariant.kitten,
-              onAccept: () => acceptCalled = true,
-              onDismiss: () => dismissCalled = true,
-              onFeedback: () {},
-            ),
-          ),
-        ),
-      );
-
-      // Assert: variant-specific keys exist
-      expect(
-        find.byKey(const Key('app_review_prompt_dialog-dismiss-button-kitten')),
-        findsOneWidget,
-      );
-      expect(
-        find.byKey(const Key('app_review_prompt_dialog-accept-button-kitten')),
-        findsOneWidget,
-      );
-
-      // Assert: an image is present
-      expect(find.byType(Image), findsOneWidget);
-
-      // Verify buttons are not called yet
-      expect(acceptCalled, false);
-      expect(dismissCalled, false);
-    });
-
-    testWidgets('calls onDismiss when dismiss button is tapped (bunny)', (
-      tester,
-    ) async {
-      bool acceptCalled = false;
-      bool dismissCalled = false;
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: AppReviewPromptDialog(
-              variant: ReviewPromptVariant.bunny,
-              onAccept: () => acceptCalled = true,
-              onDismiss: () => dismissCalled = true,
-              onFeedback: () {},
-            ),
-          ),
-        ),
-      );
-
-      // Tap the dismiss button
-      await tester.tap(
-        find.byKey(const Key('app_review_prompt_dialog-dismiss-button-bunny')),
-      );
-      await tester.pumpAndSettle();
-
-      expect(dismissCalled, true);
-      expect(acceptCalled, false);
-    });
-
-    testWidgets('calls onAccept when accept button is tapped (bunny)', (
-      tester,
-    ) async {
-      bool acceptCalled = false;
-      bool dismissCalled = false;
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: AppReviewPromptDialog(
-              variant: ReviewPromptVariant.bunny,
-              onAccept: () => acceptCalled = true,
-              onDismiss: () => dismissCalled = true,
-              onFeedback: () {},
-            ),
-          ),
-        ),
-      );
-
-      // Tap the accept button
       await tester.tap(
         find.byKey(const Key('app_review_prompt_dialog-accept-button-bunny')),
       );
-      await tester.pumpAndSettle();
-
-      expect(acceptCalled, true);
-      expect(dismissCalled, false);
-    });
-
-    testWidgets('calls onDismiss when dismiss button is tapped (kitten)', (
-      tester,
-    ) async {
-      bool acceptCalled = false;
-      bool dismissCalled = false;
-
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: AppReviewPromptDialog(
-              variant: ReviewPromptVariant.kitten,
-              onAccept: () => acceptCalled = true,
-              onDismiss: () => dismissCalled = true,
-              onFeedback: () {},
-            ),
-          ),
-        ),
-      );
-
-      // Tap the dismiss button
+      await tester.pump();
       await tester.tap(
-        find.byKey(const Key('app_review_prompt_dialog-dismiss-button-kitten')),
+        find.byKey(const Key('app_review_prompt_dialog-dismiss-button-bunny')),
       );
-      await tester.pumpAndSettle();
+      await tester.pump();
 
-      expect(dismissCalled, true);
-      expect(acceptCalled, false);
+      expect(accepted, 1);
+      expect(dismissed, 1);
     });
 
-    testWidgets('calls onAccept when accept button is tapped (kitten)', (
-      tester,
-    ) async {
-      bool acceptCalled = false;
-      bool dismissCalled = false;
+    testWidgets('feedback link invokes callback', (tester) async {
+      var feedbackTapped = false;
 
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: AppReviewPromptDialog(
-              variant: ReviewPromptVariant.kitten,
-              onAccept: () => acceptCalled = true,
-              onDismiss: () => dismissCalled = true,
-              onFeedback: () {},
-            ),
-          ),
-        ),
+      await _pumpDialog(
+        tester,
+        variant: ReviewPromptVariant.kitten,
+        onFeedback: () => feedbackTapped = true,
       );
 
-      // Tap the accept button
-      await tester.tap(
-        find.byKey(const Key('app_review_prompt_dialog-accept-button-kitten')),
+      final richText = tester.widget<RichText>(
+        find.byKey(const Key('app_review_prompt_dialog-feedback-link-kitten')),
       );
-      await tester.pumpAndSettle();
+      final span = richText.text as TextSpan;
+      final linkSpan = span.children!.whereType<TextSpan>().last;
+      (linkSpan.recognizer as TapGestureRecognizer).onTap?.call();
 
-      expect(acceptCalled, true);
-      expect(dismissCalled, false);
+      expect(feedbackTapped, isTrue);
     });
 
-    testWidgets('renders without errors', (tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: AppReviewPromptDialog(
-              variant: ReviewPromptVariant.bunny,
-              onAccept: () {},
-              onDismiss: () {},
-              onFeedback: () {},
-            ),
-          ),
-        ),
+    testWidgets('shows placeholder icon when image fails to load', (tester) async {
+      await _pumpDialog(
+        tester,
+        variant: ReviewPromptVariant.bunny,
+        assetBundle: _FailingAssetBundle(),
       );
 
-      // Verify dialog renders without errors
-      expect(find.byType(AppReviewPromptDialog), findsOneWidget);
+      expect(find.byIcon(Icons.image_not_supported), findsOneWidget);
+    });
+
+    testWidgets('uses horizontal layout for wide screens', (tester) async {
+      tester.view.physicalSize = const Size(900, 400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await _pumpDialog(tester, variant: ReviewPromptVariant.kitten);
+
+      expect(find.byType(Row), findsWidgets);
+    });
+
+    testWidgets('uses vertical layout for tall screens', (tester) async {
+      tester.view.physicalSize = const Size(400, 900);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await _pumpDialog(tester, variant: ReviewPromptVariant.bunny);
+
+      expect(find.byType(Column), findsWidgets);
     });
   });
 
   group('ReviewPromptConfigs', () {
-    test('bunny entry in configs has correct variant and path', () {
-      final config = ReviewPromptConfigs.configs[ReviewPromptVariant.bunny]!;
+    test('bunny entry exposes expected asset', () {
+      final config = ReviewPromptConfigs.getConfig(ReviewPromptVariant.bunny);
       expect(config.variant, ReviewPromptVariant.bunny);
       expect(
         config.imagePath,
@@ -224,8 +146,8 @@ void main() {
       );
     });
 
-    test('kitten entry in configs has correct variant and path', () {
-      final config = ReviewPromptConfigs.configs[ReviewPromptVariant.kitten]!;
+    test('kitten entry exposes expected asset', () {
+      final config = ReviewPromptConfigs.getConfig(ReviewPromptVariant.kitten);
       expect(config.variant, ReviewPromptVariant.kitten);
       expect(
         config.imagePath,

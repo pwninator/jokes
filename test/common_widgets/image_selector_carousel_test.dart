@@ -3,184 +3,119 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:snickerdoodle/src/common_widgets/image_selector_carousel.dart';
 
+Widget _wrap(Widget child) => ProviderScope(
+      child: MaterialApp(home: Scaffold(body: child)),
+    );
+
 void main() {
   group('ImageSelectorCarousel', () {
-    testWidgets('should not render when imageUrls is empty', (tester) async {
+    testWidgets('returns empty widget when no images provided', (tester) async {
       await tester.pumpWidget(
-        ProviderScope(
-          child: MaterialApp(
-            home: Scaffold(
-              body: ImageSelectorCarousel(
-                imageUrls: const [],
-                title: 'Test Images',
-                onImageSelected: (_) {},
-              ),
-            ),
+        _wrap(
+          ImageSelectorCarousel(
+            imageUrls: const [],
+            title: 'Gallery',
+            onImageSelected: (_) {},
           ),
         ),
       );
 
-      expect(find.byType(ImageSelectorCarousel), findsOneWidget);
-      expect(find.text('Test Images'), findsNothing);
+      expect(find.text('Gallery'), findsNothing);
+      expect(find.byType(PageView), findsNothing);
     });
 
-    testWidgets('should render with images and title', (tester) async {
-      const imageUrls = [
-        'https://example.com/image1.jpg',
-        'https://example.com/image2.jpg',
-      ];
+    testWidgets('renders title and highlights first indicator', (tester) async {
+      const urls = ['a', 'b', 'c'];
 
       await tester.pumpWidget(
-        ProviderScope(
-          child: MaterialApp(
-            home: Scaffold(
-              body: ImageSelectorCarousel(
-                imageUrls: imageUrls,
-                title: 'Test Images',
-                onImageSelected: (_) {},
-              ),
-            ),
+        _wrap(
+          ImageSelectorCarousel(
+            imageUrls: urls,
+            title: 'Gallery',
+            onImageSelected: (_) {},
           ),
         ),
       );
 
-      expect(find.text('Test Images'), findsOneWidget);
+      expect(find.text('Gallery'), findsOneWidget);
       expect(find.byType(PageView), findsOneWidget);
+
+      final firstIndicator = find.byType(AnimatedContainer).first;
+      expect(tester.getSize(firstIndicator).width, 20);
     });
 
-    testWidgets('should show page indicators when multiple images', (
+    testWidgets('initially displays provided selected image without callback', (
       tester,
     ) async {
-      const imageUrls = [
-        'https://example.com/image1.jpg',
-        'https://example.com/image2.jpg',
-        'https://example.com/image3.jpg',
-      ];
+      const urls = ['u1', 'u2', 'u3'];
+      String? selected;
 
       await tester.pumpWidget(
-        ProviderScope(
-          child: MaterialApp(
-            home: Scaffold(
-              body: ImageSelectorCarousel(
-                imageUrls: imageUrls,
-                title: 'Test Images',
-                onImageSelected: (_) {},
-              ),
-            ),
+        _wrap(
+          ImageSelectorCarousel(
+            imageUrls: urls,
+            selectedImageUrl: urls[2],
+            title: 'Gallery',
+            onImageSelected: (value) => selected = value,
           ),
         ),
       );
+      await tester.pump();
 
-      // Should show 3 page indicators
-      expect(find.byType(AnimatedContainer), findsWidgets);
+      expect(selected, isNull);
+
+      final pageView = tester.widget<PageView>(find.byType(PageView));
+      expect(pageView.controller?.initialPage, 2);
     });
 
-    testWidgets('should not call onImageSelected on initial load', (
+    testWidgets('invokes onImageSelected only after user swipes to new page', (
       tester,
     ) async {
-      const imageUrls = [
-        'https://example.com/image1.jpg',
-        'https://example.com/image2.jpg',
-      ];
-
-      String? selectedImage;
+      const urls = ['first', 'second'];
+      String? selected;
 
       await tester.pumpWidget(
-        ProviderScope(
-          child: MaterialApp(
-            home: Scaffold(
-              body: ImageSelectorCarousel(
-                imageUrls: imageUrls,
-                title: 'Test Images',
-                onImageSelected: (imageUrl) {
-                  selectedImage = imageUrl;
-                },
-              ),
-            ),
+        _wrap(
+          ImageSelectorCarousel(
+            imageUrls: urls,
+            title: 'Gallery',
+            onImageSelected: (value) => selected = value,
           ),
         ),
       );
-
-      // Wait for initial frame and initialization to complete
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 1));
 
-      // Should not call onImageSelected on initial load
-      expect(selectedImage, isNull);
+      expect(selected, isNull);
+
+      await tester.drag(find.byType(PageView), const Offset(-400, 0));
+      await tester.pumpAndSettle();
+
+      expect(selected, urls[1]);
     });
 
-    testWidgets('should call onImageSelected when user swipes', (tester) async {
-      const imageUrls = [
-        'https://example.com/image1.jpg',
-        'https://example.com/image2.jpg',
-      ];
-
-      String? selectedImage;
-
-      await tester.pumpWidget(
-        ProviderScope(
-          child: MaterialApp(
-            home: Scaffold(
-              body: ImageSelectorCarousel(
-                imageUrls: imageUrls,
-                title: 'Test Images',
-                onImageSelected: (imageUrl) {
-                  selectedImage = imageUrl;
-                },
-              ),
-            ),
-          ),
-        ),
-      );
-
-      // Wait for initial frame and initialization to complete
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 1));
-
-      // Initially should not call onImageSelected
-      expect(selectedImage, isNull);
-
-      // Swipe to next page (this triggers user interaction)
-      await tester.drag(find.byType(PageView), const Offset(-600, 0));
-      await tester.pump();
-
-      // Should now select second image
-      expect(selectedImage, equals(imageUrls[1]));
-    });
-
-    testWidgets('should initialize with selected image but not call callback', (
+    testWidgets('page indicators update when selection changes', (
       tester,
     ) async {
-      const imageUrls = [
-        'https://example.com/image1.jpg',
-        'https://example.com/image2.jpg',
-      ];
-
-      String? selectedImage;
+      const urls = ['one', 'two', 'three'];
 
       await tester.pumpWidget(
-        ProviderScope(
-          child: MaterialApp(
-            home: Scaffold(
-              body: ImageSelectorCarousel(
-                imageUrls: imageUrls,
-                selectedImageUrl: imageUrls[1], // Start with second image
-                title: 'Test Images',
-                onImageSelected: (imageUrl) {
-                  selectedImage = imageUrl;
-                },
-              ),
-            ),
+        _wrap(
+          ImageSelectorCarousel(
+            imageUrls: urls,
+            title: 'Gallery',
+            onImageSelected: (_) {},
           ),
         ),
       );
-
-      // Wait for initial frame and initialization to complete
       await tester.pump();
-      await tester.pump(const Duration(milliseconds: 1));
 
-      // Should not call onImageSelected on initial load, even with selectedImageUrl
-      expect(selectedImage, isNull);
+      await tester.drag(find.byType(PageView), const Offset(-400, 0));
+      await tester.pumpAndSettle();
+
+      final firstIndicator = find.byType(AnimatedContainer).at(0);
+      final secondIndicator = find.byType(AnimatedContainer).at(1);
+      expect(tester.getSize(firstIndicator).width, 8);
+      expect(tester.getSize(secondIndicator).width, 20);
     });
   });
 }

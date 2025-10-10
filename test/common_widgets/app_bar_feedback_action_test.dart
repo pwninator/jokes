@@ -1,124 +1,199 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mocktail/mocktail.dart';
+import 'package:go_router/go_router.dart';
 import 'package:snickerdoodle/src/common_widgets/app_bar_widget.dart';
+import 'package:snickerdoodle/src/common_widgets/feedback_notification_icon.dart';
+import 'package:snickerdoodle/src/config/router/route_names.dart';
 import 'package:snickerdoodle/src/core/data/repositories/feedback_repository.dart';
-import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
+import 'package:snickerdoodle/src/core/providers/feedback_prompt_providers.dart';
 import 'package:snickerdoodle/src/core/providers/feedback_providers.dart';
-import 'package:snickerdoodle/src/core/services/analytics_service.dart';
-import 'package:snickerdoodle/src/core/services/feedback_prompt_state_store.dart';
-import 'package:snickerdoodle/src/core/services/feedback_service.dart';
-import 'package:snickerdoodle/src/features/feedback/presentation/user_feedback_screen.dart';
 
-class MockFeedbackService extends Mock implements FeedbackService {}
+Future<void> _pumpAppBar(
+  WidgetTester tester, {
+  required FutureOr<bool> Function(Ref) shouldShow,
+  List<Widget>? actions,
+}) async {
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        shouldShowFeedbackActionProvider.overrideWith(shouldShow),
+      ],
+      child: MaterialApp(
+        home: Scaffold(
+          appBar: AppBarWidget(
+            title: 'Inbox',
+            actions: actions,
+          ),
+        ),
+      ),
+    ),
+  );
+  await tester.pump();
+}
 
-class MockFeedbackPromptStateStore extends Mock
-    implements FeedbackPromptStateStore {}
+FeedbackEntry _buildUnreadEntry() {
+  final userTime = DateTime(2024, 1, 1, 12, 0);
+  final adminTime = userTime.add(const Duration(minutes: 5));
 
-class MockAnalyticsService extends Mock implements AnalyticsService {}
-
-void main() {
-  setUpAll(() {
-    registerFallbackValue(SpeakerType.user);
-  });
-
-  final testFeedbackEntry = FeedbackEntry(
-    id: 'test-id',
-    userId: 'test-user-id',
-    creationTime: DateTime.now(),
+  return FeedbackEntry(
+    id: 'entry-1',
+    userId: 'user-1',
+    creationTime: userTime,
     conversation: [
       FeedbackConversationEntry(
         speaker: SpeakerType.user,
-        text: 'This is a test feedback message.',
-        timestamp: DateTime.now(),
+        text: 'Hi there!',
+        timestamp: userTime,
       ),
       FeedbackConversationEntry(
         speaker: SpeakerType.admin,
-        text: 'This is a test admin response.',
-        timestamp: DateTime.now().add(const Duration(minutes: 5)),
+        text: 'Hello from support',
+        timestamp: adminTime,
       ),
     ],
-    lastAdminViewTime: null,
-    lastUserViewTime: null,
+    lastAdminViewTime: adminTime,
+    lastUserViewTime: userTime,
   );
+}
 
-  late MockFeedbackService mockFeedbackService;
-  late MockFeedbackPromptStateStore mockPromptStore;
-  late MockAnalyticsService mockAnalyticsService;
-
-  setUp(() {
-    mockFeedbackService = MockFeedbackService();
-    mockPromptStore = MockFeedbackPromptStateStore();
-    mockAnalyticsService = MockAnalyticsService();
-
-    when(() => mockPromptStore.markViewed()).thenAnswer((_) async {});
-    when(() => mockAnalyticsService.logFeedbackDialogShown()).thenReturn(null);
-    when(
-      () => mockFeedbackService.updateLastUserViewTime(any()),
-    ).thenAnswer((_) async {});
-    when(
-      () => mockFeedbackService.addConversationMessage(any(), any(), any()),
-    ).thenAnswer((_) async {});
-  });
-
-  testWidgets(
-    'shows feedback icon when unread feedback exists and opens screen on tap',
-    (tester) async {
-      await tester.pumpWidget(
-        ProviderScope(
-          overrides: [
-            unreadFeedbackProvider.overrideWith((ref) => [testFeedbackEntry]),
-            feedbackServiceProvider.overrideWithValue(mockFeedbackService),
-            analyticsServiceProvider.overrideWithValue(mockAnalyticsService),
-            feedbackPromptStateStoreProvider.overrideWithValue(mockPromptStore),
-            userFeedbackProvider.overrideWith(
-              (ref) => Stream.value([testFeedbackEntry]),
-            ),
-          ],
-          child: const MaterialApp(
-            home: Scaffold(appBar: AppBarWidget(title: 'Test')),
-          ),
-        ),
+void main() {
+  group('AppBarWidget feedback action', () {
+    testWidgets('appends feedback icon when provider resolves true', (
+      tester,
+    ) async {
+      await _pumpAppBar(
+        tester,
+        shouldShow: (ref) async => true,
+        actions: const [Icon(Icons.search, key: Key('search-action'))],
       );
 
-      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('search-action')), findsOneWidget);
       expect(
         find.byKey(const Key('feedback-notification-icon')),
         findsOneWidget,
       );
+    });
+
+    testWidgets('excludes feedback icon when provider resolves false', (
+      tester,
+    ) async {
+      await _pumpAppBar(
+        tester,
+        shouldShow: (ref) async => false,
+      );
 
       expect(
-        find.byKey(const Key('feedback_notification_icon-open-button')),
+        find.byKey(const Key('feedback-notification-icon')),
+        findsNothing,
+      );
+    });
+
+    testWidgets('waits for provider completion before showing icon', (
+      tester,
+    ) async {
+      final completer = Completer<bool>();
+
+      await _pumpAppBar(
+        tester,
+        shouldShow: (ref) => completer.future,
+      );
+
+      expect(
+        find.byKey(const Key('feedback-notification-icon')),
+        findsNothing,
+      );
+
+      completer.complete(true);
+      await tester.pump();
+      await tester.pump();
+
+      expect(
+        find.byKey(const Key('feedback-notification-icon')),
         findsOneWidget,
       );
+    });
+  });
+
+  group('FeedbackNotificationIcon', () {
+    testWidgets('renders badge when unread replies exist', (tester) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            unreadFeedbackProvider.overrideWithValue([_buildUnreadEntry()]),
+          ],
+          child: const MaterialApp(
+            home: Scaffold(
+              body: FeedbackNotificationIcon(),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pump();
+      expect(find.bySemanticsLabel('New reply'), findsOneWidget);
+    });
+
+    testWidgets('hides badge when no unread replies exist', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        const ProviderScope(
+          child: MaterialApp(
+            home: Scaffold(
+              body: FeedbackNotificationIcon(),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pump();
+      expect(find.bySemanticsLabel('New reply'), findsNothing);
+    });
+
+    testWidgets('pushes feedback route and shows success snackbar', (
+      tester,
+    ) async {
+      final router = GoRouter(
+        initialLocation: '/',
+        routes: [
+          GoRoute(
+            path: '/',
+            builder: (context, state) => const Scaffold(
+              body: Center(child: FeedbackNotificationIcon()),
+            ),
+          ),
+          GoRoute(
+            name: RouteNames.feedback,
+            path: '/feedback',
+            builder: (context, state) {
+              Future.microtask(() => Navigator.of(context).pop(true));
+              return const SizedBox.shrink();
+            },
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            unreadFeedbackProvider.overrideWithValue([_buildUnreadEntry()]),
+          ],
+          child: MaterialApp.router(routerConfig: router),
+        ),
+      );
+
+      await tester.pump();
 
       await tester.tap(
         find.byKey(const Key('feedback_notification_icon-open-button')),
       );
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
 
-      expect(find.byType(UserFeedbackScreen), findsOneWidget);
-      verify(
-        () => mockFeedbackService.updateLastUserViewTime(testFeedbackEntry.id),
-      ).called(1);
-    },
-  );
-
-  testWidgets('does not show feedback icon when there is no unread feedback', (
-    tester,
-  ) async {
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [unreadFeedbackProvider.overrideWithValue([])],
-        child: const MaterialApp(
-          home: Scaffold(appBar: AppBarWidget(title: 'Test')),
-        ),
-      ),
-    );
-
-    await tester.pumpAndSettle();
-    expect(find.byKey(const Key('feedback-notification-icon')), findsNothing);
+      expect(find.text('Thanks for your feedback!'), findsOneWidget);
+    });
   });
 }

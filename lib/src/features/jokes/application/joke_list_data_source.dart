@@ -88,7 +88,7 @@ class GenericPagingNotifier extends StateNotifier<PagingState> {
 
     // Trigger initial load if conditions are already met
     // (listener only catches future changes, not current state)
-    Future.microtask(() => loadFirstPage());
+    Future.microtask(() => {if (mounted) loadFirstPage()});
 
     // Listen for connectivity restoration and retry without resetting scroll
     ref.listen<AsyncValue<bool>>(isOnlineProvider, (prev, next) {
@@ -96,7 +96,7 @@ class GenericPagingNotifier extends StateNotifier<PagingState> {
       final isNowOnline = next.valueOrNull == true;
       if (wasOffline && isNowOnline) {
         _clearRetryBackoff();
-        Future.microtask(_checkAndLoadIfNeeded);
+        Future.microtask(() => {if (mounted) _checkAndLoadIfNeeded()});
       }
     });
   }
@@ -124,7 +124,7 @@ class GenericPagingNotifier extends StateNotifier<PagingState> {
     _failureAttemptIndex = 0;
     _blockRetriesLoadsUntil = null;
     // Auto-load after reset (will short-circuit if query is empty/invalid)
-    Future.microtask(() => loadFirstPage());
+    Future.microtask(() => {if (mounted) loadFirstPage()});
   }
 
   /// Updates the current viewing index and triggers a load if within threshold
@@ -135,19 +135,20 @@ class GenericPagingNotifier extends StateNotifier<PagingState> {
 
   /// Checks if we're within the threshold and triggers a load if needed
   void _checkAndLoadIfNeeded() {
+    if (!mounted) return;
     if (state.isLoading || !state.hasMore) return;
     if (_isInRetryBackoff() || !isOnlineNow(ref)) return;
 
     final remaining = state.loadedJokes.length - 1 - _currentViewingIndex;
 
     AppLogger.debug(
-      'PAGING_THRESHOLD: index=$_currentViewingIndex, '
+      'PAGING_INTERNAL: index=$_currentViewingIndex, '
       'total=${state.loadedJokes.length}, remaining=$remaining, '
       'threshold=$loadMoreThreshold, hasMore=${state.hasMore}',
     );
 
     if (remaining <= loadMoreThreshold) {
-      AppLogger.debug('PAGING_THRESHOLD: Triggering load');
+      AppLogger.debug('PAGING_INTERNAL: Triggering load');
       if (state.loadedJokes.isEmpty) {
         loadFirstPage();
       } else {
@@ -157,6 +158,7 @@ class GenericPagingNotifier extends StateNotifier<PagingState> {
   }
 
   Future<void> loadFirstPage() async {
+    if (!mounted) return;
     if (!state.isInitialized) {
       state = state.copyWith(isInitialized: true);
     }
@@ -172,6 +174,7 @@ class GenericPagingNotifier extends StateNotifier<PagingState> {
   }
 
   Future<void> loadMore() async {
+    if (!mounted) return;
     if (!state.isInitialized) {
       state = state.copyWith(isInitialized: true);
     }
@@ -182,8 +185,10 @@ class GenericPagingNotifier extends StateNotifier<PagingState> {
   }
 
   Future<void> _loadInternal({required int limit, String? useCursor}) async {
+    if (!mounted) return;
     try {
       final page = await loadPage(limit, useCursor);
+      if (!mounted) return;
 
       AppLogger.debug(
         'PAGING_INTERNAL: Loaded ${page.jokes.length} jokes, '
@@ -209,6 +214,7 @@ class GenericPagingNotifier extends StateNotifier<PagingState> {
       // If we got no new jokes, assume no more results
       final effectiveHasMore = newJokes.isEmpty ? false : page.hasMore;
 
+      if (!mounted) return;
       state = state.copyWith(
         loadedJokes: appended,
         cursor: page.cursor,
@@ -228,6 +234,7 @@ class GenericPagingNotifier extends StateNotifier<PagingState> {
     } catch (e) {
       // On error, stop current load but keep hasMore true to allow retry
       AppLogger.warn('PAGING_INTERNAL: Error loading page: $e');
+      if (!mounted) return;
       state = state.copyWith(isLoading: false);
       _applyBackoff();
       // Log via analytics provider

@@ -26,6 +26,7 @@ class PagingState {
   final bool isLoading;
   final bool hasMore;
   final int? totalCount; // Optional: total number of results if known upfront
+  final bool isInitialized;
 
   const PagingState({
     required this.loadedJokes,
@@ -33,6 +34,7 @@ class PagingState {
     required this.isLoading,
     required this.hasMore,
     this.totalCount,
+    required this.isInitialized,
   });
 
   const PagingState.initial()
@@ -40,7 +42,8 @@ class PagingState {
       cursor = null,
       isLoading = false,
       hasMore = true,
-      totalCount = null;
+      totalCount = null,
+      isInitialized = false;
 
   PagingState copyWith({
     List<JokeWithDate>? loadedJokes,
@@ -48,6 +51,7 @@ class PagingState {
     bool? isLoading,
     bool? hasMore,
     int? totalCount,
+    bool? isInitialized,
   }) {
     return PagingState(
       loadedJokes: loadedJokes ?? this.loadedJokes,
@@ -55,8 +59,11 @@ class PagingState {
       isLoading: isLoading ?? this.isLoading,
       hasMore: hasMore ?? this.hasMore,
       totalCount: totalCount ?? this.totalCount,
+      isInitialized: isInitialized ?? this.isInitialized,
     );
   }
+
+  bool get isDataPending => !isInitialized || isLoading;
 }
 
 /// Generic notifier that handles paging logic for any data source
@@ -129,7 +136,7 @@ class GenericPagingNotifier extends StateNotifier<PagingState> {
   /// Checks if we're within the threshold and triggers a load if needed
   void _checkAndLoadIfNeeded() {
     if (state.isLoading || !state.hasMore) return;
-    if (_isInRetryBackoff() || !_isOnline()) return;
+    if (_isInRetryBackoff() || !isOnlineNow(ref)) return;
 
     final remaining = state.loadedJokes.length - 1 - _currentViewingIndex;
 
@@ -150,8 +157,11 @@ class GenericPagingNotifier extends StateNotifier<PagingState> {
   }
 
   Future<void> loadFirstPage() async {
+    if (!state.isInitialized) {
+      state = state.copyWith(isInitialized: true);
+    }
     if (state.isLoading) return;
-    if (_isInRetryBackoff() || !_isOnline()) return;
+    if (_isInRetryBackoff() || !isOnlineNow(ref)) return;
     state = state.copyWith(
       isLoading: true,
       loadedJokes: const <JokeWithDate>[],
@@ -162,8 +172,11 @@ class GenericPagingNotifier extends StateNotifier<PagingState> {
   }
 
   Future<void> loadMore() async {
+    if (!state.isInitialized) {
+      state = state.copyWith(isInitialized: true);
+    }
     if (state.isLoading || !state.hasMore) return;
-    if (_isInRetryBackoff() || !_isOnline()) return;
+    if (_isInRetryBackoff() || !isOnlineNow(ref)) return;
     state = state.copyWith(isLoading: true);
     await _loadInternal(limit: loadPageSize, useCursor: state.cursor);
   }
@@ -226,11 +239,6 @@ class GenericPagingNotifier extends StateNotifier<PagingState> {
     }
   }
 
-  bool _isOnline() {
-    final value = ref.read(isOnlineProvider);
-    return value.maybeWhen(data: (v) => v, orElse: () => true);
-  }
-
   bool _isInRetryBackoff() {
     final until = _blockRetriesLoadsUntil;
     if (until == null) return false;
@@ -273,6 +281,7 @@ class PagingProviderBundle {
   final Provider<AsyncValue<List<JokeWithDate>>> items;
   final Provider<bool> hasMore;
   final Provider<bool> isLoading;
+  final Provider<bool> isDataPending;
   final Provider<({int count, bool hasMore})> resultCount;
 
   const PagingProviderBundle({
@@ -280,6 +289,7 @@ class PagingProviderBundle {
     required this.items,
     required this.hasMore,
     required this.isLoading,
+    required this.isDataPending,
     required this.resultCount,
   });
 }
@@ -311,9 +321,8 @@ PagingProviderBundle createPagingProviders({
   // Create derived providers
   final itemsProvider = Provider<AsyncValue<List<JokeWithDate>>>((ref) {
     final state = ref.watch(pagingProvider);
-    final bool isFirstLoadInFlight =
-        state.isLoading && state.loadedJokes.isEmpty;
-    return isFirstLoadInFlight
+    final bool isPending = state.loadedJokes.isEmpty && state.isDataPending;
+    return isPending
         ? const AsyncValue<List<JokeWithDate>>.loading()
         : AsyncValue<List<JokeWithDate>>.data(state.loadedJokes);
   });
@@ -324,6 +333,10 @@ PagingProviderBundle createPagingProviders({
 
   final isLoadingProvider = Provider<bool>((ref) {
     return ref.watch(pagingProvider).isLoading;
+  });
+
+  final isDataPendingProvider = Provider<bool>((ref) {
+    return ref.watch(pagingProvider).isDataPending;
   });
 
   final resultCountProvider = Provider<({int count, bool hasMore})>((ref) {
@@ -339,6 +352,7 @@ PagingProviderBundle createPagingProviders({
     items: itemsProvider,
     hasMore: hasMoreProvider,
     isLoading: isLoadingProvider,
+    isDataPending: isDataPendingProvider,
     resultCount: resultCountProvider,
   );
 }
@@ -364,6 +378,9 @@ class JokeListDataSource {
 
   /// Indicates whether a load operation is in flight.
   ProviderListenable<bool> get isLoading => _bundle.isLoading;
+
+  /// Indicates whether data is pending (initializing or actively loading)
+  ProviderListenable<bool> get isDataPending => _bundle.isDataPending;
 
   /// Exposes total result count and whether more pages are available
   ProviderListenable<({int count, bool hasMore})> get resultCount =>

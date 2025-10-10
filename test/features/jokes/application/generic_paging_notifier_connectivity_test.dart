@@ -22,6 +22,43 @@ void main() {
     registerAnalyticsFallbackValues();
   });
   group('GenericPagingNotifier connectivity', () {
+    test('initial pending emits AsyncLoading before first data', () async {
+      // Build paging providers with a delayed first page to simulate pending
+      Future<PageResult> loadPage(Ref ref, int limit, String? cursor) async {
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        return PageResult(
+          jokes: [JokeWithDate(joke: _makeJoke('x'))],
+          cursor: null,
+          hasMore: false,
+        );
+      }
+
+      final bundle = createPagingProviders(
+        loadPage: loadPage,
+        resetTriggers: const [],
+        errorAnalyticsSource: 'test',
+        initialPageSize: 1,
+        loadPageSize: 1,
+        loadMoreThreshold: 1,
+      );
+
+      final container = ProviderContainer(
+        overrides: [
+          ...AnalyticsMocks.getAnalyticsProviderOverrides(),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      // Immediately after creation, items should be loading (pending)
+      final first = container.read(bundle.items);
+      expect(first.isLoading, true);
+
+      // After delay, it should have a value
+      await Future<void>.delayed(const Duration(milliseconds: 80));
+      final after = container.read(bundle.items);
+      expect(after.hasValue, true);
+      expect(after.requireValue.length, 1);
+    });
     test('offline at start, then online triggers first page load', () async {
       final connectivityController = StreamController<bool>.broadcast();
 
@@ -65,10 +102,9 @@ void main() {
       // Trigger initial load microtask
       await Future<void>.delayed(const Duration(milliseconds: 10));
 
-      // Should still be empty while offline
+      // Should be loading while offline (pending)
       final itemsBefore = container.read(bundle.items);
-      expect(itemsBefore.hasValue, true);
-      expect(itemsBefore.requireValue, isEmpty);
+      expect(itemsBefore.isLoading, true);
 
       // Prepare a completer to wait for data to arrive
       final loaded = Completer<void>();

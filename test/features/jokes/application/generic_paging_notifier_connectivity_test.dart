@@ -1,0 +1,104 @@
+import 'dart:async';
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:snickerdoodle/src/core/providers/connectivity_providers.dart';
+import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
+import 'package:snickerdoodle/src/features/jokes/application/joke_list_data_source.dart';
+import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
+
+import '../../../test_helpers/analytics_mocks.dart';
+
+Joke _makeJoke(String id) => Joke(
+  id: id,
+  setupText: 'setup $id',
+  punchlineText: 'punchline $id',
+  setupImageUrl: 'https://img/$id-a.jpg',
+  punchlineImageUrl: 'https://img/$id-b.jpg',
+);
+
+void main() {
+  setUpAll(() {
+    registerAnalyticsFallbackValues();
+  });
+  group('GenericPagingNotifier connectivity', () {
+    test('offline at start, then online triggers first page load', () async {
+      final connectivityController = StreamController<bool>.broadcast();
+
+      // Build paging providers with loadPage that reads current online state
+      Future<PageResult> loadPage(Ref ref, int limit, String? cursor) async {
+        final online = ref
+            .read(isOnlineProvider)
+            .maybeWhen(data: (v) => v, orElse: () => true);
+        if (!online) {
+          throw Exception('offline');
+        }
+        return PageResult(
+          jokes: [JokeWithDate(joke: _makeJoke('1'))],
+          cursor: null,
+          hasMore: false,
+        );
+      }
+
+      final bundle = createPagingProviders(
+        loadPage: loadPage,
+        resetTriggers: const [],
+        errorAnalyticsSource: 'test',
+        initialPageSize: 2,
+        loadPageSize: 2,
+        loadMoreThreshold: 1,
+      );
+
+      final overrides = [
+        // Mock analytics + FirebaseAnalytics to avoid real Firebase init
+        ...AnalyticsMocks.getAnalyticsProviderOverrides(),
+        // Start offline, then allow tests to push updates
+        isOnlineProvider.overrideWith((ref) async* {
+          yield false;
+          yield* connectivityController.stream;
+        }),
+      ];
+
+      final container = ProviderContainer(overrides: overrides);
+      addTearDown(container.dispose);
+
+      // Trigger initial load microtask
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+
+      // Should still be empty while offline
+      final itemsBefore = container.read(bundle.items);
+      expect(itemsBefore.hasValue, true);
+      expect(itemsBefore.requireValue, isEmpty);
+
+      // Prepare a completer to wait for data to arrive
+      final loaded = Completer<void>();
+      final sub = container.listen<AsyncValue<List<JokeWithDate>>>(
+        bundle.items,
+        (prev, next) {
+          if (!loaded.isCompleted &&
+              next.hasValue &&
+              next.requireValue.isNotEmpty) {
+            loaded.complete();
+          }
+        },
+        fireImmediately: true,
+      );
+
+      // Flip to online
+      connectivityController.add(true);
+
+      // Wait for load to complete or time out
+      await loaded.future.timeout(
+        const Duration(seconds: 2),
+        onTimeout: () => null,
+      );
+      sub.close();
+
+      final itemsAfter = container.read(bundle.items);
+      expect(itemsAfter.hasValue, true);
+      expect(itemsAfter.requireValue.length, 1);
+
+      await connectivityController.close();
+    });
+  });
+}

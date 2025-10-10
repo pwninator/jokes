@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
+import 'package:snickerdoodle/src/core/providers/connectivity_providers.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
 
@@ -81,6 +82,16 @@ class GenericPagingNotifier extends StateNotifier<PagingState> {
     // Trigger initial load if conditions are already met
     // (listener only catches future changes, not current state)
     Future.microtask(() => loadFirstPage());
+
+    // Listen for connectivity restoration and retry without resetting scroll
+    ref.listen<AsyncValue<bool>>(isOnlineProvider, (prev, next) {
+      final wasOffline = prev?.valueOrNull == false;
+      final isNowOnline = next.valueOrNull == true;
+      if (wasOffline && isNowOnline) {
+        _clearRetryBackoff();
+        Future.microtask(_checkAndLoadIfNeeded);
+      }
+    });
   }
 
   final Ref ref;
@@ -91,11 +102,20 @@ class GenericPagingNotifier extends StateNotifier<PagingState> {
   final int loadPageSize;
   final int loadMoreThreshold;
 
+  /// Current viewing index for auto-loading
   int _currentViewingIndex = 0;
+
+  /// The index of the last failure attempt
+  int _failureAttemptIndex = 0;
+
+  /// Retry backoff window end
+  DateTime? _blockRetriesLoadsUntil;
 
   void reset() {
     state = const PagingState.initial();
     _currentViewingIndex = 0;
+    _failureAttemptIndex = 0;
+    _blockRetriesLoadsUntil = null;
     // Auto-load after reset (will short-circuit if query is empty/invalid)
     Future.microtask(() => loadFirstPage());
   }
@@ -109,6 +129,7 @@ class GenericPagingNotifier extends StateNotifier<PagingState> {
   /// Checks if we're within the threshold and triggers a load if needed
   void _checkAndLoadIfNeeded() {
     if (state.isLoading || !state.hasMore) return;
+    if (_isInRetryBackoff() || !_isOnline()) return;
 
     final remaining = state.loadedJokes.length - 1 - _currentViewingIndex;
 
@@ -119,13 +140,18 @@ class GenericPagingNotifier extends StateNotifier<PagingState> {
     );
 
     if (remaining <= loadMoreThreshold) {
-      AppLogger.debug('PAGING_THRESHOLD: Triggering loadMore');
-      loadMore();
+      AppLogger.debug('PAGING_THRESHOLD: Triggering load');
+      if (state.loadedJokes.isEmpty) {
+        loadFirstPage();
+      } else {
+        loadMore();
+      }
     }
   }
 
   Future<void> loadFirstPage() async {
     if (state.isLoading) return;
+    if (_isInRetryBackoff() || !_isOnline()) return;
     state = state.copyWith(
       isLoading: true,
       loadedJokes: const <JokeWithDate>[],
@@ -137,6 +163,7 @@ class GenericPagingNotifier extends StateNotifier<PagingState> {
 
   Future<void> loadMore() async {
     if (state.isLoading || !state.hasMore) return;
+    if (_isInRetryBackoff() || !_isOnline()) return;
     state = state.copyWith(isLoading: true);
     await _loadInternal(limit: loadPageSize, useCursor: state.cursor);
   }
@@ -166,10 +193,8 @@ class GenericPagingNotifier extends StateNotifier<PagingState> {
 
       final appended = <JokeWithDate>[...state.loadedJokes, ...newJokes];
 
-      // If we got no new jokes and cursor is null, assume no more results
-      final effectiveHasMore = newJokes.isEmpty && page.cursor == null
-          ? false
-          : page.hasMore;
+      // If we got no new jokes, assume no more results
+      final effectiveHasMore = newJokes.isEmpty ? false : page.hasMore;
 
       state = state.copyWith(
         loadedJokes: appended,
@@ -178,6 +203,7 @@ class GenericPagingNotifier extends StateNotifier<PagingState> {
         isLoading: false,
         totalCount: page.totalCount,
       );
+      _resetBackoffOnSuccess();
 
       AppLogger.debug(
         'PAGING_INTERNAL: State updated - total: ${appended.length}, '
@@ -187,9 +213,10 @@ class GenericPagingNotifier extends StateNotifier<PagingState> {
       // Check if we need to load more based on current viewing position
       _checkAndLoadIfNeeded();
     } catch (e) {
-      // Fail closed: stop loading more; UX will appear as if no more jokes
+      // On error, stop current load but keep hasMore true to allow retry
       AppLogger.warn('PAGING_INTERNAL: Error loading page: $e');
-      state = state.copyWith(isLoading: false, hasMore: false);
+      state = state.copyWith(isLoading: false);
+      _applyBackoff();
       // Log via analytics provider
       final analytics = ref.read(analyticsServiceProvider);
       analytics.logErrorJokesLoad(
@@ -197,6 +224,38 @@ class GenericPagingNotifier extends StateNotifier<PagingState> {
         errorMessage: e.toString(),
       );
     }
+  }
+
+  bool _isOnline() {
+    final value = ref.read(isOnlineProvider);
+    return value.maybeWhen(data: (v) => v, orElse: () => true);
+  }
+
+  bool _isInRetryBackoff() {
+    final until = _blockRetriesLoadsUntil;
+    if (until == null) return false;
+    return DateTime.now().isBefore(until);
+  }
+
+  void _applyBackoff() {
+    const schedule = <Duration>[
+      Duration(seconds: 5),
+      Duration(seconds: 30),
+      Duration(minutes: 2),
+      Duration(minutes: 5),
+    ];
+    final idx = _failureAttemptIndex.clamp(0, schedule.length - 1);
+    _blockRetriesLoadsUntil = DateTime.now().add(schedule[idx]);
+    _failureAttemptIndex = (idx + 1).clamp(0, schedule.length - 1);
+  }
+
+  void _resetBackoffOnSuccess() {
+    _failureAttemptIndex = 0;
+    _clearRetryBackoff();
+  }
+
+  void _clearRetryBackoff() {
+    _blockRetriesLoadsUntil = null;
   }
 }
 

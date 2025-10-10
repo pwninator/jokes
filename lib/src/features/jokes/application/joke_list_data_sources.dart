@@ -39,11 +39,30 @@ class SavedJokesDataSource extends JokeListDataSource {
   SavedJokesDataSource(WidgetRef ref) : super(ref, _savedJokesPagingProviders);
 }
 
-final _userJokeSearchProviders = createSearchPagingProviders(
-  scope: SearchScope.userJokeSearch,
+final _userJokeSearchProviders = createPagingProviders(
+  loadPage: _makeLoadSearchPage(SearchScope.userJokeSearch),
+  resetTriggers: [
+    ResetTrigger(
+      provider: searchQueryProvider(SearchScope.userJokeSearch),
+      shouldReset: (prev, next) =>
+          (prev as SearchQuery?)?.query != (next as SearchQuery).query,
+    ),
+  ],
+  // Scope-specific analytics source label
+  errorAnalyticsSource: 'search:${SearchScope.userJokeSearch.name}',
+  initialPageSize: 2,
+  loadPageSize: 5,
+  loadMoreThreshold: 5,
 );
 
-final _dailyJokesPagingProviders = createDailyJokesPagingProviders();
+final _dailyJokesPagingProviders = createPagingProviders(
+  loadPage: _loadDailyJokesPage,
+  resetTriggers: const [],
+  errorAnalyticsSource: 'daily_jokes',
+  initialPageSize: 5,
+  loadPageSize: 10,
+  loadMoreThreshold: 10,
+);
 
 final _savedJokesPagingProviders = createPagingProviders(
   loadPage: _loadSavedJokesPage,
@@ -158,30 +177,6 @@ JokeListPageCursor _deserializePopularCursor(String cursor) {
   );
 }
 
-/// Creates a scope-specific set of paging providers for search
-PagingProviderBundle createSearchPagingProviders({
-  required SearchScope scope,
-  int initialPageSize = 2,
-  int loadPageSize = 5,
-  int loadMoreThreshold = 5,
-}) {
-  return createPagingProviders(
-    loadPage: _makeLoadSearchPage(scope),
-    resetTriggers: [
-      ResetTrigger(
-        provider: searchQueryProvider(scope),
-        shouldReset: (prev, next) =>
-            (prev as SearchQuery?)?.query != (next as SearchQuery).query,
-      ),
-    ],
-    // Scope-specific analytics source label
-    errorAnalyticsSource: 'search:${scope.name}',
-    initialPageSize: initialPageSize,
-    loadPageSize: loadPageSize,
-    loadMoreThreshold: loadMoreThreshold,
-  );
-}
-
 /// Factory that returns a page loader bound to a specific SearchScope
 Future<PageResult> Function(Ref ref, int limit, String? cursor)
 _makeLoadSearchPage(SearchScope scope) {
@@ -229,21 +224,6 @@ _makeLoadSearchPage(SearchScope scope) {
       totalCount: allResults.length,
     );
   };
-}
-
-PagingProviderBundle createDailyJokesPagingProviders({
-  int initialPageSize = 5,
-  int loadPageSize = 10,
-  int loadMoreThreshold = 10,
-}) {
-  return createPagingProviders(
-    loadPage: _loadDailyJokesPage,
-    resetTriggers: const [],
-    errorAnalyticsSource: 'daily_jokes',
-    initialPageSize: initialPageSize,
-    loadPageSize: loadPageSize,
-    loadMoreThreshold: loadMoreThreshold,
-  );
 }
 
 Future<PageResult> _loadDailyJokesPage(

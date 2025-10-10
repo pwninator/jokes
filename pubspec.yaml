@@ -37,6 +37,7 @@ dependencies:
   cached_network_image: ^3.4.1
   cloud_firestore: ^5.6.9
   cloud_functions: ^5.5.2
+  connectivity_plus: ^7.0.0
   cupertino_icons: ^1.0.8
   device_info_plus: ^11.5.0
   firebase_analytics: ^11.6.0

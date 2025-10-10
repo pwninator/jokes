@@ -355,15 +355,40 @@ void main() {
       testWidgets('displays no jokes message when joke list is empty', (
         tester,
       ) async {
-        final now = DateTime.now();
-        final emptyBatch = JokeScheduleBatch(
-          id: '${JokeConstants.defaultJokeScheduleId}_${now.year}_${now.month.toString().padLeft(2, '0')}',
-          scheduleId: JokeConstants.defaultJokeScheduleId,
-          year: now.year,
-          month: now.month,
-          jokes: const {},
+        // Use a repository that returns no batch for any month so pagination
+        // terminates immediately without looping across months.
+        final noBatchRepo = MockJokeScheduleRepository();
+        when(
+          () => noBatchRepo.getBatchForMonth(
+            JokeConstants.defaultJokeScheduleId,
+            any(that: isA<int>()),
+            any(that: isA<int>()),
+          ),
+        ).thenAnswer((_) async => null);
+
+        // Create a simple GoRouter for testing that routes directly to DailyJokesScreen
+        final router = GoRouter(
+          initialLocation: AppRoutes.jokes,
+          routes: [
+            GoRoute(
+              path: AppRoutes.jokes,
+              name: RouteNames.jokes,
+              builder: (context, state) => const DailyJokesScreen(),
+            ),
+          ],
         );
-        await tester.pumpWidget(createTestWidget(customBatch: emptyBatch));
+
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              imageServiceProvider.overrideWithValue(mockImageService),
+              jokeScheduleRepositoryProvider.overrideWithValue(noBatchRepo),
+              ...FirebaseMocks.getFirebaseProviderOverrides(),
+              settingsServiceProvider.overrideWithValue(settingsService),
+            ],
+            child: MaterialApp.router(theme: lightTheme, routerConfig: router),
+          ),
+        );
 
         await tester.pump(); // Allow data to be processed
         expect(find.text('No jokes found! Try adding some.'), findsOneWidget);

@@ -7,7 +7,7 @@ import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/providers/app_providers.dart';
 import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
-import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
+import 'package:snickerdoodle/src/core/providers/connectivity_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_population_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_search_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
@@ -82,6 +82,11 @@ class FirebaseMocks {
       settingsServiceProvider.overrideWithValue(CoreMocks.mockSettingsService),
       // Mock Firestore
       firebaseFirestoreProvider.overrideWithValue(mockFirebaseFirestore),
+
+      // Force connectivity to "online" in tests to avoid platform plugin calls
+      isOnlineProvider.overrideWith((ref) async* {
+        yield true;
+      }),
 
       // Mock cloud function service
       jokeCloudFunctionServiceProvider.overrideWithValue(

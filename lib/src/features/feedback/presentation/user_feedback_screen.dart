@@ -357,6 +357,9 @@ class _ConversationView extends StatelessWidget {
               final bubbleColor = isUser
                   ? colorScheme.primaryContainer
                   : colorScheme.surfaceContainerHighest;
+              final textColor = isUser
+                  ? colorScheme.onPrimaryContainer
+                  : colorScheme.onSurface;
 
               return Align(
                 alignment: alignment,
@@ -367,7 +370,10 @@ class _ConversationView extends StatelessWidget {
                     color: bubbleColor,
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: SelectableText(message.text),
+                  child: SelectableText(
+                    message.text,
+                    style: TextStyle(color: textColor),
+                  ),
                 ),
               );
             },

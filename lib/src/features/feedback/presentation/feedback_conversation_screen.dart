@@ -233,6 +233,9 @@ class _ConversationList extends StatelessWidget {
         final bubbleColor = isSelf
             ? colorScheme.primaryContainer
             : colorScheme.surfaceContainerHighest;
+        final textColor = isSelf
+            ? colorScheme.onPrimaryContainer
+            : colorScheme.onSurface;
 
         return Align(
           alignment: alignment,
@@ -243,7 +246,10 @@ class _ConversationList extends StatelessWidget {
               color: bubbleColor,
               borderRadius: BorderRadius.circular(12),
             ),
-            child: SelectableText(message.text),
+            child: SelectableText(
+              message.text,
+              style: TextStyle(color: textColor),
+            ),
           ),
         );
       },

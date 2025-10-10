@@ -50,8 +50,9 @@ void main() {
           // Ensure no network/plugin calls by making image URLs resolve to null
           imageServiceProvider.overrideWithValue(_NoopImageService()),
           // Mock JokeCloudFunctionService to avoid Firebase initialization
-          jokeCloudFunctionServiceProvider
-              .overrideWithValue(_MockJokeCloudFunctionService()),
+          jokeCloudFunctionServiceProvider.overrideWithValue(
+            _MockJokeCloudFunctionService(),
+          ),
         ],
         child: const MaterialApp(
           home: Scaffold(
@@ -87,8 +88,9 @@ void main() {
           ...CoreMocks.getCoreProviderOverrides(),
           imageServiceProvider.overrideWithValue(_NoopImageService()),
           // Mock JokeCloudFunctionService to avoid Firebase initialization
-          jokeCloudFunctionServiceProvider
-              .overrideWithValue(_MockJokeCloudFunctionService()),
+          jokeCloudFunctionServiceProvider.overrideWithValue(
+            _MockJokeCloudFunctionService(),
+          ),
         ],
         child: const MaterialApp(
           home: Scaffold(

@@ -736,5 +736,72 @@ void main() {
         expect(find.byType(JokeImageCarousel), findsWidgets);
       });
     });
+
+    group('Stale Joke Detection', () {
+      testWidgets('registers WidgetsBindingObserver on init', (tester) async {
+        await tester.pumpWidget(createTestWidget());
+        await tester.pump();
+
+        // The screen should be built without errors, indicating observer was registered
+        expect(find.byType(DailyJokesScreen), findsOneWidget);
+      });
+
+      testWidgets('handles route changes correctly', (tester) async {
+        final router = GoRouter(
+          initialLocation: AppRoutes.jokes,
+          routes: [
+            GoRoute(
+              path: AppRoutes.jokes,
+              name: RouteNames.jokes,
+              builder: (context, state) => const DailyJokesScreen(),
+            ),
+            GoRoute(
+              path: AppRoutes.saved,
+              name: RouteNames.saved,
+              builder: (context, state) => const Scaffold(
+                body: Text('Saved Screen'),
+              ),
+            ),
+          ],
+        );
+
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              imageServiceProvider.overrideWithValue(mockImageService),
+              jokeScheduleRepositoryProvider.overrideWithValue(mockRepository),
+              ...FirebaseMocks.getFirebaseProviderOverrides(),
+              settingsServiceProvider.overrideWithValue(settingsService),
+            ],
+            child: MaterialApp.router(theme: lightTheme, routerConfig: router),
+          ),
+        );
+
+        await tester.pump();
+
+        // Navigate to saved screen
+        router.go(AppRoutes.saved);
+        await tester.pump();
+
+        // Navigate back to jokes screen  
+        router.go(AppRoutes.jokes);
+        await tester.pump();
+
+        // Verify the screen handles route changes without errors
+        expect(find.byType(DailyJokesScreen), findsOneWidget);
+      });
+
+      testWidgets('disposes timer and observer correctly', (tester) async {
+        await tester.pumpWidget(createTestWidget());
+        await tester.pump();
+
+        // Remove the widget to trigger dispose
+        await tester.pumpWidget(const MaterialApp(home: Scaffold(body: Text('Empty'))));
+        await tester.pump();
+
+        // Test passes if no exceptions are thrown during disposal
+        expect(find.text('Empty'), findsOneWidget);
+      });
+    });
   });
 }

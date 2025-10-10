@@ -17,6 +17,19 @@ import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_reposito
 import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_state.dart';
 
+/// Signal provider that triggers stale joke checks for daily jokes.
+/// Incremented by DailyJokesScreen when it wants to trigger a check.
+final dailyJokesCheckNowProvider = StateProvider<int>((ref) => 0);
+
+/// Tracks the last date we performed a reset of the daily jokes list.
+/// Used to ensure we only reset once per day to avoid thrashing.
+final dailyJokesLastResetDateProvider = StateProvider<DateTime?>((ref) => null);
+
+/// Tracks the date of the most recent daily joke.
+final dailyJokesMostRecentDateProvider = StateProvider<DateTime?>(
+  (ref) => null,
+);
+
 /// Data source for daily jokes loaded from monthly schedule batches
 class DailyJokesDataSource extends JokeListDataSource {
   DailyJokesDataSource(WidgetRef ref) : super(ref, _dailyJokesPagingProviders);
@@ -44,7 +57,7 @@ final _userJokeSearchProviders = createPagingProviders(
   resetTriggers: [
     ResetTrigger(
       provider: searchQueryProvider(SearchScope.userJokeSearch),
-      shouldReset: (prev, next) =>
+      shouldReset: (ref, prev, next) =>
           (prev as SearchQuery?)?.query != (next as SearchQuery).query,
     ),
   ],
@@ -55,9 +68,14 @@ final _userJokeSearchProviders = createPagingProviders(
   loadMoreThreshold: 5,
 );
 
-final _dailyJokesPagingProviders = createPagingProviders(
+final PagingProviderBundle _dailyJokesPagingProviders = createPagingProviders(
   loadPage: _loadDailyJokesPage,
-  resetTriggers: const [],
+  resetTriggers: [
+    ResetTrigger(
+      provider: dailyJokesCheckNowProvider,
+      shouldReset: shouldResetDailyJokesForStaleData,
+    ),
+  ],
   errorAnalyticsSource: 'daily_jokes',
   initialPageSize: 5,
   loadPageSize: 10,
@@ -69,7 +87,7 @@ final _savedJokesPagingProviders = createPagingProviders(
   resetTriggers: [
     ResetTrigger(
       provider: jokeReactionsProvider,
-      shouldReset: (prev, next) {
+      shouldReset: (ref, prev, next) {
         final prevReactions = prev as JokeReactionsState?;
         final nextReactions = next as JokeReactionsState;
         return !_areSavedJokeIdsEqual(prevReactions, nextReactions);
@@ -92,7 +110,7 @@ final _categoryPagingProviders = createPagingProviders(
   resetTriggers: [
     ResetTrigger(
       provider: activeCategoryProvider,
-      shouldReset: (prev, next) =>
+      shouldReset: (ref, prev, next) =>
           (prev as JokeCategory?)?.id != (next as JokeCategory?)?.id,
     ),
   ],
@@ -291,10 +309,55 @@ Future<PageResult> _loadDailyJokesPage(
   final previousMonth = DateTime(targetMonth.year, targetMonth.month - 1);
   final nextCursor = '${previousMonth.year}_${previousMonth.month.toString()}';
 
+  // Update the most recent daily joke date
+  final mostRecentJokeDate = ref.read(dailyJokesMostRecentDateProvider);
+  final firstJokeDate = jokesWithDates.first.date;
+  if (firstJokeDate != null &&
+      (mostRecentJokeDate == null ||
+          firstJokeDate.isAfter(mostRecentJokeDate))) {
+    ref.read(dailyJokesMostRecentDateProvider.notifier).state = firstJokeDate;
+  }
+
   AppLogger.debug(
     'PAGINATION: Loaded daily jokes page with cursor "$cursor", fetched ${jokesWithDates.length} jokes, next cursor: "$nextCursor"',
   );
   return PageResult(jokes: jokesWithDates, cursor: nextCursor, hasMore: true);
+}
+
+/// Determines if daily jokes should be reset due to stale data.
+///
+/// This function is called whenever the check signal is incremented.
+/// It checks if the first loaded joke is stale (date < today) and
+/// we haven't already reset today (to avoid thrashing).
+bool shouldResetDailyJokesForStaleData(Ref ref, dynamic prev, dynamic next) {
+  AppLogger.debug('PAGINATION: Checking if daily jokes should be reset');
+
+  final today = getCurrentDate();
+  final lastResetDate = ref.read(dailyJokesLastResetDateProvider);
+
+  if (lastResetDate != null && !lastResetDate.isBefore(today)) {
+    // Already reset today, don't reset
+    return false;
+  }
+
+  final firstJokeDate = ref.read(dailyJokesMostRecentDateProvider);
+  if (firstJokeDate == null) {
+    // First joke has no date, don't reset
+    return false;
+  }
+
+  final isStale = firstJokeDate.isBefore(today);
+  if (!isStale) {
+    // Not stale, don't reset
+    return false;
+  }
+
+  AppLogger.debug(
+    'PAGINATION: Resetting stale jokes. First joke date: $firstJokeDate, today: $today',
+  );
+  // Mark that we're resetting today to prevent multiple resets
+  ref.read(dailyJokesLastResetDateProvider.notifier).state = today;
+  return true;
 }
 
 Future<PageResult> _loadSavedJokesPage(
@@ -378,4 +441,10 @@ Set<String> _extractSavedJokeIds(JokeReactionsState? state) {
       .where((entry) => entry.value.contains(JokeReactionType.save))
       .map((entry) => entry.key)
       .toSet();
+}
+
+/// Get current date (midnight-normalized) for comparison
+DateTime getCurrentDate() {
+  final now = DateTime.now();
+  return DateTime(now.year, now.month, now.day);
 }

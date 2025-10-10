@@ -80,7 +80,7 @@ class GenericPagingNotifier extends StateNotifier<PagingState> {
     // Set up reset triggers
     for (final trigger in resetTriggers) {
       ref.listen(trigger.provider, (prev, next) {
-        if (trigger.shouldReset(prev, next)) {
+        if (trigger.shouldReset(ref, prev, next)) {
           reset();
         }
       });
@@ -145,7 +145,9 @@ class GenericPagingNotifier extends StateNotifier<PagingState> {
     );
 
     if (remaining <= loadMoreThreshold) {
-      AppLogger.debug('PAGING_INTERNAL: Triggering load');
+      AppLogger.debug(
+        'PAGING_INTERNAL: Triggering load (remaining=$remaining, threshold=$loadMoreThreshold)',
+      );
       if (state.loadedJokes.isEmpty) {
         loadFirstPage();
       } else {
@@ -274,7 +276,7 @@ class GenericPagingNotifier extends StateNotifier<PagingState> {
 /// Configuration for when to reset paging state
 class ResetTrigger {
   final ProviderListenable provider;
-  final bool Function(dynamic prev, dynamic next) shouldReset;
+  final bool Function(Ref ref, dynamic prev, dynamic next) shouldReset;
 
   const ResetTrigger({required this.provider, required this.shouldReset});
 }

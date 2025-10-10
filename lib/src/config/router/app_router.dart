@@ -459,6 +459,14 @@ class AppRouter {
       return;
     }
 
+    // Update route state and analytics before navigating so listeners react
+    final navigationAnalytics = ref.read(navigationAnalyticsProvider);
+    navigationAnalytics.trackRouteChange(
+      currentLocation,
+      targetTab.route,
+      'tab',
+    );
+
     context.push(targetTab.route);
   }
 

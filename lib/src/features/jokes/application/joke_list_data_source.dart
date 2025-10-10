@@ -94,6 +94,9 @@ class GenericPagingNotifier extends StateNotifier<PagingState> {
     ref.listen<AsyncValue<bool>>(isOnlineProvider, (prev, next) {
       final wasOffline = prev?.valueOrNull == false;
       final isNowOnline = next.valueOrNull == true;
+      AppLogger.debug(
+        'PAGING_INTERNAL: Connectivity changed: wasOffline=$wasOffline, isNowOnline=$isNowOnline',
+      );
       if (wasOffline && isNowOnline) {
         _clearRetryBackoff();
         Future.microtask(() => {if (mounted) _checkAndLoadIfNeeded()});
@@ -119,6 +122,7 @@ class GenericPagingNotifier extends StateNotifier<PagingState> {
   DateTime? _blockRetriesLoadsUntil;
 
   void reset() {
+    AppLogger.debug('PAGING_INTERNAL: Resetting GenericPagingNotifier');
     state = const PagingState.initial();
     _currentViewingIndex = 0;
     _failureAttemptIndex = 0;

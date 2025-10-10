@@ -219,7 +219,9 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
 
           final isOnline = ref.read(isOnlineNowProvider);
           if (!isOnline) {
-            return const Center(child: Text('No internet connection. Please try again later.'));
+            return const Center(
+              child: Text('No internet connection. Please try again later.'),
+            );
           }
 
           final empty =

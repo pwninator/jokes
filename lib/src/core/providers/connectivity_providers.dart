@@ -9,7 +9,7 @@ part 'connectivity_providers.g.dart';
 /// We treat anything other than `none` as online. This does not guarantee
 /// reachability to app backends but is sufficient to trigger retry attempts
 /// when radio connectivity returns.
-@Riverpod()
+@Riverpod(keepAlive: true)
 Stream<bool> isOnline(Ref ref) async* {
   final connectivity = Connectivity();
   final initial = await connectivity.checkConnectivity();
@@ -22,6 +22,7 @@ Stream<bool> isOnline(Ref ref) async* {
 
 @Riverpod()
 bool isOnlineNow(Ref ref) {
-  final value = ref.watch(isOnlineProvider);
-  return value.maybeWhen(data: (v) => v, orElse: () => true);
+  final value = ref.read(isOnlineProvider);
+  final result = value.maybeWhen(data: (v) => v, orElse: () => true);
+  return result;
 }

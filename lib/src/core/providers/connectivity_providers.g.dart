@@ -6,7 +6,7 @@ part of 'connectivity_providers.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$isOnlineHash() => r'1cc2057dc700ee3d82e953131292c05dd3cc9119';
+String _$isOnlineHash() => r'79a537daa267edbe67143c690ab98135431c7151';
 
 /// Exposes a simple online/offline signal.
 ///
@@ -16,7 +16,7 @@ String _$isOnlineHash() => r'1cc2057dc700ee3d82e953131292c05dd3cc9119';
 ///
 /// Copied from [isOnline].
 @ProviderFor(isOnline)
-final isOnlineProvider = AutoDisposeStreamProvider<bool>.internal(
+final isOnlineProvider = StreamProvider<bool>.internal(
   isOnline,
   name: r'isOnlineProvider',
   debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
@@ -28,8 +28,8 @@ final isOnlineProvider = AutoDisposeStreamProvider<bool>.internal(
 
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
-typedef IsOnlineRef = AutoDisposeStreamProviderRef<bool>;
-String _$isOnlineNowHash() => r'a1a6225ab1469ae80fda8140cabf026c9f709676';
+typedef IsOnlineRef = StreamProviderRef<bool>;
+String _$isOnlineNowHash() => r'6b4259b715699f6869c1e1a52a248fbe184ad6a1';
 
 /// See also [isOnlineNow].
 @ProviderFor(isOnlineNow)

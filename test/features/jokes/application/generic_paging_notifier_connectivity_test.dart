@@ -43,9 +43,7 @@ void main() {
       );
 
       final container = ProviderContainer(
-        overrides: [
-          ...AnalyticsMocks.getAnalyticsProviderOverrides(),
-        ],
+        overrides: [...AnalyticsMocks.getAnalyticsProviderOverrides()],
       );
       addTearDown(container.dispose);
 

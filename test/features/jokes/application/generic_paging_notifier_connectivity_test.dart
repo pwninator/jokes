@@ -98,8 +98,9 @@ void main() {
           yield* connectivityController.stream;
         }),
         // Mock offlineToOnlineProvider to emit when test simulates the transition
-        offlineToOnlineProvider
-            .overrideWith((ref) => offlineToOnlineController.stream),
+        offlineToOnlineProvider.overrideWith(
+          (ref) => offlineToOnlineController.stream,
+        ),
       ];
 
       final container = ProviderContainer(overrides: overrides);

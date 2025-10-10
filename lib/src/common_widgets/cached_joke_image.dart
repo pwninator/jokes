@@ -5,12 +5,13 @@ import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/providers/app_providers.dart';
+import 'package:snickerdoodle/src/core/providers/connectivity_providers.dart';
 import 'package:snickerdoodle/src/core/providers/image_providers.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
 import 'package:snickerdoodle/src/core/services/performance_service.dart';
 
-class CachedJokeImage extends ConsumerWidget {
+class CachedJokeImage extends ConsumerStatefulWidget {
   static const int _minProcessedWidth = 50;
   static const int _maxProcessedWidth = 1024;
   const CachedJokeImage({
@@ -35,7 +36,30 @@ class CachedJokeImage extends ConsumerWidget {
   final void Function(int? width)? onFirstImagePaint;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<CachedJokeImage> createState() => _CachedJokeImageState();
+}
+
+class _CachedJokeImageState extends ConsumerState<CachedJokeImage> {
+  bool _hasError = false;
+  int _retryKey = 0;
+
+  @override
+  void didUpdateWidget(CachedJokeImage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.imageUrl != oldWidget.imageUrl) {
+      setState(() => _hasError = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Listen to connectivity changes to trigger retry when coming back online
+    ref.listen(offlineToOnlineProvider, (previous, next) {
+      if (_hasError) {
+        setState(() => _retryKey++);
+      }
+    });
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final effectiveWidth = _resolveEffectiveWidth(constraints.maxWidth);
@@ -45,7 +69,7 @@ class CachedJokeImage extends ConsumerWidget {
 
         // Use ImageService for URL processing
         final processedUrl = imageService.getProcessedJokeImageUrl(
-          imageUrl,
+          widget.imageUrl,
           width: effectiveWidth,
         );
         if (processedUrl == null) {
@@ -56,10 +80,11 @@ class CachedJokeImage extends ConsumerWidget {
 
         String? downloadTraceKey;
         Widget imageWidget = CachedNetworkImage(
+          key: ValueKey('${widget.imageUrl}-$_retryKey'),
           imageUrl: processedUrl,
-          width: width,
-          height: height,
-          fit: fit,
+          width: widget.width,
+          height: widget.height,
+          fit: widget.fit,
           httpHeaders: ImageService.jokeImageHttpHeaders,
           // Use progressIndicatorBuilder instead of placeholder to avoid Octo assertion
           placeholder: null,
@@ -75,16 +100,16 @@ class CachedJokeImage extends ConsumerWidget {
                 );
               }
             }
-            return showLoadingIndicator
+            return widget.showLoadingIndicator
                 ? _buildLoadingWidget(context)
                 : const SizedBox.shrink();
           },
           imageBuilder: (context, imageProvider) {
             // Called when the actual image data is ready; schedule callback after paint
-            if (!invokedFirstPaint && onFirstImagePaint != null) {
+            if (!invokedFirstPaint && widget.onFirstImagePaint != null) {
               invokedFirstPaint = true;
               WidgetsBinding.instance.addPostFrameCallback((_) {
-                onFirstImagePaint?.call(effectiveWidth);
+                widget.onFirstImagePaint?.call(effectiveWidth);
               });
             }
             // If a download trace is active for this URL, stop it now (download complete)
@@ -95,14 +120,22 @@ class CachedJokeImage extends ConsumerWidget {
               );
               downloadTraceKey = null;
             }
+            // Clear error state on successful image load
+            if (_hasError) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted) {
+                  setState(() => _hasError = false);
+                }
+              });
+            }
             return Image(
               image: imageProvider,
-              width: width,
-              height: height,
-              fit: fit,
+              width: widget.width,
+              height: widget.height,
+              fit: widget.fit,
             );
           },
-          errorWidget: showErrorIcon
+          errorWidget: widget.showErrorIcon
               ? (context, url, error) {
                   final analytics = ref.read(analyticsServiceProvider);
                   // Hash the url lightly to avoid logging full URLs
@@ -119,6 +152,14 @@ class CachedJokeImage extends ConsumerWidget {
                       key: downloadTraceKey!,
                     );
                     downloadTraceKey = null;
+                  }
+                  // Set error state if not already in error
+                  if (!_hasError) {
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (mounted) {
+                        setState(() => _hasError = true);
+                      }
+                    });
                   }
                   return _buildErrorWidget(context);
                 }
@@ -137,6 +178,14 @@ class CachedJokeImage extends ConsumerWidget {
                     );
                     downloadTraceKey = null;
                   }
+                  // Set error state if not already in error
+                  if (!_hasError) {
+                    WidgetsBinding.instance.addPostFrameCallback((_) {
+                      if (mounted) {
+                        setState(() => _hasError = true);
+                      }
+                    });
+                  }
                   return const SizedBox.shrink();
                 },
           fadeInDuration: const Duration(milliseconds: 300),
@@ -147,9 +196,9 @@ class CachedJokeImage extends ConsumerWidget {
         _logImageInfo(processedUrl);
 
         // Apply border radius if specified
-        if (borderRadius != null) {
+        if (widget.borderRadius != null) {
           imageWidget = ClipRRect(
-            borderRadius: borderRadius!,
+            borderRadius: widget.borderRadius!,
             child: imageWidget,
           );
         }
@@ -162,16 +211,16 @@ class CachedJokeImage extends ConsumerWidget {
   int? _resolveEffectiveWidth(double constraintWidth) {
     int? targetWidth;
 
-    final explicitWidth = width;
+    final explicitWidth = widget.width;
     if (explicitWidth != null &&
         explicitWidth.isFinite &&
-        explicitWidth >= _minProcessedWidth &&
-        explicitWidth <= _maxProcessedWidth) {
+        explicitWidth >= CachedJokeImage._minProcessedWidth &&
+        explicitWidth <= CachedJokeImage._maxProcessedWidth) {
       targetWidth = explicitWidth.round();
     } else if (constraintWidth.isFinite) {
       targetWidth = constraintWidth.round().clamp(
-        _minProcessedWidth,
-        _maxProcessedWidth,
+        CachedJokeImage._minProcessedWidth,
+        CachedJokeImage._maxProcessedWidth,
       );
     } else {
       return null;
@@ -179,8 +228,8 @@ class CachedJokeImage extends ConsumerWidget {
 
     final roundedWidth = _roundUpToNearestHundred(targetWidth);
     final clampedWidth = roundedWidth.clamp(
-      _minProcessedWidth,
-      _maxProcessedWidth,
+      CachedJokeImage._minProcessedWidth,
+      CachedJokeImage._maxProcessedWidth,
     );
     return clampedWidth;
   }
@@ -212,11 +261,11 @@ class CachedJokeImage extends ConsumerWidget {
 
   Widget _buildLoadingWidget(BuildContext context) {
     return Container(
-      width: width,
-      height: height,
+      width: widget.width,
+      height: widget.height,
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
-        borderRadius: borderRadius,
+        borderRadius: widget.borderRadius,
       ),
       child: Center(
         child: SizedBox(
@@ -235,17 +284,17 @@ class CachedJokeImage extends ConsumerWidget {
 
   Widget _buildErrorWidget(BuildContext context) {
     return Container(
-      width: width,
-      height: height,
+      width: widget.width,
+      height: widget.height,
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surface,
-        borderRadius: borderRadius,
+        borderRadius: widget.borderRadius,
         border: Border.all(
           color: Theme.of(context).colorScheme.outline,
           width: 1,
         ),
       ),
-      child: showErrorIcon
+      child: widget.showErrorIcon
           ? Center(
               child: Icon(
                 Icons.image_not_supported_outlined,

@@ -70,6 +70,9 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
           IconButton(
             key: const Key('discover_screen-search-button'),
             icon: const Icon(Icons.search),
+            style: IconButton.styleFrom(
+              foregroundColor: Theme.of(context).colorScheme.primary,
+            ),
             tooltip: 'Search',
             onPressed: () {
               resetDiscoverSearchState(ref);

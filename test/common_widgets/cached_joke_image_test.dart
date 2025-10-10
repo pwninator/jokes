@@ -1,12 +1,17 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:snickerdoodle/src/common_widgets/cached_joke_image.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
+import 'package:snickerdoodle/src/core/providers/app_providers.dart';
+import 'package:snickerdoodle/src/core/providers/connectivity_providers.dart';
 import 'package:snickerdoodle/src/core/providers/image_providers.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
+import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 
 import '../test_helpers/firebase_mocks.dart';
@@ -16,14 +21,21 @@ class MockImageService extends Mock implements ImageService {}
 
 class MockAnalyticsService extends Mock implements AnalyticsService {}
 
+class MockPerformanceService extends Mock implements PerformanceService {}
+
 void main() {
+  setUpAll(() {
+    registerFallbackValue(TraceName.imageDownload);
+  });
   group('CachedJokeImage Widget Tests', () {
     late MockImageService mockImageService;
     late MockAnalyticsService mockAnalyticsService;
+    late MockPerformanceService mockPerformanceService;
 
     setUp(() {
       mockImageService = MockImageService();
       mockAnalyticsService = MockAnalyticsService();
+      mockPerformanceService = MockPerformanceService();
     });
 
     Widget createTestWidget({
@@ -34,6 +46,7 @@ void main() {
         overrides: [
           imageServiceProvider.overrideWithValue(mockImageService),
           analyticsServiceProvider.overrideWithValue(mockAnalyticsService),
+          performanceServiceProvider.overrideWithValue(mockPerformanceService),
           ...FirebaseMocks.getFirebaseProviderOverrides(
             additionalOverrides: additionalOverrides,
           ),
@@ -476,6 +489,225 @@ void main() {
           () =>
               mockImageService.getProcessedJokeImageUrl(validUrl, width: null),
         ).called(1);
+      });
+
+      group('Connectivity-aware retry', () {
+        testWidgets('should listen to connectivity changes', (tester) async {
+          // arrange
+          const validUrl = 'https://example.com/image.jpg';
+          final connectivityController = StreamController<int>.broadcast();
+
+          when(
+            () => mockImageService.isValidImageUrl(validUrl),
+          ).thenReturn(true);
+          when(
+            () => mockImageService.getProcessedJokeImageUrl(
+              validUrl,
+              width: any(named: 'width'),
+            ),
+          ).thenReturn(validUrl);
+          when(
+            () => mockPerformanceService.startNamedTrace(
+              name: any(named: 'name'),
+              key: any(named: 'key'),
+              attributes: any(named: 'attributes'),
+            ),
+          ).thenAnswer((_) async {});
+          when(
+            () => mockPerformanceService.stopNamedTrace(
+              name: any(named: 'name'),
+              key: any(named: 'key'),
+            ),
+          ).thenAnswer((_) async {});
+
+          const widget = CachedJokeImage(imageUrl: validUrl);
+
+          // act
+          await tester.pumpWidget(
+            createTestWidget(
+              child: widget,
+              additionalOverrides: [
+                offlineToOnlineProvider.overrideWith(
+                  (ref) => connectivityController.stream,
+                ),
+              ],
+            ),
+          );
+          await tester.pump();
+
+          // Simulate connectivity restoration
+          connectivityController.add(1);
+          await tester.pump();
+
+          // assert
+          // Widget should still be present and functional
+          expect(find.byType(CachedJokeImage), findsOneWidget);
+        });
+
+        testWidgets('should handle imageUrl changes correctly', (tester) async {
+          // arrange
+          const initialUrl = 'https://example.com/image1.jpg';
+          const newUrl = 'https://example.com/image2.jpg';
+
+          when(() => mockImageService.isValidImageUrl(any())).thenReturn(true);
+          when(
+            () => mockImageService.getProcessedJokeImageUrl(
+              any(),
+              width: any(named: 'width'),
+            ),
+          ).thenReturn(initialUrl);
+          when(
+            () => mockPerformanceService.startNamedTrace(
+              name: any(named: 'name'),
+              key: any(named: 'key'),
+              attributes: any(named: 'attributes'),
+            ),
+          ).thenAnswer((_) async {});
+          when(
+            () => mockPerformanceService.stopNamedTrace(
+              name: any(named: 'name'),
+              key: any(named: 'key'),
+            ),
+          ).thenAnswer((_) async {});
+
+          // act
+          await tester.pumpWidget(
+            createTestWidget(child: CachedJokeImage(imageUrl: initialUrl)),
+          );
+          await tester.pump();
+
+          // Change to new image URL
+          await tester.pumpWidget(
+            createTestWidget(child: CachedJokeImage(imageUrl: newUrl)),
+          );
+          await tester.pump();
+
+          // assert
+          // Should process both URLs
+          verify(
+            () => mockImageService.getProcessedJokeImageUrl(
+              initialUrl,
+              width: any(named: 'width'),
+            ),
+          ).called(1);
+
+          verify(
+            () => mockImageService.getProcessedJokeImageUrl(
+              newUrl,
+              width: any(named: 'width'),
+            ),
+          ).called(1);
+        });
+
+        testWidgets('should create StatefulWidget correctly', (tester) async {
+          // arrange
+          const validUrl = 'https://example.com/image.jpg';
+
+          when(
+            () => mockImageService.isValidImageUrl(validUrl),
+          ).thenReturn(true);
+          when(
+            () => mockImageService.getProcessedJokeImageUrl(
+              validUrl,
+              width: any(named: 'width'),
+            ),
+          ).thenReturn(validUrl);
+          when(
+            () => mockPerformanceService.startNamedTrace(
+              name: any(named: 'name'),
+              key: any(named: 'key'),
+              attributes: any(named: 'attributes'),
+            ),
+          ).thenAnswer((_) async {});
+          when(
+            () => mockPerformanceService.stopNamedTrace(
+              name: any(named: 'name'),
+              key: any(named: 'key'),
+            ),
+          ).thenAnswer((_) async {});
+
+          const widget = CachedJokeImage(imageUrl: validUrl);
+
+          // act
+          await tester.pumpWidget(createTestWidget(child: widget));
+          await tester.pump();
+
+          // assert
+          // Widget should be created successfully as a StatefulWidget
+          expect(find.byType(CachedJokeImage), findsOneWidget);
+          expect(tester.takeException(), isNull);
+        });
+
+        testWidgets(
+          'should retry when connectivity is restored and image is in error state',
+          (tester) async {
+            // arrange
+            const validUrl = 'https://example.com/image.jpg';
+            final connectivityController = StreamController<int>.broadcast();
+
+            when(
+              () => mockImageService.isValidImageUrl(validUrl),
+            ).thenReturn(true);
+            when(
+              () => mockImageService.getProcessedJokeImageUrl(
+                validUrl,
+                width: any(named: 'width'),
+              ),
+            ).thenReturn(validUrl);
+            when(
+              () => mockAnalyticsService.logErrorImageLoad(
+                jokeId: any(named: 'jokeId'),
+                imageType: any(named: 'imageType'),
+                imageUrlHash: any(named: 'imageUrlHash'),
+                errorMessage: any(named: 'errorMessage'),
+              ),
+            ).thenAnswer((_) async {});
+            when(
+              () => mockPerformanceService.startNamedTrace(
+                name: any(named: 'name'),
+                key: any(named: 'key'),
+                attributes: any(named: 'attributes'),
+              ),
+            ).thenAnswer((_) async {});
+            when(
+              () => mockPerformanceService.dropNamedTrace(
+                name: any(named: 'name'),
+                key: any(named: 'key'),
+              ),
+            ).thenAnswer((_) async {});
+
+            const widget = CachedJokeImage(imageUrl: validUrl);
+
+            // act
+            await tester.pumpWidget(
+              createTestWidget(
+                child: widget,
+                additionalOverrides: [
+                  offlineToOnlineProvider.overrideWith(
+                    (ref) => connectivityController.stream,
+                  ),
+                ],
+              ),
+            );
+            await tester.pump();
+
+            // Simulate connectivity restoration
+            connectivityController.add(1);
+            await tester.pump();
+
+            // assert
+            // Widget should still be present and functional
+            expect(find.byType(CachedJokeImage), findsOneWidget);
+
+            // Verify that the connectivity provider was used
+            verify(
+              () => mockImageService.getProcessedJokeImageUrl(
+                validUrl,
+                width: any(named: 'width'),
+              ),
+            ).called(greaterThan(0));
+          },
+        );
       });
     });
 

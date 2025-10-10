@@ -46,15 +46,19 @@ def test_get_joke_book_returns_html(mock_firestore):
   mock_joke1_snapshot = MagicMock()
   mock_joke1_snapshot.exists = True
   mock_joke1_snapshot.to_dict.return_value = {
-    "upscaled_setup_image_url": "http://example.com/setup1.png",
-    "upscaled_punchline_image_url": "http://example.com/punchline1.png",
+    "setup_text": "test_setup1",
+    "punchline_text": "test_punchline1",
+    "setup_image_url_upscaled": "http://example.com/setup1.png",
+    "punchline_image_url_upscaled": "http://example.com/punchline1.png",
   }
 
   mock_joke2_snapshot = MagicMock()
   mock_joke2_snapshot.exists = True
   mock_joke2_snapshot.to_dict.return_value = {
-    "upscaled_setup_image_url": "http://example.com/setup2.png",
-    "upscaled_punchline_image_url": "http://example.com/punchline2.png",
+    "setup_text": "test_setup2",
+    "punchline_text": "test_punchline2",
+    "setup_image_url_upscaled": "http://example.com/setup2.png",
+    "punchline_image_url_upscaled": "http://example.com/punchline2.png",
   }
 
   def get_doc_ref(doc_id):
@@ -84,6 +88,7 @@ def test_get_joke_book_returns_html(mock_firestore):
   assert resp.headers['Content-Type'] == 'text/html'
 
   html_content = resp.get_data(as_text=True)
+
   assert "<title>My Test Joke Book</title>" in html_content
   assert '<h1>My Test Joke Book</h1>' in html_content
   assert '<img src="http://example.com/setup1.png"' in html_content

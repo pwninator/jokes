@@ -1,7 +1,7 @@
 """Joke book cloud functions."""
 import traceback
 
-from common import joke_operations
+from common import joke_operations, models
 from common.utils import create_timestamped_firestore_key
 from firebase_functions import https_fn, options
 from functions.function_utils import (error_response, get_param, get_user_id,
@@ -84,12 +84,13 @@ def get_joke_book(req: https_fn.Request) -> https_fn.Response:
     book_title = book_data.get('book_name', 'My Joke Book')
     joke_ids = book_data.get('jokes', [])
 
-    jokes = []
+    jokes: list[models.PunnyJoke] = []
     for joke_id in joke_ids:
       joke_ref = firestore.db().collection('jokes').document(joke_id)
       joke_doc = joke_ref.get()
       if joke_doc.exists:
-        jokes.append(joke_doc.to_dict())
+        jokes.append(
+          models.PunnyJoke.from_firestore_dict(joke_doc.to_dict(), joke_id))
 
     html_content = f"""
     <!DOCTYPE html>
@@ -107,8 +108,8 @@ def get_joke_book(req: https_fn.Request) -> https_fn.Response:
     """
 
     for joke in jokes:
-      setup_img = joke.get('upscaled_setup_image_url', '')
-      punchline_img = joke.get('upscaled_punchline_image_url', '')
+      setup_img = joke.setup_image_url_upscaled
+      punchline_img = joke.punchline_image_url_upscaled
       if setup_img:
         html_content += f'<img src="{setup_img}" alt="Joke Setup"><br>'
       if punchline_img:
@@ -120,8 +121,9 @@ def get_joke_book(req: https_fn.Request) -> https_fn.Response:
     </html>
     """
 
-    return https_fn.Response(
-      html_content, status=200, headers={'Content-Type': 'text/html'})
+    return https_fn.Response(html_content,
+                             status=200,
+                             headers={'Content-Type': 'text/html'})
 
   except Exception as e:
     stacktrace = traceback.format_exc()

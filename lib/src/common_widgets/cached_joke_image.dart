@@ -44,6 +44,26 @@ class _CachedJokeImageState extends ConsumerState<CachedJokeImage> {
   int _retryKey = 0;
 
   @override
+  void initState() {
+    super.initState();
+    // Set up connectivity listener once during initialization
+    Future.microtask(() {
+      if (!mounted) return;
+      ref.listenManual(offlineToOnlineProvider, (previous, next) {
+        if (_hasError && mounted) {
+          // Delay retry to allow network stack to fully stabilize
+          // after connectivity restoration
+          Future.delayed(const Duration(seconds: 2), () {
+            if (mounted && _hasError) {
+              setState(() => _retryKey++);
+            }
+          });
+        }
+      });
+    });
+  }
+
+  @override
   void didUpdateWidget(CachedJokeImage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.imageUrl != oldWidget.imageUrl) {
@@ -53,13 +73,6 @@ class _CachedJokeImageState extends ConsumerState<CachedJokeImage> {
 
   @override
   Widget build(BuildContext context) {
-    // Listen to connectivity changes to trigger retry when coming back online
-    ref.listen(offlineToOnlineProvider, (previous, next) {
-      if (_hasError) {
-        setState(() => _retryKey++);
-      }
-    });
-
     return LayoutBuilder(
       builder: (context, constraints) {
         final effectiveWidth = _resolveEffectiveWidth(constraints.maxWidth);

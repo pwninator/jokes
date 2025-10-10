@@ -4,7 +4,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 /// Provider that fetches the app version information
 final appVersionProvider = FutureProvider<String>((ref) async {
   final packageInfo = await PackageInfo.fromPlatform();
-  return '${packageInfo.appName} v${packageInfo.version}';
+  return '${packageInfo.appName} v${packageInfo.version}-${packageInfo.buildNumber}';
 });
 
 /// Provider that fetches just the version number (without app name)

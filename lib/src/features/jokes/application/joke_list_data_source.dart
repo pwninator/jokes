@@ -91,16 +91,9 @@ class GenericPagingNotifier extends StateNotifier<PagingState> {
     Future.microtask(() => {if (mounted) loadFirstPage()});
 
     // Listen for connectivity restoration and retry without resetting scroll
-    ref.listen<AsyncValue<bool>>(isOnlineProvider, (prev, next) {
-      final wasOffline = prev?.valueOrNull == false;
-      final isNowOnline = next.valueOrNull == true;
-      AppLogger.debug(
-        'PAGING_INTERNAL: Connectivity changed: wasOffline=$wasOffline, isNowOnline=$isNowOnline',
-      );
-      if (wasOffline && isNowOnline) {
-        _clearRetryBackoff();
-        Future.microtask(() => {if (mounted) _checkAndLoadIfNeeded()});
-      }
+    ref.listen(offlineToOnlineProvider, (prev, next) {
+      _clearRetryBackoff();
+      Future.microtask(() => {if (mounted) _checkAndLoadIfNeeded()});
     });
   }
 

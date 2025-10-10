@@ -20,9 +20,31 @@ Stream<bool> isOnline(Ref ref) async* {
   );
 }
 
+/// Checks if the device is currently online.
 @Riverpod()
 bool isOnlineNow(Ref ref) {
   final value = ref.read(isOnlineProvider);
   final result = value.maybeWhen(data: (v) => v, orElse: () => true);
   return result;
+}
+
+/// Emits an incrementing counter each time connectivity transitions from
+/// offline to online. Downstream clients can listen to this provider to react
+/// to connectivity restoration.
+@Riverpod(keepAlive: true)
+Stream<int> offlineToOnline(Ref ref) async* {
+  int counter = 0;
+  bool? wasOffline;
+
+  // Listen to the same connectivity stream as isOnlineProvider
+  final connectivity = Connectivity();
+  await for (final results in connectivity.onConnectivityChanged) {
+    final isOnline = results.any((r) => r != ConnectivityResult.none);
+    final isTransition = wasOffline == true && isOnline == true;
+    if (isTransition) {
+      counter++;
+      yield counter;
+    }
+    wasOffline = !isOnline;
+  }
 }

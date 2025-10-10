@@ -43,7 +43,11 @@ void main() {
       );
 
       final container = ProviderContainer(
-        overrides: [...AnalyticsMocks.getAnalyticsProviderOverrides()],
+        overrides: [
+          ...AnalyticsMocks.getAnalyticsProviderOverrides(),
+          // Mock offlineToOnlineProvider to never emit (no transitions in this test)
+          offlineToOnlineProvider.overrideWith((ref) => const Stream.empty()),
+        ],
       );
       addTearDown(container.dispose);
 
@@ -59,6 +63,7 @@ void main() {
     });
     test('offline at start, then online triggers first page load', () async {
       final connectivityController = StreamController<bool>.broadcast();
+      final offlineToOnlineController = StreamController<int>.broadcast();
 
       // Build paging providers with loadPage that reads current online state
       Future<PageResult> loadPage(Ref ref, int limit, String? cursor) async {
@@ -92,6 +97,9 @@ void main() {
           yield false;
           yield* connectivityController.stream;
         }),
+        // Mock offlineToOnlineProvider to emit when test simulates the transition
+        offlineToOnlineProvider
+            .overrideWith((ref) => offlineToOnlineController.stream),
       ];
 
       final container = ProviderContainer(overrides: overrides);
@@ -118,8 +126,9 @@ void main() {
         fireImmediately: true,
       );
 
-      // Flip to online
+      // Flip to online and trigger offline-to-online transition
       connectivityController.add(true);
+      offlineToOnlineController.add(1);
 
       // Wait for load to complete or time out
       await loaded.future.timeout(
@@ -133,6 +142,7 @@ void main() {
       expect(itemsAfter.requireValue.length, 1);
 
       await connectivityController.close();
+      await offlineToOnlineController.close();
     });
   });
 }

@@ -16,6 +16,9 @@ class AnalyticsParameters {
   static const String totalJokesSaved = 'total_jokes_saved';
   static const String totalJokesShared = 'total_jokes_shared';
 
+  // Joke category parameters
+  static const String jokeCategoryId = 'joke_category_id';
+
   // App usage parameters
   static const String numDaysUsed = 'num_days_used';
 

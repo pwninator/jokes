@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -6,6 +8,7 @@ import 'package:snickerdoodle/src/core/providers/app_usage_events_provider.dart'
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/review_prompt_state_store.dart';
+import 'package:snickerdoodle/src/data/jokes/category_interactions_service.dart';
 import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
 import 'package:snickerdoodle/src/features/settings/application/brightness_provider.dart';
@@ -15,14 +18,18 @@ part 'app_usage_service.g.dart';
 
 @Riverpod(keepAlive: true)
 AppUsageService appUsageService(Ref ref) {
-  final settingsService = ref.watch(settingsServiceProvider);
-  final analyticsService = ref.watch(analyticsServiceProvider);
-  final jokeCloudFn = ref.watch(jokeCloudFunctionServiceProvider);
+  final settingsService = ref.read(settingsServiceProvider);
+  final analyticsService = ref.read(analyticsServiceProvider);
+  final jokeCloudFn = ref.read(jokeCloudFunctionServiceProvider);
+  final categoryInteractionsService = ref.read(
+    categoryInteractionsServiceProvider,
+  );
   return AppUsageService(
     ref: ref,
     settingsService: settingsService,
     analyticsService: analyticsService,
     jokeCloudFn: jokeCloudFn,
+    categoryInteractionsService: categoryInteractionsService,
     isDebugMode: kDebugMode,
   );
 }
@@ -34,17 +41,20 @@ class AppUsageService {
     required SettingsService settingsService,
     required AnalyticsService analyticsService,
     required JokeCloudFunctionService jokeCloudFn,
+    required CategoryInteractionsService categoryInteractionsService,
     bool? isDebugMode,
   }) : _settings = settingsService,
        _analyticsService = analyticsService,
        _ref = ref,
        _jokeCloudFn = jokeCloudFn,
+       _categoryInteractions = categoryInteractionsService,
        _isDebugMode = isDebugMode;
 
   final Ref _ref;
   final SettingsService _settings;
   final AnalyticsService _analyticsService;
   final JokeCloudFunctionService _jokeCloudFn;
+  final CategoryInteractionsService _categoryInteractions;
   final bool? _isDebugMode;
 
   // Preference keys
@@ -227,6 +237,24 @@ class AppUsageService {
     final int sanitized = value < 0 ? 0 : value;
     await _settings.setInt(_numSharedJokesKey, sanitized);
     _notifyUsageChanged();
+  }
+
+  /// Record that a category has been viewed.
+  /// Fire-and-forget: performs DB write and logs analytics without blocking caller.
+  Future<void> logCategoryViewed(String categoryId) async {
+    unawaited(
+      Future<void>(() async {
+        try {
+          _analyticsService.logJokeCategoryViewed(categoryId: categoryId);
+          await _categoryInteractions.setViewed(categoryId);
+          AppLogger.debug(
+            'APP_USAGE logCategoryViewed: { category_id: $categoryId }',
+          );
+        } catch (e) {
+          AppLogger.warn('APP_USAGE logCategoryViewed error: $e');
+        }
+      }),
+    );
   }
 
   // Returns today's date as yyyy-MM-dd in local time

@@ -132,7 +132,10 @@ Future<void> _initializeSharedPreferences(WidgetRef ref) async {
 Future<void> _initializeDrift(WidgetRef ref) async {
   try {
     // Resolving the provider initializes DB and warms it up
-    await ref.read(appDatabaseProvider.future);
+    await AppDatabase.initialize();
+
+    // Verify the database is initialized
+    ref.read(appDatabaseProvider);
   } catch (e, stack) {
     AppLogger.fatal(
       'Drift database initialization failed: $e',

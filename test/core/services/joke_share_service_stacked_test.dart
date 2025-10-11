@@ -17,6 +17,7 @@ import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
 import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
+import 'package:snickerdoodle/src/data/jokes/category_interactions_service.dart';
 
 class MockImageService extends Mock implements ImageService {}
 
@@ -36,6 +37,9 @@ class MockRemoteConfigValues extends Mock implements RemoteConfigValues {}
 class MockJokeCloudFunctionService extends Mock
     implements JokeCloudFunctionService {}
 
+class _MockCategoryInteractionsService extends Mock
+    implements CategoryInteractionsService {}
+
 class FakeJoke extends Fake implements Joke {}
 
 class FakeXFile extends Fake implements XFile {}
@@ -51,6 +55,7 @@ void main() {
     late MockPlatformShareService mockPlatformShareService;
     late MockPerformanceService mockPerformanceService;
     late AppUsageService appUsageService;
+    late CategoryInteractionsService mockCategoryInteractionsService;
     late ReviewPromptCoordinator mockCoordinator;
     late MockRemoteConfigValues mockRemoteConfigValues;
     late BuildContext fakeContext;
@@ -64,6 +69,7 @@ void main() {
     });
 
     setUp(() async {
+      mockCategoryInteractionsService = _MockCategoryInteractionsService();
       mockImageService = MockImageService();
       mockAnalyticsService = MockAnalyticsService();
       mockJokeReactionsService = MockJokeReactionsService();
@@ -90,6 +96,7 @@ void main() {
         ref: ref,
         analyticsService: mockAnalyticsService,
         jokeCloudFn: MockJokeCloudFunctionService(),
+        categoryInteractionsService: mockCategoryInteractionsService,
       );
       service = JokeShareServiceImpl(
         imageService: mockImageService,

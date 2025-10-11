@@ -263,6 +263,9 @@ abstract class AnalyticsService {
 
   /// Settings: joke viewer setting changed
   void logJokeViewerSettingChanged({required String mode});
+
+  /// Category viewed: user navigated into a category
+  void logJokeCategoryViewed({required String categoryId});
 }
 
 /// Firebase Analytics implementation of the analytics service
@@ -778,6 +781,13 @@ class FirebaseAnalyticsService implements AnalyticsService {
   @override
   void logJokeViewerSettingChanged({required String mode}) {
     _logEvent(AnalyticsEvent.jokeViewerSettingChanged, {'mode': mode});
+  }
+
+  @override
+  void logJokeCategoryViewed({required String categoryId}) {
+    _logEvent(AnalyticsEvent.jokeCategoryViewed, {
+      AnalyticsParameters.jokeCategoryId: categoryId,
+    });
   }
 
   @override

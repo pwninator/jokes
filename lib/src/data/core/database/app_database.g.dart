@@ -411,15 +411,318 @@ class JokeInteractionsCompanion extends UpdateCompanion<JokeInteraction> {
   }
 }
 
+class $CategoryInteractionsTable extends CategoryInteractions
+    with TableInfo<$CategoryInteractionsTable, CategoryInteraction> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $CategoryInteractionsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _categoryIdMeta = const VerificationMeta(
+    'categoryId',
+  );
+  @override
+  late final GeneratedColumn<String> categoryId = GeneratedColumn<String>(
+    'category_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _viewedTimestampMeta = const VerificationMeta(
+    'viewedTimestamp',
+  );
+  @override
+  late final GeneratedColumn<DateTime> viewedTimestamp =
+      GeneratedColumn<DateTime>(
+        'viewed_timestamp',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _lastUpdateTimestampMeta =
+      const VerificationMeta('lastUpdateTimestamp');
+  @override
+  late final GeneratedColumn<DateTime> lastUpdateTimestamp =
+      GeneratedColumn<DateTime>(
+        'last_update_timestamp',
+        aliasedName,
+        false,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: true,
+      );
+  @override
+  List<GeneratedColumn> get $columns => [
+    categoryId,
+    viewedTimestamp,
+    lastUpdateTimestamp,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'category_interactions';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<CategoryInteraction> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('category_id')) {
+      context.handle(
+        _categoryIdMeta,
+        categoryId.isAcceptableOrUnknown(data['category_id']!, _categoryIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_categoryIdMeta);
+    }
+    if (data.containsKey('viewed_timestamp')) {
+      context.handle(
+        _viewedTimestampMeta,
+        viewedTimestamp.isAcceptableOrUnknown(
+          data['viewed_timestamp']!,
+          _viewedTimestampMeta,
+        ),
+      );
+    }
+    if (data.containsKey('last_update_timestamp')) {
+      context.handle(
+        _lastUpdateTimestampMeta,
+        lastUpdateTimestamp.isAcceptableOrUnknown(
+          data['last_update_timestamp']!,
+          _lastUpdateTimestampMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_lastUpdateTimestampMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {categoryId};
+  @override
+  CategoryInteraction map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return CategoryInteraction(
+      categoryId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}category_id'],
+      )!,
+      viewedTimestamp: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}viewed_timestamp'],
+      ),
+      lastUpdateTimestamp: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}last_update_timestamp'],
+      )!,
+    );
+  }
+
+  @override
+  $CategoryInteractionsTable createAlias(String alias) {
+    return $CategoryInteractionsTable(attachedDatabase, alias);
+  }
+}
+
+class CategoryInteraction extends DataClass
+    implements Insertable<CategoryInteraction> {
+  final String categoryId;
+  final DateTime? viewedTimestamp;
+  final DateTime lastUpdateTimestamp;
+  const CategoryInteraction({
+    required this.categoryId,
+    this.viewedTimestamp,
+    required this.lastUpdateTimestamp,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['category_id'] = Variable<String>(categoryId);
+    if (!nullToAbsent || viewedTimestamp != null) {
+      map['viewed_timestamp'] = Variable<DateTime>(viewedTimestamp);
+    }
+    map['last_update_timestamp'] = Variable<DateTime>(lastUpdateTimestamp);
+    return map;
+  }
+
+  CategoryInteractionsCompanion toCompanion(bool nullToAbsent) {
+    return CategoryInteractionsCompanion(
+      categoryId: Value(categoryId),
+      viewedTimestamp: viewedTimestamp == null && nullToAbsent
+          ? const Value.absent()
+          : Value(viewedTimestamp),
+      lastUpdateTimestamp: Value(lastUpdateTimestamp),
+    );
+  }
+
+  factory CategoryInteraction.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return CategoryInteraction(
+      categoryId: serializer.fromJson<String>(json['categoryId']),
+      viewedTimestamp: serializer.fromJson<DateTime?>(json['viewedTimestamp']),
+      lastUpdateTimestamp: serializer.fromJson<DateTime>(
+        json['lastUpdateTimestamp'],
+      ),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'categoryId': serializer.toJson<String>(categoryId),
+      'viewedTimestamp': serializer.toJson<DateTime?>(viewedTimestamp),
+      'lastUpdateTimestamp': serializer.toJson<DateTime>(lastUpdateTimestamp),
+    };
+  }
+
+  CategoryInteraction copyWith({
+    String? categoryId,
+    Value<DateTime?> viewedTimestamp = const Value.absent(),
+    DateTime? lastUpdateTimestamp,
+  }) => CategoryInteraction(
+    categoryId: categoryId ?? this.categoryId,
+    viewedTimestamp: viewedTimestamp.present
+        ? viewedTimestamp.value
+        : this.viewedTimestamp,
+    lastUpdateTimestamp: lastUpdateTimestamp ?? this.lastUpdateTimestamp,
+  );
+  CategoryInteraction copyWithCompanion(CategoryInteractionsCompanion data) {
+    return CategoryInteraction(
+      categoryId: data.categoryId.present
+          ? data.categoryId.value
+          : this.categoryId,
+      viewedTimestamp: data.viewedTimestamp.present
+          ? data.viewedTimestamp.value
+          : this.viewedTimestamp,
+      lastUpdateTimestamp: data.lastUpdateTimestamp.present
+          ? data.lastUpdateTimestamp.value
+          : this.lastUpdateTimestamp,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CategoryInteraction(')
+          ..write('categoryId: $categoryId, ')
+          ..write('viewedTimestamp: $viewedTimestamp, ')
+          ..write('lastUpdateTimestamp: $lastUpdateTimestamp')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(categoryId, viewedTimestamp, lastUpdateTimestamp);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is CategoryInteraction &&
+          other.categoryId == this.categoryId &&
+          other.viewedTimestamp == this.viewedTimestamp &&
+          other.lastUpdateTimestamp == this.lastUpdateTimestamp);
+}
+
+class CategoryInteractionsCompanion
+    extends UpdateCompanion<CategoryInteraction> {
+  final Value<String> categoryId;
+  final Value<DateTime?> viewedTimestamp;
+  final Value<DateTime> lastUpdateTimestamp;
+  final Value<int> rowid;
+  const CategoryInteractionsCompanion({
+    this.categoryId = const Value.absent(),
+    this.viewedTimestamp = const Value.absent(),
+    this.lastUpdateTimestamp = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  CategoryInteractionsCompanion.insert({
+    required String categoryId,
+    this.viewedTimestamp = const Value.absent(),
+    required DateTime lastUpdateTimestamp,
+    this.rowid = const Value.absent(),
+  }) : categoryId = Value(categoryId),
+       lastUpdateTimestamp = Value(lastUpdateTimestamp);
+  static Insertable<CategoryInteraction> custom({
+    Expression<String>? categoryId,
+    Expression<DateTime>? viewedTimestamp,
+    Expression<DateTime>? lastUpdateTimestamp,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (categoryId != null) 'category_id': categoryId,
+      if (viewedTimestamp != null) 'viewed_timestamp': viewedTimestamp,
+      if (lastUpdateTimestamp != null)
+        'last_update_timestamp': lastUpdateTimestamp,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  CategoryInteractionsCompanion copyWith({
+    Value<String>? categoryId,
+    Value<DateTime?>? viewedTimestamp,
+    Value<DateTime>? lastUpdateTimestamp,
+    Value<int>? rowid,
+  }) {
+    return CategoryInteractionsCompanion(
+      categoryId: categoryId ?? this.categoryId,
+      viewedTimestamp: viewedTimestamp ?? this.viewedTimestamp,
+      lastUpdateTimestamp: lastUpdateTimestamp ?? this.lastUpdateTimestamp,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (categoryId.present) {
+      map['category_id'] = Variable<String>(categoryId.value);
+    }
+    if (viewedTimestamp.present) {
+      map['viewed_timestamp'] = Variable<DateTime>(viewedTimestamp.value);
+    }
+    if (lastUpdateTimestamp.present) {
+      map['last_update_timestamp'] = Variable<DateTime>(
+        lastUpdateTimestamp.value,
+      );
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('CategoryInteractionsCompanion(')
+          ..write('categoryId: $categoryId, ')
+          ..write('viewedTimestamp: $viewedTimestamp, ')
+          ..write('lastUpdateTimestamp: $lastUpdateTimestamp, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
   late final $JokeInteractionsTable jokeInteractions = $JokeInteractionsTable(
     this,
   );
+  late final $CategoryInteractionsTable categoryInteractions =
+      $CategoryInteractionsTable(this);
   late final Index idxLastUpdateTimestamp = Index(
     'idx_last_update_timestamp',
     'CREATE INDEX idx_last_update_timestamp ON joke_interactions (last_update_timestamp)',
+  );
+  late final Index idxCategoryLastUpdate = Index(
+    'idx_category_last_update',
+    'CREATE INDEX idx_category_last_update ON category_interactions (last_update_timestamp)',
   );
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
@@ -427,7 +730,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   @override
   List<DatabaseSchemaEntity> get allSchemaEntities => [
     jokeInteractions,
+    categoryInteractions,
     idxLastUpdateTimestamp,
+    idxCategoryLastUpdate,
   ];
 }
 
@@ -645,23 +950,209 @@ typedef $$JokeInteractionsTableProcessedTableManager =
       JokeInteraction,
       PrefetchHooks Function()
     >;
+typedef $$CategoryInteractionsTableCreateCompanionBuilder =
+    CategoryInteractionsCompanion Function({
+      required String categoryId,
+      Value<DateTime?> viewedTimestamp,
+      required DateTime lastUpdateTimestamp,
+      Value<int> rowid,
+    });
+typedef $$CategoryInteractionsTableUpdateCompanionBuilder =
+    CategoryInteractionsCompanion Function({
+      Value<String> categoryId,
+      Value<DateTime?> viewedTimestamp,
+      Value<DateTime> lastUpdateTimestamp,
+      Value<int> rowid,
+    });
+
+class $$CategoryInteractionsTableFilterComposer
+    extends Composer<_$AppDatabase, $CategoryInteractionsTable> {
+  $$CategoryInteractionsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get categoryId => $composableBuilder(
+    column: $table.categoryId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get viewedTimestamp => $composableBuilder(
+    column: $table.viewedTimestamp,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get lastUpdateTimestamp => $composableBuilder(
+    column: $table.lastUpdateTimestamp,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$CategoryInteractionsTableOrderingComposer
+    extends Composer<_$AppDatabase, $CategoryInteractionsTable> {
+  $$CategoryInteractionsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get categoryId => $composableBuilder(
+    column: $table.categoryId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get viewedTimestamp => $composableBuilder(
+    column: $table.viewedTimestamp,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<DateTime> get lastUpdateTimestamp => $composableBuilder(
+    column: $table.lastUpdateTimestamp,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$CategoryInteractionsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $CategoryInteractionsTable> {
+  $$CategoryInteractionsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get categoryId => $composableBuilder(
+    column: $table.categoryId,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get viewedTimestamp => $composableBuilder(
+    column: $table.viewedTimestamp,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<DateTime> get lastUpdateTimestamp => $composableBuilder(
+    column: $table.lastUpdateTimestamp,
+    builder: (column) => column,
+  );
+}
+
+class $$CategoryInteractionsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $CategoryInteractionsTable,
+          CategoryInteraction,
+          $$CategoryInteractionsTableFilterComposer,
+          $$CategoryInteractionsTableOrderingComposer,
+          $$CategoryInteractionsTableAnnotationComposer,
+          $$CategoryInteractionsTableCreateCompanionBuilder,
+          $$CategoryInteractionsTableUpdateCompanionBuilder,
+          (
+            CategoryInteraction,
+            BaseReferences<
+              _$AppDatabase,
+              $CategoryInteractionsTable,
+              CategoryInteraction
+            >,
+          ),
+          CategoryInteraction,
+          PrefetchHooks Function()
+        > {
+  $$CategoryInteractionsTableTableManager(
+    _$AppDatabase db,
+    $CategoryInteractionsTable table,
+  ) : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$CategoryInteractionsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$CategoryInteractionsTableOrderingComposer(
+                $db: db,
+                $table: table,
+              ),
+          createComputedFieldComposer: () =>
+              $$CategoryInteractionsTableAnnotationComposer(
+                $db: db,
+                $table: table,
+              ),
+          updateCompanionCallback:
+              ({
+                Value<String> categoryId = const Value.absent(),
+                Value<DateTime?> viewedTimestamp = const Value.absent(),
+                Value<DateTime> lastUpdateTimestamp = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => CategoryInteractionsCompanion(
+                categoryId: categoryId,
+                viewedTimestamp: viewedTimestamp,
+                lastUpdateTimestamp: lastUpdateTimestamp,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String categoryId,
+                Value<DateTime?> viewedTimestamp = const Value.absent(),
+                required DateTime lastUpdateTimestamp,
+                Value<int> rowid = const Value.absent(),
+              }) => CategoryInteractionsCompanion.insert(
+                categoryId: categoryId,
+                viewedTimestamp: viewedTimestamp,
+                lastUpdateTimestamp: lastUpdateTimestamp,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$CategoryInteractionsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $CategoryInteractionsTable,
+      CategoryInteraction,
+      $$CategoryInteractionsTableFilterComposer,
+      $$CategoryInteractionsTableOrderingComposer,
+      $$CategoryInteractionsTableAnnotationComposer,
+      $$CategoryInteractionsTableCreateCompanionBuilder,
+      $$CategoryInteractionsTableUpdateCompanionBuilder,
+      (
+        CategoryInteraction,
+        BaseReferences<
+          _$AppDatabase,
+          $CategoryInteractionsTable,
+          CategoryInteraction
+        >,
+      ),
+      CategoryInteraction,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
   $AppDatabaseManager(this._db);
   $$JokeInteractionsTableTableManager get jokeInteractions =>
       $$JokeInteractionsTableTableManager(_db, _db.jokeInteractions);
+  $$CategoryInteractionsTableTableManager get categoryInteractions =>
+      $$CategoryInteractionsTableTableManager(_db, _db.categoryInteractions);
 }
 
 // **************************************************************************
 // RiverpodGenerator
 // **************************************************************************
 
-String _$appDatabaseHash() => r'57c68bf212b7de801a9a72c3ddac11c4bea2e363';
+String _$appDatabaseHash() => r'c9b315997d4620b75f971a029620ab310c5b3296';
 
 /// See also [appDatabase].
 @ProviderFor(appDatabase)
-final appDatabaseProvider = FutureProvider<AppDatabase>.internal(
+final appDatabaseProvider = Provider<AppDatabase>.internal(
   appDatabase,
   name: r'appDatabaseProvider',
   debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
@@ -673,6 +1164,6 @@ final appDatabaseProvider = FutureProvider<AppDatabase>.internal(
 
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
-typedef AppDatabaseRef = FutureProviderRef<AppDatabase>;
+typedef AppDatabaseRef = ProviderRef<AppDatabase>;
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member, deprecated_member_use_from_same_package

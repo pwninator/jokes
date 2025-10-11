@@ -16,6 +16,9 @@ enum AnalyticsEvent {
   // Similar search CTA event
   jokeSearchSimilar('joke_search_similar'),
 
+  // Joke category events
+  jokeCategoryViewed('joke_category_viewed'),
+
   // Joke reaction events
   jokeSaved('joke_saved'),
   jokeUnsaved('joke_unsaved'),

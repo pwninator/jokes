@@ -12,6 +12,7 @@ import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_reposito
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
 import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
+import 'package:snickerdoodle/src/data/jokes/category_interactions_service.dart';
 
 class MockJokeRepository extends Mock implements JokeRepository {}
 
@@ -22,6 +23,9 @@ class MockAnalyticsService extends Mock implements AnalyticsService {}
 
 class MockJokeCloudFunctionService extends Mock
     implements JokeCloudFunctionService {}
+
+class _MockCategoryInteractionsService extends Mock
+    implements CategoryInteractionsService {}
 
 class FakeBuildContext extends Fake implements BuildContext {
   @override
@@ -54,6 +58,7 @@ void main() {
         ref: ref,
         analyticsService: mockAnalytics,
         jokeCloudFn: mockJokeCloudFn,
+        categoryInteractionsService: _MockCategoryInteractionsService(),
       );
       mockCoordinator = MockReviewPromptCoordinator();
       when(

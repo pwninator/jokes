@@ -4,18 +4,19 @@ import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:go_router/go_router.dart';
 import 'package:snickerdoodle/src/common_widgets/adaptive_app_bar_screen.dart';
 import 'package:snickerdoodle/src/config/router/route_names.dart';
+import 'package:snickerdoodle/src/config/router/router_providers.dart';
 import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
 import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
+import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_category_tile.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_category_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_list_data_source.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_list_data_sources.dart';
-import 'package:snickerdoodle/src/features/search/application/discover_tab_state.dart';
-import 'package:snickerdoodle/src/config/router/router_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_navigation_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_search_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_category.dart';
 import 'package:snickerdoodle/src/features/jokes/presentation/joke_list_viewer.dart';
+import 'package:snickerdoodle/src/features/search/application/discover_tab_state.dart';
 
 /// Discover screen presents curated categories by default and lets users
 /// drill into category searches before handing off to the dedicated search UI.
@@ -109,6 +110,9 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
   void _onCategorySelected(WidgetRef ref, JokeCategory category) {
     // Set active category so the unified data source routes and resets
     ref.read(activeCategoryProvider.notifier).state = category;
+
+    // Fire-and-forget: record that the category was viewed
+    ref.read(appUsageServiceProvider).logCategoryViewed(category.id);
 
     // Update search query only for search-type categories
     if (category.type == CategoryType.search) {

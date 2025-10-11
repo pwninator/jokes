@@ -1,15 +1,16 @@
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:snickerdoodle/src/core/services/app_logger.dart';
+import 'package:snickerdoodle/src/core/services/performance_service.dart';
 
 import 'app_database_platform.dart' as platform;
 
 part 'app_database.g.dart';
 
 @Riverpod(keepAlive: true)
-Future<AppDatabase> appDatabase(Ref ref) async {
-  final executor = await platform.openExecutor();
-  return AppDatabase._internal(executor);
+AppDatabase appDatabase(Ref ref) {
+  return AppDatabase.instance;
 }
 
 // Drift table for joke interactions
@@ -30,12 +31,46 @@ class JokeInteractions extends Table {
   Set<Column<Object>>? get primaryKey => {jokeId};
 }
 
-@DriftDatabase(tables: [JokeInteractions])
+// Drift table for category interactions (one row per category)
+@TableIndex(name: 'idx_category_last_update', columns: {#lastUpdateTimestamp})
+class CategoryInteractions extends Table {
+  // Primary key: one row per category
+  TextColumn get categoryId => text()();
+
+  // Nullable viewed timestamp
+  DateTimeColumn get viewedTimestamp => dateTime().nullable()();
+
+  // Last updated timestamp (required)
+  DateTimeColumn get lastUpdateTimestamp => dateTime()();
+
+  @override
+  Set<Column<Object>>? get primaryKey => {categoryId};
+}
+
+@DriftDatabase(tables: [JokeInteractions, CategoryInteractions])
 class AppDatabase extends _$AppDatabase {
   AppDatabase._internal(super.e);
 
+  static AppDatabase? _instance;
+
+  static AppDatabase get instance {
+    final existing = _instance;
+    if (existing == null) {
+      throw StateError(
+        'AppDatabase.initialize() must be called before accessing instance.',
+      );
+    }
+    return existing;
+  }
+
+  static Future<void> initialize() async {
+    if (_instance != null) return;
+    final executor = await platform.openExecutor();
+    _instance = AppDatabase._internal(executor);
+  }
+
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -53,10 +88,32 @@ class AppDatabase extends _$AppDatabase {
           [nowIso],
         );
       }
+      if (from < 3) {
+        await m.createTable(categoryInteractions);
+      }
     },
   );
 
   // For tests
   static AppDatabase inMemory() =>
       AppDatabase._internal(platform.inMemoryExecutor());
+}
+
+/// Shared helper for running DB operations within a performance trace
+Future<T> runWithTrace<T>({
+  required TraceName name,
+  String? traceKey,
+  required Future<T> Function() body,
+  required T fallback,
+  required PerformanceService perf,
+}) async {
+  perf.startNamedTrace(name: name, key: traceKey);
+  try {
+    return await body();
+  } catch (e) {
+    AppLogger.fatal("DB trace '$name (${traceKey ?? ''})' failed: $e");
+    return fallback;
+  } finally {
+    perf.stopNamedTrace(name: name, key: traceKey);
+  }
 }

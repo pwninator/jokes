@@ -2,16 +2,19 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:snickerdoodle/src/data/core/app/firebase_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_category.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/firestore_joke_category_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_category_repository.dart';
 
-// Repository provider
-final jokeCategoryRepositoryProvider = Provider<JokeCategoryRepository>((ref) {
+part 'joke_category_providers.g.dart';
+
+@Riverpod(keepAlive: true)
+JokeCategoryRepository jokeCategoryRepository(Ref ref) {
   final firestore = ref.watch(firebaseFirestoreProvider);
   return FirestoreJokeCategoryRepository(firestore: firestore);
-});
+}
 
 // Stream of categories
 final jokeCategoriesProvider = StreamProvider<List<JokeCategory>>((ref) {

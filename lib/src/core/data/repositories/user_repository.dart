@@ -24,8 +24,8 @@ class FirestoreUserRepository implements UserRepository {
 
   static const String _collection = 'joke_users';
 
-  FirestoreUserRepository({FirebaseFirestore? firestore})
-    : _firestore = firestore ?? FirebaseFirestore.instance;
+  FirestoreUserRepository({required FirebaseFirestore firestore})
+    : _firestore = firestore;
 
   @override
   Stream<List<AppUserSummary>> watchAllUsers() {

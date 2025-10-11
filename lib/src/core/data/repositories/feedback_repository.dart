@@ -92,8 +92,8 @@ class FirestoreFeedbackRepository implements FeedbackRepository {
   static const String _collectionName = 'joke_feedback';
   static final RegExp _datePrefixedIdRegex = RegExp(r'^\d{8}_\d{6}_(.+)$');
 
-  FirestoreFeedbackRepository({FirebaseFirestore? firestore})
-    : _firestore = firestore ?? FirebaseFirestore.instance;
+  FirestoreFeedbackRepository({required FirebaseFirestore firestore})
+    : _firestore = firestore;
 
   @override
   Future<void> submitFeedback(String feedbackText, String? userId) async {

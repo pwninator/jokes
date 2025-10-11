@@ -13,10 +13,10 @@ class FirestoreJokeScheduleRepository implements JokeScheduleRepository {
   final tz.Location? _laLocation;
 
   FirestoreJokeScheduleRepository({
-    FirebaseFirestore? firestore,
+    required FirebaseFirestore firestore,
     required JokeRepository jokeRepository,
     tz.Location? laLocation,
-  }) : _firestore = firestore ?? FirebaseFirestore.instance,
+  }) : _firestore = firestore,
        _jokeRepository = jokeRepository,
        _laLocation = laLocation;
 

@@ -1,13 +1,13 @@
 // GENERATED CODE - DO NOT MODIFY BY HAND
 
-part of 'app_providers.dart';
+part of 'performance_service.dart';
 
 // **************************************************************************
 // RiverpodGenerator
 // **************************************************************************
 
 String _$performanceServiceHash() =>
-    r'7ab2924f5bbd812118ea9c641d9ea7cd12ba6f34';
+    r'5fcebc25b5404b5bed73b4177340623cbb861d93';
 
 /// Provider for PerformanceService (Firebase Performance)
 ///

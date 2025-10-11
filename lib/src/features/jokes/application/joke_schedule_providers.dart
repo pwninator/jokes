@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
+import 'package:snickerdoodle/src/data/core/app/firebase_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_schedule_service.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_schedule.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_schedule_batch.dart';
@@ -11,7 +12,11 @@ import 'package:snickerdoodle/src/features/jokes/domain/joke_eligibility_strateg
 // Repository provider
 final jokeScheduleRepositoryProvider = Provider<JokeScheduleRepository>((ref) {
   final jokeRepository = ref.watch(jokeRepositoryProvider);
-  return FirestoreJokeScheduleRepository(jokeRepository: jokeRepository);
+  final firestore = ref.watch(firebaseFirestoreProvider);
+  return FirestoreJokeScheduleRepository(
+    jokeRepository: jokeRepository,
+    firestore: firestore,
+  );
 });
 
 // Real-time schedules stream

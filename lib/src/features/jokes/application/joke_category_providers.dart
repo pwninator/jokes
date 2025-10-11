@@ -1,10 +1,10 @@
 import 'dart:math';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:snickerdoodle/src/data/core/app/firebase_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_category.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/firestore_joke_category_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_category_repository.dart';
-import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
 
 // Repository provider
 final jokeCategoryRepositoryProvider = Provider<JokeCategoryRepository>((ref) {

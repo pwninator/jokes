@@ -1,6 +1,19 @@
 import 'package:firebase_performance/firebase_performance.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
+import 'package:snickerdoodle/src/core/services/performance_service.dart';
+import 'package:snickerdoodle/src/data/core/app/firebase_providers.dart';
+
+part 'performance_service.g.dart';
+
+/// Provider for PerformanceService (Firebase Performance)
+@Riverpod(keepAlive: true)
+PerformanceService performanceService(Ref ref) {
+  final performance = ref.watch(firebasePerformanceProvider);
+  return FirebasePerformanceService(performance: performance);
+}
 
 /// Service to manage Firebase Performance custom traces.
 ///
@@ -100,8 +113,12 @@ abstract class PerformanceService {
 }
 
 class FirebasePerformanceService implements PerformanceService {
+  FirebasePerformanceService({required FirebasePerformance performance})
+    : _performance = performance;
+
   final Map<String, Trace> _namedTraces = {};
   final Map<String, DateTime> _traceStartedAt = {};
+  final FirebasePerformance _performance;
 
   String _composeKey(TraceName name, String? key) =>
       key == null ? name.wireName : '${name.wireName}::$key';
@@ -115,7 +132,7 @@ class FirebasePerformanceService implements PerformanceService {
     final composed = _composeKey(name, key);
     // Drop any previous in-flight trace with same name/key
     _namedTraces.remove(composed);
-    final trace = FirebasePerformance.instance.newTrace(name.wireName);
+    final trace = _performance.newTrace(name.wireName);
     if (attributes != null && attributes.isNotEmpty) {
       attributes.forEach((k, v) => trace.putAttribute(k, v));
     }

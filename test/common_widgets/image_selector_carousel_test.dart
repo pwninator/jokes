@@ -3,11 +3,24 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:snickerdoodle/src/common_widgets/image_selector_carousel.dart';
 
+import '../test_helpers/analytics_mocks.dart';
+import '../test_helpers/core_mocks.dart';
+
 Widget _wrap(Widget child) => ProviderScope(
-  child: MaterialApp(home: Scaffold(body: child)),
-);
+      overrides: [
+        ...CoreMocks.getCoreProviderOverrides(),
+        ...AnalyticsMocks.getAnalyticsProviderOverrides(),
+      ],
+      child: MaterialApp(home: Scaffold(body: child)),
+    );
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUpAll(() {
+    registerAnalyticsFallbackValues();
+  });
+
   group('ImageSelectorCarousel', () {
     testWidgets('returns empty widget when no images provided', (tester) async {
       await tester.pumpWidget(

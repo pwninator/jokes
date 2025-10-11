@@ -8,9 +8,16 @@ import 'package:snickerdoodle/src/features/admin/presentation/joke_schedule_widg
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_schedule_batch.dart';
 
+import '../../../test_helpers/analytics_mocks.dart';
+import '../../../test_helpers/core_mocks.dart';
 import '../../../test_helpers/joke_schedule_mocks.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUpAll(() {
+    registerAnalyticsFallbackValues();
+  });
   group('CalendarGridWidget', () {
     testWidgets('highlights today\'s date with blue border in current month', (
       tester,
@@ -39,6 +46,10 @@ void main() {
 
       await tester.pumpWidget(
         ProviderScope(
+          overrides: [
+            ...CoreMocks.getCoreProviderOverrides(),
+            ...AnalyticsMocks.getAnalyticsProviderOverrides(),
+          ],
           child: MaterialApp(
             home: Scaffold(
               body: SingleChildScrollView(
@@ -143,6 +154,10 @@ void main() {
 
       await tester.pumpWidget(
         ProviderScope(
+          overrides: [
+            ...CoreMocks.getCoreProviderOverrides(),
+            ...AnalyticsMocks.getAnalyticsProviderOverrides(),
+          ],
           child: MaterialApp(
             home: Scaffold(
               body: SingleChildScrollView(
@@ -205,6 +220,10 @@ void main() {
 
       await tester.pumpWidget(
         ProviderScope(
+          overrides: [
+            ...CoreMocks.getCoreProviderOverrides(),
+            ...AnalyticsMocks.getAnalyticsProviderOverrides(),
+          ],
           child: MaterialApp(
             home: Scaffold(
               body: SingleChildScrollView(
@@ -288,9 +307,13 @@ void main() {
     ) async {
       await tester.pumpWidget(
         ProviderScope(
-          overrides: JokeScheduleMocks.getJokeScheduleProviderOverrides(
-            selectedScheduleId: 'test-schedule',
-          ),
+          overrides: [
+            ...CoreMocks.getCoreProviderOverrides(),
+            ...AnalyticsMocks.getAnalyticsProviderOverrides(),
+            ...JokeScheduleMocks.getJokeScheduleProviderOverrides(
+              selectedScheduleId: 'test-schedule',
+            ),
+          ],
           child: MaterialApp(
             home: Stack(
               children: [
@@ -321,9 +344,13 @@ void main() {
     ) async {
       await tester.pumpWidget(
         ProviderScope(
-          overrides: JokeScheduleMocks.getJokeScheduleProviderOverrides(
-            selectedScheduleId: 'test-schedule',
-          ),
+          overrides: [
+            ...CoreMocks.getCoreProviderOverrides(),
+            ...AnalyticsMocks.getAnalyticsProviderOverrides(),
+            ...JokeScheduleMocks.getJokeScheduleProviderOverrides(
+              selectedScheduleId: 'test-schedule',
+            ),
+          ],
           child: MaterialApp(
             home: Stack(
               children: [
@@ -354,9 +381,13 @@ void main() {
     ) async {
       await tester.pumpWidget(
         ProviderScope(
-          overrides: JokeScheduleMocks.getJokeScheduleProviderOverrides(
-            selectedScheduleId: null,
-          ),
+          overrides: [
+            ...CoreMocks.getCoreProviderOverrides(),
+            ...AnalyticsMocks.getAnalyticsProviderOverrides(),
+            ...JokeScheduleMocks.getJokeScheduleProviderOverrides(
+              selectedScheduleId: null,
+            ),
+          ],
           child: MaterialApp(
             home: Stack(
               children: [
@@ -392,9 +423,13 @@ void main() {
 
       await tester.pumpWidget(
         ProviderScope(
-          overrides: JokeScheduleMocks.getJokeScheduleProviderOverrides(
-            selectedScheduleId: 'test-schedule',
-          ),
+          overrides: [
+            ...CoreMocks.getCoreProviderOverrides(),
+            ...AnalyticsMocks.getAnalyticsProviderOverrides(),
+            ...JokeScheduleMocks.getJokeScheduleProviderOverrides(
+              selectedScheduleId: 'test-schedule',
+            ),
+          ],
           child: MaterialApp(
             home: Stack(
               children: [
@@ -437,9 +472,13 @@ void main() {
     ) async {
       await tester.pumpWidget(
         ProviderScope(
-          overrides: JokeScheduleMocks.getJokeScheduleProviderOverrides(
-            selectedScheduleId: 'test-schedule',
-          ),
+          overrides: [
+            ...CoreMocks.getCoreProviderOverrides(),
+            ...AnalyticsMocks.getAnalyticsProviderOverrides(),
+            ...JokeScheduleMocks.getJokeScheduleProviderOverrides(
+              selectedScheduleId: 'test-schedule',
+            ),
+          ],
           child: MaterialApp(
             home: Stack(
               children: [
@@ -476,9 +515,13 @@ void main() {
 
       await tester.pumpWidget(
         ProviderScope(
-          overrides: JokeScheduleMocks.getJokeScheduleProviderOverrides(
-            selectedScheduleId: 'test-schedule',
-          ),
+          overrides: [
+            ...CoreMocks.getCoreProviderOverrides(),
+            ...AnalyticsMocks.getAnalyticsProviderOverrides(),
+            ...JokeScheduleMocks.getJokeScheduleProviderOverrides(
+              selectedScheduleId: 'test-schedule',
+            ),
+          ],
           child: MaterialApp(
             home: Stack(
               children: [

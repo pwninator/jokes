@@ -7,8 +7,8 @@ class FirestoreJokeCategoryRepository implements JokeCategoryRepository {
 
   static const String _collection = 'joke_categories';
 
-  FirestoreJokeCategoryRepository({FirebaseFirestore? firestore})
-    : _firestore = firestore ?? FirebaseFirestore.instance;
+  FirestoreJokeCategoryRepository({required FirebaseFirestore firestore})
+    : _firestore = firestore;
 
   @override
   Stream<List<JokeCategory>> watchCategories() {

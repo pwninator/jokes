@@ -5,7 +5,10 @@ import traceback
 
 from firebase_admin import firestore
 from firebase_functions import https_fn, logger, options
-from functions.function_utils import get_bool_param, get_int_param
+from functions.function_utils import (get_bool_param, get_float_param,
+                                      get_int_param, get_param)
+from services import firestore as firestore_service
+from services import search
 
 _db = None  # pylint: disable=invalid-name
 
@@ -23,7 +26,7 @@ def db() -> firestore.client:
   timeout_sec=1800,
 )
 def run_firestore_migration(req: https_fn.Request) -> https_fn.Response:
-  """Run the jokes fields migration."""
+  """Run a Firestore migration."""
   # Health check
   if req.path == "/__/health":
     return https_fn.Response("OK", status=200)
@@ -41,84 +44,124 @@ def run_firestore_migration(req: https_fn.Request) -> https_fn.Response:
   try:
     dry_run = get_bool_param(req, 'dry_run', True)
     max_jokes = get_int_param(req, 'max_jokes', 0)
+    query = get_param(req, 'query')
+    if not query:
+      return https_fn.Response(
+        json.dumps({
+          "error": "query parameter is required",
+          "success": False
+        }),
+        status=400,
+        mimetype='application/json',
+      )
+    threshold = get_float_param(req, 'threshold', 0.5)
 
-    results = run_jokes_test_migration(dry_run=dry_run, max_jokes=max_jokes)
-    return https_fn.Response(
-      json.dumps({
-        "success": True,
-        "results": results
-      }),
-      status=200,
-      mimetype='application/json',
+    html_response = run_seasonal_migration(
+      query=query,
+      threshold=threshold,
+      dry_run=dry_run,
+      max_jokes=max_jokes,
     )
+    return https_fn.Response(html_response, status=200, mimetype='text/html')
+
   except Exception as e:  # pylint: disable=broad-except
-    logger.error(f"Joke fields migration failed: {e}")
+    logger.error(f"Firestore migration failed: {e}")
     logger.error(traceback.format_exc())
     return https_fn.Response(
       json.dumps({
         "success": False,
         "error": str(e),
-        "message": "Failed to run jokes fields migration"
+        "message": "Failed to run Firestore migration"
       }),
       status=500,
       mimetype='application/json',
     )
 
 
-def run_jokes_test_migration(dry_run: bool, max_jokes: int) -> dict:
-  """Copies all documents from 'jokes' to 'jokes_test' collection.
-
-  Skips documents that already exist in the target collection.
-  Removes the 'zzz_joke_text_embedding' and 'generation_metadata' fields from the copied documents.
-
-  Args:
-    dry_run: If True, the migration will only log the changes that would be made.
-    max_jokes: The maximum number of jokes to process. If 0, all jokes will be processed.
-
-  Returns:
-    A dictionary containing the results of the migration.
+def run_seasonal_migration(
+  query: str,
+  threshold: float,
+  dry_run: bool,
+  max_jokes: int,
+) -> str:
   """
-  logger.info("Starting jokes_test migration...")
-  jokes_collection = db().collection('jokes')
-  jokes_test_collection = db().collection('jokes_test')
-  jokes_stream = jokes_collection.stream()
+    Sets the 'seasonal' field to 'Halloween' for jokes matching a search query.
 
-  migrated_count = 0
-  skipped_count = 0
-  processed_count = 0
+    Args:
+        query: The search query for jokes.
+        threshold: The search distance threshold.
+        dry_run: If True, the migration will only log the changes that would be made.
+        max_jokes: The maximum number of jokes to modify. If 0, all jokes will be processed.
 
-  for joke_doc in jokes_stream:
-    if max_jokes and processed_count >= max_jokes:
+    Returns:
+        An HTML page listing the jokes that were updated.
+    """
+  logger.info("Starting seasonal migration...")
+
+  search_results = search.search_jokes(
+    query=query,
+    label="seasonal_migration",
+    limit=1000,  # A reasonable upper limit on search results to check
+    distance_threshold=threshold,
+  )
+
+  updated_jokes = []
+  skipped_jokes = []
+  updated_count = 0
+
+  for result in search_results:
+    if max_jokes and updated_count >= max_jokes:
       logger.info(f"Reached max_jokes limit of {max_jokes}.")
       break
 
-    processed_count += 1
-    joke_data = joke_doc.to_dict() or {}
-    joke_id = joke_doc.id
-
-    # Check if the document already exists in the new collection
-    if jokes_test_collection.document(joke_id).get().exists:
-      logger.info(f"Joke {joke_id} already exists in jokes_test. Skipping.")
-      skipped_count += 1
+    joke_id = result.joke.key
+    if not joke_id:
       continue
 
-    # Remove the zzz_joke_text_embedding and generation_metadata fields
-    if 'zzz_joke_text_embedding' in joke_data:
-      del joke_data['zzz_joke_text_embedding']
-    if 'generation_metadata' in joke_data:
-      del joke_data['generation_metadata']
+    joke = firestore_service.get_punny_joke(joke_id)
+    if not joke:
+      logger.warning(f"Could not retrieve joke with id: {joke_id}")
+      continue
 
-    logger.info(
-      f"Joke {joke_id} will be migrated to jokes_test. Dry run: {dry_run}")
-    if not dry_run:
-      jokes_test_collection.document(joke_id).set(joke_data)
-      migrated_count += 1
+    if joke.seasonal != "Halloween":
+      updated_jokes.append({
+        "id": joke_id,
+        "setup": joke.setup_text,
+        "punchline": joke.punchline_text,
+        "old_seasonal": joke.seasonal,
+      })
+      if not dry_run:
+        firestore_service.update_punny_joke(joke_id, {"seasonal": "Halloween"})
+      updated_count += 1
     else:
-      # In dry run, we don't actually migrate, so we consider it skipped
-      skipped_count += 1
+      skipped_jokes.append({
+        "id": joke_id,
+        "setup": joke.setup_text,
+        "punchline": joke.punchline_text,
+      })
 
-  return {
-    'total_jokes_processed': processed_count,
-    'migrated_jokes': migrated_count,
-    'skipped_jokes': skipped_count,
-  }
+  # Generate HTML response
+  html = "<html><body>"
+  html += "<h1>Seasonal Migration Results</h1>"
+  html += f"<h2>Dry Run: {dry_run}</h2>"
+  html += f"<h2>Updated Jokes ({len(updated_jokes)})</h2>"
+  if updated_jokes:
+    html += "<ul>"
+    for joke in updated_jokes:
+      html += f"<li><b>{joke['id']}</b>: {joke['setup']} / {joke['punchline']} (Old seasonal: {joke['old_seasonal']})</li>"
+    html += "</ul>"
+  else:
+    html += "<p>No jokes were updated.</p>"
+
+  html += f"<h2>Skipped Jokes (already Halloween) ({len(skipped_jokes)})</h2>"
+  if skipped_jokes:
+    html += "<ul>"
+    for joke in skipped_jokes:
+      html += f"<li><b>{joke['id']}</b>: {joke['setup']} / {joke['punchline']}</li>"
+    html += "</ul>"
+  else:
+    html += "<p>No jokes were skipped.</p>"
+
+  html += "</body></html>"
+
+  return html

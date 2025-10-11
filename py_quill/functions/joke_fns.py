@@ -37,7 +37,6 @@ class JokePopulationError(Error):
 )
 def create_joke(req: https_fn.Request) -> https_fn.Response:
   """Create a new punny joke document in Firestore."""
-
   try:
     # Skip processing for health check requests
     if req.path == "/__/health":

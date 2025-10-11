@@ -242,19 +242,18 @@ class AppUsageService {
   /// Record that a category has been viewed.
   /// Fire-and-forget: performs DB write and logs analytics without blocking caller.
   Future<void> logCategoryViewed(String categoryId) async {
-    unawaited(
-      Future<void>(() async {
-        try {
-          _analyticsService.logJokeCategoryViewed(categoryId: categoryId);
-          await _categoryInteractions.setViewed(categoryId);
-          AppLogger.debug(
-            'APP_USAGE logCategoryViewed: { category_id: $categoryId }',
-          );
-        } catch (e) {
-          AppLogger.warn('APP_USAGE logCategoryViewed error: $e');
-        }
-      }),
-    );
+    // Use microtask to avoid creating a pending Timer in widget tests
+    scheduleMicrotask(() async {
+      try {
+        _analyticsService.logJokeCategoryViewed(categoryId: categoryId);
+        await _categoryInteractions.setViewed(categoryId);
+        AppLogger.debug(
+          'APP_USAGE logCategoryViewed: { category_id: $categoryId }',
+        );
+      } catch (e) {
+        AppLogger.warn('APP_USAGE logCategoryViewed error: $e');
+      }
+    });
   }
 
   // Returns today's date as yyyy-MM-dd in local time

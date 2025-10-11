@@ -7,6 +7,7 @@ import 'package:snickerdoodle/src/core/services/feedback_service.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
 import 'package:snickerdoodle/src/core/services/notification_service.dart';
 import 'package:snickerdoodle/src/core/services/performance_service.dart';
+import 'package:snickerdoodle/src/data/core/database/app_database.dart';
 import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
 
 // Mock classes for core services
@@ -30,6 +31,7 @@ class CoreMocks {
   static MockDailyJokeSubscriptionService? _mockSubscriptionService;
   static MockPerformanceService? _mockPerformanceService;
   static MockNotificationService? _mockNotificationService;
+  static AppDatabase? _mockAppDatabase;
 
   // Shared storage for settings service across all instances
   static final Map<String, dynamic> _sharedStorage = {};
@@ -62,6 +64,12 @@ class CoreMocks {
     return _mockNotificationService!;
   }
 
+  /// Get or create in-memory AppDatabase for tests
+  static AppDatabase get mockAppDatabase {
+    _mockAppDatabase ??= AppDatabase.inMemory();
+    return _mockAppDatabase!;
+  }
+
   /// Reset all core mocks (call this in setUp if needed)
   static void reset() {
     _mockImageService = null;
@@ -69,6 +77,7 @@ class CoreMocks {
     _mockSubscriptionService = null;
     _mockPerformanceService = null;
     _mockNotificationService = null;
+    _mockAppDatabase = null;
     _sharedStorage.clear();
   }
 
@@ -98,6 +107,9 @@ class CoreMocks {
       performanceServiceProvider.overrideWithValue(
         _mockPerformanceService ??= MockPerformanceService(),
       ),
+
+      // In-memory Drift database
+      appDatabaseProvider.overrideWithValue(mockAppDatabase),
 
       // Include additional overrides
       ...additionalOverrides,
@@ -130,6 +142,9 @@ class CoreMocks {
       performanceServiceProvider.overrideWithValue(
         _mockPerformanceService ??= MockPerformanceService(),
       ),
+
+      // In-memory Drift database
+      appDatabaseProvider.overrideWithValue(mockAppDatabase),
 
       // Include additional overrides
       ...additionalOverrides,

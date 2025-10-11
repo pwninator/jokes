@@ -7,22 +7,17 @@ class JokeCategoryTile extends StatelessWidget {
     super.key,
     required this.category,
     this.onTap,
-    this.showStateBorder = false,
-    this.borderColor,
+    required this.borderColor,
+    required this.showBorder,
   });
 
   final JokeCategory category;
   final VoidCallback? onTap;
-  final bool showStateBorder;
-  final Color? borderColor;
+  final Color borderColor;
+  final bool showBorder;
 
   @override
   Widget build(BuildContext context) {
-    final stateBorderColor = showStateBorder
-        ? _getBorderColorForState(context, category.state)
-        : null;
-    final effectiveBorderColor = borderColor ?? stateBorderColor;
-
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(12),
@@ -31,8 +26,8 @@ class JokeCategoryTile extends StatelessWidget {
         clipBehavior: Clip.antiAlias,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
-          side: effectiveBorderColor != null
-              ? BorderSide(color: effectiveBorderColor, width: 2)
+          side: showBorder
+              ? BorderSide(color: borderColor, width: 2)
               : BorderSide.none,
         ),
         child: Padding(
@@ -67,16 +62,5 @@ class JokeCategoryTile extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  Color _getBorderColorForState(BuildContext context, JokeCategoryState state) {
-    switch (state) {
-      case JokeCategoryState.proposed:
-        return Colors.orange;
-      case JokeCategoryState.approved:
-        return Colors.green;
-      case JokeCategoryState.rejected:
-        return Colors.red;
-    }
   }
 }

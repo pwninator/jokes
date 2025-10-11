@@ -1,25 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:snickerdoodle/src/config/router/route_names.dart';
+import 'package:snickerdoodle/src/config/router/router_providers.dart';
 import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_category_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_navigation_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_search_providers.dart';
-import 'package:snickerdoodle/src/config/router/route_names.dart';
-import 'package:snickerdoodle/src/config/router/router_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_category.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_search_result.dart';
 import 'package:snickerdoodle/src/features/search/application/discover_tab_state.dart';
 import 'package:snickerdoodle/src/features/search/presentation/discover_screen.dart';
 
+import '../../../test_helpers/core_mocks.dart';
 import '../../../test_helpers/firebase_mocks.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  setUp(FirebaseMocks.reset);
+  setUp(() async {
+    FirebaseMocks.reset();
+  });
 
   final animalCategory = JokeCategory(
     id: 'animal',
@@ -88,7 +91,10 @@ void main() {
     testWidgets('shows category grid by default', (tester) async {
       final container = ProviderContainer(
         overrides: FirebaseMocks.getFirebaseProviderOverrides(
-          additionalOverrides: buildOverrides(includeResults: false),
+          additionalOverrides: [
+            ...CoreMocks.getCoreProviderOverrides(),
+            ...buildOverrides(includeResults: false),
+          ],
         ),
       );
       addTearDown(container.dispose);
@@ -112,7 +118,10 @@ void main() {
     ) async {
       final container = ProviderContainer(
         overrides: FirebaseMocks.getFirebaseProviderOverrides(
-          additionalOverrides: buildOverrides(includeResults: true),
+          additionalOverrides: [
+            ...CoreMocks.getCoreProviderOverrides(),
+            ...buildOverrides(includeResults: true),
+          ],
         ),
       );
       addTearDown(container.dispose);
@@ -155,7 +164,10 @@ void main() {
     ) async {
       final container = ProviderContainer(
         overrides: FirebaseMocks.getFirebaseProviderOverrides(
-          additionalOverrides: buildOverrides(includeResults: true),
+          additionalOverrides: [
+            ...CoreMocks.getCoreProviderOverrides(),
+            ...buildOverrides(includeResults: true),
+          ],
         ),
       );
       addTearDown(container.dispose);
@@ -196,18 +208,21 @@ void main() {
       final recordedNavigations = <Map<String, Object?>>[];
       final container = ProviderContainer(
         overrides: FirebaseMocks.getFirebaseProviderOverrides(
-          additionalOverrides: buildOverrides(
-            includeResults: false,
-            navigationOverride: navigationHelpersProvider.overrideWith(
-              (ref) => _TestNavigationHelpers((route, push, method) {
-                recordedNavigations.add({
-                  'route': route,
-                  'push': push,
-                  'method': method,
-                });
-              }, ref),
+          additionalOverrides: [
+            ...CoreMocks.getCoreProviderOverrides(),
+            ...buildOverrides(
+              includeResults: false,
+              navigationOverride: navigationHelpersProvider.overrideWith(
+                (ref) => _TestNavigationHelpers((route, push, method) {
+                  recordedNavigations.add({
+                    'route': route,
+                    'push': push,
+                    'method': method,
+                  });
+                }, ref),
+              ),
             ),
-          ),
+          ],
         ),
       );
       addTearDown(container.dispose);

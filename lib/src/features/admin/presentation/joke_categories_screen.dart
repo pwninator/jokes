@@ -7,6 +7,7 @@ import 'package:snickerdoodle/src/common_widgets/titled_screen.dart';
 import 'package:snickerdoodle/src/config/router/route_names.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_category_tile.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_category_providers.dart';
+import 'package:snickerdoodle/src/features/jokes/data/models/joke_category.dart';
 
 // Tile width constraints (in logical pixels)
 const double _minCategoryTileWidth = 150.0;
@@ -65,7 +66,8 @@ class JokeCategoriesScreen extends ConsumerWidget implements TitledScreen {
                     final cat = categories[index];
                     return JokeCategoryTile(
                       category: cat,
-                      showStateBorder: true,
+                      borderColor: _getBorderColorForState(cat.state),
+                      showBorder: true,
                       onTap: () => context.pushNamed(
                         RouteNames.adminCategoryEditor,
                         pathParameters: {'categoryId': cat.id},
@@ -81,5 +83,16 @@ class JokeCategoriesScreen extends ConsumerWidget implements TitledScreen {
         error: (e, st) => Center(child: Text('Error loading categories: $e')),
       ),
     );
+  }
+}
+
+Color _getBorderColorForState(JokeCategoryState state) {
+  switch (state) {
+    case JokeCategoryState.proposed:
+      return Colors.orange;
+    case JokeCategoryState.approved:
+      return Colors.green;
+    case JokeCategoryState.rejected:
+      return Colors.red;
   }
 }

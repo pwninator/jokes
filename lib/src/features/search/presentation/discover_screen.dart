@@ -45,6 +45,7 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
     final hasActiveCategory = activeCategory != null;
     final categoryName = activeCategory?.displayName;
     final title = activeCategory?.displayName ?? 'Discover';
+    final viewedCategoryIds = ref.watch(viewedCategoryIdsProvider).valueOrNull;
 
     return PopScope(
       canPop: !hasActiveCategory,
@@ -99,7 +100,10 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
                       categoryName: categoryName,
                       dataSource: _dataSource,
                     )
-                  : _CategoryGrid(onCategorySelected: _onCategorySelected),
+                  : _CategoryGrid(
+                      onCategorySelected: _onCategorySelected,
+                      viewedCategoryIds: viewedCategoryIds,
+                    ),
             ),
           ],
         ),
@@ -252,9 +256,13 @@ class _ResultsSummary extends ConsumerWidget {
 }
 
 class _CategoryGrid extends ConsumerWidget {
-  const _CategoryGrid({required this.onCategorySelected});
+  const _CategoryGrid({
+    required this.onCategorySelected,
+    required this.viewedCategoryIds,
+  });
 
   final void Function(WidgetRef ref, JokeCategory category) onCategorySelected;
+  final Set<String>? viewedCategoryIds;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -310,8 +318,12 @@ class _CategoryGrid extends ConsumerWidget {
                   final category = approved[index];
                   return JokeCategoryTile(
                     category: category,
-                    showStateBorder: false,
-                    borderColor: category.borderColor,
+                    borderColor:
+                        category.borderColor ??
+                        Theme.of(context).colorScheme.tertiaryContainer,
+                    showBorder: viewedCategoryIds == null
+                        ? false
+                        : !viewedCategoryIds!.contains(category.id),
                     onTap: () => onCategorySelected(ref, category),
                   );
                 },

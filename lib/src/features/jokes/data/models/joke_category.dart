@@ -97,7 +97,6 @@ class JokeCategory {
       // tiles are added in code, not from Firestore.
       type: CategoryType.search,
       seasonalValue: null,
-      borderColor: null,
     );
   }
 }

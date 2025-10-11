@@ -517,7 +517,9 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                             loading: () => 'Loading version...',
                             error: (error, stack) => 'Snickerdoodle Jokes',
                           ),
-                          style: Theme.of(context).textTheme.labelMedium,
+                          style: Theme.of(
+                            context,
+                          ).textTheme.labelMedium?.copyWith(color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5)),
                         );
                       },
                     ),

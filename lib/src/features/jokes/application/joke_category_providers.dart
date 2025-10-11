@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:snickerdoodle/src/data/core/app/firebase_providers.dart';
+import 'package:snickerdoodle/src/data/core/database/app_database.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_category.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/firestore_joke_category_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_category_repository.dart';
@@ -12,30 +13,36 @@ part 'joke_category_providers.g.dart';
 
 @Riverpod(keepAlive: true)
 JokeCategoryRepository jokeCategoryRepository(Ref ref) {
-  final firestore = ref.watch(firebaseFirestoreProvider);
+  final firestore = ref.read(firebaseFirestoreProvider);
   return FirestoreJokeCategoryRepository(firestore: firestore);
 }
 
 // Stream of categories
 final jokeCategoriesProvider = StreamProvider<List<JokeCategory>>((ref) {
-  return ref.watch(jokeCategoryRepositoryProvider).watchCategories();
+  return ref.read(jokeCategoryRepositoryProvider).watchCategories();
 });
 
 // Stream of images for a category
 final jokeCategoryImagesProvider = StreamProvider.autoDispose
     .family<List<String>, String>((ref, categoryId) {
       return ref
-          .watch(jokeCategoryRepositoryProvider)
+          .read(jokeCategoryRepositoryProvider)
           .watchCategoryImages(categoryId);
     });
 
 // Stream of a single category by ID (direct document stream)
 final jokeCategoryByIdProvider = StreamProvider.autoDispose
     .family<JokeCategory?, String>((ref, categoryId) {
-      return ref
-          .watch(jokeCategoryRepositoryProvider)
-          .watchCategory(categoryId);
+      return ref.read(jokeCategoryRepositoryProvider).watchCategory(categoryId);
     });
+
+@Riverpod(keepAlive: true)
+Stream<Set<String>> viewedCategoryIds(Ref ref) {
+  final db = ref.read(appDatabaseProvider);
+  final query = (db.select(db.categoryInteractions)
+    ..where((tbl) => tbl.viewedTimestamp.isNotNull()));
+  return query.watch().map((rows) => rows.map((r) => r.categoryId).toSet());
+}
 
 final popularTileImageNames = [
   'category_tile_popular_bunny1.png',
@@ -64,6 +71,7 @@ final discoverCategoriesProvider = Provider<AsyncValue<List<JokeCategory>>>((
     imageDescription: 'Popular jokes',
     state: JokeCategoryState.approved,
     type: CategoryType.popular,
+    borderColor: Colors.red,
   );
 
   // Programmatic Seasonal (Halloween) tile

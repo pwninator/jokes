@@ -744,10 +744,11 @@ class FirebaseAnalyticsService implements AnalyticsService {
       AnalyticsParameters.appTheme: theme,
     });
     final numDaysSuffix = numDaysUsed.clamp(1, 30).toString();
-    _logEvent(AnalyticsEvent.appUsageDays, eventNameSuffix: '_$numDaysSuffix', {
-      AnalyticsParameters.numDaysUsed: numDaysUsed,
-      AnalyticsParameters.appTheme: theme,
-    });
+    _logEvent(
+      AnalyticsEvent.appUsageDays,
+      {},
+      eventNameSuffix: '_$numDaysSuffix',
+    );
   }
 
   @override

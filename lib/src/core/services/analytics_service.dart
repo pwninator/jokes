@@ -743,6 +743,11 @@ class FirebaseAnalyticsService implements AnalyticsService {
       AnalyticsParameters.numDaysUsed: numDaysUsed,
       AnalyticsParameters.appTheme: theme,
     });
+    final numDaysSuffix = numDaysUsed.clamp(1, 30).toString();
+    _logEvent(AnalyticsEvent.appUsageDays, eventNameSuffix: '_$numDaysSuffix', {
+      AnalyticsParameters.numDaysUsed: numDaysUsed,
+      AnalyticsParameters.appTheme: theme,
+    });
   }
 
   @override
@@ -883,9 +888,11 @@ class FirebaseAnalyticsService implements AnalyticsService {
     AnalyticsEvent event,
     Map<String, dynamic> parameters, {
     bool isError = false,
+    String eventNameSuffix = '',
   }) {
     // Fire-and-forget: execute analytics work in a microtask
     scheduleMicrotask(() async {
+      final eventName = '${event.eventName}$eventNameSuffix';
       try {
         // Convert parameters to Map<String, Object> and filter out null values
         // Also convert non-string/non-num values to strings for Firebase Analytics
@@ -908,10 +915,10 @@ class FirebaseAnalyticsService implements AnalyticsService {
               parameters[AnalyticsParameters.errorMessage]?.toString();
           final crashKeys = <String, Object>{
             ...analyticsParameters,
-            'analytics_event': event.eventName,
+            'analytics_event': eventName,
           };
           await _crashReportingService.recordNonFatal(
-            Exception('${event.eventName}: ${errorMessage ?? 'n/a'}'),
+            Exception('$eventName: ${errorMessage ?? 'n/a'}'),
             keys: crashKeys,
           );
         }
@@ -923,33 +930,29 @@ class FirebaseAnalyticsService implements AnalyticsService {
         // Handle debug/admin short-circuits but still record Crashlytics for errors
         if (await _shouldUseFakeAnalytics()) {
           AppLogger.debug(
-            'ANALYTICS SKIPPED (DEBUG): ${event.eventName} - $analyticsParameters',
+            'ANALYTICS SKIPPED (DEBUG): $eventName - $analyticsParameters',
           );
           return;
         }
 
         if (_getUserType(_currentUser) == AnalyticsUserType.admin) {
           AppLogger.debug(
-            'ANALYTICS SKIPPED (ADMIN): ${event.eventName} - $analyticsParameters',
+            'ANALYTICS SKIPPED (ADMIN): $eventName - $analyticsParameters',
           );
           return;
         }
 
         await _analytics.logEvent(
-          name: event.eventName,
+          name: eventName,
           parameters: analyticsParameters,
         );
 
-        AppLogger.debug(
-          'ANALYTICS: ${event.eventName} logged: $analyticsParameters',
-        );
+        AppLogger.debug('ANALYTICS: $eventName logged: $analyticsParameters');
       } catch (e) {
-        AppLogger.warn(
-          'ANALYTICS ERROR: Failed to log ${event.eventName} - $e',
-        );
+        AppLogger.warn('ANALYTICS ERROR: Failed to log $eventName - $e');
         // Don't recursively log analytics errors to avoid infinite loops
         if (event != AnalyticsEvent.analyticsError) {
-          logAnalyticsError(e.toString(), event.eventName);
+          logAnalyticsError(e.toString(), eventName);
         }
       }
     });

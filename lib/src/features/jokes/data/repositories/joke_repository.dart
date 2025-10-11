@@ -171,9 +171,11 @@ class JokeRepository {
   ///   when the primary order values are equal.
   Future<JokeListPage> getFilteredJokePage({
     required Set<JokeState> states,
+    required bool publicOnly,
     required bool popularOnly,
     required int limit,
     JokeListPageCursor? cursor,
+    String? seasonalValue,
   }) async {
     Query<Map<String, dynamic>> query = _firestore.collection('jokes');
 
@@ -182,23 +184,26 @@ class JokeRepository {
       query = query.where('state', whereIn: stateValues);
     }
 
-    // Primary ordering and the field used for cursor.orderValue
-    final String primaryOrderField;
-    final bool descending;
-    if (popularOnly) {
-      primaryOrderField = 'popularity_score';
-      descending = true;
-      query = query
-          .where('popularity_score', isGreaterThan: 0)
-          .orderBy(primaryOrderField, descending: descending)
-          .orderBy(FieldPath.documentId, descending: true);
-    } else {
-      primaryOrderField = 'creation_time';
-      descending = true;
-      query = query
-          .orderBy(primaryOrderField, descending: descending)
-          .orderBy(FieldPath.documentId, descending: true);
+    // Optional seasonal filter
+    if (seasonalValue != null && seasonalValue.isNotEmpty) {
+      query = query.where('seasonal', isEqualTo: seasonalValue);
     }
+
+    String primaryOrderByField = 'public_timestamp';
+    bool descending = true;
+    if (popularOnly) {
+      query = query.where('popularity_score', isGreaterThan: 0);
+      primaryOrderByField = 'popularity_score';
+      descending = true;
+    } else if (publicOnly) {
+      query = query.where('public_timestamp', isLessThan: DateTime.now());
+      primaryOrderByField = 'public_timestamp';
+      descending = true;
+    }
+
+    query = query
+        .orderBy(primaryOrderByField, descending: descending)
+        .orderBy(FieldPath.documentId, descending: true);
 
     if (cursor != null) {
       // Use tuple-based startAfter with primary order value and doc ID
@@ -226,7 +231,7 @@ class JokeRepository {
     // The last document determines the next cursor
     final lastDoc = snapshot.docs.last;
     final lastData = lastDoc.data();
-    final orderValue = lastData[primaryOrderField];
+    final orderValue = lastData[primaryOrderByField];
 
     final nextCursor = JokeListPageCursor(
       orderValue: orderValue,

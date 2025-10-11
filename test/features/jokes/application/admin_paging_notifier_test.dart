@@ -20,6 +20,7 @@ void main() {
       () => repo.getFilteredJokePage(
         states: any(named: 'states'),
         popularOnly: any(named: 'popularOnly'),
+        publicOnly: any(named: 'publicOnly'),
         limit: any(named: 'limit'),
         cursor: any(named: 'cursor'),
       ),
@@ -53,6 +54,7 @@ void main() {
       () => repo.getFilteredJokePage(
         states: any(named: 'states'),
         popularOnly: any(named: 'popularOnly'),
+        publicOnly: any(named: 'publicOnly'),
         limit: any(named: 'limit'),
         cursor: null,
       ),
@@ -68,6 +70,7 @@ void main() {
       () => repo.getFilteredJokePage(
         states: any(named: 'states'),
         popularOnly: any(named: 'popularOnly'),
+        publicOnly: any(named: 'publicOnly'),
         limit: any(named: 'limit'),
         cursor: const JokeListPageCursor(orderValue: 1, docId: 'j'),
       ),

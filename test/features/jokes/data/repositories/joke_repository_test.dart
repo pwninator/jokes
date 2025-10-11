@@ -378,11 +378,13 @@ void main() {
 
         final docs = [
           createMockDoc('joke1', {
-            'creation_time': Timestamp.now(),
+            'public_timestamp': Timestamp.now(),
+            'popularity_score': 100,
             ...createJokeData(1),
           }),
           createMockDoc('joke2', {
-            'creation_time': Timestamp.now(),
+            'public_timestamp': Timestamp.now(),
+            'popularity_score': 90,
             ...createJokeData(2),
           }),
         ];
@@ -391,6 +393,7 @@ void main() {
         final page = await repository.getFilteredJokePage(
           states: {JokeState.approved},
           popularOnly: false,
+          publicOnly: false,
           limit: 10,
         );
 
@@ -417,7 +420,9 @@ void main() {
         final page = await repository.getFilteredJokePage(
           states: {},
           popularOnly: true,
+          publicOnly: false,
           limit: 10,
+          cursor: null,
         );
 
         expect(page.ids, isEmpty);
@@ -448,6 +453,7 @@ void main() {
         final page = await repository.getFilteredJokePage(
           states: {},
           popularOnly: false,
+          publicOnly: false,
           limit: 10,
         );
 

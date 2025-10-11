@@ -24,6 +24,7 @@ void main() {
       () => repo.getFilteredJokePage(
         states: any(named: 'states'),
         popularOnly: any(named: 'popularOnly'),
+        publicOnly: any(named: 'publicOnly'),
         limit: any(named: 'limit'),
         cursor: any(named: 'cursor'),
       ),

@@ -1,5 +1,6 @@
 import 'dart:math';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/data/core/app/firebase_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_category.dart';
@@ -62,11 +63,24 @@ final discoverCategoriesProvider = Provider<AsyncValue<List<JokeCategory>>>((
     type: CategoryType.popular,
   );
 
+  // Programmatic Seasonal (Halloween) tile
+  final halloweenTile = JokeCategory(
+    id: 'programmatic:seasonal:halloween',
+    displayName: 'Halloween 🎃',
+    imageUrl:
+        'https://images.quillsstorybook.com/cdn-cgi/image/width=1024,format=auto,quality=75/pun_agent_image_20251011_061008_884331.png',
+    imageDescription: 'Halloween jokes',
+    state: JokeCategoryState.approved,
+    type: CategoryType.seasonal,
+    seasonalValue: 'Halloween',
+    borderColor: Colors.orange,
+  );
+
   final categoriesAsync = ref.watch(jokeCategoriesProvider);
   return categoriesAsync.whenData((categories) {
     final approved = categories
         .where((c) => c.state == JokeCategoryState.approved)
         .toList();
-    return [popularTile, ...approved];
+    return [popularTile, halloweenTile, ...approved];
   });
 });

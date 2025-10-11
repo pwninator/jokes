@@ -54,7 +54,7 @@ def run_firestore_migration(req: https_fn.Request) -> https_fn.Response:
         status=400,
         mimetype='application/json',
       )
-    threshold = get_float_param(req, 'threshold', 0.5)
+    threshold = get_float_param(req, 'threshold', 0.3)
 
     html_response = run_seasonal_migration(
       query=query,
@@ -130,6 +130,7 @@ def run_seasonal_migration(
         "setup": joke.setup_text,
         "punchline": joke.punchline_text,
         "old_seasonal": joke.seasonal,
+        "distance": result.vector_distance,
       })
       if not dry_run:
         firestore_service.update_punny_joke(joke_id, {"seasonal": "Halloween"})
@@ -149,7 +150,7 @@ def run_seasonal_migration(
   if updated_jokes:
     html += "<ul>"
     for joke in updated_jokes:
-      html += f"<li><b>{joke['id']}</b>: {joke['setup']} / {joke['punchline']} (Old seasonal: {joke['old_seasonal']})</li>"
+      html += f"<li>{round(joke['distance'], 4)}: <b>{joke['id']}</b>: {joke['setup']} / {joke['punchline']} (Old seasonal: {joke['old_seasonal']})</li>"
     html += "</ul>"
   else:
     html += "<p>No jokes were updated.</p>"

@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
@@ -130,6 +131,8 @@ Future<PageResult> _loadCategoryPage(Ref ref, int limit, String? cursor) async {
       return _makeLoadSearchPage(SearchScope.category)(ref, limit, cursor);
     case CategoryType.popular:
       return _loadPopularCategoryPage(ref, limit, cursor);
+    case CategoryType.seasonal:
+      return _loadSeasonalCategoryPage(ref, limit, cursor);
   }
 }
 
@@ -150,6 +153,9 @@ Future<PageResult> _loadPopularCategoryPage(
   final page = await repository.getFilteredJokePage(
     states: {JokeState.published, JokeState.daily},
     popularOnly: true,
+    // Need to be false due to the way the query works.
+    // Technically only public jokes will be returned because they require user interaction.
+    publicOnly: false,
     limit: limit,
     cursor: pageCursor,
   );
@@ -182,17 +188,86 @@ Future<PageResult> _loadPopularCategoryPage(
   );
 }
 
+Future<PageResult> _loadSeasonalCategoryPage(
+  Ref ref,
+  int limit,
+  String? cursor,
+) async {
+  AppLogger.debug(
+    'PAGINATION: Loading seasonal category page with limit: $limit, cursor: $cursor',
+  );
+
+  final category = ref.read(activeCategoryProvider);
+  final seasonalValue = category?.seasonalValue?.trim();
+  if (seasonalValue == null || seasonalValue.isEmpty) {
+    return const PageResult(jokes: [], cursor: null, hasMore: false);
+  }
+
+  final repository = ref.read(jokeRepositoryProvider);
+
+  final pageCursor = cursor != null ? _deserializePopularCursor(cursor) : null;
+
+  final page = await repository.getFilteredJokePage(
+    states: {JokeState.published, JokeState.daily},
+    popularOnly: false,
+    publicOnly: true,
+    limit: limit,
+    cursor: pageCursor,
+    seasonalValue: seasonalValue,
+  );
+
+  if (page.ids.isEmpty) {
+    return const PageResult(jokes: [], cursor: null, hasMore: false);
+  }
+
+  // Fetch full joke documents for the page
+  final jokes = await repository.getJokesByIds(page.ids);
+
+  // Require images
+  final jokesWithDate = jokes
+      .where(
+        (j) =>
+            (j.setupImageUrl != null && j.setupImageUrl!.isNotEmpty) &&
+            (j.punchlineImageUrl != null && j.punchlineImageUrl!.isNotEmpty),
+      )
+      .map((j) => JokeWithDate(joke: j))
+      .toList();
+
+  final nextCursor = page.cursor != null
+      ? _serializePopularCursor(page.cursor!)
+      : null;
+
+  return PageResult(
+    jokes: jokesWithDate,
+    cursor: nextCursor,
+    hasMore: page.hasMore,
+  );
+}
+
 String _serializePopularCursor(JokeListPageCursor cursor) {
   // Compact JSON to avoid delimiter issues
-  return jsonEncode({'o': cursor.orderValue, 'd': cursor.docId});
+  final Object encodedOrderValue;
+  final o = cursor.orderValue;
+  if (o is Timestamp) {
+    // Encode Timestamp as millis to make it JSON encodable
+    encodedOrderValue = {'ts': o.millisecondsSinceEpoch};
+  } else {
+    encodedOrderValue = o;
+  }
+  return jsonEncode({'o': encodedOrderValue, 'd': cursor.docId});
 }
 
 JokeListPageCursor _deserializePopularCursor(String cursor) {
   final Map<String, dynamic> data = jsonDecode(cursor) as Map<String, dynamic>;
-  return JokeListPageCursor(
-    orderValue: data['o'] as Object,
-    docId: data['d'] as String,
-  );
+  final dynamic raw = data['o'];
+  Object orderValue;
+  if (raw is Map && raw.containsKey('ts')) {
+    final int millis = (raw['ts'] as num).toInt();
+    orderValue = Timestamp.fromMillisecondsSinceEpoch(millis);
+  } else {
+    orderValue = raw as Object;
+  }
+  return JokeListPageCursor(orderValue: orderValue, docId: data['d'] as String);
 }
 
 /// Factory that returns a page loader bound to a specific SearchScope

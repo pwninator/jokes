@@ -128,7 +128,9 @@ class NoopCrashReportingService implements CrashReportingService {
     StackTrace stackTrace, {
     Map<String, Object?>? keys,
   }) async {
-    AppLogger.debug('CRASHLYTICS NO-OP: Fatal error recorded: $error');
+    AppLogger.debug(
+      'CRASHLYTICS NO-OP: Fatal error recorded: $error:\n$stackTrace',
+    );
   }
 
   @override
@@ -137,7 +139,9 @@ class NoopCrashReportingService implements CrashReportingService {
     StackTrace? stackTrace,
     Map<String, Object?>? keys,
   }) async {
-    AppLogger.debug('CRASHLYTICS NO-OP: Non-fatal error recorded: $error');
+    AppLogger.debug(
+      'CRASHLYTICS NO-OP: Non-fatal error recorded: $error:\n$stackTrace',
+    );
   }
 
   @override

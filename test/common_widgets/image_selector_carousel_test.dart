@@ -7,12 +7,12 @@ import '../test_helpers/analytics_mocks.dart';
 import '../test_helpers/core_mocks.dart';
 
 Widget _wrap(Widget child) => ProviderScope(
-      overrides: [
-        ...CoreMocks.getCoreProviderOverrides(),
-        ...AnalyticsMocks.getAnalyticsProviderOverrides(),
-      ],
-      child: MaterialApp(home: Scaffold(body: child)),
-    );
+  overrides: [
+    ...CoreMocks.getCoreProviderOverrides(),
+    ...AnalyticsMocks.getAnalyticsProviderOverrides(),
+  ],
+  child: MaterialApp(home: Scaffold(body: child)),
+);
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

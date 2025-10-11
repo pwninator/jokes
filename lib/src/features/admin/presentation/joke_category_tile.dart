@@ -8,15 +8,20 @@ class JokeCategoryTile extends StatelessWidget {
     required this.category,
     this.onTap,
     this.showStateBorder = false,
+    this.borderColor,
   });
 
   final JokeCategory category;
   final VoidCallback? onTap;
   final bool showStateBorder;
+  final Color? borderColor;
 
   @override
   Widget build(BuildContext context) {
-    final borderColor = _getBorderColorForState(context, category.state);
+    final stateBorderColor = showStateBorder
+        ? _getBorderColorForState(context, category.state)
+        : null;
+    final effectiveBorderColor = borderColor ?? stateBorderColor;
 
     return InkWell(
       onTap: onTap,
@@ -26,8 +31,8 @@ class JokeCategoryTile extends StatelessWidget {
         clipBehavior: Clip.antiAlias,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
-          side: showStateBorder
-              ? BorderSide(color: borderColor, width: 2)
+          side: effectiveBorderColor != null
+              ? BorderSide(color: effectiveBorderColor, width: 2)
               : BorderSide.none,
         ),
         child: Padding(

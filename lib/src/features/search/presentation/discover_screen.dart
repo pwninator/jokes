@@ -304,6 +304,7 @@ class _CategoryGrid extends ConsumerWidget {
                   return JokeCategoryTile(
                     category: category,
                     showStateBorder: false,
+                    borderColor: category.borderColor,
                     onTap: () => onCategorySelected(ref, category),
                   );
                 },

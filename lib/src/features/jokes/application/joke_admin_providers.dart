@@ -85,6 +85,7 @@ class AdminPagingNotifier extends StateNotifier<AdminPagingState> {
       final page = await repository.getFilteredJokePage(
         states: filterState.selectedStates,
         popularOnly: filterState.showPopularOnly,
+        publicOnly: false,
         limit: limit,
         cursor: null,
       );
@@ -109,6 +110,7 @@ class AdminPagingNotifier extends StateNotifier<AdminPagingState> {
       final page = await repository.getFilteredJokePage(
         states: filterState.selectedStates,
         popularOnly: filterState.showPopularOnly,
+        publicOnly: false,
         limit: limit,
         cursor: state.cursor,
       );

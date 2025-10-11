@@ -160,6 +160,7 @@ The described illustrations should:
   * for_kids: A boolean indicating whether the joke is good for kids. This means the joke is not only appropriate, clean, positive, and wholesome, but also simple and understandable by elementary school-aged children.
   * for_adults: A boolean indicating whether the joke will be interesting for adults. This includes sophisticated and witty humor, and excludes jokes that are too simple or obvious.
   * seasonal: If the joke is related to a seasonal event, this should be the name of that event, e.g. 'Halloween', 'Super Bowl', etc. If the joke is not related to any events, this should be null.
+      * All jokes related to trick-or-treating or monsters typically associated with Halloween should be labeled as 'Halloween'.
 
 * Write simple scene descriptions for EACH LINE of the pun. Each description will be used to generate a separate image. The described scenes should capture the specific line's meaning and context with the minimal elements needed to set up and sell the joke. Focus on being funny, super cute, and relevant to both the phrase_topic and pun_theme. Each description should include only:
   * The text of the specific pun line

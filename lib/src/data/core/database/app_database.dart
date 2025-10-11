@@ -1,8 +1,16 @@
 import 'package:drift/drift.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 
 import 'app_database_platform.dart' as platform;
 
 part 'app_database.g.dart';
+
+@Riverpod(keepAlive: true)
+Future<AppDatabase> appDatabase(Ref ref) async {
+  final executor = await platform.openExecutor();
+  return AppDatabase._internal(executor);
+}
 
 // Drift table for joke interactions
 @TableIndex(name: 'idx_last_update_timestamp', columns: {#lastUpdateTimestamp})
@@ -10,7 +18,7 @@ class JokeInteractions extends Table {
   // Primary key: one row per joke
   TextColumn get jokeId => text()();
 
-  // Nullable timestamps
+  // Nullable interaction timestamps
   DateTimeColumn get viewedTimestamp => dateTime().nullable()();
   DateTimeColumn get savedTimestamp => dateTime().nullable()();
   DateTimeColumn get sharedTimestamp => dateTime().nullable()();
@@ -25,12 +33,6 @@ class JokeInteractions extends Table {
 @DriftDatabase(tables: [JokeInteractions])
 class AppDatabase extends _$AppDatabase {
   AppDatabase._internal(super.e);
-
-  // Factory to create the database with proper platform executor
-  static Future<AppDatabase> open() async {
-    final executor = await platform.openExecutor();
-    return AppDatabase._internal(executor);
-  }
 
   @override
   int get schemaVersion => 2;

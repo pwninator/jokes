@@ -11,9 +11,8 @@ part 'joke_interactions_service.g.dart';
 @Riverpod(keepAlive: true)
 Future<JokeInteractionsService> jokeInteractionsService(Ref ref) async {
   final perf = ref.watch(performanceServiceProvider);
-  final db = await AppDatabase.open();
+  final db = await ref.read(appDatabaseProvider.future);
   final service = JokeInteractionsService(performanceService: perf, db: db);
-  await service.warmUp();
   return service;
 }
 
@@ -26,8 +25,6 @@ class JokeInteractionsService {
 
   final PerformanceService _perf;
   final AppDatabase _db;
-
-  Future<void> warmUp() async {}
 
   Future<T> _runTrace<T>({
     required TraceName name,

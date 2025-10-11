@@ -12,7 +12,7 @@ import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/notification_service.dart';
 import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
-import 'package:snickerdoodle/src/data/jokes/joke_interactions_service.dart';
+import 'package:snickerdoodle/src/data/core/database/app_database.dart';
 import 'package:snickerdoodle/src/features/auth/application/auth_startup_manager.dart';
 import 'package:snickerdoodle/src/startup/startup_task.dart';
 import 'package:snickerdoodle/src/utils/device_utils.dart';
@@ -132,7 +132,7 @@ Future<void> _initializeSharedPreferences(WidgetRef ref) async {
 Future<void> _initializeDrift(WidgetRef ref) async {
   try {
     // Resolving the provider initializes DB and warms it up
-    await ref.read(jokeInteractionsServiceProvider.future);
+    await ref.read(appDatabaseProvider.future);
   } catch (e, stack) {
     AppLogger.fatal(
       'Drift database initialization failed: $e',

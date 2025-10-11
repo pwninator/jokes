@@ -42,14 +42,18 @@ class SubscriptionState {
 /// Reactive StateNotifier that manages subscription state.
 /// Sets subscription values, notifies on changes, and triggers background sync.
 class SubscriptionNotifier extends StateNotifier<SubscriptionState> {
-  SubscriptionNotifier(this._settings, this._syncService)
-    : super(_loadFromSettings(_settings)) {
+  SubscriptionNotifier(
+    this._settings,
+    this._syncService,
+    this._notificationService,
+  ) : super(_loadFromSettings(_settings)) {
     // Trigger background sync on startup (subscribe only; do not unsubscribe others)
     _syncInBackground(unsubscribeOthers: false);
   }
 
   final SettingsService _settings;
   final DailyJokeSubscriptionService _syncService;
+  final NotificationService _notificationService;
 
   static const String _subscriptionKey = 'daily_jokes_subscribed';
   static const String _subscriptionHourKey = 'daily_jokes_subscribed_hour';
@@ -104,8 +108,7 @@ class SubscriptionNotifier extends StateNotifier<SubscriptionState> {
       }
 
       // Request permission
-      final notificationService = NotificationService();
-      final permissionGranted = await notificationService
+      final permissionGranted = await _notificationService
           .requestNotificationPermissions();
 
       if (permissionGranted) {
@@ -342,7 +345,12 @@ final subscriptionProvider =
     StateNotifierProvider<SubscriptionNotifier, SubscriptionState>((ref) {
       final settingsService = ref.watch(settingsServiceProvider);
       final syncService = ref.watch(dailyJokeSubscriptionServiceProvider);
-      return SubscriptionNotifier(settingsService, syncService);
+      final notificationService = ref.watch(notificationServiceProvider);
+      return SubscriptionNotifier(
+        settingsService,
+        syncService,
+        notificationService,
+      );
     });
 
 /// Convenience providers for specific parts of the state

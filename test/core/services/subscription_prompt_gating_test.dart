@@ -1,34 +1,31 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
-import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
+
+import '../../test_helpers/core_mocks.dart';
 
 class _FakeRemoteConfigValues extends Fake implements RemoteConfigValues {}
-
-class _MockSyncService extends Mock implements DailyJokeSubscriptionService {}
 
 void main() {
   setUpAll(() {
     registerFallbackValue(_FakeRemoteConfigValues());
   });
 
-  setUp(() async {
-    SharedPreferences.setMockInitialValues({});
+  setUp(() {
+    CoreMocks.reset();
   });
 
-  test('does not show prompt if jokes viewed below remote threshold', () async {
-    final prefs = await SharedPreferences.getInstance();
-    final sync = _MockSyncService();
-    final settingsService = SettingsService(prefs);
+  test('does not show prompt if jokes viewed below remote threshold', () {
+    final settingsService = CoreMocks.mockSettingsService;
+    final sync = CoreMocks.mockSubscriptionService;
+    final notificationService = CoreMocks.mockNotificationService;
 
-    when(
-      () => sync.ensureSubscriptionSync(
-        unsubscribeOthers: any(named: 'unsubscribeOthers'),
-      ),
-    ).thenAnswer((_) async => true);
-    final subscriptionNotifier = SubscriptionNotifier(settingsService, sync);
+    final subscriptionNotifier = SubscriptionNotifier(
+      settingsService,
+      sync,
+      notificationService,
+    );
     final rcValues = _TestRCValues(threshold: 7);
     final promptNotifier = SubscriptionPromptNotifier(
       subscriptionNotifier,
@@ -40,17 +37,16 @@ void main() {
     expect(promptNotifier.state.shouldShowPrompt, isFalse);
   });
 
-  test('shows prompt when jokes viewed meets remote threshold', () async {
-    final prefs = await SharedPreferences.getInstance();
-    final sync = _MockSyncService();
-    final settingsService = SettingsService(prefs);
+  test('shows prompt when jokes viewed meets remote threshold', () {
+    final settingsService = CoreMocks.mockSettingsService;
+    final sync = CoreMocks.mockSubscriptionService;
+    final notificationService = CoreMocks.mockNotificationService;
 
-    when(
-      () => sync.ensureSubscriptionSync(
-        unsubscribeOthers: any(named: 'unsubscribeOthers'),
-      ),
-    ).thenAnswer((_) async => true);
-    final subscriptionNotifier = SubscriptionNotifier(settingsService, sync);
+    final subscriptionNotifier = SubscriptionNotifier(
+      settingsService,
+      sync,
+      notificationService,
+    );
     final rcValues = _TestRCValues(threshold: 5);
     final promptNotifier = SubscriptionPromptNotifier(
       subscriptionNotifier,

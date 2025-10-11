@@ -60,6 +60,7 @@ enum AnalyticsEvent {
 
   // App usage events
   appUsageDayIncremented('app_usage_day_incremented'),
+  appUsageReturningUser('app_usage_returning_user'),
 
   // Feedback
   feedbackSubmitted('feedback_submitted'),

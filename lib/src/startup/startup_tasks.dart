@@ -200,7 +200,7 @@ Future<void> _initializeAppUsage(WidgetRef ref) async {
 /// Initialize notification service.
 Future<void> _initializeNotifications(WidgetRef ref) async {
   try {
-    final notificationService = NotificationService();
+    final notificationService = ref.read(notificationServiceProvider);
     await notificationService.initialize();
   } catch (e, stack) {
     AppLogger.fatal(

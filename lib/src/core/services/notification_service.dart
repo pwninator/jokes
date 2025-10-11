@@ -4,14 +4,26 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/crash_reporting_service.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
+import 'package:snickerdoodle/src/data/core/app/firebase_providers.dart';
+
+part 'notification_service.g.dart';
+
+@Riverpod(keepAlive: true)
+NotificationService notificationService(Ref ref) {
+  final firebaseMessaging = ref.watch(firebaseMessagingProvider);
+  return NotificationService(firebaseMessaging: firebaseMessaging);
+}
 
 class NotificationService {
-  static final NotificationService _instance = NotificationService._internal();
-  factory NotificationService() => _instance;
-  NotificationService._internal();
+  NotificationService({required FirebaseMessaging firebaseMessaging})
+    : _firebaseMessaging = firebaseMessaging;
+
+  final FirebaseMessaging _firebaseMessaging;
 
   bool _isInitialized = false;
 
@@ -20,10 +32,7 @@ class NotificationService {
       GlobalKey<NavigatorState>();
 
   /// Initialize notification service (non-blocking)
-  /// Now ultra-fast since everything is background/on-demand
-  Future<void> initialize({
-    CrashReportingService? crashReportingService,
-  }) async {
+  Future<void> initialize() async {
     if (_isInitialized) return;
 
     // Start background initialization (non-blocking)
@@ -48,7 +57,7 @@ class NotificationService {
   /// Request FCM permissions when user subscribes (blocking - user needs to respond)
   Future<bool> requestNotificationPermissions() async {
     try {
-      final settings = await FirebaseMessaging.instance.requestPermission(
+      final settings = await _firebaseMessaging.requestPermission(
         alert: true,
         badge: true,
         sound: true,
@@ -72,7 +81,7 @@ class NotificationService {
   Future<void> _initializeFCMListeners() async {
     try {
       // Get FCM token for debugging
-      final token = await FirebaseMessaging.instance.getToken();
+      final token = await _firebaseMessaging.getToken();
       AppLogger.debug('FCM Token: $token');
 
       // Handle foreground messages
@@ -176,7 +185,9 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     await Firebase.initializeApp();
 
     // Process the joke notification
-    final notificationService = NotificationService();
+    final notificationService = NotificationService(
+      firebaseMessaging: FirebaseMessaging.instance,
+    );
     await notificationService._processJokeNotification(message);
   } catch (e, stack) {
     AppLogger.warn('Background message handler failed: $e');

@@ -3,21 +3,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:snickerdoodle/src/common_widgets/notification_hour_widget.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
-import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
 import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
 
-// Mock classes
-class MockAnalyticsService extends Mock implements AnalyticsService {}
-
-class MockDailyJokeSubscriptionService extends Mock
-    implements DailyJokeSubscriptionService {}
+import '../test_helpers/analytics_mocks.dart';
+import '../test_helpers/core_mocks.dart';
 
 void main() {
-  setUpAll(() {});
+  setUpAll(() {
+    registerAnalyticsFallbackValues();
+  });
 
   group('HourPickerWidget', () {
     testWidgets('displays correctly and handles hour changes', (tester) async {
@@ -63,35 +60,33 @@ void main() {
   });
 
   group('HourDisplayWidget', () {
-    late MockAnalyticsService mockAnalyticsService;
-    late MockDailyJokeSubscriptionService mockSyncService;
-    late SharedPreferences sharedPreferences;
-    late SettingsService settingsService;
-
-    setUp(() async {
+    setUp(() {
       TestWidgetsFlutterBinding.ensureInitialized();
 
-      SharedPreferences.setMockInitialValues({});
-      sharedPreferences = await SharedPreferences.getInstance();
-      settingsService = SettingsService(sharedPreferences);
-
-      mockAnalyticsService = MockAnalyticsService();
-      mockSyncService = MockDailyJokeSubscriptionService();
-
-      // Set up default mock returns
-      when(
-        () => mockSyncService.ensureSubscriptionSync(
-          unsubscribeOthers: any(named: 'unsubscribeOthers'),
-        ),
-      ).thenAnswer((_) async => true);
-      when(
-        () => mockAnalyticsService.logSubscriptionTimeChanged(
-          subscriptionHour: any(named: 'subscriptionHour'),
-        ),
-      ).thenAnswer((_) async {});
+      CoreMocks.reset();
+      AnalyticsMocks.reset();
     });
 
     Widget createTestWidget({bool isSubscribed = true, int hour = 9}) {
+      final settingsService = CoreMocks.mockSettingsService;
+      final mockSyncService = CoreMocks.mockSubscriptionService;
+      final mockNotificationService = CoreMocks.mockNotificationService;
+      final mockAnalyticsService = AnalyticsMocks.mockAnalyticsService;
+
+      // Configure mock to return test values
+      when(
+        () => settingsService.getBool('daily_jokes_subscribed'),
+      ).thenReturn(isSubscribed);
+      when(
+        () => settingsService.getInt('daily_jokes_subscribed_hour'),
+      ).thenReturn(hour);
+      when(
+        () => settingsService.setBool('daily_jokes_subscribed', any()),
+      ).thenAnswer((_) async {});
+      when(
+        () => settingsService.setInt('daily_jokes_subscribed_hour', any()),
+      ).thenAnswer((_) async {});
+
       return ProviderScope(
         overrides: [
           settingsServiceProvider.overrideWithValue(settingsService),
@@ -101,11 +96,11 @@ void main() {
           analyticsServiceProvider.overrideWithValue(mockAnalyticsService),
           // Override the subscription provider with test data
           subscriptionProvider.overrideWith((ref) {
-            // Set up settings with test data
-            settingsService.setBool('daily_jokes_subscribed', isSubscribed);
-            settingsService.setInt('daily_jokes_subscribed_hour', hour);
-
-            return SubscriptionNotifier(settingsService, mockSyncService);
+            return SubscriptionNotifier(
+              settingsService,
+              mockSyncService,
+              mockNotificationService,
+            );
           }),
         ],
         child: const MaterialApp(home: Scaffold(body: HourDisplayWidget())),

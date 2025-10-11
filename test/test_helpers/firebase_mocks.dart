@@ -1,6 +1,7 @@
 // ignore_for_file: subtype_of_sealed_class
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:snickerdoodle/src/core/providers/connectivity_providers.dart';
@@ -37,11 +38,14 @@ class MockQueryDocumentSnapshot<T extends Object?> extends Mock
 class MockDocumentSnapshot extends Mock
     implements DocumentSnapshot<Map<String, dynamic>> {}
 
+class MockFirebaseMessaging extends Mock implements FirebaseMessaging {}
+
 /// Firebase-specific service mocks for unit tests
 class FirebaseMocks {
   static MockJokeCloudFunctionService? _mockCloudFunctionService;
   static MockFirebaseAnalytics? _mockFirebaseAnalytics;
   static MockFirebaseFirestore? _mockFirebaseFirestore;
+  static MockFirebaseMessaging? _mockFirebaseMessaging;
 
   /// Get or create mock cloud function service
   static MockJokeCloudFunctionService get mockCloudFunctionService {
@@ -64,11 +68,19 @@ class FirebaseMocks {
     return _mockFirebaseFirestore!;
   }
 
+  /// Get or create mock Firebase Messaging
+  static MockFirebaseMessaging get mockFirebaseMessaging {
+    _mockFirebaseMessaging ??= MockFirebaseMessaging();
+    _setupFirebaseMessagingDefaults(_mockFirebaseMessaging!);
+    return _mockFirebaseMessaging!;
+  }
+
   /// Reset all Firebase mocks (call this in setUp if needed)
   static void reset() {
     _mockCloudFunctionService = null;
     _mockFirebaseAnalytics = null;
     _mockFirebaseFirestore = null;
+    _mockFirebaseMessaging = null;
   }
 
   /// Get Firebase-specific provider overrides
@@ -215,6 +227,29 @@ class FirebaseMocks {
     final mockDocSnapshot = MockDocumentSnapshot();
     when(() => mockDocRef.get(any())).thenAnswer((_) async => mockDocSnapshot);
     when(() => mockDocSnapshot.exists).thenReturn(false);
+  }
+
+  static void _setupFirebaseMessagingDefaults(MockFirebaseMessaging mock) {
+    // Setup default behaviors for Firebase Messaging
+    when(() => mock.subscribeToTopic(any())).thenAnswer((_) async {});
+    when(() => mock.unsubscribeFromTopic(any())).thenAnswer((_) async {});
+    when(() => mock.getToken()).thenAnswer((_) async => 'mock_fcm_token');
+    when(() => mock.requestPermission()).thenAnswer(
+      (_) async => const NotificationSettings(
+        authorizationStatus: AuthorizationStatus.authorized,
+        alert: AppleNotificationSetting.enabled,
+        announcement: AppleNotificationSetting.enabled,
+        badge: AppleNotificationSetting.enabled,
+        carPlay: AppleNotificationSetting.enabled,
+        criticalAlert: AppleNotificationSetting.enabled,
+        lockScreen: AppleNotificationSetting.enabled,
+        notificationCenter: AppleNotificationSetting.enabled,
+        showPreviews: AppleShowPreviewSetting.always,
+        sound: AppleNotificationSetting.enabled,
+        timeSensitive: AppleNotificationSetting.enabled,
+        providesAppNotificationSettings: AppleNotificationSetting.enabled,
+      ),
+    );
   }
 }
 

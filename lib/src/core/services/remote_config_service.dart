@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
+import 'package:snickerdoodle/src/data/core/app/firebase_providers.dart';
 
 part 'remote_config_service.g.dart';
 
@@ -457,7 +458,8 @@ class _RemoteConfigValues implements RemoteConfigValues {
 @Riverpod(keepAlive: true)
 RemoteConfigService remoteConfigService(Ref ref) {
   final analytics = ref.watch(analyticsServiceProvider);
-  final client = FirebaseRemoteConfigClient(FirebaseRemoteConfig.instance);
+  final firebaseRemoteConfig = ref.watch(firebaseRemoteConfigProvider);
+  final client = FirebaseRemoteConfigClient(firebaseRemoteConfig);
   return RemoteConfigService(client: client, analyticsService: analytics);
 }
 

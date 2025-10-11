@@ -31,8 +31,8 @@ abstract class CrashReportingService {
 class FirebaseCrashReportingService implements CrashReportingService {
   final FirebaseCrashlytics _crashlytics;
 
-  FirebaseCrashReportingService({FirebaseCrashlytics? crashlytics})
-    : _crashlytics = crashlytics ?? FirebaseCrashlytics.instance;
+  FirebaseCrashReportingService({required FirebaseCrashlytics crashlytics})
+    : _crashlytics = crashlytics;
 
   @override
   Future<void> initialize() async {

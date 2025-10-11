@@ -272,11 +272,10 @@ class FirebaseAnalyticsService implements AnalyticsService {
   AppUser? _currentUser;
 
   FirebaseAnalyticsService({
-    FirebaseAnalytics? analytics,
-    CrashReportingService? crashReportingService,
-  }) : _analytics = analytics ?? FirebaseAnalytics.instance,
-       _crashReportingService =
-           crashReportingService ?? NoopCrashReportingService();
+    required FirebaseAnalytics analytics,
+    required CrashReportingService crashReportingService,
+  }) : _analytics = analytics,
+       _crashReportingService = crashReportingService;
 
   /// Check if fake analytics should be used (debug mode AND not physical device)
   Future<bool> _shouldUseFakeAnalytics() async {

@@ -1,3 +1,4 @@
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
 import 'package:snickerdoodle/src/core/services/crash_reporting_service.dart';
 
@@ -21,7 +22,9 @@ class AppLogger {
     final existing = _instance;
     if (existing != null) return existing;
     final crashService = kReleaseMode
-        ? FirebaseCrashReportingService()
+        ? FirebaseCrashReportingService(
+            crashlytics: FirebaseCrashlytics.instance,
+          )
         : NoopCrashReportingService();
     final created = AppLogger._(crashService);
     _instance = created;

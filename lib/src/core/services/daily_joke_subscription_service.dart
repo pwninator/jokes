@@ -3,10 +3,11 @@ import 'dart:async';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
-import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/notification_service.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
+import 'package:snickerdoodle/src/data/core/app/firebase_providers.dart';
+import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
 
 /// State class representing subscription status and hour
 class SubscriptionState {
@@ -329,9 +330,10 @@ class DailyJokeSubscriptionServiceImpl implements DailyJokeSubscriptionService {
 final dailyJokeSubscriptionServiceProvider =
     Provider<DailyJokeSubscriptionService>((ref) {
       final settingsService = ref.watch(settingsServiceProvider);
+      final firebaseMessaging = ref.watch(firebaseMessagingProvider);
       return DailyJokeSubscriptionServiceImpl(
         settingsService: settingsService,
-        firebaseMessaging: FirebaseMessaging.instance,
+        firebaseMessaging: firebaseMessaging,
       );
     });
 

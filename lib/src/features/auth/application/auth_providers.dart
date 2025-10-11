@@ -1,16 +1,11 @@
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:snickerdoodle/src/data/core/app/firebase_providers.dart';
 import 'package:snickerdoodle/src/features/auth/data/models/app_user.dart';
 import 'package:snickerdoodle/src/features/auth/data/repositories/auth_repository.dart';
 
 part 'auth_providers.g.dart';
-
-@Riverpod(keepAlive: true)
-FirebaseAuth firebaseAuth(Ref ref) {
-  return FirebaseAuth.instance;
-}
 
 /// Provider for GoogleSignIn instance
 @Riverpod(keepAlive: true)

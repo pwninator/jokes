@@ -6,23 +6,6 @@ part of 'auth_providers.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$firebaseAuthHash() => r'cb440927c3ab863427fd4b052a8ccba4c024c863';
-
-/// See also [firebaseAuth].
-@ProviderFor(firebaseAuth)
-final firebaseAuthProvider = Provider<FirebaseAuth>.internal(
-  firebaseAuth,
-  name: r'firebaseAuthProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$firebaseAuthHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
-
-@Deprecated('Will be removed in 3.0. Use Ref instead')
-// ignore: unused_element
-typedef FirebaseAuthRef = ProviderRef<FirebaseAuth>;
 String _$googleSignInHash() => r'd8439bc335832b8824537004ef2d6ba1b5ccc2b5';
 
 /// Provider for GoogleSignIn instance

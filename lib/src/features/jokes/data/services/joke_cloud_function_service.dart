@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/performance_service.dart';
+import 'package:snickerdoodle/src/data/core/app/firebase_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_search_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_search_result.dart';
 
@@ -13,7 +14,7 @@ enum MatchMode { tight, loose }
 
 @Riverpod(keepAlive: true)
 JokeCloudFunctionService jokeCloudFunctionService(Ref ref) {
-  final functions = FirebaseFunctions.instance;
+  final functions = ref.watch(firebaseFunctionsProvider);
   final perf = ref.watch(performanceServiceProvider);
   return JokeCloudFunctionService(functions: functions, perf: perf);
 }

@@ -7,7 +7,7 @@ part of 'crash_reporting_provider.dart';
 // **************************************************************************
 
 String _$crashReportingServiceHash() =>
-    r'e31386ec99ab5163e2de5e4f455c44a2b8d2c5f3';
+    r'eeae3a53136fd30d0d1e3ffbb28ab5fe3a559dc0';
 
 /// See also [crashReportingService].
 @ProviderFor(crashReportingService)

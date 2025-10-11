@@ -5,8 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:snickerdoodle/src/config/router/route_names.dart';
-import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
+import 'package:snickerdoodle/src/data/core/app/firebase_providers.dart';
 
 import '../../test_helpers/firebase_mocks.dart';
 

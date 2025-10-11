@@ -6,8 +6,8 @@ import 'package:snickerdoodle/src/common_widgets/subscription_prompt_overlay.dar
 import 'package:snickerdoodle/src/config/router/route_guards.dart';
 import 'package:snickerdoodle/src/config/router/route_names.dart';
 import 'package:snickerdoodle/src/config/router/router_providers.dart';
-import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/services/notification_service.dart';
+import 'package:snickerdoodle/src/data/core/app/firebase_providers.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/deep_research_screen.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_admin_screen.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_categories_screen.dart';

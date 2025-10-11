@@ -102,6 +102,7 @@ def run_seasonal_migration(
     query=query,
     label="seasonal_migration",
     limit=1000,  # A reasonable upper limit on search results to check
+    field_filters=[],
     distance_threshold=threshold,
   )
 
@@ -120,7 +121,7 @@ def run_seasonal_migration(
 
     joke = firestore_service.get_punny_joke(joke_id)
     if not joke:
-      logger.warning(f"Could not retrieve joke with id: {joke_id}")
+      logger.warn(f"Could not retrieve joke with id: {joke_id}")
       continue
 
     if joke.seasonal != "Halloween":

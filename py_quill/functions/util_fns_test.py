@@ -44,7 +44,8 @@ def _create_fake_joke(
   )
 
 
-def _create_fake_search_result(joke: models.PunnyJoke) -> search.JokeSearchResult:
+def _create_fake_search_result(
+    joke: models.PunnyJoke) -> search.JokeSearchResult:
   """Creates a fake SearchResult object for testing."""
   return search.JokeSearchResult(joke=joke, vector_distance=0.1)
 
@@ -72,10 +73,12 @@ def test_seasonal_migration_updates_joke(
     query="scarecrow",
     label="seasonal_migration",
     limit=1000,
+    field_filters=[],
     distance_threshold=0.5,
   )
   mock_get_punny_joke.assert_called_once_with("j1")
-  mock_update_punny_joke.assert_called_once_with("j1", {"seasonal": "Halloween"})
+  mock_update_punny_joke.assert_called_once_with("j1",
+                                                 {"seasonal": "Halloween"})
   assert "j1" in html_response
   assert "Updated Jokes (1)" in html_response
 

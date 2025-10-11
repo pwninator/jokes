@@ -19,6 +19,9 @@ enum TraceName {
   fsWrite,
   fsWriteBatch,
   sharePreparation,
+  driftSetInteraction,
+  driftGetSavedJokeInteractions,
+  driftGetAllJokeInteractions,
   startupOverallBlocking,
   startupOverallBackground,
   startupTaskEmulators,
@@ -27,6 +30,7 @@ enum TraceName {
   startupTaskAuth,
   startupTaskAnalytics,
   startupTaskAppUsage,
+  startupTaskDrift,
   startupTaskNotifications,
 }
 
@@ -49,6 +53,12 @@ extension TraceNameWire on TraceName {
         return 'fs_write_batch';
       case TraceName.sharePreparation:
         return 'share_preparation';
+      case TraceName.driftSetInteraction:
+        return 'drift_set_interaction';
+      case TraceName.driftGetSavedJokeInteractions:
+        return 'drift_get_saved_joke_interactions';
+      case TraceName.driftGetAllJokeInteractions:
+        return 'drift_get_all_joke_interactions';
       case TraceName.startupOverallBlocking:
         return 'startup_overall_blocking';
       case TraceName.startupOverallBackground:
@@ -67,6 +77,8 @@ extension TraceNameWire on TraceName {
         return 'startup_task_app_usage';
       case TraceName.startupTaskNotifications:
         return 'startup_task_notifications';
+      case TraceName.startupTaskDrift:
+        return 'startup_task_drift';
     }
   }
 }

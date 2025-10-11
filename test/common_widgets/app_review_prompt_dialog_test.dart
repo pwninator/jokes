@@ -46,17 +46,23 @@ void main() {
         expect(find.text(config.title), findsOneWidget);
         expect(find.text(config.message), findsOneWidget);
         expect(
-          find.byKey(Key('app_review_prompt_dialog-dismiss-button-${variant.name}')),
+          find.byKey(
+            Key('app_review_prompt_dialog-dismiss-button-${variant.name}'),
+          ),
           findsOneWidget,
         );
         expect(
-          find.byKey(Key('app_review_prompt_dialog-accept-button-${variant.name}')),
+          find.byKey(
+            Key('app_review_prompt_dialog-accept-button-${variant.name}'),
+          ),
           findsOneWidget,
         );
       });
     }
 
-    testWidgets('tapping accept and dismiss triggers callbacks', (tester) async {
+    testWidgets('tapping accept and dismiss triggers callbacks', (
+      tester,
+    ) async {
       var accepted = 0;
       var dismissed = 0;
 
@@ -99,7 +105,9 @@ void main() {
       expect(feedbackTapped, isTrue);
     });
 
-    testWidgets('shows placeholder icon when image fails to load', (tester) async {
+    testWidgets('shows placeholder icon when image fails to load', (
+      tester,
+    ) async {
       await _pumpDialog(
         tester,
         variant: ReviewPromptVariant.bunny,

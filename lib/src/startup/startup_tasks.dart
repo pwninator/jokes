@@ -12,6 +12,7 @@ import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/notification_service.dart';
 import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
+import 'package:snickerdoodle/src/data/jokes/joke_interactions_service.dart';
 import 'package:snickerdoodle/src/features/auth/application/auth_startup_manager.dart';
 import 'package:snickerdoodle/src/startup/startup_task.dart';
 import 'package:snickerdoodle/src/utils/device_utils.dart';
@@ -40,6 +41,11 @@ const List<StartupTask> criticalBlockingTasks = [
     id: 'shared_prefs',
     execute: _initializeSharedPreferences,
     traceName: TraceName.startupTaskSharedPrefs,
+  ),
+  StartupTask(
+    id: 'drift_db',
+    execute: _initializeDrift,
+    traceName: TraceName.startupTaskDrift,
   ),
 ];
 
@@ -111,7 +117,29 @@ Future<void> _initializeEmulators(WidgetRef ref) async {
 
 /// Initialize SharedPreferences
 Future<void> _initializeSharedPreferences(WidgetRef ref) async {
-  await ref.read(sharedPreferencesProvider.future);
+  try {
+    await ref.read(sharedPreferencesProvider.future);
+  } catch (e, stack) {
+    AppLogger.fatal(
+      'SharedPreferences initialization failed: $e',
+      stackTrace: stack,
+    );
+    rethrow; // Critical task should fail fast
+  }
+}
+
+/// Initialize Drift database and warm up service
+Future<void> _initializeDrift(WidgetRef ref) async {
+  try {
+    // Resolving the provider initializes DB and warms it up
+    await ref.read(jokeInteractionsServiceProvider.future);
+  } catch (e, stack) {
+    AppLogger.fatal(
+      'Drift database initialization failed: $e',
+      stackTrace: stack,
+    );
+    rethrow; // Critical task should fail fast
+  }
 }
 
 /// Initialize Remote Config (fetch and activate).

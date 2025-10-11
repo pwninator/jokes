@@ -6,11 +6,9 @@ import 'package:snickerdoodle/src/common_widgets/holdable_button.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 
 Widget _wrap(Widget child) => MaterialApp(
-      theme: lightTheme,
-      home: Scaffold(
-        body: Row(children: [child]),
-      ),
-    );
+  theme: lightTheme,
+  home: Scaffold(body: Row(children: [child])),
+);
 
 void main() {
   group('HoldableButton', () {

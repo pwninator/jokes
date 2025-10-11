@@ -18,15 +18,10 @@ Future<void> _pumpAppBar(
 }) async {
   await tester.pumpWidget(
     ProviderScope(
-      overrides: [
-        shouldShowFeedbackActionProvider.overrideWith(shouldShow),
-      ],
+      overrides: [shouldShowFeedbackActionProvider.overrideWith(shouldShow)],
       child: MaterialApp(
         home: Scaffold(
-          appBar: AppBarWidget(
-            title: 'Inbox',
-            actions: actions,
-          ),
+          appBar: AppBarWidget(title: 'Inbox', actions: actions),
         ),
       ),
     ),
@@ -80,15 +75,9 @@ void main() {
     testWidgets('excludes feedback icon when provider resolves false', (
       tester,
     ) async {
-      await _pumpAppBar(
-        tester,
-        shouldShow: (ref) async => false,
-      );
+      await _pumpAppBar(tester, shouldShow: (ref) async => false);
 
-      expect(
-        find.byKey(const Key('feedback-notification-icon')),
-        findsNothing,
-      );
+      expect(find.byKey(const Key('feedback-notification-icon')), findsNothing);
     });
 
     testWidgets('waits for provider completion before showing icon', (
@@ -96,15 +85,9 @@ void main() {
     ) async {
       final completer = Completer<bool>();
 
-      await _pumpAppBar(
-        tester,
-        shouldShow: (ref) => completer.future,
-      );
+      await _pumpAppBar(tester, shouldShow: (ref) => completer.future);
 
-      expect(
-        find.byKey(const Key('feedback-notification-icon')),
-        findsNothing,
-      );
+      expect(find.byKey(const Key('feedback-notification-icon')), findsNothing);
 
       completer.complete(true);
       await tester.pump();
@@ -125,9 +108,7 @@ void main() {
             unreadFeedbackProvider.overrideWithValue([_buildUnreadEntry()]),
           ],
           child: const MaterialApp(
-            home: Scaffold(
-              body: FeedbackNotificationIcon(),
-            ),
+            home: Scaffold(body: FeedbackNotificationIcon()),
           ),
         ),
       );
@@ -136,16 +117,10 @@ void main() {
       expect(find.bySemanticsLabel('New reply'), findsOneWidget);
     });
 
-    testWidgets('hides badge when no unread replies exist', (
-      tester,
-    ) async {
+    testWidgets('hides badge when no unread replies exist', (tester) async {
       await tester.pumpWidget(
         const ProviderScope(
-          child: MaterialApp(
-            home: Scaffold(
-              body: FeedbackNotificationIcon(),
-            ),
-          ),
+          child: MaterialApp(home: Scaffold(body: FeedbackNotificationIcon())),
         ),
       );
 
@@ -161,9 +136,8 @@ void main() {
         routes: [
           GoRoute(
             path: '/',
-            builder: (context, state) => const Scaffold(
-              body: Center(child: FeedbackNotificationIcon()),
-            ),
+            builder: (context, state) =>
+                const Scaffold(body: Center(child: FeedbackNotificationIcon())),
           ),
           GoRoute(
             name: RouteNames.feedback,

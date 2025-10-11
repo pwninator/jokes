@@ -758,9 +758,8 @@ void main() {
             GoRoute(
               path: AppRoutes.saved,
               name: RouteNames.saved,
-              builder: (context, state) => const Scaffold(
-                body: Text('Saved Screen'),
-              ),
+              builder: (context, state) =>
+                  const Scaffold(body: Text('Saved Screen')),
             ),
           ],
         );
@@ -783,7 +782,7 @@ void main() {
         router.go(AppRoutes.saved);
         await tester.pump();
 
-        // Navigate back to jokes screen  
+        // Navigate back to jokes screen
         router.go(AppRoutes.jokes);
         await tester.pump();
 
@@ -796,7 +795,9 @@ void main() {
         await tester.pump();
 
         // Remove the widget to trigger dispose
-        await tester.pumpWidget(const MaterialApp(home: Scaffold(body: Text('Empty'))));
+        await tester.pumpWidget(
+          const MaterialApp(home: Scaffold(body: Text('Empty'))),
+        );
         await tester.pump();
 
         // Test passes if no exceptions are thrown during disposal

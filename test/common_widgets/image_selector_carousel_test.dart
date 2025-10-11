@@ -4,8 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:snickerdoodle/src/common_widgets/image_selector_carousel.dart';
 
 Widget _wrap(Widget child) => ProviderScope(
-      child: MaterialApp(home: Scaffold(body: child)),
-    );
+  child: MaterialApp(home: Scaffold(body: child)),
+);
 
 void main() {
   group('ImageSelectorCarousel', () {

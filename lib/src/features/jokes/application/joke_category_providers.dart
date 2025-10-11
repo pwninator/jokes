@@ -68,7 +68,7 @@ final discoverCategoriesProvider = Provider<AsyncValue<List<JokeCategory>>>((
     id: 'programmatic:seasonal:halloween',
     displayName: 'Halloween 🎃',
     imageUrl:
-        'https://images.quillsstorybook.com/cdn-cgi/image/width=1024,format=auto,quality=75/pun_agent_image_20251011_061008_884331.png',
+        "https://images.quillsstorybook.com/cdn-cgi/image/width=1024,format=auto,quality=75/pun_agent_image_20251011_091010_529423.png",
     imageDescription: 'Halloween jokes',
     state: JokeCategoryState.approved,
     type: CategoryType.seasonal,
@@ -81,6 +81,6 @@ final discoverCategoriesProvider = Provider<AsyncValue<List<JokeCategory>>>((
     final approvedCategories = categories
         .where((c) => c.state == JokeCategoryState.approved)
         .toList();
-    return [popularTile, halloweenTile, ...approvedCategories];
+    return [halloweenTile, popularTile, ...approvedCategories];
   });
 });

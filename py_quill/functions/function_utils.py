@@ -82,3 +82,22 @@ def get_int_param(req: https_fn.Request,
     return int(value)
   except (ValueError, TypeError):
     return default
+
+
+def get_float_param(req: https_fn.Request,
+                    param_name: str,
+                    default: float = 0.0) -> float:
+  """Get a float parameter from the request.
+
+  Falls back to the provided default if the parameter is missing or
+  cannot be converted to a float.
+  """
+  value = get_param(req, param_name, default)
+  if value is None:
+    return default
+  if isinstance(value, (float, int)):
+    return float(value)
+  try:
+    return float(value)
+  except (ValueError, TypeError):
+    return default

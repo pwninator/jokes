@@ -8,22 +8,22 @@ from functions import util_fns
 from services import search
 
 
-@pytest.fixture
-def mock_search_jokes():
+@pytest.fixture(name='mock_search_jokes')
+def mock_search_jokes_fixture():
   """Fixture to mock the search.search_jokes function."""
   with patch('services.search.search_jokes') as mock:
     yield mock
 
 
-@pytest.fixture
-def mock_get_punny_joke():
+@pytest.fixture(name='mock_get_punny_joke')
+def mock_get_punny_joke_fixture():
   """Fixture to mock the firestore_service.get_punny_joke function."""
   with patch('services.firestore.get_punny_joke') as mock:
     yield mock
 
 
-@pytest.fixture
-def mock_update_punny_joke():
+@pytest.fixture(name='mock_update_punny_joke')
+def mock_update_punny_joke_fixture():
   """Fixture to mock the firestore_service.update_punny_joke function."""
   with patch('services.firestore.update_punny_joke') as mock:
     yield mock

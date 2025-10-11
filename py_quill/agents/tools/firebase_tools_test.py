@@ -1,4 +1,3 @@
-import asyncio
 import importlib
 import sys
 from types import SimpleNamespace
@@ -8,8 +7,8 @@ from agents import constants
 from common import config, models
 
 
-@pytest.fixture()
-def tool(monkeypatch):
+@pytest.fixture(name='tool')
+def tool_fixture(monkeypatch):
   """Import the firebase_tools module with Firebase init stubbed out.
 
   We reload the module to ensure the initialize_app side effect is neutralized.
@@ -22,8 +21,8 @@ def tool(monkeypatch):
   return importlib.reload(_tool)
 
 
-@pytest.fixture()
-def fake_ctx():
+@pytest.fixture(name='fake_ctx')
+def fake_ctx_fixture():
 
   class Ctx:
 
@@ -278,19 +277,18 @@ async def test_update_joke(tool, monkeypatch):
                       fake_update_punny_joke)
 
   # Act
-  await tool.update_joke(
-      joke_id="test_joke_id",
-      update_data={
-          "pun_theme": "animal",
-          "for_kids": True,
-          "invalid_field": "should be ignored"
-      })
+  await tool.update_joke(joke_id="test_joke_id",
+                         update_data={
+                           "pun_theme": "animal",
+                           "for_kids": True,
+                           "invalid_field": "should be ignored"
+                         })
 
   # Assert
   assert captured["joke_id"] == "test_joke_id"
   assert captured["update_data"] == {
-      "pun_theme": "animal",
-      "for_kids": True,
+    "pun_theme": "animal",
+    "for_kids": True,
   }
 
 
@@ -319,14 +317,14 @@ async def test_update_joke_no_valid_fields(tool):
 async def test_get_joke_details(tool, monkeypatch):
   # Arrange
   mock_joke = models.PunnyJoke(
-      key="test_joke_id",
-      setup_text="Why did the scarecrow win an award?",
-      punchline_text="Because he was outstanding in his field.",
-      pun_theme="animal",
-      for_kids=True,
-      tags=["funny", "award"],
-      # This field should not be in the result
-      num_thumbs_up=10,
+    key="test_joke_id",
+    setup_text="Why did the scarecrow win an award?",
+    punchline_text="Because he was outstanding in his field.",
+    pun_theme="animal",
+    for_kids=True,
+    tags=["funny", "award"],
+    # This field should not be in the result
+    num_thumbs_up=10,
   )
 
   def fake_get_punny_joke(joke_id):
@@ -338,27 +336,26 @@ async def test_get_joke_details(tool, monkeypatch):
     return func(*args, **kwargs)
 
   monkeypatch.setattr("asyncio.to_thread", fake_to_thread)
-  monkeypatch.setattr("services.firestore.get_punny_joke",
-                      fake_get_punny_joke)
+  monkeypatch.setattr("services.firestore.get_punny_joke", fake_get_punny_joke)
 
   # Act
   details = await tool.get_joke_details(joke_id="test_joke_id")
 
   # Assert
   assert details == {
-      "joke_id": "test_joke_id",
-      "setup_text": "Why did the scarecrow win an award?",
-      "punchline_text": "Because he was outstanding in his field.",
-      "pun_theme": "animal",
-      "phrase_topic": None,
-      "tags": ["funny", "award"],
-      "for_kids": True,
-      "for_adults": False,
-      "seasonal": None,
-      "pun_word": None,
-      "punned_word": None,
-      "setup_image_description": None,
-      "punchline_image_description": None,
+    "joke_id": "test_joke_id",
+    "setup_text": "Why did the scarecrow win an award?",
+    "punchline_text": "Because he was outstanding in his field.",
+    "pun_theme": "animal",
+    "phrase_topic": None,
+    "tags": ["funny", "award"],
+    "for_kids": True,
+    "for_adults": False,
+    "seasonal": None,
+    "pun_word": None,
+    "punned_word": None,
+    "setup_image_description": None,
+    "punchline_image_description": None,
   }
 
 
@@ -372,8 +369,7 @@ async def test_get_joke_details_not_found(tool, monkeypatch):
     return func(*args, **kwargs)
 
   monkeypatch.setattr("asyncio.to_thread", fake_to_thread)
-  monkeypatch.setattr("services.firestore.get_punny_joke",
-                      fake_get_punny_joke)
+  monkeypatch.setattr("services.firestore.get_punny_joke", fake_get_punny_joke)
 
   # Act
   details = await tool.get_joke_details(joke_id="not_found_id")

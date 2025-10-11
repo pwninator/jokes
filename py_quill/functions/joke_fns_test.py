@@ -209,7 +209,7 @@ def test_search_jokes_omits_filter_when_public_only_false(monkeypatch):
   assert captured['label'] == 'unknown'
 
 
-@pytest.fixture(name="mock_services")
+@pytest.fixture(name='mock_services')
 def mock_services_fixture(monkeypatch):
   """Fixture that mocks external services using monkeypatch."""
   mock_firestore = Mock()
@@ -221,7 +221,7 @@ def mock_services_fixture(monkeypatch):
   return mock_firestore, mock_fcm
 
 
-@pytest.fixture(name="mock_single_notification")
+@pytest.fixture(name='mock_single_notification')
 def mock_single_notification_fixture(monkeypatch):
   """Fixture that mocks send_single_joke_notification function."""
   mock_send_single = Mock()
@@ -655,7 +655,7 @@ class TestNotifyAllJokeSchedules:
 class TestSearchJokes:
   """Tests for search_jokes function."""
 
-  @pytest.fixture(name="mock_search")
+  @pytest.fixture(name='mock_search')
   def mock_search_fixture(self, monkeypatch):
     """Fixture that mocks the search.search_jokes function."""
     mock_search_jokes = Mock()
@@ -740,7 +740,7 @@ class TestSearchJokes:
 class TestOnJokeWrite:
   """Tests for the on_joke_write cloud function."""
 
-  @pytest.fixture(name="mock_get_joke_embedding")
+  @pytest.fixture(name='mock_get_joke_embedding')
   def mock_get_joke_embedding_fixture(self, monkeypatch):
     """Fixture that mocks the get_joke_embedding function."""
     mock_embedding_fn = Mock(return_value=([1.0, 2.0, 3.0],
@@ -748,7 +748,7 @@ class TestOnJokeWrite:
     monkeypatch.setattr(joke_fns, "get_joke_embedding", mock_embedding_fn)
     return mock_embedding_fn
 
-  @pytest.fixture(name="mock_firestore_service")
+  @pytest.fixture(name='mock_firestore_service')
   def mock_firestore_service_fixture(self, monkeypatch):
     """Fixture that mocks the firestore service."""
     mock_firestore = Mock()
@@ -1462,14 +1462,14 @@ class TestOnJokeCategoryWrite:
 class TestModifyJokeImage:
   """Tests for the modify_joke_image cloud function."""
 
-  @pytest.fixture(name="mock_image_generation")
+  @pytest.fixture(name='mock_image_generation')
   def mock_image_generation_fixture(self, monkeypatch):
     """Fixture that mocks the image_generation service."""
     mock_image_gen = Mock()
     monkeypatch.setattr(joke_fns, "image_generation", mock_image_gen)
     return mock_image_gen
 
-  @pytest.fixture(name="mock_firestore_service")
+  @pytest.fixture(name='mock_firestore_service')
   def mock_firestore_service_fixture(self, monkeypatch):
     """Fixture that mocks the firestore service."""
     mock_firestore = Mock()
@@ -1525,7 +1525,7 @@ class TestModifyJokeImage:
 class TestUpscaleJoke:
   """Tests for the upscale_joke cloud function."""
 
-  @pytest.fixture(name="mock_joke_operations")
+  @pytest.fixture(name='mock_joke_operations')
   def mock_joke_operations_fixture(self, monkeypatch):
     """Fixture that mocks the joke_operations module."""
     mock_operations = Mock()
@@ -1597,7 +1597,7 @@ class TestUpscaleJoke:
 class TestOnJokeWriteSearchSync:
   """Tests for the on_joke_write cloud function search sync."""
 
-  @pytest.fixture(name="mock_firestore_db")
+  @pytest.fixture(name='mock_firestore_db')
   def mock_firestore_db_fixture(self, monkeypatch):
     """Fixture that mocks firestore.db() for subcollection testing."""
     mock_db = MagicMock()

@@ -5,7 +5,7 @@ import pytest
 from common import joke_operations, models
 
 
-@pytest.fixture(name="mock_firestore")
+@pytest.fixture(name='mock_firestore')
 def mock_firestore_fixture(monkeypatch):
   """Fixture that mocks the firestore service."""
   mock_firestore = Mock()
@@ -13,7 +13,7 @@ def mock_firestore_fixture(monkeypatch):
   return mock_firestore
 
 
-@pytest.fixture(name="mock_image_client")
+@pytest.fixture(name='mock_image_client')
 def mock_image_client_fixture(monkeypatch):
   """Fixture that mocks the image_client service."""
   mock_image_client = Mock()
@@ -21,7 +21,7 @@ def mock_image_client_fixture(monkeypatch):
   return mock_image_client
 
 
-@pytest.fixture(name="mock_cloud_storage")
+@pytest.fixture(name='mock_cloud_storage')
 def mock_cloud_storage_fixture(monkeypatch):
   """Fixture that mocks the cloud_storage service."""
   mock_cloud_storage = Mock()

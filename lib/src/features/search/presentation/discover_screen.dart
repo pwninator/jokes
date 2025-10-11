@@ -193,9 +193,12 @@ class _CategoryResultsState extends ConsumerState<_CategoryResults> {
     final jokeContext = (active?.type == CategoryType.popular)
         ? AnalyticsJokeContext.popular
         : AnalyticsJokeContext.category;
+    final categoryName = active?.id;
     return JokeListViewer(
       dataSource: widget.dataSource,
-      jokeContext: jokeContext,
+      jokeContext: categoryName != null
+          ? '$jokeContext:$categoryName'
+          : jokeContext,
       viewerId: widget.viewerId,
       onInitRegisterReset: widget.onInitRegisterReset,
       emptyState: emptyStateMessage.isEmpty

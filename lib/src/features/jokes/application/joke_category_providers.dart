@@ -78,9 +78,9 @@ final discoverCategoriesProvider = Provider<AsyncValue<List<JokeCategory>>>((
 
   final categoriesAsync = ref.watch(jokeCategoriesProvider);
   return categoriesAsync.whenData((categories) {
-    final approved = categories
+    final approvedCategories = categories
         .where((c) => c.state == JokeCategoryState.approved)
         .toList();
-    return [popularTile, halloweenTile, ...approved];
+    return [popularTile, halloweenTile, ...approvedCategories];
   });
 });

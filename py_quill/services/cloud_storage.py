@@ -215,5 +215,3 @@ def get_final_image_url(gcs_uri: str, width: int = 1024) -> str:
     return get_emulator_accessible_url(gcs_uri)
   else:
     return get_public_image_cdn_url(gcs_uri, width=width)
-
-

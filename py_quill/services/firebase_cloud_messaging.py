@@ -1,9 +1,8 @@
 """Firebase Cloud Messaging service."""
 
-from common import models
+from common import models, utils
 from firebase_admin import messaging
 from firebase_functions import logger
-from services import cloud_storage
 
 
 def send_punny_joke_notification(topic: str, joke: models.PunnyJoke) -> None:
@@ -14,7 +13,7 @@ def send_punny_joke_notification(topic: str, joke: models.PunnyJoke) -> None:
 {joke.setup_text}
 {joke.punchline_text}""")
 
-  notification_image_url = cloud_storage.set_image_cdn_params(
+  notification_image_url = utils.format_image_url(
     image_url=joke.setup_image_url,
     width=256,
     image_format="webp",

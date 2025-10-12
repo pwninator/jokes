@@ -468,6 +468,12 @@ def on_joke_write(event: firestore_fn.Event[firestore_fn.Change]) -> None:
       "Joke popularity score mismatch, updating from %s to %s for: %s",
       after_joke.popularity_score, expected_popularity_score, after_joke.key)
 
+  tags_lowered = [t.lower() for t in after_joke.tags]
+  if tags_lowered != after_joke.tags:
+    update_data["tags"] = tags_lowered
+    logger.info("Joke tags changed, updating from %s to %s for: %s",
+                after_joke.tags, tags_lowered, after_joke.key)
+
   _sync_joke_to_search_subcollection(
     joke=after_joke,
     new_embedding=new_embedding,
@@ -674,7 +680,7 @@ def _populate_entire_joke_internal(
       joke.punned_word = populated_pun.punned_word
     joke.pun_theme = populated_pun.pun_theme
     joke.phrase_topic = populated_pun.phrase_topic
-    joke.tags = populated_pun.tags
+    joke.tags = [t.lower() for t in populated_pun.tags]
     joke.for_kids = populated_pun.for_kids
     joke.for_adults = populated_pun.for_adults
     joke.seasonal = populated_pun.seasonal

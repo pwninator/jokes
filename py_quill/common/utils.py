@@ -66,7 +66,7 @@ def is_emulator() -> bool:
 
 def format_image_url(
   image_url: str,
-  format: str | None = None,
+  image_format: str | None = None,
   quality: int | None = None,
   width: int | None = None,
 ) -> str:
@@ -74,7 +74,7 @@ def format_image_url(
 
   Args:
     image_url: The CDN URL
-    format: The new format parameter
+    image_format: The new format parameter
     quality: The new quality parameter
     width: The new width parameter
 
@@ -110,14 +110,15 @@ def format_image_url(
       key, value = part.split('=')
       params[key] = value
 
-  if format:
-    params['format'] = format
+  if image_format:
+    params['format'] = image_format
   if quality:
     params['quality'] = quality
   if width:
     params['width'] = width
 
-  new_params_str = ",".join([f"{key}={value}" for key, value in params.items()])
+  new_params_str = ",".join(
+    [f"{key}={value}" for key, value in params.items()])
 
   # Reconstruct the URL with new parameters
   return f"https://images.quillsstorybook.com/cdn-cgi/image/{new_params_str}/{object_path}"

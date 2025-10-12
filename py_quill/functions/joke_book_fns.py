@@ -1,8 +1,7 @@
 """Joke book cloud functions."""
 import traceback
 
-from common import joke_operations, models
-from common.utils import create_timestamped_firestore_key, format_image_url
+from common import joke_operations, models, utils
 from firebase_functions import https_fn, options
 from functions.function_utils import (error_response, get_param, get_user_id,
                                       success_response)
@@ -38,7 +37,7 @@ def create_book(req: https_fn.Request) -> https_fn.Response:
     for joke_id in joke_ids:
       joke_operations.upscale_joke(joke_id)
 
-    doc_id = create_timestamped_firestore_key(user_id)
+    doc_id = utils.create_timestamped_firestore_key(user_id)
     firestore.db().collection('joke_books').document(doc_id).set({
       'book_name':
       book_name,
@@ -111,10 +110,18 @@ def get_joke_book(req: https_fn.Request) -> https_fn.Response:
       setup_img = joke.setup_image_url_upscaled
       punchline_img = joke.punchline_image_url_upscaled
       if setup_img:
-        setup_img = format_image_url(setup_img, format='png', quality=100)
+        setup_img = utils.format_image_url(
+          setup_img,
+          image_format='png',
+          quality=100,
+        )
         html_content += f'<img src="{setup_img}" alt="Joke Setup"><br>'
       if punchline_img:
-        punchline_img = format_image_url(punchline_img, format='png', quality=100)
+        punchline_img = utils.format_image_url(
+          punchline_img,
+          image_format='png',
+          quality=100,
+        )
         html_content += f'<img src="{punchline_img}" alt="Joke Punchline"><br>'
       html_content += "<hr>"
 

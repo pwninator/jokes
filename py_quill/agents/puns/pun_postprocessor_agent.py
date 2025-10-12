@@ -155,12 +155,15 @@ The described illustrations should:
   * pun_word: The pun word used in the saying. This word should appear exactly in the pun text, e.g. "purr-fect".
   * punned_word: The word that is being punned. It's the word that the reader expects. This word may appear in the pun text if it's a homograph, but often does not (e.g. "perfect").
   * tags: A list of 1-2 word strings that will be used to help search for jokes. They include the joke's themes and topics, including potentially multiple of each. All tags should be singular.
+      * The tags will be used both as categories to organize jokes in an app, as well as for searching jokes, so include both broad tags like "dog", which will serve well as categories, as well as specific tags like "Dalmation" for searching.
       * Example: For the joke 'why are giraffes slow to apologize? Because I'm takes them a long time to swallow their pride.', the tags could be 'giraffe' and 'apologies'.
       * Example: For the joke 'what do panda ghosts say? Bam-boo!', the tags could be 'panda', 'bamboo', 'ghost', 'Halloween', and 'dad joke'.
+      * Example: For the joke 'what did the Dalmation say after the meal? That hit the spots!', the tags could be 'Dalmation', 'dog', 'spots', and 'dad joke'.
   * for_kids: A boolean indicating whether the joke is good for kids. This means the joke is not only appropriate, clean, positive, and wholesome, but also simple and understandable by elementary school-aged children.
   * for_adults: A boolean indicating whether the joke will be interesting for adults. This includes sophisticated and witty humor, and excludes jokes that are too simple or obvious.
-  * seasonal: If the joke is related to a seasonal event, this should be the name of that event, e.g. 'Halloween', 'Super Bowl', etc. If the joke is not related to any events, this should be null.
-      * All jokes related to trick-or-treating or monsters typically associated with Halloween should be labeled as 'Halloween'.
+  * seasonal: If the joke is related to a seasonal event, this should be the name of that event, e.g. 'Halloween', 'Super Bowl', etc. This field will be used to find jokes for joke books for each event, so include all jokes suitable for such books. If the joke is not related to any events, this should be null.
+      * Example: All jokes related to activities or monsters typically associated with Halloween, or pop culture references related to Halloween, should be labeled as 'Halloween'.
+      * Example: All jokes related to Santa, his elves, holiday gifting, Christmas trees, or otherwise suitable for a Christmas joke book should be labeled as 'Christmas'.
 
 * Write simple scene descriptions for EACH LINE of the pun. Each description will be used to generate a separate image. The described scenes should capture the specific line's meaning and context with the minimal elements needed to set up and sell the joke. Focus on being funny, super cute, and relevant to both the phrase_topic and pun_theme. Each description should include only:
   * The text of the specific pun line

@@ -8,6 +8,7 @@ import 'package:snickerdoodle/src/core/services/image_service.dart';
 import 'package:snickerdoodle/src/core/services/notification_service.dart';
 import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/data/core/database/app_database.dart';
+import 'package:snickerdoodle/src/data/reviews/reviews_repository.dart';
 import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
 
 // Mock classes for core services
@@ -24,6 +25,8 @@ class MockPerformanceService extends Mock implements PerformanceService {}
 
 class MockNotificationService extends Mock implements NotificationService {}
 
+class MockReviewsRepository extends Mock implements ReviewsRepository {}
+
 /// Core service mocks for unit tests
 class CoreMocks {
   static MockImageService? _mockImageService;
@@ -32,6 +35,7 @@ class CoreMocks {
   static MockPerformanceService? _mockPerformanceService;
   static MockNotificationService? _mockNotificationService;
   static AppDatabase? _mockAppDatabase;
+  static MockReviewsRepository? _mockReviewsRepository;
 
   // Shared storage for settings service across all instances
   static final Map<String, dynamic> _sharedStorage = {};
@@ -78,6 +82,7 @@ class CoreMocks {
     _mockPerformanceService = null;
     _mockNotificationService = null;
     _mockAppDatabase = null;
+    _mockReviewsRepository = null;
     _sharedStorage.clear();
   }
 
@@ -110,6 +115,9 @@ class CoreMocks {
 
       // In-memory Drift database
       appDatabaseProvider.overrideWithValue(mockAppDatabase),
+
+      // Mock reviews repository
+      reviewsRepositoryProvider.overrideWithValue(mockReviewsRepository),
 
       // Include additional overrides
       ...additionalOverrides,
@@ -145,6 +153,9 @@ class CoreMocks {
 
       // In-memory Drift database
       appDatabaseProvider.overrideWithValue(mockAppDatabase),
+
+      // Mock reviews repository
+      reviewsRepositoryProvider.overrideWithValue(mockReviewsRepository),
 
       // Include additional overrides
       ...additionalOverrides,
@@ -268,5 +279,15 @@ class CoreMocks {
       () => mock.requestNotificationPermissions(),
     ).thenAnswer((_) async => true);
     when(() => mock.getFCMToken()).thenAnswer((_) async => 'mock_fcm_token');
+  }
+
+  /// Get or create mock ReviewsRepository
+  static MockReviewsRepository get mockReviewsRepository {
+    _mockReviewsRepository ??= MockReviewsRepository();
+    // Default no-op behavior
+    when(
+      () => _mockReviewsRepository!.recordAppReview(),
+    ).thenAnswer((_) async {});
+    return _mockReviewsRepository!;
   }
 }

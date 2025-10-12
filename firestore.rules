@@ -81,6 +81,22 @@ service cloud.firestore {
         );
     }
 
+    match /joke_app_reviews/{docId} {
+      // Read access: Admin can read all, users can read their own.
+      allow read:
+        if request.auth != null && 
+          resource.data.user_id == request.auth.uid;
+
+      // Create access: Users can create their own reviews.
+      allow create:
+        if request.auth != null && 
+          request.resource.data.user_id == request.auth.uid;
+
+      // No mutate access
+      allow update, delete:
+        if false;
+    }
+
     match /joke_users/{jokeUserId} {
       // Read access: Only allowed for admin users
       allow read:

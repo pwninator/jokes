@@ -17,13 +17,13 @@ class ReviewPromptCoordinator {
     required bool Function() getIsDailySubscribed,
   }) : _getRemoteValues = getRemoteValues,
        _usage = appUsageService,
-       _review = appReviewService,
+       _reviewService = appReviewService,
        _store = stateStore,
        _getIsDailySubscribed = getIsDailySubscribed;
 
   final RemoteConfigValues Function() _getRemoteValues;
   final AppUsageService _usage;
-  final AppReviewService _review;
+  final AppReviewService _reviewService;
   final ReviewPromptStateStore _store;
   final bool Function() _getIsDailySubscribed;
 
@@ -75,7 +75,7 @@ class ReviewPromptCoordinator {
       );
       // The review service is responsible for marking attempts
       if (context.mounted) {
-        await _review.requestReview(source: source, context: context);
+        await _reviewService.requestReview(source: source, context: context);
       }
     } catch (e) {
       AppLogger.warn('REVIEW_COORDINATOR maybePromptForReview error: $e');

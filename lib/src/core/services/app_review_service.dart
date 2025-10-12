@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:in_app_review/in_app_review.dart';
 import 'package:snickerdoodle/src/common_widgets/app_review_prompt_dialog.dart';
 import 'package:snickerdoodle/src/config/router/route_names.dart';
@@ -9,6 +10,28 @@ import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:snickerdoodle/src/core/services/review_prompt_state_store.dart';
+import 'package:snickerdoodle/src/data/reviews/reviews_repository.dart';
+
+part 'app_review_service.g.dart';
+
+@Riverpod(keepAlive: true)
+AppReviewService appReviewService(Ref ref) {
+  final analyticsService = ref.watch(analyticsServiceProvider);
+  final stateStore = ref.watch(reviewPromptStateStoreProvider);
+  final reviewsRepository = ref.watch(reviewsRepositoryProvider);
+  return AppReviewService(
+    nativeAdapter: InAppReviewAdapter(),
+    stateStore: stateStore,
+    getReviewPromptVariant: () {
+      final remoteValues = ref.read(remoteConfigValuesProvider);
+      return remoteValues.getEnum<ReviewPromptVariant>(
+        RemoteParam.reviewPromptVariant,
+      );
+    },
+    analyticsService: analyticsService,
+    reviewsRepository: reviewsRepository,
+  );
+}
 
 enum _DialogDecision { accept, dismiss, feedback }
 
@@ -70,16 +93,19 @@ class AppReviewService {
     required NativeReviewAdapter nativeAdapter,
     required ReviewPromptStateStore stateStore,
     required ReviewPromptVariant Function() getReviewPromptVariant,
-    AnalyticsService? analyticsService,
+    required AnalyticsService analyticsService,
+    required ReviewsRepository reviewsRepository,
   }) : _native = nativeAdapter,
        _promptHistoryStore = stateStore,
        _getReviewPromptVariant = getReviewPromptVariant,
-       _analytics = analyticsService;
+       _analyticsService = analyticsService,
+       _reviewsRepository = reviewsRepository;
 
   final NativeReviewAdapter _native;
   final ReviewPromptStateStore _promptHistoryStore;
   final ReviewPromptVariant Function() _getReviewPromptVariant;
-  final AnalyticsService? _analytics;
+  final AnalyticsService _analyticsService;
+  final ReviewsRepository _reviewsRepository;
 
   /// Check if in-app review API is available on this device/OS
   Future<bool> isAvailable() async {
@@ -89,7 +115,7 @@ class AppReviewService {
       AppLogger.warn('APP_REVIEW isAvailable error: $e');
       // Log analytics/crash for availability check failure
       try {
-        _analytics?.logErrorAppReviewAvailability(
+        _analyticsService.logErrorAppReviewAvailability(
           source: 'service',
           errorMessage: 'app_review_is_available_failed',
         );
@@ -127,7 +153,7 @@ class AppReviewService {
 
       // Show custom dialog first
       final variant = _getReviewPromptVariant();
-      _analytics?.logAppReviewAttempt(
+      _analyticsService.logAppReviewAttempt(
         source: source.value,
         variant: variant.name,
       );
@@ -152,7 +178,7 @@ class AppReviewService {
 
       if (userDecision == _DialogDecision.dismiss) {
         // User dismissed dialog
-        _analytics?.logAppReviewDeclined(
+        _analyticsService.logAppReviewDeclined(
           source: source.value,
           variant: variant.name,
         );
@@ -171,10 +197,17 @@ class AppReviewService {
       }
 
       // User accepted - log and show native review
-      _analytics?.logAppReviewAccepted(
+      _analyticsService.logAppReviewAccepted(
         source: source.value,
         variant: variant.name,
       );
+
+      // Fire-and-forget: record an app review entry to Firestore
+      try {
+        // Do not await to avoid blocking the native review UI
+        // ignore: unawaited_futures
+        _reviewsRepository.recordAppReview();
+      } catch (_) {}
 
       await _native.requestReview();
 
@@ -184,7 +217,7 @@ class AppReviewService {
       AppLogger.warn('APP_REVIEW requestReview error: $e');
       // Log analytics/crash for request review failure
       try {
-        _analytics?.logErrorAppReviewRequest(
+        _analyticsService.logErrorAppReviewRequest(
           source: source.value,
           errorMessage: 'app_review_request_failed',
         );
@@ -193,20 +226,3 @@ class AppReviewService {
     }
   }
 }
-
-/// Provider wiring, following project patterns
-final appReviewServiceProvider = Provider<AppReviewService>((ref) {
-  final analytics = ref.watch(analyticsServiceProvider);
-  final stateStore = ref.watch(reviewPromptStateStoreProvider);
-  return AppReviewService(
-    nativeAdapter: InAppReviewAdapter(),
-    stateStore: stateStore,
-    getReviewPromptVariant: () {
-      final remoteValues = ref.read(remoteConfigValuesProvider);
-      return remoteValues.getEnum<ReviewPromptVariant>(
-        RemoteParam.reviewPromptVariant,
-      );
-    },
-    analyticsService: analytics,
-  );
-});

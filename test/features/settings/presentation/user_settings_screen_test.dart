@@ -2,11 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:snickerdoodle/src/core/services/app_review_service.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:snickerdoodle/src/core/services/review_prompt_state_store.dart';
-import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/settings/presentation/user_settings_screen.dart';
 
@@ -539,10 +537,10 @@ void main() {
       testWidgets('shows Test Review Prompt button and calls service', (
         tester,
       ) async {
-        SharedPreferences.setMockInitialValues({});
-        final prefs = await SharedPreferences.getInstance();
-        final settingsService = SettingsService(prefs);
-        final store = ReviewPromptStateStore(settingsService: settingsService);
+        // Use core mocks for settings service to avoid real SharedPreferences
+        final store = ReviewPromptStateStore(
+          settingsService: CoreMocks.mockSettingsService,
+        );
 
         Widget withOverrides() {
           return ProviderScope(
@@ -555,7 +553,8 @@ void main() {
                   nativeAdapter: _FakeAdapter(),
                   stateStore: store,
                   getReviewPromptVariant: () => ReviewPromptVariant.bunny,
-                  analyticsService: null,
+                  analyticsService: AnalyticsMocks.mockAnalyticsService,
+                  reviewsRepository: CoreMocks.mockReviewsRepository,
                 ),
               ),
             ],

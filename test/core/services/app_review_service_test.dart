@@ -1,36 +1,40 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/app_review_service.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:snickerdoodle/src/core/services/review_prompt_state_store.dart';
 
-class _MockNativeReviewAdapter extends Mock implements NativeReviewAdapter {}
+import '../../test_helpers/analytics_mocks.dart';
+import '../../test_helpers/core_mocks.dart';
 
-class _MockAnalyticsService extends Mock implements AnalyticsService {}
+class _MockNativeReviewAdapter extends Mock implements NativeReviewAdapter {}
 
 class _MockStateStore extends Mock implements ReviewPromptStateStore {}
 
 void main() {
   late _MockNativeReviewAdapter native;
-  late _MockAnalyticsService analytics;
+  late MockAnalyticsService analytics;
   late AppReviewService service;
   late _MockStateStore store;
 
   setUpAll(() {
     registerFallbackValue(ReviewRequestSource.adminTest);
+    registerAnalyticsFallbackValues();
   });
 
   setUp(() {
+    AnalyticsMocks.reset();
+
     native = _MockNativeReviewAdapter();
-    analytics = _MockAnalyticsService();
+    analytics = AnalyticsMocks.mockAnalyticsService;
     store = _MockStateStore();
     service = AppReviewService(
       nativeAdapter: native,
       stateStore: store,
       getReviewPromptVariant: () => ReviewPromptVariant.bunny,
       analyticsService: analytics,
+      reviewsRepository: CoreMocks.mockReviewsRepository,
     );
 
     // Mock successful analytics calls by default

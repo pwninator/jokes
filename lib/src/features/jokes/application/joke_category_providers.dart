@@ -95,7 +95,7 @@ final discoverCategoriesProvider = Provider<AsyncValue<List<JokeCategory>>>((
     id: 'programmatic:seasonal:halloween',
     displayName: 'Halloween 🎃',
     imageUrl:
-        "https://images.quillsstorybook.com/cdn-cgi/image/width=1024,format=auto,quality=75/pun_agent_image_20251011_091010_529423.png",
+        "https://images.quillsstorybook.com/cdn-cgi/image/width=1024,format=auto,quality=75/pun_agent_image_20251012_054130_531907.png",
     imageDescription: 'Halloween jokes',
     state: JokeCategoryState.approved,
     type: CategoryType.seasonal,

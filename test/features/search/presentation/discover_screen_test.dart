@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:snickerdoodle/src/common_widgets/badged_icon.dart';
 import 'package:snickerdoodle/src/config/router/route_names.dart';
 import 'package:snickerdoodle/src/config/router/router_providers.dart';
 import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
@@ -262,6 +263,133 @@ void main() {
       expect(recordedNavigations.single['push'], isTrue);
       expect(recordedNavigations.single['method'], 'discover_search_button');
     });
+  });
+
+  group('Discover tab unviewed indicator', () {
+    Widget buildBottomBarHost() {
+      return Consumer(
+        builder: (context, ref, _) {
+          final hasUnviewed = ref.watch(hasUnviewedCategoriesProvider);
+          return MaterialApp(
+            home: Scaffold(
+              bottomNavigationBar: BottomNavigationBar(
+                items: [
+                  BottomNavigationBarItem(
+                    icon: BadgedIcon(
+                      key: const Key('app_router-discover-tab-icon'),
+                      icon: Icons.explore,
+                      showBadge: hasUnviewed,
+                      iconSemanticLabel: 'Discover',
+                      badgeSemanticLabel: 'New Jokes',
+                    ),
+                    label: 'Discover',
+                  ),
+                  const BottomNavigationBarItem(
+                    icon: Icon(Icons.mood),
+                    label: 'Daily Jokes',
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      );
+    }
+
+    testWidgets(
+      'shows badge when an approved category is unviewed (bottom bar)',
+      (tester) async {
+        // Provide two approved categories, only one viewed
+        final natureCategory = JokeCategory(
+          id: 'nature',
+          displayName: 'Nature Jokes',
+          jokeDescriptionQuery: 'nature',
+          imageUrl: null,
+          state: JokeCategoryState.approved,
+          type: CategoryType.search,
+        );
+        final categories = [animalCategory, natureCategory];
+
+        final container = ProviderContainer(
+          overrides: FirebaseMocks.getFirebaseProviderOverrides(
+            additionalOverrides: [
+              ...CoreMocks.getCoreProviderOverrides(),
+              jokeCategoriesProvider.overrideWith(
+                (ref) => Stream.value(categories),
+              ),
+              viewedCategoryIdsProvider.overrideWith(
+                (ref) => Stream.value({
+                  'animal',
+                  'programmatic:popular',
+                  'programmatic:seasonal:halloween',
+                }),
+              ),
+            ],
+          ),
+        );
+        addTearDown(container.dispose);
+
+        await tester.pumpWidget(
+          UncontrolledProviderScope(
+            container: container,
+            child: buildBottomBarHost(),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Verify provider value is true when there are unviewed categories
+        expect(container.read(hasUnviewedCategoriesProvider), isTrue);
+
+        // Expect badge semantics exists
+        expect(
+          find.byKey(const Key('app_router-discover-tab-icon')),
+          findsOneWidget,
+        );
+        expect(find.bySemanticsLabel('New Jokes'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'hides badge when all approved categories are viewed (bottom bar)',
+      (tester) async {
+        final categories = [animalCategory];
+        final container = ProviderContainer(
+          overrides: FirebaseMocks.getFirebaseProviderOverrides(
+            additionalOverrides: [
+              ...CoreMocks.getCoreProviderOverrides(),
+              jokeCategoriesProvider.overrideWith(
+                (ref) => Stream.value(categories),
+              ),
+              viewedCategoryIdsProvider.overrideWith(
+                (ref) => Stream.value({
+                  'animal',
+                  'programmatic:popular',
+                  'programmatic:seasonal:halloween',
+                }),
+              ),
+            ],
+          ),
+        );
+        addTearDown(container.dispose);
+
+        await tester.pumpWidget(
+          UncontrolledProviderScope(
+            container: container,
+            child: buildBottomBarHost(),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Verify provider value is false when all are viewed
+        expect(container.read(hasUnviewedCategoriesProvider), isFalse);
+
+        expect(
+          find.byKey(const Key('app_router-discover-tab-icon')),
+          findsOneWidget,
+        );
+        expect(find.bySemanticsLabel('Unviewed'), findsNothing);
+      },
+    );
   });
 }
 

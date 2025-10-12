@@ -189,7 +189,7 @@ class JokeRepository {
       query = query.where('seasonal', isEqualTo: seasonalValue);
     }
 
-    String primaryOrderByField = 'public_timestamp';
+    String primaryOrderByField = 'creation_time';
     bool descending = true;
     if (popularOnly) {
       query = query.where('popularity_score', isGreaterThan: 0);
@@ -231,7 +231,13 @@ class JokeRepository {
     // The last document determines the next cursor
     final lastDoc = snapshot.docs.last;
     final lastData = lastDoc.data();
-    final orderValue = lastData[primaryOrderByField];
+    // Derive a robust, non-null order value for the cursor even if the
+    // primary ordered field is missing on the last document (e.g., in tests)
+    final Object orderValue =
+        lastData[primaryOrderByField] ??
+        lastData['public_timestamp'] ??
+        lastData['popularity_score'] ??
+        lastDoc.id;
 
     final nextCursor = JokeListPageCursor(
       orderValue: orderValue,

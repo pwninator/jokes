@@ -44,6 +44,22 @@ Stream<Set<String>> viewedCategoryIds(Ref ref) {
   return query.watch().map((rows) => rows.map((r) => r.categoryId).toSet());
 }
 
+/// Whether there exist any approved Discover categories that the user has not viewed yet.
+/// Used to show an "unviewed" indicator on the Discover tab icon.
+@Riverpod(keepAlive: true)
+bool hasUnviewedCategories(Ref ref) {
+  final categoriesAsync = ref.watch(discoverCategoriesProvider);
+  final viewedIds = ref.watch(viewedCategoryIdsProvider).valueOrNull;
+
+  return categoriesAsync.maybeWhen(
+    data: (categories) {
+      if (viewedIds == null) return false;
+      return categories.any((c) => !viewedIds.contains(c.id));
+    },
+    orElse: () => false,
+  );
+}
+
 final popularTileImageNames = [
   'category_tile_popular_bunny1.png',
   'category_tile_popular_cat1.png',

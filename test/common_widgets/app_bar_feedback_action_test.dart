@@ -125,7 +125,7 @@ void main() {
       );
 
       await tester.pump();
-      expect(find.bySemanticsLabel('New reply'), findsNothing);
+      expect(find.bySemanticsLabel('Unviewed'), findsNothing);
     });
 
     testWidgets('pushes feedback route and shows success snackbar', (

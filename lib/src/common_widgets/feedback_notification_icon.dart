@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:snickerdoodle/src/common_widgets/badged_icon.dart';
 import 'package:snickerdoodle/src/config/router/route_names.dart';
 import 'package:snickerdoodle/src/core/providers/feedback_providers.dart';
 import 'package:snickerdoodle/src/features/feedback/presentation/user_feedback_screen.dart';
@@ -17,7 +18,12 @@ class FeedbackNotificationIcon extends ConsumerWidget {
       children: [
         IconButton(
           key: const Key('feedback_notification_icon-open-button'),
-          icon: const Icon(Icons.feedback_outlined),
+          icon: BadgedIcon(
+            icon: Icons.feedback_outlined,
+            showBadge: hasUnread,
+            iconSemanticLabel: 'Feedback',
+            badgeSemanticLabel: 'New reply',
+          ),
           color: Theme.of(context).colorScheme.primary,
           tooltip: hasUnread ? 'Feedback reply' : 'Feedback',
           onPressed: () async {
@@ -47,23 +53,6 @@ class FeedbackNotificationIcon extends ConsumerWidget {
             );
           },
         ),
-        if (hasUnread)
-          Positioned(
-            right: 8,
-            top: 8,
-            child: Semantics(
-              label: 'New reply',
-              container: true,
-              child: Container(
-                padding: const EdgeInsets.all(2),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.error,
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                constraints: const BoxConstraints(minWidth: 12, minHeight: 12),
-              ),
-            ),
-          ),
       ],
     );
   }

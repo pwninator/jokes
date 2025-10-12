@@ -2,6 +2,7 @@ import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:snickerdoodle/src/common_widgets/badged_icon.dart';
 import 'package:snickerdoodle/src/common_widgets/subscription_prompt_overlay.dart';
 import 'package:snickerdoodle/src/config/router/route_guards.dart';
 import 'package:snickerdoodle/src/config/router/route_names.dart';
@@ -22,6 +23,7 @@ import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart'
 import 'package:snickerdoodle/src/features/book_creator/book_creator_screen.dart';
 import 'package:snickerdoodle/src/features/feedback/presentation/feedback_conversation_screen.dart';
 import 'package:snickerdoodle/src/features/feedback/presentation/user_feedback_screen.dart';
+import 'package:snickerdoodle/src/features/jokes/application/joke_category_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/presentation/daily_jokes_screen.dart';
 import 'package:snickerdoodle/src/features/jokes/presentation/saved_jokes_screen.dart';
 import 'package:snickerdoodle/src/features/search/application/discover_tab_state.dart';
@@ -287,19 +289,6 @@ class AppRouter {
 
     // Build navigation items from central config
     final tabs = _visibleTabs(isAdmin);
-    final List<BottomNavigationBarItem> navItems = tabs
-        .map((t) => BottomNavigationBarItem(icon: Icon(t.icon), label: t.label))
-        .toList();
-
-    // Convert to NavigationRail destinations
-    final List<NavigationRailDestination> railDestinations = tabs
-        .map(
-          (t) => NavigationRailDestination(
-            icon: Icon(t.icon),
-            label: Text(t.label),
-          ),
-        )
-        .toList();
 
     final Color selectedColor = Theme.of(context).colorScheme.primary;
     final Color unselectedColor = Theme.of(
@@ -309,6 +298,42 @@ class AppRouter {
     return Consumer(
       builder: (context, ref, _) {
         final resize = ref.watch(keyboardResizeProvider);
+        final hasUnviewed = ref.watch(hasUnviewedCategoriesProvider);
+
+        final iconsAndLabels = tabs.map((tab) {
+          final bool isDiscover = tab.id == TabId.discover;
+          final Widget iconWidget = isDiscover
+              ? BadgedIcon(
+                  key: const Key('app_router-discover-tab-icon'),
+                  icon: tab.icon,
+                  showBadge: hasUnviewed,
+                  iconSemanticLabel: tab.label,
+                  badgeSemanticLabel: 'New Jokes',
+                )
+              : Icon(tab.icon, semanticLabel: tab.label);
+          return (icon: iconWidget, label: tab.label);
+        }).toList();
+
+        // Build BottomNavigationBar items with possible badge for Discover tab
+        final List<BottomNavigationBarItem> navItems = iconsAndLabels.map((
+          iconAndLabel,
+        ) {
+          return BottomNavigationBarItem(
+            icon: iconAndLabel.icon,
+            label: iconAndLabel.label,
+          );
+        }).toList();
+
+        // Build NavigationRail destinations with possible badge for Discover tab
+        final List<NavigationRailDestination> railDestinations = iconsAndLabels
+            .map((iconAndLabel) {
+              return NavigationRailDestination(
+                icon: iconAndLabel.icon,
+                label: Text(iconAndLabel.label),
+              );
+            })
+            .toList();
+
         return Scaffold(
           resizeToAvoidBottomInset: resize,
           body: isLandscape

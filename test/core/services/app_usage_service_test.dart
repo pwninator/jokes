@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/review_prompt_state_store.dart';
+import 'package:snickerdoodle/src/data/jokes/joke_interactions_repository.dart';
 import 'package:snickerdoodle/src/data/jokes/category_interactions_repository.dart';
 import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
@@ -22,6 +23,9 @@ class _MockReviewPromptStateStore extends Mock
 
 class _MockCategoryInteractionsService extends Mock
     implements CategoryInteractionsRepository {}
+
+class _MockJokeInteractionsRepository extends Mock
+    implements JokeInteractionsRepository {}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -65,6 +69,7 @@ void main() {
           analyticsService: mockAnalytics,
           jokeCloudFn: mockJokeCloudFn,
           categoryInteractionsService: _MockCategoryInteractionsService(),
+          jokeInteractionsRepository: _MockJokeInteractionsRepository(),
         );
 
         await service.logAppUsage();
@@ -103,6 +108,7 @@ void main() {
         analyticsService: mockAnalytics,
         jokeCloudFn: mockJokeCloudFn,
         categoryInteractionsService: _MockCategoryInteractionsService(),
+        jokeInteractionsRepository: _MockJokeInteractionsRepository(),
       );
 
       await service.logAppUsage();
@@ -142,6 +148,7 @@ void main() {
           analyticsService: mockAnalytics,
           jokeCloudFn: mockJokeCloudFn,
           categoryInteractionsService: _MockCategoryInteractionsService(),
+          jokeInteractionsRepository: _MockJokeInteractionsRepository(),
         );
 
         await service.logAppUsage();
@@ -169,11 +176,15 @@ void main() {
   });
 
   group('AppUsageService.logJokeViewed', () {
-    test('increments num_jokes_viewed counter', () async {
+    test('increments num_jokes_viewed counter and writes DB viewed', () async {
       final prefs = await SharedPreferences.getInstance();
       final settingsService = SettingsService(prefs);
       final mockAnalytics = _MockAnalyticsService();
       final mockJokeCloudFn = _MockJokeCloudFunctionService();
+      final mockJokeInteractions = _MockJokeInteractionsRepository();
+      when(
+        () => mockJokeInteractions.setViewed(any()),
+      ).thenAnswer((_) async => true);
       final container = ProviderContainer(
         overrides: [brightnessProvider.overrideWithValue(Brightness.light)],
       );
@@ -184,13 +195,19 @@ void main() {
         analyticsService: mockAnalytics,
         jokeCloudFn: mockJokeCloudFn,
         categoryInteractionsService: _MockCategoryInteractionsService(),
+        jokeInteractionsRepository: mockJokeInteractions,
       );
 
       expect(await service.getNumJokesViewed(), 0);
-      await service.logJokeViewed();
+      await service.logJokeViewed('j1');
       expect(await service.getNumJokesViewed(), 1);
-      await service.logJokeViewed();
+      await service.logJokeViewed('j2');
       expect(await service.getNumJokesViewed(), 2);
+
+      // Allow microtask to run
+      await Future<void>.delayed(Duration.zero);
+      verify(() => mockJokeInteractions.setViewed('j1')).called(1);
+      verify(() => mockJokeInteractions.setViewed('j2')).called(1);
     });
   });
 
@@ -210,6 +227,7 @@ void main() {
           analyticsService: mockAnalytics,
           jokeCloudFn: mockJokeCloudFn,
           categoryInteractionsService: _MockCategoryInteractionsService(),
+          jokeInteractionsRepository: _MockJokeInteractionsRepository(),
         );
 
         expect(await service.getNumSavedJokes(), 0);
@@ -242,6 +260,7 @@ void main() {
         analyticsService: mockAnalytics,
         jokeCloudFn: mockJokeCloudFn,
         categoryInteractionsService: _MockCategoryInteractionsService(),
+        jokeInteractionsRepository: _MockJokeInteractionsRepository(),
       );
 
       expect(await service.getNumSharedJokes(), 0);
@@ -288,6 +307,7 @@ void main() {
         jokeCloudFn: mockJokeCloudFn,
         isDebugMode: false,
         categoryInteractionsService: _MockCategoryInteractionsService(),
+        jokeInteractionsRepository: _MockJokeInteractionsRepository(),
       );
 
       // Simulate a new day to trigger _pushUsageSnapshot

@@ -98,7 +98,9 @@ void main() {
     ).thenAnswer((_) async {});
 
     // App usage stubs required by full-view flow
-    when(() => mockAppUsageService.logJokeViewed()).thenAnswer((_) async {});
+    when(
+      () => mockAppUsageService.logJokeViewed(any()),
+    ).thenAnswer((_) async {});
     when(
       () => mockAppUsageService.getNumJokesViewed(),
     ).thenAnswer((_) async => 1);

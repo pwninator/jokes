@@ -805,61 +805,63 @@ void mainCountsAndButtonsSuite() {
         expect(find.byType(AdminApprovalControls), findsNothing);
       });
 
-      testWidgets('shows admin rating buttons when showAdminRatingButtons is true', (
-        tester,
-      ) async {
-        // arrange
-        const joke = Joke(
-          id: 'test-joke-1',
-          setupText: 'Setup text',
-          punchlineText: 'Punchline text',
-          setupImageUrl: 'https://example.com/setup.jpg',
-          punchlineImageUrl: 'https://example.com/punchline.jpg',
-        );
+      testWidgets(
+        'shows admin rating buttons when showAdminRatingButtons is true',
+        (tester) async {
+          // arrange
+          const joke = Joke(
+            id: 'test-joke-1',
+            setupText: 'Setup text',
+            punchlineText: 'Punchline text',
+            setupImageUrl: 'https://example.com/setup.jpg',
+            punchlineImageUrl: 'https://example.com/punchline.jpg',
+          );
 
-        const widget = JokeImageCarousel(
-          joke: joke,
-          showSaveButton: false,
-          showAdminRatingButtons: true,
-          jokeContext: 'test',
-        );
+          const widget = JokeImageCarousel(
+            joke: joke,
+            showSaveButton: false,
+            showAdminRatingButtons: true,
+            jokeContext: 'test',
+          );
 
-        // act
-        await tester.pumpWidget(createTestWidget(child: widget));
-        await tester.pump();
+          // act
+          await tester.pumpWidget(createTestWidget(child: widget));
+          await tester.pump();
 
-        // assert
-        expect(find.byType(SaveJokeButton), findsNothing);
-        expect(find.byType(AdminApprovalControls), findsOneWidget);
-      });
+          // assert
+          expect(find.byType(SaveJokeButton), findsNothing);
+          expect(find.byType(AdminApprovalControls), findsOneWidget);
+        },
+      );
 
-      testWidgets('hides admin rating buttons when showAdminRatingButtons is false', (
-        tester,
-      ) async{
-        // arrange
-        const joke = Joke(
-          id: 'test-joke-1',
-          setupText: 'Setup text',
-          punchlineText: 'Punchline text',
-          setupImageUrl: 'https://example.com/setup.jpg',
-          punchlineImageUrl: 'https://example.com/punchline.jpg',
-        );
+      testWidgets(
+        'hides admin rating buttons when showAdminRatingButtons is false',
+        (tester) async {
+          // arrange
+          const joke = Joke(
+            id: 'test-joke-1',
+            setupText: 'Setup text',
+            punchlineText: 'Punchline text',
+            setupImageUrl: 'https://example.com/setup.jpg',
+            punchlineImageUrl: 'https://example.com/punchline.jpg',
+          );
 
-        const widget = JokeImageCarousel(
-          joke: joke,
-          showSaveButton: true,
-          showAdminRatingButtons: false,
-          jokeContext: 'test',
-        );
+          const widget = JokeImageCarousel(
+            joke: joke,
+            showSaveButton: true,
+            showAdminRatingButtons: false,
+            jokeContext: 'test',
+          );
 
-        // act
-        await tester.pumpWidget(createTestWidget(child: widget));
-        await tester.pump();
+          // act
+          await tester.pumpWidget(createTestWidget(child: widget));
+          await tester.pump();
 
-        // assert
-        expect(find.byType(SaveJokeButton), findsOneWidget);
-        expect(find.byType(AdminApprovalControls), findsNothing);
-      });
+          // assert
+          expect(find.byType(SaveJokeButton), findsOneWidget);
+          expect(find.byType(AdminApprovalControls), findsNothing);
+        },
+      );
 
       testWidgets(
         'shows both save and admin rating buttons when both flags are true',

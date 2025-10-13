@@ -176,7 +176,6 @@ void main() {
           expect(rule.evaluate(jokeEmptyImages, testContext), isFalse);
         });
       });
-
     });
 
     group('JokeEligibilityHelpers', () {

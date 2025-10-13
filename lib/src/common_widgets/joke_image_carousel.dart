@@ -210,7 +210,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
     if (_setupThresholdMet && _punchlineThresholdMet) {
       _jokeViewedLogged = true;
       final appUsageService = ref.read(appUsageServiceProvider);
-      await appUsageService.logJokeViewed();
+      await appUsageService.logJokeViewed(widget.joke.id);
       final jokesViewedCount = await appUsageService.getNumJokesViewed();
       // Re-check mounted before any further ref.read calls after awaits
       if (!mounted) return;

@@ -89,7 +89,7 @@ void main() {
     tester,
   ) async {
     // Arrange delayed usage calls to simulate in-flight awaits
-    when(() => mockAppUsageService.logJokeViewed()).thenAnswer((_) async {
+    when(() => mockAppUsageService.logJokeViewed(any())).thenAnswer((_) async {
       await Future<void>.delayed(const Duration(milliseconds: 100));
     });
     when(() => mockAppUsageService.getNumJokesViewed()).thenAnswer((_) async {

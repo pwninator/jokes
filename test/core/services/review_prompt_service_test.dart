@@ -125,7 +125,7 @@ void main() {
       when(() => usage.getNumJokesViewed()).thenAnswer((_) async => 0);
       when(() => usage.incrementSavedJokesCount()).thenAnswer((_) async {});
       when(() => usage.incrementSharedJokesCount()).thenAnswer((_) async {});
-      when(() => usage.logJokeViewed()).thenAnswer((_) async {});
+      when(() => usage.logJokeViewed(any())).thenAnswer((_) async {});
     });
 
     testWidgets('early return when already requested', (tester) async {

@@ -9,6 +9,7 @@ import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/review_prompt_state_store.dart';
 import 'package:snickerdoodle/src/data/jokes/category_interactions_repository.dart';
+import 'package:snickerdoodle/src/data/jokes/joke_interactions_repository.dart';
 import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
 import 'package:snickerdoodle/src/features/settings/application/brightness_provider.dart';
@@ -24,12 +25,16 @@ AppUsageService appUsageService(Ref ref) {
   final categoryInteractionsService = ref.read(
     categoryInteractionsRepositoryProvider,
   );
+  final jokeInteractionsRepository = ref.read(
+    jokeInteractionsRepositoryProvider,
+  );
   return AppUsageService(
     ref: ref,
     settingsService: settingsService,
     analyticsService: analyticsService,
     jokeCloudFn: jokeCloudFn,
     categoryInteractionsService: categoryInteractionsService,
+    jokeInteractionsRepository: jokeInteractionsRepository,
     isDebugMode: kDebugMode,
   );
 }
@@ -42,12 +47,14 @@ class AppUsageService {
     required AnalyticsService analyticsService,
     required JokeCloudFunctionService jokeCloudFn,
     required CategoryInteractionsRepository categoryInteractionsService,
+    required JokeInteractionsRepository jokeInteractionsRepository,
     bool? isDebugMode,
   }) : _settings = settingsService,
        _analyticsService = analyticsService,
        _ref = ref,
        _jokeCloudFn = jokeCloudFn,
        _categoryInteractions = categoryInteractionsService,
+       _jokeInteractions = jokeInteractionsRepository,
        _isDebugMode = isDebugMode;
 
   final Ref _ref;
@@ -55,6 +62,7 @@ class AppUsageService {
   final AnalyticsService _analyticsService;
   final JokeCloudFunctionService _jokeCloudFn;
   final CategoryInteractionsRepository _categoryInteractions;
+  final JokeInteractionsRepository _jokeInteractions;
   final bool? _isDebugMode;
 
   // Preference keys
@@ -123,11 +131,20 @@ class AppUsageService {
   ///
   /// The caller should ensure business rules are satisfied
   /// (e.g., both setup and punchline images viewed for at least 2 seconds each).
-  Future<void> logJokeViewed() async {
+  Future<void> logJokeViewed(String jokeId) async {
     final int oldCount = _settings.getInt(_numJokesViewedKey) ?? 0;
     final int newCount = oldCount + 1;
     await _settings.setInt(_numJokesViewedKey, newCount);
     _notifyUsageChanged();
+
+    // Fire-and-forget DB write of viewed timestamp
+    scheduleMicrotask(() async {
+      try {
+        await _jokeInteractions.setViewed(jokeId);
+      } catch (e) {
+        AppLogger.warn('APP_USAGE logJokeViewed DB error: $e');
+      }
+    });
 
     // Fire-and-forget usage snapshot to backend
     _pushUsageSnapshot();

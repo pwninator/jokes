@@ -31,7 +31,10 @@ void main() {
 
   setUp(() {
     db = AppDatabase.inMemory();
-    service = JokeInteractionsRepository(performanceService: _NoopPerf(), db: db);
+    service = JokeInteractionsRepository(
+      performanceService: _NoopPerf(),
+      db: db,
+    );
   });
 
   tearDown(() async {

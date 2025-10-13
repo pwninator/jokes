@@ -13,6 +13,7 @@ import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:snickerdoodle/src/core/services/review_prompt_service.dart';
 import 'package:snickerdoodle/src/data/jokes/category_interactions_repository.dart';
+import 'package:snickerdoodle/src/data/jokes/joke_interactions_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_service.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
@@ -39,6 +40,9 @@ class MockJokeCloudFunctionService extends Mock
 
 class _MockCategoryInteractionsService extends Mock
     implements CategoryInteractionsRepository {}
+
+class MockJokeInteractionsRepository extends Mock
+    implements JokeInteractionsRepository {}
 
 class FakeJoke extends Fake implements Joke {}
 
@@ -94,6 +98,7 @@ void main() {
         analyticsService: mockAnalyticsService,
         jokeCloudFn: MockJokeCloudFunctionService(),
         categoryInteractionsService: _MockCategoryInteractionsService(),
+        jokeInteractionsRepository: MockJokeInteractionsRepository(),
       );
       when(
         () => mockRemoteConfigValues.getEnum<ShareImagesMode>(

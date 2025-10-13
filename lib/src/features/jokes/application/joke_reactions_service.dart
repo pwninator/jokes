@@ -17,12 +17,12 @@ JokeReactionsService jokeReactionsService(Ref ref) {
   final jokeRepository = ref.watch(jokeRepositoryProvider);
   final appUsageService = ref.watch(appUsageServiceProvider);
   final reviewCoordinator = ref.watch(reviewPromptCoordinatorProvider);
-  final interactions = ref.watch(jokeInteractionsRepositoryProvider);
+  final interactionsRepository = ref.watch(jokeInteractionsRepositoryProvider);
   return JokeReactionsService(
     jokeRepository: jokeRepository,
     appUsageService: appUsageService,
     reviewPromptCoordinator: reviewCoordinator,
-    interactionsService: interactions,
+    interactionsRepository: interactionsRepository,
   );
 }
 
@@ -30,22 +30,22 @@ class JokeReactionsService {
   final JokeRepository _jokeRepository;
   final AppUsageService _appUsageService;
   final ReviewPromptCoordinator _reviewPromptCoordinator;
-  final JokeInteractionsRepository _interactionsService;
+  final JokeInteractionsRepository _interactionsRepository;
 
   JokeReactionsService({
     required JokeRepository jokeRepository,
     required AppUsageService appUsageService,
     required ReviewPromptCoordinator reviewPromptCoordinator,
-    required JokeInteractionsRepository interactionsService,
+    required JokeInteractionsRepository interactionsRepository,
   }) : _jokeRepository = jokeRepository,
        _appUsageService = appUsageService,
        _reviewPromptCoordinator = reviewPromptCoordinator,
-       _interactionsService = interactionsService;
+       _interactionsRepository = interactionsRepository;
 
   /// Get all user reactions for all jokes
   /// Returns a map: jokeId -> Set of active reaction types
   Future<Map<String, Set<JokeReactionType>>> getAllUserReactions() async {
-    final interactions = await _interactionsService.getAllJokeInteractions();
+    final interactions = await _interactionsRepository.getAllJokeInteractions();
     final Map<String, Set<JokeReactionType>> result = {};
     for (final ji in interactions) {
       final set = <JokeReactionType>{};
@@ -60,13 +60,13 @@ class JokeReactionsService {
 
   /// Get saved joke IDs in the order they were saved to SharedPreferences
   Future<List<String>> getSavedJokeIds() async {
-    final rows = await _interactionsService.getSavedJokeInteractions();
+    final rows = await _interactionsRepository.getSavedJokeInteractions();
     return rows.map((r) => r.jokeId).toList(growable: false);
   }
 
   /// Get user reactions for a specific joke
   Future<Set<JokeReactionType>> getUserReactionsForJoke(String jokeId) async {
-    final jokeInteraction = await _interactionsService.getJokeInteraction(
+    final jokeInteraction = await _interactionsRepository.getJokeInteraction(
       jokeId,
     );
     if (jokeInteraction == null) return <JokeReactionType>{};
@@ -97,10 +97,10 @@ class JokeReactionsService {
     required BuildContext context,
   }) async {
     if (reactionType == JokeReactionType.save) {
-      await _interactionsService.setSaved(jokeId);
+      await _interactionsRepository.setSaved(jokeId);
       await _appUsageService.incrementSavedJokesCount();
     } else if (reactionType == JokeReactionType.share) {
-      await _interactionsService.setShared(jokeId);
+      await _interactionsRepository.setShared(jokeId);
     }
 
     if (context.mounted &&
@@ -128,7 +128,7 @@ class JokeReactionsService {
       throw ArgumentError('Share reaction cannot be removed');
     }
     if (reactionType == JokeReactionType.save) {
-      await _interactionsService.setUnsaved(jokeId);
+      await _interactionsRepository.setUnsaved(jokeId);
       await _appUsageService.decrementSavedJokesCount();
       _handleFirestoreUpdateAsync(jokeId, reactionType, -1);
     }

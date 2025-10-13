@@ -69,6 +69,7 @@ void main() {
         analyticsService: mockAnalytics,
         jokeCloudFn: mockJokeCloudFn,
         categoryInteractionsService: _MockCategoryInteractionsService(),
+        jokeInteractionsRepository: MockJokeInteractionsService(),
       );
       mockCoordinator = MockReviewPromptCoordinator();
       mockRepository = MockJokeRepository();
@@ -162,7 +163,7 @@ void main() {
         appUsageService: appUsageService,
         reviewPromptCoordinator: mockCoordinator,
         jokeRepository: mockRepository,
-        interactionsService: mockInteractions,
+        interactionsRepository: mockInteractions,
       );
       fakeContext = FakeBuildContext();
     });

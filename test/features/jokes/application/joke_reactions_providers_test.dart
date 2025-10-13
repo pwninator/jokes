@@ -37,68 +37,65 @@ void main() {
     });
 
     group('toggleReaction', () {
-      test(
-        'should handle save reaction toggle',
-        () async {
-          // arrange
-          const jokeId = 'test-joke';
+      test('should handle save reaction toggle', () async {
+        // arrange
+        const jokeId = 'test-joke';
 
-          // Mock initial state: no reactions
-          when(
-            () => mockReactionsService.getAllUserReactions(),
-          ).thenAnswer((_) async => <String, Set<JokeReactionType>>{});
-          when(
-            () => mockReactionsService.getSavedJokeIds(),
-          ).thenAnswer((_) async => <String>[]);
+        // Mock initial state: no reactions
+        when(
+          () => mockReactionsService.getAllUserReactions(),
+        ).thenAnswer((_) async => <String, Set<JokeReactionType>>{});
+        when(
+          () => mockReactionsService.getSavedJokeIds(),
+        ).thenAnswer((_) async => <String>[]);
 
-          // Mock service calls
-          when(
-            () => mockReactionsService.toggleUserReaction(
-              jokeId,
-              JokeReactionType.save,
-              context: any(named: 'context'),
-            ),
-          ).thenAnswer((_) async => true); // returns true when adding
-
-          // act
-          final container = ProviderContainer(
-            overrides: [
-              jokeReactionsServiceProvider.overrideWithValue(
-                mockReactionsService,
-              ),
-            ],
-          );
-
-          final notifier = container.read(jokeReactionsProvider.notifier);
-
-          // Wait for initial load to complete
-          await Future.delayed(const Duration(milliseconds: 10));
-
-          // Toggle save
-          await notifier.toggleReaction(
+        // Mock service calls
+        when(
+          () => mockReactionsService.toggleUserReaction(
             jokeId,
             JokeReactionType.save,
-            jokeContext: 'test',
-            context: fakeContext,
-          );
+            context: any(named: 'context'),
+          ),
+        ).thenAnswer((_) async => true); // returns true when adding
 
-          // assert
-          verify(
-            () => mockReactionsService.toggleUserReaction(
-              jokeId,
-              JokeReactionType.save,
-              context: any(named: 'context'),
+        // act
+        final container = ProviderContainer(
+          overrides: [
+            jokeReactionsServiceProvider.overrideWithValue(
+              mockReactionsService,
             ),
-          ).called(1);
+          ],
+        );
 
-          // Should not call removeUserReaction for any reaction type
-          verifyNever(
-            () => mockReactionsService.removeUserReaction(any(), any()),
-          );
+        final notifier = container.read(jokeReactionsProvider.notifier);
 
-          container.dispose();
-        },
-      );
+        // Wait for initial load to complete
+        await Future.delayed(const Duration(milliseconds: 10));
+
+        // Toggle save
+        await notifier.toggleReaction(
+          jokeId,
+          JokeReactionType.save,
+          jokeContext: 'test',
+          context: fakeContext,
+        );
+
+        // assert
+        verify(
+          () => mockReactionsService.toggleUserReaction(
+            jokeId,
+            JokeReactionType.save,
+            context: any(named: 'context'),
+          ),
+        ).called(1);
+
+        // Should not call removeUserReaction for any reaction type
+        verifyNever(
+          () => mockReactionsService.removeUserReaction(any(), any()),
+        );
+
+        container.dispose();
+      });
 
       test(
         'should handle share reaction toggle without removing opposite',

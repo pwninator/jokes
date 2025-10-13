@@ -168,11 +168,7 @@ void main() {
       // Mock successful auto-fill
       when(() => mockJokeRepository.getJokes()).thenAnswer(
         (_) => Stream.value([
-          Joke(
-            id: 'joke1',
-            setupText: 'Setup 1',
-            punchlineText: 'Punchline 1',
-          ),
+          Joke(id: 'joke1', setupText: 'Setup 1', punchlineText: 'Punchline 1'),
         ]),
       );
 

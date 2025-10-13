@@ -6,11 +6,11 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/review_prompt_state_store.dart';
+import 'package:snickerdoodle/src/data/jokes/category_interactions_repository.dart';
 import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
 import 'package:snickerdoodle/src/features/settings/application/brightness_provider.dart';
 import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
-import 'package:snickerdoodle/src/data/jokes/category_interactions_service.dart';
 
 class _MockAnalyticsService extends Mock implements AnalyticsService {}
 
@@ -21,7 +21,7 @@ class _MockReviewPromptStateStore extends Mock
     implements ReviewPromptStateStore {}
 
 class _MockCategoryInteractionsService extends Mock
-    implements CategoryInteractionsService {}
+    implements CategoryInteractionsRepository {}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

@@ -7,7 +7,9 @@ import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/app_review_service.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/review_prompt_service.dart';
-import 'package:snickerdoodle/src/data/jokes/category_interactions_service.dart';
+import 'package:snickerdoodle/src/data/core/database/app_database.dart';
+import 'package:snickerdoodle/src/data/jokes/category_interactions_repository.dart';
+import 'package:snickerdoodle/src/data/jokes/joke_interactions_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_service.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
@@ -25,7 +27,10 @@ class MockJokeCloudFunctionService extends Mock
     implements JokeCloudFunctionService {}
 
 class _MockCategoryInteractionsService extends Mock
-    implements CategoryInteractionsService {}
+    implements CategoryInteractionsRepository {}
+
+class MockJokeInteractionsService extends Mock
+    implements JokeInteractionsRepository {}
 
 class FakeBuildContext extends Fake implements BuildContext {
   @override
@@ -45,6 +50,10 @@ void main() {
     late AppUsageService appUsageService;
     late MockReviewPromptCoordinator mockCoordinator;
     late BuildContext fakeContext;
+    late MockJokeInteractionsService mockInteractions;
+    late List<String> savedOrder;
+    late Set<String> savedSet;
+    late Set<String> sharedSet;
 
     setUp(() async {
       SharedPreferences.setMockInitialValues({});
@@ -63,6 +72,82 @@ void main() {
       );
       mockCoordinator = MockReviewPromptCoordinator();
       mockRepository = MockJokeRepository();
+      mockInteractions = MockJokeInteractionsService();
+
+      // In-memory state backing the mock interactions
+      savedOrder = <String>[];
+      savedSet = <String>{};
+      sharedSet = <String>{};
+
+      // Reads now use DB interactions API
+      when(() => mockInteractions.getJokeInteraction(any())).thenAnswer((
+        inv,
+      ) async {
+        final id = inv.positionalArguments[0] as String;
+        if (!savedSet.contains(id) && !sharedSet.contains(id)) return null;
+        final now = DateTime.now();
+        return JokeInteraction(
+          jokeId: id,
+          viewedTimestamp: null,
+          savedTimestamp: savedSet.contains(id) ? now : null,
+          sharedTimestamp: sharedSet.contains(id) ? now : null,
+          lastUpdateTimestamp: now,
+        );
+      });
+      when(() => mockInteractions.getAllJokeInteractions()).thenAnswer((
+        _,
+      ) async {
+        final now = DateTime.now();
+        final ids = {...savedSet, ...sharedSet};
+        return ids
+            .map(
+              (id) => JokeInteraction(
+                jokeId: id,
+                viewedTimestamp: null,
+                savedTimestamp: savedSet.contains(id) ? now : null,
+                sharedTimestamp: sharedSet.contains(id) ? now : null,
+                lastUpdateTimestamp: now,
+              ),
+            )
+            .toList();
+      });
+      when(() => mockInteractions.getSavedJokeInteractions()).thenAnswer((
+        _,
+      ) async {
+        final now = DateTime.now();
+        return savedOrder
+            .map(
+              (id) => JokeInteraction(
+                jokeId: id,
+                viewedTimestamp: null,
+                savedTimestamp: now,
+                sharedTimestamp: sharedSet.contains(id) ? now : null,
+                lastUpdateTimestamp: now,
+              ),
+            )
+            .toList();
+      });
+
+      // Writes
+      when(() => mockInteractions.setSaved(any())).thenAnswer((inv) async {
+        final id = inv.positionalArguments[0] as String;
+        if (!savedSet.contains(id)) {
+          savedSet.add(id);
+          savedOrder.add(id);
+        }
+        return true;
+      });
+      when(() => mockInteractions.setUnsaved(any())).thenAnswer((inv) async {
+        final id = inv.positionalArguments[0] as String;
+        savedSet.remove(id);
+        savedOrder.removeWhere((e) => e == id);
+        return true;
+      });
+      when(() => mockInteractions.setShared(any())).thenAnswer((inv) async {
+        final id = inv.positionalArguments[0] as String;
+        sharedSet.add(id);
+        return true;
+      });
       when(
         () => mockCoordinator.maybePromptForReview(
           source: any(named: 'source'),
@@ -77,6 +162,7 @@ void main() {
         appUsageService: appUsageService,
         reviewPromptCoordinator: mockCoordinator,
         jokeRepository: mockRepository,
+        interactionsService: mockInteractions,
       );
       fakeContext = FakeBuildContext();
     });
@@ -89,7 +175,8 @@ void main() {
     group('getAllUserReactions', () {
       test('returns empty map when no reactions exist', () async {
         // Arrange
-        SharedPreferences.setMockInitialValues({});
+        savedSet.clear();
+        sharedSet.clear();
 
         // Act
         final result = await service.getAllUserReactions();
@@ -100,10 +187,12 @@ void main() {
 
       test('returns all user reactions grouped by joke ID', () async {
         // Arrange
-        SharedPreferences.setMockInitialValues({
-          'user_reactions_save': ['joke1', 'joke2'],
-          'user_reactions_share': ['joke1', 'joke3'],
-        });
+        savedSet
+          ..clear()
+          ..addAll(['joke1', 'joke2']);
+        sharedSet
+          ..clear()
+          ..addAll(['joke1', 'joke3']);
 
         // Act
         final result = await service.getAllUserReactions();
@@ -120,7 +209,7 @@ void main() {
     group('getSavedJokeIds', () {
       test('returns empty list when no saved jokes exist', () async {
         // Arrange
-        SharedPreferences.setMockInitialValues({});
+        savedOrder.clear();
 
         // Act
         final result = await service.getSavedJokeIds();
@@ -131,9 +220,12 @@ void main() {
 
       test('returns saved joke IDs in order they were saved', () async {
         // Arrange
-        SharedPreferences.setMockInitialValues({
-          'user_reactions_save': ['joke1', 'joke3', 'joke2'],
-        });
+        savedOrder
+          ..clear()
+          ..addAll(['joke1', 'joke3', 'joke2']);
+        savedSet
+          ..clear()
+          ..addAll(savedOrder);
 
         // Act
         final result = await service.getSavedJokeIds();
@@ -146,7 +238,8 @@ void main() {
     group('getUserReactionsForJoke', () {
       test('returns empty set when joke has no reactions', () async {
         // Arrange
-        SharedPreferences.setMockInitialValues({});
+        savedSet.clear();
+        sharedSet.clear();
 
         // Act
         final result = await service.getUserReactionsForJoke('joke1');
@@ -157,10 +250,12 @@ void main() {
 
       test('returns correct reactions for specific joke', () async {
         // Arrange
-        SharedPreferences.setMockInitialValues({
-          'user_reactions_save': ['joke1', 'joke2'],
-          'user_reactions_share': ['joke1', 'joke3'],
-        });
+        savedSet
+          ..clear()
+          ..addAll(['joke1', 'joke2']);
+        sharedSet
+          ..clear()
+          ..addAll(['joke1', 'joke3']);
 
         // Act
         final result = await service.getUserReactionsForJoke('joke1');
@@ -173,7 +268,8 @@ void main() {
     group('hasUserReaction', () {
       test('returns false when reaction does not exist', () async {
         // Arrange
-        SharedPreferences.setMockInitialValues({});
+        savedSet.clear();
+        sharedSet.clear();
 
         // Act
         final result = await service.hasUserReaction(
@@ -187,9 +283,9 @@ void main() {
 
       test('returns true when reaction exists', () async {
         // Arrange
-        SharedPreferences.setMockInitialValues({
-          'user_reactions_save': ['joke1'],
-        });
+        savedSet
+          ..clear()
+          ..add('joke1');
 
         // Act
         final result = await service.hasUserReaction(
@@ -203,9 +299,9 @@ void main() {
 
       test('returns false for different reaction type', () async {
         // Arrange
-        SharedPreferences.setMockInitialValues({
-          'user_reactions_save': ['joke1'],
-        });
+        savedSet
+          ..clear()
+          ..add('joke1');
 
         // Act
         final result = await service.hasUserReaction(
@@ -221,7 +317,7 @@ void main() {
     group('addUserReaction', () {
       test('adds reaction to empty list', () async {
         // Arrange
-        SharedPreferences.setMockInitialValues({});
+        savedSet.clear();
 
         // Act
         await service.addUserReaction(
@@ -240,9 +336,9 @@ void main() {
 
       test('adds reaction to existing list', () async {
         // Arrange
-        SharedPreferences.setMockInitialValues({
-          'user_reactions_save': ['joke1'],
-        });
+        savedSet
+          ..clear()
+          ..add('joke1');
 
         // Act
         await service.addUserReaction(
@@ -266,9 +362,9 @@ void main() {
 
       test('does not add duplicate reaction', () async {
         // Arrange
-        SharedPreferences.setMockInitialValues({
-          'user_reactions_save': ['joke1'],
-        });
+        savedSet
+          ..clear()
+          ..add('joke1');
 
         // Act
         await service.addUserReaction(
@@ -286,9 +382,12 @@ void main() {
     group('removeUserReaction', () {
       test('removes reaction from list', () async {
         // Arrange
-        SharedPreferences.setMockInitialValues({
-          'user_reactions_save': ['joke1', 'joke2'],
-        });
+        savedSet
+          ..clear()
+          ..addAll(['joke1', 'joke2']);
+        savedOrder
+          ..clear()
+          ..addAll(['joke1', 'joke2']);
 
         // Act
         await service.removeUserReaction('joke1', JokeReactionType.save);
@@ -308,9 +407,12 @@ void main() {
 
       test('handles removing non-existent reaction gracefully', () async {
         // Arrange
-        SharedPreferences.setMockInitialValues({
-          'user_reactions_save': ['joke2'],
-        });
+        savedSet
+          ..clear()
+          ..add('joke2');
+        savedOrder
+          ..clear()
+          ..add('joke2');
 
         // Act
         await service.removeUserReaction('joke1', JokeReactionType.save);
@@ -325,7 +427,8 @@ void main() {
 
       test('handles removing from empty list gracefully', () async {
         // Arrange
-        SharedPreferences.setMockInitialValues({});
+        savedSet.clear();
+        savedOrder.clear();
 
         // Act
         await service.removeUserReaction('joke1', JokeReactionType.save);
@@ -342,7 +445,7 @@ void main() {
     group('toggleUserReaction', () {
       test('adds reaction when not present and returns true', () async {
         // Arrange
-        SharedPreferences.setMockInitialValues({});
+        savedSet.clear();
 
         // Act
         final wasAdded = await service.toggleUserReaction(
@@ -363,9 +466,9 @@ void main() {
 
       test('removes reaction when present and returns false', () async {
         // Arrange
-        SharedPreferences.setMockInitialValues({
-          'user_reactions_save': ['joke1'],
-        });
+        savedSet
+          ..clear()
+          ..add('joke1');
 
         // Act
         final wasAdded = await service.toggleUserReaction(
@@ -386,7 +489,7 @@ void main() {
 
       test('supports multiple toggles correctly', () async {
         // Arrange
-        SharedPreferences.setMockInitialValues({});
+        savedSet.clear();
 
         // Act & Assert - First toggle (add)
         final result1 = await service.toggleUserReaction(
@@ -430,55 +533,50 @@ void main() {
     });
 
     group('non-save reactions do not affect saved counter', () {
-      test('share reaction does not change num_saved_jokes', () async {
-        // Arrange
-        SharedPreferences.setMockInitialValues({});
-        expect(await appUsageService.getNumSavedJokes(), 0);
+      test(
+        'share add does not change num_saved_jokes and removing share throws',
+        () async {
+          // Arrange
+          savedSet.clear();
+          expect(await appUsageService.getNumSavedJokes(), 0);
 
-        // Act - toggle share (add)
-        final added = await service.toggleUserReaction(
-          'j2',
-          JokeReactionType.share,
-          context: fakeContext,
-        );
-        expect(added, isTrue);
-        // Assert
-        expect(await appUsageService.getNumSavedJokes(), 0);
+          // Act - toggle share (add)
+          final added = await service.toggleUserReaction(
+            'j2',
+            JokeReactionType.share,
+            context: fakeContext,
+          );
+          expect(added, isTrue);
+          // Assert
+          expect(await appUsageService.getNumSavedJokes(), 0);
 
-        // Act - toggle share (remove)
-        final removed = await service.toggleUserReaction(
-          'j2',
-          JokeReactionType.share,
-          context: fakeContext,
-        );
-        expect(removed, isFalse);
-        // Assert
-        expect(await appUsageService.getNumSavedJokes(), 0);
-      });
+          // Act & Assert - removing share should throw
+          expect(
+            () => service.toggleUserReaction(
+              'j2',
+              JokeReactionType.share,
+              context: fakeContext,
+            ),
+            throwsA(isA<ArgumentError>()),
+          );
+          expect(await appUsageService.getNumSavedJokes(), 0);
+        },
+      );
     });
 
     group('async Firestore operations', () {
-      late MockJokeRepository mockRepository;
-      late JokeReactionsService serviceWithRepository;
-
       setUp(() {
-        mockRepository = MockJokeRepository();
-        // Default stub for repository - returns completed future
+        // Ensure repository has a default fast behavior; individual tests override
         when(
           () => mockRepository.updateReactionAndPopularity(any(), any(), any()),
         ).thenAnswer((_) async {});
-        serviceWithRepository = JokeReactionsService(
-          jokeRepository: mockRepository,
-          appUsageService: appUsageService,
-          reviewPromptCoordinator: mockCoordinator,
-        );
       });
 
       test(
         'addUserReaction completes immediately even with slow Firestore',
         () async {
           // Arrange
-          SharedPreferences.setMockInitialValues({});
+          savedSet.clear();
 
           // Mock a slow Firestore operation that takes 1 second
           when(
@@ -490,18 +588,18 @@ void main() {
 
           // Act & Assert - The method should complete immediately
           final stopwatch = Stopwatch()..start();
-          await serviceWithRepository.addUserReaction(
+          await service.addUserReaction(
             'joke1',
             JokeReactionType.share,
             context: fakeContext,
           );
           stopwatch.stop();
 
-          // Should complete in much less than 1 second (SharedPreferences is fast)
+          // Should complete in much less than 1 second (local DB is fast)
           expect(stopwatch.elapsedMilliseconds, lessThan(100));
 
-          // Verify SharedPreferences was updated immediately
-          final hasReaction = await serviceWithRepository.hasUserReaction(
+          // Verify local state was updated immediately
+          final hasReaction = await service.hasUserReaction(
             'joke1',
             JokeReactionType.share,
           );
@@ -519,54 +617,30 @@ void main() {
       );
 
       test(
-        'removeUserReaction completes immediately even with slow Firestore',
+        'removeUserReaction throws for share and does not call Firestore',
         () async {
           // Arrange
-          SharedPreferences.setMockInitialValues({
-            'user_reactions_share': ['joke1'],
-          });
+          savedSet.clear();
+          sharedSet
+            ..clear()
+            ..add('joke1');
 
-          // Mock a slow Firestore operation that takes 1 second
-          when(
+          // Act & Assert
+          expect(
+            () => service.removeUserReaction('joke1', JokeReactionType.share),
+            throwsA(isA<ArgumentError>()),
+          );
+
+          // Verify Firestore was NOT called
+          verifyNever(
             () =>
                 mockRepository.updateReactionAndPopularity(any(), any(), any()),
-          ).thenAnswer((_) async {
-            await Future.delayed(const Duration(seconds: 1));
-          });
-
-          // Act & Assert - The method should complete immediately
-          final stopwatch = Stopwatch()..start();
-          await serviceWithRepository.removeUserReaction(
-            'joke1',
-            JokeReactionType.share,
           );
-          stopwatch.stop();
-
-          // Should complete in much less than 1 second (SharedPreferences is fast)
-          expect(stopwatch.elapsedMilliseconds, lessThan(100));
-
-          // Verify SharedPreferences was updated immediately
-          final hasReaction = await serviceWithRepository.hasUserReaction(
-            'joke1',
-            JokeReactionType.share,
-          );
-          expect(hasReaction, isFalse);
-
-          // Verify Firestore was called
-          verify(
-            () => mockRepository.updateReactionAndPopularity(
-              'joke1',
-              JokeReactionType.share,
-              -1,
-            ),
-          ).called(1);
         },
       );
 
-      test('Firestore failures do not affect SharedPreferences state', () async {
+      test('Firestore failures do not affect local reaction state', () async {
         // Arrange
-        SharedPreferences.setMockInitialValues({});
-
         // Mock Firestore to throw an error asynchronously
         when(
           () => mockRepository.updateReactionAndPopularity(any(), any(), any()),
@@ -575,14 +649,14 @@ void main() {
         });
 
         // Act
-        await serviceWithRepository.addUserReaction(
+        await service.addUserReaction(
           'joke1',
           JokeReactionType.share,
           context: fakeContext,
         );
 
         // Assert - SharedPreferences should still be updated despite Firestore error
-        final hasReaction = await serviceWithRepository.hasUserReaction(
+        final hasReaction = await service.hasUserReaction(
           'joke1',
           JokeReactionType.share,
         );
@@ -598,28 +672,37 @@ void main() {
         ).called(1);
       });
 
-      test('works correctly without repository (null repository)', () async {
+      test('save add/remove call repository with correct increments', () async {
         // Arrange
-        SharedPreferences.setMockInitialValues({});
-        final serviceWithoutRepository = JokeReactionsService(
-          jokeRepository: mockRepository,
-          appUsageService: appUsageService,
-          reviewPromptCoordinator: mockCoordinator,
-        );
+        savedSet.clear();
+        when(
+          () => mockRepository.updateReactionAndPopularity(any(), any(), any()),
+        ).thenAnswer((_) async {});
 
-        // Act
-        await serviceWithoutRepository.addUserReaction(
-          'joke1',
-          JokeReactionType.share,
+        // Act - add save
+        await service.addUserReaction(
+          'jA',
+          JokeReactionType.save,
           context: fakeContext,
         );
+        // Act - remove save
+        await service.removeUserReaction('jA', JokeReactionType.save);
 
-        // Assert - Should still work with SharedPreferences
-        final hasReaction = await serviceWithoutRepository.hasUserReaction(
-          'joke1',
-          JokeReactionType.share,
-        );
-        expect(hasReaction, isTrue);
+        // Assert repository calls
+        verify(
+          () => mockRepository.updateReactionAndPopularity(
+            'jA',
+            JokeReactionType.save,
+            1,
+          ),
+        ).called(1);
+        verify(
+          () => mockRepository.updateReactionAndPopularity(
+            'jA',
+            JokeReactionType.save,
+            -1,
+          ),
+        ).called(1);
       });
     });
   });

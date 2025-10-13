@@ -4,18 +4,18 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/data/core/database/app_database.dart';
 
-part 'joke_interactions_service.g.dart';
+part 'joke_interactions_repository.g.dart';
 
 @Riverpod(keepAlive: true)
-JokeInteractionsService jokeInteractionsService(Ref ref) {
+JokeInteractionsRepository jokeInteractionsRepository(Ref ref) {
   final perf = ref.read(performanceServiceProvider);
   final db = ref.read(appDatabaseProvider);
-  final service = JokeInteractionsService(performanceService: perf, db: db);
+  final service = JokeInteractionsRepository(performanceService: perf, db: db);
   return service;
 }
 
-class JokeInteractionsService {
-  JokeInteractionsService({
+class JokeInteractionsRepository {
+  JokeInteractionsRepository({
     required PerformanceService performanceService,
     required AppDatabase db,
   }) : _perf = performanceService,
@@ -44,7 +44,12 @@ class JokeInteractionsService {
     perf: _perf,
   );
 
-  Future<bool> setSaved(String jokeId) async => runWithTrace(
+  Future<bool> setSaved(String jokeId) async {
+    return setSavedAt(jokeId, DateTime.now());
+  }
+
+  /// Set saved at a specific timestamp (used for migrations)
+  Future<bool> setSavedAt(String jokeId, DateTime at) async => runWithTrace(
     name: TraceName.driftSetInteraction,
     traceKey: 'saved',
     body: () async {
@@ -54,7 +59,7 @@ class JokeInteractionsService {
           .insertOnConflictUpdate(
             JokeInteractionsCompanion.insert(
               jokeId: jokeId,
-              savedTimestamp: Value(now),
+              savedTimestamp: Value(at),
               lastUpdateTimestamp: now,
             ),
           );
@@ -64,7 +69,12 @@ class JokeInteractionsService {
     perf: _perf,
   );
 
-  Future<bool> setShared(String jokeId) async => runWithTrace(
+  Future<bool> setShared(String jokeId) async {
+    return setSharedAt(jokeId, DateTime.now());
+  }
+
+  /// Set shared at a specific timestamp (used for migrations)
+  Future<bool> setSharedAt(String jokeId, DateTime at) async => runWithTrace(
     name: TraceName.driftSetInteraction,
     traceKey: 'shared',
     body: () async {
@@ -74,7 +84,7 @@ class JokeInteractionsService {
           .insertOnConflictUpdate(
             JokeInteractionsCompanion.insert(
               jokeId: jokeId,
-              sharedTimestamp: Value(now),
+              sharedTimestamp: Value(at),
               lastUpdateTimestamp: now,
             ),
           );
@@ -131,4 +141,19 @@ class JokeInteractionsService {
     fallback: <JokeInteraction>[],
     perf: _perf,
   );
+
+  Future<JokeInteraction?> getJokeInteraction(String jokeId) async =>
+      runWithTrace(
+        name: TraceName.driftGetInteraction,
+        traceKey: 'joke_interaction',
+        body: () async {
+          final query = _db.select(_db.jokeInteractions)
+            ..where((tbl) => tbl.jokeId.equals(jokeId));
+          final rows = await query.get();
+          if (rows.isEmpty) return null;
+          return rows.first;
+        },
+        fallback: null,
+        perf: _perf,
+      );
 }

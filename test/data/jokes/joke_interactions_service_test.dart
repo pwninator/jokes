@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/data/core/database/app_database.dart';
-import 'package:snickerdoodle/src/data/jokes/joke_interactions_service.dart';
+import 'package:snickerdoodle/src/data/jokes/joke_interactions_repository.dart';
 
 class _NoopPerf implements PerformanceService {
   @override
@@ -27,11 +27,11 @@ class _NoopPerf implements PerformanceService {
 
 void main() {
   late AppDatabase db;
-  late JokeInteractionsService service;
+  late JokeInteractionsRepository service;
 
   setUp(() {
     db = AppDatabase.inMemory();
-    service = JokeInteractionsService(performanceService: _NoopPerf(), db: db);
+    service = JokeInteractionsRepository(performanceService: _NoopPerf(), db: db);
   });
 
   tearDown(() async {

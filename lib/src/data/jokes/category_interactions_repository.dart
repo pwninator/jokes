@@ -4,18 +4,21 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/data/core/database/app_database.dart';
 
-part 'category_interactions_service.g.dart';
+part 'category_interactions_repository.g.dart';
 
 @Riverpod(keepAlive: true)
-CategoryInteractionsService categoryInteractionsService(Ref ref) {
+CategoryInteractionsRepository categoryInteractionsRepository(Ref ref) {
   final perf = ref.read(performanceServiceProvider);
   final db = ref.read(appDatabaseProvider);
-  final service = CategoryInteractionsService(performanceService: perf, db: db);
+  final service = CategoryInteractionsRepository(
+    performanceService: perf,
+    db: db,
+  );
   return service;
 }
 
-class CategoryInteractionsService {
-  CategoryInteractionsService({
+class CategoryInteractionsRepository {
+  CategoryInteractionsRepository({
     required PerformanceService performanceService,
     required AppDatabase db,
   }) : _perf = performanceService,

@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/app_review_service.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/review_prompt_service.dart';
+import 'package:snickerdoodle/src/data/jokes/joke_interactions_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
@@ -17,10 +17,12 @@ JokeReactionsService jokeReactionsService(Ref ref) {
   final jokeRepository = ref.watch(jokeRepositoryProvider);
   final appUsageService = ref.watch(appUsageServiceProvider);
   final reviewCoordinator = ref.watch(reviewPromptCoordinatorProvider);
+  final interactions = ref.watch(jokeInteractionsRepositoryProvider);
   return JokeReactionsService(
     jokeRepository: jokeRepository,
     appUsageService: appUsageService,
     reviewPromptCoordinator: reviewCoordinator,
+    interactionsService: interactions,
   );
 }
 
@@ -28,52 +30,54 @@ class JokeReactionsService {
   final JokeRepository _jokeRepository;
   final AppUsageService _appUsageService;
   final ReviewPromptCoordinator _reviewPromptCoordinator;
+  final JokeInteractionsRepository _interactionsService;
 
   JokeReactionsService({
     required JokeRepository jokeRepository,
     required AppUsageService appUsageService,
     required ReviewPromptCoordinator reviewPromptCoordinator,
+    required JokeInteractionsRepository interactionsService,
   }) : _jokeRepository = jokeRepository,
        _appUsageService = appUsageService,
-       _reviewPromptCoordinator = reviewPromptCoordinator;
-
-  Future<SharedPreferences> get _prefs => SharedPreferences.getInstance();
+       _reviewPromptCoordinator = reviewPromptCoordinator,
+       _interactionsService = interactionsService;
 
   /// Get all user reactions for all jokes
   /// Returns a map: jokeId -> Set of active reaction types
   Future<Map<String, Set<JokeReactionType>>> getAllUserReactions() async {
-    final prefs = await _prefs;
-    final Map<String, Set<JokeReactionType>> allReactions = {};
-
-    for (final reactionType in JokeReactionType.values) {
-      final jokeIds = prefs.getStringList(reactionType.prefsKey) ?? [];
-      for (final jokeId in jokeIds) {
-        allReactions[jokeId] ??= <JokeReactionType>{};
-        allReactions[jokeId]!.add(reactionType);
+    final interactions = await _interactionsService.getAllJokeInteractions();
+    final Map<String, Set<JokeReactionType>> result = {};
+    for (final ji in interactions) {
+      final set = <JokeReactionType>{};
+      if (ji.savedTimestamp != null) set.add(JokeReactionType.save);
+      if (ji.sharedTimestamp != null) set.add(JokeReactionType.share);
+      if (set.isNotEmpty) {
+        result[ji.jokeId] = set;
       }
     }
-
-    return allReactions;
+    return result;
   }
 
   /// Get saved joke IDs in the order they were saved to SharedPreferences
   Future<List<String>> getSavedJokeIds() async {
-    final prefs = await _prefs;
-    return prefs.getStringList(JokeReactionType.save.prefsKey) ?? [];
+    final rows = await _interactionsService.getSavedJokeInteractions();
+    return rows.map((r) => r.jokeId).toList(growable: false);
   }
 
   /// Get user reactions for a specific joke
   Future<Set<JokeReactionType>> getUserReactionsForJoke(String jokeId) async {
-    final prefs = await _prefs;
-    final Set<JokeReactionType> reactions = {};
+    final jokeInteraction = await _interactionsService.getJokeInteraction(
+      jokeId,
+    );
+    if (jokeInteraction == null) return <JokeReactionType>{};
 
-    for (final reactionType in JokeReactionType.values) {
-      final jokeIds = prefs.getStringList(reactionType.prefsKey) ?? [];
-      if (jokeIds.contains(jokeId)) {
-        reactions.add(reactionType);
-      }
+    final reactions = <JokeReactionType>{};
+    if (jokeInteraction.savedTimestamp != null) {
+      reactions.add(JokeReactionType.save);
     }
-
+    if (jokeInteraction.sharedTimestamp != null) {
+      reactions.add(JokeReactionType.share);
+    }
     return reactions;
   }
 
@@ -82,9 +86,8 @@ class JokeReactionsService {
     String jokeId,
     JokeReactionType reactionType,
   ) async {
-    final prefs = await _prefs;
-    final jokeIds = prefs.getStringList(reactionType.prefsKey) ?? [];
-    return jokeIds.contains(jokeId);
+    final reactions = await getUserReactionsForJoke(jokeId);
+    return reactions.contains(reactionType);
   }
 
   /// Add a user reaction
@@ -93,33 +96,27 @@ class JokeReactionsService {
     JokeReactionType reactionType, {
     required BuildContext context,
   }) async {
-    final prefs = await _prefs;
-    final jokeIds = prefs.getStringList(reactionType.prefsKey) ?? [];
-
-    if (!jokeIds.contains(jokeId)) {
-      jokeIds.add(jokeId);
-      await prefs.setStringList(reactionType.prefsKey, jokeIds);
-
-      // Update usage counters for saved reaction
-      if (reactionType == JokeReactionType.save) {
-        await _appUsageService.incrementSavedJokesCount();
-      }
-
-      if (context.mounted &&
-          (reactionType == JokeReactionType.save ||
-              reactionType == JokeReactionType.share)) {
-        // Trigger review check only on successful save addition
-        await _reviewPromptCoordinator.maybePromptForReview(
-          source: reactionType == JokeReactionType.save
-              ? ReviewRequestSource.jokeSaved
-              : ReviewRequestSource.jokeShared,
-          context: context,
-        );
-      }
-
-      // Handle Firestore operations asynchronously without blocking UI
-      _handleFirestoreUpdateAsync(jokeId, reactionType, 1);
+    if (reactionType == JokeReactionType.save) {
+      await _interactionsService.setSaved(jokeId);
+      await _appUsageService.incrementSavedJokesCount();
+    } else if (reactionType == JokeReactionType.share) {
+      await _interactionsService.setShared(jokeId);
     }
+
+    if (context.mounted &&
+        (reactionType == JokeReactionType.save ||
+            reactionType == JokeReactionType.share)) {
+      // Trigger review check only on successful save addition
+      await _reviewPromptCoordinator.maybePromptForReview(
+        source: reactionType == JokeReactionType.save
+            ? ReviewRequestSource.jokeSaved
+            : ReviewRequestSource.jokeShared,
+        context: context,
+      );
+    }
+
+    // Handle Firestore operations asynchronously without blocking UI
+    _handleFirestoreUpdateAsync(jokeId, reactionType, 1);
   }
 
   /// Remove a user reaction
@@ -127,19 +124,12 @@ class JokeReactionsService {
     String jokeId,
     JokeReactionType reactionType,
   ) async {
-    final prefs = await _prefs;
-    final jokeIds = prefs.getStringList(reactionType.prefsKey) ?? [];
-
-    if (jokeIds.contains(jokeId)) {
-      jokeIds.remove(jokeId);
-      await prefs.setStringList(reactionType.prefsKey, jokeIds);
-
-      // Update usage counters for saved reaction
-      if (reactionType == JokeReactionType.save) {
-        await _appUsageService.decrementSavedJokesCount();
-      }
-
-      // Handle Firestore operations asynchronously without blocking UI
+    if (reactionType == JokeReactionType.share) {
+      throw ArgumentError('Share reaction cannot be removed');
+    }
+    if (reactionType == JokeReactionType.save) {
+      await _interactionsService.setUnsaved(jokeId);
+      await _appUsageService.decrementSavedJokesCount();
       _handleFirestoreUpdateAsync(jokeId, reactionType, -1);
     }
   }

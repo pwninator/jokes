@@ -12,12 +12,12 @@ import 'package:snickerdoodle/src/core/services/joke_share_service.dart';
 import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:snickerdoodle/src/core/services/review_prompt_service.dart';
+import 'package:snickerdoodle/src/data/jokes/category_interactions_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_service.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
 import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
-import 'package:snickerdoodle/src/data/jokes/category_interactions_service.dart';
 
 class MockImageService extends Mock implements ImageService {}
 
@@ -38,7 +38,7 @@ class MockJokeCloudFunctionService extends Mock
     implements JokeCloudFunctionService {}
 
 class _MockCategoryInteractionsService extends Mock
-    implements CategoryInteractionsService {}
+    implements CategoryInteractionsRepository {}
 
 class FakeJoke extends Fake implements Joke {}
 
@@ -55,7 +55,7 @@ void main() {
     late MockPlatformShareService mockPlatformShareService;
     late MockPerformanceService mockPerformanceService;
     late AppUsageService appUsageService;
-    late CategoryInteractionsService mockCategoryInteractionsService;
+    late CategoryInteractionsRepository mockCategoryInteractionsService;
     late ReviewPromptCoordinator mockCoordinator;
     late MockRemoteConfigValues mockRemoteConfigValues;
     late BuildContext fakeContext;

@@ -8,7 +8,7 @@ import 'package:snickerdoodle/src/core/providers/app_usage_events_provider.dart'
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/review_prompt_state_store.dart';
-import 'package:snickerdoodle/src/data/jokes/category_interactions_service.dart';
+import 'package:snickerdoodle/src/data/jokes/category_interactions_repository.dart';
 import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
 import 'package:snickerdoodle/src/features/settings/application/brightness_provider.dart';
@@ -22,7 +22,7 @@ AppUsageService appUsageService(Ref ref) {
   final analyticsService = ref.read(analyticsServiceProvider);
   final jokeCloudFn = ref.read(jokeCloudFunctionServiceProvider);
   final categoryInteractionsService = ref.read(
-    categoryInteractionsServiceProvider,
+    categoryInteractionsRepositoryProvider,
   );
   return AppUsageService(
     ref: ref,
@@ -41,7 +41,7 @@ class AppUsageService {
     required SettingsService settingsService,
     required AnalyticsService analyticsService,
     required JokeCloudFunctionService jokeCloudFn,
-    required CategoryInteractionsService categoryInteractionsService,
+    required CategoryInteractionsRepository categoryInteractionsService,
     bool? isDebugMode,
   }) : _settings = settingsService,
        _analyticsService = analyticsService,
@@ -54,7 +54,7 @@ class AppUsageService {
   final SettingsService _settings;
   final AnalyticsService _analyticsService;
   final JokeCloudFunctionService _jokeCloudFn;
-  final CategoryInteractionsService _categoryInteractions;
+  final CategoryInteractionsRepository _categoryInteractions;
   final bool? _isDebugMode;
 
   // Preference keys

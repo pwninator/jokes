@@ -13,6 +13,7 @@ import 'package:snickerdoodle/src/core/services/notification_service.dart';
 import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:snickerdoodle/src/data/core/database/app_database.dart';
+import 'package:snickerdoodle/src/data/jokes/joke_reactions_migration_service.dart';
 import 'package:snickerdoodle/src/features/auth/application/auth_startup_manager.dart';
 import 'package:snickerdoodle/src/startup/startup_task.dart';
 import 'package:snickerdoodle/src/utils/device_utils.dart';
@@ -76,6 +77,11 @@ const List<StartupTask> bestEffortBlockingTasks = [
     id: 'app_usage',
     execute: _initializeAppUsage,
     traceName: TraceName.startupTaskAppUsage,
+  ),
+  StartupTask(
+    id: 'migrate_reactions',
+    execute: _migrateReactionsToDrift,
+    traceName: TraceName.startupTaskMigrateReactions,
   ),
 ];
 
@@ -197,6 +203,16 @@ Future<void> _initializeAppUsage(WidgetRef ref) async {
     );
   } catch (e, stack) {
     AppLogger.fatal('App usage logging failed: $e', stackTrace: stack);
+  }
+}
+
+/// Migrate legacy SharedPreferences reactions to Drift database if needed.
+Future<void> _migrateReactionsToDrift(WidgetRef ref) async {
+  try {
+    final service = ref.read(jokeReactionsMigrationServiceProvider);
+    await service.migrateIfNeeded();
+  } catch (e, stack) {
+    AppLogger.fatal('Reactions migration task failed: $e', stackTrace: stack);
   }
 }
 

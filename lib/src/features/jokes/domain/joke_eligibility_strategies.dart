@@ -29,40 +29,6 @@ class ApprovedStrategy
   }
 }
 
-/// Strategy for highly rated jokes with configurable thresholds
-class HighlyRatedStrategy
-    with JokeEligibilityHelpers
-    implements JokeEligibilityStrategy {
-  final int minThumbsUp;
-  final double minRatio;
-
-  const HighlyRatedStrategy({this.minThumbsUp = 5, this.minRatio = 2.0});
-
-  @override
-  String get name =>
-      'highly_rated_${minThumbsUp}_${minRatio.toStringAsFixed(1)}';
-
-  @override
-  String get description =>
-      'Jokes with $minThumbsUp+ thumbs up and ${minRatio}x ratio';
-
-  @override
-  Future<List<Joke>> getEligibleJokes(
-    List<Joke> allJokes,
-    EligibilityContext context,
-  ) async {
-    return allJokes
-        .where(
-          (joke) =>
-              joke.numThumbsUp >= minThumbsUp &&
-              (joke.numThumbsDown == 0 ||
-                  joke.numThumbsUp / joke.numThumbsDown >= minRatio) &&
-              !isJokeAlreadyScheduled(joke.id, context),
-        )
-        .toList();
-  }
-}
-
 /// Flexible rule-based strategy for complex combinations
 class RuleBasedStrategy
     with JokeEligibilityHelpers
@@ -102,44 +68,6 @@ class RuleBasedStrategy
 // Individual Rules for Composition
 // ============================================================================
 
-/// Rule: Minimum number of thumbs up
-class MinThumbsUpRule implements JokeEligibilityRule {
-  final int minThumbsUp;
-
-  const MinThumbsUpRule(this.minThumbsUp);
-
-  @override
-  String get name => 'min_thumbs_up_$minThumbsUp';
-
-  @override
-  String get description => 'At least $minThumbsUp thumbs up';
-
-  @override
-  bool evaluate(Joke joke, EligibilityContext context) {
-    return joke.numThumbsUp >= minThumbsUp;
-  }
-}
-
-/// Rule: Minimum thumbs up to thumbs down ratio
-class ThumbsRatioRule implements JokeEligibilityRule {
-  final double minRatio;
-
-  const ThumbsRatioRule(this.minRatio);
-
-  @override
-  String get name => 'thumbs_ratio_${minRatio.toStringAsFixed(1)}';
-
-  @override
-  String get description =>
-      'Thumbs up ratio of at least ${minRatio.toStringAsFixed(1)}:1';
-
-  @override
-  bool evaluate(Joke joke, EligibilityContext context) {
-    return joke.numThumbsDown == 0 ||
-        joke.numThumbsUp / joke.numThumbsDown >= minRatio;
-  }
-}
-
 /// Rule: Must have both setup and punchline images
 class HasImagesRule implements JokeEligibilityRule {
   const HasImagesRule();
@@ -156,37 +84,5 @@ class HasImagesRule implements JokeEligibilityRule {
         joke.setupImageUrl!.trim().isNotEmpty &&
         joke.punchlineImageUrl != null &&
         joke.punchlineImageUrl!.trim().isNotEmpty;
-  }
-}
-
-/// Rule: More thumbs up than thumbs down
-class PositiveRatioRule implements JokeEligibilityRule {
-  const PositiveRatioRule();
-
-  @override
-  String get name => 'positive_ratio';
-
-  @override
-  String get description => 'More thumbs up than thumbs down';
-
-  @override
-  bool evaluate(Joke joke, EligibilityContext context) {
-    return joke.numThumbsUp > joke.numThumbsDown;
-  }
-}
-
-/// Rule: Has any thumbs up
-class AnyThumbsUpRule implements JokeEligibilityRule {
-  const AnyThumbsUpRule();
-
-  @override
-  String get name => 'any_thumbs_up';
-
-  @override
-  String get description => 'Has at least one thumbs up';
-
-  @override
-  bool evaluate(Joke joke, EligibilityContext context) {
-    return joke.numThumbsUp > 0;
   }
 }

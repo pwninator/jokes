@@ -2,19 +2,7 @@ import 'package:flutter/material.dart';
 
 enum JokeReactionType {
   save('num_saves', Icons.favorite, Icons.favorite_border, Colors.red),
-  share('num_shares', Icons.share, Icons.share_outlined, Colors.blue),
-  thumbsUp(
-    'num_thumbs_up',
-    Icons.thumb_up,
-    Icons.thumb_up_outlined,
-    Colors.green,
-  ),
-  thumbsDown(
-    'num_thumbs_down',
-    Icons.thumb_down,
-    Icons.thumb_down_outlined,
-    Colors.red,
-  );
+  share('num_shares', Icons.share, Icons.share_outlined, Colors.blue);
 
   const JokeReactionType(
     this.firestoreField,
@@ -45,10 +33,6 @@ enum JokeReactionType {
         return 'Save';
       case JokeReactionType.share:
         return 'Share';
-      case JokeReactionType.thumbsUp:
-        return 'Like';
-      case JokeReactionType.thumbsDown:
-        return 'Dislike';
     }
   }
 }

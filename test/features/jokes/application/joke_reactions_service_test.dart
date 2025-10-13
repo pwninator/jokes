@@ -7,12 +7,12 @@ import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/app_review_service.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/review_prompt_service.dart';
+import 'package:snickerdoodle/src/data/jokes/category_interactions_service.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_service.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
 import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
-import 'package:snickerdoodle/src/data/jokes/category_interactions_service.dart';
 
 class MockJokeRepository extends Mock implements JokeRepository {}
 
@@ -41,6 +41,7 @@ void main() {
 
   group('JokeReactionsService', () {
     late JokeReactionsService service;
+    late MockJokeRepository mockRepository;
     late AppUsageService appUsageService;
     late MockReviewPromptCoordinator mockCoordinator;
     late BuildContext fakeContext;
@@ -61,15 +62,21 @@ void main() {
         categoryInteractionsService: _MockCategoryInteractionsService(),
       );
       mockCoordinator = MockReviewPromptCoordinator();
+      mockRepository = MockJokeRepository();
       when(
         () => mockCoordinator.maybePromptForReview(
           source: any(named: 'source'),
           context: any(named: 'context'),
         ),
       ).thenAnswer((_) async {});
+      // Default stub for repository - returns completed future
+      when(
+        () => mockRepository.updateReactionAndPopularity(any(), any(), any()),
+      ).thenAnswer((_) async {});
       service = JokeReactionsService(
         appUsageService: appUsageService,
         reviewPromptCoordinator: mockCoordinator,
+        jokeRepository: mockRepository,
       );
       fakeContext = FakeBuildContext();
     });
@@ -95,8 +102,7 @@ void main() {
         // Arrange
         SharedPreferences.setMockInitialValues({
           'user_reactions_save': ['joke1', 'joke2'],
-          'user_reactions_share': ['joke1'],
-          'user_reactions_thumbsUp': ['joke3'],
+          'user_reactions_share': ['joke1', 'joke3'],
         });
 
         // Act
@@ -106,7 +112,7 @@ void main() {
         expect(result, {
           'joke1': {JokeReactionType.save, JokeReactionType.share},
           'joke2': {JokeReactionType.save},
-          'joke3': {JokeReactionType.thumbsUp},
+          'joke3': {JokeReactionType.share},
         });
       });
     });
@@ -153,8 +159,7 @@ void main() {
         // Arrange
         SharedPreferences.setMockInitialValues({
           'user_reactions_save': ['joke1', 'joke2'],
-          'user_reactions_share': ['joke1'],
-          'user_reactions_thumbsUp': ['joke2', 'joke3'],
+          'user_reactions_share': ['joke1', 'joke3'],
         });
 
         // Act
@@ -425,26 +430,6 @@ void main() {
     });
 
     group('non-save reactions do not affect saved counter', () {
-      test('thumbsUp add/remove does not change num_saved_jokes', () async {
-        // Arrange
-        SharedPreferences.setMockInitialValues({});
-        expect(await appUsageService.getNumSavedJokes(), 0);
-
-        // Act - add thumbsUp
-        await service.addUserReaction(
-          'j1',
-          JokeReactionType.thumbsUp,
-          context: fakeContext,
-        );
-        // Assert
-        expect(await appUsageService.getNumSavedJokes(), 0);
-
-        // Act - remove thumbsUp
-        await service.removeUserReaction('j1', JokeReactionType.thumbsUp);
-        // Assert
-        expect(await appUsageService.getNumSavedJokes(), 0);
-      });
-
       test('share reaction does not change num_saved_jokes', () async {
         // Arrange
         SharedPreferences.setMockInitialValues({});
@@ -478,6 +463,10 @@ void main() {
 
       setUp(() {
         mockRepository = MockJokeRepository();
+        // Default stub for repository - returns completed future
+        when(
+          () => mockRepository.updateReactionAndPopularity(any(), any(), any()),
+        ).thenAnswer((_) async {});
         serviceWithRepository = JokeReactionsService(
           jokeRepository: mockRepository,
           appUsageService: appUsageService,
@@ -503,7 +492,7 @@ void main() {
           final stopwatch = Stopwatch()..start();
           await serviceWithRepository.addUserReaction(
             'joke1',
-            JokeReactionType.thumbsUp,
+            JokeReactionType.share,
             context: fakeContext,
           );
           stopwatch.stop();
@@ -514,7 +503,7 @@ void main() {
           // Verify SharedPreferences was updated immediately
           final hasReaction = await serviceWithRepository.hasUserReaction(
             'joke1',
-            JokeReactionType.thumbsUp,
+            JokeReactionType.share,
           );
           expect(hasReaction, isTrue);
 
@@ -522,7 +511,7 @@ void main() {
           verify(
             () => mockRepository.updateReactionAndPopularity(
               'joke1',
-              JokeReactionType.thumbsUp,
+              JokeReactionType.share,
               1,
             ),
           ).called(1);
@@ -534,7 +523,7 @@ void main() {
         () async {
           // Arrange
           SharedPreferences.setMockInitialValues({
-            'user_reactions_thumbsUp': ['joke1'],
+            'user_reactions_share': ['joke1'],
           });
 
           // Mock a slow Firestore operation that takes 1 second
@@ -549,7 +538,7 @@ void main() {
           final stopwatch = Stopwatch()..start();
           await serviceWithRepository.removeUserReaction(
             'joke1',
-            JokeReactionType.thumbsUp,
+            JokeReactionType.share,
           );
           stopwatch.stop();
 
@@ -559,7 +548,7 @@ void main() {
           // Verify SharedPreferences was updated immediately
           final hasReaction = await serviceWithRepository.hasUserReaction(
             'joke1',
-            JokeReactionType.thumbsUp,
+            JokeReactionType.share,
           );
           expect(hasReaction, isFalse);
 
@@ -567,7 +556,7 @@ void main() {
           verify(
             () => mockRepository.updateReactionAndPopularity(
               'joke1',
-              JokeReactionType.thumbsUp,
+              JokeReactionType.share,
               -1,
             ),
           ).called(1);
@@ -588,14 +577,14 @@ void main() {
         // Act
         await serviceWithRepository.addUserReaction(
           'joke1',
-          JokeReactionType.thumbsUp,
+          JokeReactionType.share,
           context: fakeContext,
         );
 
         // Assert - SharedPreferences should still be updated despite Firestore error
         final hasReaction = await serviceWithRepository.hasUserReaction(
           'joke1',
-          JokeReactionType.thumbsUp,
+          JokeReactionType.share,
         );
         expect(hasReaction, isTrue);
 
@@ -603,7 +592,7 @@ void main() {
         verify(
           () => mockRepository.updateReactionAndPopularity(
             'joke1',
-            JokeReactionType.thumbsUp,
+            JokeReactionType.share,
             1,
           ),
         ).called(1);
@@ -613,7 +602,7 @@ void main() {
         // Arrange
         SharedPreferences.setMockInitialValues({});
         final serviceWithoutRepository = JokeReactionsService(
-          jokeRepository: null,
+          jokeRepository: mockRepository,
           appUsageService: appUsageService,
           reviewPromptCoordinator: mockCoordinator,
         );
@@ -621,14 +610,14 @@ void main() {
         // Act
         await serviceWithoutRepository.addUserReaction(
           'joke1',
-          JokeReactionType.thumbsUp,
+          JokeReactionType.share,
           context: fakeContext,
         );
 
         // Assert - Should still work with SharedPreferences
         final hasReaction = await serviceWithoutRepository.hasUserReaction(
           'joke1',
-          JokeReactionType.thumbsUp,
+          JokeReactionType.share,
         );
         expect(hasReaction, isTrue);
       });

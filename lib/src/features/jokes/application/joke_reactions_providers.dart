@@ -80,32 +80,6 @@ class JokeReactionsNotifier extends StateNotifier<JokeReactionsState> {
     final bool currentlyHasReaction = currentForJoke.contains(reactionType);
     final bool willAdd = !currentlyHasReaction;
 
-    final bool isThumbs =
-        reactionType == JokeReactionType.thumbsUp ||
-        reactionType == JokeReactionType.thumbsDown;
-    final JokeReactionType? oppositeReaction =
-        reactionType == JokeReactionType.thumbsUp
-        ? JokeReactionType.thumbsDown
-        : (reactionType == JokeReactionType.thumbsDown
-              ? JokeReactionType.thumbsUp
-              : null);
-
-    bool removedOpposite = false;
-
-    // If adding a thumbs reaction and the opposite is present, remove it first (optimistically and in service)
-    if (willAdd &&
-        isThumbs &&
-        oppositeReaction != null &&
-        currentForJoke.contains(oppositeReaction)) {
-      currentForJoke.remove(oppositeReaction);
-      removedOpposite = true;
-      try {
-        await _reactionsService.removeUserReaction(jokeId, oppositeReaction);
-      } catch (_) {
-        // Ignore best-effort opposite removal failures here; main toggle will still attempt
-      }
-    }
-
     // Optimistic toggle for the requested reaction
     if (currentlyHasReaction) {
       currentForJoke.remove(reactionType);
@@ -148,9 +122,6 @@ class JokeReactionsNotifier extends StateNotifier<JokeReactionsState> {
 
       if (willAdd) {
         revertedSet.remove(reactionType);
-        if (removedOpposite && oppositeReaction != null) {
-          revertedSet.add(oppositeReaction);
-        }
       } else {
         revertedSet.add(reactionType);
       }
@@ -174,10 +145,6 @@ class JokeReactionsNotifier extends StateNotifier<JokeReactionsState> {
 
   String _reactionDisplayName(JokeReactionType reactionType) {
     switch (reactionType) {
-      case JokeReactionType.thumbsUp:
-        return 'Like';
-      case JokeReactionType.thumbsDown:
-        return 'Dislike';
       case JokeReactionType.save:
         return 'Save';
       case JokeReactionType.share:

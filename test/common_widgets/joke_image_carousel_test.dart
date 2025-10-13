@@ -805,7 +805,7 @@ void mainCountsAndButtonsSuite() {
         expect(find.byType(AdminApprovalControls), findsNothing);
       });
 
-      testWidgets('shows thumbs buttons when showThumbsButtons is true', (
+      testWidgets('shows admin rating buttons when showAdminRatingButtons is true', (
         tester,
       ) async {
         // arrange
@@ -833,9 +833,9 @@ void mainCountsAndButtonsSuite() {
         expect(find.byType(AdminApprovalControls), findsOneWidget);
       });
 
-      testWidgets('hides thumbs buttons when showThumbsButtons is false', (
+      testWidgets('hides admin rating buttons when showAdminRatingButtons is false', (
         tester,
-      ) async {
+      ) async{
         // arrange
         const joke = Joke(
           id: 'test-joke-1',
@@ -862,7 +862,7 @@ void mainCountsAndButtonsSuite() {
       });
 
       testWidgets(
-        'shows both save and thumbs buttons when both flags are true',
+        'shows both save and admin rating buttons when both flags are true',
         (tester) async {
           // arrange
           const joke = Joke(
@@ -884,7 +884,7 @@ void mainCountsAndButtonsSuite() {
           await tester.pumpWidget(createTestWidget(child: widget));
           await tester.pump();
 
-          // assert - both save and thumbs buttons can be shown simultaneously
+          // assert - both save and admin rating buttons can be shown simultaneously
           expect(find.byType(SaveJokeButton), findsOneWidget);
           expect(find.byType(AdminApprovalControls), findsOneWidget);
         },
@@ -906,7 +906,7 @@ void mainCountsAndButtonsSuite() {
         await tester.pumpWidget(createTestWidget(child: widget));
         await tester.pump();
 
-        // assert - defaults should be showSaveButton: true, showThumbsButtons: false, showShareButton: false
+        // assert - defaults should be showSaveButton: true, showAdminRatingButtons: false, showShareButton: false
         expect(find.byType(SaveJokeButton), findsOneWidget);
         expect(find.byType(AdminApprovalControls), findsNothing);
         expect(find.byType(ShareJokeButton), findsNothing);

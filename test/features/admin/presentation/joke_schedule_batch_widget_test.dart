@@ -172,8 +172,6 @@ void main() {
             id: 'joke1',
             setupText: 'Setup 1',
             punchlineText: 'Punchline 1',
-            numThumbsUp: 5,
-            numThumbsDown: 1,
           ),
         ]),
       );

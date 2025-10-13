@@ -130,8 +130,6 @@ void main() {
           punchlineText: 'Test punchline',
           setupImageUrl: 'https://example.com/setup.jpg',
           punchlineImageUrl: 'https://example.com/punchline.jpg',
-          numThumbsUp: 0,
-          numThumbsDown: 0,
           adminRating: null,
         );
 
@@ -251,8 +249,6 @@ void main() {
           punchlineText: 'Test punchline',
           setupImageUrl: 'https://example.com/setup.jpg',
           punchlineImageUrl: 'https://example.com/punchline.jpg',
-          numThumbsUp: 0,
-          numThumbsDown: 0,
           adminRating: null,
         );
 
@@ -339,8 +335,6 @@ void main() {
           punchlineText: 'Test punchline',
           setupImageUrl: 'https://example.com/setup.jpg',
           punchlineImageUrl: 'https://example.com/punchline.jpg',
-          numThumbsUp: 0,
-          numThumbsDown: 0,
           adminRating: null,
         );
 
@@ -441,8 +435,6 @@ void main() {
           punchlineText: 'Test punchline',
           setupImageUrl: 'https://example.com/setup.jpg',
           punchlineImageUrl: 'https://example.com/punchline.jpg',
-          numThumbsUp: 0,
-          numThumbsDown: 0,
           adminRating: null,
         );
 

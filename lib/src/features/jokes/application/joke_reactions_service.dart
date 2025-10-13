@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/app_review_service.dart';
@@ -9,7 +10,10 @@ import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_reposito
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
 
-final jokeReactionsServiceProvider = Provider<JokeReactionsService>((ref) {
+part 'joke_reactions_service.g.dart';
+
+@Riverpod(keepAlive: true)
+JokeReactionsService jokeReactionsService(Ref ref) {
   final jokeRepository = ref.watch(jokeRepositoryProvider);
   final appUsageService = ref.watch(appUsageServiceProvider);
   final reviewCoordinator = ref.watch(reviewPromptCoordinatorProvider);
@@ -18,15 +22,15 @@ final jokeReactionsServiceProvider = Provider<JokeReactionsService>((ref) {
     appUsageService: appUsageService,
     reviewPromptCoordinator: reviewCoordinator,
   );
-});
+}
 
 class JokeReactionsService {
-  final JokeRepository? _jokeRepository;
+  final JokeRepository _jokeRepository;
   final AppUsageService _appUsageService;
   final ReviewPromptCoordinator _reviewPromptCoordinator;
 
   JokeReactionsService({
-    JokeRepository? jokeRepository,
+    required JokeRepository jokeRepository,
     required AppUsageService appUsageService,
     required ReviewPromptCoordinator reviewPromptCoordinator,
   }) : _jokeRepository = jokeRepository,
@@ -167,19 +171,15 @@ class JokeReactionsService {
     JokeReactionType reactionType,
     int increment,
   ) {
-    final repository = _jokeRepository;
-    if (repository != null) {
-      // Fire and forget - don't await this operation
-      repository
-          .updateReactionAndPopularity(jokeId, reactionType, increment)
-          .catchError((error) {
-            // Log error but don't throw - this shouldn't affect UI state
-            // since SharedPreferences has already been updated
-            final action = increment > 0 ? 'increment' : 'decrement';
-            AppLogger.warn(
-              'Failed to $action Firestore reaction for joke $jokeId, reaction $reactionType: $error',
-            );
-          });
-    }
+    _jokeRepository
+        .updateReactionAndPopularity(jokeId, reactionType, increment)
+        .catchError((error) {
+          // Log error but don't throw - this shouldn't affect UI state
+          // since SharedPreferences has already been updated
+          final action = increment > 0 ? 'increment' : 'decrement';
+          AppLogger.warn(
+            'Failed to $action Firestore reaction for joke $jokeId, reaction $reactionType: $error',
+          );
+        });
   }
 }

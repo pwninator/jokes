@@ -526,14 +526,14 @@ void main() {
         test('handles other reaction types', () async {
           await repository.updateReactionAndPopularity(
             'joke1',
-            JokeReactionType.thumbsUp,
+            JokeReactionType.share,
             1,
           );
 
           verify(
             () => mockDocumentReference.update({
-              'num_thumbs_up': FieldValue.increment(1),
-              'popularity_score': 20, // 5 + (3 * 5)
+              'num_shares': FieldValue.increment(1),
+              'popularity_score': 25, // 5 + ((3+1) * 5)
             }),
           );
         });

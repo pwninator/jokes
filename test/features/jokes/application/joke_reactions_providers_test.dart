@@ -36,224 +36,9 @@ void main() {
       fakeContext = FakeBuildContext();
     });
 
-    group('toggleReaction - thumbs exclusivity', () {
-      test('should remove thumbsDown when adding thumbsUp', () async {
-        // arrange
-        const jokeId = 'test-joke';
-
-        // Mock initial state: user already has thumbsDown
-        when(() => mockReactionsService.getAllUserReactions()).thenAnswer(
-          (_) async => {
-            jokeId: {JokeReactionType.thumbsDown},
-          },
-        );
-        when(
-          () => mockReactionsService.getSavedJokeIds(),
-        ).thenAnswer((_) async => <String>[]);
-
-        // Mock service calls
-        when(
-          () => mockReactionsService.removeUserReaction(
-            jokeId,
-            JokeReactionType.thumbsDown,
-          ),
-        ).thenAnswer((_) async {});
-        when(
-          () => mockReactionsService.toggleUserReaction(
-            jokeId,
-            JokeReactionType.thumbsUp,
-            context: any(named: 'context'),
-          ),
-        ).thenAnswer((_) async => true); // returns true when adding
-
-        // act
-        final container = ProviderContainer(
-          overrides: [
-            jokeReactionsServiceProvider.overrideWithValue(
-              mockReactionsService,
-            ),
-          ],
-        );
-
-        final notifier = container.read(jokeReactionsProvider.notifier);
-
-        // Wait for initial load to complete
-        await Future.delayed(const Duration(milliseconds: 10));
-
-        // Toggle thumbs up
-        await notifier.toggleReaction(
-          jokeId,
-          JokeReactionType.thumbsUp,
-          jokeContext: 'test',
-          context: fakeContext,
-        );
-
-        // assert
-        verify(
-          () => mockReactionsService.removeUserReaction(
-            jokeId,
-            JokeReactionType.thumbsDown,
-          ),
-        ).called(1);
-
-        verify(
-          () => mockReactionsService.toggleUserReaction(
-            jokeId,
-            JokeReactionType.thumbsUp,
-            context: any(named: 'context'),
-          ),
-        ).called(1);
-
-        container.dispose();
-      });
-
-      test('should remove thumbsUp when adding thumbsDown', () async {
-        // arrange
-        const jokeId = 'test-joke';
-
-        // Mock initial state: user already has thumbsUp
-        when(() => mockReactionsService.getAllUserReactions()).thenAnswer(
-          (_) async => {
-            jokeId: {JokeReactionType.thumbsUp},
-          },
-        );
-        when(
-          () => mockReactionsService.getSavedJokeIds(),
-        ).thenAnswer((_) async => <String>[]);
-
-        // Mock service calls
-        when(
-          () => mockReactionsService.removeUserReaction(
-            jokeId,
-            JokeReactionType.thumbsUp,
-          ),
-        ).thenAnswer((_) async {});
-        when(
-          () => mockReactionsService.toggleUserReaction(
-            jokeId,
-            JokeReactionType.thumbsDown,
-            context: any(named: 'context'),
-          ),
-        ).thenAnswer((_) async => true); // returns true when adding
-
-        // act
-        final container = ProviderContainer(
-          overrides: [
-            jokeReactionsServiceProvider.overrideWithValue(
-              mockReactionsService,
-            ),
-          ],
-        );
-
-        final notifier = container.read(jokeReactionsProvider.notifier);
-
-        // Wait for initial load to complete
-        await Future.delayed(const Duration(milliseconds: 10));
-
-        // Toggle thumbs down
-        await notifier.toggleReaction(
-          jokeId,
-          JokeReactionType.thumbsDown,
-          jokeContext: 'test',
-          context: fakeContext,
-        );
-
-        // assert
-        verify(
-          () => mockReactionsService.removeUserReaction(
-            jokeId,
-            JokeReactionType.thumbsUp,
-          ),
-        ).called(1);
-
-        verify(
-          () => mockReactionsService.toggleUserReaction(
-            jokeId,
-            JokeReactionType.thumbsDown,
-            context: any(named: 'context'),
-          ),
-        ).called(1);
-
-        container.dispose();
-      });
-
+    group('toggleReaction', () {
       test(
-        'should handle opposite reaction removal when toggling thumbs',
-        () async {
-          // arrange
-          const jokeId = 'test-joke';
-
-          // Mock initial state: user already has thumbsUp
-          when(() => mockReactionsService.getAllUserReactions()).thenAnswer(
-            (_) async => {
-              jokeId: {JokeReactionType.thumbsUp},
-            },
-          );
-          when(
-            () => mockReactionsService.getSavedJokeIds(),
-          ).thenAnswer((_) async => <String>[]);
-
-          // Mock service calls
-          when(
-            () => mockReactionsService.removeUserReaction(
-              jokeId,
-              JokeReactionType.thumbsUp,
-            ),
-          ).thenAnswer((_) async {});
-          when(
-            () => mockReactionsService.toggleUserReaction(
-              jokeId,
-              JokeReactionType.thumbsDown,
-              context: any(named: 'context'),
-            ),
-          ).thenAnswer((_) async => true); // returns true when adding
-
-          // act
-          final container = ProviderContainer(
-            overrides: [
-              jokeReactionsServiceProvider.overrideWithValue(
-                mockReactionsService,
-              ),
-            ],
-          );
-
-          final notifier = container.read(jokeReactionsProvider.notifier);
-
-          // Wait for initial load to complete
-          await Future.delayed(const Duration(milliseconds: 10));
-
-          // Toggle thumbs down (should remove thumbs up first)
-          await notifier.toggleReaction(
-            jokeId,
-            JokeReactionType.thumbsDown,
-            jokeContext: 'test',
-            context: fakeContext,
-          );
-
-          // assert
-          verify(
-            () => mockReactionsService.removeUserReaction(
-              jokeId,
-              JokeReactionType.thumbsUp,
-            ),
-          ).called(1);
-
-          verify(
-            () => mockReactionsService.toggleUserReaction(
-              jokeId,
-              JokeReactionType.thumbsDown,
-              context: any(named: 'context'),
-            ),
-          ).called(1);
-
-          container.dispose();
-        },
-      );
-    });
-
-    group('toggleReaction - non-thumbs reactions', () {
-      test(
-        'should handle save reaction toggle without removing opposite',
+        'should handle save reaction toggle',
         () async {
           // arrange
           const jokeId = 'test-joke';
@@ -396,7 +181,7 @@ void main() {
         when(
           () => mockReactionsService.toggleUserReaction(
             jokeId,
-            JokeReactionType.thumbsUp,
+            JokeReactionType.share,
             context: any(named: 'context'),
           ),
         ).thenAnswer((_) async => true); // returns true when adding
@@ -415,10 +200,10 @@ void main() {
         // Wait for initial load to complete
         await Future.delayed(const Duration(milliseconds: 10));
 
-        // Toggle thumbs up
+        // Toggle share
         await notifier.toggleReaction(
           jokeId,
-          JokeReactionType.thumbsUp,
+          JokeReactionType.share,
           jokeContext: 'test',
           context: fakeContext,
         );
@@ -427,7 +212,7 @@ void main() {
         verify(
           () => mockReactionsService.toggleUserReaction(
             jokeId,
-            JokeReactionType.thumbsUp,
+            JokeReactionType.share,
             context: any(named: 'context'),
           ),
         ).called(1);
@@ -453,7 +238,7 @@ void main() {
           when(
             () => mockReactionsService.toggleUserReaction(
               jokeId,
-              JokeReactionType.thumbsUp,
+              JokeReactionType.share,
               context: any(named: 'context'),
             ),
           ).thenThrow(Exception('Test error'));
@@ -472,10 +257,10 @@ void main() {
           // Wait for initial load to complete
           await Future.delayed(const Duration(milliseconds: 10));
 
-          // Toggle thumbs up (should handle error)
+          // Toggle share (should handle error)
           await notifier.toggleReaction(
             jokeId,
-            JokeReactionType.thumbsUp,
+            JokeReactionType.share,
             jokeContext: 'test',
             context: fakeContext,
           );
@@ -483,7 +268,7 @@ void main() {
           // assert
           final state = container.read(jokeReactionsProvider);
           expect(state.error, isNotNull);
-          expect(state.error, contains('Failed to add Like'));
+          expect(state.error, contains('Failed to add Share'));
 
           container.dispose();
         },

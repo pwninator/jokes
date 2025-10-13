@@ -17,8 +17,6 @@ void main() {
           id: 'joke1',
           setupText: 'Setup 1',
           punchlineText: 'Punchline 1',
-          numThumbsUp: 5,
-          numThumbsDown: 2,
           state: JokeState.approved,
         ),
         // Joke 2: Not approved
@@ -26,8 +24,6 @@ void main() {
           id: 'joke2',
           setupText: 'Setup 2',
           punchlineText: 'Punchline 2',
-          numThumbsUp: 3,
-          numThumbsDown: 7,
           state: JokeState.unreviewed,
         ),
         // Joke 3: Not approved
@@ -35,8 +31,6 @@ void main() {
           id: 'joke3',
           setupText: 'Setup 3',
           punchlineText: 'Punchline 3',
-          numThumbsUp: 0,
-          numThumbsDown: 0,
           state: JokeState.draft,
         ),
         // Joke 4: Approved with images
@@ -44,8 +38,6 @@ void main() {
           id: 'joke4',
           setupText: 'Setup 4',
           punchlineText: 'Punchline 4',
-          numThumbsUp: 10,
-          numThumbsDown: 1,
           setupImageUrl: 'https://example.com/setup.jpg',
           punchlineImageUrl: 'https://example.com/punchline.jpg',
           state: JokeState.approved,
@@ -55,8 +47,6 @@ void main() {
           id: 'joke5',
           setupText: 'Setup 5',
           punchlineText: 'Punchline 5',
-          numThumbsUp: 8,
-          numThumbsDown: 1,
           state: JokeState.approved,
         ),
       ];
@@ -145,82 +135,10 @@ void main() {
       });
     });
 
-    group('HighlyRatedStrategy', () {
-      test('should select jokes meeting minimum thresholds', () async {
-        // arrange
-        const strategy = HighlyRatedStrategy(minThumbsUp: 5, minRatio: 2.0);
-
-        // act
-        final result = await strategy.getEligibleJokes(testJokes, testContext);
-
-        // assert
-        expect(
-          result.length,
-          equals(2),
-        ); // joke1 (5 thumbs up, 2.5 ratio) and joke4 (10 thumbs up, 10.0 ratio) meet criteria
-        expect(result.map((j) => j.id), containsAll(['joke1', 'joke4']));
-      });
-
-      test('should handle zero thumbs down correctly', () async {
-        // arrange
-        const strategy = HighlyRatedStrategy(minThumbsUp: 5, minRatio: 2.0);
-        final jokesWithZeroDown = [
-          const Joke(
-            id: 'joke_zero_down',
-            setupText: 'Setup',
-            punchlineText: 'Punchline',
-            numThumbsUp: 5,
-            numThumbsDown: 0, // Zero thumbs down should pass ratio test
-          ),
-        ];
-
-        // act
-        final result = await strategy.getEligibleJokes(
-          jokesWithZeroDown,
-          testContext,
-        );
-
-        // assert
-        expect(result.length, equals(1));
-        expect(result.first.id, equals('joke_zero_down'));
-      });
-
-      test('should generate correct name with parameters', () {
-        const strategy1 = HighlyRatedStrategy(minThumbsUp: 5, minRatio: 2.0);
-        const strategy2 = HighlyRatedStrategy(minThumbsUp: 10, minRatio: 3.5);
-
-        expect(strategy1.name, equals('highly_rated_5_2.0'));
-        expect(strategy2.name, equals('highly_rated_10_3.5'));
-      });
-    });
-
     group('RuleBasedStrategy', () {
-      test('should apply all rules correctly', () async {
-        // arrange
-        final strategy = RuleBasedStrategy(
-          rules: [
-            const MinThumbsUpRule(3),
-            const PositiveRatioRule(),
-            const HasImagesRule(),
-          ],
-          customName: 'test_combo',
-          customDescription: 'Test combination',
-        );
-
-        // act
-        final result = await strategy.getEligibleJokes(testJokes, testContext);
-
-        // assert
-        expect(
-          result.length,
-          equals(1),
-        ); // only joke4 has images and meets criteria
-        expect(result.first.id, equals('joke4'));
-      });
-
       test('should use custom name and description', () {
         final strategy = RuleBasedStrategy(
-          rules: const [MinThumbsUpRule(1)],
+          rules: const [HasImagesRule()],
           customName: 'custom_strategy',
           customDescription: 'Custom description',
         );
@@ -231,63 +149,6 @@ void main() {
     });
 
     group('Individual Rules', () {
-      group('MinThumbsUpRule', () {
-        test('should evaluate thumbs up threshold correctly', () {
-          const rule = MinThumbsUpRule(5);
-
-          expect(
-            rule.evaluate(testJokes[0], testContext),
-            isTrue,
-          ); // 5 thumbs up
-          expect(
-            rule.evaluate(testJokes[1], testContext),
-            isFalse,
-          ); // 3 thumbs up
-          expect(
-            rule.evaluate(testJokes[3], testContext),
-            isTrue,
-          ); // 10 thumbs up
-        });
-
-        test('should have correct name and description', () {
-          const rule = MinThumbsUpRule(5);
-          expect(rule.name, equals('min_thumbs_up_5'));
-          expect(rule.description, equals('At least 5 thumbs up'));
-        });
-      });
-
-      group('ThumbsRatioRule', () {
-        test('should evaluate ratio correctly', () {
-          const rule = ThumbsRatioRule(2.0);
-
-          expect(
-            rule.evaluate(testJokes[0], testContext),
-            isTrue,
-          ); // 5:2 = 2.5 > 2.0
-          expect(
-            rule.evaluate(testJokes[1], testContext),
-            isFalse,
-          ); // 3:7 < 2.0
-          expect(
-            rule.evaluate(testJokes[3], testContext),
-            isTrue,
-          ); // 10:1 > 2.0
-        });
-
-        test('should handle zero thumbs down', () {
-          const rule = ThumbsRatioRule(2.0);
-          const jokeZeroDown = Joke(
-            id: 'test',
-            setupText: 'Test',
-            punchlineText: 'Test',
-            numThumbsUp: 1,
-            numThumbsDown: 0,
-          );
-
-          expect(rule.evaluate(jokeZeroDown, testContext), isTrue);
-        });
-      });
-
       group('HasImagesRule', () {
         test('should require both images', () {
           const rule = HasImagesRule();
@@ -316,25 +177,6 @@ void main() {
         });
       });
 
-      group('PositiveRatioRule', () {
-        test('should require more thumbs up than down', () {
-          const rule = PositiveRatioRule();
-
-          expect(rule.evaluate(testJokes[0], testContext), isTrue); // 5 > 2
-          expect(rule.evaluate(testJokes[1], testContext), isFalse); // 3 < 7
-          expect(rule.evaluate(testJokes[2], testContext), isFalse); // 0 = 0
-        });
-      });
-
-      group('AnyThumbsUpRule', () {
-        test('should require at least one thumbs up', () {
-          const rule = AnyThumbsUpRule();
-
-          expect(rule.evaluate(testJokes[0], testContext), isTrue); // 5 > 0
-          expect(rule.evaluate(testJokes[1], testContext), isTrue); // 3 > 0
-          expect(rule.evaluate(testJokes[2], testContext), isFalse); // 0 = 0
-        });
-      });
     });
 
     group('JokeEligibilityHelpers', () {

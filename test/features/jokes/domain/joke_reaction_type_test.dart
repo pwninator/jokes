@@ -5,25 +5,15 @@ void main() {
   group('JokeReactionType', () {
     test('should have correct values and properties', () {
       // Test all enum values exist
-      expect(JokeReactionType.values.length, equals(4));
+      expect(JokeReactionType.values.length, equals(2));
       expect(JokeReactionType.values, contains(JokeReactionType.save));
       expect(JokeReactionType.values, contains(JokeReactionType.share));
-      expect(JokeReactionType.values, contains(JokeReactionType.thumbsUp));
-      expect(JokeReactionType.values, contains(JokeReactionType.thumbsDown));
     });
 
     group('firestoreField', () {
       test('should return correct Firestore field names', () {
         expect(JokeReactionType.save.firestoreField, equals('num_saves'));
         expect(JokeReactionType.share.firestoreField, equals('num_shares'));
-        expect(
-          JokeReactionType.thumbsUp.firestoreField,
-          equals('num_thumbs_up'),
-        );
-        expect(
-          JokeReactionType.thumbsDown.firestoreField,
-          equals('num_thumbs_down'),
-        );
       });
     });
 
@@ -31,14 +21,6 @@ void main() {
       test('should return correct SharedPreferences keys', () {
         expect(JokeReactionType.save.prefsKey, equals('user_reactions_save'));
         expect(JokeReactionType.share.prefsKey, equals('user_reactions_share'));
-        expect(
-          JokeReactionType.thumbsUp.prefsKey,
-          equals('user_reactions_thumbsUp'),
-        );
-        expect(
-          JokeReactionType.thumbsDown.prefsKey,
-          equals('user_reactions_thumbsDown'),
-        );
       });
 
       test('should have unique keys for each reaction type', () {
@@ -51,8 +33,6 @@ void main() {
       test('should return correct human-readable labels', () {
         expect(JokeReactionType.save.label, equals('Save'));
         expect(JokeReactionType.share.label, equals('Share'));
-        expect(JokeReactionType.thumbsUp.label, equals('Like'));
-        expect(JokeReactionType.thumbsDown.label, equals('Dislike'));
       });
 
       test('should have non-empty labels for all reaction types', () {

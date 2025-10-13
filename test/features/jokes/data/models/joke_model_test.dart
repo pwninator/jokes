@@ -18,8 +18,6 @@ void main() {
       allSetupImageUrls: const ['http://example.com/setup.png'],
       allPunchlineImageUrls: const ['http://example.com/punchline.png'],
       generationMetadata: const {'source': 'test'},
-      numThumbsUp: 10,
-      numThumbsDown: 2,
       numSaves: 5,
       numShares: 3,
       popularityScore: 20,
@@ -63,7 +61,6 @@ void main() {
 
           // Assert
           expect(result, tMinimalJoke);
-          expect(result.numThumbsUp, 0);
           expect(result.tags, isEmpty);
           expect(result.setupImageUrl, isNull);
         },
@@ -133,11 +130,11 @@ void main() {
         // Act
         final result = tMinimalJoke.copyWith(
           setupText: 'new setup',
-          numThumbsUp: 100,
+          numSaves: 100,
         );
         // Assert
         expect(result.setupText, 'new setup');
-        expect(result.numThumbsUp, 100);
+        expect(result.numSaves, 100);
         expect(result.punchlineText, tMinimalJoke.punchlineText); // Unchanged
         expect(result.id, tMinimalJoke.id); // Unchanged
       });
@@ -149,7 +146,7 @@ void main() {
           setupText: 'new setup',
           punchlineText: 'new punchline',
           setupImageUrl: 'new_url',
-          numThumbsUp: 1,
+          numSaves: 1,
           tags: ['new_tag'],
         );
 
@@ -158,7 +155,7 @@ void main() {
         expect(result.setupText, 'new setup');
         expect(result.punchlineText, 'new punchline');
         expect(result.setupImageUrl, 'new_url');
-        expect(result.numThumbsUp, 1);
+        expect(result.numSaves, 1);
         expect(result.tags, ['new_tag']);
       });
     });
@@ -177,7 +174,7 @@ void main() {
         expect(tFullJoke, isNot(tFullJoke.copyWith(id: '_')));
         expect(tFullJoke, isNot(tFullJoke.copyWith(setupText: '_')));
         expect(tFullJoke, isNot(tFullJoke.copyWith(punchlineText: '_')));
-        expect(tFullJoke, isNot(tFullJoke.copyWith(numThumbsUp: 999)));
+        expect(tFullJoke, isNot(tFullJoke.copyWith(numSaves: 999)));
         expect(tFullJoke, isNot(tFullJoke.copyWith(tags: ['_'])));
       });
 

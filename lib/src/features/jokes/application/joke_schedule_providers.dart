@@ -174,10 +174,7 @@ class AutoFillState {
 
 // Auto-fill notifier
 class AutoFillNotifier extends StateNotifier<AutoFillState> {
-  AutoFillNotifier(this._service, this._ref) : super(const AutoFillState()) {
-    // Initialize default strategies
-    JokeEligibilityStrategyRegistry.initializeDefaultStrategies();
-  }
+  AutoFillNotifier(this._service, this._ref) : super(const AutoFillState());
 
   final JokeScheduleAutoFillService _service;
   final Ref _ref;

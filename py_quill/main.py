@@ -53,6 +53,7 @@ send_daily_joke_scheduler = joke_fns.send_daily_joke_scheduler
 search_jokes = joke_fns.search_jokes
 on_joke_write = joke_fns.on_joke_write
 on_joke_category_write = joke_fns.on_joke_category_write
+joke_manual_tag = joke_fns.joke_manual_tag
 
 # Export the joke book functions
 create_book = joke_book_fns.create_book

@@ -1,6 +1,7 @@
 """Tests for the joke_fns module."""
 import datetime
 import zoneinfo
+from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock
 
 import pytest
@@ -29,6 +30,185 @@ class DummyReq:
   def get_json(self):
     """Dummy request class for testing."""
     return {"data": self._data}
+
+
+def _manual_tag_joke(
+  joke_id: str,
+  setup_text: str,
+  punchline_text: str,
+  seasonal: str | None,
+) -> models.PunnyJoke:
+  """Create a PunnyJoke tailored for manual tagging tests."""
+  return models.PunnyJoke(
+    key=joke_id,
+    setup_text=setup_text,
+    punchline_text=punchline_text,
+    seasonal=seasonal,
+  )
+
+
+def _manual_tag_result(
+  joke: models.PunnyJoke,
+  distance: float = 0.1,
+) -> SimpleNamespace:
+  """Wrap a joke in a fake search result."""
+  return SimpleNamespace(joke=joke, vector_distance=distance)
+
+
+def test_run_manual_season_tag_updates_joke(monkeypatch):
+  """Manual seasonal tagging should update jokes that are not Halloween yet."""
+  captured_kwargs = {}
+
+  def fake_search(**kwargs):
+    captured_kwargs.update(kwargs)
+    return [_manual_tag_result(_manual_tag_joke("j1", "S", "P", None), 0.2345)]
+
+  monkeypatch.setattr(joke_fns.search, "search_jokes", fake_search)
+
+  fetched_joke = _manual_tag_joke(
+    "j1",
+    "Why did the scarecrow win an award?",
+    "Because he was outstanding in his field.",
+    None,
+  )
+  monkeypatch.setattr(joke_fns.firestore, "get_punny_joke",
+                      lambda joke_id: fetched_joke if joke_id == "j1" else None)
+
+  updates = []
+  monkeypatch.setattr(joke_fns.firestore, "update_punny_joke",
+                      lambda joke_id, payload: updates.append(
+                        (joke_id, payload)))
+
+  html_response = joke_fns._run_manual_season_tag(
+    query="scarecrow",
+    threshold=0.5,
+    dry_run=False,
+    max_jokes=0,
+  )
+
+  assert captured_kwargs == {
+    "query": "scarecrow",
+    "label": "manual_season_tag",
+    "limit": 1000,
+    "field_filters": [],
+    "distance_threshold": 0.5,
+  }
+  assert updates == [("j1", {"seasonal": "Halloween"})]
+  assert "Updated Jokes (1)" in html_response
+  assert "Dry Run: False" in html_response
+
+
+def test_run_manual_season_tag_respects_dry_run(monkeypatch):
+  """Dry run should list changes without performing updates."""
+
+  def fake_search(**kwargs):  # pylint: disable=unused-argument
+    return [_manual_tag_result(_manual_tag_joke("j1", "Setup", "Punch", None))]
+
+  monkeypatch.setattr(joke_fns.search, "search_jokes", fake_search)
+  monkeypatch.setattr(joke_fns.firestore, "get_punny_joke",
+                      lambda joke_id: _manual_tag_joke(
+                        joke_id, "Setup", "Punch", None))
+
+  updates = []
+  monkeypatch.setattr(joke_fns.firestore, "update_punny_joke",
+                      lambda joke_id, payload: updates.append(
+                        (joke_id, payload)))
+
+  html_response = joke_fns._run_manual_season_tag(
+    query="pumpkin",
+    threshold=0.4,
+    dry_run=True,
+    max_jokes=0,
+  )
+
+  assert not updates
+  assert "Dry Run: True" in html_response
+  assert "Updated Jokes (1)" in html_response
+
+
+def test_run_manual_season_tag_skips_already_halloween(monkeypatch):
+  """Jokes that already have seasonal Halloween should be skipped."""
+
+  def fake_search(**kwargs):  # pylint: disable=unused-argument
+    return [_manual_tag_result(
+      _manual_tag_joke("j1", "Ghost joke", "Boo!", "Halloween"))]
+
+  monkeypatch.setattr(joke_fns.search, "search_jokes", fake_search)
+  monkeypatch.setattr(joke_fns.firestore, "get_punny_joke",
+                      lambda joke_id: _manual_tag_joke(
+                        joke_id, "Ghost joke", "Boo!", "Halloween"))
+
+  updates = []
+  monkeypatch.setattr(joke_fns.firestore, "update_punny_joke",
+                      lambda joke_id, payload: updates.append(
+                        (joke_id, payload)))
+
+  html_response = joke_fns._run_manual_season_tag(
+    query="ghost",
+    threshold=0.5,
+    dry_run=False,
+    max_jokes=0,
+  )
+
+  assert not updates
+  assert "Skipped Jokes (already Halloween) (1)" in html_response
+  assert "Updated Jokes (0)" in html_response
+
+
+def test_run_manual_season_tag_respects_max_jokes(monkeypatch):
+  """The manual tagging operation should stop after reaching max_jokes."""
+  jokes = [
+    _manual_tag_joke("j1", "Setup 1", "Punch 1", None),
+    _manual_tag_joke("j2", "Setup 2", "Punch 2", "Fall"),
+  ]
+  results = [
+    _manual_tag_result(jokes[0], 0.12),
+    _manual_tag_result(jokes[1], 0.34),
+  ]
+
+  monkeypatch.setattr(joke_fns.search, "search_jokes",
+                      lambda **kwargs: results)  # pylint: disable=unused-argument
+
+  joke_lookup = {j.key: j for j in jokes}
+  monkeypatch.setattr(joke_fns.firestore, "get_punny_joke",
+                      lambda joke_id: joke_lookup.get(joke_id))
+
+  updates = []
+  monkeypatch.setattr(joke_fns.firestore, "update_punny_joke",
+                      lambda joke_id, payload: updates.append(
+                        (joke_id, payload)))
+
+  html_response = joke_fns._run_manual_season_tag(
+    query="any",
+    threshold=0.5,
+    dry_run=False,
+    max_jokes=1,
+  )
+
+  assert updates == [("j1", {"seasonal": "Halloween"})]
+  assert "Updated Jokes (1)" in html_response
+
+
+def test_run_manual_season_tag_handles_no_results(monkeypatch):
+  """Manual tagging should handle empty search results gracefully."""
+  monkeypatch.setattr(joke_fns.search, "search_jokes",
+                      lambda **kwargs: [])  # pylint: disable=unused-argument
+
+  updates = []
+  monkeypatch.setattr(joke_fns.firestore, "update_punny_joke",
+                      lambda joke_id, payload: updates.append(
+                        (joke_id, payload)))
+
+  html_response = joke_fns._run_manual_season_tag(
+    query="nonexistent",
+    threshold=0.5,
+    dry_run=False,
+    max_jokes=0,
+  )
+
+  assert not updates
+  assert "No jokes were updated." in html_response
+  assert "No jokes were skipped." in html_response
 
 
 def test_create_joke_sets_admin_owner_and_draft(monkeypatch):

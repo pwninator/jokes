@@ -1,55 +1,73 @@
 """Library for generating images."""
 
 import logging
-import traceback
-from io import BytesIO
 from typing import Any
 
 from common import models, utils
-from PIL import Image
 from services import cloud_storage, image_client
 
 _IMAGE_FILE_NAME_BASE = "pun_agent_image"
 
-_PUN_IMAGE_CLIENT_LOW = image_client.get_client(
-  label="pun_agent_image_tool_low",
-  model=image_client.ImageModel.OPENAI_RESPONSES_API_LOW,
-  file_name_base=_IMAGE_FILE_NAME_BASE,
-)
+PUN_IMAGE_CLIENTS_BY_QUALITY = {
+  "low_mini":
+  image_client.get_client(
+    label="pun_agent_image_tool_low_mini",
+    model=image_client.ImageModel.OPENAI_GPT_IMAGE_1_MINI_LOW,
+    file_name_base=_IMAGE_FILE_NAME_BASE,
+  ),
+  "medium_mini":
+  image_client.get_client(
+    label="pun_agent_image_tool_medium_mini",
+    model=image_client.ImageModel.OPENAI_GPT_IMAGE_1_MINI_MEDIUM,
+    file_name_base=_IMAGE_FILE_NAME_BASE,
+  ),
+  "high_mini":
+  image_client.get_client(
+    label="pun_agent_image_tool_high_mini",
+    model=image_client.ImageModel.OPENAI_GPT_IMAGE_1_MINI_HIGH,
+    file_name_base=_IMAGE_FILE_NAME_BASE,
+  ),
+  "low":
+  image_client.get_client(
+    label="pun_agent_image_tool_low",
+    model=image_client.ImageModel.OPENAI_RESPONSES_API_LOW,
+    file_name_base=_IMAGE_FILE_NAME_BASE,
+  ),
+  "medium":
+  image_client.get_client(
+    label="pun_agent_image_tool_medium",
+    model=image_client.ImageModel.OPENAI_RESPONSES_API_MEDIUM,
+    file_name_base=_IMAGE_FILE_NAME_BASE,
+  ),
+  "high":
+  image_client.get_client(
+    label="pun_agent_image_tool_high",
+    model=image_client.ImageModel.OPENAI_RESPONSES_API_HIGH,
+    file_name_base=_IMAGE_FILE_NAME_BASE,
+  ),
+  "gemini":
+  image_client.get_client(
+    label="pun_agent_image_tool_gemini",
+    model=image_client.ImageModel.GEMINI_NANO_BANANA,
+    file_name_base=_IMAGE_FILE_NAME_BASE,
+  ),
+}
 
-_PUN_IMAGE_CLIENT_MEDIUM = image_client.get_client(
-  label="pun_agent_image_tool_medium",
-  model=image_client.ImageModel.OPENAI_RESPONSES_API_MEDIUM,
-  file_name_base=_IMAGE_FILE_NAME_BASE,
-)
-
-_PUN_IMAGE_CLIENT_HIGH = image_client.get_client(
-  label="pun_agent_image_tool_high",
-  model=image_client.ImageModel.OPENAI_RESPONSES_API_HIGH,
-  file_name_base=_IMAGE_FILE_NAME_BASE,
-)
-
-_PUN_IMAGE_CLIENT_GEMINI = image_client.get_client(
+_MODIFY_IMAGE_CLIENT_LOW = image_client.get_client(
   label="pun_agent_image_tool_gemini",
   model=image_client.ImageModel.GEMINI_NANO_BANANA,
   file_name_base=_IMAGE_FILE_NAME_BASE,
 )
 
-_MODIFY_IMAGE_CLIENT_LOW = image_client.get_client(
-  label="pun_agent_image_tool_low",
-  model=image_client.ImageModel.OPENAI_GPT_IMAGE_1_LOW,
-  file_name_base=_IMAGE_FILE_NAME_BASE,
-)
-
 _MODIFY_IMAGE_CLIENT_MEDIUM = image_client.get_client(
-  label="pun_agent_image_tool_medium",
-  model=image_client.ImageModel.OPENAI_GPT_IMAGE_1_MEDIUM,
+  label="pun_agent_image_tool_gemini",
+  model=image_client.ImageModel.GEMINI_NANO_BANANA,
   file_name_base=_IMAGE_FILE_NAME_BASE,
 )
 
 _MODIFY_IMAGE_CLIENT_HIGH = image_client.get_client(
-  label="pun_agent_image_tool_high",
-  model=image_client.ImageModel.OPENAI_GPT_IMAGE_1_HIGH,
+  label="pun_agent_image_tool_gemini",
+  model=image_client.ImageModel.GEMINI_NANO_BANANA,
   file_name_base=_IMAGE_FILE_NAME_BASE,
 )
 
@@ -78,36 +96,33 @@ def generate_pun_images(
   previous_image_references: list[Any] = []
 
   for i, (pun_text, image_description) in enumerate(pun_data):
-    try:
-      image = generate_pun_image(
-        pun_text=pun_text,
-        image_description=image_description,
-        image_quality=image_quality,
-        reference_images=previous_image_references,
-      )
+    # try:
+    image = generate_pun_image(
+      pun_text=pun_text,
+      image_description=image_description,
+      image_quality=image_quality,
+      reference_images=previous_image_references,
+    )
 
-      if not image.url:
-        logging.warning(
-          f"Generated pun image for pun line {i} has no URL: {image}")
-        images.append(None)
-        continue
-
-      if image_quality == "gemini":
-        if image.gcs_uri:
-          image_bytes = cloud_storage.download_bytes_from_gcs(image.gcs_uri)
-          pil_image = Image.open(BytesIO(image_bytes))
-          previous_image_references = [pil_image]
-      elif prev_id := image.custom_temp_data.get("image_generation_call_id"):
-        previous_image_references.append(prev_id)
-
-      images.append(image)
-
-    except Exception as e:
-      stack_trace = traceback.format_exc()
+    if not image.url:
       logging.warning(
-        f"Failed to generate image for pun line {i}: {pun_text}\n{e}\n{stack_trace}"
-      )
+        f"Generated pun image for pun line {i} has no URL: {image}")
       images.append(None)
+      continue
+
+    if prev_id := image.custom_temp_data.get("image_generation_call_id"):
+      previous_image_references.append(prev_id)
+    elif image.gcs_uri:
+      previous_image_references.append(image.gcs_uri)
+
+    images.append(image)
+
+  # except Exception as e:
+  #   stack_trace = traceback.format_exc()
+  #   logging.warning(
+  #     f"Failed to generate image for pun line {i}: {pun_text}\n{e}\n{stack_trace}"
+  #   )
+  #   images.append(None)
 
   return images
 
@@ -117,6 +132,7 @@ def generate_pun_image(
   image_description: str,
   image_quality: str,
   reference_images: list[Any] | None = None,
+  image_client_override: image_client.ImageClient | None = None,
 ) -> models.Image:
   """Generate a pun image.
   Args:
@@ -127,6 +143,7 @@ def generate_pun_image(
       - "low": Low quality, fast generation.
       - "medium": Medium quality, medium speed generation.
       - "high": High quality, slow generation.
+    image_client: The image client to use to generate the image. If not provided, a client will be selected based on the image quality.
   Returns:
     The generated image.
   """
@@ -146,16 +163,15 @@ def generate_pun_image(
 
   prompt = f"{prompt_preamble} {image_description} {prompt_postamble}"
 
-  if utils.is_emulator() or image_quality == "low":
-    client = _PUN_IMAGE_CLIENT_LOW
-  elif image_quality == "medium":
-    client = _PUN_IMAGE_CLIENT_MEDIUM
-  elif image_quality == "high":
-    client = _PUN_IMAGE_CLIENT_HIGH
-  elif image_quality == "gemini":
-    client = _PUN_IMAGE_CLIENT_GEMINI
+  if image_client_override:
+    client = image_client_override
   else:
-    raise ValueError(f"Invalid image quality: {image_quality}")
+    if utils.is_emulator():
+      client = PUN_IMAGE_CLIENTS_BY_QUALITY["low"]
+    elif image_quality in PUN_IMAGE_CLIENTS_BY_QUALITY:
+      client = PUN_IMAGE_CLIENTS_BY_QUALITY[image_quality]
+    else:
+      raise ValueError(f"Invalid image quality: {image_quality}")
 
   image = client.generate_image(
     prompt,
@@ -196,7 +212,7 @@ def _strip_prompt_preamble(
 def modify_image(
   image: models.Image,
   instruction: str,
-  client: image_client.ImageClient = _PUN_IMAGE_CLIENT_GEMINI,
+  client: image_client.ImageClient = _MODIFY_IMAGE_CLIENT_LOW,
 ) -> models.Image:
   """Modify an image using an instruction.
   Args:

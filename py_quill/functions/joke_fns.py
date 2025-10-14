@@ -15,8 +15,8 @@ from common import config, image_generation, joke_operations, models
 from firebase_functions import (firestore_fn, https_fn, logger, options,
                                 scheduler_fn)
 from functions.function_utils import (error_response, get_bool_param,
-                                      get_float_param, get_int_param, get_param,
-                                      get_user_id, success_response)
+                                      get_float_param, get_int_param,
+                                      get_param, get_user_id, success_response)
 from google.cloud.firestore_v1.vector import Vector
 from services import cloud_storage, firebase_cloud_messaging, firestore, search
 
@@ -215,7 +215,7 @@ def _run_manual_season_tag(
 
     joke = firestore.get_punny_joke(joke_id)
     if not joke:
-      logger.warning(f"Could not retrieve joke with id: {joke_id}")
+      logger.warn(f"Could not retrieve joke with id: {joke_id}")
       continue
 
     if joke.seasonal != "Halloween":
@@ -350,7 +350,7 @@ def populate_joke(req: https_fn.Request) -> https_fn.Response:
 
     # Get the joke ID, images_only, and image_quality params from request body or args
     joke_id = get_param(req, 'joke_id')
-    image_quality = get_param(req, 'image_quality', 'medium')
+    image_quality = get_param(req, 'image_quality', 'low')
     images_only = get_bool_param(req, 'images_only', False)
     overwrite = get_bool_param(req, 'overwrite', False)
 
@@ -358,11 +358,14 @@ def populate_joke(req: https_fn.Request) -> https_fn.Response:
       return error_response('Joke ID is required')
 
     # Validate image_quality parameter
-    valid_qualities = ['low', 'medium', 'high']
-    if image_quality not in valid_qualities:
+    if image_quality not in image_generation.PUN_IMAGE_CLIENTS_BY_QUALITY:
       return error_response(
-        f'Invalid image_quality: {image_quality}. Must be one of: {", ".join(valid_qualities)}'
+        f'Invalid image_quality: {image_quality}. Must be one of: {", ".join(image_generation.PUN_IMAGE_CLIENTS_BY_QUALITY.keys())}'
       )
+
+    logger.info(
+      f"CLOUD_FUNCTION populate_joke: {joke_id} with params: joke_id={joke_id}, image_quality={image_quality}, images_only={images_only}, overwrite={overwrite}"
+    )
 
     saved_joke = _populate_joke_internal(
       user_id=user_id,

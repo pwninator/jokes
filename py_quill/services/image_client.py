@@ -11,6 +11,7 @@ from io import BytesIO
 from typing import Any, Generic, Literal, TypeVar, override
 
 from common import config, models
+from firebase_functions import logger
 from google import genai
 from google.api_core import exceptions
 from google.genai import types
@@ -19,7 +20,6 @@ from PIL import Image
 from services import cloud_storage, firestore
 from vertexai.preview.vision_models import Image as VertexImage
 from vertexai.preview.vision_models import ImageGenerationModel
-from firebase_functions import logger
 
 _T = TypeVar("_T")
 
@@ -90,7 +90,7 @@ class ImageModel(Enum):
     ImageProvider.IMAGEN,
   )
 
-  # https://openai.com/api/pricing
+  # https://platform.openai.com/docs/models/gpt-image-1
   OPENAI_GPT_IMAGE_1_LOW = (
     "gpt-image-1",
     {
@@ -124,10 +124,45 @@ class ImageModel(Enum):
       "quality": "high"
     },
   )
+  # https://platform.openai.com/docs/models/gpt-image-1-mini
+  OPENAI_GPT_IMAGE_1_MINI_LOW = (
+    "gpt-image-1-mini",
+    {
+      "input_tokens": 2.50 / 1_000_000,
+      "output_tokens": 8.00 / 1_000_000,
+    },
+    ImageProvider.OPENAI_IMAGES,
+    {
+      "quality": "low"
+    },
+  )
+  OPENAI_GPT_IMAGE_1_MINI_MEDIUM = (
+    "gpt-image-1-mini",
+    {
+      "input_tokens": 2.50 / 1_000_000,
+      "output_tokens": 8.00 / 1_000_000,
+    },
+    ImageProvider.OPENAI_IMAGES,
+    {
+      "quality": "medium"
+    },
+  )
+  OPENAI_GPT_IMAGE_1_MINI_HIGH = (
+    "gpt-image-1-mini",
+    {
+      "input_tokens": 2.50 / 1_000_000,
+      "output_tokens": 8.00 / 1_000_000,
+    },
+    ImageProvider.OPENAI_IMAGES,
+    {
+      "quality": "high"
+    },
+  )
 
   # https://platform.openai.com/docs/pricing
+  # https://platform.openai.com/docs/models/gpt-image-1
   OPENAI_RESPONSES_API_LOW = (
-    "gpt-image-1",
+    "image_generation",
     {
       "images": 0.011,
     },
@@ -137,7 +172,7 @@ class ImageModel(Enum):
     },
   )
   OPENAI_RESPONSES_API_MEDIUM = (
-    "gpt-image-1",
+    "image_generation",
     {
       "images": 0.042,
     },
@@ -147,7 +182,7 @@ class ImageModel(Enum):
     },
   )
   OPENAI_RESPONSES_API_HIGH = (
-    "gpt-image-1",
+    "image_generation",
     {
       "images": 0.167,
     },
@@ -158,8 +193,9 @@ class ImageModel(Enum):
   )
 
   # https://ai.google.dev/gemini-api/docs/image-generation#pricing
+  # https://cloud.google.com/vertex-ai/generative-ai/docs/models/gemini/2-5-flash-image
   GEMINI_NANO_BANANA = (
-    "gemini-2.5-flash-image-preview",
+    "gemini-2.5-flash-image",
     {
       "images": 0.0387,  # 1290 tokens * $30 / 1M tokens
     },
@@ -595,33 +631,43 @@ class OpenAiImageClient(ImageClient[OpenAI]):
     """
     start_time = time.perf_counter()
 
+    quality = self.model.kwargs["quality"]
     common_args = {
       "model": self.model.model_name,
       "prompt": prompt,
       "output_format": "png",
-      "quality": self.model.kwargs["quality"],
+      "quality": quality,
       "size": "1024x1024",
       "background": "opaque",
     }
 
     if reference_images:
-      for img in reference_images:
-        if not isinstance(img, bytes):
+      reference_image_bytes = []
+      for i, img in enumerate(reference_images):
+        if isinstance(img, str):
+          image_bytes = cloud_storage.download_bytes_from_gcs(img)
+        elif isinstance(img, Image.Image):
+          image_bytes = img.tobytes()
+        elif isinstance(img, bytes):
+          image_bytes = img
+        else:
           raise ValueError(
             f"OpenAI reference image must be bytes, got {type(img)}")
 
-      reference_image_bytes = [
-        (f"reference_image_{i}.png", image_bytes, "image/png")
-        for i, image_bytes in enumerate(reference_images)
-      ]
-      print("Generating image with OpenAI with reference images")
+        reference_image_bytes.append(
+          (f"reference_image_{i}.png", image_bytes, "image/png"))
+
+      print(
+        f"Generating image with OpenAI ({self.model.model_name} - {quality}) with reference images"
+      )
       result = self.model_client.images.edit(
         **common_args,
         image=reference_image_bytes,
       )
 
     else:
-      print("Generating image with OpenAI")
+      print(
+        f"Generating image with OpenAI ({self.model.model_name} - {quality})")
       result = self.model_client.images.generate(**common_args)
 
     image_base64 = result.data[0].b64_json
@@ -700,6 +746,7 @@ class OpenAiResponsesClient(ImageClient[OpenAI]):
     start_time = time.perf_counter()
 
     request_inputs = []
+    quality = self.model.kwargs["quality"]
 
     if reference_images:
       for image_id in reference_images:
@@ -711,9 +758,13 @@ class OpenAiResponsesClient(ImageClient[OpenAI]):
           "type": "image_generation_call",
           "id": image_id,
         })
-      print("Generating image with OpenAI Responses API with reference images")
+      print(
+        f"Generating image with OpenAI Responses API ({self.model.model_name} - {quality}) with reference images"
+      )
     else:
-      print("Generating image with OpenAI Responses API")
+      print(
+        f"Generating image with OpenAI Responses API ({self.model.model_name} - {quality})"
+      )
 
     request_inputs.append({
       "role":
@@ -726,12 +777,11 @@ class OpenAiResponsesClient(ImageClient[OpenAI]):
       }],
     })
 
-    quality = self.model.kwargs["quality"]
     response = self.model_client.responses.create(
       model=OpenAiResponsesClient.CHAT_MODEL_NAME,
       input=request_inputs,
       tools=[{
-        "type": "image_generation",
+        "type": self.model.model_name,
         "output_format": "png",
         "quality": quality,
         "size": "1024x1024",
@@ -803,8 +853,6 @@ class OpenAiResponsesClient(ImageClient[OpenAI]):
 class GeminiImageClient(ImageClient[genai.Client]):
   """Gemini client implementation using Google's GenAI API."""
 
-  GEMINI_MODEL_NAME = "gemini-2.5-flash-image-preview"
-
   def __init__(self, label: str, model: ImageModel, file_name_base: str,
                **kwargs: Any):
     super().__init__(label=label,
@@ -849,6 +897,10 @@ class GeminiImageClient(ImageClient[genai.Client]):
           img = Image.open(BytesIO(image_data))
         elif isinstance(image_data, Image.Image):
           img = image_data
+        elif isinstance(image_data, str):
+          image_bytes = Image.open(
+            BytesIO(cloud_storage.download_bytes_from_gcs(image_data)))
+          img = Image.open(BytesIO(image_bytes))
         else:
           raise ValueError(
             f"Gemini reference image must be a PIL Image or bytes, got {type(image_data)}"
@@ -859,7 +911,7 @@ class GeminiImageClient(ImageClient[genai.Client]):
 
     print("Generating image with Google GenAI API")
     response = self.model_client.models.generate_content(
-      model=GeminiImageClient.GEMINI_MODEL_NAME,
+      model=self.model.model_name,
       contents=contents,
     )
 

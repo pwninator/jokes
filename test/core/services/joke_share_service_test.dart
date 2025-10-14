@@ -174,10 +174,12 @@ void main() {
         when(
           () => mockJokeReactionsService.addUserReaction(
             any(),
-            any(),
+            JokeReactionType.share,
             context: any(named: 'context'),
           ),
-        ).thenAnswer((_) async {});
+        ).thenAnswer((_) async {
+          await appUsageService.incrementSharedJokesCount();
+        });
 
         when(
           () => mockAnalyticsService.logJokeShareInitiated(

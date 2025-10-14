@@ -1,7 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:snickerdoodle/src/core/services/performance_service.dart';
+import 'package:snickerdoodle/src/data/core/database/app_database.dart';
+import 'package:snickerdoodle/src/data/jokes/category_interactions_repository.dart';
+import 'package:snickerdoodle/src/data/jokes/joke_interactions_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_list_data_source.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
@@ -11,10 +17,62 @@ import '../../../test_helpers/firebase_mocks.dart';
 
 class MockJokeListDataSource extends Mock implements JokeListDataSource {}
 
+class _MockPerf extends Mock implements PerformanceService {}
+
+// Test repository that properly handles streams
+class _TestInteractionsRepo extends JokeInteractionsRepository {
+  _TestInteractionsRepo({required super.db, required PerformanceService perf})
+      : super(performanceService: perf);
+
+  final _controllers = <String, StreamController<JokeInteraction?>>{};
+
+  @override
+  Stream<JokeInteraction?> watchJokeInteraction(String jokeId) {
+    // Reuse existing controller for this jokeId or create a new one
+    if (!_controllers.containsKey(jokeId)) {
+      final controller = StreamController<JokeInteraction?>.broadcast();
+      _controllers[jokeId] = controller;
+      // Add initial value
+      controller.add(null);
+    }
+    return _controllers[jokeId]!.stream;
+  }
+
+  void dispose() {
+    for (final controller in _controllers.values) {
+      controller.close();
+    }
+    _controllers.clear();
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   setUp(FirebaseMocks.reset);
+
+  ProviderContainer createContainer({List<Override> overrides = const []}) {
+    return ProviderContainer(
+      overrides: [
+        ...FirebaseMocks.getFirebaseProviderOverrides(),
+        // Override jokeInteractionsRepository to return working streams
+        jokeInteractionsRepositoryProvider.overrideWith((ref) {
+          return _TestInteractionsRepo(
+            db: AppDatabase.inMemory(),
+            perf: _MockPerf(),
+          );
+        }),
+        // Override categoryInteractionsRepository
+        categoryInteractionsRepositoryProvider.overrideWith((ref) {
+          return CategoryInteractionsRepository(
+            db: AppDatabase.inMemory(),
+            performanceService: _MockPerf(),
+          );
+        }),
+        ...overrides,
+      ],
+    );
+  }
 
   Future<void> pumpFrames(
     WidgetTester tester, {
@@ -44,9 +102,7 @@ void main() {
         when(() => mockDataSource.isLoading).thenReturn(isLoadingProvider);
         when(() => mockDataSource.loadMore()).thenAnswer((_) async {});
 
-        final container = ProviderContainer(
-          overrides: FirebaseMocks.getFirebaseProviderOverrides(),
-        );
+        final container = createContainer();
         addTearDown(container.dispose);
 
         await tester.pumpWidget(
@@ -104,9 +160,7 @@ void main() {
       when(() => mockDataSource.isLoading).thenReturn(isLoadingProvider);
       when(() => mockDataSource.loadMore()).thenAnswer((_) async => {});
 
-      final container = ProviderContainer(
-        overrides: FirebaseMocks.getFirebaseProviderOverrides(),
-      );
+      final container = createContainer();
       addTearDown(container.dispose);
 
       // Build the viewer
@@ -177,9 +231,7 @@ void main() {
       when(() => mockDataSource.isLoading).thenReturn(isLoadingProvider);
       when(() => mockDataSource.loadMore()).thenAnswer((_) async => {});
 
-      final container = ProviderContainer(
-        overrides: FirebaseMocks.getFirebaseProviderOverrides(),
-      );
+      final container = createContainer();
       addTearDown(container.dispose);
 
       await tester.pumpWidget(
@@ -242,9 +294,7 @@ void main() {
       when(() => mockDataSource.isLoading).thenReturn(isLoadingProvider);
       when(() => mockDataSource.loadMore()).thenAnswer((_) async => {});
 
-      final container = ProviderContainer(
-        overrides: FirebaseMocks.getFirebaseProviderOverrides(),
-      );
+      final container = createContainer();
       addTearDown(container.dispose);
 
       await tester.pumpWidget(

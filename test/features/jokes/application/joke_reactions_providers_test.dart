@@ -1,338 +1,205 @@
-import 'package:flutter/material.dart';
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:mocktail/mocktail.dart';
+import 'package:snickerdoodle/src/data/core/database/app_database.dart';
+import 'package:snickerdoodle/src/data/jokes/joke_interactions_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_service.dart';
-import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_providers.dart';
-import 'package:snickerdoodle/src/features/jokes/application/joke_search_providers.dart';
-import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
-import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
 
-import '../../../test_helpers/analytics_mocks.dart';
+import '../../../test_helpers/core_mocks.dart';
 
-// Mock classes using mocktail
-class MockJokeReactionsService extends Mock implements JokeReactionsService {}
+class _ThrowingInteractionsRepository extends JokeInteractionsRepository {
+  _ThrowingInteractionsRepository({required super.db})
+      : super(performanceService: MockPerformanceService());
 
-class FakeBuildContext extends Fake implements BuildContext {
   @override
-  bool get mounted => true;
+  Stream<JokeInteraction?> watchJokeInteraction(String jokeId) {
+    return Stream<JokeInteraction?>.error(Exception('DB stream failure'));
+  }
 }
 
 void main() {
-  group('jokeReactionsProvider', () {
-    late MockJokeReactionsService mockReactionsService;
-    late BuildContext fakeContext;
-
-    setUpAll(() {
-      registerAnalyticsFallbackValues();
-      // Fallbacks for new enums used with any(named: ...)
-      registerFallbackValue(MatchMode.tight);
-      registerFallbackValue(SearchScope.userJokeSearch);
-      registerFallbackValue(FakeBuildContext());
-    });
+  group('Stream providers (isJokeSavedProvider, isJokeSharedProvider)', () {
+    late AppDatabase db;
+    late ProviderContainer container;
 
     setUp(() {
-      mockReactionsService = MockJokeReactionsService();
-      fakeContext = FakeBuildContext();
-    });
-
-    group('toggleReaction', () {
-      test('should handle save reaction toggle', () async {
-        // arrange
-        const jokeId = 'test-joke';
-
-        // Mock initial state: no reactions
-        when(
-          () => mockReactionsService.getAllUserReactions(),
-        ).thenAnswer((_) async => <String, Set<JokeReactionType>>{});
-        when(
-          () => mockReactionsService.getSavedJokeIds(),
-        ).thenAnswer((_) async => <String>[]);
-
-        // Mock service calls
-        when(
-          () => mockReactionsService.toggleUserReaction(
-            jokeId,
-            JokeReactionType.save,
-            context: any(named: 'context'),
-          ),
-        ).thenAnswer((_) async => true); // returns true when adding
-
-        // act
-        final container = ProviderContainer(
-          overrides: [
-            jokeReactionsServiceProvider.overrideWithValue(
-              mockReactionsService,
-            ),
+      CoreMocks.reset();
+      db = AppDatabase.inMemory();
+      container = ProviderContainer(
+        overrides: CoreMocks.getCoreProviderOverrides(
+          additionalOverrides: [
+            appDatabaseProvider.overrideWithValue(db),
           ],
-        );
-
-        final notifier = container.read(jokeReactionsProvider.notifier);
-
-        // Wait for initial load to complete
-        await Future.delayed(const Duration(milliseconds: 10));
-
-        // Toggle save
-        await notifier.toggleReaction(
-          jokeId,
-          JokeReactionType.save,
-          jokeContext: 'test',
-          context: fakeContext,
-        );
-
-        // assert
-        verify(
-          () => mockReactionsService.toggleUserReaction(
-            jokeId,
-            JokeReactionType.save,
-            context: any(named: 'context'),
-          ),
-        ).called(1);
-
-        // Should not call removeUserReaction for any reaction type
-        verifyNever(
-          () => mockReactionsService.removeUserReaction(any(), any()),
-        );
-
-        container.dispose();
-      });
-
-      test(
-        'should handle share reaction toggle without removing opposite',
-        () async {
-          // arrange
-          const jokeId = 'test-joke';
-
-          // Mock initial state: no reactions
-          when(
-            () => mockReactionsService.getAllUserReactions(),
-          ).thenAnswer((_) async => <String, Set<JokeReactionType>>{});
-          when(
-            () => mockReactionsService.getSavedJokeIds(),
-          ).thenAnswer((_) async => <String>[]);
-
-          // Mock service calls
-          when(
-            () => mockReactionsService.toggleUserReaction(
-              jokeId,
-              JokeReactionType.share,
-              context: any(named: 'context'),
-            ),
-          ).thenAnswer((_) async => true); // returns true when adding
-
-          // act
-          final container = ProviderContainer(
-            overrides: [
-              jokeReactionsServiceProvider.overrideWithValue(
-                mockReactionsService,
-              ),
-            ],
-          );
-
-          final notifier = container.read(jokeReactionsProvider.notifier);
-
-          // Wait for initial load to complete
-          await Future.delayed(const Duration(milliseconds: 10));
-
-          // Toggle share
-          await notifier.toggleReaction(
-            jokeId,
-            JokeReactionType.share,
-            jokeContext: 'test',
-            context: fakeContext,
-          );
-
-          // assert
-          verify(
-            () => mockReactionsService.toggleUserReaction(
-              jokeId,
-              JokeReactionType.share,
-              context: any(named: 'context'),
-            ),
-          ).called(1);
-
-          // Should not call removeUserReaction for any reaction type
-          verifyNever(
-            () => mockReactionsService.removeUserReaction(any(), any()),
-          );
-
-          container.dispose();
-        },
+        ),
       );
     });
 
-    group('toggleReaction - basic functionality', () {
-      test('should toggle reaction and update state optimistically', () async {
-        // arrange
-        const jokeId = 'test-joke';
-
-        // Mock initial state: no reactions
-        when(
-          () => mockReactionsService.getAllUserReactions(),
-        ).thenAnswer((_) async => <String, Set<JokeReactionType>>{});
-        when(
-          () => mockReactionsService.getSavedJokeIds(),
-        ).thenAnswer((_) async => <String>[]);
-
-        // Mock service calls
-        when(
-          () => mockReactionsService.toggleUserReaction(
-            jokeId,
-            JokeReactionType.share,
-            context: any(named: 'context'),
-          ),
-        ).thenAnswer((_) async => true); // returns true when adding
-
-        // act
-        final container = ProviderContainer(
-          overrides: [
-            jokeReactionsServiceProvider.overrideWithValue(
-              mockReactionsService,
-            ),
-          ],
-        );
-
-        final notifier = container.read(jokeReactionsProvider.notifier);
-
-        // Wait for initial load to complete
-        await Future.delayed(const Duration(milliseconds: 10));
-
-        // Toggle share
-        await notifier.toggleReaction(
-          jokeId,
-          JokeReactionType.share,
-          jokeContext: 'test',
-          context: fakeContext,
-        );
-
-        // assert
-        verify(
-          () => mockReactionsService.toggleUserReaction(
-            jokeId,
-            JokeReactionType.share,
-            context: any(named: 'context'),
-          ),
-        ).called(1);
-
-        container.dispose();
-      });
-
-      test(
-        'should handle errors gracefully and revert optimistic updates',
-        () async {
-          // arrange
-          const jokeId = 'test-joke';
-
-          // Mock initial state: no reactions
-          when(
-            () => mockReactionsService.getAllUserReactions(),
-          ).thenAnswer((_) async => <String, Set<JokeReactionType>>{});
-          when(
-            () => mockReactionsService.getSavedJokeIds(),
-          ).thenAnswer((_) async => <String>[]);
-
-          // Mock service calls to throw error
-          when(
-            () => mockReactionsService.toggleUserReaction(
-              jokeId,
-              JokeReactionType.share,
-              context: any(named: 'context'),
-            ),
-          ).thenThrow(Exception('Test error'));
-
-          // act
-          final container = ProviderContainer(
-            overrides: [
-              jokeReactionsServiceProvider.overrideWithValue(
-                mockReactionsService,
-              ),
-            ],
-          );
-
-          final notifier = container.read(jokeReactionsProvider.notifier);
-
-          // Wait for initial load to complete
-          await Future.delayed(const Duration(milliseconds: 10));
-
-          // Toggle share (should handle error)
-          await notifier.toggleReaction(
-            jokeId,
-            JokeReactionType.share,
-            jokeContext: 'test',
-            context: fakeContext,
-          );
-
-          // assert
-          final state = container.read(jokeReactionsProvider);
-          expect(state.error, isNotNull);
-          expect(state.error, contains('Failed to add Share'));
-
-          container.dispose();
-        },
-      );
+    tearDown(() async {
+      container.dispose();
     });
 
-    group('state management', () {
-      test(
-        'should initialize with empty reactions and load from service',
-        () async {
-          // arrange
-          when(
-            () => mockReactionsService.getAllUserReactions(),
-          ).thenAnswer((_) async => <String, Set<JokeReactionType>>{});
-          when(
-            () => mockReactionsService.getSavedJokeIds(),
-          ).thenAnswer((_) async => <String>[]);
-
-          // act
-          final container = ProviderContainer(
-            overrides: [
-              jokeReactionsServiceProvider.overrideWithValue(
-                mockReactionsService,
-              ),
-            ],
-          );
-
-          // Wait for initial load
-          await Future.delayed(const Duration(milliseconds: 10));
-
-          final state = container.read(jokeReactionsProvider);
-
-          // assert
-          expect(state.userReactions, isEmpty);
-          expect(state.isLoading, isTrue); // Still loading since it's async
-          expect(state.error, isNull);
-
-          verify(() => mockReactionsService.getAllUserReactions()).called(1);
-
-          container.dispose();
-        },
+    test('isJokeSaved emits false initially when no interaction exists', () async {
+      const id = 'j1';
+      final values = <AsyncValue<bool>>[];
+      final sub = container.listen(
+        isJokeSavedProvider(id),
+        (prev, next) => values.add(next),
+        fireImmediately: true,
       );
 
-      test('should handle loading state correctly', () async {
-        // arrange
-        when(
-          () => mockReactionsService.getAllUserReactions(),
-        ).thenAnswer((_) async => <String, Set<JokeReactionType>>{});
-        when(
-          () => mockReactionsService.getSavedJokeIds(),
-        ).thenAnswer((_) async => <String>[]);
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      expect(values.isNotEmpty, true);
+      expect(values.last.hasValue, true);
+      expect(values.last.value, false);
 
-        // act
-        final container = ProviderContainer(
-          overrides: [
-            jokeReactionsServiceProvider.overrideWithValue(
-              mockReactionsService,
-            ),
+      sub.close();
+    });
+
+    test('isJokeSaved reacts to setSaved and setUnsaved', () async {
+      const id = 'j2';
+      final repo = container.read(jokeInteractionsRepositoryProvider);
+      final events = <bool>[];
+      final sub = container.listen(
+        isJokeSavedProvider(id),
+        (prev, next) {
+          if (next.hasValue) events.add(next.requireValue);
+        },
+        fireImmediately: true,
+      );
+
+      // Initially false
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      expect(events.last, false);
+
+      // Save → true
+      await repo.setSaved(id);
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      expect(events.last, true);
+
+      // Unsaved → false
+      await repo.setUnsaved(id);
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      expect(events.last, false);
+
+      sub.close();
+    });
+
+    test('isJokeShared reacts to setShared', () async {
+      const id = 'j3';
+      final repo = container.read(jokeInteractionsRepositoryProvider);
+      final events = <bool>[];
+
+      final sub = container.listen(
+        isJokeSharedProvider(id),
+        (prev, next) {
+          if (next.hasValue) events.add(next.requireValue);
+        },
+        fireImmediately: true,
+      );
+
+      // Initially false
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      expect(events.last, false);
+
+      // Shared → true
+      await repo.setShared(id);
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      expect(events.last, true);
+
+      sub.close();
+    });
+
+    test('multiple subscribers receive the same updates', () async {
+      const id = 'j4';
+      final repo = container.read(jokeInteractionsRepositoryProvider);
+      final s1 = <bool>[];
+      final s2 = <bool>[];
+
+      final sub1 = container.listen(
+        isJokeSavedProvider(id),
+        (prev, next) {
+          if (next.hasValue) s1.add(next.requireValue);
+        },
+        fireImmediately: true,
+      );
+      final sub2 = container.listen(
+        isJokeSavedProvider(id),
+        (prev, next) {
+          if (next.hasValue) s2.add(next.requireValue);
+        },
+        fireImmediately: true,
+      );
+
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      await repo.setSaved(id);
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+
+      expect(s1.isNotEmpty && s2.isNotEmpty, true);
+      expect(s1.last, true);
+      expect(s2.last, true);
+
+      sub1.close();
+      sub2.close();
+    });
+
+    test('provider surfaces stream errors', () async {
+      const id = 'err';
+      final errorContainer = ProviderContainer(
+        overrides: CoreMocks.getCoreProviderOverrides(
+          additionalOverrides: [
+            appDatabaseProvider.overrideWithValue(db),
+            jokeInteractionsRepositoryProvider.overrideWith((ref) {
+              return _ThrowingInteractionsRepository(db: db);
+            }),
           ],
-        );
+        ),
+      );
 
-        // Initial state should show loading
-        final initialState = container.read(jokeReactionsProvider);
-        expect(initialState.isLoading, isTrue);
+      final values = <AsyncValue<bool>>[];
+      final sub = errorContainer.listen(
+        isJokeSavedProvider(id),
+        (prev, next) => values.add(next),
+        fireImmediately: true,
+      );
 
-        container.dispose();
-      });
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      expect(values.any((v) => v.hasError), true);
+
+      sub.close();
+      errorContainer.dispose();
+    });
+
+    test('independent streams for different joke IDs', () async {
+      const a = 'a', b = 'b';
+      final repo = container.read(jokeInteractionsRepositoryProvider);
+      final va = <bool>[];
+      final vb = <bool>[];
+
+      final subA = container.listen(
+        isJokeSavedProvider(a),
+        (prev, next) {
+          if (next.hasValue) va.add(next.requireValue);
+        },
+        fireImmediately: true,
+      );
+      final subB = container.listen(
+        isJokeSavedProvider(b),
+        (prev, next) {
+          if (next.hasValue) vb.add(next.requireValue);
+        },
+        fireImmediately: true,
+      );
+
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+      await repo.setSaved(a);
+      await Future<void>.delayed(const Duration(milliseconds: 10));
+
+      expect(va.last, true);
+      expect(vb.last, false);
+
+      subA.close();
+      subB.close();
     });
   });
 }

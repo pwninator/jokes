@@ -14,7 +14,11 @@ import 'package:snickerdoodle/src/config/router/router_providers.dart';
 import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
 import 'package:snickerdoodle/src/core/providers/image_providers.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
+import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
+import 'package:snickerdoodle/src/data/core/database/app_database.dart';
+import 'package:snickerdoodle/src/data/jokes/category_interactions_repository.dart';
+import 'package:snickerdoodle/src/data/jokes/joke_interactions_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_schedule_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_schedule_batch.dart';
@@ -30,10 +34,39 @@ class MockImageService extends Mock implements ImageService {}
 class MockJokeScheduleRepository extends Mock
     implements JokeScheduleRepository {}
 
+class _MockPerf extends Mock implements PerformanceService {}
+
 // Fake classes for Mocktail fallback values
 class FakeJokeScheduleBatch extends Fake implements JokeScheduleBatch {}
 
 class FakeJoke extends Fake implements Joke {}
+
+// Test repository that properly handles streams
+class _TestInteractionsRepo extends JokeInteractionsRepository {
+  _TestInteractionsRepo({required super.db, required PerformanceService perf})
+      : super(performanceService: perf);
+
+  final _controllers = <String, StreamController<JokeInteraction?>>{};
+
+  @override
+  Stream<JokeInteraction?> watchJokeInteraction(String jokeId) {
+    // Reuse existing controller for this jokeId or create a new one
+    if (!_controllers.containsKey(jokeId)) {
+      final controller = StreamController<JokeInteraction?>.broadcast();
+      _controllers[jokeId] = controller;
+      // Add initial value
+      controller.add(null);
+    }
+    return _controllers[jokeId]!.stream;
+  }
+
+  void dispose() {
+    for (final controller in _controllers.values) {
+      controller.close();
+    }
+    _controllers.clear();
+  }
+}
 
 void main() {
   group('DailyJokesScreen', () {
@@ -223,6 +256,20 @@ void main() {
           jokeScheduleRepositoryProvider.overrideWithValue(customRepository),
           ...FirebaseMocks.getFirebaseProviderOverrides(),
           settingsServiceProvider.overrideWithValue(settingsService),
+          // Override jokeInteractionsRepository to return working streams
+          jokeInteractionsRepositoryProvider.overrideWith((ref) {
+            return _TestInteractionsRepo(
+              db: AppDatabase.inMemory(),
+              perf: _MockPerf(),
+            );
+          }),
+          // Override categoryInteractionsRepository
+          categoryInteractionsRepositoryProvider.overrideWith((ref) {
+            return CategoryInteractionsRepository(
+              db: AppDatabase.inMemory(),
+              performanceService: _MockPerf(),
+            );
+          }),
         ],
         child: MaterialApp.router(theme: lightTheme, routerConfig: router),
       );
@@ -255,6 +302,20 @@ void main() {
           jokeScheduleRepositoryProvider.overrideWithValue(customRepository),
           ...FirebaseMocks.getFirebaseProviderOverrides(),
           settingsServiceProvider.overrideWithValue(settingsService),
+          // Override jokeInteractionsRepository to return working streams
+          jokeInteractionsRepositoryProvider.overrideWith((ref) {
+            return _TestInteractionsRepo(
+              db: AppDatabase.inMemory(),
+              perf: _MockPerf(),
+            );
+          }),
+          // Override categoryInteractionsRepository
+          categoryInteractionsRepositoryProvider.overrideWith((ref) {
+            return CategoryInteractionsRepository(
+              db: AppDatabase.inMemory(),
+              performanceService: _MockPerf(),
+            );
+          }),
         ],
         child: MaterialApp(
           theme: lightTheme,
@@ -771,6 +832,20 @@ void main() {
               jokeScheduleRepositoryProvider.overrideWithValue(mockRepository),
               ...FirebaseMocks.getFirebaseProviderOverrides(),
               settingsServiceProvider.overrideWithValue(settingsService),
+              // Override jokeInteractionsRepository to return working streams
+              jokeInteractionsRepositoryProvider.overrideWith((ref) {
+                return _TestInteractionsRepo(
+                  db: AppDatabase.inMemory(),
+                  perf: _MockPerf(),
+                );
+              }),
+              // Override categoryInteractionsRepository
+              categoryInteractionsRepositoryProvider.overrideWith((ref) {
+                return CategoryInteractionsRepository(
+                  db: AppDatabase.inMemory(),
+                  performanceService: _MockPerf(),
+                );
+              }),
             ],
             child: MaterialApp.router(theme: lightTheme, routerConfig: router),
           ),

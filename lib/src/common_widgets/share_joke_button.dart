@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/core/providers/joke_share_providers.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/joke_share_service.dart';
+import 'package:snickerdoodle/src/core/theme/app_theme.dart';
+import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_service.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 
 /// Button that shares a joke using the share functionality
@@ -20,14 +22,15 @@ class ShareJokeButton extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final theme = Theme.of(context);
+    final Color baseButtonColor = jokeIconButtonBaseColor(context);
+    final Color activeButtonColor = jokeShareButtonColor(context);
+    final isSharedAsync = ref.watch(isJokeSharedProvider(joke.id));
+    final shareService = ref.read(jokeShareServiceProvider);
 
     return GestureDetector(
       key: Key('share_joke_button-${joke.id}'),
       onTap: () async {
         try {
-          final shareService = ref.read(jokeShareServiceProvider);
-
           // Create controller and show modal progress dialog
           final controller = SharePreparationController();
           VoidCallback? closeDialog;
@@ -122,10 +125,22 @@ class ShareJokeButton extends ConsumerWidget {
         width: size + 16,
         height: size + 16,
         child: Center(
-          child: Icon(
-            Icons.share,
-            size: size,
-            color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+          child: isSharedAsync.when(
+            data: (isShared) => Icon(
+              isShared ? Icons.share : Icons.share_outlined,
+              size: size,
+              color: isShared ? activeButtonColor : baseButtonColor,
+            ),
+            loading: () => SizedBox(
+              width: size * 0.7,
+              height: size * 0.7,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: baseButtonColor,
+              ),
+            ),
+            error: (error, stack) =>
+                Icon(Icons.share, size: size, color: baseButtonColor),
           ),
         ),
       ),

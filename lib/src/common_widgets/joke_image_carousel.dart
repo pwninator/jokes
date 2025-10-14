@@ -1378,7 +1378,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
   }
 
   Widget _buildSimilarButton(BuildContext context) {
-    final theme = Theme.of(context);
+    final Color baseButtonColor = jokeIconButtonBaseColor(context);
 
     return Material(
       color: Colors.transparent,
@@ -1391,18 +1391,14 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(
-                Icons.search,
-                size: 24,
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
-              ),
+              Icon(Icons.search, size: 24, color: baseButtonColor),
               const SizedBox(width: 4),
               Text(
                 'Similar',
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
-                  color: theme.colorScheme.onSurface.withValues(alpha: 0.7),
+                  color: baseButtonColor,
                 ),
               ),
             ],

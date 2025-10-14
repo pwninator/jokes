@@ -111,7 +111,7 @@ Future<T> runWithTrace<T>({
   try {
     return await body();
   } catch (e) {
-    AppLogger.fatal("DB trace '$name (${traceKey ?? ''})' failed: $e");
+    AppLogger.fatal("APP_DATABASE: $name (${traceKey ?? ''}) failed: $e");
     return fallback;
   } finally {
     perf.stopNamedTrace(name: name, key: traceKey);

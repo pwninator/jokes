@@ -247,7 +247,7 @@ def _generate_image_callback(
               for pun_line in pun_model.pun_lines]
 
   # On initial generation, always use low quality
-  images = image_generation.generate_pun_images(pun_data, "low")
+  images = image_generation.generate_pun_images(pun_data, "low_mini")
 
   # Update pun lines with generated images and collect LLM costs
   all_llm_costs = []

@@ -117,9 +117,6 @@ class JokeShareServiceImpl implements JokeShareService {
         context: context, // ignore: use_build_context_synchronously
       );
 
-      // Increment local shared jokes counter
-      await _appUsageService.incrementSharedJokesCount();
-
       // Log successful share analytics
       final totalShared = await _appUsageService.getNumSharedJokes();
       _analyticsService.logJokeShareSuccess(

@@ -11,7 +11,7 @@ ColorScheme lightColorScheme = ColorScheme.fromSeed(
   seedColor: Color.fromARGB(255, 243, 179, 51),
   primary: Color.fromARGB(255, 198, 109, 0),
   secondaryContainer: Color.fromARGB(255, 227, 215, 190),
-  // tertiary: Color.fromARGB(255, 118, 83, 247),
+  // tertiary: Color.fromARGB(255, 82, 134, 254),
   // onTertiary: Colors.white,
   // tertiaryContainer: Color.fromARGB(255, 154, 127, 250),
   // onTertiaryContainer: Colors.white,
@@ -22,7 +22,7 @@ ColorScheme darkColorScheme = ColorScheme.fromSeed(
   brightness: Brightness.dark,
   dynamicSchemeVariant: DynamicSchemeVariant.content,
   seedColor: Color.fromARGB(255, 229, 156, 72),
-  // tertiary: Color.fromARGB(255, 118, 83, 247),
+  // tertiary: Color.fromARGB(255, 128, 166, 255),
   // onTertiary: Colors.white,
   // tertiaryContainer: Color.fromARGB(255, 154, 127, 250),
   // onTertiaryContainer: Colors.white,
@@ -205,4 +205,16 @@ TextStyle menuSubtitleTextStyle(BuildContext context) {
   return Theme.of(context).textTheme.bodySmall!.copyWith(
     color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
   );
+}
+
+Color jokeIconButtonBaseColor(BuildContext context) {
+  return Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7);
+}
+
+Color jokeSaveButtonColor(BuildContext context) {
+  return Theme.of(context).colorScheme.error;
+}
+
+Color jokeShareButtonColor(BuildContext context) {
+  return Theme.of(context).colorScheme.tertiary;
 }

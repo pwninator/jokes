@@ -156,4 +156,11 @@ class JokeInteractionsRepository {
         fallback: null,
         perf: _perf,
       );
+
+  /// Watch a single joke interaction row and emit updates reactively
+  Stream<JokeInteraction?> watchJokeInteraction(String jokeId) {
+    final query = _db.select(_db.jokeInteractions)
+      ..where((tbl) => tbl.jokeId.equals(jokeId));
+    return query.watchSingleOrNull();
+  }
 }

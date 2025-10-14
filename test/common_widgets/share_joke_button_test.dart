@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -6,6 +8,7 @@ import 'package:snickerdoodle/src/common_widgets/share_joke_button.dart';
 import 'package:snickerdoodle/src/core/providers/joke_share_providers.dart';
 import 'package:snickerdoodle/src/core/services/joke_share_service.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
+import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_service.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 
 class MockJokeShareService extends Mock implements JokeShareService {}
@@ -16,6 +19,7 @@ void main() {
   group('ShareJokeButton', () {
     late MockJokeShareService mockJokeShareService;
     late Joke testJoke;
+    late StreamController<bool> sharedController;
 
     setUpAll(() {
       registerFallbackValue(
@@ -35,6 +39,10 @@ void main() {
       return ProviderScope(
         overrides: [
           jokeShareServiceProvider.overrideWithValue(mockJokeShareService),
+          // Override the isJokeShared provider for our test joke ID
+          isJokeSharedProvider(
+            testJoke.id,
+          ).overrideWith((ref) => sharedController.stream),
           ...additionalOverrides,
         ],
         child: MaterialApp(
@@ -51,6 +59,12 @@ void main() {
         setupText: 'Why did the chicken cross the road?',
         punchlineText: 'To get to the other side!',
       );
+      sharedController = StreamController<bool>.broadcast();
+      // Don't add initial value here - add it after widget is created
+    });
+
+    tearDown(() {
+      sharedController.close();
     });
 
     testWidgets('should display share icon', (tester) async {
@@ -60,7 +74,11 @@ void main() {
         ),
       );
 
-      expect(find.byIcon(Icons.share), findsOneWidget);
+      // Add initial value after widget subscribes
+      sharedController.add(false);
+      await tester.pump();
+
+      expect(find.byIcon(Icons.share_outlined), findsOneWidget);
     });
 
     testWidgets('should use custom size when provided', (tester) async {
@@ -76,7 +94,10 @@ void main() {
         ),
       );
 
-      final icon = tester.widget<Icon>(find.byIcon(Icons.share));
+      sharedController.add(false);
+      await tester.pump();
+
+      final icon = tester.widget<Icon>(find.byIcon(Icons.share_outlined));
       expect(icon.size, customSize);
     });
 
@@ -96,7 +117,10 @@ void main() {
         ),
       );
 
-      await tester.tap(find.byIcon(Icons.share));
+      sharedController.add(false);
+      await tester.pump();
+
+      await tester.tap(find.byIcon(Icons.share_outlined));
       await tester.pumpAndSettle();
 
       expect(tester.takeException(), isNull);
@@ -129,7 +153,10 @@ void main() {
           ),
         );
 
-        await tester.tap(find.byIcon(Icons.share));
+        sharedController.add(false);
+        await tester.pump();
+
+        await tester.tap(find.byIcon(Icons.share_outlined));
         await tester.pump();
 
         // Dialog visible
@@ -185,7 +212,10 @@ void main() {
         ),
       );
 
-      await tester.tap(find.byIcon(Icons.share));
+      sharedController.add(false);
+      await tester.pump();
+
+      await tester.tap(find.byIcon(Icons.share_outlined));
       await tester.pump();
 
       // Dialog visible
@@ -224,8 +254,11 @@ void main() {
         ),
       );
 
+      sharedController.add(false);
+      await tester.pump();
+
       // Tap the share button
-      await tester.tap(find.byIcon(Icons.share));
+      await tester.tap(find.byIcon(Icons.share_outlined));
       await tester.pumpAndSettle();
 
       // Verify share service was called with correct parameters
@@ -257,12 +290,17 @@ void main() {
         ),
       );
 
-      await tester.tap(find.byIcon(Icons.share));
+      sharedController.add(false);
+      await tester.pump();
+
+      await tester.tap(find.byIcon(Icons.share_outlined));
       await tester.pumpAndSettle();
 
       // Verify UI doesn't crash and share button is still present
       expect(tester.takeException(), isNull);
-      expect(find.byIcon(Icons.share), findsOneWidget);
+      expect(find.byIcon(Icons.share_outlined), findsOneWidget);
     });
   });
 }
+
+// removed duplicate _MockPerf at file end

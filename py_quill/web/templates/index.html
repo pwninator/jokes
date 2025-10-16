@@ -12,11 +12,20 @@
   <meta property="og:url" content="{{ url_for('web.index', _external=True) }}">
   <meta name="twitter:card" content="summary_large_image">
   <style>
-    /* Some basic styling for the landing page */
-    .banner-image {
-      width: 100%;
-      height: auto;
-      margin-bottom: 2rem;
+    /* Landing page polish: remove oversized banner, tighten hierarchy */
+    .hero {
+      max-width: 900px;
+      margin: 0 auto 20px;
+      text-align: center;
+    }
+    .hero-title {
+      font-size: 1.8rem;
+      margin: 0 0 6px;
+    }
+    .hero-subtitle {
+      color: #b8b8b8;
+      margin: 0 0 10px;
+      font-size: 1rem;
     }
     .joke-card {
       background-color: #fff;
@@ -45,42 +54,10 @@
       display: block;
     }
     
-    .cta-section {
-      text-align: center;
-      margin: 3rem 0;
-    }
-    .cta-button {
-      display: inline-block;
-      padding: 12px 20px;
-      background: linear-gradient(180deg, var(--primary) 0%, var(--primary-600) 100%);
-      color: var(--on-primary);
-      text-decoration: none;
-      font-size: 1.05rem;
-      border-radius: 10px;
-      font-weight: 700;
-      border: 1px solid var(--primary-700);
-      box-shadow: 0 2px 6px rgba(193, 122, 45, 0.35);
-      transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease;
-    }
-    .cta-button:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 4px 10px rgba(193, 122, 45, 0.4);
-    }
-    .value-props {
-      display: flex;
-      justify-content: center;
-      gap: 2rem;
-      margin-top: 3rem;
-      flex-wrap: wrap;
-    }
-    .prop-box {
-      background-color: #f9f9f9;
-      border: 1px solid #ddd;
-      border-radius: 8px;
-      padding: 1.5rem;
-      width: 250px;
-      text-align: center;
-    }
+    .cta-section { text-align: center; margin: 2.2rem 0; }
+    .value-props { display: flex; justify-content: center; gap: 1.2rem; margin-top: 2.2rem; flex-wrap: wrap; }
+    .prop-box { background-color: var(--card-bg); border: 1px solid var(--card-border); border-radius: 14px; padding: 1.2rem 1rem; width: 240px; text-align: center; box-shadow: 0 6px 18px rgba(0,0,0,0.25); }
+    .prop-icon { width: 28px; height: 28px; border-radius: 50%; background: var(--primary); display: inline-flex; align-items: center; justify-content: center; color: var(--on-primary); font-weight: 800; box-shadow: inset 0 0 0 1px var(--primary-700); margin-bottom: 8px; }
     .prop-box h3 {
       margin-top: 0;
     }
@@ -88,27 +65,32 @@
 {% endblock %}
 
 {% block content %}
-  <img src="https://images.quillsstorybook.com/cdn-cgi/image/width=1024,format=auto,quality=75/banner001.png" alt="Snickerdoodle Jokes Banner" class="banner-image">
-
-  <h2 style="text-align: center;">Today's Joke</h2>
+  <section class="hero" aria-label="Intro">
+    <h2 class="hero-title">Today's Joke</h2>
+    <p class="hero-subtitle">Family‑friendly laughs with revealable punchlines</p>
+  </section>
   {{ joke_card(joke, reveal_label='Reveal Punchline', image_size=600) }}
 
   <div class="cta-section">
-    <a href="https://play.google.com/store/apps/details?id=com.builtwithporpoise.jokes" class="cta-button" target="_blank" rel="noopener noreferrer">
-      Download on Google Play
+    <a href="https://play.google.com/store/apps/details?id=com.builtwithporpoise.jokes" target="_blank" rel="noopener noreferrer">
+      <img class="play-badge" alt="Get it on Google Play" style="height:56px;"
+        src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png" />
     </a>
   </div>
 
   <div class="value-props">
     <div class="prop-box">
+      <div class="prop-icon" aria-hidden="true">🙂</div>
       <h3>Daily Laughs</h3>
       <p>Get a new, hilarious joke delivered to you every day.</p>
     </div>
     <div class="prop-box">
+      <div class="prop-icon" aria-hidden="true">🖼️</div>
       <h3>Beautiful Images</h3>
       <p>Each joke comes with funny, AI-generated images.</p>
     </div>
     <div class="prop-box">
+      <div class="prop-icon" aria-hidden="true">🔗</div>
       <h3>Share with Friends</h3>
       <p>Easily share your favorite jokes and spread the fun.</p>
     </div>

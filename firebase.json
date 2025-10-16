@@ -49,15 +49,23 @@
     ],
     "rewrites": [
       {
-        "source": "/joke-book/**",
+        "source": "/",
         "function": {
-          "functionId": "get_joke_book",
+          "functionId": "web_search_page",
           "region": "us-central1",
           "codebase": "default"
         }
       },
       {
-        "source": "**",
+        "source": "/jokes/**",
+        "function": {
+          "functionId": "web_search_page",
+          "region": "us-central1",
+          "codebase": "default"
+        }
+      },
+      {
+        "source": "/sitemap.xml",
         "function": {
           "functionId": "web_search_page",
           "region": "us-central1",

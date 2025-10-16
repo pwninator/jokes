@@ -28,6 +28,13 @@
     content="{% block twitter_description %}Discover funny, family-friendly jokes with images. Reveal the punchline when you're ready.{% endblock %}">
 
   {% block head_extra %}{% endblock %}
+  <!-- Favicon: inline SVG to avoid 404s in emulator and production rewrites -->
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  <!-- App font to mirror mobile UI -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
   <!-- Google tag (gtag.js) -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-D2B7E8PXJJ"></script>
   <script>
@@ -39,46 +46,67 @@
   </script>
   <style>
     :root {
-      color-scheme: light;
-      /* App theme palette (mirrors Flutter app) */
-      --primary: #C17A2D;           /* primaryColor */
-      --primary-600: #B06E29;       /* slightly darker */
-      --primary-700: #9A5F22;       /* darker for borders */
-      --on-primary: #ffffff;        /* text on primary */
-      --card-bg: #ffffff;           /* card surface */
-      --card-border: rgba(0,0,0,0.08);
-      --card-shadow: 0 6px 18px rgba(0,0,0,0.08);
-      --parchment: #f7f1e1;         /* site background */
-      --text: #1b1b1b;
+      color-scheme: dark;
+      /* Dark theme palette (aligns with lib/src/core/theme/app_theme.dart) */
+      --primary: #B05F00;           /* slightly darker than seed */
+      --primary-700: #924E00;
+      --primary-container: #E59C48; /* Color.fromARGB(255, 229, 156, 72) */
+      --on-primary: #ffffff;
+      --on-primary-container: #1b1b1b;
+      --surface: #1b1b1b;           /* dark surface */
+      --card-bg: #1f1f1f;           /* card surface (dark) */
+      --card-border: rgba(255,255,255,0.08);
+      --card-shadow: 0 6px 18px rgba(0,0,0,0.25);
+      --parchment: #121212;         /* site background (keep literal for tests) */
+      --text: #eaeaea;
     }
 
     body {
       margin: 0;
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      font-family: 'Nunito Sans', system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
       line-height: 1.6;
-      background: #f7f1e1; /* keep literal for tests */
+      background: #121212; /* keep literal for tests */
       background: var(--parchment);
       color: var(--text);
     }
 
-    header {
-      padding: 16px 24px;
+    /* Header */
+    .site-header {
+      padding: 12px 16px;
       border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+      background: var(--parchment);
     }
-
-    main {
-      padding: 24px;
+    .site-header .container {
       max-width: 1200px;
       margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
     }
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+      color: inherit;
+    }
+    .brand-logo { width: 64px; height: 64px; object-fit: contain; display: inline-block; }
+    .brand-text { font-weight: 800; letter-spacing: 0.2px; color: #f0e6d6; }
+    /* Shared pill CTA (header + landing) uses primary-container */
+    .pill-cta { display: inline-block; padding: 10px 16px; background: var(--primary-container); color: var(--on-primary-container); text-decoration: none; border-radius: 24px; font-weight: 800; letter-spacing: 0.2px; border: 1px solid rgba(0,0,0,0.12); box-shadow: 0 2px 6px rgba(0,0,0,0.12); transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease; }
+    .pill-cta:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.16); }
+    .pill-cta:active { transform: translateY(0); box-shadow: 0 1px 4px rgba(0,0,0,0.18); background: #E6AA2E; }
+    .pill-cta:focus-visible { outline: 3px solid rgba(198,109,0,0.28); outline-offset: 2px; }
 
-    h1 {
-      font-size: 2rem;
-      margin: 0 0 12px;
-    }
+    main { padding: 24px; max-width: 680px; margin: 0 auto; }
+
+    h1 { font-size: 1.8rem; margin: 0 0 12px; }
+    h2 { font-size: 1.4rem; margin: 0 0 10px; }
+    h3 { font-size: 1.1rem; margin: 0 0 8px; }
 
     .subtitle {
-      color: #666;
+      color: #b8b8b8;
       margin-bottom: 24px;
     }
 
@@ -88,21 +116,9 @@
       gap: 16px;
     }
 
-    .card {
-      border: 1px solid var(--card-border);
-      border-radius: 12px;
-      overflow: hidden;
-      background: var(--card-bg);
-      box-shadow: var(--card-shadow);
-    }
+    .card { border: 1px solid var(--card-border); border-radius: 12px; overflow: hidden; background: var(--card-bg); box-shadow: var(--card-shadow); }
 
-    .media {
-      aspect-ratio: 3 / 2;
-      background: #f4f4f5;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
+    .media { aspect-ratio: 3 / 2; background: #262626; display: flex; align-items: center; justify-content: center; }
 
     .media img {
       width: 100%;
@@ -128,30 +144,24 @@
       cursor: pointer;
     }
 
-    .punchline {
-      margin-top: 10px;
-    }
+    .punchline { margin-top: 10px; }
 
-    footer {
-      padding: 24px;
-      text-align: center;
-      color: #777;
-    }
+    footer { padding: 24px; text-align: center; color: #9a9a9a; }
 
     /* Joke carousel */
     .joke-carousel {
       width: 100%;
       max-width: 600px;
-      margin: 0 auto 8px;
+      margin: 4px auto 12px;
     }
 
     .joke-carousel-viewport {
       overflow: hidden;
       width: 100%;
-      border-radius: 12px;
+      border-radius: 16px;
       background: var(--card-bg);
       border: 1px solid var(--card-border);
-      box-shadow: var(--card-shadow);
+      box-shadow: 0 8px 22px rgba(0,0,0,0.08);
     }
 
     .joke-carousel-track {
@@ -177,9 +187,9 @@
     .joke-slide-media {
       width: 100%;
       aspect-ratio: 1 / 1;
-      border-radius: 12px;
+      border-radius: 14px;
       overflow: hidden;
-      background: #f7f7f8;
+      background: #222;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -192,12 +202,7 @@
     }
 
     /* Joke text styling inside widget */
-    .joke-widget .joke-text {
-      text-align: center;
-      font-size: 1.1rem;
-      color: #222;
-      margin: 2px 6px 0;
-    }
+    .joke-widget .joke-text { text-align: center; font-size: 1.1rem; color: #e6e6e6; margin: 2px 6px 0; }
 
     /* Toggle second slide when details is open */
     .joke-widget details[open]+.joke-carousel .joke-carousel-track {
@@ -247,18 +252,20 @@
     }
 
     .joke-widget summary {
-      background: var(--primary);
-      color: var(--on-primary);
-      padding: 12px 18px;
-      border-radius: 10px;
-      font-weight: 700;
+      background: var(--primary-container);
+      color: var(--on-primary-container);
+      padding: 14px 20px;
+      border-radius: 24px;
+      font-weight: 800;
+      letter-spacing: 0.2px;
       list-style: none;
       display: block;
       width: 100%;
       box-sizing: border-box;
       text-align: center;
-      border: 1px solid var(--primary-700);
-      transition: background 120ms ease;
+      border: 1px solid rgba(0,0,0,0.12);
+      box-shadow: 0 2px 6px rgba(0,0,0,0.12);
+      transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease;
       user-select: none;
     }
 
@@ -266,13 +273,9 @@
       display: none;
     }
 
-    .joke-widget summary:hover {
-      background: var(--primary-600);
-    }
+    .joke-widget summary:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0,0,0,0.16); }
 
-    .joke-widget summary:active {
-      background: var(--primary-700);
-    }
+    .joke-widget summary:active { background: #E6AA2E; transform: translateY(0); box-shadow: 0 1px 4px rgba(0,0,0,0.18); }
 
     .joke-widget summary:focus-visible {
       outline: 3px solid rgba(193, 122, 45, 0.4);
@@ -282,12 +285,15 @@
 </head>
 
 <body>
-  <header>
-    <div style="max-width:1200px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;gap:16px;">
-      <a href="/" style="text-decoration:none;color:inherit;"><strong>{{ site_name }}</strong></a>
-      <nav style="display:flex;gap:12px;">
-        <a href="/jokes/dogs">Dogs</a>
-      </nav>
+  <header class="site-header">
+    <div class="container">
+      <a class="brand" href="/" aria-label="{{ site_name }} home">
+        <img class="brand-logo" alt="{{ site_name }} logo" src="https://images.quillsstorybook.com/cdn-cgi/image/width=128,format=auto,quality=90/joke_assets/icon_cookie_01_transparent_dark2.png" />
+        <span class="brand-text">{{ site_name }}</span>
+      </a>
+      <div class="header-cta">
+        <a class="pill-cta" href="https://play.google.com/store/apps/details?id=com.builtwithporpoise.jokes" target="_blank" rel="noopener noreferrer">Get the app</a>
+      </div>
     </div>
   </header>
   <main>

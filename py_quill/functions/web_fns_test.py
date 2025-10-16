@@ -229,6 +229,13 @@ def test_pages_include_ga4_tag_and_parchment_background(monkeypatch):
   assert 'gtag/js?id=G-D2B7E8PXJJ' in index_html
   assert "gtag('config', 'G-D2B7E8PXJJ')" in index_html
 
-  # Background matches parchment color
-  assert 'background: #f7f1e1' in topic_html
-  assert 'background: #f7f1e1' in index_html
+  # Background matches dark parchment color
+  assert 'background: #121212' in topic_html
+  assert 'background: #121212' in index_html
+
+  # New header and favicon present; old Dogs link removed
+  assert '<header class="site-header">' in topic_html
+  assert '<header class="site-header">' in index_html
+  assert '<link rel="icon" type="image/png"' in index_html
+  assert '<link rel="icon" type="image/png"' in topic_html
+  assert '/jokes/dogs' not in index_html

@@ -102,8 +102,9 @@ def test_topic_page_renders_with_json_ld_and_reveal(monkeypatch):
 def test_index_page_renders_joke_of_the_day(monkeypatch):
   """Verify that the index page '/' renders the joke of the day."""
   # Arrange
-  mock_get_daily_joke = Mock()
-  monkeypatch.setattr(web_fns.firestore, "get_daily_joke", mock_get_daily_joke)
+  mock_get_daily_jokes = Mock()
+  monkeypatch.setattr(web_fns.firestore, "get_daily_jokes",
+                      mock_get_daily_jokes)
 
   joke = models.PunnyJoke(
     key="joke123",
@@ -112,7 +113,7 @@ def test_index_page_renders_joke_of_the_day(monkeypatch):
     setup_image_url="http://example.com/setup.jpg",
     punchline_image_url="http://example.com/punchline.jpg",
   )
-  mock_get_daily_joke.return_value = joke
+  mock_get_daily_jokes.return_value = [joke]
 
   # Act
   with web_fns.app.test_client() as client:
@@ -124,7 +125,8 @@ def test_index_page_renders_joke_of_the_day(monkeypatch):
   assert "Today's Joke" in html
   assert "What do you call a fake noodle?" in html
   assert "An Impasta!" in html
-  assert "Download on Google Play" in html
+  # Badge alt text per template
+  assert "Get it on Google Play" in html
   assert 'Cache-Control' in resp.headers
 
 
@@ -186,8 +188,9 @@ def test_pages_include_ga4_tag_and_parchment_background(monkeypatch):
                       "get_punny_jokes",
                       mock_get_punny_jokes,
                       raising=False)
-  mock_get_daily_joke = Mock()
-  monkeypatch.setattr(web_fns.firestore, "get_daily_joke", mock_get_daily_joke)
+  mock_get_daily_jokes = Mock()
+  monkeypatch.setattr(web_fns.firestore, "get_daily_jokes",
+                      mock_get_daily_jokes)
 
   search_result = search.JokeSearchResult(
     joke=models.PunnyJoke(key="j3", setup_text="S", punchline_text="P"),
@@ -210,7 +213,7 @@ def test_pages_include_ga4_tag_and_parchment_background(monkeypatch):
     setup_image_url="http://example.com/d.jpg",
     punchline_image_url="http://example.com/pd.jpg",
   )
-  mock_get_daily_joke.return_value = daily_joke
+  mock_get_daily_jokes.return_value = [daily_joke]
 
   # Act
   with web_fns.app.test_client() as client:

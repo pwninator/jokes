@@ -1083,7 +1083,8 @@ def send_single_joke_notification(
       topic_suffix: Either "c" (current date) or "n" (next date) (optional)
   """
   logger.info(f"Getting joke for {schedule_name} on {joke_date}")
-  joke = firestore.get_daily_joke(schedule_name, joke_date)
+  jokes = firestore.get_daily_jokes(schedule_name, joke_date, 1)
+  joke = jokes[0] if jokes else None
   if not joke:
     logger.error(f"No joke found for {joke_date}")
     return

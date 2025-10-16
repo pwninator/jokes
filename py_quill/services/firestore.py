@@ -175,54 +175,35 @@ def list_joke_schedules() -> list[str]:
   return [doc.id for doc in docs]
 
 
-def get_daily_joke(
-  schedule_name: str,
-  joke_date: datetime.date,
-) -> models.PunnyJoke | None:
-  """Get the punny joke for a given date.
-  
-  Args:
-      schedule_name: The name of the joke schedule to use
-      joke_date: The date to get the joke for
+def _batch_doc_id(schedule_name: str, year: int, month: int) -> str:
+  """Create the batch document ID for a given schedule and month."""
+  return f"{schedule_name}_{year}_{month:02d}"
 
-  Returns:
-      A PunnyJoke object for the given date, or None if not found
-  """
-  # Get today's date
-  day_of_month = f"{joke_date.day:02d}"
-  month_year = f"{joke_date.year}_{joke_date.month:02d}"
 
-  # Construct the document ID for this schedule and month
-  batch_doc_id = f"{schedule_name}_{month_year}"
-
-  # Get the joke schedule batch document
+def _load_schedule_batch(schedule_name: str, year: int, month: int) -> dict:
+  """Load a schedule batch document and return its data dict (or {})."""
+  batch_doc_id = _batch_doc_id(schedule_name, year, month)
   batch_ref = db().collection('joke_schedule_batches').document(batch_doc_id)
-  batch_doc = batch_ref.get()
-
-  if not batch_doc.exists:
+  snapshot = batch_ref.get()
+  if not snapshot.exists:
     logger.error(f"No joke schedule batch found for {batch_doc_id}")
+    return {}
+  return snapshot.to_dict() or {}
+
+
+def _joke_from_day_data(day_data: dict | None) -> models.PunnyJoke | None:
+  """Convert a single day's schedule data into a PunnyJoke, if valid."""
+  if not day_data:
     return None
-
-  batch_data = batch_doc.to_dict()
-  jokes_dict = batch_data.get('jokes', {})
-
-  # Get today's joke data
-  todays_joke_data = jokes_dict.get(day_of_month)
-  if not todays_joke_data:
-    logger.error(f"No joke scheduled for day {day_of_month} in {batch_doc_id}")
-    return None
-
-  key = todays_joke_data.get('joke_id')
-  setup_text = todays_joke_data.get('setup')
-  punchline_text = todays_joke_data.get('punchline')
-  setup_image_url = todays_joke_data.get('setup_image_url')
-  punchline_image_url = todays_joke_data.get('punchline_image_url')
-
+  key = day_data.get('joke_id')
+  setup_text = day_data.get('setup')
+  punchline_text = day_data.get('punchline')
+  setup_image_url = day_data.get('setup_image_url')
+  punchline_image_url = day_data.get('punchline_image_url')
   if (not key or not setup_text or not punchline_text or not setup_image_url
       or not punchline_image_url):
-    logger.error(f"Missing data in todays_joke_data: {todays_joke_data}")
+    logger.error(f"Missing data in day_data: {day_data}")
     return None
-
   return models.PunnyJoke(
     key=key,
     setup_text=setup_text,
@@ -230,6 +211,60 @@ def get_daily_joke(
     setup_image_url=setup_image_url,
     punchline_image_url=punchline_image_url,
   )
+
+
+def get_daily_jokes(
+  schedule_name: str,
+  joke_date: datetime.date,
+  num_jokes: int,
+) -> list[models.PunnyJoke]:
+  """Get up to `num_jokes` daily jokes ending on `joke_date`.
+
+  Fetches from this month's batch and, if needed, earlier months to gather
+  the requested number of jokes. Results are returned in reverse chronological
+  order (newest first), so index 0 corresponds to `joke_date`.
+  """
+  if num_jokes <= 0:
+    return []
+
+  # Build the date range [start_date, joke_date] inclusive
+  start_date = joke_date - datetime.timedelta(days=num_jokes - 1)
+
+  # Cache batches by (year, month) to avoid duplicate reads
+  batch_cache: dict[tuple[int, int], dict] = {}
+
+  collected: list[tuple[datetime.date, models.PunnyJoke]] = []
+  current = start_date
+  while current <= joke_date:
+    ym = (current.year, current.month)
+    if ym not in batch_cache:
+      batch_cache[ym] = _load_schedule_batch(schedule_name, current.year,
+                                             current.month)
+    batch_data = batch_cache.get(ym, {})
+    jokes_dict = batch_data.get('jokes', {}) if isinstance(batch_data,
+                                                           dict) else {}
+    day_key = f"{current.day:02d}"
+    joke = _joke_from_day_data(jokes_dict.get(day_key))
+    if joke:
+      collected.append((current, joke))
+    else:
+      logger.error(
+        f"No joke scheduled for day {day_key} in {_batch_doc_id(schedule_name, current.year, current.month)}"
+      )
+    current += datetime.timedelta(days=1)
+
+  # Sort by date desc to ensure reverse chronological order, then strip dates
+  collected.sort(key=lambda t: t[0], reverse=True)
+  return [j for _, j in collected]
+
+
+def get_daily_joke(
+  schedule_name: str,
+  joke_date: datetime.date,
+) -> models.PunnyJoke | None:
+  """Backward-compatible wrapper returning a single joke for `joke_date`."""
+  jokes = get_daily_jokes(schedule_name, joke_date, 1)
+  return jokes[0] if jokes else None
 
 
 def upsert_punny_joke(punny_joke: models.PunnyJoke) -> models.PunnyJoke | None:

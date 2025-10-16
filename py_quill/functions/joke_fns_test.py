@@ -71,13 +71,14 @@ def test_run_manual_season_tag_updates_joke(monkeypatch):
     "Because he was outstanding in his field.",
     None,
   )
-  monkeypatch.setattr(joke_fns.firestore, "get_punny_joke",
-                      lambda joke_id: fetched_joke if joke_id == "j1" else None)
+  monkeypatch.setattr(
+    joke_fns.firestore, "get_punny_joke", lambda joke_id: fetched_joke
+    if joke_id == "j1" else None)
 
   updates = []
-  monkeypatch.setattr(joke_fns.firestore, "update_punny_joke",
-                      lambda joke_id, payload: updates.append(
-                        (joke_id, payload)))
+  monkeypatch.setattr(
+    joke_fns.firestore, "update_punny_joke",
+    lambda joke_id, payload: updates.append((joke_id, payload)))
 
   html_response = joke_fns._run_manual_season_tag(
     query="scarecrow",
@@ -105,14 +106,14 @@ def test_run_manual_season_tag_respects_dry_run(monkeypatch):
     return [_manual_tag_result(_manual_tag_joke("j1", "Setup", "Punch", None))]
 
   monkeypatch.setattr(joke_fns.search, "search_jokes", fake_search)
-  monkeypatch.setattr(joke_fns.firestore, "get_punny_joke",
-                      lambda joke_id: _manual_tag_joke(
-                        joke_id, "Setup", "Punch", None))
+  monkeypatch.setattr(
+    joke_fns.firestore, "get_punny_joke",
+    lambda joke_id: _manual_tag_joke(joke_id, "Setup", "Punch", None))
 
   updates = []
-  monkeypatch.setattr(joke_fns.firestore, "update_punny_joke",
-                      lambda joke_id, payload: updates.append(
-                        (joke_id, payload)))
+  monkeypatch.setattr(
+    joke_fns.firestore, "update_punny_joke",
+    lambda joke_id, payload: updates.append((joke_id, payload)))
 
   html_response = joke_fns._run_manual_season_tag(
     query="pumpkin",
@@ -130,18 +131,20 @@ def test_run_manual_season_tag_skips_already_halloween(monkeypatch):
   """Jokes that already have seasonal Halloween should be skipped."""
 
   def fake_search(**kwargs):  # pylint: disable=unused-argument
-    return [_manual_tag_result(
-      _manual_tag_joke("j1", "Ghost joke", "Boo!", "Halloween"))]
+    return [
+      _manual_tag_result(
+        _manual_tag_joke("j1", "Ghost joke", "Boo!", "Halloween"))
+    ]
 
   monkeypatch.setattr(joke_fns.search, "search_jokes", fake_search)
-  monkeypatch.setattr(joke_fns.firestore, "get_punny_joke",
-                      lambda joke_id: _manual_tag_joke(
-                        joke_id, "Ghost joke", "Boo!", "Halloween"))
+  monkeypatch.setattr(
+    joke_fns.firestore, "get_punny_joke", lambda joke_id: _manual_tag_joke(
+      joke_id, "Ghost joke", "Boo!", "Halloween"))
 
   updates = []
-  monkeypatch.setattr(joke_fns.firestore, "update_punny_joke",
-                      lambda joke_id, payload: updates.append(
-                        (joke_id, payload)))
+  monkeypatch.setattr(
+    joke_fns.firestore, "update_punny_joke",
+    lambda joke_id, payload: updates.append((joke_id, payload)))
 
   html_response = joke_fns._run_manual_season_tag(
     query="ghost",
@@ -174,9 +177,9 @@ def test_run_manual_season_tag_respects_max_jokes(monkeypatch):
                       lambda joke_id: joke_lookup.get(joke_id))
 
   updates = []
-  monkeypatch.setattr(joke_fns.firestore, "update_punny_joke",
-                      lambda joke_id, payload: updates.append(
-                        (joke_id, payload)))
+  monkeypatch.setattr(
+    joke_fns.firestore, "update_punny_joke",
+    lambda joke_id, payload: updates.append((joke_id, payload)))
 
   html_response = joke_fns._run_manual_season_tag(
     query="any",
@@ -191,13 +194,12 @@ def test_run_manual_season_tag_respects_max_jokes(monkeypatch):
 
 def test_run_manual_season_tag_handles_no_results(monkeypatch):
   """Manual tagging should handle empty search results gracefully."""
-  monkeypatch.setattr(joke_fns.search, "search_jokes",
-                      lambda **kwargs: [])  # pylint: disable=unused-argument
+  monkeypatch.setattr(joke_fns.search, "search_jokes", lambda **kwargs: [])  # pylint: disable=unused-argument
 
   updates = []
-  monkeypatch.setattr(joke_fns.firestore, "update_punny_joke",
-                      lambda joke_id, payload: updates.append(
-                        (joke_id, payload)))
+  monkeypatch.setattr(
+    joke_fns.firestore, "update_punny_joke",
+    lambda joke_id, payload: updates.append((joke_id, payload)))
 
   html_response = joke_fns._run_manual_season_tag(
     query="nonexistent",
@@ -624,7 +626,7 @@ class TestSendSingleJokeNotification:
       setup_text="Why did the chicken cross the road?",
       punchline_text="To get to the other side!",
     )
-    mock_firestore.get_daily_joke.return_value = test_joke
+    mock_firestore.get_daily_jokes.return_value = [test_joke]
 
     test_date = datetime.date(2024, 1, 15)
 
@@ -635,8 +637,8 @@ class TestSendSingleJokeNotification:
                                            topic_suffix="c")
 
     # Assert
-    mock_firestore.get_daily_joke.assert_called_once_with(
-      "test_schedule", test_date)
+    mock_firestore.get_daily_jokes.assert_called_once_with(
+      "test_schedule", test_date, 1)
     mock_fcm.send_punny_joke_notification.assert_called_once_with(
       "test_schedule_14c", test_joke)
 
@@ -644,7 +646,7 @@ class TestSendSingleJokeNotification:
     """Test that when joke is not found, no notification is sent and message is logged."""
     # Arrange
     mock_firestore, mock_fcm = mock_services
-    mock_firestore.get_daily_joke.return_value = None
+    mock_firestore.get_daily_jokes.return_value = []
 
     test_date = datetime.date(2024, 1, 15)
 
@@ -655,8 +657,8 @@ class TestSendSingleJokeNotification:
                                            topic_suffix="n")
 
     # Assert
-    mock_firestore.get_daily_joke.assert_called_once_with(
-      "test_schedule", test_date)
+    mock_firestore.get_daily_jokes.assert_called_once_with(
+      "test_schedule", test_date, 1)
     mock_fcm.send_punny_joke_notification.assert_not_called()
 
   def test_topic_name_formation(self, mock_services):
@@ -667,7 +669,7 @@ class TestSendSingleJokeNotification:
     test_joke = models.PunnyJoke(key="test",
                                  setup_text="Test setup",
                                  punchline_text="Test punchline")
-    mock_firestore.get_daily_joke.return_value = test_joke
+    mock_firestore.get_daily_jokes.return_value = [test_joke]
 
     test_cases = [
       ("my_schedule", 0, "c", "my_schedule_00c"),
@@ -698,7 +700,7 @@ class TestSendSingleJokeNotification:
     test_joke = models.PunnyJoke(key="test",
                                  setup_text="Test setup",
                                  punchline_text="Test punchline")
-    mock_firestore.get_daily_joke.return_value = test_joke
+    mock_firestore.get_daily_jokes.return_value = [test_joke]
 
     # Act - test single digit hour
     joke_fns.send_single_joke_notification(
@@ -727,7 +729,7 @@ class TestSendSingleJokeNotification:
     test_joke = models.PunnyJoke(key="test",
                                  setup_text="Test setup",
                                  punchline_text="Test punchline")
-    mock_firestore.get_daily_joke.return_value = test_joke
+    mock_firestore.get_daily_jokes.return_value = [test_joke]
 
     # Act
     joke_fns.send_single_joke_notification(schedule_name="schedule",
@@ -748,7 +750,7 @@ class TestSendSingleJokeNotification:
     test_joke = models.PunnyJoke(key="test",
                                  setup_text="Test setup",
                                  punchline_text="Test punchline")
-    mock_firestore.get_daily_joke.return_value = test_joke
+    mock_firestore.get_daily_jokes.return_value = [test_joke]
 
     # Act
     joke_fns.send_single_joke_notification(schedule_name="my_schedule",
@@ -766,7 +768,7 @@ class TestSendSingleJokeNotification:
     test_joke = models.PunnyJoke(key="test",
                                  setup_text="Test setup",
                                  punchline_text="Test punchline")
-    mock_firestore.get_daily_joke.return_value = test_joke
+    mock_firestore.get_daily_jokes.return_value = [test_joke]
 
     # Act
     joke_fns.send_single_joke_notification(schedule_name="test_schedule",
@@ -787,7 +789,7 @@ class TestSendSingleJokeNotification:
     test_joke = models.PunnyJoke(key="test",
                                  setup_text="Test setup",
                                  punchline_text="Test punchline")
-    mock_firestore.get_daily_joke.return_value = test_joke
+    mock_firestore.get_daily_jokes.return_value = [test_joke]
 
     # Act - only provide notification_hour, not topic_suffix
     joke_fns.send_single_joke_notification(schedule_name="partial_schedule",

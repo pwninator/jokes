@@ -81,7 +81,8 @@ def _fetch_topic_jokes(topic: str, limit: int) -> list[models.PunnyJoke]:
 def index():
   """Render the landing page with the joke of the day."""
   today = datetime.datetime.now(datetime.timezone.utc).date()
-  joke = firestore.get_daily_joke("daily_jokes", today)
+  jokes = firestore.get_daily_jokes("daily_jokes", today, 1)
+  joke = jokes[0] if jokes else None
 
   if not joke:
     return "Could not find a joke of the day.", 404

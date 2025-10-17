@@ -6,13 +6,11 @@ import 'package:snickerdoodle/src/features/jokes/application/joke_search_provide
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_state.dart';
 
-import '../../../test_helpers/analytics_mocks.dart';
 
 void main() {
   group('JokeFilter Tests', () {
     setUpAll(() {
-      registerAnalyticsFallbackValues();
-      // Fallbacks for new enums used with any(named: ...)
+      // Fallbacks for enums used with any(named: ...)
       registerFallbackValue(MatchMode.tight);
       registerFallbackValue(SearchScope.userJokeSearch);
     });
@@ -89,6 +87,36 @@ void main() {
 
       notifier.clearStates();
       expect(container.read(jokeFilterProvider).selectedStates, isEmpty);
+
+      container.dispose();
+    });
+
+    test('JokeFilterNotifier should handle popular only toggle', () {
+      final container = ProviderContainer();
+      final notifier = container.read(jokeFilterProvider.notifier);
+
+      expect(container.read(jokeFilterProvider).showPopularOnly, false);
+
+      notifier.togglePopularOnly();
+      expect(container.read(jokeFilterProvider).showPopularOnly, true);
+
+      notifier.togglePopularOnly();
+      expect(container.read(jokeFilterProvider).showPopularOnly, false);
+
+      container.dispose();
+    });
+
+    test('JokeFilterNotifier should set popular only value', () {
+      final container = ProviderContainer();
+      final notifier = container.read(jokeFilterProvider.notifier);
+
+      expect(container.read(jokeFilterProvider).showPopularOnly, false);
+
+      notifier.setPopularOnly(true);
+      expect(container.read(jokeFilterProvider).showPopularOnly, true);
+
+      notifier.setPopularOnly(false);
+      expect(container.read(jokeFilterProvider).showPopularOnly, false);
 
       container.dispose();
     });

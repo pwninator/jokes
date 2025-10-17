@@ -6,9 +6,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:snickerdoodle/src/common_widgets/share_joke_button.dart';
 import 'package:snickerdoodle/src/core/providers/joke_share_providers.dart';
+import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/joke_share_service.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
-import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_service.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 
 class MockJokeShareService extends Mock implements JokeShareService {}
@@ -299,6 +299,83 @@ void main() {
       // Verify UI doesn't crash and share button is still present
       expect(tester.takeException(), isNull);
       expect(find.byIcon(Icons.share_outlined), findsOneWidget);
+    });
+
+    testWidgets(
+      'should show loading indicator when isJokeSharedProvider is loading',
+      (tester) async {
+        await tester.pumpWidget(
+          createTestWidget(
+            child: ShareJokeButton(joke: testJoke, jokeContext: 'test-context'),
+          ),
+        );
+
+        // Don't add any value to the stream - it should be in loading state
+        await tester.pump();
+
+        // Should show CircularProgressIndicator while loading
+        expect(find.byType(CircularProgressIndicator), findsOneWidget);
+        expect(find.byIcon(Icons.share_outlined), findsNothing);
+        expect(find.byIcon(Icons.share), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'should show fallback icon when isJokeSharedProvider has error',
+      (tester) async {
+        await tester.pumpWidget(
+          createTestWidget(
+            child: ShareJokeButton(joke: testJoke, jokeContext: 'test-context'),
+          ),
+        );
+
+        // Add error to the stream
+        sharedController.addError('Test error');
+        await tester.pump();
+
+        // Should show fallback share icon on error
+        expect(find.byIcon(Icons.share), findsOneWidget);
+        expect(find.byIcon(Icons.share_outlined), findsNothing);
+        expect(find.byType(CircularProgressIndicator), findsNothing);
+      },
+    );
+
+    testWidgets('should show filled share icon when joke is shared', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        createTestWidget(
+          child: ShareJokeButton(joke: testJoke, jokeContext: 'test-context'),
+        ),
+      );
+
+      // Add true to indicate joke is shared
+      sharedController.add(true);
+      await tester.pump();
+
+      // Should show filled share icon when shared
+      expect(find.byIcon(Icons.share), findsOneWidget);
+      expect(find.byIcon(Icons.share_outlined), findsNothing);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+    });
+
+    testWidgets('should show outlined share icon when joke is not shared', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        createTestWidget(
+          child: ShareJokeButton(joke: testJoke, jokeContext: 'test-context'),
+        ),
+      );
+
+      // Add false to indicate joke is not shared
+      sharedController.add(false);
+      await tester.pump();
+
+      // Should show outlined share icon when not shared
+      expect(find.byIcon(Icons.share_outlined), findsOneWidget);
+      expect(find.byIcon(Icons.share), findsNothing);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
     });
   });
 }

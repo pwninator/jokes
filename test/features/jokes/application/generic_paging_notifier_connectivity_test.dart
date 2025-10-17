@@ -1,13 +1,18 @@
 import 'dart:async';
 
+import 'package:firebase_analytics/firebase_analytics.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
+import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/providers/connectivity_providers.dart';
+import 'package:snickerdoodle/src/core/services/analytics_service.dart';
+import 'package:snickerdoodle/src/data/core/app/firebase_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_list_data_source.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
-
-import '../../../test_helpers/analytics_mocks.dart';
+import 'package:snickerdoodle/src/features/jokes/domain/joke_viewer_mode.dart';
 
 Joke _makeJoke(String id) => Joke(
   id: id,
@@ -17,9 +22,15 @@ Joke _makeJoke(String id) => Joke(
   punchlineImageUrl: 'https://img/$id-b.jpg',
 );
 
+class MockAnalyticsService extends Mock implements AnalyticsService {}
+
+class MockFirebaseAnalytics extends Mock implements FirebaseAnalytics {}
+
 void main() {
   setUpAll(() {
-    registerAnalyticsFallbackValues();
+    // Setup analytics fallback values
+    registerFallbackValue(JokeViewerMode.reveal);
+    registerFallbackValue(Brightness.light);
   });
   group('GenericPagingNotifier connectivity', () {
     test('initial pending emits AsyncLoading before first data', () async {
@@ -42,9 +53,14 @@ void main() {
         loadMoreThreshold: 1,
       );
 
+      final mockAnalyticsService = MockAnalyticsService();
+      final mockFirebaseAnalytics = MockFirebaseAnalytics();
+
       final container = ProviderContainer(
         overrides: [
-          ...AnalyticsMocks.getAnalyticsProviderOverrides(),
+          // Mock analytics services
+          analyticsServiceProvider.overrideWithValue(mockAnalyticsService),
+          firebaseAnalyticsProvider.overrideWithValue(mockFirebaseAnalytics),
           // Mock offlineToOnlineProvider to never emit (no transitions in this test)
           offlineToOnlineProvider.overrideWith((ref) => const Stream.empty()),
         ],
@@ -89,9 +105,13 @@ void main() {
         loadMoreThreshold: 1,
       );
 
+      final mockAnalyticsService = MockAnalyticsService();
+      final mockFirebaseAnalytics = MockFirebaseAnalytics();
+
       final overrides = [
         // Mock analytics + FirebaseAnalytics to avoid real Firebase init
-        ...AnalyticsMocks.getAnalyticsProviderOverrides(),
+        analyticsServiceProvider.overrideWithValue(mockAnalyticsService),
+        firebaseAnalyticsProvider.overrideWithValue(mockFirebaseAnalytics),
         // Start offline, then allow tests to push updates
         isOnlineProvider.overrideWith((ref) async* {
           yield false;

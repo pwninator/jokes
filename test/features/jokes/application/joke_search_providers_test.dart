@@ -1,10 +1,13 @@
 import 'dart:async';
 
+import 'package:firebase_analytics/firebase_analytics.dart';
+import 'package:firebase_performance/firebase_performance.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
+import 'package:snickerdoodle/src/data/core/app/firebase_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_search_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
@@ -12,8 +15,29 @@ import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_reposito
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_search_result.dart';
 
-import '../../../test_helpers/analytics_mocks.dart';
-import '../../../test_helpers/firebase_mocks.dart';
+class MockFirebaseAnalytics extends Mock implements FirebaseAnalytics {}
+
+class MockFirebasePerformance extends Mock implements FirebasePerformance {}
+
+class MockTrace extends Mock implements Trace {
+  @override
+  Future<void> start() async {}
+
+  @override
+  Future<void> stop() async {}
+
+  @override
+  Map<String, String> getAttributes() => {};
+
+  @override
+  void putAttribute(String attribute, String value) {}
+}
+
+class MockFirebasePerformanceWithTrace extends Mock
+    implements FirebasePerformance {
+  @override
+  Trace newTrace(String name) => MockTrace();
+}
 
 // Mock classes using mocktail
 class MockJokeRepository extends Mock implements JokeRepository {}
@@ -31,7 +55,6 @@ void main() {
     late ProviderContainer Function({List<Override> extra}) createContainer;
 
     setUpAll(() {
-      registerAnalyticsFallbackValues();
       // Needed for any(named: 'matchMode') with mocktail
       registerFallbackValue(MatchMode.tight);
       registerFallbackValue(SearchScope.userJokeSearch);
@@ -54,16 +77,21 @@ void main() {
 
       createContainer = ({List<Override> extra = const []}) {
         final container = ProviderContainer(
-          overrides: FirebaseMocks.getFirebaseProviderOverrides(
-            additionalOverrides: [
-              // Ensure these test-specific mocks override defaults
-              jokeCloudFunctionServiceProvider.overrideWithValue(
-                mockCloudFunctionService,
-              ),
-              analyticsServiceProvider.overrideWithValue(mockAnalyticsService),
-              ...extra,
-            ],
-          ),
+          overrides: [
+            // Mock Firebase services
+            firebaseAnalyticsProvider.overrideWithValue(
+              MockFirebaseAnalytics(),
+            ),
+            firebasePerformanceProvider.overrideWithValue(
+              MockFirebasePerformanceWithTrace(),
+            ),
+            // Ensure these test-specific mocks override defaults
+            jokeCloudFunctionServiceProvider.overrideWithValue(
+              mockCloudFunctionService,
+            ),
+            analyticsServiceProvider.overrideWithValue(mockAnalyticsService),
+            ...extra,
+          ],
         );
         addTearDown(container.dispose);
         return container;

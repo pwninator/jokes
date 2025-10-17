@@ -39,6 +39,24 @@ AppUsageService appUsageService(Ref ref) {
   );
 }
 
+/// Provider for checking if a joke is saved (reactive)
+@Riverpod()
+Stream<bool> isJokeSaved(Ref ref, String jokeId) {
+  final interactions = ref.watch(jokeInteractionsRepositoryProvider);
+  return interactions
+      .watchJokeInteraction(jokeId)
+      .map((ji) => ji?.savedTimestamp != null);
+}
+
+/// Provider for checking if a joke is shared (reactive)
+@Riverpod()
+Stream<bool> isJokeShared(Ref ref, String jokeId) {
+  final interactions = ref.watch(jokeInteractionsRepositoryProvider);
+  return interactions
+      .watchJokeInteraction(jokeId)
+      .map((ji) => ji?.sharedTimestamp != null);
+}
+
 /// Service responsible for tracking local app usage metrics via SharedPreferences
 class AppUsageService {
   AppUsageService({

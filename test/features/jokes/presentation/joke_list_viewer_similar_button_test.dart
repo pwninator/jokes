@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -9,7 +7,6 @@ import 'package:snickerdoodle/src/config/router/router_providers.dart';
 import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/services/performance_service.dart';
-import 'package:snickerdoodle/src/data/core/database/app_database.dart';
 import 'package:snickerdoodle/src/data/jokes/category_interactions_repository.dart';
 import 'package:snickerdoodle/src/data/jokes/joke_interactions_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
@@ -19,6 +16,15 @@ import 'package:snickerdoodle/src/features/jokes/presentation/joke_list_viewer.d
 
 import '../../../test_helpers/analytics_mocks.dart';
 import '../../../test_helpers/firebase_mocks.dart';
+
+// Mock classes
+class MockJokeInteractionsRepository extends Mock
+    implements JokeInteractionsRepository {}
+
+class MockCategoryInteractionsRepository extends Mock
+    implements CategoryInteractionsRepository {}
+
+class MockPerformanceService extends Mock implements PerformanceService {}
 
 // Stub navigation helpers to avoid real routing in tests
 class StubNavigationHelpers extends NavigationHelpers {
@@ -33,135 +39,114 @@ class StubNavigationHelpers extends NavigationHelpers {
   }
 }
 
-class _MockPerf extends Mock implements PerformanceService {}
-
-// Test repository that properly handles streams
-class _TestInteractionsRepo extends JokeInteractionsRepository {
-  _TestInteractionsRepo({required super.db, required PerformanceService perf})
-      : super(performanceService: perf);
-
-  final _controllers = <String, StreamController<JokeInteraction?>>{};
-
-  @override
-  Stream<JokeInteraction?> watchJokeInteraction(String jokeId) {
-    // Reuse existing controller for this jokeId or create a new one
-    if (!_controllers.containsKey(jokeId)) {
-      final controller = StreamController<JokeInteraction?>.broadcast();
-      _controllers[jokeId] = controller;
-      // Add initial value
-      controller.add(null);
-    }
-    return _controllers[jokeId]!.stream;
-  }
-
-  void dispose() {
-    for (final controller in _controllers.values) {
-      controller.close();
-    }
-    _controllers.clear();
-  }
-}
-
 void main() {
-  TestWidgetsFlutterBinding.ensureInitialized();
   setUpAll(() {
     registerAnalyticsFallbackValues();
+    registerFallbackValue(MockJokeInteractionsRepository());
+    registerFallbackValue(MockCategoryInteractionsRepository());
+    registerFallbackValue(MockPerformanceService());
   });
 
-  testWidgets('Similar button visible only when flag enabled', (tester) async {
-    final joke = const Joke(
-      id: '1',
-      setupText: 'A funny setup',
-      punchlineText: 'A punchline',
-      setupImageUrl: 'https://example.com/s.jpg',
-      punchlineImageUrl: 'https://example.com/p.jpg',
-      tags: ['animals'],
-    );
+  late MockJokeInteractionsRepository mockJokeInteractionsRepository;
+  late MockCategoryInteractionsRepository mockCategoryInteractionsRepository;
 
-    final overrides = [
-      ...FirebaseMocks.getFirebaseProviderOverrides(),
-      // Override jokeInteractionsRepository to return working streams
-      jokeInteractionsRepositoryProvider.overrideWith((ref) {
-        return _TestInteractionsRepo(
-          db: AppDatabase.inMemory(),
-          perf: _MockPerf(),
-        );
-      }),
-      // Override categoryInteractionsRepository
-      categoryInteractionsRepositoryProvider.overrideWith((ref) {
-        return CategoryInteractionsRepository(
-          db: AppDatabase.inMemory(),
-          performanceService: _MockPerf(),
-        );
-      }),
-    ];
+  setUp(() {
+    mockJokeInteractionsRepository = MockJokeInteractionsRepository();
+    mockCategoryInteractionsRepository = MockCategoryInteractionsRepository();
 
-    // With flag off
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: overrides,
-        child: MaterialApp(
-          home: JokeListViewer(
-            jokesAsyncValue: AsyncValue.data([JokeWithDate(joke: joke)]),
-            jokeContext: 'daily_jokes',
-            viewerId: 'sim_button_off',
-            showSimilarSearchButton: false,
-          ),
-        ),
-      ),
-    );
-
-    expect(find.text('Similar'), findsNothing);
-
-    // With flag on
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: overrides,
-        child: MaterialApp(
-          home: JokeListViewer(
-            jokesAsyncValue: AsyncValue.data([JokeWithDate(joke: joke)]),
-            jokeContext: 'daily_jokes',
-            viewerId: 'sim_button_on',
-            showSimilarSearchButton: true,
-          ),
-        ),
-      ),
-    );
-
-    expect(find.text('Similar'), findsOneWidget);
+    // Stub default behavior
+    when(
+      () => mockJokeInteractionsRepository.watchJokeInteraction(any()),
+    ).thenAnswer((_) => Stream.value(null));
+    when(
+      () => mockCategoryInteractionsRepository.setViewed(any()),
+    ).thenAnswer((_) async => true);
   });
 
-  testWidgets('Similar button updates search query and navigates', (
-    tester,
-  ) async {
-    final analyticsMock = AnalyticsMocks.mockAnalyticsService;
-    final joke = const Joke(
-      id: '1',
-      setupText: 'Penguin antics',
-      punchlineText: 'A punchline',
-      setupImageUrl: 'https://example.com/s.jpg',
-      punchlineImageUrl: 'https://example.com/p.jpg',
-      tags: ['penguins'],
-    );
+  group('JokeListViewer Similar Button', () {
+    testWidgets('Similar button visible only when flag enabled', (
+      tester,
+    ) async {
+      // Arrange: Create test joke
+      final joke = const Joke(
+        id: '1',
+        setupText: 'A funny setup',
+        punchlineText: 'A punchline',
+        setupImageUrl: 'https://example.com/s.jpg',
+        punchlineImageUrl: 'https://example.com/p.jpg',
+        tags: ['animals'],
+      );
 
-    final container = ProviderContainer(
-      overrides: [
+      final overrides = [
+        ...FirebaseMocks.getFirebaseProviderOverrides(),
+        jokeInteractionsRepositoryProvider.overrideWithValue(
+          mockJokeInteractionsRepository,
+        ),
+        categoryInteractionsRepositoryProvider.overrideWithValue(
+          mockCategoryInteractionsRepository,
+        ),
+      ];
+
+      // Act & Assert: With flag off
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: overrides,
+          child: MaterialApp(
+            home: JokeListViewer(
+              key: const Key('joke_list_viewer_similar_button_test-flag_off'),
+              jokesAsyncValue: AsyncValue.data([JokeWithDate(joke: joke)]),
+              jokeContext: 'daily_jokes',
+              viewerId: 'sim_button_off',
+              showSimilarSearchButton: false,
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Similar'), findsNothing);
+
+      // Act & Assert: With flag on
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: overrides,
+          child: MaterialApp(
+            home: JokeListViewer(
+              key: const Key('joke_list_viewer_similar_button_test-flag_on'),
+              jokesAsyncValue: AsyncValue.data([JokeWithDate(joke: joke)]),
+              jokeContext: 'daily_jokes',
+              viewerId: 'sim_button_on',
+              showSimilarSearchButton: true,
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Similar'), findsOneWidget);
+    });
+
+    testWidgets('Similar button updates search query and logs analytics', (
+      tester,
+    ) async {
+      // Arrange: Create test joke and analytics mock
+      final analyticsMock = AnalyticsMocks.mockAnalyticsService;
+      final joke = const Joke(
+        id: '1',
+        setupText: 'Penguin antics',
+        punchlineText: 'A punchline',
+        setupImageUrl: 'https://example.com/s.jpg',
+        punchlineImageUrl: 'https://example.com/p.jpg',
+        tags: ['penguins'],
+      );
+
+      final overrides = [
         ...FirebaseMocks.getFirebaseProviderOverrides(),
         analyticsServiceProvider.overrideWithValue(analyticsMock),
-        // Override jokeInteractionsRepository to return working streams
-        jokeInteractionsRepositoryProvider.overrideWith((ref) {
-          return _TestInteractionsRepo(
-            db: AppDatabase.inMemory(),
-            perf: _MockPerf(),
-          );
-        }),
-        // Override categoryInteractionsRepository
-        categoryInteractionsRepositoryProvider.overrideWith((ref) {
-          return CategoryInteractionsRepository(
-            db: AppDatabase.inMemory(),
-            performanceService: _MockPerf(),
-          );
-        }),
+        jokeInteractionsRepositoryProvider.overrideWithValue(
+          mockJokeInteractionsRepository,
+        ),
+        categoryInteractionsRepositoryProvider.overrideWithValue(
+          mockCategoryInteractionsRepository,
+        ),
         navigationHelpersProvider.overrideWith(
           (ref) => StubNavigationHelpers(ref),
         ),
@@ -169,49 +154,115 @@ void main() {
         searchResultIdsProvider(
           SearchScope.userJokeSearch,
         ).overrideWith((ref) async => const []),
-      ],
-    );
-    addTearDown(container.dispose);
+      ];
 
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: MaterialApp(
-          home: RailHost(
-            railWidth: 180,
-            child: JokeListViewer(
+      // Act: Build widget
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: overrides,
+          child: MaterialApp(
+            home: RailHost(
+              railWidth: 180,
+              child: JokeListViewer(
+                key: const Key(
+                  'joke_list_viewer_similar_button_test-navigation',
+                ),
+                jokesAsyncValue: AsyncValue.data([JokeWithDate(joke: joke)]),
+                jokeContext: 'daily_jokes',
+                viewerId: 'sim_button_nav',
+                showSimilarSearchButton: true,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      // Act: Tap Similar button
+      final similarFinder = find.byKey(const Key('similar-search-button'));
+      await tester.ensureVisible(similarFinder);
+      await tester.tap(similarFinder, warnIfMissed: false);
+      await tester.pump(const Duration(milliseconds: 50));
+
+      // Assert: Verify search query was updated
+      final container = ProviderScope.containerOf(
+        tester.element(similarFinder),
+      );
+      final query = container.read(
+        searchQueryProvider(SearchScope.userJokeSearch),
+      );
+      expect(
+        query.query,
+        '${JokeConstants.searchQueryPrefix}Penguin antics A punchline',
+      );
+      // Should exclude the initiating joke id
+      expect(query.excludeJokeIds, ['1']);
+
+      // Assert: Verify analytics call for joke_search_similar
+      verify(
+        () => analyticsMock.logJokeSearchSimilar(
+          queryLength: any(named: 'queryLength'),
+          jokeContext: any(named: 'jokeContext'),
+        ),
+      ).called(1);
+    });
+
+    testWidgets('Similar button handles empty joke text gracefully', (
+      tester,
+    ) async {
+      // Arrange: Create joke with empty text
+      final joke = const Joke(
+        id: '1',
+        setupText: '',
+        punchlineText: '',
+        setupImageUrl: 'https://example.com/s.jpg',
+        punchlineImageUrl: 'https://example.com/p.jpg',
+        tags: ['empty'],
+      );
+
+      final overrides = [
+        ...FirebaseMocks.getFirebaseProviderOverrides(),
+        jokeInteractionsRepositoryProvider.overrideWithValue(
+          mockJokeInteractionsRepository,
+        ),
+        categoryInteractionsRepositoryProvider.overrideWithValue(
+          mockCategoryInteractionsRepository,
+        ),
+        navigationHelpersProvider.overrideWith(
+          (ref) => StubNavigationHelpers(ref),
+        ),
+      ];
+
+      // Act: Build widget
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: overrides,
+          child: MaterialApp(
+            home: JokeListViewer(
+              key: const Key('joke_list_viewer_similar_button_test-empty_text'),
               jokesAsyncValue: AsyncValue.data([JokeWithDate(joke: joke)]),
               jokeContext: 'daily_jokes',
-              viewerId: 'sim_button_nav',
+              viewerId: 'sim_button_empty',
               showSimilarSearchButton: true,
             ),
           ),
         ),
-      ),
-    );
+      );
 
-    // Tap Similar (use key for reliable hit-testing)
-    final similarFinder = find.byKey(const Key('similar-search-button'));
-    await tester.ensureVisible(similarFinder);
-    await tester.tap(similarFinder, warnIfMissed: false);
-    await tester.pump(const Duration(milliseconds: 50));
+      // Act: Tap Similar button
+      final similarFinder = find.byKey(const Key('similar-search-button'));
+      await tester.ensureVisible(similarFinder);
+      await tester.tap(similarFinder, warnIfMissed: false);
+      await tester.pump(const Duration(milliseconds: 50));
 
-    final query = container.read(
-      searchQueryProvider(SearchScope.userJokeSearch),
-    );
-    expect(
-      query.query,
-      '${JokeConstants.searchQueryPrefix}Penguin antics A punchline',
-    );
-    // Should exclude the initiating joke id
-    expect(query.excludeJokeIds, ['1']);
-
-    // Verify analytics call for joke_search_similar
-    verify(
-      () => analyticsMock.logJokeSearchSimilar(
-        queryLength: any(named: 'queryLength'),
-        jokeContext: any(named: 'jokeContext'),
-      ),
-    ).called(1);
+      // Assert: Should not crash and should not update search query
+      final container = ProviderScope.containerOf(
+        tester.element(similarFinder),
+      );
+      final query = container.read(
+        searchQueryProvider(SearchScope.userJokeSearch),
+      );
+      // Query should remain unchanged (empty or default)
+      expect(query.query, isEmpty);
+    });
   });
 }

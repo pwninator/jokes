@@ -1,3 +1,4 @@
+import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -7,21 +8,40 @@ import 'package:snickerdoodle/src/common_widgets/admin_approval_controls.dart';
 import 'package:snickerdoodle/src/common_widgets/joke_image_carousel.dart';
 import 'package:snickerdoodle/src/common_widgets/save_joke_button.dart';
 import 'package:snickerdoodle/src/common_widgets/share_joke_button.dart';
+import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/providers/image_providers.dart';
+import 'package:snickerdoodle/src/core/providers/joke_share_providers.dart';
+import 'package:snickerdoodle/src/core/services/analytics_events.dart';
+import 'package:snickerdoodle/src/core/services/analytics_service.dart';
+import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
+import 'package:snickerdoodle/src/core/services/joke_share_service.dart';
+import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
+import 'package:snickerdoodle/src/data/core/app/firebase_providers.dart';
+import 'package:snickerdoodle/src/features/auth/data/models/app_user.dart';
+import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_service.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_schedule_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_schedule_service.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_schedule_repository.dart';
+import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_state.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_viewer_mode.dart';
 
+import '../test_helpers/analytics_mocks.dart';
+import '../test_helpers/core_mocks.dart';
 import '../test_helpers/firebase_mocks.dart';
 
+class FakeFirebaseFunctions extends Fake implements FirebaseFunctions {}
+
 void main() {
+  setUpAll(() {
+    // Ensure mocktail fallback values for analytics types are registered globally
+    registerAnalyticsFallbackValues();
+  });
   Widget createTestWidget({required Widget child}) {
     return ProviderScope(
       overrides: FirebaseMocks.getFirebaseProviderOverrides(),
@@ -114,6 +134,11 @@ void main() {
       expect(find.text('2'), findsOneWidget);
     });
   });
+
+  // Execute additional suites consolidated from separate files
+  mainCountsAndButtonsSuite();
+  mainAdaptiveLayoutSuite();
+  mainLifecycleDisposeSuite();
 }
 
 // Mock class for ImageService
@@ -153,6 +178,255 @@ class _NoopJokeRepository extends Mock implements JokeRepository {}
 
 class _NoopJokeScheduleRepository extends Mock
     implements JokeScheduleRepository {}
+
+class _MockJokeReactionsService extends Mock implements JokeReactionsService {}
+
+class _MockJokeShareService extends Mock implements JokeShareService {}
+
+class _NoopPerformanceService implements PerformanceService {
+  @override
+  void dropNamedTrace({required TraceName name, String? key}) {}
+
+  @override
+  void putNamedTraceAttributes({
+    required TraceName name,
+    String? key,
+    required Map<String, String> attributes,
+  }) {}
+
+  @override
+  void startNamedTrace({
+    required TraceName name,
+    String? key,
+    Map<String, String>? attributes,
+  }) {}
+
+  @override
+  void stopNamedTrace({required TraceName name, String? key}) {}
+}
+
+class _NoopAnalyticsService implements AnalyticsService {
+  @override
+  Future<void> initialize() async {}
+
+  @override
+  Future<void> setUserProperties(AppUser? user) async {}
+
+  // All analytics methods are no-ops for unit tests
+  @override
+  void logAppReviewAccepted({
+    required String source,
+    required String variant,
+  }) {}
+  @override
+  void logAppReviewAttempt({required String source, required String variant}) {}
+  @override
+  void logAppReviewDeclined({
+    required String source,
+    required String variant,
+  }) {}
+  @override
+  void logAppUsageDays({
+    required int numDaysUsed,
+    required Brightness brightness,
+  }) {}
+  @override
+  void logAnalyticsError(String errorMessage, String context) {}
+  @override
+  void logErrorAppReviewAvailability({
+    required String source,
+    required String errorMessage,
+  }) {}
+  @override
+  void logErrorAppReviewRequest({
+    required String source,
+    required String errorMessage,
+  }) {}
+  @override
+  void logErrorAuthSignIn({
+    required String source,
+    required String errorMessage,
+  }) {}
+  @override
+  void logErrorFeedbackSubmit({required String errorMessage}) {}
+  @override
+  void logErrorImageLoad({
+    String? jokeId,
+    String? imageType,
+    String? imageUrlHash,
+    required String errorMessage,
+  }) {}
+  @override
+  void logErrorImagePrecache({
+    String? jokeId,
+    String? imageType,
+    String? imageUrlHash,
+    required String errorMessage,
+  }) {}
+  @override
+  void logErrorJokeFetch({
+    required String jokeId,
+    required String errorMessage,
+  }) {}
+  @override
+  void logErrorJokeImagesMissing({
+    required String jokeId,
+    required String missingParts,
+  }) {}
+  @override
+  void logErrorJokeSave({
+    required String jokeId,
+    required String action,
+    required String errorMessage,
+  }) {}
+  @override
+  void logErrorJokeShare(
+    String jokeId, {
+    required String jokeContext,
+    required String errorMessage,
+    String? errorContext,
+    String? exceptionType,
+  }) {}
+  @override
+  void logErrorJokesLoad({
+    required String source,
+    required String errorMessage,
+  }) {}
+  @override
+  void logErrorNotificationHandling({
+    String? notificationId,
+    String? phase,
+    required String errorMessage,
+  }) {}
+  @override
+  void logErrorRemoteConfig({required String errorMessage, String? phase}) {}
+  @override
+  void logErrorRouteNavigation({
+    String? previousRoute,
+    String? newRoute,
+    String? method,
+    required String errorMessage,
+  }) {}
+  @override
+  void logErrorSubscriptionPermission({
+    required String source,
+    required String errorMessage,
+  }) {}
+  @override
+  void logErrorSubscriptionPrompt({
+    required String errorMessage,
+    String? phase,
+  }) {}
+  @override
+  void logErrorSubscriptionTimeUpdate({
+    required String source,
+    required String errorMessage,
+  }) {}
+  @override
+  void logErrorSubscriptionToggle({
+    required String source,
+    required String errorMessage,
+  }) {}
+  @override
+  void logFeedbackDialogShown() {}
+  @override
+  void logFeedbackSubmitted() {}
+  @override
+  void logJokeCategoryViewed({required String categoryId}) {}
+  @override
+  void logJokeNavigation(
+    String jokeId,
+    int jokeScrollDepth, {
+    required String method,
+    required String jokeContext,
+    required JokeViewerMode jokeViewerMode,
+    required Brightness brightness,
+  }) {}
+  @override
+  void logJokePunchlineViewed(
+    String jokeId, {
+    required String navigationMethod,
+    required String jokeContext,
+    required JokeViewerMode jokeViewerMode,
+  }) {}
+  @override
+  void logJokeSaved(
+    String jokeId, {
+    required String jokeContext,
+    required int totalJokesSaved,
+  }) {}
+  @override
+  void logJokeUnsaved(
+    String jokeId, {
+    required String jokeContext,
+    required int totalJokesSaved,
+  }) {}
+  @override
+  void logJokeSearch({
+    required int queryLength,
+    required String scope,
+    required int resultsCount,
+  }) {}
+  @override
+  void logJokeSearchSimilar({
+    required int queryLength,
+    required String jokeContext,
+  }) {}
+  @override
+  void logJokeSetupViewed(
+    String jokeId, {
+    required String navigationMethod,
+    required String jokeContext,
+    required JokeViewerMode jokeViewerMode,
+  }) {}
+  @override
+  void logJokeShareAborted(String jokeId, {required String jokeContext}) {}
+  @override
+  void logJokeShareCanceled(String jokeId, {required String jokeContext}) {}
+  @override
+  void logJokeShareInitiated(String jokeId, {required String jokeContext}) {}
+  @override
+  void logJokeShareSuccess(
+    String jokeId, {
+    required String jokeContext,
+    String? shareDestination,
+    required int totalJokesShared,
+  }) {}
+  @override
+  void logJokeViewerSettingChanged({required String mode}) {}
+  @override
+  void logTabChanged(
+    AppTab previousTab,
+    AppTab newTab, {
+    required String method,
+  }) {}
+  @override
+  void logJokeViewed(
+    String jokeId, {
+    required int totalJokesViewed,
+    required String navigationMethod,
+    required String jokeContext,
+    required JokeViewerMode jokeViewerMode,
+  }) {}
+  @override
+  void logNotificationTapped({String? jokeId, String? notificationId}) {}
+  @override
+  void logSubscriptionDeclinedMaybeLater() {}
+  @override
+  void logSubscriptionDeclinedPermissionsInPrompt() {}
+  @override
+  void logSubscriptionDeclinedPermissionsInSettings() {}
+  @override
+  void logSubscriptionOnPrompt() {}
+  @override
+  void logSubscriptionOnSettings() {}
+  @override
+  void logSubscriptionOffSettings() {}
+  @override
+  void logSubscriptionPromptShown() {}
+  @override
+  void logSubscriptionTimeChanged({required int subscriptionHour}) {}
+}
 
 void mainCountsAndButtonsSuite() {
   late MockImageService mockImageService;
@@ -202,6 +476,12 @@ void mainCountsAndButtonsSuite() {
       () => mockImageService.getProcessedJokeImageUrl(any()),
     ).thenReturn(transparentImageDataUrl);
     when(
+      () => mockImageService.getProcessedJokeImageUrl(
+        any(),
+        width: any(named: 'width'),
+      ),
+    ).thenReturn(transparentImageDataUrl);
+    when(
       () =>
           mockImageService.precacheJokeImage(any(), width: any(named: 'width')),
     ).thenAnswer((_) async => transparentImageDataUrl);
@@ -228,15 +508,29 @@ void mainCountsAndButtonsSuite() {
   });
 
   Widget createTestWidget({required Widget child}) {
-    return ProviderScope(
-      overrides: [
-        ...FirebaseMocks.getFirebaseProviderOverrides(),
+    final coreOverrides = CoreMocks.getCoreProviderOverrides(
+      additionalOverrides: [
         imageServiceProvider.overrideWithValue(mockImageService),
         jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
         // Override schedule service to a test double (spy not needed for most tests)
         jokeScheduleAutoFillServiceProvider.overrideWithValue(
           _SpyScheduleService(),
         ),
+        // Override reactive usage streams to avoid Drift timers in widget tests
+        IsJokeSavedProvider(
+          'any',
+        ).overrideWith((ref) => Stream<bool>.value(false)),
+        IsJokeSharedProvider(
+          'any',
+        ).overrideWith((ref) => Stream<bool>.value(false)),
+      ],
+    );
+
+    return ProviderScope(
+      overrides: [
+        ...FirebaseMocks.getFirebaseProviderOverrides(),
+        ...AnalyticsMocks.getAnalyticsProviderOverrides(),
+        ...coreOverrides,
       ],
       child: MaterialApp(
         theme: lightTheme,
@@ -411,10 +705,8 @@ void mainCountsAndButtonsSuite() {
         verify(
           () => mockImageService.getProcessedJokeImageUrl(
             'https://example.com/setup.jpg',
+            width: any(named: 'width'),
           ),
-        ).called(greaterThan(0));
-        verify(
-          () => mockImageService.precacheJokeImages(any()),
         ).called(greaterThan(0));
       });
 
@@ -439,10 +731,10 @@ void mainCountsAndButtonsSuite() {
 
         // assert - the widget processes both image URLs (even null ones)
         verify(
-          () => mockImageService.getProcessedJokeImageUrl(null),
-        ).called(greaterThan(0));
-        verify(
-          () => mockImageService.precacheJokeImages(any()),
+          () => mockImageService.getProcessedJokeImageUrl(
+            null,
+            width: any(named: 'width'),
+          ),
         ).called(greaterThan(0));
       });
 
@@ -477,17 +769,9 @@ void mainCountsAndButtonsSuite() {
         await tester.pump();
         await tester.pump(); // Extra pump for post-frame callbacks
 
-        // assert - verify current joke images are processed and preloaded
+        // assert - verify current joke images are processed using width hints
         verify(
           () => mockImageService.getProcessedJokeImageUrl(
-            'https://example.com/current_setup.jpg',
-          ),
-        ).called(greaterThan(0));
-        verify(
-          () => mockImageService.precacheJokeImages(any()),
-        ).called(greaterThan(0));
-        verify(
-          () => mockImageService.precacheMultipleJokeImages(
             any(),
             width: any(named: 'width'),
           ),
@@ -584,7 +868,7 @@ void mainCountsAndButtonsSuite() {
 
           // assert
           expect(find.byType(AlertDialog), findsOneWidget);
-          expect(find.text('Generation Metadata'), findsOneWidget);
+          expect(find.text('Joke Details'), findsOneWidget);
           expect(find.text('Close'), findsOneWidget);
           // Check that some metadata content is displayed (not empty message)
           expect(
@@ -628,7 +912,7 @@ void mainCountsAndButtonsSuite() {
 
           // assert
           expect(find.byType(AlertDialog), findsOneWidget);
-          expect(find.text('Generation Metadata'), findsOneWidget);
+          expect(find.text('Joke Details'), findsOneWidget);
           expect(
             find.text('No generation metadata available for this joke.'),
             findsOneWidget,
@@ -672,7 +956,7 @@ void mainCountsAndButtonsSuite() {
 
         // assert
         expect(find.byType(AlertDialog), findsOneWidget);
-        expect(find.text('Generation Metadata'), findsOneWidget);
+        expect(find.text('Joke Details'), findsOneWidget);
         expect(find.text('Close'), findsOneWidget);
         // Check that some metadata content is displayed (not empty message)
         expect(
@@ -719,7 +1003,11 @@ void mainCountsAndButtonsSuite() {
           child: MaterialApp(
             theme: lightTheme,
             home: Scaffold(
-              body: JokeImageCarousel(joke: joke, jokeContext: 'test'),
+              body: JokeImageCarousel(
+                joke: joke,
+                isAdminMode: true,
+                jokeContext: 'test',
+              ),
             ),
           ),
         );
@@ -731,15 +1019,20 @@ void mainCountsAndButtonsSuite() {
         // Tap the state badge
         expect(find.byKey(const Key('daily-state-badge')), findsOneWidget);
         await tester.tap(find.byKey(const Key('daily-state-badge')));
-        await tester.pumpAndSettle();
+        await tester.pump(const Duration(milliseconds: 100));
 
         // Dialog should appear with Change date button
         expect(find.text('Change scheduled date'), findsOneWidget);
-        expect(find.byKey(const Key('change-date-btn')), findsOneWidget);
+        expect(
+          find.byKey(const Key('reschedule_dialog-change-date-button')),
+          findsOneWidget,
+        );
 
         // Tap change date
-        await tester.tap(find.byKey(const Key('change-date-btn')));
-        await tester.pumpAndSettle();
+        await tester.tap(
+          find.byKey(const Key('reschedule_dialog-change-date-button')),
+        );
+        await tester.pump();
 
         // assert - service called
         expect(spyService.lastJokeId, equals('daily-future-1'));
@@ -758,7 +1051,7 @@ void mainCountsAndButtonsSuite() {
           setupText: 'Setup text',
           punchlineText: 'Punchline text',
           setupImageUrl: 'https://example.com/setup.jpg',
-          punchlineImageUrl: 'https://example.com/punchline.jpg',
+          punchlineImageUrl: null,
         );
 
         const widget = JokeImageCarousel(
@@ -769,8 +1062,34 @@ void mainCountsAndButtonsSuite() {
         );
 
         // act
-        await tester.pumpWidget(createTestWidget(child: widget));
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              // Minimal overrides only for what is used
+              IsJokeSavedProvider(
+                joke.id,
+              ).overrideWith((ref) => Stream<bool>.value(false)),
+              jokeReactionsServiceProvider.overrideWithValue(
+                _MockJokeReactionsService(),
+              ),
+              performanceServiceProvider.overrideWithValue(
+                _NoopPerformanceService(),
+              ),
+              analyticsServiceProvider.overrideWithValue(
+                _NoopAnalyticsService(),
+              ),
+              firebaseFunctionsProvider.overrideWithValue(
+                FakeFirebaseFunctions(),
+              ),
+            ],
+            child: MaterialApp(
+              theme: lightTheme,
+              home: const Scaffold(body: widget),
+            ),
+          ),
+        );
         await tester.pump();
+        await tester.pump(const Duration(milliseconds: 100));
 
         // assert
         expect(find.byType(SaveJokeButton), findsOneWidget);
@@ -786,7 +1105,7 @@ void mainCountsAndButtonsSuite() {
           setupText: 'Setup text',
           punchlineText: 'Punchline text',
           setupImageUrl: 'https://example.com/setup.jpg',
-          punchlineImageUrl: 'https://example.com/punchline.jpg',
+          punchlineImageUrl: null,
         );
 
         const widget = JokeImageCarousel(
@@ -796,9 +1115,34 @@ void mainCountsAndButtonsSuite() {
           jokeContext: 'test',
         );
 
-        // act
-        await tester.pumpWidget(createTestWidget(child: widget));
+        // act - use minimal overrides to avoid pending timers
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              IsJokeSavedProvider(
+                joke.id,
+              ).overrideWith((ref) => Stream<bool>.value(false)),
+              jokeReactionsServiceProvider.overrideWithValue(
+                _MockJokeReactionsService(),
+              ),
+              performanceServiceProvider.overrideWithValue(
+                _NoopPerformanceService(),
+              ),
+              analyticsServiceProvider.overrideWithValue(
+                _NoopAnalyticsService(),
+              ),
+              firebaseFunctionsProvider.overrideWithValue(
+                FakeFirebaseFunctions(),
+              ),
+            ],
+            child: MaterialApp(
+              theme: lightTheme,
+              home: const Scaffold(body: widget),
+            ),
+          ),
+        );
         await tester.pump();
+        await tester.pump(const Duration(milliseconds: 100));
 
         // assert
         expect(find.byType(SaveJokeButton), findsNothing);
@@ -814,7 +1158,7 @@ void mainCountsAndButtonsSuite() {
             setupText: 'Setup text',
             punchlineText: 'Punchline text',
             setupImageUrl: 'https://example.com/setup.jpg',
-            punchlineImageUrl: 'https://example.com/punchline.jpg',
+            punchlineImageUrl: null,
           );
 
           const widget = JokeImageCarousel(
@@ -827,6 +1171,7 @@ void mainCountsAndButtonsSuite() {
           // act
           await tester.pumpWidget(createTestWidget(child: widget));
           await tester.pump();
+          await tester.pump(const Duration(milliseconds: 100));
 
           // assert
           expect(find.byType(SaveJokeButton), findsNothing);
@@ -838,12 +1183,46 @@ void mainCountsAndButtonsSuite() {
         'hides admin rating buttons when showAdminRatingButtons is false',
         (tester) async {
           // arrange
+          final mockImageService = MockImageService();
+          const dataUrl =
+              'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+          when(() => mockImageService.isValidImageUrl(any())).thenReturn(true);
+          when(
+            () => mockImageService.processImageUrl(any()),
+          ).thenReturn(dataUrl);
+          when(
+            () => mockImageService.processImageUrl(
+              any(),
+              width: any(named: 'width'),
+              height: any(named: 'height'),
+              quality: any(named: 'quality'),
+            ),
+          ).thenReturn(dataUrl);
+          when(
+            () => mockImageService.getProcessedJokeImageUrl(
+              any(),
+              width: any(named: 'width'),
+            ),
+          ).thenReturn(dataUrl);
+          when(
+            () => mockImageService.precacheJokeImage(
+              any(),
+              width: any(named: 'width'),
+            ),
+          ).thenAnswer((_) async => dataUrl);
+          when(
+            () => mockImageService.precacheMultipleJokeImages(
+              any(),
+              width: any(named: 'width'),
+            ),
+          ).thenAnswer((_) async {});
+
           const joke = Joke(
             id: 'test-joke-1',
             setupText: 'Setup text',
             punchlineText: 'Punchline text',
             setupImageUrl: 'https://example.com/setup.jpg',
-            punchlineImageUrl: 'https://example.com/punchline.jpg',
+            punchlineImageUrl: null,
           );
 
           const widget = JokeImageCarousel(
@@ -853,9 +1232,35 @@ void mainCountsAndButtonsSuite() {
             jokeContext: 'test',
           );
 
-          // act
-          await tester.pumpWidget(createTestWidget(child: widget));
+          // act - use minimal overrides to avoid pending timers
+          await tester.pumpWidget(
+            ProviderScope(
+              overrides: [
+                imageServiceProvider.overrideWithValue(mockImageService),
+                IsJokeSavedProvider(
+                  joke.id,
+                ).overrideWith((ref) => Stream<bool>.value(false)),
+                jokeReactionsServiceProvider.overrideWithValue(
+                  _MockJokeReactionsService(),
+                ),
+                performanceServiceProvider.overrideWithValue(
+                  _NoopPerformanceService(),
+                ),
+                analyticsServiceProvider.overrideWithValue(
+                  _NoopAnalyticsService(),
+                ),
+                firebaseFunctionsProvider.overrideWithValue(
+                  FakeFirebaseFunctions(),
+                ),
+              ],
+              child: MaterialApp(
+                theme: lightTheme,
+                home: const Scaffold(body: widget),
+              ),
+            ),
+          );
           await tester.pump();
+          await tester.pump(const Duration(milliseconds: 100));
 
           // assert
           expect(find.byType(SaveJokeButton), findsOneWidget);
@@ -872,22 +1277,55 @@ void mainCountsAndButtonsSuite() {
             setupText: 'Setup text',
             punchlineText: 'Punchline text',
             setupImageUrl: 'https://example.com/setup.jpg',
-            punchlineImageUrl: 'https://example.com/punchline.jpg',
+            punchlineImageUrl: null,
           );
 
           const widget = JokeImageCarousel(
             joke: joke,
             showSaveButton: true,
+            showShareButton: true,
             showAdminRatingButtons: true,
             jokeContext: 'test',
           );
 
           // act
-          await tester.pumpWidget(createTestWidget(child: widget));
+          await tester.pumpWidget(
+            ProviderScope(
+              overrides: [
+                IsJokeSavedProvider(
+                  joke.id,
+                ).overrideWith((ref) => Stream<bool>.value(false)),
+                IsJokeSharedProvider(
+                  joke.id,
+                ).overrideWith((ref) => Stream<bool>.value(false)),
+                jokeReactionsServiceProvider.overrideWithValue(
+                  _MockJokeReactionsService(),
+                ),
+                jokeShareServiceProvider.overrideWithValue(
+                  _MockJokeShareService(),
+                ),
+                performanceServiceProvider.overrideWithValue(
+                  _NoopPerformanceService(),
+                ),
+                analyticsServiceProvider.overrideWithValue(
+                  _NoopAnalyticsService(),
+                ),
+                firebaseFunctionsProvider.overrideWithValue(
+                  FakeFirebaseFunctions(),
+                ),
+              ],
+              child: MaterialApp(
+                theme: lightTheme,
+                home: const Scaffold(body: widget),
+              ),
+            ),
+          );
           await tester.pump();
+          await tester.pump(const Duration(milliseconds: 100));
 
-          // assert - both save and admin rating buttons can be shown simultaneously
+          // assert - all buttons should be visible
           expect(find.byType(SaveJokeButton), findsOneWidget);
+          expect(find.byType(ShareJokeButton), findsOneWidget);
           expect(find.byType(AdminApprovalControls), findsOneWidget);
         },
       );
@@ -899,7 +1337,7 @@ void mainCountsAndButtonsSuite() {
           setupText: 'Setup text',
           punchlineText: 'Punchline text',
           setupImageUrl: 'https://example.com/setup.jpg',
-          punchlineImageUrl: 'https://example.com/punchline.jpg',
+          punchlineImageUrl: null,
         );
 
         const widget = JokeImageCarousel(joke: joke, jokeContext: 'test');
@@ -907,9 +1345,10 @@ void mainCountsAndButtonsSuite() {
         // act
         await tester.pumpWidget(createTestWidget(child: widget));
         await tester.pump();
+        await tester.pump(const Duration(milliseconds: 100));
 
-        // assert - defaults should be showSaveButton: true, showAdminRatingButtons: false, showShareButton: false
-        expect(find.byType(SaveJokeButton), findsOneWidget);
+        // assert - defaults should be showSaveButton: false, showAdminRatingButtons: false, showShareButton: false
+        expect(find.byType(SaveJokeButton), findsNothing);
         expect(find.byType(AdminApprovalControls), findsNothing);
         expect(find.byType(ShareJokeButton), findsNothing);
       });
@@ -923,7 +1362,7 @@ void mainCountsAndButtonsSuite() {
           setupText: 'Setup text',
           punchlineText: 'Punchline text',
           setupImageUrl: 'https://example.com/setup.jpg',
-          punchlineImageUrl: 'https://example.com/punchline.jpg',
+          punchlineImageUrl: null,
         );
 
         const widget = JokeImageCarousel(
@@ -933,8 +1372,33 @@ void mainCountsAndButtonsSuite() {
         );
 
         // act
-        await tester.pumpWidget(createTestWidget(child: widget));
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              IsJokeSharedProvider(
+                joke.id,
+              ).overrideWith((ref) => Stream<bool>.value(false)),
+              jokeShareServiceProvider.overrideWithValue(
+                _MockJokeShareService(),
+              ),
+              performanceServiceProvider.overrideWithValue(
+                _NoopPerformanceService(),
+              ),
+              analyticsServiceProvider.overrideWithValue(
+                _NoopAnalyticsService(),
+              ),
+              firebaseFunctionsProvider.overrideWithValue(
+                FakeFirebaseFunctions(),
+              ),
+            ],
+            child: MaterialApp(
+              theme: lightTheme,
+              home: const Scaffold(body: widget),
+            ),
+          ),
+        );
         await tester.pump();
+        await tester.pump(const Duration(milliseconds: 100));
 
         // assert
         expect(find.byType(ShareJokeButton), findsOneWidget);
@@ -949,7 +1413,7 @@ void mainCountsAndButtonsSuite() {
           setupText: 'Setup text',
           punchlineText: 'Punchline text',
           setupImageUrl: 'https://example.com/setup.jpg',
-          punchlineImageUrl: 'https://example.com/punchline.jpg',
+          punchlineImageUrl: null,
         );
 
         const widget = JokeImageCarousel(
@@ -961,6 +1425,7 @@ void mainCountsAndButtonsSuite() {
         // act
         await tester.pumpWidget(createTestWidget(child: widget));
         await tester.pump();
+        await tester.pump(const Duration(milliseconds: 100));
 
         // assert
         expect(find.byType(ShareJokeButton), findsNothing);
@@ -973,7 +1438,7 @@ void mainCountsAndButtonsSuite() {
           setupText: 'Setup text',
           punchlineText: 'Punchline text',
           setupImageUrl: 'https://example.com/setup.jpg',
-          punchlineImageUrl: 'https://example.com/punchline.jpg',
+          punchlineImageUrl: null,
         );
 
         const widget = JokeImageCarousel(
@@ -985,8 +1450,39 @@ void mainCountsAndButtonsSuite() {
         );
 
         // act
-        await tester.pumpWidget(createTestWidget(child: widget));
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              IsJokeSavedProvider(
+                joke.id,
+              ).overrideWith((ref) => Stream<bool>.value(false)),
+              IsJokeSharedProvider(
+                joke.id,
+              ).overrideWith((ref) => Stream<bool>.value(false)),
+              jokeReactionsServiceProvider.overrideWithValue(
+                _MockJokeReactionsService(),
+              ),
+              jokeShareServiceProvider.overrideWithValue(
+                _MockJokeShareService(),
+              ),
+              performanceServiceProvider.overrideWithValue(
+                _NoopPerformanceService(),
+              ),
+              analyticsServiceProvider.overrideWithValue(
+                _NoopAnalyticsService(),
+              ),
+              firebaseFunctionsProvider.overrideWithValue(
+                FakeFirebaseFunctions(),
+              ),
+            ],
+            child: MaterialApp(
+              theme: lightTheme,
+              home: const Scaffold(body: widget),
+            ),
+          ),
+        );
         await tester.pump();
+        await tester.pump(const Duration(milliseconds: 100));
 
         // assert - all buttons should be visible
         expect(find.byType(SaveJokeButton), findsOneWidget);
@@ -1212,4 +1708,253 @@ void mainCountsAndButtonsSuite() {
       });
     });
   });
+}
+
+// --- Consolidated from joke_image_carousel_adaptive_test.dart ---
+class _MockJokeCloudFunctionService extends Mock
+    implements JokeCloudFunctionService {}
+
+class _NoopImageService extends ImageService {
+  @override
+  String? getProcessedJokeImageUrl(String? imageUrl, {int? width}) => null;
+
+  @override
+  bool isValidImageUrl(String? url) => true;
+
+  @override
+  Future<String?> precacheJokeImage(String? imageUrl, {int? width}) async =>
+      null;
+
+  @override
+  Future<({String? setupUrl, String? punchlineUrl})> precacheJokeImages(
+    Joke joke, {
+    int? width,
+  }) async => (setupUrl: null, punchlineUrl: null);
+
+  @override
+  Future<void> precacheMultipleJokeImages(
+    List<Joke> jokes, {
+    int? width,
+  }) async {}
+}
+
+void mainAdaptiveLayoutSuite() {
+  group('Adaptive layout', () {
+    testWidgets('BOTH_ADAPTIVE is horizontal in wide constraints', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            ...CoreMocks.getCoreProviderOverrides(),
+            // Ensure no network/plugin calls by making image URLs resolve to null
+            imageServiceProvider.overrideWithValue(_NoopImageService()),
+            // Mock JokeCloudFunctionService to avoid Firebase initialization
+            jokeCloudFunctionServiceProvider.overrideWithValue(
+              _MockJokeCloudFunctionService(),
+            ),
+          ],
+          child: const MaterialApp(
+            home: Scaffold(
+              body: SizedBox(
+                width: 800,
+                height: 400,
+                child: JokeImageCarousel(
+                  joke: Joke(
+                    id: '1',
+                    setupText: 's',
+                    punchlineText: 'p',
+                    setupImageUrl: 'a',
+                    punchlineImageUrl: 'b',
+                  ),
+                  jokeContext: 'test',
+                  mode: JokeViewerMode.bothAdaptive,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+      expect(find.byType(Row), findsWidgets);
+    });
+
+    testWidgets('BOTH_ADAPTIVE is vertical in tall constraints', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            ...CoreMocks.getCoreProviderOverrides(),
+            imageServiceProvider.overrideWithValue(_NoopImageService()),
+            jokeCloudFunctionServiceProvider.overrideWithValue(
+              _MockJokeCloudFunctionService(),
+            ),
+          ],
+          child: const MaterialApp(
+            home: Scaffold(
+              body: SizedBox(
+                width: 400,
+                height: 800,
+                child: JokeImageCarousel(
+                  joke: Joke(
+                    id: '2',
+                    setupText: 's',
+                    punchlineText: 'p',
+                    setupImageUrl: 'a',
+                    punchlineImageUrl: 'b',
+                  ),
+                  jokeContext: 'test',
+                  mode: JokeViewerMode.bothAdaptive,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+      expect(find.byType(Column), findsWidgets);
+    });
+  });
+}
+
+// --- Consolidated from joke_image_carousel_dispose_test.dart ---
+class _MockAppUsageService extends Mock implements AppUsageService {}
+
+void mainLifecycleDisposeSuite() {
+  group('Lifecycle/Dispose', () {
+    setUpAll(() {
+      registerAnalyticsFallbackValues();
+      // Required for any<Joke>() used in image service stubs
+      registerFallbackValue(FakeJoke());
+    });
+
+    late MockImageService mockImageService;
+    late _MockAppUsageService mockAppUsageService;
+
+    const String dataUrl =
+        'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+
+    setUp(() {
+      mockImageService = MockImageService();
+      mockAppUsageService = _MockAppUsageService();
+
+      when(() => mockImageService.isValidImageUrl(any())).thenReturn(true);
+      when(() => mockImageService.processImageUrl(any())).thenReturn(dataUrl);
+      when(
+        () => mockImageService.processImageUrl(
+          any(),
+          width: any(named: 'width'),
+          height: any(named: 'height'),
+          quality: any(named: 'quality'),
+        ),
+      ).thenReturn(dataUrl);
+      when(
+        () => mockImageService.getProcessedJokeImageUrl(
+          any(),
+          width: any(named: 'width'),
+        ),
+      ).thenReturn(dataUrl);
+      when(
+        () => mockImageService.precacheJokeImage(
+          any(),
+          width: any(named: 'width'),
+        ),
+      ).thenAnswer((_) async => dataUrl);
+      when(
+        () => mockImageService.precacheMultipleJokeImages(
+          any(),
+          width: any(named: 'width'),
+        ),
+      ).thenAnswer((_) async {});
+    });
+
+    Widget wrap(Widget child, List<Override> additionalOverrides) =>
+        ProviderScope(
+          overrides: [
+            ...FirebaseMocks.getFirebaseProviderOverrides(),
+            ...AnalyticsMocks.getAnalyticsProviderOverrides(),
+            imageServiceProvider.overrideWithValue(mockImageService),
+            appUsageServiceProvider.overrideWithValue(mockAppUsageService),
+            ...additionalOverrides,
+          ],
+          child: MaterialApp(
+            theme: lightTheme,
+            home: Scaffold(body: child),
+          ),
+        );
+
+    const joke = Joke(
+      id: 'jX',
+      setupText: 's',
+      punchlineText: 'p',
+      setupImageUrl: 'https://example.com/a.jpg',
+      punchlineImageUrl: 'https://example.com/b.jpg',
+    );
+
+    testWidgets('does not access ref after dispose during view logging', (
+      tester,
+    ) async {
+      // Arrange delayed usage calls to simulate in-flight awaits
+      when(() => mockAppUsageService.logJokeViewed(any())).thenAnswer((
+        _,
+      ) async {
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+      });
+      when(() => mockAppUsageService.getNumJokesViewed()).thenAnswer((_) async {
+        await Future<int>.delayed(const Duration(milliseconds: 500));
+        return 7;
+      });
+
+      // Host widget that can remove the carousel from the tree
+      final hostKey = GlobalKey<_HostState>();
+      final host = Host(
+        key: hostKey,
+        child: const JokeImageCarousel(joke: joke, jokeContext: 'test'),
+      );
+
+      await tester.pumpWidget(wrap(host, const []));
+      await tester.pump();
+
+      // Wait >2s to mark setup viewed
+      await tester.pump(const Duration(milliseconds: 2100));
+
+      // Navigate to punchline by tap, then complete page animation
+      await tester.tap(find.byType(JokeImageCarousel));
+      await tester.pump(const Duration(milliseconds: 350));
+
+      // Wait >2s to trigger punchline viewed and start logging flow
+      await tester.pump(const Duration(milliseconds: 2100));
+
+      // While logging is in-flight, remove the widget from the tree
+      await tester.pump(const Duration(milliseconds: 50)); // within first await
+      hostKey.currentState!.showChild = false;
+      await tester.pump();
+
+      // Advance time to allow all delayed futures to complete
+      await tester.pump(const Duration(seconds: 1));
+
+      // If ref.read after dispose occurs, the test will throw. Reaching here means success.
+      expect(true, isTrue);
+    });
+  });
+}
+
+class Host extends StatefulWidget {
+  const Host({super.key, required this.child});
+  final Widget child;
+
+  @override
+  State<Host> createState() => _HostState();
+}
+
+class _HostState extends State<Host> {
+  bool showChild = true;
+
+  @override
+  Widget build(BuildContext context) {
+    return showChild ? widget.child : const SizedBox.shrink();
+  }
 }

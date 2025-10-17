@@ -4,95 +4,242 @@
 {% block title %}Snickerdoodle Jokes | Daily Fun for Everyone{% endblock %}
 
 {% block head_extra %}
-  <meta name="description" content="Welcome to Snickerdoodle Jokes! Get a new, funny joke every day. Download our app for more laughs!">
-  <link rel="canonical" href="{{ url_for('web.index', _external=True) }}">
-  <meta property="og:title" content="Snickerdoodle Jokes | Daily Fun for Everyone">
-  <meta property="og:description" content="Today's joke: {{ joke.setup_text }}">
-  <meta property="og:image" content="https://images.quillsstorybook.com/cdn-cgi/image/width=1024,format=auto,quality=75/banner001.png">
-  <meta property="og:url" content="{{ url_for('web.index', _external=True) }}">
-  <meta name="twitter:card" content="summary_large_image">
-  <style>
-    /* Landing page polish: remove oversized banner, tighten hierarchy */
-    .hero {
-      max-width: 900px;
-      margin: 0 auto 20px;
-      text-align: center;
-    }
-    .hero-title {
-      font-size: 1.8rem;
-      margin: 0 0 6px;
-    }
-    .hero-subtitle {
-      color: #b8b8b8;
-      margin: 0 0 10px;
-      font-size: 1rem;
-    }
-    .joke-card {
-      background-color: #fff;
-      border-radius: 12px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-      padding: 24px;
-      max-width: 600px;
-      margin: 2rem auto;
-      text-align: center;
-    }
-    .joke-image {
-      width: 100%;
-      height: auto;
-      border-radius: 8px;
-      margin-bottom: 1rem;
-    }
-    .joke-text {
-      font-size: 1.25rem;
-      color: #333;
-      margin-bottom: 1rem;
-    }
-    .punchline {
-      display: none;
-    }
-    details[open] .punchline {
-      display: block;
-    }
-    
-    .cta-section { text-align: center; margin: 2.2rem 0; }
-    .value-props { display: flex; justify-content: center; gap: 1.2rem; margin-top: 2.2rem; flex-wrap: wrap; }
-    .prop-box { background-color: var(--card-bg); border: 1px solid var(--card-border); border-radius: 14px; padding: 1.2rem 1rem; width: 240px; text-align: center; box-shadow: 0 6px 18px rgba(0,0,0,0.25); }
-    .prop-icon { width: 28px; height: 28px; border-radius: 50%; background: var(--primary); display: inline-flex; align-items: center; justify-content: center; color: var(--on-primary); font-weight: 800; box-shadow: inset 0 0 0 1px var(--primary-700); margin-bottom: 8px; }
-    .prop-box h3 {
-      margin-top: 0;
-    }
-  </style>
+<meta name="description"
+  content="Welcome to Snickerdoodle Jokes! Enjoy 10 fresh, family-friendly jokes today. Download our app for more laughs!">
+<meta property="og:title" content="Snickerdoodle Jokes | Daily Fun for Everyone">
+<meta property="og:description"
+  content="Today's joke: {% if jokes and jokes|length>0 %}{{ jokes[0].setup_text }}{% else %}A delightful laugh awaits{% endif %}">
+<meta property="og:image"
+  content="https://images.quillsstorybook.com/cdn-cgi/image/width=1024,format=auto,quality=75/banner001.png">
+<meta property="og:url" content="{{ canonical_url }}">
+<meta name="twitter:card" content="summary_large_image">
+<style>
+  .hero {
+    max-width: 900px;
+    margin: 0 auto 20px;
+    text-align: center;
+  }
+
+  .hero-title {
+    font-size: 1.8rem;
+    margin: 0 0 6px;
+  }
+
+  .hero-subtitle {
+    color: #b8b8b8;
+    margin: 0 0 10px;
+    font-size: 1rem;
+  }
+
+  .primary-action {
+    display: inline-block;
+    margin-top: 10px;
+  }
+
+  .jokes-list {
+    margin-top: 16px;
+  }
+
+  .joke-wrapper {
+    margin: 24px 0;
+  }
+
+  .cta-section {
+    text-align: center;
+    margin: 2.2rem 0;
+  }
+
+  .value-props {
+    display: flex;
+    justify-content: center;
+    gap: 1.2rem;
+    margin-top: 2.2rem;
+    flex-wrap: wrap;
+  }
+
+  .prop-box {
+    background-color: var(--card-bg);
+    border: 1px solid var(--card-border);
+    border-radius: 14px;
+    padding: 1.2rem 1rem;
+    width: 240px;
+    text-align: center;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+  }
+
+  .prop-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--primary);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--on-primary);
+    font-weight: 800;
+    box-shadow: inset 0 0 0 1px var(--primary-700);
+    margin-bottom: 8px;
+  }
+
+  .prop-box h3 {
+    margin-top: 0;
+  }
+
+  .end-cta-card {
+    width: 90%;
+    max-width: 520px;
+    margin: 0 auto;
+    padding: 18px;
+    border: 1px solid var(--card-border);
+    background: var(--card-bg);
+    border-radius: 14px;
+    box-shadow: var(--card-shadow);
+    text-align: center;
+  }
+
+  .end-cta-title {
+    font-size: 1.3rem;
+    margin: 0 0 8px;
+  }
+
+  .end-cta-desc {
+    color: #cfcfcf;
+    margin: 0 0 14px;
+  }
+  /* Center CTA card inside square media */
+  #sv-cta-slide .joke-slide-media {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  /* Preserve bottom text space on CTA slide to avoid page shift */
+  #sv-cta-slide .joke-text {
+    visibility: hidden;
+  }
+
+   /* Disabled state for details/summary control inside the viewer */
+   .joke-widget summary[aria-disabled="true"] {
+     background: #3a3a3a;
+     color: #9a9a9a;
+     cursor: default;
+     pointer-events: none;
+   }
+</style>
 {% endblock %}
 
 {% block content %}
-  <section class="hero" aria-label="Intro">
-    <h2 class="hero-title">Today's Joke</h2>
-    <p class="hero-subtitle">Family‑friendly laughs with revealable punchlines</p>
-  </section>
-  {{ joke_card(joke, reveal_label='Reveal Punchline', image_size=600) }}
+<section class="hero" aria-label="Intro">
+  <h2 class="hero-title">Today's Joke</h2>
+</section>
 
-  <div class="cta-section">
-    <a href="https://play.google.com/store/apps/details?id=com.builtwithporpoise.jokes" target="_blank" rel="noopener noreferrer">
-      <img class="play-badge" alt="Get it on Google Play" style="height:56px;"
-        src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png" />
-    </a>
-  </div>
+<!-- Single viewer carousel: two slides per joke (setup, punchline), then CTA card -->
+<section id="single-viewer" class="joke-widget" aria-label="Joke viewer">
+  <!-- Original placement: control first, then viewer -->
+  <details id="sv-details">
+    <summary id="sv-summary">Reveal Punchline</summary>
+  </details>
+  <div class="joke-carousel">
+    <div class="joke-carousel-viewport">
+      <div class="joke-carousel-track" id="sv-track" style="width: 100%; transform: translateX(0);">
+        {% for j in jokes %}
+        <!-- Setup slide -->
+        <div class="joke-slide sv-slide" data-kind="setup" aria-label="Setup {{ loop.index }}">
+          <div class="joke-slide-media">
+            {% if j.setup_image_url %}
+            <img src="{{ j.setup_image_url | replace('width=1024', 'width=' ~ 600) }}" alt="{{ j.setup_text }}"
+              width="600" height="600" loading="lazy">
+            {% endif %}
+          </div>
+          <p class="joke-text">{{ j.setup_text }}</p>
+        </div>
+        <!-- Punchline slide -->
+        <div class="joke-slide sv-slide" data-kind="punchline" aria-label="Punchline {{ loop.index }}">
+          <div class="joke-slide-media">
+            {% if j.punchline_image_url %}
+            <img src="{{ j.punchline_image_url | replace('width=1024', 'width=' ~ 600) }}" alt="{{ j.punchline_text }}"
+              width="600" height="600" loading="lazy">
+            {% endif %}
+          </div>
+          <p class="joke-text">{{ j.punchline_text }}</p>
+        </div>
+        {% endfor %}
 
-  <div class="value-props">
-    <div class="prop-box">
-      <div class="prop-icon" aria-hidden="true">🙂</div>
-      <h3>Daily Laughs</h3>
-      <p>Get a new, hilarious joke delivered to you every day.</p>
-    </div>
-    <div class="prop-box">
-      <div class="prop-icon" aria-hidden="true">🖼️</div>
-      <h3>Beautiful Images</h3>
-      <p>Each joke comes with funny, AI-generated images.</p>
-    </div>
-    <div class="prop-box">
-      <div class="prop-icon" aria-hidden="true">🔗</div>
-      <h3>Share with Friends</h3>
-      <p>Easily share your favorite jokes and spread the fun.</p>
+        <!-- CTA slide (last) -->
+        <div class="joke-slide sv-slide" data-kind="cta" id="sv-cta-slide" aria-label="Get more jokes">
+          <div class="joke-slide-media">
+            <div class="end-cta-card">
+              <h3 class="end-cta-title">Loved the laughs?</h3>
+              <p class="end-cta-desc">Get more jokes in our free app!</p>
+              <a href="https://play.google.com/store/apps/details?id=com.builtwithporpoise.jokes" target="_blank" rel="noopener noreferrer" aria-label="Get it on Google Play">
+                <img class="play-badge play-badge--cta" alt="Get it on Google Play"
+                  src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png" loading="lazy" />
+              </a>
+            </div>
+          </div>
+          <p class="joke-text visually-hidden">Get the app</p>
+        </div>
+      </div>
     </div>
   </div>
+</section>
+
+  
+
+<div class="value-props">
+  <div class="prop-box">
+    <div class="prop-icon" aria-hidden="true">🙂</div>
+    <h3>Daily Laughs</h3>
+    <p>Get a new, hilarious joke delivered to you every day.</p>
+  </div>
+  <div class="prop-box">
+    <div class="prop-icon" aria-hidden="true">🖼️</div>
+    <h3>Hilarious Images</h3>
+    <p>Each joke comes with funny, AI-generated images.</p>
+  </div>
+</div>
+
+<script>
+    (function () {
+    var summaryEl = document.getElementById('sv-summary');
+    var detailsEl = document.getElementById('sv-details');
+    if (!summaryEl || !detailsEl) return;
+    var slides = Array.from(document.querySelectorAll('#single-viewer .sv-slide'));
+    var totalSlides = slides.length; // 2 * jokes + 1 CTA
+    var current = 0; // start at first setup
+
+    function updateLabel() {
+      if (current >= totalSlides - 1) {
+        // Final CTA: keep control visible but disabled and labeled "Next Joke"
+        detailsEl.style.display = '';
+        summaryEl.setAttribute('aria-disabled', 'true');
+        summaryEl.textContent = 'Next Joke';
+        return;
+      }
+      summaryEl.removeAttribute('aria-disabled');
+      var isSetup = (current % 2 === 0);
+      summaryEl.textContent = isSetup ? 'Reveal Punchline' : 'Next Joke';
+    }
+
+     function showSlide(idx) {
+       slides.forEach(function (s, i) {
+         s.style.display = (i === idx ? 'flex' : 'none');
+       });
+       updateLabel();
+     }
+
+    // Initialize: ensure only first slide visible and details closed
+    slides.forEach(function (s, i) { s.style.display = (i === 0 ? 'flex' : 'none'); });
+    detailsEl.open = false;
+    updateLabel();
+
+      summaryEl.addEventListener('click', function (e) {
+      // Prevent default toggle to keep consistent "button" behavior
+      e.preventDefault();
+      detailsEl.open = false;
+        if (current >= totalSlides - 1) { return; }
+      current = Math.min(totalSlides - 1, current + 1);
+      showSlide(current);
+    });
+  })();
+</script>
 {% endblock %}

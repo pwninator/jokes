@@ -1,214 +1,505 @@
-## AGENTS.md: Instructions for AI Agents
+# AGENTS.md: AI Agent Instructions for Snickerdoodle Jokes App
 
-This repository contains a Flutter app and a Python Cloud Functions codebase. Follow these rules to keep changes correct, testable, and consistent.
+This document contains everything AI agents need to work effectively on this codebase. It combines project overview, architecture, testing patterns, and operational guidelines.
 
-## 1. Project overview
+## 1. Project Overview
 
-- Flutter app (`snickerdoodle`)
-  - Framework: Flutter (Dart)
-  - State management: `flutter_riverpod`
-  - Navigation: `go_router`
-  - Backend: Firebase (Auth, Firestore, Cloud Functions, Messaging, Analytics)
-  - Code generation: `build_runner`
+**Snickerdoodle** is a mobile jokes app that delivers AI-generated illustrated jokes to users.
 
-- Python Cloud Functions (`py_quill`)
-  - Firebase Functions (Python) for APIs and a Flask-based SEO web layer
-  - Flask + Jinja templates for topic pages and search
-  - Agents/tools for content workflows in `py_quill/agents/` and services under `py_quill/services/`
+### 1.1. Tech Stack
 
-## 2. Core directives
+**Frontend (Flutter/Dart)**:
+- Framework: Flutter with `flutter_riverpod` for state management
+- Navigation: `go_router`
+- Backend: Firebase (Auth, Firestore, Cloud Functions, Messaging, Analytics)
+- Local Storage: Drift (on-device SQL)
+- Code Generation: `build_runner`
 
-- Make correct, verifiable, minimal changes.
-- Tests are mandatory for changed behavior.
-- Do not run the Flutter app (`flutter run`) for verification.
+**Backend (Python)**:
+- Firebase Cloud Functions for APIs
+- Flask + Jinja for SEO web layer
+- Agents/tools in `py_quill/agents/` and services in `py_quill/services/`
+- LLM Services: Google AI (Vertex), OpenAI, Anthropic
 
-### 2.1 Testing as primary verification
-
-- Always add/update tests for modified code.
-- Target near 100% coverage for newly added code.
-- Flutter: use `mocktail`; mock repositories/services rather than notifiers; assert rendered UI states.
-- Python: use `pytest` and Flask test client; mock `services.search`/`services.firestore` where needed.
-
-### 2.2 Code style/formatting
-
-- Flutter: run `dart format .` and `flutter analyze` before submitting.
-- Python: keep names clear, functions small, docstrings concise; match existing style in `py_quill`.
-
-### 2.3 Widget keys for interactive elements
-
-- **All interactive widgets must have unique keys** for testing, automation, and debugging purposes.
-- Interactive widgets include: buttons (ElevatedButton, TextButton, OutlinedButton, IconButton, FloatingActionButton), text inputs (TextField, TextFormField), toggles (Switch, Checkbox, Radio), sliders, dropdowns, gesture detectors (GestureDetector, InkWell), list tiles, and any other widget users can interact with.
-- **Key naming convention**: Use the file name (without extension) as a prefix, followed by a descriptive identifier: `Key('filename-widget-description')`
-  - Example: In `feedback_dialog.dart`: `Key('feedback_dialog-submit-button')`
-  - Example: In `user_settings_screen.dart`: `Key('user_settings_screen-google-sign-in-button')`
-  - For widgets with dynamic IDs: `Key('filename-widget-description-$dynamicId')`
-  - Example: `Key('save_joke_button-$jokeId')`
-- This ensures global uniqueness across the entire app and makes widgets easily identifiable in tests and automation scripts.
-
-### 2.4 Analytics and error reporting
-
-- Flutter: error-like analytics events must also log a Crashlytics non-fatal via `AnalyticsService`; tests should verify both.
-- Python: use Cloud Logging (do not call Flutter Analytics/Crashlytics from Python).
-
-## 3. Environment setup
-
-### 3.1 Jules
-
-Jules should run this command to sync to the latest repo:
+### 1.2. System Architecture
 
 ```
+Client (Flutter App)
+  ↓
+Firebase (BaaS)
+  ├─ Firestore (database)
+  ├─ Authentication
+  ├─ Cloud Storage (images)
+  └─ Cloud Functions (Python backend)
+      ↓
+  External AI Services (LLMs, Image Generation)
+```
+
+**Data Flow**:
+1. App requests joke from Firestore
+2. If generation needed, Cloud Function triggers
+3. Function calls LLM → generates joke → generates images
+4. Saves to Firestore + Cloud Storage
+5. App receives real-time updates
+
+## 2. Directory Structure
+
+### 2.1. Flutter (`lib/src/`)
+
+```
+lib/src/
+├── common_widgets/      # Reusable UI components
+├── config/              # App configuration (themes, routing)
+├── core/                # Core logic (services, providers)
+├── data/                # Data layer (repositories, local storage)
+├── features/            # Feature modules
+│   ├── admin/           # Admin panel screens
+│   ├── auth/            # Authentication
+│   ├── book_creator/    # Joke book creation
+│   ├── feedback/        # User feedback
+│   ├── jokes/           # Main joke features
+│   ├── search/          # Search and discovery
+│   └── settings/        # User settings
+├── providers/           # Riverpod providers
+├── startup/             # App initialization
+└── utils/               # Utility functions
+```
+
+### 2.2. Python (`py_quill/`)
+
+```
+py_quill/
+├── agents/              # ADK agents for content generation
+├── common/              # Shared utilities and models
+├── functions/           # Cloud Functions entry points
+├── services/            # External service clients (LLM, Firestore, Storage)
+└── web/                 # Flask app (templates, routes)
+```
+
+### 2.3. Tests
+
+```
+test/
+├── common_widgets/      # Widget tests
+├── core/                # Core service tests
+├── data/                # Repository/data layer tests
+├── features/            # Feature tests (mirror lib/src/features)
+└── test_helpers/        # (deprecated - being removed)
+```
+
+## 3. Core Development Directives
+
+### 3.1. Making Changes
+
+- Make **correct, verifiable, minimal** changes
+- Tests are **mandatory** for changed behavior
+- Target **near 100% coverage** for new code
+- Do **NOT** run `flutter run` for verification (use tests)
+
+### 3.2. Code Style
+
+**Flutter**:
+- Run `dart format .` before committing
+- Run `flutter analyze` and fix all issues
+- Run `flutter test` to verify changes
+
+**Python**:
+- Keep names clear, functions small, docstrings concise
+- Match existing style in `py_quill/`
+
+### 3.3. Widget Keys (Flutter)
+
+**All interactive widgets MUST have unique keys** for testing and automation.
+
+**Naming Convention**: `Key('filename-widget-description')`
+
+Examples:
+- `Key('feedback_dialog-submit-button')`
+- `Key('user_settings_screen-google-sign-in-button')`
+- `Key('save_joke_button-$jokeId')` (with dynamic ID)
+
+Interactive widgets include: buttons, text inputs, toggles, sliders, dropdowns, gesture detectors, list tiles.
+
+### 3.4. Analytics & Error Reporting
+
+**Flutter**:
+- Error-like analytics events MUST also log Crashlytics non-fatal via `AnalyticsService`
+- Tests should verify both are called
+
+**Python**:
+- Use Cloud Logging only (not Flutter Analytics/Crashlytics)
+
+## 4. Testing Strategy
+
+The app follows **Riverpod's official testing best practices** for test isolation and clarity.
+
+### 4.1. Core Testing Principles
+
+1. **No Shared State**: Each test creates its own fresh mocks
+2. **Explicit Dependencies**: All provider overrides visible in test
+3. **Mock at Repository Layer**: Widget/service tests mock repositories, not databases
+4. **Real DB Only for Data Layer**: Only repository tests use `AppDatabase.inMemory()` with proper cleanup
+
+### 4.2. Flutter Test Pattern
+
+```dart
+// Mock class declarations at top of file
+class MockJokeRepository extends Mock implements JokeRepository {}
+class MockAppUsageService extends Mock implements AppUsageService {}
+
+void main() {
+  setUpAll(() {
+    // Only mocktail fallback registrations
+    registerFallbackValue(FakeJoke());
+  });
+
+  late MockJokeRepository mockJokeRepository;
+  late MockAppUsageService mockAppUsageService;
+
+  setUp(() {
+    // Create fresh mocks per test
+    mockJokeRepository = MockJokeRepository();
+    mockAppUsageService = MockAppUsageService();
+    
+    // Stub default behavior
+    when(() => mockJokeRepository.getJokes()).thenAnswer((_) async => []);
+    when(() => mockAppUsageService.logJokeViewed(any())).thenAnswer((_) async {});
+  });
+
+  testWidgets('description of behavior being tested', (tester) async {
+    // Arrange: Test-specific stubs
+    when(() => mockJokeRepository.getJokes()).thenAnswer((_) async => testJokes);
+    
+    // Act: Build widget with explicit overrides
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
+          appUsageServiceProvider.overrideWithValue(mockAppUsageService),
+          // Only providers this widget actually needs
+        ],
+        child: MaterialApp(home: WidgetUnderTest()),
+      ),
+    );
+    
+    // Assert: Verify behavior
+    expect(find.text('Expected Text'), findsOneWidget);
+    verify(() => mockAppUsageService.logJokeViewed('joke-1')).called(1);
+  });
+}
+```
+
+### 4.3. Repository/Data Layer Test Pattern
+
+```dart
+void main() {
+  late AppDatabase db;
+  late JokeInteractionsRepository repository;
+
+  setUp(() {
+    db = AppDatabase.inMemory();
+    repository = JokeInteractionsRepository(
+      db: db,
+      performanceService: NoopPerformanceService(),
+    );
+  });
+
+  tearDown() async {
+    await db.close(); // Always close to prevent leaks
+  });
+
+  test('setSaved stores joke interaction', () async {
+    // Arrange, Act, Assert using real DB
+    await repository.setSaved('joke-1');
+    final saved = await repository.getSavedJokeInteractions();
+    
+    expect(saved.length, 1);
+    expect(saved.first.jokeId, 'joke-1');
+  });
+}
+```
+
+### 4.4. Python Testing
+
+- Use `pytest` and Flask test client
+- Mock `services.search`, `services.firestore` where needed
+- For web layer, verify:
+  - Canonical and social meta tags
+  - JSON-LD structured data
+  - Caching headers
+  - Image attributes (`loading="lazy"`, width, height)
+
+### 4.5. Test Design Guidelines
+
+- **One Behavior Per Test**: Each test verifies a single, well-defined behavior
+- **Focused**: Not too broad (workflows) or too trivial (getters/setters)
+- **Clear AAA**: Arrange-Act-Assert structure
+- **Minimal Mocks**: Only mock what the test actually needs
+- **No Test-Only Code**: Production code should not have test-specific branches
+
+## 5. Commands
+
+Run from repository root.
+
+### 5.1. Flutter
+
+```bash
+# Install dependencies
+flutter pub get
+
+# Generate code (after provider changes)
+dart run build_runner build --delete-conflicting-outputs
+
+# Run tests
+flutter test
+
+# Run single test file
+flutter test test/path/to/test_file.dart
+
+# Analyze code
+flutter analyze
+
+# Format code
+dart format .
+```
+
+### 5.2. Python
+
+```bash
+# Install dependencies
+pip install -r py_quill/requirements.txt
+
+# Run tests
+pytest py_quill
+
+# Run with coverage
+pytest py_quill --cov=py_quill --cov-report=term-missing
+```
+
+**Important**: Python imports inside `py_quill/` must be relative to `py_quill` root:
+```python
+# ✅ Correct
+from common import models
+
+# ❌ Wrong
+from py_quill.common import models
+from ..common import models
+```
+
+## 6. Key Features & Screens
+
+### 6.1. User-Facing Features
+
+**Jokes**:
+- `DailyJokesScreen`: Main feed of latest jokes
+- `SavedJokesScreen`: User's saved jokes
+
+**Search & Discovery**:
+- `DiscoverScreen`: Browse by categories/trending
+- `SearchScreen`: Active search for jokes
+
+**User Features**:
+- `UserFeedbackScreen`: Submit feedback
+- `UserSettingsScreen`: Account settings, sign-in
+
+**Book Creator**:
+- `BookCreatorScreen`: Create joke book collections
+- `JokeSelectorScreen`: Select jokes for books
+
+### 6.2. Admin Features
+
+**Admin Dashboard**:
+- `JokeAdminScreen`: Main admin hub with navigation
+
+**Joke Management**:
+- `JokeManagementScreen`: Search, filter, manage all jokes
+- `JokeEditorScreen`: Create/edit individual jokes
+- `JokeCreatorScreen`: AI-assisted joke generation
+- `JokeSchedulerScreen`: Schedule jokes for publication
+- `DeepResearchScreen`: Bulk AI joke generation workflow
+
+**Categories**:
+- `JokeCategoriesScreen`: View all categories (responsive grid)
+- `JokeCategoryEditorScreen`: Edit category details/images
+
+**Analytics & Feedback**:
+- `UsersAnalyticsScreen`: User activity histograms
+- `JokeFeedbackScreen`: Review user feedback threads
+- `FeedbackConversationScreen`: View/reply to feedback
+
+**Auth**:
+- Anonymous browsing allowed
+- `AuthGuard` protects admin routes
+- Google Sign-In via settings screen
+
+## 7. Backend Cloud Functions
+
+### 7.1. Admin Functions (`admin_fns.py`)
+
+- `set_user_role`: Assign user roles (e.g., admin)
+
+### 7.2. Analytics Functions (`analytics_fns.py`)
+
+- `usage`: Track and update user activity stats
+
+### 7.3. Joke Functions (`joke_fns.py`)
+
+**HTTP Endpoints**:
+- `create_joke`: Create new joke document
+- `search_jokes`: Vector similarity search
+- `populate_joke`: Generate AI images/metadata for joke
+- `modify_joke_image`: Edit joke images via text instructions
+- `critique_jokes`: AI critique of jokes
+- `upscale_joke`: Upscale joke images
+- `send_daily_joke_scheduler/http`: Send FCM notifications
+
+**Firestore Triggers**:
+- `on_joke_write`: Update embeddings, popularity, search index
+- `on_joke_category_write`: Generate category images on description change
+
+### 7.4. Other Functions
+
+- `book_fns.py`: Joke book management
+- `character_fns.py`: Character management
+- `joke_book_fns.py`: Book contents/creation
+- `story_prompt_fns.py`: Story prompt generation
+- `user_fns.py`: User data management
+- `util_fns.py`: Utility functions
+- `web_fns.py`: Flask web layer (SEO pages, search)
+
+### 7.5. ADK Agents
+
+Located in `py_quill/agents/`:
+- `jokes_agent.py`: Primary joke generation
+- `categorizer_agent.py`: Joke categorization
+- `punny_joke_agents.py`: Pun creation
+- `updater_agent.py`: Content updates
+
+## 8. Flask Web Layer
+
+**Entry Point**: `py_quill/functions/web_fns.py` (exports `web_search_page`)
+
+**Routes**:
+- `GET /jokes/<topic>`: SEO-optimized topic page
+- `GET /sitemap.xml`: Sitemap for topic pages
+- `GET /search`: Simple search interface
+
+**Templates** (`py_quill/web/templates/`):
+- `base.html`: Canonical link, OpenGraph/Twitter meta, responsive layout
+- `topic.html`: JSON-LD FAQPage, accessible reveal, lazy images
+
+**SEO Requirements**:
+- Setup image/text visible; punchline in `<details><summary>`
+- Caching headers: `Cache-Control`, `ETag`, `Last-Modified`
+- Images: `loading="lazy"`, width, height attributes
+- Structured data: JSON-LD with `FAQPage` schema
+
+## 9. Conventions
+
+### 9.1. Naming
+
+- Functions: verbs (e.g., `fetchJokes`, `updateUser`)
+- Variables: nouns (e.g., `jokeList`, `userName`)
+- Clear, meaningful names (no abbreviations)
+
+### 9.2. Control Flow
+
+- Use early returns
+- Explicit error handling
+- Avoid deep nesting
+
+### 9.3. Comments
+
+- Explain "why," not "how"
+- No TODO comments (implement or remove)
+
+## 10. Environment Setup
+
+### 10.1. Jules Agent
+
+Sync to latest:
+```bash
 git fetch origin
 git rebase origin/master
 ```
 
-### 3.2 All other environments/agents
+### 10.2. All Other Agents
 
-For all other agents, the environments is already set up for you. There is no need for any setup or dependency installation.
+Environment is pre-configured. No setup needed.
 
-## 3. Commands (run from repo root)
+## 11. Deployment
 
-Use Dart/Flutter commands only for the Flutter app. Do not use Flutter/Dart commands for the Python codebase. For Python, use the pytest commands specified below.
+- Python functions exported in `py_quill/main.py`
+- Flask served via `web_search_page` function
+- Firebase Hosting rewrites:
+  - `/jokes/**`, `/sitemap.xml` → Python HTTPS Function
+  - Static assets → Hosting/CDN
+- Keep timeouts/memory reasonable
+- Batch Firestore reads where possible
 
-### 3.1 Flutter (Dart only)
+## 12. Quick Checklists
 
-1) Install deps
-```bash
-flutter pub get
+### Flutter Change
+- [ ] Tests under `test/` (mirror `lib/` structure)
+- [ ] All interactive widgets have unique keys (`Key('filename-widget-description')`)
+- [ ] `dart format .`
+- [ ] `flutter analyze` (fix all issues)
+- [ ] `flutter test` (all pass)
+
+### Python Change
+- [ ] Tests under `py_quill/**/*_test.py`
+- [ ] `pip install -r py_quill/requirements.txt`
+- [ ] `pytest py_quill` (all pass)
+- [ ] Verify headers/SEO (web layer changes)
+
+## 13. Common Patterns
+
+### 13.1. Riverpod Provider Override
+
+```dart
+// In tests, override providers explicitly
+final container = ProviderContainer(
+  overrides: [
+    someProvider.overrideWithValue(mockImplementation),
+  ],
+);
 ```
 
-2) Generate code (when provider files change)
-```bash
-dart run build_runner build --delete-conflicting-outputs
+### 13.2. Repository Test with DB
+
+```dart
+setUp(() => db = AppDatabase.inMemory());
+tearDown() async => await db.close();
 ```
 
-3) Run tests
-```bash
-flutter test
+### 13.3. Firebase Analytics Event
+
+```dart
+await analyticsService.logEvent(
+  'joke_viewed',
+  parameters: {'joke_id': jokeId},
+);
 ```
 
-4) Analyze
-```bash
-flutter analyze
-```
+### 13.4. Python Import Pattern
 
-5) Format
-```bash
-dart format .
-```
-
-### 3.2 Python Cloud Functions (`py_quill`)
-
-1) Install deps
-```bash
-pip install -r py_quill/requirements.txt
-```
-
-2) Run unit tests
-```bash
-python -m pytest py_quill
-# or
-pytest py_quill
-```
-
-3) Coverage (optional)
-```bash
-python -m pytest py_quill --cov=py_quill --cov-report=term-missing
-# or
-pytest py_quill --cov=py_quill --cov-report=term-missing
-```
-
-**IMPORTANT**: Because `py_quill` is installed as a package, all python imports inside the `py_quill` directory must be relative to the `py_quill` root.
-
-For example, to import `models.py` from `common/` into a file inside `functions/`, you would use:
 ```python
+# Correct for py_quill/ files
 from common import models
+from services import firestore
 ```
 
-NOT:
-```python
-from py_quill.common import models
+## 14. Critical Reminders
 
-or 
+1. **Never** run `flutter run` for verification—use tests
+2. **Always** create tests for new/changed behavior
+3. **Never** use shared mock singletons in tests
+4. **Always** close `AppDatabase` in repository test tearDown
+5. **Always** add keys to interactive widgets
+6. **Never** commit TODO comments
+7. **Always** format/analyze before committing
 
-from ..common import models
-```
+---
 
-## 4. Architecture
-
-### 4.1 Flutter
-
-- Source: `lib/src/`
-- Features: `lib/src/features/...`
-- Common widgets: `lib/src/common_widgets/`
-- Core services/providers: `lib/src/core/`, `lib/src/providers/`
-- Routing: `lib/src/config/router/`
-- Tests mirror `lib/` under `test/`
-
-### 4.2 Python Cloud Functions (`py_quill`)
-
-- Entry point: `py_quill/main.py` (exports HTTP and background functions)
-- Web layer: `py_quill/functions/web_fns.py`
-  - Flask app adapted to Firebase via `@https_fn.on_request` (`web_search_page`).
-  - Blueprint routes:
-    - `GET /jokes/<topic>`: SEO page with setup image/text visible; punchline revealed via `<details><summary>`.
-    - `GET /sitemap.xml`: sitemap of topic pages from a hard-coded list in `web_fns.py`.
-    - `GET /search`: simple search page retained for tests/compatibility.
-  - Templates under `py_quill/web/templates/`:
-    - `base.html`: canonical link, OpenGraph/Twitter meta, responsive layout.
-    - `topic.html`: JSON-LD (`FAQPage`) with each joke as Question/Answer; accessible reveal; lazy images with width/height.
-  - Caching headers on HTML: `Cache-Control`, `ETag`, `Last-Modified`.
-  - Prefer static CSS/JS served from Firebase Hosting/CDN.
-- Services: `py_quill/services/` (Firestore, Search, Storage, LLM/image clients)
-- Data models: `py_quill/common/models.py`
-- Agents: `py_quill/agents/` (content generation/evaluation leveraging Vertex/Anthropic)
-
-### 4.3 Hosting rewrites and URLs
-
-- Configure Firebase Hosting rewrites so:
-  - `/jokes/**` and `/sitemap.xml` → Python HTTPS Function (Flask adapter).
-  - Static assets served via Hosting/CDN.
-- Canonical topic URLs avoid query params; use `?page=N` for pagination hints.
-
-## 5. Testing guidelines
-
-### 5.1 Flutter
-
-- Mock repositories/services at the edges; let providers resolve naturally.
-- Test realistic widget behavior (loading or content) rather than internal states.
-- No test-only branches in production code.
-
-### 5.2 Python (`py_quill`)
-
-- Use Flask test client; verify:
-  - Canonical and social tags (base template)
-  - JSON-LD script of type `FAQPage`
-  - `<details><summary>` punchline reveal markup
-  - Image attributes and `loading="lazy"`
-  - Caching headers on responses
-
-## 6. Deployment notes
-
-- Python functions exported in `py_quill/main.py`; Flask served via `web_search_page`.
-- Keep timeouts/memory reasonable; batch Firestore reads in services where possible.
-
-## 7. Conventions
-
-- Naming: meaningful, non-abbreviated; functions as verbs, variables as nouns.
-- Control flow: early returns; explicit error handling; avoid deep nesting.
-- Comments: explain “why,” not “how.”
-- No TODO comments in production; implement or remove.
-
-## 8. Quick checklists
-
-- Flutter change:
-  - [ ] Tests under `test/`
-  - [ ] All interactive widgets have unique keys following naming convention
-  - [ ] `dart format .`
-  - [ ] `flutter analyze`
-  - [ ] `flutter test`
-
-- Python change:
-  - [ ] Tests under `py_quill/**/_test.py`
-  - [ ] `pip install -r py_quill/requirements.txt`
-  - [ ] `pytest -q`
-  - [ ] Verify headers/SEO where relevant
+**For detailed API specs, see Cloud Function docstrings in `py_quill/functions/`**
+**For UI flows, see widget implementations in `lib/src/features/`**

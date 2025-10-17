@@ -6,8 +6,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/review_prompt_state_store.dart';
-import 'package:snickerdoodle/src/data/jokes/joke_interactions_repository.dart';
 import 'package:snickerdoodle/src/data/jokes/category_interactions_repository.dart';
+import 'package:snickerdoodle/src/data/jokes/joke_interactions_repository.dart';
 import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
 import 'package:snickerdoodle/src/features/settings/application/brightness_provider.dart';
@@ -176,26 +176,31 @@ void main() {
   });
 
   group('AppUsageService.logJokeViewed', () {
-    test('increments num_jokes_viewed counter and writes DB viewed', () async {
+    test('writes to repo and counts from repo', () async {
       final prefs = await SharedPreferences.getInstance();
       final settingsService = SettingsService(prefs);
       final mockAnalytics = _MockAnalyticsService();
       final mockJokeCloudFn = _MockJokeCloudFunctionService();
-      final mockJokeInteractions = _MockJokeInteractionsRepository();
-      when(
-        () => mockJokeInteractions.setViewed(any()),
-      ).thenAnswer((_) async => true);
+      final mockRepo = _MockJokeInteractionsRepository();
       final container = ProviderContainer(
         overrides: [brightnessProvider.overrideWithValue(Brightness.light)],
       );
       final ref = container.read(Provider<Ref>((ref) => ref));
+
+      var viewedCount = 0;
+      when(() => mockRepo.setViewed(any())).thenAnswer((_) async {
+        viewedCount += 1;
+        return true;
+      });
+      when(() => mockRepo.countViewed()).thenAnswer((_) async => viewedCount);
+
       final service = AppUsageService(
         settingsService: settingsService,
         ref: ref,
         analyticsService: mockAnalytics,
         jokeCloudFn: mockJokeCloudFn,
         categoryInteractionsService: _MockCategoryInteractionsService(),
-        jokeInteractionsRepository: mockJokeInteractions,
+        jokeInteractionsRepository: mockRepo,
       );
 
       expect(await service.getNumJokesViewed(), 0);
@@ -204,70 +209,92 @@ void main() {
       await service.logJokeViewed('j2');
       expect(await service.getNumJokesViewed(), 2);
 
-      // Allow microtask to run
-      await Future<void>.delayed(Duration.zero);
-      verify(() => mockJokeInteractions.setViewed('j1')).called(1);
-      verify(() => mockJokeInteractions.setViewed('j2')).called(1);
+      verify(() => mockRepo.setViewed('j1')).called(1);
+      verify(() => mockRepo.setViewed('j2')).called(1);
     });
   });
 
-  group('AppUsageService saved/shared counters', () {
-    test(
-      'incrementSavedJokesCount and decrementSavedJokesCount update counter with floor at 0',
-      () async {
-        final prefs = await SharedPreferences.getInstance();
-        final settingsService = SettingsService(prefs);
-        final mockAnalytics = _MockAnalyticsService();
-        final mockJokeCloudFn = _MockJokeCloudFunctionService();
-        final container = ProviderContainer();
-        final ref = container.read(Provider<Ref>((ref) => ref));
-        final service = AppUsageService(
-          settingsService: settingsService,
-          ref: ref,
-          analyticsService: mockAnalytics,
-          jokeCloudFn: mockJokeCloudFn,
-          categoryInteractionsService: _MockCategoryInteractionsService(),
-          jokeInteractionsRepository: _MockJokeInteractionsRepository(),
-        );
-
-        expect(await service.getNumSavedJokes(), 0);
-        await service.incrementSavedJokesCount();
-        expect(await service.getNumSavedJokes(), 1);
-        await service.incrementSavedJokesCount();
-        expect(await service.getNumSavedJokes(), 2);
-        await service.decrementSavedJokesCount();
-        expect(await service.getNumSavedJokes(), 1);
-        await service.decrementSavedJokesCount();
-        expect(await service.getNumSavedJokes(), 0);
-        // floor at 0
-        await service.decrementSavedJokesCount();
-        expect(await service.getNumSavedJokes(), 0);
-      },
-    );
-
-    test('incrementSharedJokesCount updates counter', () async {
+  group('AppUsageService saved/shared via repo', () {
+    test('saveJoke and unsaveJoke update repo and counts from repo', () async {
       final prefs = await SharedPreferences.getInstance();
       final settingsService = SettingsService(prefs);
       final mockAnalytics = _MockAnalyticsService();
       final mockJokeCloudFn = _MockJokeCloudFunctionService();
-      final container = ProviderContainer(
-        overrides: [brightnessProvider.overrideWithValue(Brightness.light)],
-      );
+      final mockRepo = _MockJokeInteractionsRepository();
+      final container = ProviderContainer();
       final ref = container.read(Provider<Ref>((ref) => ref));
+
+      var savedCount = 0;
+      when(() => mockRepo.setSaved(any())).thenAnswer((_) async {
+        savedCount += 1;
+        return true;
+      });
+      when(() => mockRepo.setUnsaved(any())).thenAnswer((_) async {
+        savedCount = savedCount > 0 ? savedCount - 1 : 0;
+        return true;
+      });
+      when(() => mockRepo.countSaved()).thenAnswer((_) async => savedCount);
+
       final service = AppUsageService(
         settingsService: settingsService,
         ref: ref,
         analyticsService: mockAnalytics,
         jokeCloudFn: mockJokeCloudFn,
         categoryInteractionsService: _MockCategoryInteractionsService(),
-        jokeInteractionsRepository: _MockJokeInteractionsRepository(),
+        jokeInteractionsRepository: mockRepo,
+      );
+
+      expect(await service.getNumSavedJokes(), 0);
+      await service.saveJoke('s1');
+      expect(await service.getNumSavedJokes(), 1);
+      await service.saveJoke('s2');
+      expect(await service.getNumSavedJokes(), 2);
+      await service.unsaveJoke('s1');
+      expect(await service.getNumSavedJokes(), 1);
+      await service.unsaveJoke('s2');
+      expect(await service.getNumSavedJokes(), 0);
+
+      verify(() => mockRepo.setSaved('s1')).called(1);
+      verify(() => mockRepo.setSaved('s2')).called(1);
+      verify(() => mockRepo.setUnsaved('s1')).called(1);
+      verify(() => mockRepo.setUnsaved('s2')).called(1);
+    });
+
+    test('shareJoke updates repo and counts from repo', () async {
+      final prefs = await SharedPreferences.getInstance();
+      final settingsService = SettingsService(prefs);
+      final mockAnalytics = _MockAnalyticsService();
+      final mockJokeCloudFn = _MockJokeCloudFunctionService();
+      final mockRepo = _MockJokeInteractionsRepository();
+      final container = ProviderContainer(
+        overrides: [brightnessProvider.overrideWithValue(Brightness.light)],
+      );
+      final ref = container.read(Provider<Ref>((ref) => ref));
+
+      var sharedCount = 0;
+      when(() => mockRepo.setShared(any())).thenAnswer((_) async {
+        sharedCount += 1;
+        return true;
+      });
+      when(() => mockRepo.countShared()).thenAnswer((_) async => sharedCount);
+
+      final service = AppUsageService(
+        settingsService: settingsService,
+        ref: ref,
+        analyticsService: mockAnalytics,
+        jokeCloudFn: mockJokeCloudFn,
+        categoryInteractionsService: _MockCategoryInteractionsService(),
+        jokeInteractionsRepository: mockRepo,
       );
 
       expect(await service.getNumSharedJokes(), 0);
-      await service.incrementSharedJokesCount();
+      await service.shareJoke('x1');
       expect(await service.getNumSharedJokes(), 1);
-      await service.incrementSharedJokesCount();
+      await service.shareJoke('x2');
       expect(await service.getNumSharedJokes(), 2);
+
+      verify(() => mockRepo.setShared('x1')).called(1);
+      verify(() => mockRepo.setShared('x2')).called(1);
     });
   });
 
@@ -277,6 +304,7 @@ void main() {
       final settingsService = SettingsService(prefs);
       final mockJokeCloudFn = _MockJokeCloudFunctionService();
       final mockReviewStore = _MockReviewPromptStateStore();
+      final mockRepo = _MockJokeInteractionsRepository();
 
       when(() => mockReviewStore.hasRequested()).thenAnswer((_) => true);
       when(
@@ -299,6 +327,11 @@ void main() {
       );
       final ref = container.read(testRefProvider);
 
+      // Stub repo counts used by _pushUsageSnapshot
+      when(() => mockRepo.countSaved()).thenAnswer((_) async => 2);
+      when(() => mockRepo.countViewed()).thenAnswer((_) async => 5);
+      when(() => mockRepo.countShared()).thenAnswer((_) async => 1);
+
       final mockAnalytics = _MockAnalyticsService();
       final testService = AppUsageService(
         settingsService: settingsService,
@@ -307,7 +340,7 @@ void main() {
         jokeCloudFn: mockJokeCloudFn,
         isDebugMode: false,
         categoryInteractionsService: _MockCategoryInteractionsService(),
-        jokeInteractionsRepository: _MockJokeInteractionsRepository(),
+        jokeInteractionsRepository: mockRepo,
       );
 
       // Simulate a new day to trigger _pushUsageSnapshot

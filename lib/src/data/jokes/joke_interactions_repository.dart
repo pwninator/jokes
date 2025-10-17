@@ -163,4 +163,46 @@ class JokeInteractionsRepository {
       ..where((tbl) => tbl.jokeId.equals(jokeId));
     return query.watchSingleOrNull();
   }
+
+  /// Count jokes that have been viewed at least once
+  Future<int> countViewed() async => runWithTrace(
+    name: TraceName.driftGetInteractionCount,
+    traceKey: 'count_viewed',
+    body: () async {
+      final query = _db.select(_db.jokeInteractions)
+        ..where((tbl) => tbl.viewedTimestamp.isNotNull());
+      final rows = await query.get();
+      return rows.length;
+    },
+    fallback: 0,
+    perf: _perf,
+  );
+
+  /// Count jokes that are currently saved
+  Future<int> countSaved() async => runWithTrace(
+    name: TraceName.driftGetInteractionCount,
+    traceKey: 'count_saved',
+    body: () async {
+      final query = _db.select(_db.jokeInteractions)
+        ..where((tbl) => tbl.savedTimestamp.isNotNull());
+      final rows = await query.get();
+      return rows.length;
+    },
+    fallback: 0,
+    perf: _perf,
+  );
+
+  /// Count jokes that have been shared at least once
+  Future<int> countShared() async => runWithTrace(
+    name: TraceName.driftGetInteractionCount,
+    traceKey: 'count_shared',
+    body: () async {
+      final query = _db.select(_db.jokeInteractions)
+        ..where((tbl) => tbl.sharedTimestamp.isNotNull());
+      final rows = await query.get();
+      return rows.length;
+    },
+    fallback: 0,
+    perf: _perf,
+  );
 }

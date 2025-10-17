@@ -123,8 +123,6 @@ void main() {
       when(() => usage.getNumSavedJokes()).thenAnswer((_) async => 0);
       when(() => usage.getNumSharedJokes()).thenAnswer((_) async => 0);
       when(() => usage.getNumJokesViewed()).thenAnswer((_) async => 0);
-      when(() => usage.incrementSavedJokesCount()).thenAnswer((_) async {});
-      when(() => usage.incrementSharedJokesCount()).thenAnswer((_) async {});
       when(() => usage.logJokeViewed(any())).thenAnswer((_) async {});
     });
 

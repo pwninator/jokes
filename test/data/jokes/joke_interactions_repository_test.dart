@@ -60,4 +60,27 @@ void main() {
       expect(rows, isEmpty);
     },
   );
+
+  test('countViewed returns count of viewed jokes', () async {
+    expect(await service.countViewed(), 0);
+    await service.setViewed('j1');
+    await service.setViewed('j2');
+    expect(await service.countViewed(), 2);
+  });
+
+  test('countSaved returns count of saved jokes', () async {
+    expect(await service.countSaved(), 0);
+    await service.setSaved('s1');
+    await service.setSaved('s2');
+    expect(await service.countSaved(), 2);
+    await service.setUnsaved('s1');
+    expect(await service.countSaved(), 1);
+  });
+
+  test('countShared returns count of shared jokes', () async {
+    expect(await service.countShared(), 0);
+    await service.setShared('x1');
+    await service.setShared('x2');
+    expect(await service.countShared(), 2);
+  });
 }

@@ -7,7 +7,7 @@ part of 'joke_reactions_service.dart';
 // **************************************************************************
 
 String _$jokeReactionsServiceHash() =>
-    r'ee53229288624a9bcef299df7221d840076e564c';
+    r'3818a4a175141fd5c4f1e2e032af8e54d4bc03b9';
 
 /// See also [jokeReactionsService].
 @ProviderFor(jokeReactionsService)

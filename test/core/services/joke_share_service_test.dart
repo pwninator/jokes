@@ -1,24 +1,16 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:share_plus/share_plus.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
-import 'package:snickerdoodle/src/core/services/app_review_service.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
 import 'package:snickerdoodle/src/core/services/joke_share_service.dart';
 import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
-import 'package:snickerdoodle/src/core/services/review_prompt_service.dart';
-import 'package:snickerdoodle/src/data/jokes/category_interactions_repository.dart';
-import 'package:snickerdoodle/src/data/jokes/joke_interactions_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_service.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
-import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
-import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
 
 class MockImageService extends Mock implements ImageService {}
 
@@ -28,21 +20,11 @@ class MockJokeReactionsService extends Mock implements JokeReactionsService {}
 
 class MockPlatformShareService extends Mock implements PlatformShareService {}
 
-class MockReviewPromptCoordinator extends Mock
-    implements ReviewPromptCoordinator {}
+class MockAppUsageService extends Mock implements AppUsageService {}
 
 class MockPerformanceService extends Mock implements PerformanceService {}
 
 class MockRemoteConfigValues extends Mock implements RemoteConfigValues {}
-
-class MockJokeCloudFunctionService extends Mock
-    implements JokeCloudFunctionService {}
-
-class _MockCategoryInteractionsService extends Mock
-    implements CategoryInteractionsRepository {}
-
-class MockJokeInteractionsRepository extends Mock
-    implements JokeInteractionsRepository {}
 
 class FakeJoke extends Fake implements Joke {}
 
@@ -58,8 +40,7 @@ void main() {
     late MockJokeReactionsService mockJokeReactionsService;
     late MockPlatformShareService mockPlatformShareService;
     late MockPerformanceService mockPerformanceService;
-    late AppUsageService appUsageService;
-    late ReviewPromptCoordinator mockCoordinator;
+    late MockAppUsageService appUsageService;
     late MockRemoteConfigValues mockRemoteConfigValues;
     late BuildContext fakeContext;
 
@@ -67,7 +48,6 @@ void main() {
       registerFallbackValue(FakeJoke());
       registerFallbackValue(JokeReactionType.share);
       registerFallbackValue(FakeXFile());
-      registerFallbackValue(ReviewRequestSource.jokeShared);
       registerFallbackValue(FakeBuildContext());
     });
 
@@ -76,30 +56,10 @@ void main() {
       mockAnalyticsService = MockAnalyticsService();
       mockJokeReactionsService = MockJokeReactionsService();
       mockPlatformShareService = MockPlatformShareService();
-      mockCoordinator = MockReviewPromptCoordinator();
       mockPerformanceService = MockPerformanceService();
       mockRemoteConfigValues = MockRemoteConfigValues();
       fakeContext = FakeBuildContext();
-      when(
-        () => mockCoordinator.maybePromptForReview(
-          source: any(named: 'source'),
-          context: any(named: 'context'),
-        ),
-      ).thenAnswer((_) async {});
-      // Real AppUsageService with mock SharedPreferences
-      SharedPreferences.setMockInitialValues({});
-      final prefs = await SharedPreferences.getInstance();
-      final settingsService = SettingsService(prefs);
-      final container = ProviderContainer();
-      final ref = container.read(Provider<Ref>((ref) => ref));
-      appUsageService = AppUsageService(
-        settingsService: settingsService,
-        ref: ref,
-        analyticsService: mockAnalyticsService,
-        jokeCloudFn: MockJokeCloudFunctionService(),
-        categoryInteractionsService: _MockCategoryInteractionsService(),
-        jokeInteractionsRepository: MockJokeInteractionsRepository(),
-      );
+      appUsageService = MockAppUsageService();
       when(
         () => mockRemoteConfigValues.getEnum<ShareImagesMode>(
           RemoteParam.shareImagesMode,
@@ -177,9 +137,9 @@ void main() {
             JokeReactionType.share,
             context: any(named: 'context'),
           ),
-        ).thenAnswer((_) async {
-          await appUsageService.incrementSharedJokesCount();
-        });
+        ).thenAnswer((_) async {});
+        when(() => appUsageService.getNumSharedJokes())
+            .thenAnswer((_) async => 1);
 
         when(
           () => mockAnalyticsService.logJokeShareInitiated(
@@ -399,6 +359,8 @@ void main() {
         );
 
         // Assert
+        when(() => appUsageService.getNumSharedJokes())
+            .thenAnswer((_) async => 0);
         expect(result, isFalse);
         expect(await appUsageService.getNumSharedJokes(), 0);
 
@@ -485,6 +447,8 @@ void main() {
             context: any(named: 'context'),
           ),
         ).thenAnswer((_) async {});
+
+        when(() => appUsageService.getNumSharedJokes()).thenAnswer((_) async => 1);
 
         when(
           () => mockAnalyticsService.logJokeShareInitiated(

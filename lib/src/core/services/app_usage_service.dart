@@ -87,9 +87,10 @@ class AppUsageService {
   static const String _firstUsedDateKey = 'first_used_date';
   static const String _lastUsedDateKey = 'last_used_date';
   static const String _numDaysUsedKey = 'num_days_used';
-  static const String _numJokesViewedKey = 'num_jokes_viewed';
-  static const String _numSavedJokesKey = 'num_saved_jokes';
-  static const String _numSharedJokesKey = 'num_shared_jokes';
+
+  // ==============================
+  // APP USAGE TRACKING
+  // ==============================
 
   /// Log app usage for the current launch.
   ///
@@ -145,91 +146,119 @@ class AppUsageService {
     AppLogger.debug('APP_USAGE logAppUsage: { ${changes.join(', ')} }');
   }
 
-  /// Increment the number of jokes viewed counter.
+  /// Get the first date the app was used (useful for UI and tests)
+  Future<String?> getFirstUsedDate() async =>
+      _settings.getString(_firstUsedDateKey);
+
+  /// Get the last date the app was used (useful for UI and tests)
+  Future<String?> getLastUsedDate() async =>
+      _settings.getString(_lastUsedDateKey);
+
+  /// Get the number of days the app has been used (useful for UI and tests)
+  Future<int> getNumDaysUsed() async => _settings.getInt(_numDaysUsedKey) ?? 0;
+
+  // ===============================
+  // JOKE INTERACTIONS
+  // ===============================
+
+  // -------------------------------
+  // JOKE VIEWS
+  // -------------------------------
+
+  /// Set the joke as viewed.
   ///
   /// The caller should ensure business rules are satisfied
   /// (e.g., both setup and punchline images viewed for at least 2 seconds each).
   Future<void> logJokeViewed(String jokeId) async {
-    final int oldCount = _settings.getInt(_numJokesViewedKey) ?? 0;
-    final int newCount = oldCount + 1;
-    await _settings.setInt(_numJokesViewedKey, newCount);
-    _notifyUsageChanged();
+    try {
+      await _jokeInteractions.setViewed(jokeId);
+      _notifyUsageChanged();
+      _pushUsageSnapshot();
+      AppLogger.debug('APP_USAGE logJokeViewed: { joke_id: $jokeId }');
+    } catch (e) {
+      AppLogger.warn('APP_USAGE logJokeViewed DB error: $e');
+    }
+  }
 
-    // Fire-and-forget DB write of viewed timestamp
+  /// Get the number of jokes viewed
+  Future<int> getNumJokesViewed() async =>
+      await _jokeInteractions.countViewed();
+
+  // -------------------------------
+  // JOKE SAVES
+  // -------------------------------
+
+  /// Save a joke (persists to DB)
+  Future<void> saveJoke(String jokeId) async {
+    try {
+      await _jokeInteractions.setSaved(jokeId);
+      _notifyUsageChanged();
+      _pushUsageSnapshot();
+      AppLogger.debug('APP_USAGE saveJoke: { joke_id: $jokeId }');
+    } catch (e) {
+      AppLogger.warn('APP_USAGE saveJoke DB error: $e');
+    }
+  }
+
+  /// Unsave a joke (persists to DB)
+  Future<void> unsaveJoke(String jokeId) async {
+    try {
+      await _jokeInteractions.setUnsaved(jokeId);
+      _notifyUsageChanged();
+      _pushUsageSnapshot();
+      AppLogger.debug('APP_USAGE unsaveJoke: { joke_id: $jokeId }');
+    } catch (e) {
+      AppLogger.warn('APP_USAGE unsaveJoke DB error: $e');
+    }
+  }
+
+  /// Get the number of jokes saved (COUNT from DB)
+  Future<int> getNumSavedJokes() async => await _jokeInteractions.countSaved();
+
+  // -------------------------------
+  // JOKE SHARES
+  // -------------------------------
+
+  /// Share a joke (persists to DB)
+  Future<void> shareJoke(String jokeId) async {
+    try {
+      await _jokeInteractions.setShared(jokeId);
+      _notifyUsageChanged();
+      _pushUsageSnapshot();
+      AppLogger.debug('APP_USAGE shareJoke: { joke_id: $jokeId }');
+    } catch (e) {
+      AppLogger.warn('APP_USAGE shareJoke DB error: $e');
+    }
+  }
+
+  /// Get the number of jokes shared (COUNT from DB)
+  Future<int> getNumSharedJokes() async =>
+      await _jokeInteractions.countShared();
+
+  // ==============================
+  // CATEGORY INTERACTIONS
+  // ==============================
+
+  /// Record that a category has been viewed.
+  /// Fire-and-forget: performs DB write and logs analytics without blocking caller.
+  Future<void> logCategoryViewed(String categoryId) async {
+    // Use microtask to avoid creating a pending Timer in widget tests
     scheduleMicrotask(() async {
       try {
-        await _jokeInteractions.setViewed(jokeId);
+        _analyticsService.logJokeCategoryViewed(categoryId: categoryId);
+        await _categoryInteractions.setViewed(categoryId);
+        AppLogger.debug(
+          'APP_USAGE logCategoryViewed: { category_id: $categoryId }',
+        );
       } catch (e) {
-        AppLogger.warn('APP_USAGE logJokeViewed DB error: $e');
+        AppLogger.warn('APP_USAGE logCategoryViewed error: $e');
       }
     });
-
-    // Fire-and-forget usage snapshot to backend
-    _pushUsageSnapshot();
-    AppLogger.debug(
-      'APP_USAGE logJokeViewed: { num_jokes_viewed: $oldCount -> $newCount }',
-    );
   }
 
-  /// Increment the number of saved jokes counter (on save).
-  Future<void> incrementSavedJokesCount() async {
-    final int oldCount = _settings.getInt(_numSavedJokesKey) ?? 0;
-    final int newCount = oldCount + 1;
-    await _settings.setInt(_numSavedJokesKey, newCount);
-    _notifyUsageChanged();
-
-    // Fire-and-forget usage snapshot to backend
-    _pushUsageSnapshot();
-    AppLogger.debug(
-      'APP_USAGE incrementSavedJokesCount: { num_saved_jokes: $oldCount -> $newCount }',
-    );
-  }
-
-  /// Decrement the number of saved jokes counter (on unsave). Floors at 0.
-  Future<void> decrementSavedJokesCount() async {
-    final int oldCount = _settings.getInt(_numSavedJokesKey) ?? 0;
-    final int newCount = (oldCount > 0) ? oldCount - 1 : 0;
-    await _settings.setInt(_numSavedJokesKey, newCount);
-    _notifyUsageChanged();
-
-    // Fire-and-forget usage snapshot to backend
-    _pushUsageSnapshot();
-    AppLogger.debug(
-      'APP_USAGE decrementSavedJokesCount: { num_saved_jokes: $oldCount -> $newCount }',
-    );
-  }
-
-  /// Increment the number of shared jokes counter (on successful share).
-  Future<void> incrementSharedJokesCount() async {
-    final int oldCount = _settings.getInt(_numSharedJokesKey) ?? 0;
-    final int newCount = oldCount + 1;
-    await _settings.setInt(_numSharedJokesKey, newCount);
-    _notifyUsageChanged();
-
-    // Fire-and-forget usage snapshot to backend
-    _pushUsageSnapshot();
-    AppLogger.debug(
-      'APP_USAGE incrementSharedJokesCount: { num_shared_jokes: $oldCount -> $newCount }',
-    );
-  }
-
-  /// Getters to read metrics (useful for UI and tests)
-  Future<String?> getFirstUsedDate() async =>
-      _settings.getString(_firstUsedDateKey);
-
-  Future<String?> getLastUsedDate() async =>
-      _settings.getString(_lastUsedDateKey);
-
-  Future<int> getNumDaysUsed() async => _settings.getInt(_numDaysUsedKey) ?? 0;
-
-  Future<int> getNumJokesViewed() async =>
-      _settings.getInt(_numJokesViewedKey) ?? 0;
-
-  Future<int> getNumSavedJokes() async =>
-      _settings.getInt(_numSavedJokesKey) ?? 0;
-
-  Future<int> getNumSharedJokes() async =>
-      _settings.getInt(_numSharedJokesKey) ?? 0;
+  // ==============================
+  // METRICS SETTERS (Admin/Testing Tools)
+  // ==============================
 
   /// Setters to directly override metrics (admin/testing tools)
   Future<void> setFirstUsedDate(String? date) async {
@@ -256,40 +285,9 @@ class AppUsageService {
     _notifyUsageChanged();
   }
 
-  Future<void> setNumJokesViewed(int value) async {
-    final int sanitized = value < 0 ? 0 : value;
-    await _settings.setInt(_numJokesViewedKey, sanitized);
-    _notifyUsageChanged();
-  }
-
-  Future<void> setNumSavedJokes(int value) async {
-    final int sanitized = value < 0 ? 0 : value;
-    await _settings.setInt(_numSavedJokesKey, sanitized);
-    _notifyUsageChanged();
-  }
-
-  Future<void> setNumSharedJokes(int value) async {
-    final int sanitized = value < 0 ? 0 : value;
-    await _settings.setInt(_numSharedJokesKey, sanitized);
-    _notifyUsageChanged();
-  }
-
-  /// Record that a category has been viewed.
-  /// Fire-and-forget: performs DB write and logs analytics without blocking caller.
-  Future<void> logCategoryViewed(String categoryId) async {
-    // Use microtask to avoid creating a pending Timer in widget tests
-    scheduleMicrotask(() async {
-      try {
-        _analyticsService.logJokeCategoryViewed(categoryId: categoryId);
-        await _categoryInteractions.setViewed(categoryId);
-        AppLogger.debug(
-          'APP_USAGE logCategoryViewed: { category_id: $categoryId }',
-        );
-      } catch (e) {
-        AppLogger.warn('APP_USAGE logCategoryViewed error: $e');
-      }
-    });
-  }
+  // ==============================
+  // PRIVATE HELPER METHODS
+  // ==============================
 
   // Returns today's date as yyyy-MM-dd in local time
   String _formatTodayDate() {

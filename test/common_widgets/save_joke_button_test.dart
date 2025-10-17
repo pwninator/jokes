@@ -5,81 +5,50 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:snickerdoodle/src/common_widgets/save_joke_button.dart';
+import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
+import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
+// Removed unused PerformanceService import
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_service.dart';
-import 'package:snickerdoodle/src/data/jokes/joke_interactions_repository.dart';
-import 'package:snickerdoodle/src/data/core/database/app_database.dart';
-import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
-
-import '../test_helpers/analytics_mocks.dart';
-import '../test_helpers/core_mocks.dart';
-
-class _MockPerf extends Mock implements PerformanceService {}
-
-class _StreamInteractionsRepo extends JokeInteractionsRepository {
-  _StreamInteractionsRepo({required this.stream, required super.db, required PerformanceService perf})
-      : super(performanceService: perf);
-
-  final Stream<bool> stream;
-
-  @override
-  Stream<JokeInteraction?> watchJokeInteraction(String jokeId) {
-    return stream.map((saved) {
-      if (!saved) return null;
-      final now = DateTime.now();
-      return JokeInteraction(
-        jokeId: jokeId,
-        viewedTimestamp: null,
-        savedTimestamp: now,
-        sharedTimestamp: null,
-        lastUpdateTimestamp: now,
-      );
-    });
-  }
-}
 
 class MockJokeReactionsService extends Mock implements JokeReactionsService {}
 
 class MockAppUsageService extends Mock implements AppUsageService {}
+
+class MockAnalyticsService extends Mock implements AnalyticsService {}
 
 class _FakeBuildContext extends Fake implements BuildContext {}
 
 void main() {
   setUpAll(() {
     registerFallbackValue(_FakeBuildContext());
-    registerAnalyticsFallbackValues();
+    registerFallbackValue(JokeReactionType.save);
   });
 
   group('SaveJokeButton', () {
-    late MockJokeReactionsService mockService;
-    late MockAppUsageService mockUsage;
-    late StreamController<bool> controller;
+    late MockJokeReactionsService mockJokeReactionsService;
+    late MockAppUsageService mockAppUsageService;
+    late MockAnalyticsService mockAnalyticsService;
+    late StreamController<bool> streamController;
 
     const jokeId = 'j-123';
     const jokeContext = 'test-ctx';
 
-    Widget createUnderTest(List<Override> extra) {
+    Widget createUnderTest() {
       return ProviderScope(
         overrides: [
-          // Provide analytics and core overrides to avoid null behavior
-          ...CoreMocks.getCoreProviderOverrides(
-            additionalOverrides: AnalyticsMocks.getAnalyticsProviderOverrides(),
+          // Mock only the services that SaveJokeButton actually uses
+          jokeReactionsServiceProvider.overrideWithValue(
+            mockJokeReactionsService,
           ),
-          // Override reactions service used by onTap
-          jokeReactionsServiceProvider.overrideWithValue(mockService),
-          // Provide app usage service used after toggle
-          appUsageServiceProvider.overrideWithValue(mockUsage),
-          // Provide a controlled stream for saved state via repository
-          jokeInteractionsRepositoryProvider.overrideWith((ref) {
-            return _StreamInteractionsRepo(
-              stream: controller.stream,
-              db: AppDatabase.inMemory(),
-              perf: _MockPerf(),
-            );
-          }),
-          ...extra,
+          appUsageServiceProvider.overrideWithValue(mockAppUsageService),
+          analyticsServiceProvider.overrideWithValue(mockAnalyticsService),
+          // Provide controlled stream for isJokeSavedProvider directly
+          isJokeSavedProvider(
+            jokeId,
+          ).overrideWith((ref) => streamController.stream),
         ],
         child: MaterialApp(
           theme: lightTheme,
@@ -97,63 +66,100 @@ void main() {
     }
 
     setUp(() {
-      mockService = MockJokeReactionsService();
-      mockUsage = MockAppUsageService();
-      controller = StreamController<bool>.broadcast();
+      mockJokeReactionsService = MockJokeReactionsService();
+      mockAppUsageService = MockAppUsageService();
+      mockAnalyticsService = MockAnalyticsService();
+      streamController = StreamController<bool>.broadcast();
 
-      when(() => mockUsage.getNumSavedJokes()).thenAnswer((_) async => 0);
+      // Setup default behaviors
       when(
-        () => mockService.toggleUserReaction(
+        () => mockAppUsageService.getNumSavedJokes(),
+      ).thenAnswer((_) async => 5);
+      when(
+        () => mockJokeReactionsService.toggleUserReaction(
           any(),
           any(),
           context: any(named: 'context'),
         ),
       ).thenAnswer((_) async => true);
+
+      // Setup analytics service defaults
+      when(
+        () => mockAnalyticsService.logJokeSaved(
+          any(),
+          jokeContext: any(named: 'jokeContext'),
+          totalJokesSaved: any(named: 'totalJokesSaved'),
+        ),
+      ).thenAnswer((_) async {});
+      when(
+        () => mockAnalyticsService.logJokeUnsaved(
+          any(),
+          jokeContext: any(named: 'jokeContext'),
+          totalJokesSaved: any(named: 'totalJokesSaved'),
+        ),
+      ).thenAnswer((_) async {});
+      when(
+        () => mockAnalyticsService.logErrorJokeSave(
+          jokeId: any(named: 'jokeId'),
+          action: any(named: 'action'),
+          errorMessage: any(named: 'errorMessage'),
+        ),
+      ).thenAnswer((_) async {});
     });
 
     tearDown(() async {
-      await controller.close();
+      await streamController.close();
     });
 
-    testWidgets('shows loading while stream has not emitted', (tester) async {
-      await tester.pumpWidget(createUnderTest(const []));
+    testWidgets('shows loading indicator while stream has not emitted', (
+      tester,
+    ) async {
+      await tester.pumpWidget(createUnderTest());
 
       // No event yet -> loading indicator
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
+      expect(find.byIcon(Icons.favorite), findsNothing);
+      expect(find.byIcon(Icons.favorite_border), findsNothing);
     });
 
-    testWidgets('renders border icon when not saved', (tester) async {
-      await tester.pumpWidget(createUnderTest(const []));
+    testWidgets('renders border icon when joke is not saved', (tester) async {
+      await tester.pumpWidget(createUnderTest());
 
-      controller.add(false);
+      streamController.add(false);
       await tester.pump();
 
       expect(find.byIcon(Icons.favorite_border), findsOneWidget);
+      expect(find.byIcon(Icons.favorite), findsNothing);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
     });
 
-    testWidgets('renders filled red icon when saved', (tester) async {
-      await tester.pumpWidget(createUnderTest(const []));
+    testWidgets('renders filled red icon when joke is saved', (tester) async {
+      await tester.pumpWidget(createUnderTest());
 
-      controller.add(true);
+      streamController.add(true);
       await tester.pump();
 
       final icon = tester.widget<Icon>(find.byIcon(Icons.favorite));
       final context = tester.element(find.byIcon(Icons.favorite));
       final expectedColor = Theme.of(context).colorScheme.error;
       expect(icon.color, expectedColor);
+      expect(find.byIcon(Icons.favorite_border), findsNothing);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
     });
 
-    testWidgets('tap calls toggleUserReaction', (tester) async {
-      await tester.pumpWidget(createUnderTest(const []));
+    testWidgets('tap calls toggleUserReaction with correct parameters', (
+      tester,
+    ) async {
+      await tester.pumpWidget(createUnderTest());
 
-      controller.add(false);
+      streamController.add(false);
       await tester.pump();
 
       await tester.tap(find.byKey(const Key('save_joke_button-$jokeId')));
       await tester.pump();
 
       verify(
-        () => mockService.toggleUserReaction(
+        () => mockJokeReactionsService.toggleUserReaction(
           jokeId,
           JokeReactionType.save,
           context: any(named: 'context'),
@@ -161,16 +167,147 @@ void main() {
       ).called(1);
     });
 
-    testWidgets('handles stream error gracefully', (tester) async {
-      await tester.pumpWidget(createUnderTest(const []));
+    testWidgets('logs analytics when joke is saved successfully', (
+      tester,
+    ) async {
+      when(
+        () => mockJokeReactionsService.toggleUserReaction(
+          any(),
+          any(),
+          context: any(named: 'context'),
+        ),
+      ).thenAnswer((_) async => true);
 
-      controller.addError(Exception('stream failed'));
+      await tester.pumpWidget(createUnderTest());
+
+      streamController.add(false);
+      await tester.pump();
+
+      await tester.tap(find.byKey(const Key('save_joke_button-$jokeId')));
+      await tester.pump();
+
+      verify(
+        () => mockAnalyticsService.logJokeSaved(
+          jokeId,
+          jokeContext: jokeContext,
+          totalJokesSaved: 5,
+        ),
+      ).called(1);
+      verify(() => mockAppUsageService.getNumSavedJokes()).called(1);
+    });
+
+    testWidgets('logs analytics when joke is unsaved successfully', (
+      tester,
+    ) async {
+      when(
+        () => mockJokeReactionsService.toggleUserReaction(
+          any(),
+          any(),
+          context: any(named: 'context'),
+        ),
+      ).thenAnswer((_) async => false);
+
+      await tester.pumpWidget(createUnderTest());
+
+      streamController.add(true);
+      await tester.pump();
+
+      await tester.tap(find.byKey(const Key('save_joke_button-$jokeId')));
+      await tester.pump();
+
+      verify(
+        () => mockAnalyticsService.logJokeUnsaved(
+          jokeId,
+          jokeContext: jokeContext,
+          totalJokesSaved: 5,
+        ),
+      ).called(1);
+      verify(() => mockAppUsageService.getNumSavedJokes()).called(1);
+    });
+
+    testWidgets('logs error analytics when toggleUserReaction throws', (
+      tester,
+    ) async {
+      const errorMessage = 'Network error';
+      when(
+        () => mockJokeReactionsService.toggleUserReaction(
+          any(),
+          any(),
+          context: any(named: 'context'),
+        ),
+      ).thenThrow(Exception(errorMessage));
+
+      await tester.pumpWidget(createUnderTest());
+
+      streamController.add(false);
+      await tester.pump();
+
+      await tester.tap(find.byKey(const Key('save_joke_button-$jokeId')));
+      await tester.pump();
+
+      verify(
+        () => mockAnalyticsService.logErrorJokeSave(
+          jokeId: jokeId,
+          action: 'toggle',
+          errorMessage: 'Exception: $errorMessage',
+        ),
+      ).called(1);
+
+      // Should not log save/unsave analytics when error occurs
+      verifyNever(
+        () => mockAnalyticsService.logJokeSaved(
+          any(),
+          jokeContext: any(named: 'jokeContext'),
+          totalJokesSaved: any(named: 'totalJokesSaved'),
+        ),
+      );
+      verifyNever(
+        () => mockAnalyticsService.logJokeUnsaved(
+          any(),
+          jokeContext: any(named: 'jokeContext'),
+          totalJokesSaved: any(named: 'totalJokesSaved'),
+        ),
+      );
+    });
+
+    testWidgets('handles stream error gracefully', (tester) async {
+      await tester.pumpWidget(createUnderTest());
+
+      streamController.addError(Exception('stream failed'));
       await tester.pump();
 
       // Fallback icon should render without crash
       expect(find.byIcon(Icons.favorite_border), findsOneWidget);
+      expect(find.byIcon(Icons.favorite), findsNothing);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+    });
+
+    testWidgets('updates icon color based on theme when saved', (tester) async {
+      await tester.pumpWidget(createUnderTest());
+
+      streamController.add(true);
+      await tester.pump();
+
+      final icon = tester.widget<Icon>(find.byIcon(Icons.favorite));
+      final context = tester.element(find.byIcon(Icons.favorite));
+      final expectedColor = Theme.of(context).colorScheme.error;
+      expect(icon.color, expectedColor);
+      expect(icon.size, 24.0);
+    });
+
+    testWidgets('updates icon color based on theme when not saved', (
+      tester,
+    ) async {
+      await tester.pumpWidget(createUnderTest());
+
+      streamController.add(false);
+      await tester.pump();
+
+      final icon = tester.widget<Icon>(find.byIcon(Icons.favorite_border));
+      final context = tester.element(find.byIcon(Icons.favorite_border));
+      final expectedColor = jokeIconButtonBaseColor(context);
+      expect(icon.color, expectedColor);
+      expect(icon.size, 24.0);
     });
   });
 }
-
-

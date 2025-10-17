@@ -144,8 +144,6 @@ class _NoopAppUsageService implements AppUsageService {
   @override
   Future<String?> getLastUsedDate() async => null;
   @override
-  Future<void> decrementSavedJokesCount() async {}
-  @override
   Future<int> getNumDaysUsed() async => 0;
   @override
   Future<int> getNumJokesViewed() async => 0;
@@ -153,10 +151,6 @@ class _NoopAppUsageService implements AppUsageService {
   Future<int> getNumSavedJokes() async => 0;
   @override
   Future<int> getNumSharedJokes() async => 0;
-  @override
-  Future<void> incrementSavedJokesCount() async {}
-  @override
-  Future<void> incrementSharedJokesCount() async {}
   @override
   Future<void> logAppUsage() async {}
   @override
@@ -170,11 +164,11 @@ class _NoopAppUsageService implements AppUsageService {
   @override
   Future<void> setNumDaysUsed(int value) async {}
   @override
-  Future<void> setNumJokesViewed(int value) async {}
+  Future<void> saveJoke(String jokeId) async {}
   @override
-  Future<void> setNumSavedJokes(int value) async {}
+  Future<void> unsaveJoke(String jokeId) async {}
   @override
-  Future<void> setNumSharedJokes(int value) async {}
+  Future<void> shareJoke(String jokeId) async {}
 }
 
 class _NoopReviewPromptCoordinator extends Mock

@@ -268,15 +268,6 @@ void main() {
       () => mockAppUsageService.getNumSharedJokes(),
     ).thenAnswer((_) async => 0);
     when(() => mockAppUsageService.getNumDaysUsed()).thenAnswer((_) async => 0);
-    when(
-      () => mockAppUsageService.incrementSavedJokesCount(),
-    ).thenAnswer((_) async {});
-    when(
-      () => mockAppUsageService.decrementSavedJokesCount(),
-    ).thenAnswer((_) async {});
-    when(
-      () => mockAppUsageService.incrementSharedJokesCount(),
-    ).thenAnswer((_) async {});
 
     when(
       () => mockJokeReactionsService.toggleUserReaction(

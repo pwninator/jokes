@@ -63,17 +63,17 @@ void main() {
       final ref = container.read(Provider<Ref>((ref) => ref));
       final mockAnalytics = MockAnalyticsService();
       final mockJokeCloudFn = MockJokeCloudFunctionService();
+      mockInteractions = MockJokeInteractionsService();
       appUsageService = AppUsageService(
         settingsService: settingsService,
         ref: ref,
         analyticsService: mockAnalytics,
         jokeCloudFn: mockJokeCloudFn,
         categoryInteractionsService: _MockCategoryInteractionsService(),
-        jokeInteractionsRepository: MockJokeInteractionsService(),
+        jokeInteractionsRepository: mockInteractions,
       );
       mockCoordinator = MockReviewPromptCoordinator();
       mockRepository = MockJokeRepository();
-      mockInteractions = MockJokeInteractionsService();
 
       // In-memory state backing the mock interactions
       savedOrder = <String>[];
@@ -129,6 +129,12 @@ void main() {
             .toList();
       });
 
+      // New COUNT APIs used by AppUsageService
+      when(() => mockInteractions.countSaved())
+          .thenAnswer((_) async => savedSet.length);
+      when(() => mockInteractions.countShared())
+          .thenAnswer((_) async => sharedSet.length);
+
       // Writes
       when(() => mockInteractions.setSaved(any())).thenAnswer((inv) async {
         final id = inv.positionalArguments[0] as String;
@@ -162,7 +168,6 @@ void main() {
       service = JokeReactionsService(
         appUsageService: appUsageService,
         reviewPromptCoordinator: mockCoordinator,
-        jokeRepository: mockRepository,
         interactionsRepository: mockInteractions,
       );
       fakeContext = FakeBuildContext();

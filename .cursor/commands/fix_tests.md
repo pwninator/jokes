@@ -1,4 +1,6 @@
-Review this test. First, look at the code that it tests, analyze its use cases, and think deeply through the common/edge/error cases that the test should cover. Then, look at the test and evaluate:
+Review this test using the steps below. If you are given multiple tests, do the steps below separately for each test, one test file at a time. Make sure that one file is fully complete, clean, and passing before moving on to the next file.
+
+First, look at the code that it tests, analyze its use cases, and think deeply through the common/edge/error cases that the test should cover. Then, look at the test and evaluate:
 
 1. Does it conform to the testing strategy and design as described in @AGENTS.md?
 2. Does it properly set up mocks? Did it miss mocking some dependencies and is using real instances? Is it mocking anything that the test doesn't actually need?

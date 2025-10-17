@@ -16,12 +16,9 @@ import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/providers/image_providers.dart';
 import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
-import 'package:snickerdoodle/src/core/services/app_review_service.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
 import 'package:snickerdoodle/src/core/services/performance_service.dart';
-import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
-import 'package:snickerdoodle/src/core/services/review_prompt_service.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_population_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_schedule_providers.dart';
@@ -210,7 +207,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
     if (_setupThresholdMet && _punchlineThresholdMet) {
       _jokeViewedLogged = true;
       final appUsageService = ref.read(appUsageServiceProvider);
-      await appUsageService.logJokeViewed(widget.joke.id);
+      await appUsageService.logJokeViewed(widget.joke.id, context: context);
       final jokesViewedCount = await appUsageService.getNumJokesViewed();
       // Re-check mounted before any further ref.read calls after awaits
       if (!mounted) return;
@@ -234,29 +231,6 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
           );
         } catch (e) {
           AppLogger.warn('JOKE_IMAGE_CAROUSEL subscription prompt error: $e');
-        }
-        try {
-          // Guard review prompt behind remote config flag
-          final remoteValues = ref.read(remoteConfigValuesProvider);
-          final shouldRequest = remoteValues.getBool(
-            RemoteParam.reviewRequestFromJokeViewed,
-          );
-          if (shouldRequest) {
-            final reviewPromptCoordinator = ref.read(
-              reviewPromptCoordinatorProvider,
-            );
-            AppLogger.debug('JOKE_IMAGE_CAROUSEL calling review prompt');
-            await reviewPromptCoordinator.maybePromptForReview(
-              source: ReviewRequestSource.jokeViewed,
-              context: context,
-            );
-          } else {
-            AppLogger.debug(
-              'JOKE_IMAGE_CAROUSEL review prompt gated by remote config',
-            );
-          }
-        } catch (e) {
-          AppLogger.warn('JOKE_IMAGE_CAROUSEL review prompt error: $e');
         }
       }
     }

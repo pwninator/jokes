@@ -4,11 +4,11 @@ import 'package:mocktail/mocktail.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 
-class _MockRemoteConfigClient extends Mock implements RemoteConfigClient {}
+class MockRemoteConfigClient extends Mock implements RemoteConfigClient {}
 
-class _MockAnalyticsService extends Mock implements AnalyticsService {}
+class MockAnalyticsService extends Mock implements AnalyticsService {}
 
-class _MockFirebaseRemoteConfig extends Mock implements FirebaseRemoteConfig {}
+class MockFirebaseRemoteConfig extends Mock implements FirebaseRemoteConfig {}
 
 void main() {
   setUpAll(() {
@@ -22,77 +22,129 @@ void main() {
   });
 
   group('RemoteConfigService.initialize', () {
-    test(
-      'configures settings, sets defaults, fetches; no analytics on success',
-      () async {
-        final client = _MockRemoteConfigClient();
-        final analytics = _MockAnalyticsService();
+    late MockRemoteConfigClient mockClient;
+    late MockAnalyticsService mockAnalytics;
 
-        when(() => client.setConfigSettings(any())).thenAnswer((_) async {});
-        when(() => client.setDefaults(any())).thenAnswer((_) async {});
-        when(() => client.fetchAndActivate()).thenAnswer((_) async => true);
+    setUp(() {
+      mockClient = MockRemoteConfigClient();
+      mockAnalytics = MockAnalyticsService();
+    });
+
+    test('configures settings with correct timeouts', () async {
+      when(() => mockClient.setConfigSettings(any())).thenAnswer((_) async {});
+      when(() => mockClient.setDefaults(any())).thenAnswer((_) async {});
+      when(() => mockClient.fetchAndActivate()).thenAnswer((_) async => true);
+
+      final service = RemoteConfigService(
+        client: mockClient,
+        analyticsService: mockAnalytics,
+      );
+
+      await service.initialize();
+
+      final settings =
+          verify(
+                () => mockClient.setConfigSettings(captureAny()),
+              ).captured.single
+              as RemoteConfigSettings;
+      expect(settings.fetchTimeout, const Duration(seconds: 10));
+      expect(settings.minimumFetchInterval, const Duration(minutes: 1));
+    });
+
+    test('sets all parameter defaults correctly', () async {
+      when(() => mockClient.setConfigSettings(any())).thenAnswer((_) async {});
+      when(() => mockClient.setDefaults(any())).thenAnswer((_) async {});
+      when(() => mockClient.fetchAndActivate()).thenAnswer((_) async => true);
+
+      final service = RemoteConfigService(
+        client: mockClient,
+        analyticsService: mockAnalytics,
+      );
+
+      await service.initialize();
+
+      final capturedDefaults =
+          verify(() => mockClient.setDefaults(captureAny())).captured.single
+              as Map<String, Object>;
+      final expectedDefaults = <String, Object>{
+        for (final e in remoteParams.entries) e.value.key: e.value.defaultValue,
+      };
+      expect(capturedDefaults, expectedDefaults);
+    });
+
+    test('fetches and activates remote config', () async {
+      when(() => mockClient.setConfigSettings(any())).thenAnswer((_) async {});
+      when(() => mockClient.setDefaults(any())).thenAnswer((_) async {});
+      when(() => mockClient.fetchAndActivate()).thenAnswer((_) async => true);
+
+      final service = RemoteConfigService(
+        client: mockClient,
+        analyticsService: mockAnalytics,
+      );
+
+      await service.initialize();
+
+      verify(() => mockClient.fetchAndActivate()).called(1);
+      verifyNever(
+        () => mockAnalytics.logErrorRemoteConfig(
+          phase: any(named: 'phase'),
+          errorMessage: any(named: 'errorMessage'),
+        ),
+      );
+    });
+
+    test(
+      'logs analytics error and continues when initialization fails',
+      () async {
+        when(
+          () => mockClient.setConfigSettings(any()),
+        ).thenThrow(Exception('boom'));
+        when(
+          () => mockAnalytics.logErrorRemoteConfig(
+            phase: any(named: 'phase'),
+            errorMessage: any(named: 'errorMessage'),
+          ),
+        ).thenAnswer((_) async {});
+        when(() => mockClient.getInt(any())).thenThrow(Exception('no value'));
 
         final service = RemoteConfigService(
-          client: client,
-          analyticsService: analytics,
+          client: mockClient,
+          analyticsService: mockAnalytics,
         );
 
         await service.initialize();
 
-        // Verify settings configured with expected durations
-        final settings =
-            verify(() => client.setConfigSettings(captureAny())).captured.single
-                as RemoteConfigSettings;
-        expect(settings.fetchTimeout, const Duration(seconds: 10));
-        // Tests run in debug mode; minimumFetchInterval should be 1 minute
-        expect(settings.minimumFetchInterval, const Duration(minutes: 1));
-
-        // Verify defaults contain all keys with correct default values
-        final capturedDefaults =
-            verify(() => client.setDefaults(captureAny())).captured.single
-                as Map<String, Object>;
-        final expectedDefaults = <String, Object>{
-          for (final e in remoteParams.entries)
-            e.value.key: e.value.defaultValue,
-        };
-        expect(capturedDefaults, expectedDefaults);
-
-        verify(() => client.fetchAndActivate()).called(1);
-        verifyNever(
-          () => analytics.logErrorRemoteConfig(
-            phase: any(named: 'phase'),
+        verify(
+          () => mockAnalytics.logErrorRemoteConfig(
+            phase: 'initialize',
             errorMessage: any(named: 'errorMessage'),
           ),
-        );
+        ).called(1);
+
+        // Should still work with defaults after error
+        final values = service.currentValues;
+        expect(values.getInt(RemoteParam.subscriptionPromptMinJokesViewed), 5);
       },
     );
 
-    test('logs analytics and still initializes when an error occurs', () async {
-      final client = _MockRemoteConfigClient();
-      final analytics = _MockAnalyticsService();
-
-      when(() => client.setConfigSettings(any())).thenThrow(Exception('boom'));
+    test('continues when analytics logging fails', () async {
       when(
-        () => analytics.logErrorRemoteConfig(
+        () => mockClient.setConfigSettings(any()),
+      ).thenThrow(Exception('boom'));
+      when(
+        () => mockAnalytics.logErrorRemoteConfig(
           phase: any(named: 'phase'),
           errorMessage: any(named: 'errorMessage'),
         ),
-      ).thenAnswer((_) async {});
-      // After initialize, reading should not crash and should fall back to defaults on client errors
-      when(() => client.getInt(any())).thenThrow(Exception('no value'));
+      ).thenThrow(Exception('analytics error'));
 
       final service = RemoteConfigService(
-        client: client,
-        analyticsService: analytics,
+        client: mockClient,
+        analyticsService: mockAnalytics,
       );
-      await service.initialize();
 
-      verify(
-        () => analytics.logErrorRemoteConfig(
-          phase: 'initialize',
-          errorMessage: any(named: 'errorMessage'),
-        ),
-      ).called(1);
+      // Should not throw even when analytics fails
+      await service.initialize();
 
       final values = service.currentValues;
       expect(values.getInt(RemoteParam.subscriptionPromptMinJokesViewed), 5);
@@ -100,80 +152,144 @@ void main() {
   });
 
   group('RemoteConfigService.typed readers', () {
-    test('pre-initialize values return defaults (int/bool/enum)', () {
-      final client = _MockRemoteConfigClient();
-      final analytics = _MockAnalyticsService();
-      final service = RemoteConfigService(
-        client: client,
-        analyticsService: analytics,
-      );
-      final values = service.currentValues;
+    late MockRemoteConfigClient mockClient;
+    late MockAnalyticsService mockAnalytics;
+    late RemoteConfigService service;
 
-      expect(values.getInt(RemoteParam.subscriptionPromptMinJokesViewed), 5);
-      expect(values.getBool(RemoteParam.defaultJokeViewerReveal), false);
-      expect(
-        values.getEnum<ShareImagesMode>(RemoteParam.shareImagesMode),
-        ShareImagesMode.auto,
+    setUp(() {
+      mockClient = MockRemoteConfigClient();
+      mockAnalytics = MockAnalyticsService();
+      service = RemoteConfigService(
+        client: mockClient,
+        analyticsService: mockAnalytics,
       );
     });
 
-    test('int: accepts zero, rejects negative (falls back)', () async {
-      final client = _MockRemoteConfigClient();
-      final analytics = _MockAnalyticsService();
-      when(() => client.setConfigSettings(any())).thenAnswer((_) async {});
-      when(() => client.setDefaults(any())).thenAnswer((_) async {});
-      when(() => client.fetchAndActivate()).thenAnswer((_) async => true);
+    group('pre-initialization', () {
+      test('returns defaults for all parameter types', () {
+        final values = service.currentValues;
 
-      when(() => client.getInt('review_min_saved_jokes')).thenReturn(0);
-
-      final service = RemoteConfigService(
-        client: client,
-        analyticsService: analytics,
-      );
-      await service.initialize();
-      expect(service.currentValues.getInt(RemoteParam.reviewMinSavedJokes), 0);
-
-      // Now negative -> fallback to default (3)
-      when(() => client.getInt('review_min_saved_jokes')).thenReturn(-1);
-      expect(service.currentValues.getInt(RemoteParam.reviewMinSavedJokes), 3);
+        expect(values.getInt(RemoteParam.subscriptionPromptMinJokesViewed), 5);
+        expect(values.getBool(RemoteParam.defaultJokeViewerReveal), false);
+        expect(
+          values.getEnum<ShareImagesMode>(RemoteParam.shareImagesMode),
+          ShareImagesMode.auto,
+        );
+      });
     });
 
-    test('int: client error falls back to default', () async {
-      final client = _MockRemoteConfigClient();
-      final analytics = _MockAnalyticsService();
-      when(() => client.setConfigSettings(any())).thenAnswer((_) async {});
-      when(() => client.setDefaults(any())).thenAnswer((_) async {});
-      when(() => client.fetchAndActivate()).thenAnswer((_) async => true);
-      when(() => client.getInt(any())).thenThrow(Exception('rc error'));
-
-      final service = RemoteConfigService(
-        client: client,
-        analyticsService: analytics,
-      );
-      await service.initialize();
-      expect(
-        service.currentValues.getInt(RemoteParam.reviewMinViewedJokes),
-        30,
-      );
-    });
-
-    test(
-      'enum: valid value (case-insensitive, trimmed) is parsed; invalid falls back',
-      () async {
-        final client = _MockRemoteConfigClient();
-        final analytics = _MockAnalyticsService();
-        when(() => client.setConfigSettings(any())).thenAnswer((_) async {});
-        when(() => client.setDefaults(any())).thenAnswer((_) async {});
-        when(() => client.fetchAndActivate()).thenAnswer((_) async => true);
-
+    group('int parameters', () {
+      setUp(() {
         when(
-          () => client.getString('share_images_mode'),
+          () => mockClient.setConfigSettings(any()),
+        ).thenAnswer((_) async {});
+        when(() => mockClient.setDefaults(any())).thenAnswer((_) async {});
+        when(() => mockClient.fetchAndActivate()).thenAnswer((_) async => true);
+      });
+
+      test('returns valid values from client', () async {
+        when(() => mockClient.getInt('review_min_saved_jokes')).thenReturn(7);
+
+        await service.initialize();
+        expect(
+          service.currentValues.getInt(RemoteParam.reviewMinSavedJokes),
+          7,
+        );
+      });
+
+      test('accepts zero values', () async {
+        when(() => mockClient.getInt('review_min_saved_jokes')).thenReturn(0);
+
+        await service.initialize();
+        expect(
+          service.currentValues.getInt(RemoteParam.reviewMinSavedJokes),
+          0,
+        );
+      });
+
+      test('rejects negative values and falls back to default', () async {
+        when(() => mockClient.getInt('review_min_saved_jokes')).thenReturn(-1);
+
+        await service.initialize();
+        expect(
+          service.currentValues.getInt(RemoteParam.reviewMinSavedJokes),
+          3,
+        );
+      });
+
+      test('falls back to default on client error', () async {
+        when(
+          () => mockClient.getInt('review_min_viewed_jokes'),
+        ).thenThrow(Exception('rc error'));
+
+        await service.initialize();
+        expect(
+          service.currentValues.getInt(RemoteParam.reviewMinViewedJokes),
+          30,
+        );
+      });
+    });
+
+    group('bool parameters', () {
+      setUp(() {
+        when(
+          () => mockClient.setConfigSettings(any()),
+        ).thenAnswer((_) async {});
+        when(() => mockClient.setDefaults(any())).thenAnswer((_) async {});
+        when(() => mockClient.fetchAndActivate()).thenAnswer((_) async => true);
+      });
+
+      test('returns true values from client', () async {
+        when(
+          () => mockClient.getBool('default_joke_viewer_reveal'),
+        ).thenReturn(true);
+
+        await service.initialize();
+        expect(
+          service.currentValues.getBool(RemoteParam.defaultJokeViewerReveal),
+          true,
+        );
+      });
+
+      test('returns false values from client', () async {
+        when(
+          () => mockClient.getBool('default_joke_viewer_reveal'),
+        ).thenReturn(false);
+
+        await service.initialize();
+        expect(
+          service.currentValues.getBool(RemoteParam.defaultJokeViewerReveal),
+          false,
+        );
+      });
+
+      test('falls back to default on client error', () async {
+        when(
+          () => mockClient.getBool('default_joke_viewer_reveal'),
+        ).thenThrow(Exception('rc error'));
+
+        await service.initialize();
+        expect(
+          service.currentValues.getBool(RemoteParam.defaultJokeViewerReveal),
+          false,
+        );
+      });
+    });
+
+    group('enum parameters', () {
+      setUp(() {
+        when(
+          () => mockClient.setConfigSettings(any()),
+        ).thenAnswer((_) async {});
+        when(() => mockClient.setDefaults(any())).thenAnswer((_) async {});
+        when(() => mockClient.fetchAndActivate()).thenAnswer((_) async => true);
+      });
+
+      test('parses valid enum values (case-insensitive, trimmed)', () async {
+        when(
+          () => mockClient.getString('share_images_mode'),
         ).thenReturn('  STACKED  ');
 
-        final service = RemoteConfigService(
-          client: client,
-          analyticsService: analytics,
-        );
         await service.initialize();
         expect(
           service.currentValues.getEnum<ShareImagesMode>(
@@ -181,33 +297,78 @@ void main() {
           ),
           ShareImagesMode.stacked,
         );
+      });
 
-        // Unknown -> default (auto)
-        when(() => client.getString('share_images_mode')).thenReturn('unknown');
-        expect(
-          service.currentValues.getEnum<ShareImagesMode>(
-            RemoteParam.shareImagesMode,
-          ),
-          ShareImagesMode.auto,
-        );
-
-        // Error -> default (auto)
+      test('parses lowercase enum values', () async {
         when(
-          () => client.getString('share_images_mode'),
-        ).thenThrow(Exception('read error'));
+          () => mockClient.getString('share_images_mode'),
+        ).thenReturn('separate');
+
+        await service.initialize();
+        expect(
+          service.currentValues.getEnum<ShareImagesMode>(
+            RemoteParam.shareImagesMode,
+          ),
+          ShareImagesMode.separate,
+        );
+      });
+
+      test('falls back to default for unknown enum values', () async {
+        when(
+          () => mockClient.getString('share_images_mode'),
+        ).thenReturn('unknown');
+
+        await service.initialize();
         expect(
           service.currentValues.getEnum<ShareImagesMode>(
             RemoteParam.shareImagesMode,
           ),
           ShareImagesMode.auto,
         );
-      },
-    );
+      });
+
+      test('falls back to default on client error', () async {
+        when(
+          () => mockClient.getString('share_images_mode'),
+        ).thenThrow(Exception('read error'));
+
+        await service.initialize();
+        expect(
+          service.currentValues.getEnum<ShareImagesMode>(
+            RemoteParam.shareImagesMode,
+          ),
+          ShareImagesMode.auto,
+        );
+      });
+
+      test('throws error for non-enum parameters', () async {
+        await service.initialize();
+
+        expect(
+          () => service.currentValues.getEnum<ShareImagesMode>(
+            RemoteParam.subscriptionPromptMinJokesViewed,
+          ),
+          throwsA(isA<TypeError>()),
+        );
+      });
+    });
   });
 
   group('validateRemoteParams', () {
     test('accepts the production descriptors', () {
       expect(() => validateRemoteParams(remoteParams), returnsNormally);
+    });
+
+    test('rejects empty keys', () {
+      final bad = <RemoteParam, RemoteParamDescriptor>{
+        RemoteParam.subscriptionPromptMinJokesViewed:
+            const RemoteParamDescriptor(
+              key: '',
+              type: RemoteParamType.intType,
+              defaultInt: 1,
+            ),
+      };
+      expect(() => validateRemoteParams(bad), throwsA(isA<StateError>()));
     });
 
     test('rejects duplicate keys', () {
@@ -227,7 +388,7 @@ void main() {
       expect(() => validateRemoteParams(bad), throwsA(isA<StateError>()));
     });
 
-    test('rejects missing defaults for int/bool/double/string', () {
+    test('rejects missing defaults for int parameters', () {
       expect(
         () => validateRemoteParams({
           RemoteParam.subscriptionPromptMinJokesViewed:
@@ -238,7 +399,9 @@ void main() {
         }),
         throwsA(isA<StateError>()),
       );
+    });
 
+    test('rejects missing defaults for bool parameters', () {
       expect(
         () => validateRemoteParams({
           RemoteParam.defaultJokeViewerReveal: const RemoteParamDescriptor(
@@ -248,8 +411,9 @@ void main() {
         }),
         throwsA(isA<StateError>()),
       );
+    });
 
-      // double
+    test('rejects missing defaults for double parameters', () {
       expect(
         () => validateRemoteParams({
           RemoteParam.reviewMinDaysUsed: const RemoteParamDescriptor(
@@ -259,8 +423,9 @@ void main() {
         }),
         throwsA(isA<StateError>()),
       );
+    });
 
-      // string
+    test('rejects missing defaults for string parameters', () {
       expect(
         () => validateRemoteParams({
           RemoteParam.reviewMinSharedJokes: const RemoteParamDescriptor(
@@ -272,8 +437,7 @@ void main() {
       );
     });
 
-    test('rejects bad enum configurations', () {
-      // missing enumValues
+    test('rejects enum parameters missing enumValues', () {
       expect(
         () => validateRemoteParams({
           RemoteParam.shareImagesMode: const RemoteParamDescriptor(
@@ -284,8 +448,9 @@ void main() {
         }),
         throwsA(isA<StateError>()),
       );
+    });
 
-      // missing enumDefault
+    test('rejects enum parameters missing enumDefault', () {
       expect(
         () => validateRemoteParams({
           RemoteParam.shareImagesMode: RemoteParamDescriptor(
@@ -296,8 +461,9 @@ void main() {
         }),
         throwsA(isA<StateError>()),
       );
+    });
 
-      // default not in enumValues
+    test('rejects enum parameters with default not in enumValues', () {
       expect(
         () => validateRemoteParams({
           RemoteParam.shareImagesMode: const RemoteParamDescriptor(
@@ -314,7 +480,6 @@ void main() {
     test('accepts well-formed double and string descriptors', () {
       expect(
         () => validateRemoteParams({
-          // Re-use enum keys as map keys; keys need only be unique within the map
           RemoteParam.reviewMinDaysUsed: const RemoteParamDescriptor(
             key: 'double_key',
             type: RemoteParamType.doubleType,
@@ -332,50 +497,49 @@ void main() {
   });
 
   group('RemoteConfigService.refresh', () {
-    test('calls initialize if not yet initialized', () async {
-      final client = _MockRemoteConfigClient();
-      final analytics = _MockAnalyticsService();
+    late MockRemoteConfigClient mockClient;
+    late MockAnalyticsService mockAnalytics;
 
-      when(() => client.setConfigSettings(any())).thenAnswer((_) async {});
-      when(() => client.setDefaults(any())).thenAnswer((_) async {});
-      when(() => client.fetchAndActivate()).thenAnswer((_) async => true);
+    setUp(() {
+      mockClient = MockRemoteConfigClient();
+      mockAnalytics = MockAnalyticsService();
+    });
+
+    test('calls initialize if not yet initialized', () async {
+      when(() => mockClient.setConfigSettings(any())).thenAnswer((_) async {});
+      when(() => mockClient.setDefaults(any())).thenAnswer((_) async {});
+      when(() => mockClient.fetchAndActivate()).thenAnswer((_) async => true);
 
       final service = RemoteConfigService(
-        client: client,
-        analyticsService: analytics,
+        client: mockClient,
+        analyticsService: mockAnalytics,
       );
 
-      // Call refresh before initialize
       final result = await service.refresh();
 
       expect(result, true);
-      verify(() => client.setConfigSettings(any())).called(1);
-      verify(() => client.setDefaults(any())).called(1);
-      verify(() => client.fetchAndActivate()).called(1);
+      verify(() => mockClient.setConfigSettings(any())).called(1);
+      verify(() => mockClient.setDefaults(any())).called(1);
+      verify(() => mockClient.fetchAndActivate()).called(1);
     });
 
     test('returns true when new values are activated', () async {
-      final client = _MockRemoteConfigClient();
-      final analytics = _MockAnalyticsService();
-
-      when(() => client.setConfigSettings(any())).thenAnswer((_) async {});
-      when(() => client.setDefaults(any())).thenAnswer((_) async {});
-      when(() => client.fetchAndActivate()).thenAnswer((_) async => true);
+      when(() => mockClient.setConfigSettings(any())).thenAnswer((_) async {});
+      when(() => mockClient.setDefaults(any())).thenAnswer((_) async {});
+      when(() => mockClient.fetchAndActivate()).thenAnswer((_) async => true);
 
       final service = RemoteConfigService(
-        client: client,
-        analyticsService: analytics,
+        client: mockClient,
+        analyticsService: mockAnalytics,
       );
 
       await service.initialize();
       final result = await service.refresh();
 
       expect(result, true);
-      verify(
-        () => client.fetchAndActivate(),
-      ).called(2); // Once for init, once for refresh
+      verify(() => mockClient.fetchAndActivate()).called(2);
       verifyNever(
-        () => analytics.logErrorRemoteConfig(
+        () => mockAnalytics.logErrorRemoteConfig(
           phase: any(named: 'phase'),
           errorMessage: any(named: 'errorMessage'),
         ),
@@ -383,25 +547,22 @@ void main() {
     });
 
     test('returns false when values are throttled/cached', () async {
-      final client = _MockRemoteConfigClient();
-      final analytics = _MockAnalyticsService();
-
-      when(() => client.setConfigSettings(any())).thenAnswer((_) async {});
-      when(() => client.setDefaults(any())).thenAnswer((_) async {});
-      when(() => client.fetchAndActivate()).thenAnswer((_) async => false);
+      when(() => mockClient.setConfigSettings(any())).thenAnswer((_) async {});
+      when(() => mockClient.setDefaults(any())).thenAnswer((_) async {});
+      when(() => mockClient.fetchAndActivate()).thenAnswer((_) async => false);
 
       final service = RemoteConfigService(
-        client: client,
-        analyticsService: analytics,
+        client: mockClient,
+        analyticsService: mockAnalytics,
       );
 
       await service.initialize();
       final result = await service.refresh();
 
       expect(result, false);
-      verify(() => client.fetchAndActivate()).called(2);
+      verify(() => mockClient.fetchAndActivate()).called(2);
       verifyNever(
-        () => analytics.logErrorRemoteConfig(
+        () => mockAnalytics.logErrorRemoteConfig(
           phase: any(named: 'phase'),
           errorMessage: any(named: 'errorMessage'),
         ),
@@ -409,15 +570,11 @@ void main() {
     });
 
     test('logs error and returns false when refresh fails', () async {
-      final client = _MockRemoteConfigClient();
-      final analytics = _MockAnalyticsService();
+      when(() => mockClient.setConfigSettings(any())).thenAnswer((_) async {});
+      when(() => mockClient.setDefaults(any())).thenAnswer((_) async {});
 
-      when(() => client.setConfigSettings(any())).thenAnswer((_) async {});
-      when(() => client.setDefaults(any())).thenAnswer((_) async {});
-
-      // First call succeeds (initialize), second call fails (refresh)
       var callCount = 0;
-      when(() => client.fetchAndActivate()).thenAnswer((_) async {
+      when(() => mockClient.fetchAndActivate()).thenAnswer((_) async {
         callCount++;
         if (callCount == 1) {
           return true; // succeed on init
@@ -427,15 +584,15 @@ void main() {
       });
 
       when(
-        () => analytics.logErrorRemoteConfig(
+        () => mockAnalytics.logErrorRemoteConfig(
           phase: any(named: 'phase'),
           errorMessage: any(named: 'errorMessage'),
         ),
       ).thenAnswer((_) async {});
 
       final service = RemoteConfigService(
-        client: client,
-        analyticsService: analytics,
+        client: mockClient,
+        analyticsService: mockAnalytics,
       );
 
       await service.initialize();
@@ -443,7 +600,7 @@ void main() {
 
       expect(result, false);
       verify(
-        () => analytics.logErrorRemoteConfig(
+        () => mockAnalytics.logErrorRemoteConfig(
           phase: 'refresh',
           errorMessage: any(named: 'errorMessage'),
         ),
@@ -451,15 +608,11 @@ void main() {
     });
 
     test('returns false and continues when analytics logging fails', () async {
-      final client = _MockRemoteConfigClient();
-      final analytics = _MockAnalyticsService();
+      when(() => mockClient.setConfigSettings(any())).thenAnswer((_) async {});
+      when(() => mockClient.setDefaults(any())).thenAnswer((_) async {});
 
-      when(() => client.setConfigSettings(any())).thenAnswer((_) async {});
-      when(() => client.setDefaults(any())).thenAnswer((_) async {});
-
-      // First call succeeds (initialize), second call fails (refresh)
       var callCount = 0;
-      when(() => client.fetchAndActivate()).thenAnswer((_) async {
+      when(() => mockClient.fetchAndActivate()).thenAnswer((_) async {
         callCount++;
         if (callCount == 1) {
           return true;
@@ -469,20 +622,19 @@ void main() {
       });
 
       when(
-        () => analytics.logErrorRemoteConfig(
+        () => mockAnalytics.logErrorRemoteConfig(
           phase: any(named: 'phase'),
           errorMessage: any(named: 'errorMessage'),
         ),
       ).thenThrow(Exception('analytics error'));
 
       final service = RemoteConfigService(
-        client: client,
-        analyticsService: analytics,
+        client: mockClient,
+        analyticsService: mockAnalytics,
       );
 
       await service.initialize();
 
-      // Should not throw even when analytics fails
       final result = await service.refresh();
       expect(result, false);
     });
@@ -490,7 +642,7 @@ void main() {
 
   group('FirebaseRemoteConfigClient (adapter)', () {
     test('delegates to underlying FirebaseRemoteConfig', () async {
-      final inner = _MockFirebaseRemoteConfig();
+      final inner = MockFirebaseRemoteConfig();
       final adapter = FirebaseRemoteConfigClient(inner);
 
       when(() => inner.fetchAndActivate()).thenAnswer((_) async => true);

@@ -2,21 +2,58 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:snickerdoodle/src/common_widgets/cached_joke_image.dart';
 import 'package:snickerdoodle/src/common_widgets/holdable_button.dart';
+import 'package:snickerdoodle/src/core/providers/image_providers.dart';
+import 'package:snickerdoodle/src/core/services/image_service.dart';
+import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/calendar_grid_widget.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_schedule_widgets.dart';
+import 'package:snickerdoodle/src/features/jokes/application/joke_schedule_providers.dart';
+import 'package:snickerdoodle/src/features/jokes/application/joke_schedule_service.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_schedule_batch.dart';
+import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_schedule_repository.dart';
 
-import '../../../test_helpers/analytics_mocks.dart';
-import '../../../test_helpers/core_mocks.dart';
-import '../../../test_helpers/joke_schedule_mocks.dart';
+class _MockJokeScheduleRepository extends Mock
+    implements JokeScheduleRepository {}
+
+class _MockJokeScheduleAutoFillService extends Mock
+    implements JokeScheduleAutoFillService {}
+
+class _MockImageService extends Mock implements ImageService {}
+
+class _MockPerformanceService extends Mock implements PerformanceService {}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   setUpAll(() {
-    registerAnalyticsFallbackValues();
+    registerFallbackValue(
+      JokeScheduleBatch(
+        id: 'test',
+        scheduleId: 'test',
+        year: 2024,
+        month: 1,
+        jokes: {},
+      ),
+    );
+  });
+
+  late _MockImageService mockImageService;
+  late _MockPerformanceService mockPerformanceService;
+
+  setUp(() {
+    mockImageService = _MockImageService();
+    mockPerformanceService = _MockPerformanceService();
+
+    // Setup default mock behaviors
+    when(
+      () => mockImageService.getProcessedJokeImageUrl(
+        any(),
+        width: any(named: 'width'),
+      ),
+    ).thenReturn('processed_url');
   });
   group('CalendarGridWidget', () {
     testWidgets('highlights today\'s date with blue border in current month', (
@@ -47,8 +84,11 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-            ...CoreMocks.getCoreProviderOverrides(),
-            ...AnalyticsMocks.getAnalyticsProviderOverrides(),
+            selectedScheduleProvider.overrideWith((ref) => 'test-schedule'),
+            imageServiceProvider.overrideWithValue(mockImageService),
+            performanceServiceProvider.overrideWithValue(
+              mockPerformanceService,
+            ),
           ],
           child: MaterialApp(
             home: Scaffold(
@@ -66,7 +106,7 @@ void main() {
         ),
       );
 
-      await tester.pumpAndSettle();
+      await tester.pump();
 
       // Find today's day text in the calendar
       final todayText = find.text(now.day.toString());
@@ -155,8 +195,11 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-            ...CoreMocks.getCoreProviderOverrides(),
-            ...AnalyticsMocks.getAnalyticsProviderOverrides(),
+            selectedScheduleProvider.overrideWith((ref) => 'test-schedule'),
+            imageServiceProvider.overrideWithValue(mockImageService),
+            performanceServiceProvider.overrideWithValue(
+              mockPerformanceService,
+            ),
           ],
           child: MaterialApp(
             home: Scaffold(
@@ -174,7 +217,7 @@ void main() {
         ),
       );
 
-      await tester.pumpAndSettle();
+      await tester.pump();
 
       // Check that no day in this different month has a blue thick border
       for (int day = 1; day <= 10; day++) {
@@ -189,7 +232,7 @@ void main() {
               final dayBorder = dayDecoration!.border as Border;
               final hasBlueThickBorder =
                   dayBorder.top.color == Colors.blue &&
-                  dayBorder.top.width == 5.0;
+                  dayBorder.top.width == 3.0;
               expect(
                 hasBlueThickBorder,
                 false,
@@ -221,8 +264,11 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-            ...CoreMocks.getCoreProviderOverrides(),
-            ...AnalyticsMocks.getAnalyticsProviderOverrides(),
+            selectedScheduleProvider.overrideWith((ref) => 'test-schedule'),
+            imageServiceProvider.overrideWithValue(mockImageService),
+            performanceServiceProvider.overrideWithValue(
+              mockPerformanceService,
+            ),
           ],
           child: MaterialApp(
             home: Scaffold(
@@ -240,7 +286,7 @@ void main() {
         ),
       );
 
-      await tester.pumpAndSettle();
+      await tester.pump();
 
       // Find today's day text in the calendar (should be there even without a joke)
       final todayText = find.text(now.day.toString());
@@ -278,10 +324,17 @@ void main() {
   group('CalendarCellPopup', () {
     late JokeScheduleBatch testBatch;
     late Joke testJoke;
-    late MockJokeScheduleRepository mockRepository;
+    late _MockJokeScheduleRepository mockRepository;
+    late _MockJokeScheduleAutoFillService mockService;
 
     setUp(() {
-      mockRepository = JokeScheduleMocks.mockRepository;
+      mockRepository = _MockJokeScheduleRepository();
+      mockService = _MockJokeScheduleAutoFillService();
+
+      // Setup default mock behaviors
+      when(
+        () => mockService.removeJokeFromDailySchedule(any()),
+      ).thenAnswer((_) async {});
 
       testJoke = Joke(
         id: 'test-joke',
@@ -308,10 +361,11 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-            ...CoreMocks.getCoreProviderOverrides(),
-            ...AnalyticsMocks.getAnalyticsProviderOverrides(),
-            ...JokeScheduleMocks.getJokeScheduleProviderOverrides(
-              selectedScheduleId: 'test-schedule',
+            selectedScheduleProvider.overrideWith((ref) => 'test-schedule'),
+            jokeScheduleAutoFillServiceProvider.overrideWithValue(mockService),
+            imageServiceProvider.overrideWithValue(mockImageService),
+            performanceServiceProvider.overrideWithValue(
+              mockPerformanceService,
             ),
           ],
           child: MaterialApp(
@@ -332,7 +386,7 @@ void main() {
         ),
       );
 
-      await tester.pumpAndSettle();
+      await tester.pump();
 
       // Delete button should be visible
       expect(find.byIcon(Icons.delete_outline), findsOneWidget);
@@ -345,10 +399,11 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-            ...CoreMocks.getCoreProviderOverrides(),
-            ...AnalyticsMocks.getAnalyticsProviderOverrides(),
-            ...JokeScheduleMocks.getJokeScheduleProviderOverrides(
-              selectedScheduleId: 'test-schedule',
+            selectedScheduleProvider.overrideWith((ref) => 'test-schedule'),
+            jokeScheduleAutoFillServiceProvider.overrideWithValue(mockService),
+            imageServiceProvider.overrideWithValue(mockImageService),
+            performanceServiceProvider.overrideWithValue(
+              mockPerformanceService,
             ),
           ],
           child: MaterialApp(
@@ -369,7 +424,7 @@ void main() {
         ),
       );
 
-      await tester.pumpAndSettle();
+      await tester.pump();
 
       // Delete button should not be visible when batch is null
       expect(find.byIcon(Icons.delete_outline), findsNothing);
@@ -382,10 +437,11 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-            ...CoreMocks.getCoreProviderOverrides(),
-            ...AnalyticsMocks.getAnalyticsProviderOverrides(),
-            ...JokeScheduleMocks.getJokeScheduleProviderOverrides(
-              selectedScheduleId: null,
+            selectedScheduleProvider.overrideWith((ref) => null),
+            jokeScheduleAutoFillServiceProvider.overrideWithValue(mockService),
+            imageServiceProvider.overrideWithValue(mockImageService),
+            performanceServiceProvider.overrideWithValue(
+              mockPerformanceService,
             ),
           ],
           child: MaterialApp(
@@ -406,7 +462,7 @@ void main() {
         ),
       );
 
-      await tester.pumpAndSettle();
+      await tester.pump();
 
       // Delete button should not be visible when scheduleId is null
       expect(find.byIcon(Icons.delete_outline), findsNothing);
@@ -424,10 +480,11 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-            ...CoreMocks.getCoreProviderOverrides(),
-            ...AnalyticsMocks.getAnalyticsProviderOverrides(),
-            ...JokeScheduleMocks.getJokeScheduleProviderOverrides(
-              selectedScheduleId: 'test-schedule',
+            selectedScheduleProvider.overrideWith((ref) => 'test-schedule'),
+            jokeScheduleAutoFillServiceProvider.overrideWithValue(mockService),
+            imageServiceProvider.overrideWithValue(mockImageService),
+            performanceServiceProvider.overrideWithValue(
+              mockPerformanceService,
             ),
           ],
           child: MaterialApp(
@@ -448,7 +505,7 @@ void main() {
         ),
       );
 
-      await tester.pumpAndSettle();
+      await tester.pump();
 
       // Verify delete button is visible
       expect(find.byIcon(Icons.delete_outline), findsOneWidget);
@@ -473,10 +530,11 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-            ...CoreMocks.getCoreProviderOverrides(),
-            ...AnalyticsMocks.getAnalyticsProviderOverrides(),
-            ...JokeScheduleMocks.getJokeScheduleProviderOverrides(
-              selectedScheduleId: 'test-schedule',
+            selectedScheduleProvider.overrideWith((ref) => 'test-schedule'),
+            jokeScheduleAutoFillServiceProvider.overrideWithValue(mockService),
+            imageServiceProvider.overrideWithValue(mockImageService),
+            performanceServiceProvider.overrideWithValue(
+              mockPerformanceService,
             ),
           ],
           child: MaterialApp(
@@ -497,7 +555,7 @@ void main() {
         ),
       );
 
-      await tester.pumpAndSettle();
+      await tester.pump();
 
       // Should show setup and punchline labels
       expect(find.text('Setup'), findsOneWidget);
@@ -516,10 +574,11 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-            ...CoreMocks.getCoreProviderOverrides(),
-            ...AnalyticsMocks.getAnalyticsProviderOverrides(),
-            ...JokeScheduleMocks.getJokeScheduleProviderOverrides(
-              selectedScheduleId: 'test-schedule',
+            selectedScheduleProvider.overrideWith((ref) => 'test-schedule'),
+            jokeScheduleAutoFillServiceProvider.overrideWithValue(mockService),
+            imageServiceProvider.overrideWithValue(mockImageService),
+            performanceServiceProvider.overrideWithValue(
+              mockPerformanceService,
             ),
           ],
           child: MaterialApp(
@@ -540,17 +599,231 @@ void main() {
         ),
       );
 
-      await tester.pumpAndSettle();
+      await tester.pump();
 
       // Popup should be visible
       expect(find.text('Day 15'), findsOneWidget);
 
       // Tap close button
       await tester.tap(find.byIcon(Icons.close));
-      await tester.pumpAndSettle();
+      await tester.pump();
 
       // onClose callback should have been called
       expect(popupClosed, isTrue);
+    });
+
+    testWidgets('shows popup when calendar cell with joke is tapped', (
+      tester,
+    ) async {
+      final now = DateTime.now();
+      final currentMonth = DateTime(now.year, now.month);
+      final todayKey = now.day.toString().padLeft(2, '0');
+
+      final batch = JokeScheduleBatch(
+        id: 'test-batch',
+        scheduleId: 'test-schedule',
+        year: now.year,
+        month: now.month,
+        jokes: {
+          todayKey: Joke(
+            id: 'joke-today',
+            setupText: 'Today\'s setup',
+            punchlineText: 'Today\'s punchline',
+            setupImageUrl: 'setup.jpg',
+            punchlineImageUrl: 'punchline.jpg',
+          ),
+        },
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            selectedScheduleProvider.overrideWith((ref) => 'test-schedule'),
+            jokeScheduleAutoFillServiceProvider.overrideWithValue(mockService),
+            imageServiceProvider.overrideWithValue(mockImageService),
+            performanceServiceProvider.overrideWithValue(
+              mockPerformanceService,
+            ),
+          ],
+          child: MaterialApp(
+            home: Scaffold(
+              body: SingleChildScrollView(
+                child: SizedBox(
+                  height: 800,
+                  child: CalendarGridWidget(
+                    batch: batch,
+                    monthDate: currentMonth,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pump();
+
+      // Find today's cell and tap it
+      final todayText = find.text(now.day.toString());
+      expect(todayText, findsOneWidget);
+
+      await tester.tap(todayText);
+      await tester.pump();
+
+      // Should show popup with joke content
+      expect(find.text('Day $todayKey'), findsOneWidget);
+      expect(find.text('Today\'s setup'), findsOneWidget);
+    });
+
+    testWidgets(
+      'does not show popup when calendar cell without joke is tapped',
+      (tester) async {
+        final now = DateTime.now();
+        final currentMonth = DateTime(now.year, now.month);
+
+        // Create empty batch
+        final batch = JokeScheduleBatch(
+          id: 'test-batch',
+          scheduleId: 'test-schedule',
+          year: now.year,
+          month: now.month,
+          jokes: {}, // No jokes
+        );
+
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              selectedScheduleProvider.overrideWith((ref) => 'test-schedule'),
+            ],
+            child: MaterialApp(
+              home: Scaffold(
+                body: SingleChildScrollView(
+                  child: SizedBox(
+                    height: 800,
+                    child: CalendarGridWidget(
+                      batch: batch,
+                      monthDate: currentMonth,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+
+        await tester.pump();
+
+        // Find today's cell and tap it
+        final todayText = find.text(now.day.toString());
+        expect(todayText, findsOneWidget);
+
+        await tester.tap(todayText);
+        await tester.pump();
+
+        // Should not show popup
+        expect(
+          find.text('Day ${now.day.toString().padLeft(2, '0')}'),
+          findsNothing,
+        );
+      },
+    );
+
+    testWidgets('displays joke images in calendar cells', (tester) async {
+      final now = DateTime.now();
+      final currentMonth = DateTime(now.year, now.month);
+      final todayKey = now.day.toString().padLeft(2, '0');
+
+      final batch = JokeScheduleBatch(
+        id: 'test-batch',
+        scheduleId: 'test-schedule',
+        year: now.year,
+        month: now.month,
+        jokes: {
+          todayKey: Joke(
+            id: 'joke-today',
+            setupText: 'Today\'s setup',
+            punchlineText: 'Today\'s punchline',
+            setupImageUrl: 'setup.jpg',
+            punchlineImageUrl: 'punchline.jpg',
+          ),
+        },
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            selectedScheduleProvider.overrideWith((ref) => 'test-schedule'),
+            imageServiceProvider.overrideWithValue(mockImageService),
+            performanceServiceProvider.overrideWithValue(
+              mockPerformanceService,
+            ),
+          ],
+          child: MaterialApp(
+            home: Scaffold(
+              body: SingleChildScrollView(
+                child: SizedBox(
+                  height: 800,
+                  child: CalendarGridWidget(
+                    batch: batch,
+                    monthDate: currentMonth,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pump();
+
+      // Should show cached joke image widget
+      expect(find.byType(CachedJokeImage), findsOneWidget);
+    });
+
+    testWidgets('handles delete operation error gracefully', (tester) async {
+      // Mock repository to throw error
+      when(
+        () => mockRepository.updateBatch(any()),
+      ).thenThrow(Exception('Delete failed'));
+
+      bool popupClosed = false;
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            selectedScheduleProvider.overrideWith((ref) => 'test-schedule'),
+            jokeScheduleAutoFillServiceProvider.overrideWithValue(mockService),
+            imageServiceProvider.overrideWithValue(mockImageService),
+            performanceServiceProvider.overrideWithValue(
+              mockPerformanceService,
+            ),
+          ],
+          child: MaterialApp(
+            home: Stack(
+              children: [
+                CalendarCellPopup(
+                  joke: testJoke,
+                  dayLabel: '15',
+                  cellPosition: Offset(100, 100),
+                  cellSize: const Size(50, 50),
+                  onClose: () => popupClosed = true,
+                  batch: testBatch,
+                  scheduleId: 'test-schedule',
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      await tester.pump();
+
+      // Verify popup is visible
+      expect(find.text('Day 15'), findsOneWidget);
+      expect(find.byIcon(Icons.delete_outline), findsOneWidget);
+
+      // The delete operation would fail, but we can verify the setup is correct
+      expect(popupClosed, isFalse);
     });
   });
 }

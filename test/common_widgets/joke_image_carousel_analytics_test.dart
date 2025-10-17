@@ -1,130 +1,82 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:snickerdoodle/src/common_widgets/joke_image_carousel.dart';
-import 'package:snickerdoodle/src/core/providers/image_providers.dart';
+import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
-import 'package:snickerdoodle/src/core/theme/app_theme.dart';
+import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_viewer_mode.dart';
 
-import '../test_helpers/analytics_mocks.dart';
-import '../test_helpers/core_mocks.dart';
-import '../test_helpers/firebase_mocks.dart';
-import 'joke_image_carousel_test.dart' show FakeJoke; // reuse existing FakeJoke
-import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
-
-class _TestRCValues implements RemoteConfigValues {
-  _TestRCValues({required this.gateReview});
-  final bool gateReview;
-  @override
-  int getInt(RemoteParam param) => 0;
-  @override
-  bool getBool(RemoteParam param) {
-    if (param == RemoteParam.reviewRequestFromJokeViewed) return gateReview;
-    if (param == RemoteParam.defaultJokeViewerReveal) return false;
-    return false;
-  }
-
-  @override
-  double getDouble(RemoteParam param) => 0;
-  @override
-  String getString(RemoteParam param) => '';
-  @override
-  T getEnum<T>(RemoteParam param) {
-    final descriptor = remoteParams[param]!;
-    return (descriptor.enumDefault ?? '') as T;
-  }
-}
+import '../common/test_utils/joke_carousel_test_utils.dart';
 
 class _MockImageService extends Mock implements ImageService {}
 
 class _MockAppUsageService extends Mock implements AppUsageService {}
 
+class _MockAnalyticsService extends Mock implements AnalyticsService {}
+
+class _MockPerformanceService extends Mock implements PerformanceService {}
+
 void main() {
   setUpAll(() {
-    // Ensure mocktail fallback values are registered for analytics-related types
-    registerAnalyticsFallbackValues();
+    registerFallbackValue(FakeJoke());
+    registerCarouselTestFallbacks();
   });
 
   late _MockImageService mockImageService;
   late _MockAppUsageService mockAppUsageService;
-  late MockAnalyticsService mockAnalyticsService;
+  late _MockAnalyticsService mockAnalyticsService;
+  late _MockPerformanceService mockPerformanceService;
 
-  const String dataUrl =
-      'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+  const String dataUrl = transparentImageDataUrl;
 
   setUp(() {
     mockImageService = _MockImageService();
     mockAppUsageService = _MockAppUsageService();
-    mockAnalyticsService = AnalyticsMocks.mockAnalyticsService;
-    // Ensure FakeJoke is registered for any(Joke)
-    registerFallbackValue(FakeJoke());
+    mockAnalyticsService = _MockAnalyticsService();
+    mockPerformanceService = _MockPerformanceService();
 
-    // Image service happy-path stubs
-    when(() => mockImageService.isValidImageUrl(any())).thenReturn(true);
-    when(() => mockImageService.processImageUrl(any())).thenReturn(dataUrl);
+    // Shared stubs
+    stubImageServiceHappyPath(mockImageService, dataUrl: dataUrl);
+    stubAppUsageViewed(mockAppUsageService, viewedCount: 1);
+    stubPerformanceNoOps(mockPerformanceService);
+
+    // Analytics no-ops so we can verify calls without side effects
     when(
-      () => mockImageService.processImageUrl(
+      () => mockAnalyticsService.logJokeSetupViewed(
         any(),
-        width: any(named: 'width'),
-        height: any(named: 'height'),
-        quality: any(named: 'quality'),
-      ),
-    ).thenReturn(dataUrl);
-    when(
-      () => mockImageService.getProcessedJokeImageUrl(
-        any(),
-        width: any(named: 'width'),
-      ),
-    ).thenReturn(dataUrl);
-    when(
-      () =>
-          mockImageService.precacheJokeImage(any(), width: any(named: 'width')),
-    ).thenAnswer((_) async => dataUrl);
-    when(
-      () => mockImageService.precacheJokeImages(
-        any(),
-        width: any(named: 'width'),
-      ),
-    ).thenAnswer((_) async => (setupUrl: dataUrl, punchlineUrl: dataUrl));
-    when(
-      () => mockImageService.precacheMultipleJokeImages(
-        any(),
-        width: any(named: 'width'),
+        navigationMethod: any(named: 'navigationMethod'),
+        jokeContext: any(named: 'jokeContext'),
+        jokeViewerMode: any(named: 'jokeViewerMode'),
       ),
     ).thenAnswer((_) async {});
-
-    // App usage stubs required by full-view flow
     when(
-      () => mockAppUsageService.logJokeViewed(any()),
+      () => mockAnalyticsService.logJokePunchlineViewed(
+        any(),
+        navigationMethod: any(named: 'navigationMethod'),
+        jokeContext: any(named: 'jokeContext'),
+        jokeViewerMode: any(named: 'jokeViewerMode'),
+      ),
     ).thenAnswer((_) async {});
     when(
-      () => mockAppUsageService.getNumJokesViewed(),
-    ).thenAnswer((_) async => 1);
+      () => mockAnalyticsService.logJokeViewed(
+        any(),
+        totalJokesViewed: any(named: 'totalJokesViewed'),
+        navigationMethod: any(named: 'navigationMethod'),
+        jokeContext: any(named: 'jokeContext'),
+        jokeViewerMode: any(named: 'jokeViewerMode'),
+      ),
+    ).thenAnswer((_) async {});
   });
 
-  Widget wrap(Widget child, {bool gateReview = true}) => ProviderScope(
-    overrides: [
-      ...CoreMocks.getCoreProviderOverrides(
-        additionalOverrides: [
-          ...FirebaseMocks.getFirebaseProviderOverrides(),
-          ...AnalyticsMocks.getAnalyticsProviderOverrides(),
-          imageServiceProvider.overrideWithValue(mockImageService),
-          appUsageServiceProvider.overrideWithValue(mockAppUsageService),
-          // Ensure review gating defaults as desired for tests
-          remoteConfigValuesProvider.overrideWithValue(
-            _TestRCValues(gateReview: gateReview),
-          ),
-        ],
-      ),
-    ],
-    child: MaterialApp(
-      theme: lightTheme,
-      home: Scaffold(body: child),
-    ),
+  Widget wrap(Widget child) => wrapWithCarouselOverrides(
+    child,
+    imageService: mockImageService,
+    appUsageService: mockAppUsageService,
+    analyticsService: mockAnalyticsService,
+    performanceService: mockPerformanceService,
   );
 
   const joke = Joke(
@@ -138,24 +90,20 @@ void main() {
   testWidgets('admin mode suppresses setup/punchline/view analytics', (
     tester,
   ) async {
-    // arrange
     final w = JokeImageCarousel(
       joke: joke,
       isAdminMode: true,
       jokeContext: 'admin',
     );
 
-    // act: build → allow post-frame → wait >2s for setup
     await tester.pumpWidget(wrap(w));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 2100));
 
-    // navigate to punchline via tap, then wait >2s
     await tester.tap(find.byType(JokeImageCarousel));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 2100));
 
-    // assert: no view/navigation analytics
     verifyNever(
       () => mockAnalyticsService.logJokeSetupViewed(
         any(),
@@ -186,22 +134,19 @@ void main() {
   testWidgets('non-admin mode emits setup/punchline/view analytics', (
     tester,
   ) async {
-    // arrange
     final w = JokeImageCarousel(
       joke: joke,
       isAdminMode: false,
       jokeContext: 'feed',
     );
 
-    // act
-    await tester.pumpWidget(wrap(w, gateReview: false));
+    await tester.pumpWidget(wrap(w));
     await tester.pump();
-    await tester.pump(const Duration(milliseconds: 2100)); // setup viewed
+    await tester.pump(const Duration(milliseconds: 2100));
     await tester.tap(find.byType(JokeImageCarousel));
-    await tester.pump(const Duration(milliseconds: 350)); // complete page anim
-    await tester.pump(const Duration(milliseconds: 2100)); // punchline viewed
+    await tester.pump(const Duration(milliseconds: 350));
+    await tester.pump(const Duration(milliseconds: 2100));
 
-    // assert: at least setup event is logged in non-admin mode
     verify(
       () => mockAnalyticsService.logJokeSetupViewed(
         any(),
@@ -212,37 +157,35 @@ void main() {
     ).called(greaterThan(0));
   });
 
-  testWidgets(
-    'non-REVEAL modes auto-log punchline and fully viewed after setup',
-    (tester) async {
-      Future<void> runForMode(JokeViewerMode mode) async {
-        final widget = SizedBox(
-          width: 800,
-          height: 600,
-          child: JokeImageCarousel(
-            joke: joke,
-            isAdminMode: false,
-            jokeContext: 'feed',
-            mode: mode,
-          ),
-        );
-        await tester.pumpWidget(wrap(widget, gateReview: false));
-        await tester.pump();
-        await tester.pump(const Duration(milliseconds: 2100)); // setup timer
-        await tester.pump(const Duration(milliseconds: 2100)); // chained timer
-      }
-
-      // Run sequentially to avoid overflow/layout complexities
-      await runForMode(JokeViewerMode.bothAdaptive);
-
-      verify(
-        () => mockAnalyticsService.logJokePunchlineViewed(
-          any(),
-          navigationMethod: any(named: 'navigationMethod'),
-          jokeContext: any(named: 'jokeContext'),
-          jokeViewerMode: any(named: 'jokeViewerMode'),
+  testWidgets('non-REVEAL auto-logs punchline and fully viewed after setup', (
+    tester,
+  ) async {
+    Future<void> runForMode(JokeViewerMode mode) async {
+      final widget = SizedBox(
+        width: 800,
+        height: 600,
+        child: JokeImageCarousel(
+          joke: joke,
+          isAdminMode: false,
+          jokeContext: 'feed',
+          mode: mode,
         ),
-      ).called(greaterThan(0));
-    },
-  );
+      );
+      await tester.pumpWidget(wrap(widget));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 2100));
+      await tester.pump(const Duration(milliseconds: 2100));
+    }
+
+    await runForMode(JokeViewerMode.bothAdaptive);
+
+    verify(
+      () => mockAnalyticsService.logJokePunchlineViewed(
+        any(),
+        navigationMethod: any(named: 'navigationMethod'),
+        jokeContext: any(named: 'jokeContext'),
+        jokeViewerMode: any(named: 'jokeViewerMode'),
+      ),
+    ).called(greaterThan(0));
+  });
 }

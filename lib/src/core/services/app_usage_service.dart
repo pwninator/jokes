@@ -1,12 +1,16 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/providers/app_usage_events_provider.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
+import 'package:snickerdoodle/src/core/services/app_review_service.dart';
+import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
+import 'package:snickerdoodle/src/core/services/review_prompt_service.dart';
 import 'package:snickerdoodle/src/core/services/review_prompt_state_store.dart';
 import 'package:snickerdoodle/src/data/jokes/category_interactions_repository.dart';
 import 'package:snickerdoodle/src/data/jokes/joke_interactions_repository.dart';
@@ -169,12 +173,25 @@ class AppUsageService {
   ///
   /// The caller should ensure business rules are satisfied
   /// (e.g., both setup and punchline images viewed for at least 2 seconds each).
-  Future<void> logJokeViewed(String jokeId) async {
+  Future<void> logJokeViewed(
+    String jokeId, {
+    required BuildContext context,
+  }) async {
     try {
       await _jokeInteractions.setViewed(jokeId);
       _notifyUsageChanged();
       _pushUsageSnapshot();
       AppLogger.debug('APP_USAGE logJokeViewed: { joke_id: $jokeId }');
+
+      // Review prompt after successful view if enabled and context provided
+      final rv = _ref.read(remoteConfigValuesProvider);
+      final enabled = rv.getBool(RemoteParam.reviewRequestFromJokeViewed);
+      if (enabled && context.mounted) {
+        await _maybePromptForReview(
+          source: ReviewRequestSource.jokeViewed,
+          context: context,
+        );
+      }
     } catch (e) {
       AppLogger.warn('APP_USAGE logJokeViewed DB error: $e');
     }
@@ -189,12 +206,18 @@ class AppUsageService {
   // -------------------------------
 
   /// Save a joke (persists to DB)
-  Future<void> saveJoke(String jokeId) async {
+  Future<void> saveJoke(String jokeId, {required BuildContext context}) async {
     try {
       await _jokeInteractions.setSaved(jokeId);
       _notifyUsageChanged();
       _pushUsageSnapshot();
       AppLogger.debug('APP_USAGE saveJoke: { joke_id: $jokeId }');
+      if (context.mounted) {
+        await _maybePromptForReview(
+          source: ReviewRequestSource.jokeSaved,
+          context: context,
+        );
+      }
     } catch (e) {
       AppLogger.warn('APP_USAGE saveJoke DB error: $e');
     }
@@ -220,12 +243,18 @@ class AppUsageService {
   // -------------------------------
 
   /// Share a joke (persists to DB)
-  Future<void> shareJoke(String jokeId) async {
+  Future<void> shareJoke(String jokeId, {required BuildContext context}) async {
     try {
       await _jokeInteractions.setShared(jokeId);
       _notifyUsageChanged();
       _pushUsageSnapshot();
       AppLogger.debug('APP_USAGE shareJoke: { joke_id: $jokeId }');
+      if (context.mounted) {
+        await _maybePromptForReview(
+          source: ReviewRequestSource.jokeShared,
+          context: context,
+        );
+      }
     } catch (e) {
       AppLogger.warn('APP_USAGE shareJoke DB error: $e');
     }
@@ -340,6 +369,29 @@ class AppUsageService {
       await Future.wait(futures);
     } catch (e) {
       AppLogger.warn('APP_USAGE pushUsageSnapshot error: $e');
+    }
+  }
+
+  Future<void> _maybePromptForReview({
+    required ReviewRequestSource source,
+    required BuildContext context,
+  }) async {
+    if (!context.mounted) return;
+    try {
+      final bool isAdmin = _ref.read(isAdminProvider);
+      if (isAdmin) {
+        AppLogger.debug('APP_USAGE review prompt skipped for admin user');
+        return;
+      }
+      final coordinator = _ref.read(reviewPromptCoordinatorProvider);
+      if (context.mounted) {
+        await coordinator.maybePromptForReview(
+          source: source,
+          context: context,
+        );
+      }
+    } catch (e) {
+      AppLogger.warn('APP_USAGE maybePromptForReview error: $e');
     }
   }
 }

@@ -27,11 +27,17 @@ class _MockCategoryInteractionsService extends Mock
 class _MockJokeInteractionsRepository extends Mock
     implements JokeInteractionsRepository {}
 
+class _FakeBuildContext extends Fake implements BuildContext {
+  @override
+  bool get mounted => true;
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUpAll(() {
     // Needed for mocktail named matcher on Brightness
     registerFallbackValue(Brightness.light);
+    registerFallbackValue(_FakeBuildContext());
   });
   String todayString() {
     final now = DateTime.now();
@@ -204,9 +210,9 @@ void main() {
       );
 
       expect(await service.getNumJokesViewed(), 0);
-      await service.logJokeViewed('j1');
+      await service.logJokeViewed('j1', context: _FakeBuildContext());
       expect(await service.getNumJokesViewed(), 1);
-      await service.logJokeViewed('j2');
+      await service.logJokeViewed('j2', context: _FakeBuildContext());
       expect(await service.getNumJokesViewed(), 2);
 
       verify(() => mockRepo.setViewed('j1')).called(1);
@@ -245,9 +251,9 @@ void main() {
       );
 
       expect(await service.getNumSavedJokes(), 0);
-      await service.saveJoke('s1');
+      await service.saveJoke('s1', context: _FakeBuildContext());
       expect(await service.getNumSavedJokes(), 1);
-      await service.saveJoke('s2');
+      await service.saveJoke('s2', context: _FakeBuildContext());
       expect(await service.getNumSavedJokes(), 2);
       await service.unsaveJoke('s1');
       expect(await service.getNumSavedJokes(), 1);
@@ -288,9 +294,9 @@ void main() {
       );
 
       expect(await service.getNumSharedJokes(), 0);
-      await service.shareJoke('x1');
+      await service.shareJoke('x1', context: _FakeBuildContext());
       expect(await service.getNumSharedJokes(), 1);
-      await service.shareJoke('x2');
+      await service.shareJoke('x2', context: _FakeBuildContext());
       expect(await service.getNumSharedJokes(), 2);
 
       verify(() => mockRepo.setShared('x1')).called(1);

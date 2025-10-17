@@ -5,7 +5,6 @@ import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/joke_share_service.dart';
 import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
-import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_service.dart';
 import 'package:snickerdoodle/src/features/settings/application/joke_viewer_settings_service.dart';
 
 /// Provider for platform sharing service
@@ -17,7 +16,6 @@ final platformShareServiceProvider = Provider<PlatformShareService>((ref) {
 final jokeShareServiceProvider = Provider<JokeShareService>((ref) {
   final imageService = ref.watch(imageServiceProvider);
   final analyticsService = ref.watch(analyticsServiceProvider);
-  final reactionsService = ref.watch(jokeReactionsServiceProvider);
   final platformShareService = ref.watch(platformShareServiceProvider);
   final appUsageService = ref.watch(appUsageServiceProvider);
   final performanceService = ref.watch(performanceServiceProvider);
@@ -27,7 +25,6 @@ final jokeShareServiceProvider = Provider<JokeShareService>((ref) {
   return JokeShareServiceImpl(
     imageService: imageService,
     analyticsService: analyticsService,
-    reactionsService: reactionsService,
     platformShareService: platformShareService,
     appUsageService: appUsageService,
     performanceService: performanceService,

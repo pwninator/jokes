@@ -8,15 +8,12 @@ import 'package:snickerdoodle/src/core/services/image_service.dart';
 import 'package:snickerdoodle/src/core/services/joke_share_service.dart';
 import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
-import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_service.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
 
 class MockImageService extends Mock implements ImageService {}
 
 class MockAnalyticsService extends Mock implements AnalyticsService {}
-
-class MockJokeReactionsService extends Mock implements JokeReactionsService {}
 
 class MockPlatformShareService extends Mock implements PlatformShareService {}
 
@@ -37,7 +34,6 @@ void main() {
     late JokeShareService service;
     late MockImageService mockImageService;
     late MockAnalyticsService mockAnalyticsService;
-    late MockJokeReactionsService mockJokeReactionsService;
     late MockPlatformShareService mockPlatformShareService;
     late MockPerformanceService mockPerformanceService;
     late MockAppUsageService appUsageService;
@@ -54,7 +50,6 @@ void main() {
     setUp(() async {
       mockImageService = MockImageService();
       mockAnalyticsService = MockAnalyticsService();
-      mockJokeReactionsService = MockJokeReactionsService();
       mockPlatformShareService = MockPlatformShareService();
       mockPerformanceService = MockPerformanceService();
       mockRemoteConfigValues = MockRemoteConfigValues();
@@ -63,7 +58,6 @@ void main() {
       service = JokeShareServiceImpl(
         imageService: mockImageService,
         analyticsService: mockAnalyticsService,
-        reactionsService: mockJokeReactionsService,
         platformShareService: mockPlatformShareService,
         appUsageService: appUsageService,
         performanceService: mockPerformanceService,
@@ -135,11 +129,8 @@ void main() {
         );
 
         when(
-          () => mockJokeReactionsService.addUserReaction(
-            any(),
-            any(),
-            context: any(named: 'context'),
-          ),
+          () =>
+              appUsageService.shareJoke(any(), context: any(named: 'context')),
         ).thenAnswer((_) async {});
 
         when(
@@ -236,11 +227,8 @@ void main() {
         );
 
         when(
-          () => mockJokeReactionsService.addUserReaction(
-            any(),
-            any(),
-            context: any(named: 'context'),
-          ),
+          () =>
+              appUsageService.shareJoke(any(), context: any(named: 'context')),
         ).thenAnswer((_) async {});
 
         when(

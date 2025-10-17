@@ -11,12 +11,9 @@ import 'package:snickerdoodle/src/data/core/database/app_database.dart';
 import 'package:snickerdoodle/src/data/jokes/category_interactions_repository.dart';
 import 'package:snickerdoodle/src/data/jokes/joke_interactions_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_service.dart';
-import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
 import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
-
-class MockJokeRepository extends Mock implements JokeRepository {}
 
 class MockReviewPromptCoordinator extends Mock
     implements ReviewPromptCoordinator {}
@@ -46,7 +43,6 @@ void main() {
 
   group('JokeReactionsService', () {
     late JokeReactionsService service;
-    late MockJokeRepository mockRepository;
     late AppUsageService appUsageService;
     late MockReviewPromptCoordinator mockCoordinator;
     late BuildContext fakeContext;
@@ -59,7 +55,12 @@ void main() {
       SharedPreferences.setMockInitialValues({});
       final prefs = await SharedPreferences.getInstance();
       final settingsService = SettingsService(prefs);
-      final container = ProviderContainer();
+      mockCoordinator = MockReviewPromptCoordinator();
+      final container = ProviderContainer(
+        overrides: [
+          reviewPromptCoordinatorProvider.overrideWithValue(mockCoordinator),
+        ],
+      );
       final ref = container.read(Provider<Ref>((ref) => ref));
       final mockAnalytics = MockAnalyticsService();
       final mockJokeCloudFn = MockJokeCloudFunctionService();
@@ -72,8 +73,6 @@ void main() {
         categoryInteractionsService: _MockCategoryInteractionsService(),
         jokeInteractionsRepository: mockInteractions,
       );
-      mockCoordinator = MockReviewPromptCoordinator();
-      mockRepository = MockJokeRepository();
 
       // In-memory state backing the mock interactions
       savedOrder = <String>[];
@@ -130,10 +129,12 @@ void main() {
       });
 
       // New COUNT APIs used by AppUsageService
-      when(() => mockInteractions.countSaved())
-          .thenAnswer((_) async => savedSet.length);
-      when(() => mockInteractions.countShared())
-          .thenAnswer((_) async => sharedSet.length);
+      when(
+        () => mockInteractions.countSaved(),
+      ).thenAnswer((_) async => savedSet.length);
+      when(
+        () => mockInteractions.countShared(),
+      ).thenAnswer((_) async => sharedSet.length);
 
       // Writes
       when(() => mockInteractions.setSaved(any())).thenAnswer((inv) async {
@@ -161,13 +162,8 @@ void main() {
           context: any(named: 'context'),
         ),
       ).thenAnswer((_) async {});
-      // Default stub for repository - returns completed future
-      when(
-        () => mockRepository.updateReactionAndPopularity(any(), any(), any()),
-      ).thenAnswer((_) async {});
       service = JokeReactionsService(
         appUsageService: appUsageService,
-        reviewPromptCoordinator: mockCoordinator,
         interactionsRepository: mockInteractions,
       );
       fakeContext = FakeBuildContext();
@@ -570,27 +566,12 @@ void main() {
       );
     });
 
-    group('async Firestore operations', () {
-      setUp(() {
-        // Ensure repository has a default fast behavior; individual tests override
-        when(
-          () => mockRepository.updateReactionAndPopularity(any(), any(), any()),
-        ).thenAnswer((_) async {});
-      });
-
+    group('local database operations', () {
       test(
-        'addUserReaction completes immediately even with slow Firestore',
+        'addUserReaction completes immediately (local DB operations are fast)',
         () async {
           // Arrange
           savedSet.clear();
-
-          // Mock a slow Firestore operation that takes 1 second
-          when(
-            () =>
-                mockRepository.updateReactionAndPopularity(any(), any(), any()),
-          ).thenAnswer((_) async {
-            await Future.delayed(const Duration(seconds: 1));
-          });
 
           // Act & Assert - The method should complete immediately
           final stopwatch = Stopwatch()..start();
@@ -601,7 +582,7 @@ void main() {
           );
           stopwatch.stop();
 
-          // Should complete in much less than 1 second (local DB is fast)
+          // Should complete quickly (local DB operations are fast)
           expect(stopwatch.elapsedMilliseconds, lessThan(100));
 
           // Verify local state was updated immediately
@@ -610,15 +591,6 @@ void main() {
             JokeReactionType.share,
           );
           expect(hasReaction, isTrue);
-
-          // Verify Firestore was called
-          verify(
-            () => mockRepository.updateReactionAndPopularity(
-              'joke1',
-              JokeReactionType.share,
-              1,
-            ),
-          ).called(1);
         },
       );
 
@@ -636,23 +608,12 @@ void main() {
             () => service.removeUserReaction('joke1', JokeReactionType.share),
             throwsA(isA<ArgumentError>()),
           );
-
-          // Verify Firestore was NOT called
-          verifyNever(
-            () =>
-                mockRepository.updateReactionAndPopularity(any(), any(), any()),
-          );
         },
       );
 
-      test('Firestore failures do not affect local reaction state', () async {
+      test('local reaction state is updated successfully', () async {
         // Arrange
-        // Mock Firestore to throw an error asynchronously
-        when(
-          () => mockRepository.updateReactionAndPopularity(any(), any(), any()),
-        ).thenAnswer((_) async {
-          throw Exception('Firestore error');
-        });
+        savedSet.clear();
 
         // Act
         await service.addUserReaction(
@@ -661,29 +622,17 @@ void main() {
           context: fakeContext,
         );
 
-        // Assert - SharedPreferences should still be updated despite Firestore error
+        // Assert - Local state should be updated
         final hasReaction = await service.hasUserReaction(
           'joke1',
           JokeReactionType.share,
         );
         expect(hasReaction, isTrue);
-
-        // Verify Firestore was called
-        verify(
-          () => mockRepository.updateReactionAndPopularity(
-            'joke1',
-            JokeReactionType.share,
-            1,
-          ),
-        ).called(1);
       });
 
-      test('save add/remove call repository with correct increments', () async {
+      test('save add/remove updates local state correctly', () async {
         // Arrange
         savedSet.clear();
-        when(
-          () => mockRepository.updateReactionAndPopularity(any(), any(), any()),
-        ).thenAnswer((_) async {});
 
         // Act - add save
         await service.addUserReaction(
@@ -691,24 +640,21 @@ void main() {
           JokeReactionType.save,
           context: fakeContext,
         );
+
+        // Verify save was added
+        expect(
+          await service.hasUserReaction('jA', JokeReactionType.save),
+          isTrue,
+        );
+
         // Act - remove save
         await service.removeUserReaction('jA', JokeReactionType.save);
 
-        // Assert repository calls
-        verify(
-          () => mockRepository.updateReactionAndPopularity(
-            'jA',
-            JokeReactionType.save,
-            1,
-          ),
-        ).called(1);
-        verify(
-          () => mockRepository.updateReactionAndPopularity(
-            'jA',
-            JokeReactionType.save,
-            -1,
-          ),
-        ).called(1);
+        // Verify save was removed
+        expect(
+          await service.hasUserReaction('jA', JokeReactionType.save),
+          isFalse,
+        );
       });
     });
   });

@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-import 'package:snickerdoodle/src/core/services/app_review_service.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
-import 'package:snickerdoodle/src/core/services/review_prompt_service.dart';
 import 'package:snickerdoodle/src/data/jokes/joke_interactions_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
 
@@ -12,26 +10,21 @@ part 'joke_reactions_service.g.dart';
 @Riverpod(keepAlive: true)
 JokeReactionsService jokeReactionsService(Ref ref) {
   final appUsageService = ref.watch(appUsageServiceProvider);
-  final reviewCoordinator = ref.watch(reviewPromptCoordinatorProvider);
   final interactionsRepository = ref.watch(jokeInteractionsRepositoryProvider);
   return JokeReactionsService(
     appUsageService: appUsageService,
-    reviewPromptCoordinator: reviewCoordinator,
     interactionsRepository: interactionsRepository,
   );
 }
 
 class JokeReactionsService {
   final AppUsageService _appUsageService;
-  final ReviewPromptCoordinator _reviewPromptCoordinator;
   final JokeInteractionsRepository _interactionsRepository;
 
   JokeReactionsService({
     required AppUsageService appUsageService,
-    required ReviewPromptCoordinator reviewPromptCoordinator,
     required JokeInteractionsRepository interactionsRepository,
   }) : _appUsageService = appUsageService,
-       _reviewPromptCoordinator = reviewPromptCoordinator,
        _interactionsRepository = interactionsRepository;
 
   /// Get all user reactions for all jokes
@@ -89,21 +82,9 @@ class JokeReactionsService {
     required BuildContext context,
   }) async {
     if (reactionType == JokeReactionType.save) {
-      await _appUsageService.saveJoke(jokeId);
+      await _appUsageService.saveJoke(jokeId, context: context);
     } else if (reactionType == JokeReactionType.share) {
-      await _appUsageService.shareJoke(jokeId);
-    }
-
-    if (context.mounted &&
-        (reactionType == JokeReactionType.save ||
-            reactionType == JokeReactionType.share)) {
-      // Trigger review check only on successful save addition
-      await _reviewPromptCoordinator.maybePromptForReview(
-        source: reactionType == JokeReactionType.save
-            ? ReviewRequestSource.jokeSaved
-            : ReviewRequestSource.jokeShared,
-        context: context,
-      );
+      await _appUsageService.shareJoke(jokeId, context: context);
     }
   }
 

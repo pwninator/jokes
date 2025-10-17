@@ -256,7 +256,7 @@ void main() {
     when(() => mockImageService.clearCache()).thenAnswer((_) async {});
 
     when(
-      () => mockAppUsageService.logJokeViewed(any<String>()),
+      () => mockAppUsageService.logJokeViewed(any<String>(), context: any(named: 'context')),
     ).thenAnswer((_) async {});
     when(
       () => mockAppUsageService.getNumJokesViewed(),

@@ -156,7 +156,10 @@ class _NoopAppUsageService implements AppUsageService {
   @override
   Future<void> logCategoryViewed(String categoryId) async {}
   @override
-  Future<void> logJokeViewed(String jokeId) async {}
+  Future<void> logJokeViewed(
+    String jokeId, {
+    required BuildContext context,
+  }) async {}
   @override
   Future<void> setFirstUsedDate(String? date) async {}
   @override
@@ -164,11 +167,14 @@ class _NoopAppUsageService implements AppUsageService {
   @override
   Future<void> setNumDaysUsed(int value) async {}
   @override
-  Future<void> saveJoke(String jokeId) async {}
+  Future<void> saveJoke(String jokeId, {required BuildContext context}) async {}
   @override
   Future<void> unsaveJoke(String jokeId) async {}
   @override
-  Future<void> shareJoke(String jokeId) async {}
+  Future<void> shareJoke(
+    String jokeId, {
+    required BuildContext context,
+  }) async {}
 }
 
 class _NoopReviewPromptCoordinator extends Mock

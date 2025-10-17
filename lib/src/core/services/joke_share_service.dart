@@ -6,9 +6,7 @@ import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
 import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
-import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_service.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
-import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
 
 /// Internal exception to signal that the user aborted share preparation.
 class SharePreparationCanceledException implements Exception {}
@@ -64,7 +62,6 @@ abstract class JokeShareService {
 class JokeShareServiceImpl implements JokeShareService {
   final ImageService _imageService;
   final AnalyticsService _analyticsService;
-  final JokeReactionsService _reactionsService;
   final PlatformShareService _platformShareService;
   final AppUsageService _appUsageService;
   final PerformanceService _performanceService;
@@ -74,7 +71,6 @@ class JokeShareServiceImpl implements JokeShareService {
   JokeShareServiceImpl({
     required ImageService imageService,
     required AnalyticsService analyticsService,
-    required JokeReactionsService reactionsService,
     required PlatformShareService platformShareService,
     required AppUsageService appUsageService,
     required PerformanceService performanceService,
@@ -82,7 +78,6 @@ class JokeShareServiceImpl implements JokeShareService {
     required bool Function() getRevealModeEnabled,
   }) : _imageService = imageService,
        _analyticsService = analyticsService,
-       _reactionsService = reactionsService,
        _platformShareService = platformShareService,
        _appUsageService = appUsageService,
        _performanceService = performanceService,
@@ -111,9 +106,8 @@ class JokeShareServiceImpl implements JokeShareService {
     // Only perform follow-up actions if user actually shared
     if (shareResult.success) {
       // Save share reaction to SharedPreferences and increment count in Firestore
-      await _reactionsService.addUserReaction(
+      await _appUsageService.shareJoke(
         joke.id,
-        JokeReactionType.share,
         context: context, // ignore: use_build_context_synchronously
       );
 

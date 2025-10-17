@@ -1,7 +1,7 @@
 {% macro joke_card(joke, reveal_label='Reveal Punchline', image_size=600) -%}
 <div class="joke-widget">
 <details>
-  <summary>{{ reveal_label }}</summary>
+  <summary data-analytics-event="joke_reveal_toggle" data-analytics-label="{{ joke.key|default('unknown')|e }}">{{ reveal_label }}</summary>
 </details>
 <div class="joke-carousel">
   <div class="joke-carousel-viewport">

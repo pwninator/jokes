@@ -402,7 +402,8 @@
       </a>
       <div class="header-cta">
         <a href="https://play.google.com/store/apps/details?id=com.builtwithporpoise.jokes" target="_blank"
-          rel="noopener noreferrer" aria-label="Get it on Google Play">
+          rel="noopener noreferrer" aria-label="Get it on Google Play"
+          data-analytics-event="web_index_play_store_click" data-analytics-label="header">
           <img class="play-badge play-badge--header" alt="Get it on Google Play"
             src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png"
             loading="lazy" />
@@ -416,6 +417,41 @@
   <footer>
     <small>&copy; {{ site_name }} {{ now_year|default(2025) }}</small>
   </footer>
+  <script>
+    (function () {
+      if (typeof document === 'undefined' || !document.addEventListener) {
+        return;
+      }
+      document.addEventListener('click', function (event) {
+        var target = event.target;
+        if (!target || typeof target.closest !== 'function') {
+          return;
+        }
+        var tracker = target.closest('[data-analytics-event]');
+        if (!tracker) {
+          return;
+        }
+        var eventName = tracker.dataset.analyticsEvent;
+        if (!eventName) {
+          return;
+        }
+        var params = {};
+        var label = tracker.dataset.analyticsLabel;
+        if (label) {
+          params.event_label = label;
+        }
+        var value = tracker.dataset.analyticsValue;
+        if (value) {
+          var numericValue = Number(value);
+          params.value = isNaN(numericValue) ? value : numericValue;
+        }
+        params.transport_type = 'beacon';
+        if (typeof window.gtag === 'function') {
+          window.gtag('event', eventName, params);
+        }
+      });
+    })();
+  </script>
 </body>
 
 </html>

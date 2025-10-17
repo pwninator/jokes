@@ -136,7 +136,9 @@
 <section id="single-viewer" class="joke-widget" aria-label="Joke viewer">
   <!-- Original placement: control first, then viewer -->
   <details id="sv-details">
-    <summary id="sv-summary">Reveal Punchline</summary>
+    <summary id="sv-summary"
+      data-analytics-event="web_index_joke_scroll_click"
+      data-analytics-label="reveal_punchline">Reveal Punchline</summary>
   </details>
   <div class="joke-carousel">
     <div class="joke-carousel-viewport">
@@ -170,7 +172,10 @@
             <div class="end-cta-card">
               <h3 class="end-cta-title">Loved the laughs?</h3>
               <p class="end-cta-desc">Get more jokes in our free app!</p>
-              <a href="https://play.google.com/store/apps/details?id=com.builtwithporpoise.jokes" target="_blank" rel="noopener noreferrer" aria-label="Get it on Google Play">
+              <a href="https://play.google.com/store/apps/details?id=com.builtwithporpoise.jokes" target="_blank"
+                rel="noopener noreferrer" aria-label="Get it on Google Play"
+                data-analytics-event="web_index_play_store_click"
+                data-analytics-label="joke_end_card">
                 <img class="play-badge play-badge--cta" alt="Get it on Google Play"
                   src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png" loading="lazy" />
               </a>
@@ -212,11 +217,13 @@
         // Final CTA: keep control visible but disabled and labeled "Next Joke"
         detailsEl.style.display = '';
         summaryEl.setAttribute('aria-disabled', 'true');
+        summaryEl.dataset.analyticsLabel = 'cta_stage_disabled';
         summaryEl.textContent = 'Next Joke';
         return;
       }
       summaryEl.removeAttribute('aria-disabled');
       var isSetup = (current % 2 === 0);
+      summaryEl.dataset.analyticsLabel = isSetup ? 'reveal_punchline' : 'next_joke';
       summaryEl.textContent = isSetup ? 'Reveal Punchline' : 'Next Joke';
     }
 

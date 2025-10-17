@@ -90,7 +90,8 @@ def test_topic_page_renders_with_json_ld_and_reveal(monkeypatch):
   assert 'application/ld+json' in html
   assert 'FAQPage' in html
   assert '<details>' in html
-  assert '<summary>Reveal punchline</summary>' in html
+  assert 'data-analytics-event="joke_reveal_toggle"' in html
+  assert '<summary data-analytics-event="joke_reveal_toggle"' in html
   # Layout and image sizing
   assert '.topic-page .grid { grid-template-columns: 1fr;' in html
   assert 'aspect-ratio: 1 / 1' in html
@@ -125,6 +126,9 @@ def test_index_page_renders_joke_of_the_day(monkeypatch):
   assert "Today's Joke" in html
   assert "What do you call a fake noodle?" in html
   assert "An Impasta!" in html
+  assert 'data-analytics-event="web_index_joke_scroll_click"' in html
+  assert 'data-analytics-event="web_index_play_store_click"' in html
+  assert 'data-analytics-label="joke_end_card"' in html
   # Badge alt text per template
   assert "Get it on Google Play" in html
   assert 'Cache-Control' in resp.headers
@@ -231,6 +235,10 @@ def test_pages_include_ga4_tag_and_parchment_background(monkeypatch):
   assert "gtag('config', 'G-D2B7E8PXJJ')" in topic_html
   assert 'gtag/js?id=G-D2B7E8PXJJ' in index_html
   assert "gtag('config', 'G-D2B7E8PXJJ')" in index_html
+  assert 'data-analytics-event="web_index_play_store_click"' in topic_html
+  assert 'data-analytics-label="header"' in topic_html
+  assert 'data-analytics-event="web_index_play_store_click"' in index_html
+  assert 'data-analytics-label="header"' in index_html
 
   # Background matches dark parchment color
   assert 'background: #121212' in topic_html

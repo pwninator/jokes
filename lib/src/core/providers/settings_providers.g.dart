@@ -6,7 +6,7 @@ part of 'settings_providers.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$sharedPreferencesHash() => r'd22b545aefe95500327f9dce52c645d746349271';
+String _$sharedPreferencesHash() => r'769feb6d53b5366a36d4cd9a257b1ab16a5ae5e4';
 
 /// See also [sharedPreferences].
 @ProviderFor(sharedPreferences)

@@ -4,18 +4,24 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_creator_screen.dart';
+import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
 
-import '../../../test_helpers/firebase_mocks.dart';
+class MockJokeCloudFunctionService extends Mock
+    implements JokeCloudFunctionService {}
 
 void main() {
   group('JokeCreatorScreen', () {
+    late MockJokeCloudFunctionService mockService;
+
     setUp(() {
-      FirebaseMocks.reset();
+      mockService = MockJokeCloudFunctionService();
     });
 
     Widget createTestWidget() {
       return ProviderScope(
-        overrides: FirebaseMocks.getFirebaseProviderOverrides(),
+        overrides: [
+          jokeCloudFunctionServiceProvider.overrideWithValue(mockService),
+        ],
         child: MaterialApp(theme: lightTheme, home: const JokeCreatorScreen()),
       );
     }
@@ -106,8 +112,6 @@ void main() {
         'should call cloud function service with correct parameters',
         (tester) async {
           const instructions = 'Generate some funny jokes about programming';
-
-          final mockService = FirebaseMocks.mockCloudFunctionService;
           when(
             () => mockService.critiqueJokes(instructions: instructions),
           ).thenAnswer(
@@ -145,8 +149,6 @@ void main() {
               },
             ],
           };
-
-          final mockService = FirebaseMocks.mockCloudFunctionService;
           when(
             () => mockService.critiqueJokes(instructions: instructions),
           ).thenAnswer((_) async => {'success': true, 'data': mockData});
@@ -180,8 +182,6 @@ void main() {
         tester,
       ) async {
         const instructions = 'Generate jokes';
-
-        final mockService = FirebaseMocks.mockCloudFunctionService;
         // First successful generation
         when(
           () => mockService.critiqueJokes(instructions: instructions),

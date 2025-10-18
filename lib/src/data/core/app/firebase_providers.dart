@@ -13,40 +13,56 @@ part 'firebase_providers.g.dart';
 
 @Riverpod(keepAlive: true)
 FirebaseFirestore firebaseFirestore(Ref ref) {
-  return FirebaseFirestore.instance;
+  throw StateError(
+    'FirebaseFirestore must be overridden. If this is a test, you are missing a mock somewhere',
+  );
 }
 
 @Riverpod(keepAlive: true)
 FirebasePerformance firebasePerformance(Ref ref) {
-  return FirebasePerformance.instance;
+  throw StateError(
+    'FirebasePerformance must be overridden. If this is a test, you are missing a mock somewhere',
+  );
 }
 
 @Riverpod(keepAlive: true)
 FirebaseAnalytics firebaseAnalytics(Ref ref) {
-  return FirebaseAnalytics.instance;
+  throw StateError(
+    'FirebaseAnalytics must be overridden. If this is a test, you are missing a mock somewhere',
+  );
 }
 
 @Riverpod(keepAlive: true)
 FirebaseFunctions firebaseFunctions(Ref ref) {
-  return FirebaseFunctions.instance;
+  throw StateError(
+    'FirebaseFunctions must be overridden. If this is a test, you are missing a mock somewhere',
+  );
 }
 
 @Riverpod(keepAlive: true)
 FirebaseRemoteConfig firebaseRemoteConfig(Ref ref) {
-  return FirebaseRemoteConfig.instance;
+  throw StateError(
+    'FirebaseRemoteConfig must be overridden. If this is a test, you are missing a mock somewhere',
+  );
 }
 
 @Riverpod(keepAlive: true)
 FirebaseAuth firebaseAuth(Ref ref) {
-  return FirebaseAuth.instance;
+  throw StateError(
+    'FirebaseAuth must be overridden. If this is a test, you are missing a mock somewhere',
+  );
 }
 
 @Riverpod(keepAlive: true)
 FirebaseMessaging firebaseMessaging(Ref ref) {
-  return FirebaseMessaging.instance;
+  throw StateError(
+    'FirebaseMessaging must be overridden. If this is a test, you are missing a mock somewhere',
+  );
 }
 
 @Riverpod(keepAlive: true)
 FirebaseCrashlytics firebaseCrashlytics(Ref ref) {
-  return FirebaseCrashlytics.instance;
+  throw StateError(
+    'FirebaseCrashlytics must be overridden. If this is a test, you are missing a mock somewhere',
+  );
 }

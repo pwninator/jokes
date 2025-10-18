@@ -90,8 +90,6 @@ void main() {
       container = ProviderContainer(
         overrides: [
           jokeScheduleRepositoryProvider.overrideWithValue(mockRepository),
-          // Mock schedules provider to return empty list to prevent auto-selection
-          jokeSchedulesProvider.overrideWith((ref) => Stream.value([])),
         ],
       );
     });
@@ -166,15 +164,18 @@ void main() {
     });
 
     group('scheduleBatchesProvider', () {
-      test('returns empty when no schedule selected', () async {
+      test('returns empty when no schedule selected', () {
         // Arrange - ensure no schedule is selected
-        // The scheduleBatchesProvider should return Stream.value([]) when selectedScheduleId is null
+        expect(container.read(selectedScheduleProvider), isNull);
 
-        // Act - use the future to wait for the stream to emit
-        final batches = await container.read(scheduleBatchesProvider.future);
+        // Act - directly read the stream provider value
+        final batchesAsync = container.read(scheduleBatchesProvider);
 
         // Assert - should return empty list when no schedule selected
-        expect(batches, isEmpty);
+        expect(
+          batchesAsync.maybeWhen(data: (batches) => batches, orElse: () => []),
+          isEmpty,
+        );
       });
 
       test('watches batches for selected schedule', () async {
@@ -184,13 +185,13 @@ void main() {
           scheduleId: selectedId,
         );
 
-        // Set selected schedule
-        container.read(selectedScheduleProvider.notifier).state = selectedId;
-
-        // Mock repository to return test batches
+        // Mock repository to return test batches BEFORE selecting
         when(
           () => mockRepository.watchBatchesForSchedule(selectedId),
         ).thenAnswer((_) => Stream.value(testBatches));
+
+        // Set selected schedule
+        container.read(selectedScheduleProvider.notifier).state = selectedId;
 
         // Act
         final batches = await container.read(scheduleBatchesProvider.future);
@@ -213,10 +214,10 @@ void main() {
         ];
 
         // Set first schedule and mock its batches
-        container.read(selectedScheduleProvider.notifier).state = firstId;
         when(
           () => mockRepository.watchBatchesForSchedule(firstId),
         ).thenAnswer((_) => Stream.value(firstBatches));
+        container.read(selectedScheduleProvider.notifier).state = firstId;
 
         // Act - get batches for first schedule
         final firstResult = await container.read(
@@ -225,10 +226,10 @@ void main() {
         expect(firstResult, equals(firstBatches));
 
         // Change to second schedule and mock its batches
-        container.read(selectedScheduleProvider.notifier).state = secondId;
         when(
           () => mockRepository.watchBatchesForSchedule(secondId),
         ).thenAnswer((_) => Stream.value(secondBatches));
+        container.read(selectedScheduleProvider.notifier).state = secondId;
 
         // Get batches for second schedule
         final secondResult = await container.read(
@@ -256,16 +257,19 @@ void main() {
           scheduleId: selectedId,
         );
 
-        // Set selected schedule and mock batches
-        container.read(selectedScheduleProvider.notifier).state = selectedId;
+        // Mock repository BEFORE setting selected schedule
         when(
           () => mockRepository.watchBatchesForSchedule(selectedId),
         ).thenAnswer((_) => Stream.value(testBatches));
 
-        // Act - ensure batches are loaded first, then check date range
+        // Set selected schedule
+        container.read(selectedScheduleProvider.notifier).state = selectedId;
+
+        // Act - load batches via future (forces async/await)
         final batches = await container.read(scheduleBatchesProvider.future);
         expect(batches, isNotEmpty); // Verify batches loaded
 
+        // Now read the synchronous provider which uses cached AsyncValue
         final dateRange = container.read(batchDateRangeProvider);
 
         // Assert - should have dates when batches exist

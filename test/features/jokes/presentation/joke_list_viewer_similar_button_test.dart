@@ -1,3 +1,5 @@
+import 'package:cloud_functions/cloud_functions.dart';
+import 'package:firebase_performance/firebase_performance.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -6,16 +8,18 @@ import 'package:snickerdoodle/src/config/router/app_router.dart' show RailHost;
 import 'package:snickerdoodle/src/config/router/router_providers.dart';
 import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
+import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/performance_service.dart';
+import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
+import 'package:snickerdoodle/src/data/core/app/firebase_providers.dart';
 import 'package:snickerdoodle/src/data/jokes/category_interactions_repository.dart';
 import 'package:snickerdoodle/src/data/jokes/joke_interactions_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_search_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
+import 'package:snickerdoodle/src/features/jokes/domain/joke_viewer_mode.dart';
 import 'package:snickerdoodle/src/features/jokes/presentation/joke_list_viewer.dart';
-
-import '../../../test_helpers/analytics_mocks.dart';
-import '../../../test_helpers/firebase_mocks.dart';
+import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
 
 // Mock classes
 class MockJokeInteractionsRepository extends Mock
@@ -25,6 +29,32 @@ class MockCategoryInteractionsRepository extends Mock
     implements CategoryInteractionsRepository {}
 
 class MockPerformanceService extends Mock implements PerformanceService {}
+
+class MockAnalyticsService extends Mock implements AnalyticsService {}
+
+class MockSettingsService extends Mock implements SettingsService {}
+
+class MockRemoteConfigValues extends Mock implements RemoteConfigValues {}
+
+class FakeFirebasePerformance extends Fake implements FirebasePerformance {
+  @override
+  Trace newTrace(String name) => FakeTrace();
+}
+
+class FakeTrace extends Fake implements Trace {
+  @override
+  Future<void> start() async {}
+
+  @override
+  Future<void> stop() async {}
+
+  @override
+  void putAttribute(String name, String value) {}
+
+  void putMetric(String name, int value) {}
+}
+
+class FakeFirebaseFunctions extends Fake implements FirebaseFunctions {}
 
 // Stub navigation helpers to avoid real routing in tests
 class StubNavigationHelpers extends NavigationHelpers {
@@ -41,7 +71,10 @@ class StubNavigationHelpers extends NavigationHelpers {
 
 void main() {
   setUpAll(() {
-    registerAnalyticsFallbackValues();
+    // Register fallback values for mocktail
+    registerFallbackValue(JokeViewerMode.reveal);
+    registerFallbackValue(Brightness.light);
+    registerFallbackValue(RemoteParam.defaultJokeViewerReveal);
     registerFallbackValue(MockJokeInteractionsRepository());
     registerFallbackValue(MockCategoryInteractionsRepository());
     registerFallbackValue(MockPerformanceService());
@@ -49,10 +82,16 @@ void main() {
 
   late MockJokeInteractionsRepository mockJokeInteractionsRepository;
   late MockCategoryInteractionsRepository mockCategoryInteractionsRepository;
+  late MockAnalyticsService mockAnalyticsService;
+  late MockSettingsService mockSettingsService;
+  late MockRemoteConfigValues mockRemoteConfigValues;
 
   setUp(() {
     mockJokeInteractionsRepository = MockJokeInteractionsRepository();
     mockCategoryInteractionsRepository = MockCategoryInteractionsRepository();
+    mockAnalyticsService = MockAnalyticsService();
+    mockSettingsService = MockSettingsService();
+    mockRemoteConfigValues = MockRemoteConfigValues();
 
     // Stub default behavior
     when(
@@ -61,6 +100,23 @@ void main() {
     when(
       () => mockCategoryInteractionsRepository.setViewed(any()),
     ).thenAnswer((_) async => true);
+
+    // Setup analytics service defaults
+    when(
+      () => mockAnalyticsService.logJokeSearchSimilar(
+        queryLength: any(named: 'queryLength'),
+        jokeContext: any(named: 'jokeContext'),
+      ),
+    ).thenAnswer((_) async {});
+
+    // Setup settings service defaults
+    when(() => mockSettingsService.getBool(any())).thenReturn(null);
+    when(
+      () => mockSettingsService.setBool(any(), any()),
+    ).thenAnswer((_) async {});
+
+    // Setup remote config defaults
+    when(() => mockRemoteConfigValues.getBool(any())).thenReturn(false);
   });
 
   group('JokeListViewer Similar Button', () {
@@ -78,13 +134,19 @@ void main() {
       );
 
       final overrides = [
-        ...FirebaseMocks.getFirebaseProviderOverrides(),
+        analyticsServiceProvider.overrideWithValue(mockAnalyticsService),
+        settingsServiceProvider.overrideWithValue(mockSettingsService),
+        remoteConfigValuesProvider.overrideWithValue(mockRemoteConfigValues),
         jokeInteractionsRepositoryProvider.overrideWithValue(
           mockJokeInteractionsRepository,
         ),
         categoryInteractionsRepositoryProvider.overrideWithValue(
           mockCategoryInteractionsRepository,
         ),
+        firebasePerformanceProvider.overrideWithValue(
+          FakeFirebasePerformance(),
+        ),
+        firebaseFunctionsProvider.overrideWithValue(FakeFirebaseFunctions()),
       ];
 
       // Act & Assert: With flag off
@@ -127,8 +189,7 @@ void main() {
     testWidgets('Similar button updates search query and logs analytics', (
       tester,
     ) async {
-      // Arrange: Create test joke and analytics mock
-      final analyticsMock = AnalyticsMocks.mockAnalyticsService;
+      // Arrange: Create test joke
       final joke = const Joke(
         id: '1',
         setupText: 'Penguin antics',
@@ -139,14 +200,19 @@ void main() {
       );
 
       final overrides = [
-        ...FirebaseMocks.getFirebaseProviderOverrides(),
-        analyticsServiceProvider.overrideWithValue(analyticsMock),
+        analyticsServiceProvider.overrideWithValue(mockAnalyticsService),
+        settingsServiceProvider.overrideWithValue(mockSettingsService),
+        remoteConfigValuesProvider.overrideWithValue(mockRemoteConfigValues),
         jokeInteractionsRepositoryProvider.overrideWithValue(
           mockJokeInteractionsRepository,
         ),
         categoryInteractionsRepositoryProvider.overrideWithValue(
           mockCategoryInteractionsRepository,
         ),
+        firebasePerformanceProvider.overrideWithValue(
+          FakeFirebasePerformance(),
+        ),
+        firebaseFunctionsProvider.overrideWithValue(FakeFirebaseFunctions()),
         navigationHelpersProvider.overrideWith(
           (ref) => StubNavigationHelpers(ref),
         ),
@@ -199,7 +265,7 @@ void main() {
 
       // Assert: Verify analytics call for joke_search_similar
       verify(
-        () => analyticsMock.logJokeSearchSimilar(
+        () => mockAnalyticsService.logJokeSearchSimilar(
           queryLength: any(named: 'queryLength'),
           jokeContext: any(named: 'jokeContext'),
         ),
@@ -220,13 +286,19 @@ void main() {
       );
 
       final overrides = [
-        ...FirebaseMocks.getFirebaseProviderOverrides(),
+        analyticsServiceProvider.overrideWithValue(mockAnalyticsService),
+        settingsServiceProvider.overrideWithValue(mockSettingsService),
+        remoteConfigValuesProvider.overrideWithValue(mockRemoteConfigValues),
         jokeInteractionsRepositoryProvider.overrideWithValue(
           mockJokeInteractionsRepository,
         ),
         categoryInteractionsRepositoryProvider.overrideWithValue(
           mockCategoryInteractionsRepository,
         ),
+        firebasePerformanceProvider.overrideWithValue(
+          FakeFirebasePerformance(),
+        ),
+        firebaseFunctionsProvider.overrideWithValue(FakeFirebaseFunctions()),
         navigationHelpersProvider.overrideWith(
           (ref) => StubNavigationHelpers(ref),
         ),

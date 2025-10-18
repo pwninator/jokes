@@ -6,5 +6,7 @@ part 'settings_providers.g.dart';
 
 @Riverpod(keepAlive: true)
 Future<SharedPreferences> sharedPreferences(Ref ref) async {
-  return await SharedPreferences.getInstance();
+  throw StateError(
+    'SharedPreferences must be overridden. If this is a test, you are missing a mock somewhere',
+  );
 }

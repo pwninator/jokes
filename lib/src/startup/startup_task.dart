@@ -1,6 +1,11 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/core/services/performance_service.dart';
 
+/// Reader function type compatible with both WidgetRef.read and
+/// ProviderContainer.read. This allows startup tasks to run with either
+/// a widget ref (parent scope) or a container (overridden scope).
+typedef StartupReader = T Function<T>(ProviderListenable<T> provider);
+
 /// A startup task that can be executed during app initialization.
 ///
 /// Each task has a unique [id] and an [execute] function that performs
@@ -17,9 +22,10 @@ class StartupTask {
 
   /// The function that performs the initialization work.
   ///
-  /// Tasks use [WidgetRef] to access and initialize providers during startup.
-  /// Providers initialized here are available to the app via the shared ProviderScope.
-  final Future<void> Function(WidgetRef ref) execute;
+  /// Tasks use [StartupReader] to access providers during startup. Critical
+  /// tasks should create concrete instances and return provider overrides.
+  /// Tasks that don't provide overrides must return an empty list.
+  final Future<List<Override>> Function(StartupReader read) execute;
 
   /// Required trace name for Firebase Performance monitoring.
   ///

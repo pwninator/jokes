@@ -2,6 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
+import 'package:snickerdoodle/src/core/providers/image_providers.dart';
+import 'package:snickerdoodle/src/core/services/analytics_service.dart';
+import 'package:snickerdoodle/src/core/services/image_service.dart';
+import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_editor_screen.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
@@ -10,31 +15,93 @@ import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_reposito
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
 
-import '../../../test_helpers/firebase_mocks.dart';
-
 // Mock classes using mocktail
 class MockJokeCloudFunctionService extends Mock
     implements JokeCloudFunctionService {}
 
 class MockJokeRepository extends Mock implements JokeRepository {}
 
+class MockPerformanceService extends Mock implements PerformanceService {}
+
+class MockImageService extends Mock implements ImageService {}
+
+class MockAnalyticsService extends Mock implements AnalyticsService {}
+
 void main() {
   group('JokeEditorScreen', () {
     late MockJokeCloudFunctionService mockJokeService;
     late MockJokeRepository mockJokeRepository;
+    late MockPerformanceService mockPerformanceService;
+    late MockImageService mockImageService;
+    late MockAnalyticsService mockAnalyticsService;
+
+    setUpAll(() {
+      // Fallbacks for mocktail matchers
+      registerFallbackValue(TraceName.fsRead);
+      registerFallbackValue(<String, String>{});
+    });
 
     setUp(() {
-      FirebaseMocks.reset();
       mockJokeService = MockJokeCloudFunctionService();
       mockJokeRepository = MockJokeRepository();
+      mockPerformanceService = MockPerformanceService();
+      mockImageService = MockImageService();
+      mockAnalyticsService = MockAnalyticsService();
+
+      // Stub performance methods to avoid MissingStub errors
+      when(
+        () => mockPerformanceService.startNamedTrace(
+          name: any(named: 'name'),
+          key: any(named: 'key'),
+          attributes: any(named: 'attributes'),
+        ),
+      ).thenReturn(null);
+      when(
+        () => mockPerformanceService.putNamedTraceAttributes(
+          name: any(named: 'name'),
+          key: any(named: 'key'),
+          attributes: any(named: 'attributes'),
+        ),
+      ).thenReturn(null);
+      when(
+        () => mockPerformanceService.stopNamedTrace(
+          name: any(named: 'name'),
+          key: any(named: 'key'),
+        ),
+      ).thenReturn(null);
+      when(
+        () => mockPerformanceService.dropNamedTrace(
+          name: any(named: 'name'),
+          key: any(named: 'key'),
+        ),
+      ).thenReturn(null);
+
+      // Prevent real image/network behavior in CachedJokeImage
+      when(
+        () => mockImageService.getProcessedJokeImageUrl(
+          any(),
+          width: any(named: 'width'),
+        ),
+      ).thenReturn(null);
+      when(() => mockImageService.isValidImageUrl(any())).thenReturn(false);
+      when(
+        () => mockAnalyticsService.logErrorImageLoad(
+          jokeId: any(named: 'jokeId'),
+          imageType: any(named: 'imageType'),
+          imageUrlHash: any(named: 'imageUrlHash'),
+          errorMessage: any(named: 'errorMessage'),
+        ),
+      ).thenAnswer((_) async {});
     });
 
     Widget createTestWidget({Joke? joke}) {
       return ProviderScope(
         overrides: [
-          ...FirebaseMocks.getFirebaseProviderOverrides(),
           jokeCloudFunctionServiceProvider.overrideWithValue(mockJokeService),
           jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
+          performanceServiceProvider.overrideWithValue(mockPerformanceService),
+          imageServiceProvider.overrideWithValue(mockImageService),
+          analyticsServiceProvider.overrideWithValue(mockAnalyticsService),
           if (joke != null)
             jokeStreamByIdProvider(
               joke.id,

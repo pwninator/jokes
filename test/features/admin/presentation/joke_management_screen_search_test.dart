@@ -6,8 +6,6 @@ import 'package:snickerdoodle/src/features/admin/presentation/joke_management_sc
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
 
-import '../../../test_helpers/firebase_mocks.dart';
-
 class MockJokeRepository extends Mock implements JokeRepository {}
 
 void main() {
@@ -33,10 +31,7 @@ void main() {
     );
 
     final container = ProviderContainer(
-      overrides: [
-        ...FirebaseMocks.getFirebaseProviderOverrides(),
-        jokeRepositoryProvider.overrideWithValue(repo),
-      ],
+      overrides: [jokeRepositoryProvider.overrideWithValue(repo)],
     );
 
     await tester.pumpWidget(

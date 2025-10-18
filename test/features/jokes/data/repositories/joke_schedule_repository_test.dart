@@ -1,22 +1,78 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
+import 'package:snickerdoodle/src/features/jokes/data/models/joke_schedule.dart';
+import 'package:snickerdoodle/src/features/jokes/data/models/joke_schedule_batch.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_schedule_repository.dart';
 
-import '../../../../test_helpers/test_helpers.dart';
+// Mock classes
+class MockJokeScheduleRepository extends Mock
+    implements JokeScheduleRepository {}
+
+// Fake classes for Mocktail fallback values
+class FakeJokeSchedule extends Fake implements JokeSchedule {}
+
+class FakeJokeScheduleBatch extends Fake implements JokeScheduleBatch {}
+
+// Helper methods
+JokeSchedule createTestSchedule({String? id, String? name}) {
+  return JokeSchedule(id: id ?? 'test_schedule', name: name ?? 'Test Schedule');
+}
+
+JokeScheduleBatch createTestBatch({
+  String? scheduleId,
+  int? year,
+  int? month,
+  Map<String, Joke>? jokes,
+}) {
+  final testScheduleId = scheduleId ?? 'test_schedule';
+  final testYear = year ?? 2024;
+  final testMonth = month ?? 1;
+
+  return JokeScheduleBatch(
+    id: JokeScheduleBatch.createBatchId(testScheduleId, testYear, testMonth),
+    scheduleId: testScheduleId,
+    year: testYear,
+    month: testMonth,
+    jokes: jokes ?? {},
+  );
+}
+
+List<JokeSchedule> createTestSchedules() {
+  return [
+    createTestSchedule(id: 'daily_jokes', name: 'Daily Jokes'),
+    createTestSchedule(id: 'weekly_comedy', name: 'Weekly Comedy'),
+    createTestSchedule(id: 'holiday_special', name: 'Holiday Special'),
+  ];
+}
+
+List<JokeScheduleBatch> createTestBatches({String? scheduleId}) {
+  final id = scheduleId ?? 'test_schedule';
+  return [
+    createTestBatch(scheduleId: id, year: 2024, month: 1),
+    createTestBatch(scheduleId: id, year: 2024, month: 2),
+    createTestBatch(scheduleId: id, year: 2024, month: 3),
+  ];
+}
 
 void main() {
   group('JokeScheduleRepository', () {
     late JokeScheduleRepository repository;
 
+    setUpAll(() {
+      // Register fallback values for Mocktail
+      registerFallbackValue(FakeJokeSchedule());
+      registerFallbackValue(FakeJokeScheduleBatch());
+    });
+
     setUp(() {
-      TestHelpers.resetAllMocks();
-      repository = JokeScheduleMocks.mockRepository;
+      repository = MockJokeScheduleRepository();
     });
 
     group('watchSchedules', () {
       test('returns stream of schedules', () async {
         // Arrange
-        final testSchedules = JokeScheduleMocks.createTestSchedules();
+        final testSchedules = createTestSchedules();
         when(
           () => repository.watchSchedules(),
         ).thenAnswer((_) => Stream.value(testSchedules));
@@ -65,9 +121,7 @@ void main() {
       test('returns stream of batches for specific schedule', () async {
         // Arrange
         const scheduleId = 'test_schedule';
-        final testBatches = JokeScheduleMocks.createTestBatches(
-          scheduleId: scheduleId,
-        );
+        final testBatches = createTestBatches(scheduleId: scheduleId);
         when(
           () => repository.watchBatchesForSchedule(scheduleId),
         ).thenAnswer((_) => Stream.value(testBatches));
@@ -133,7 +187,7 @@ void main() {
     group('updateBatch', () {
       test('updates batch successfully', () async {
         // Arrange
-        final testBatch = JokeScheduleMocks.createTestBatch();
+        final testBatch = createTestBatch();
         when(() => repository.updateBatch(testBatch)).thenAnswer((_) async {});
 
         // Act
@@ -145,7 +199,7 @@ void main() {
 
       test('handles update errors', () async {
         // Arrange
-        final testBatch = JokeScheduleMocks.createTestBatch();
+        final testBatch = createTestBatch();
         when(
           () => repository.updateBatch(testBatch),
         ).thenThrow(Exception('Update failed'));

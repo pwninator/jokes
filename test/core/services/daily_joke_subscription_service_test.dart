@@ -1,13 +1,69 @@
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
+import 'package:snickerdoodle/src/core/services/notification_service.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
+import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
 
-import '../../test_helpers/core_mocks.dart';
-import '../../test_helpers/firebase_mocks.dart';
+// Mock classes
+class MockSettingsService extends Mock implements SettingsService {}
+
+class MockFirebaseMessaging extends Mock implements FirebaseMessaging {}
+
+class MockNotificationService extends Mock implements NotificationService {}
+
+class MockDailyJokeSubscriptionService extends Mock
+    implements DailyJokeSubscriptionService {}
+
+class FakeSettingsService implements SettingsService {
+  final Map<String, dynamic> _storage = {};
+
+  @override
+  String? getString(String key) => _storage[key] as String?;
+
+  @override
+  Future<void> setString(String key, String value) async =>
+      _storage[key] = value;
+
+  @override
+  int? getInt(String key) => _storage[key] as int?;
+
+  @override
+  Future<void> setInt(String key, int value) async => _storage[key] = value;
+
+  @override
+  bool? getBool(String key) => _storage[key] as bool?;
+
+  @override
+  Future<void> setBool(String key, bool value) async => _storage[key] = value;
+
+  @override
+  double? getDouble(String key) => _storage[key] as double?;
+
+  @override
+  Future<void> setDouble(String key, double value) async =>
+      _storage[key] = value;
+
+  @override
+  List<String>? getStringList(String key) => _storage[key] as List<String>?;
+
+  @override
+  Future<void> setStringList(String key, List<String> value) async =>
+      _storage[key] = value;
+
+  @override
+  bool containsKey(String key) => _storage.containsKey(key);
+
+  @override
+  Future<void> remove(String key) async => _storage.remove(key);
+
+  @override
+  Future<void> clear() async => _storage.clear();
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -35,99 +91,149 @@ void main() {
   });
 
   group('SubscriptionNotifier', () {
-    late ProviderContainer container;
+    late MockSettingsService mockSettingsService;
+    late MockDailyJokeSubscriptionService mockSubscriptionService;
+    late MockNotificationService mockNotificationService;
 
-    setUp(() async {
-      CoreMocks.reset();
-      FirebaseMocks.reset();
-      // Create container with overrides
-      container = ProviderContainer(
-        overrides: [
-          ...CoreMocks.getCoreProviderOverrides(),
-          ...FirebaseMocks.getFirebaseProviderOverrides(),
-          // Override remote config so tests don't touch Firebase
-          remoteConfigValuesProvider.overrideWithValue(
-            _TestRCValues(
-              threshold: JokeConstants.subscriptionPromptJokesViewedThreshold,
-            ),
-          ),
-        ],
-      );
+    setUpAll(() {
+      registerFallbackValue(FakeSettingsService());
     });
 
-    tearDown(() {
-      container.dispose();
+    setUp(() {
+      mockSettingsService = MockSettingsService();
+      mockSubscriptionService = MockDailyJokeSubscriptionService();
+      mockNotificationService = MockNotificationService();
+
+      // Setup default behavior for settings service
+      when(() => mockSettingsService.getBool(any())).thenReturn(null);
+      when(() => mockSettingsService.getInt(any())).thenReturn(null);
+      when(
+        () => mockSettingsService.setBool(any(), any()),
+      ).thenAnswer((_) async {});
+      when(
+        () => mockSettingsService.setInt(any(), any()),
+      ).thenAnswer((_) async {});
+      when(() => mockSettingsService.containsKey(any())).thenReturn(false);
+
+      // Setup default behavior for subscription service
+      when(
+        () => mockSubscriptionService.ensureSubscriptionSync(
+          unsubscribeOthers: any(named: 'unsubscribeOthers'),
+        ),
+      ).thenAnswer((_) async => true);
+
+      // Setup default behavior for notification service
+      when(
+        () => mockNotificationService.requestNotificationPermissions(),
+      ).thenAnswer((_) async => true);
     });
 
     group('Initial state', () {
       test('should load default state when no preferences exist', () {
+        // Create container with fresh mocks
+        final container = ProviderContainer(
+          overrides: [
+            settingsServiceProvider.overrideWithValue(mockSettingsService),
+            dailyJokeSubscriptionServiceProvider.overrideWithValue(
+              mockSubscriptionService,
+            ),
+            notificationServiceProvider.overrideWithValue(
+              mockNotificationService,
+            ),
+          ],
+        );
+
         final notifier = container.read(subscriptionProvider.notifier);
         final state = container.read(subscriptionProvider);
 
         expect(state.isSubscribed, isFalse);
         expect(state.hour, equals(9)); // Default hour
         expect(notifier.hasUserMadeChoice(), isFalse);
+
+        container.dispose();
       });
 
       test('should load existing preferences', () async {
         // Set up existing preferences
-        await CoreMocks.mockSettingsService.setBool(
-          'daily_jokes_subscribed',
-          true,
-        );
-        await CoreMocks.mockSettingsService.setInt(
-          'daily_jokes_subscribed_hour',
-          14,
-        );
+        when(
+          () => mockSettingsService.getBool('daily_jokes_subscribed'),
+        ).thenReturn(true);
+        when(
+          () => mockSettingsService.getInt('daily_jokes_subscribed_hour'),
+        ).thenReturn(14);
+        when(
+          () => mockSettingsService.containsKey('daily_jokes_subscribed'),
+        ).thenReturn(true);
 
-        // Create new container to reload state
-        final newContainer = ProviderContainer(
+        // Create container with fresh mocks
+        final container = ProviderContainer(
           overrides: [
-            ...CoreMocks.getCoreProviderOverrides(),
-            ...FirebaseMocks.getFirebaseProviderOverrides(),
+            settingsServiceProvider.overrideWithValue(mockSettingsService),
+            dailyJokeSubscriptionServiceProvider.overrideWithValue(
+              mockSubscriptionService,
+            ),
+            notificationServiceProvider.overrideWithValue(
+              mockNotificationService,
+            ),
           ],
         );
 
-        final state = newContainer.read(subscriptionProvider);
-        final notifier = newContainer.read(subscriptionProvider.notifier);
+        final state = container.read(subscriptionProvider);
+        final notifier = container.read(subscriptionProvider.notifier);
 
         expect(state.isSubscribed, isTrue);
         expect(state.hour, equals(14));
         expect(notifier.hasUserMadeChoice(), isTrue);
 
-        newContainer.dispose();
+        container.dispose();
       });
 
       test('should apply default hour for invalid stored hour', () async {
         // Set up invalid hour
-        await CoreMocks.mockSettingsService.setBool(
-          'daily_jokes_subscribed',
-          true,
-        );
-        await CoreMocks.mockSettingsService.setInt(
-          'daily_jokes_subscribed_hour',
-          -1,
-        );
+        when(
+          () => mockSettingsService.getBool('daily_jokes_subscribed'),
+        ).thenReturn(true);
+        when(
+          () => mockSettingsService.getInt('daily_jokes_subscribed_hour'),
+        ).thenReturn(-1);
 
-        // Create new container to reload state
-        final newContainer = ProviderContainer(
+        // Create container with fresh mocks
+        final container = ProviderContainer(
           overrides: [
-            ...CoreMocks.getCoreProviderOverrides(),
-            ...FirebaseMocks.getFirebaseProviderOverrides(),
+            settingsServiceProvider.overrideWithValue(mockSettingsService),
+            dailyJokeSubscriptionServiceProvider.overrideWithValue(
+              mockSubscriptionService,
+            ),
+            notificationServiceProvider.overrideWithValue(
+              mockNotificationService,
+            ),
           ],
         );
 
-        final state = newContainer.read(subscriptionProvider);
+        final state = container.read(subscriptionProvider);
 
         expect(state.isSubscribed, isTrue);
         expect(state.hour, equals(9)); // Should default to 9
 
-        newContainer.dispose();
+        container.dispose();
       });
     });
 
     group('State mutations', () {
       test('should update subscription status and trigger sync', () async {
+        // Create container with fresh mocks
+        final container = ProviderContainer(
+          overrides: [
+            settingsServiceProvider.overrideWithValue(mockSettingsService),
+            dailyJokeSubscriptionServiceProvider.overrideWithValue(
+              mockSubscriptionService,
+            ),
+            notificationServiceProvider.overrideWithValue(
+              mockNotificationService,
+            ),
+          ],
+        );
+
         final notifier = container.read(subscriptionProvider.notifier);
 
         // Initially false
@@ -137,18 +243,36 @@ void main() {
         await notifier.setSubscribed(true);
 
         expect(container.read(subscriptionProvider).isSubscribed, isTrue);
-        expect(
-          CoreMocks.mockSettingsService.getBool('daily_jokes_subscribed'),
-          isTrue,
-        );
+
+        // Verify settings service was called
         verify(
-          () => CoreMocks.mockSubscriptionService.ensureSubscriptionSync(
+          () => mockSettingsService.setBool('daily_jokes_subscribed', true),
+        ).called(1);
+
+        // Verify subscription service sync was called (once on init, once on change)
+        verify(
+          () => mockSubscriptionService.ensureSubscriptionSync(
             unsubscribeOthers: any(named: 'unsubscribeOthers'),
           ),
-        ).called(2); // Once on init, once on change
+        ).called(2);
+
+        container.dispose();
       });
 
       test('should update hour and trigger sync', () async {
+        // Create container with fresh mocks
+        final container = ProviderContainer(
+          overrides: [
+            settingsServiceProvider.overrideWithValue(mockSettingsService),
+            dailyJokeSubscriptionServiceProvider.overrideWithValue(
+              mockSubscriptionService,
+            ),
+            notificationServiceProvider.overrideWithValue(
+              mockNotificationService,
+            ),
+          ],
+        );
+
         final notifier = container.read(subscriptionProvider.notifier);
 
         // Initially default hour
@@ -158,30 +282,63 @@ void main() {
         await notifier.setHour(14);
 
         expect(container.read(subscriptionProvider).hour, equals(14));
-        expect(
-          CoreMocks.mockSettingsService.getInt('daily_jokes_subscribed_hour'),
-          equals(14),
-        );
+
+        // Verify settings service was called
         verify(
-          () => CoreMocks.mockSubscriptionService.ensureSubscriptionSync(
+          () => mockSettingsService.setInt('daily_jokes_subscribed_hour', 14),
+        ).called(1);
+
+        // Verify subscription service sync was called (once on init, once on change)
+        verify(
+          () => mockSubscriptionService.ensureSubscriptionSync(
             unsubscribeOthers: any(named: 'unsubscribeOthers'),
           ),
-        ).called(2); // Once on init, once on change
+        ).called(2);
+
+        container.dispose();
       });
 
       test('startup sync should not unsubscribe others', () async {
+        // Create container with fresh mocks
+        final container = ProviderContainer(
+          overrides: [
+            settingsServiceProvider.overrideWithValue(mockSettingsService),
+            dailyJokeSubscriptionServiceProvider.overrideWithValue(
+              mockSubscriptionService,
+            ),
+            notificationServiceProvider.overrideWithValue(
+              mockNotificationService,
+            ),
+          ],
+        );
+
         // Force provider instantiation to trigger constructor sync
         container.read(subscriptionProvider.notifier);
 
         // Verify it was called with unsubscribeOthers: false
         verify(
-          () => CoreMocks.mockSubscriptionService.ensureSubscriptionSync(
+          () => mockSubscriptionService.ensureSubscriptionSync(
             unsubscribeOthers: false,
           ),
         ).called(1);
+
+        container.dispose();
       });
 
       test('should reject invalid hours', () async {
+        // Create container with fresh mocks
+        final container = ProviderContainer(
+          overrides: [
+            settingsServiceProvider.overrideWithValue(mockSettingsService),
+            dailyJokeSubscriptionServiceProvider.overrideWithValue(
+              mockSubscriptionService,
+            ),
+            notificationServiceProvider.overrideWithValue(
+              mockNotificationService,
+            ),
+          ],
+        );
+
         final notifier = container.read(subscriptionProvider.notifier);
         final originalHour = container.read(subscriptionProvider).hour;
 
@@ -194,9 +351,24 @@ void main() {
 
         await notifier.setHour(25);
         expect(container.read(subscriptionProvider).hour, equals(originalHour));
+
+        container.dispose();
       });
 
       test('should unsubscribe correctly', () async {
+        // Create container with fresh mocks
+        final container = ProviderContainer(
+          overrides: [
+            settingsServiceProvider.overrideWithValue(mockSettingsService),
+            dailyJokeSubscriptionServiceProvider.overrideWithValue(
+              mockSubscriptionService,
+            ),
+            notificationServiceProvider.overrideWithValue(
+              mockNotificationService,
+            ),
+          ],
+        );
+
         final notifier = container.read(subscriptionProvider.notifier);
 
         // First subscribe
@@ -206,27 +378,54 @@ void main() {
         // Then unsubscribe
         await notifier.unsubscribe();
         expect(container.read(subscriptionProvider).isSubscribed, isFalse);
-        expect(
-          CoreMocks.mockSettingsService.getBool('daily_jokes_subscribed'),
-          isFalse,
-        );
+
+        // Verify settings service was called
+        verify(
+          () => mockSettingsService.setBool('daily_jokes_subscribed', false),
+        ).called(1);
+
+        container.dispose();
       });
     });
 
     group('Permission handling', () {
       test('should handle successful subscription with permission', () async {
+        // Create container with fresh mocks
+        final container = ProviderContainer(
+          overrides: [
+            settingsServiceProvider.overrideWithValue(mockSettingsService),
+            dailyJokeSubscriptionServiceProvider.overrideWithValue(
+              mockSubscriptionService,
+            ),
+            notificationServiceProvider.overrideWithValue(
+              mockNotificationService,
+            ),
+          ],
+        );
+
         final notifier = container.read(subscriptionProvider.notifier);
 
-        // Mock successful permission
-        // Note: We can't easily mock NotificationService here since it's created internally
-        // In a real implementation, you'd inject NotificationService as a dependency
-
-        // For now, we'll test the state changes that should happen
+        // Test the state changes that should happen
         await notifier.setSubscribed(true);
         expect(container.read(subscriptionProvider).isSubscribed, isTrue);
+
+        container.dispose();
       });
 
       test('should set hour during subscription with permission', () async {
+        // Create container with fresh mocks
+        final container = ProviderContainer(
+          overrides: [
+            settingsServiceProvider.overrideWithValue(mockSettingsService),
+            dailyJokeSubscriptionServiceProvider.overrideWithValue(
+              mockSubscriptionService,
+            ),
+            notificationServiceProvider.overrideWithValue(
+              mockNotificationService,
+            ),
+          ],
+        );
+
         final notifier = container.read(subscriptionProvider.notifier);
 
         // Set hour first
@@ -240,37 +439,84 @@ void main() {
           container.read(subscriptionProvider).hour,
           equals(15),
         ); // Hour should be preserved
+
+        container.dispose();
       });
     });
 
     group('Convenience providers', () {
       test('isSubscribedProvider should return correct value', () async {
+        // Create container with fresh mocks
+        final container = ProviderContainer(
+          overrides: [
+            settingsServiceProvider.overrideWithValue(mockSettingsService),
+            dailyJokeSubscriptionServiceProvider.overrideWithValue(
+              mockSubscriptionService,
+            ),
+            notificationServiceProvider.overrideWithValue(
+              mockNotificationService,
+            ),
+          ],
+        );
+
         expect(container.read(isSubscribedProvider), isFalse);
 
         await container.read(subscriptionProvider.notifier).setSubscribed(true);
         expect(container.read(isSubscribedProvider), isTrue);
+
+        container.dispose();
       });
 
       test('subscriptionHourProvider should return correct value', () async {
+        // Create container with fresh mocks
+        final container = ProviderContainer(
+          overrides: [
+            settingsServiceProvider.overrideWithValue(mockSettingsService),
+            dailyJokeSubscriptionServiceProvider.overrideWithValue(
+              mockSubscriptionService,
+            ),
+            notificationServiceProvider.overrideWithValue(
+              mockNotificationService,
+            ),
+          ],
+        );
+
         expect(container.read(subscriptionHourProvider), equals(9));
 
         await container.read(subscriptionProvider.notifier).setHour(14);
         expect(container.read(subscriptionHourProvider), equals(14));
+
+        container.dispose();
       });
     });
   });
 
   group('DailyJokeSubscriptionServiceImpl', () {
+    late MockSettingsService mockSettingsService;
+    late MockFirebaseMessaging mockFirebaseMessaging;
     late DailyJokeSubscriptionServiceImpl service;
 
     setUp(() async {
-      CoreMocks.reset();
-      FirebaseMocks.reset();
       SharedPreferences.setMockInitialValues({});
 
+      mockSettingsService = MockSettingsService();
+      mockFirebaseMessaging = MockFirebaseMessaging();
+
+      // Setup default behavior for settings service
+      when(() => mockSettingsService.getBool(any())).thenReturn(null);
+      when(() => mockSettingsService.getInt(any())).thenReturn(null);
+
+      // Setup default behavior for Firebase messaging
+      when(
+        () => mockFirebaseMessaging.subscribeToTopic(any()),
+      ).thenAnswer((_) async {});
+      when(
+        () => mockFirebaseMessaging.unsubscribeFromTopic(any()),
+      ).thenAnswer((_) async {});
+
       service = DailyJokeSubscriptionServiceImpl(
-        settingsService: CoreMocks.mockSettingsService,
-        firebaseMessaging: FirebaseMocks.mockFirebaseMessaging,
+        settingsService: mockSettingsService,
+        firebaseMessaging: mockFirebaseMessaging,
       );
     });
 
@@ -281,55 +527,45 @@ void main() {
         expect(result, isTrue);
 
         // Verify no subscribe calls (not subscribed)
-        verifyNever(
-          () => FirebaseMocks.mockFirebaseMessaging.subscribeToTopic(any()),
-        );
+        verifyNever(() => mockFirebaseMessaging.subscribeToTopic(any()));
         // Should unsubscribe from all topics to clean up (default unsubscribeOthers=true)
         verify(
-          () => FirebaseMocks.mockFirebaseMessaging.unsubscribeFromTopic(any()),
+          () => mockFirebaseMessaging.unsubscribeFromTopic(any()),
         ).called(greaterThan(0));
       });
 
       test('should handle subscribed state with valid hour', () async {
-        await CoreMocks.mockSettingsService.setBool(
-          'daily_jokes_subscribed',
-          true,
-        );
-        await CoreMocks.mockSettingsService.setInt(
-          'daily_jokes_subscribed_hour',
-          14,
-        );
+        when(
+          () => mockSettingsService.getBool('daily_jokes_subscribed'),
+        ).thenReturn(true);
+        when(
+          () => mockSettingsService.getInt('daily_jokes_subscribed_hour'),
+        ).thenReturn(14);
 
         final result = await service.ensureSubscriptionSync();
         expect(result, isTrue);
 
         // Should subscribe to the correct topic
-        verify(
-          () => FirebaseMocks.mockFirebaseMessaging.subscribeToTopic(any()),
-        ).called(1);
+        verify(() => mockFirebaseMessaging.subscribeToTopic(any())).called(1);
         // Should unsubscribe from other topics (default unsubscribeOthers=true)
         verify(
-          () => FirebaseMocks.mockFirebaseMessaging.unsubscribeFromTopic(any()),
+          () => mockFirebaseMessaging.unsubscribeFromTopic(any()),
         ).called(greaterThan(0));
       });
 
       test('should handle subscribed state with invalid hour', () async {
-        await CoreMocks.mockSettingsService.setBool(
-          'daily_jokes_subscribed',
-          true,
-        );
-        await CoreMocks.mockSettingsService.setInt(
-          'daily_jokes_subscribed_hour',
-          -1,
-        );
+        when(
+          () => mockSettingsService.getBool('daily_jokes_subscribed'),
+        ).thenReturn(true);
+        when(
+          () => mockSettingsService.getInt('daily_jokes_subscribed_hour'),
+        ).thenReturn(-1);
 
         final result = await service.ensureSubscriptionSync();
         expect(result, isTrue);
 
         // Should subscribe with default hour (9)
-        verify(
-          () => FirebaseMocks.mockFirebaseMessaging.subscribeToTopic(any()),
-        ).called(1);
+        verify(() => mockFirebaseMessaging.subscribeToTopic(any())).called(1);
       });
     });
 
@@ -346,14 +582,12 @@ void main() {
         'should debounce rapid calls and cancel previous operations',
         () async {
           // Set up subscription to trigger sync operations
-          await CoreMocks.mockSettingsService.setBool(
-            'daily_jokes_subscribed',
-            true,
-          );
-          await CoreMocks.mockSettingsService.setInt(
-            'daily_jokes_subscribed_hour',
-            14,
-          );
+          when(
+            () => mockSettingsService.getBool('daily_jokes_subscribed'),
+          ).thenReturn(true);
+          when(
+            () => mockSettingsService.getInt('daily_jokes_subscribed_hour'),
+          ).thenReturn(14);
 
           // Start operations in rapid succession
           final future1 = service.ensureSubscriptionSync();
@@ -370,26 +604,21 @@ void main() {
           expect(results[2], isTrue); // Executed successfully
 
           // Verify Firebase operations were called only once (for the successful operation)
+          verify(() => mockFirebaseMessaging.subscribeToTopic(any())).called(1);
           verify(
-            () => FirebaseMocks.mockFirebaseMessaging.subscribeToTopic(any()),
-          ).called(1);
-          verify(
-            () =>
-                FirebaseMocks.mockFirebaseMessaging.unsubscribeFromTopic(any()),
+            () => mockFirebaseMessaging.unsubscribeFromTopic(any()),
           ).called(greaterThan(0));
         },
       );
 
       test('should debounce rapid calls with proper timing', () async {
         // Set up subscription
-        await CoreMocks.mockSettingsService.setBool(
-          'daily_jokes_subscribed',
-          true,
-        );
-        await CoreMocks.mockSettingsService.setInt(
-          'daily_jokes_subscribed_hour',
-          14,
-        );
+        when(
+          () => mockSettingsService.getBool('daily_jokes_subscribed'),
+        ).thenReturn(true);
+        when(
+          () => mockSettingsService.getInt('daily_jokes_subscribed_hour'),
+        ).thenReturn(14);
 
         final stopwatch = Stopwatch()..start();
 
@@ -415,14 +644,12 @@ void main() {
 
       test('should handle cancellation during different phases', () async {
         // Test that operations can be cancelled at various points
-        await CoreMocks.mockSettingsService.setBool(
-          'daily_jokes_subscribed',
-          true,
-        );
-        await CoreMocks.mockSettingsService.setInt(
-          'daily_jokes_subscribed_hour',
-          14,
-        );
+        when(
+          () => mockSettingsService.getBool('daily_jokes_subscribed'),
+        ).thenReturn(true);
+        when(
+          () => mockSettingsService.getInt('daily_jokes_subscribed_hour'),
+        ).thenReturn(14);
 
         // Start operations with small delays to test cancellation at different phases
         service.ensureSubscriptionSync();
@@ -446,17 +673,52 @@ void main() {
   });
 
   group('SubscriptionPromptNotifier (threshold logic)', () {
-    late ProviderContainer container;
+    late MockSettingsService mockSettingsService;
+    late MockDailyJokeSubscriptionService mockSubscriptionService;
+    late MockNotificationService mockNotificationService;
 
     setUp(() async {
-      CoreMocks.reset();
-      FirebaseMocks.reset();
       SharedPreferences.setMockInitialValues({});
 
-      container = ProviderContainer(
+      mockSettingsService = MockSettingsService();
+      mockSubscriptionService = MockDailyJokeSubscriptionService();
+      mockNotificationService = MockNotificationService();
+
+      // Setup default behavior for settings service
+      when(() => mockSettingsService.getBool(any())).thenReturn(null);
+      when(() => mockSettingsService.getInt(any())).thenReturn(null);
+      when(() => mockSettingsService.containsKey(any())).thenReturn(false);
+      when(
+        () => mockSettingsService.setBool(any(), any()),
+      ).thenAnswer((_) async {});
+      when(
+        () => mockSettingsService.setInt(any(), any()),
+      ).thenAnswer((_) async {});
+
+      // Setup default behavior for subscription service
+      when(
+        () => mockSubscriptionService.ensureSubscriptionSync(
+          unsubscribeOthers: any(named: 'unsubscribeOthers'),
+        ),
+      ).thenAnswer((_) async => true);
+
+      // Setup default behavior for notification service
+      when(
+        () => mockNotificationService.requestNotificationPermissions(),
+      ).thenAnswer((_) async => true);
+    });
+
+    test('does not show prompt below threshold', () async {
+      // Create container with fresh mocks
+      final container = ProviderContainer(
         overrides: [
-          ...CoreMocks.getCoreProviderOverrides(),
-          ...FirebaseMocks.getFirebaseProviderOverrides(),
+          settingsServiceProvider.overrideWithValue(mockSettingsService),
+          dailyJokeSubscriptionServiceProvider.overrideWithValue(
+            mockSubscriptionService,
+          ),
+          notificationServiceProvider.overrideWithValue(
+            mockNotificationService,
+          ),
           // Override remote config so tests don't touch Firebase
           remoteConfigValuesProvider.overrideWithValue(
             _TestRCValues(
@@ -465,13 +727,7 @@ void main() {
           ),
         ],
       );
-    });
 
-    tearDown(() {
-      container.dispose();
-    });
-
-    test('does not show prompt below threshold', () async {
       final notifier = container.read(subscriptionPromptProvider.notifier);
 
       notifier.considerPromptAfterJokeViewed(
@@ -480,9 +736,30 @@ void main() {
 
       final state = container.read(subscriptionPromptProvider);
       expect(state.shouldShowPrompt, isFalse);
+
+      container.dispose();
     });
 
     test('shows prompt at or above threshold', () async {
+      // Create container with fresh mocks
+      final container = ProviderContainer(
+        overrides: [
+          settingsServiceProvider.overrideWithValue(mockSettingsService),
+          dailyJokeSubscriptionServiceProvider.overrideWithValue(
+            mockSubscriptionService,
+          ),
+          notificationServiceProvider.overrideWithValue(
+            mockNotificationService,
+          ),
+          // Override remote config so tests don't touch Firebase
+          remoteConfigValuesProvider.overrideWithValue(
+            _TestRCValues(
+              threshold: JokeConstants.subscriptionPromptJokesViewedThreshold,
+            ),
+          ),
+        ],
+      );
+
       final notifier = container.read(subscriptionPromptProvider.notifier);
 
       notifier.considerPromptAfterJokeViewed(
@@ -491,21 +768,29 @@ void main() {
 
       final state = container.read(subscriptionPromptProvider);
       expect(state.shouldShowPrompt, isTrue);
+
+      container.dispose();
     });
 
     test('does not show prompt if user already made a choice', () async {
       // Mark that user already made a choice (preference exists)
-      await CoreMocks.mockSettingsService.setBool(
-        'daily_jokes_subscribed',
-        false,
-      );
+      when(
+        () => mockSettingsService.getBool('daily_jokes_subscribed'),
+      ).thenReturn(false);
+      when(
+        () => mockSettingsService.containsKey('daily_jokes_subscribed'),
+      ).thenReturn(true);
 
-      // Recreate container so SubscriptionPromptNotifier initializes from prefs
-      container.dispose();
-      container = ProviderContainer(
+      // Create container with fresh mocks
+      final container = ProviderContainer(
         overrides: [
-          ...CoreMocks.getCoreProviderOverrides(),
-          ...FirebaseMocks.getFirebaseProviderOverrides(),
+          settingsServiceProvider.overrideWithValue(mockSettingsService),
+          dailyJokeSubscriptionServiceProvider.overrideWithValue(
+            mockSubscriptionService,
+          ),
+          notificationServiceProvider.overrideWithValue(
+            mockNotificationService,
+          ),
           // Override remote config so tests don't touch Firebase
           remoteConfigValuesProvider.overrideWithValue(
             _TestRCValues(
@@ -526,17 +811,39 @@ void main() {
 
       final state = container.read(subscriptionPromptProvider);
       expect(state.shouldShowPrompt, isFalse);
+
+      container.dispose();
     });
 
     test('does not show prompt if user subscribed from settings screen', () async {
-      // Simulate user subscribing from settings screen by directly updating SharedPreferences
-      await CoreMocks.mockSettingsService.setBool(
-        'daily_jokes_subscribed',
-        true,
-      );
-      await CoreMocks.mockSettingsService.setInt(
-        'daily_jokes_subscribed_hour',
-        9,
+      // Simulate user subscribing from settings screen
+      when(
+        () => mockSettingsService.getBool('daily_jokes_subscribed'),
+      ).thenReturn(true);
+      when(
+        () => mockSettingsService.getInt('daily_jokes_subscribed_hour'),
+      ).thenReturn(9);
+      when(
+        () => mockSettingsService.containsKey('daily_jokes_subscribed'),
+      ).thenReturn(true);
+
+      // Create container with fresh mocks
+      final container = ProviderContainer(
+        overrides: [
+          settingsServiceProvider.overrideWithValue(mockSettingsService),
+          dailyJokeSubscriptionServiceProvider.overrideWithValue(
+            mockSubscriptionService,
+          ),
+          notificationServiceProvider.overrideWithValue(
+            mockNotificationService,
+          ),
+          // Override remote config so tests don't touch Firebase
+          remoteConfigValuesProvider.overrideWithValue(
+            _TestRCValues(
+              threshold: JokeConstants.subscriptionPromptJokesViewedThreshold,
+            ),
+          ),
+        ],
       );
 
       // Get the subscription notifier and update its state to reflect the subscription
@@ -560,6 +867,8 @@ void main() {
       expect(state.shouldShowPrompt, isFalse);
       expect(state.isSubscribed, isTrue);
       expect(state.hasUserMadeChoice, isTrue);
+
+      container.dispose();
     });
   });
 }

@@ -16,7 +16,18 @@ import 'package:snickerdoodle/src/startup/startup_tasks.dart';
 /// This widget uses the parent ProviderScope from main.dart, ensuring all
 /// providers initialized during startup are available to the App.
 class StartupOrchestrator extends ConsumerStatefulWidget {
-  const StartupOrchestrator({super.key});
+  const StartupOrchestrator({
+    super.key,
+    required this.criticalTasks,
+    required this.bestEffortTasks,
+    required this.backgroundTasks,
+    this.readyWidget,
+  });
+
+  final List<StartupTask> criticalTasks;
+  final List<StartupTask> bestEffortTasks;
+  final List<StartupTask> backgroundTasks;
+  final Widget? readyWidget;
 
   @override
   ConsumerState<StartupOrchestrator> createState() =>
@@ -26,10 +37,11 @@ class StartupOrchestrator extends ConsumerStatefulWidget {
 class _StartupOrchestratorState extends ConsumerState<StartupOrchestrator> {
   _StartupState _state = _StartupState.loading;
   int _completedTasks = 0;
+  ProviderContainer? _container;
 
   // Total tasks we track for progress (critical + best effort)
-  final int _totalTrackedTasks =
-      criticalBlockingTasks.length + bestEffortBlockingTasks.length;
+  int get _totalTrackedTasks =>
+      (widget.criticalTasks.length + widget.bestEffortTasks.length);
 
   @override
   void initState() {
@@ -39,9 +51,7 @@ class _StartupOrchestratorState extends ConsumerState<StartupOrchestrator> {
 
   /// Main startup sequence orchestration.
   Future<void> _runStartupSequence() async {
-    bool tasksStarted = false;
-    late final PerformanceService perfService;
-    var perfServiceInitialized = false;
+    final perfService = ref.read(performanceServiceProvider);
 
     try {
       if (!mounted) return;
@@ -50,25 +60,35 @@ class _StartupOrchestratorState extends ConsumerState<StartupOrchestrator> {
         _completedTasks = 0;
       });
 
-      // Read services from ref for all tasks
-      perfService = ref.read(performanceServiceProvider);
-      perfServiceInitialized = true;
       // Start performance trace for startup phase
       perfService.startNamedTrace(name: TraceName.startupOverallBlocking);
-      perfService.startNamedTrace(name: TraceName.startupOverallBackground);
 
       // Phase 1: Critical blocking tasks (with retry)
       AppLogger.debug('Starting critical tasks...');
-      await _runCriticalTasksWithRetry(perfService);
+      final overrides = await _runCriticalTasksWithRetry(perfService);
       AppLogger.debug('Critical tasks completed');
+
+      // Create a container that applies overrides for all subsequent work
+      if (!mounted) return;
+      _container = ProviderContainer(
+        parent: ProviderScope.containerOf(context),
+        overrides: overrides,
+      );
+
+      // Background trace starts now
+      perfService.startNamedTrace(name: TraceName.startupOverallBackground);
 
       // Phase 2: Best effort and background tasks (parallel)
       AppLogger.debug('Starting best effort and background tasks...');
-      final bestEffortFutures = bestEffortBlockingTasks
-          .map((task) => _runBestEffortTask(task, perfService))
+      final bestEffortFutures = widget.bestEffortTasks
+          .map(
+            (task) => _runBestEffortTask(task, _container!.read, perfService),
+          )
           .toList();
-      final backgroundFutures = backgroundTasks
-          .map((task) => _runBackgroundTask(task, perfService))
+      final backgroundFutures = widget.backgroundTasks
+          .map(
+            (task) => _runBackgroundTask(task, _container!.read, perfService),
+          )
           .toList();
 
       // Set up completion callback for background tasks
@@ -86,7 +106,6 @@ class _StartupOrchestratorState extends ConsumerState<StartupOrchestrator> {
               name: TraceName.startupOverallBackground,
             );
           });
-      tasksStarted = true;
 
       // Wait for best effort tasks with timeout (for UI progression)
       await Future.wait(bestEffortFutures).timeout(
@@ -122,12 +141,11 @@ class _StartupOrchestratorState extends ConsumerState<StartupOrchestrator> {
         _state = _StartupState.error;
       });
     } finally {
-      if (perfServiceInitialized) {
+      // Stop or drop traces as appropriate
+      try {
         perfService.stopNamedTrace(name: TraceName.startupOverallBlocking);
-        if (!tasksStarted) {
-          perfService.dropNamedTrace(name: TraceName.startupOverallBackground);
-        }
-      }
+        perfService.stopNamedTrace(name: TraceName.startupOverallBackground);
+      } catch (_) {}
     }
   }
 
@@ -136,18 +154,19 @@ class _StartupOrchestratorState extends ConsumerState<StartupOrchestrator> {
   /// Each task is retried up to 3 times on failure. Only failed tasks are
   /// retried, not successful ones. Traces cover all retries and only complete
   /// on success or after 3 failures.
-  Future<void> _runCriticalTasksWithRetry(
+  Future<List<Override>> _runCriticalTasksWithRetry(
     PerformanceService perfService,
   ) async {
     // Start traces for all critical tasks at the beginning
     // Each trace will measure from start until completion (including retries)
-    for (final task in criticalBlockingTasks) {
+    for (final task in widget.criticalTasks) {
       perfService.startNamedTrace(name: task.traceName);
     }
 
     const maxRetries = 3;
     final failedTasks = <StartupTask>[];
-    final tasksToRun = List<StartupTask>.from(criticalBlockingTasks);
+    final tasksToRun = List<StartupTask>.from(widget.criticalTasks);
+    final accumulatedOverrides = <Override>[];
 
     try {
       for (int attempt = 1; attempt <= maxRetries; attempt++) {
@@ -157,13 +176,13 @@ class _StartupOrchestratorState extends ConsumerState<StartupOrchestrator> {
         final results = await Future.wait(
           tasksToRun.map((task) async {
             try {
-              await task.execute(ref);
+              final overrides = await task.execute(ref.read);
               _incrementProgress();
               AppLogger.debug('Startup Critical Task completed: ${task.id}');
 
               // Stop trace on success
               perfService.stopNamedTrace(name: task.traceName);
-              return _TaskResult(task, success: true);
+              return _TaskResult(task, success: true, overrides: overrides);
             } catch (e, stackTrace) {
               if (attempt == maxRetries) {
                 AppLogger.fatal(
@@ -192,12 +211,14 @@ class _StartupOrchestratorState extends ConsumerState<StartupOrchestrator> {
         for (final result in results) {
           if (!result.success) {
             failedTasks.add(result.task);
+          } else if (result.overrides != null && result.overrides!.isNotEmpty) {
+            accumulatedOverrides.addAll(result.overrides!);
           }
         }
 
         // If all succeeded, we're done
         if (failedTasks.isEmpty) {
-          return;
+          return accumulatedOverrides;
         }
 
         // If this was the last attempt, throw
@@ -217,11 +238,14 @@ class _StartupOrchestratorState extends ConsumerState<StartupOrchestrator> {
       }
     } catch (e) {
       // Ensure any remaining traces are stopped on unexpected error
-      for (final task in criticalBlockingTasks) {
+      for (final task in widget.criticalTasks) {
         perfService.stopNamedTrace(name: task.traceName);
       }
       rethrow;
     }
+    // Should never reach here; keep analyzer happy
+    // by returning collected overrides if loop exits unexpectedly
+    return accumulatedOverrides;
   }
 
   /// Run a best effort task.
@@ -229,12 +253,13 @@ class _StartupOrchestratorState extends ConsumerState<StartupOrchestrator> {
   /// Failures are logged to crashlytics but don't prevent startup.
   Future<void> _runBestEffortTask(
     StartupTask task,
+    StartupReader runRead,
     PerformanceService perfService,
   ) async {
     perfService.startNamedTrace(name: task.traceName);
 
     try {
-      await task.execute(ref);
+      await task.execute(runRead);
       _incrementProgress();
       AppLogger.debug('Startup Best effort task completed: ${task.id}');
 
@@ -255,12 +280,13 @@ class _StartupOrchestratorState extends ConsumerState<StartupOrchestrator> {
   /// Failures are logged to crashlytics but don't prevent startup.
   Future<void> _runBackgroundTask(
     StartupTask task,
+    StartupReader runRead,
     PerformanceService perfService,
   ) async {
     perfService.startNamedTrace(name: task.traceName);
 
     try {
-      await task.execute(ref);
+      await task.execute(runRead);
       AppLogger.debug('Startup Background task completed: ${task.id}');
 
       perfService.stopNamedTrace(name: task.traceName);
@@ -285,19 +311,26 @@ class _StartupOrchestratorState extends ConsumerState<StartupOrchestrator> {
 
   @override
   Widget build(BuildContext context) {
-    switch (_state) {
-      case _StartupState.loading:
-        return LoadingScreen(
-          completed: _completedTasks,
-          total: _totalTrackedTasks,
-        );
+    final content = () {
+      switch (_state) {
+        case _StartupState.loading:
+          return LoadingScreen(
+            completed: _completedTasks,
+            total: _totalTrackedTasks,
+          );
 
-      case _StartupState.error:
-        return ErrorScreen(onRetry: _runStartupSequence);
+        case _StartupState.error:
+          return ErrorScreen(onRetry: _runStartupSequence);
 
-      case _StartupState.ready:
-        return const App();
+        case _StartupState.ready:
+          return widget.readyWidget ?? const App();
+      }
+    }();
+
+    if (_container != null) {
+      return UncontrolledProviderScope(container: _container!, child: content);
     }
+    return content;
   }
 }
 
@@ -306,10 +339,17 @@ enum _StartupState { loading, error, ready }
 
 /// Result of a task execution (used internally for retry logic).
 class _TaskResult {
-  _TaskResult(this.task, {required this.success, this.error, this.stackTrace});
+  _TaskResult(
+    this.task, {
+    required this.success,
+    this.error,
+    this.stackTrace,
+    this.overrides,
+  });
 
   final StartupTask task;
   final bool success;
   final Object? error;
   final String? stackTrace;
+  final List<Override>? overrides;
 }

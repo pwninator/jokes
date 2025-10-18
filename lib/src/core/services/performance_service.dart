@@ -40,6 +40,7 @@ enum TraceName {
   startupOverallBlocking,
   startupOverallBackground,
   startupTaskEmulators,
+  startupTaskFirebase,
   startupTaskSharedPrefs,
   startupTaskRemoteConfig,
   startupTaskAuth,
@@ -85,6 +86,8 @@ extension TraceNameWire on TraceName {
         return 'startup_overall_background';
       case TraceName.startupTaskEmulators:
         return 'startup_task_emulators';
+      case TraceName.startupTaskFirebase:
+        return 'startup_task_firebase';
       case TraceName.startupTaskSharedPrefs:
         return 'startup_task_shared_prefs';
       case TraceName.startupTaskRemoteConfig:

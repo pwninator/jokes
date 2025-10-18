@@ -8,8 +8,6 @@ import 'package:snickerdoodle/src/core/data/repositories/feedback_repository.dar
 import 'package:snickerdoodle/src/core/providers/feedback_providers.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_feedback_screen.dart';
 
-import '../../../test_helpers/firebase_mocks.dart';
-
 class _MockFeedbackRepository extends Mock implements FeedbackRepository {}
 
 class MockGoRouter extends Mock implements GoRouter {}
@@ -41,10 +39,7 @@ void main() {
 
   Widget createWidget() {
     return ProviderScope(
-      overrides: [
-        feedbackRepositoryProvider.overrideWithValue(repo),
-        ...FirebaseMocks.getFirebaseProviderOverrides(),
-      ],
+      overrides: [feedbackRepositoryProvider.overrideWithValue(repo)],
       child: MaterialApp(
         home: InheritedGoRouter(
           goRouter: mockGoRouter,
@@ -255,7 +250,6 @@ void main() {
               ),
             ),
           ),
-          ...FirebaseMocks.getFirebaseProviderOverrides(),
         ],
         child: MaterialApp(
           home: InheritedGoRouter(

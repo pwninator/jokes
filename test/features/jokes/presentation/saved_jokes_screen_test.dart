@@ -1,26 +1,130 @@
 import 'dart:async';
 
+import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:snickerdoodle/src/core/providers/app_version_provider.dart';
+import 'package:snickerdoodle/src/core/providers/connectivity_providers.dart';
+import 'package:snickerdoodle/src/core/providers/image_providers.dart';
+import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
+import 'package:snickerdoodle/src/core/services/image_service.dart';
+import 'package:snickerdoodle/src/core/services/notification_service.dart';
 import 'package:snickerdoodle/src/core/services/performance_service.dart';
+import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
+import 'package:snickerdoodle/src/data/core/app/firebase_providers.dart';
 import 'package:snickerdoodle/src/data/core/database/app_database.dart';
 import 'package:snickerdoodle/src/data/jokes/category_interactions_repository.dart';
 import 'package:snickerdoodle/src/data/jokes/joke_interactions_repository.dart';
+import 'package:snickerdoodle/src/data/reviews/reviews_repository.dart';
+import 'package:snickerdoodle/src/features/jokes/application/joke_population_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_service.dart';
+import 'package:snickerdoodle/src/features/jokes/application/joke_search_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
+import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
+import 'package:snickerdoodle/src/features/jokes/domain/joke_search_result.dart';
 import 'package:snickerdoodle/src/features/jokes/presentation/saved_jokes_screen.dart';
-
-import '../../../test_helpers/firebase_mocks.dart';
+import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
 
 class MockJokeRepository extends Mock implements JokeRepository {}
 
 class MockJokeReactionsService extends Mock implements JokeReactionsService {}
 
-class _MockPerf extends Mock implements PerformanceService {}
+// Additional mock classes for Firebase and core services
+class MockSettingsService extends Mock implements SettingsService {}
+
+class MockImageService extends Mock implements ImageService {}
+
+class MockNotificationService extends Mock implements NotificationService {}
+
+class MockDailyJokeSubscriptionService extends Mock
+    implements DailyJokeSubscriptionService {}
+
+class MockReviewsRepository extends Mock implements ReviewsRepository {}
+
+class MockJokeCloudFunctionService extends Mock
+    implements JokeCloudFunctionService {}
+
+// Fake Firebase classes for testing (only what's actually needed)
+class FakeFirebaseAnalytics extends Fake implements FirebaseAnalytics {}
+
+// Test implementations
+class _TestRemoteConfigValues implements RemoteConfigValues {
+  @override
+  bool getBool(RemoteParam param) {
+    if (param == RemoteParam.defaultJokeViewerReveal) {
+      return true;
+    }
+    return false;
+  }
+
+  @override
+  double getDouble(RemoteParam param) => 0;
+
+  @override
+  int getInt(RemoteParam param) {
+    final descriptor = remoteParams[param]!;
+    return descriptor.defaultInt ?? 0;
+  }
+
+  @override
+  String getString(RemoteParam param) => '';
+
+  @override
+  T getEnum<T>(RemoteParam param) {
+    final descriptor = remoteParams[param]!;
+    return (descriptor.enumDefault ?? '') as T;
+  }
+}
+
+class _TestNoopPerformanceService implements PerformanceService {
+  @override
+  void startNamedTrace({
+    required TraceName name,
+    String? key,
+    Map<String, String>? attributes,
+  }) {}
+
+  @override
+  void putNamedTraceAttributes({
+    required TraceName name,
+    String? key,
+    required Map<String, String> attributes,
+  }) {}
+
+  @override
+  void stopNamedTrace({required TraceName name, String? key}) {}
+
+  @override
+  void dropNamedTrace({required TraceName name, String? key}) {}
+}
+
+/// Test joke population notifier that doesn't require Firebase
+class TestJokePopulationNotifier extends JokePopulationNotifier {
+  TestJokePopulationNotifier() : super(MockJokeCloudFunctionService());
+
+  @override
+  Future<bool> populateJoke(
+    String jokeId, {
+    bool imagesOnly = false,
+    Map<String, dynamic>? additionalParams,
+  }) async {
+    return true;
+  }
+
+  @override
+  void clearError() {
+    state = state.copyWith(error: null);
+  }
+
+  @override
+  bool isJokePopulating(String jokeId) {
+    return false;
+  }
+}
 
 // Test repository that properly handles streams
 class _TestInteractionsRepo extends JokeInteractionsRepository {
@@ -55,6 +159,12 @@ void main() {
   late MockJokeRepository mockRepository;
   late MockJokeReactionsService mockReactionsService;
 
+  setUpAll(() {
+    registerFallbackValue(MatchMode.tight);
+    registerFallbackValue(SearchScope.userJokeSearch);
+    registerFallbackValue(SearchLabel.none);
+  });
+
   setUp(() {
     mockRepository = MockJokeRepository();
     mockReactionsService = MockJokeReactionsService();
@@ -65,28 +175,147 @@ void main() {
   });
 
   ProviderContainer createContainer({List<Override> overrides = const []}) {
-    return ProviderContainer(
-      overrides: FirebaseMocks.getFirebaseProviderOverrides(
-        additionalOverrides: [
-          jokeRepositoryProvider.overrideWithValue(mockRepository),
-          jokeReactionsServiceProvider.overrideWithValue(mockReactionsService),
-          // Override jokeInteractionsRepository to return working streams
-          jokeInteractionsRepositoryProvider.overrideWith((ref) {
-            return _TestInteractionsRepo(
-              db: AppDatabase.inMemory(),
-              perf: _MockPerf(),
-            );
-          }),
-          // Override categoryInteractionsRepository
-          categoryInteractionsRepositoryProvider.overrideWith((ref) {
-            return CategoryInteractionsRepository(
-              db: AppDatabase.inMemory(),
-              performanceService: _MockPerf(),
-            );
-          }),
-          ...overrides,
-        ],
+    final mockSettingsService = MockSettingsService();
+    final mockImageService = MockImageService();
+    final mockNotificationService = MockNotificationService();
+    final mockSubscriptionService = MockDailyJokeSubscriptionService();
+    final mockReviewsRepository = MockReviewsRepository();
+    final mockCloudFunctionService = MockJokeCloudFunctionService();
+
+    // Setup default behaviors for mocks
+    when(() => mockSettingsService.getBool(any())).thenReturn(null);
+    when(
+      () => mockSettingsService.setBool(any(), any()),
+    ).thenAnswer((_) async {});
+    when(() => mockSettingsService.getString(any())).thenReturn(null);
+    when(
+      () => mockSettingsService.setString(any(), any()),
+    ).thenAnswer((_) async {});
+    when(() => mockSettingsService.getInt(any())).thenReturn(null);
+    when(
+      () => mockSettingsService.setInt(any(), any()),
+    ).thenAnswer((_) async {});
+    when(() => mockSettingsService.getDouble(any())).thenReturn(null);
+    when(
+      () => mockSettingsService.setDouble(any(), any()),
+    ).thenAnswer((_) async {});
+    when(() => mockSettingsService.getStringList(any())).thenReturn(null);
+    when(
+      () => mockSettingsService.setStringList(any(), any()),
+    ).thenAnswer((_) async {});
+    when(() => mockSettingsService.containsKey(any())).thenReturn(false);
+    when(() => mockSettingsService.remove(any())).thenAnswer((_) async {});
+    when(() => mockSettingsService.clear()).thenAnswer((_) async {});
+
+    when(() => mockImageService.isValidImageUrl(any())).thenReturn(true);
+    when(
+      () => mockImageService.processImageUrl(any()),
+    ).thenReturn('data:image/png;base64,test');
+    when(
+      () => mockImageService.getThumbnailUrl(any()),
+    ).thenReturn('data:image/png;base64,test');
+    when(
+      () => mockImageService.getFullSizeUrl(any()),
+    ).thenReturn('data:image/png;base64,test');
+    when(() => mockImageService.clearCache()).thenAnswer((_) async {});
+
+    when(() => mockNotificationService.initialize()).thenAnswer((_) async {});
+    when(
+      () => mockNotificationService.requestNotificationPermissions(),
+    ).thenAnswer((_) async => true);
+    when(
+      () => mockNotificationService.getFCMToken(),
+    ).thenAnswer((_) async => 'mock_fcm_token');
+
+    when(
+      () => mockSubscriptionService.ensureSubscriptionSync(
+        unsubscribeOthers: any(named: 'unsubscribeOthers'),
       ),
+    ).thenAnswer((_) async => true);
+
+    when(
+      () => mockReviewsRepository.recordAppReview(),
+    ).thenAnswer((_) async {});
+
+    when(
+      () => mockCloudFunctionService.createJokeWithResponse(
+        setupText: any(named: 'setupText'),
+        punchlineText: any(named: 'punchlineText'),
+        adminOwned: any(named: 'adminOwned'),
+        setupImageUrl: any(named: 'setupImageUrl'),
+        punchlineImageUrl: any(named: 'punchlineImageUrl'),
+      ),
+    ).thenAnswer((_) async => {'success': true, 'joke_id': 'test-id'});
+
+    when(
+      () => mockCloudFunctionService.populateJoke(
+        any(),
+        imagesOnly: any(named: 'imagesOnly'),
+        additionalParams: any(named: 'additionalParams'),
+      ),
+    ).thenAnswer((_) async => {'success': true, 'data': 'populated'});
+
+    when(
+      () => mockCloudFunctionService.searchJokes(
+        searchQuery: any(named: 'searchQuery'),
+        maxResults: any(named: 'maxResults'),
+        publicOnly: any(named: 'publicOnly'),
+        matchMode: any(named: 'matchMode'),
+        scope: any(named: 'scope'),
+        label: any(named: 'label'),
+      ),
+    ).thenAnswer((_) async => <JokeSearchResult>[]);
+
+    return ProviderContainer(
+      overrides: [
+        // Core service mocks
+        settingsServiceProvider.overrideWithValue(mockSettingsService),
+        imageServiceProvider.overrideWithValue(mockImageService),
+        notificationServiceProvider.overrideWithValue(mockNotificationService),
+        dailyJokeSubscriptionServiceProvider.overrideWithValue(
+          mockSubscriptionService,
+        ),
+        reviewsRepositoryProvider.overrideWithValue(mockReviewsRepository),
+        performanceServiceProvider.overrideWithValue(
+          _TestNoopPerformanceService(),
+        ),
+        appVersionProvider.overrideWith((_) async => 'Snickerdoodle v0.0.1+1'),
+        appDatabaseProvider.overrideWithValue(AppDatabase.inMemory()),
+
+        // Firebase mocks (only what's actually needed)
+        firebaseAnalyticsProvider.overrideWithValue(FakeFirebaseAnalytics()),
+        remoteConfigValuesProvider.overrideWithValue(_TestRemoteConfigValues()),
+        jokeCloudFunctionServiceProvider.overrideWithValue(
+          mockCloudFunctionService,
+        ),
+        jokePopulationProvider.overrideWith(
+          (ref) => TestJokePopulationNotifier(),
+        ),
+
+        // Connectivity
+        isOnlineProvider.overrideWith((ref) async* {
+          yield true;
+        }),
+
+        // Test-specific overrides
+        jokeRepositoryProvider.overrideWithValue(mockRepository),
+        jokeReactionsServiceProvider.overrideWithValue(mockReactionsService),
+        // Override jokeInteractionsRepository to return working streams
+        jokeInteractionsRepositoryProvider.overrideWith((ref) {
+          return _TestInteractionsRepo(
+            db: AppDatabase.inMemory(),
+            perf: _TestNoopPerformanceService(),
+          );
+        }),
+        // Override categoryInteractionsRepository
+        categoryInteractionsRepositoryProvider.overrideWith((ref) {
+          return CategoryInteractionsRepository(
+            db: AppDatabase.inMemory(),
+            performanceService: _TestNoopPerformanceService(),
+          );
+        }),
+        ...overrides,
+      ],
     );
   }
 

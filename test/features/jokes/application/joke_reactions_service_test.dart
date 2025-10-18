@@ -29,7 +29,7 @@ class _MockCategoryInteractionsService extends Mock
 class MockJokeInteractionsService extends Mock
     implements JokeInteractionsRepository {}
 
-class FakeBuildContext extends Fake implements BuildContext {
+class _FakeBuildContext extends Fake implements BuildContext {
   @override
   bool get mounted => true;
 }
@@ -37,6 +37,7 @@ class FakeBuildContext extends Fake implements BuildContext {
 void main() {
   setUpAll(() {
     registerFallbackValue(ReviewRequestSource.jokeViewed);
+    registerFallbackValue(_FakeBuildContext());
   });
 
   group('JokeReactionsService', () {

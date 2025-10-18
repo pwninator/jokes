@@ -1,83 +1,104 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/app_review_service.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:snickerdoodle/src/core/services/review_prompt_state_store.dart';
+import 'package:snickerdoodle/src/data/reviews/reviews_repository.dart';
 
-import '../../test_helpers/analytics_mocks.dart';
-import '../../test_helpers/core_mocks.dart';
+// Mock classes for AppReviewService dependencies
+class MockNativeReviewAdapter extends Mock implements NativeReviewAdapter {}
 
-class _MockNativeReviewAdapter extends Mock implements NativeReviewAdapter {}
+class MockReviewPromptStateStore extends Mock
+    implements ReviewPromptStateStore {}
 
-class _MockStateStore extends Mock implements ReviewPromptStateStore {}
+class MockAnalyticsService extends Mock implements AnalyticsService {}
+
+class MockReviewsRepository extends Mock implements ReviewsRepository {}
 
 void main() {
-  late _MockNativeReviewAdapter native;
-  late MockAnalyticsService analytics;
-  late AppReviewService service;
-  late _MockStateStore store;
-
   setUpAll(() {
+    // Register fallback values for mocktail
     registerFallbackValue(ReviewRequestSource.adminTest);
-    registerAnalyticsFallbackValues();
   });
 
-  setUp(() {
-    AnalyticsMocks.reset();
+  late MockNativeReviewAdapter mockNativeAdapter;
+  late MockReviewPromptStateStore mockStateStore;
+  late MockAnalyticsService mockAnalyticsService;
+  late MockReviewsRepository mockReviewsRepository;
+  late AppReviewService service;
 
-    native = _MockNativeReviewAdapter();
-    analytics = AnalyticsMocks.mockAnalyticsService;
-    store = _MockStateStore();
+  setUp(() {
+    // Create fresh mocks per test
+    mockNativeAdapter = MockNativeReviewAdapter();
+    mockStateStore = MockReviewPromptStateStore();
+    mockAnalyticsService = MockAnalyticsService();
+    mockReviewsRepository = MockReviewsRepository();
+
+    // Create service with mocked dependencies
     service = AppReviewService(
-      nativeAdapter: native,
-      stateStore: store,
+      nativeAdapter: mockNativeAdapter,
+      stateStore: mockStateStore,
       getReviewPromptVariant: () => ReviewPromptVariant.bunny,
-      analyticsService: analytics,
-      reviewsRepository: CoreMocks.mockReviewsRepository,
+      analyticsService: mockAnalyticsService,
+      reviewsRepository: mockReviewsRepository,
     );
 
-    // Mock successful analytics calls by default
+    // Setup default successful behaviors
     when(
-      () => analytics.logAppReviewAttempt(
+      () => mockAnalyticsService.logAppReviewAttempt(
         source: any(named: 'source'),
         variant: any(named: 'variant'),
       ),
     ).thenAnswer((_) async {});
+
     when(
-      () => analytics.logAppReviewAccepted(
+      () => mockAnalyticsService.logAppReviewAccepted(
         source: any(named: 'source'),
         variant: any(named: 'variant'),
       ),
     ).thenAnswer((_) async {});
+
     when(
-      () => analytics.logAppReviewDeclined(
+      () => mockAnalyticsService.logAppReviewDeclined(
         source: any(named: 'source'),
         variant: any(named: 'variant'),
       ),
     ).thenAnswer((_) async {});
+
     when(
-      () => analytics.logErrorAppReviewAvailability(
+      () => mockAnalyticsService.logErrorAppReviewAvailability(
         source: any(named: 'source'),
         errorMessage: any(named: 'errorMessage'),
       ),
     ).thenAnswer((_) async {});
+
     when(
-      () => analytics.logErrorAppReviewRequest(
+      () => mockAnalyticsService.logErrorAppReviewRequest(
         source: any(named: 'source'),
         errorMessage: any(named: 'errorMessage'),
       ),
+    ).thenAnswer((_) async {});
+
+    when(
+      () => mockReviewsRepository.recordAppReview(),
     ).thenAnswer((_) async {});
   });
 
   group('AppReviewService', () {
     group('isAvailable', () {
       test('returns true when native is available', () async {
-        when(() => native.isAvailable()).thenAnswer((_) async => true);
-        expect(await service.isAvailable(), isTrue);
-        verify(() => native.isAvailable()).called(1);
+        when(
+          () => mockNativeAdapter.isAvailable(),
+        ).thenAnswer((_) async => true);
+
+        final result = await service.isAvailable();
+
+        expect(result, isTrue);
+        verify(() => mockNativeAdapter.isAvailable()).called(1);
         verifyNever(
-          () => analytics.logErrorAppReviewAvailability(
+          () => mockAnalyticsService.logErrorAppReviewAvailability(
             source: any(named: 'source'),
             errorMessage: any(named: 'errorMessage'),
           ),
@@ -85,11 +106,16 @@ void main() {
       });
 
       test('returns false and logs analytics when native throws', () async {
-        when(() => native.isAvailable()).thenThrow(Exception('boom'));
-        expect(await service.isAvailable(), isFalse);
-        verify(() => native.isAvailable()).called(1);
+        when(
+          () => mockNativeAdapter.isAvailable(),
+        ).thenThrow(Exception('boom'));
+
+        final result = await service.isAvailable();
+
+        expect(result, isFalse);
+        verify(() => mockNativeAdapter.isAvailable()).called(1);
         verify(
-          () => analytics.logErrorAppReviewAvailability(
+          () => mockAnalyticsService.logErrorAppReviewAvailability(
             source: 'service',
             errorMessage: 'app_review_is_available_failed',
           ),
@@ -101,8 +127,10 @@ void main() {
       testWidgets('returns notAvailable when API not available', (
         tester,
       ) async {
-        when(() => native.isAvailable()).thenAnswer((_) async => false);
-        when(() => store.hasRequested()).thenAnswer((_) => false);
+        when(
+          () => mockNativeAdapter.isAvailable(),
+        ).thenAnswer((_) async => false);
+        when(() => mockStateStore.hasRequested()).thenAnswer((_) => false);
 
         await tester.pumpWidget(
           MaterialApp(
@@ -126,9 +154,9 @@ void main() {
         await tester.tap(find.text('Test'));
         await tester.pumpAndSettle();
 
-        verify(() => native.isAvailable()).called(1);
+        verify(() => mockNativeAdapter.isAvailable()).called(1);
         verifyNever(
-          () => analytics.logAppReviewAttempt(
+          () => mockAnalyticsService.logAppReviewAttempt(
             source: any(named: 'source'),
             variant: any(named: 'variant'),
           ),
@@ -136,10 +164,12 @@ void main() {
       });
 
       testWidgets('shows dialog and processes accept', (tester) async {
-        when(() => native.isAvailable()).thenAnswer((_) async => true);
-        when(() => store.hasRequested()).thenAnswer((_) => false);
-        when(() => native.requestReview()).thenAnswer((_) async {});
-        when(() => store.markRequested()).thenAnswer((_) async {});
+        when(
+          () => mockNativeAdapter.isAvailable(),
+        ).thenAnswer((_) async => true);
+        when(() => mockStateStore.hasRequested()).thenAnswer((_) => false);
+        when(() => mockNativeAdapter.requestReview()).thenAnswer((_) async {});
+        when(() => mockStateStore.markRequested()).thenAnswer((_) async {});
 
         ReviewRequestResult? result;
 
@@ -179,25 +209,27 @@ void main() {
 
         expect(result, ReviewRequestResult.shown);
         verifyInOrder([
-          () => native.isAvailable(),
-          () => store.hasRequested(),
-          () => store.markRequested(),
-          () => analytics.logAppReviewAttempt(
+          () => mockNativeAdapter.isAvailable(),
+          () => mockStateStore.hasRequested(),
+          () => mockStateStore.markRequested(),
+          () => mockAnalyticsService.logAppReviewAttempt(
             source: 'joke_viewed',
             variant: 'bunny',
           ),
-          () => analytics.logAppReviewAccepted(
+          () => mockAnalyticsService.logAppReviewAccepted(
             source: 'joke_viewed',
             variant: 'bunny',
           ),
-          () => native.requestReview(),
+          () => mockNativeAdapter.requestReview(),
         ]);
       });
 
       testWidgets('shows dialog and processes decline', (tester) async {
-        when(() => native.isAvailable()).thenAnswer((_) async => true);
-        when(() => store.hasRequested()).thenAnswer((_) => false);
-        when(() => store.markRequested()).thenAnswer((_) async {});
+        when(
+          () => mockNativeAdapter.isAvailable(),
+        ).thenAnswer((_) async => true);
+        when(() => mockStateStore.hasRequested()).thenAnswer((_) => false);
+        when(() => mockStateStore.markRequested()).thenAnswer((_) async {});
 
         ReviewRequestResult? result;
 
@@ -241,27 +273,29 @@ void main() {
 
         expect(result, ReviewRequestResult.dismissed);
         verifyInOrder([
-          () => native.isAvailable(),
-          () => store.hasRequested(),
-          () => store.markRequested(),
-          () => analytics.logAppReviewAttempt(
+          () => mockNativeAdapter.isAvailable(),
+          () => mockStateStore.hasRequested(),
+          () => mockStateStore.markRequested(),
+          () => mockAnalyticsService.logAppReviewAttempt(
             source: 'joke_saved',
             variant: 'bunny',
           ),
-          () => analytics.logAppReviewDeclined(
+          () => mockAnalyticsService.logAppReviewDeclined(
             source: 'joke_saved',
             variant: 'bunny',
           ),
         ]);
-        verifyNever(() => native.requestReview());
+        verifyNever(() => mockNativeAdapter.requestReview());
       });
 
       testWidgets(
         'handles feedback intent by dismissing and not calling native review',
         (tester) async {
-          when(() => native.isAvailable()).thenAnswer((_) async => true);
-          when(() => store.hasRequested()).thenAnswer((_) => false);
-          when(() => store.markRequested()).thenAnswer((_) async {});
+          when(
+            () => mockNativeAdapter.isAvailable(),
+          ).thenAnswer((_) async => true);
+          when(() => mockStateStore.hasRequested()).thenAnswer((_) => false);
+          when(() => mockStateStore.markRequested()).thenAnswer((_) async {});
 
           await tester.pumpWidget(
             MaterialApp(
@@ -294,21 +328,23 @@ void main() {
           await tester.pumpAndSettle();
 
           // Ensure no native review was requested
-          verify(() => native.isAvailable()).called(1);
-          verify(() => store.hasRequested()).called(1);
-          verify(() => store.markRequested()).called(1);
-          verifyNever(() => native.requestReview());
+          verify(() => mockNativeAdapter.isAvailable()).called(1);
+          verify(() => mockStateStore.hasRequested()).called(1);
+          verify(() => mockStateStore.markRequested()).called(1);
+          verifyNever(() => mockNativeAdapter.requestReview());
         },
       );
 
       testWidgets('does not prompt again after user dismisses on first call', (
         tester,
       ) async {
-        when(() => native.isAvailable()).thenAnswer((_) async => true);
-        when(() => store.markRequested()).thenAnswer((_) async {});
+        when(
+          () => mockNativeAdapter.isAvailable(),
+        ).thenAnswer((_) async => true);
+        when(() => mockStateStore.markRequested()).thenAnswer((_) async {});
 
         // First call: not requested yet
-        when(() => store.hasRequested()).thenAnswer((_) => false);
+        when(() => mockStateStore.hasRequested()).thenAnswer((_) => false);
 
         ReviewRequestResult? firstResult;
         ReviewRequestResult? secondResult;
@@ -348,7 +384,7 @@ void main() {
         );
 
         // Update mock: after markRequested is called, hasRequested should return true
-        when(() => store.hasRequested()).thenAnswer((_) => true);
+        when(() => mockStateStore.hasRequested()).thenAnswer((_) => true);
 
         // User dismisses the dialog
         await tester.tap(
@@ -365,13 +401,13 @@ void main() {
         expect(secondResult, ReviewRequestResult.notAvailable);
 
         // Verify markRequested was only called once (during first request)
-        verify(() => store.markRequested()).called(1);
+        verify(() => mockStateStore.markRequested()).called(1);
 
         // Verify hasRequested was called twice (once per requestReview call)
-        verify(() => store.hasRequested()).called(2);
+        verify(() => mockStateStore.hasRequested()).called(2);
 
         // Native review should never be called since user dismissed
-        verifyNever(() => native.requestReview());
+        verifyNever(() => mockNativeAdapter.requestReview());
       });
     });
   });

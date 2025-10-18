@@ -5,6 +5,7 @@ import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/providers/settings_providers.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
@@ -104,7 +105,7 @@ const List<StartupTask> backgroundTasks = [
 // ============================================================================
 
 /// Initialize Firebase and configure emulators in debug mode.
-Future<void> _initializeEmulators(WidgetRef ref) async {
+Future<List<Override>> _initializeEmulators(StartupReader read) async {
   // ignore: dead_code
   if (kDebugMode && useEmulatorInDebugMode) {
     final isPhysicalDevice = await DeviceUtils.isPhysicalDevice;
@@ -119,12 +120,14 @@ Future<void> _initializeEmulators(WidgetRef ref) async {
       }
     }
   }
+  return const [];
 }
 
 /// Initialize SharedPreferences
-Future<void> _initializeSharedPreferences(WidgetRef ref) async {
+Future<List<Override>> _initializeSharedPreferences(StartupReader read) async {
   try {
-    await ref.read(sharedPreferencesProvider.future);
+    final prefs = await SharedPreferences.getInstance();
+    return [sharedPreferencesProvider.overrideWith((ref) async => prefs)];
   } catch (e, stack) {
     AppLogger.fatal(
       'SharedPreferences initialization failed: $e',
@@ -135,13 +138,12 @@ Future<void> _initializeSharedPreferences(WidgetRef ref) async {
 }
 
 /// Initialize Drift database and warm up service
-Future<void> _initializeDrift(WidgetRef ref) async {
+Future<List<Override>> _initializeDrift(StartupReader read) async {
   try {
     // Resolving the provider initializes DB and warms it up
     await AppDatabase.initialize();
-
-    // Verify the database is initialized
-    ref.read(appDatabaseProvider);
+    final db = AppDatabase.instance;
+    return [appDatabaseProvider.overrideWithValue(db)];
   } catch (e, stack) {
     AppLogger.fatal(
       'Drift database initialization failed: $e',
@@ -152,9 +154,9 @@ Future<void> _initializeDrift(WidgetRef ref) async {
 }
 
 /// Initialize Remote Config (fetch and activate).
-Future<void> _initializeRemoteConfig(WidgetRef ref) async {
+Future<List<Override>> _initializeRemoteConfig(StartupReader read) async {
   try {
-    final service = ref.read(remoteConfigServiceProvider);
+    final service = read(remoteConfigServiceProvider);
     await service.initialize();
   } catch (e, stack) {
     AppLogger.fatal(
@@ -162,12 +164,13 @@ Future<void> _initializeRemoteConfig(WidgetRef ref) async {
       stackTrace: stack,
     );
   }
+  return const [];
 }
 
 /// Initialize auth startup manager (background auth state sync).
-Future<void> _initializeAuth(WidgetRef ref) async {
+Future<List<Override>> _initializeAuth(StartupReader read) async {
   try {
-    final manager = ref.read(authStartupManagerProvider);
+    final manager = read(authStartupManagerProvider);
     manager.start();
   } catch (e, stack) {
     AppLogger.fatal(
@@ -175,12 +178,13 @@ Future<void> _initializeAuth(WidgetRef ref) async {
       stackTrace: stack,
     );
   }
+  return const [];
 }
 
 /// Initialize analytics service.
-Future<void> _initializeAnalytics(WidgetRef ref) async {
+Future<List<Override>> _initializeAnalytics(StartupReader read) async {
   try {
-    final service = ref.read(analyticsServiceProvider);
+    final service = read(analyticsServiceProvider);
     await service.initialize();
 
     // User properties will be set automatically when auth state changes
@@ -188,12 +192,13 @@ Future<void> _initializeAnalytics(WidgetRef ref) async {
   } catch (e, stack) {
     AppLogger.fatal('Analytics initialization failed: $e', stackTrace: stack);
   }
+  return const [];
 }
 
 /// Log app usage for analytics.
-Future<void> _initializeAppUsage(WidgetRef ref) async {
+Future<List<Override>> _initializeAppUsage(StartupReader read) async {
   try {
-    final service = ref.read(appUsageServiceProvider);
+    final service = read(appUsageServiceProvider);
 
     // Fire and forget
     unawaited(
@@ -204,22 +209,24 @@ Future<void> _initializeAppUsage(WidgetRef ref) async {
   } catch (e, stack) {
     AppLogger.fatal('App usage logging failed: $e', stackTrace: stack);
   }
+  return const [];
 }
 
 /// Migrate legacy SharedPreferences reactions to Drift database if needed.
-Future<void> _migrateReactionsToDrift(WidgetRef ref) async {
+Future<List<Override>> _migrateReactionsToDrift(StartupReader read) async {
   try {
-    final service = ref.read(jokeReactionsMigrationServiceProvider);
+    final service = read(jokeReactionsMigrationServiceProvider);
     await service.migrateIfNeeded();
   } catch (e, stack) {
     AppLogger.fatal('Reactions migration task failed: $e', stackTrace: stack);
   }
+  return const [];
 }
 
 /// Initialize notification service.
-Future<void> _initializeNotifications(WidgetRef ref) async {
+Future<List<Override>> _initializeNotifications(StartupReader read) async {
   try {
-    final notificationService = ref.read(notificationServiceProvider);
+    final notificationService = read(notificationServiceProvider);
     await notificationService.initialize();
   } catch (e, stack) {
     AppLogger.fatal(
@@ -227,4 +234,5 @@ Future<void> _initializeNotifications(WidgetRef ref) async {
       stackTrace: stack,
     );
   }
+  return const [];
 }

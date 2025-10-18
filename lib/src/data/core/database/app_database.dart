@@ -10,7 +10,9 @@ part 'app_database.g.dart';
 
 @Riverpod(keepAlive: true)
 AppDatabase appDatabase(Ref ref) {
-  return AppDatabase.instance;
+  throw StateError(
+    'AppDatabase must be overridden. If this is a data repository test, you should override with an in-memory database. If this is a test of a higher level component, you should mock the repository/service instead.',
+  );
 }
 
 // Drift table for joke interactions

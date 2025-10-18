@@ -6,7 +6,7 @@ part of 'firebase_providers.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$firebaseFirestoreHash() => r'da44e0544482927855093596d84cb41842b27214';
+String _$firebaseFirestoreHash() => r'40b2aa3908e200e906fcc191e040fb009c98209a';
 
 /// See also [firebaseFirestore].
 @ProviderFor(firebaseFirestore)
@@ -24,7 +24,7 @@ final firebaseFirestoreProvider = Provider<FirebaseFirestore>.internal(
 // ignore: unused_element
 typedef FirebaseFirestoreRef = ProviderRef<FirebaseFirestore>;
 String _$firebasePerformanceHash() =>
-    r'424a90010351b72716dd51817227bd62397bf3d6';
+    r'b61f82d3b0ad449e807dec73ce35e7cd243dac99';
 
 /// See also [firebasePerformance].
 @ProviderFor(firebasePerformance)
@@ -41,7 +41,7 @@ final firebasePerformanceProvider = Provider<FirebasePerformance>.internal(
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef FirebasePerformanceRef = ProviderRef<FirebasePerformance>;
-String _$firebaseAnalyticsHash() => r'50223a2a038fe07ae55006344e88f86923613e7d';
+String _$firebaseAnalyticsHash() => r'031917d11321e4943a3f59a657b4c484b299942d';
 
 /// See also [firebaseAnalytics].
 @ProviderFor(firebaseAnalytics)
@@ -58,7 +58,7 @@ final firebaseAnalyticsProvider = Provider<FirebaseAnalytics>.internal(
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef FirebaseAnalyticsRef = ProviderRef<FirebaseAnalytics>;
-String _$firebaseFunctionsHash() => r'737f18d437c049fc7d7ed3e05926956a88fd1768';
+String _$firebaseFunctionsHash() => r'89e93f711e4b6c7ad33a98cb6d1944d4b910e8da';
 
 /// See also [firebaseFunctions].
 @ProviderFor(firebaseFunctions)
@@ -76,7 +76,7 @@ final firebaseFunctionsProvider = Provider<FirebaseFunctions>.internal(
 // ignore: unused_element
 typedef FirebaseFunctionsRef = ProviderRef<FirebaseFunctions>;
 String _$firebaseRemoteConfigHash() =>
-    r'b77ccb5a415dded5f97912f191756d9103cc4faf';
+    r'0c8d40e960d75d4544ec4c40ada78d6a9840484e';
 
 /// See also [firebaseRemoteConfig].
 @ProviderFor(firebaseRemoteConfig)
@@ -93,7 +93,7 @@ final firebaseRemoteConfigProvider = Provider<FirebaseRemoteConfig>.internal(
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef FirebaseRemoteConfigRef = ProviderRef<FirebaseRemoteConfig>;
-String _$firebaseAuthHash() => r'cb440927c3ab863427fd4b052a8ccba4c024c863';
+String _$firebaseAuthHash() => r'f3d0afb8cb524824d84ac2af9bf8bdbebbae8c14';
 
 /// See also [firebaseAuth].
 @ProviderFor(firebaseAuth)
@@ -110,7 +110,7 @@ final firebaseAuthProvider = Provider<FirebaseAuth>.internal(
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef FirebaseAuthRef = ProviderRef<FirebaseAuth>;
-String _$firebaseMessagingHash() => r'1672e956b9febea725d18574f63c5ce88cefb132';
+String _$firebaseMessagingHash() => r'3a3e85c1a582e3505def837692a85ff670b3b76a';
 
 /// See also [firebaseMessaging].
 @ProviderFor(firebaseMessaging)
@@ -128,7 +128,7 @@ final firebaseMessagingProvider = Provider<FirebaseMessaging>.internal(
 // ignore: unused_element
 typedef FirebaseMessagingRef = ProviderRef<FirebaseMessaging>;
 String _$firebaseCrashlyticsHash() =>
-    r'ec3f4a67182053acbe6ec6a982a70fe6adbd1a3a';
+    r'0b39aeade0cfcac6f74f0a3ee2786a0f279142ca';
 
 /// See also [firebaseCrashlytics].
 @ProviderFor(firebaseCrashlytics)

@@ -8,15 +8,55 @@ import 'package:snickerdoodle/src/config/router/route_names.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/data/core/app/firebase_providers.dart';
 
-import '../../test_helpers/firebase_mocks.dart';
+// Mock classes for Firebase services
+class MockFirebaseAnalytics extends Mock implements FirebaseAnalytics {}
 
 void main() {
+  setUpAll(() {
+    // Register fallback values for mocktail
+    registerFallbackValue(
+      FirebaseAnalyticsObserver(analytics: MockFirebaseAnalytics()),
+    );
+  });
+
+  late MockFirebaseAnalytics mockAnalytics;
+
+  setUp(() {
+    // Create fresh mock per test
+    mockAnalytics = MockFirebaseAnalytics();
+
+    // Setup default behaviors for Firebase Analytics
+    when(
+      () => mockAnalytics.setDefaultEventParameters(any()),
+    ).thenAnswer((_) async {});
+    when(
+      () => mockAnalytics.setUserId(id: any(named: 'id')),
+    ).thenAnswer((_) async {});
+    when(
+      () => mockAnalytics.setUserProperty(
+        name: any(named: 'name'),
+        value: any(named: 'value'),
+      ),
+    ).thenAnswer((_) async {});
+    when(
+      () => mockAnalytics.logEvent(
+        name: any(named: 'name'),
+        parameters: any(named: 'parameters'),
+      ),
+    ).thenAnswer((_) async {});
+    when(
+      () => mockAnalytics.logScreenView(
+        screenName: any(named: 'screenName'),
+        screenClass: any(named: 'screenClass'),
+        parameters: any(named: 'parameters'),
+      ),
+    ).thenAnswer((_) async {});
+  });
+
   group('FirebaseAnalyticsObserver integration', () {
     testWidgets('logs screen_view on initial route and after navigation', (
       tester,
     ) async {
-      final mockAnalytics = FirebaseMocks.mockFirebaseAnalytics;
-
       final router = GoRouter(
         initialLocation: '/home',
         routes: [
@@ -57,7 +97,6 @@ void main() {
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
-            ...FirebaseMocks.getFirebaseProviderOverrides(),
             // Ensure our mock is used by the observer through provider
             firebaseAnalyticsProvider.overrideWithValue(mockAnalytics),
           ],

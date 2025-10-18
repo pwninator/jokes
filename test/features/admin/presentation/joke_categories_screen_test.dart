@@ -3,30 +3,97 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:snickerdoodle/src/features/admin/presentation/joke_categories_screen.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/providers/image_providers.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
+import 'package:snickerdoodle/src/core/services/performance_service.dart';
+import 'package:snickerdoodle/src/features/admin/presentation/joke_categories_screen.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_category_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_category.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_category_repository.dart';
-import '../../../test_helpers/firebase_mocks.dart';
 
-class _MockJokeCategoryRepository extends Mock
+class MockJokeCategoryRepository extends Mock
     implements JokeCategoryRepository {}
 
-class _MockImageService extends Mock implements ImageService {}
+class MockImageService extends Mock implements ImageService {}
 
-class _MockAnalyticsService extends Mock implements AnalyticsService {}
+class MockAnalyticsService extends Mock implements AnalyticsService {}
+
+class MockPerformanceService extends Mock implements PerformanceService {}
 
 void main() {
-  testWidgets('renders categories with and without images', (tester) async {
-    final repo = _MockJokeCategoryRepository();
-    final imageService = _MockImageService();
-    final analyticsService = _MockAnalyticsService();
+  setUpAll(() {
+    // Register fallback values for mocktail
+    registerFallbackValue(CategoryType.search);
+    registerFallbackValue(TraceName.fsRead);
+    registerFallbackValue(<String, String>{});
+  });
 
-    when(() => repo.watchCategories()).thenAnswer(
+  late MockJokeCategoryRepository mockRepository;
+  late MockImageService mockImageService;
+  late MockAnalyticsService mockAnalyticsService;
+  late MockPerformanceService mockPerformanceService;
+
+  setUp(() {
+    // Create fresh mocks per test
+    mockRepository = MockJokeCategoryRepository();
+    mockImageService = MockImageService();
+    mockAnalyticsService = MockAnalyticsService();
+    mockPerformanceService = MockPerformanceService();
+
+    // Stub default behavior
+    when(
+      () => mockRepository.watchCategories(),
+    ).thenAnswer((_) => Stream.value([]));
+    when(
+      () => mockImageService.getProcessedJokeImageUrl(
+        any(),
+        width: any(named: 'width'),
+      ),
+    ).thenReturn(null);
+    when(() => mockImageService.isValidImageUrl(any())).thenReturn(false);
+    when(
+      () => mockAnalyticsService.logErrorImageLoad(
+        jokeId: any(named: 'jokeId'),
+        imageType: any(named: 'imageType'),
+        imageUrlHash: any(named: 'imageUrlHash'),
+        errorMessage: any(named: 'errorMessage'),
+      ),
+    ).thenAnswer((_) async {});
+
+    // Stub performance service methods
+    when(
+      () => mockPerformanceService.startNamedTrace(
+        name: any(named: 'name'),
+        key: any(named: 'key'),
+        attributes: any(named: 'attributes'),
+      ),
+    ).thenReturn(null);
+    when(
+      () => mockPerformanceService.putNamedTraceAttributes(
+        name: any(named: 'name'),
+        key: any(named: 'key'),
+        attributes: any(named: 'attributes'),
+      ),
+    ).thenReturn(null);
+    when(
+      () => mockPerformanceService.stopNamedTrace(
+        name: any(named: 'name'),
+        key: any(named: 'key'),
+      ),
+    ).thenReturn(null);
+    when(
+      () => mockPerformanceService.dropNamedTrace(
+        name: any(named: 'name'),
+        key: any(named: 'key'),
+      ),
+    ).thenReturn(null);
+  });
+
+  testWidgets('renders categories with and without images', (tester) async {
+    // Arrange: Create test categories
+    when(() => mockRepository.watchCategories()).thenAnswer(
       (_) => Stream.value([
         JokeCategory(
           id: 'animal_jokes',
@@ -44,56 +111,33 @@ void main() {
         ),
       ]),
     );
-
-    // Prevent real network image loads by making processed URL null
-    when(
-      () => imageService.getProcessedJokeImageUrl(
-        any(),
-        width: any(named: 'width'),
-      ),
-    ).thenReturn(null);
-    when(() => imageService.isValidImageUrl(any())).thenReturn(false);
-    when(
-      () => analyticsService.logErrorImageLoad(
-        jokeId: any(named: 'jokeId'),
-        imageType: any(named: 'imageType'),
-        imageUrlHash: any(named: 'imageUrlHash'),
-        errorMessage: any(named: 'errorMessage'),
-      ),
-    ).thenAnswer((_) async {});
-
-    final container = ProviderContainer(
-      overrides: [
-        ...FirebaseMocks.getFirebaseProviderOverrides(),
-        jokeCategoryRepositoryProvider.overrideWithValue(repo),
-        imageServiceProvider.overrideWithValue(imageService),
-        analyticsServiceProvider.overrideWithValue(analyticsService),
-      ],
-    );
-    addTearDown(container.dispose);
-
     // Force portrait so AdaptiveAppBarScreen shows the title
     final originalSize = tester.view.physicalSize;
-    tester.view.physicalSize = const Size(600, 800);
     addTearDown(() => tester.view.physicalSize = originalSize);
+    tester.view.physicalSize = const Size(600, 800);
 
     await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
+      ProviderScope(
+        overrides: [
+          jokeCategoryRepositoryProvider.overrideWithValue(mockRepository),
+          imageServiceProvider.overrideWithValue(mockImageService),
+          analyticsServiceProvider.overrideWithValue(mockAnalyticsService),
+          performanceServiceProvider.overrideWithValue(mockPerformanceService),
+        ],
         child: const MaterialApp(home: JokeCategoriesScreen()),
       ),
     );
 
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 50));
+    await tester.pumpAndSettle();
 
+    // Assert: Should display categories
     expect(find.text('Joke Categories'), findsOneWidget);
     expect(find.text('Animal Jokes'), findsOneWidget);
 
     // Scroll to build the next item lazily (grid is scrollable)
     final scrollable = find.byType(Scrollable);
     await tester.drag(scrollable, const Offset(0, -400));
-    await tester.pump();
+    await tester.pumpAndSettle();
 
     expect(find.text('Seasonal'), findsOneWidget);
   });
@@ -101,12 +145,10 @@ void main() {
   testWidgets('navigates to category editor when tile is tapped', (
     tester,
   ) async {
-    final repo = _MockJokeCategoryRepository();
-    final imageService = _MockImageService();
-    final analyticsService = _MockAnalyticsService();
+    // Arrange: Create test category and mock router
     final mockGoRouter = MockGoRouter();
 
-    when(() => repo.watchCategories()).thenAnswer(
+    when(() => mockRepository.watchCategories()).thenAnswer(
       (_) => Stream.value([
         JokeCategory(
           id: 'test_category',
@@ -118,37 +160,6 @@ void main() {
       ]),
     );
 
-    when(
-      () => imageService.getProcessedJokeImageUrl(
-        any(),
-        width: any(named: 'width'),
-      ),
-    ).thenReturn(null);
-    when(() => imageService.isValidImageUrl(any())).thenReturn(false);
-    when(
-      () => analyticsService.logErrorImageLoad(
-        jokeId: any(named: 'jokeId'),
-        imageType: any(named: 'imageType'),
-        imageUrlHash: any(named: 'imageUrlHash'),
-        errorMessage: any(named: 'errorMessage'),
-      ),
-    ).thenAnswer((_) async {});
-
-    final container = ProviderContainer(
-      overrides: [
-        ...FirebaseMocks.getFirebaseProviderOverrides(),
-        jokeCategoryRepositoryProvider.overrideWithValue(repo),
-        imageServiceProvider.overrideWithValue(imageService),
-        analyticsServiceProvider.overrideWithValue(analyticsService),
-      ],
-    );
-    addTearDown(container.dispose);
-
-    // Force portrait so AdaptiveAppBarScreen shows the title
-    final originalSize = tester.view.physicalSize;
-    tester.view.physicalSize = const Size(600, 800);
-    addTearDown(() => tester.view.physicalSize = originalSize);
-
     // Stub pushNamed to return a Future
     when(
       () => mockGoRouter.pushNamed<Object?>(
@@ -159,9 +170,19 @@ void main() {
       ),
     ).thenAnswer((_) async => null);
 
+    // Force portrait so AdaptiveAppBarScreen shows the title
+    final originalSize = tester.view.physicalSize;
+    addTearDown(() => tester.view.physicalSize = originalSize);
+    tester.view.physicalSize = const Size(600, 800);
+
     await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
+      ProviderScope(
+        overrides: [
+          jokeCategoryRepositoryProvider.overrideWithValue(mockRepository),
+          imageServiceProvider.overrideWithValue(mockImageService),
+          analyticsServiceProvider.overrideWithValue(mockAnalyticsService),
+          performanceServiceProvider.overrideWithValue(mockPerformanceService),
+        ],
         child: MaterialApp(
           home: InheritedGoRouter(
             goRouter: mockGoRouter,
@@ -171,17 +192,16 @@ void main() {
       ),
     );
 
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 50));
+    await tester.pumpAndSettle();
 
-    // Find and tap the category tile
+    // Act: Find and tap the category tile
     final categoryTile = find.byType(InkWell);
     expect(categoryTile, findsOneWidget);
 
     await tester.tap(categoryTile);
     await tester.pump();
 
-    // Verify navigation was called with correct parameters
+    // Assert: Verify navigation was called with correct parameters
     verify(
       () => mockGoRouter.pushNamed<Object?>(
         'adminCategoryEditor',

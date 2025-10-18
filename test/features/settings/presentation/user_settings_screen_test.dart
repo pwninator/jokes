@@ -1,47 +1,163 @@
+import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
+import 'package:snickerdoodle/src/core/providers/app_usage_events_provider.dart';
+import 'package:snickerdoodle/src/core/providers/app_version_provider.dart';
+import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/app_review_service.dart';
+import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
+import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
+import 'package:snickerdoodle/src/core/services/notification_service.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:snickerdoodle/src/core/services/review_prompt_state_store.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
+import 'package:snickerdoodle/src/data/core/app/firebase_providers.dart';
+import 'package:snickerdoodle/src/data/reviews/reviews_repository.dart';
+import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
+import 'package:snickerdoodle/src/features/auth/data/models/app_user.dart';
+import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
+import 'package:snickerdoodle/src/features/settings/application/joke_viewer_settings_service.dart';
+import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
 import 'package:snickerdoodle/src/features/settings/presentation/user_settings_screen.dart';
 
-import '../../../test_helpers/test_helpers.dart';
+class FakeBuildContext extends Fake implements BuildContext {}
+
+// Mock classes
+class MockAnalyticsService extends Mock implements AnalyticsService {}
+
+class MockAppUsageService extends Mock implements AppUsageService {}
+
+class MockAppReviewService extends Mock implements AppReviewService {}
+
+class MockDailyJokeSubscriptionService extends Mock
+    implements DailyJokeSubscriptionService {}
+
+class MockRemoteConfigService extends Mock implements RemoteConfigService {}
+
+class MockSettingsService extends Mock implements SettingsService {}
+
+class MockReviewsRepository extends Mock implements ReviewsRepository {}
+
+class MockFirebaseAnalytics extends Mock implements FirebaseAnalytics {}
+
+class MockAuthController extends Mock implements AuthController {}
+
+class MockRemoteConfigValues extends Mock implements RemoteConfigValues {}
+
+class MockNotificationService extends Mock implements NotificationService {}
+
+// Fake classes for registerFallbackValue
+class FakeAppUser extends Fake implements AppUser {}
 
 void main() {
   setUpAll(() {
-    registerAnalyticsFallbackValues();
+    // Register fallback values for mocktail
+    registerFallbackValue(AppUser.anonymous('test-user-id'));
+    registerFallbackValue(JokeReactionType.save);
+    registerFallbackValue(Brightness.light);
+    registerFallbackValue(ReviewRequestSource.adminTest);
+    registerFallbackValue(FakeBuildContext());
+    registerFallbackValue(RemoteParam.defaultJokeViewerReveal);
   });
 
-  group('UserSettingsScreen Theme Settings', () {
-    setUp(() {
-      TestHelpers.resetAllMocks();
-    });
+  late MockAnalyticsService mockAnalyticsService;
+  late MockAppUsageService mockAppUsageService;
+  late MockAppReviewService mockAppReviewService;
+  late MockDailyJokeSubscriptionService mockSubscriptionService;
+  late MockRemoteConfigValues mockRemoteConfigValues;
+  late MockSettingsService mockSettingsService;
+  late MockReviewsRepository mockReviewsRepository;
+  late MockFirebaseAnalytics mockFirebaseAnalytics;
 
-    Widget createTestWidget({ThemeMode? initialThemeMode}) {
-      return ProviderScope(
-        overrides: [
-          ...TestHelpers.getAllMockOverrides(
-            testUser: TestHelpers.anonymousUser,
-          ),
-        ],
-        child: MaterialApp(
-          theme: lightTheme,
-          darkTheme: darkTheme,
-          home: Scaffold(
-            body: SingleChildScrollView(
-              child: SizedBox(
-                height: 1000, // Give enough height for content
-                child: const UserSettingsScreen(),
-              ),
+  setUp(() {
+    // Create fresh mocks per test
+    mockAnalyticsService = MockAnalyticsService();
+    mockAppUsageService = MockAppUsageService();
+    mockAppReviewService = MockAppReviewService();
+    mockSubscriptionService = MockDailyJokeSubscriptionService();
+    mockRemoteConfigValues = MockRemoteConfigValues();
+    mockSettingsService = MockSettingsService();
+    mockReviewsRepository = MockReviewsRepository();
+    mockFirebaseAnalytics = MockFirebaseAnalytics();
+
+    // Setup default behaviors
+    _setupAnalyticsServiceDefaults(mockAnalyticsService);
+    _setupAppUsageServiceDefaults(mockAppUsageService);
+    _setupAppReviewServiceDefaults(mockAppReviewService);
+    _setupSubscriptionServiceDefaults(mockSubscriptionService);
+    _setupRemoteConfigValuesDefaults(mockRemoteConfigValues);
+    _setupSettingsServiceDefaults(mockSettingsService);
+    _setupReviewsRepositoryDefaults(mockReviewsRepository);
+    _setupFirebaseAnalyticsDefaults(mockFirebaseAnalytics);
+  });
+
+  Widget createTestWidget({AppUser? testUser}) {
+    final user = testUser ?? AppUser.anonymous('test-user-id');
+
+    return ProviderScope(
+      overrides: [
+        // Analytics
+        firebaseAnalyticsProvider.overrideWithValue(mockFirebaseAnalytics),
+        analyticsServiceProvider.overrideWithValue(mockAnalyticsService),
+
+        // Auth
+        currentUserProvider.overrideWith((_) => user),
+        authControllerProvider.overrideWith((ref) => MockAuthController()),
+
+        // Settings
+        settingsServiceProvider.overrideWithValue(mockSettingsService),
+        jokeViewerRevealProvider.overrideWith(
+          (ref) => JokeViewerRevealNotifier(
+            JokeViewerSettingsService(
+              settingsService: mockSettingsService,
+              remoteConfigValues: mockRemoteConfigValues,
+              analyticsService: mockAnalyticsService,
             ),
           ),
         ),
-      );
-    }
 
+        // App usage
+        appUsageServiceProvider.overrideWithValue(mockAppUsageService),
+        appUsageEventsProvider.overrideWith((_) => 0),
+
+        // App version
+        appVersionProvider.overrideWith((_) async => 'Snickerdoodle v0.0.1+1'),
+
+        // Subscription
+        subscriptionProvider.overrideWith(
+          (ref) => SubscriptionNotifier(
+            mockSettingsService,
+            mockSubscriptionService,
+            MockNotificationService(),
+          ),
+        ),
+        dailyJokeSubscriptionServiceProvider.overrideWithValue(
+          mockSubscriptionService,
+        ),
+
+        // Review service
+        appReviewServiceProvider.overrideWithValue(mockAppReviewService),
+        reviewsRepositoryProvider.overrideWithValue(mockReviewsRepository),
+
+        // Remote config
+        remoteConfigValuesProvider.overrideWithValue(mockRemoteConfigValues),
+      ],
+      child: MaterialApp(
+        theme: lightTheme,
+        darkTheme: darkTheme,
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: SizedBox(height: 1000, child: const UserSettingsScreen()),
+          ),
+        ),
+      ),
+    );
+  }
+
+  group('UserSettingsScreen Theme Settings', () {
     group('Theme Settings UI', () {
       testWidgets('displays theme settings section', (tester) async {
         await tester.pumpWidget(createTestWidget());
@@ -106,7 +222,7 @@ void main() {
 
         // Verify the setting was saved
         verify(
-          () => CoreMocks.mockSettingsService.setString('theme_mode', 'light'),
+          () => mockSettingsService.setString('theme_mode', 'light'),
         ).called(1);
       });
 
@@ -120,12 +236,11 @@ void main() {
 
         // Verify the setting was saved
         verify(
-          () => CoreMocks.mockSettingsService.setString('theme_mode', 'dark'),
+          () => mockSettingsService.setString('theme_mode', 'dark'),
         ).called(1);
       });
 
       testWidgets('can select system theme', (tester) async {
-        final mockSettings = CoreMocks.mockSettingsService;
         // Start with a non-system theme by selecting Light first
         await tester.pumpWidget(createTestWidget());
         await tester.pumpAndSettle();
@@ -133,14 +248,18 @@ void main() {
         // Select Light to ensure current theme is not system
         await tester.tap(find.text('Always Light'));
         await tester.pumpAndSettle();
-        verify(() => mockSettings.setString('theme_mode', 'light')).called(1);
+        verify(
+          () => mockSettingsService.setString('theme_mode', 'light'),
+        ).called(1);
 
         // Now select System
         await tester.tap(find.text('Use System Setting'));
         await tester.pumpAndSettle();
 
         // Verify the setting was saved
-        verify(() => mockSettings.setString('theme_mode', 'system')).called(1);
+        verify(
+          () => mockSettingsService.setString('theme_mode', 'system'),
+        ).called(1);
       });
 
       testWidgets('can tap on radio button to change theme', (tester) async {
@@ -156,7 +275,7 @@ void main() {
 
         // Verify the setting was saved
         verify(
-          () => CoreMocks.mockSettingsService.setString('theme_mode', 'dark'),
+          () => mockSettingsService.setString('theme_mode', 'dark'),
         ).called(1);
       });
 
@@ -176,7 +295,7 @@ void main() {
 
         // Verify the setting was saved
         verify(
-          () => CoreMocks.mockSettingsService.setString('theme_mode', 'light'),
+          () => mockSettingsService.setString('theme_mode', 'light'),
         ).called(1);
       });
     });
@@ -217,32 +336,6 @@ void main() {
   });
 
   group('UserSettingsScreen Secret Developer Mode', () {
-    setUp(() {
-      TestHelpers.resetAllMocks();
-    });
-
-    Widget createTestWidget() {
-      return ProviderScope(
-        overrides: [
-          ...TestHelpers.getAllMockOverrides(
-            testUser: TestHelpers.anonymousUser,
-          ),
-        ],
-        child: MaterialApp(
-          theme: lightTheme,
-          darkTheme: darkTheme,
-          home: Scaffold(
-            body: SingleChildScrollView(
-              child: SizedBox(
-                height: 1000, // Give enough height for content
-                child: const UserSettingsScreen(),
-              ),
-            ),
-          ),
-        ),
-      );
-    }
-
     group('Initial State', () {
       testWidgets('developer mode starts disabled', (tester) async {
         await tester.pumpWidget(createTestWidget());
@@ -539,22 +632,76 @@ void main() {
       ) async {
         // Use core mocks for settings service to avoid real SharedPreferences
         final store = ReviewPromptStateStore(
-          settingsService: CoreMocks.mockSettingsService,
+          settingsService: mockSettingsService,
         );
 
         Widget withOverrides() {
           return ProviderScope(
             overrides: [
-              ...TestHelpers.getAllMockOverrides(
-                testUser: TestHelpers.anonymousUser,
+              // Analytics
+              firebaseAnalyticsProvider.overrideWithValue(
+                mockFirebaseAnalytics,
+              ),
+              analyticsServiceProvider.overrideWithValue(mockAnalyticsService),
+
+              // Auth
+              currentUserProvider.overrideWith(
+                (_) => AppUser.anonymous('test-user-id'),
+              ),
+              authControllerProvider.overrideWith(
+                (ref) => MockAuthController(),
+              ),
+
+              // Settings
+              settingsServiceProvider.overrideWithValue(mockSettingsService),
+              jokeViewerRevealProvider.overrideWith(
+                (ref) => JokeViewerRevealNotifier(
+                  JokeViewerSettingsService(
+                    settingsService: mockSettingsService,
+                    remoteConfigValues: mockRemoteConfigValues,
+                    analyticsService: mockAnalyticsService,
+                  ),
+                ),
+              ),
+
+              // App usage
+              appUsageServiceProvider.overrideWithValue(mockAppUsageService),
+              appUsageEventsProvider.overrideWith((_) => 0),
+
+              // App version
+              appVersionProvider.overrideWith(
+                (_) async => 'Snickerdoodle v0.0.1+1',
+              ),
+
+              // Subscription
+              subscriptionProvider.overrideWith(
+                (ref) => SubscriptionNotifier(
+                  mockSettingsService,
+                  mockSubscriptionService,
+                  MockNotificationService(),
+                ),
+              ),
+              dailyJokeSubscriptionServiceProvider.overrideWithValue(
+                mockSubscriptionService,
+              ),
+
+              // Review service
+              appReviewServiceProvider.overrideWithValue(mockAppReviewService),
+              reviewsRepositoryProvider.overrideWithValue(
+                mockReviewsRepository,
+              ),
+
+              // Remote config
+              remoteConfigValuesProvider.overrideWithValue(
+                mockRemoteConfigValues,
               ),
               appReviewServiceProvider.overrideWithValue(
                 AppReviewService(
                   nativeAdapter: _FakeAdapter(),
                   stateStore: store,
                   getReviewPromptVariant: () => ReviewPromptVariant.bunny,
-                  analyticsService: AnalyticsMocks.mockAnalyticsService,
-                  reviewsRepository: CoreMocks.mockReviewsRepository,
+                  analyticsService: mockAnalyticsService,
+                  reviewsRepository: mockReviewsRepository,
                 ),
               ),
             ],
@@ -608,8 +755,7 @@ void main() {
           await tester.pumpAndSettle();
 
           verify(
-            () =>
-                CoreMocks.mockSettingsService.setString('theme_mode', 'light'),
+            () => mockSettingsService.setString('theme_mode', 'light'),
           ).called(1);
 
           // Notifications should still work
@@ -707,4 +853,99 @@ class _FakeAdapter implements NativeReviewAdapter {
 
   @override
   Future<void> requestReview() async {}
+}
+
+// Setup functions for mock services
+void _setupAnalyticsServiceDefaults(MockAnalyticsService mock) {
+  when(() => mock.initialize()).thenAnswer((_) async {});
+  when(() => mock.setUserProperties(any())).thenAnswer((_) async {});
+  when(
+    () => mock.logErrorAuthSignIn(
+      source: any(named: 'source'),
+      errorMessage: any(named: 'errorMessage'),
+    ),
+  ).thenAnswer((_) async {});
+  when(
+    () => mock.logErrorSubscriptionToggle(
+      source: any(named: 'source'),
+      errorMessage: any(named: 'errorMessage'),
+    ),
+  ).thenAnswer((_) async {});
+  when(() => mock.logSubscriptionOnSettings()).thenAnswer((_) async {});
+  when(() => mock.logSubscriptionOffSettings()).thenAnswer((_) async {});
+  when(
+    () => mock.logSubscriptionDeclinedPermissionsInSettings(),
+  ).thenAnswer((_) async {});
+  when(() => mock.logAnalyticsError(any(), any())).thenAnswer((_) async {});
+}
+
+void _setupAppUsageServiceDefaults(MockAppUsageService mock) {
+  when(() => mock.getFirstUsedDate()).thenAnswer((_) async => '2024-01-01');
+  when(() => mock.getLastUsedDate()).thenAnswer((_) async => '2024-01-01');
+  when(() => mock.getNumDaysUsed()).thenAnswer((_) async => 1);
+  when(() => mock.getNumJokesViewed()).thenAnswer((_) async => 5);
+  when(() => mock.getNumSavedJokes()).thenAnswer((_) async => 2);
+  when(() => mock.getNumSharedJokes()).thenAnswer((_) async => 1);
+}
+
+void _setupAppReviewServiceDefaults(MockAppReviewService mock) {
+  when(
+    () => mock.requestReview(
+      source: any(named: 'source'),
+      context: any(named: 'context'),
+      force: any(named: 'force'),
+    ),
+  ).thenAnswer((_) async => ReviewRequestResult.shown);
+}
+
+void _setupSubscriptionServiceDefaults(MockDailyJokeSubscriptionService mock) {
+  when(
+    () => mock.ensureSubscriptionSync(
+      unsubscribeOthers: any(named: 'unsubscribeOthers'),
+    ),
+  ).thenAnswer((_) async => true);
+}
+
+void _setupRemoteConfigValuesDefaults(MockRemoteConfigValues mock) {
+  // Don't stub specific calls - just let them return default values when needed
+  // This avoids complex mocktail matchers for remote config
+}
+
+void _setupSettingsServiceDefaults(MockSettingsService mock) {
+  when(() => mock.getString(any())).thenReturn(null);
+  when(() => mock.setString(any(), any())).thenAnswer((_) async {});
+  when(() => mock.getBool(any())).thenReturn(false);
+  when(() => mock.setBool(any(), any())).thenAnswer((_) async {});
+  when(() => mock.getInt(any())).thenReturn(0);
+  when(() => mock.setInt(any(), any())).thenAnswer((_) async {});
+  when(() => mock.getDouble(any())).thenReturn(0.0);
+  when(() => mock.setDouble(any(), any())).thenAnswer((_) async {});
+  when(() => mock.getStringList(any())).thenReturn(null);
+  when(() => mock.setStringList(any(), any())).thenAnswer((_) async {});
+  when(() => mock.containsKey(any())).thenReturn(false);
+  when(() => mock.remove(any())).thenAnswer((_) async {});
+  when(() => mock.clear()).thenAnswer((_) async {});
+}
+
+void _setupReviewsRepositoryDefaults(MockReviewsRepository mock) {
+  when(() => mock.recordAppReview()).thenAnswer((_) async {});
+}
+
+void _setupFirebaseAnalyticsDefaults(MockFirebaseAnalytics mock) {
+  when(
+    () => mock.logEvent(
+      name: any(named: 'name'),
+      parameters: any(named: 'parameters'),
+    ),
+  ).thenAnswer((_) async {});
+  when(
+    () => mock.setUserProperty(
+      name: any(named: 'name'),
+      value: any(named: 'value'),
+    ),
+  ).thenAnswer((_) async {});
+  when(() => mock.setUserId(id: any(named: 'id'))).thenAnswer((_) async {});
+  when(
+    () => mock.setAnalyticsCollectionEnabled(any()),
+  ).thenAnswer((_) async {});
 }

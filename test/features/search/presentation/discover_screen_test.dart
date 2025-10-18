@@ -1,29 +1,261 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:snickerdoodle/src/common_widgets/badged_icon.dart';
 import 'package:snickerdoodle/src/config/router/route_names.dart';
 import 'package:snickerdoodle/src/config/router/router_providers.dart';
 import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
+import 'package:snickerdoodle/src/core/providers/app_version_provider.dart';
+import 'package:snickerdoodle/src/core/providers/connectivity_providers.dart';
+import 'package:snickerdoodle/src/core/providers/image_providers.dart';
+import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
+import 'package:snickerdoodle/src/core/services/image_service.dart';
+import 'package:snickerdoodle/src/core/services/notification_service.dart';
+import 'package:snickerdoodle/src/core/services/performance_service.dart';
+import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
+import 'package:snickerdoodle/src/data/core/database/app_database.dart';
+import 'package:snickerdoodle/src/data/reviews/reviews_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_category_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_navigation_providers.dart';
+import 'package:snickerdoodle/src/features/jokes/application/joke_population_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_search_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_category.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
+import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_search_result.dart';
 import 'package:snickerdoodle/src/features/search/application/discover_tab_state.dart';
 import 'package:snickerdoodle/src/features/search/presentation/discover_screen.dart';
+import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
+import 'package:snickerdoodle/src/data/core/app/firebase_providers.dart';
 
-import '../../../test_helpers/core_mocks.dart';
-import '../../../test_helpers/firebase_mocks.dart';
+// Mock classes
+class MockSettingsService extends Mock implements SettingsService {}
+
+class MockImageService extends Mock implements ImageService {}
+
+class MockNotificationService extends Mock implements NotificationService {}
+
+class MockDailyJokeSubscriptionService extends Mock
+    implements DailyJokeSubscriptionService {}
+
+class MockReviewsRepository extends Mock implements ReviewsRepository {}
+
+class MockJokeCloudFunctionService extends Mock
+    implements JokeCloudFunctionService {}
+
+class MockFirebaseAnalytics extends Mock implements FirebaseAnalytics {}
+
+// Test implementations
+class _TestRemoteConfigValues implements RemoteConfigValues {
+  @override
+  bool getBool(RemoteParam param) {
+    if (param == RemoteParam.defaultJokeViewerReveal) {
+      return true;
+    }
+    return false;
+  }
+
+  @override
+  double getDouble(RemoteParam param) => 0;
+
+  @override
+  int getInt(RemoteParam param) {
+    final descriptor = remoteParams[param]!;
+    return descriptor.defaultInt ?? 0;
+  }
+
+  @override
+  String getString(RemoteParam param) => '';
+
+  @override
+  T getEnum<T>(RemoteParam param) {
+    final descriptor = remoteParams[param]!;
+    return (descriptor.enumDefault ?? '') as T;
+  }
+}
+
+class _TestNoopPerformanceService implements PerformanceService {
+  @override
+  void startNamedTrace({
+    required TraceName name,
+    String? key,
+    Map<String, String>? attributes,
+  }) {}
+
+  @override
+  void putNamedTraceAttributes({
+    required TraceName name,
+    String? key,
+    required Map<String, String> attributes,
+  }) {}
+
+  @override
+  void stopNamedTrace({required TraceName name, String? key}) {}
+
+  @override
+  void dropNamedTrace({required TraceName name, String? key}) {}
+}
+
+/// Test joke population notifier that doesn't require Firebase
+class TestJokePopulationNotifier extends JokePopulationNotifier {
+  TestJokePopulationNotifier() : super(MockJokeCloudFunctionService());
+
+  @override
+  Future<bool> populateJoke(
+    String jokeId, {
+    bool imagesOnly = false,
+    Map<String, dynamic>? additionalParams,
+  }) async {
+    return true;
+  }
+
+  @override
+  void clearError() {
+    state = state.copyWith(error: null);
+  }
+
+  @override
+  bool isJokePopulating(String jokeId) {
+    return false;
+  }
+}
+
+// Helper methods
+List<Override> getCoreProviderOverrides() {
+  final mockSettingsService = MockSettingsService();
+  final mockImageService = MockImageService();
+  final mockNotificationService = MockNotificationService();
+  final mockSubscriptionService = MockDailyJokeSubscriptionService();
+  final mockReviewsRepository = MockReviewsRepository();
+
+  // Setup default behaviors for mocks
+  when(() => mockSettingsService.getBool(any())).thenReturn(null);
+  when(
+    () => mockSettingsService.setBool(any(), any()),
+  ).thenAnswer((_) async {});
+  when(() => mockSettingsService.getString(any())).thenReturn(null);
+  when(
+    () => mockSettingsService.setString(any(), any()),
+  ).thenAnswer((_) async {});
+  when(() => mockSettingsService.getInt(any())).thenReturn(null);
+  when(() => mockSettingsService.setInt(any(), any())).thenAnswer((_) async {});
+  when(() => mockSettingsService.getDouble(any())).thenReturn(null);
+  when(
+    () => mockSettingsService.setDouble(any(), any()),
+  ).thenAnswer((_) async {});
+  when(() => mockSettingsService.getStringList(any())).thenReturn(null);
+  when(
+    () => mockSettingsService.setStringList(any(), any()),
+  ).thenAnswer((_) async {});
+  when(() => mockSettingsService.containsKey(any())).thenReturn(false);
+  when(() => mockSettingsService.remove(any())).thenAnswer((_) async {});
+  when(() => mockSettingsService.clear()).thenAnswer((_) async {});
+
+  when(() => mockImageService.isValidImageUrl(any())).thenReturn(true);
+  when(
+    () => mockImageService.processImageUrl(any()),
+  ).thenReturn('data:image/png;base64,test');
+  when(
+    () => mockImageService.getThumbnailUrl(any()),
+  ).thenReturn('data:image/png;base64,test');
+  when(
+    () => mockImageService.getFullSizeUrl(any()),
+  ).thenReturn('data:image/png;base64,test');
+  when(() => mockImageService.clearCache()).thenAnswer((_) async {});
+
+  when(() => mockNotificationService.initialize()).thenAnswer((_) async {});
+  when(
+    () => mockNotificationService.requestNotificationPermissions(),
+  ).thenAnswer((_) async => true);
+  when(
+    () => mockNotificationService.getFCMToken(),
+  ).thenAnswer((_) async => 'mock_fcm_token');
+
+  when(
+    () => mockSubscriptionService.ensureSubscriptionSync(
+      unsubscribeOthers: any(named: 'unsubscribeOthers'),
+    ),
+  ).thenAnswer((_) async => true);
+
+  when(() => mockReviewsRepository.recordAppReview()).thenAnswer((_) async {});
+
+  return [
+    settingsServiceProvider.overrideWithValue(mockSettingsService),
+    imageServiceProvider.overrideWithValue(mockImageService),
+    notificationServiceProvider.overrideWithValue(mockNotificationService),
+    dailyJokeSubscriptionServiceProvider.overrideWithValue(
+      mockSubscriptionService,
+    ),
+    reviewsRepositoryProvider.overrideWithValue(mockReviewsRepository),
+    performanceServiceProvider.overrideWithValue(_TestNoopPerformanceService()),
+    appVersionProvider.overrideWith((_) async => 'Snickerdoodle v0.0.1+1'),
+    appDatabaseProvider.overrideWithValue(AppDatabase.inMemory()),
+  ];
+}
+
+List<Override> getFirebaseProviderOverrides({
+  List<Override> additionalOverrides = const [],
+}) {
+  final mockFirebaseAnalytics = MockFirebaseAnalytics();
+  final mockCloudFunctionService = MockJokeCloudFunctionService();
+
+  when(
+    () => mockCloudFunctionService.createJokeWithResponse(
+      setupText: any(named: 'setupText'),
+      punchlineText: any(named: 'punchlineText'),
+      adminOwned: any(named: 'adminOwned'),
+      setupImageUrl: any(named: 'setupImageUrl'),
+      punchlineImageUrl: any(named: 'punchlineImageUrl'),
+    ),
+  ).thenAnswer((_) async => {'success': true, 'joke_id': 'test-id'});
+
+  when(
+    () => mockCloudFunctionService.populateJoke(
+      any(),
+      imagesOnly: any(named: 'imagesOnly'),
+      additionalParams: any(named: 'additionalParams'),
+    ),
+  ).thenAnswer((_) async => {'success': true, 'data': 'populated'});
+
+  when(
+    () => mockCloudFunctionService.searchJokes(
+      searchQuery: any(named: 'searchQuery'),
+      maxResults: any(named: 'maxResults'),
+      publicOnly: any(named: 'publicOnly'),
+      matchMode: any(named: 'matchMode'),
+      scope: any(named: 'scope'),
+      label: any(named: 'label'),
+    ),
+  ).thenAnswer((_) async => <JokeSearchResult>[]);
+
+  return [
+    // Firebase analytics used by AnalyticsService
+    firebaseAnalyticsProvider.overrideWithValue(mockFirebaseAnalytics),
+    remoteConfigValuesProvider.overrideWithValue(_TestRemoteConfigValues()),
+    jokeCloudFunctionServiceProvider.overrideWithValue(
+      mockCloudFunctionService,
+    ),
+    jokePopulationProvider.overrideWith((ref) => TestJokePopulationNotifier()),
+    isOnlineProvider.overrideWith((ref) async* {
+      yield true;
+    }),
+    ...additionalOverrides,
+  ];
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  setUp(() async {
-    FirebaseMocks.reset();
+  setUpAll(() {
+    registerFallbackValue(MatchMode.tight);
+    registerFallbackValue(SearchScope.userJokeSearch);
+    registerFallbackValue(SearchLabel.none);
   });
+
+  setUp(() async {});
 
   final animalCategory = JokeCategory(
     id: 'animal',
@@ -91,12 +323,11 @@ void main() {
   group('DiscoverScreen', () {
     testWidgets('shows category grid by default', (tester) async {
       final container = ProviderContainer(
-        overrides: FirebaseMocks.getFirebaseProviderOverrides(
-          additionalOverrides: [
-            ...CoreMocks.getCoreProviderOverrides(),
-            ...buildOverrides(includeResults: false),
-          ],
-        ),
+        overrides: [
+          ...getFirebaseProviderOverrides(),
+          ...getCoreProviderOverrides(),
+          ...buildOverrides(includeResults: false),
+        ],
       );
       addTearDown(container.dispose);
 
@@ -118,12 +349,11 @@ void main() {
       tester,
     ) async {
       final container = ProviderContainer(
-        overrides: FirebaseMocks.getFirebaseProviderOverrides(
-          additionalOverrides: [
-            ...CoreMocks.getCoreProviderOverrides(),
-            ...buildOverrides(includeResults: true),
-          ],
-        ),
+        overrides: [
+          ...getFirebaseProviderOverrides(),
+          ...getCoreProviderOverrides(),
+          ...buildOverrides(includeResults: true),
+        ],
       );
       addTearDown(container.dispose);
 
@@ -164,12 +394,11 @@ void main() {
       tester,
     ) async {
       final container = ProviderContainer(
-        overrides: FirebaseMocks.getFirebaseProviderOverrides(
-          additionalOverrides: [
-            ...CoreMocks.getCoreProviderOverrides(),
-            ...buildOverrides(includeResults: true),
-          ],
-        ),
+        overrides: [
+          ...getFirebaseProviderOverrides(),
+          ...getCoreProviderOverrides(),
+          ...buildOverrides(includeResults: true),
+        ],
       );
       addTearDown(container.dispose);
 
@@ -208,23 +437,22 @@ void main() {
     ) async {
       final recordedNavigations = <Map<String, Object?>>[];
       final container = ProviderContainer(
-        overrides: FirebaseMocks.getFirebaseProviderOverrides(
-          additionalOverrides: [
-            ...CoreMocks.getCoreProviderOverrides(),
-            ...buildOverrides(
-              includeResults: false,
-              navigationOverride: navigationHelpersProvider.overrideWith(
-                (ref) => _TestNavigationHelpers((route, push, method) {
-                  recordedNavigations.add({
-                    'route': route,
-                    'push': push,
-                    'method': method,
-                  });
-                }, ref),
-              ),
+        overrides: [
+          ...getFirebaseProviderOverrides(),
+          ...getCoreProviderOverrides(),
+          ...buildOverrides(
+            includeResults: false,
+            navigationOverride: navigationHelpersProvider.overrideWith(
+              (ref) => _TestNavigationHelpers((route, push, method) {
+                recordedNavigations.add({
+                  'route': route,
+                  'push': push,
+                  'method': method,
+                });
+              }, ref),
             ),
-          ],
-        ),
+          ),
+        ],
       );
       addTearDown(container.dispose);
 
@@ -311,21 +539,20 @@ void main() {
         final categories = [animalCategory, natureCategory];
 
         final container = ProviderContainer(
-          overrides: FirebaseMocks.getFirebaseProviderOverrides(
-            additionalOverrides: [
-              ...CoreMocks.getCoreProviderOverrides(),
-              jokeCategoriesProvider.overrideWith(
-                (ref) => Stream.value(categories),
-              ),
-              viewedCategoryIdsProvider.overrideWith(
-                (ref) => Stream.value({
-                  'animal',
-                  'programmatic:popular',
-                  'programmatic:seasonal:halloween',
-                }),
-              ),
-            ],
-          ),
+          overrides: [
+            ...getFirebaseProviderOverrides(),
+            ...getCoreProviderOverrides(),
+            jokeCategoriesProvider.overrideWith(
+              (ref) => Stream.value(categories),
+            ),
+            viewedCategoryIdsProvider.overrideWith(
+              (ref) => Stream.value({
+                'animal',
+                'programmatic:popular',
+                'programmatic:seasonal:halloween',
+              }),
+            ),
+          ],
         );
         addTearDown(container.dispose);
 
@@ -354,21 +581,20 @@ void main() {
       (tester) async {
         final categories = [animalCategory];
         final container = ProviderContainer(
-          overrides: FirebaseMocks.getFirebaseProviderOverrides(
-            additionalOverrides: [
-              ...CoreMocks.getCoreProviderOverrides(),
-              jokeCategoriesProvider.overrideWith(
-                (ref) => Stream.value(categories),
-              ),
-              viewedCategoryIdsProvider.overrideWith(
-                (ref) => Stream.value({
-                  'animal',
-                  'programmatic:popular',
-                  'programmatic:seasonal:halloween',
-                }),
-              ),
-            ],
-          ),
+          overrides: [
+            ...getFirebaseProviderOverrides(),
+            ...getCoreProviderOverrides(),
+            jokeCategoriesProvider.overrideWith(
+              (ref) => Stream.value(categories),
+            ),
+            viewedCategoryIdsProvider.overrideWith(
+              (ref) => Stream.value({
+                'animal',
+                'programmatic:popular',
+                'programmatic:seasonal:halloween',
+              }),
+            ),
+          ],
         );
         addTearDown(container.dispose);
 

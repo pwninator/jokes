@@ -205,6 +205,32 @@ class AppUsageService {
   // JOKE SAVES
   // -------------------------------
 
+  /// Get the number of jokes saved (COUNT from DB)
+  Future<int> getNumSavedJokes() async => await _jokeInteractions.countSaved();
+
+  /// Check if a joke is saved (READ from DB)
+  Future<bool> isJokeSaved(String jokeId) async =>
+      await _jokeInteractions.isJokeSaved(jokeId);
+
+  /// Toggle a joke save (ADD if not present, REMOVE if present)
+  /// Returns true if the joke was saved, false if it was unsaved
+  Future<bool> toggleJokeSave(
+    String jokeId, {
+    required BuildContext context,
+  }) async {
+    final isSaved = await isJokeSaved(jokeId);
+    if (isSaved) {
+      await unsaveJoke(jokeId);
+      return false;
+    } else {
+      await saveJoke(
+        jokeId,
+        context: context, // ignore: use_build_context_synchronously
+      );
+      return true;
+    }
+  }
+
   /// Save a joke (persists to DB)
   Future<void> saveJoke(String jokeId, {required BuildContext context}) async {
     try {
@@ -234,9 +260,6 @@ class AppUsageService {
       AppLogger.warn('APP_USAGE unsaveJoke DB error: $e');
     }
   }
-
-  /// Get the number of jokes saved (COUNT from DB)
-  Future<int> getNumSavedJokes() async => await _jokeInteractions.countSaved();
 
   // -------------------------------
   // JOKE SHARES

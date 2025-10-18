@@ -25,7 +25,7 @@ class _MockPerf extends Mock implements PerformanceService {}
 // Test repository that properly handles streams
 class _TestInteractionsRepo extends JokeInteractionsRepository {
   _TestInteractionsRepo({required super.db, required PerformanceService perf})
-      : super(performanceService: perf);
+    : super(performanceService: perf);
 
   final _controllers = <String, StreamController<JokeInteraction?>>{};
 

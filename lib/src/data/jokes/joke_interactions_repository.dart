@@ -157,6 +157,16 @@ class JokeInteractionsRepository {
         perf: _perf,
       );
 
+  Future<bool> isJokeSaved(String jokeId) async {
+    JokeInteraction? interaction = await getJokeInteraction(jokeId);
+    return interaction?.savedTimestamp != null;
+  }
+
+  Future<bool> isJokeShared(String jokeId) async {
+    JokeInteraction? interaction = await getJokeInteraction(jokeId);
+    return interaction?.sharedTimestamp != null;
+  }
+
   /// Watch a single joke interaction row and emit updates reactively
   Stream<JokeInteraction?> watchJokeInteraction(String jokeId) {
     final query = _db.select(_db.jokeInteractions)

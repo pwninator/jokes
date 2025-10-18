@@ -6,7 +6,6 @@ import 'package:snickerdoodle/src/features/jokes/application/joke_search_provide
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_state.dart';
 
-
 void main() {
   group('JokeFilter Tests', () {
     setUpAll(() {

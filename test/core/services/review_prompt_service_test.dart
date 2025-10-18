@@ -123,8 +123,9 @@ void main() {
       when(() => usage.getNumSavedJokes()).thenAnswer((_) async => 0);
       when(() => usage.getNumSharedJokes()).thenAnswer((_) async => 0);
       when(() => usage.getNumJokesViewed()).thenAnswer((_) async => 0);
-      when(() => usage.logJokeViewed(any(), context: any(named: 'context')))
-          .thenAnswer((_) async {});
+      when(
+        () => usage.logJokeViewed(any(), context: any(named: 'context')),
+      ).thenAnswer((_) async {});
     });
 
     testWidgets('early return when already requested', (tester) async {

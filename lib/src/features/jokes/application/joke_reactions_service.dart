@@ -66,15 +66,6 @@ class JokeReactionsService {
     return reactions;
   }
 
-  /// Check if user has reacted to a joke with a specific reaction type
-  Future<bool> hasUserReaction(
-    String jokeId,
-    JokeReactionType reactionType,
-  ) async {
-    final reactions = await getUserReactionsForJoke(jokeId);
-    return reactions.contains(reactionType);
-  }
-
   /// Add a user reaction
   Future<void> addUserReaction(
     String jokeId,
@@ -98,27 +89,6 @@ class JokeReactionsService {
     }
     if (reactionType == JokeReactionType.save) {
       await _appUsageService.unsaveJoke(jokeId);
-    }
-  }
-
-  /// Toggle a user reaction (add if not present, remove if present)
-  Future<bool> toggleUserReaction(
-    String jokeId,
-    JokeReactionType reactionType, {
-    required BuildContext context,
-  }) async {
-    final hasReaction = await hasUserReaction(jokeId, reactionType);
-
-    if (hasReaction) {
-      await removeUserReaction(jokeId, reactionType);
-      return false; // Reaction was removed
-    } else {
-      await addUserReaction(
-        jokeId,
-        reactionType,
-        context: context, // ignore: use_build_context_synchronously
-      );
-      return true; // Reaction was added
     }
   }
 }

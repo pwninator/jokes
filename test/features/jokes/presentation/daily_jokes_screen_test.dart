@@ -256,7 +256,10 @@ void main() {
     when(() => mockImageService.clearCache()).thenAnswer((_) async {});
 
     when(
-      () => mockAppUsageService.logJokeViewed(any<String>(), context: any(named: 'context')),
+      () => mockAppUsageService.logJokeViewed(
+        any<String>(),
+        context: any(named: 'context'),
+      ),
     ).thenAnswer((_) async {});
     when(
       () => mockAppUsageService.getNumJokesViewed(),
@@ -270,9 +273,8 @@ void main() {
     when(() => mockAppUsageService.getNumDaysUsed()).thenAnswer((_) async => 0);
 
     when(
-      () => mockJokeReactionsService.toggleUserReaction(
+      () => mockAppUsageService.toggleJokeSave(
         any<String>(),
-        any<JokeReactionType>(),
         context: any(named: 'context'),
       ),
     ).thenAnswer((_) async => true);

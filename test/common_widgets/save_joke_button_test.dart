@@ -8,12 +8,7 @@ import 'package:snickerdoodle/src/common_widgets/save_joke_button.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
-// Removed unused PerformanceService import
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
-import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_service.dart';
-import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
-
-class MockJokeReactionsService extends Mock implements JokeReactionsService {}
 
 class MockAppUsageService extends Mock implements AppUsageService {}
 
@@ -24,11 +19,9 @@ class _FakeBuildContext extends Fake implements BuildContext {}
 void main() {
   setUpAll(() {
     registerFallbackValue(_FakeBuildContext());
-    registerFallbackValue(JokeReactionType.save);
   });
 
   group('SaveJokeButton', () {
-    late MockJokeReactionsService mockJokeReactionsService;
     late MockAppUsageService mockAppUsageService;
     late MockAnalyticsService mockAnalyticsService;
     late StreamController<bool> streamController;
@@ -40,9 +33,6 @@ void main() {
       return ProviderScope(
         overrides: [
           // Mock only the services that SaveJokeButton actually uses
-          jokeReactionsServiceProvider.overrideWithValue(
-            mockJokeReactionsService,
-          ),
           appUsageServiceProvider.overrideWithValue(mockAppUsageService),
           analyticsServiceProvider.overrideWithValue(mockAnalyticsService),
           // Provide controlled stream for isJokeSavedProvider directly
@@ -66,7 +56,6 @@ void main() {
     }
 
     setUp(() {
-      mockJokeReactionsService = MockJokeReactionsService();
       mockAppUsageService = MockAppUsageService();
       mockAnalyticsService = MockAnalyticsService();
       streamController = StreamController<bool>.broadcast();
@@ -76,8 +65,7 @@ void main() {
         () => mockAppUsageService.getNumSavedJokes(),
       ).thenAnswer((_) async => 5);
       when(
-        () => mockJokeReactionsService.toggleUserReaction(
-          any(),
+        () => mockAppUsageService.toggleJokeSave(
           any(),
           context: any(named: 'context'),
         ),
@@ -159,9 +147,8 @@ void main() {
       await tester.pump();
 
       verify(
-        () => mockJokeReactionsService.toggleUserReaction(
+        () => mockAppUsageService.toggleJokeSave(
           jokeId,
-          JokeReactionType.save,
           context: any(named: 'context'),
         ),
       ).called(1);
@@ -171,8 +158,7 @@ void main() {
       tester,
     ) async {
       when(
-        () => mockJokeReactionsService.toggleUserReaction(
-          any(),
+        () => mockAppUsageService.toggleJokeSave(
           any(),
           context: any(named: 'context'),
         ),
@@ -200,8 +186,7 @@ void main() {
       tester,
     ) async {
       when(
-        () => mockJokeReactionsService.toggleUserReaction(
-          any(),
+        () => mockAppUsageService.toggleJokeSave(
           any(),
           context: any(named: 'context'),
         ),
@@ -230,8 +215,7 @@ void main() {
     ) async {
       const errorMessage = 'Network error';
       when(
-        () => mockJokeReactionsService.toggleUserReaction(
-          any(),
+        () => mockAppUsageService.toggleJokeSave(
           any(),
           context: any(named: 'context'),
         ),

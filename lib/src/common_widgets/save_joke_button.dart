@@ -3,8 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
-import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_service.dart';
-import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
 
 /// Button widget for saving/unsaving jokes
 /// Shows visual feedback based on save state and handles toggle functionality
@@ -25,7 +23,7 @@ class SaveJokeButton extends ConsumerWidget {
     final Color baseButtonColor = jokeIconButtonBaseColor(context);
     final Color activeButtonColor = jokeSaveButtonColor(context);
     final isSavedAsync = ref.watch(isJokeSavedProvider(jokeId));
-    final service = ref.read(jokeReactionsServiceProvider);
+    final appUsageService = ref.read(appUsageServiceProvider);
     final analyticsService = ref.read(analyticsServiceProvider);
 
     return GestureDetector(
@@ -33,9 +31,8 @@ class SaveJokeButton extends ConsumerWidget {
       onTap: () async {
         bool wasAdded;
         try {
-          wasAdded = await service.toggleUserReaction(
+          wasAdded = await appUsageService.toggleJokeSave(
             jokeId,
-            JokeReactionType.save,
             context: context,
           );
         } catch (e) {
@@ -48,7 +45,6 @@ class SaveJokeButton extends ConsumerWidget {
         }
 
         // Log analytics for save state change
-        final appUsageService = ref.read(appUsageServiceProvider);
         final totalSaved = await appUsageService.getNumSavedJokes();
         if (wasAdded) {
           analyticsService.logJokeSaved(

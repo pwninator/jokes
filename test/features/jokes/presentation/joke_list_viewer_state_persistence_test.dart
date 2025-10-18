@@ -167,6 +167,11 @@ class _NoopAppUsageService implements AppUsageService {
   @override
   Future<void> setNumDaysUsed(int value) async {}
   @override
+  Future<bool> toggleJokeSave(
+    String jokeId, {
+    required BuildContext context,
+  }) async => false;
+  @override
   Future<void> saveJoke(String jokeId, {required BuildContext context}) async {}
   @override
   Future<void> unsaveJoke(String jokeId) async {}
@@ -175,6 +180,8 @@ class _NoopAppUsageService implements AppUsageService {
     String jokeId, {
     required BuildContext context,
   }) async {}
+  @override
+  Future<bool> isJokeSaved(String jokeId) async => false;
 }
 
 class _NoopReviewPromptCoordinator extends Mock

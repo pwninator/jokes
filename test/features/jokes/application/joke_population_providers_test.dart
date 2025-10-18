@@ -5,7 +5,6 @@ import 'package:snickerdoodle/src/features/jokes/application/joke_population_pro
 import 'package:snickerdoodle/src/features/jokes/application/joke_search_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
 
-
 // Mock classes using mocktail
 class MockJokeCloudFunctionService extends Mock
     implements JokeCloudFunctionService {}

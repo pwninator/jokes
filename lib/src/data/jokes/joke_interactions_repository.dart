@@ -179,10 +179,11 @@ class JokeInteractionsRepository {
     name: TraceName.driftGetInteractionCount,
     traceKey: 'count_viewed',
     body: () async {
-      final query = _db.select(_db.jokeInteractions)
-        ..where((tbl) => tbl.viewedTimestamp.isNotNull());
-      final rows = await query.get();
-      return rows.length;
+      final query = _db.selectOnly(_db.jokeInteractions)
+        ..addColumns([_db.jokeInteractions.jokeId.count()])
+        ..where(_db.jokeInteractions.viewedTimestamp.isNotNull());
+      final result = await query.getSingle();
+      return result.read(_db.jokeInteractions.jokeId.count()) ?? 0;
     },
     fallback: 0,
     perf: _perf,
@@ -193,10 +194,11 @@ class JokeInteractionsRepository {
     name: TraceName.driftGetInteractionCount,
     traceKey: 'count_saved',
     body: () async {
-      final query = _db.select(_db.jokeInteractions)
-        ..where((tbl) => tbl.savedTimestamp.isNotNull());
-      final rows = await query.get();
-      return rows.length;
+      final query = _db.selectOnly(_db.jokeInteractions)
+        ..addColumns([_db.jokeInteractions.jokeId.count()])
+        ..where(_db.jokeInteractions.savedTimestamp.isNotNull());
+      final result = await query.getSingle();
+      return result.read(_db.jokeInteractions.jokeId.count()) ?? 0;
     },
     fallback: 0,
     perf: _perf,
@@ -207,10 +209,11 @@ class JokeInteractionsRepository {
     name: TraceName.driftGetInteractionCount,
     traceKey: 'count_shared',
     body: () async {
-      final query = _db.select(_db.jokeInteractions)
-        ..where((tbl) => tbl.sharedTimestamp.isNotNull());
-      final rows = await query.get();
-      return rows.length;
+      final query = _db.selectOnly(_db.jokeInteractions)
+        ..addColumns([_db.jokeInteractions.jokeId.count()])
+        ..where(_db.jokeInteractions.sharedTimestamp.isNotNull());
+      final result = await query.getSingle();
+      return result.read(_db.jokeInteractions.jokeId.count()) ?? 0;
     },
     fallback: 0,
     perf: _perf,

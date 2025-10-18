@@ -232,35 +232,5 @@ void main() {
         expect(result, equals(['joke1', 'joke3', 'joke2']));
       });
     });
-
-    group('getUserReactionsForJoke', () {
-      test('returns empty set when joke has no reactions', () async {
-        // Arrange
-        savedSet.clear();
-        sharedSet.clear();
-
-        // Act
-        final result = await service.getUserReactionsForJoke('joke1');
-
-        // Assert
-        expect(result, isEmpty);
-      });
-
-      test('returns correct reactions for specific joke', () async {
-        // Arrange
-        savedSet
-          ..clear()
-          ..addAll(['joke1', 'joke2']);
-        sharedSet
-          ..clear()
-          ..addAll(['joke1', 'joke3']);
-
-        // Act
-        final result = await service.getUserReactionsForJoke('joke1');
-
-        // Assert
-        expect(result, equals({JokeReactionType.save, JokeReactionType.share}));
-      });
-    });
   });
 }

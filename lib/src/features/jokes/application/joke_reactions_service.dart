@@ -49,23 +49,6 @@ class JokeReactionsService {
     return rows.map((r) => r.jokeId).toList(growable: false);
   }
 
-  /// Get user reactions for a specific joke
-  Future<Set<JokeReactionType>> getUserReactionsForJoke(String jokeId) async {
-    final jokeInteraction = await _interactionsRepository.getJokeInteraction(
-      jokeId,
-    );
-    if (jokeInteraction == null) return <JokeReactionType>{};
-
-    final reactions = <JokeReactionType>{};
-    if (jokeInteraction.savedTimestamp != null) {
-      reactions.add(JokeReactionType.save);
-    }
-    if (jokeInteraction.sharedTimestamp != null) {
-      reactions.add(JokeReactionType.share);
-    }
-    return reactions;
-  }
-
   /// Add a user reaction
   Future<void> addUserReaction(
     String jokeId,

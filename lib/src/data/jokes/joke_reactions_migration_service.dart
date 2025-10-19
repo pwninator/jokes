@@ -12,11 +12,11 @@ import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart'
 final jokeReactionsMigrationServiceProvider =
     Provider<JokeReactionsMigrationService>((ref) {
       final interactions = ref.read(jokeInteractionsRepositoryProvider);
-      final prefsFuture = ref.read(sharedPreferencesProvider.future);
+      final prefs = ref.read(sharedPreferencesProvider);
       final perf = ref.read(performanceServiceProvider);
       return JokeReactionsMigrationService(
         interactions: interactions,
-        prefsFuture: prefsFuture,
+        prefs: prefs,
         performanceService: perf,
       );
     });
@@ -24,24 +24,22 @@ final jokeReactionsMigrationServiceProvider =
 class JokeReactionsMigrationService {
   JokeReactionsMigrationService({
     required JokeInteractionsRepository interactions,
-    required Future<SharedPreferences> prefsFuture,
+    required SharedPreferences prefs,
     required PerformanceService performanceService,
   }) : _interactions = interactions,
-       _prefsFuture = prefsFuture,
+       _prefs = prefs,
        _perf = performanceService;
 
   final JokeInteractionsRepository _interactions;
-  final Future<SharedPreferences> _prefsFuture;
+  final SharedPreferences _prefs;
   final PerformanceService _perf;
 
   Future<void> migrateIfNeeded() async {
     _perf.startNamedTrace(name: TraceName.startupTaskMigrateReactions);
     try {
-      final prefs = await _prefsFuture;
-
       // Only migrate if legacy keys exist
-      final legacySave = prefs.getStringList(JokeReactionType.save.prefsKey);
-      final legacyShare = prefs.getStringList(JokeReactionType.share.prefsKey);
+      final legacySave = _prefs.getStringList(JokeReactionType.save.prefsKey);
+      final legacyShare = _prefs.getStringList(JokeReactionType.share.prefsKey);
       final hasLegacy =
           (legacySave != null && legacySave.isNotEmpty) ||
           (legacyShare != null && legacyShare.isNotEmpty);
@@ -78,8 +76,8 @@ class JokeReactionsMigrationService {
       }
 
       // Mark migrated and delete old keys
-      await prefs.remove(JokeReactionType.save.prefsKey);
-      await prefs.remove(JokeReactionType.share.prefsKey);
+      await _prefs.remove(JokeReactionType.save.prefsKey);
+      await _prefs.remove(JokeReactionType.share.prefsKey);
 
       AppLogger.debug(
         'REACTION_MIGRATION: Migrated ${orderedSaved.length} saved and ${orderedShared.length} shared reactions to Drift',

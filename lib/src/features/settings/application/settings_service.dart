@@ -8,7 +8,7 @@ part 'settings_service.g.dart';
 @Riverpod(keepAlive: true)
 SettingsService settingsService(Ref ref) {
   // Initialized in startup tasks
-  final prefs = ref.watch(sharedPreferencesProvider).value!;
+  final prefs = ref.read(sharedPreferencesProvider);
   return SettingsService(prefs);
 }
 

@@ -127,7 +127,7 @@ Future<List<Override>> _initializeEmulators(StartupReader read) async {
 Future<List<Override>> _initializeSharedPreferences(StartupReader read) async {
   try {
     final prefs = await SharedPreferences.getInstance();
-    return [sharedPreferencesProvider.overrideWith((ref) async => prefs)];
+    return [sharedPreferencesProvider.overrideWithValue(prefs)];
   } catch (e, stack) {
     AppLogger.fatal(
       'SharedPreferences initialization failed: $e',

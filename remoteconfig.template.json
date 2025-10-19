@@ -98,7 +98,7 @@
       "parameters": {
         "share_images_mode": {
           "defaultValue": {
-            "value": "auto"
+            "value": "stacked"
           },
           "description": "Mode for how to share images: auto|separate|stacked",
           "valueType": "STRING"

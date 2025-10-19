@@ -95,7 +95,7 @@ const Map<RemoteParam, RemoteParamDescriptor> remoteParams = {
     key: 'share_images_mode',
     type: RemoteParamType.enumType,
     enumValues: ShareImagesMode.values,
-    enumDefault: ShareImagesMode.auto,
+    enumDefault: ShareImagesMode.stacked,
   ),
 };
 

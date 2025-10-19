@@ -2,11 +2,9 @@ import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
-import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_admin_rating.dart';
-import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_state.dart';
 
 @immutable
@@ -33,16 +31,13 @@ class JokeListPage {
 
 class JokeRepository {
   final FirebaseFirestore _firestore;
-  final bool _isAdmin;
-  final bool _debugMode;
-  final PerformanceService? _perf;
+  final PerformanceService _perf;
 
-  JokeRepository(
-    this._firestore,
-    this._isAdmin,
-    this._debugMode, {
-    PerformanceService? perf,
-  }) : _perf = perf;
+  JokeRepository({
+    required FirebaseFirestore firestore,
+    required PerformanceService perf,
+  }) : _firestore = firestore,
+       _perf = perf;
 
   /// Wrap a Firestore stream and record a Performance trace from subscription
   /// until the first event is received. If the stream errors or is cancelled
@@ -57,7 +52,6 @@ class JokeRepository {
     Map<String, String> Function(T firstEvent)? firstAttributes,
   }) {
     final perf = _perf;
-    if (perf == null) return source; // Perf disabled in some contexts
 
     final controller = StreamController<T>();
     StreamSubscription<T>? sub;
@@ -126,7 +120,7 @@ class JokeRepository {
         ? '$collection:$docId'
         : (collection ?? 'misc');
     final perf = _perf;
-    perf?.startNamedTrace(
+    perf.startNamedTrace(
       name: traceName,
       key: key,
       attributes: {
@@ -139,7 +133,7 @@ class JokeRepository {
     try {
       return await action();
     } finally {
-      perf?.stopNamedTrace(name: traceName, key: key);
+      perf.stopNamedTrace(name: traceName, key: key);
     }
   }
 
@@ -365,73 +359,6 @@ class JokeRepository {
       docId: jokeId,
       action: () =>
           _firestore.collection('jokes').doc(jokeId).update(updateData),
-    );
-  }
-
-  /// Helper function to update reaction count and popularity score
-  Future<void> updateReactionAndPopularity(
-    String jokeId,
-    JokeReactionType reactionType,
-    int increment,
-  ) async {
-    // Suppress Firestore writes for admin users or in debug mode
-    if (_isAdmin || _debugMode) {
-      final action = increment > 0 ? 'increment' : 'decrement';
-      AppLogger.debug(
-        'JOKE REPO ADMIN/DEBUG reaction suppressed: $action $reactionType for joke $jokeId',
-      );
-      return;
-    }
-    // Get current joke data to calculate new popularity score
-    final docRef = _firestore.collection('jokes').doc(jokeId);
-    final snapshot = await _traceFs(
-      traceName: TraceName.fsRead,
-      op: 'get',
-      collection: 'jokes',
-      docId: jokeId,
-      action: () => docRef.get(),
-    );
-    final data = snapshot.data();
-
-    if (data == null || data.isEmpty) {
-      throw Exception('Joke not found');
-    }
-
-    final currentSaves = data['num_saves'] as int? ?? 0;
-    final currentShares = data['num_shares'] as int? ?? 0;
-
-    // Calculate new values
-    int newSaves = currentSaves;
-    int newShares = currentShares;
-
-    if (reactionType == JokeReactionType.save) {
-      newSaves = currentSaves + increment;
-    } else if (reactionType == JokeReactionType.share) {
-      newShares = currentShares + increment;
-    }
-
-    // Ensure values don't go below 0
-    newSaves = newSaves < 0 ? 0 : newSaves;
-    newShares = newShares < 0 ? 0 : newShares;
-
-    // Calculate new popularity score
-    final newPopularityScore = newSaves + (newShares * 5);
-
-    // Update both the reaction count and popularity score
-    await _traceFs(
-      traceName: TraceName.fsWrite,
-      op: 'update',
-      collection: 'jokes',
-      docId: jokeId,
-      action: () => docRef.update({
-        reactionType.firestoreField: FieldValue.increment(increment),
-        'popularity_score': newPopularityScore,
-      }),
-      extra: {'reaction': reactionType.firestoreField},
-    );
-
-    AppLogger.debug(
-      'REPO: JokeRepository updateReactionAndPopularity: $jokeId, $reactionType, $increment, $newSaves, $newShares, $newPopularityScore',
     );
   }
 

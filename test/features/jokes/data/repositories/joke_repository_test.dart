@@ -2,13 +2,15 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_admin_rating.dart';
-import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_state.dart';
 
 // Mock classes using mocktail
 class MockFirebaseFirestore extends Mock implements FirebaseFirestore {}
+
+class MockPerformanceService extends Mock implements PerformanceService {}
 
 class MockCollectionReference extends Mock
     implements CollectionReference<Map<String, dynamic>> {}
@@ -31,9 +33,8 @@ class MockTimestamp extends Mock implements Timestamp {}
 void main() {
   group('JokeRepository', () {
     late JokeRepository repository;
-    late JokeRepository adminRepository;
-    late JokeRepository debugRepository;
     late MockFirebaseFirestore mockFirestore;
+    late MockPerformanceService mockPerformanceService;
     late MockCollectionReference mockCollectionReference;
     late MockDocumentReference mockDocumentReference;
     late MockQuery mockQuery;
@@ -59,6 +60,7 @@ void main() {
 
     setUp(() {
       mockFirestore = MockFirebaseFirestore();
+      mockPerformanceService = MockPerformanceService();
       mockCollectionReference = MockCollectionReference();
       mockDocumentReference = MockDocumentReference();
       mockQuery = MockQuery();
@@ -66,9 +68,10 @@ void main() {
       mockDocSnapshot = MockDocumentSnapshot();
       mockBatch = MockWriteBatch();
 
-      repository = JokeRepository(mockFirestore, false, false);
-      adminRepository = JokeRepository(mockFirestore, true, false);
-      debugRepository = JokeRepository(mockFirestore, false, true);
+      repository = JokeRepository(
+        firestore: mockFirestore,
+        perf: mockPerformanceService,
+      );
 
       // Common Firestore setup
       when(
@@ -460,135 +463,6 @@ void main() {
         expect(page.ids, isEmpty);
         expect(page.cursor, isNull);
         expect(page.hasMore, false);
-      });
-    });
-
-    group('updateReactionAndPopularity', () {
-      setUp(() {
-        when(
-          () => mockDocSnapshot.data(),
-        ).thenReturn({'num_saves': 5, 'num_shares': 3});
-      });
-
-      group('production mode', () {
-        test('increments save reaction and updates popularity score', () async {
-          await repository.updateReactionAndPopularity(
-            'joke1',
-            JokeReactionType.save,
-            1,
-          );
-
-          // popularity_score = (5+1) + (3 * 5) = 21
-          verify(
-            () => mockDocumentReference.update({
-              'num_saves': FieldValue.increment(1),
-              'popularity_score': 21,
-            }),
-          );
-        });
-
-        test(
-          'increments share reaction and updates popularity score',
-          () async {
-            await repository.updateReactionAndPopularity(
-              'joke1',
-              JokeReactionType.share,
-              1,
-            );
-
-            // popularity_score = 5 + ((3+1) * 5) = 25
-            verify(
-              () => mockDocumentReference.update({
-                'num_shares': FieldValue.increment(1),
-                'popularity_score': 25,
-              }),
-            );
-          },
-        );
-
-        test('handles missing reaction counts gracefully', () async {
-          when(() => mockDocSnapshot.data()).thenReturn({'setup_text': 'joke'});
-
-          await repository.updateReactionAndPopularity(
-            'joke1',
-            JokeReactionType.save,
-            1,
-          );
-
-          verify(
-            () => mockDocumentReference.update({
-              'num_saves': FieldValue.increment(1),
-              'popularity_score': 1, // (0+1) + (0 * 5)
-            }),
-          );
-        });
-
-        test('handles other reaction types', () async {
-          await repository.updateReactionAndPopularity(
-            'joke1',
-            JokeReactionType.share,
-            1,
-          );
-
-          verify(
-            () => mockDocumentReference.update({
-              'num_shares': FieldValue.increment(1),
-              'popularity_score': 25, // 5 + ((3+1) * 5)
-            }),
-          );
-        });
-
-        test('handles decrements correctly', () async {
-          await repository.updateReactionAndPopularity(
-            'joke1',
-            JokeReactionType.save,
-            -1,
-          );
-
-          verify(
-            () => mockDocumentReference.update({
-              'num_saves': FieldValue.increment(-1),
-              'popularity_score': 19, // (5-1) + (3 * 5)
-            }),
-          );
-        });
-
-        test('throws exception when joke not found', () async {
-          when(() => mockDocSnapshot.data()).thenReturn({});
-
-          expect(
-            () => repository.updateReactionAndPopularity(
-              'joke1',
-              JokeReactionType.save,
-              1,
-            ),
-            throwsA(isA<Exception>()),
-          );
-        });
-      });
-
-      group('admin/debug mode suppression', () {
-        test('admin mode suppresses writes', () async {
-          await adminRepository.updateReactionAndPopularity(
-            'joke1',
-            JokeReactionType.save,
-            1,
-          );
-
-          verifyNever(() => mockDocumentReference.update(any()));
-          verifyNever(() => mockDocumentReference.get());
-        });
-
-        test('debug mode suppresses writes', () async {
-          await debugRepository.updateReactionAndPopularity(
-            'joke1',
-            JokeReactionType.save,
-            1,
-          );
-
-          verifyNever(() => mockDocumentReference.update(any()));
-          verifyNever(() => mockDocumentReference.get());
-        });
       });
     });
 

@@ -35,7 +35,6 @@ import 'package:snickerdoodle/src/data/jokes/category_interactions_repository.da
 import 'package:snickerdoodle/src/data/jokes/joke_interactions_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_list_data_sources.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_population_providers.dart';
-import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_service.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_schedule_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_schedule_batch.dart';
@@ -49,8 +48,6 @@ class MockJokeScheduleRepository extends Mock
     implements JokeScheduleRepository {}
 
 class MockAppUsageService extends Mock implements AppUsageService {}
-
-class MockJokeReactionsService extends Mock implements JokeReactionsService {}
 
 class MockReviewPromptCoordinator extends Mock
     implements ReviewPromptCoordinator {}
@@ -127,7 +124,6 @@ void main() {
 
   late MockJokeScheduleRepository mockScheduleRepository;
   late MockAppUsageService mockAppUsageService;
-  late MockJokeReactionsService mockJokeReactionsService;
   late MockReviewPromptCoordinator mockReviewPromptCoordinator;
   late MockJokeInteractionsRepository mockJokeInteractionsRepository;
   late MockCategoryInteractionsRepository mockCategoryInteractionsRepository;
@@ -160,7 +156,6 @@ void main() {
 
     mockScheduleRepository = MockJokeScheduleRepository();
     mockAppUsageService = MockAppUsageService();
-    mockJokeReactionsService = MockJokeReactionsService();
     mockReviewPromptCoordinator = MockReviewPromptCoordinator();
     mockJokeInteractionsRepository = MockJokeInteractionsRepository();
     mockCategoryInteractionsRepository = MockCategoryInteractionsRepository();
@@ -359,7 +354,6 @@ void main() {
       settingsServiceProvider.overrideWithValue(settingsService),
       appUsageServiceProvider.overrideWithValue(mockAppUsageService),
       jokeScheduleRepositoryProvider.overrideWithValue(mockScheduleRepository),
-      jokeReactionsServiceProvider.overrideWithValue(mockJokeReactionsService),
       jokeInteractionsRepositoryProvider.overrideWithValue(
         mockJokeInteractionsRepository,
       ),

@@ -4,10 +4,9 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
+import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_list_data_source.dart';
-import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_providers.dart';
-import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_service.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_schedule_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_search_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_category.dart';
@@ -15,7 +14,6 @@ import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart'
     show JokeListPageCursor;
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
-import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_state.dart';
 
 /// Signal provider that triggers stale joke checks for daily jokes.
@@ -30,6 +28,10 @@ final dailyJokesLastResetDateProvider = StateProvider<DateTime?>((ref) => null);
 final dailyJokesMostRecentDateProvider = StateProvider<DateTime?>(
   (ref) => null,
 );
+
+/// Signal used to invalidate saved jokes paging data.
+/// Increment the value to trigger a refresh of saved jokes data sources.
+final savedJokesRefreshTriggerProvider = StateProvider<int>((ref) => 0);
 
 /// Data source for daily jokes loaded from monthly schedule batches
 class DailyJokesDataSource extends JokeListDataSource {
@@ -87,11 +89,10 @@ final _savedJokesPagingProviders = createPagingProviders(
   loadPage: _loadSavedJokesPage,
   resetTriggers: [
     ResetTrigger(
-      provider: jokeReactionsProvider,
-      shouldReset: (ref, prev, next) {
-        final prevReactions = prev as JokeReactionsState?;
-        final nextReactions = next as JokeReactionsState;
-        return !_areSavedJokeIdsEqual(prevReactions, nextReactions);
+      provider: savedJokesRefreshTriggerProvider,
+      shouldReset: (_, prev, next) {
+        if (prev == null) return false;
+        return prev != next;
       },
     ),
   ],
@@ -444,8 +445,8 @@ Future<PageResult> _loadSavedJokesPage(
     'PAGINATION: Loading saved jokes page with limit: $limit, cursor: $cursor',
   );
 
-  final reactionsService = ref.read(jokeReactionsServiceProvider);
-  final savedJokeIds = await reactionsService.getSavedJokeIds();
+  final appUsageService = ref.read(appUsageServiceProvider);
+  final savedJokeIds = await appUsageService.getSavedJokeIds();
 
   if (savedJokeIds.isEmpty) {
     return const PageResult(
@@ -496,26 +497,6 @@ Future<PageResult> _loadSavedJokesPage(
     hasMore: hasMore,
     totalCount: savedJokeIds.length,
   );
-}
-
-/// Helper to compare saved joke IDs between two reaction states
-bool _areSavedJokeIdsEqual(JokeReactionsState? prev, JokeReactionsState next) {
-  final prevSavedIds = _extractSavedJokeIds(prev);
-  final nextSavedIds = _extractSavedJokeIds(next);
-
-  if (prevSavedIds.length != nextSavedIds.length) return false;
-
-  return prevSavedIds.toSet().difference(nextSavedIds.toSet()).isEmpty;
-}
-
-/// Extract saved joke IDs from a reaction state
-Set<String> _extractSavedJokeIds(JokeReactionsState? state) {
-  if (state == null) return {};
-
-  return state.userReactions.entries
-      .where((entry) => entry.value.contains(JokeReactionType.save))
-      .map((entry) => entry.key)
-      .toSet();
 }
 
 /// Get current date (midnight-normalized) for comparison

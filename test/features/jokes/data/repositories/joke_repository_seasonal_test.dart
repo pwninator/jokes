@@ -2,6 +2,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_state.dart';
 
@@ -18,6 +19,8 @@ class MockQuerySnapshot extends Mock
 class MockQueryDocumentSnapshot extends Mock
     implements QueryDocumentSnapshot<Map<String, dynamic>> {}
 
+class MockPerformanceService extends Mock implements PerformanceService {}
+
 void main() {
   group('JokeRepository.getSeasonalJokePage', () {
     late JokeRepository repository;
@@ -25,6 +28,7 @@ void main() {
     late MockCollectionReference mockCollectionReference;
     late MockQuery mockQuery;
     late MockQuerySnapshot mockQuerySnapshot;
+    late MockPerformanceService mockPerformanceService;
 
     MockQueryDocumentSnapshot createDoc(String id, Map<String, dynamic> data) {
       final d = MockQueryDocumentSnapshot();
@@ -35,11 +39,15 @@ void main() {
 
     setUp(() {
       mockFirestore = MockFirebaseFirestore();
+      mockPerformanceService = MockPerformanceService();
       mockCollectionReference = MockCollectionReference();
       mockQuery = MockQuery();
       mockQuerySnapshot = MockQuerySnapshot();
 
-      repository = JokeRepository(mockFirestore, false, false);
+      repository = JokeRepository(
+        firestore: mockFirestore,
+        perf: mockPerformanceService,
+      );
 
       when(
         () => mockFirestore.collection('jokes'),

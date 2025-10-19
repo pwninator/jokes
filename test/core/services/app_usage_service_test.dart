@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/review_prompt_state_store.dart';
+import 'package:snickerdoodle/src/data/core/database/app_database.dart';
 import 'package:snickerdoodle/src/data/jokes/category_interactions_repository.dart';
 import 'package:snickerdoodle/src/data/jokes/joke_interactions_repository.dart';
 import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
@@ -264,6 +265,49 @@ void main() {
       verify(() => mockRepo.setSaved('s2')).called(1);
       verify(() => mockRepo.setUnsaved('s1')).called(1);
       verify(() => mockRepo.setUnsaved('s2')).called(1);
+    });
+
+    test('getSavedJokeIds mirrors repository order', () async {
+      final prefs = await SharedPreferences.getInstance();
+      final settingsService = SettingsService(prefs);
+      final mockAnalytics = _MockAnalyticsService();
+      final mockJokeCloudFn = _MockJokeCloudFunctionService();
+      final mockRepo = _MockJokeInteractionsRepository();
+      final container = ProviderContainer();
+      final ref = container.read(Provider<Ref>((ref) => ref));
+
+      final savedAtOne = DateTime(2024, 1, 1);
+      final savedAtTwo = DateTime(2024, 2, 1);
+      when(() => mockRepo.getSavedJokeInteractions()).thenAnswer(
+        (_) async => [
+          JokeInteraction(
+            jokeId: 'first',
+            viewedTimestamp: null,
+            savedTimestamp: savedAtOne,
+            sharedTimestamp: null,
+            lastUpdateTimestamp: savedAtOne,
+          ),
+          JokeInteraction(
+            jokeId: 'second',
+            viewedTimestamp: null,
+            savedTimestamp: savedAtTwo,
+            sharedTimestamp: null,
+            lastUpdateTimestamp: savedAtTwo,
+          ),
+        ],
+      );
+
+      final service = AppUsageService(
+        settingsService: settingsService,
+        ref: ref,
+        analyticsService: mockAnalytics,
+        jokeCloudFn: mockJokeCloudFn,
+        categoryInteractionsService: _MockCategoryInteractionsService(),
+        jokeInteractionsRepository: mockRepo,
+      );
+
+      expect(await service.getSavedJokeIds(), ['first', 'second']);
+      verify(() => mockRepo.getSavedJokeInteractions()).called(1);
     });
 
     test('shareJoke updates repo and counts from repo', () async {

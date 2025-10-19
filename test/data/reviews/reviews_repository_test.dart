@@ -84,4 +84,7 @@ class _FakeUsageService implements AppUsageService {
 
   @override
   Future<int> getNumSharedJokes() async => shared;
+
+  @override
+  Future<List<String>> getSavedJokeIds() async => const [];
 }

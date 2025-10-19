@@ -208,6 +208,12 @@ class AppUsageService {
   /// Get the number of jokes saved (COUNT from DB)
   Future<int> getNumSavedJokes() async => await _jokeInteractions.countSaved();
 
+  /// Get saved joke IDs ordered by the time they were saved.
+  Future<List<String>> getSavedJokeIds() async {
+    final rows = await _jokeInteractions.getSavedJokeInteractions();
+    return rows.map((row) => row.jokeId).toList(growable: false);
+  }
+
   /// Check if a joke is saved (READ from DB)
   Future<bool> isJokeSaved(String jokeId) async =>
       await _jokeInteractions.isJokeSaved(jokeId);

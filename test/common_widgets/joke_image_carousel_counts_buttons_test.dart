@@ -17,7 +17,6 @@ import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_modification_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_population_providers.dart';
-import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_service.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
@@ -31,8 +30,6 @@ class _MockAppUsageService extends Mock implements AppUsageService {}
 class _MockAnalyticsService extends Mock implements AnalyticsService {}
 
 class _MockPerformanceService extends Mock implements PerformanceService {}
-
-class _MockJokeReactionsService extends Mock implements JokeReactionsService {}
 
 class _MockJokeShareService extends Mock implements JokeShareService {}
 
@@ -189,9 +186,6 @@ void main() {
             IsJokeSavedProvider(
               joke.id,
             ).overrideWith((ref) => Stream<bool>.value(false)),
-            jokeReactionsServiceProvider.overrideWithValue(
-              _MockJokeReactionsService(),
-            ),
           ],
         ),
       );
@@ -232,9 +226,6 @@ void main() {
             IsJokeSavedProvider(
               joke.id,
             ).overrideWith((ref) => Stream<bool>.value(false)),
-            jokeReactionsServiceProvider.overrideWithValue(
-              _MockJokeReactionsService(),
-            ),
           ],
         ),
       );
@@ -308,9 +299,6 @@ void main() {
             IsJokeSavedProvider(
               joke.id,
             ).overrideWith((ref) => Stream<bool>.value(false)),
-            jokeReactionsServiceProvider.overrideWithValue(
-              _MockJokeReactionsService(),
-            ),
           ],
         ),
       );
@@ -355,9 +343,6 @@ void main() {
             IsJokeSharedProvider(
               joke.id,
             ).overrideWith((ref) => Stream<bool>.value(false)),
-            jokeReactionsServiceProvider.overrideWithValue(
-              _MockJokeReactionsService(),
-            ),
             jokeShareServiceProvider.overrideWithValue(_MockJokeShareService()),
           ],
         ),

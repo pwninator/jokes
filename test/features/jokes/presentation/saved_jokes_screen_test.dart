@@ -8,6 +8,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:snickerdoodle/src/core/providers/app_version_provider.dart';
 import 'package:snickerdoodle/src/core/providers/connectivity_providers.dart';
 import 'package:snickerdoodle/src/core/providers/image_providers.dart';
+import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
 import 'package:snickerdoodle/src/core/services/notification_service.dart';
@@ -19,7 +20,6 @@ import 'package:snickerdoodle/src/data/jokes/category_interactions_repository.da
 import 'package:snickerdoodle/src/data/jokes/joke_interactions_repository.dart';
 import 'package:snickerdoodle/src/data/reviews/reviews_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_population_providers.dart';
-import 'package:snickerdoodle/src/features/jokes/application/joke_reactions_service.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_search_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
@@ -31,9 +31,9 @@ import 'package:snickerdoodle/src/features/settings/application/settings_service
 
 class MockJokeRepository extends Mock implements JokeRepository {}
 
-class MockJokeReactionsService extends Mock implements JokeReactionsService {}
-
 // Additional mock classes for Firebase and core services
+class MockAppUsageService extends Mock implements AppUsageService {}
+
 class MockSettingsService extends Mock implements SettingsService {}
 
 class MockImageService extends Mock implements ImageService {}
@@ -157,7 +157,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   late MockJokeRepository mockRepository;
-  late MockJokeReactionsService mockReactionsService;
+  late MockAppUsageService mockAppUsageService;
 
   setUpAll(() {
     registerFallbackValue(MatchMode.tight);
@@ -167,11 +167,11 @@ void main() {
 
   setUp(() {
     mockRepository = MockJokeRepository();
-    mockReactionsService = MockJokeReactionsService();
+    mockAppUsageService = MockAppUsageService();
 
     when(
-      () => mockReactionsService.getAllUserReactions(),
-    ).thenAnswer((_) async => {});
+      () => mockAppUsageService.getSavedJokeIds(),
+    ).thenAnswer((_) async => <String>[]);
   });
 
   ProviderContainer createContainer({List<Override> overrides = const []}) {
@@ -299,7 +299,7 @@ void main() {
 
         // Test-specific overrides
         jokeRepositoryProvider.overrideWithValue(mockRepository),
-        jokeReactionsServiceProvider.overrideWithValue(mockReactionsService),
+        appUsageServiceProvider.overrideWithValue(mockAppUsageService),
         // Override jokeInteractionsRepository to return working streams
         jokeInteractionsRepositoryProvider.overrideWith((ref) {
           return _TestInteractionsRepo(
@@ -358,7 +358,7 @@ void main() {
 
   testWidgets('renders saved joke count when jokes exist', (tester) async {
     when(
-      () => mockReactionsService.getSavedJokeIds(),
+      () => mockAppUsageService.getSavedJokeIds(),
     ).thenAnswer((_) async => ['1', '2']);
     when(() => mockRepository.getJokesByIds(any())).thenAnswer((
       invocation,
@@ -388,7 +388,7 @@ void main() {
 
   testWidgets('does not render count when no jokes are saved', (tester) async {
     when(
-      () => mockReactionsService.getSavedJokeIds(),
+      () => mockAppUsageService.getSavedJokeIds(),
     ).thenAnswer((_) async => <String>[]);
     when(
       () => mockRepository.getJokesByIds(any()),

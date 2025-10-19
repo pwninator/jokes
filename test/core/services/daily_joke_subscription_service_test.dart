@@ -730,12 +730,13 @@ void main() {
 
       final notifier = container.read(subscriptionPromptProvider.notifier);
 
-      notifier.considerPromptAfterJokeViewed(
+      final shown = notifier.maybePromptAfterJokeViewed(
         JokeConstants.subscriptionPromptJokesViewedThreshold - 1,
       );
 
       final state = container.read(subscriptionPromptProvider);
       expect(state.shouldShowPrompt, isFalse);
+      expect(shown, isFalse);
 
       container.dispose();
     });
@@ -762,12 +763,13 @@ void main() {
 
       final notifier = container.read(subscriptionPromptProvider.notifier);
 
-      notifier.considerPromptAfterJokeViewed(
+      final shown = notifier.maybePromptAfterJokeViewed(
         JokeConstants.subscriptionPromptJokesViewedThreshold,
       );
 
       final state = container.read(subscriptionPromptProvider);
       expect(state.shouldShowPrompt, isTrue);
+      expect(shown, isTrue);
 
       container.dispose();
     });
@@ -805,12 +807,13 @@ void main() {
       // Give async initializer a moment to populate state
       await Future<void>.delayed(const Duration(milliseconds: 1));
 
-      notifier.considerPromptAfterJokeViewed(
+      final shown = notifier.maybePromptAfterJokeViewed(
         JokeConstants.subscriptionPromptJokesViewedThreshold + 1,
       );
 
       final state = container.read(subscriptionPromptProvider);
       expect(state.shouldShowPrompt, isFalse);
+      expect(shown, isFalse);
 
       container.dispose();
     });
@@ -859,7 +862,7 @@ void main() {
 
       // Call considerPromptAfterJokeViewed - this should check current subscription state
       // and skip showing the prompt since user is already subscribed
-      promptNotifier.considerPromptAfterJokeViewed(
+      final shown = promptNotifier.maybePromptAfterJokeViewed(
         JokeConstants.subscriptionPromptJokesViewedThreshold + 1,
       );
 
@@ -867,6 +870,7 @@ void main() {
       expect(state.shouldShowPrompt, isFalse);
       expect(state.isSubscribed, isTrue);
       expect(state.hasUserMadeChoice, isTrue);
+      expect(shown, isFalse);
 
       container.dispose();
     });

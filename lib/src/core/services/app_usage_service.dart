@@ -9,6 +9,7 @@ import 'package:snickerdoodle/src/core/providers/app_usage_events_provider.dart'
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/app_review_service.dart';
+import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:snickerdoodle/src/core/services/review_prompt_service.dart';
 import 'package:snickerdoodle/src/core/services/review_prompt_state_store.dart';
@@ -32,6 +33,7 @@ AppUsageService appUsageService(Ref ref) {
   final jokeInteractionsRepository = ref.read(
     jokeInteractionsRepositoryProvider,
   );
+  final reviewPromptCoordinator = ref.read(reviewPromptCoordinatorProvider);
   return AppUsageService(
     ref: ref,
     settingsService: settingsService,
@@ -39,6 +41,7 @@ AppUsageService appUsageService(Ref ref) {
     jokeCloudFn: jokeCloudFn,
     categoryInteractionsService: categoryInteractionsService,
     jokeInteractionsRepository: jokeInteractionsRepository,
+    reviewPromptCoordinator: reviewPromptCoordinator,
     isDebugMode: kDebugMode,
   );
 }
@@ -70,13 +73,15 @@ class AppUsageService {
     required JokeCloudFunctionService jokeCloudFn,
     required CategoryInteractionsRepository categoryInteractionsService,
     required JokeInteractionsRepository jokeInteractionsRepository,
-    bool? isDebugMode,
+    required ReviewPromptCoordinator reviewPromptCoordinator,
+    required bool isDebugMode,
   }) : _settings = settingsService,
        _analyticsService = analyticsService,
        _ref = ref,
        _jokeCloudFn = jokeCloudFn,
        _categoryInteractions = categoryInteractionsService,
        _jokeInteractions = jokeInteractionsRepository,
+       _reviewPromptCoordinator = reviewPromptCoordinator,
        _isDebugMode = isDebugMode;
 
   final Ref _ref;
@@ -85,7 +90,8 @@ class AppUsageService {
   final JokeCloudFunctionService _jokeCloudFn;
   final CategoryInteractionsRepository _categoryInteractions;
   final JokeInteractionsRepository _jokeInteractions;
-  final bool? _isDebugMode;
+  final ReviewPromptCoordinator _reviewPromptCoordinator;
+  final bool _isDebugMode;
 
   // Preference keys
   static const String _firstUsedDateKey = 'first_used_date';
@@ -178,16 +184,24 @@ class AppUsageService {
     required BuildContext context,
   }) async {
     try {
+      final interaction = await _jokeInteractions.getJokeInteraction(jokeId);
+      final alreadyViewed = interaction?.viewedTimestamp != null;
+      if (alreadyViewed) {
+        AppLogger.debug(
+          'APP_USAGE logJokeViewed skipped (already viewed): { joke_id: $jokeId }',
+        );
+        return;
+      }
+
       await _jokeInteractions.setViewed(jokeId);
       _notifyUsageChanged();
       _pushUsageSnapshot();
       AppLogger.debug('APP_USAGE logJokeViewed: { joke_id: $jokeId }');
 
-      // Review prompt after successful view if enabled and context provided
-      final rv = _ref.read(remoteConfigValuesProvider);
-      final enabled = rv.getBool(RemoteParam.reviewRequestFromJokeViewed);
-      if (enabled && context.mounted) {
-        await _maybePromptForReview(
+      final subscriptionPromptShown = await _maybeShowSubscriptionPrompt();
+
+      if (!subscriptionPromptShown && context.mounted) {
+        await _maybeShowReviewPrompt(
           source: ReviewRequestSource.jokeViewed,
           context: context,
         );
@@ -245,7 +259,7 @@ class AppUsageService {
       _pushUsageSnapshot();
       AppLogger.debug('APP_USAGE saveJoke: { joke_id: $jokeId }');
       if (context.mounted) {
-        await _maybePromptForReview(
+        await _maybeShowReviewPrompt(
           source: ReviewRequestSource.jokeSaved,
           context: context,
         );
@@ -279,7 +293,7 @@ class AppUsageService {
       _pushUsageSnapshot();
       AppLogger.debug('APP_USAGE shareJoke: { joke_id: $jokeId }');
       if (context.mounted) {
-        await _maybePromptForReview(
+        await _maybeShowReviewPrompt(
           source: ReviewRequestSource.jokeShared,
           context: context,
         );
@@ -347,6 +361,55 @@ class AppUsageService {
   // PRIVATE HELPER METHODS
   // ==============================
 
+  /// Shows subscription prompt if appropriate based on jokes viewed count.
+  /// Returns true if a prompt was shown, false otherwise.
+  Future<bool> _maybeShowSubscriptionPrompt() async {
+    try {
+      final jokesViewedCount = await _jokeInteractions.countViewed();
+      final subscriptionPromptNotifier = _ref.read(
+        subscriptionPromptProvider.notifier,
+      );
+      return subscriptionPromptNotifier.maybePromptAfterJokeViewed(
+        jokesViewedCount,
+      );
+    } catch (e) {
+      AppLogger.warn('APP_USAGE subscription prompt error: $e');
+      return false;
+    }
+  }
+
+  /// Shows review prompt if appropriate based on the source and context.
+  /// Only shows if review prompts are enabled via remote config and context is mounted.
+  Future<void> _maybeShowReviewPrompt({
+    required ReviewRequestSource source,
+    required BuildContext context,
+  }) async {
+    final numDaysUsed = await getNumDaysUsed();
+    final numSavedJokes = await getNumSavedJokes();
+    final numSharedJokes = await getNumSharedJokes();
+    final numJokesViewed = await getNumJokesViewed();
+
+    if (!context.mounted) {
+      return;
+    }
+
+    final rv = _ref.read(remoteConfigValuesProvider);
+    final reviewFromViewsEnabled = rv.getBool(
+      RemoteParam.reviewRequestFromJokeViewed,
+    );
+
+    if (reviewFromViewsEnabled) {
+      await _reviewPromptCoordinator.maybePromptForReview(
+        numDaysUsed: numDaysUsed,
+        numSavedJokes: numSavedJokes,
+        numSharedJokes: numSharedJokes,
+        numJokesViewed: numJokesViewed,
+        source: source,
+        context: context,
+      );
+    }
+  }
+
   // Returns today's date as yyyy-MM-dd in local time
   String _formatTodayDate() {
     final DateTime now = DateTime.now();
@@ -367,7 +430,7 @@ class AppUsageService {
     try {
       // Skip backend sync in debug mode or for admin users (mirrors analytics behavior)
       final bool isAdmin = _ref.read(isAdminProvider);
-      if ((_isDebugMode ?? kDebugMode) || isAdmin) {
+      if (_isDebugMode || isAdmin) {
         AppLogger.debug(
           'APP_USAGE SKIPPED (${isAdmin ? 'ADMIN' : 'DEBUG'}): trackUsage snapshot not sent',
         );
@@ -398,29 +461,6 @@ class AppUsageService {
       await Future.wait(futures);
     } catch (e) {
       AppLogger.warn('APP_USAGE pushUsageSnapshot error: $e');
-    }
-  }
-
-  Future<void> _maybePromptForReview({
-    required ReviewRequestSource source,
-    required BuildContext context,
-  }) async {
-    if (!context.mounted) return;
-    try {
-      final bool isAdmin = _ref.read(isAdminProvider);
-      if (isAdmin) {
-        AppLogger.debug('APP_USAGE review prompt skipped for admin user');
-        return;
-      }
-      final coordinator = _ref.read(reviewPromptCoordinatorProvider);
-      if (context.mounted) {
-        await coordinator.maybePromptForReview(
-          source: source,
-          context: context,
-        );
-      }
-    } catch (e) {
-      AppLogger.warn('APP_USAGE maybePromptForReview error: $e');
     }
   }
 }

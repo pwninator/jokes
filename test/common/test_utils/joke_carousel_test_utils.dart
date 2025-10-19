@@ -107,7 +107,7 @@ class FakeSubscriptionPromptNotifier extends SubscriptionPromptNotifier {
         remoteConfigValues: FakeRemoteConfigValues(),
       );
   @override
-  void considerPromptAfterJokeViewed(int _) {}
+  bool maybePromptAfterJokeViewed(int _) => false;
 }
 
 // Mock classes

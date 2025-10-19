@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -15,7 +13,6 @@ import 'package:snickerdoodle/src/core/services/notification_service.dart';
 import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:snickerdoodle/src/data/core/app/firebase_providers.dart';
-import 'package:snickerdoodle/src/data/core/database/app_database.dart';
 import 'package:snickerdoodle/src/data/jokes/category_interactions_repository.dart';
 import 'package:snickerdoodle/src/data/jokes/joke_interactions_repository.dart';
 import 'package:snickerdoodle/src/data/reviews/reviews_repository.dart';
@@ -31,7 +28,6 @@ import 'package:snickerdoodle/src/features/settings/application/settings_service
 
 class MockJokeRepository extends Mock implements JokeRepository {}
 
-// Additional mock classes for Firebase and core services
 class MockAppUsageService extends Mock implements AppUsageService {}
 
 class MockSettingsService extends Mock implements SettingsService {}
@@ -48,63 +44,13 @@ class MockReviewsRepository extends Mock implements ReviewsRepository {}
 class MockJokeCloudFunctionService extends Mock
     implements JokeCloudFunctionService {}
 
-// Fake Firebase classes for testing (only what's actually needed)
-class FakeFirebaseAnalytics extends Fake implements FirebaseAnalytics {}
+class MockPerformanceService extends Mock implements PerformanceService {}
 
-// Test implementations
-class _TestRemoteConfigValues implements RemoteConfigValues {
-  @override
-  bool getBool(RemoteParam param) {
-    if (param == RemoteParam.defaultJokeViewerReveal) {
-      return true;
-    }
-    return false;
-  }
+class MockRemoteConfigValues extends Mock implements RemoteConfigValues {}
 
-  @override
-  double getDouble(RemoteParam param) => 0;
-
-  @override
-  int getInt(RemoteParam param) {
-    final descriptor = remoteParams[param]!;
-    return descriptor.defaultInt ?? 0;
-  }
-
-  @override
-  String getString(RemoteParam param) => '';
-
-  @override
-  T getEnum<T>(RemoteParam param) {
-    final descriptor = remoteParams[param]!;
-    return (descriptor.enumDefault ?? '') as T;
-  }
-}
-
-class _TestNoopPerformanceService implements PerformanceService {
-  @override
-  void startNamedTrace({
-    required TraceName name,
-    String? key,
-    Map<String, String>? attributes,
-  }) {}
-
-  @override
-  void putNamedTraceAttributes({
-    required TraceName name,
-    String? key,
-    required Map<String, String> attributes,
-  }) {}
-
-  @override
-  void stopNamedTrace({required TraceName name, String? key}) {}
-
-  @override
-  void dropNamedTrace({required TraceName name, String? key}) {}
-}
-
-/// Test joke population notifier that doesn't require Firebase
-class TestJokePopulationNotifier extends JokePopulationNotifier {
-  TestJokePopulationNotifier() : super(MockJokeCloudFunctionService());
+class MockJokePopulationNotifier extends StateNotifier<JokePopulationState>
+    implements JokePopulationNotifier {
+  MockJokePopulationNotifier() : super(const JokePopulationState());
 
   @override
   Future<bool> populateJoke(
@@ -117,7 +63,7 @@ class TestJokePopulationNotifier extends JokePopulationNotifier {
 
   @override
   void clearError() {
-    state = state.copyWith(error: null);
+    state = state.copyWith(clearError: true);
   }
 
   @override
@@ -126,32 +72,14 @@ class TestJokePopulationNotifier extends JokePopulationNotifier {
   }
 }
 
-// Test repository that properly handles streams
-class _TestInteractionsRepo extends JokeInteractionsRepository {
-  _TestInteractionsRepo({required super.db, required PerformanceService perf})
-    : super(performanceService: perf);
+class MockJokeInteractionsRepository extends Mock
+    implements JokeInteractionsRepository {}
 
-  final _controllers = <String, StreamController<JokeInteraction?>>{};
+class MockCategoryInteractionsRepository extends Mock
+    implements CategoryInteractionsRepository {}
 
-  @override
-  Stream<JokeInteraction?> watchJokeInteraction(String jokeId) {
-    // Reuse existing controller for this jokeId or create a new one
-    if (!_controllers.containsKey(jokeId)) {
-      final controller = StreamController<JokeInteraction?>.broadcast();
-      _controllers[jokeId] = controller;
-      // Add initial value
-      controller.add(null);
-    }
-    return _controllers[jokeId]!.stream;
-  }
-
-  void dispose() {
-    for (final controller in _controllers.values) {
-      controller.close();
-    }
-    _controllers.clear();
-  }
-}
+// Fake Firebase classes for testing (only what's actually needed)
+class FakeFirebaseAnalytics extends Fake implements FirebaseAnalytics {}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -163,6 +91,9 @@ void main() {
     registerFallbackValue(MatchMode.tight);
     registerFallbackValue(SearchScope.userJokeSearch);
     registerFallbackValue(SearchLabel.none);
+    registerFallbackValue(FakeFirebaseAnalytics());
+    registerFallbackValue(TraceName.searchToFirstImage);
+    registerFallbackValue(RemoteParam.defaultJokeViewerReveal);
   });
 
   setUp(() {
@@ -181,6 +112,12 @@ void main() {
     final mockSubscriptionService = MockDailyJokeSubscriptionService();
     final mockReviewsRepository = MockReviewsRepository();
     final mockCloudFunctionService = MockJokeCloudFunctionService();
+    final mockJokeInteractionsRepository = MockJokeInteractionsRepository();
+    final mockCategoryInteractionsRepository =
+        MockCategoryInteractionsRepository();
+    final mockJokePopulationNotifier = MockJokePopulationNotifier();
+    final mockRemoteConfigValues = MockRemoteConfigValues();
+    final mockPerformanceService = MockPerformanceService();
 
     // Setup default behaviors for mocks
     when(() => mockSettingsService.getBool(any())).thenReturn(null);
@@ -266,6 +203,84 @@ void main() {
       ),
     ).thenAnswer((_) async => <JokeSearchResult>[]);
 
+    // Setup performance service mocks
+    when(
+      () => mockPerformanceService.startNamedTrace(
+        name: any(named: 'name'),
+        key: any(named: 'key'),
+        attributes: any(named: 'attributes'),
+      ),
+    ).thenAnswer((_) {});
+    when(
+      () => mockPerformanceService.putNamedTraceAttributes(
+        name: any(named: 'name'),
+        key: any(named: 'key'),
+        attributes: any(named: 'attributes'),
+      ),
+    ).thenAnswer((_) {});
+    when(
+      () => mockPerformanceService.stopNamedTrace(
+        name: any(named: 'name'),
+        key: any(named: 'key'),
+      ),
+    ).thenAnswer((_) {});
+    when(
+      () => mockPerformanceService.dropNamedTrace(
+        name: any(named: 'name'),
+        key: any(named: 'key'),
+      ),
+    ).thenAnswer((_) {});
+
+    // Setup remote config values mocks
+    when(() => mockRemoteConfigValues.getBool(any())).thenReturn(false);
+    when(() => mockRemoteConfigValues.getDouble(any())).thenReturn(0.0);
+    when(() => mockRemoteConfigValues.getInt(any())).thenReturn(0);
+    when(() => mockRemoteConfigValues.getString(any())).thenReturn('');
+    when(() => mockRemoteConfigValues.getEnum(any())).thenReturn('');
+
+    // MockJokePopulationNotifier is now a real StateNotifier, no setup needed
+
+    // Setup joke interactions repository mocks
+    when(
+      () => mockJokeInteractionsRepository.setViewed(any()),
+    ).thenAnswer((_) async => true);
+    when(
+      () => mockJokeInteractionsRepository.setSaved(any()),
+    ).thenAnswer((_) async => true);
+    when(
+      () => mockJokeInteractionsRepository.setUnsaved(any()),
+    ).thenAnswer((_) async => true);
+    when(
+      () => mockJokeInteractionsRepository.setShared(any()),
+    ).thenAnswer((_) async => true);
+    when(
+      () => mockJokeInteractionsRepository.getSavedJokeInteractions(),
+    ).thenAnswer((_) async => []);
+    when(
+      () => mockJokeInteractionsRepository.getAllJokeInteractions(),
+    ).thenAnswer((_) async => []);
+    when(
+      () => mockJokeInteractionsRepository.getJokeInteraction(any()),
+    ).thenAnswer((_) async => null);
+    when(
+      () => mockJokeInteractionsRepository.isJokeSaved(any()),
+    ).thenAnswer((_) async => false);
+    when(
+      () => mockJokeInteractionsRepository.isJokeShared(any()),
+    ).thenAnswer((_) async => false);
+    when(
+      () => mockJokeInteractionsRepository.watchJokeInteraction(any()),
+    ).thenAnswer((_) => Stream.value(null));
+    when(
+      () => mockJokeInteractionsRepository.countViewed(),
+    ).thenAnswer((_) async => 0);
+    when(
+      () => mockJokeInteractionsRepository.countSaved(),
+    ).thenAnswer((_) async => 0);
+    when(
+      () => mockJokeInteractionsRepository.countShared(),
+    ).thenAnswer((_) async => 0);
+
     return ProviderContainer(
       overrides: [
         // Core service mocks
@@ -276,20 +291,17 @@ void main() {
           mockSubscriptionService,
         ),
         reviewsRepositoryProvider.overrideWithValue(mockReviewsRepository),
-        performanceServiceProvider.overrideWithValue(
-          _TestNoopPerformanceService(),
-        ),
+        performanceServiceProvider.overrideWithValue(mockPerformanceService),
         appVersionProvider.overrideWith((_) async => 'Snickerdoodle v0.0.1+1'),
-        appDatabaseProvider.overrideWithValue(AppDatabase.inMemory()),
 
         // Firebase mocks (only what's actually needed)
         firebaseAnalyticsProvider.overrideWithValue(FakeFirebaseAnalytics()),
-        remoteConfigValuesProvider.overrideWithValue(_TestRemoteConfigValues()),
+        remoteConfigValuesProvider.overrideWithValue(mockRemoteConfigValues),
         jokeCloudFunctionServiceProvider.overrideWithValue(
           mockCloudFunctionService,
         ),
         jokePopulationProvider.overrideWith(
-          (ref) => TestJokePopulationNotifier(),
+          (ref) => mockJokePopulationNotifier,
         ),
 
         // Connectivity
@@ -302,17 +314,11 @@ void main() {
         appUsageServiceProvider.overrideWithValue(mockAppUsageService),
         // Override jokeInteractionsRepository to return working streams
         jokeInteractionsRepositoryProvider.overrideWith((ref) {
-          return _TestInteractionsRepo(
-            db: AppDatabase.inMemory(),
-            perf: _TestNoopPerformanceService(),
-          );
+          return mockJokeInteractionsRepository;
         }),
         // Override categoryInteractionsRepository
         categoryInteractionsRepositoryProvider.overrideWith((ref) {
-          return CategoryInteractionsRepository(
-            db: AppDatabase.inMemory(),
-            performanceService: _TestNoopPerformanceService(),
-          );
+          return mockCategoryInteractionsRepository;
         }),
         ...overrides,
       ],

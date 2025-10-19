@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:in_app_review/in_app_review.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:snickerdoodle/src/common_widgets/app_review_prompt_dialog.dart';
 import 'package:snickerdoodle/src/config/router/route_names.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
@@ -145,7 +145,11 @@ class AppReviewService {
 
       try {
         await _promptHistoryStore.markRequested();
-      } catch (_) {}
+      } catch (e) {
+        // Don't show the dialog if there's an error marking the request
+        AppLogger.error('APP_REVIEW markRequested error: $e');
+        return ReviewRequestResult.error;
+      }
 
       if (!context.mounted) {
         return ReviewRequestResult.error;

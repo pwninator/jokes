@@ -9,6 +9,7 @@ import 'package:snickerdoodle/src/config/router/router_providers.dart';
 import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
+import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:snickerdoodle/src/data/core/app/firebase_providers.dart';
@@ -35,6 +36,8 @@ class MockAnalyticsService extends Mock implements AnalyticsService {}
 class MockSettingsService extends Mock implements SettingsService {}
 
 class MockRemoteConfigValues extends Mock implements RemoteConfigValues {}
+
+class MockAppUsageService extends Mock implements AppUsageService {}
 
 class FakeFirebasePerformance extends Fake implements FirebasePerformance {
   @override
@@ -85,14 +88,14 @@ void main() {
   late MockAnalyticsService mockAnalyticsService;
   late MockSettingsService mockSettingsService;
   late MockRemoteConfigValues mockRemoteConfigValues;
-
+  late MockAppUsageService mockAppUsageService;
   setUp(() {
     mockJokeInteractionsRepository = MockJokeInteractionsRepository();
     mockCategoryInteractionsRepository = MockCategoryInteractionsRepository();
     mockAnalyticsService = MockAnalyticsService();
     mockSettingsService = MockSettingsService();
     mockRemoteConfigValues = MockRemoteConfigValues();
-
+    mockAppUsageService = MockAppUsageService();
     // Stub default behavior
     when(
       () => mockJokeInteractionsRepository.watchJokeInteraction(any()),
@@ -147,6 +150,7 @@ void main() {
           FakeFirebasePerformance(),
         ),
         firebaseFunctionsProvider.overrideWithValue(FakeFirebaseFunctions()),
+        appUsageServiceProvider.overrideWithValue(mockAppUsageService),
       ];
 
       // Act & Assert: With flag off
@@ -216,6 +220,7 @@ void main() {
         navigationHelpersProvider.overrideWith(
           (ref) => StubNavigationHelpers(ref),
         ),
+        appUsageServiceProvider.overrideWithValue(mockAppUsageService),
         // Avoid real cloud function calls
         searchResultIdsProvider(
           SearchScope.userJokeSearch,
@@ -302,6 +307,7 @@ void main() {
         navigationHelpersProvider.overrideWith(
           (ref) => StubNavigationHelpers(ref),
         ),
+        appUsageServiceProvider.overrideWithValue(mockAppUsageService),
       ];
 
       // Act: Build widget

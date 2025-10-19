@@ -84,9 +84,10 @@ void main() {
       );
 
       // Act
-      promptNotifier.considerPromptAfterJokeViewed(5);
+      final shown = promptNotifier.maybePromptAfterJokeViewed(5);
 
       // Assert
+      expect(shown, isFalse);
       expect(promptNotifier.state.shouldShowPrompt, isFalse);
     });
 
@@ -109,9 +110,10 @@ void main() {
       );
 
       // Act
-      promptNotifier.considerPromptAfterJokeViewed(5);
+      final shown = promptNotifier.maybePromptAfterJokeViewed(5);
 
       // Assert
+      expect(shown, isTrue);
       expect(promptNotifier.state.shouldShowPrompt, isTrue);
     });
 
@@ -134,9 +136,10 @@ void main() {
       );
 
       // Act
-      promptNotifier.considerPromptAfterJokeViewed(5);
+      final shown = promptNotifier.maybePromptAfterJokeViewed(5);
 
       // Assert
+      expect(shown, isTrue);
       expect(promptNotifier.state.shouldShowPrompt, isTrue);
     });
 
@@ -166,9 +169,10 @@ void main() {
       );
 
       // Act
-      promptNotifier.considerPromptAfterJokeViewed(5);
+      final shown = promptNotifier.maybePromptAfterJokeViewed(5);
 
       // Assert
+      expect(shown, isFalse);
       expect(promptNotifier.state.shouldShowPrompt, isFalse);
       expect(promptNotifier.state.hasUserMadeChoice, isTrue);
     });
@@ -199,9 +203,10 @@ void main() {
       );
 
       // Act
-      promptNotifier.considerPromptAfterJokeViewed(5);
+      final shown = promptNotifier.maybePromptAfterJokeViewed(5);
 
       // Assert
+      expect(shown, isFalse);
       expect(promptNotifier.state.shouldShowPrompt, isFalse);
       expect(promptNotifier.state.isSubscribed, isTrue);
     });
@@ -225,13 +230,15 @@ void main() {
       );
 
       // Act - first call shows prompt
-      promptNotifier.considerPromptAfterJokeViewed(5);
+      final firstShown = promptNotifier.maybePromptAfterJokeViewed(5);
       expect(promptNotifier.state.shouldShowPrompt, isTrue);
 
       // Second call should not show prompt again
-      promptNotifier.considerPromptAfterJokeViewed(6);
+      final secondShown = promptNotifier.maybePromptAfterJokeViewed(6);
 
       // Assert
+      expect(firstShown, isTrue);
+      expect(secondShown, isFalse);
       expect(
         promptNotifier.state.shouldShowPrompt,
         isTrue,
@@ -264,9 +271,10 @@ void main() {
       );
 
       // Act
-      promptNotifier.considerPromptAfterJokeViewed(5);
+      final shown = promptNotifier.maybePromptAfterJokeViewed(5);
 
       // Assert
+      expect(shown, isFalse);
       expect(promptNotifier.state.isSubscribed, isTrue);
       expect(promptNotifier.state.hasUserMadeChoice, isTrue);
       expect(promptNotifier.state.shouldShowPrompt, isFalse);

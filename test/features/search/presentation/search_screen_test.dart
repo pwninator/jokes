@@ -9,13 +9,13 @@ import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
 import 'package:snickerdoodle/src/core/providers/app_version_provider.dart';
 import 'package:snickerdoodle/src/core/providers/connectivity_providers.dart';
 import 'package:snickerdoodle/src/core/providers/image_providers.dart';
+import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
 import 'package:snickerdoodle/src/core/services/notification_service.dart';
 import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:snickerdoodle/src/data/core/app/firebase_providers.dart';
-import 'package:snickerdoodle/src/data/core/database/app_database.dart';
 import 'package:snickerdoodle/src/data/jokes/category_interactions_repository.dart';
 import 'package:snickerdoodle/src/data/jokes/joke_interactions_repository.dart';
 import 'package:snickerdoodle/src/data/reviews/reviews_repository.dart';
@@ -48,6 +48,14 @@ class MockFirebaseAnalytics extends Mock implements FirebaseAnalytics {}
 
 class MockJokeCloudFunctionService extends Mock
     implements JokeCloudFunctionService {}
+
+class MockAppUsageService extends Mock implements AppUsageService {}
+
+class MockJokeInteractionsRepository extends Mock
+    implements JokeInteractionsRepository {}
+
+class MockCategoryInteractionsRepository extends Mock
+    implements CategoryInteractionsRepository {}
 
 // Test implementations
 class _TestRemoteConfigValues implements RemoteConfigValues {
@@ -124,32 +132,6 @@ class TestJokePopulationNotifier extends JokePopulationNotifier {
   }
 }
 
-class _TestInteractionsRepo extends JokeInteractionsRepository {
-  _TestInteractionsRepo({required super.db, required PerformanceService perf})
-    : super(performanceService: perf);
-
-  final _controllers = <String, StreamController<JokeInteraction?>>{};
-
-  @override
-  Stream<JokeInteraction?> watchJokeInteraction(String jokeId) {
-    // Reuse existing controller for this jokeId or create a new one
-    if (!_controllers.containsKey(jokeId)) {
-      final controller = StreamController<JokeInteraction?>.broadcast();
-      _controllers[jokeId] = controller;
-      // Add initial value
-      controller.add(null);
-    }
-    return _controllers[jokeId]!.stream;
-  }
-
-  void dispose() {
-    for (final controller in _controllers.values) {
-      controller.close();
-    }
-    _controllers.clear();
-  }
-}
-
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -167,7 +149,10 @@ void main() {
     final mockSubscriptionService = MockDailyJokeSubscriptionService();
     final mockReviewsRepository = MockReviewsRepository();
     final mockCloudFunctionService = MockJokeCloudFunctionService();
-
+    final mockAppUsageService = MockAppUsageService();
+    final mockJokeInteractionsRepository = MockJokeInteractionsRepository();
+    final mockCategoryInteractionsRepository =
+        MockCategoryInteractionsRepository();
     // Setup default behaviors for mocks
     when(() => mockSettingsService.getBool(any())).thenReturn(null);
     when(
@@ -252,6 +237,28 @@ void main() {
       ),
     ).thenAnswer((_) async => <JokeSearchResult>[]);
 
+    when(
+      () => mockAppUsageService.logCategoryViewed(any()),
+    ).thenAnswer((_) async {});
+    when(
+      () => mockAppUsageService.getNumSavedJokes(),
+    ).thenAnswer((_) async => 0);
+    when(
+      () => mockAppUsageService.getNumSharedJokes(),
+    ).thenAnswer((_) async => 0);
+    when(
+      () => mockAppUsageService.getNumJokesViewed(),
+    ).thenAnswer((_) async => 0);
+    when(
+      () => mockAppUsageService.getNumJokesViewed(),
+    ).thenAnswer((_) async => 0);
+    when(
+      () => mockAppUsageService.getNumJokesViewed(),
+    ).thenAnswer((_) async => 0);
+    when(
+      () => mockAppUsageService.getNumJokesViewed(),
+    ).thenAnswer((_) async => 0);
+
     return ProviderContainer(
       overrides: [
         // Firebase analytics
@@ -268,7 +275,7 @@ void main() {
           _TestNoopPerformanceService(),
         ),
         appVersionProvider.overrideWith((_) async => 'Snickerdoodle v0.0.1+1'),
-        appDatabaseProvider.overrideWithValue(AppDatabase.inMemory()),
+        appUsageServiceProvider.overrideWithValue(mockAppUsageService),
 
         // Firebase mocks
         remoteConfigValuesProvider.overrideWithValue(_TestRemoteConfigValues()),
@@ -286,16 +293,10 @@ void main() {
 
         // Test-specific overrides
         jokeInteractionsRepositoryProvider.overrideWith((ref) {
-          return _TestInteractionsRepo(
-            db: AppDatabase.inMemory(),
-            perf: _TestNoopPerformanceService(),
-          );
+          return mockJokeInteractionsRepository;
         }),
         categoryInteractionsRepositoryProvider.overrideWith((ref) {
-          return CategoryInteractionsRepository(
-            db: AppDatabase.inMemory(),
-            performanceService: _TestNoopPerformanceService(),
-          );
+          return mockCategoryInteractionsRepository;
         }),
         ...overrides,
       ],

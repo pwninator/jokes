@@ -1,38 +1,69 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/app_review_service.dart';
-import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:snickerdoodle/src/core/services/review_prompt_state_store.dart';
+import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
+
+part 'review_prompt_service.g.dart';
+
+@Riverpod(keepAlive: true)
+ReviewPromptCoordinator reviewPromptCoordinator(Ref ref) {
+  final remoteConfigValues = ref.read(remoteConfigValuesProvider);
+  final appReviewService = ref.read(appReviewServiceProvider);
+  final stateStore = ref.read(reviewPromptStateStoreProvider);
+  final isDailySubscribed = ref.read(isSubscribedProvider);
+  final isAdmin = ref.read(isAdminProvider);
+  return ReviewPromptCoordinator(
+    getRemoteValues: () => remoteConfigValues,
+    appReviewService: appReviewService,
+    stateStore: stateStore,
+    getIsDailySubscribed: () => isDailySubscribed,
+    getIsAdmin: () => isAdmin,
+  );
+}
 
 /// Coordinates eligibility checks and attempts an in-app review prompt
 class ReviewPromptCoordinator {
   ReviewPromptCoordinator({
     required RemoteConfigValues Function() getRemoteValues,
-    required AppUsageService appUsageService,
     required AppReviewService appReviewService,
     required ReviewPromptStateStore stateStore,
     required bool Function() getIsDailySubscribed,
+    required bool Function() getIsAdmin,
   }) : _getRemoteValues = getRemoteValues,
-       _usage = appUsageService,
        _reviewService = appReviewService,
        _store = stateStore,
-       _getIsDailySubscribed = getIsDailySubscribed;
+       _getIsDailySubscribed = getIsDailySubscribed,
+       _getIsAdmin = getIsAdmin;
 
   final RemoteConfigValues Function() _getRemoteValues;
-  final AppUsageService _usage;
   final AppReviewService _reviewService;
   final ReviewPromptStateStore _store;
   final bool Function() _getIsDailySubscribed;
+  final bool Function() _getIsAdmin;
 
   Future<void> maybePromptForReview({
+    required int numDaysUsed,
+    required int numSavedJokes,
+    required int numSharedJokes,
+    required int numJokesViewed,
     required ReviewRequestSource source,
     required BuildContext context,
   }) async {
     try {
       AppLogger.debug('REVIEW_COORDINATOR maybePromptForReview');
+
+      final isAdmin = _getIsAdmin();
+      if (isAdmin) {
+        AppLogger.debug(
+          'REVIEW_COORDINATOR maybePromptForReview skipped for admin user',
+        );
+        return;
+      }
 
       // Early out if previously requested
       if (_store.hasRequested()) {
@@ -52,21 +83,15 @@ class ReviewPromptCoordinator {
         RemoteParam.reviewRequireDailySubscription,
       );
 
-      // Read usage (fast SharedPreferences reads)
-      final days = await _usage.getNumDaysUsed();
-      final saved = await _usage.getNumSavedJokes();
-      final shared = await _usage.getNumSharedJokes();
-      final viewed = await _usage.getNumJokesViewed();
-
       final subscriptionRequirementPassed = requireDailySub
           ? _getIsDailySubscribed()
           : true;
 
       final eligible =
-          days >= minDays &&
-          saved >= minSaved &&
-          shared >= minShared &&
-          viewed >= minViewed &&
+          numDaysUsed >= minDays &&
+          numSavedJokes >= minSaved &&
+          numSharedJokes >= minShared &&
+          numJokesViewed >= minViewed &&
           subscriptionRequirementPassed;
       if (!eligible) return;
 
@@ -82,18 +107,3 @@ class ReviewPromptCoordinator {
     }
   }
 }
-
-final reviewPromptCoordinatorProvider = Provider<ReviewPromptCoordinator>((
-  ref,
-) {
-  final usage = ref.watch(appUsageServiceProvider);
-  final review = ref.watch(appReviewServiceProvider);
-  final store = ref.watch(reviewPromptStateStoreProvider);
-  return ReviewPromptCoordinator(
-    getRemoteValues: () => ref.read(remoteConfigValuesProvider),
-    appUsageService: usage,
-    appReviewService: review,
-    stateStore: store,
-    getIsDailySubscribed: () => ref.read(isSubscribedProvider),
-  );
-});

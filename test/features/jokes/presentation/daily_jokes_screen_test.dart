@@ -276,6 +276,10 @@ void main() {
 
     when(
       () => mockReviewPromptCoordinator.maybePromptForReview(
+        numDaysUsed: any(named: 'numDaysUsed'),
+        numSavedJokes: any(named: 'numSavedJokes'),
+        numSharedJokes: any(named: 'numSharedJokes'),
+        numJokesViewed: any(named: 'numJokesViewed'),
         source: any(named: 'source'),
         context: any(named: 'context'),
       ),

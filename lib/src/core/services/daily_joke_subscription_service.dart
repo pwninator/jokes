@@ -420,7 +420,8 @@ class SubscriptionPromptNotifier
   }
 
   /// Consider showing the prompt immediately based on jokes-viewed threshold
-  void considerPromptAfterJokeViewed(int jokesViewedCount) {
+  /// Returns true if the prompt should be shown, false otherwise.
+  bool maybePromptAfterJokeViewed(int jokesViewedCount) {
     // Always check the current subscription state from the underlying notifier
     // to ensure we have the latest information (e.g., if user subscribed from settings)
     final currentSubscriptionState = _subscriptionNotifier.state;
@@ -434,7 +435,7 @@ class SubscriptionPromptNotifier
 
     // Skip if user has already made a choice or prompt already pending/shown
     if (state.shouldSkipPromptLogic || state.shouldShowPrompt) {
-      return;
+      return false;
     }
 
     final int threshold = remoteConfigValues.getInt(
@@ -442,7 +443,10 @@ class SubscriptionPromptNotifier
     );
     if (jokesViewedCount >= threshold) {
       state = state.copyWith(shouldShowPrompt: true);
+      return true;
     }
+
+    return false;
   }
 
   /// Handle subscription (user clicked "Subscribe")

@@ -3,7 +3,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:snickerdoodle/src/core/services/app_review_service.dart';
-import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:snickerdoodle/src/core/services/review_prompt_service.dart';
 import 'package:snickerdoodle/src/core/services/review_prompt_state_store.dart';
@@ -11,8 +10,6 @@ import 'package:snickerdoodle/src/core/services/review_prompt_state_store.dart';
 class _MockAppReviewService extends Mock implements AppReviewService {}
 
 class _MockStateStore extends Mock implements ReviewPromptStateStore {}
-
-class _MockAppUsageService extends Mock implements AppUsageService {}
 
 class _FakeBuildContext extends Fake implements BuildContext {}
 
@@ -108,24 +105,13 @@ void main() {
   });
 
   group('ReviewPromptCoordinator', () {
-    late _MockAppUsageService usage;
     late _MockAppReviewService review;
     late _MockStateStore store;
 
     setUp(() async {
       SharedPreferences.setMockInitialValues({});
-      usage = _MockAppUsageService();
       review = _MockAppReviewService();
       store = _MockStateStore();
-
-      // Mock AppUsageService methods used in tests
-      when(() => usage.getNumDaysUsed()).thenAnswer((_) async => 0);
-      when(() => usage.getNumSavedJokes()).thenAnswer((_) async => 0);
-      when(() => usage.getNumSharedJokes()).thenAnswer((_) async => 0);
-      when(() => usage.getNumJokesViewed()).thenAnswer((_) async => 0);
-      when(
-        () => usage.logJokeViewed(any(), context: any(named: 'context')),
-      ).thenAnswer((_) async {});
     });
 
     testWidgets('early return when already requested', (tester) async {
@@ -137,14 +123,18 @@ void main() {
 
       final coordinator = ReviewPromptCoordinator(
         getRemoteValues: () => values,
-        appUsageService: usage,
         appReviewService: review,
         stateStore: store,
         getIsDailySubscribed: () => true,
+        getIsAdmin: () => false,
       );
 
       // Act
       await coordinator.maybePromptForReview(
+        numDaysUsed: 5,
+        numSavedJokes: 3,
+        numSharedJokes: 1,
+        numJokesViewed: 0,
         source: ReviewRequestSource.jokeViewed,
         context: context,
       );
@@ -173,19 +163,18 @@ void main() {
 
       final coordinator = ReviewPromptCoordinator(
         getRemoteValues: () => values,
-        appUsageService: usage,
         appReviewService: review,
         stateStore: store,
         getIsDailySubscribed: () => true,
+        getIsAdmin: () => false,
       );
-
-      // Ensure some low usage values (already mocked to return 0)
-      expect(await usage.getNumDaysUsed(), 0);
-      expect(await usage.getNumSavedJokes(), 0);
-      expect(await usage.getNumSharedJokes(), 0);
 
       // Act
       await coordinator.maybePromptForReview(
+        numDaysUsed: 5,
+        numSavedJokes: 5,
+        numSharedJokes: 5,
+        numJokesViewed: 5,
         source: ReviewRequestSource.jokeViewed,
         context: context,
       );
@@ -209,11 +198,6 @@ void main() {
       final values = _FakeRemoteValues(minDays: 1, minSaved: 1, minShared: 1);
       when(() => store.hasRequested()).thenAnswer((_) => false);
 
-      // Set usage to thresholds
-      when(() => usage.getNumDaysUsed()).thenAnswer((_) async => 1);
-      when(() => usage.getNumSavedJokes()).thenAnswer((_) async => 1);
-      when(() => usage.getNumSharedJokes()).thenAnswer((_) async => 1);
-
       when(
         () => review.requestReview(
           source: any(named: 'source'),
@@ -223,14 +207,18 @@ void main() {
 
       final coordinator = ReviewPromptCoordinator(
         getRemoteValues: () => values,
-        appUsageService: usage,
         appReviewService: review,
         stateStore: store,
         getIsDailySubscribed: () => true,
+        getIsAdmin: () => false,
       );
 
       // Act
       await coordinator.maybePromptForReview(
+        numDaysUsed: 1,
+        numSavedJokes: 1,
+        numSharedJokes: 1,
+        numJokesViewed: 0,
         source: ReviewRequestSource.jokeViewed,
         context: context,
       );
@@ -253,10 +241,6 @@ void main() {
         final values = _FakeRemoteValues(minDays: 1, minSaved: 1, minShared: 1);
         when(() => store.hasRequested()).thenAnswer((_) => false);
 
-        when(() => usage.getNumDaysUsed()).thenAnswer((_) async => 1);
-        when(() => usage.getNumSavedJokes()).thenAnswer((_) async => 1);
-        when(() => usage.getNumSharedJokes()).thenAnswer((_) async => 1);
-
         when(
           () => review.requestReview(
             source: any(named: 'source'),
@@ -266,13 +250,17 @@ void main() {
 
         final coordinator = ReviewPromptCoordinator(
           getRemoteValues: () => values,
-          appUsageService: usage,
           appReviewService: review,
           stateStore: store,
           getIsDailySubscribed: () => true,
+          getIsAdmin: () => false,
         );
 
         await coordinator.maybePromptForReview(
+          numDaysUsed: 1,
+          numSavedJokes: 1,
+          numSharedJokes: 1,
+          numJokesViewed: 0,
           source: ReviewRequestSource.jokeViewed,
           context: context,
         );
@@ -290,10 +278,6 @@ void main() {
         final values = _FakeRemoteValues(minDays: 1, minSaved: 1, minShared: 1);
         when(() => store.hasRequested()).thenAnswer((_) => false);
 
-        when(() => usage.getNumDaysUsed()).thenAnswer((_) async => 1);
-        when(() => usage.getNumSavedJokes()).thenAnswer((_) async => 1);
-        when(() => usage.getNumSharedJokes()).thenAnswer((_) async => 1);
-
         when(
           () => review.requestReview(
             source: any(named: 'source'),
@@ -303,13 +287,17 @@ void main() {
 
         final coordinator = ReviewPromptCoordinator(
           getRemoteValues: () => values,
-          appUsageService: usage,
           appReviewService: review,
           stateStore: store,
           getIsDailySubscribed: () => true,
+          getIsAdmin: () => false,
         );
 
         await coordinator.maybePromptForReview(
+          numDaysUsed: 1,
+          numSavedJokes: 1,
+          numSharedJokes: 1,
+          numJokesViewed: 0,
           source: ReviewRequestSource.jokeViewed,
           context: context,
         );
@@ -327,9 +315,6 @@ void main() {
         final values = _FakeRemoteValues(minDays: 1, minSaved: 0, minShared: 0);
         when(() => store.hasRequested()).thenAnswer((_) => false);
 
-        // Meet minDays by setting num_days_used to 1
-        when(() => usage.getNumDaysUsed()).thenAnswer((_) async => 1);
-
         // Do not save/share any jokes; with zero thresholds it should still be eligible
         when(
           () => review.requestReview(
@@ -340,13 +325,17 @@ void main() {
 
         final coordinator = ReviewPromptCoordinator(
           getRemoteValues: () => values,
-          appUsageService: usage,
           appReviewService: review,
           stateStore: store,
           getIsDailySubscribed: () => true,
+          getIsAdmin: () => false,
         );
 
         await coordinator.maybePromptForReview(
+          numDaysUsed: 1,
+          numSavedJokes: 0,
+          numSharedJokes: 0,
+          numJokesViewed: 0,
           source: ReviewRequestSource.jokeViewed,
           context: context,
         );
@@ -372,21 +361,20 @@ void main() {
       );
       when(() => store.hasRequested()).thenAnswer((_) => false);
 
-      // Set other usage to thresholds but do not log views
-      when(() => usage.getNumDaysUsed()).thenAnswer((_) async => 1);
-      when(() => usage.getNumSavedJokes()).thenAnswer((_) async => 1);
-      when(() => usage.getNumSharedJokes()).thenAnswer((_) async => 1);
-
       final coordinator = ReviewPromptCoordinator(
         getRemoteValues: () => values,
-        appUsageService: usage,
         appReviewService: review,
         stateStore: store,
         getIsDailySubscribed: () => true,
+        getIsAdmin: () => false,
       );
 
       // Act
       await coordinator.maybePromptForReview(
+        numDaysUsed: 1,
+        numSavedJokes: 1,
+        numSharedJokes: 1,
+        numJokesViewed: 1, // Below threshold of 2
         source: ReviewRequestSource.jokeViewed,
         context: context,
       );
@@ -413,11 +401,6 @@ void main() {
       );
       when(() => store.hasRequested()).thenAnswer((_) => false);
 
-      when(() => usage.getNumDaysUsed()).thenAnswer((_) async => 1);
-      when(() => usage.getNumSavedJokes()).thenAnswer((_) async => 1);
-      when(() => usage.getNumSharedJokes()).thenAnswer((_) async => 1);
-      when(() => usage.getNumJokesViewed()).thenAnswer((_) async => 1);
-
       when(
         () => review.requestReview(
           source: any(named: 'source'),
@@ -427,13 +410,17 @@ void main() {
 
       final coordinator = ReviewPromptCoordinator(
         getRemoteValues: () => values,
-        appUsageService: usage,
         appReviewService: review,
         stateStore: store,
         getIsDailySubscribed: () => true,
+        getIsAdmin: () => false,
       );
 
       await coordinator.maybePromptForReview(
+        numDaysUsed: 1,
+        numSavedJokes: 1,
+        numSharedJokes: 1,
+        numJokesViewed: 1,
         source: ReviewRequestSource.jokeViewed,
         context: context,
       );
@@ -460,17 +447,19 @@ void main() {
         );
         when(() => store.hasRequested()).thenAnswer((_) => false);
 
-        when(() => usage.getNumDaysUsed()).thenAnswer((_) async => 1);
-
         final coordinator = ReviewPromptCoordinator(
           getRemoteValues: () => values,
-          appUsageService: usage,
           appReviewService: review,
           stateStore: store,
           getIsDailySubscribed: () => false,
+          getIsAdmin: () => false,
         );
 
         await coordinator.maybePromptForReview(
+          numDaysUsed: 1,
+          numSavedJokes: 0,
+          numSharedJokes: 0,
+          numJokesViewed: 0,
           source: ReviewRequestSource.jokeViewed,
           context: context,
         );
@@ -496,8 +485,6 @@ void main() {
       );
       when(() => store.hasRequested()).thenAnswer((_) => false);
 
-      when(() => usage.getNumDaysUsed()).thenAnswer((_) async => 1);
-
       when(
         () => review.requestReview(
           source: any(named: 'source'),
@@ -507,13 +494,17 @@ void main() {
 
       final coordinator = ReviewPromptCoordinator(
         getRemoteValues: () => values,
-        appUsageService: usage,
         appReviewService: review,
         stateStore: store,
         getIsDailySubscribed: () => true,
+        getIsAdmin: () => false,
       );
 
       await coordinator.maybePromptForReview(
+        numDaysUsed: 1,
+        numSavedJokes: 0,
+        numSharedJokes: 0,
+        numJokesViewed: 0,
         source: ReviewRequestSource.jokeViewed,
         context: context,
       );

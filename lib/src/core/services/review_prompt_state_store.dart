@@ -29,6 +29,6 @@ class ReviewPromptStateStore {
 }
 
 final reviewPromptStateStoreProvider = Provider<ReviewPromptStateStore>((ref) {
-  final settings = ref.watch(settingsServiceProvider);
+  final settings = ref.read(settingsServiceProvider);
   return ReviewPromptStateStore(settingsService: settings);
 });

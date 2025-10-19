@@ -15,9 +15,7 @@ import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
 import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/providers/image_providers.dart';
 import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
-import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
-import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
 import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_population_providers.dart';
@@ -222,16 +220,6 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
         );
         // Re-check mounted before reading another provider
         if (!mounted) return;
-        try {
-          final subscriptionPromptNotifier = ref.read(
-            subscriptionPromptProvider.notifier,
-          );
-          subscriptionPromptNotifier.considerPromptAfterJokeViewed(
-            jokesViewedCount,
-          );
-        } catch (e) {
-          AppLogger.warn('JOKE_IMAGE_CAROUSEL subscription prompt error: $e');
-        }
       }
     }
   }

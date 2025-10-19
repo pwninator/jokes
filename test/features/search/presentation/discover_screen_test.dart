@@ -1,3 +1,4 @@
+import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -6,15 +7,17 @@ import 'package:snickerdoodle/src/common_widgets/badged_icon.dart';
 import 'package:snickerdoodle/src/config/router/route_names.dart';
 import 'package:snickerdoodle/src/config/router/router_providers.dart';
 import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
+
 import 'package:snickerdoodle/src/core/providers/app_version_provider.dart';
 import 'package:snickerdoodle/src/core/providers/connectivity_providers.dart';
 import 'package:snickerdoodle/src/core/providers/image_providers.dart';
+import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
 import 'package:snickerdoodle/src/core/services/notification_service.dart';
 import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
-import 'package:snickerdoodle/src/data/core/database/app_database.dart';
+import 'package:snickerdoodle/src/data/core/app/firebase_providers.dart';
 import 'package:snickerdoodle/src/data/reviews/reviews_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_category_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
@@ -28,8 +31,6 @@ import 'package:snickerdoodle/src/features/jokes/domain/joke_search_result.dart'
 import 'package:snickerdoodle/src/features/search/application/discover_tab_state.dart';
 import 'package:snickerdoodle/src/features/search/presentation/discover_screen.dart';
 import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
-import 'package:firebase_analytics/firebase_analytics.dart';
-import 'package:snickerdoodle/src/data/core/app/firebase_providers.dart';
 
 // Mock classes
 class MockSettingsService extends Mock implements SettingsService {}
@@ -47,6 +48,8 @@ class MockJokeCloudFunctionService extends Mock
     implements JokeCloudFunctionService {}
 
 class MockFirebaseAnalytics extends Mock implements FirebaseAnalytics {}
+
+class MockAppUsageService extends Mock implements AppUsageService {}
 
 // Test implementations
 class _TestRemoteConfigValues implements RemoteConfigValues {
@@ -130,7 +133,7 @@ List<Override> getCoreProviderOverrides() {
   final mockNotificationService = MockNotificationService();
   final mockSubscriptionService = MockDailyJokeSubscriptionService();
   final mockReviewsRepository = MockReviewsRepository();
-
+  final mockAppUsageService = MockAppUsageService();
   // Setup default behaviors for mocks
   when(() => mockSettingsService.getBool(any())).thenReturn(null);
   when(
@@ -182,6 +185,17 @@ List<Override> getCoreProviderOverrides() {
 
   when(() => mockReviewsRepository.recordAppReview()).thenAnswer((_) async {});
 
+  when(
+    () => mockAppUsageService.logCategoryViewed(any()),
+  ).thenAnswer((_) async {});
+  when(() => mockAppUsageService.getNumSavedJokes()).thenAnswer((_) async => 0);
+  when(
+    () => mockAppUsageService.getNumSharedJokes(),
+  ).thenAnswer((_) async => 0);
+  when(
+    () => mockAppUsageService.getNumJokesViewed(),
+  ).thenAnswer((_) async => 0);
+
   return [
     settingsServiceProvider.overrideWithValue(mockSettingsService),
     imageServiceProvider.overrideWithValue(mockImageService),
@@ -192,7 +206,7 @@ List<Override> getCoreProviderOverrides() {
     reviewsRepositoryProvider.overrideWithValue(mockReviewsRepository),
     performanceServiceProvider.overrideWithValue(_TestNoopPerformanceService()),
     appVersionProvider.overrideWith((_) async => 'Snickerdoodle v0.0.1+1'),
-    appDatabaseProvider.overrideWithValue(AppDatabase.inMemory()),
+    appUsageServiceProvider.overrideWithValue(mockAppUsageService),
   ];
 }
 

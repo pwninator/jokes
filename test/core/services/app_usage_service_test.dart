@@ -4,7 +4,11 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
+import 'package:snickerdoodle/src/core/services/app_review_service.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
+import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
+import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
+import 'package:snickerdoodle/src/core/services/review_prompt_service.dart';
 import 'package:snickerdoodle/src/core/services/review_prompt_state_store.dart';
 import 'package:snickerdoodle/src/data/core/database/app_database.dart';
 import 'package:snickerdoodle/src/data/jokes/category_interactions_repository.dart';
@@ -28,9 +32,56 @@ class _MockCategoryInteractionsService extends Mock
 class _MockJokeInteractionsRepository extends Mock
     implements JokeInteractionsRepository {}
 
+class _MockSubscriptionPromptNotifier extends Mock
+    implements SubscriptionPromptNotifier {}
+
+class _MockReviewPromptCoordinator extends Mock
+    implements ReviewPromptCoordinator {}
+
 class _FakeBuildContext extends Fake implements BuildContext {
   @override
   bool get mounted => true;
+}
+
+class _TestRemoteConfigValues implements RemoteConfigValues {
+  const _TestRemoteConfigValues({required this.reviewRequestEnabled});
+
+  final bool reviewRequestEnabled;
+
+  @override
+  bool getBool(RemoteParam param) {
+    if (param == RemoteParam.reviewRequestFromJokeViewed) {
+      return reviewRequestEnabled;
+    }
+    return false;
+  }
+
+  @override
+  double getDouble(RemoteParam param) => 0;
+
+  @override
+  int getInt(RemoteParam param) => 0;
+
+  @override
+  String getString(RemoteParam param) => '';
+
+  @override
+  T getEnum<T>(RemoteParam param) {
+    final descriptor = remoteParams[param]!;
+    return (descriptor.enumDefault ?? '') as T;
+  }
+}
+
+/// Test fixture class that creates fresh mocks for each test
+class TestMocks {
+  final AnalyticsService analytics = _MockAnalyticsService();
+  final JokeCloudFunctionService jokeCloudFn = _MockJokeCloudFunctionService();
+  final JokeInteractionsRepository repo = _MockJokeInteractionsRepository();
+  final ReviewPromptCoordinator reviewCoordinator =
+      _MockReviewPromptCoordinator();
+  final ReviewPromptStateStore reviewStore = _MockReviewPromptStateStore();
+  final SubscriptionPromptNotifier subscriptionPromptNotifier =
+      _MockSubscriptionPromptNotifier();
 }
 
 void main() {
@@ -39,6 +90,7 @@ void main() {
     // Needed for mocktail named matcher on Brightness
     registerFallbackValue(Brightness.light);
     registerFallbackValue(_FakeBuildContext());
+    registerFallbackValue(ReviewRequestSource.jokeViewed);
   });
   String todayString() {
     final now = DateTime.now();
@@ -56,11 +108,11 @@ void main() {
     test(
       'first run initializes dates and increments unique day count',
       () async {
+        final mocks = TestMocks();
         final prefs = await SharedPreferences.getInstance();
         final settingsService = SettingsService(prefs);
-        final mockAnalytics = _MockAnalyticsService();
         when(
-          () => mockAnalytics.logAppUsageDays(
+          () => mocks.analytics.logAppUsageDays(
             numDaysUsed: any<int>(named: 'numDaysUsed'),
             brightness: any<Brightness>(named: 'brightness'),
           ),
@@ -69,14 +121,15 @@ void main() {
           overrides: [brightnessProvider.overrideWithValue(Brightness.light)],
         );
         final ref = container.read(Provider<Ref>((ref) => ref));
-        final mockJokeCloudFn = _MockJokeCloudFunctionService();
         final service = AppUsageService(
           settingsService: settingsService,
           ref: ref,
-          analyticsService: mockAnalytics,
-          jokeCloudFn: mockJokeCloudFn,
+          analyticsService: mocks.analytics,
+          jokeCloudFn: mocks.jokeCloudFn,
           categoryInteractionsService: _MockCategoryInteractionsService(),
-          jokeInteractionsRepository: _MockJokeInteractionsRepository(),
+          jokeInteractionsRepository: mocks.repo,
+          reviewPromptCoordinator: mocks.reviewCoordinator,
+          isDebugMode: true,
         );
 
         await service.logAppUsage();
@@ -86,7 +139,7 @@ void main() {
         expect(await service.getNumDaysUsed(), 1);
 
         verify(
-          () => mockAnalytics.logAppUsageDays(
+          () => mocks.analytics.logAppUsageDays(
             numDaysUsed: 1,
             brightness: any(named: 'brightness'),
           ),
@@ -95,11 +148,11 @@ void main() {
     );
 
     test('same day run does not increment unique day count', () async {
+      final mocks = TestMocks();
       final prefs = await SharedPreferences.getInstance();
       final settingsService = SettingsService(prefs);
-      final mockAnalytics = _MockAnalyticsService();
       when(
-        () => mockAnalytics.logAppUsageDays(
+        () => mocks.analytics.logAppUsageDays(
           numDaysUsed: any<int>(named: 'numDaysUsed'),
           brightness: any<Brightness>(named: 'brightness'),
         ),
@@ -108,14 +161,15 @@ void main() {
         overrides: [brightnessProvider.overrideWithValue(Brightness.light)],
       );
       final ref = container.read(Provider<Ref>((ref) => ref));
-      final mockJokeCloudFn = _MockJokeCloudFunctionService();
       final service = AppUsageService(
         settingsService: settingsService,
         ref: ref,
-        analyticsService: mockAnalytics,
-        jokeCloudFn: mockJokeCloudFn,
+        analyticsService: mocks.analytics,
+        jokeCloudFn: mocks.jokeCloudFn,
         categoryInteractionsService: _MockCategoryInteractionsService(),
-        jokeInteractionsRepository: _MockJokeInteractionsRepository(),
+        jokeInteractionsRepository: mocks.repo,
+        reviewPromptCoordinator: mocks.reviewCoordinator,
+        isDebugMode: true,
       );
 
       await service.logAppUsage();
@@ -125,7 +179,7 @@ void main() {
       expect(await service.getLastUsedDate(), todayString());
 
       verify(
-        () => mockAnalytics.logAppUsageDays(
+        () => mocks.analytics.logAppUsageDays(
           numDaysUsed: any(named: 'numDaysUsed'),
           brightness: any(named: 'brightness'),
         ),
@@ -135,11 +189,11 @@ void main() {
     test(
       'new day increments unique day count and updates last_used_date',
       () async {
+        final mocks = TestMocks();
         final prefs = await SharedPreferences.getInstance();
         final settingsService = SettingsService(prefs);
-        final mockAnalytics = _MockAnalyticsService();
         when(
-          () => mockAnalytics.logAppUsageDays(
+          () => mocks.analytics.logAppUsageDays(
             numDaysUsed: any<int>(named: 'numDaysUsed'),
             brightness: any<Brightness>(named: 'brightness'),
           ),
@@ -148,14 +202,15 @@ void main() {
           overrides: [brightnessProvider.overrideWithValue(Brightness.light)],
         );
         final ref = container.read(Provider<Ref>((ref) => ref));
-        final mockJokeCloudFn = _MockJokeCloudFunctionService();
         final service = AppUsageService(
           settingsService: settingsService,
           ref: ref,
-          analyticsService: mockAnalytics,
-          jokeCloudFn: mockJokeCloudFn,
+          analyticsService: mocks.analytics,
+          jokeCloudFn: mocks.jokeCloudFn,
           categoryInteractionsService: _MockCategoryInteractionsService(),
-          jokeInteractionsRepository: _MockJokeInteractionsRepository(),
+          jokeInteractionsRepository: mocks.repo,
+          reviewPromptCoordinator: mocks.reviewCoordinator,
+          isDebugMode: true,
         );
 
         await service.logAppUsage();
@@ -173,7 +228,7 @@ void main() {
         expect(await service.getLastUsedDate(), todayString());
 
         verify(
-          () => mockAnalytics.logAppUsageDays(
+          () => mocks.analytics.logAppUsageDays(
             numDaysUsed: 2,
             brightness: any(named: 'brightness'),
           ),
@@ -183,72 +238,384 @@ void main() {
   });
 
   group('AppUsageService.logJokeViewed', () {
-    test('writes to repo and counts from repo', () async {
+    test(
+      'writes to repo, evaluates subscription prompt, and counts from repo',
+      () async {
+        final mocks = TestMocks();
+        final prefs = await SharedPreferences.getInstance();
+        final settingsService = SettingsService(prefs);
+
+        var viewedCount = 0;
+        when(
+          () => mocks.repo.getJokeInteraction(any()),
+        ).thenAnswer((_) async => null);
+        when(() => mocks.repo.setViewed(any())).thenAnswer((_) async {
+          viewedCount += 1;
+          return true;
+        });
+        when(
+          () => mocks.repo.countViewed(),
+        ).thenAnswer((_) async => viewedCount);
+        when(() => mocks.repo.countSaved()).thenAnswer((_) async => 0);
+        when(() => mocks.repo.countShared()).thenAnswer((_) async => 0);
+        when(
+          () => mocks.subscriptionPromptNotifier.maybePromptAfterJokeViewed(
+            any(),
+          ),
+        ).thenReturn(false);
+        when(
+          () => mocks.subscriptionPromptNotifier.state,
+        ).thenReturn(const SubscriptionPromptState());
+        when(
+          () => mocks.reviewCoordinator.maybePromptForReview(
+            numDaysUsed: any(named: 'numDaysUsed'),
+            numSavedJokes: any(named: 'numSavedJokes'),
+            numSharedJokes: any(named: 'numSharedJokes'),
+            numJokesViewed: any(named: 'numJokesViewed'),
+            source: any(named: 'source'),
+            context: any(named: 'context'),
+          ),
+        ).thenAnswer((_) async {});
+        when(() => mocks.reviewStore.hasRequested()).thenReturn(false);
+
+        final container = ProviderContainer(
+          overrides: [
+            brightnessProvider.overrideWithValue(Brightness.light),
+            subscriptionPromptProvider.overrideWith(
+              (ref) => mocks.subscriptionPromptNotifier,
+            ),
+            reviewPromptCoordinatorProvider.overrideWithValue(
+              mocks.reviewCoordinator,
+            ),
+            remoteConfigValuesProvider.overrideWithValue(
+              const _TestRemoteConfigValues(reviewRequestEnabled: false),
+            ),
+            isAdminProvider.overrideWithValue(false),
+            reviewPromptStateStoreProvider.overrideWithValue(mocks.reviewStore),
+          ],
+        );
+        final testRefProvider = Provider<Ref>((ref) => ref);
+        final ref = container.read(testRefProvider);
+
+        final service = AppUsageService(
+          settingsService: settingsService,
+          ref: ref,
+          analyticsService: mocks.analytics,
+          jokeCloudFn: mocks.jokeCloudFn,
+          categoryInteractionsService: _MockCategoryInteractionsService(),
+          jokeInteractionsRepository: mocks.repo,
+          reviewPromptCoordinator: mocks.reviewCoordinator,
+          isDebugMode: true,
+        );
+
+        expect(await service.getNumJokesViewed(), 0);
+        await service.logJokeViewed('j1', context: _FakeBuildContext());
+        expect(await service.getNumJokesViewed(), 1);
+        await service.logJokeViewed('j2', context: _FakeBuildContext());
+        expect(await service.getNumJokesViewed(), 2);
+
+        verify(() => mocks.repo.setViewed('j1')).called(1);
+        verify(() => mocks.repo.setViewed('j2')).called(1);
+        verify(
+          () => mocks.subscriptionPromptNotifier.maybePromptAfterJokeViewed(
+            any(),
+          ),
+        ).called(2);
+        verifyNever(
+          () => mocks.reviewCoordinator.maybePromptForReview(
+            numDaysUsed: any(named: 'numDaysUsed'),
+            numSavedJokes: any(named: 'numSavedJokes'),
+            numSharedJokes: any(named: 'numSharedJokes'),
+            numJokesViewed: any(named: 'numJokesViewed'),
+            source: any(named: 'source'),
+            context: any(named: 'context'),
+          ),
+        );
+        container.dispose();
+      },
+    );
+
+    test('returns early when joke already viewed', () async {
+      final mocks = TestMocks();
       final prefs = await SharedPreferences.getInstance();
       final settingsService = SettingsService(prefs);
-      final mockAnalytics = _MockAnalyticsService();
-      final mockJokeCloudFn = _MockJokeCloudFunctionService();
-      final mockRepo = _MockJokeInteractionsRepository();
-      final container = ProviderContainer(
-        overrides: [brightnessProvider.overrideWithValue(Brightness.light)],
-      );
-      final ref = container.read(Provider<Ref>((ref) => ref));
 
-      var viewedCount = 0;
-      when(() => mockRepo.setViewed(any())).thenAnswer((_) async {
-        viewedCount += 1;
-        return true;
-      });
-      when(() => mockRepo.countViewed()).thenAnswer((_) async => viewedCount);
+      final now = DateTime.now();
+      final existingInteraction = JokeInteraction(
+        jokeId: 'j1',
+        viewedTimestamp: now,
+        savedTimestamp: null,
+        sharedTimestamp: null,
+        lastUpdateTimestamp: now,
+      );
+
+      when(
+        () => mocks.repo.getJokeInteraction('j1'),
+      ).thenAnswer((_) async => existingInteraction);
+      when(() => mocks.reviewStore.hasRequested()).thenReturn(false);
+      when(
+        () => mocks.subscriptionPromptNotifier.state,
+      ).thenReturn(const SubscriptionPromptState());
+
+      final container = ProviderContainer(
+        overrides: [
+          brightnessProvider.overrideWithValue(Brightness.light),
+          subscriptionPromptProvider.overrideWith(
+            (ref) => mocks.subscriptionPromptNotifier,
+          ),
+          reviewPromptCoordinatorProvider.overrideWithValue(
+            mocks.reviewCoordinator,
+          ),
+          remoteConfigValuesProvider.overrideWithValue(
+            const _TestRemoteConfigValues(reviewRequestEnabled: true),
+          ),
+          isAdminProvider.overrideWithValue(false),
+          reviewPromptStateStoreProvider.overrideWithValue(mocks.reviewStore),
+        ],
+      );
+      final testRefProvider = Provider<Ref>((ref) => ref);
+      final ref = container.read(testRefProvider);
 
       final service = AppUsageService(
         settingsService: settingsService,
         ref: ref,
-        analyticsService: mockAnalytics,
-        jokeCloudFn: mockJokeCloudFn,
+        analyticsService: mocks.analytics,
+        jokeCloudFn: mocks.jokeCloudFn,
         categoryInteractionsService: _MockCategoryInteractionsService(),
-        jokeInteractionsRepository: mockRepo,
+        jokeInteractionsRepository: mocks.repo,
+        reviewPromptCoordinator: mocks.reviewCoordinator,
+        isDebugMode: true,
       );
 
-      expect(await service.getNumJokesViewed(), 0);
       await service.logJokeViewed('j1', context: _FakeBuildContext());
-      expect(await service.getNumJokesViewed(), 1);
-      await service.logJokeViewed('j2', context: _FakeBuildContext());
-      expect(await service.getNumJokesViewed(), 2);
 
-      verify(() => mockRepo.setViewed('j1')).called(1);
-      verify(() => mockRepo.setViewed('j2')).called(1);
+      verifyNever(() => mocks.repo.setViewed(any()));
+      verifyNever(
+        () =>
+            mocks.subscriptionPromptNotifier.maybePromptAfterJokeViewed(any()),
+      );
+      verifyNever(
+        () => mocks.reviewCoordinator.maybePromptForReview(
+          numDaysUsed: any(named: 'numDaysUsed'),
+          numSavedJokes: any(named: 'numSavedJokes'),
+          numSharedJokes: any(named: 'numSharedJokes'),
+          numJokesViewed: any(named: 'numJokesViewed'),
+          source: any(named: 'source'),
+          context: any(named: 'context'),
+        ),
+      );
+      container.dispose();
     });
+
+    test(
+      'does not prompt for review when subscription prompt was shown',
+      () async {
+        final mocks = TestMocks();
+        final prefs = await SharedPreferences.getInstance();
+        final settingsService = SettingsService(prefs);
+
+        when(
+          () => mocks.repo.getJokeInteraction(any()),
+        ).thenAnswer((_) async => null);
+        var viewedCount = 0;
+        when(() => mocks.repo.setViewed(any())).thenAnswer((_) async {
+          viewedCount += 1;
+          return true;
+        });
+        when(
+          () => mocks.repo.countViewed(),
+        ).thenAnswer((_) async => viewedCount);
+        when(() => mocks.repo.countSaved()).thenAnswer((_) async => 0);
+        when(() => mocks.repo.countShared()).thenAnswer((_) async => 0);
+        when(
+          () => mocks.subscriptionPromptNotifier.maybePromptAfterJokeViewed(
+            any(),
+          ),
+        ).thenReturn(true);
+        when(
+          () => mocks.subscriptionPromptNotifier.state,
+        ).thenReturn(const SubscriptionPromptState());
+        when(
+          () => mocks.reviewCoordinator.maybePromptForReview(
+            numDaysUsed: any(named: 'numDaysUsed'),
+            numSavedJokes: any(named: 'numSavedJokes'),
+            numSharedJokes: any(named: 'numSharedJokes'),
+            numJokesViewed: any(named: 'numJokesViewed'),
+            source: any(named: 'source'),
+            context: any(named: 'context'),
+          ),
+        ).thenAnswer((_) async {});
+        when(() => mocks.reviewStore.hasRequested()).thenReturn(false);
+
+        final container = ProviderContainer(
+          overrides: [
+            brightnessProvider.overrideWithValue(Brightness.light),
+            subscriptionPromptProvider.overrideWith(
+              (ref) => mocks.subscriptionPromptNotifier,
+            ),
+            reviewPromptCoordinatorProvider.overrideWithValue(
+              mocks.reviewCoordinator,
+            ),
+            remoteConfigValuesProvider.overrideWithValue(
+              const _TestRemoteConfigValues(reviewRequestEnabled: true),
+            ),
+            isAdminProvider.overrideWithValue(false),
+            reviewPromptStateStoreProvider.overrideWithValue(mocks.reviewStore),
+          ],
+        );
+        final testRefProvider = Provider<Ref>((ref) => ref);
+        final ref = container.read(testRefProvider);
+
+        final service = AppUsageService(
+          settingsService: settingsService,
+          ref: ref,
+          analyticsService: mocks.analytics,
+          jokeCloudFn: mocks.jokeCloudFn,
+          categoryInteractionsService: _MockCategoryInteractionsService(),
+          jokeInteractionsRepository: mocks.repo,
+          reviewPromptCoordinator: mocks.reviewCoordinator,
+          isDebugMode: true,
+        );
+
+        await service.logJokeViewed('j1', context: _FakeBuildContext());
+
+        verify(
+          () => mocks.subscriptionPromptNotifier.maybePromptAfterJokeViewed(1),
+        ).called(1);
+        verifyNever(
+          () => mocks.reviewCoordinator.maybePromptForReview(
+            numDaysUsed: any(named: 'numDaysUsed'),
+            numSavedJokes: any(named: 'numSavedJokes'),
+            numSharedJokes: any(named: 'numSharedJokes'),
+            numJokesViewed: any(named: 'numJokesViewed'),
+            source: any(named: 'source'),
+            context: any(named: 'context'),
+          ),
+        );
+        container.dispose();
+      },
+    );
+
+    test(
+      'prompts for review when enabled and subscription prompt not shown',
+      () async {
+        final mocks = TestMocks();
+        final prefs = await SharedPreferences.getInstance();
+        final settingsService = SettingsService(prefs);
+
+        when(
+          () => mocks.repo.getJokeInteraction(any()),
+        ).thenAnswer((_) async => null);
+        var viewedCount = 0;
+        when(() => mocks.repo.setViewed(any())).thenAnswer((_) async {
+          viewedCount += 1;
+          return true;
+        });
+        when(
+          () => mocks.repo.countViewed(),
+        ).thenAnswer((_) async => viewedCount);
+        when(() => mocks.repo.countSaved()).thenAnswer((_) async => 0);
+        when(() => mocks.repo.countShared()).thenAnswer((_) async => 0);
+        when(
+          () => mocks.subscriptionPromptNotifier.maybePromptAfterJokeViewed(
+            any(),
+          ),
+        ).thenReturn(false);
+        when(
+          () => mocks.subscriptionPromptNotifier.state,
+        ).thenReturn(const SubscriptionPromptState());
+        when(
+          () => mocks.reviewCoordinator.maybePromptForReview(
+            numDaysUsed: any(named: 'numDaysUsed'),
+            numSavedJokes: any(named: 'numSavedJokes'),
+            numSharedJokes: any(named: 'numSharedJokes'),
+            numJokesViewed: any(named: 'numJokesViewed'),
+            source: any(named: 'source'),
+            context: any(named: 'context'),
+          ),
+        ).thenAnswer((_) async {});
+        when(() => mocks.reviewStore.hasRequested()).thenReturn(false);
+
+        final container = ProviderContainer(
+          overrides: [
+            brightnessProvider.overrideWithValue(Brightness.light),
+            subscriptionPromptProvider.overrideWith(
+              (ref) => mocks.subscriptionPromptNotifier,
+            ),
+            reviewPromptCoordinatorProvider.overrideWithValue(
+              mocks.reviewCoordinator,
+            ),
+            remoteConfigValuesProvider.overrideWithValue(
+              const _TestRemoteConfigValues(reviewRequestEnabled: true),
+            ),
+            isAdminProvider.overrideWithValue(false),
+            reviewPromptStateStoreProvider.overrideWithValue(mocks.reviewStore),
+          ],
+        );
+        final testRefProvider = Provider<Ref>((ref) => ref);
+        final ref = container.read(testRefProvider);
+
+        final service = AppUsageService(
+          settingsService: settingsService,
+          ref: ref,
+          analyticsService: mocks.analytics,
+          jokeCloudFn: mocks.jokeCloudFn,
+          categoryInteractionsService: _MockCategoryInteractionsService(),
+          jokeInteractionsRepository: mocks.repo,
+          reviewPromptCoordinator: mocks.reviewCoordinator,
+          isDebugMode: true,
+        );
+
+        await service.logJokeViewed('j1', context: _FakeBuildContext());
+
+        verify(
+          () => mocks.subscriptionPromptNotifier.maybePromptAfterJokeViewed(1),
+        ).called(1);
+        verify(
+          () => mocks.reviewCoordinator.maybePromptForReview(
+            numDaysUsed: any(named: 'numDaysUsed'),
+            numSavedJokes: any(named: 'numSavedJokes'),
+            numSharedJokes: any(named: 'numSharedJokes'),
+            numJokesViewed: any(named: 'numJokesViewed'),
+            source: ReviewRequestSource.jokeViewed,
+            context: any(named: 'context'),
+          ),
+        ).called(1);
+        container.dispose();
+      },
+    );
   });
 
   group('AppUsageService saved/shared via repo', () {
     test('saveJoke and unsaveJoke update repo and counts from repo', () async {
+      final mocks = TestMocks();
       final prefs = await SharedPreferences.getInstance();
       final settingsService = SettingsService(prefs);
-      final mockAnalytics = _MockAnalyticsService();
-      final mockJokeCloudFn = _MockJokeCloudFunctionService();
-      final mockRepo = _MockJokeInteractionsRepository();
       final container = ProviderContainer();
       final ref = container.read(Provider<Ref>((ref) => ref));
 
       var savedCount = 0;
-      when(() => mockRepo.setSaved(any())).thenAnswer((_) async {
+      when(() => mocks.repo.setSaved(any())).thenAnswer((_) async {
         savedCount += 1;
         return true;
       });
-      when(() => mockRepo.setUnsaved(any())).thenAnswer((_) async {
+      when(() => mocks.repo.setUnsaved(any())).thenAnswer((_) async {
         savedCount = savedCount > 0 ? savedCount - 1 : 0;
         return true;
       });
-      when(() => mockRepo.countSaved()).thenAnswer((_) async => savedCount);
+      when(() => mocks.repo.countSaved()).thenAnswer((_) async => savedCount);
+      when(() => mocks.repo.countViewed()).thenAnswer((_) async => 0);
+      when(() => mocks.repo.countShared()).thenAnswer((_) async => 0);
 
       final service = AppUsageService(
         settingsService: settingsService,
         ref: ref,
-        analyticsService: mockAnalytics,
-        jokeCloudFn: mockJokeCloudFn,
+        analyticsService: mocks.analytics,
+        jokeCloudFn: mocks.jokeCloudFn,
         categoryInteractionsService: _MockCategoryInteractionsService(),
-        jokeInteractionsRepository: mockRepo,
+        jokeInteractionsRepository: mocks.repo,
+        reviewPromptCoordinator: mocks.reviewCoordinator,
+        isDebugMode: true,
       );
 
       expect(await service.getNumSavedJokes(), 0);
@@ -261,24 +628,22 @@ void main() {
       await service.unsaveJoke('s2');
       expect(await service.getNumSavedJokes(), 0);
 
-      verify(() => mockRepo.setSaved('s1')).called(1);
-      verify(() => mockRepo.setSaved('s2')).called(1);
-      verify(() => mockRepo.setUnsaved('s1')).called(1);
-      verify(() => mockRepo.setUnsaved('s2')).called(1);
+      verify(() => mocks.repo.setSaved('s1')).called(1);
+      verify(() => mocks.repo.setSaved('s2')).called(1);
+      verify(() => mocks.repo.setUnsaved('s1')).called(1);
+      verify(() => mocks.repo.setUnsaved('s2')).called(1);
     });
 
     test('getSavedJokeIds mirrors repository order', () async {
+      final mocks = TestMocks();
       final prefs = await SharedPreferences.getInstance();
       final settingsService = SettingsService(prefs);
-      final mockAnalytics = _MockAnalyticsService();
-      final mockJokeCloudFn = _MockJokeCloudFunctionService();
-      final mockRepo = _MockJokeInteractionsRepository();
       final container = ProviderContainer();
       final ref = container.read(Provider<Ref>((ref) => ref));
 
       final savedAtOne = DateTime(2024, 1, 1);
       final savedAtTwo = DateTime(2024, 2, 1);
-      when(() => mockRepo.getSavedJokeInteractions()).thenAnswer(
+      when(() => mocks.repo.getSavedJokeInteractions()).thenAnswer(
         (_) async => [
           JokeInteraction(
             jokeId: 'first',
@@ -300,41 +665,45 @@ void main() {
       final service = AppUsageService(
         settingsService: settingsService,
         ref: ref,
-        analyticsService: mockAnalytics,
-        jokeCloudFn: mockJokeCloudFn,
+        analyticsService: mocks.analytics,
+        jokeCloudFn: mocks.jokeCloudFn,
         categoryInteractionsService: _MockCategoryInteractionsService(),
-        jokeInteractionsRepository: mockRepo,
+        jokeInteractionsRepository: mocks.repo,
+        reviewPromptCoordinator: mocks.reviewCoordinator,
+        isDebugMode: true,
       );
 
       expect(await service.getSavedJokeIds(), ['first', 'second']);
-      verify(() => mockRepo.getSavedJokeInteractions()).called(1);
+      verify(() => mocks.repo.getSavedJokeInteractions()).called(1);
     });
 
     test('shareJoke updates repo and counts from repo', () async {
+      final mocks = TestMocks();
       final prefs = await SharedPreferences.getInstance();
       final settingsService = SettingsService(prefs);
-      final mockAnalytics = _MockAnalyticsService();
-      final mockJokeCloudFn = _MockJokeCloudFunctionService();
-      final mockRepo = _MockJokeInteractionsRepository();
       final container = ProviderContainer(
         overrides: [brightnessProvider.overrideWithValue(Brightness.light)],
       );
       final ref = container.read(Provider<Ref>((ref) => ref));
 
       var sharedCount = 0;
-      when(() => mockRepo.setShared(any())).thenAnswer((_) async {
+      when(() => mocks.repo.setShared(any())).thenAnswer((_) async {
         sharedCount += 1;
         return true;
       });
-      when(() => mockRepo.countShared()).thenAnswer((_) async => sharedCount);
+      when(() => mocks.repo.countShared()).thenAnswer((_) async => sharedCount);
+      when(() => mocks.repo.countViewed()).thenAnswer((_) async => 0);
+      when(() => mocks.repo.countSaved()).thenAnswer((_) async => 0);
 
       final service = AppUsageService(
         settingsService: settingsService,
         ref: ref,
-        analyticsService: mockAnalytics,
-        jokeCloudFn: mockJokeCloudFn,
+        analyticsService: mocks.analytics,
+        jokeCloudFn: mocks.jokeCloudFn,
         categoryInteractionsService: _MockCategoryInteractionsService(),
-        jokeInteractionsRepository: mockRepo,
+        jokeInteractionsRepository: mocks.repo,
+        reviewPromptCoordinator: mocks.reviewCoordinator,
+        isDebugMode: true,
       );
 
       expect(await service.getNumSharedJokes(), 0);
@@ -343,22 +712,20 @@ void main() {
       await service.shareJoke('x2', context: _FakeBuildContext());
       expect(await service.getNumSharedJokes(), 2);
 
-      verify(() => mockRepo.setShared('x1')).called(1);
-      verify(() => mockRepo.setShared('x2')).called(1);
+      verify(() => mocks.repo.setShared('x1')).called(1);
+      verify(() => mocks.repo.setShared('x2')).called(1);
     });
   });
 
   group('AppUsageService._pushUsageSnapshot', () {
     test('passes correct requestedReview value to cloud function', () async {
+      final mocks = TestMocks();
       final prefs = await SharedPreferences.getInstance();
       final settingsService = SettingsService(prefs);
-      final mockJokeCloudFn = _MockJokeCloudFunctionService();
-      final mockReviewStore = _MockReviewPromptStateStore();
-      final mockRepo = _MockJokeInteractionsRepository();
 
-      when(() => mockReviewStore.hasRequested()).thenAnswer((_) => true);
+      when(() => mocks.reviewStore.hasRequested()).thenAnswer((_) => true);
       when(
-        () => mockJokeCloudFn.trackUsage(
+        () => mocks.jokeCloudFn.trackUsage(
           numDaysUsed: any<int>(named: 'numDaysUsed'),
           numSaved: any<int>(named: 'numSaved'),
           numViewed: any<int>(named: 'numViewed'),
@@ -371,26 +738,26 @@ void main() {
       final container = ProviderContainer(
         overrides: [
           brightnessProvider.overrideWithValue(Brightness.light),
-          reviewPromptStateStoreProvider.overrideWithValue(mockReviewStore),
+          reviewPromptStateStoreProvider.overrideWithValue(mocks.reviewStore),
           isAdminProvider.overrideWithValue(false),
         ],
       );
       final ref = container.read(testRefProvider);
 
       // Stub repo counts used by _pushUsageSnapshot
-      when(() => mockRepo.countSaved()).thenAnswer((_) async => 2);
-      when(() => mockRepo.countViewed()).thenAnswer((_) async => 5);
-      when(() => mockRepo.countShared()).thenAnswer((_) async => 1);
+      when(() => mocks.repo.countSaved()).thenAnswer((_) async => 2);
+      when(() => mocks.repo.countViewed()).thenAnswer((_) async => 5);
+      when(() => mocks.repo.countShared()).thenAnswer((_) async => 1);
 
-      final mockAnalytics = _MockAnalyticsService();
       final testService = AppUsageService(
         settingsService: settingsService,
         ref: ref,
-        analyticsService: mockAnalytics,
-        jokeCloudFn: mockJokeCloudFn,
-        isDebugMode: false,
+        analyticsService: mocks.analytics,
+        jokeCloudFn: mocks.jokeCloudFn,
         categoryInteractionsService: _MockCategoryInteractionsService(),
-        jokeInteractionsRepository: mockRepo,
+        jokeInteractionsRepository: mocks.repo,
+        reviewPromptCoordinator: mocks.reviewCoordinator,
+        isDebugMode: false,
       );
 
       // Simulate a new day to trigger _pushUsageSnapshot
@@ -405,7 +772,7 @@ void main() {
       await Future.delayed(Duration.zero);
 
       final captured = verify(
-        () => mockJokeCloudFn.trackUsage(
+        () => mocks.jokeCloudFn.trackUsage(
           numDaysUsed: any(named: 'numDaysUsed'),
           numSaved: any(named: 'numSaved'),
           numViewed: any(named: 'numViewed'),

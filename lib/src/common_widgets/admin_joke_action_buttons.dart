@@ -133,26 +133,65 @@ class AdminRegenerateImagesButton extends ConsumerWidget {
       icon: Icons.image,
       holdCompleteIcon: Icons.refresh,
       onTap: () async {
-        final notifier = ref.read(jokePopulationProvider.notifier);
-        await notifier.populateJoke(
-          jokeId,
-          imagesOnly: true,
-          additionalParams: {"image_quality": "medium"},
-        );
+        _showImageQualityDialog(context, ref);
       },
-      onHoldComplete: () async {
-        final notifier = ref.read(jokePopulationProvider.notifier);
-        await notifier.populateJoke(
-          jokeId,
-          imagesOnly: true,
-          additionalParams: {"image_quality": "high"},
-        );
-      },
+      onHoldComplete: () {},
       isLoading: isLoading,
       theme: theme,
       color: theme.colorScheme.secondary,
       borderColor: hasUpscaledImage ? Colors.amber : null,
       borderWidth: hasUpscaledImage ? 2.0 : 0.0,
+    );
+  }
+
+  void _showImageQualityDialog(BuildContext context, WidgetRef ref) {
+    final qualityOptions = [
+      'low_mini',
+      'medium_mini',
+      'high_mini',
+      'low',
+      'medium',
+      'high',
+      'gemini',
+    ];
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Select Image Quality'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: qualityOptions.length,
+              itemBuilder: (context, index) {
+                final quality = qualityOptions[index];
+                return ListTile(
+                  key: Key('image-quality-option-$quality'),
+                  title: Text(quality),
+                  onTap: () async {
+                    Navigator.of(context).pop();
+                    final notifier = ref.read(jokePopulationProvider.notifier);
+                    await notifier.populateJoke(
+                      jokeId,
+                      imagesOnly: true,
+                      additionalParams: {"image_quality": quality},
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              key: const Key('cancel-image-quality-dialog'),
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+          ],
+        );
+      },
     );
   }
 }

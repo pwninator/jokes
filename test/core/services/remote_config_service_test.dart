@@ -169,11 +169,18 @@ void main() {
       test('returns defaults for all parameter types', () {
         final values = service.currentValues;
 
-        expect(values.getInt(RemoteParam.subscriptionPromptMinJokesViewed), 5);
-        expect(values.getBool(RemoteParam.defaultJokeViewerReveal), false);
+        expect(
+          values.getInt(RemoteParam.subscriptionPromptMinJokesViewed),
+          remoteParams[RemoteParam.subscriptionPromptMinJokesViewed]!
+              .defaultInt,
+        );
+        expect(
+          values.getBool(RemoteParam.defaultJokeViewerReveal),
+          remoteParams[RemoteParam.defaultJokeViewerReveal]!.defaultBool,
+        );
         expect(
           values.getEnum<ShareImagesMode>(RemoteParam.shareImagesMode),
-          ShareImagesMode.auto,
+          remoteParams[RemoteParam.shareImagesMode]!.enumDefault,
         );
       });
     });
@@ -323,7 +330,7 @@ void main() {
           service.currentValues.getEnum<ShareImagesMode>(
             RemoteParam.shareImagesMode,
           ),
-          ShareImagesMode.auto,
+          remoteParams[RemoteParam.shareImagesMode]!.enumDefault,
         );
       });
 
@@ -337,7 +344,7 @@ void main() {
           service.currentValues.getEnum<ShareImagesMode>(
             RemoteParam.shareImagesMode,
           ),
-          ShareImagesMode.auto,
+          remoteParams[RemoteParam.shareImagesMode]!.enumDefault,
         );
       });
 

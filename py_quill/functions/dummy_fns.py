@@ -43,7 +43,8 @@ def dummy_endpoint(req: https_fn.Request) -> https_fn.Response:
   # )
 
   pun_text = "A panda rolling down a hill"
-  image_description = "A very chubby, roly-poly giant panda is joyfully rolling head over heels down the bright green, grassy hill under a sunny blue sky. The panda is captured mid-somersault, a happy blur of black and white fur, it's back to the ground and 4 legs pointing towards the sky, with a goofy, ecstatic expression, its eyes squeezed shut in delight and paws flailing comically. The text 'A panda rolling down a hill' is written in a bouncy font that follows the curve of the hill. The scene is energetic, silly, and adorable."
+  image_description = 'A whimsical and silly sketch, appearing as if drawn with colored pencils on lightly textured paper to create a naive charm. The artwork is unbearably cute, with soft, sketchy lines and a vibrant, gentle, but bright color palette where colors sometimes stray playfully outside the lines. A super cute, golden retriever puppy with its head tilted, looking with wide, curious eyes at a simple pocket calculator on the floor next to it. The puppy has one paw gently resting on the calculator, as if playfully and curiously investigating it. The background is a simple, solid light color. The only text on the image is the phrase "What do you get when you cross a dog with a calculator?", prominently displayed in a casual, whimsical hand-written script, resembling a silly pencil sketch.'
+
   image_quality = "low"
 
   models_by_version = {

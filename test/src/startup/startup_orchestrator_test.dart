@@ -88,9 +88,11 @@ void main() {
 
       await tester.pumpWidget(
         ProviderScope(
-          overrides: [performanceServiceProvider.overrideWithValue(mockPerf)],
           child: MaterialApp(
             home: StartupOrchestrator(
+              firebaseOverrides: [
+                performanceServiceProvider.overrideWithValue(mockPerf),
+              ],
               criticalTasks: [
                 StartupTask(
                   id: 'critical_task',
@@ -167,9 +169,11 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [performanceServiceProvider.overrideWithValue(mockPerf)],
         child: MaterialApp(
           home: StartupOrchestrator(
+            firebaseOverrides: [
+              performanceServiceProvider.overrideWithValue(mockPerf),
+            ],
             criticalTasks: [
               StartupTask(
                 id: 'failing_task',
@@ -208,9 +212,11 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [performanceServiceProvider.overrideWithValue(mockPerf)],
         child: MaterialApp(
           home: StartupOrchestrator(
+            firebaseOverrides: [
+              performanceServiceProvider.overrideWithValue(mockPerf),
+            ],
             criticalTasks: [
               StartupTask(
                 id: 'critical_task',
@@ -260,9 +266,11 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [performanceServiceProvider.overrideWithValue(mockPerf)],
         child: MaterialApp(
           home: StartupOrchestrator(
+            firebaseOverrides: [
+              performanceServiceProvider.overrideWithValue(mockPerf),
+            ],
             criticalTasks: [
               StartupTask(
                 id: 'critical_task',
@@ -309,9 +317,11 @@ void main() {
 
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [performanceServiceProvider.overrideWithValue(mockPerf)],
         child: MaterialApp(
           home: StartupOrchestrator(
+            firebaseOverrides: [
+              performanceServiceProvider.overrideWithValue(mockPerf),
+            ],
             criticalTasks: [
               StartupTask(
                 id: 'failing_task',

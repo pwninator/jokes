@@ -1,8 +1,17 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_functions/cloud_functions.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:firebase_performance/firebase_performance.dart';
+import 'package:firebase_remote_config/firebase_remote_config.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/app.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/performance_service.dart';
+import 'package:snickerdoodle/src/data/core/app/firebase_providers.dart';
 import 'package:snickerdoodle/src/startup/error_screen.dart';
 import 'package:snickerdoodle/src/startup/loading_screen.dart';
 import 'package:snickerdoodle/src/startup/startup_task.dart';
@@ -22,12 +31,14 @@ class StartupOrchestrator extends ConsumerStatefulWidget {
     required this.bestEffortTasks,
     required this.backgroundTasks,
     this.readyWidget,
+    this.firebaseOverrides,
   });
 
   final List<StartupTask> criticalTasks;
   final List<StartupTask> bestEffortTasks;
   final List<StartupTask> backgroundTasks;
   final Widget? readyWidget;
+  final List<Override>? firebaseOverrides;
 
   @override
   ConsumerState<StartupOrchestrator> createState() =>
@@ -49,10 +60,34 @@ class _StartupOrchestratorState extends ConsumerState<StartupOrchestrator> {
     _runStartupSequence();
   }
 
+  /// Build Firebase overrides that will be available to all tasks.
+  List<Override> _buildFirebaseOverrides() {
+    // Use provided overrides if available (e.g., in tests)
+    if (widget.firebaseOverrides != null) {
+      return widget.firebaseOverrides!;
+    }
+
+    // Otherwise, create Firebase overrides
+    return [
+      firebaseFirestoreProvider.overrideWithValue(FirebaseFirestore.instance),
+      firebaseFunctionsProvider.overrideWithValue(FirebaseFunctions.instance),
+      firebaseAuthProvider.overrideWithValue(FirebaseAuth.instance),
+      firebaseAnalyticsProvider.overrideWithValue(FirebaseAnalytics.instance),
+      firebasePerformanceProvider.overrideWithValue(
+        FirebasePerformance.instance,
+      ),
+      firebaseRemoteConfigProvider.overrideWithValue(
+        FirebaseRemoteConfig.instance,
+      ),
+      firebaseMessagingProvider.overrideWithValue(FirebaseMessaging.instance),
+      firebaseCrashlyticsProvider.overrideWithValue(
+        FirebaseCrashlytics.instance,
+      ),
+    ];
+  }
+
   /// Main startup sequence orchestration.
   Future<void> _runStartupSequence() async {
-    final perfService = ref.read(performanceServiceProvider);
-
     try {
       if (!mounted) return;
       setState(() {
@@ -60,20 +95,39 @@ class _StartupOrchestratorState extends ConsumerState<StartupOrchestrator> {
         _completedTasks = 0;
       });
 
+      // Build Firebase overrides first
+      final firebaseOverrides = _buildFirebaseOverrides();
+
+      // Create temporary container with only Firebase overrides
+      final tempContainer = ProviderContainer(
+        overrides: firebaseOverrides,
+        parent: null,
+      );
+
+      // Get performance service from temp container
+      final perfService = tempContainer.read(performanceServiceProvider);
+
       // Start performance trace for startup phase
       perfService.startNamedTrace(name: TraceName.startupOverallBlocking);
 
-      // Phase 1: Critical blocking tasks (with retry)
+      // Phase 1: Critical blocking tasks (with retry) using temp container
       AppLogger.debug('Starting critical tasks...');
-      final overrides = await _runCriticalTasksWithRetry(perfService);
+      final criticalOverrides = await _runCriticalTasksWithRetry(
+        perfService,
+        runRead: tempContainer.read,
+      );
       AppLogger.debug('Critical tasks completed');
 
-      // Create a container that applies overrides for all subsequent work
+      // Dispose temp container
+      tempContainer.dispose();
+
+      // Create final container with Firebase + critical overrides
       if (!mounted) return;
-      _container = ProviderContainer(
-        parent: ProviderScope.containerOf(context),
-        overrides: overrides,
-      );
+      final finalOverrides = <Override>[
+        ...firebaseOverrides,
+        ...criticalOverrides,
+      ];
+      _container = ProviderContainer(overrides: finalOverrides, parent: null);
 
       // Background trace starts now
       perfService.startNamedTrace(name: TraceName.startupOverallBackground);
@@ -143,8 +197,11 @@ class _StartupOrchestratorState extends ConsumerState<StartupOrchestrator> {
     } finally {
       // Stop or drop traces as appropriate
       try {
-        perfService.stopNamedTrace(name: TraceName.startupOverallBlocking);
-        perfService.stopNamedTrace(name: TraceName.startupOverallBackground);
+        if (_container != null) {
+          final perfService = _container!.read(performanceServiceProvider);
+          perfService.stopNamedTrace(name: TraceName.startupOverallBlocking);
+          perfService.stopNamedTrace(name: TraceName.startupOverallBackground);
+        }
       } catch (_) {}
     }
   }
@@ -155,8 +212,9 @@ class _StartupOrchestratorState extends ConsumerState<StartupOrchestrator> {
   /// retried, not successful ones. Traces cover all retries and only complete
   /// on success or after 3 failures.
   Future<List<Override>> _runCriticalTasksWithRetry(
-    PerformanceService perfService,
-  ) async {
+    PerformanceService perfService, {
+    required StartupReader runRead,
+  }) async {
     // Start traces for all critical tasks at the beginning
     // Each trace will measure from start until completion (including retries)
     for (final task in widget.criticalTasks) {
@@ -176,7 +234,7 @@ class _StartupOrchestratorState extends ConsumerState<StartupOrchestrator> {
         final results = await Future.wait(
           tasksToRun.map((task) async {
             try {
-              final overrides = await task.execute(ref.read);
+              final overrides = await task.execute(runRead);
               _incrementProgress();
               AppLogger.debug('Startup Critical Task completed: ${task.id}');
 

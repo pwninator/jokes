@@ -387,14 +387,18 @@ class FirebaseAnalyticsService implements AnalyticsService {
     required String jokeContext,
     required JokeViewerMode jokeViewerMode,
   }) {
-    _logEvent(AnalyticsEvent.jokeViewed, {
+    final parameters = <String, dynamic>{
       AnalyticsParameters.jokeId: jokeId,
       AnalyticsParameters.totalJokesViewed: totalJokesViewed,
       AnalyticsParameters.navigationMethod: navigationMethod,
       AnalyticsParameters.jokeContext: jokeContext,
       AnalyticsParameters.jokeViewerMode: jokeViewerMode.name,
       AnalyticsParameters.jokeViewedCount: 1,
-    });
+    };
+    _logEvent(AnalyticsEvent.jokeViewed, parameters);
+    if (totalJokesViewed >= 10) {
+      _logEvent(AnalyticsEvent.jokeViewedHigh, parameters);
+    }
   }
 
   @override
@@ -748,16 +752,14 @@ class FirebaseAnalyticsService implements AnalyticsService {
     required Brightness brightness,
   }) {
     final theme = brightness == Brightness.dark ? 'dark' : 'light';
-    _logEvent(AnalyticsEvent.appUsageDayIncremented, {
+    final parameters = <String, dynamic>{
       AnalyticsParameters.numDaysUsed: numDaysUsed,
       AnalyticsParameters.appTheme: theme,
-    });
-    final numDaysSuffix = numDaysUsed.clamp(1, 30).toString();
-    _logEvent(
-      AnalyticsEvent.appUsageDays,
-      {},
-      eventNameSuffix: '_$numDaysSuffix',
-    );
+    };
+    _logEvent(AnalyticsEvent.appUsageDayIncremented, parameters);
+    if (numDaysUsed > 1) {
+      _logEvent(AnalyticsEvent.appReturnDaysIncremented, parameters);
+    }
   }
 
   @override

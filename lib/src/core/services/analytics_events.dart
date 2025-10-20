@@ -10,6 +10,7 @@ enum AnalyticsEvent {
   jokeSetupViewed('joke_setup_viewed'),
   jokePunchlineViewed('joke_punchline_viewed'),
   jokeViewed('joke_viewed'),
+  jokeViewedHigh('joke_viewed_high'),
   jokeNavigated('joke_navigated'),
   // Joke search event
   jokeSearch('joke_search'),
@@ -63,7 +64,7 @@ enum AnalyticsEvent {
 
   // App usage events
   appUsageDayIncremented('app_usage_day_incremented'),
-  appUsageDays('app_usage_days'),
+  appReturnDaysIncremented('app_return_days_incremented'),
 
   // Feedback
   feedbackSubmitted('feedback_submitted'),

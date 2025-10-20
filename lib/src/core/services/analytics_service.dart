@@ -83,6 +83,7 @@ abstract class AnalyticsService {
     required String jokeContext,
     required JokeViewerMode jokeViewerMode,
     required Brightness brightness,
+    required String screenOrientation,
   });
 
   /// Log when a joke is saved
@@ -443,6 +444,7 @@ class FirebaseAnalyticsService implements AnalyticsService {
     required String jokeContext,
     required JokeViewerMode jokeViewerMode,
     required Brightness brightness,
+    required String screenOrientation,
   }) {
     _logEvent(AnalyticsEvent.jokeNavigated, {
       AnalyticsParameters.jokeId: jokeId,
@@ -451,6 +453,7 @@ class FirebaseAnalyticsService implements AnalyticsService {
       AnalyticsParameters.jokeContext: jokeContext,
       AnalyticsParameters.jokeViewerMode: jokeViewerMode.name,
       AnalyticsParameters.appTheme: brightness.name,
+      AnalyticsParameters.screenOrientation: screenOrientation,
       AnalyticsParameters.jokeNavigatedCount: 1,
     });
   }

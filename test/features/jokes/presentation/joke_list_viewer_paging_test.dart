@@ -81,6 +81,7 @@ void main() {
           jokeContext: any(named: 'jokeContext'),
           jokeViewerMode: any(named: 'jokeViewerMode'),
           brightness: any(named: 'brightness'),
+          screenOrientation: any(named: 'screenOrientation'),
         ),
       ).thenAnswer((_) async {});
 

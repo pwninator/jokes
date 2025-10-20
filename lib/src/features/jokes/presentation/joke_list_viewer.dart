@@ -293,6 +293,11 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
                       jokeViewerRevealProvider,
                     );
                     final brightness = Theme.of(context).brightness;
+                    final orientation = MediaQuery.of(context).orientation;
+                    final screenOrientation =
+                        orientation == Orientation.landscape
+                        ? AnalyticsScreenOrientation.landscape
+                        : AnalyticsScreenOrientation.portrait;
                     analyticsService.logJokeNavigation(
                       joke.id,
                       jokeScrollDepth,
@@ -302,6 +307,7 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
                           ? JokeViewerMode.reveal
                           : JokeViewerMode.bothAdaptive,
                       brightness: brightness,
+                      screenOrientation: screenOrientation,
                     );
 
                     _lastNavigationMethod = AnalyticsNavigationMethod.swipe;

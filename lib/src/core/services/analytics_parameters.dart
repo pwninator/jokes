@@ -87,6 +87,7 @@ class AnalyticsParameters {
 
   // App-level parameters
   static const String appTheme = 'app_theme';
+  static const String screenOrientation = 'screen_orientation';
 
   // Review prompt parameters
   static const String appReviewAttemptedCount = 'app_review_attempted_count';
@@ -128,4 +129,10 @@ class AnalyticsShareMethod {
   static const String text = 'text';
   static const String merged = 'merged';
   static const String watermarked = 'watermarked';
+}
+
+/// Screen orientation values for analytics
+class AnalyticsScreenOrientation {
+  static const String portrait = 'portrait';
+  static const String landscape = 'landscape';
 }

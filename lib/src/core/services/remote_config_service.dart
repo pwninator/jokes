@@ -11,67 +11,58 @@ const Map<RemoteParam, RemoteParamDescriptor> remoteParams = {
   //////////////
   // Feedback //
   //////////////
-  RemoteParam.feedbackMinJokesViewed: RemoteParamDescriptor(
+  RemoteParam.feedbackMinJokesViewed: IntRemoteParamDescriptor(
     key: 'feedback_min_jokes_viewed',
-    type: RemoteParamType.intType,
     defaultInt: 10,
-    isValid: _validateNonNegativeInt,
+    isValid: validateNonNegativeInt,
   ),
 
   /////////////////////////
   // Subscription Prompt //
   /////////////////////////
-  RemoteParam.subscriptionPromptMinJokesViewed: RemoteParamDescriptor(
+  RemoteParam.subscriptionPromptMinJokesViewed: IntRemoteParamDescriptor(
     key: 'subscription_prompt_min_jokes_viewed',
-    type: RemoteParamType.intType,
     defaultInt: 5,
-    isValid: _validateNonNegativeInt,
+    isValid: validateNonNegativeInt,
   ),
 
   ////////////////////
   // Review Request //
   ////////////////////
-  RemoteParam.reviewMinDaysUsed: RemoteParamDescriptor(
+  RemoteParam.reviewMinDaysUsed: IntRemoteParamDescriptor(
     key: 'review_min_days_used',
-    type: RemoteParamType.intType,
     // Default to never show review prompt
     defaultInt: 10000,
-    isValid: _validateNonNegativeInt,
+    isValid: validateNonNegativeInt,
   ),
-  RemoteParam.reviewMinViewedJokes: RemoteParamDescriptor(
+  RemoteParam.reviewMinViewedJokes: IntRemoteParamDescriptor(
     key: 'review_min_viewed_jokes',
-    type: RemoteParamType.intType,
     defaultInt: 30,
-    isValid: _validateNonNegativeInt,
+    isValid: validateNonNegativeInt,
   ),
-  RemoteParam.reviewMinSavedJokes: RemoteParamDescriptor(
+  RemoteParam.reviewMinSavedJokes: IntRemoteParamDescriptor(
     key: 'review_min_saved_jokes',
-    type: RemoteParamType.intType,
     defaultInt: 3,
-    isValid: _validateNonNegativeInt,
+    isValid: validateNonNegativeInt,
   ),
-  RemoteParam.reviewMinSharedJokes: RemoteParamDescriptor(
+  RemoteParam.reviewMinSharedJokes: IntRemoteParamDescriptor(
     key: 'review_min_shared_jokes',
-    type: RemoteParamType.intType,
     defaultInt: 1,
-    isValid: _validateNonNegativeInt,
+    isValid: validateNonNegativeInt,
   ),
   // Gate requesting a review from a joke viewed event
-  RemoteParam.reviewRequestFromJokeViewed: RemoteParamDescriptor(
+  RemoteParam.reviewRequestFromJokeViewed: BoolRemoteParamDescriptor(
     key: 'review_request_from_joke_viewed',
-    type: RemoteParamType.boolType,
     defaultBool: false,
   ),
   // Gate review prompt behind user's daily subscription preference
-  RemoteParam.reviewRequireDailySubscription: RemoteParamDescriptor(
+  RemoteParam.reviewRequireDailySubscription: BoolRemoteParamDescriptor(
     key: 'review_require_daily_subscription',
-    type: RemoteParamType.boolType,
     defaultBool: true,
   ),
   // Review prompt variant (which image/message to show)
-  RemoteParam.reviewPromptVariant: RemoteParamDescriptor(
+  RemoteParam.reviewPromptVariant: EnumRemoteParamDescriptor(
     key: 'review_prompt_variant',
-    type: RemoteParamType.enumType,
     enumValues: ReviewPromptVariant.values,
     enumDefault: ReviewPromptVariant.kitten,
   ),
@@ -80,9 +71,8 @@ const Map<RemoteParam, RemoteParamDescriptor> remoteParams = {
   // Joke Viewer //
   /////////////////
   // Controls the default for the Joke Viewer setting when no local pref exists
-  RemoteParam.defaultJokeViewerReveal: RemoteParamDescriptor(
+  RemoteParam.defaultJokeViewerReveal: BoolRemoteParamDescriptor(
     key: 'default_joke_viewer_reveal',
-    type: RemoteParamType.boolType,
     defaultBool: true,
   ),
 
@@ -90,9 +80,8 @@ const Map<RemoteParam, RemoteParamDescriptor> remoteParams = {
   // Joke Sharing //
   //////////////////
   // Enum-based param for share images mode (enum-like)
-  RemoteParam.shareImagesMode: RemoteParamDescriptor(
+  RemoteParam.shareImagesMode: EnumRemoteParamDescriptor(
     key: 'share_images_mode',
-    type: RemoteParamType.enumType,
     enumValues: ShareImagesMode.values,
     enumDefault: ShareImagesMode.stacked,
   ),
@@ -160,8 +149,88 @@ class RemoteParamDescriptor {
   }
 }
 
+/// Type-safe descriptor for integer parameters
+class IntRemoteParamDescriptor extends RemoteParamDescriptor {
+  const IntRemoteParamDescriptor({
+    required super.key,
+    required super.defaultInt,
+    super.isValid,
+  }) : super(
+         type: RemoteParamType.intType,
+         defaultBool: null,
+         defaultDouble: null,
+         defaultString: null,
+         enumValues: null,
+         enumDefault: null,
+       );
+}
+
+/// Type-safe descriptor for boolean parameters
+class BoolRemoteParamDescriptor extends RemoteParamDescriptor {
+  const BoolRemoteParamDescriptor({
+    required super.key,
+    required super.defaultBool,
+  }) : super(
+         type: RemoteParamType.boolType,
+         defaultInt: null,
+         defaultDouble: null,
+         defaultString: null,
+         isValid: null,
+         enumValues: null,
+         enumDefault: null,
+       );
+}
+
+/// Type-safe descriptor for double parameters
+class DoubleRemoteParamDescriptor extends RemoteParamDescriptor {
+  const DoubleRemoteParamDescriptor({
+    required super.key,
+    required super.defaultDouble,
+    super.isValid,
+  }) : super(
+         type: RemoteParamType.doubleType,
+         defaultInt: null,
+         defaultBool: null,
+         defaultString: null,
+         enumValues: null,
+         enumDefault: null,
+       );
+}
+
+/// Type-safe descriptor for string parameters
+class StringRemoteParamDescriptor extends RemoteParamDescriptor {
+  const StringRemoteParamDescriptor({
+    required super.key,
+    required super.defaultString,
+    super.isValid,
+  }) : super(
+         type: RemoteParamType.stringType,
+         defaultInt: null,
+         defaultBool: null,
+         defaultDouble: null,
+         enumValues: null,
+         enumDefault: null,
+       );
+}
+
+/// Type-safe descriptor for enum parameters
+class EnumRemoteParamDescriptor extends RemoteParamDescriptor {
+  const EnumRemoteParamDescriptor({
+    required super.key,
+    required super.enumValues,
+    required super.enumDefault,
+  }) : super(
+         type: RemoteParamType.enumType,
+         defaultInt: null,
+         defaultBool: null,
+         defaultDouble: null,
+         defaultString: null,
+         isValid: null,
+       );
+}
+
 // Validation helpers
-bool _validateNonNegativeInt(Object value) {
+bool validateNonNegativeInt(Object value) {
   return value is int && value >= 0;
 }
 
@@ -210,17 +279,20 @@ class RemoteConfigService {
   RemoteConfigService({
     required RemoteConfigClient client,
     required AnalyticsService analyticsService,
+    Map<RemoteParam, RemoteParamDescriptor>? parameters,
   }) : _client = client,
-       _analyticsService = analyticsService;
+       _analyticsService = analyticsService,
+       _parameters = parameters ?? remoteParams;
 
   final RemoteConfigClient _client;
   final AnalyticsService _analyticsService;
+  final Map<RemoteParam, RemoteParamDescriptor> _parameters;
   bool _isInitialized = false;
 
   /// Initialize Remote Config with sane defaults and attempt fetch/activate
   Future<void> initialize() async {
     // Validate descriptor configuration up-front (fail fast on misconfiguration)
-    validateRemoteParams(remoteParams);
+    validateRemoteParams(_parameters);
     try {
       // Configure fetch behavior (shorter in debug builds)
       await _client.setConfigSettings(
@@ -234,7 +306,7 @@ class RemoteConfigService {
 
       // Set in-app defaults
       final defaults = <String, Object>{};
-      remoteParams.forEach((param, descriptor) {
+      _parameters.forEach((param, descriptor) {
         defaults[descriptor.key] = descriptor.defaultValue;
       });
       await _client.setDefaults(defaults);
@@ -289,7 +361,7 @@ class RemoteConfigService {
 
   // Typed readers used by the values wrapper
   int readInt(RemoteParam param) {
-    final d = remoteParams[param]!;
+    final d = _parameters[param]!;
     if (!_isInitialized) return d.defaultInt!;
     try {
       final value = _client.getInt(d.key);
@@ -301,7 +373,7 @@ class RemoteConfigService {
   }
 
   bool readBool(RemoteParam param) {
-    final d = remoteParams[param]!;
+    final d = _parameters[param]!;
     if (!_isInitialized) return d.defaultBool!;
     try {
       final value = _client.getBool(d.key);
@@ -313,7 +385,7 @@ class RemoteConfigService {
   }
 
   double readDouble(RemoteParam param) {
-    final d = remoteParams[param]!;
+    final d = _parameters[param]!;
     if (!_isInitialized) return d.defaultDouble!;
     try {
       final value = _client.getDouble(d.key);
@@ -325,7 +397,7 @@ class RemoteConfigService {
   }
 
   String readString(RemoteParam param) {
-    final d = remoteParams[param]!;
+    final d = _parameters[param]!;
     if (!_isInitialized) {
       if (d.type == RemoteParamType.enumType) return _enumName(d.enumDefault!);
       return d.defaultString!;
@@ -347,7 +419,7 @@ class RemoteConfigService {
 
   /// Generic: normalize an enum-like string param
   T readEnum<T>(RemoteParam param) {
-    final d = remoteParams[param]!;
+    final d = _parameters[param]!;
     // Read primary string value
     final raw = readString(param).trim().toLowerCase();
     if (d.enumValues != null && d.enumValues!.isNotEmpty) {

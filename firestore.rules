@@ -9,7 +9,7 @@ service cloud.firestore {
 
       // Allow anyone to update engagement fields
       allow update: if request.resource.data.diff(resource.data).affectedKeys()
-                      .hasOnly(['popularity_score', 'num_saves', 'num_shares']);
+                      .hasOnly(['popularity_score', 'num_viewed_users', 'num_saved_users', 'num_shared_users']);
 
       // Update/delete access: Only allowed for admin users  
       allow update, delete:

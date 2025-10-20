@@ -16,6 +16,8 @@ import 'package:snickerdoodle/src/core/services/review_prompt_state_store.dart';
 import 'package:snickerdoodle/src/data/jokes/category_interactions_repository.dart';
 import 'package:snickerdoodle/src/data/jokes/joke_interactions_repository.dart';
 import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
+import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
+import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
 import 'package:snickerdoodle/src/features/settings/application/brightness_provider.dart';
 import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
@@ -33,6 +35,7 @@ AppUsageService appUsageService(Ref ref) {
   final jokeInteractionsRepository = ref.read(
     jokeInteractionsRepositoryProvider,
   );
+  final jokeRepository = ref.read(jokeRepositoryProvider);
   final reviewPromptCoordinator = ref.read(reviewPromptCoordinatorProvider);
   return AppUsageService(
     ref: ref,
@@ -41,6 +44,7 @@ AppUsageService appUsageService(Ref ref) {
     jokeCloudFn: jokeCloudFn,
     categoryInteractionsService: categoryInteractionsService,
     jokeInteractionsRepository: jokeInteractionsRepository,
+    jokeRepository: jokeRepository,
     reviewPromptCoordinator: reviewPromptCoordinator,
     isDebugMode: kDebugMode,
   );
@@ -73,6 +77,7 @@ class AppUsageService {
     required JokeCloudFunctionService jokeCloudFn,
     required CategoryInteractionsRepository categoryInteractionsService,
     required JokeInteractionsRepository jokeInteractionsRepository,
+    required JokeRepository jokeRepository,
     required ReviewPromptCoordinator reviewPromptCoordinator,
     required bool isDebugMode,
   }) : _settings = settingsService,
@@ -81,6 +86,7 @@ class AppUsageService {
        _jokeCloudFn = jokeCloudFn,
        _categoryInteractions = categoryInteractionsService,
        _jokeInteractions = jokeInteractionsRepository,
+       _jokeRepository = jokeRepository,
        _reviewPromptCoordinator = reviewPromptCoordinator,
        _isDebugMode = isDebugMode;
 
@@ -90,6 +96,7 @@ class AppUsageService {
   final JokeCloudFunctionService _jokeCloudFn;
   final CategoryInteractionsRepository _categoryInteractions;
   final JokeInteractionsRepository _jokeInteractions;
+  final JokeRepository _jokeRepository;
   final ReviewPromptCoordinator _reviewPromptCoordinator;
   final bool _isDebugMode;
 
@@ -194,6 +201,14 @@ class AppUsageService {
       }
 
       await _jokeInteractions.setViewed(jokeId);
+
+      // Increment Firestore counter atomically
+      try {
+        await _jokeRepository.incrementJokeViews(jokeId);
+      } catch (e) {
+        AppLogger.warn('APP_USAGE logJokeViewed Firestore increment error: $e');
+      }
+
       _notifyUsageChanged();
       _pushUsageSnapshot();
       AppLogger.debug('APP_USAGE logJokeViewed: { joke_id: $jokeId }');
@@ -261,6 +276,14 @@ class AppUsageService {
   Future<void> saveJoke(String jokeId, {required BuildContext context}) async {
     try {
       await _jokeInteractions.setSaved(jokeId);
+
+      // Increment Firestore counter atomically
+      try {
+        await _jokeRepository.incrementJokeSaves(jokeId);
+      } catch (e) {
+        AppLogger.warn('APP_USAGE saveJoke Firestore increment error: $e');
+      }
+
       _notifyUsageChanged();
       _pushUsageSnapshot();
       AppLogger.debug('APP_USAGE saveJoke: { joke_id: $jokeId }');
@@ -279,6 +302,14 @@ class AppUsageService {
   Future<void> unsaveJoke(String jokeId) async {
     try {
       await _jokeInteractions.setUnsaved(jokeId);
+
+      // Decrement Firestore counter atomically
+      try {
+        await _jokeRepository.decrementJokeSaves(jokeId);
+      } catch (e) {
+        AppLogger.warn('APP_USAGE unsaveJoke Firestore decrement error: $e');
+      }
+
       _notifyUsageChanged();
       _pushUsageSnapshot();
       AppLogger.debug('APP_USAGE unsaveJoke: { joke_id: $jokeId }');
@@ -295,6 +326,14 @@ class AppUsageService {
   Future<void> shareJoke(String jokeId, {required BuildContext context}) async {
     try {
       await _jokeInteractions.setShared(jokeId);
+
+      // Increment Firestore counter atomically
+      try {
+        await _jokeRepository.incrementJokeShares(jokeId);
+      } catch (e) {
+        AppLogger.warn('APP_USAGE shareJoke Firestore increment error: $e');
+      }
+
       _notifyUsageChanged();
       _pushUsageSnapshot();
       AppLogger.debug('APP_USAGE shareJoke: { joke_id: $jokeId }');

@@ -148,107 +148,114 @@ void main() {
   });
 
   group('logAppUsageDays', () {
-    test('logs usage day increment without return event on first day', () async {
-      analyticsService.logAppUsageDays(
-        numDaysUsed: 1,
-        brightness: Brightness.dark,
-      );
+    test(
+      'logs usage day increment without return event on first day',
+      () async {
+        analyticsService.logAppUsageDays(
+          numDaysUsed: 1,
+          brightness: Brightness.dark,
+        );
 
-      await Future.delayed(Duration.zero);
+        await Future.delayed(Duration.zero);
 
-      verify(
-        () => mockFirebaseAnalytics.logEvent(
-          name: 'app_usage_day_incremented',
-          parameters: any(
-            named: 'parameters',
-            that: predicate<Map<String, Object>>(
-              (params) =>
-                  params[AnalyticsParameters.numDaysUsed] == 1 &&
-                  params[AnalyticsParameters.appTheme] == 'dark',
-              'contains day count and theme',
+        verify(
+          () => mockFirebaseAnalytics.logEvent(
+            name: 'app_usage_day_incremented',
+            parameters: any(
+              named: 'parameters',
+              that: predicate<Map<String, Object>>(
+                (params) =>
+                    params[AnalyticsParameters.numDaysUsed] == 1 &&
+                    params[AnalyticsParameters.appTheme] == 'dark',
+                'contains day count and theme',
+              ),
             ),
           ),
-        ),
-      ).called(1);
+        ).called(1);
 
-      verifyNever(
-        () => mockFirebaseAnalytics.logEvent(
-          name: 'app_return_days_incremented',
-          parameters: any(named: 'parameters'),
-        ),
-      );
-    });
+        verifyNever(
+          () => mockFirebaseAnalytics.logEvent(
+            name: 'app_return_days_incremented',
+            parameters: any(named: 'parameters'),
+          ),
+        );
+      },
+    );
 
-    test('logs usage and return events when numDaysUsed greater than one',
-        () async {
-      analyticsService.logAppUsageDays(
-        numDaysUsed: 3,
-        brightness: Brightness.light,
-      );
+    test(
+      'logs usage and return events when numDaysUsed greater than one',
+      () async {
+        analyticsService.logAppUsageDays(
+          numDaysUsed: 3,
+          brightness: Brightness.light,
+        );
 
-      await Future.delayed(Duration.zero);
+        await Future.delayed(Duration.zero);
 
-      final matcher = predicate<Map<String, Object>>(
-        (params) =>
-            params[AnalyticsParameters.numDaysUsed] == 3 &&
-            params[AnalyticsParameters.appTheme] == 'light',
-        'contains day count and theme',
-      );
+        final matcher = predicate<Map<String, Object>>(
+          (params) =>
+              params[AnalyticsParameters.numDaysUsed] == 3 &&
+              params[AnalyticsParameters.appTheme] == 'light',
+          'contains day count and theme',
+        );
 
-      verify(
-        () => mockFirebaseAnalytics.logEvent(
-          name: 'app_usage_day_incremented',
-          parameters: any(named: 'parameters', that: matcher),
-        ),
-      ).called(1);
+        verify(
+          () => mockFirebaseAnalytics.logEvent(
+            name: 'app_usage_day_incremented',
+            parameters: any(named: 'parameters', that: matcher),
+          ),
+        ).called(1);
 
-      verify(
-        () => mockFirebaseAnalytics.logEvent(
-          name: 'app_return_days_incremented',
-          parameters: any(named: 'parameters', that: matcher),
-        ),
-      ).called(1);
-    });
+        verify(
+          () => mockFirebaseAnalytics.logEvent(
+            name: 'app_return_days_incremented',
+            parameters: any(named: 'parameters', that: matcher),
+          ),
+        ).called(1);
+      },
+    );
   });
 
   group('logJokeViewed', () {
-    test('logs standard event only when total jokes viewed below threshold',
-        () async {
-      analyticsService.logJokeViewed(
-        'j123',
-        totalJokesViewed: 5,
-        navigationMethod: 'swipe',
-        jokeContext: 'daily',
-        jokeViewerMode: JokeViewerMode.reveal,
-      );
+    test(
+      'logs standard event only when total jokes viewed below threshold',
+      () async {
+        analyticsService.logJokeViewed(
+          'j123',
+          totalJokesViewed: 5,
+          navigationMethod: 'swipe',
+          jokeContext: 'daily',
+          jokeViewerMode: JokeViewerMode.reveal,
+        );
 
-      await Future.delayed(Duration.zero);
+        await Future.delayed(Duration.zero);
 
-      final matcher = predicate<Map<String, Object>>(
-        (params) =>
-            params[AnalyticsParameters.jokeId] == 'j123' &&
-            params[AnalyticsParameters.totalJokesViewed] == 5 &&
-            params[AnalyticsParameters.navigationMethod] == 'swipe' &&
-            params[AnalyticsParameters.jokeContext] == 'daily' &&
-            params[AnalyticsParameters.jokeViewerMode] == 'reveal' &&
-            params[AnalyticsParameters.jokeViewedCount] == 1,
-        'includes joke metadata and counts',
-      );
+        final matcher = predicate<Map<String, Object>>(
+          (params) =>
+              params[AnalyticsParameters.jokeId] == 'j123' &&
+              params[AnalyticsParameters.totalJokesViewed] == 5 &&
+              params[AnalyticsParameters.navigationMethod] == 'swipe' &&
+              params[AnalyticsParameters.jokeContext] == 'daily' &&
+              params[AnalyticsParameters.jokeViewerMode] == 'reveal' &&
+              params[AnalyticsParameters.jokeViewedCount] == 1,
+          'includes joke metadata and counts',
+        );
 
-      verify(
-        () => mockFirebaseAnalytics.logEvent(
-          name: 'joke_viewed',
-          parameters: any(named: 'parameters', that: matcher),
-        ),
-      ).called(1);
+        verify(
+          () => mockFirebaseAnalytics.logEvent(
+            name: 'joke_viewed',
+            parameters: any(named: 'parameters', that: matcher),
+          ),
+        ).called(1);
 
-      verifyNever(
-        () => mockFirebaseAnalytics.logEvent(
-          name: 'joke_viewed_high',
-          parameters: any(named: 'parameters'),
-        ),
-      );
-    });
+        verifyNever(
+          () => mockFirebaseAnalytics.logEvent(
+            name: 'joke_viewed_high',
+            parameters: any(named: 'parameters'),
+          ),
+        );
+      },
+    );
 
     test('logs high event when total jokes viewed is ten or more', () async {
       analyticsService.logJokeViewed(

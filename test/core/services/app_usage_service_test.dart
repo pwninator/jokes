@@ -14,6 +14,7 @@ import 'package:snickerdoodle/src/data/core/database/app_database.dart';
 import 'package:snickerdoodle/src/data/jokes/category_interactions_repository.dart';
 import 'package:snickerdoodle/src/data/jokes/joke_interactions_repository.dart';
 import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
+import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
 import 'package:snickerdoodle/src/features/settings/application/brightness_provider.dart';
 import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
@@ -31,6 +32,20 @@ class _MockCategoryInteractionsService extends Mock
 
 class _MockJokeInteractionsRepository extends Mock
     implements JokeInteractionsRepository {}
+
+class _MockJokeRepository extends Mock implements JokeRepository {
+  @override
+  Future<void> incrementJokeViews(String jokeId) async {}
+
+  @override
+  Future<void> incrementJokeSaves(String jokeId) async {}
+
+  @override
+  Future<void> decrementJokeSaves(String jokeId) async {}
+
+  @override
+  Future<void> incrementJokeShares(String jokeId) async {}
+}
 
 class _MockSubscriptionPromptNotifier extends Mock
     implements SubscriptionPromptNotifier {}
@@ -128,6 +143,7 @@ void main() {
           jokeCloudFn: mocks.jokeCloudFn,
           categoryInteractionsService: _MockCategoryInteractionsService(),
           jokeInteractionsRepository: mocks.repo,
+          jokeRepository: _MockJokeRepository(),
           reviewPromptCoordinator: mocks.reviewCoordinator,
           isDebugMode: true,
         );
@@ -168,6 +184,7 @@ void main() {
         jokeCloudFn: mocks.jokeCloudFn,
         categoryInteractionsService: _MockCategoryInteractionsService(),
         jokeInteractionsRepository: mocks.repo,
+        jokeRepository: _MockJokeRepository(),
         reviewPromptCoordinator: mocks.reviewCoordinator,
         isDebugMode: true,
       );
@@ -209,6 +226,7 @@ void main() {
           jokeCloudFn: mocks.jokeCloudFn,
           categoryInteractionsService: _MockCategoryInteractionsService(),
           jokeInteractionsRepository: mocks.repo,
+          jokeRepository: _MockJokeRepository(),
           reviewPromptCoordinator: mocks.reviewCoordinator,
           isDebugMode: true,
         );
@@ -304,6 +322,7 @@ void main() {
           jokeCloudFn: mocks.jokeCloudFn,
           categoryInteractionsService: _MockCategoryInteractionsService(),
           jokeInteractionsRepository: mocks.repo,
+          jokeRepository: _MockJokeRepository(),
           reviewPromptCoordinator: mocks.reviewCoordinator,
           isDebugMode: true,
         );
@@ -383,6 +402,7 @@ void main() {
         jokeCloudFn: mocks.jokeCloudFn,
         categoryInteractionsService: _MockCategoryInteractionsService(),
         jokeInteractionsRepository: mocks.repo,
+        jokeRepository: _MockJokeRepository(),
         reviewPromptCoordinator: mocks.reviewCoordinator,
         isDebugMode: true,
       );
@@ -473,6 +493,7 @@ void main() {
           jokeCloudFn: mocks.jokeCloudFn,
           categoryInteractionsService: _MockCategoryInteractionsService(),
           jokeInteractionsRepository: mocks.repo,
+          jokeRepository: _MockJokeRepository(),
           reviewPromptCoordinator: mocks.reviewCoordinator,
           isDebugMode: true,
         );
@@ -562,6 +583,7 @@ void main() {
           jokeCloudFn: mocks.jokeCloudFn,
           categoryInteractionsService: _MockCategoryInteractionsService(),
           jokeInteractionsRepository: mocks.repo,
+          jokeRepository: _MockJokeRepository(),
           reviewPromptCoordinator: mocks.reviewCoordinator,
           isDebugMode: true,
         );
@@ -614,6 +636,7 @@ void main() {
         jokeCloudFn: mocks.jokeCloudFn,
         categoryInteractionsService: _MockCategoryInteractionsService(),
         jokeInteractionsRepository: mocks.repo,
+        jokeRepository: _MockJokeRepository(),
         reviewPromptCoordinator: mocks.reviewCoordinator,
         isDebugMode: true,
       );
@@ -669,6 +692,7 @@ void main() {
         jokeCloudFn: mocks.jokeCloudFn,
         categoryInteractionsService: _MockCategoryInteractionsService(),
         jokeInteractionsRepository: mocks.repo,
+        jokeRepository: _MockJokeRepository(),
         reviewPromptCoordinator: mocks.reviewCoordinator,
         isDebugMode: true,
       );
@@ -712,6 +736,7 @@ void main() {
         jokeCloudFn: mocks.jokeCloudFn,
         categoryInteractionsService: _MockCategoryInteractionsService(),
         jokeInteractionsRepository: mocks.repo,
+        jokeRepository: _MockJokeRepository(),
         reviewPromptCoordinator: mocks.reviewCoordinator,
         isDebugMode: true,
       );
@@ -755,6 +780,7 @@ void main() {
         jokeCloudFn: mocks.jokeCloudFn,
         categoryInteractionsService: _MockCategoryInteractionsService(),
         jokeInteractionsRepository: mocks.repo,
+        jokeRepository: _MockJokeRepository(),
         reviewPromptCoordinator: mocks.reviewCoordinator,
         isDebugMode: true,
       );
@@ -788,6 +814,7 @@ void main() {
         jokeCloudFn: mocks.jokeCloudFn,
         categoryInteractionsService: _MockCategoryInteractionsService(),
         jokeInteractionsRepository: mocks.repo,
+        jokeRepository: _MockJokeRepository(),
         reviewPromptCoordinator: mocks.reviewCoordinator,
         isDebugMode: true,
       );
@@ -842,6 +869,7 @@ void main() {
         jokeCloudFn: mocks.jokeCloudFn,
         categoryInteractionsService: _MockCategoryInteractionsService(),
         jokeInteractionsRepository: mocks.repo,
+        jokeRepository: _MockJokeRepository(),
         reviewPromptCoordinator: mocks.reviewCoordinator,
         isDebugMode: false,
       );

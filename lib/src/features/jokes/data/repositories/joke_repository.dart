@@ -423,6 +423,43 @@ class JokeRepository {
     );
   }
 
+  /// Helper method to atomically increment a field in a joke document
+  Future<void> _incrementJokeField(
+    String jokeId,
+    String fieldName,
+    int amount,
+  ) async {
+    await _traceFs(
+      traceName: TraceName.fsWrite,
+      op: 'increment',
+      collection: 'jokes',
+      docId: jokeId,
+      action: () => _firestore.collection('jokes').doc(jokeId).update({
+        fieldName: FieldValue.increment(amount),
+      }),
+    );
+  }
+
+  /// Atomically increment the number of users who viewed this joke
+  Future<void> incrementJokeViews(String jokeId) async {
+    await _incrementJokeField(jokeId, 'num_viewed_users', 1);
+  }
+
+  /// Atomically increment the number of users who saved this joke
+  Future<void> incrementJokeSaves(String jokeId) async {
+    await _incrementJokeField(jokeId, 'num_saved_users', 1);
+  }
+
+  /// Atomically decrement the number of users who saved this joke
+  Future<void> decrementJokeSaves(String jokeId) async {
+    await _incrementJokeField(jokeId, 'num_saved_users', -1);
+  }
+
+  /// Atomically increment the number of users who shared this joke
+  Future<void> incrementJokeShares(String jokeId) async {
+    await _incrementJokeField(jokeId, 'num_shared_users', 1);
+  }
+
   /// Batch publish jokes
   Future<void> setJokesPublished(
     Map<String, DateTime> jokeIdToPublicTimestamp,

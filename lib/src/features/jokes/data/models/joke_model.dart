@@ -17,6 +17,7 @@ class Joke {
   final List<String> allSetupImageUrls;
   final List<String> allPunchlineImageUrls;
   final Map<String, dynamic>? generationMetadata;
+  final int numViews;
   final int numSaves;
   final int numShares;
   final int popularityScore;
@@ -41,6 +42,7 @@ class Joke {
     this.generationMetadata,
     this.numSaves = 0,
     this.numShares = 0,
+    this.numViews = 0,
     this.popularityScore = 0,
     this.adminRating,
     this.state,
@@ -62,6 +64,7 @@ class Joke {
     List<String>? allSetupImageUrls,
     List<String>? allPunchlineImageUrls,
     Map<String, dynamic>? generationMetadata,
+    int? numViews,
     int? numSaves,
     int? numShares,
     int? popularityScore,
@@ -89,6 +92,7 @@ class Joke {
       allPunchlineImageUrls:
           allPunchlineImageUrls ?? this.allPunchlineImageUrls,
       generationMetadata: generationMetadata ?? this.generationMetadata,
+      numViews: numViews ?? this.numViews,
       numSaves: numSaves ?? this.numSaves,
       numShares: numShares ?? this.numShares,
       popularityScore: popularityScore ?? this.popularityScore,
@@ -113,8 +117,9 @@ class Joke {
       'all_setup_image_urls': allSetupImageUrls,
       'all_punchline_image_urls': allPunchlineImageUrls,
       'generation_metadata': generationMetadata,
-      'num_saves': numSaves,
-      'num_shares': numShares,
+      'num_viewed_users': numViews,
+      'num_saved_users': numSaves,
+      'num_shared_users': numShares,
       'popularity_score': popularityScore,
       'admin_rating': adminRating?.value,
       'state': state?.value,
@@ -142,8 +147,9 @@ class Joke {
         map['all_punchline_image_urls'] ?? [],
       ),
       generationMetadata: map['generation_metadata'] as Map<String, dynamic>?,
-      numSaves: (map['num_saves'] as num?)?.toInt() ?? 0,
-      numShares: (map['num_shares'] as num?)?.toInt() ?? 0,
+      numViews: (map['num_viewed_users'] as num?)?.toInt() ?? 0,
+      numSaves: (map['num_saved_users'] as num?)?.toInt() ?? 0,
+      numShares: (map['num_shared_users'] as num?)?.toInt() ?? 0,
       popularityScore: (map['popularity_score'] as num?)?.toInt() ?? 0,
       adminRating: JokeAdminRating.fromString(map['admin_rating'] as String?),
       state: JokeState.fromString(map['state'] as String?),
@@ -176,7 +182,7 @@ class Joke {
 
   @override
   String toString() =>
-      'Joke(id: $id, setupText: $setupText, punchlineText: $punchlineText, setupImageUrl: $setupImageUrl, punchlineImageUrl: $punchlineImageUrl, setupImageUrlUpscaled: $setupImageUrlUpscaled, punchlineImageUrlUpscaled: $punchlineImageUrlUpscaled, setupImageDescription: $setupImageDescription, punchlineImageDescription: $punchlineImageDescription, allSetupImageUrls: $allSetupImageUrls, allPunchlineImageUrls: $allPunchlineImageUrls, generationMetadata: $generationMetadata, numSaves: $numSaves, numShares: $numShares, popularityScore: $popularityScore, adminRating: $adminRating, state: $state, publicTimestamp: $publicTimestamp, tags: $tags, seasonal: $seasonal)';
+      'Joke(id: $id, setupText: $setupText, punchlineText: $punchlineText, setupImageUrl: $setupImageUrl, punchlineImageUrl: $punchlineImageUrl, setupImageUrlUpscaled: $setupImageUrlUpscaled, punchlineImageUrlUpscaled: $punchlineImageUrlUpscaled, setupImageDescription: $setupImageDescription, punchlineImageDescription: $punchlineImageDescription, allSetupImageUrls: $allSetupImageUrls, allPunchlineImageUrls: $allPunchlineImageUrls, generationMetadata: $generationMetadata, numSaves: $numSaves, numShares: $numShares, numViews: $numViews, popularityScore: $popularityScore, adminRating: $adminRating, state: $state, publicTimestamp: $publicTimestamp, tags: $tags, seasonal: $seasonal)';
 
   @override
   bool operator ==(Object other) {
@@ -195,6 +201,7 @@ class Joke {
         listEquals(other.allSetupImageUrls, allSetupImageUrls) &&
         listEquals(other.allPunchlineImageUrls, allPunchlineImageUrls) &&
         mapEquals(other.generationMetadata, generationMetadata) &&
+        other.numViews == numViews &&
         other.numSaves == numSaves &&
         other.numShares == numShares &&
         other.popularityScore == popularityScore &&
@@ -219,6 +226,7 @@ class Joke {
       allSetupImageUrls.hashCode ^
       allPunchlineImageUrls.hashCode ^
       generationMetadata.hashCode ^
+      numViews.hashCode ^
       numSaves.hashCode ^
       numShares.hashCode ^
       popularityScore.hashCode ^

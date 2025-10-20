@@ -503,6 +503,74 @@ void main() {
       );
     });
 
+    group('atomic increment operations', () {
+      test('incrementJokeViews increments num_viewed_users by 1', () async {
+        await repository.incrementJokeViews('joke1');
+
+        verify(
+          () => mockDocumentReference.update({
+            'num_viewed_users': FieldValue.increment(1),
+          }),
+        );
+      });
+
+      test('incrementJokeSaves increments num_saved_users by 1', () async {
+        await repository.incrementJokeSaves('joke1');
+
+        verify(
+          () => mockDocumentReference.update({
+            'num_saved_users': FieldValue.increment(1),
+          }),
+        );
+      });
+
+      test('decrementJokeSaves decrements num_saved_users by 1', () async {
+        await repository.decrementJokeSaves('joke1');
+
+        verify(
+          () => mockDocumentReference.update({
+            'num_saved_users': FieldValue.increment(-1),
+          }),
+        );
+      });
+
+      test('incrementJokeShares increments num_shared_users by 1', () async {
+        await repository.incrementJokeShares('joke1');
+
+        verify(
+          () => mockDocumentReference.update({
+            'num_shared_users': FieldValue.increment(1),
+          }),
+        );
+      });
+
+      test('increment operations propagate Firebase errors', () async {
+        when(
+          () => mockDocumentReference.update(any()),
+        ).thenThrow(FirebaseException(plugin: 'firestore', message: 'Error'));
+
+        expect(
+          () => repository.incrementJokeViews('joke1'),
+          throwsA(isA<FirebaseException>()),
+        );
+
+        expect(
+          () => repository.incrementJokeSaves('joke1'),
+          throwsA(isA<FirebaseException>()),
+        );
+
+        expect(
+          () => repository.decrementJokeSaves('joke1'),
+          throwsA(isA<FirebaseException>()),
+        );
+
+        expect(
+          () => repository.incrementJokeShares('joke1'),
+          throwsA(isA<FirebaseException>()),
+        );
+      });
+    });
+
     group('batch operations', () {
       test('setJokesPublished updates multiple jokes', () async {
         final jokeMap = {

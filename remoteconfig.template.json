@@ -76,7 +76,7 @@
         },
         "review_prompt_variant": {
           "defaultValue": {
-            "value": "bunny"
+            "value": "kitten"
           },
           "description": "Which review prompt variant to show: bunny|kitten",
           "valueType": "STRING"

@@ -74,7 +74,7 @@ const Map<RemoteParam, RemoteParamDescriptor> remoteParams = {
     key: 'review_prompt_variant',
     type: RemoteParamType.enumType,
     enumValues: ReviewPromptVariant.values,
-    enumDefault: ReviewPromptVariant.bunny,
+    enumDefault: ReviewPromptVariant.kitten,
   ),
 
   /////////////////

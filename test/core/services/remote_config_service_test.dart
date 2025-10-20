@@ -278,7 +278,7 @@ void main() {
         await service.initialize();
         expect(
           service.currentValues.getBool(RemoteParam.defaultJokeViewerReveal),
-          false,
+          true,
         );
       });
     });

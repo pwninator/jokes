@@ -83,7 +83,7 @@ const Map<RemoteParam, RemoteParamDescriptor> remoteParams = {
   RemoteParam.defaultJokeViewerReveal: RemoteParamDescriptor(
     key: 'default_joke_viewer_reveal',
     type: RemoteParamType.boolType,
-    defaultBool: false,
+    defaultBool: true,
   ),
 
   //////////////////

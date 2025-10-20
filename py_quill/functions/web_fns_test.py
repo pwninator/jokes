@@ -96,6 +96,10 @@ def test_topic_page_renders_with_json_ld_and_reveal(monkeypatch):
   assert '.topic-page .grid { grid-template-columns: 1fr;' in html
   assert 'aspect-ratio: 1 / 1' in html
   assert 'width="600" height="600"' in html
+  assert 'href="/privacy.html"' in html
+  assert 'target="_blank"' in html
+  assert 'rel="noopener noreferrer"' in html
+  assert 'web_footer_privacy_click' in html
   # Cache headers present
   assert 'Cache-Control' in resp.headers
 
@@ -131,6 +135,11 @@ def test_index_page_renders_joke_of_the_day(monkeypatch):
   assert 'data-analytics-label="joke_end_card"' in html
   # Badge alt text per template
   assert "Get it on Google Play" in html
+  assert 'href="/privacy.html"' in html
+  assert 'target="_blank"' in html
+  assert 'rel="noopener noreferrer"' in html
+  assert 'web_footer_privacy_click' in html
+  assert 'Privacy Policy' in html
   assert 'Cache-Control' in resp.headers
 
 
@@ -243,6 +252,14 @@ def test_pages_include_ga4_tag_and_parchment_background(monkeypatch):
   # Background matches dark parchment color
   assert 'background: #121212' in topic_html
   assert 'background: #121212' in index_html
+  assert 'web_footer_privacy_click' in topic_html
+  assert 'web_footer_privacy_click' in index_html
+  assert 'href="/privacy.html"' in topic_html
+  assert 'href="/privacy.html"' in index_html
+  assert 'target="_blank"' in topic_html
+  assert 'target="_blank"' in index_html
+  assert 'rel="noopener noreferrer"' in topic_html
+  assert 'rel="noopener noreferrer"' in index_html
 
   # New header and favicon present; old Dogs link removed
   assert '<header class="site-header">' in topic_html

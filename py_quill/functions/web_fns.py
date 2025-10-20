@@ -13,7 +13,6 @@ from services import firestore, search
 _TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), '..', 'web',
                               'templates')
 _STATIC_DIR = os.path.join(os.path.dirname(__file__), '..', 'web', 'static')
-
 app = flask.Flask(__name__,
                   template_folder=_TEMPLATES_DIR,
                   static_folder=_STATIC_DIR)
@@ -91,6 +90,7 @@ def index():
     jokes=jokes,
     canonical_url=flask.url_for('web.index', _external=True),
     site_name='Snickerdoodle',
+    now_year=today.year,
   )
   return _html_response(html, cache_seconds=300, cdn_seconds=1800)
 
@@ -118,6 +118,7 @@ def topic_page(topic: str):
   if len(jokes) == page_size:
     next_url = f"{canonical_url}?page={page_num + 1}"
 
+  now_year = datetime.datetime.now(datetime.timezone.utc).year
   html = flask.render_template(
     'topic.html',
     topic=topic,
@@ -126,6 +127,7 @@ def topic_page(topic: str):
     prev_url=prev_url,
     next_url=next_url,
     site_name='Snickerdoodle',
+    now_year=now_year,
   )
   return _html_response(html, cache_seconds=300, cdn_seconds=1800)
 

@@ -102,7 +102,8 @@ enum AnalyticsEvent {
   errorAppReviewRequest('error_app_review_request'),
 
   // Settings
-  jokeViewerSettingChanged('joke_viewer_setting_changed');
+  jokeViewerSettingChanged('joke_viewer_setting_changed'),
+  privacyPolicyOpened('privacy_policy_opened');
 
   const AnalyticsEvent(this.eventName);
 

@@ -10,10 +10,11 @@ import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/app_review_service.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
+import 'package:snickerdoodle/src/core/services/feedback_prompt_state_store.dart';
 import 'package:snickerdoodle/src/core/services/notification_service.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
-import 'package:snickerdoodle/src/core/services/feedback_prompt_state_store.dart';
 import 'package:snickerdoodle/src/core/services/review_prompt_state_store.dart';
+import 'package:snickerdoodle/src/core/services/url_launcher_service.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/data/core/app/firebase_providers.dart';
 import 'package:snickerdoodle/src/data/reviews/reviews_repository.dart';
@@ -56,6 +57,8 @@ class MockRemoteConfigValues extends Mock implements RemoteConfigValues {}
 
 class MockNotificationService extends Mock implements NotificationService {}
 
+class MockUrlLauncherService extends Mock implements UrlLauncherService {}
+
 // Fake classes for registerFallbackValue
 class FakeAppUser extends Fake implements AppUser {}
 
@@ -68,6 +71,7 @@ void main() {
     registerFallbackValue(ReviewRequestSource.adminTest);
     registerFallbackValue(FakeBuildContext());
     registerFallbackValue(RemoteParam.defaultJokeViewerReveal);
+    registerFallbackValue(Uri.parse('https://example.com'));
   });
 
   late MockAnalyticsService mockAnalyticsService;
@@ -78,6 +82,7 @@ void main() {
   late MockSettingsService mockSettingsService;
   late MockReviewsRepository mockReviewsRepository;
   late MockFirebaseAnalytics mockFirebaseAnalytics;
+  late MockUrlLauncherService mockUrlLauncherService;
 
   late MockReviewPromptStateStore mockReviewPromptStore;
   late MockFeedbackPromptStateStore mockFeedbackPromptStore;
@@ -96,6 +101,7 @@ void main() {
     mockReviewsRepository = MockReviewsRepository();
     mockFirebaseAnalytics = MockFirebaseAnalytics();
     mockFeedbackPromptStore = MockFeedbackPromptStateStore();
+    mockUrlLauncherService = MockUrlLauncherService();
     reviewRequestedState = false;
     feedbackViewedState = false;
 
@@ -132,6 +138,10 @@ void main() {
     _setupSettingsServiceDefaults(mockSettingsService);
     _setupReviewsRepositoryDefaults(mockReviewsRepository);
     _setupFirebaseAnalyticsDefaults(mockFirebaseAnalytics);
+
+    when(
+      () => mockUrlLauncherService.launchUrl(any<Uri>()),
+    ).thenAnswer((_) async => true);
   });
 
   Widget createTestWidget({AppUser? testUser}) {
@@ -188,6 +198,7 @@ void main() {
 
         // Remote config
         remoteConfigValuesProvider.overrideWithValue(mockRemoteConfigValues),
+        urlLauncherServiceProvider.overrideWithValue(mockUrlLauncherService),
       ],
       child: MaterialApp(
         theme: lightTheme,
@@ -376,6 +387,30 @@ void main() {
         expect(find.byIcon(Icons.dark_mode), findsOneWidget);
         expect(find.byIcon(Icons.brightness_auto), findsOneWidget);
       });
+    });
+  });
+
+  group('UserSettingsScreen Privacy Policy link', () {
+    const privacyPolicyUrl = 'https://snickerdoodlejokes.com/privacy.html';
+
+    testWidgets('shows button and launches privacy policy URL', (tester) async {
+      await tester.pumpWidget(createTestWidget());
+      await tester.pumpAndSettle();
+
+      final buttonFinder = find.byKey(
+        const Key('user_settings_screen-privacy-policy-button'),
+      );
+      expect(buttonFinder, findsOneWidget);
+
+      await tester.ensureVisible(buttonFinder);
+      await tester.tap(buttonFinder, warnIfMissed: false);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      final expectedUri = Uri.parse(privacyPolicyUrl);
+      verify(() => mockUrlLauncherService.launchUrl(expectedUri)).called(1);
+      verify(() => mockAnalyticsService.logPrivacyPolicyOpened()).called(1);
+      expect(find.text('Unable to open the privacy policy.'), findsNothing);
     });
   });
 
@@ -1066,6 +1101,7 @@ void _setupAnalyticsServiceDefaults(MockAnalyticsService mock) {
   when(
     () => mock.logSubscriptionDeclinedPermissionsInSettings(),
   ).thenAnswer((_) async {});
+  when(() => mock.logPrivacyPolicyOpened()).thenAnswer((_) {});
   when(() => mock.logAnalyticsError(any(), any())).thenAnswer((_) async {});
 }
 

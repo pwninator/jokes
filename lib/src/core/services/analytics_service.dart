@@ -115,6 +115,9 @@ abstract class AnalyticsService {
   /// Subscription: denied permissions from prompt flow
   void logSubscriptionDeclinedPermissionsInPrompt();
 
+  /// Settings: privacy policy opened from settings screen
+  void logPrivacyPolicyOpened();
+
   /// Log when subscription prompt is shown
   void logSubscriptionPromptShown();
 
@@ -571,6 +574,11 @@ class FirebaseAnalyticsService implements AnalyticsService {
       AnalyticsParameters.permissionGranted: false,
       AnalyticsParameters.subscriptionPromptDeclinedCount: 1,
     });
+  }
+
+  @override
+  void logPrivacyPolicyOpened() {
+    _logEvent(AnalyticsEvent.privacyPolicyOpened, const {});
   }
 
   @override

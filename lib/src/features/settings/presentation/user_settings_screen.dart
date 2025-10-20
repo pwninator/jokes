@@ -17,6 +17,7 @@ import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.
 import 'package:snickerdoodle/src/core/services/feedback_prompt_state_store.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:snickerdoodle/src/core/services/review_prompt_state_store.dart';
+import 'package:snickerdoodle/src/core/services/url_launcher_service.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
 import 'package:snickerdoodle/src/features/auth/data/models/app_user.dart';
@@ -55,6 +56,9 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
     'notifications',
     'notifications',
   ];
+  static final Uri _privacyPolicyUri = Uri.parse(
+    'https://snickerdoodlejokes.com/privacy.html',
+  );
 
   void _handleSecretTap(String tapType) {
     final now = DateTime.now();
@@ -103,6 +107,26 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
 
       // Reset sequence
       _tapSequence.clear();
+    }
+  }
+
+  Future<void> _openPrivacyPolicy() async {
+    try {
+      final analyticsService = ref.read(analyticsServiceProvider);
+      analyticsService.logPrivacyPolicyOpened();
+
+      final launcher = ref.read(urlLauncherServiceProvider);
+      final didLaunch = await launcher.launchUrl(_privacyPolicyUri);
+      if (!didLaunch && mounted) {
+        AppLogger.warn(
+          'PRIVACY_POLICY: launchUrl returned false for privacy policy',
+        );
+      }
+    } catch (error, stackTrace) {
+      AppLogger.error(
+        'PRIVACY_POLICY: Failed to open privacy policy: $error',
+        stackTrace: stackTrace,
+      );
     }
   }
 
@@ -676,6 +700,21 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                 ),
               ],
               const SizedBox(height: 16),
+
+              Center(
+                child: TextButton(
+                  key: const Key('user_settings_screen-privacy-policy-button'),
+                  onPressed: _openPrivacyPolicy,
+                  style: Theme.of(context).textButtonTheme.style?.copyWith(
+                    foregroundColor: WidgetStateProperty.all(
+                      Theme.of(
+                        context,
+                      ).colorScheme.onSurface.withValues(alpha: 0.8),
+                    ),
+                  ),
+                  child: const Text('Privacy Policy'),
+                ),
+              ),
 
               // Version text (for secret sequence)
               Center(

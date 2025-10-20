@@ -17,6 +17,10 @@ app = flask.Flask(__name__,
                   template_folder=_TEMPLATES_DIR,
                   static_folder=_STATIC_DIR)
 
+# Canonical public base URL used for sitemaps and absolute links.
+_PUBLIC_BASE_URL = os.environ.get('PUBLIC_BASE_URL',
+                                  'https://snickerdoodlejokes.com').rstrip('/')
+
 web_bp = flask.Blueprint('web',
                          __name__,
                          template_folder=_TEMPLATES_DIR,
@@ -137,7 +141,7 @@ def sitemap():
   """Generate a simple sitemap for topics."""
   topics = _WEB_TOPICS
 
-  base_url = flask.request.url_root.rstrip('/')
+  base_url = _PUBLIC_BASE_URL
   urlset_parts = [
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',

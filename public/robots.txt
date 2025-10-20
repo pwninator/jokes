@@ -1,0 +1,13 @@
+User-agent: *
+Allow: /
+
+# Block admin and internal areas (if any exist)
+Disallow: /admin/
+Disallow: /api/
+Disallow: /__/
+
+# Sitemap location
+Sitemap: https://snickerdoodlejokes.com/sitemap.xml
+
+# Crawl delay (optional - be respectful to search engines)
+Crawl-delay: 1

@@ -46,7 +46,7 @@ def test_sitemap_returns_hardcoded_topics():
     resp = client.get('/sitemap.xml')
   assert resp.status_code == 200
   xml = resp.get_data(as_text=True)
-  assert '/jokes/dogs' in xml
+  assert 'https://snickerdoodlejokes.com/jokes/dogs' in xml
 
 
 def test_topic_page_renders_with_json_ld_and_reveal(monkeypatch):

@@ -69,6 +69,12 @@ void main() {
         jokeViewerMode: any(named: 'jokeViewerMode'),
       ),
     ).thenAnswer((_) async {});
+    when(
+      () => mockAnalyticsService.logJokeSearchSimilar(
+        queryLength: any(named: 'queryLength'),
+        jokeContext: any(named: 'jokeContext'),
+      ),
+    ).thenAnswer((_) async {});
   });
 
   Widget wrap(Widget child) => wrapWithCarouselOverrides(
@@ -87,7 +93,7 @@ void main() {
     punchlineImageUrl: 'https://example.com/b.jpg',
   );
 
-  testWidgets('admin mode suppresses setup/punchline/view analytics', (
+  testWidgets('admin mode suppresses setup/punchline/view analytics and usage tracking', (
     tester,
   ) async {
     final w = JokeImageCarousel(
@@ -127,6 +133,12 @@ void main() {
         navigationMethod: any(named: 'navigationMethod'),
         jokeContext: any(named: 'jokeContext'),
         jokeViewerMode: any(named: 'jokeViewerMode'),
+      ),
+    );
+    verifyNever(
+      () => mockAppUsageService.logJokeViewed(
+        any(),
+        context: any(named: 'context'),
       ),
     );
   });
@@ -188,4 +200,24 @@ void main() {
       ),
     ).called(greaterThan(0));
   });
+
+  testWidgets('admin mode hides similar search button', (tester) async {
+    final w = JokeImageCarousel(
+      joke: joke,
+      isAdminMode: true,
+      showSimilarSearchButton: true,
+      jokeContext: 'admin',
+    );
+
+    await tester.pumpWidget(wrap(w));
+    await tester.pump();
+
+    // Similar search button should not be shown in admin mode
+    final similarButton = find.byKey(const Key('similar-search-button'));
+    expect(similarButton, findsNothing);
+  });
+
+  // Note: Testing similar search analytics in non-admin mode requires complex
+  // Firebase mocks for navigation. This is covered in the dedicated similar
+  // search test file: joke_list_viewer_similar_button_test.dart
 }

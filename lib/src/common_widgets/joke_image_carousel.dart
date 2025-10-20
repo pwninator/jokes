@@ -53,8 +53,7 @@ class JokeImageCarousel extends ConsumerStatefulWidget {
   final bool showSaveButton;
   final bool showShareButton;
   final bool showAdminRatingButtons;
-  final bool showNumSaves;
-  final bool showNumShares;
+  final bool showUsageStats;
   final String? title;
   final String jokeContext;
   final JokeImageCarouselController? controller;
@@ -72,8 +71,7 @@ class JokeImageCarousel extends ConsumerStatefulWidget {
     this.showSaveButton = false,
     this.showShareButton = false,
     this.showAdminRatingButtons = false,
-    this.showNumSaves = false,
-    this.showNumShares = false,
+    this.showUsageStats = false,
     this.title,
     required this.jokeContext,
     this.controller,
@@ -118,7 +116,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
 
   void _startViewTimerForIndex(int index) {
     _viewTimer?.cancel();
-    if (!_hasBothImages || _jokeViewedLogged) return;
+    if (!_hasBothImages || _jokeViewedLogged || widget.isAdminMode) return;
     _viewTimer = Timer(_jokeImageViewThreshold, () async {
       if (!mounted || _jokeViewedLogged) return;
       final analyticsService = ref.read(analyticsServiceProvider);
@@ -210,17 +208,15 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
       // Re-check mounted before any further ref.read calls after awaits
       if (!mounted) return;
       final analyticsService = ref.read(analyticsServiceProvider);
-      if (!widget.isAdminMode) {
-        analyticsService.logJokeViewed(
-          widget.joke.id,
-          totalJokesViewed: jokesViewedCount,
-          navigationMethod: _lastNavigationMethod,
-          jokeContext: widget.jokeContext,
-          jokeViewerMode: widget.mode,
-        );
-        // Re-check mounted before reading another provider
-        if (!mounted) return;
-      }
+      analyticsService.logJokeViewed(
+        widget.joke.id,
+        totalJokesViewed: jokesViewedCount,
+        navigationMethod: _lastNavigationMethod,
+        jokeContext: widget.jokeContext,
+        jokeViewerMode: widget.mode,
+      );
+      // Re-check mounted before reading another provider
+      if (!mounted) return;
     }
   }
 
@@ -243,11 +239,13 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
       _navMethodSetup = AnalyticsNavigationMethod.none;
       _startViewTimerForIndex(0);
 
-      // Start a carousel_to_visible trace once per carousel instance (per joke)
-      _perf.startNamedTrace(
-        name: TraceName.carouselToVisible,
-        key: widget.joke.id,
-      );
+      // Start a carousel_to_visible trace once per carousel instance (per joke) - skip in admin mode
+      if (!widget.isAdminMode) {
+        _perf.startNamedTrace(
+          name: TraceName.carouselToVisible,
+          key: widget.joke.id,
+        );
+      }
     });
   }
 
@@ -1286,7 +1284,27 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
       items.add(_buildSimilarButton(context));
     }
 
-    if (widget.showNumSaves) {
+    if (widget.showUsageStats) {
+      // Views counter
+      final Color viewColor = widget.joke.numViews > 0
+          ? Colors.green.withValues(alpha: 0.9)
+          : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4);
+      items.add(
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.visibility, size: 20, color: viewColor),
+            const SizedBox(width: 4),
+            Text(
+              '${widget.joke.numViews}',
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+            ),
+          ],
+        ),
+      );
+
+      // Saves counter
+      items.add(const SizedBox(width: 12));
       final Color saveColor = widget.joke.numSaves > 0
           ? Colors.red.withValues(alpha: 0.9)
           : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4);
@@ -1303,10 +1321,9 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
           ],
         ),
       );
-    }
 
-    if (widget.showNumShares) {
-      if (items.isNotEmpty) items.add(const SizedBox(width: 12));
+      // Shares counter
+      items.add(const SizedBox(width: 12));
       final Color shareColor = widget.joke.numShares > 0
           ? Colors.blue.withValues(alpha: 0.9)
           : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4);
@@ -1371,6 +1388,9 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
   }
 
   void _onTapSimilar() async {
+    // Skip analytics in admin mode
+    if (widget.isAdminMode) return;
+
     final refLocal = ref;
     final analyticsService = refLocal.read(analyticsServiceProvider);
 

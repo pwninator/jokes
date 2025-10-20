@@ -15,8 +15,7 @@ const bool kAdminJokeCardIsAdminMode = true;
 const bool kAdminJokeCardShowSaveButton = false;
 const bool kAdminJokeCardShowShareButton = false;
 const bool kAdminJokeCardShowAdminRatingButtons = true;
-const bool kAdminJokeCardShowNumSaves = true;
-const bool kAdminJokeCardShowNumShares = true;
+const bool kAdminJokeCardShowUsageStats = true;
 const bool kAdminJokeCardShowSimilarSearchButton = true;
 const String kAdminJokeCardContext = 'admin';
 
@@ -416,8 +415,7 @@ class _JokeManagementScreenState extends ConsumerState<JokeManagementScreen> {
                           showShareButton: kAdminJokeCardShowShareButton,
                           showAdminRatingButtons:
                               kAdminJokeCardShowAdminRatingButtons,
-                          showNumSaves: kAdminJokeCardShowNumSaves,
-                          showNumShares: kAdminJokeCardShowNumShares,
+                          showUsageStats: kAdminJokeCardShowUsageStats,
                           jokeContext: kAdminJokeCardContext,
                           showSimilarSearchButton:
                               kAdminJokeCardShowSimilarSearchButton,

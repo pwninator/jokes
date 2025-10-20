@@ -95,14 +95,14 @@ void main() {
         punchlineText: 'punch',
         setupImageUrl: 'https://example.com/a.jpg',
         punchlineImageUrl: 'https://example.com/b.jpg',
+        numViews: 0,
         numSaves: 0,
         numShares: 0,
       );
 
       const widget = JokeImageCarousel(
         joke: joke,
-        showNumSaves: true,
-        showNumShares: true,
+        showUsageStats: true,
         jokeContext: 'test',
       );
 
@@ -118,7 +118,7 @@ void main() {
 
       expect(find.byIcon(Icons.favorite), findsOneWidget);
       expect(find.byIcon(Icons.share), findsOneWidget);
-      expect(find.text('0'), findsNWidgets(2));
+      expect(find.text('0'), findsNWidgets(3));
     });
 
     testWidgets('icons are colored when counts are > 0', (tester) async {
@@ -128,14 +128,14 @@ void main() {
         punchlineText: 'punch',
         setupImageUrl: 'https://example.com/a.jpg',
         punchlineImageUrl: 'https://example.com/b.jpg',
-        numSaves: 1,
-        numShares: 2,
+        numViews: 1,
+        numSaves: 2,
+        numShares: 3,
       );
 
       const widget = JokeImageCarousel(
         joke: joke,
-        showNumSaves: true,
-        showNumShares: true,
+        showUsageStats: true,
         jokeContext: 'test',
       );
 
@@ -153,6 +153,7 @@ void main() {
       expect(find.byIcon(Icons.share), findsOneWidget);
       expect(find.text('1'), findsOneWidget);
       expect(find.text('2'), findsOneWidget);
+      expect(find.text('3'), findsOneWidget);
     });
   });
 

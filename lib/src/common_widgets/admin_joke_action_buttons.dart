@@ -152,7 +152,6 @@ class AdminRegenerateImagesButton extends ConsumerWidget {
       'low',
       'medium',
       'high',
-      'gemini',
     ];
 
     showDialog(

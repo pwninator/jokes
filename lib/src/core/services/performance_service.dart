@@ -36,6 +36,8 @@ enum TraceName {
   driftGetInteraction,
   driftGetInteractionCount,
   driftGetSavedJokeInteractions,
+  driftGetViewedJokeInteractions,
+  driftGetSharedJokeInteractions,
   driftGetAllJokeInteractions,
   startupOverallBlocking,
   startupOverallBackground,
@@ -78,6 +80,10 @@ extension TraceNameWire on TraceName {
         return 'drift_get_interaction_count';
       case TraceName.driftGetSavedJokeInteractions:
         return 'drift_get_saved_joke_interactions';
+      case TraceName.driftGetViewedJokeInteractions:
+        return 'drift_get_viewed_joke_interactions';
+      case TraceName.driftGetSharedJokeInteractions:
+        return 'drift_get_shared_joke_interactions';
       case TraceName.driftGetAllJokeInteractions:
         return 'drift_get_all_joke_interactions';
       case TraceName.startupOverallBlocking:

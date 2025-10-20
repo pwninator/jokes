@@ -13,6 +13,8 @@ import 'package:snickerdoodle/src/core/providers/app_version_provider.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/app_review_service.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
+import 'package:snickerdoodle/src/core/services/feedback_prompt_state_store.dart';
+import 'package:snickerdoodle/src/core/services/review_prompt_state_store.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
@@ -331,25 +333,214 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                                   return const SizedBox.shrink();
                                 }
                                 final metrics = snapshot.data!;
-                                final first = metrics.firstUsedDate ?? '—';
-                                final last = metrics.lastUsedDate ?? '—';
+                                final firstValue = metrics.firstUsedDate ?? '';
+                                final lastValue = metrics.lastUsedDate ?? '';
                                 final days = metrics.numDaysUsed;
-                                final summary = '$first - $last ($days)';
                                 return Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    _buildInfoRow('Usage', summary),
-                                    _buildInfoRow(
-                                      'Num Jokes Viewed',
-                                      metrics.numJokesViewed.toString(),
+                                    _buildInfoRowButton(
+                                      label: 'First Used Date',
+                                      buttonLabel: firstValue.isEmpty
+                                          ? '—'
+                                          : firstValue,
+                                      buttonKey: const Key(
+                                        'user_settings_screen-first-used-date-button',
+                                      ),
+                                      onPressed: () =>
+                                          _showEditableUsageValueDialog(
+                                            context: context,
+                                            ref: ref,
+                                            keyPrefix: 'first-used-date',
+                                            title: 'First Used Date',
+                                            initialValue: firstValue,
+                                            onSubmit: (usage, value) async {
+                                              final sanitized = value.trim();
+                                              await usage.setFirstUsedDate(
+                                                sanitized.isEmpty
+                                                    ? null
+                                                    : sanitized,
+                                              );
+                                            },
+                                          ),
                                     ),
-                                    _buildInfoRow(
-                                      'Num Jokes Saved',
-                                      metrics.numJokesSaved.toString(),
+                                    _buildInfoRowButton(
+                                      label: 'Last Used Date',
+                                      buttonLabel: lastValue.isEmpty
+                                          ? '—'
+                                          : lastValue,
+                                      buttonKey: const Key(
+                                        'user_settings_screen-last-used-date-button',
+                                      ),
+                                      onPressed: () =>
+                                          _showEditableUsageValueDialog(
+                                            context: context,
+                                            ref: ref,
+                                            keyPrefix: 'last-used-date',
+                                            title: 'Last Used Date',
+                                            initialValue: lastValue,
+                                            onSubmit: (usage, value) async {
+                                              final sanitized = value.trim();
+                                              await usage.setLastUsedDate(
+                                                sanitized.isEmpty
+                                                    ? null
+                                                    : sanitized,
+                                              );
+                                            },
+                                          ),
                                     ),
-                                    _buildInfoRow(
-                                      'Num Jokes Shared',
-                                      metrics.numJokesShared.toString(),
+                                    _buildInfoRowButton(
+                                      label: 'Days Used',
+                                      buttonLabel: days.toString(),
+                                      buttonKey: const Key(
+                                        'user_settings_screen-num-days-used-button',
+                                      ),
+                                      onPressed: () =>
+                                          _showEditableUsageValueDialog(
+                                            context: context,
+                                            ref: ref,
+                                            keyPrefix: 'num-days-used',
+                                            title: 'Days Used',
+                                            initialValue: days.toString(),
+                                            validator: (value) {
+                                              final trimmed = value.trim();
+                                              if (trimmed.isEmpty) {
+                                                return 'Please enter a value.';
+                                              }
+                                              final parsed = int.tryParse(
+                                                trimmed,
+                                              );
+                                              if (parsed == null) {
+                                                return 'Enter a whole number.';
+                                              }
+                                              if (parsed < 0) {
+                                                return 'Value cannot be negative.';
+                                              }
+                                              return null;
+                                            },
+                                            onSubmit: (usage, value) async {
+                                              final parsed = int.parse(
+                                                value.trim(),
+                                              );
+                                              await usage.setNumDaysUsed(
+                                                parsed,
+                                              );
+                                            },
+                                          ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Wrap(
+                                      spacing: 8,
+                                      runSpacing: 8,
+                                      children: [
+                                        _buildStatusToggleButton(
+                                          context: context,
+                                          buttonKey: const Key(
+                                            'user_settings_screen-review-toggle-button',
+                                          ),
+                                          label: 'Review',
+                                          isActive:
+                                              metrics.reviewPromptRequested,
+                                          isEnabled: true,
+                                          onPressed: () async {
+                                            final store = ref.read(
+                                              reviewPromptStateStoreProvider,
+                                            );
+                                            await store.setRequested(
+                                              !metrics.reviewPromptRequested,
+                                            );
+                                            if (!mounted) return;
+                                            setState(() {});
+                                          },
+                                        ),
+                                        _buildStatusToggleButton(
+                                          context: context,
+                                          buttonKey: const Key(
+                                            'user_settings_screen-feedback-toggle-button',
+                                          ),
+                                          label: 'Feedback',
+                                          isActive:
+                                              metrics.feedbackDialogViewed,
+                                          isEnabled: true,
+                                          onPressed: () async {
+                                            final store = ref.read(
+                                              feedbackPromptStateStoreProvider,
+                                            );
+                                            await store.setViewed(
+                                              !metrics.feedbackDialogViewed,
+                                            );
+                                            if (!mounted) return;
+                                            setState(() {});
+                                          },
+                                        ),
+                                        _buildStatusToggleButton(
+                                          context: context,
+                                          buttonKey: const Key(
+                                            'user_settings_screen-subscribe-toggle-button',
+                                          ),
+                                          label: 'Subscribe',
+                                          isActive:
+                                              metrics.subscriptionChoiceMade,
+                                          isEnabled:
+                                              metrics.subscriptionChoiceMade,
+                                          onPressed: () async {
+                                            final promptNotifier = ref.read(
+                                              subscriptionPromptProvider
+                                                  .notifier,
+                                            );
+                                            await promptNotifier
+                                                .resetUserChoice();
+                                            if (!mounted) return;
+                                            setState(() {});
+                                          },
+                                        ),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 8),
+                                    _buildInfoRowButton(
+                                      label: 'Num Jokes Viewed',
+                                      buttonLabel: metrics.numJokesViewed
+                                          .toString(),
+                                      buttonKey: const Key(
+                                        'user_settings_screen-viewed-jokes-button',
+                                      ),
+                                      onPressed: () => _handleJokeIdsDialog(
+                                        context: context,
+                                        ref: ref,
+                                        title: 'Viewed Jokes',
+                                        loadJokeIds: (usage) =>
+                                            usage.getViewedJokeIds(),
+                                      ),
+                                    ),
+                                    _buildInfoRowButton(
+                                      label: 'Num Jokes Saved',
+                                      buttonLabel: metrics.numJokesSaved
+                                          .toString(),
+                                      buttonKey: const Key(
+                                        'user_settings_screen-saved-jokes-button',
+                                      ),
+                                      onPressed: () => _handleJokeIdsDialog(
+                                        context: context,
+                                        ref: ref,
+                                        title: 'Saved Jokes',
+                                        loadJokeIds: (usage) =>
+                                            usage.getSavedJokeIds(),
+                                      ),
+                                    ),
+                                    _buildInfoRowButton(
+                                      label: 'Num Jokes Shared',
+                                      buttonLabel: metrics.numJokesShared
+                                          .toString(),
+                                      buttonKey: const Key(
+                                        'user_settings_screen-shared-jokes-button',
+                                      ),
+                                      onPressed: () => _handleJokeIdsDialog(
+                                        context: context,
+                                        ref: ref,
+                                        title: 'Shared Jokes',
+                                        loadJokeIds: (usage) =>
+                                            usage.getSharedJokeIds(),
+                                      ),
                                     ),
                                   ],
                                 );
@@ -643,6 +834,81 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
     );
   }
 
+  Widget _buildInfoRowButton({
+    required String label,
+    required String buttonLabel,
+    required Key buttonKey,
+    required VoidCallback onPressed,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          SizedBox(
+            width: 100,
+            child: Text(
+              '$label:',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+          TextButton(
+            key: buttonKey,
+            onPressed: onPressed,
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              minimumSize: const Size(0, 32),
+              visualDensity: VisualDensity.compact,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            child: Text(buttonLabel),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStatusToggleButton({
+    required BuildContext context,
+    required Key buttonKey,
+    required String label,
+    required bool isActive,
+    Future<void> Function()? onPressed,
+    bool isEnabled = true,
+  }) {
+    final successColor = Theme.of(context).appColors.success;
+    final inactiveColor = Theme.of(context).colorScheme.surfaceContainerHighest;
+    final disabledColor = Theme.of(context).colorScheme.surfaceVariant;
+    final textColor = !isEnabled
+        ? Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3)
+        : isActive
+        ? Theme.of(context).colorScheme.onPrimary
+        : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.5);
+    final backgroundColor = !isEnabled
+        ? disabledColor
+        : isActive
+        ? successColor
+        : inactiveColor;
+
+    return TextButton(
+      key: buttonKey,
+      onPressed: !isEnabled || onPressed == null
+          ? null
+          : () async {
+              await onPressed();
+            },
+      style: TextButton.styleFrom(
+        backgroundColor: backgroundColor,
+        foregroundColor: textColor,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        minimumSize: const Size(80, 36),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      ),
+      child: Text(label),
+    );
+  }
+
   Widget _buildInfoRow(String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4.0),
@@ -662,6 +928,111 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
     );
   }
 
+  Future<void> _showEditableUsageValueDialog({
+    required BuildContext context,
+    required WidgetRef ref,
+    required String keyPrefix,
+    required String title,
+    required String initialValue,
+    required Future<void> Function(AppUsageService usageService, String value)
+    onSubmit,
+    String? Function(String value)? validator,
+    String? successMessage,
+  }) async {
+    final usageService = ref.read(appUsageServiceProvider);
+
+    await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return _EditableValueDialog(
+          keyPrefix: keyPrefix,
+          title: title,
+          initialValue: initialValue,
+          validator: validator,
+          successMessage: successMessage,
+          rootContext: context,
+          onSubmit: (value) => onSubmit(usageService, value),
+        );
+      },
+    );
+  }
+
+  Future<void> _handleJokeIdsDialog({
+    required BuildContext context,
+    required WidgetRef ref,
+    required String title,
+    required Future<List<String>> Function(AppUsageService usage) loadJokeIds,
+  }) async {
+    final usageService = ref.read(appUsageServiceProvider);
+    List<String> jokeIds;
+    try {
+      jokeIds = await loadJokeIds(usageService);
+    } catch (error, stackTrace) {
+      AppLogger.warn(
+        'DEBUG: Settings screen - failed to load joke IDs for $title: $error',
+      );
+      AppLogger.debug('STACKTRACE: $stackTrace');
+      if (!context.mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('Unable to load joke IDs right now.'),
+          backgroundColor: Theme.of(context).appColors.authError,
+        ),
+      );
+      return;
+    }
+
+    if (!context.mounted) {
+      return;
+    }
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text('$title (${jokeIds.length})'),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: jokeIds.isEmpty
+                ? const Text('No jokes recorded yet.')
+                : SizedBox(
+                    height: 240,
+                    child: Scrollbar(
+                      thumbVisibility: true,
+                      child: ListView.separated(
+                        itemCount: jokeIds.length,
+                        itemBuilder: (context, index) {
+                          final id = jokeIds[index];
+                          return ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            dense: true,
+                            visualDensity: VisualDensity.compact,
+                            leading: Text('${index + 1}.'),
+                            title: SelectableText(id),
+                          );
+                        },
+                        separatorBuilder: (context, _) =>
+                            const Divider(height: 1),
+                      ),
+                    ),
+                  ),
+          ),
+          actions: [
+            TextButton(
+              key: const Key(
+                'user_settings_screen-joke-ids-dialog-close-button',
+              ),
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('Close'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   String _getRoleDisplay(UserRole role) {
     switch (role) {
       case UserRole.admin:
@@ -675,12 +1046,18 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
 
   Future<_UsageMetrics> _fetchUsageMetrics(WidgetRef ref) async {
     final usage = ref.read(appUsageServiceProvider);
+    final reviewStore = ref.read(reviewPromptStateStoreProvider);
+    final feedbackStore = ref.read(feedbackPromptStateStoreProvider);
+    final subscriptionPrompt = ref.read(subscriptionPromptProvider);
     final firstUsed = await usage.getFirstUsedDate();
     final lastUsed = await usage.getLastUsedDate();
     final daysUsed = await usage.getNumDaysUsed();
     final jokesViewed = await usage.getNumJokesViewed();
     final jokesSaved = await usage.getNumSavedJokes();
     final jokesShared = await usage.getNumSharedJokes();
+    final reviewRequested = reviewStore.hasRequested();
+    final feedbackViewed = await feedbackStore.hasViewed();
+
     return _UsageMetrics(
       firstUsedDate: firstUsed,
       lastUsedDate: lastUsed,
@@ -688,6 +1065,9 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
       numJokesViewed: jokesViewed,
       numJokesSaved: jokesSaved,
       numJokesShared: jokesShared,
+      reviewPromptRequested: reviewRequested,
+      feedbackDialogViewed: feedbackViewed,
+      subscriptionChoiceMade: subscriptionPrompt.hasUserMadeChoice,
     );
   }
 
@@ -984,6 +1364,9 @@ class _UsageMetrics {
   final int numJokesViewed;
   final int numJokesSaved;
   final int numJokesShared;
+  final bool reviewPromptRequested;
+  final bool feedbackDialogViewed;
+  final bool subscriptionChoiceMade;
 
   const _UsageMetrics({
     required this.firstUsedDate,
@@ -992,5 +1375,130 @@ class _UsageMetrics {
     required this.numJokesViewed,
     required this.numJokesSaved,
     required this.numJokesShared,
+    required this.reviewPromptRequested,
+    required this.feedbackDialogViewed,
+    required this.subscriptionChoiceMade,
   });
+}
+
+class _EditableValueDialog extends StatefulWidget {
+  const _EditableValueDialog({
+    required this.keyPrefix,
+    required this.title,
+    required this.initialValue,
+    required this.onSubmit,
+    required this.rootContext,
+    this.validator,
+    this.successMessage,
+  });
+
+  final String keyPrefix;
+  final String title;
+  final String initialValue;
+  final Future<void> Function(String value) onSubmit;
+  final BuildContext rootContext;
+  final String? Function(String value)? validator;
+  final String? successMessage;
+
+  @override
+  State<_EditableValueDialog> createState() => _EditableValueDialogState();
+}
+
+class _EditableValueDialogState extends State<_EditableValueDialog> {
+  late final TextEditingController _controller;
+  bool _isSubmitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialValue);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleSubmit() async {
+    if (_isSubmitting) return;
+    final value = _controller.text;
+    final validationMessage = widget.validator?.call(value);
+    if (validationMessage != null) {
+      ScaffoldMessenger.of(widget.rootContext).showSnackBar(
+        SnackBar(
+          content: Text(validationMessage),
+          backgroundColor: Theme.of(widget.rootContext).appColors.authError,
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _isSubmitting = true;
+    });
+
+    try {
+      await widget.onSubmit(value);
+      if (!mounted) return;
+      Navigator.of(context).pop(true);
+      if (widget.successMessage != null) {
+        ScaffoldMessenger.of(widget.rootContext).showSnackBar(
+          SnackBar(
+            content: Text(widget.successMessage!),
+            backgroundColor: Theme.of(widget.rootContext).colorScheme.primary,
+          ),
+        );
+      }
+    } catch (error) {
+      AppLogger.warn(
+        'DEBUG: Settings screen - failed to update ${widget.title}: $error',
+      );
+      AppLogger.debug('STACKTRACE: ${StackTrace.current}');
+      if (!mounted) return;
+      setState(() {
+        _isSubmitting = false;
+      });
+      ScaffoldMessenger.of(widget.rootContext).showSnackBar(
+        SnackBar(
+          content: Text('Unable to update ${widget.title}.'),
+          backgroundColor: Theme.of(widget.rootContext).appColors.authError,
+        ),
+      );
+      return;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.title),
+      content: TextField(
+        key: Key('user_settings_screen-${widget.keyPrefix}-text-field'),
+        controller: _controller,
+        decoration: const InputDecoration(labelText: 'Value'),
+      ),
+      actions: [
+        TextButton(
+          key: Key('user_settings_screen-${widget.keyPrefix}-cancel-button'),
+          onPressed: () {
+            FocusScope.of(context).unfocus();
+            Navigator.of(context).pop();
+          },
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          key: Key('user_settings_screen-${widget.keyPrefix}-submit-button'),
+          onPressed: _isSubmitting ? null : _handleSubmit,
+          child: _isSubmitting
+              ? const SizedBox(
+                  height: 16,
+                  width: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('Submit'),
+        ),
+      ],
+    );
+  }
 }

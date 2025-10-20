@@ -19,9 +19,15 @@ class ReviewPromptStateStore {
     }
   }
 
-  Future<void> markRequested() async {
+  Future<void> markRequested() async => setRequested(true);
+
+  Future<void> setRequested(bool value) async {
     try {
-      await _settings.setBool(_requestedKey, true);
+      if (value) {
+        await _settings.setBool(_requestedKey, true);
+      } else {
+        await _settings.remove(_requestedKey);
+      }
     } catch (e) {
       AppLogger.warn('REVIEW_STORE write error: $e');
     }

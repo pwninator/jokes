@@ -184,6 +184,10 @@ class _NoopAppUsageService implements AppUsageService {
   }) async {}
   @override
   Future<bool> isJokeSaved(String jokeId) async => false;
+  @override
+  Future<List<String>> getSharedJokeIds() async => [];
+  @override
+  Future<List<String>> getViewedJokeIds() async => [];
 }
 
 class _NoopReviewPromptCoordinator extends Mock

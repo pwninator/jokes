@@ -19,9 +19,15 @@ class FeedbackPromptStateStore {
     }
   }
 
-  Future<void> markViewed() async {
+  Future<void> markViewed() async => setViewed(true);
+
+  Future<void> setViewed(bool value) async {
     try {
-      await _settings.setBool(_viewedKey, true);
+      if (value) {
+        await _settings.setBool(_viewedKey, true);
+      } else {
+        await _settings.remove(_viewedKey);
+      }
     } catch (e) {
       AppLogger.warn('FEEDBACK_STORE write error: $e');
     }

@@ -12,6 +12,7 @@ import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
 import 'package:snickerdoodle/src/core/services/notification_service.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
+import 'package:snickerdoodle/src/core/services/feedback_prompt_state_store.dart';
 import 'package:snickerdoodle/src/core/services/review_prompt_state_store.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/data/core/app/firebase_providers.dart';
@@ -43,6 +44,12 @@ class MockReviewsRepository extends Mock implements ReviewsRepository {}
 
 class MockFirebaseAnalytics extends Mock implements FirebaseAnalytics {}
 
+class MockReviewPromptStateStore extends Mock
+    implements ReviewPromptStateStore {}
+
+class MockFeedbackPromptStateStore extends Mock
+    implements FeedbackPromptStateStore {}
+
 class MockAuthController extends Mock implements AuthController {}
 
 class MockRemoteConfigValues extends Mock implements RemoteConfigValues {}
@@ -72,6 +79,11 @@ void main() {
   late MockReviewsRepository mockReviewsRepository;
   late MockFirebaseAnalytics mockFirebaseAnalytics;
 
+  late MockReviewPromptStateStore mockReviewPromptStore;
+  late MockFeedbackPromptStateStore mockFeedbackPromptStore;
+  late bool reviewRequestedState;
+  late bool feedbackViewedState;
+
   setUp(() {
     // Create fresh mocks per test
     mockAnalyticsService = MockAnalyticsService();
@@ -80,8 +92,36 @@ void main() {
     mockSubscriptionService = MockDailyJokeSubscriptionService();
     mockRemoteConfigValues = MockRemoteConfigValues();
     mockSettingsService = MockSettingsService();
+    mockReviewPromptStore = MockReviewPromptStateStore();
     mockReviewsRepository = MockReviewsRepository();
     mockFirebaseAnalytics = MockFirebaseAnalytics();
+    mockFeedbackPromptStore = MockFeedbackPromptStateStore();
+    reviewRequestedState = false;
+    feedbackViewedState = false;
+
+    when(
+      () => mockReviewPromptStore.hasRequested(),
+    ).thenAnswer((_) => reviewRequestedState);
+    when(() => mockReviewPromptStore.markRequested()).thenAnswer((_) async {
+      reviewRequestedState = true;
+    });
+    when(() => mockReviewPromptStore.setRequested(any())).thenAnswer((
+      invocation,
+    ) async {
+      reviewRequestedState = invocation.positionalArguments.first as bool;
+    });
+
+    when(
+      () => mockFeedbackPromptStore.hasViewed(),
+    ).thenAnswer((_) async => feedbackViewedState);
+    when(() => mockFeedbackPromptStore.markViewed()).thenAnswer((_) async {
+      feedbackViewedState = true;
+    });
+    when(() => mockFeedbackPromptStore.setViewed(any())).thenAnswer((
+      invocation,
+    ) async {
+      feedbackViewedState = invocation.positionalArguments.first as bool;
+    });
 
     // Setup default behaviors
     _setupAnalyticsServiceDefaults(mockAnalyticsService);
@@ -122,6 +162,10 @@ void main() {
         // App usage
         appUsageServiceProvider.overrideWithValue(mockAppUsageService),
         appUsageEventsProvider.overrideWith((_) => 0),
+        reviewPromptStateStoreProvider.overrideWithValue(mockReviewPromptStore),
+        feedbackPromptStateStoreProvider.overrideWithValue(
+          mockFeedbackPromptStore,
+        ),
 
         // App version
         appVersionProvider.overrideWith((_) async => 'Snickerdoodle v0.0.1+1'),
@@ -563,6 +607,10 @@ void main() {
         await tester.pump();
         await tester.tap(find.text('Notifications'), warnIfMissed: false);
         await tester.pumpAndSettle();
+
+        final scaffoldContext = tester.element(find.byType(Scaffold).first);
+        ScaffoldMessenger.of(scaffoldContext).clearSnackBars();
+        await tester.pump();
       }
 
       testWidgets('shows User Information section when enabled', (
@@ -601,9 +649,147 @@ void main() {
         // Allow FutureBuilder to resolve
         await tester.pump(const Duration(milliseconds: 100));
 
+        expect(find.text('First Used Date:'), findsOneWidget);
+        expect(find.text('Last Used Date:'), findsOneWidget);
+        expect(find.text('Days Used:'), findsOneWidget);
         expect(find.text('Num Jokes Viewed:'), findsOneWidget);
         expect(find.text('Num Jokes Saved:'), findsOneWidget);
         expect(find.text('Num Jokes Shared:'), findsOneWidget);
+        expect(
+          find.byKey(const Key('user_settings_screen-first-used-date-button')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const Key('user_settings_screen-last-used-date-button')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const Key('user_settings_screen-num-days-used-button')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const Key('user_settings_screen-subscribe-toggle-button')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const Key('user_settings_screen-subscribe-toggle-button')),
+          findsOneWidget,
+        );
+      });
+
+      testWidgets('tapping review button toggles requested state', (
+        tester,
+      ) async {
+        await tester.pumpWidget(createTestWidget());
+        await tester.pumpAndSettle();
+
+        await enableDeveloperMode(tester);
+        await tester.pump(const Duration(milliseconds: 100));
+
+        final reviewButton = find.byKey(
+          const Key('user_settings_screen-review-toggle-button'),
+        );
+        expect(reviewButton, findsOneWidget);
+
+        await tester.ensureVisible(reviewButton);
+        await tester.tap(reviewButton);
+        await tester.pumpAndSettle();
+
+        verify(() => mockReviewPromptStore.setRequested(true)).called(1);
+
+        await tester.tap(reviewButton);
+        await tester.pumpAndSettle();
+
+        verify(() => mockReviewPromptStore.setRequested(false)).called(1);
+      });
+
+      testWidgets('tapping feedback button toggles viewed flag', (
+        tester,
+      ) async {
+        await tester.pumpWidget(createTestWidget());
+        await tester.pumpAndSettle();
+
+        await enableDeveloperMode(tester);
+        await tester.pump(const Duration(milliseconds: 100));
+
+        final subscribeButton = find.byKey(
+          const Key('user_settings_screen-feedback-toggle-button'),
+        );
+        expect(subscribeButton, findsOneWidget);
+
+        await tester.ensureVisible(subscribeButton);
+        await tester.tap(subscribeButton);
+        await tester.pumpAndSettle();
+
+        verify(() => mockFeedbackPromptStore.setViewed(true)).called(1);
+
+        await tester.tap(subscribeButton);
+        await tester.pumpAndSettle();
+
+        verify(() => mockFeedbackPromptStore.setViewed(false)).called(1);
+      });
+
+      testWidgets('tapping subscribe button clears user choice when enabled', (
+        tester,
+      ) async {
+        bool containsKey = true;
+        when(
+          () => mockSettingsService.containsKey(any()),
+        ).thenAnswer((_) => containsKey);
+        when(() => mockSettingsService.remove(any())).thenAnswer((_) async {
+          containsKey = false;
+        });
+
+        await tester.pumpWidget(createTestWidget());
+        await tester.pumpAndSettle();
+
+        await enableDeveloperMode(tester);
+        await tester.pump(const Duration(milliseconds: 100));
+
+        final subscribeButton = find.byKey(
+          const Key('user_settings_screen-subscribe-toggle-button'),
+        );
+        expect(subscribeButton, findsOneWidget);
+
+        await tester.ensureVisible(subscribeButton);
+        await tester.tap(subscribeButton);
+        await tester.pumpAndSettle();
+
+        verify(() => mockSettingsService.remove(any())).called(1);
+
+        final subscribeTextButton = tester.widget<TextButton>(subscribeButton);
+        expect(subscribeTextButton.onPressed, isNull);
+      });
+
+      testWidgets('tapping viewed jokes button shows dialog with joke IDs', (
+        tester,
+      ) async {
+        await tester.pumpWidget(createTestWidget());
+        await tester.pumpAndSettle();
+
+        await enableDeveloperMode(tester);
+        await tester.pump(const Duration(milliseconds: 100));
+
+        final viewedButton = find.byKey(
+          const Key('user_settings_screen-viewed-jokes-button'),
+        );
+        await tester.ensureVisible(viewedButton);
+        await tester.tap(viewedButton);
+        await tester.pumpAndSettle();
+
+        expect(find.text('Viewed Jokes (2)'), findsOneWidget);
+        expect(find.text('joke-view-1'), findsOneWidget);
+        expect(find.text('joke-view-2'), findsOneWidget);
+
+        final closeButton = find.byKey(
+          const Key('user_settings_screen-joke-ids-dialog-close-button'),
+        );
+        expect(closeButton, findsOneWidget);
+
+        await tester.tap(closeButton);
+        await tester.pumpAndSettle();
+
+        expect(find.text('Viewed Jokes (2)'), findsNothing);
       });
 
       testWidgets('can tap Google sign-in button in developer mode', (
@@ -667,6 +853,10 @@ void main() {
               // App usage
               appUsageServiceProvider.overrideWithValue(mockAppUsageService),
               appUsageEventsProvider.overrideWith((_) => 0),
+              reviewPromptStateStoreProvider.overrideWithValue(store),
+              feedbackPromptStateStoreProvider.overrideWithValue(
+                FeedbackPromptStateStore(settingsService: mockSettingsService),
+              ),
 
               // App version
               appVersionProvider.overrideWith(
@@ -883,9 +1073,21 @@ void _setupAppUsageServiceDefaults(MockAppUsageService mock) {
   when(() => mock.getFirstUsedDate()).thenAnswer((_) async => '2024-01-01');
   when(() => mock.getLastUsedDate()).thenAnswer((_) async => '2024-01-01');
   when(() => mock.getNumDaysUsed()).thenAnswer((_) async => 1);
-  when(() => mock.getNumJokesViewed()).thenAnswer((_) async => 5);
+  when(() => mock.getNumJokesViewed()).thenAnswer((_) async => 2);
   when(() => mock.getNumSavedJokes()).thenAnswer((_) async => 2);
-  when(() => mock.getNumSharedJokes()).thenAnswer((_) async => 1);
+  when(() => mock.getNumSharedJokes()).thenAnswer((_) async => 3);
+  when(
+    () => mock.getViewedJokeIds(),
+  ).thenAnswer((_) async => const ['joke-view-1', 'joke-view-2']);
+  when(
+    () => mock.getSavedJokeIds(),
+  ).thenAnswer((_) async => const ['joke-save-1', 'joke-save-2']);
+  when(() => mock.getSharedJokeIds()).thenAnswer(
+    (_) async => const ['joke-share-1', 'joke-share-2', 'joke-share-3'],
+  );
+  when(() => mock.setFirstUsedDate(any<String?>())).thenAnswer((_) async {});
+  when(() => mock.setLastUsedDate(any<String?>())).thenAnswer((_) async {});
+  when(() => mock.setNumDaysUsed(any<int>())).thenAnswer((_) async {});
 }
 
 void _setupAppReviewServiceDefaults(MockAppReviewService mock) {

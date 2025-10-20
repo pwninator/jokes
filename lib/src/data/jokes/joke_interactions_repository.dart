@@ -114,6 +114,24 @@ class JokeInteractionsRepository {
     perf: _perf,
   );
 
+  Future<List<JokeInteraction>> getViewedJokeInteractions() async =>
+      runWithTrace(
+        name: TraceName.driftGetViewedJokeInteractions,
+        body: () async {
+          final query = _db.select(_db.jokeInteractions)
+            ..where((tbl) => tbl.viewedTimestamp.isNotNull())
+            ..orderBy([
+              (t) => OrderingTerm(
+                expression: t.viewedTimestamp,
+                mode: OrderingMode.asc,
+              ),
+            ]);
+          return await query.get();
+        },
+        fallback: <JokeInteraction>[],
+        perf: _perf,
+      );
+
   Future<List<JokeInteraction>> getSavedJokeInteractions() async =>
       runWithTrace(
         name: TraceName.driftGetSavedJokeInteractions,
@@ -123,6 +141,24 @@ class JokeInteractionsRepository {
             ..orderBy([
               (t) => OrderingTerm(
                 expression: t.savedTimestamp,
+                mode: OrderingMode.asc,
+              ),
+            ]);
+          return await query.get();
+        },
+        fallback: <JokeInteraction>[],
+        perf: _perf,
+      );
+
+  Future<List<JokeInteraction>> getSharedJokeInteractions() async =>
+      runWithTrace(
+        name: TraceName.driftGetSharedJokeInteractions,
+        body: () async {
+          final query = _db.select(_db.jokeInteractions)
+            ..where((tbl) => tbl.sharedTimestamp.isNotNull())
+            ..orderBy([
+              (t) => OrderingTerm(
+                expression: t.sharedTimestamp,
                 mode: OrderingMode.asc,
               ),
             ]);

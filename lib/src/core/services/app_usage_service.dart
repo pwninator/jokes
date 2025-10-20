@@ -215,6 +215,12 @@ class AppUsageService {
   Future<int> getNumJokesViewed() async =>
       await _jokeInteractions.countViewed();
 
+  /// Get viewed joke IDs ordered by the time they were viewed.
+  Future<List<String>> getViewedJokeIds() async {
+    final rows = await _jokeInteractions.getViewedJokeInteractions();
+    return rows.map((row) => row.jokeId).toList(growable: false);
+  }
+
   // -------------------------------
   // JOKE SAVES
   // -------------------------------
@@ -306,6 +312,12 @@ class AppUsageService {
   /// Get the number of jokes shared (COUNT from DB)
   Future<int> getNumSharedJokes() async =>
       await _jokeInteractions.countShared();
+
+  /// Get shared joke IDs ordered by the time they were shared.
+  Future<List<String>> getSharedJokeIds() async {
+    final rows = await _jokeInteractions.getSharedJokeInteractions();
+    return rows.map((row) => row.jokeId).toList(growable: false);
+  }
 
   // ==============================
   // CATEGORY INTERACTIONS

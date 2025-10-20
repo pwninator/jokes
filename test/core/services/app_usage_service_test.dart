@@ -677,6 +677,92 @@ void main() {
       verify(() => mocks.repo.getSavedJokeInteractions()).called(1);
     });
 
+    test('getViewedJokeIds mirrors repository order', () async {
+      final mocks = TestMocks();
+      final prefs = await SharedPreferences.getInstance();
+      final settingsService = SettingsService(prefs);
+      final container = ProviderContainer();
+      final ref = container.read(Provider<Ref>((ref) => ref));
+
+      final viewedAtOne = DateTime(2024, 3, 1);
+      final viewedAtTwo = DateTime(2024, 3, 5);
+      when(() => mocks.repo.getViewedJokeInteractions()).thenAnswer(
+        (_) async => [
+          JokeInteraction(
+            jokeId: 'v1',
+            viewedTimestamp: viewedAtOne,
+            savedTimestamp: null,
+            sharedTimestamp: null,
+            lastUpdateTimestamp: viewedAtOne,
+          ),
+          JokeInteraction(
+            jokeId: 'v2',
+            viewedTimestamp: viewedAtTwo,
+            savedTimestamp: null,
+            sharedTimestamp: null,
+            lastUpdateTimestamp: viewedAtTwo,
+          ),
+        ],
+      );
+
+      final service = AppUsageService(
+        settingsService: settingsService,
+        ref: ref,
+        analyticsService: mocks.analytics,
+        jokeCloudFn: mocks.jokeCloudFn,
+        categoryInteractionsService: _MockCategoryInteractionsService(),
+        jokeInteractionsRepository: mocks.repo,
+        reviewPromptCoordinator: mocks.reviewCoordinator,
+        isDebugMode: true,
+      );
+
+      expect(await service.getViewedJokeIds(), ['v1', 'v2']);
+      verify(() => mocks.repo.getViewedJokeInteractions()).called(1);
+    });
+
+    test('getSharedJokeIds mirrors repository order', () async {
+      final mocks = TestMocks();
+      final prefs = await SharedPreferences.getInstance();
+      final settingsService = SettingsService(prefs);
+      final container = ProviderContainer();
+      final ref = container.read(Provider<Ref>((ref) => ref));
+
+      final sharedAtOne = DateTime(2024, 4, 1);
+      final sharedAtTwo = DateTime(2024, 4, 10);
+      when(() => mocks.repo.getSharedJokeInteractions()).thenAnswer(
+        (_) async => [
+          JokeInteraction(
+            jokeId: 's1',
+            viewedTimestamp: null,
+            savedTimestamp: null,
+            sharedTimestamp: sharedAtOne,
+            lastUpdateTimestamp: sharedAtOne,
+          ),
+          JokeInteraction(
+            jokeId: 's2',
+            viewedTimestamp: null,
+            savedTimestamp: null,
+            sharedTimestamp: sharedAtTwo,
+            lastUpdateTimestamp: sharedAtTwo,
+          ),
+        ],
+      );
+
+      final service = AppUsageService(
+        settingsService: settingsService,
+        ref: ref,
+        analyticsService: mocks.analytics,
+        jokeCloudFn: mocks.jokeCloudFn,
+        categoryInteractionsService: _MockCategoryInteractionsService(),
+        jokeInteractionsRepository: mocks.repo,
+        reviewPromptCoordinator: mocks.reviewCoordinator,
+        isDebugMode: true,
+      );
+
+      expect(await service.getSharedJokeIds(), ['s1', 's2']);
+      verify(() => mocks.repo.getSharedJokeInteractions()).called(1);
+    });
+
     test('shareJoke updates repo and counts from repo', () async {
       final mocks = TestMocks();
       final prefs = await SharedPreferences.getInstance();

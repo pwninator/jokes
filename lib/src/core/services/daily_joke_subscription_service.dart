@@ -99,6 +99,17 @@ class SubscriptionNotifier extends StateNotifier<SubscriptionState> {
     }
   }
 
+  /// CLEARER: Remove any stored subscription choice (sets unsubscribed and clears persistence)
+  Future<void> clearUserChoice() async {
+    try {
+      await _settings.remove(_subscriptionKey);
+      state = state.copyWith(isSubscribed: false);
+      _syncInBackground();
+    } catch (e) {
+      AppLogger.warn('Failed to clear subscription choice: $e');
+    }
+  }
+
   /// SETTER: Subscribe with permission handling
   Future<bool> subscribeWithPermission({int? hour}) async {
     try {
@@ -435,6 +446,9 @@ class SubscriptionPromptNotifier
 
     // Skip if user has already made a choice or prompt already pending/shown
     if (state.shouldSkipPromptLogic || state.shouldShowPrompt) {
+      AppLogger.debug(
+        'Skipping prompt logic: shouldSkipPromptLogic: ${state.shouldSkipPromptLogic}, shouldShowPrompt: ${state.shouldShowPrompt}',
+      );
       return false;
     }
 
@@ -443,10 +457,25 @@ class SubscriptionPromptNotifier
     );
     if (jokesViewedCount >= threshold) {
       state = state.copyWith(shouldShowPrompt: true);
+      AppLogger.debug(
+        'Showing prompt: jokesViewedCount: $jokesViewedCount, threshold: $threshold',
+      );
       return true;
     }
 
+    AppLogger.debug(
+      'Skipping prompt logic: below threshold: jokesViewedCount: $jokesViewedCount, threshold: $threshold',
+    );
     return false;
+  }
+
+  Future<void> resetUserChoice() async {
+    await _subscriptionNotifier.clearUserChoice();
+    state = state.copyWith(
+      isSubscribed: _subscriptionNotifier.state.isSubscribed,
+      hasUserMadeChoice: _subscriptionNotifier.hasUserMadeChoice(),
+      shouldShowPrompt: false,
+    );
   }
 
   /// Handle subscription (user clicked "Subscribe")

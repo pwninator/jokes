@@ -7,7 +7,6 @@ import 'package:mocktail/mocktail.dart';
 import 'package:snickerdoodle/src/config/router/app_router.dart' show RailHost;
 import 'package:snickerdoodle/src/config/router/router_providers.dart';
 import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
-import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/performance_service.dart';

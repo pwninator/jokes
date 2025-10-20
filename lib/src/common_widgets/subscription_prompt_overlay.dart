@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/common_widgets/subscription_prompt_dialog.dart';
-import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
-import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
+import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
+import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
 
 /// Global overlay that listens to subscription prompt state and shows dialog when needed
 class SubscriptionPromptOverlay extends ConsumerStatefulWidget {

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/common_widgets/bouncing_button.dart';
-import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
+import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
 
 const String cookieIconAssetPath = 'assets/icon/icon_cookie_01_preshrunk.webp';

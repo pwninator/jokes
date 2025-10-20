@@ -1,7 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/core/data/repositories/feedback_repository.dart';
-import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
+import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/feedback_service.dart';
 import 'package:snickerdoodle/src/data/core/app/firebase_providers.dart';
 import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';

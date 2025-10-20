@@ -7,7 +7,7 @@ import 'package:snickerdoodle/src/common_widgets/notification_hour_widget.dart';
 import 'package:snickerdoodle/src/common_widgets/subscription_prompt_dialog.dart';
 import 'package:snickerdoodle/src/common_widgets/titled_screen.dart';
 import 'package:snickerdoodle/src/config/router/route_names.dart';
-import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
+import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/providers/app_usage_events_provider.dart';
 import 'package:snickerdoodle/src/core/providers/app_version_provider.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';

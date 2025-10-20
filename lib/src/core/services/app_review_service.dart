@@ -5,7 +5,6 @@ import 'package:in_app_review/in_app_review.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:snickerdoodle/src/common_widgets/app_review_prompt_dialog.dart';
 import 'package:snickerdoodle/src/config/router/route_names.dart';
-import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';

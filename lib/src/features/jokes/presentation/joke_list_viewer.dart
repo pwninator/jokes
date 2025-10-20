@@ -6,9 +6,9 @@ import 'package:snickerdoodle/src/common_widgets/joke_image_carousel.dart'
     show JokeImageCarouselController;
 import 'package:snickerdoodle/src/config/router/app_router.dart' show RailHost;
 import 'package:snickerdoodle/src/config/router/router_providers.dart';
-import 'package:snickerdoodle/src/core/providers/analytics_providers.dart';
 import 'package:snickerdoodle/src/core/providers/connectivity_providers.dart';
 import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
+import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_list_data_source.dart';

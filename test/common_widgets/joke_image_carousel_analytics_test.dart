@@ -93,55 +93,56 @@ void main() {
     punchlineImageUrl: 'https://example.com/b.jpg',
   );
 
-  testWidgets('admin mode suppresses setup/punchline/view analytics and usage tracking', (
-    tester,
-  ) async {
-    final w = JokeImageCarousel(
-      joke: joke,
-      isAdminMode: true,
-      jokeContext: 'admin',
-    );
+  testWidgets(
+    'admin mode suppresses setup/punchline/view analytics and usage tracking',
+    (tester) async {
+      final w = JokeImageCarousel(
+        joke: joke,
+        isAdminMode: true,
+        jokeContext: 'admin',
+      );
 
-    await tester.pumpWidget(wrap(w));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 2100));
+      await tester.pumpWidget(wrap(w));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 2100));
 
-    await tester.tap(find.byType(JokeImageCarousel));
-    await tester.pump();
-    await tester.pump(const Duration(milliseconds: 2100));
+      await tester.tap(find.byType(JokeImageCarousel));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 2100));
 
-    verifyNever(
-      () => mockAnalyticsService.logJokeSetupViewed(
-        any(),
-        navigationMethod: any(named: 'navigationMethod'),
-        jokeContext: any(named: 'jokeContext'),
-        jokeViewerMode: any(named: 'jokeViewerMode'),
-      ),
-    );
-    verifyNever(
-      () => mockAnalyticsService.logJokePunchlineViewed(
-        any(),
-        navigationMethod: any(named: 'navigationMethod'),
-        jokeContext: any(named: 'jokeContext'),
-        jokeViewerMode: any(named: 'jokeViewerMode'),
-      ),
-    );
-    verifyNever(
-      () => mockAnalyticsService.logJokeViewed(
-        any(),
-        totalJokesViewed: any(named: 'totalJokesViewed'),
-        navigationMethod: any(named: 'navigationMethod'),
-        jokeContext: any(named: 'jokeContext'),
-        jokeViewerMode: any(named: 'jokeViewerMode'),
-      ),
-    );
-    verifyNever(
-      () => mockAppUsageService.logJokeViewed(
-        any(),
-        context: any(named: 'context'),
-      ),
-    );
-  });
+      verifyNever(
+        () => mockAnalyticsService.logJokeSetupViewed(
+          any(),
+          navigationMethod: any(named: 'navigationMethod'),
+          jokeContext: any(named: 'jokeContext'),
+          jokeViewerMode: any(named: 'jokeViewerMode'),
+        ),
+      );
+      verifyNever(
+        () => mockAnalyticsService.logJokePunchlineViewed(
+          any(),
+          navigationMethod: any(named: 'navigationMethod'),
+          jokeContext: any(named: 'jokeContext'),
+          jokeViewerMode: any(named: 'jokeViewerMode'),
+        ),
+      );
+      verifyNever(
+        () => mockAnalyticsService.logJokeViewed(
+          any(),
+          totalJokesViewed: any(named: 'totalJokesViewed'),
+          navigationMethod: any(named: 'navigationMethod'),
+          jokeContext: any(named: 'jokeContext'),
+          jokeViewerMode: any(named: 'jokeViewerMode'),
+        ),
+      );
+      verifyNever(
+        () => mockAppUsageService.logJokeViewed(
+          any(),
+          context: any(named: 'context'),
+        ),
+      );
+    },
+  );
 
   testWidgets('non-admin mode emits setup/punchline/view analytics', (
     tester,

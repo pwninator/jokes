@@ -13,10 +13,10 @@ import 'package:snickerdoodle/src/core/providers/app_version_provider.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/app_review_service.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
-import 'package:snickerdoodle/src/core/services/feedback_prompt_state_store.dart';
-import 'package:snickerdoodle/src/core/services/review_prompt_state_store.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
+import 'package:snickerdoodle/src/core/services/feedback_prompt_state_store.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
+import 'package:snickerdoodle/src/core/services/review_prompt_state_store.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
 import 'package:snickerdoodle/src/features/auth/data/models/app_user.dart';
@@ -38,6 +38,7 @@ class UserSettingsScreen extends ConsumerStatefulWidget
 class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
   // Developer mode state (resets on app restart)
   bool _developerModeEnabled = false;
+  _UsageMetrics? _cachedUsageMetrics;
 
   // Secret sequence tracking
   final List<String> _tapSequence = [];
@@ -324,15 +325,16 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                             ref.watch(appUsageEventsProvider);
                             return FutureBuilder<_UsageMetrics>(
                               future: _fetchUsageMetrics(ref),
+                              initialData: _cachedUsageMetrics,
                               builder: (context, snapshot) {
-                                if (snapshot.connectionState ==
-                                    ConnectionState.waiting) {
+                                if (snapshot.hasData && snapshot.data != null) {
+                                  _cachedUsageMetrics = snapshot.data;
+                                }
+                                final metrics =
+                                    snapshot.data ?? _cachedUsageMetrics;
+                                if (metrics == null) {
                                   return const SizedBox.shrink();
                                 }
-                                if (!snapshot.hasData) {
-                                  return const SizedBox.shrink();
-                                }
-                                final metrics = snapshot.data!;
                                 final firstValue = metrics.firstUsedDate ?? '';
                                 final lastValue = metrics.lastUsedDate ?? '';
                                 final days = metrics.numDaysUsed;
@@ -878,7 +880,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
   }) {
     final successColor = Theme.of(context).appColors.success;
     final inactiveColor = Theme.of(context).colorScheme.surfaceContainerHighest;
-    final disabledColor = Theme.of(context).colorScheme.surfaceVariant;
+    final disabledColor = Theme.of(context).colorScheme.surfaceContainerHighest;
     final textColor = !isEnabled
         ? Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.3)
         : isActive
@@ -1440,7 +1442,7 @@ class _EditableValueDialogState extends State<_EditableValueDialog> {
 
     try {
       await widget.onSubmit(value);
-      if (!mounted) return;
+      if (!mounted || !context.mounted) return;
       Navigator.of(context).pop(true);
       if (widget.successMessage != null) {
         ScaffoldMessenger.of(widget.rootContext).showSnackBar(

@@ -273,15 +273,21 @@ class FirebaseAnalyticsService implements AnalyticsService {
   final FirebaseAnalytics _analytics;
   final CrashReportingService _crashReportingService;
   AppUser? _currentUser;
+  final bool _forceRealAnalytics;
 
   FirebaseAnalyticsService({
     required FirebaseAnalytics analytics,
     required CrashReportingService crashReportingService,
+    bool forceRealAnalytics = false,
   }) : _analytics = analytics,
-       _crashReportingService = crashReportingService;
+       _crashReportingService = crashReportingService,
+       _forceRealAnalytics = forceRealAnalytics;
 
   /// Check if fake analytics should be used (debug mode AND not physical device)
   Future<bool> _shouldUseFakeAnalytics() async {
+    if (_forceRealAnalytics) {
+      return false;
+    }
     if (kDebugMode) {
       try {
         final isPhysicalDevice = await DeviceUtils.isPhysicalDevice;
@@ -920,6 +926,21 @@ class FirebaseAnalyticsService implements AnalyticsService {
           }
         }
 
+        // Handle debug/admin short-circuits but still record Crashlytics for errors
+        if (await _shouldUseFakeAnalytics()) {
+          AppLogger.debug(
+            'ANALYTICS SKIPPED (DEBUG): $eventName - $analyticsParameters',
+          );
+          return;
+        }
+
+        if (_getUserType(_currentUser) == AnalyticsUserType.admin) {
+          AppLogger.debug(
+            'ANALYTICS SKIPPED (ADMIN): $eventName - $analyticsParameters',
+          );
+          return;
+        }
+
         // Prepare Crashlytics keys if needed
         Future<void> recordNonFatal() async {
           final String? errorMessage =
@@ -936,29 +957,13 @@ class FirebaseAnalyticsService implements AnalyticsService {
 
         if (isError) {
           await recordNonFatal();
-        }
-
-        // Handle debug/admin short-circuits but still record Crashlytics for errors
-        if (await _shouldUseFakeAnalytics()) {
-          AppLogger.debug(
-            'ANALYTICS SKIPPED (DEBUG): $eventName - $analyticsParameters',
+        } else {
+          await _analytics.logEvent(
+            name: eventName,
+            parameters: analyticsParameters,
           );
-          return;
+          AppLogger.debug('ANALYTICS: $eventName logged: $analyticsParameters');
         }
-
-        if (_getUserType(_currentUser) == AnalyticsUserType.admin) {
-          AppLogger.debug(
-            'ANALYTICS SKIPPED (ADMIN): $eventName - $analyticsParameters',
-          );
-          return;
-        }
-
-        await _analytics.logEvent(
-          name: eventName,
-          parameters: analyticsParameters,
-        );
-
-        AppLogger.debug('ANALYTICS: $eventName logged: $analyticsParameters');
       } catch (e) {
         AppLogger.warn('ANALYTICS ERROR: Failed to log $eventName - $e');
         // Don't recursively log analytics errors to avoid infinite loops

@@ -13,8 +13,8 @@ class MockCrashReportingService extends Mock implements CrashReportingService {}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  late MockFirebaseAnalytics mockFirebaseAnalytics;
   late FirebaseAnalyticsService analyticsService;
+  late MockFirebaseAnalytics mockFirebaseAnalytics;
   late MockCrashReportingService mockCrashService;
 
   setUpAll(() {
@@ -27,6 +27,7 @@ void main() {
     analyticsService = FirebaseAnalyticsService(
       analytics: mockFirebaseAnalytics,
       crashReportingService: mockCrashService,
+      forceRealAnalytics: true,
     );
 
     // Default mock responses
@@ -59,6 +60,11 @@ void main() {
 
   group('FirebaseAnalyticsService (in debug environment)', () {
     test('does not send events to Firebase', () async {
+      analyticsService = FirebaseAnalyticsService(
+        analytics: mockFirebaseAnalytics,
+        crashReportingService: mockCrashService,
+        forceRealAnalytics: false,
+      );
       // A list of all logging methods to test
       final allLogFunctions = [
         () => analyticsService.logJokeSetupViewed(

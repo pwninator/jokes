@@ -382,12 +382,12 @@ void main() {
         final docs = [
           createMockDoc('joke1', {
             'public_timestamp': Timestamp.now(),
-            'popularity_score': 100,
+            'num_saved_users_fraction': 0.75,
             ...createJokeData(1),
           }),
           createMockDoc('joke2', {
             'public_timestamp': Timestamp.now(),
-            'popularity_score': 90,
+            'num_saved_users_fraction': 0.5,
             ...createJokeData(2),
           }),
         ];
@@ -433,8 +433,8 @@ void main() {
         expect(page.hasMore, false);
         verify(
           () => mockCollectionReference.where(
-            'popularity_score',
-            isGreaterThan: 0,
+            'num_saved_users_fraction',
+            isGreaterThan: 0.0,
           ),
         );
       });

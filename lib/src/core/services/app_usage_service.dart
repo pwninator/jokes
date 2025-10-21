@@ -205,7 +205,7 @@ class AppUsageService {
       try {
         await _jokeRepository.incrementJokeViews(jokeId);
       } catch (e) {
-        AppLogger.warn('APP_USAGE logJokeViewed Firestore increment error: $e');
+        AppLogger.error('APP_USAGE logJokeViewed Firestore increment error: $e');
       }
 
       _notifyUsageChanged();
@@ -280,7 +280,7 @@ class AppUsageService {
       try {
         await _jokeRepository.incrementJokeSaves(jokeId);
       } catch (e) {
-        AppLogger.warn('APP_USAGE saveJoke Firestore increment error: $e');
+        AppLogger.error('APP_USAGE saveJoke Firestore increment error: $e');
       }
 
       _notifyUsageChanged();
@@ -306,7 +306,7 @@ class AppUsageService {
       try {
         await _jokeRepository.decrementJokeSaves(jokeId);
       } catch (e) {
-        AppLogger.warn('APP_USAGE unsaveJoke Firestore decrement error: $e');
+        AppLogger.error('APP_USAGE unsaveJoke Firestore decrement error: $e');
       }
 
       _notifyUsageChanged();
@@ -330,7 +330,7 @@ class AppUsageService {
       try {
         await _jokeRepository.incrementJokeShares(jokeId);
       } catch (e) {
-        AppLogger.warn('APP_USAGE shareJoke Firestore increment error: $e');
+        AppLogger.error('APP_USAGE shareJoke Firestore increment error: $e');
       }
 
       _notifyUsageChanged();

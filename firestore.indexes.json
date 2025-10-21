@@ -152,6 +152,25 @@
           "order": "ASCENDING"
         },
         {
+          "fieldPath": "num_saved_users_fraction",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "jokes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "state",
+          "order": "ASCENDING"
+        },
+        {
           "fieldPath": "popularity_score",
           "order": "DESCENDING"
         },

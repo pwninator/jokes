@@ -9,7 +9,7 @@ import 'package:snickerdoodle/src/features/jokes/domain/joke_state.dart';
 
 @immutable
 class JokeListPageCursor {
-  // Timestamp when ordering by creation_time, or int when by popularity_score
+  // Timestamp when ordering by creation_time, or double when by num_saved_users_fraction
   final Object orderValue;
   final String docId;
 
@@ -186,8 +186,8 @@ class JokeRepository {
     String primaryOrderByField = 'creation_time';
     bool descending = true;
     if (popularOnly) {
-      query = query.where('popularity_score', isGreaterThan: 0);
-      primaryOrderByField = 'popularity_score';
+      query = query.where('num_saved_users_fraction', isGreaterThan: 0.0);
+      primaryOrderByField = 'num_saved_users_fraction';
       descending = true;
     } else if (publicOnly) {
       query = query.where('public_timestamp', isLessThan: DateTime.now());
@@ -230,7 +230,7 @@ class JokeRepository {
     final Object orderValue =
         lastData[primaryOrderByField] ??
         lastData['public_timestamp'] ??
-        lastData['popularity_score'] ??
+        lastData['num_saved_users_fraction'] ??
         lastDoc.id;
 
     final nextCursor = JokeListPageCursor(

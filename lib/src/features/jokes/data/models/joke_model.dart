@@ -20,7 +20,7 @@ class Joke {
   final int numViews;
   final int numSaves;
   final int numShares;
-  final int popularityScore;
+  final double numSavedUsersFraction;
   final JokeAdminRating? adminRating;
   final JokeState? state;
   final DateTime? publicTimestamp;
@@ -43,7 +43,7 @@ class Joke {
     this.numSaves = 0,
     this.numShares = 0,
     this.numViews = 0,
-    this.popularityScore = 0,
+    this.numSavedUsersFraction = 0.0,
     this.adminRating,
     this.state,
     this.publicTimestamp,
@@ -67,7 +67,7 @@ class Joke {
     int? numViews,
     int? numSaves,
     int? numShares,
-    int? popularityScore,
+    double? numSavedUsersFraction,
     JokeAdminRating? adminRating,
     JokeState? state,
     DateTime? publicTimestamp,
@@ -95,7 +95,8 @@ class Joke {
       numViews: numViews ?? this.numViews,
       numSaves: numSaves ?? this.numSaves,
       numShares: numShares ?? this.numShares,
-      popularityScore: popularityScore ?? this.popularityScore,
+      numSavedUsersFraction:
+          numSavedUsersFraction ?? this.numSavedUsersFraction,
       adminRating: adminRating ?? this.adminRating,
       state: state ?? this.state,
       publicTimestamp: publicTimestamp ?? this.publicTimestamp,
@@ -120,7 +121,7 @@ class Joke {
       'num_viewed_users': numViews,
       'num_saved_users': numSaves,
       'num_shared_users': numShares,
-      'popularity_score': popularityScore,
+      'num_saved_users_fraction': numSavedUsersFraction,
       'admin_rating': adminRating?.value,
       'state': state?.value,
       'public_timestamp': publicTimestamp != null
@@ -150,7 +151,8 @@ class Joke {
       numViews: (map['num_viewed_users'] as num?)?.toInt() ?? 0,
       numSaves: (map['num_saved_users'] as num?)?.toInt() ?? 0,
       numShares: (map['num_shared_users'] as num?)?.toInt() ?? 0,
-      popularityScore: (map['popularity_score'] as num?)?.toInt() ?? 0,
+      numSavedUsersFraction:
+          (map['num_saved_users_fraction'] as num?)?.toDouble() ?? 0.0,
       adminRating: JokeAdminRating.fromString(map['admin_rating'] as String?),
       state: JokeState.fromString(map['state'] as String?),
       publicTimestamp: _parsePublicTimestamp(map['public_timestamp']),
@@ -182,7 +184,7 @@ class Joke {
 
   @override
   String toString() =>
-      'Joke(id: $id, setupText: $setupText, punchlineText: $punchlineText, setupImageUrl: $setupImageUrl, punchlineImageUrl: $punchlineImageUrl, setupImageUrlUpscaled: $setupImageUrlUpscaled, punchlineImageUrlUpscaled: $punchlineImageUrlUpscaled, setupImageDescription: $setupImageDescription, punchlineImageDescription: $punchlineImageDescription, allSetupImageUrls: $allSetupImageUrls, allPunchlineImageUrls: $allPunchlineImageUrls, generationMetadata: $generationMetadata, numSaves: $numSaves, numShares: $numShares, numViews: $numViews, popularityScore: $popularityScore, adminRating: $adminRating, state: $state, publicTimestamp: $publicTimestamp, tags: $tags, seasonal: $seasonal)';
+      'Joke(id: $id, setupText: $setupText, punchlineText: $punchlineText, setupImageUrl: $setupImageUrl, punchlineImageUrl: $punchlineImageUrl, setupImageUrlUpscaled: $setupImageUrlUpscaled, punchlineImageUrlUpscaled: $punchlineImageUrlUpscaled, setupImageDescription: $setupImageDescription, punchlineImageDescription: $punchlineImageDescription, allSetupImageUrls: $allSetupImageUrls, allPunchlineImageUrls: $allPunchlineImageUrls, generationMetadata: $generationMetadata, numSaves: $numSaves, numShares: $numShares, numViews: $numViews, numSavedUsersFraction: $numSavedUsersFraction, adminRating: $adminRating, state: $state, publicTimestamp: $publicTimestamp, tags: $tags, seasonal: $seasonal)';
 
   @override
   bool operator ==(Object other) {
@@ -204,7 +206,7 @@ class Joke {
         other.numViews == numViews &&
         other.numSaves == numSaves &&
         other.numShares == numShares &&
-        other.popularityScore == popularityScore &&
+        other.numSavedUsersFraction == numSavedUsersFraction &&
         other.adminRating == adminRating &&
         other.state == state &&
         other.publicTimestamp == publicTimestamp &&
@@ -229,7 +231,7 @@ class Joke {
       numViews.hashCode ^
       numSaves.hashCode ^
       numShares.hashCode ^
-      popularityScore.hashCode ^
+      numSavedUsersFraction.hashCode ^
       adminRating.hashCode ^
       state.hashCode ^
       publicTimestamp.hashCode ^

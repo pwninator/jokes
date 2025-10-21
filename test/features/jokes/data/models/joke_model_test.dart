@@ -20,7 +20,7 @@ void main() {
       generationMetadata: const {'source': 'test'},
       numSaves: 5,
       numShares: 3,
-      popularityScore: 20,
+      numSavedUsersFraction: 0.2,
       adminRating: JokeAdminRating.approved,
       state: JokeState.published,
       publicTimestamp: DateTime.utc(2023),

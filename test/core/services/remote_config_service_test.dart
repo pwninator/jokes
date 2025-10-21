@@ -483,21 +483,6 @@ void main() {
           TestEnum.option2, // falls back to default
         );
       });
-
-      // Note: This test is disabled because the readString method has a bug
-      // where it tries to access defaultString for non-enum types, but int
-      // parameters don't have defaultString defined. This causes a null check
-      // error before the StateError can be thrown.
-      // test('throws error for non-enum parameters', () async {
-      //   await service.initialize();
-
-      //   expect(
-      //     () => service.currentValues.getEnum<TestEnum>(
-      //       RemoteParam.subscriptionPromptMinJokesViewed, // int parameter
-      //     ),
-      //     throwsA(isA<StateError>()),
-      //   );
-      // });
     });
   });
 

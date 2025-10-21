@@ -46,6 +46,7 @@ common/models.py
 common/models_joke_category_test.py
 common/models_test.py
 common/utils.py
+common/utils_test.py
 functions/__init__.py
 functions/admin_fns.py
 functions/analytics_fns.py

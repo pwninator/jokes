@@ -86,6 +86,25 @@ abstract class AnalyticsService {
     required String screenOrientation,
   });
 
+  // Ads: banner lifecycle
+  void logAdBannerLoaded(String adUnitId, {required String jokeContext});
+
+  void logAdBannerFailedToLoad(
+    String adUnitId, {
+    required String errorMessage,
+    String? errorCode,
+    required String jokeContext,
+  });
+
+  void logAdBannerClicked(String adUnitId, {required String jokeContext});
+
+  void logErrorAdBanner({
+    required String errorMessage,
+    String? adUnitId,
+    String? errorCode,
+    required String jokeContext,
+  });
+
   /// Log when a joke is saved
   void logJokeSaved(
     String jokeId, {
@@ -456,6 +475,56 @@ class FirebaseAnalyticsService implements AnalyticsService {
       AnalyticsParameters.screenOrientation: screenOrientation,
       AnalyticsParameters.jokeNavigatedCount: 1,
     });
+  }
+
+  // =====================
+  // Ads: banner lifecycle
+  // =====================
+
+  @override
+  void logAdBannerLoaded(String adUnitId, {required String jokeContext}) {
+    _logEvent(AnalyticsEvent.adBannerLoaded, {
+      AnalyticsParameters.adUnitId: adUnitId,
+      AnalyticsParameters.jokeContext: jokeContext,
+    });
+  }
+
+  @override
+  void logAdBannerFailedToLoad(
+    String adUnitId, {
+    required String errorMessage,
+    String? errorCode,
+    required String jokeContext,
+  }) {
+    _logEvent(AnalyticsEvent.adBannerFailedToLoad, {
+      AnalyticsParameters.adUnitId: adUnitId,
+      AnalyticsParameters.errorMessage: errorMessage,
+      AnalyticsParameters.errorCode: errorCode ?? 'unknown',
+      AnalyticsParameters.jokeContext: jokeContext,
+    });
+  }
+
+  @override
+  void logAdBannerClicked(String adUnitId, {required String jokeContext}) {
+    _logEvent(AnalyticsEvent.adBannerClicked, {
+      AnalyticsParameters.adUnitId: adUnitId,
+      AnalyticsParameters.jokeContext: jokeContext,
+    });
+  }
+
+  @override
+  void logErrorAdBanner({
+    required String errorMessage,
+    String? adUnitId,
+    String? errorCode,
+    required String jokeContext,
+  }) {
+    _logEvent(AnalyticsEvent.errorAdBanner, {
+      AnalyticsParameters.errorMessage: errorMessage,
+      if (adUnitId != null) AnalyticsParameters.adUnitId: adUnitId,
+      if (errorCode != null) AnalyticsParameters.errorCode: errorCode,
+      AnalyticsParameters.jokeContext: jokeContext,
+    }, isError: true);
   }
 
   @override

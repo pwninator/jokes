@@ -14,8 +14,8 @@ import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers
 import 'package:snickerdoodle/src/features/jokes/application/joke_list_data_source.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_navigation_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
-import 'package:snickerdoodle/src/features/jokes/domain/joke_viewer_mode.dart';
 import 'package:snickerdoodle/src/features/settings/application/joke_viewer_settings_service.dart';
+import 'package:snickerdoodle/src/utils/joke_viewer_utils.dart';
 
 /// Reusable vertical viewer for a list of jokes with CTA button
 class JokeListViewer extends ConsumerStatefulWidget {
@@ -289,25 +289,15 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
                     final jokeScrollDepth = index;
 
                     final analyticsService = ref.read(analyticsServiceProvider);
-                    final revealModeEnabled = ref.read(
-                      jokeViewerRevealProvider,
-                    );
-                    final brightness = Theme.of(context).brightness;
-                    final orientation = MediaQuery.of(context).orientation;
-                    final screenOrientation =
-                        orientation == Orientation.landscape
-                        ? AnalyticsScreenOrientation.landscape
-                        : AnalyticsScreenOrientation.portrait;
+                    final viewerCtx = getJokeViewerContext(context, ref);
                     analyticsService.logJokeNavigation(
                       joke.id,
                       jokeScrollDepth,
                       method: _lastNavigationMethod,
                       jokeContext: widget.jokeContext,
-                      jokeViewerMode: revealModeEnabled
-                          ? JokeViewerMode.reveal
-                          : JokeViewerMode.bothAdaptive,
-                      brightness: brightness,
-                      screenOrientation: screenOrientation,
+                      jokeViewerMode: viewerCtx.jokeViewerMode,
+                      brightness: viewerCtx.brightness,
+                      screenOrientation: viewerCtx.screenOrientation,
                     );
 
                     _lastNavigationMethod = AnalyticsNavigationMethod.swipe;

@@ -85,6 +85,15 @@ const Map<RemoteParam, RemoteParamDescriptor> remoteParams = {
     enumValues: ShareImagesMode.values,
     enumDefault: ShareImagesMode.stacked,
   ),
+
+  //////////////////
+  // Advertisements //
+  //////////////////
+  RemoteParam.adDisplayMode: EnumRemoteParamDescriptor(
+    key: 'ad_display_mode',
+    enumValues: AdDisplayMode.values,
+    enumDefault: AdDisplayMode.none,
+  ),
 };
 
 enum RemoteParam {
@@ -99,6 +108,7 @@ enum RemoteParam {
   reviewPromptVariant,
   defaultJokeViewerReveal,
   shareImagesMode,
+  adDisplayMode,
 }
 
 // Enum used by share images mode configuration
@@ -106,6 +116,9 @@ enum ShareImagesMode { auto, separate, stacked }
 
 // Enum for review prompt variants
 enum ReviewPromptVariant { none, bunny, kitten }
+
+// Enum for Ad display configuration
+enum AdDisplayMode { none, banner }
 
 enum RemoteParamType { intType, boolType, doubleType, stringType, enumType }
 

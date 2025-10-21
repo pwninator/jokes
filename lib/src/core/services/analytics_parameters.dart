@@ -31,6 +31,10 @@ class AnalyticsParameters {
   static const String shareSuccess = 'share_success';
   static const String userType = 'user_type';
 
+  // Ads
+  static const String adUnitId = 'ad_unit_id';
+  static const String errorCode = 'error_code';
+
   // Navigation parameters
   static const String previousTab = 'previous_tab';
   static const String newTab = 'new_tab';

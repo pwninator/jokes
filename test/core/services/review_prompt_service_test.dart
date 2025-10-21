@@ -47,6 +47,8 @@ class _FakeRemoteValues implements RemoteConfigValues {
         return false;
       case RemoteParam.reviewPromptVariant:
         return false;
+      case RemoteParam.adDisplayMode:
+        return false;
       case RemoteParam.subscriptionPromptMinJokesViewed:
       case RemoteParam.feedbackMinJokesViewed:
       case RemoteParam.reviewMinDaysUsed:
@@ -84,6 +86,8 @@ class _FakeRemoteValues implements RemoteConfigValues {
       case RemoteParam.reviewRequestFromJokeViewed:
         return 0;
       case RemoteParam.reviewRequireDailySubscription:
+        return 0;
+      case RemoteParam.adDisplayMode:
         return 0;
     }
   }

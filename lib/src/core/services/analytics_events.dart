@@ -103,7 +103,13 @@ enum AnalyticsEvent {
 
   // Settings
   jokeViewerSettingChanged('joke_viewer_setting_changed'),
-  privacyPolicyOpened('privacy_policy_opened');
+  privacyPolicyOpened('privacy_policy_opened'),
+
+  // Ad events
+  adBannerLoaded('ad_banner_loaded'),
+  adBannerFailedToLoad('ad_banner_failed_to_load'),
+  adBannerClicked('ad_banner_clicked'),
+  errorAdBanner('error_ad_banner');
 
   const AnalyticsEvent(this.eventName);
 

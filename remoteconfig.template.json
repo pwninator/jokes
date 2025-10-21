@@ -94,6 +94,17 @@
         }
       }
     },
+    "Ads": {
+      "parameters": {
+        "ad_display_mode": {
+          "defaultValue": {
+            "value": "none"
+          },
+          "description": "Controls in-app ads: none|banner",
+          "valueType": "STRING"
+        }
+      }
+    },
     "Joke Sharing": {
       "parameters": {
         "share_images_mode": {

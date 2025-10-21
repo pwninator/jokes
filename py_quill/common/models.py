@@ -703,9 +703,11 @@ class PunnyJoke:
 
   num_thumbs_up: int = 0
   num_thumbs_down: int = 0
-  num_saves: int = 0
-  num_shares: int = 0
-  popularity_score: int = 0
+  num_saved_users: int = 0
+  num_shared_users: int = 0
+  num_viewed_users: int = 0
+  num_saved_users_fraction: float = 0.0
+  num_shared_users_fraction: float = 0.0
 
   state: JokeState = JokeState.UNKNOWN
   admin_rating: JokeAdminRating = JokeAdminRating.UNREVIEWED

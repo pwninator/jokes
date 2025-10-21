@@ -480,27 +480,9 @@ def get_joke_embedding(
   )
 
 
-def calculate_popularity_score(joke: models.PunnyJoke) -> int:
-  """Calculate popularity score for a joke.
-  
-  The popularity_score is calculated as:
-    `num_saves + (num_shares * 5)`
-  
-  Args:
-    joke: The joke to calculate popularity score for.
-    
-  Returns:
-    The calculated popularity score.
-  """
-  num_saves = joke.num_saves or 0
-  num_shares = joke.num_shares or 0
-  return num_saves + (num_shares * 5)
-
-
 def _sync_joke_to_search_subcollection(
-  joke: models.PunnyJoke,
-  new_embedding: Vector | None,
-  new_popularity_score: int,
+    joke: models.PunnyJoke,
+    new_embedding: Vector | None,
 ) -> None:
   """Syncs joke data to a search subcollection document."""
   if not joke.key:
@@ -528,9 +510,13 @@ def _sync_joke_to_search_subcollection(
   if search_data.get("public_timestamp") != joke.public_timestamp:
     update_payload["public_timestamp"] = joke.public_timestamp
 
-  # 4. Sync popularity_score
-  if search_data.get("popularity_score") != new_popularity_score:
-    update_payload["popularity_score"] = new_popularity_score
+  # 4. Sync num_saved_users_fraction
+  if search_data.get("num_saved_users_fraction") != joke.num_saved_users_fraction:
+    update_payload["num_saved_users_fraction"] = joke.num_saved_users_fraction
+
+  # 5. Sync num_shared_users_fraction
+  if search_data.get("num_shared_users_fraction") != joke.num_shared_users_fraction:
+    update_payload["num_shared_users_fraction"] = joke.num_shared_users_fraction
 
   if update_payload:
     logger.info(
@@ -563,7 +549,6 @@ def on_joke_write(event: firestore_fn.Event[firestore_fn.Change]) -> None:
                                                        event.params["joke_id"])
 
   should_update_embedding = False
-  should_update_popularity_score = False
 
   # Check if embedding needs updating
   if after_joke.state == models.JokeState.DRAFT:
@@ -611,13 +596,29 @@ def on_joke_write(event: firestore_fn.Event[firestore_fn.Change]) -> None:
       "generation_metadata": current_metadata.as_dict,
     })
 
-  # Check if popularity score needs updating
-  expected_popularity_score = calculate_popularity_score(after_joke)
-  if after_joke.popularity_score != expected_popularity_score:
-    update_data["popularity_score"] = expected_popularity_score
-    logger.info(
-      "Joke popularity score mismatch, updating from %s to %s for: %s",
-      after_joke.popularity_score, expected_popularity_score, after_joke.key)
+  # Check if fraction fields need updating
+  if after_joke.num_viewed_users > 0:
+    num_saved_users_fraction = after_joke.num_saved_users / after_joke.num_viewed_users
+    if after_joke.num_saved_users_fraction != num_saved_users_fraction:
+      update_data["num_saved_users_fraction"] = num_saved_users_fraction
+      after_joke.num_saved_users_fraction = num_saved_users_fraction
+      logger.info(
+          "Joke num_saved_users_fraction mismatch, updating from %s to %s for: %s",
+          after_joke.num_saved_users_fraction,
+          num_saved_users_fraction,
+          after_joke.key,
+      )
+
+    num_shared_users_fraction = after_joke.num_shared_users / after_joke.num_viewed_users
+    if after_joke.num_shared_users_fraction != num_shared_users_fraction:
+      update_data["num_shared_users_fraction"] = num_shared_users_fraction
+      after_joke.num_shared_users_fraction = num_shared_users_fraction
+      logger.info(
+          "Joke num_shared_users_fraction mismatch, updating from %s to %s for: %s",
+          after_joke.num_shared_users_fraction,
+          num_shared_users_fraction,
+          after_joke.key,
+      )
 
   tags_lowered = [t.lower() for t in after_joke.tags]
   if tags_lowered != after_joke.tags:
@@ -628,7 +629,6 @@ def on_joke_write(event: firestore_fn.Event[firestore_fn.Change]) -> None:
   _sync_joke_to_search_subcollection(
     joke=after_joke,
     new_embedding=new_embedding,
-    new_popularity_score=expected_popularity_score,
   )
 
   # Perform single Firestore update if any updates are needed
@@ -637,9 +637,6 @@ def on_joke_write(event: firestore_fn.Event[firestore_fn.Change]) -> None:
 
     if should_update_embedding:
       logger.info("Successfully updated embedding for joke: %s",
-                  after_joke.key)
-    if should_update_popularity_score:
-      logger.info("Successfully updated popularity score for joke: %s",
                   after_joke.key)
 
 

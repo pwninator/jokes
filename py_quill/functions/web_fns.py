@@ -74,7 +74,7 @@ def _fetch_topic_jokes(topic: str, limit: int) -> list[models.PunnyJoke]:
   id_to_distance = {r.joke.key: r.vector_distance for r in results}
   jokes = firestore.get_punny_jokes(joke_ids)
   jokes.sort(key=lambda j: (
-    -1 * (getattr(j, 'popularity_score', 0) or 0),
+    -1 * (getattr(j, 'num_saved_users_fraction', 0) or 0),
     id_to_distance.get(j.key, float('inf')),
   ))
   return jokes

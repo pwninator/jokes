@@ -166,19 +166,19 @@ def test_fetch_topic_jokes_sorts_by_popularity_then_distance(monkeypatch):
     search.JokeSearchResult(joke=jC, vector_distance=0.30),
   ]
 
-  # Populate popularity scores when firestore objects are returned
+  # Populate num_saved_users_fraction when firestore objects are returned
   jA_fs = models.PunnyJoke(key="A",
                            setup_text="sa",
                            punchline_text="pa",
-                           popularity_score=5)
+                           num_saved_users_fraction=0.5)
   jB_fs = models.PunnyJoke(key="B",
                            setup_text="sb",
                            punchline_text="pb",
-                           popularity_score=5)
+                           num_saved_users_fraction=0.5)
   jC_fs = models.PunnyJoke(key="C",
                            setup_text="sc",
                            punchline_text="pc",
-                           popularity_score=10)
+                           num_saved_users_fraction=0.8)
   mock_get_punny_jokes.return_value = [jA_fs, jB_fs, jC_fs]
 
   # Act

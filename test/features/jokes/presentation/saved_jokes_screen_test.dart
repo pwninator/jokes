@@ -81,6 +81,35 @@ class MockCategoryInteractionsRepository extends Mock
 // Fake Firebase classes for testing (only what's actually needed)
 class FakeFirebaseAnalytics extends Fake implements FirebaseAnalytics {}
 
+class _FixedRemoteValues implements RemoteConfigValues {
+    @override
+    bool getBool(RemoteParam param) => remoteParams[param]?.defaultBool ?? false;
+
+    @override
+    double getDouble(RemoteParam param) =>
+        remoteParams[param]?.defaultDouble ?? 0.0;
+
+    @override
+    int getInt(RemoteParam param) => remoteParams[param]?.defaultInt ?? 0;
+
+    @override
+    String getString(RemoteParam param) =>
+        remoteParams[param]?.defaultString ?? '';
+
+    @override
+    T getEnum<T>(RemoteParam param) {
+      if (param == RemoteParam.adDisplayMode) {
+        return AdDisplayMode.none as T;
+      }
+      final descriptor = remoteParams[param];
+      final value = descriptor?.enumDefault ??
+          (descriptor?.enumValues != null && descriptor!.enumValues!.isNotEmpty
+              ? descriptor.enumValues!.first
+              : null);
+      return value as T;
+    }
+  }
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -116,7 +145,7 @@ void main() {
     final mockCategoryInteractionsRepository =
         MockCategoryInteractionsRepository();
     final mockJokePopulationNotifier = MockJokePopulationNotifier();
-    final mockRemoteConfigValues = MockRemoteConfigValues();
+    final mockRemoteConfigValues = _FixedRemoteValues();
     final mockPerformanceService = MockPerformanceService();
 
     // Setup default behaviors for mocks
@@ -231,12 +260,7 @@ void main() {
       ),
     ).thenAnswer((_) {});
 
-    // Setup remote config values mocks
-    when(() => mockRemoteConfigValues.getBool(any())).thenReturn(false);
-    when(() => mockRemoteConfigValues.getDouble(any())).thenReturn(0.0);
-    when(() => mockRemoteConfigValues.getInt(any())).thenReturn(0);
-    when(() => mockRemoteConfigValues.getString(any())).thenReturn('');
-    when(() => mockRemoteConfigValues.getEnum(any())).thenReturn('');
+    // Remote config values provided by _FixedRemoteValues
 
     // MockJokePopulationNotifier is now a real StateNotifier, no setup needed
 

@@ -10,6 +10,7 @@ import 'package:snickerdoodle/src/config/router/router_providers.dart';
 import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_list_data_sources.dart';
 import 'package:snickerdoodle/src/features/jokes/presentation/joke_list_viewer.dart';
+import 'package:snickerdoodle/src/common_widgets/ad_banner_widget.dart';
 
 class DailyJokesScreen extends ConsumerStatefulWidget implements TitledScreen {
   const DailyJokesScreen({super.key});
@@ -107,10 +108,17 @@ class _DailyJokesScreenState extends ConsumerState<DailyJokesScreen>
     return AdaptiveAppBarScreen(
       title: 'Daily Jokes',
       automaticallyImplyLeading: false,
-      body: JokeListViewer(
-        dataSource: DailyJokesDataSource(ref),
-        jokeContext: AnalyticsJokeContext.dailyJokes,
-        viewerId: 'daily_jokes',
+      body: Column(
+        children: [
+          const AdBannerWidget(jokeContext: AnalyticsJokeContext.dailyJokes),
+          Expanded(
+            child: JokeListViewer(
+              dataSource: DailyJokesDataSource(ref),
+              jokeContext: AnalyticsJokeContext.dailyJokes,
+              viewerId: 'daily_jokes',
+            ),
+          ),
+        ],
       ),
     );
   }

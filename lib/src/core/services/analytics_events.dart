@@ -106,6 +106,7 @@ enum AnalyticsEvent {
   privacyPolicyOpened('privacy_policy_opened'),
 
   // Ad events
+  adBannerSkipped('ad_banner_skipped'),
   adBannerLoaded('ad_banner_loaded'),
   adBannerFailedToLoad('ad_banner_failed_to_load'),
   adBannerClicked('ad_banner_clicked'),

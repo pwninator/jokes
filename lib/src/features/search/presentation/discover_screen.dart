@@ -17,6 +17,7 @@ import 'package:snickerdoodle/src/features/jokes/application/joke_search_provide
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_category.dart';
 import 'package:snickerdoodle/src/features/jokes/presentation/joke_list_viewer.dart';
 import 'package:snickerdoodle/src/features/search/application/discover_tab_state.dart';
+import 'package:snickerdoodle/src/common_widgets/ad_banner_widget.dart';
 
 /// Discover screen presents curated categories by default and lets users
 /// drill into category searches before handing off to the dedicated search UI.
@@ -91,6 +92,7 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
         automaticallyImplyLeading: false,
         body: Column(
           children: [
+            const AdBannerWidget(jokeContext: AnalyticsJokeContext.category),
             _ResultsSummary(category: activeCategory, dataSource: _dataSource),
             Expanded(
               child: hasActiveCategory

@@ -103,6 +103,35 @@ class _FakePerformanceService implements PerformanceService {
 
 class _FakeBuildContext extends Fake implements BuildContext {}
 
+class _FixedRemoteValues implements RemoteConfigValues {
+  @override
+  bool getBool(RemoteParam param) => remoteParams[param]?.defaultBool ?? false;
+
+  @override
+  double getDouble(RemoteParam param) =>
+      remoteParams[param]?.defaultDouble ?? 0.0;
+
+  @override
+  int getInt(RemoteParam param) => remoteParams[param]?.defaultInt ?? 0;
+
+  @override
+  String getString(RemoteParam param) =>
+      remoteParams[param]?.defaultString ?? '';
+
+  @override
+  T getEnum<T>(RemoteParam param) {
+    if (param == RemoteParam.adDisplayMode) {
+      return AdDisplayMode.none as T;
+    }
+    final descriptor = remoteParams[param];
+    final value = descriptor?.enumDefault ??
+        (descriptor?.enumValues != null && descriptor!.enumValues!.isNotEmpty
+            ? descriptor.enumValues!.first
+            : null);
+    return value as T;
+  }
+}
+
 void main() {
   setUpAll(() {
     registerFallbackValue(ReviewRequestSource.jokeSaved);
@@ -353,7 +382,7 @@ void main() {
         mockDailyJokeSubscriptionService,
       ),
       notificationServiceProvider.overrideWithValue(mockNotificationService),
-      remoteConfigValuesProvider.overrideWithValue(mockRemoteConfigValues),
+      remoteConfigValuesProvider.overrideWithValue(_FixedRemoteValues()),
       settingsServiceProvider.overrideWithValue(settingsService),
       appUsageServiceProvider.overrideWithValue(mockAppUsageService),
       jokeScheduleRepositoryProvider.overrideWithValue(mockScheduleRepository),

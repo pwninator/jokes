@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:go_router/go_router.dart';
-import 'package:snickerdoodle/src/common_widgets/adaptive_app_bar_screen.dart';
+import 'package:snickerdoodle/src/common_widgets/app_bar_configured_screen.dart';
 import 'package:snickerdoodle/src/config/router/route_names.dart';
 import 'package:snickerdoodle/src/config/router/router_providers.dart';
 import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
@@ -54,7 +54,7 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
         if (_clearCategory()) return;
         if (context.canPop()) context.pop();
       },
-      child: AdaptiveAppBarScreen(
+      child: AppBarConfiguredScreen(
         title: title,
         leading: hasActiveCategory
             ? IconButton(

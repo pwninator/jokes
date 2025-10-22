@@ -2,8 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/providers/image_providers.dart';
+import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
 import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
@@ -108,7 +108,7 @@ void main() {
         ],
         child: MaterialApp(
           theme: lightTheme,
-          home: JokeEditorScreen(jokeId: joke?.id),
+          home: Scaffold(body: JokeEditorScreen(jokeId: joke?.id)),
         ),
       );
     }

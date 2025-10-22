@@ -3,7 +3,7 @@ import 'dart:math';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:snickerdoodle/src/common_widgets/adaptive_app_bar_screen.dart';
+import 'package:snickerdoodle/src/common_widgets/app_bar_configured_screen.dart';
 import 'package:snickerdoodle/src/common_widgets/titled_screen.dart';
 import 'package:snickerdoodle/src/core/providers/user_providers.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/user_jokes_chart.dart';
@@ -19,7 +19,7 @@ class UsersAnalyticsScreen extends ConsumerWidget implements TitledScreen {
   Widget build(BuildContext context, WidgetRef ref) {
     final histogramAsync = ref.watch(usersLoginHistogramProvider);
 
-    return AdaptiveAppBarScreen(
+    return AppBarConfiguredScreen(
       title: title,
       body: Padding(
         padding: const EdgeInsets.all(16.0),

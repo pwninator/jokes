@@ -18,6 +18,7 @@ import 'package:snickerdoodle/src/data/jokes/joke_reactions_migration_service.da
 import 'package:snickerdoodle/src/features/auth/application/auth_startup_manager.dart';
 import 'package:snickerdoodle/src/startup/startup_task.dart';
 import 'package:snickerdoodle/src/utils/device_utils.dart';
+import 'package:snickerdoodle/src/core/services/admob_service.dart';
 
 /// Timeout duration for best effort blocking tasks.
 ///
@@ -97,6 +98,11 @@ const List<StartupTask> backgroundTasks = [
     id: 'notifications',
     execute: _initializeNotifications,
     traceName: TraceName.startupTaskNotifications,
+  ),
+  StartupTask(
+    id: 'admob',
+    execute: _initializeAdMob,
+    traceName: TraceName.startupTaskAdMob,
   ),
 ];
 
@@ -233,6 +239,17 @@ Future<List<Override>> _initializeNotifications(StartupReader read) async {
       'Notification service initialization failed: $e',
       stackTrace: stack,
     );
+  }
+  return const [];
+}
+
+/// Initialize AdMob with Families-compliant settings.
+Future<List<Override>> _initializeAdMob(StartupReader read) async {
+  try {
+    final admob = read(adMobServiceProvider);
+    await admob.initialize();
+  } catch (e, stack) {
+    AppLogger.fatal('AdMob initialization failed: $e', stackTrace: stack);
   }
   return const [];
 }

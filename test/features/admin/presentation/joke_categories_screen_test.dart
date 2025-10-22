@@ -123,14 +123,15 @@ void main() {
           analyticsServiceProvider.overrideWithValue(mockAnalyticsService),
           performanceServiceProvider.overrideWithValue(mockPerformanceService),
         ],
-        child: const MaterialApp(home: JokeCategoriesScreen()),
+        child: const MaterialApp(
+          home: Scaffold(body: JokeCategoriesScreen()),
+        ),
       ),
     );
 
     await tester.pumpAndSettle();
 
-    // Assert: Should display categories
-    expect(find.text('Joke Categories'), findsOneWidget);
+    // Assert: Should display categories (title is rendered by global AppBar outside this test)
     expect(find.text('Animal Jokes'), findsOneWidget);
 
     // Scroll to build the next item lazily (grid is scrollable)
@@ -185,7 +186,7 @@ void main() {
         child: MaterialApp(
           home: InheritedGoRouter(
             goRouter: mockGoRouter,
-            child: const JokeCategoriesScreen(),
+            child: const Scaffold(body: JokeCategoriesScreen()),
           ),
         ),
       ),

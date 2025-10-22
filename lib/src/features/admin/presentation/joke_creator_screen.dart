@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:snickerdoodle/src/common_widgets/adaptive_app_bar_screen.dart';
+import 'package:snickerdoodle/src/common_widgets/app_bar_configured_screen.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
 
@@ -25,7 +25,7 @@ class _JokeCreatorScreenState extends ConsumerState<JokeCreatorScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return AdaptiveAppBarScreen(
+    return AppBarConfiguredScreen(
       title: 'Joke Creator',
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),

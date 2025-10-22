@@ -34,6 +34,7 @@ class AnalyticsParameters {
   // Ads
   static const String adUnitId = 'ad_unit_id';
   static const String errorCode = 'error_code';
+  static const String adBannerStatus = 'ad_banner_status';
 
   // Navigation parameters
   static const String previousTab = 'previous_tab';

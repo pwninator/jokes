@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:snickerdoodle/src/common_widgets/adaptive_app_bar_screen.dart';
+import 'package:snickerdoodle/src/common_widgets/app_bar_configured_screen.dart';
 import 'package:snickerdoodle/src/common_widgets/titled_screen.dart';
 import 'package:snickerdoodle/src/config/router/route_names.dart';
 import 'package:snickerdoodle/src/config/router/router_providers.dart';
@@ -37,11 +37,12 @@ class _DailyJokesScreenState extends ConsumerState<DailyJokesScreen>
   void dispose() {
     _stopJokeDateCheckTimer();
     WidgetsBinding.instance.removeObserver(this);
-
-    // Clear rail bottom slot when leaving the screen
-    try {
-      ref.read(railBottomSlotProvider.notifier).state = null;
-    } catch (_) {}
+    // Avoid reading providers after disposal; schedule clear post-frame if still mounted.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        ref.read(railBottomSlotProvider.notifier).state = null;
+      }
+    });
     super.dispose();
   }
 
@@ -104,7 +105,7 @@ class _DailyJokesScreenState extends ConsumerState<DailyJokesScreen>
       }
     });
 
-    return AdaptiveAppBarScreen(
+    return AppBarConfiguredScreen(
       title: 'Daily Jokes',
       automaticallyImplyLeading: false,
       body: JokeListViewer(

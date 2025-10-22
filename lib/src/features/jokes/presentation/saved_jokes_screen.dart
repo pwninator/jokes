@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:snickerdoodle/src/common_widgets/adaptive_app_bar_screen.dart';
+import 'package:snickerdoodle/src/common_widgets/app_bar_configured_screen.dart';
 import 'package:snickerdoodle/src/common_widgets/titled_screen.dart';
 import 'package:snickerdoodle/src/config/router/router_providers.dart';
 import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
@@ -36,15 +36,18 @@ class _SavedJokesScreenState extends ConsumerState<SavedJokesScreen> {
 
   @override
   void dispose() {
-    try {
-      ref.read(railBottomSlotProvider.notifier).state = null;
-    } catch (_) {}
+    // Avoid provider reads during unmount in tests; clear after frame if still mounted
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        ref.read(railBottomSlotProvider.notifier).state = null;
+      }
+    });
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    return AdaptiveAppBarScreen(
+    return AppBarConfiguredScreen(
       title: 'Saved Jokes',
       automaticallyImplyLeading: false,
       body: Column(

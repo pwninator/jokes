@@ -3,10 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:snickerdoodle/src/common_widgets/badged_icon.dart';
+import 'package:snickerdoodle/src/common_widgets/app_bar_widget.dart';
+import 'package:snickerdoodle/src/common_widgets/banner_ad_widget.dart';
 import 'package:snickerdoodle/src/common_widgets/subscription_prompt_overlay.dart';
 import 'package:snickerdoodle/src/config/router/route_guards.dart';
 import 'package:snickerdoodle/src/config/router/route_names.dart';
 import 'package:snickerdoodle/src/config/router/router_providers.dart';
+import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
 import 'package:snickerdoodle/src/core/services/notification_service.dart';
 import 'package:snickerdoodle/src/data/core/app/firebase_providers.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/deep_research_screen.dart';
@@ -137,6 +140,7 @@ class AppRouter {
                     isAdmin: isAdmin,
                     isLandscape: isLandscape,
                     currentLocation: state.uri.path,
+                    ref: ref,
                   ),
                 );
               },
@@ -276,6 +280,22 @@ class AppRouter {
     );
   }
 
+  /// Get the joke context for analytics based on current route
+  static String _getJokeContextFromRoute(String route) {
+    if (route.startsWith(AppRoutes.saved)) {
+      return AnalyticsJokeContext.savedJokes;
+    } else if (route.startsWith(AppRoutes.discover)) {
+      if (route.contains('/search')) {
+        return AnalyticsJokeContext.search;
+      }
+      return AnalyticsJokeContext.category;
+    } else if (route.startsWith(AppRoutes.jokes)) {
+      return AnalyticsJokeContext.dailyJokes;
+    }
+    // Default for other routes (settings, admin, etc.)
+    return AnalyticsJokeContext.dailyJokes;
+  }
+
   /// Build the main navigation structure based on current route and user permissions
   static Widget _buildMainNavigation({
     required BuildContext context,
@@ -283,7 +303,10 @@ class AppRouter {
     required bool isAdmin,
     required bool isLandscape,
     required String currentLocation,
+    required WidgetRef ref,
   }) {
+    final jokeContext = _getJokeContextFromRoute(currentLocation);
+
     // Determine selected index based on current route
     int selectedIndex = _getSelectedIndexFromRoute(currentLocation, isAdmin);
 
@@ -334,8 +357,26 @@ class AppRouter {
             })
             .toList();
 
+        final appBarConfig = ref.watch(appBarConfigProvider);
+
+        // Build portrait AppBar using config
+        PreferredSizeWidget? portraitAppBar;
+        if (!isLandscape) {
+          portraitAppBar = AppBarWidget(
+            title: appBarConfig?.title ?? 'Snickerdoodle',
+            leading: appBarConfig?.leading,
+            actions: appBarConfig?.actions,
+            automaticallyImplyLeading:
+                appBarConfig?.automaticallyImplyLeading ?? true,
+          );
+        }
+
+        final floatingActionButton = ref.watch(floatingActionButtonProvider);
+
         return Scaffold(
           resizeToAvoidBottomInset: resize,
+          appBar: portraitAppBar,
+          floatingActionButton: floatingActionButton,
           body: isLandscape
               ? Row(
                   children: [
@@ -396,10 +437,37 @@ class AppRouter {
                       ),
                     ),
                     const VerticalDivider(thickness: 1, width: 1),
-                    Expanded(child: RailHost(railWidth: 180, child: child)),
+                    Expanded(
+                      child: RailHost(
+                        railWidth: 180,
+                        child: Column(
+                          children: [
+                            // 8px spacer AppBar only over content area
+                            PreferredSize(
+                              preferredSize: const Size.fromHeight(8.0),
+                              child: AppBar(
+                                backgroundColor: Theme.of(
+                                  context,
+                                ).colorScheme.surface,
+                                elevation: 0,
+                                automaticallyImplyLeading: false,
+                                scrolledUnderElevation: 0,
+                              ),
+                            ),
+                            AdBannerWidget(jokeContext: jokeContext),
+                            Expanded(child: child),
+                          ],
+                        ),
+                      ),
+                    ),
                   ],
                 )
-              : child,
+              : Column(
+                  children: [
+                    AdBannerWidget(jokeContext: jokeContext),
+                    Expanded(child: child),
+                  ],
+                ),
           bottomNavigationBar: isLandscape
               ? null
               : BottomNavigationBar(

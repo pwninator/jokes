@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
+import 'package:snickerdoodle/src/config/router/router_providers.dart';
 import 'package:snickerdoodle/src/core/providers/app_version_provider.dart';
 import 'package:snickerdoodle/src/core/providers/connectivity_providers.dart';
 import 'package:snickerdoodle/src/core/providers/image_providers.dart';
@@ -310,7 +311,11 @@ void main() {
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: const MaterialApp(home: SearchScreen()),
+        child: const MaterialApp(
+          home: Scaffold(
+            body: SearchScreen(),
+          ),
+        ),
       ),
     );
     await tester.pump();
@@ -329,6 +334,48 @@ void main() {
       }
     }
   }
+
+  testWidgets(
+    'configures app bar with automatic back button when stack can pop',
+    (tester) async {
+      final container = createContainer();
+      addTearDown(container.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp(
+            home: Builder(
+              builder: (context) {
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const Scaffold(
+                        body: SearchScreen(),
+                      ),
+                    ),
+                  );
+                });
+                return const SizedBox.shrink();
+              },
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pumpAndSettle();
+
+      final config = container.read(appBarConfigProvider);
+      expect(config, isNotNull);
+      expect(config!.automaticallyImplyLeading, isTrue);
+      final leading = config.leading;
+      expect(leading, isA<IconButton>());
+      expect(
+        (leading as IconButton).key,
+        const Key('app_bar_configured_screen-back-button'),
+      );
+    },
+  );
 
   testWidgets('focuses the search field on load', (tester) async {
     final container = createContainer();

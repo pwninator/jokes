@@ -205,7 +205,9 @@ class AppUsageService {
       try {
         await _jokeRepository.incrementJokeViews(jokeId);
       } catch (e) {
-        AppLogger.error('APP_USAGE logJokeViewed Firestore increment error: $e');
+        AppLogger.error(
+          'APP_USAGE logJokeViewed Firestore increment error: $e',
+        );
       }
 
       _notifyUsageChanged();

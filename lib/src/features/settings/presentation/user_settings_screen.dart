@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:snickerdoodle/src/common_widgets/adaptive_app_bar_screen.dart';
+import 'package:snickerdoodle/src/common_widgets/app_bar_configured_screen.dart';
 import 'package:snickerdoodle/src/common_widgets/bouncing_button.dart';
 import 'package:snickerdoodle/src/common_widgets/notification_hour_widget.dart';
 import 'package:snickerdoodle/src/common_widgets/subscription_prompt_dialog.dart';
 import 'package:snickerdoodle/src/common_widgets/titled_screen.dart';
 import 'package:snickerdoodle/src/config/router/route_names.dart';
-import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/providers/app_usage_events_provider.dart';
 import 'package:snickerdoodle/src/core/providers/app_version_provider.dart';
+import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/app_review_service.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
@@ -22,6 +22,7 @@ import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
 import 'package:snickerdoodle/src/features/auth/data/models/app_user.dart';
 import 'package:snickerdoodle/src/features/feedback/presentation/user_feedback_screen.dart';
+import 'package:snickerdoodle/src/features/settings/application/admin_settings_service.dart';
 import 'package:snickerdoodle/src/features/settings/application/joke_viewer_settings_service.dart';
 import 'package:snickerdoodle/src/features/settings/application/theme_settings_service.dart';
 
@@ -135,7 +136,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
     final currentUser = ref.watch(currentUserProvider);
     final authController = ref.watch(authControllerProvider);
 
-    return AdaptiveAppBarScreen(
+    return AppBarConfiguredScreen(
       title: 'Settings',
       automaticallyImplyLeading: false,
       body: Padding(
@@ -571,6 +572,77 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                                   ],
                                 );
                               },
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Ad Settings Section
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16.0),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Ad Settings',
+                          style: Theme.of(context).textTheme.headlineSmall,
+                        ),
+                        const SizedBox(height: 16),
+                        Consumer(
+                          builder: (context, ref, _) {
+                            final adminSettingsService = ref.read(
+                              adminSettingsServiceProvider,
+                            );
+                            final adminOverride = adminSettingsService
+                                .getAdminOverrideShowBannerAd();
+
+                            return Row(
+                              children: [
+                                Icon(
+                                  Icons.ads_click,
+                                  color: adminOverride
+                                      ? Theme.of(context).colorScheme.primary
+                                      : Theme.of(context).colorScheme.onSurface
+                                            .withValues(alpha: 0.6),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Force Show Banner Ads',
+                                        style: menuTitleTextStyle(context),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        adminOverride
+                                            ? 'Banner ads will show regardless of remote config'
+                                            : 'Banner ads follow remote config settings',
+                                        style: menuSubtitleTextStyle(context),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Switch(
+                                  key: const Key(
+                                    'user_settings_screen-admin-override-banner-ads-toggle',
+                                  ),
+                                  value: adminOverride,
+                                  onChanged: (value) async {
+                                    await adminSettingsService
+                                        .setAdminOverrideShowBannerAd(value);
+                                    if (!mounted) return;
+                                    setState(() {});
+                                  },
+                                ),
+                              ],
                             );
                           },
                         ),

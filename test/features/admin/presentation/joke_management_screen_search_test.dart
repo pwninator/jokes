@@ -37,7 +37,7 @@ void main() {
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: const MaterialApp(home: JokeManagementScreen()),
+        child: const MaterialApp(home: Scaffold(body: JokeManagementScreen())),
       ),
     );
 

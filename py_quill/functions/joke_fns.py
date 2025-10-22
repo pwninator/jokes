@@ -481,8 +481,8 @@ def get_joke_embedding(
 
 
 def _sync_joke_to_search_subcollection(
-    joke: models.PunnyJoke,
-    new_embedding: Vector | None,
+  joke: models.PunnyJoke,
+  new_embedding: Vector | None,
 ) -> None:
   """Syncs joke data to a search subcollection document."""
   if not joke.key:
@@ -511,12 +511,15 @@ def _sync_joke_to_search_subcollection(
     update_payload["public_timestamp"] = joke.public_timestamp
 
   # 4. Sync num_saved_users_fraction
-  if search_data.get("num_saved_users_fraction") != joke.num_saved_users_fraction:
+  if search_data.get(
+      "num_saved_users_fraction") != joke.num_saved_users_fraction:
     update_payload["num_saved_users_fraction"] = joke.num_saved_users_fraction
 
   # 5. Sync num_shared_users_fraction
-  if search_data.get("num_shared_users_fraction") != joke.num_shared_users_fraction:
-    update_payload["num_shared_users_fraction"] = joke.num_shared_users_fraction
+  if search_data.get(
+      "num_shared_users_fraction") != joke.num_shared_users_fraction:
+    update_payload[
+      "num_shared_users_fraction"] = joke.num_shared_users_fraction
 
   # 6. Sync popularity_score
   if search_data.get("popularity_score") != joke.popularity_score:
@@ -607,10 +610,10 @@ def on_joke_write(event: firestore_fn.Event[firestore_fn.Change]) -> None:
       update_data["num_saved_users_fraction"] = num_saved_users_fraction
       after_joke.num_saved_users_fraction = num_saved_users_fraction
       logger.info(
-          "Joke num_saved_users_fraction mismatch, updating from %s to %s for: %s",
-          after_joke.num_saved_users_fraction,
-          num_saved_users_fraction,
-          after_joke.key,
+        "Joke num_saved_users_fraction mismatch, updating from %s to %s for: %s",
+        after_joke.num_saved_users_fraction,
+        num_saved_users_fraction,
+        after_joke.key,
       )
 
     num_shared_users_fraction = after_joke.num_shared_users / after_joke.num_viewed_users
@@ -618,25 +621,25 @@ def on_joke_write(event: firestore_fn.Event[firestore_fn.Change]) -> None:
       update_data["num_shared_users_fraction"] = num_shared_users_fraction
       after_joke.num_shared_users_fraction = num_shared_users_fraction
       logger.info(
-          "Joke num_shared_users_fraction mismatch, updating from %s to %s for: %s",
-          after_joke.num_shared_users_fraction,
-          num_shared_users_fraction,
-          after_joke.key,
+        "Joke num_shared_users_fraction mismatch, updating from %s to %s for: %s",
+        after_joke.num_shared_users_fraction,
+        num_shared_users_fraction,
+        after_joke.key,
       )
 
   popularity_score = 0.0
   if after_joke.num_viewed_users > 0:
-      popularity_score = (after_joke.num_saved_users + after_joke.num_shared_users) * \
-                         (after_joke.num_saved_users + after_joke.num_shared_users) / \
-                         after_joke.num_viewed_users
+    num_saves_and_shares = after_joke.num_saved_users + after_joke.num_shared_users
+    popularity_score = (num_saves_and_shares * num_saves_and_shares /
+                        after_joke.num_viewed_users)
   if after_joke.popularity_score != popularity_score:
     update_data["popularity_score"] = popularity_score
     after_joke.popularity_score = popularity_score
     logger.info(
-        "Joke popularity_score mismatch, updating from %s to %s for: %s",
-        after_joke.popularity_score,
-        popularity_score,
-        after_joke.key,
+      "Joke popularity_score mismatch, updating from %s to %s for: %s",
+      after_joke.popularity_score,
+      popularity_score,
+      after_joke.key,
     )
 
   tags_lowered = [t.lower() for t in after_joke.tags]

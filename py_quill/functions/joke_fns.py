@@ -518,6 +518,10 @@ def _sync_joke_to_search_subcollection(
   if search_data.get("num_shared_users_fraction") != joke.num_shared_users_fraction:
     update_payload["num_shared_users_fraction"] = joke.num_shared_users_fraction
 
+  # 6. Sync popularity_score
+  if search_data.get("popularity_score") != joke.popularity_score:
+    update_payload["popularity_score"] = joke.popularity_score
+
   if update_payload:
     logger.info(
       "Syncing joke to search subcollection: %s with payload keys %s",
@@ -619,6 +623,21 @@ def on_joke_write(event: firestore_fn.Event[firestore_fn.Change]) -> None:
           num_shared_users_fraction,
           after_joke.key,
       )
+
+  popularity_score = 0.0
+  if after_joke.num_viewed_users > 0:
+      popularity_score = (after_joke.num_saved_users + after_joke.num_shared_users) * \
+                         (after_joke.num_saved_users + after_joke.num_shared_users) / \
+                         after_joke.num_viewed_users
+  if after_joke.popularity_score != popularity_score:
+    update_data["popularity_score"] = popularity_score
+    after_joke.popularity_score = popularity_score
+    logger.info(
+        "Joke popularity_score mismatch, updating from %s to %s for: %s",
+        after_joke.popularity_score,
+        popularity_score,
+        after_joke.key,
+    )
 
   tags_lowered = [t.lower() for t in after_joke.tags]
   if tags_lowered != after_joke.tags:

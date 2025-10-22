@@ -221,8 +221,9 @@ List<Override> getFirebaseProviderOverrides({
   final mockAnalyticsService = MockAnalyticsService();
 
   when(() => mockAnalyticsService.initialize()).thenAnswer((_) async {});
-  when(() => mockAnalyticsService.setUserProperties(any()))
-      .thenAnswer((_) async {});
+  when(
+    () => mockAnalyticsService.setUserProperties(any()),
+  ).thenAnswer((_) async {});
 
   when(
     () => mockCloudFunctionService.createJokeWithResponse(
@@ -261,12 +262,12 @@ List<Override> getFirebaseProviderOverrides({
       mockCloudFunctionService,
     ),
     jokePopulationProvider.overrideWith((ref) => TestJokePopulationNotifier()),
-      isOnlineProvider.overrideWith((ref) async* {
-        yield true;
-      }),
-      analyticsServiceProvider.overrideWithValue(mockAnalyticsService),
-      ...additionalOverrides,
-    ];
+    isOnlineProvider.overrideWith((ref) async* {
+      yield true;
+    }),
+    analyticsServiceProvider.overrideWithValue(mockAnalyticsService),
+    ...additionalOverrides,
+  ];
 }
 
 void main() {

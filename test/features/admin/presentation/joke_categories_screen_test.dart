@@ -123,9 +123,7 @@ void main() {
           analyticsServiceProvider.overrideWithValue(mockAnalyticsService),
           performanceServiceProvider.overrideWithValue(mockPerformanceService),
         ],
-        child: const MaterialApp(
-          home: Scaffold(body: JokeCategoriesScreen()),
-        ),
+        child: const MaterialApp(home: Scaffold(body: JokeCategoriesScreen())),
       ),
     );
 

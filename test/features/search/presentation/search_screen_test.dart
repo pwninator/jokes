@@ -311,11 +311,7 @@ void main() {
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: const MaterialApp(
-          home: Scaffold(
-            body: SearchScreen(),
-          ),
-        ),
+        child: const MaterialApp(home: Scaffold(body: SearchScreen())),
       ),
     );
     await tester.pump();
@@ -350,9 +346,7 @@ void main() {
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   Navigator.of(context).push(
                     MaterialPageRoute(
-                      builder: (_) => const Scaffold(
-                        body: SearchScreen(),
-                      ),
+                      builder: (_) => const Scaffold(body: SearchScreen()),
                     ),
                   );
                 });

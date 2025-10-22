@@ -30,6 +30,9 @@ class AppBarConfiguredScreen extends ConsumerStatefulWidget {
 
 class _AppBarConfiguredScreenState
     extends ConsumerState<AppBarConfiguredScreen> {
+  Listenable? _routerListenable;
+  bool _applyScheduled = false;
+
   void _applyConfig() {
     Widget? resolvedLeading = widget.leading;
 
@@ -74,13 +77,50 @@ class _AppBarConfiguredScreenState
         widget.floatingActionButton;
   }
 
+  void _scheduleApply() {
+    if (!mounted || _applyScheduled) return;
+    _applyScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _applyScheduled = false;
+      if (!mounted) return;
+      final route = ModalRoute.of(context);
+      if (route == null || route.isCurrent) {
+        _applyConfig();
+      }
+    });
+  }
+
+  void _handleRouterChange() {
+    _scheduleApply();
+  }
+
+  void _subscribeRouter() {
+    final router = GoRouter.maybeOf(context);
+    Listenable? nextListenable;
+    if (router != null) {
+      try {
+        nextListenable = router.routerDelegate;
+      } catch (_) {
+        nextListenable = null;
+      }
+    }
+    if (nextListenable == _routerListenable) return;
+    _routerListenable?.removeListener(_handleRouterChange);
+    _routerListenable = nextListenable;
+    _routerListenable?.addListener(_handleRouterChange);
+  }
+
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      _applyConfig();
-    });
+    _scheduleApply();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _subscribeRouter();
+    _scheduleApply();
   }
 
   @override
@@ -92,16 +132,14 @@ class _AppBarConfiguredScreenState
         oldWidget.automaticallyImplyLeading !=
             widget.automaticallyImplyLeading ||
         oldWidget.floatingActionButton != widget.floatingActionButton) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        _applyConfig();
-      });
+      _scheduleApply();
     }
   }
 
   @override
   void dispose() {
-    // Do not read providers here; the next screen will override config as needed.
+    _routerListenable?.removeListener(_handleRouterChange);
+    _routerListenable = null;
     super.dispose();
   }
 

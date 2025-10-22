@@ -708,6 +708,7 @@ class PunnyJoke:
   num_viewed_users: int = 0
   num_saved_users_fraction: float = 0.0
   num_shared_users_fraction: float = 0.0
+  popularity_score: float = 0.0
 
   state: JokeState = JokeState.UNKNOWN
   admin_rating: JokeAdminRating = JokeAdminRating.UNREVIEWED

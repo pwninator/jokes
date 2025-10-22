@@ -620,6 +620,16 @@ def on_joke_write(event: firestore_fn.Event[firestore_fn.Change]) -> None:
           after_joke.key,
       )
 
+    popularity_score = (after_joke.num_saved_users + after_joke.num_shared_users) * (after_joke.num_saved_users + after_joke.num_shared_users) / after_joke.num_viewed_users
+    if after_joke.popularity_score != popularity_score:
+        update_data["popularity_score"] = popularity_score
+        logger.info(
+            "Joke popularity_score mismatch, updating from %s to %s for: %s",
+            after_joke.popularity_score,
+            popularity_score,
+            after_joke.key,
+        )
+
   tags_lowered = [t.lower() for t in after_joke.tags]
   if tags_lowered != after_joke.tags:
     update_data["tags"] = tags_lowered

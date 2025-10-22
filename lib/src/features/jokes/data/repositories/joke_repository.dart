@@ -186,8 +186,8 @@ class JokeRepository {
     String primaryOrderByField = 'creation_time';
     bool descending = true;
     if (popularOnly) {
-      query = query.where('num_saved_users_fraction', isGreaterThan: 0.0);
-      primaryOrderByField = 'num_saved_users_fraction';
+      query = query.where('popularity_score', isGreaterThan: 0.0);
+      primaryOrderByField = 'popularity_score';
       descending = true;
     } else if (publicOnly) {
       query = query.where('public_timestamp', isLessThan: DateTime.now());
@@ -230,7 +230,7 @@ class JokeRepository {
     final Object orderValue =
         lastData[primaryOrderByField] ??
         lastData['public_timestamp'] ??
-        lastData['num_saved_users_fraction'] ??
+        lastData['popularity_score'] ??
         lastDoc.id;
 
     final nextCursor = JokeListPageCursor(

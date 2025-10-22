@@ -87,7 +87,7 @@ abstract class AnalyticsService {
   });
 
   // Ads: banner lifecycle
-  void logAdBannerSkipped({required String reason});
+  void logAdBannerStatus({required String status});
 
   void logAdBannerLoaded(String adUnitId, {required String jokeContext});
 
@@ -484,9 +484,9 @@ class FirebaseAnalyticsService implements AnalyticsService {
   // =====================
 
   @override
-  void logAdBannerSkipped({required String reason}) {
-    _logEvent(AnalyticsEvent.adBannerSkipped, {
-      AnalyticsParameters.adSkippedReason: reason,
+  void logAdBannerStatus({required String status}) {
+    _logEvent(AnalyticsEvent.adBannerStatus, {
+      AnalyticsParameters.adBannerStatus: status,
     });
   }
 

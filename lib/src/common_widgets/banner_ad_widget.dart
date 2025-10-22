@@ -6,7 +6,6 @@ import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/banner_ad_manager.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:snickerdoodle/src/features/settings/application/admin_settings_service.dart';
-import 'package:snickerdoodle/src/features/settings/application/joke_viewer_settings_service.dart';
 import 'package:snickerdoodle/src/utils/joke_viewer_utils.dart';
 
 class AdBannerWidget extends ConsumerStatefulWidget {
@@ -38,9 +37,6 @@ class _AdBannerWidgetState extends ConsumerState<AdBannerWidget> {
     } else if (!ctx.isPortrait) {
       skippedReason = 'Not portrait mode';
       AppLogger.info('BANNER_AD: Skipped: Not portrait mode');
-    } else if (!ctx.isRevealMode) {
-      skippedReason = 'Not reveal mode';
-      AppLogger.info('BANNER_AD: Skipped: Not reveal mode');
     } else {
       skippedReason = null;
       AppLogger.info('BANNER_AD: Showing');
@@ -53,7 +49,7 @@ class _AdBannerWidgetState extends ConsumerState<AdBannerWidget> {
     if (!shouldShow) {
       final controllerState = ref.read(bannerAdControllerProvider);
       if (controllerState.shouldShow != shouldShow) {
-        analytics.logAdBannerSkipped(reason: skippedReason);
+        analytics.logAdBannerStatus(skipReason: skippedReason);
       }
     }
 
@@ -68,9 +64,6 @@ class _AdBannerWidgetState extends ConsumerState<AdBannerWidget> {
 
   @override
   Widget build(BuildContext context) {
-    // Watch reveal provider to rebuild when it changes
-    ref.watch(jokeViewerRevealProvider);
-
     _evaluate();
     final state = ref.watch(bannerAdControllerProvider);
     final ad = state.ad;

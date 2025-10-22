@@ -61,8 +61,9 @@ void main() {
     mockAnalyticsService = MockAnalyticsService();
 
     when(
-      () =>
-          mockAnalyticsService.logAdBannerSkipped(reason: any(named: 'reason')),
+      () => mockAnalyticsService.logAdBannerStatus(
+        skipReason: any(named: 'skipReason'),
+      ),
     ).thenReturn(null);
   });
 
@@ -109,7 +110,8 @@ void main() {
 
     // With guarded logging, no log when state already matches hidden
     verifyNever(
-      () => mockAnalyticsService.logAdBannerSkipped(reason: 'Not banner mode'),
+      () =>
+          mockAnalyticsService.logAdBannerStatus(skipReason: 'Not banner mode'),
     );
   });
 
@@ -156,8 +158,9 @@ void main() {
 
     // With guarded logging, no log when state already matches hidden
     verifyNever(
-      () =>
-          mockAnalyticsService.logAdBannerSkipped(reason: 'Not portrait mode'),
+      () => mockAnalyticsService.logAdBannerStatus(
+        skipReason: 'Not portrait mode',
+      ),
     );
   });
 
@@ -204,7 +207,8 @@ void main() {
 
     // With guarded logging, no log when state already matches hidden
     verifyNever(
-      () => mockAnalyticsService.logAdBannerSkipped(reason: 'Not reveal mode'),
+      () =>
+          mockAnalyticsService.logAdBannerStatus(skipReason: 'Not reveal mode'),
     );
   });
 
@@ -257,7 +261,8 @@ void main() {
     // Should NOT log analytics event for "Not banner mode" because admin override
     // forces banner mode, but the ad still won't show because it's not loaded
     verifyNever(
-      () => mockAnalyticsService.logAdBannerSkipped(reason: 'Not banner mode'),
+      () =>
+          mockAnalyticsService.logAdBannerStatus(skipReason: 'Not banner mode'),
     );
   });
 
@@ -308,8 +313,9 @@ void main() {
 
     // With guarded logging, no log when state already matches hidden
     verifyNever(
-      () =>
-          mockAnalyticsService.logAdBannerSkipped(reason: 'Not portrait mode'),
+      () => mockAnalyticsService.logAdBannerStatus(
+        skipReason: 'Not portrait mode',
+      ),
     );
   });
 }

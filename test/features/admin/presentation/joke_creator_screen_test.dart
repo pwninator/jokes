@@ -22,7 +22,10 @@ void main() {
         overrides: [
           jokeCloudFunctionServiceProvider.overrideWithValue(mockService),
         ],
-        child: MaterialApp(theme: lightTheme, home: const JokeCreatorScreen()),
+        child: MaterialApp(
+          theme: lightTheme,
+          home: Scaffold(body: const JokeCreatorScreen()),
+        ),
       );
     }
 

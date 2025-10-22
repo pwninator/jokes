@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:snickerdoodle/src/common_widgets/badged_icon.dart';
+import 'package:snickerdoodle/src/common_widgets/app_bar_widget.dart';
 import 'package:snickerdoodle/src/common_widgets/banner_ad_widget.dart';
 import 'package:snickerdoodle/src/common_widgets/subscription_prompt_overlay.dart';
 import 'package:snickerdoodle/src/config/router/route_guards.dart';
@@ -139,6 +140,7 @@ class AppRouter {
                     isAdmin: isAdmin,
                     isLandscape: isLandscape,
                     currentLocation: state.uri.path,
+                    ref: ref,
                   ),
                 );
               },
@@ -294,17 +296,6 @@ class AppRouter {
     return AnalyticsJokeContext.dailyJokes;
   }
 
-  /// Wrap child with banner ad for eligible screens
-  static Widget _wrapWithBanner(Widget child, String currentLocation) {
-    final jokeContext = _getJokeContextFromRoute(currentLocation);
-    return Column(
-      children: [
-        AdBannerWidget(jokeContext: jokeContext),
-        Expanded(child: child),
-      ],
-    );
-  }
-
   /// Build the main navigation structure based on current route and user permissions
   static Widget _buildMainNavigation({
     required BuildContext context,
@@ -312,9 +303,9 @@ class AppRouter {
     required bool isAdmin,
     required bool isLandscape,
     required String currentLocation,
+    required WidgetRef ref,
   }) {
-    // Wrap child with banner ad for eligible screens
-    final wrappedChild = _wrapWithBanner(child, currentLocation);
+    final jokeContext = _getJokeContextFromRoute(currentLocation);
 
     // Determine selected index based on current route
     int selectedIndex = _getSelectedIndexFromRoute(currentLocation, isAdmin);
@@ -366,8 +357,26 @@ class AppRouter {
             })
             .toList();
 
+        final appBarConfig = ref.watch(appBarConfigProvider);
+
+        // Build portrait AppBar using config
+        PreferredSizeWidget? portraitAppBar;
+        if (!isLandscape) {
+          portraitAppBar = AppBarWidget(
+            title: appBarConfig?.title ?? 'Snickerdoodle',
+            leading: appBarConfig?.leading,
+            actions: appBarConfig?.actions,
+            automaticallyImplyLeading:
+                appBarConfig?.automaticallyImplyLeading ?? true,
+          );
+        }
+
+        final floatingActionButton = ref.watch(floatingActionButtonProvider);
+
         return Scaffold(
           resizeToAvoidBottomInset: resize,
+          appBar: portraitAppBar,
+          floatingActionButton: floatingActionButton,
           body: isLandscape
               ? Row(
                   children: [
@@ -429,11 +438,36 @@ class AppRouter {
                     ),
                     const VerticalDivider(thickness: 1, width: 1),
                     Expanded(
-                      child: RailHost(railWidth: 180, child: wrappedChild),
+                      child: RailHost(
+                        railWidth: 180,
+                        child: Column(
+                          children: [
+                            // 8px spacer AppBar only over content area
+                            PreferredSize(
+                              preferredSize: const Size.fromHeight(8.0),
+                              child: AppBar(
+                                backgroundColor: Theme.of(
+                                  context,
+                                ).colorScheme.surface,
+                                elevation: 0,
+                                automaticallyImplyLeading: false,
+                                scrolledUnderElevation: 0,
+                              ),
+                            ),
+                            AdBannerWidget(jokeContext: jokeContext),
+                            Expanded(child: child),
+                          ],
+                        ),
+                      ),
                     ),
                   ],
                 )
-              : wrappedChild,
+              : Column(
+                  children: [
+                    AdBannerWidget(jokeContext: jokeContext),
+                    Expanded(child: child),
+                  ],
+                ),
           bottomNavigationBar: isLandscape
               ? null
               : BottomNavigationBar(

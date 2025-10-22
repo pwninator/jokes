@@ -2,7 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 // No-op
-import 'package:snickerdoodle/src/common_widgets/adaptive_app_bar_screen.dart';
+import 'package:snickerdoodle/src/common_widgets/app_bar_configured_screen.dart';
 import 'package:snickerdoodle/src/common_widgets/holdable_button.dart';
 import 'package:snickerdoodle/src/common_widgets/image_selector_carousel.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_category_providers.dart';
@@ -67,24 +67,24 @@ class JokeCategoryEditorScreen extends ConsumerWidget {
     return categoryAsync.when(
       data: (category) {
         if (category == null) {
-          return AdaptiveAppBarScreen(
+          return AppBarConfiguredScreen(
             title: 'Edit Category',
             body: const Center(child: Text('Category not found')),
           );
         }
         return PopScope(
           canPop: true,
-          child: AdaptiveAppBarScreen(
+          child: AppBarConfiguredScreen(
             title: 'Edit Category',
             body: JokeCategoryEditorView(category: category),
           ),
         );
       },
-      loading: () => AdaptiveAppBarScreen(
+      loading: () => AppBarConfiguredScreen(
         title: 'Edit Category',
         body: const Center(child: CircularProgressIndicator()),
       ),
-      error: (e, st) => AdaptiveAppBarScreen(
+      error: (e, st) => AppBarConfiguredScreen(
         title: 'Edit Category',
         body: Center(child: Text('Error: $e')),
       ),

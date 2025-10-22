@@ -83,6 +83,20 @@ class NavigationHelpers {
 
   NavigationHelpers(this._ref);
 
+  /// Returns whether there is anything on the GoRouter stack to pop.
+  bool canPop() {
+    final router = _ref.read(goRouterProvider);
+    return router.canPop();
+  }
+
+  /// Pop the current GoRouter route if possible.
+  void pop() {
+    final router = _ref.read(goRouterProvider);
+    if (router.canPop()) {
+      router.pop();
+    }
+  }
+
   /// Navigate to a specific route with analytics tracking
   /// If push is true, uses router.push so back returns to the previous page.
   void navigateToRoute(
@@ -105,3 +119,24 @@ class NavigationHelpers {
     }
   }
 }
+
+/// App bar configuration data provided by screens to the ShellRoute.
+class AppBarConfigData {
+  final String title;
+  final Widget? leading;
+  final List<Widget>? actions;
+  final bool automaticallyImplyLeading;
+
+  const AppBarConfigData({
+    required this.title,
+    this.leading,
+    this.actions,
+    this.automaticallyImplyLeading = true,
+  });
+}
+
+/// Screens set this to configure the global AppBar rendered by the ShellRoute.
+final appBarConfigProvider = StateProvider<AppBarConfigData?>((ref) => null);
+
+/// Screens can provide a floating action button to be shown by the ShellRoute Scaffold.
+final floatingActionButtonProvider = StateProvider<Widget?>((ref) => null);

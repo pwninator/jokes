@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:snickerdoodle/src/common_widgets/adaptive_app_bar_screen.dart';
+import 'package:snickerdoodle/src/common_widgets/app_bar_configured_screen.dart';
 import 'package:snickerdoodle/src/common_widgets/bouncing_button.dart';
 import 'package:snickerdoodle/src/common_widgets/notification_hour_widget.dart';
 import 'package:snickerdoodle/src/common_widgets/subscription_prompt_dialog.dart';
@@ -136,7 +136,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
     final currentUser = ref.watch(currentUserProvider);
     final authController = ref.watch(authControllerProvider);
 
-    return AdaptiveAppBarScreen(
+    return AppBarConfiguredScreen(
       title: 'Settings',
       automaticallyImplyLeading: false,
       body: Padding(

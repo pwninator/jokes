@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:snickerdoodle/src/common_widgets/adaptive_app_bar_screen.dart';
+import 'package:snickerdoodle/src/common_widgets/app_bar_configured_screen.dart';
 import 'package:snickerdoodle/src/common_widgets/image_selector_carousel.dart';
 import 'package:snickerdoodle/src/config/router/router_providers.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
@@ -60,7 +60,7 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
       return jokeAsync.when(
         data: (joke) {
           if (joke == null) {
-            return AdaptiveAppBarScreen(
+            return AppBarConfiguredScreen(
               title: 'Edit Joke',
               body: const Center(
                 child: Column(
@@ -76,7 +76,7 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
           }
           return _buildEditorContent(joke);
         },
-        loading: () => AdaptiveAppBarScreen(
+        loading: () => AppBarConfiguredScreen(
           title: 'Edit Joke',
           body: const Center(
             child: Column(
@@ -89,7 +89,7 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
             ),
           ),
         ),
-        error: (error, stackTrace) => AdaptiveAppBarScreen(
+        error: (error, stackTrace) => AppBarConfiguredScreen(
           title: 'Edit Joke',
           body: Center(
             child: Column(
@@ -127,7 +127,7 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
       _selectedPunchlineImageUrl = joke.punchlineImageUrl;
     }
 
-    return AdaptiveAppBarScreen(
+    return AppBarConfiguredScreen(
       title: isEditMode ? 'Edit Joke' : 'Add New Joke',
       body: Padding(
         padding: const EdgeInsets.all(16.0),

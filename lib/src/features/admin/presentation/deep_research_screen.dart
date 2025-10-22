@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:snickerdoodle/src/common_widgets/adaptive_app_bar_screen.dart';
+import 'package:snickerdoodle/src/common_widgets/app_bar_configured_screen.dart';
 import 'package:snickerdoodle/src/features/admin/application/deep_research_composer.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_search_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
@@ -214,7 +214,7 @@ class _DeepResearchScreenState extends ConsumerState<DeepResearchScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return AdaptiveAppBarScreen(
+    return AppBarConfiguredScreen(
       title: 'Deep Research',
       body: Padding(
         padding: const EdgeInsets.all(16.0),

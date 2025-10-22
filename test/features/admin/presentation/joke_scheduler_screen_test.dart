@@ -49,7 +49,7 @@ void main() {
                   null, // Start with no selection to avoid infinite loading
             ),
           ],
-          child: const MaterialApp(home: JokeSchedulerScreen()),
+          child: const MaterialApp(home: Scaffold(body: JokeSchedulerScreen())),
         ),
       );
 

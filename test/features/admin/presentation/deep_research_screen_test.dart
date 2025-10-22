@@ -31,7 +31,9 @@ void main() {
   Widget buildTestWidget(List<Override> overrides) {
     return ProviderScope(
       overrides: overrides,
-      child: const MaterialApp(home: DeepResearchScreen()),
+      child: const MaterialApp(
+        home: Scaffold(body: DeepResearchScreen()),
+      ),
     );
   }
 

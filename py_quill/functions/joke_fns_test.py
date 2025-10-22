@@ -1766,6 +1766,63 @@ class TestOnJokeWrite:
     assert "num_saved_users_fraction" not in update_data
     assert "num_shared_users_fraction" not in update_data
 
+  def test_popularity_score_gets_calculated_and_updated(
+      self, mock_get_joke_embedding, mock_firestore_service):
+    """Test that popularity_score is calculated and updated."""
+    # Arrange
+    after_joke_dict = models.PunnyJoke(
+      key="joke1",
+      setup_text="s",
+      punchline_text="p",
+      num_saved_users=10,
+      num_shared_users=5,
+      num_viewed_users=100,
+      popularity_score=0.0  # Mismatched
+    ).to_dict()
+    mock_event = self._create_mock_event(before_data=None,
+                                         after_data=after_joke_dict)
+
+    # Act
+    joke_fns.on_joke_write.__wrapped__(mock_event)
+
+    # Assert
+    mock_get_joke_embedding.assert_called_once()
+    mock_firestore_service.update_punny_joke.assert_called_once()
+
+    call_args = mock_firestore_service.update_punny_joke.call_args[0]
+    update_data = call_args[1]
+    assert "popularity_score" in update_data
+    # (10 + 5)^2 / 100 = 225 / 100 = 2.25
+    assert update_data["popularity_score"] == 2.25
+
+  def test_popularity_score_with_zero_views_is_zero(
+      self, mock_get_joke_embedding, mock_firestore_service):
+    """Test that popularity_score is 0 when viewed_users is 0."""
+    # Arrange
+    after_joke_dict = models.PunnyJoke(
+      key="joke1",
+      setup_text="s",
+      punchline_text="p",
+      num_saved_users=10,
+      num_shared_users=5,
+      num_viewed_users=0,
+      popularity_score=1.0  # Mismatched
+    ).to_dict()
+    mock_event = self._create_mock_event(before_data=None,
+                                         after_data=after_joke_dict)
+
+    # Act
+    joke_fns.on_joke_write.__wrapped__(mock_event)
+
+    # Assert
+    mock_get_joke_embedding.assert_called_once()
+    mock_firestore_service.update_punny_joke.assert_called_once()
+
+    call_args = mock_firestore_service.update_punny_joke.call_args[0]
+    update_data = call_args[1]
+    assert "popularity_score" in update_data
+    assert update_data["popularity_score"] == 0.0
+
   def test_joke_with_zero_views_does_not_calculate_fractions(
       self, mock_get_joke_embedding, mock_firestore_service):
     """Test that a joke with zero views does not calculate fractions."""
@@ -1917,6 +1974,7 @@ class TestOnJokeWriteSearchSync:
       "public_timestamp": None,
       "num_saved_users_fraction": 0.0,
       "num_shared_users_fraction": 0.0,
+      "popularity_score": 0.0,
     }
 
     # Arrange: A joke's state is changed
@@ -1987,6 +2045,7 @@ class TestOnJokeWriteSearchSync:
       "public_timestamp": None,
       "num_saved_users_fraction": 0.0,
       "num_shared_users_fraction": 0.0,
+      "popularity_score": 0.0,
     }
 
     # Arrange: A joke's save/share count changes
@@ -2025,9 +2084,68 @@ class TestOnJokeWriteSearchSync:
       {
           "num_saved_users_fraction": 0.5,
           "num_shared_users_fraction": 0.2,
+          "popularity_score": 4.9,
       },
       merge=True
     )
     synced_data = search_doc_state["doc"]
     assert synced_data["num_saved_users_fraction"] == 0.5
     assert synced_data["num_shared_users_fraction"] == 0.2
+  def test_popularity_score_change_updates_search_doc(self, monkeypatch,
+                                                  mock_firestore_db):
+    """Verify that changing a joke's popularity_score updates the search subcollection document."""
+    mock_sub_doc_ref = mock_firestore_db["sub_doc_ref"]
+    search_doc_state = mock_firestore_db["search_doc_state"]
+
+    # Pre-fill the search doc state
+    existing_embedding = Vector([1.0, 2.0])
+    search_doc_state["doc"] = {
+      "text_embedding": existing_embedding,
+      "state": models.JokeState.PUBLISHED.value,
+      "public_timestamp": None,
+      "num_saved_users_fraction": 0.0,
+      "num_shared_users_fraction": 0.0,
+      "popularity_score": 0.0
+    }
+
+    # Arrange: A joke's save/share count changes
+    before_joke = models.PunnyJoke(
+      key="joke1",
+      setup_text="A joke.",
+      punchline_text="A punchline.",
+      state=models.JokeState.PUBLISHED,
+      zzz_joke_text_embedding=existing_embedding,
+      num_saved_users=0,
+      num_shared_users=0,
+      num_viewed_users=10,
+      popularity_score=0.0
+    )
+    after_joke = models.PunnyJoke(
+      key="joke1",
+      setup_text="A joke.",
+      punchline_text="A punchline.",
+      state=models.JokeState.PUBLISHED,
+      zzz_joke_text_embedding=existing_embedding,
+      num_saved_users=5,
+      num_shared_users=2,
+      num_viewed_users=10,
+      popularity_score=0.0
+    )
+    event = self._create_mock_event(before_data=before_joke.to_dict(),
+                                    after_data=after_joke.to_dict())
+
+    # Act
+    joke_fns.on_joke_write.__wrapped__(event)
+
+    # Assert
+    # (5+2)^2 / 10 = 4.9
+    mock_sub_doc_ref.set.assert_called_once_with(
+      {
+          "num_saved_users_fraction": 0.5,
+          "num_shared_users_fraction": 0.2,
+          "popularity_score": 4.9
+      },
+      merge=True
+    )
+    synced_data = search_doc_state["doc"]
+    assert synced_data["popularity_score"] == 4.9

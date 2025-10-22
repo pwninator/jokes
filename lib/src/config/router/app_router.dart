@@ -2,8 +2,8 @@ import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:snickerdoodle/src/common_widgets/banner_ad_widget.dart';
 import 'package:snickerdoodle/src/common_widgets/badged_icon.dart';
+import 'package:snickerdoodle/src/common_widgets/banner_ad_widget.dart';
 import 'package:snickerdoodle/src/common_widgets/subscription_prompt_overlay.dart';
 import 'package:snickerdoodle/src/config/router/route_guards.dart';
 import 'package:snickerdoodle/src/config/router/route_names.dart';
@@ -296,21 +296,11 @@ class AppRouter {
 
   /// Wrap child with banner ad for eligible screens
   static Widget _wrapWithBanner(Widget child, String currentLocation) {
-    // Only show banner on joke list screens
-    final shouldShowBanner =
-        currentLocation.startsWith(AppRoutes.jokes) ||
-        currentLocation.startsWith(AppRoutes.saved) ||
-        currentLocation.startsWith(AppRoutes.discover);
-
-    if (!shouldShowBanner) {
-      return child;
-    }
-
     final jokeContext = _getJokeContextFromRoute(currentLocation);
     return Column(
       children: [
-        Expanded(child: child),
         AdBannerWidget(jokeContext: jokeContext),
+        Expanded(child: child),
       ],
     );
   }

@@ -82,33 +82,34 @@ class MockCategoryInteractionsRepository extends Mock
 class FakeFirebaseAnalytics extends Fake implements FirebaseAnalytics {}
 
 class _FixedRemoteValues implements RemoteConfigValues {
-    @override
-    bool getBool(RemoteParam param) => remoteParams[param]?.defaultBool ?? false;
+  @override
+  bool getBool(RemoteParam param) => remoteParams[param]?.defaultBool ?? false;
 
-    @override
-    double getDouble(RemoteParam param) =>
-        remoteParams[param]?.defaultDouble ?? 0.0;
+  @override
+  double getDouble(RemoteParam param) =>
+      remoteParams[param]?.defaultDouble ?? 0.0;
 
-    @override
-    int getInt(RemoteParam param) => remoteParams[param]?.defaultInt ?? 0;
+  @override
+  int getInt(RemoteParam param) => remoteParams[param]?.defaultInt ?? 0;
 
-    @override
-    String getString(RemoteParam param) =>
-        remoteParams[param]?.defaultString ?? '';
+  @override
+  String getString(RemoteParam param) =>
+      remoteParams[param]?.defaultString ?? '';
 
-    @override
-    T getEnum<T>(RemoteParam param) {
-      if (param == RemoteParam.adDisplayMode) {
-        return AdDisplayMode.none as T;
-      }
-      final descriptor = remoteParams[param];
-      final value = descriptor?.enumDefault ??
-          (descriptor?.enumValues != null && descriptor!.enumValues!.isNotEmpty
-              ? descriptor.enumValues!.first
-              : null);
-      return value as T;
+  @override
+  T getEnum<T>(RemoteParam param) {
+    if (param == RemoteParam.adDisplayMode) {
+      return AdDisplayMode.none as T;
     }
+    final descriptor = remoteParams[param];
+    final value =
+        descriptor?.enumDefault ??
+        (descriptor?.enumValues != null && descriptor!.enumValues!.isNotEmpty
+            ? descriptor.enumValues!.first
+            : null);
+    return value as T;
   }
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();

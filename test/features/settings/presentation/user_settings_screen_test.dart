@@ -3,9 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/providers/app_usage_events_provider.dart';
 import 'package:snickerdoodle/src/core/providers/app_version_provider.dart';
+import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/app_review_service.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
@@ -20,6 +20,7 @@ import 'package:snickerdoodle/src/data/reviews/reviews_repository.dart';
 import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
 import 'package:snickerdoodle/src/features/auth/data/models/app_user.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
+import 'package:snickerdoodle/src/features/settings/application/admin_settings_service.dart';
 import 'package:snickerdoodle/src/features/settings/application/joke_viewer_settings_service.dart';
 import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
 import 'package:snickerdoodle/src/features/settings/presentation/user_settings_screen.dart';
@@ -39,6 +40,8 @@ class MockDailyJokeSubscriptionService extends Mock
 class MockRemoteConfigService extends Mock implements RemoteConfigService {}
 
 class MockSettingsService extends Mock implements SettingsService {}
+
+class MockAdminSettingsService extends Mock implements AdminSettingsService {}
 
 class MockReviewsRepository extends Mock implements ReviewsRepository {}
 
@@ -79,6 +82,7 @@ void main() {
   late MockDailyJokeSubscriptionService mockSubscriptionService;
   late MockRemoteConfigValues mockRemoteConfigValues;
   late MockSettingsService mockSettingsService;
+  late MockAdminSettingsService mockAdminSettingsService;
   late MockReviewsRepository mockReviewsRepository;
   late MockFirebaseAnalytics mockFirebaseAnalytics;
   late MockUrlLauncherService mockUrlLauncherService;
@@ -96,6 +100,7 @@ void main() {
     mockSubscriptionService = MockDailyJokeSubscriptionService();
     mockRemoteConfigValues = MockRemoteConfigValues();
     mockSettingsService = MockSettingsService();
+    mockAdminSettingsService = MockAdminSettingsService();
     mockReviewPromptStore = MockReviewPromptStateStore();
     mockReviewsRepository = MockReviewsRepository();
     mockFirebaseAnalytics = MockFirebaseAnalytics();
@@ -135,6 +140,7 @@ void main() {
     _setupSubscriptionServiceDefaults(mockSubscriptionService);
     _setupRemoteConfigValuesDefaults(mockRemoteConfigValues);
     _setupSettingsServiceDefaults(mockSettingsService);
+    _setupAdminSettingsServiceDefaults(mockAdminSettingsService);
     _setupReviewsRepositoryDefaults(mockReviewsRepository);
     _setupFirebaseAnalyticsDefaults(mockFirebaseAnalytics);
 
@@ -158,6 +164,9 @@ void main() {
 
         // Settings
         settingsServiceProvider.overrideWithValue(mockSettingsService),
+        adminSettingsServiceProvider.overrideWithValue(
+          mockAdminSettingsService,
+        ),
         jokeViewerRevealProvider.overrideWith(
           (ref) => JokeViewerRevealNotifier(
             JokeViewerSettingsService(
@@ -874,6 +883,9 @@ void main() {
 
               // Settings
               settingsServiceProvider.overrideWithValue(mockSettingsService),
+              adminSettingsServiceProvider.overrideWithValue(
+                mockAdminSettingsService,
+              ),
               jokeViewerRevealProvider.overrideWith(
                 (ref) => JokeViewerRevealNotifier(
                   JokeViewerSettingsService(
@@ -1162,6 +1174,11 @@ void _setupSettingsServiceDefaults(MockSettingsService mock) {
   when(() => mock.containsKey(any())).thenReturn(false);
   when(() => mock.remove(any())).thenAnswer((_) async {});
   when(() => mock.clear()).thenAnswer((_) async {});
+}
+
+void _setupAdminSettingsServiceDefaults(MockAdminSettingsService mock) {
+  when(() => mock.getAdminOverrideShowBannerAd()).thenReturn(false);
+  when(() => mock.setAdminOverrideShowBannerAd(any())).thenAnswer((_) async {});
 }
 
 void _setupReviewsRepositoryDefaults(MockReviewsRepository mock) {

@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
+import 'package:snickerdoodle/src/core/services/app_logger.dart';
 
 part 'banner_ad_manager.g.dart';
 
@@ -55,8 +56,25 @@ class BannerAdController extends _$BannerAdController {
   String get adUnitId => kDebugMode ? _testAdUnitId : _prodAdUnitId;
 
   void evaluate({required bool shouldShow, required String jokeContext}) {
-    // Always update visibility in state first
-    state = state.copyWith(shouldShow: shouldShow);
+    AppLogger.info(
+      'BANNER_AD: evaluate: shouldShow: $shouldShow, jokeContext: $jokeContext',
+    );
+    // Guard: avoid redundant work/notifications
+    final current = state;
+    if (current.shouldShow == shouldShow) {
+      if (!shouldShow) {
+        return; // already hidden
+      }
+      if (current.isLoaded) {
+        return; // already visible and loaded
+      }
+      // else: shouldShow && not loaded → continue to load
+    }
+
+    // Update visibility only when it actually changes
+    if (current.shouldShow != shouldShow) {
+      state = current.copyWith(shouldShow: shouldShow);
+    }
 
     if (!shouldShow) {
       // Keep ad instance to persist across screens; do not dispose
@@ -66,9 +84,7 @@ class BannerAdController extends _$BannerAdController {
 
     if (_ad != null && _isLoaded) {
       // Already loaded and ready
-      if (!state.isLoaded) {
-        state = state.copyWith(isLoaded: true);
-      }
+      if (!state.isLoaded) state = state.copyWith(isLoaded: true);
       return;
     }
 

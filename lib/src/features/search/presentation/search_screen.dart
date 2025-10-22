@@ -9,7 +9,6 @@ import 'package:snickerdoodle/src/features/jokes/application/joke_list_data_sour
 import 'package:snickerdoodle/src/features/jokes/application/joke_navigation_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_search_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/presentation/joke_list_viewer.dart';
-import 'package:snickerdoodle/src/common_widgets/ad_banner_widget.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key});
@@ -118,7 +117,6 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       title: 'Search',
       body: Column(
         children: [
-          const AdBannerWidget(jokeContext: AnalyticsJokeContext.search),
           Container(
             padding: const EdgeInsets.symmetric(
               horizontal: 16.0,

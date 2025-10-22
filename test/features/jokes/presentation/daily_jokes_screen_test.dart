@@ -124,7 +124,8 @@ class _FixedRemoteValues implements RemoteConfigValues {
       return AdDisplayMode.none as T;
     }
     final descriptor = remoteParams[param];
-    final value = descriptor?.enumDefault ??
+    final value =
+        descriptor?.enumDefault ??
         (descriptor?.enumValues != null && descriptor!.enumValues!.isNotEmpty
             ? descriptor.enumValues!.first
             : null);

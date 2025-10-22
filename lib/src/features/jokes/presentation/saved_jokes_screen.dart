@@ -6,7 +6,6 @@ import 'package:snickerdoodle/src/config/router/router_providers.dart';
 import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_list_data_sources.dart';
 import 'package:snickerdoodle/src/features/jokes/presentation/joke_list_viewer.dart';
-import 'package:snickerdoodle/src/common_widgets/ad_banner_widget.dart';
 
 class SavedJokesScreen extends ConsumerStatefulWidget implements TitledScreen {
   const SavedJokesScreen({super.key});
@@ -50,7 +49,6 @@ class _SavedJokesScreenState extends ConsumerState<SavedJokesScreen> {
       automaticallyImplyLeading: false,
       body: Column(
         children: [
-          const AdBannerWidget(jokeContext: AnalyticsJokeContext.savedJokes),
           Consumer(
             builder: (context, ref, _) {
               final countInfo = ref.watch(_dataSource.resultCount);

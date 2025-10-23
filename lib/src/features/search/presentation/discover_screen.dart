@@ -284,10 +284,9 @@ class _CategoryGrid extends ConsumerWidget {
 
         return LayoutBuilder(
           builder: (context, constraints) {
-            const horizontalPadding = 16.0;
+            const padding = 16.0;
             const spacing = 12.0;
-            final availableWidth =
-                constraints.maxWidth - (horizontalPadding * 2);
+            final availableWidth = constraints.maxWidth - (padding * 2);
 
             int columns = (availableWidth / targetTileWidth).round().clamp(
               1,
@@ -305,9 +304,7 @@ class _CategoryGrid extends ConsumerWidget {
             }
 
             return Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: horizontalPadding,
-              ),
+              padding: const EdgeInsets.all(padding),
               child: MasonryGridView.count(
                 key: const Key('discover_screen-categories-grid'),
                 crossAxisCount: columns,

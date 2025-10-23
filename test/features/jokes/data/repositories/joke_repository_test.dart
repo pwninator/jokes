@@ -433,7 +433,7 @@ void main() {
         expect(page.hasMore, false);
         verify(
           () => mockCollectionReference.where(
-            'num_saved_users_fraction',
+            'popularity_score',
             isGreaterThan: 0.0,
           ),
         );

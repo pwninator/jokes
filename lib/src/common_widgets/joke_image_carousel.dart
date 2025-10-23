@@ -1340,6 +1340,25 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
           ],
         ),
       );
+
+      // Popularity score counter
+      items.add(const SizedBox(width: 12));
+      final Color popularityColor = widget.joke.popularityScore > 0
+          ? Colors.purple.withValues(alpha: 0.9)
+          : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4);
+      items.add(
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.trending_up, size: 20, color: popularityColor),
+            const SizedBox(width: 4),
+            Text(
+              widget.joke.popularityScore.toStringAsFixed(1),
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+            ),
+          ],
+        ),
+      );
     }
 
     if (items.isEmpty) {

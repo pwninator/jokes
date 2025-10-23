@@ -607,25 +607,25 @@ def on_joke_write(event: firestore_fn.Event[firestore_fn.Change]) -> None:
   if after_joke.num_viewed_users > 0:
     num_saved_users_fraction = after_joke.num_saved_users / after_joke.num_viewed_users
     if after_joke.num_saved_users_fraction != num_saved_users_fraction:
-      update_data["num_saved_users_fraction"] = num_saved_users_fraction
-      after_joke.num_saved_users_fraction = num_saved_users_fraction
       logger.info(
         "Joke num_saved_users_fraction mismatch, updating from %s to %s for: %s",
         after_joke.num_saved_users_fraction,
         num_saved_users_fraction,
         after_joke.key,
       )
+      update_data["num_saved_users_fraction"] = num_saved_users_fraction
+      after_joke.num_saved_users_fraction = num_saved_users_fraction
 
     num_shared_users_fraction = after_joke.num_shared_users / after_joke.num_viewed_users
     if after_joke.num_shared_users_fraction != num_shared_users_fraction:
-      update_data["num_shared_users_fraction"] = num_shared_users_fraction
-      after_joke.num_shared_users_fraction = num_shared_users_fraction
       logger.info(
         "Joke num_shared_users_fraction mismatch, updating from %s to %s for: %s",
         after_joke.num_shared_users_fraction,
         num_shared_users_fraction,
         after_joke.key,
       )
+      update_data["num_shared_users_fraction"] = num_shared_users_fraction
+      after_joke.num_shared_users_fraction = num_shared_users_fraction
 
   popularity_score = 0.0
   if after_joke.num_viewed_users > 0:
@@ -633,14 +633,14 @@ def on_joke_write(event: firestore_fn.Event[firestore_fn.Change]) -> None:
     popularity_score = (num_saves_and_shares * num_saves_and_shares /
                         after_joke.num_viewed_users)
   if after_joke.popularity_score != popularity_score:
-    update_data["popularity_score"] = popularity_score
-    after_joke.popularity_score = popularity_score
     logger.info(
       "Joke popularity_score mismatch, updating from %s to %s for: %s",
       after_joke.popularity_score,
       popularity_score,
       after_joke.key,
     )
+    update_data["popularity_score"] = popularity_score
+    after_joke.popularity_score = popularity_score
 
   tags_lowered = [t.lower() for t in after_joke.tags]
   if tags_lowered != after_joke.tags:

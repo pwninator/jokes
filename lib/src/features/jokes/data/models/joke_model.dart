@@ -21,6 +21,7 @@ class Joke {
   final int numSaves;
   final int numShares;
   final double numSavedUsersFraction;
+  final double popularityScore;
   final JokeAdminRating? adminRating;
   final JokeState? state;
   final DateTime? publicTimestamp;
@@ -44,6 +45,7 @@ class Joke {
     this.numShares = 0,
     this.numViews = 0,
     this.numSavedUsersFraction = 0.0,
+    this.popularityScore = 0.0,
     this.adminRating,
     this.state,
     this.publicTimestamp,
@@ -68,6 +70,7 @@ class Joke {
     int? numSaves,
     int? numShares,
     double? numSavedUsersFraction,
+    double? popularityScore,
     JokeAdminRating? adminRating,
     JokeState? state,
     DateTime? publicTimestamp,
@@ -97,6 +100,7 @@ class Joke {
       numShares: numShares ?? this.numShares,
       numSavedUsersFraction:
           numSavedUsersFraction ?? this.numSavedUsersFraction,
+      popularityScore: popularityScore ?? this.popularityScore,
       adminRating: adminRating ?? this.adminRating,
       state: state ?? this.state,
       publicTimestamp: publicTimestamp ?? this.publicTimestamp,
@@ -122,6 +126,7 @@ class Joke {
       'num_saved_users': numSaves,
       'num_shared_users': numShares,
       'num_saved_users_fraction': numSavedUsersFraction,
+      'popularity_score': popularityScore,
       'admin_rating': adminRating?.value,
       'state': state?.value,
       'public_timestamp': publicTimestamp != null
@@ -153,6 +158,7 @@ class Joke {
       numShares: (map['num_shared_users'] as num?)?.toInt() ?? 0,
       numSavedUsersFraction:
           (map['num_saved_users_fraction'] as num?)?.toDouble() ?? 0.0,
+      popularityScore: (map['popularity_score'] as num?)?.toDouble() ?? 0.0,
       adminRating: JokeAdminRating.fromString(map['admin_rating'] as String?),
       state: JokeState.fromString(map['state'] as String?),
       publicTimestamp: _parsePublicTimestamp(map['public_timestamp']),
@@ -184,7 +190,7 @@ class Joke {
 
   @override
   String toString() =>
-      'Joke(id: $id, setupText: $setupText, punchlineText: $punchlineText, setupImageUrl: $setupImageUrl, punchlineImageUrl: $punchlineImageUrl, setupImageUrlUpscaled: $setupImageUrlUpscaled, punchlineImageUrlUpscaled: $punchlineImageUrlUpscaled, setupImageDescription: $setupImageDescription, punchlineImageDescription: $punchlineImageDescription, allSetupImageUrls: $allSetupImageUrls, allPunchlineImageUrls: $allPunchlineImageUrls, generationMetadata: $generationMetadata, numSaves: $numSaves, numShares: $numShares, numViews: $numViews, numSavedUsersFraction: $numSavedUsersFraction, adminRating: $adminRating, state: $state, publicTimestamp: $publicTimestamp, tags: $tags, seasonal: $seasonal)';
+      'Joke(id: $id, setupText: $setupText, punchlineText: $punchlineText, setupImageUrl: $setupImageUrl, punchlineImageUrl: $punchlineImageUrl, setupImageUrlUpscaled: $setupImageUrlUpscaled, punchlineImageUrlUpscaled: $punchlineImageUrlUpscaled, setupImageDescription: $setupImageDescription, punchlineImageDescription: $punchlineImageDescription, allSetupImageUrls: $allSetupImageUrls, allPunchlineImageUrls: $allPunchlineImageUrls, generationMetadata: $generationMetadata, numSaves: $numSaves, numShares: $numShares, numViews: $numViews, numSavedUsersFraction: $numSavedUsersFraction, popularityScore: $popularityScore, adminRating: $adminRating, state: $state, publicTimestamp: $publicTimestamp, tags: $tags, seasonal: $seasonal)';
 
   @override
   bool operator ==(Object other) {
@@ -207,6 +213,7 @@ class Joke {
         other.numSaves == numSaves &&
         other.numShares == numShares &&
         other.numSavedUsersFraction == numSavedUsersFraction &&
+        other.popularityScore == popularityScore &&
         other.adminRating == adminRating &&
         other.state == state &&
         other.publicTimestamp == publicTimestamp &&
@@ -232,6 +239,7 @@ class Joke {
       numSaves.hashCode ^
       numShares.hashCode ^
       numSavedUsersFraction.hashCode ^
+      popularityScore.hashCode ^
       adminRating.hashCode ^
       state.hashCode ^
       publicTimestamp.hashCode ^

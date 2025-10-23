@@ -69,14 +69,14 @@ void main() {
       // chain: popularity filter
       when(
         () => mockQuery.where(
-          'num_saved_users_fraction',
+          'popularity_score',
           isGreaterThan: any(named: 'isGreaterThan'),
         ),
       ).thenReturn(mockQuery);
 
       // chain: order by popularity
       when(
-        () => mockQuery.orderBy('num_saved_users_fraction', descending: true),
+        () => mockQuery.orderBy('popularity_score', descending: true),
       ).thenReturn(mockQuery);
 
       // chain: tie-breaker order by ID
@@ -118,15 +118,15 @@ void main() {
         () => mockQuery.where('seasonal', isEqualTo: 'Halloween'),
       ).called(1);
       verify(
-        () => mockQuery.orderBy('num_saved_users_fraction', descending: true),
+        () => mockQuery.orderBy('popularity_score', descending: true),
       ).called(1);
       verify(() => mockQuery.limit(10)).called(1);
     });
 
     test('returns ids and cursor when docs present', () async {
       final docs = [
-        createDoc('a', {'num_saved_users_fraction': 0.7}),
-        createDoc('b', {'num_saved_users_fraction': 0.6}),
+        createDoc('a', {'popularity_score': 0.7}),
+        createDoc('b', {'popularity_score': 0.6}),
       ];
       when(() => mockQuery.get()).thenAnswer((_) async => mockQuerySnapshot);
       when(() => mockQuerySnapshot.docs).thenReturn(docs);

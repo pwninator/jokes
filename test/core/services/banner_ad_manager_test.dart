@@ -24,7 +24,6 @@ void main() {
     late ProviderContainer container;
     late MockAnalyticsService mockAnalytics;
     late StateProvider<BannerAdEligibility> eligibilityStateProvider;
-    late StateController<BannerAdEligibility> eligibilityController;
 
     setUpAll(() {
       registerFallbackValue(FakeBannerAd());
@@ -69,7 +68,6 @@ void main() {
           ),
         ],
       );
-      eligibilityController = container.read(eligibilityStateProvider.notifier);
     });
 
     tearDown(() {

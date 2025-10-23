@@ -11,6 +11,7 @@ import 'package:snickerdoodle/src/config/router/route_names.dart';
 import 'package:snickerdoodle/src/config/router/router_providers.dart';
 import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
 import 'package:snickerdoodle/src/core/services/notification_service.dart';
+import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:snickerdoodle/src/data/core/app/firebase_providers.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/deep_research_screen.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_admin_screen.dart';
@@ -22,6 +23,7 @@ import 'package:snickerdoodle/src/features/admin/presentation/joke_feedback_scre
 import 'package:snickerdoodle/src/features/admin/presentation/joke_management_screen.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_scheduler_screen.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/users_analytics_screen.dart';
+import 'package:snickerdoodle/src/features/ads/banner_ad_service.dart';
 import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
 import 'package:snickerdoodle/src/features/book_creator/book_creator_screen.dart';
 import 'package:snickerdoodle/src/features/feedback/presentation/feedback_conversation_screen.dart';
@@ -358,6 +360,13 @@ class AppRouter {
             .toList();
 
         final appBarConfig = ref.watch(appBarConfigProvider);
+        final bannerEligibility = ref.watch(bannerAdEligibilityProvider);
+        final showTopBannerAd =
+            bannerEligibility.isEligible &&
+            bannerEligibility.position == BannerAdPosition.top;
+        final showBottomBannerAd =
+            bannerEligibility.isEligible &&
+            bannerEligibility.position == BannerAdPosition.bottom;
 
         // Build portrait AppBar using config
         PreferredSizeWidget? portraitAppBar;
@@ -457,51 +466,69 @@ class AppRouter {
                 )
               : Column(
                   children: [
-                    AdBannerWidget(
-                      key: Key('banner-ad'),
-                      jokeContext: jokeContext,
-                    ),
+                    showTopBannerAd
+                        ? AdBannerWidget(
+                            key: const Key('banner-ad-top'),
+                            jokeContext: jokeContext,
+                          )
+                        : const SizedBox.shrink(),
                     Expanded(child: child),
                   ],
                 ),
           bottomNavigationBar: isLandscape
               ? null
-              : BottomNavigationBar(
-                  type: BottomNavigationBarType.fixed,
-                  items: navItems,
-                  currentIndex: selectedIndex,
-                  selectedItemColor: selectedColor,
-                  unselectedItemColor: unselectedColor,
-                  selectedLabelStyle: TextStyle(
-                    fontWeight: FontWeight.w700,
-                    color: selectedColor,
-                    fontSize: 12,
-                  ),
-                  unselectedLabelStyle: TextStyle(
-                    fontWeight: FontWeight.w500,
-                    color: unselectedColor,
-                    fontSize: 11,
-                  ),
-                  backgroundColor: Theme.of(context).colorScheme.surface,
-                  elevation: 8,
-                  selectedIconTheme: IconThemeData(
-                    size: 26,
-                    color: selectedColor,
-                  ),
-                  unselectedIconTheme: IconThemeData(
-                    size: 24,
-                    color: unselectedColor,
-                  ),
-                  onTap: (index) {
-                    _navigateToIndex(
-                      context,
-                      ref,
-                      index,
-                      selectedIndex,
-                      isAdmin,
-                      currentLocation,
-                    );
-                  },
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    MediaQuery.removePadding(
+                      context: context,
+                      // Remove bottom safe area padding if bottom banner ad is shown
+                      removeBottom: showBottomBannerAd,
+                      child: BottomNavigationBar(
+                        type: BottomNavigationBarType.fixed,
+                        items: navItems,
+                        currentIndex: selectedIndex,
+                        selectedItemColor: selectedColor,
+                        unselectedItemColor: unselectedColor,
+                        selectedLabelStyle: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: selectedColor,
+                          fontSize: 12,
+                        ),
+                        unselectedLabelStyle: TextStyle(
+                          fontWeight: FontWeight.w500,
+                          color: unselectedColor,
+                          fontSize: 11,
+                        ),
+                        backgroundColor: Theme.of(context).colorScheme.surface,
+                        elevation: 8,
+                        selectedIconTheme: IconThemeData(
+                          size: 26,
+                          color: selectedColor,
+                        ),
+                        unselectedIconTheme: IconThemeData(
+                          size: 24,
+                          color: unselectedColor,
+                        ),
+                        onTap: (index) {
+                          _navigateToIndex(
+                            context,
+                            ref,
+                            index,
+                            selectedIndex,
+                            isAdmin,
+                            currentLocation,
+                          );
+                        },
+                      ),
+                    ),
+                    showBottomBannerAd
+                        ? AdBannerWidget(
+                            key: const Key('banner-ad-bottom'),
+                            jokeContext: jokeContext,
+                          )
+                        : const SizedBox.shrink(),
+                  ],
                 ),
         );
       },

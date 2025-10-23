@@ -6,6 +6,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/banner_ad_manager.dart';
 import 'package:snickerdoodle/src/features/ads/banner_ad_service.dart';
+import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 
 class MockAnalyticsService extends Mock implements AnalyticsService {}
 
@@ -35,6 +36,7 @@ void main() {
         return const BannerAdEligibility(
           isEligible: false,
           reason: BannerAdService.notBannerModeReason,
+          position: BannerAdPosition.top,
         );
       });
 

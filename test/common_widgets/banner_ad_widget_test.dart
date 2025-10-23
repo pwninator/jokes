@@ -5,8 +5,8 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:snickerdoodle/src/common_widgets/banner_ad_widget.dart';
-import 'package:snickerdoodle/src/core/providers/settings_providers.dart';
 import 'package:snickerdoodle/src/core/providers/device_orientation_provider.dart';
+import 'package:snickerdoodle/src/core/providers/settings_providers.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:snickerdoodle/src/features/ads/banner_ad_service.dart';
@@ -70,12 +70,6 @@ void main() {
     prefs = await SharedPreferences.getInstance();
 
     mockAnalyticsService = MockAnalyticsService();
-
-    when(
-      () => mockAnalyticsService.logAdBannerStatus(
-        skipReason: any(named: 'skipReason'),
-      ),
-    ).thenReturn(null);
   });
 
   testWidgets('renders SizedBox.shrink when remote config disables ads', (
@@ -97,6 +91,7 @@ void main() {
             const BannerAdEligibility(
               isEligible: false,
               reason: BannerAdService.notBannerModeReason,
+              position: BannerAdPosition.top,
             ),
           ),
           remoteConfigValuesProvider.overrideWithValue(fakeRemoteConfig),
@@ -126,12 +121,6 @@ void main() {
     expect(find.byType(AdBannerWidget), findsOneWidget);
     expect(find.byType(SizedBox), findsOneWidget);
     expect(find.byType(AdWidget), findsNothing);
-
-    // With guarded logging, no log when state already matches hidden
-    verifyNever(
-      () =>
-          mockAnalyticsService.logAdBannerStatus(skipReason: 'Not banner mode'),
-    );
   });
 
   testWidgets('renders SizedBox.shrink when in landscape orientation', (
@@ -149,6 +138,7 @@ void main() {
       (ref) => const BannerAdEligibility(
         isEligible: true,
         reason: BannerAdService.eligibleReason,
+        position: BannerAdPosition.top,
       ),
     );
 
@@ -189,6 +179,7 @@ void main() {
         .state = const BannerAdEligibility(
       isEligible: false,
       reason: BannerAdService.notPortraitReason,
+      position: BannerAdPosition.top,
     );
     await tester.pump();
     await tester.pump();
@@ -197,13 +188,6 @@ void main() {
     expect(find.byType(AdBannerWidget), findsOneWidget);
     expect(find.byType(SizedBox), findsOneWidget);
     expect(find.byType(AdWidget), findsNothing);
-
-    // Logs once when transitioning from showing to hidden due to orientation.
-    verify(
-      () => mockAnalyticsService.logAdBannerStatus(
-        skipReason: 'Not portrait mode',
-      ),
-    ).called(1);
   });
 
   testWidgets('renders SizedBox.shrink when not in reveal mode', (
@@ -225,6 +209,7 @@ void main() {
             const BannerAdEligibility(
               isEligible: false,
               reason: 'Not reveal mode',
+              position: BannerAdPosition.top,
             ),
           ),
           remoteConfigValuesProvider.overrideWithValue(fakeRemoteConfig),
@@ -254,12 +239,6 @@ void main() {
     expect(find.byType(AdBannerWidget), findsOneWidget);
     expect(find.byType(SizedBox), findsOneWidget);
     expect(find.byType(AdWidget), findsNothing);
-
-    // With guarded logging, no log when state already matches hidden
-    verifyNever(
-      () =>
-          mockAnalyticsService.logAdBannerStatus(skipReason: 'Not reveal mode'),
-    );
   });
 
   testWidgets('admin override forces banner mode regardless of remote config', (
@@ -285,6 +264,7 @@ void main() {
             const BannerAdEligibility(
               isEligible: true,
               reason: BannerAdService.eligibleReason,
+              position: BannerAdPosition.top,
             ),
           ),
           remoteConfigValuesProvider.overrideWithValue(fakeRemoteConfig),
@@ -315,13 +295,6 @@ void main() {
     expect(find.byType(AdBannerWidget), findsOneWidget);
     expect(_bannerSizedBoxFinder(), findsOneWidget);
     expect(find.byType(AdWidget), findsNothing);
-
-    // Should NOT log analytics event for "Not banner mode" because admin override
-    // forces banner mode, but the ad still won't show because it's not loaded
-    verifyNever(
-      () =>
-          mockAnalyticsService.logAdBannerStatus(skipReason: 'Not banner mode'),
-    );
   });
 
   testWidgets('admin override respects portrait and reveal mode constraints', (
@@ -340,6 +313,7 @@ void main() {
       (ref) => const BannerAdEligibility(
         isEligible: true,
         reason: BannerAdService.eligibleReason,
+        position: BannerAdPosition.top,
       ),
     );
 
@@ -383,6 +357,7 @@ void main() {
         .state = const BannerAdEligibility(
       isEligible: false,
       reason: BannerAdService.notPortraitReason,
+      position: BannerAdPosition.top,
     );
     await tester.pump();
     await tester.pump();
@@ -391,12 +366,5 @@ void main() {
     expect(find.byType(AdBannerWidget), findsOneWidget);
     expect(find.byType(SizedBox), findsOneWidget);
     expect(find.byType(AdWidget), findsNothing);
-
-    // Logs once when transitioning from showing to hidden due to orientation.
-    verify(
-      () => mockAnalyticsService.logAdBannerStatus(
-        skipReason: 'Not portrait mode',
-      ),
-    ).called(1);
   });
 }

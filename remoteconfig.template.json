@@ -102,6 +102,13 @@
           },
           "description": "Controls in-app ads: none|banner",
           "valueType": "STRING"
+        },
+        "banner_ad_position": {
+          "defaultValue": {
+            "value": "top"
+          },
+          "description": "Controls banner ad placement: top|bottom",
+          "valueType": "STRING"
         }
       }
     },

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
-import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/banner_ad_manager.dart';
 import 'package:snickerdoodle/src/features/ads/banner_ad_service.dart';
 
@@ -32,17 +31,7 @@ class _AdBannerWidgetState extends ConsumerState<AdBannerWidget> {
   }
 
   void _handleEligibility(BannerAdEligibility eligibility) {
-    final analytics = ref.read(analyticsServiceProvider);
-    final skippedReason = eligibility.isEligible ? null : eligibility.reason;
     final shouldShow = eligibility.isEligible;
-
-    if (!shouldShow) {
-      final controllerState = ref.read(bannerAdControllerProvider);
-      if (controllerState.shouldShow != shouldShow) {
-        analytics.logAdBannerStatus(skipReason: skippedReason);
-      }
-    }
-
     Future.microtask(() {
       if (!mounted) return;
       ref

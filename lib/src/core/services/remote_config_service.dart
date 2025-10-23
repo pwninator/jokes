@@ -94,6 +94,11 @@ const Map<RemoteParam, RemoteParamDescriptor> remoteParams = {
     enumValues: AdDisplayMode.values,
     enumDefault: AdDisplayMode.none,
   ),
+  RemoteParam.bannerAdPosition: EnumRemoteParamDescriptor(
+    key: 'banner_ad_position',
+    enumValues: BannerAdPosition.values,
+    enumDefault: BannerAdPosition.top,
+  ),
 };
 
 enum RemoteParam {
@@ -109,6 +114,7 @@ enum RemoteParam {
   defaultJokeViewerReveal,
   shareImagesMode,
   adDisplayMode,
+  bannerAdPosition,
 }
 
 // Enum used by share images mode configuration
@@ -119,6 +125,9 @@ enum ReviewPromptVariant { none, bunny, kitten }
 
 // Enum for Ad display configuration
 enum AdDisplayMode { none, banner }
+
+// Enum for banner ad placement configuration
+enum BannerAdPosition { top, bottom }
 
 enum RemoteParamType { intType, boolType, doubleType, stringType, enumType }
 

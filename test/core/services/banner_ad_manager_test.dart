@@ -5,6 +5,7 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/banner_ad_manager.dart';
+import 'package:snickerdoodle/src/features/ads/banner_ad_service.dart';
 
 class MockAnalyticsService extends Mock implements AnalyticsService {}
 
@@ -22,6 +23,8 @@ void main() {
   group('BannerAdController', () {
     late ProviderContainer container;
     late MockAnalyticsService mockAnalytics;
+    late StateProvider<BannerAdEligibility> eligibilityStateProvider;
+    late StateController<BannerAdEligibility> eligibilityController;
 
     setUpAll(() {
       registerFallbackValue(FakeBannerAd());
@@ -29,6 +32,12 @@ void main() {
 
     setUp(() {
       mockAnalytics = MockAnalyticsService();
+      eligibilityStateProvider = StateProvider<BannerAdEligibility>((ref) {
+        return const BannerAdEligibility(
+          isEligible: false,
+          reason: BannerAdService.notBannerModeReason,
+        );
+      });
 
       // Stub analytics methods
       when(
@@ -53,8 +62,14 @@ void main() {
       ).thenReturn(null);
 
       container = ProviderContainer(
-        overrides: [analyticsServiceProvider.overrideWithValue(mockAnalytics)],
+        overrides: [
+          analyticsServiceProvider.overrideWithValue(mockAnalytics),
+          bannerAdEligibilityProvider.overrideWith(
+            (ref) => ref.watch(eligibilityStateProvider),
+          ),
+        ],
       );
+      eligibilityController = container.read(eligibilityStateProvider.notifier);
     });
 
     tearDown(() {

@@ -15,16 +15,20 @@ class AdBannerWidget extends ConsumerStatefulWidget {
 }
 
 class _AdBannerWidgetState extends ConsumerState<AdBannerWidget> {
-  bool _eligibilityListenerInitialized = false;
+  late final ProviderSubscription<BannerAdEligibility> _eligibilitySubscription;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      final eligibility = ref.read(bannerAdEligibilityProvider);
-      _handleEligibility(eligibility);
-    });
+    final initialEligibility = ref.read(bannerAdEligibilityProvider);
+    _handleEligibility(initialEligibility);
+    _eligibilitySubscription = ref.listenManual<BannerAdEligibility>(
+      bannerAdEligibilityProvider,
+      (previous, next) {
+        if (previous == next) return;
+        _handleEligibility(next);
+      },
+    );
   }
 
   void _handleEligibility(BannerAdEligibility eligibility) {
@@ -32,11 +36,15 @@ class _AdBannerWidgetState extends ConsumerState<AdBannerWidget> {
     final skippedReason = eligibility.isEligible ? null : eligibility.reason;
     final shouldShow = eligibility.isEligible;
 
-    analytics.logAdBannerStatus(skipReason: skippedReason);
+    if (!shouldShow) {
+      final controllerState = ref.read(bannerAdControllerProvider);
+      if (controllerState.shouldShow != shouldShow) {
+        analytics.logAdBannerStatus(skipReason: skippedReason);
+      }
+    }
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    Future.microtask(() {
       if (!mounted) return;
-      // Always delegate; controller guards redundant work
       ref
           .read(bannerAdControllerProvider.notifier)
           .evaluate(shouldShow: shouldShow, jokeContext: widget.jokeContext);
@@ -44,31 +52,24 @@ class _AdBannerWidgetState extends ConsumerState<AdBannerWidget> {
   }
 
   @override
+  void dispose() {
+    _eligibilitySubscription.close();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    if (!_eligibilityListenerInitialized) {
-      ref.listen<BannerAdEligibility>(bannerAdEligibilityProvider, (
-        previous,
-        next,
-      ) {
-        if (previous == next) return;
-        _handleEligibility(next);
-      });
-      _eligibilityListenerInitialized = true;
+    final eligibility = ref.watch(bannerAdEligibilityProvider);
+    if (!eligibility.isEligible) {
+      return const SizedBox.shrink();
     }
 
     final state = ref.watch(bannerAdControllerProvider);
     final ad = state.ad;
-    if (!state.shouldShow || !state.isLoaded || ad == null) {
-      return const SizedBox.shrink();
-    }
-    return SafeArea(
-      top: true,
-      bottom: false,
-      child: SizedBox(
-        height: ad.size.height.toDouble(),
-        width: ad.size.width.toDouble(),
-        child: AdWidget(ad: ad),
-      ),
-    );
+    final height =
+        ad?.size.height.toDouble() ?? AdSize.banner.height.toDouble();
+    final width = ad?.size.width.toDouble() ?? AdSize.banner.width.toDouble();
+    final adWidget = ad != null ? AdWidget(ad: ad) : const SizedBox.shrink();
+    return SizedBox(height: height, width: width, child: adWidget);
   }
 }

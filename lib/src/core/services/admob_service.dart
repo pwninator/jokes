@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -25,9 +24,10 @@ class GoogleAdMobService implements AdMobService {
         tagForChildDirectedTreatment: TagForChildDirectedTreatment.yes,
         tagForUnderAgeOfConsent: TagForUnderAgeOfConsent.yes,
         maxAdContentRating: MaxAdContentRating.g,
-        testDeviceIds: kDebugMode
-            ? <String>['TEST_DEVICE_ID']
-            : const <String>[],
+        testDeviceIds: const <String>[
+          'TEST_DEVICE_ID',
+          'D3B83E413D3297B99A61183DDB51FC19',
+        ],
       );
       await MobileAds.instance.updateRequestConfiguration(configuration);
       await MobileAds.instance.initialize();

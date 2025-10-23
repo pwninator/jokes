@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/config/router/router_providers.dart';
 import 'package:snickerdoodle/src/core/providers/crash_reporting_provider.dart';
+import 'package:snickerdoodle/src/core/providers/device_orientation_provider.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
@@ -75,6 +76,10 @@ class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
       darkTheme: darkTheme,
       themeMode: themeMode,
       routerConfig: router,
+      builder: (context, child) {
+        final subtree = child ?? const SizedBox.shrink();
+        return DeviceOrientationObserver(child: subtree);
+      },
     );
   }
 }

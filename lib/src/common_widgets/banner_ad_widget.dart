@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
+import 'package:snickerdoodle/src/core/providers/device_orientation_provider.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/banner_ad_manager.dart';
 import 'package:snickerdoodle/src/features/ads/banner_ad_service.dart';
@@ -15,11 +16,20 @@ class AdBannerWidget extends ConsumerStatefulWidget {
 }
 
 class _AdBannerWidgetState extends ConsumerState<AdBannerWidget> {
+  bool _orientationListenerInitialized = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _evaluate();
+    });
+  }
+
   void _evaluate() {
     final analytics = ref.read(analyticsServiceProvider);
-    final eligibility = ref
-        .read(bannerAdServiceProvider)
-        .evaluateEligibility(context);
+    final eligibility = ref.read(bannerAdServiceProvider).evaluateEligibility();
     final skippedReason = eligibility.isEligible ? null : eligibility.reason;
     final shouldShow = eligibility.isEligible;
 
@@ -41,13 +51,15 @@ class _AdBannerWidgetState extends ConsumerState<AdBannerWidget> {
   }
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _evaluate();
-  }
-
-  @override
   Widget build(BuildContext context) {
+    if (!_orientationListenerInitialized) {
+      ref.listen<Orientation>(deviceOrientationProvider, (previous, next) {
+        if (previous == next) return;
+        _evaluate();
+      });
+      _orientationListenerInitialized = true;
+    }
+
     final state = ref.watch(bannerAdControllerProvider);
     final ad = state.ad;
     if (!state.shouldShow || !state.isLoaded || ad == null) {

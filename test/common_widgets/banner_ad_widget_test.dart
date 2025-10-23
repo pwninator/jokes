@@ -6,6 +6,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:snickerdoodle/src/common_widgets/banner_ad_widget.dart';
 import 'package:snickerdoodle/src/core/providers/settings_providers.dart';
+import 'package:snickerdoodle/src/core/providers/device_orientation_provider.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:snickerdoodle/src/features/settings/application/joke_viewer_settings_service.dart';
@@ -96,7 +97,9 @@ void main() {
           ),
         ],
         child: const MaterialApp(
-          home: Scaffold(body: AdBannerWidget(jokeContext: 'daily')),
+          home: DeviceOrientationObserver(
+            child: Scaffold(body: AdBannerWidget(jokeContext: 'daily')),
+          ),
         ),
       ),
     );
@@ -144,7 +147,9 @@ void main() {
           ),
         ],
         child: const MaterialApp(
-          home: Scaffold(body: AdBannerWidget(jokeContext: 'daily')),
+          home: DeviceOrientationObserver(
+            child: Scaffold(body: AdBannerWidget(jokeContext: 'daily')),
+          ),
         ),
       ),
     );
@@ -193,7 +198,9 @@ void main() {
           ),
         ],
         child: const MaterialApp(
-          home: Scaffold(body: AdBannerWidget(jokeContext: 'daily')),
+          home: DeviceOrientationObserver(
+            child: Scaffold(body: AdBannerWidget(jokeContext: 'daily')),
+          ),
         ),
       ),
     );
@@ -245,7 +252,9 @@ void main() {
           ),
         ],
         child: const MaterialApp(
-          home: Scaffold(body: AdBannerWidget(jokeContext: 'daily')),
+          home: DeviceOrientationObserver(
+            child: Scaffold(body: AdBannerWidget(jokeContext: 'daily')),
+          ),
         ),
       ),
     );
@@ -299,7 +308,9 @@ void main() {
           ),
         ],
         child: const MaterialApp(
-          home: Scaffold(body: AdBannerWidget(jokeContext: 'daily')),
+          home: DeviceOrientationObserver(
+            child: Scaffold(body: AdBannerWidget(jokeContext: 'daily')),
+          ),
         ),
       ),
     );

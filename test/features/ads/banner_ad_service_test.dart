@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
@@ -15,20 +15,21 @@ void main() {
   late MockRemoteConfigValues mockRemoteConfigValues;
   late MockAdminSettingsService mockAdminSettingsService;
   late BannerAdService service;
+  late Orientation orientation;
 
   setUp(() {
     mockRemoteConfigValues = MockRemoteConfigValues();
     mockAdminSettingsService = MockAdminSettingsService();
+    orientation = Orientation.portrait;
     service = BannerAdService(
       remoteConfigValues: mockRemoteConfigValues,
       adminSettingsService: mockAdminSettingsService,
+      orientationResolver: () => orientation,
     );
   });
 
   group('evaluateEligibility', () {
-    testWidgets('returns not eligible when ad display mode is not banner', (
-      tester,
-    ) async {
+    test('returns not eligible when ad display mode is not banner', () async {
       when(
         () => mockRemoteConfigValues.getEnum<AdDisplayMode>(
           RemoteParam.adDisplayMode,
@@ -38,27 +39,13 @@ void main() {
         () => mockAdminSettingsService.getAdminOverrideShowBannerAd(),
       ).thenReturn(false);
 
-      BannerAdEligibility? eligibility;
-      await tester.pumpWidget(
-        Directionality(
-          textDirection: TextDirection.ltr,
-          child: Builder(
-            builder: (context) {
-              eligibility = service.evaluateEligibility(context);
-              return const SizedBox.shrink();
-            },
-          ),
-        ),
-      );
-
+      final eligibility = service.evaluateEligibility();
       expect(eligibility, isNotNull);
-      expect(eligibility!.isEligible, isFalse);
-      expect(eligibility!.reason, BannerAdService.notBannerModeReason);
+      expect(eligibility.isEligible, isFalse);
+      expect(eligibility.reason, BannerAdService.notBannerModeReason);
     });
 
-    testWidgets('returns eligible when in banner mode and portrait', (
-      tester,
-    ) async {
+    test('returns eligible when in banner mode and portrait', () async {
       when(
         () => mockRemoteConfigValues.getEnum<AdDisplayMode>(
           RemoteParam.adDisplayMode,
@@ -68,32 +55,14 @@ void main() {
         () => mockAdminSettingsService.getAdminOverrideShowBannerAd(),
       ).thenReturn(false);
 
-      BannerAdEligibility? eligibility;
-      await tester.pumpWidget(
-        MaterialApp(
-          home: MediaQuery(
-            data: const MediaQueryData(
-              size: Size(400, 800),
-              devicePixelRatio: 1.0,
-            ),
-            child: Builder(
-              builder: (context) {
-                eligibility = service.evaluateEligibility(context);
-                return const SizedBox.shrink();
-              },
-            ),
-          ),
-        ),
-      );
-
+      orientation = Orientation.portrait;
+      final eligibility = service.evaluateEligibility();
       expect(eligibility, isNotNull);
-      expect(eligibility!.isEligible, isTrue);
-      expect(eligibility!.reason, BannerAdService.eligibleReason);
+      expect(eligibility.isEligible, isTrue);
+      expect(eligibility.reason, BannerAdService.eligibleReason);
     });
 
-    testWidgets('returns not eligible when orientation is landscape', (
-      tester,
-    ) async {
+    test('returns not eligible when orientation is landscape', () async {
       when(
         () => mockRemoteConfigValues.getEnum<AdDisplayMode>(
           RemoteParam.adDisplayMode,
@@ -103,30 +72,14 @@ void main() {
         () => mockAdminSettingsService.getAdminOverrideShowBannerAd(),
       ).thenReturn(false);
 
-      BannerAdEligibility? eligibility;
-      await tester.pumpWidget(
-        MaterialApp(
-          home: MediaQuery(
-            data: const MediaQueryData(
-              size: Size(800, 400),
-              devicePixelRatio: 1.0,
-            ),
-            child: Builder(
-              builder: (context) {
-                eligibility = service.evaluateEligibility(context);
-                return const SizedBox.shrink();
-              },
-            ),
-          ),
-        ),
-      );
-
+      orientation = Orientation.landscape;
+      final eligibility = service.evaluateEligibility();
       expect(eligibility, isNotNull);
-      expect(eligibility!.isEligible, isFalse);
-      expect(eligibility!.reason, BannerAdService.notPortraitReason);
+      expect(eligibility.isEligible, isFalse);
+      expect(eligibility.reason, BannerAdService.notPortraitReason);
     });
 
-    testWidgets('admin override forces banner mode', (tester) async {
+    test('admin override forces banner mode', () async {
       when(
         () => mockRemoteConfigValues.getEnum<AdDisplayMode>(
           RemoteParam.adDisplayMode,
@@ -136,27 +89,11 @@ void main() {
         () => mockAdminSettingsService.getAdminOverrideShowBannerAd(),
       ).thenReturn(true);
 
-      BannerAdEligibility? eligibility;
-      await tester.pumpWidget(
-        MaterialApp(
-          home: MediaQuery(
-            data: const MediaQueryData(
-              size: Size(400, 800),
-              devicePixelRatio: 1.0,
-            ),
-            child: Builder(
-              builder: (context) {
-                eligibility = service.evaluateEligibility(context);
-                return const SizedBox.shrink();
-              },
-            ),
-          ),
-        ),
-      );
-
+      orientation = Orientation.portrait;
+      final eligibility = service.evaluateEligibility();
       expect(eligibility, isNotNull);
-      expect(eligibility!.isEligible, isTrue);
-      expect(eligibility!.reason, BannerAdService.eligibleReason);
+      expect(eligibility.isEligible, isTrue);
+      expect(eligibility.reason, BannerAdService.eligibleReason);
     });
   });
 }

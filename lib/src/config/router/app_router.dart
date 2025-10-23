@@ -2,8 +2,8 @@ import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:snickerdoodle/src/common_widgets/badged_icon.dart';
 import 'package:snickerdoodle/src/common_widgets/app_bar_widget.dart';
+import 'package:snickerdoodle/src/common_widgets/badged_icon.dart';
 import 'package:snickerdoodle/src/common_widgets/banner_ad_widget.dart';
 import 'package:snickerdoodle/src/common_widgets/subscription_prompt_overlay.dart';
 import 'package:snickerdoodle/src/config/router/route_guards.dart';
@@ -443,7 +443,11 @@ class AppRouter {
                         child: Column(
                           children: [
                             SafeArea(child: SizedBox.shrink()),
-                            AdBannerWidget(jokeContext: jokeContext),
+                            // Landscape banner ad is disabled for now
+                            // AdBannerWidget(
+                            //   key: Key('banner-ad'),
+                            //   jokeContext: jokeContext,
+                            // ),
                             Expanded(child: child),
                           ],
                         ),
@@ -453,7 +457,10 @@ class AppRouter {
                 )
               : Column(
                   children: [
-                    AdBannerWidget(jokeContext: jokeContext),
+                    AdBannerWidget(
+                      key: Key('banner-ad'),
+                      jokeContext: jokeContext,
+                    ),
                     Expanded(child: child),
                   ],
                 ),

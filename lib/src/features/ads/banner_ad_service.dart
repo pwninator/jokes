@@ -18,6 +18,14 @@ BannerAdService bannerAdService(Ref ref) {
   );
 }
 
+@Riverpod(keepAlive: true)
+BannerAdEligibility bannerAdEligibility(Ref ref) {
+  // Watching orientation ensures eligibility updates reactively when it changes.
+  ref.watch(deviceOrientationProvider);
+  final service = ref.watch(bannerAdServiceProvider);
+  return service.evaluateEligibility();
+}
+
 /// Describes the result of the banner ad eligibility evaluation.
 class BannerAdEligibility {
   const BannerAdEligibility({required this.isEligible, required this.reason});
@@ -26,7 +34,6 @@ class BannerAdEligibility {
   final bool isEligible;
 
   /// Human readable reason describing the eligibility decision.
-  /// For eligible results this will be `BannerAdService.eligibleReason`.
   final String reason;
 }
 

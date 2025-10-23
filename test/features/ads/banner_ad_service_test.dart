@@ -1,6 +1,8 @@
 import 'package:flutter/widgets.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:snickerdoodle/src/core/providers/device_orientation_provider.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:snickerdoodle/src/features/ads/banner_ad_service.dart';
 import 'package:snickerdoodle/src/features/settings/application/admin_settings_service.dart';
@@ -14,22 +16,24 @@ void main() {
 
   late MockRemoteConfigValues mockRemoteConfigValues;
   late MockAdminSettingsService mockAdminSettingsService;
-  late BannerAdService service;
-  late Orientation orientation;
+  late ProviderContainer container;
 
   setUp(() {
     mockRemoteConfigValues = MockRemoteConfigValues();
     mockAdminSettingsService = MockAdminSettingsService();
-    orientation = Orientation.portrait;
-    service = BannerAdService(
-      remoteConfigValues: mockRemoteConfigValues,
-      adminSettingsService: mockAdminSettingsService,
-      orientationResolver: () => orientation,
+    container = ProviderContainer(
+      overrides: [
+        remoteConfigValuesProvider.overrideWithValue(mockRemoteConfigValues),
+        adminSettingsServiceProvider.overrideWithValue(
+          mockAdminSettingsService,
+        ),
+      ],
     );
+    addTearDown(container.dispose);
   });
 
-  group('evaluateEligibility', () {
-    test('returns not eligible when ad display mode is not banner', () async {
+  group('bannerAdEligibilityProvider', () {
+    test('returns not eligible when ad display mode is not banner', () {
       when(
         () => mockRemoteConfigValues.getEnum<AdDisplayMode>(
           RemoteParam.adDisplayMode,
@@ -39,13 +43,12 @@ void main() {
         () => mockAdminSettingsService.getAdminOverrideShowBannerAd(),
       ).thenReturn(false);
 
-      final eligibility = service.evaluateEligibility();
-      expect(eligibility, isNotNull);
+      final eligibility = container.read(bannerAdEligibilityProvider);
       expect(eligibility.isEligible, isFalse);
       expect(eligibility.reason, BannerAdService.notBannerModeReason);
     });
 
-    test('returns eligible when in banner mode and portrait', () async {
+    test('returns eligible when in banner mode and portrait', () {
       when(
         () => mockRemoteConfigValues.getEnum<AdDisplayMode>(
           RemoteParam.adDisplayMode,
@@ -55,14 +58,12 @@ void main() {
         () => mockAdminSettingsService.getAdminOverrideShowBannerAd(),
       ).thenReturn(false);
 
-      orientation = Orientation.portrait;
-      final eligibility = service.evaluateEligibility();
-      expect(eligibility, isNotNull);
+      final eligibility = container.read(bannerAdEligibilityProvider);
       expect(eligibility.isEligible, isTrue);
       expect(eligibility.reason, BannerAdService.eligibleReason);
     });
 
-    test('returns not eligible when orientation is landscape', () async {
+    test('returns not eligible when orientation is landscape', () {
       when(
         () => mockRemoteConfigValues.getEnum<AdDisplayMode>(
           RemoteParam.adDisplayMode,
@@ -72,14 +73,14 @@ void main() {
         () => mockAdminSettingsService.getAdminOverrideShowBannerAd(),
       ).thenReturn(false);
 
-      orientation = Orientation.landscape;
-      final eligibility = service.evaluateEligibility();
-      expect(eligibility, isNotNull);
+      container.read(deviceOrientationProvider.notifier).state =
+          Orientation.landscape;
+      final eligibility = container.read(bannerAdEligibilityProvider);
       expect(eligibility.isEligible, isFalse);
       expect(eligibility.reason, BannerAdService.notPortraitReason);
     });
 
-    test('admin override forces banner mode', () async {
+    test('admin override forces banner mode', () {
       when(
         () => mockRemoteConfigValues.getEnum<AdDisplayMode>(
           RemoteParam.adDisplayMode,
@@ -89,9 +90,7 @@ void main() {
         () => mockAdminSettingsService.getAdminOverrideShowBannerAd(),
       ).thenReturn(true);
 
-      orientation = Orientation.portrait;
-      final eligibility = service.evaluateEligibility();
-      expect(eligibility, isNotNull);
+      final eligibility = container.read(bannerAdEligibilityProvider);
       expect(eligibility.isEligible, isTrue);
       expect(eligibility.reason, BannerAdService.eligibleReason);
     });

@@ -442,18 +442,7 @@ class AppRouter {
                         railWidth: 180,
                         child: Column(
                           children: [
-                            // 8px spacer AppBar only over content area
-                            PreferredSize(
-                              preferredSize: const Size.fromHeight(8.0),
-                              child: AppBar(
-                                backgroundColor: Theme.of(
-                                  context,
-                                ).colorScheme.surface,
-                                elevation: 0,
-                                automaticallyImplyLeading: false,
-                                scrolledUnderElevation: 0,
-                              ),
-                            ),
+                            SafeArea(child: SizedBox.shrink()),
                             AdBannerWidget(jokeContext: jokeContext),
                             Expanded(child: child),
                           ],

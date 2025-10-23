@@ -329,11 +329,7 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
                       (_carouselControllers[index] =
                           JokeImageCarouselController());
 
-                  // Title shows index (1-based) for search context, otherwise date (if any)
-                  final String? titleForCard =
-                      widget.jokeContext == AnalyticsJokeContext.search
-                      ? '${index + 1}'
-                      : formattedDate;
+                  final String? titleForCard = formattedDate;
 
                   return Center(
                     key: ValueKey('page-${joke.id}'),

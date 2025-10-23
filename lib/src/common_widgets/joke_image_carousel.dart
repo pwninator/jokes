@@ -1353,7 +1353,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
             Icon(Icons.trending_up, size: 20, color: popularityColor),
             const SizedBox(width: 4),
             Text(
-              widget.joke.popularityScore.toStringAsFixed(1),
+              widget.joke.popularityScore.toStringAsPrecision(3),
               style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
             ),
           ],

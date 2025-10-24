@@ -23,7 +23,7 @@ class GoogleAdMobService implements AdMobService {
       final configuration = RequestConfiguration(
         tagForChildDirectedTreatment: TagForChildDirectedTreatment.yes,
         tagForUnderAgeOfConsent: TagForUnderAgeOfConsent.yes,
-        maxAdContentRating: MaxAdContentRating.g,
+        maxAdContentRating: MaxAdContentRating.pg,
         testDeviceIds: const <String>[
           'TEST_DEVICE_ID',
           'D3B83E413D3297B99A61183DDB51FC19',
@@ -32,7 +32,7 @@ class GoogleAdMobService implements AdMobService {
       await MobileAds.instance.updateRequestConfiguration(configuration);
       await MobileAds.instance.initialize();
       AppLogger.debug(
-        'ADMOB: Initialized with Families policy (G-rated, child-directed)',
+        'ADMOB: Initialized with Families policy (PG-rated, child-directed)',
       );
     } catch (e) {
       AppLogger.fatal('AdMob initialization failed: $e');

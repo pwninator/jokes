@@ -426,7 +426,7 @@ class JokeRepository {
   /// Helper method to atomically increment a field in a joke document
   Future<void> _incrementJokeField(
     String jokeId,
-    String fieldName,
+    List<String> fieldNames,
     int amount,
   ) async {
     await _traceFs(
@@ -435,29 +435,42 @@ class JokeRepository {
       collection: 'jokes',
       docId: jokeId,
       action: () => _firestore.collection('jokes').doc(jokeId).update({
-        fieldName: FieldValue.increment(amount),
+        for (final fieldName in fieldNames)
+          fieldName: FieldValue.increment(amount),
       }),
     );
   }
 
   /// Atomically increment the number of users who viewed this joke
   Future<void> incrementJokeViews(String jokeId) async {
-    await _incrementJokeField(jokeId, 'num_viewed_users', 1);
+    await _incrementJokeField(jokeId, [
+      'num_viewed_users',
+      'num_viewed_users_recent',
+    ], 1);
   }
 
   /// Atomically increment the number of users who saved this joke
   Future<void> incrementJokeSaves(String jokeId) async {
-    await _incrementJokeField(jokeId, 'num_saved_users', 1);
+    await _incrementJokeField(jokeId, [
+      'num_saved_users',
+      'num_saved_users_recent',
+    ], 1);
   }
 
   /// Atomically decrement the number of users who saved this joke
   Future<void> decrementJokeSaves(String jokeId) async {
-    await _incrementJokeField(jokeId, 'num_saved_users', -1);
+    await _incrementJokeField(jokeId, [
+      'num_saved_users',
+      'num_saved_users_recent',
+    ], -1);
   }
 
   /// Atomically increment the number of users who shared this joke
   Future<void> incrementJokeShares(String jokeId) async {
-    await _incrementJokeField(jokeId, 'num_shared_users', 1);
+    await _incrementJokeField(jokeId, [
+      'num_shared_users',
+      'num_shared_users_recent',
+    ], 1);
   }
 
   /// Batch publish jokes

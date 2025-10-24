@@ -510,6 +510,7 @@ void main() {
         verify(
           () => mockDocumentReference.update({
             'num_viewed_users': FieldValue.increment(1),
+            'num_viewed_users_recent': FieldValue.increment(1),
           }),
         );
       });
@@ -520,6 +521,7 @@ void main() {
         verify(
           () => mockDocumentReference.update({
             'num_saved_users': FieldValue.increment(1),
+            'num_saved_users_recent': FieldValue.increment(1),
           }),
         );
       });
@@ -530,6 +532,7 @@ void main() {
         verify(
           () => mockDocumentReference.update({
             'num_saved_users': FieldValue.increment(-1),
+            'num_saved_users_recent': FieldValue.increment(-1),
           }),
         );
       });
@@ -540,6 +543,7 @@ void main() {
         verify(
           () => mockDocumentReference.update({
             'num_shared_users': FieldValue.increment(1),
+            'num_shared_users_recent': FieldValue.increment(1),
           }),
         );
       });

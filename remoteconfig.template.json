@@ -34,14 +34,14 @@
       "parameters": {
         "review_min_days_used": {
           "defaultValue": {
-            "value": "5"
+            "value": "7"
           },
           "description": "Min number of distinct days used before eligible for review request",
           "valueType": "NUMBER"
         },
         "review_min_viewed_jokes": {
           "defaultValue": {
-            "value": "50"
+            "value": "100"
           },
           "description": "Min number of jokes viewed before eligible for review request",
           "valueType": "NUMBER"
@@ -62,14 +62,14 @@
         },
         "review_request_from_joke_viewed": {
           "defaultValue": {
-            "value": "false"
+            "value": "true"
           },
           "description": "If true, allow review request from joke viewed event",
           "valueType": "BOOLEAN"
         },
         "review_require_daily_subscription": {
           "defaultValue": {
-            "value": "true"
+            "value": "false"
           },
           "description": "If true, require daily subscription to be enabled for review request",
           "valueType": "BOOLEAN"

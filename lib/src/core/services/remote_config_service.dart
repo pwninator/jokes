@@ -32,33 +32,33 @@ const Map<RemoteParam, RemoteParamDescriptor> remoteParams = {
   RemoteParam.reviewMinDaysUsed: IntRemoteParamDescriptor(
     key: 'review_min_days_used',
     // Default to never show review prompt
-    defaultInt: 10000,
+    defaultInt: 14,
     isValid: validateNonNegativeInt,
   ),
   RemoteParam.reviewMinViewedJokes: IntRemoteParamDescriptor(
     key: 'review_min_viewed_jokes',
-    defaultInt: 30,
+    defaultInt: 100,
     isValid: validateNonNegativeInt,
   ),
   RemoteParam.reviewMinSavedJokes: IntRemoteParamDescriptor(
     key: 'review_min_saved_jokes',
-    defaultInt: 3,
+    defaultInt: 1,
     isValid: validateNonNegativeInt,
   ),
   RemoteParam.reviewMinSharedJokes: IntRemoteParamDescriptor(
     key: 'review_min_shared_jokes',
-    defaultInt: 1,
+    defaultInt: 0,
     isValid: validateNonNegativeInt,
   ),
   // Gate requesting a review from a joke viewed event
   RemoteParam.reviewRequestFromJokeViewed: BoolRemoteParamDescriptor(
     key: 'review_request_from_joke_viewed',
-    defaultBool: false,
+    defaultBool: true,
   ),
   // Gate review prompt behind user's daily subscription preference
   RemoteParam.reviewRequireDailySubscription: BoolRemoteParamDescriptor(
     key: 'review_require_daily_subscription',
-    defaultBool: true,
+    defaultBool: false,
   ),
   // Review prompt variant (which image/message to show)
   RemoteParam.reviewPromptVariant: EnumRemoteParamDescriptor(

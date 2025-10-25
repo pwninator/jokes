@@ -20,7 +20,7 @@ void main() {
     late MockJokeCategoryRepository mockJokeCategoryRepository;
 
     final testCategory = JokeCategory(
-      id: '1',
+      id: '${JokeCategory.firestorePrefix}1',
       displayName: 'Test Category',
       jokeDescriptionQuery: 'test query',
       state: JokeCategoryState.proposed,

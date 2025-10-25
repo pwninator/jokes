@@ -72,4 +72,29 @@ void main() {
       );
     });
   });
+
+  group('JokeCategory firestore helpers', () {
+    test('firestoreDocumentId strips prefix', () {
+      final category = JokeCategory(
+        id: '${JokeCategory.firestorePrefix}abc',
+        displayName: 'Firestore Cat',
+        type: CategoryType.search,
+        jokeDescriptionQuery: 'cats',
+      );
+
+      expect(category.isFirestoreCategory, isTrue);
+      expect(category.firestoreDocumentId, 'abc');
+    });
+
+    test('firestore helpers leave non-prefixed ids unchanged', () {
+      final category = JokeCategory(
+        id: 'programmatic:popular',
+        displayName: 'Popular',
+        type: CategoryType.popular,
+      );
+
+      expect(category.isFirestoreCategory, isFalse);
+      expect(category.firestoreDocumentId, 'programmatic:popular');
+    });
+  });
 }

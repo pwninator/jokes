@@ -16,7 +16,7 @@ void main() {
             jokeCategoriesProvider.overrideWith(
               (ref) => Stream.value([
                 JokeCategory(
-                  id: 'firestore:1',
+                  id: '${JokeCategory.firestorePrefix}1',
                   displayName: 'Cats',
                   type: CategoryType.search,
                   jokeDescriptionQuery: 'cats',
@@ -57,7 +57,10 @@ void main() {
           isTrue,
         );
         expect(
-          categories.any((category) => category.id == 'firestore:1'),
+          categories.any(
+            (category) =>
+                category.id == '${JokeCategory.firestorePrefix}1',
+          ),
           isTrue,
         );
       },

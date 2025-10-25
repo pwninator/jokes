@@ -33,6 +33,8 @@ enum JokeCategoryState {
 
 @immutable
 class JokeCategory {
+  static const String firestorePrefix = 'firestore:';
+
   final String id;
   final String displayName;
   final String?
@@ -85,7 +87,7 @@ class JokeCategory {
 
   factory JokeCategory.fromMap(Map<String, dynamic> map, String id) {
     return JokeCategory(
-      id: 'firestore:$id',
+      id: '$firestorePrefix$id',
       displayName: (map['display_name'] as String?)?.trim() ?? '',
       jokeDescriptionQuery: (map['joke_description_query'] as String?)?.trim(),
       imageUrl: (map['image_url'] as String?)?.trim(),
@@ -98,5 +100,15 @@ class JokeCategory {
       type: CategoryType.search,
       seasonalValue: null,
     );
+  }
+
+  bool get isFirestoreCategory => id.startsWith(firestorePrefix);
+
+  /// Returns the Firestore document id, without the prefix, for persistence.
+  String get firestoreDocumentId {
+    if (!isFirestoreCategory) {
+      return id;
+    }
+    return id.substring(firestorePrefix.length);
   }
 }

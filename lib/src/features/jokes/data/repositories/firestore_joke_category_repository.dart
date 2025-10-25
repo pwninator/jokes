@@ -25,16 +25,14 @@ class FirestoreJokeCategoryRepository implements JokeCategoryRepository {
 
   @override
   Stream<JokeCategory?> watchCategory(String categoryId) {
-    return _firestore
-        .collection(_collection)
-        .doc(categoryId)
+    return _doc(categoryId)
         .snapshots()
         .map((d) => d.exists ? JokeCategory.fromMap(d.data()!, d.id) : null);
   }
 
   @override
   Future<void> upsertCategory(JokeCategory category) {
-    return _firestore.collection(_collection).doc(category.id).set({
+    return _doc(category.id).set({
       'display_name': category.displayName,
       'joke_description_query': category.jokeDescriptionQuery,
       'image_description': category.imageDescription,
@@ -45,12 +43,12 @@ class FirestoreJokeCategoryRepository implements JokeCategoryRepository {
 
   @override
   Future<void> deleteCategory(String categoryId) {
-    return _firestore.collection(_collection).doc(categoryId).delete();
+    return _doc(categoryId).delete();
   }
 
   @override
   Stream<List<String>> watchCategoryImages(String categoryId) {
-    return _firestore.collection(_collection).doc(categoryId).snapshots().map((
+    return _doc(categoryId).snapshots().map((
       doc,
     ) {
       final data = doc.data();
@@ -69,15 +67,23 @@ class FirestoreJokeCategoryRepository implements JokeCategoryRepository {
 
   @override
   Future<void> addImageToCategory(String categoryId, String imageUrl) {
-    return _firestore.collection(_collection).doc(categoryId).update({
+    return _doc(categoryId).update({
       'all_image_urls': FieldValue.arrayUnion([imageUrl]),
     });
   }
 
   @override
   Future<void> deleteImageFromCategory(String categoryId, String imageUrl) {
-    return _firestore.collection(_collection).doc(categoryId).update({
+    return _doc(categoryId).update({
       'all_image_urls': FieldValue.arrayRemove([imageUrl]),
     });
+  }
+
+  DocumentReference<Map<String, dynamic>> _doc(String categoryId) {
+    final docId =
+        categoryId.startsWith(JokeCategory.firestorePrefix)
+            ? categoryId.substring(JokeCategory.firestorePrefix.length)
+            : categoryId;
+    return _firestore.collection(_collection).doc(docId);
   }
 }

@@ -192,6 +192,8 @@ def _decay_recent_joke_stats_internal(run_time_utc: datetime.datetime) -> None:
 
   batch = db_client.batch()
   writes_in_batch = 0
+  jokes_decayed = 0
+  jokes_skipped = 0
 
   for joke_doc in joke_docs:
     if not joke_doc.exists:
@@ -199,22 +201,31 @@ def _decay_recent_joke_stats_internal(run_time_utc: datetime.datetime) -> None:
     joke_data = joke_doc.to_dict() or {}
 
     if _should_skip_recent_update(joke_data, run_time_utc):
+      jokes_skipped += 1
       continue
 
     payload = _build_recent_decay_payload(joke_data)
     if not payload:
-      continue
+      raise ValueError(
+        f"No payload to decay recent stats for joke: {joke_doc.reference}")
 
     batch.update(joke_doc.reference, payload)
     writes_in_batch += 1
+    jokes_decayed += 1
 
     if writes_in_batch >= _MAX_FIRESTORE_WRITE_BATCH_SIZE:
+      logger.info("Committing batch of %s writes", writes_in_batch)
       batch.commit()
       batch = db_client.batch()
       writes_in_batch = 0
 
   if writes_in_batch:
+    logger.info("Committing final batch of %s writes", writes_in_batch)
     batch.commit()
+
+  logger.info(
+    f"Recent joke stats decay completed: {jokes_decayed} jokes decayed, {jokes_skipped} jokes skipped"
+  )
 
 
 def _should_skip_recent_update(
@@ -282,14 +293,12 @@ def _coerce_counter_to_float(value: object) -> float | None:
     return None
 
 
-def get_joke_embedding(
+def _get_joke_embedding(
     joke: models.PunnyJoke) -> tuple[Vector, models.GenerationMetadata]:
   """Get an embedding for a joke."""
   return search.get_embedding(
     text=f"{joke.setup_text} {joke.punchline_text}",
     task_type=search.TaskType.RETRIEVAL_DOCUMENT,
-    model="gemini-embedding-001",
-    output_dimensionality=2048,
   )
 
 
@@ -420,7 +429,7 @@ def on_joke_write(event: firestore_fn.Event[firestore_fn.Change]) -> None:
     recent_values[recent_field] = recent_value
 
   if should_update_embedding:
-    embedding, metadata = get_joke_embedding(after_joke)
+    embedding, metadata = _get_joke_embedding(after_joke)
     new_embedding = embedding
 
     current_metadata = after_joke.generation_metadata

@@ -13,7 +13,7 @@ from agents.endpoints import all_agents
 from agents.puns import pun_postprocessor_agent
 from common import config, image_generation, joke_operations, models
 from firebase_functions import firestore_fn, https_fn, logger, options
-from functions import joke_auto_fns
+
 from functions.function_utils import (error_response, get_bool_param,
                                       get_float_param, get_int_param,
                                       get_param, get_user_id, success_response)
@@ -26,18 +26,6 @@ class Error(Exception):
 
 class JokePopulationError(Error):
   """Exception raised for errors in joke population."""
-
-
-# Re-export automated/scheduled functions for backwards compatibility.
-notify_all_joke_schedules = joke_auto_fns._notify_all_joke_schedules
-send_daily_joke_scheduler = joke_auto_fns.send_daily_joke_scheduler
-send_daily_joke_http = joke_auto_fns.send_daily_joke_http
-send_daily_joke_notification = joke_auto_fns._send_daily_joke_notification
-send_single_joke_notification = joke_auto_fns._send_single_joke_notification
-decay_recent_joke_stats = joke_auto_fns._decay_recent_joke_stats_internal
-decay_recent_joke_stats_scheduler = joke_auto_fns.decay_recent_joke_stats_scheduler
-decay_recent_joke_stats_http = joke_auto_fns.decay_recent_joke_stats_http
-on_joke_write = joke_auto_fns.on_joke_write
 
 
 @https_fn.on_request(

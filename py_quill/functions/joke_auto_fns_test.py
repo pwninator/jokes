@@ -355,7 +355,8 @@ class TestOnJokeWrite:
   def mock_get_joke_embedding_fixture(self, monkeypatch):
     mock_embedding_fn = Mock(return_value=(Vector([1.0, 2.0, 3.0]),
                                            models.GenerationMetadata()))
-    monkeypatch.setattr(joke_auto_fns, "get_joke_embedding", mock_embedding_fn)
+    monkeypatch.setattr(joke_auto_fns, "_get_joke_embedding",
+                        mock_embedding_fn)
     return mock_embedding_fn
 
   @pytest.fixture(name='mock_firestore_service')
@@ -553,7 +554,7 @@ class TestOnJokeWriteSearchSync:
 
     mock_embedding = Mock(return_value=(Vector([1.0]),
                                         models.GenerationMetadata()))
-    monkeypatch.setattr(joke_auto_fns, "get_joke_embedding", mock_embedding)
+    monkeypatch.setattr(joke_auto_fns, "_get_joke_embedding", mock_embedding)
 
     joke_auto_fns.on_joke_write.__wrapped__(event)
 

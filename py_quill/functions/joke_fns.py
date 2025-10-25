@@ -12,13 +12,12 @@ from agents import agents_common, constants
 from agents.endpoints import all_agents
 from agents.puns import pun_postprocessor_agent
 from common import config, image_generation, joke_operations, models
-from firebase_functions import (firestore_fn, https_fn, logger, options,
-                                scheduler_fn)
+from firebase_functions import firestore_fn, https_fn, logger, options
+from functions import joke_auto_fns
 from functions.function_utils import (error_response, get_bool_param,
                                       get_float_param, get_int_param,
                                       get_param, get_user_id, success_response)
-from google.cloud.firestore_v1.vector import Vector
-from services import cloud_storage, firebase_cloud_messaging, firestore, search
+from services import cloud_storage, firestore, search
 
 
 class Error(Exception):
@@ -27,6 +26,18 @@ class Error(Exception):
 
 class JokePopulationError(Error):
   """Exception raised for errors in joke population."""
+
+
+# Re-export automated/scheduled functions for backwards compatibility.
+notify_all_joke_schedules = joke_auto_fns._notify_all_joke_schedules
+send_daily_joke_scheduler = joke_auto_fns.send_daily_joke_scheduler
+send_daily_joke_http = joke_auto_fns.send_daily_joke_http
+send_daily_joke_notification = joke_auto_fns._send_daily_joke_notification
+send_single_joke_notification = joke_auto_fns._send_single_joke_notification
+decay_recent_joke_stats = joke_auto_fns._decay_recent_joke_stats_internal
+decay_recent_joke_stats_scheduler = joke_auto_fns.decay_recent_joke_stats_scheduler
+decay_recent_joke_stats_http = joke_auto_fns.decay_recent_joke_stats_http
+on_joke_write = joke_auto_fns.on_joke_write
 
 
 @https_fn.on_request(
@@ -469,199 +480,6 @@ def _modify_and_set_image(
   return None
 
 
-def get_joke_embedding(
-    joke: models.PunnyJoke) -> tuple[Vector, models.GenerationMetadata]:
-  """Get an embedding for a joke."""
-  return search.get_embedding(
-    text=f"{joke.setup_text} {joke.punchline_text}",
-    task_type=search.TaskType.RETRIEVAL_DOCUMENT,
-    model="gemini-embedding-001",
-    output_dimensionality=2048,
-  )
-
-
-def _sync_joke_to_search_subcollection(
-  joke: models.PunnyJoke,
-  new_embedding: Vector | None,
-) -> None:
-  """Syncs joke data to a search subcollection document."""
-  if not joke.key:
-    return
-
-  joke_id = joke.key
-  search_doc_ref = firestore.db().collection("jokes").document(
-    joke_id).collection("search").document("search")
-  search_doc = search_doc_ref.get()
-  search_data = search_doc.to_dict() if search_doc.exists else {}
-
-  update_payload = {}
-
-  # 1. Sync embedding
-  if new_embedding:
-    update_payload["text_embedding"] = new_embedding
-  elif "text_embedding" not in search_data and joke.zzz_joke_text_embedding:
-    update_payload["text_embedding"] = joke.zzz_joke_text_embedding
-
-  # 2. Sync state
-  if search_data.get("state") != joke.state.value:
-    update_payload["state"] = joke.state.value
-
-  # 3. Sync public_timestamp
-  if search_data.get("public_timestamp") != joke.public_timestamp:
-    update_payload["public_timestamp"] = joke.public_timestamp
-
-  # 4. Sync num_saved_users_fraction
-  if search_data.get(
-      "num_saved_users_fraction") != joke.num_saved_users_fraction:
-    update_payload["num_saved_users_fraction"] = joke.num_saved_users_fraction
-
-  # 5. Sync num_shared_users_fraction
-  if search_data.get(
-      "num_shared_users_fraction") != joke.num_shared_users_fraction:
-    update_payload[
-      "num_shared_users_fraction"] = joke.num_shared_users_fraction
-
-  # 6. Sync popularity_score
-  if search_data.get("popularity_score") != joke.popularity_score:
-    update_payload["popularity_score"] = joke.popularity_score
-
-  if update_payload:
-    logger.info(
-      "Syncing joke to search subcollection: %s with payload keys %s",
-      joke_id,
-      list(update_payload.keys()),
-    )
-    search_doc_ref.set(update_payload, merge=True)
-
-
-@firestore_fn.on_document_written(
-  document="jokes/{joke_id}",
-  memory=options.MemoryOption.GB_1,
-  timeout_sec=300,
-)
-def on_joke_write(event: firestore_fn.Event[firestore_fn.Change]) -> None:
-  """A cloud function that triggers on joke document changes."""
-  if not event.data.after:
-    logger.info("Joke document deleted: %s", event.params["joke_id"])
-    return
-
-  after_data = event.data.after.to_dict()
-  after_joke = models.PunnyJoke.from_firestore_dict(after_data,
-                                                    event.params["joke_id"])
-
-  before_joke = None
-  if event.data.before:
-    before_data = event.data.before.to_dict()
-    before_joke = models.PunnyJoke.from_firestore_dict(before_data,
-                                                       event.params["joke_id"])
-
-  should_update_embedding = False
-
-  # Check if embedding needs updating
-  if after_joke.state == models.JokeState.DRAFT:
-    # Don't bother creating embeddings for draft jokes
-    should_update_embedding = False
-  elif not before_joke:
-    # Document created
-    should_update_embedding = True
-    logger.info("New joke created, calculating embedding for: %s",
-                after_joke.key)
-  elif (after_joke.zzz_joke_text_embedding is None
-        or isinstance(after_joke.zzz_joke_text_embedding, list)):
-    # Document updated without text change
-    should_update_embedding = True
-    logger.info("Joke missing embedding, calculating embedding for: %s",
-                after_joke.key)
-  elif (before_joke.setup_text != after_joke.setup_text
-        or before_joke.punchline_text != after_joke.punchline_text):
-    # Document updated with relevant text change
-    should_update_embedding = True
-    logger.info("Joke text changed, recalculating embedding for: %s",
-                after_joke.key)
-  else:
-    logger.info(
-      "Joke updated without text change, skipping embedding update for: %s",
-      after_joke.key)
-
-  # Prepare update data for Firestore
-  update_data = {}
-  new_embedding = None
-
-  if should_update_embedding:
-    embedding, metadata = get_joke_embedding(after_joke)
-    new_embedding = embedding
-
-    current_metadata = after_joke.generation_metadata
-    if isinstance(current_metadata, dict):
-      current_metadata = models.GenerationMetadata.from_dict(current_metadata)
-    elif not current_metadata:
-      current_metadata = models.GenerationMetadata()
-    current_metadata.add_generation(metadata)
-
-    update_data.update({
-      "zzz_joke_text_embedding": embedding,
-      "generation_metadata": current_metadata.as_dict,
-    })
-
-  # Check if fraction fields need updating
-  if after_joke.num_viewed_users > 0:
-    num_saved_users_fraction = after_joke.num_saved_users / after_joke.num_viewed_users
-    if after_joke.num_saved_users_fraction != num_saved_users_fraction:
-      logger.info(
-        "Joke num_saved_users_fraction mismatch, updating from %s to %s for: %s",
-        after_joke.num_saved_users_fraction,
-        num_saved_users_fraction,
-        after_joke.key,
-      )
-      update_data["num_saved_users_fraction"] = num_saved_users_fraction
-      after_joke.num_saved_users_fraction = num_saved_users_fraction
-
-    num_shared_users_fraction = after_joke.num_shared_users / after_joke.num_viewed_users
-    if after_joke.num_shared_users_fraction != num_shared_users_fraction:
-      logger.info(
-        "Joke num_shared_users_fraction mismatch, updating from %s to %s for: %s",
-        after_joke.num_shared_users_fraction,
-        num_shared_users_fraction,
-        after_joke.key,
-      )
-      update_data["num_shared_users_fraction"] = num_shared_users_fraction
-      after_joke.num_shared_users_fraction = num_shared_users_fraction
-
-  popularity_score = 0.0
-  if after_joke.num_viewed_users > 0:
-    num_saves_and_shares = after_joke.num_saved_users + after_joke.num_shared_users
-    popularity_score = (num_saves_and_shares * num_saves_and_shares /
-                        after_joke.num_viewed_users)
-  if after_joke.popularity_score != popularity_score:
-    logger.info(
-      "Joke popularity_score mismatch, updating from %s to %s for: %s",
-      after_joke.popularity_score,
-      popularity_score,
-      after_joke.key,
-    )
-    update_data["popularity_score"] = popularity_score
-    after_joke.popularity_score = popularity_score
-
-  tags_lowered = [t.lower() for t in after_joke.tags]
-  if tags_lowered != after_joke.tags:
-    update_data["tags"] = tags_lowered
-    logger.info("Joke tags changed, updating from %s to %s for: %s",
-                after_joke.tags, tags_lowered, after_joke.key)
-
-  _sync_joke_to_search_subcollection(
-    joke=after_joke,
-    new_embedding=new_embedding,
-  )
-
-  # Perform single Firestore update if any updates are needed
-  if update_data and after_joke.key:
-    firestore.update_punny_joke(after_joke.key, update_data)
-
-    if should_update_embedding:
-      logger.info("Successfully updated embedding for joke: %s",
-                  after_joke.key)
-
-
 @firestore_fn.on_document_written(
   document="joke_categories/{category_id}",
   memory=options.MemoryOption.GB_1,
@@ -973,148 +791,6 @@ def critique_jokes(req: https_fn.Request) -> https_fn.Response:
     stacktrace = traceback.format_exc()
     print(f"Error critiquing jokes: {e}\nStacktrace:\n{stacktrace}")
     return error_response(f'Failed to critique jokes: {str(e)}')
-
-
-@https_fn.on_request(
-  memory=options.MemoryOption.GB_1,
-  timeout_sec=600,
-)
-def send_daily_joke_http(req: https_fn.Request) -> https_fn.Response:
-  """Send a daily joke notification to subscribers."""
-
-  del req
-
-  try:
-    # Get current UTC time
-    utc_now = datetime.datetime.now(datetime.timezone.utc)
-
-    notify_all_joke_schedules(utc_now)
-  except Exception as e:
-    return error_response(f'Failed to send daily joke notification: {str(e)}')
-
-  return success_response({"message": "Daily joke notification sent"})
-
-
-@scheduler_fn.on_schedule(
-  schedule="0 * * * *",  # Every hour on the hour UTC-12
-  timezone="Etc/GMT+12",
-  memory=options.MemoryOption.GB_1,
-  timeout_sec=300,
-)
-def send_daily_joke_scheduler(event: scheduler_fn.ScheduledEvent) -> None:
-  """Scheduled function that sends daily joke notifications."""
-
-  try:
-    # Get the scheduled time from the event
-    scheduled_time_utc = event.schedule_time
-
-    notify_all_joke_schedules(scheduled_time_utc)
-
-  except Exception as e:
-    print(f"Error in daily joke task: {str(e)}")
-    traceback.print_exc()
-
-
-def notify_all_joke_schedules(scheduled_time_utc: datetime.datetime) -> None:
-  """Iterate all schedules and send notifications for each.
-
-  Args:
-      scheduled_time_utc: The scheduled time from the scheduler event.
-  """
-  # Get all available joke schedules and notify for each
-  schedule_ids = firestore.list_joke_schedules()
-  logger.info(f"Found {len(schedule_ids)} joke schedules to process")
-  for schedule_id in schedule_ids:
-    try:
-      logger.info(
-        f"Sending daily joke notification for schedule: {schedule_id}")
-      send_daily_joke_notification(scheduled_time_utc,
-                                   schedule_name=schedule_id)
-    except Exception as schedule_error:  # pylint: disable=broad-except
-      logger.error(
-        f"Failed sending jokes for schedule {schedule_id}: {schedule_error}")
-
-
-def send_daily_joke_notification(
-  now: datetime.datetime,
-  schedule_name: str = "daily_jokes",
-) -> None:
-  """Send a daily joke notification to subscribers.
-  
-  At each hour of the day, we send two notifications: one for the current date, and one for the next date. The dates are at UTC-12. Clients subscribe to the topic for the hour they want to receive notifications, using either the "c" or "n" variety depending on whether their local timezone is one day ahead of UTC-12 or not.
-  
-  Args:
-      now: The current datetime when this was executed (any timezone)
-      schedule_name: The name of the joke schedule to use
-  """
-  logger.info(f"Sending daily joke notification for {schedule_name} at {now}")
-
-  # Validate that the datetime has timezone info
-  if now.tzinfo is None:
-    raise ValueError(
-      f"now must have timezone information, got naive datetime: {now}")
-
-  # Convert to UTC, then calculate UTC-12 time
-  now_utc = now.astimezone(datetime.timezone.utc)
-  utc_minus_12 = now_utc - datetime.timedelta(hours=12)
-  hour_utc_minus_12 = utc_minus_12.hour
-  date_utc_minus_12 = utc_minus_12.date()
-
-  send_single_joke_notification(
-    schedule_name=schedule_name,
-    joke_date=date_utc_minus_12,
-    notification_hour=hour_utc_minus_12,
-    topic_suffix="c",  # Current date
-  )
-
-  send_single_joke_notification(
-    schedule_name=schedule_name,
-    joke_date=date_utc_minus_12 + datetime.timedelta(days=1),
-    notification_hour=hour_utc_minus_12,
-    topic_suffix="n",  # Next date
-  )
-
-  # Check if it's 9am PST and send additional notification
-  pst_timezone = zoneinfo.ZoneInfo("America/Los_Angeles")
-  now_pst = now.astimezone(pst_timezone)
-
-  if now_pst.hour == 9:
-    logger.info(
-      f"It's 9am PST, sending additional notification for {schedule_name}")
-    send_single_joke_notification(
-      schedule_name=schedule_name,
-      joke_date=now_pst.date(),
-    )
-
-
-def send_single_joke_notification(
-  schedule_name: str,
-  joke_date: datetime.date,
-  notification_hour: int | None = None,
-  topic_suffix: str | None = None,
-) -> None:
-  """Send a joke notification for a given date.
-  
-  Args:
-      schedule_name: The name of the joke schedule to use
-      joke_date: The date to get the joke for
-      notification_hour: The hour (0-23) in UTC-12 timezone (optional)
-      topic_suffix: Either "c" (current date) or "n" (next date) (optional)
-  """
-  logger.info(f"Getting joke for {schedule_name} on {joke_date}")
-  jokes = firestore.get_daily_jokes(schedule_name, joke_date, 1)
-  joke = jokes[0] if jokes else None
-  if not joke:
-    logger.error(f"No joke found for {joke_date}")
-    return
-  logger.info(f"Joke found for {joke_date}: {joke}")
-
-  if notification_hour is not None and topic_suffix is not None:
-    topic_name = f"{schedule_name}_{notification_hour:02d}{topic_suffix}"
-  else:
-    topic_name = schedule_name
-  logger.info(f"Sending joke notification to topic: {topic_name}")
-  firebase_cloud_messaging.send_punny_joke_notification(topic_name, joke)
 
 
 def _to_response_joke(joke: models.PunnyJoke) -> dict[str, Any]:

@@ -8,6 +8,7 @@ class AppRoutes {
   static const String feedback = '/feedback';
 
   // Main app routes (shell route)
+  static const String feed = '/feed';
   static const String jokes = '/jokes';
   static const String saved = '/saved';
   static const String discover = '/discover';
@@ -35,6 +36,7 @@ class RouteNames {
   RouteNames._();
 
   static const String jokes = 'jokes';
+  static const String feed = 'feed';
   static const String saved = 'saved';
   static const String discover = 'discover';
   static const String discoverSearch = 'discoverSearch';
@@ -63,6 +65,8 @@ extension AppRoutesExtension on String {
   /// Get the route name from path for analytics
   String get routeName {
     switch (this) {
+      case AppRoutes.feed:
+        return RouteNames.feed;
       case AppRoutes.jokes:
         return RouteNames.jokes;
       case AppRoutes.saved:

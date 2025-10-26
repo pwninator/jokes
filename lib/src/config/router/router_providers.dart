@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:snickerdoodle/src/config/router/app_router.dart';
 import 'package:snickerdoodle/src/config/router/route_guards.dart';
+import 'package:snickerdoodle/src/config/router/route_names.dart';
 import 'package:snickerdoodle/src/core/services/analytics_events.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 
@@ -22,7 +23,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
 });
 
 /// Provider for current route information
-final currentRouteProvider = StateProvider<String>((ref) => '/jokes');
+final currentRouteProvider = StateProvider<String>((ref) => AppRoutes.feed);
 
 /// Provider for navigation analytics tracking
 final navigationAnalyticsProvider = Provider<NavigationAnalytics>((ref) {
@@ -63,11 +64,12 @@ class NavigationAnalytics {
 
   /// Convert route path to AppTab for analytics compatibility
   AppTab? _routeToAppTab(String route) {
-    if (route.startsWith('/jokes')) return AppTab.dailyJokes;
-    if (route.startsWith('/saved')) return AppTab.savedJokes;
-    if (route.startsWith('/discover')) return AppTab.discover;
-    if (route.startsWith('/settings')) return AppTab.settings;
-    if (route.startsWith('/admin')) return AppTab.admin;
+    if (route.startsWith(AppRoutes.feed)) return AppTab.jokeFeed;
+    if (route.startsWith(AppRoutes.jokes)) return AppTab.dailyJokes;
+    if (route.startsWith(AppRoutes.saved)) return AppTab.savedJokes;
+    if (route.startsWith(AppRoutes.discover)) return AppTab.discover;
+    if (route.startsWith(AppRoutes.settings)) return AppTab.settings;
+    if (route.startsWith(AppRoutes.admin)) return AppTab.admin;
     return null;
   }
 }

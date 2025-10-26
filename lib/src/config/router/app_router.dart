@@ -29,6 +29,7 @@ import 'package:snickerdoodle/src/features/book_creator/book_creator_screen.dart
 import 'package:snickerdoodle/src/features/feedback/presentation/feedback_conversation_screen.dart';
 import 'package:snickerdoodle/src/features/feedback/presentation/user_feedback_screen.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_category_providers.dart';
+import 'package:snickerdoodle/src/features/jokes/presentation/joke_feed_screen.dart';
 import 'package:snickerdoodle/src/features/jokes/presentation/daily_jokes_screen.dart';
 import 'package:snickerdoodle/src/features/jokes/presentation/saved_jokes_screen.dart';
 import 'package:snickerdoodle/src/features/search/application/discover_tab_state.dart';
@@ -37,6 +38,12 @@ import 'package:snickerdoodle/src/features/search/presentation/search_screen.dar
 import 'package:snickerdoodle/src/features/settings/presentation/user_settings_screen.dart';
 
 const List<TabConfig> _allTabs = [
+  TabConfig(
+    id: TabId.feed,
+    route: AppRoutes.feed,
+    label: 'Joke Feed',
+    icon: Icons.dynamic_feed,
+  ),
   TabConfig(
     id: TabId.daily,
     route: AppRoutes.jokes,
@@ -71,7 +78,7 @@ const List<TabConfig> _allTabs = [
 ];
 
 /// Bottom navigation: central configuration
-enum TabId { daily, discover, saved, settings, admin }
+enum TabId { feed, daily, discover, saved, settings, admin }
 
 class TabConfig {
   final TabId id;
@@ -104,7 +111,7 @@ class AppRouter {
   }) {
     return GoRouter(
       navigatorKey: NotificationService.navigatorKey,
-      initialLocation: AppRoutes.jokes,
+      initialLocation: AppRoutes.feed,
       refreshListenable: refreshListenable,
       debugLogDiagnostics: true,
       observers: [
@@ -149,6 +156,13 @@ class AppRouter {
             );
           },
           routes: [
+            // Joke Feed
+            GoRoute(
+              path: AppRoutes.feed,
+              name: RouteNames.feed,
+              builder: (context, state) => const JokeFeedScreen(),
+            ),
+
             // Daily Jokes
             GoRoute(
               path: AppRoutes.jokes,
@@ -284,7 +298,9 @@ class AppRouter {
 
   /// Get the joke context for analytics based on current route
   static String _getJokeContextFromRoute(String route) {
-    if (route.startsWith(AppRoutes.saved)) {
+    if (route.startsWith(AppRoutes.feed)) {
+      return AnalyticsJokeContext.jokeFeed;
+    } else if (route.startsWith(AppRoutes.saved)) {
       return AnalyticsJokeContext.savedJokes;
     } else if (route.startsWith(AppRoutes.discover)) {
       if (route.contains('/search')) {
@@ -295,7 +311,7 @@ class AppRouter {
       return AnalyticsJokeContext.dailyJokes;
     }
     // Default for other routes (settings, admin, etc.)
-    return AnalyticsJokeContext.dailyJokes;
+    return AnalyticsJokeContext.jokeFeed;
   }
 
   /// Build the main navigation structure based on current route and user permissions
@@ -554,7 +570,7 @@ class AppRouter {
   ) {
     final tabs = _visibleTabs(isAdmin);
     if (newIndex < 0 || newIndex >= tabs.length) {
-      context.go(AppRoutes.jokes);
+      context.go(AppRoutes.feed);
       return;
     }
 

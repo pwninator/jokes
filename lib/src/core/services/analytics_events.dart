@@ -129,6 +129,7 @@ enum SubscriptionSource {
 
 /// Tab names for navigation tracking
 enum AppTab {
+  jokeFeed('joke_feed'),
   dailyJokes('daily_jokes'),
   savedJokes('saved_jokes'),
   discover('discover'),

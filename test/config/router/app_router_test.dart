@@ -5,14 +5,14 @@ void main() {
   group('AppRouter.shouldResetDiscoverOnNavigation', () {
     test('returns true for Discover tab index', () {
       expect(
-        AppRouter.shouldResetDiscoverOnNavigation(newIndex: 1, isAdmin: false),
+        AppRouter.shouldResetDiscoverOnNavigation(newIndex: 2, isAdmin: false),
         isTrue,
       );
     });
 
     test('returns false for non Discover tab index', () {
       expect(
-        AppRouter.shouldResetDiscoverOnNavigation(newIndex: 2, isAdmin: false),
+        AppRouter.shouldResetDiscoverOnNavigation(newIndex: 1, isAdmin: false),
         isFalse,
       );
     });
@@ -26,7 +26,7 @@ void main() {
 
     test('still returns true for Discover when admin tabs visible', () {
       expect(
-        AppRouter.shouldResetDiscoverOnNavigation(newIndex: 1, isAdmin: true),
+        AppRouter.shouldResetDiscoverOnNavigation(newIndex: 2, isAdmin: true),
         isTrue,
       );
     });

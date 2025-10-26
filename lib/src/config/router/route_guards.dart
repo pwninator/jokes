@@ -24,7 +24,7 @@ class AuthGuard {
             AppLogger.warn(
               'ROUTER: Blocking admin route for non-admin/unauthenticated: $currentPath',
             );
-            return AppRoutes.jokes;
+            return AppRoutes.feed;
           }
         }
 
@@ -40,7 +40,7 @@ class AuthGuard {
           AppLogger.warn(
             'ROUTER: Auth error on admin route, redirecting: $error',
           );
-          return AppRoutes.jokes;
+          return AppRoutes.feed;
         }
         return null;
       },

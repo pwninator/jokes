@@ -69,6 +69,7 @@ enum JokeField {
   state('state'),
   popularityScore('popularity_score'),
   seasonal('seasonal'),
+  isPublic('is_public'),
   publicTimestamp('public_timestamp'),
   randomId('random_id'),
   creationTime('creation_time');
@@ -162,6 +163,18 @@ class JokeFilter {
 
   static JokeFilter isNullValue(JokeField field, bool value) =>
       JokeFilter(field: field, isNull: value);
+
+  /// Baseline filters that constrain results to jokes visible to end users.
+  static List<JokeFilter> basePublicFilters() => [
+        whereInValues(
+          JokeField.state,
+          [
+            JokeState.published.value,
+            JokeState.daily.value,
+          ],
+        ),
+        equals(JokeField.isPublic, true),
+      ];
 
   Query<Map<String, dynamic>> apply(Query<Map<String, dynamic>> query) {
     return query.where(

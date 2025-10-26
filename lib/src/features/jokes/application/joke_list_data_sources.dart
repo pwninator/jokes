@@ -16,7 +16,6 @@ import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart'
     show JokeField, JokeFilter, JokeListPageCursor, OrderDirection;
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
-import 'package:snickerdoodle/src/features/jokes/domain/joke_state.dart';
 import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
 
 /// Signal provider that triggers stale joke checks for daily jokes.
@@ -429,12 +428,7 @@ Future<PageResult> _loadOrderedJokesPage(
       ? JokeListPageCursor.deserialize(cursor)
       : null;
 
-  final filters = <JokeFilter>[
-    JokeFilter.whereInValues(JokeField.state, [
-      JokeState.published.value,
-      JokeState.daily.value,
-    ]),
-  ];
+  final filters = JokeFilter.basePublicFilters();
   final page = await repository.getFilteredJokePage(
     filters: filters,
     orderByField: orderByField,
@@ -532,10 +526,7 @@ Future<PageResult> _loadPopularCategoryPage(
 
   final page = await repository.getFilteredJokePage(
     filters: [
-      JokeFilter.whereInValues(JokeField.state, [
-        JokeState.published.value,
-        JokeState.daily.value,
-      ]),
+      ...JokeFilter.basePublicFilters(),
       JokeFilter.greaterThan(JokeField.popularityScore, 0.0),
     ],
     orderByField: JokeField.popularityScore,
@@ -586,10 +577,7 @@ Future<PageResult> _loadSeasonalCategoryPage(
 
   final page = await repository.getFilteredJokePage(
     filters: [
-      JokeFilter.whereInValues(JokeField.state, [
-        JokeState.published.value,
-        JokeState.daily.value,
-      ]),
+      ...JokeFilter.basePublicFilters(),
       JokeFilter.equals(JokeField.seasonal, seasonalValue),
       JokeFilter.lessThan(JokeField.publicTimestamp, DateTime.now()),
     ],

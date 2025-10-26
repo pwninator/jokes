@@ -106,7 +106,6 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
     }
   }
 
-
   Widget _buildCTAButton({
     required BuildContext context,
     required List<JokeWithDate> jokesWithDates,

@@ -3,6 +3,7 @@ import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
+import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 
 part 'banner_ad_manager.g.dart';
 
@@ -37,7 +38,10 @@ class BannerAdController extends _$BannerAdController {
   bool _isLoaded = false;
   bool _isLoading = false;
 
-  static const String _prodAdUnitId = 'ca-app-pub-2479966366450616/4692246057';
+  static const Map<BannerAdPosition, String> _prodAdUnitIds = {
+    BannerAdPosition.top: 'ca-app-pub-2479966366450616/4306883038',
+    BannerAdPosition.bottom: 'ca-app-pub-2479966366450616/7835349916',
+  };
   // Google official sample banner ad unit (safe in debug)
   static const String _testAdUnitId = 'ca-app-pub-3940256099942544/6300978111';
 
@@ -46,16 +50,27 @@ class BannerAdController extends _$BannerAdController {
     ref.onDispose(() {
       _ad?.dispose();
       _ad = null;
+      _isLoaded = false;
+      _isLoading = false;
     });
     return const BannerAdState.initial();
   }
 
   BannerAd? get currentAd => _ad;
 
-  /// Returns the ad unit ID being used (test in debug, prod otherwise)
-  String get adUnitId => kDebugMode ? _testAdUnitId : _prodAdUnitId;
+  /// Returns the ad unit ID being used for the given position
+  String adUnitIdForPosition(BannerAdPosition position) {
+    if (kDebugMode) {
+      return _testAdUnitId;
+    }
+    return _prodAdUnitIds[position]!;
+  }
 
-  void evaluate({required bool shouldShow, required String jokeContext}) {
+  void evaluate({
+    required bool shouldShow,
+    required String jokeContext,
+    required BannerAdPosition position,
+  }) {
     AppLogger.info(
       'BANNER_AD: evaluate: shouldShow: $shouldShow, jokeContext: $jokeContext',
     );
@@ -68,7 +83,7 @@ class BannerAdController extends _$BannerAdController {
       if (current.isLoaded) {
         return; // already visible and loaded
       }
-      // else: shouldShow && not loaded → continue to load
+      // else: shouldShow && not loaded => continue to load
     }
 
     // Update visibility only when it actually changes
@@ -90,6 +105,7 @@ class BannerAdController extends _$BannerAdController {
 
     if (_isLoading) return;
     _isLoading = true;
+    final adUnitId = adUnitIdForPosition(position);
 
     final analytics = ref.read(analyticsServiceProvider);
 

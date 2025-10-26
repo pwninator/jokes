@@ -2,12 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:snickerdoodle/src/core/services/banner_ad_manager.dart';
+import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:snickerdoodle/src/features/ads/banner_ad_service.dart';
 
 class AdBannerWidget extends ConsumerStatefulWidget {
-  const AdBannerWidget({super.key, required this.jokeContext});
+  const AdBannerWidget({
+    super.key,
+    required this.jokeContext,
+    required this.position,
+  });
 
   final String jokeContext;
+  final BannerAdPosition position;
 
   @override
   ConsumerState<AdBannerWidget> createState() => _AdBannerWidgetState();
@@ -31,12 +37,17 @@ class _AdBannerWidgetState extends ConsumerState<AdBannerWidget> {
   }
 
   void _handleEligibility(BannerAdEligibility eligibility) {
-    final shouldShow = eligibility.isEligible;
+    final shouldShow =
+        eligibility.isEligible && eligibility.position == widget.position;
     Future.microtask(() {
       if (!mounted) return;
       ref
           .read(bannerAdControllerProvider.notifier)
-          .evaluate(shouldShow: shouldShow, jokeContext: widget.jokeContext);
+          .evaluate(
+            shouldShow: shouldShow,
+            jokeContext: widget.jokeContext,
+            position: widget.position,
+          );
     });
   }
 
@@ -49,7 +60,7 @@ class _AdBannerWidgetState extends ConsumerState<AdBannerWidget> {
   @override
   Widget build(BuildContext context) {
     final eligibility = ref.watch(bannerAdEligibilityProvider);
-    if (!eligibility.isEligible) {
+    if (!eligibility.isEligible || eligibility.position != widget.position) {
       return const SizedBox.shrink();
     }
 

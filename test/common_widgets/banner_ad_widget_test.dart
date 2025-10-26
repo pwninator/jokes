@@ -34,6 +34,9 @@ class FakeRemoteConfigValues implements RemoteConfigValues {
   @override
   T getEnum<T>(RemoteParam param) {
     if (param == RemoteParam.adDisplayMode) return mode as T;
+    if (param == RemoteParam.bannerAdPosition) {
+      return BannerAdPosition.top as T;
+    }
     throw UnimplementedError();
   }
 }
@@ -109,7 +112,12 @@ void main() {
         ],
         child: const MaterialApp(
           home: DeviceOrientationObserver(
-            child: Scaffold(body: AdBannerWidget(jokeContext: 'daily')),
+            child: Scaffold(
+              body: AdBannerWidget(
+                jokeContext: 'daily',
+                position: BannerAdPosition.top,
+              ),
+            ),
           ),
         ),
       ),
@@ -163,7 +171,12 @@ void main() {
         ],
         child: const MaterialApp(
           home: DeviceOrientationObserver(
-            child: Scaffold(body: AdBannerWidget(jokeContext: 'daily')),
+            child: Scaffold(
+              body: AdBannerWidget(
+                jokeContext: 'daily',
+                position: BannerAdPosition.top,
+              ),
+            ),
           ),
         ),
       ),
@@ -227,7 +240,12 @@ void main() {
         ],
         child: const MaterialApp(
           home: DeviceOrientationObserver(
-            child: Scaffold(body: AdBannerWidget(jokeContext: 'daily')),
+            child: Scaffold(
+              body: AdBannerWidget(
+                jokeContext: 'daily',
+                position: BannerAdPosition.top,
+              ),
+            ),
           ),
         ),
       ),
@@ -282,7 +300,12 @@ void main() {
         ],
         child: const MaterialApp(
           home: DeviceOrientationObserver(
-            child: Scaffold(body: AdBannerWidget(jokeContext: 'daily')),
+            child: Scaffold(
+              body: AdBannerWidget(
+                jokeContext: 'daily',
+                position: BannerAdPosition.top,
+              ),
+            ),
           ),
         ),
       ),
@@ -341,7 +364,12 @@ void main() {
         ],
         child: const MaterialApp(
           home: DeviceOrientationObserver(
-            child: Scaffold(body: AdBannerWidget(jokeContext: 'daily')),
+            child: Scaffold(
+              body: AdBannerWidget(
+                jokeContext: 'daily',
+                position: BannerAdPosition.top,
+              ),
+            ),
           ),
         ),
       ),

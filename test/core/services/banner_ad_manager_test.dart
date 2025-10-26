@@ -76,15 +76,19 @@ void main() {
       container.dispose();
     });
 
-    test('adUnitId returns test ID in debug mode', () {
-      // This test verifies the ad unit ID getter
+    test('adUnitIdForPosition returns expected ID for each position', () {
       final controller = container.read(bannerAdControllerProvider.notifier);
-      final adUnitId = controller.adUnitId;
+      final topAdUnit = controller.adUnitIdForPosition(BannerAdPosition.top);
+      final bottomAdUnit = controller.adUnitIdForPosition(
+        BannerAdPosition.bottom,
+      );
 
       if (kDebugMode) {
-        expect(adUnitId, 'ca-app-pub-3940256099942544/6300978111');
+        expect(topAdUnit, 'ca-app-pub-3940256099942544/6300978111');
+        expect(bottomAdUnit, 'ca-app-pub-3940256099942544/6300978111');
       } else {
-        expect(adUnitId, 'ca-app-pub-2479966366450616/4692246057');
+        expect(topAdUnit, 'ca-app-pub-2479966366450616/4306883038');
+        expect(bottomAdUnit, 'ca-app-pub-2479966366450616/7835349916');
       }
     });
 
@@ -102,7 +106,11 @@ void main() {
       // Note: We don't actually call evaluate with shouldShow=true in tests
       // because it would trigger real ad loading which requires plugin initialization
       // Instead, we test the state management directly
-      controller.evaluate(shouldShow: false, jokeContext: 'test');
+      controller.evaluate(
+        shouldShow: false,
+        jokeContext: 'test',
+        position: BannerAdPosition.top,
+      );
 
       final state = container.read(bannerAdControllerProvider);
       expect(state.shouldShow, false);
@@ -135,9 +143,21 @@ void main() {
       final controller = container.read(bannerAdControllerProvider.notifier);
 
       // Multiple calls should not change behavior
-      controller.evaluate(shouldShow: false, jokeContext: 'test1');
-      controller.evaluate(shouldShow: false, jokeContext: 'test2');
-      controller.evaluate(shouldShow: false, jokeContext: 'test3');
+      controller.evaluate(
+        shouldShow: false,
+        jokeContext: 'test1',
+        position: BannerAdPosition.top,
+      );
+      controller.evaluate(
+        shouldShow: false,
+        jokeContext: 'test2',
+        position: BannerAdPosition.top,
+      );
+      controller.evaluate(
+        shouldShow: false,
+        jokeContext: 'test3',
+        position: BannerAdPosition.top,
+      );
 
       final state = container.read(bannerAdControllerProvider);
       expect(state.ad, isNull);
@@ -149,14 +169,22 @@ void main() {
       final controller = container.read(bannerAdControllerProvider.notifier);
 
       // Start with shouldShow=false
-      controller.evaluate(shouldShow: false, jokeContext: 'test');
+      controller.evaluate(
+        shouldShow: false,
+        jokeContext: 'test',
+        position: BannerAdPosition.top,
+      );
       expect(container.read(bannerAdControllerProvider).shouldShow, false);
 
       // Note: We avoid shouldShow=true in tests to prevent real ad loading
       // which requires plugin initialization
 
       // Change back to shouldShow=false (multiple calls)
-      controller.evaluate(shouldShow: false, jokeContext: 'test');
+      controller.evaluate(
+        shouldShow: false,
+        jokeContext: 'test',
+        position: BannerAdPosition.top,
+      );
       expect(container.read(bannerAdControllerProvider).shouldShow, false);
     });
 
@@ -175,7 +203,11 @@ void main() {
       const jokeContext = 'test-context';
 
       // Test that evaluate with shouldShow=false works without triggering ad loading
-      controller.evaluate(shouldShow: false, jokeContext: jokeContext);
+      controller.evaluate(
+        shouldShow: false,
+        jokeContext: jokeContext,
+        position: BannerAdPosition.top,
+      );
 
       // Verify the controller is set up correctly
       expect(container.read(bannerAdControllerProvider).shouldShow, false);
@@ -194,13 +226,21 @@ void main() {
       expect(state.shouldShow, false);
 
       // Set shouldShow to false (avoiding true to prevent ad loading)
-      controller.evaluate(shouldShow: false, jokeContext: 'test');
+      controller.evaluate(
+        shouldShow: false,
+        jokeContext: 'test',
+        position: BannerAdPosition.top,
+      );
       state = container.read(bannerAdControllerProvider);
       expect(state.shouldShow, false);
       expect(state.isLoaded, false);
 
       // Multiple calls should maintain state
-      controller.evaluate(shouldShow: false, jokeContext: 'test');
+      controller.evaluate(
+        shouldShow: false,
+        jokeContext: 'test',
+        position: BannerAdPosition.top,
+      );
       state = container.read(bannerAdControllerProvider);
       expect(state.shouldShow, false);
     });

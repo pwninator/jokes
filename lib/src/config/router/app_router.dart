@@ -486,6 +486,7 @@ class AppRouter {
                         ? AdBannerWidget(
                             key: const Key('banner-ad-top'),
                             jokeContext: jokeContext,
+                            position: BannerAdPosition.top,
                           )
                         : const SizedBox.shrink(),
                     Expanded(child: child),
@@ -542,6 +543,7 @@ class AppRouter {
                         ? AdBannerWidget(
                             key: const Key('banner-ad-bottom'),
                             jokeContext: jokeContext,
+                            position: BannerAdPosition.bottom,
                           )
                         : const SizedBox.shrink(),
                   ],

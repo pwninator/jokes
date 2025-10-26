@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:snickerdoodle/src/core/providers/settings_providers.dart';
+import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_list_data_sources.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
@@ -13,6 +14,11 @@ import 'package:snickerdoodle/src/features/jokes/domain/joke_state.dart';
 import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
 
 class MockJokeRepository extends Mock implements JokeRepository {}
+
+class MockAppUsageService extends Mock implements AppUsageService {
+  @override
+  Future<List<String>> getUnviewedJokeIds(List<String> jokeIds) async => jokeIds;
+}
 
 const _emptyPage = JokeListPage(ids: <String>[], cursor: null, hasMore: false);
 
@@ -175,6 +181,7 @@ void main() {
         sharedPreferencesProvider.overrideWithValue(prefs),
         settingsServiceProvider.overrideWithValue(SettingsService(prefs)),
         jokeRepositoryProvider.overrideWithValue(mockRepository),
+        appUsageServiceProvider.overrideWithValue(MockAppUsageService()),
       ],
     );
     container = scope;
@@ -212,31 +219,30 @@ void main() {
       await notifier.loadFirstPage();
       await _pumpUntilIdle(scope);
       var state = scope.read(compositeJokePagingProviders.paging);
-      final firstLoadIds =
-          state.loadedJokes.map((j) => j.joke.id).toList(growable: false);
+      final firstLoadIds = state.loadedJokes
+          .map((j) => j.joke.id)
+          .toList(growable: false);
       expect(firstLoadIds, isNotEmpty);
       expect(firstLoadIds.first, equals('popular-1'));
-      final initialCursorValue =
-          prefs.getString(compositeJokeCursorPrefsKey);
+      final initialCursorValue = prefs.getString(compositeJokeCursorPrefsKey);
       final firstLoadLength = firstLoadIds.length;
 
       await notifier.loadMore();
       await _pumpUntilIdle(scope);
       state = scope.read(compositeJokePagingProviders.paging);
-      final secondLoadIds =
-          state.loadedJokes.map((j) => j.joke.id).toList(growable: false);
+      final secondLoadIds = state.loadedJokes
+          .map((j) => j.joke.id)
+          .toList(growable: false);
       expect(secondLoadIds.length, greaterThan(firstLoadLength));
-      final popularSoFar =
-          secondLoadIds.where((id) => id.startsWith('popular')).length;
+      final popularSoFar = secondLoadIds
+          .where((id) => id.startsWith('popular'))
+          .length;
       expect(popularSoFar, greaterThanOrEqualTo(1));
 
       final persistedAfterFirstLoadMore = prefs.getString(
         compositeJokeCursorPrefsKey,
       );
-      expect(
-        persistedAfterFirstLoadMore,
-        isNot(equals(initialCursorValue)),
-      );
+      expect(persistedAfterFirstLoadMore, isNot(equals(initialCursorValue)));
       final cursorAfterFirstLoadMore = CompositeCursor.decode(
         persistedAfterFirstLoadMore,
       );
@@ -246,8 +252,9 @@ void main() {
       await _pumpUntilIdle(scope);
       state = scope.read(compositeJokePagingProviders.paging);
       expect(state.hasMore, isFalse);
-      final allIds =
-          state.loadedJokes.map((j) => j.joke.id).toList(growable: false);
+      final allIds = state.loadedJokes
+          .map((j) => j.joke.id)
+          .toList(growable: false);
       final tailIds = allIds.length >= 2
           ? allIds.sublist(allIds.length - 2)
           : allIds;

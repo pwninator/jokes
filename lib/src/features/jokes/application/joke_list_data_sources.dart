@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
@@ -345,7 +346,28 @@ Future<PageResult> _loadCompositeJokePage(
         ? currentCursor
         : null;
     final page = await subSource.load(ref, remaining, cursorForSource);
-    collected.addAll(page.jokes);
+
+    // Filter for unviewed jokes
+    final jokeIds = page.jokes
+        .map((jokeWithDate) => jokeWithDate.joke.id)
+        .toList();
+    final unviewedJokeIds = await ref
+        .read(appUsageServiceProvider)
+        .getUnviewedJokeIds(jokeIds);
+    final unviewedJokes = page.jokes
+        .where((jokeWithDate) => unviewedJokeIds.contains(jokeWithDate.joke.id))
+        .toList();
+
+    if (kDebugMode && unviewedJokes.length != jokeIds.length) {
+      final viewedJokeIds = jokeIds
+          .where((id) => !unviewedJokeIds.contains(id))
+          .toList();
+      AppLogger.info(
+        'PAGING_INTERNAL: Filtering out ${viewedJokeIds.length} viewed jokes: $viewedJokeIds',
+      );
+    }
+
+    collected.addAll(unviewedJokes);
 
     if (page.hasMore) {
       final nextCursor = page.nextCursor;

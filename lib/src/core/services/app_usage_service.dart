@@ -237,6 +237,20 @@ class AppUsageService {
     return rows.map((row) => row.jokeId).toList(growable: false);
   }
 
+  /// Get unviewed joke IDs from a list of joke IDs.
+  /// Returns only the joke IDs that have not been viewed.
+  Future<List<String>> getUnviewedJokeIds(List<String> jokeIds) async {
+    if (jokeIds.isEmpty) return <String>[];
+
+    final interactions = await _jokeInteractions.getJokeInteractions(jokeIds);
+    final viewedJokeIds = interactions
+        .where((interaction) => interaction.viewedTimestamp != null)
+        .map((interaction) => interaction.jokeId)
+        .toSet();
+
+    return jokeIds.where((id) => !viewedJokeIds.contains(id)).toList();
+  }
+
   // -------------------------------
   // JOKE SAVES
   // -------------------------------

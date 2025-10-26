@@ -130,7 +130,7 @@ void main() {
           tester.element(find.byType(JokeListViewer)),
         );
         expect(container.read(jokeViewerPageIndexProvider('viewer')), 0);
-        
+
         // updateViewingIndex is only called when pages change, not on initial load
         verifyNever(() => mockDataSource.updateViewingIndex(any()));
         await tester.pump(const Duration(seconds: 2));

@@ -178,20 +178,25 @@ class JokeInteractionsRepository {
     perf: _perf,
   );
 
-  Future<JokeInteraction?> getJokeInteraction(String jokeId) async =>
-      runWithTrace(
-        name: TraceName.driftGetInteraction,
-        traceKey: 'joke_interaction',
-        body: () async {
-          final query = _db.select(_db.jokeInteractions)
-            ..where((tbl) => tbl.jokeId.equals(jokeId));
-          final rows = await query.get();
-          if (rows.isEmpty) return null;
-          return rows.first;
-        },
-        fallback: null,
-        perf: _perf,
-      );
+  Future<List<JokeInteraction>> getJokeInteractions(
+    List<String> jokeIds,
+  ) async => runWithTrace(
+    name: TraceName.driftGetInteraction,
+    traceKey: 'joke_interactions_batch',
+    body: () async {
+      if (jokeIds.isEmpty) return <JokeInteraction>[];
+      final query = _db.select(_db.jokeInteractions)
+        ..where((tbl) => tbl.jokeId.isIn(jokeIds));
+      return await query.get();
+    },
+    fallback: <JokeInteraction>[],
+    perf: _perf,
+  );
+
+  Future<JokeInteraction?> getJokeInteraction(String jokeId) async {
+    final interactions = await getJokeInteractions([jokeId]);
+    return interactions.isEmpty ? null : interactions.first;
+  }
 
   Future<bool> isJokeSaved(String jokeId) async {
     JokeInteraction? interaction = await getJokeInteraction(jokeId);

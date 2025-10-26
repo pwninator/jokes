@@ -225,6 +225,9 @@ class NoopAppUsageService implements AppUsageService {
 
   @override
   Future<List<String>> getViewedJokeIds() async => const [];
+  @override
+  Future<List<String>> getUnviewedJokeIds(List<String> jokeIds) async =>
+      jokeIds;
 }
 
 class NoopReviewPromptCoordinator extends Mock

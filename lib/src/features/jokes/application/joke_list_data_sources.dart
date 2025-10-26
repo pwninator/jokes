@@ -119,9 +119,9 @@ final compositeJokePagingProviders = createPagingProviders(
   loadPage: _loadCompositeJokePage,
   resetTriggers: const [],
   errorAnalyticsSource: 'composite_jokes',
-  initialPageSize: 6,
-  loadPageSize: 12,
-  loadMoreThreshold: 0,
+  initialPageSize: 3,
+  loadPageSize: 10,
+  loadMoreThreshold: 5,
   initialCursorProvider: (ref) {
     final settings = ref.read(settingsServiceProvider);
     return settings.getString(compositeJokeCursorPrefsKey);
@@ -131,6 +131,7 @@ final compositeJokePagingProviders = createPagingProviders(
     if (cursor == null || cursor.isEmpty) return;
     final settings = ref.read(settingsServiceProvider);
     unawaited(settings.setString(compositeJokeCursorPrefsKey, cursor));
+    AppLogger.debug('PAGING_INTERNAL: Saved composite cursor: $cursor');
   },
 );
 

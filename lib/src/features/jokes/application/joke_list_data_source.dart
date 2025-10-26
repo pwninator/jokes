@@ -203,9 +203,9 @@ class GenericPagingNotifier extends StateNotifier<PagingState> {
       if (!mounted) return;
 
       AppLogger.debug(
-        'PAGING_INTERNAL: Loaded ${page.jokes.length} jokes, '
-        'cursor: ${page.cursor}, hasMore: ${page.hasMore}, '
-        'current total: ${state.loadedJokes.length}',
+        'PAGING_INTERNAL: Loaded ${page.jokes.length} jokes, prev cursor: $previousCursor, '
+        'new cursor: ${page.cursor}, hasMore: ${page.hasMore}, '
+        'previous total: ${state.loadedJokes.length}',
       );
 
       // Deduplicate by joke ID

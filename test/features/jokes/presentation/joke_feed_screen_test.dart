@@ -99,7 +99,7 @@ void main() {
     expect(screen.title, 'Joke Feed');
   });
 
-  testWidgets('JokeFeedScreen restores and persists the last viewed joke id', (
+  testWidgets('JokeFeedScreen creates JokeListViewer with correct parameters', (
     tester,
   ) async {
     // Arrange
@@ -122,9 +122,7 @@ void main() {
       ),
     ).thenAnswer((_) {});
 
-    final fakeSettings = FakeSettingsService({
-      'joke_feed_last_joke_id': 'stored_joke',
-    });
+    final fakeSettings = FakeSettingsService({});
 
     await tester.pumpWidget(
       ProviderScope(
@@ -142,22 +140,10 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    // Assert initial value is read
-    expect(fakeSettings.getKeys.contains('joke_feed_last_joke_id'), isTrue);
-
+    // Assert
     final viewer = tester.widget<JokeListViewer>(find.byType(JokeListViewer));
-    expect(viewer.initialJokeId, 'stored_joke');
-    expect(viewer.onJokeChange, isNotNull);
-
-    // Act: simulate navigation to a new joke
-    viewer.onJokeChange?.call('new_joke');
-    await tester.pump();
-
-    // Assert persistence
-    final persisted = fakeSettings.setEntries.any(
-      (entry) =>
-          entry.key == 'joke_feed_last_joke_id' && entry.value == 'new_joke',
-    );
-    expect(persisted, isTrue);
+    expect(viewer.jokeContext, 'joke_feed');
+    expect(viewer.viewerId, 'joke_feed');
+    expect(viewer.dataSource, isNotNull);
   });
 }

@@ -24,27 +24,23 @@ class JokeListViewer extends ConsumerStatefulWidget {
     this.jokesAsyncValue,
     this.jokesAsyncProvider,
     this.dataSource,
-    this.onJokeChange,
     required this.jokeContext,
     required this.viewerId,
     this.onInitRegisterReset,
     this.showCtaWhenEmpty = false,
     this.emptyState,
     this.showSimilarSearchButton = true,
-    this.initialJokeId,
   });
 
   final AsyncValue<List<JokeWithDate>>? jokesAsyncValue;
   final ProviderListenable<AsyncValue<List<JokeWithDate>>>? jokesAsyncProvider;
   final JokeListDataSource? dataSource;
-  final void Function(String jokeId)? onJokeChange;
   final String jokeContext;
   final String viewerId;
   final Function(VoidCallback)? onInitRegisterReset;
   final bool showCtaWhenEmpty;
   final Widget? emptyState;
   final bool showSimilarSearchButton;
-  final String? initialJokeId;
 
   @override
   ConsumerState<JokeListViewer> createState() => _JokeListViewerState();
@@ -56,7 +52,6 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
   final Map<int, int> _currentImageStates = {};
   final Map<int, JokeImageCarouselController> _carouselControllers = {};
   String _lastNavigationMethod = AnalyticsNavigationMethod.swipe;
-  bool _hasAppliedInitialJokeId = false;
 
   @override
   void initState() {
@@ -74,7 +69,6 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
         _pageController.jumpToPage(initialIndex);
       }
     });
-    _hasAppliedInitialJokeId = widget.initialJokeId == null;
     widget.onInitRegisterReset?.call(_resetToFirstJoke);
   }
 
@@ -84,21 +78,12 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
     super.dispose();
   }
 
-  @override
-  void didUpdateWidget(covariant JokeListViewer oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.initialJokeId != widget.initialJokeId) {
-      _hasAppliedInitialJokeId = widget.initialJokeId == null;
-    }
-  }
-
   void _resetToFirstJoke() {
     if (mounted && _pageController.hasClients) {
       ref.read(jokeViewerPageIndexProvider(widget.viewerId).notifier).state = 0;
       setState(() {
         _currentPage = 0;
         _currentImageStates.clear();
-        _hasAppliedInitialJokeId = true;
       });
       _pageController.jumpToPage(0);
     }
@@ -121,44 +106,6 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
     }
   }
 
-  void _maybeJumpToInitialJoke(List<JokeWithDate> jokesWithDates) {
-    if (_hasAppliedInitialJokeId) {
-      return;
-    }
-    final initialJokeId = widget.initialJokeId;
-    if (initialJokeId == null) {
-      _hasAppliedInitialJokeId = true;
-      return;
-    }
-    final targetIndex = jokesWithDates.indexWhere(
-      (element) => element.joke.id == initialJokeId,
-    );
-    if (targetIndex < 0) {
-      return;
-    }
-    if (targetIndex == _currentPage) {
-      _hasAppliedInitialJokeId = true;
-      return;
-    }
-    _hasAppliedInitialJokeId = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) {
-        return;
-      }
-      if (!_pageController.hasClients) {
-        _hasAppliedInitialJokeId = false;
-        return;
-      }
-      _pageController.jumpToPage(targetIndex);
-      setState(() {
-        _currentPage = targetIndex;
-        _currentImageStates.clear();
-      });
-      ref.read(jokeViewerPageIndexProvider(widget.viewerId).notifier).state =
-          targetIndex;
-      widget.dataSource?.updateViewingIndex(targetIndex);
-    });
-  }
 
   Widget _buildCTAButton({
     required BuildContext context,
@@ -247,7 +194,6 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
 
     return effectiveAsync.when(
       data: (jokesWithDates) {
-        _maybeJumpToInitialJoke(jokesWithDates);
         final isLandscape =
             MediaQuery.of(context).orientation == Orientation.landscape;
         final bool railPresent =
@@ -355,7 +301,6 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
                       screenOrientation: viewerCtx.screenOrientation,
                     );
 
-                    widget.onJokeChange?.call(joke.id);
                     _lastNavigationMethod = AnalyticsNavigationMethod.swipe;
                   }
                 },

@@ -8,7 +8,7 @@ import 'package:snickerdoodle/src/features/jokes/data/models/joke_category.dart'
 void main() {
   group('discoverCategoriesProvider', () {
     test(
-      'includes all, popular, Halloween seasonal, and approved categories',
+      'includes popular, Halloween seasonal, and approved categories',
       () async {
         final container = ProviderContainer(
           overrides: [
@@ -43,11 +43,7 @@ void main() {
         final categories = async.value!;
 
         // Expect presence regardless of order
-        expect(categories.length, 4);
-        expect(
-          categories.any((category) => category.type == CategoryType.composite),
-          isTrue,
-        );
+        expect(categories.length, 3);
         expect(
           categories.any((category) => category.type == CategoryType.popular),
           isTrue,

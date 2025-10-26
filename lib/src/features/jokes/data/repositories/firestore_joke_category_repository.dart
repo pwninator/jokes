@@ -25,9 +25,9 @@ class FirestoreJokeCategoryRepository implements JokeCategoryRepository {
 
   @override
   Stream<JokeCategory?> watchCategory(String categoryId) {
-    return _doc(categoryId)
-        .snapshots()
-        .map((d) => d.exists ? JokeCategory.fromMap(d.data()!, d.id) : null);
+    return _doc(categoryId).snapshots().map(
+      (d) => d.exists ? JokeCategory.fromMap(d.data()!, d.id) : null,
+    );
   }
 
   @override
@@ -48,9 +48,7 @@ class FirestoreJokeCategoryRepository implements JokeCategoryRepository {
 
   @override
   Stream<List<String>> watchCategoryImages(String categoryId) {
-    return _doc(categoryId).snapshots().map((
-      doc,
-    ) {
+    return _doc(categoryId).snapshots().map((doc) {
       final data = doc.data();
       if (data == null) return <String>[];
       final dynamic list = data['all_image_urls'];
@@ -80,10 +78,9 @@ class FirestoreJokeCategoryRepository implements JokeCategoryRepository {
   }
 
   DocumentReference<Map<String, dynamic>> _doc(String categoryId) {
-    final docId =
-        categoryId.startsWith(JokeCategory.firestorePrefix)
-            ? categoryId.substring(JokeCategory.firestorePrefix.length)
-            : categoryId;
+    final docId = categoryId.startsWith(JokeCategory.firestorePrefix)
+        ? categoryId.substring(JokeCategory.firestorePrefix.length)
+        : categoryId;
     return _firestore.collection(_collection).doc(docId);
   }
 }

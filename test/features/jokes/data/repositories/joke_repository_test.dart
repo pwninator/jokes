@@ -1,4 +1,6 @@
 // ignore_for_file: subtype_of_sealed_class
+import 'dart:convert';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -28,9 +30,55 @@ class MockDocumentSnapshot extends Mock
 
 class MockWriteBatch extends Mock implements WriteBatch {}
 
-class MockTimestamp extends Mock implements Timestamp {}
-
 void main() {
+  group('JokeListPageCursor', () {
+    test('serialize stores timestamp seconds and nanoseconds', () {
+      final timestamp = Timestamp(1700, 123456789);
+      final cursor = JokeListPageCursor(orderValue: timestamp, docId: 'abc');
+
+      final encoded = cursor.serialize();
+      final decoded = jsonDecode(encoded) as Map<String, dynamic>;
+
+      expect(decoded, {
+        'o': {
+          'ts': {'s': timestamp.seconds, 'n': timestamp.nanoseconds},
+        },
+        'd': 'abc',
+      });
+    });
+
+    test('deserialize restores timestamp seconds and nanoseconds', () {
+      const seconds = 1700;
+      const nanoseconds = 123456789;
+      final serialized = jsonEncode({
+        'o': {
+          'ts': {'s': seconds, 'n': nanoseconds},
+        },
+        'd': 'cursor',
+      });
+
+      final cursor = JokeListPageCursor.deserialize(serialized);
+      expect(cursor.docId, 'cursor');
+      expect(cursor.orderValue, isA<Timestamp>());
+
+      final value = cursor.orderValue as Timestamp;
+      expect(value.seconds, seconds);
+      expect(value.nanoseconds, nanoseconds);
+    });
+
+    test('deserialize throws when timestamp payload is invalid', () {
+      final serialized = jsonEncode({
+        'o': {'ts': 123},
+        'd': 'invalid',
+      });
+
+      expect(
+        () => JokeListPageCursor.deserialize(serialized),
+        throwsFormatException,
+      );
+    });
+  });
+
   group('JokeRepository', () {
     late JokeRepository repository;
     late MockFirebaseFirestore mockFirestore;
@@ -381,11 +429,13 @@ void main() {
 
         final docs = [
           createMockDoc('joke1', {
+            'creation_time': Timestamp(1, 0),
             'public_timestamp': Timestamp.now(),
             'num_saved_users_fraction': 0.75,
             ...createJokeData(1),
           }),
           createMockDoc('joke2', {
+            'creation_time': Timestamp(2, 0),
             'public_timestamp': Timestamp.now(),
             'num_saved_users_fraction': 0.5,
             ...createJokeData(2),
@@ -394,9 +444,13 @@ void main() {
         when(() => mockQuerySnapshot.docs).thenReturn(docs);
 
         final page = await repository.getFilteredJokePage(
-          states: {JokeState.approved},
-          popularOnly: false,
-          publicOnly: false,
+          filters: [
+            JokeFilter.whereInValues(JokeField.state, [
+              JokeState.approved.value,
+            ]),
+          ],
+          orderByField: JokeField.creationTime,
+          orderDirection: OrderDirection.descending,
           limit: 10,
         );
 
@@ -421,9 +475,9 @@ void main() {
         when(() => mockQuerySnapshot.docs).thenReturn([]);
 
         final page = await repository.getFilteredJokePage(
-          states: {},
-          popularOnly: true,
-          publicOnly: false,
+          filters: [JokeFilter.greaterThan(JokeField.popularityScore, 0.0)],
+          orderByField: JokeField.creationTime,
+          orderDirection: OrderDirection.descending,
           limit: 10,
           cursor: null,
         );
@@ -454,9 +508,9 @@ void main() {
         when(() => mockQuerySnapshot.docs).thenReturn([]);
 
         final page = await repository.getFilteredJokePage(
-          states: {},
-          popularOnly: false,
-          publicOnly: false,
+          filters: const [],
+          orderByField: JokeField.creationTime,
+          orderDirection: OrderDirection.descending,
           limit: 10,
         );
 

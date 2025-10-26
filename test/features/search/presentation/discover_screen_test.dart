@@ -598,6 +598,7 @@ void main() {
             viewedCategoryIdsProvider.overrideWith(
               (ref) => Stream.value({
                 'animal',
+                'programmatic:all',
                 'programmatic:popular',
                 'programmatic:seasonal:halloween',
               }),
@@ -640,6 +641,7 @@ void main() {
             viewedCategoryIdsProvider.overrideWith(
               (ref) => Stream.value({
                 'animal',
+                'programmatic:all',
                 'programmatic:popular',
                 'programmatic:seasonal:halloween',
               }),

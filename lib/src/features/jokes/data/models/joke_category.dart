@@ -10,6 +10,9 @@ enum CategoryType {
 
   /// Firestore-based category filtered by a seasonal field
   seasonal,
+
+  /// Composite feed that stitches together multiple sources (e.g., All jokes)
+  composite,
 }
 
 /// Joke category state values stored in Firestore as uppercase strings

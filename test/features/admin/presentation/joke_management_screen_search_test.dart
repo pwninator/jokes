@@ -13,6 +13,8 @@ void main() {
     registerFallbackValue(
       const JokeListPageCursor(orderValue: 0, docId: 'cursor'),
     );
+    registerFallbackValue(OrderDirection.descending);
+    registerFallbackValue(JokeField.creationTime);
   });
 
   testWidgets('Clear icon is always visible and clears search', (tester) async {
@@ -20,9 +22,9 @@ void main() {
 
     when(
       () => repo.getFilteredJokePage(
-        states: any(named: 'states'),
-        popularOnly: any(named: 'popularOnly'),
-        publicOnly: any(named: 'publicOnly'),
+        filters: any(named: 'filters'),
+        orderByField: any(named: 'orderByField'),
+        orderDirection: any(named: 'orderDirection'),
         limit: any(named: 'limit'),
         cursor: any(named: 'cursor'),
       ),

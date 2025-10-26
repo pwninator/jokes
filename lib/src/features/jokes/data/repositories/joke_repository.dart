@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
@@ -14,6 +15,41 @@ class JokeListPageCursor {
   final String docId;
 
   const JokeListPageCursor({required this.orderValue, required this.docId});
+
+  String serialize() {
+    final Object encodedOrderValue;
+    final value = orderValue;
+    if (value is Timestamp) {
+      encodedOrderValue = {
+        'ts': {'s': value.seconds, 'n': value.nanoseconds},
+      };
+    } else {
+      encodedOrderValue = value;
+    }
+    return jsonEncode({'o': encodedOrderValue, 'd': docId});
+  }
+
+  factory JokeListPageCursor.deserialize(String serialized) {
+    final Map<String, dynamic> data =
+        jsonDecode(serialized) as Map<String, dynamic>;
+    final dynamic raw = data['o'];
+    final Object orderValue;
+    if (raw is Map && raw.containsKey('ts')) {
+      final dynamic ts = raw['ts'];
+      if (ts is! Map) {
+        throw FormatException('Invalid timestamp cursor payload: $ts');
+      }
+      final seconds = (ts['s'] as num).toInt();
+      final nanoseconds = (ts['n'] as num).toInt();
+      orderValue = Timestamp(seconds, nanoseconds);
+    } else {
+      orderValue = raw as Object;
+    }
+    return JokeListPageCursor(
+      orderValue: orderValue,
+      docId: data['d'] as String,
+    );
+  }
 }
 
 @immutable
@@ -27,6 +63,127 @@ class JokeListPage {
     required this.cursor,
     required this.hasMore,
   });
+}
+
+enum JokeField {
+  state('state'),
+  popularityScore('popularity_score'),
+  seasonal('seasonal'),
+  publicTimestamp('public_timestamp'),
+  randomId('random_id'),
+  creationTime('creation_time');
+
+  const JokeField(this.firestoreName);
+  final String firestoreName;
+
+  @override
+  String toString() => firestoreName;
+}
+
+enum OrderDirection { ascending, descending }
+
+@immutable
+class JokeFilter {
+  final JokeField field;
+  final Object? isEqualTo;
+  final Object? isNotEqualTo;
+  final Object? isLessThan;
+  final Object? isLessThanOrEqualTo;
+  final Object? isGreaterThan;
+  final Object? isGreaterThanOrEqualTo;
+  final Object? arrayContains;
+  final Iterable<Object?>? arrayContainsAny;
+  final Iterable<Object?>? whereIn;
+  final Iterable<Object?>? whereNotIn;
+  final bool? isNull;
+
+  const JokeFilter({
+    required this.field,
+    this.isEqualTo,
+    this.isNotEqualTo,
+    this.isLessThan,
+    this.isLessThanOrEqualTo,
+    this.isGreaterThan,
+    this.isGreaterThanOrEqualTo,
+    this.arrayContains,
+    this.arrayContainsAny,
+    this.whereIn,
+    this.whereNotIn,
+    this.isNull,
+  }) : assert(
+         ((isEqualTo != null ? 1 : 0) +
+                 (isNotEqualTo != null ? 1 : 0) +
+                 (isLessThan != null ? 1 : 0) +
+                 (isLessThanOrEqualTo != null ? 1 : 0) +
+                 (isGreaterThan != null ? 1 : 0) +
+                 (isGreaterThanOrEqualTo != null ? 1 : 0) +
+                 (arrayContains != null ? 1 : 0) +
+                 (arrayContainsAny != null ? 1 : 0) +
+                 (whereIn != null ? 1 : 0) +
+                 (whereNotIn != null ? 1 : 0) +
+                 (isNull != null ? 1 : 0)) ==
+             1,
+         'Exactly one condition must be provided for JokeFilter.',
+       );
+
+  static JokeFilter equals(JokeField field, Object? value) =>
+      JokeFilter(field: field, isEqualTo: value);
+
+  static JokeFilter notEqualTo(JokeField field, Object value) =>
+      JokeFilter(field: field, isNotEqualTo: value);
+
+  static JokeFilter lessThan(JokeField field, Object value) =>
+      JokeFilter(field: field, isLessThan: value);
+
+  static JokeFilter lessThanOrEqualTo(JokeField field, Object value) =>
+      JokeFilter(field: field, isLessThanOrEqualTo: value);
+
+  static JokeFilter greaterThan(JokeField field, Object value) =>
+      JokeFilter(field: field, isGreaterThan: value);
+
+  static JokeFilter greaterThanOrEqualTo(JokeField field, Object value) =>
+      JokeFilter(field: field, isGreaterThanOrEqualTo: value);
+
+  static JokeFilter arrayContainsValue(JokeField field, Object value) =>
+      JokeFilter(field: field, arrayContains: value);
+
+  static JokeFilter arrayContainsAnyValues(
+    JokeField field,
+    Iterable<Object?> values,
+  ) => JokeFilter(field: field, arrayContainsAny: values);
+
+  static JokeFilter whereInValues(JokeField field, Iterable<Object?> values) =>
+      JokeFilter(field: field, whereIn: values);
+
+  static JokeFilter whereNotInValues(
+    JokeField field,
+    Iterable<Object?> values,
+  ) => JokeFilter(field: field, whereNotIn: values);
+
+  static JokeFilter isNullValue(JokeField field, bool value) =>
+      JokeFilter(field: field, isNull: value);
+
+  Query<Map<String, dynamic>> apply(Query<Map<String, dynamic>> query) {
+    return query.where(
+      field.firestoreName,
+      isEqualTo: isEqualTo,
+      isNotEqualTo: isNotEqualTo,
+      isLessThan: isLessThan,
+      isLessThanOrEqualTo: isLessThanOrEqualTo,
+      isGreaterThan: isGreaterThan,
+      isGreaterThanOrEqualTo: isGreaterThanOrEqualTo,
+      arrayContains: arrayContains,
+      arrayContainsAny: arrayContainsAny,
+      whereIn: whereIn,
+      whereNotIn: whereNotIn,
+      isNull: isNull,
+    );
+  }
+
+  @override
+  String toString() {
+    return 'JokeFilter(field: ${field.firestoreName}, isEqualTo: $isEqualTo, isNotEqualTo: $isNotEqualTo, isLessThan: $isLessThan, isLessThanOrEqualTo: $isLessThanOrEqualTo, isGreaterThan: $isGreaterThan, isGreaterThanOrEqualTo: $isGreaterThanOrEqualTo, arrayContains: $arrayContains, arrayContainsAny: $arrayContainsAny, whereIn: $whereIn, whereNotIn: $whereNotIn, isNull: $isNull)';
+  }
 }
 
 class JokeRepository {
@@ -164,39 +321,22 @@ class JokeRepository {
   /// - Adds a stable secondary order on document ID to ensure deterministic paging
   ///   when the primary order values are equal.
   Future<JokeListPage> getFilteredJokePage({
-    required Set<JokeState> states,
-    required bool publicOnly,
-    required bool popularOnly,
+    required List<JokeFilter> filters,
+    required JokeField orderByField,
+    required OrderDirection orderDirection,
     required int limit,
     JokeListPageCursor? cursor,
-    String? seasonalValue,
   }) async {
     Query<Map<String, dynamic>> query = _firestore.collection('jokes');
 
-    if (states.isNotEmpty) {
-      final stateValues = states.map((s) => s.value).toList();
-      query = query.where('state', whereIn: stateValues);
+    for (final filter in filters) {
+      query = filter.apply(query);
     }
 
-    // Optional seasonal filter
-    if (seasonalValue != null && seasonalValue.isNotEmpty) {
-      query = query.where('seasonal', isEqualTo: seasonalValue);
-    }
-
-    String primaryOrderByField = 'creation_time';
-    bool descending = true;
-    if (popularOnly) {
-      query = query.where('popularity_score', isGreaterThan: 0.0);
-      primaryOrderByField = 'popularity_score';
-      descending = true;
-    } else if (publicOnly) {
-      query = query.where('public_timestamp', isLessThan: DateTime.now());
-      primaryOrderByField = 'public_timestamp';
-      descending = true;
-    }
+    final descending = orderDirection == OrderDirection.descending;
 
     query = query
-        .orderBy(primaryOrderByField, descending: descending)
+        .orderBy(orderByField.firestoreName, descending: descending)
         .orderBy(FieldPath.documentId, descending: true);
 
     if (cursor != null) {
@@ -212,8 +352,10 @@ class JokeRepository {
       collection: 'jokes',
       action: () => query.get(),
       extra: {
-        'popular_only': popularOnly.toString(),
+        'order': orderByField.firestoreName,
+        'order_desc': descending.toString(),
         'limit': limit.toString(),
+        'filters': filters.length.toString(),
       },
     );
     final ids = snapshot.docs.map((d) => d.id).toList();
@@ -225,13 +367,15 @@ class JokeRepository {
     // The last document determines the next cursor
     final lastDoc = snapshot.docs.last;
     final lastData = lastDoc.data();
-    // Derive a robust, non-null order value for the cursor even if the
-    // primary ordered field is missing on the last document (e.g., in tests)
-    final Object orderValue =
-        lastData[primaryOrderByField] ??
-        lastData['public_timestamp'] ??
-        lastData['popularity_score'] ??
-        lastDoc.id;
+    // Ensure the primary ordered field exists on the last document so the
+    // subsequent cursor matches the query definition.
+    final Object? orderValue = lastData[orderByField.firestoreName];
+    if (orderValue == null) {
+      throw StateError(
+        'Joke ${lastDoc.id} is missing order-by field '
+        '${orderByField.firestoreName}',
+      );
+    }
 
     final nextCursor = JokeListPageCursor(
       orderValue: orderValue,

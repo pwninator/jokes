@@ -164,5 +164,85 @@ void main() {
       await connectivityController.close();
       await offlineToOnlineController.close();
     });
+
+    test('clears cached cursor when page returns null', () async {
+      Future<void> waitUntil(bool Function() condition) async {
+        final deadline = DateTime.now().add(const Duration(seconds: 1));
+        while (!condition()) {
+          if (DateTime.now().isAfter(deadline)) {
+            fail('Timed out waiting for condition');
+          }
+          await Future<void>.delayed(const Duration(milliseconds: 5));
+        }
+      }
+
+      final requestedCursors = <String?>[];
+      int callCount = 0;
+
+      Future<PageResult> loadPage(Ref ref, int limit, String? cursor) async {
+        requestedCursors.add(cursor);
+        callCount++;
+        if (callCount == 1) {
+          return PageResult(
+            jokes: [JokeWithDate(joke: _makeJoke('first'))],
+            cursor: 'cursor-1',
+            hasMore: true,
+          );
+        }
+        return PageResult(
+          jokes: [JokeWithDate(joke: _makeJoke('second'))],
+          cursor: null,
+          hasMore: false,
+        );
+      }
+
+      final bundle = createPagingProviders(
+        loadPage: loadPage,
+        resetTriggers: const [],
+        errorAnalyticsSource: 'test',
+        initialPageSize: 1,
+        loadPageSize: 1,
+        loadMoreThreshold: -1,
+      );
+
+      final mockAnalyticsService = MockAnalyticsService();
+      final mockFirebaseAnalytics = MockFirebaseAnalytics();
+
+      final container = ProviderContainer(
+        overrides: [
+          analyticsServiceProvider.overrideWithValue(mockAnalyticsService),
+          firebaseAnalyticsProvider.overrideWithValue(mockFirebaseAnalytics),
+          offlineToOnlineProvider.overrideWith((ref) => const Stream.empty()),
+          isOnlineNowProvider.overrideWith((ref) => true),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      // Touch the paging provider so it starts loading.
+      container.read(bundle.paging);
+
+      await waitUntil(() => requestedCursors.isNotEmpty);
+      await waitUntil(
+        () => container.read(bundle.paging).loadedJokes.length == 1,
+      );
+
+      final firstState = container.read(bundle.paging);
+      expect(firstState.cursor, 'cursor-1');
+      expect(firstState.hasMore, isTrue);
+
+      await container.read(bundle.paging.notifier).loadMore();
+      await waitUntil(() => requestedCursors.length == 2);
+      await waitUntil(
+        () =>
+            !container.read(bundle.paging).isLoading &&
+            container.read(bundle.paging).loadedJokes.length == 2,
+      );
+
+      final secondState = container.read(bundle.paging);
+      expect(secondState.cursor, isNull);
+      expect(secondState.hasMore, isFalse);
+      expect(secondState.loadedJokes.length, 2);
+      expect(requestedCursors, [null, 'cursor-1']);
+    });
   });
 }

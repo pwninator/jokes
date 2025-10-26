@@ -25,8 +25,10 @@ void main() {
 
       await repository.upsertCategory(category);
 
-      final doc =
-          await firestore.collection('joke_categories').doc('cats').get();
+      final doc = await firestore
+          .collection('joke_categories')
+          .doc('cats')
+          .get();
       expect(doc.exists, isTrue);
       expect(doc.data()?['display_name'], 'Cats');
       expect(doc.data()?['state'], JokeCategoryState.approved.value);
@@ -82,7 +84,10 @@ void main() {
           .watchCategoryImages('${JokeCategory.firestorePrefix}imgs')
           .first;
 
-      expect(images, ['https://example.com/one.png', 'https://example.com/two.png']);
+      expect(images, [
+        'https://example.com/one.png',
+        'https://example.com/two.png',
+      ]);
     });
 
     test('addImageToCategory strips prefix before writing', () async {
@@ -127,4 +132,3 @@ void main() {
     });
   });
 }
-

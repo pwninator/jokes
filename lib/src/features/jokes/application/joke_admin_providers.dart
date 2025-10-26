@@ -71,6 +71,29 @@ class AdminPagingNotifier extends StateNotifier<AdminPagingState> {
     state = const AdminPagingState.initial();
   }
 
+  List<JokeFilter> _buildFilters(JokeFilterState filterState) {
+    final filters = <JokeFilter>[];
+    if (filterState.selectedStates.isNotEmpty) {
+      filters.add(
+        JokeFilter.whereInValues(
+          JokeField.state,
+          filterState.selectedStates.map((s) => s.value),
+        ),
+      );
+    }
+    if (filterState.showPopularOnly) {
+      filters.add(JokeFilter.greaterThan(JokeField.popularityScore, 0.0));
+    }
+    return filters;
+  }
+
+  JokeField _getOrderByField(JokeFilterState filterState) {
+    if (filterState.showPopularOnly) {
+      return JokeField.popularityScore;
+    }
+    return JokeField.creationTime;
+  }
+
   Future<void> loadFirstPage({int limit = defaultPageSize}) async {
     if (state.isLoading) return;
     state = state.copyWith(
@@ -83,9 +106,9 @@ class AdminPagingNotifier extends StateNotifier<AdminPagingState> {
     final filterState = ref.read(jokeFilterProvider);
     try {
       final page = await repository.getFilteredJokePage(
-        states: filterState.selectedStates,
-        popularOnly: filterState.showPopularOnly,
-        publicOnly: false,
+        filters: _buildFilters(filterState),
+        orderByField: _getOrderByField(filterState),
+        orderDirection: OrderDirection.descending,
         limit: limit,
         cursor: null,
       );
@@ -108,9 +131,9 @@ class AdminPagingNotifier extends StateNotifier<AdminPagingState> {
     final filterState = ref.read(jokeFilterProvider);
     try {
       final page = await repository.getFilteredJokePage(
-        states: filterState.selectedStates,
-        popularOnly: filterState.showPopularOnly,
-        publicOnly: false,
+        filters: _buildFilters(filterState),
+        orderByField: _getOrderByField(filterState),
+        orderDirection: OrderDirection.descending,
         limit: limit,
         cursor: state.cursor,
       );

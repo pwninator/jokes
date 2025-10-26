@@ -226,7 +226,9 @@ class _ResultsSummary extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     // Don't show count for Popular category because there are many jokes
     // so the partial count is misleading
-    if (category == null || category!.type == CategoryType.popular) {
+    if (category == null ||
+        category!.type == CategoryType.popular ||
+        category!.type == CategoryType.composite) {
       return const SizedBox.shrink();
     }
 

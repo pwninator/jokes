@@ -14,6 +14,8 @@ void main() {
     registerFallbackValue(
       const JokeListPageCursor(orderValue: 0, docId: 'cursor'),
     );
+    registerFallbackValue(OrderDirection.descending);
+    registerFallbackValue(JokeField.creationTime);
   });
 
   group('JokeManagementScreen infinite scroll edge cases', () {
@@ -24,9 +26,10 @@ void main() {
 
       when(
         () => repo.getFilteredJokePage(
-          states: any(named: 'states'),
-          popularOnly: any(named: 'popularOnly'),
-          publicOnly: any(named: 'publicOnly'),
+          filters: any(named: 'filters'),
+          orderByField: any(named: 'orderByField'),
+          orderDirection: any(named: 'orderDirection'),
+
           limit: any(named: 'limit'),
           cursor: any(named: 'cursor'),
         ),
@@ -51,9 +54,10 @@ void main() {
 
       verify(
         () => repo.getFilteredJokePage(
-          states: any(named: 'states'),
-          popularOnly: any(named: 'popularOnly'),
-          publicOnly: any(named: 'publicOnly'),
+          filters: any(named: 'filters'),
+          orderByField: any(named: 'orderByField'),
+          orderDirection: any(named: 'orderDirection'),
+
           limit: any(named: 'limit'),
           cursor: any(named: 'cursor'),
         ),
@@ -68,9 +72,10 @@ void main() {
         final repo = MockJokeRepository();
         when(
           () => repo.getFilteredJokePage(
-            states: any(named: 'states'),
-            popularOnly: any(named: 'popularOnly'),
-            publicOnly: any(named: 'publicOnly'),
+            filters: any(named: 'filters'),
+            orderByField: any(named: 'orderByField'),
+            orderDirection: any(named: 'orderDirection'),
+
             limit: any(named: 'limit'),
             cursor: any(named: 'cursor'),
           ),
@@ -93,9 +98,10 @@ void main() {
 
         verify(
           () => repo.getFilteredJokePage(
-            states: any(named: 'states'),
-            popularOnly: any(named: 'popularOnly'),
-            publicOnly: any(named: 'publicOnly'),
+            filters: any(named: 'filters'),
+            orderByField: any(named: 'orderByField'),
+            orderDirection: any(named: 'orderDirection'),
+
             limit: any(named: 'limit'),
             cursor: any(named: 'cursor'),
           ),

@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/providers/connectivity_providers.dart';
+import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
 
@@ -45,6 +45,8 @@ class PagingState {
       totalCount = null,
       isInitialized = false;
 
+  /// Returns a new PagingState with the given properties updated.
+  /// Set cursor to empty string to unset it.
   PagingState copyWith({
     List<JokeWithDate>? loadedJokes,
     String? cursor,
@@ -53,9 +55,10 @@ class PagingState {
     int? totalCount,
     bool? isInitialized,
   }) {
+    final newCursor = cursor == "" ? null : (cursor ?? this.cursor);
     return PagingState(
       loadedJokes: loadedJokes ?? this.loadedJokes,
-      cursor: cursor ?? this.cursor,
+      cursor: newCursor,
       isLoading: isLoading ?? this.isLoading,
       hasMore: hasMore ?? this.hasMore,
       totalCount: totalCount ?? this.totalCount,
@@ -76,6 +79,8 @@ class GenericPagingNotifier extends StateNotifier<PagingState> {
     required this.initialPageSize,
     required this.loadPageSize,
     required this.loadMoreThreshold,
+    this.initialCursorProvider,
+    this.onCursorChanged,
   }) : super(const PagingState.initial()) {
     // Set up reset triggers
     for (final trigger in resetTriggers) {
@@ -104,6 +109,8 @@ class GenericPagingNotifier extends StateNotifier<PagingState> {
   final int initialPageSize;
   final int loadPageSize;
   final int loadMoreThreshold;
+  final String? Function(Ref ref)? initialCursorProvider;
+  final void Function(Ref ref, String?)? onCursorChanged;
 
   /// Current viewing index for auto-loading
   int _currentViewingIndex = 0;
@@ -113,6 +120,7 @@ class GenericPagingNotifier extends StateNotifier<PagingState> {
 
   /// Retry backoff window end
   DateTime? _blockRetriesLoadsUntil;
+  String? _initialCursorCache;
 
   void reset() {
     AppLogger.debug('PAGING_INTERNAL: Resetting GenericPagingNotifier');
@@ -120,6 +128,8 @@ class GenericPagingNotifier extends StateNotifier<PagingState> {
     _currentViewingIndex = 0;
     _failureAttemptIndex = 0;
     _blockRetriesLoadsUntil = null;
+    _initialCursorCache = null;
+    onCursorChanged?.call(ref, null);
     // Auto-load after reset (will short-circuit if query is empty/invalid)
     Future.microtask(() => {if (mounted) loadFirstPage()});
   }
@@ -163,13 +173,15 @@ class GenericPagingNotifier extends StateNotifier<PagingState> {
     }
     if (state.isLoading) return;
     if (_isInRetryBackoff() || !isOnlineNow(ref)) return;
+    final String? startCursor = _initialCursorCache ??= initialCursorProvider
+        ?.call(ref);
     state = state.copyWith(
       isLoading: true,
       loadedJokes: const <JokeWithDate>[],
-      cursor: null,
+      cursor: startCursor,
       hasMore: true,
     );
-    await _loadInternal(limit: initialPageSize, useCursor: null);
+    await _loadInternal(limit: initialPageSize, useCursor: startCursor);
   }
 
   Future<void> loadMore() async {
@@ -186,6 +198,7 @@ class GenericPagingNotifier extends StateNotifier<PagingState> {
   Future<void> _loadInternal({required int limit, String? useCursor}) async {
     if (!mounted) return;
     try {
+      final previousCursor = state.cursor;
       final page = await loadPage(limit, useCursor);
       if (!mounted) return;
 
@@ -211,16 +224,20 @@ class GenericPagingNotifier extends StateNotifier<PagingState> {
       final appended = <JokeWithDate>[...state.loadedJokes, ...newJokes];
 
       // If we got no new jokes, assume no more results
-      final effectiveHasMore = newJokes.isEmpty ? false : page.hasMore;
+      final newCursor = page.cursor;
+      final effectiveHasMore = page.hasMore && newCursor != previousCursor;
 
       if (!mounted) return;
       state = state.copyWith(
         loadedJokes: appended,
-        cursor: page.cursor,
+        cursor: newCursor ?? "",
         hasMore: effectiveHasMore,
         isLoading: false,
         totalCount: page.totalCount,
       );
+      if (newCursor != previousCursor) {
+        onCursorChanged?.call(ref, newCursor);
+      }
       _resetBackoffOnSuccess();
 
       AppLogger.debug(
@@ -309,6 +326,8 @@ PagingProviderBundle createPagingProviders({
   required int initialPageSize,
   required int loadPageSize,
   required int loadMoreThreshold,
+  String? Function(Ref ref)? initialCursorProvider,
+  void Function(Ref ref, String?)? onCursorChanged,
 }) {
   // Create the main paging provider
   final pagingProvider =
@@ -321,6 +340,8 @@ PagingProviderBundle createPagingProviders({
           initialPageSize: initialPageSize,
           loadPageSize: loadPageSize,
           loadMoreThreshold: loadMoreThreshold,
+          initialCursorProvider: initialCursorProvider,
+          onCursorChanged: onCursorChanged,
         );
       });
 

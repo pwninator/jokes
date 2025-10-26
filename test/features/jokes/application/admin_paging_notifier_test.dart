@@ -16,6 +16,8 @@ void main() {
       const JokeListPageCursor(orderValue: 0, docId: 'cursor'),
     );
     registerFallbackValue(const JokeFilterState());
+    registerFallbackValue(OrderDirection.descending);
+    registerFallbackValue(JokeField.creationTime);
     registerFallbackValue(
       const SearchQuery(
         query: '',
@@ -35,9 +37,9 @@ void main() {
     // Default stub for repository calls
     when(
       () => mockJokeRepository.getFilteredJokePage(
-        states: any(named: 'states'),
-        popularOnly: any(named: 'popularOnly'),
-        publicOnly: any(named: 'publicOnly'),
+        filters: any(named: 'filters'),
+        orderByField: any(named: 'orderByField'),
+        orderDirection: any(named: 'orderDirection'),
         limit: any(named: 'limit'),
         cursor: any(named: 'cursor'),
       ),
@@ -71,9 +73,9 @@ void main() {
       test('loads first page successfully', () async {
         when(
           () => mockJokeRepository.getFilteredJokePage(
-            states: any(named: 'states'),
-            popularOnly: any(named: 'popularOnly'),
-            publicOnly: any(named: 'publicOnly'),
+            filters: any(named: 'filters'),
+            orderByField: any(named: 'orderByField'),
+            orderDirection: any(named: 'orderDirection'),
             limit: any(named: 'limit'),
             cursor: null,
           ),
@@ -98,9 +100,9 @@ void main() {
       test('handles empty results', () async {
         when(
           () => mockJokeRepository.getFilteredJokePage(
-            states: any(named: 'states'),
-            popularOnly: any(named: 'popularOnly'),
-            publicOnly: any(named: 'publicOnly'),
+            filters: any(named: 'filters'),
+            orderByField: any(named: 'orderByField'),
+            orderDirection: any(named: 'orderDirection'),
             limit: any(named: 'limit'),
             cursor: null,
           ),
@@ -122,9 +124,9 @@ void main() {
       test('handles repository errors', () async {
         when(
           () => mockJokeRepository.getFilteredJokePage(
-            states: any(named: 'states'),
-            popularOnly: any(named: 'popularOnly'),
-            publicOnly: any(named: 'publicOnly'),
+            filters: any(named: 'filters'),
+            orderByField: any(named: 'orderByField'),
+            orderDirection: any(named: 'orderDirection'),
             limit: any(named: 'limit'),
             cursor: null,
           ),
@@ -143,9 +145,9 @@ void main() {
       test('prevents loading when already loading', () async {
         when(
           () => mockJokeRepository.getFilteredJokePage(
-            states: any(named: 'states'),
-            popularOnly: any(named: 'popularOnly'),
-            publicOnly: any(named: 'publicOnly'),
+            filters: any(named: 'filters'),
+            orderByField: any(named: 'orderByField'),
+            orderDirection: any(named: 'orderDirection'),
             limit: any(named: 'limit'),
             cursor: null,
           ),
@@ -173,9 +175,9 @@ void main() {
         // Should only have been called once
         verify(
           () => mockJokeRepository.getFilteredJokePage(
-            states: any(named: 'states'),
-            popularOnly: any(named: 'popularOnly'),
-            publicOnly: any(named: 'publicOnly'),
+            filters: any(named: 'filters'),
+            orderByField: any(named: 'orderByField'),
+            orderDirection: any(named: 'orderDirection'),
             limit: any(named: 'limit'),
             cursor: null,
           ),
@@ -188,9 +190,9 @@ void main() {
         // First page
         when(
           () => mockJokeRepository.getFilteredJokePage(
-            states: any(named: 'states'),
-            popularOnly: any(named: 'popularOnly'),
-            publicOnly: any(named: 'publicOnly'),
+            filters: any(named: 'filters'),
+            orderByField: any(named: 'orderByField'),
+            orderDirection: any(named: 'orderDirection'),
             limit: any(named: 'limit'),
             cursor: null,
           ),
@@ -205,9 +207,9 @@ void main() {
         // Second page
         when(
           () => mockJokeRepository.getFilteredJokePage(
-            states: any(named: 'states'),
-            popularOnly: any(named: 'popularOnly'),
-            publicOnly: any(named: 'publicOnly'),
+            filters: any(named: 'filters'),
+            orderByField: any(named: 'orderByField'),
+            orderDirection: any(named: 'orderDirection'),
             limit: any(named: 'limit'),
             cursor: const JokeListPageCursor(orderValue: 1, docId: 'c'),
           ),
@@ -234,9 +236,9 @@ void main() {
         // First page
         when(
           () => mockJokeRepository.getFilteredJokePage(
-            states: any(named: 'states'),
-            popularOnly: any(named: 'popularOnly'),
-            publicOnly: any(named: 'publicOnly'),
+            filters: any(named: 'filters'),
+            orderByField: any(named: 'orderByField'),
+            orderDirection: any(named: 'orderDirection'),
             limit: any(named: 'limit'),
             cursor: null,
           ),
@@ -251,9 +253,9 @@ void main() {
         // Second page with overlap
         when(
           () => mockJokeRepository.getFilteredJokePage(
-            states: any(named: 'states'),
-            popularOnly: any(named: 'popularOnly'),
-            publicOnly: any(named: 'publicOnly'),
+            filters: any(named: 'filters'),
+            orderByField: any(named: 'orderByField'),
+            orderDirection: any(named: 'orderDirection'),
             limit: any(named: 'limit'),
             cursor: const JokeListPageCursor(orderValue: 1, docId: 'c'),
           ),
@@ -279,9 +281,9 @@ void main() {
         // First page
         when(
           () => mockJokeRepository.getFilteredJokePage(
-            states: any(named: 'states'),
-            popularOnly: any(named: 'popularOnly'),
-            publicOnly: any(named: 'publicOnly'),
+            filters: any(named: 'filters'),
+            orderByField: any(named: 'orderByField'),
+            orderDirection: any(named: 'orderDirection'),
             limit: any(named: 'limit'),
             cursor: null,
           ),
@@ -296,9 +298,9 @@ void main() {
         // Second page - no more results
         when(
           () => mockJokeRepository.getFilteredJokePage(
-            states: any(named: 'states'),
-            popularOnly: any(named: 'popularOnly'),
-            publicOnly: any(named: 'publicOnly'),
+            filters: any(named: 'filters'),
+            orderByField: any(named: 'orderByField'),
+            orderDirection: any(named: 'orderDirection'),
             limit: any(named: 'limit'),
             cursor: const JokeListPageCursor(orderValue: 1, docId: 'b'),
           ),
@@ -326,9 +328,9 @@ void main() {
         // First page
         when(
           () => mockJokeRepository.getFilteredJokePage(
-            states: any(named: 'states'),
-            popularOnly: any(named: 'popularOnly'),
-            publicOnly: any(named: 'publicOnly'),
+            filters: any(named: 'filters'),
+            orderByField: any(named: 'orderByField'),
+            orderDirection: any(named: 'orderDirection'),
             limit: any(named: 'limit'),
             cursor: null,
           ),
@@ -343,9 +345,9 @@ void main() {
         // Second page - error
         when(
           () => mockJokeRepository.getFilteredJokePage(
-            states: any(named: 'states'),
-            popularOnly: any(named: 'popularOnly'),
-            publicOnly: any(named: 'publicOnly'),
+            filters: any(named: 'filters'),
+            orderByField: any(named: 'orderByField'),
+            orderDirection: any(named: 'orderDirection'),
             limit: any(named: 'limit'),
             cursor: const JokeListPageCursor(orderValue: 1, docId: 'b'),
           ),
@@ -366,9 +368,9 @@ void main() {
         // First page
         when(
           () => mockJokeRepository.getFilteredJokePage(
-            states: any(named: 'states'),
-            popularOnly: any(named: 'popularOnly'),
-            publicOnly: any(named: 'publicOnly'),
+            filters: any(named: 'filters'),
+            orderByField: any(named: 'orderByField'),
+            orderDirection: any(named: 'orderDirection'),
             limit: any(named: 'limit'),
             cursor: null,
           ),
@@ -383,9 +385,9 @@ void main() {
         // Second page - slow response
         when(
           () => mockJokeRepository.getFilteredJokePage(
-            states: any(named: 'states'),
-            popularOnly: any(named: 'popularOnly'),
-            publicOnly: any(named: 'publicOnly'),
+            filters: any(named: 'filters'),
+            orderByField: any(named: 'orderByField'),
+            orderDirection: any(named: 'orderDirection'),
             limit: any(named: 'limit'),
             cursor: const JokeListPageCursor(orderValue: 1, docId: 'b'),
           ),
@@ -413,9 +415,9 @@ void main() {
         // Should only have been called once for loadMore
         verify(
           () => mockJokeRepository.getFilteredJokePage(
-            states: any(named: 'states'),
-            popularOnly: any(named: 'popularOnly'),
-            publicOnly: any(named: 'publicOnly'),
+            filters: any(named: 'filters'),
+            orderByField: any(named: 'orderByField'),
+            orderDirection: any(named: 'orderDirection'),
             limit: any(named: 'limit'),
             cursor: const JokeListPageCursor(orderValue: 1, docId: 'b'),
           ),
@@ -426,9 +428,9 @@ void main() {
         // First page with no more results
         when(
           () => mockJokeRepository.getFilteredJokePage(
-            states: any(named: 'states'),
-            popularOnly: any(named: 'popularOnly'),
-            publicOnly: any(named: 'publicOnly'),
+            filters: any(named: 'filters'),
+            orderByField: any(named: 'orderByField'),
+            orderDirection: any(named: 'orderDirection'),
             limit: any(named: 'limit'),
             cursor: null,
           ),
@@ -444,9 +446,9 @@ void main() {
         // Should only have been called once (for loadFirstPage)
         verify(
           () => mockJokeRepository.getFilteredJokePage(
-            states: any(named: 'states'),
-            popularOnly: any(named: 'popularOnly'),
-            publicOnly: any(named: 'publicOnly'),
+            filters: any(named: 'filters'),
+            orderByField: any(named: 'orderByField'),
+            orderDirection: any(named: 'orderDirection'),
             limit: any(named: 'limit'),
             cursor: null,
           ),
@@ -459,9 +461,9 @@ void main() {
         // Load some data first
         when(
           () => mockJokeRepository.getFilteredJokePage(
-            states: any(named: 'states'),
-            popularOnly: any(named: 'popularOnly'),
-            publicOnly: any(named: 'publicOnly'),
+            filters: any(named: 'filters'),
+            orderByField: any(named: 'orderByField'),
+            orderDirection: any(named: 'orderDirection'),
             limit: any(named: 'limit'),
             cursor: null,
           ),

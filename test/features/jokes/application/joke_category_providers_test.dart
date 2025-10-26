@@ -8,7 +8,7 @@ import 'package:snickerdoodle/src/features/jokes/data/models/joke_category.dart'
 void main() {
   group('discoverCategoriesProvider', () {
     test(
-      'includes popular, Halloween seasonal, and approved categories',
+      'includes all, popular, Halloween seasonal, and approved categories',
       () async {
         final container = ProviderContainer(
           overrides: [
@@ -43,7 +43,11 @@ void main() {
         final categories = async.value!;
 
         // Expect presence regardless of order
-        expect(categories.length, 3);
+        expect(categories.length, 4);
+        expect(
+          categories.any((category) => category.type == CategoryType.composite),
+          isTrue,
+        );
         expect(
           categories.any((category) => category.type == CategoryType.popular),
           isTrue,
@@ -58,8 +62,7 @@ void main() {
         );
         expect(
           categories.any(
-            (category) =>
-                category.id == '${JokeCategory.firestorePrefix}1',
+            (category) => category.id == '${JokeCategory.firestorePrefix}1',
           ),
           isTrue,
         );

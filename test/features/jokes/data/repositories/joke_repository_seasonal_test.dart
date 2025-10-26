@@ -98,10 +98,16 @@ void main() {
       ).thenReturn(<QueryDocumentSnapshot<Map<String, dynamic>>>[]);
 
       final page = await repository.getFilteredJokePage(
-        states: {JokeState.published, JokeState.daily},
-        popularOnly: true,
-        publicOnly: false,
-        seasonalValue: 'Halloween',
+        filters: [
+          JokeFilter.whereInValues(JokeField.state, [
+            JokeState.published.value,
+            JokeState.daily.value,
+          ]),
+          JokeFilter.greaterThan(JokeField.popularityScore, 0.0),
+          JokeFilter.equals(JokeField.seasonal, 'Halloween'),
+        ],
+        orderByField: JokeField.popularityScore,
+        orderDirection: OrderDirection.descending,
         limit: 10,
       );
       expect(page.ids, isEmpty);
@@ -132,10 +138,16 @@ void main() {
       when(() => mockQuerySnapshot.docs).thenReturn(docs);
 
       final page = await repository.getFilteredJokePage(
-        states: {JokeState.published, JokeState.daily},
-        popularOnly: true,
-        publicOnly: false,
-        seasonalValue: 'Halloween',
+        filters: [
+          JokeFilter.whereInValues(JokeField.state, [
+            JokeState.published.value,
+            JokeState.daily.value,
+          ]),
+          JokeFilter.greaterThan(JokeField.popularityScore, 0.0),
+          JokeFilter.equals(JokeField.seasonal, 'Halloween'),
+        ],
+        orderByField: JokeField.popularityScore,
+        orderDirection: OrderDirection.descending,
         limit: 2,
       );
 
@@ -145,10 +157,16 @@ void main() {
 
       // Next page using cursor should call startAfter
       final next = await repository.getFilteredJokePage(
-        states: {JokeState.published, JokeState.daily},
-        popularOnly: true,
-        publicOnly: false,
-        seasonalValue: 'Halloween',
+        filters: [
+          JokeFilter.whereInValues(JokeField.state, [
+            JokeState.published.value,
+            JokeState.daily.value,
+          ]),
+          JokeFilter.greaterThan(JokeField.popularityScore, 0.0),
+          JokeFilter.equals(JokeField.seasonal, 'Halloween'),
+        ],
+        orderByField: JokeField.popularityScore,
+        orderDirection: OrderDirection.descending,
         limit: 2,
         cursor: page.cursor,
       );

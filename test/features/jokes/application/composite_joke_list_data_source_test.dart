@@ -213,18 +213,21 @@ void main() {
       await _pumpUntilIdle(scope);
       var state = scope.read(compositeJokePagingProviders.paging);
       expect(state.loadedJokes.map((j) => j.joke.id), hasLength(6));
-      var cursor = CompositeCursor.decode(
-        prefs.getString(compositeJokeCursorPrefsKey),
-      );
-      expect(cursor?.sourceId, 'most_popular');
-      expect(cursor?.payload?['count'], 6);
+      expect(prefs.containsKey(compositeJokeCursorPrefsKey), isFalse);
 
       await notifier.loadMore();
       await _pumpUntilIdle(scope);
       state = scope.read(compositeJokePagingProviders.paging);
       expect(state.loadedJokes.map((j) => j.joke.id), hasLength(18));
-      final persisted2 = prefs.getString(compositeJokeCursorPrefsKey);
-      expect(persisted2, isNotNull);
+      final persistedAfterFirstLoadMore = prefs.getString(
+        compositeJokeCursorPrefsKey,
+      );
+      expect(persistedAfterFirstLoadMore, isNotNull);
+      final cursorAfterFirstLoadMore = CompositeCursor.decode(
+        persistedAfterFirstLoadMore,
+      );
+      expect(cursorAfterFirstLoadMore?.sourceId, 'most_popular');
+      expect(cursorAfterFirstLoadMore?.payload?['count'], 6);
 
       await notifier.loadMore();
       await _pumpUntilIdle(scope);
@@ -236,7 +239,14 @@ void main() {
           .map((j) => j.joke.id)
           .toList(growable: false);
       expect(tailIds, equals(['public-3', 'public-4']));
-      expect(prefs.getString(compositeJokeCursorPrefsKey), isNotNull);
+      final persistedAfterSecondLoadMore = prefs.getString(
+        compositeJokeCursorPrefsKey,
+      );
+      expect(persistedAfterSecondLoadMore, isNotNull);
+      final cursorAfterSecondLoadMore = CompositeCursor.decode(
+        persistedAfterSecondLoadMore,
+      );
+      expect(cursorAfterSecondLoadMore?.sourceId, 'all_jokes_public_timestamp');
     },
   );
 
@@ -312,7 +322,7 @@ void main() {
     },
   );
 
-  test('reset clears persisted cursor', () async {
+  test('reset keeps persisted cursor', () async {
     final data = _CompositeStubData(
       popularIds: List.generate(20, (i) => 'popular-${i + 1}'),
       randomIds: List.generate(6, (i) => 'random-${i + 1}'),
@@ -325,13 +335,15 @@ void main() {
 
     await notifier.loadFirstPage();
     await _pumpUntilIdle(scope);
-    expect(prefs.getString(compositeJokeCursorPrefsKey), isNotNull);
+    await notifier.loadMore();
+    await _pumpUntilIdle(scope);
+    final persistedBeforeReset = prefs.getString(compositeJokeCursorPrefsKey);
+    expect(persistedBeforeReset, isNotNull);
 
     notifier.reset();
     await _pumpUntilIdle(scope);
-    final persisted = prefs.getString(compositeJokeCursorPrefsKey);
-    expect(persisted, isNotNull);
-    expect(CompositeCursor.decode(persisted!), isNotNull);
+    final persistedAfterReset = prefs.getString(compositeJokeCursorPrefsKey);
+    expect(persistedAfterReset, equals(persistedBeforeReset));
   });
 
   test('composite loader skips duplicates and continues loading', () async {

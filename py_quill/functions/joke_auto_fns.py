@@ -60,18 +60,18 @@ def _notify_all_joke_schedules(scheduled_time_utc: datetime.datetime) -> None:
       scheduled_time_utc: The scheduled time from the scheduler event.
   """
   schedule_ids = firestore.list_joke_schedules()
-  logger.info("Found %s joke schedules to process", len(schedule_ids))
+  logger.info(f"Found {len(schedule_ids)} joke schedules to process")
   for schedule_id in schedule_ids:
     try:
-      logger.info("Sending daily joke notification for schedule: %s",
-                  schedule_id)
+      logger.info(
+        f"Sending daily joke notification for schedule: {schedule_id}")
       _send_daily_joke_notification(
         scheduled_time_utc,
         schedule_name=schedule_id,
       )
     except Exception as schedule_error:  # pylint: disable=broad-except
-      logger.error("Failed sending jokes for schedule %s: %s", schedule_id,
-                   schedule_error)
+      logger.error(
+        f"Failed sending jokes for schedule {schedule_id}: {schedule_error}")
 
 
 def _send_daily_joke_notification(
@@ -90,8 +90,8 @@ def _send_daily_joke_notification(
       now: The current datetime when this was executed (any timezone)
       schedule_name: The name of the joke schedule to use
   """
-  logger.info("Sending daily joke notification for %s at %s", schedule_name,
-              now)
+  logger.info(
+    f"Sending daily joke notification for {schedule_name} at {now.isoformat()}")
 
   if now.tzinfo is None:
     raise ValueError(
@@ -120,8 +120,8 @@ def _send_daily_joke_notification(
   now_pst = now.astimezone(pst_timezone)
 
   if now_pst.hour == 9:
-    logger.info("It's 9am PST, sending additional notification for %s",
-                schedule_name)
+    logger.info(
+      f"It's 9am PST, sending additional notification for {schedule_name}")
     _send_single_joke_notification(
       schedule_name=schedule_name,
       joke_date=now_pst.date(),
@@ -135,19 +135,19 @@ def _send_single_joke_notification(
   topic_suffix: str | None = None,
 ) -> None:
   """Send a joke notification for a given date."""
-  logger.info("Getting joke for %s on %s", schedule_name, joke_date)
+  logger.info(f"Getting joke for {schedule_name} on {joke_date}")
   jokes = firestore.get_daily_jokes(schedule_name, joke_date, 1)
   joke = jokes[0] if jokes else None
   if not joke:
-    logger.error("No joke found for %s", joke_date)
+    logger.error(f"No joke found for {joke_date}")
     return
-  logger.info("Joke found for %s: %s", joke_date, joke)
+  logger.info(f"Joke found for {joke_date}: {joke.key}")
 
   if notification_hour is not None and topic_suffix is not None:
     topic_name = f"{schedule_name}_{notification_hour:02d}{topic_suffix}"
   else:
     topic_name = schedule_name
-  logger.info("Sending joke notification to topic: %s", topic_name)
+  logger.info(f"Sending joke notification to topic: {topic_name}")
   firebase_cloud_messaging.send_punny_joke_notification(topic_name, joke)
 
 
@@ -166,7 +166,7 @@ def joke_daily_maintenance_scheduler(
   if scheduled_time_utc is None:
     scheduled_time_utc = datetime.datetime.now(datetime.timezone.utc)
 
-  _decay_recent_joke_stats_internal(scheduled_time_utc)
+  _joke_daily_maintenance_internal(scheduled_time_utc)
 
 
 @https_fn.on_request(
@@ -178,7 +178,7 @@ def joke_daily_maintenance_http(req: https_fn.Request) -> https_fn.Response:
   del req
   try:
     run_time_utc = datetime.datetime.now(datetime.timezone.utc)
-    _decay_recent_joke_stats_internal(run_time_utc)
+    _joke_daily_maintenance_internal(run_time_utc)
     return success_response({"message": "Recent joke stats decayed"})
   except Exception as exc:  # pylint: disable=broad-except
     return error_response(f'Failed to decay recent joke stats: {exc}')
@@ -193,6 +193,7 @@ def _joke_daily_maintenance_internal(run_time_utc: datetime.datetime) -> None:
   batch = db_client.batch()
   writes_in_batch = 0
   jokes_decayed = 0
+  public_updated = 0
   jokes_skipped = 0
 
   for joke_doc in joke_docs:
@@ -207,6 +208,7 @@ def _joke_daily_maintenance_internal(run_time_utc: datetime.datetime) -> None:
     if not isinstance(current_is_public,
                       bool) or current_is_public != expected_is_public:
       payload["is_public"] = expected_is_public
+      public_updated += 1
 
     # Decay recent stats if needed
     should_skip_decay = _should_skip_recent_update(joke_data, run_time_utc)
@@ -227,17 +229,17 @@ def _joke_daily_maintenance_internal(run_time_utc: datetime.datetime) -> None:
     writes_in_batch += 1
 
     if writes_in_batch >= _MAX_FIRESTORE_WRITE_BATCH_SIZE:
-      logger.info("Committing batch of %s writes", writes_in_batch)
+      logger.info(f"Committing batch of {writes_in_batch} writes")
       batch.commit()
       batch = db_client.batch()
       writes_in_batch = 0
 
   if writes_in_batch:
-    logger.info("Committing final batch of %s writes", writes_in_batch)
+    logger.info(f"Committing final batch of {writes_in_batch} writes")
     batch.commit()
 
   logger.info(
-    f"Recent joke stats decay completed: {jokes_decayed} jokes decayed, {jokes_skipped} jokes skipped"
+    f"Joke daily maintenance completed: {jokes_decayed} recent stats decayed, {public_updated} is_public updated, {jokes_skipped} jokes skipped"
   )
 
 
@@ -333,10 +335,7 @@ def _coerce_counter_to_float(value: object) -> float | None:
     return float(value)
   except (TypeError, ValueError):
     logger.warn(
-      "Unable to coerce counter value %r (type %s) to float",
-      value,
-      type(value),
-    )
+      f"Unable to coerce counter value {value} (type {type(value)}) to float")
     return None
 
 
@@ -396,9 +395,7 @@ def _sync_joke_to_search_subcollection(
 
   if update_payload:
     logger.info(
-      "Syncing joke to search subcollection: %s with payload keys %s",
-      joke_id,
-      list(update_payload.keys()),
+      f"Syncing joke to search subcollection: {joke_id} with payload keys {update_payload.keys()}"
     )
     search_doc_ref.set(update_payload, merge=True)
 
@@ -411,7 +408,7 @@ def _sync_joke_to_search_subcollection(
 def on_joke_write(event: firestore_fn.Event[firestore_fn.Change]) -> None:
   """A cloud function that triggers on joke document changes."""
   if not event.data.after:
-    logger.info("Joke document deleted: %s", event.params["joke_id"])
+    logger.info(f"Joke document deleted: {event.params['joke_id']}")
     return
 
   after_data = event.data.after.to_dict() or {}
@@ -431,22 +428,22 @@ def on_joke_write(event: firestore_fn.Event[firestore_fn.Change]) -> None:
     should_update_embedding = False
   elif not before_joke:
     should_update_embedding = True
-    logger.info("New joke created, calculating embedding for: %s",
-                after_joke.key)
+    logger.info(
+      f"New joke created, calculating embedding for: {after_joke.key}")
   elif (after_joke.zzz_joke_text_embedding is None
         or isinstance(after_joke.zzz_joke_text_embedding, list)):
     should_update_embedding = True
-    logger.info("Joke missing embedding, calculating embedding for: %s",
-                after_joke.key)
+    logger.info(
+      f"Joke missing embedding, calculating embedding for: {after_joke.key}")
   elif (before_joke.setup_text != after_joke.setup_text
         or before_joke.punchline_text != after_joke.punchline_text):
     should_update_embedding = True
-    logger.info("Joke text changed, recalculating embedding for: %s",
-                after_joke.key)
+    logger.info(
+      f"Joke text changed, recalculating embedding for: {after_joke.key}")
   else:
     logger.info(
-      "Joke updated without text change, skipping embedding update for: %s",
-      after_joke.key)
+      f"Joke updated without text change, skipping embedding update for: {after_joke.key}"
+    )
 
   if after_joke.state == models.JokeState.DRAFT:
     return
@@ -499,10 +496,7 @@ def on_joke_write(event: firestore_fn.Event[firestore_fn.Change]) -> None:
                         rel_tol=1e-9,
                         abs_tol=1e-12):
       logger.info(
-        "Joke num_saved_users_fraction mismatch, updating from %s to %s for: %s",
-        after_joke.num_saved_users_fraction,
-        num_saved_users_fraction,
-        after_joke.key,
+        f"Joke num_saved_users_fraction mismatch, updating from {after_joke.num_saved_users_fraction} to {num_saved_users_fraction} for: {after_joke.key}"
       )
       update_data["num_saved_users_fraction"] = num_saved_users_fraction
       after_joke.num_saved_users_fraction = num_saved_users_fraction
@@ -514,10 +508,7 @@ def on_joke_write(event: firestore_fn.Event[firestore_fn.Change]) -> None:
                         rel_tol=1e-9,
                         abs_tol=1e-12):
       logger.info(
-        "Joke num_shared_users_fraction mismatch, updating from %s to %s for: %s",
-        after_joke.num_shared_users_fraction,
-        num_shared_users_fraction,
-        after_joke.key,
+        f"Joke num_shared_users_fraction mismatch, updating from {after_joke.num_shared_users_fraction} to {num_shared_users_fraction} for: {after_joke.key}"
       )
       update_data["num_shared_users_fraction"] = num_shared_users_fraction
       after_joke.num_shared_users_fraction = num_shared_users_fraction
@@ -532,10 +523,7 @@ def on_joke_write(event: firestore_fn.Event[firestore_fn.Change]) -> None:
       after_joke.popularity_score, popularity_score, rel_tol=1e-9,
       abs_tol=1e-12):
     logger.info(
-      "Joke popularity_score mismatch, updating from %s to %s for: %s",
-      after_joke.popularity_score,
-      popularity_score,
-      after_joke.key,
+      f"Joke popularity_score mismatch, updating from {after_joke.popularity_score} to {popularity_score} for: {after_joke.key}"
     )
     update_data["popularity_score"] = popularity_score
     after_joke.popularity_score = popularity_score
@@ -562,8 +550,9 @@ def on_joke_write(event: firestore_fn.Event[firestore_fn.Change]) -> None:
   tags_lowered = [t.lower() for t in after_joke.tags]
   if tags_lowered != after_joke.tags:
     update_data["tags"] = tags_lowered
-    logger.info("Joke tags changed, updating from %s to %s for: %s",
-                after_joke.tags, tags_lowered, after_joke.key)
+    logger.info(
+      f"Joke tags changed, updating from {after_joke.tags} to {tags_lowered} for: {after_joke.key}"
+    )
 
   _sync_joke_to_search_subcollection(
     joke=after_joke,
@@ -574,5 +563,4 @@ def on_joke_write(event: firestore_fn.Event[firestore_fn.Change]) -> None:
     firestore.update_punny_joke(after_joke.key, update_data)
 
     if should_update_embedding:
-      logger.info("Successfully updated embedding for joke: %s",
-                  after_joke.key)
+      logger.info(f"Successfully updated embedding for joke: {after_joke.key}")

@@ -382,7 +382,7 @@ class TestDecayRecentJokeStats:
       captured['run_time'] = run_time
 
     monkeypatch.setattr(
-      'functions.joke_auto_fns._decay_recent_joke_stats_internal', _capture)
+      'functions.joke_auto_fns._joke_daily_maintenance_internal', _capture)
 
     joke_auto_fns.joke_daily_maintenance_http(Mock())
 
@@ -396,7 +396,7 @@ class TestDecayRecentJokeStats:
       captured['run_time'] = run_time
 
     monkeypatch.setattr(
-      'functions.joke_auto_fns._decay_recent_joke_stats_internal', _capture)
+      'functions.joke_auto_fns._joke_daily_maintenance_internal', _capture)
 
     event = MagicMock()
     event.schedule_time = datetime.datetime(2024,
@@ -419,7 +419,7 @@ class TestDecayRecentJokeStats:
       captured['run_time'] = run_time
 
     monkeypatch.setattr(
-      'functions.joke_auto_fns._decay_recent_joke_stats_internal', _capture)
+      'functions.joke_auto_fns._joke_daily_maintenance_internal', _capture)
 
     event = MagicMock()
     event.schedule_time = None
@@ -432,7 +432,7 @@ class TestDecayRecentJokeStats:
   def test_http_endpoint_success(self, monkeypatch):
     mock_decay = Mock()
     monkeypatch.setattr(
-      'functions.joke_auto_fns._decay_recent_joke_stats_internal', mock_decay)
+      'functions.joke_auto_fns._joke_daily_maintenance_internal', mock_decay)
 
     response = joke_auto_fns.joke_daily_maintenance_http(Mock())
 
@@ -445,7 +445,7 @@ class TestDecayRecentJokeStats:
       raise RuntimeError("boom")
 
     monkeypatch.setattr(
-      'functions.joke_auto_fns._decay_recent_joke_stats_internal', _raise)
+      'functions.joke_auto_fns._joke_daily_maintenance_internal', _raise)
 
     response = joke_auto_fns.joke_daily_maintenance_http(Mock())
 

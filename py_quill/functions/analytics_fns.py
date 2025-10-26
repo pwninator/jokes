@@ -74,5 +74,5 @@ client_num_shared: {client_num_shared_int}
       "num_distinct_day_used": final_days_used,
     })
   except Exception as e:  # pylint: disable=broad-except
-    logger.error("usage failed: %s", e)
+    logger.error(f"usage failed: {e}")
     return error_response(str(e))

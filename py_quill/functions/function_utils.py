@@ -3,7 +3,7 @@
 from typing import Any
 
 from firebase_admin import auth
-from firebase_functions import https_fn
+from firebase_functions import https_fn, logger
 
 
 def get_user_id(
@@ -24,19 +24,19 @@ def get_user_id(
     decoded_token = auth.verify_id_token(id_token)
     return decoded_token['uid']
   except Exception as e:
-    print(f"Error verifying ID token '{id_token}': {e}")
+    logger.error(f"Error verifying ID token '{id_token}': {e}")
     return None
 
 
 def success_response(data: dict[str, Any]) -> https_fn.Response:
   """Return a success response."""
-  print(f"Success response: {data}")
+  logger.info(f"Success response: {data}")
   return {"data": data}
 
 
 def error_response(message: str) -> https_fn.Response:
   """Return an error response."""
-  print(f"Error response: {message}")
+  logger.error(f"Error response: {message}")
   return {"data": {"error": message}}
 
 

@@ -482,7 +482,8 @@ def on_joke_category_write(
   """
   # Handle deletes
   if not event.data.after:
-    logger.info("Joke category deleted: %s", event.params.get("category_id"))
+    logger.info(
+      f"Joke category deleted: {event.params.get('category_id')}")
     return
 
   after_data = event.data.after.to_dict() or {}

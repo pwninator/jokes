@@ -59,6 +59,84 @@ def test_upsert_punny_joke_serializes_state_string(monkeypatch):
   assert "key" not in captured
 
 
+def test_update_punny_joke_sets_is_public_when_published(monkeypatch):
+  captured = {}
+
+  class DummyDoc:
+
+    def get(self):
+
+      class Snapshot:
+
+        def __init__(self):
+          self.exists = True
+
+      return Snapshot()
+
+    def update(self, data):
+      captured.update(data)
+
+  class DummyCol:
+
+    def document(self, _id):
+      return DummyDoc()
+
+  class DummyDB:
+
+    def collection(self, _name):
+      return DummyCol()
+
+  monkeypatch.setattr(firestore, "db", DummyDB)
+  monkeypatch.setattr(firestore, "SERVER_TIMESTAMP", "TS")
+
+  firestore.update_punny_joke("joke1",
+                              {"state": models.JokeState.PUBLISHED.value})
+
+  assert captured["state"] == "PUBLISHED"
+  assert captured["is_public"] is True
+  assert captured["last_modification_time"] == "TS"
+
+
+def test_update_punny_joke_sets_is_public_false_for_non_public(monkeypatch):
+  captured = {}
+
+  class DummyDoc:
+
+    def get(self):
+
+      class Snapshot:
+
+        def __init__(self):
+          self.exists = True
+
+      return Snapshot()
+
+    def update(self, data):
+      captured.update(data)
+
+  class DummyCol:
+
+    def document(self, _id):
+      return DummyDoc()
+
+  class DummyDB:
+
+    def collection(self, _name):
+      return DummyCol()
+
+  monkeypatch.setattr(firestore, "db", DummyDB)
+  monkeypatch.setattr(firestore, "SERVER_TIMESTAMP", "TS")
+
+  firestore.update_punny_joke("joke1", {
+    "state": models.JokeState.DAILY,
+    "is_public": True,
+  })
+
+  assert captured["state"] == "DAILY"
+  assert captured["is_public"] is False
+  assert captured["last_modification_time"] == "TS"
+
+
 import pytest
 
 

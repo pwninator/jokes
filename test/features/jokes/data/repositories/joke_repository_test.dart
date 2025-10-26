@@ -638,7 +638,44 @@ void main() {
 
         await repository.setJokesPublished(jokeMap, false);
 
-        verify(() => mockBatch.commit());
+        final capturedPayloads = verify(
+          () => mockBatch.update(
+            mockDocumentReference,
+            captureAny<Map<String, dynamic>>(),
+          ),
+        ).captured;
+
+        expect(capturedPayloads, hasLength(jokeMap.length));
+        for (final payload in capturedPayloads) {
+          final update = payload as Map<String, dynamic>;
+          expect(update['is_public'], isTrue);
+        }
+
+        verify(() => mockBatch.commit()).called(1);
+      });
+
+      test('setJokesPublished marks daily jokes as non public', () async {
+        final jokeMap = {
+          'joke1': DateTime(2024, 1, 3),
+          'joke2': DateTime(2024, 1, 4),
+        };
+
+        await repository.setJokesPublished(jokeMap, true);
+
+        final capturedPayloads = verify(
+          () => mockBatch.update(
+            mockDocumentReference,
+            captureAny<Map<String, dynamic>>(),
+          ),
+        ).captured;
+
+        expect(capturedPayloads, hasLength(jokeMap.length));
+        for (final payload in capturedPayloads) {
+          final update = payload as Map<String, dynamic>;
+          expect(update['is_public'], isFalse);
+        }
+
+        verify(() => mockBatch.commit()).called(1);
       });
 
       test('setJokesPublished handles empty map', () async {
@@ -657,6 +694,19 @@ void main() {
           'joke1',
           'joke2',
         ], expectedState: JokeState.published);
+
+        final capturedPayloads = verify(
+          () => mockBatch.update(
+            mockDocumentReference,
+            captureAny<Map<String, dynamic>>(),
+          ),
+        ).captured;
+
+        expect(capturedPayloads, hasLength(2));
+        for (final payload in capturedPayloads) {
+          final update = payload as Map<String, dynamic>;
+          expect(update['is_public'], isFalse);
+        }
 
         verify(() => mockBatch.commit());
       });

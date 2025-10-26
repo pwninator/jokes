@@ -301,6 +301,18 @@ def update_punny_joke(joke_id: str, update_data: dict[str, Any]) -> None:
   joke_ref = db().collection('jokes').document(joke_id)
   if not joke_ref.get().exists:
     raise ValueError(f"Joke {joke_id} not found in Firestore")
+  state_value = update_data.get('state')
+  resolved_state: models.JokeState | None = None
+  if isinstance(state_value, models.JokeState):
+    resolved_state = state_value
+    update_data['state'] = state_value.value
+  elif isinstance(state_value, str):
+    try:
+      resolved_state = models.JokeState(state_value)
+    except ValueError:
+      resolved_state = None
+  if resolved_state is not None:
+    update_data['is_public'] = resolved_state == models.JokeState.PUBLISHED
   update_data['last_modification_time'] = SERVER_TIMESTAMP
   joke_ref.update(update_data)
 

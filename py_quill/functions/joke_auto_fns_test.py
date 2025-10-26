@@ -194,6 +194,8 @@ class TestDecayRecentJokeStats:
       "num_saved_users_recent": 50,
       "num_shared_users_recent": 10,
       "last_recent_stats_update_time": now_utc - datetime.timedelta(hours=22),
+      "state": models.JokeState.PUBLISHED.value,
+      "is_public": False,
     }
 
     mock_batch = MagicMock()
@@ -204,12 +206,13 @@ class TestDecayRecentJokeStats:
     monkeypatch.setattr('functions.joke_auto_fns.firestore.db',
                         lambda: mock_db)
 
-    joke_auto_fns._decay_recent_joke_stats_internal(now_utc)  # pylint: disable=protected-access
+    joke_auto_fns._joke_daily_maintenance_internal(now_utc)  # pylint: disable=protected-access
 
     payload = mock_batch.update.call_args.args[1]
     assert payload["num_viewed_users_recent"] == pytest.approx(90.0)
     assert payload["num_saved_users_recent"] == pytest.approx(45.0)
     assert payload["num_shared_users_recent"] == pytest.approx(9.0)
+    assert payload["is_public"] is True
     assert payload[
       "last_recent_stats_update_time"] is firestore.SERVER_TIMESTAMP
 
@@ -226,6 +229,8 @@ class TestDecayRecentJokeStats:
     doc.to_dict.return_value = {
       "num_viewed_users_recent": 80,
       "last_recent_stats_update_time": now_utc - datetime.timedelta(hours=4),
+      "state": models.JokeState.APPROVED.value,
+      "is_public": False,
     }
 
     mock_batch = MagicMock()
@@ -235,7 +240,7 @@ class TestDecayRecentJokeStats:
     monkeypatch.setattr('functions.joke_auto_fns.firestore.db',
                         lambda: mock_db)
 
-    joke_auto_fns._decay_recent_joke_stats_internal(now_utc)  # pylint: disable=protected-access
+    joke_auto_fns._joke_daily_maintenance_internal(now_utc)  # pylint: disable=protected-access
 
     mock_batch.update.assert_not_called()
 
@@ -252,6 +257,8 @@ class TestDecayRecentJokeStats:
     doc.to_dict.return_value = {
       "num_viewed_users_recent": None,
       "last_recent_stats_update_time": now_utc - datetime.timedelta(days=2),
+      "state": models.JokeState.APPROVED.value,
+      "is_public": False,
     }
 
     mock_batch = MagicMock()
@@ -261,15 +268,112 @@ class TestDecayRecentJokeStats:
     monkeypatch.setattr('functions.joke_auto_fns.firestore.db',
                         lambda: mock_db)
 
-    joke_auto_fns._decay_recent_joke_stats_internal(now_utc)  # pylint: disable=protected-access
+    joke_auto_fns._joke_daily_maintenance_internal(now_utc)  # pylint: disable=protected-access
 
     payload = mock_batch.update.call_args.args[1]
     # Missing fields should not be included in payload
     assert "num_viewed_users_recent" not in payload
     assert "num_saved_users_recent" not in payload
     assert "num_shared_users_recent" not in payload
+    assert "is_public" not in payload
     assert payload[
       "last_recent_stats_update_time"] is firestore.SERVER_TIMESTAMP
+
+  def test_recent_update_still_updates_is_public_when_mismatch(
+      self, monkeypatch):
+    now_utc = datetime.datetime(2024,
+                                1,
+                                20,
+                                0,
+                                0,
+                                tzinfo=datetime.timezone.utc)
+    doc = MagicMock()
+    doc.exists = True
+    doc.reference = MagicMock()
+    doc.to_dict.return_value = {
+      "last_recent_stats_update_time": now_utc - datetime.timedelta(hours=2),
+      "state": models.JokeState.PUBLISHED.value,
+      "is_public": False,
+    }
+
+    mock_batch = MagicMock()
+    mock_db = MagicMock()
+    mock_db.collection.return_value.stream.return_value = [doc]
+    mock_db.batch.return_value = mock_batch
+    monkeypatch.setattr('functions.joke_auto_fns.firestore.db',
+                        lambda: mock_db)
+
+    joke_auto_fns._joke_daily_maintenance_internal(now_utc)  # pylint: disable=protected-access
+
+    mock_batch.update.assert_called_once()
+    payload = mock_batch.update.call_args.args[1]
+    assert payload == {"is_public": True}
+
+  def test_daily_state_sets_is_public_true_when_public_timestamp_past(
+      self, monkeypatch):
+    now_utc = datetime.datetime(2024,
+                                1,
+                                20,
+                                0,
+                                0,
+                                tzinfo=datetime.timezone.utc)
+    doc = MagicMock()
+    doc.exists = True
+    doc.reference = MagicMock()
+    doc.to_dict.return_value = {
+      "num_viewed_users_recent": 10,
+      "num_saved_users_recent": 5,
+      "num_shared_users_recent": 2,
+      "last_recent_stats_update_time": now_utc - datetime.timedelta(days=1),
+      "state": models.JokeState.DAILY.value,
+      "public_timestamp": now_utc - datetime.timedelta(hours=1),
+      "is_public": False,
+    }
+
+    mock_batch = MagicMock()
+    mock_db = MagicMock()
+    mock_db.collection.return_value.stream.return_value = [doc]
+    mock_db.batch.return_value = mock_batch
+    monkeypatch.setattr('functions.joke_auto_fns.firestore.db',
+                        lambda: mock_db)
+
+    joke_auto_fns._joke_daily_maintenance_internal(now_utc)  # pylint: disable=protected-access
+
+    payload = mock_batch.update.call_args.args[1]
+    assert payload["is_public"] is True
+
+  def test_daily_state_sets_is_public_false_when_public_timestamp_future(
+      self, monkeypatch):
+    now_utc = datetime.datetime(2024,
+                                1,
+                                20,
+                                0,
+                                0,
+                                tzinfo=datetime.timezone.utc)
+    doc = MagicMock()
+    doc.exists = True
+    doc.reference = MagicMock()
+    doc.to_dict.return_value = {
+      "num_viewed_users_recent": 10,
+      "num_saved_users_recent": 5,
+      "num_shared_users_recent": 2,
+      "last_recent_stats_update_time": now_utc - datetime.timedelta(days=1),
+      "state": models.JokeState.DAILY.value,
+      "public_timestamp": now_utc + datetime.timedelta(hours=12),
+      "is_public": True,
+    }
+
+    mock_batch = MagicMock()
+    mock_db = MagicMock()
+    mock_db.collection.return_value.stream.return_value = [doc]
+    mock_db.batch.return_value = mock_batch
+    monkeypatch.setattr('functions.joke_auto_fns.firestore.db',
+                        lambda: mock_db)
+
+    joke_auto_fns._joke_daily_maintenance_internal(now_utc)  # pylint: disable=protected-access
+
+    payload = mock_batch.update.call_args.args[1]
+    assert payload["is_public"] is False
 
   def test_http_endpoint_uses_current_time(self, monkeypatch):
     captured = {}
@@ -280,7 +384,7 @@ class TestDecayRecentJokeStats:
     monkeypatch.setattr(
       'functions.joke_auto_fns._decay_recent_joke_stats_internal', _capture)
 
-    joke_auto_fns.decay_recent_joke_stats_http(Mock())
+    joke_auto_fns.joke_daily_maintenance_http(Mock())
 
     assert 'run_time' in captured
     assert captured['run_time'].tzinfo == datetime.timezone.utc
@@ -302,7 +406,7 @@ class TestDecayRecentJokeStats:
                                             0,
                                             tzinfo=datetime.timezone.utc)
 
-    joke_auto_fns.decay_recent_joke_stats_scheduler.__wrapped__(event)
+    joke_auto_fns.joke_daily_maintenance_scheduler.__wrapped__(event)
 
     assert 'run_time' in captured
     assert captured['run_time'] == event.schedule_time
@@ -320,7 +424,7 @@ class TestDecayRecentJokeStats:
     event = MagicMock()
     event.schedule_time = None
 
-    joke_auto_fns.decay_recent_joke_stats_scheduler.__wrapped__(event)
+    joke_auto_fns.joke_daily_maintenance_scheduler.__wrapped__(event)
 
     assert 'run_time' in captured
     assert captured['run_time'].tzinfo == datetime.timezone.utc
@@ -330,7 +434,7 @@ class TestDecayRecentJokeStats:
     monkeypatch.setattr(
       'functions.joke_auto_fns._decay_recent_joke_stats_internal', mock_decay)
 
-    response = joke_auto_fns.decay_recent_joke_stats_http(Mock())
+    response = joke_auto_fns.joke_daily_maintenance_http(Mock())
 
     mock_decay.assert_called_once()
     assert response["data"]["message"] == "Recent joke stats decayed"
@@ -343,7 +447,7 @@ class TestDecayRecentJokeStats:
     monkeypatch.setattr(
       'functions.joke_auto_fns._decay_recent_joke_stats_internal', _raise)
 
-    response = joke_auto_fns.decay_recent_joke_stats_http(Mock())
+    response = joke_auto_fns.joke_daily_maintenance_http(Mock())
 
     assert "boom" in response["data"]["error"]
 

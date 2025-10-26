@@ -629,6 +629,7 @@ class JokeRepository {
       batch.update(docRef, {
         'state': isDaily ? JokeState.daily.value : JokeState.published.value,
         'public_timestamp': Timestamp.fromDate(entry.value),
+        'is_public': !isDaily,
       });
     }
     await _traceFs(
@@ -678,6 +679,7 @@ class JokeRepository {
       batch.update(docRef, {
         'state': JokeState.approved.value,
         'public_timestamp': null,
+        'is_public': false,
       });
     }
 

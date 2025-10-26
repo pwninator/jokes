@@ -158,9 +158,9 @@ def _send_single_joke_notification(
   memory=options.MemoryOption.GB_1,
   timeout_sec=600,
 )
-def decay_recent_joke_stats_scheduler(
+def joke_daily_maintenance_scheduler(
     event: scheduler_fn.ScheduledEvent) -> None:
-  """Scheduled function that decays recent user counters once per day."""
+  """Scheduled function that performs daily maintenance tasks for jokes."""
 
   scheduled_time_utc = event.schedule_time
   if scheduled_time_utc is None:
@@ -173,8 +173,8 @@ def decay_recent_joke_stats_scheduler(
   memory=options.MemoryOption.GB_1,
   timeout_sec=600,
 )
-def decay_recent_joke_stats_http(req: https_fn.Request) -> https_fn.Response:
-  """HTTP endpoint to trigger recent counter decay."""
+def joke_daily_maintenance_http(req: https_fn.Request) -> https_fn.Response:
+  """HTTP endpoint to trigger daily maintenance tasks for jokes."""
   del req
   try:
     run_time_utc = datetime.datetime.now(datetime.timezone.utc)
@@ -184,7 +184,7 @@ def decay_recent_joke_stats_http(req: https_fn.Request) -> https_fn.Response:
     return error_response(f'Failed to decay recent joke stats: {exc}')
 
 
-def _decay_recent_joke_stats_internal(run_time_utc: datetime.datetime) -> None:
+def _joke_daily_maintenance_internal(run_time_utc: datetime.datetime) -> None:
   """Apply exponential decay to recent counters across all jokes."""
   db_client = firestore.db()
   jokes_collection = db_client.collection("jokes")
@@ -199,19 +199,32 @@ def _decay_recent_joke_stats_internal(run_time_utc: datetime.datetime) -> None:
     if not joke_doc.exists:
       continue
     joke_data = joke_doc.to_dict() or {}
+    payload: dict[str, object] = {}
 
-    if _should_skip_recent_update(joke_data, run_time_utc):
+    # Update is_public according to state and public_timestamp
+    expected_is_public = _expected_is_public(joke_data, run_time_utc)
+    current_is_public = joke_data.get("is_public")
+    if not isinstance(current_is_public,
+                      bool) or current_is_public != expected_is_public:
+      payload["is_public"] = expected_is_public
+
+    # Decay recent stats if needed
+    should_skip_decay = _should_skip_recent_update(joke_data, run_time_utc)
+    if not should_skip_decay:
+      decay_payload = _build_recent_decay_payload(joke_data)
+      if not decay_payload:
+        raise ValueError(
+          f"No payload to decay recent stats for joke: {joke_doc.reference}")
+      payload.update(decay_payload)
+      jokes_decayed += 1
+
+    if not payload:
+      # No updates to apply, skip this joke
       jokes_skipped += 1
       continue
 
-    payload = _build_recent_decay_payload(joke_data)
-    if not payload:
-      raise ValueError(
-        f"No payload to decay recent stats for joke: {joke_doc.reference}")
-
     batch.update(joke_doc.reference, payload)
     writes_in_batch += 1
-    jokes_decayed += 1
 
     if writes_in_batch >= _MAX_FIRESTORE_WRITE_BATCH_SIZE:
       logger.info("Committing batch of %s writes", writes_in_batch)
@@ -226,6 +239,12 @@ def _decay_recent_joke_stats_internal(run_time_utc: datetime.datetime) -> None:
   logger.info(
     f"Recent joke stats decay completed: {jokes_decayed} jokes decayed, {jokes_skipped} jokes skipped"
   )
+
+
+def _decay_recent_joke_stats_internal(
+  run_time_utc: datetime.datetime, ) -> None:
+  """Backward-compatible alias for legacy invocations."""
+  _joke_daily_maintenance_internal(run_time_utc)
 
 
 def _should_skip_recent_update(
@@ -243,6 +262,34 @@ def _should_skip_recent_update(
     last_update = last_update.astimezone(datetime.timezone.utc)
 
   return (run_time_utc - last_update) < datetime.timedelta(hours=22)
+
+
+def _to_utc_datetime(value: object) -> datetime.datetime | None:
+  """Normalize Firestore timestamp values to timezone-aware UTC datetimes."""
+  if not isinstance(value, datetime.datetime):
+    return None
+  if value.tzinfo is None:
+    return value.replace(tzinfo=datetime.timezone.utc)
+  return value.astimezone(datetime.timezone.utc)
+
+
+def _expected_is_public(
+  data: dict[str, object],
+  now_utc: datetime.datetime,
+) -> bool:
+  """Determine whether a joke should currently be public."""
+  state_value = data.get("state")
+  try:
+    state = models.JokeState(state_value)
+  except Exception:  # pylint: disable=broad-except
+    return False
+
+  if state == models.JokeState.PUBLISHED:
+    return True
+  if state == models.JokeState.DAILY:
+    public_timestamp = _to_utc_datetime(data.get("public_timestamp"))
+    return bool(public_timestamp and public_timestamp <= now_utc)
+  return False
 
 
 def _build_recent_decay_payload(data: dict[str, object]) -> dict[str, object]:

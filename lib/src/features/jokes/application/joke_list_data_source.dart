@@ -236,7 +236,9 @@ class GenericPagingNotifier extends StateNotifier<PagingState> {
         totalCount: page.totalCount,
       );
       if (newCursor != previousCursor) {
-        onCursorChanged?.call(ref, newCursor);
+        if (previousCursor != null && previousCursor.isNotEmpty) {
+          onCursorChanged?.call(ref, previousCursor);
+        }
       }
       _resetBackoffOnSuccess();
 

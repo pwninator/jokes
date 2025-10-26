@@ -127,10 +127,10 @@ final compositeJokePagingProviders = createPagingProviders(
     return settings.getString(compositeJokeCursorPrefsKey);
   },
   onCursorChanged: (ref, cursor) {
+    /// Never clear the saved cursor.
+    if (cursor == null || cursor.isEmpty) return;
     final settings = ref.read(settingsServiceProvider);
-    if (cursor != null) {
-      unawaited(settings.setString(compositeJokeCursorPrefsKey, cursor));
-    }
+    unawaited(settings.setString(compositeJokeCursorPrefsKey, cursor));
   },
 );
 

@@ -55,8 +55,8 @@ joke_manual_tag = joke_fns.joke_manual_tag
 on_joke_write = joke_auto_fns.on_joke_write
 send_daily_joke_http = joke_auto_fns.send_daily_joke_http
 send_daily_joke_scheduler = joke_auto_fns.send_daily_joke_scheduler
-decay_recent_joke_stats_scheduler = joke_auto_fns.joke_daily_maintenance_scheduler
-decay_recent_joke_stats_http = joke_auto_fns.joke_daily_maintenance_http
+joke_daily_maintenance_scheduler = joke_auto_fns.joke_daily_maintenance_scheduler
+joke_daily_maintenance_http = joke_auto_fns.joke_daily_maintenance_http
 
 # Export the joke book functions
 create_book = joke_book_fns.create_book

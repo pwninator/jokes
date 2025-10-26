@@ -77,6 +77,8 @@ class AnalyticsParameters {
   static const String imageType = 'image_type';
   static const String imageUrlHash = 'image_url_hash';
   static const String exceptionType = 'exception_type';
+  static const String remoteConfigName = 'remote_config_name';
+  static const String remoteConfigValue = 'remote_config_value';
 
   // Share count parameters
   static const String shareInitiatedCount = 'share_initiated_count';

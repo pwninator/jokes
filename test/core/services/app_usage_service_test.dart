@@ -798,22 +798,24 @@ void main() {
 
       final viewedAtOne = DateTime(2024, 3, 1);
       final viewedAtTwo = DateTime(2024, 3, 5);
-      when(() => mocks.repo.getJokeInteractions(any())).thenAnswer(
-        (invocation) async {
-          final jokeIds = invocation.positionalArguments.first as List<String>;
-          // Return interactions for jokes that have been viewed
-          return jokeIds
-              .where((id) => ['joke-1', 'joke-3'].contains(id))
-              .map((id) => JokeInteraction(
-                    jokeId: id,
-                    viewedTimestamp: id == 'joke-1' ? viewedAtOne : viewedAtTwo,
-                    savedTimestamp: null,
-                    sharedTimestamp: null,
-                    lastUpdateTimestamp: id == 'joke-1' ? viewedAtOne : viewedAtTwo,
-                  ))
-              .toList();
-        },
-      );
+      when(() => mocks.repo.getJokeInteractions(any())).thenAnswer((
+        invocation,
+      ) async {
+        final jokeIds = invocation.positionalArguments.first as List<String>;
+        // Return interactions for jokes that have been viewed
+        return jokeIds
+            .where((id) => ['joke-1', 'joke-3'].contains(id))
+            .map(
+              (id) => JokeInteraction(
+                jokeId: id,
+                viewedTimestamp: id == 'joke-1' ? viewedAtOne : viewedAtTwo,
+                savedTimestamp: null,
+                sharedTimestamp: null,
+                lastUpdateTimestamp: id == 'joke-1' ? viewedAtOne : viewedAtTwo,
+              ),
+            )
+            .toList();
+      });
 
       final service = AppUsageService(
         settingsService: settingsService,
@@ -840,51 +842,57 @@ void main() {
       verify(() => mocks.repo.getJokeInteractions(jokeIds)).called(1);
     });
 
-    test('getUnviewedJokeIds returns all joke IDs when none are viewed', () async {
-      final mocks = TestMocks();
-      final prefs = await SharedPreferences.getInstance();
-      final settingsService = SettingsService(prefs);
-      final container = ProviderContainer();
-      final ref = container.read(Provider<Ref>((ref) => ref));
+    test(
+      'getUnviewedJokeIds returns all joke IDs when none are viewed',
+      () async {
+        final mocks = TestMocks();
+        final prefs = await SharedPreferences.getInstance();
+        final settingsService = SettingsService(prefs);
+        final container = ProviderContainer();
+        final ref = container.read(Provider<Ref>((ref) => ref));
 
-      when(() => mocks.repo.getJokeInteractions(any())).thenAnswer(
-        (_) async => <JokeInteraction>[],
-      );
+        when(
+          () => mocks.repo.getJokeInteractions(any()),
+        ).thenAnswer((_) async => <JokeInteraction>[]);
 
-      final service = AppUsageService(
-        settingsService: settingsService,
-        ref: ref,
-        analyticsService: mocks.analytics,
-        jokeCloudFn: mocks.jokeCloudFn,
-        categoryInteractionsService: _MockCategoryInteractionsService(),
-        jokeInteractionsRepository: mocks.repo,
-        jokeRepository: _MockJokeRepository(),
-        reviewPromptCoordinator: mocks.reviewCoordinator,
-        isDebugMode: true,
-      );
+        final service = AppUsageService(
+          settingsService: settingsService,
+          ref: ref,
+          analyticsService: mocks.analytics,
+          jokeCloudFn: mocks.jokeCloudFn,
+          categoryInteractionsService: _MockCategoryInteractionsService(),
+          jokeInteractionsRepository: mocks.repo,
+          jokeRepository: _MockJokeRepository(),
+          reviewPromptCoordinator: mocks.reviewCoordinator,
+          isDebugMode: true,
+        );
 
-      final jokeIds = ['joke-1', 'joke-2', 'joke-3'];
-      final unviewedIds = await service.getUnviewedJokeIds(jokeIds);
+        final jokeIds = ['joke-1', 'joke-2', 'joke-3'];
+        final unviewedIds = await service.getUnviewedJokeIds(jokeIds);
 
-      // All jokes should be returned when none are viewed
-      expect(unviewedIds, containsAll(jokeIds));
-      expect(unviewedIds.length, 3);
+        // All jokes should be returned when none are viewed
+        expect(unviewedIds, containsAll(jokeIds));
+        expect(unviewedIds.length, 3);
 
-      verify(() => mocks.repo.getJokeInteractions(jokeIds)).called(1);
-    });
+        verify(() => mocks.repo.getJokeInteractions(jokeIds)).called(1);
+      },
+    );
 
-    test('getUnviewedJokeIds returns empty list when all jokes are viewed', () async {
-      final mocks = TestMocks();
-      final prefs = await SharedPreferences.getInstance();
-      final settingsService = SettingsService(prefs);
-      final container = ProviderContainer();
-      final ref = container.read(Provider<Ref>((ref) => ref));
+    test(
+      'getUnviewedJokeIds returns empty list when all jokes are viewed',
+      () async {
+        final mocks = TestMocks();
+        final prefs = await SharedPreferences.getInstance();
+        final settingsService = SettingsService(prefs);
+        final container = ProviderContainer();
+        final ref = container.read(Provider<Ref>((ref) => ref));
 
-      final viewedAtOne = DateTime(2024, 3, 1);
-      final viewedAtTwo = DateTime(2024, 3, 5);
-      final viewedAtThree = DateTime(2024, 3, 10);
-      when(() => mocks.repo.getJokeInteractions(any())).thenAnswer(
-        (invocation) async {
+        final viewedAtOne = DateTime(2024, 3, 1);
+        final viewedAtTwo = DateTime(2024, 3, 5);
+        final viewedAtThree = DateTime(2024, 3, 10);
+        when(() => mocks.repo.getJokeInteractions(any())).thenAnswer((
+          invocation,
+        ) async {
           final jokeIds = invocation.positionalArguments.first as List<String>;
           // Return interactions for all jokes (all viewed)
           return jokeIds.map((id) {
@@ -910,29 +918,29 @@ void main() {
               lastUpdateTimestamp: viewedAt,
             );
           }).toList();
-        },
-      );
+        });
 
-      final service = AppUsageService(
-        settingsService: settingsService,
-        ref: ref,
-        analyticsService: mocks.analytics,
-        jokeCloudFn: mocks.jokeCloudFn,
-        categoryInteractionsService: _MockCategoryInteractionsService(),
-        jokeInteractionsRepository: mocks.repo,
-        jokeRepository: _MockJokeRepository(),
-        reviewPromptCoordinator: mocks.reviewCoordinator,
-        isDebugMode: true,
-      );
+        final service = AppUsageService(
+          settingsService: settingsService,
+          ref: ref,
+          analyticsService: mocks.analytics,
+          jokeCloudFn: mocks.jokeCloudFn,
+          categoryInteractionsService: _MockCategoryInteractionsService(),
+          jokeInteractionsRepository: mocks.repo,
+          jokeRepository: _MockJokeRepository(),
+          reviewPromptCoordinator: mocks.reviewCoordinator,
+          isDebugMode: true,
+        );
 
-      final jokeIds = ['joke-1', 'joke-2', 'joke-3'];
-      final unviewedIds = await service.getUnviewedJokeIds(jokeIds);
+        final jokeIds = ['joke-1', 'joke-2', 'joke-3'];
+        final unviewedIds = await service.getUnviewedJokeIds(jokeIds);
 
-      // No jokes should be returned when all are viewed
-      expect(unviewedIds, isEmpty);
+        // No jokes should be returned when all are viewed
+        expect(unviewedIds, isEmpty);
 
-      verify(() => mocks.repo.getJokeInteractions(jokeIds)).called(1);
-    });
+        verify(() => mocks.repo.getJokeInteractions(jokeIds)).called(1);
+      },
+    );
 
     test('getUnviewedJokeIds handles empty input list', () async {
       final mocks = TestMocks();
@@ -941,9 +949,9 @@ void main() {
       final container = ProviderContainer();
       final ref = container.read(Provider<Ref>((ref) => ref));
 
-      when(() => mocks.repo.getJokeInteractions(any())).thenAnswer(
-        (_) async => <JokeInteraction>[],
-      );
+      when(
+        () => mocks.repo.getJokeInteractions(any()),
+      ).thenAnswer((_) async => <JokeInteraction>[]);
 
       final service = AppUsageService(
         settingsService: settingsService,

@@ -199,6 +199,30 @@ abstract class AnalyticsService {
   /// Remote Config errors
   void logErrorRemoteConfig({required String errorMessage, String? phase});
 
+  /// Remote Config usage when local defaults are used because init hasn't finished.
+  void logRemoteConfigUsedLocal({
+    required String paramName,
+    required String value,
+  });
+
+  /// Remote Config usage when the SDK falls back to static values.
+  void logRemoteConfigUsedError({
+    required String paramName,
+    required String value,
+  });
+
+  /// Remote Config usage when the in-app default value is used.
+  void logRemoteConfigUsedDefault({
+    required String paramName,
+    required String value,
+  });
+
+  /// Remote Config usage when the remote backend value is used.
+  void logRemoteConfigUsedRemote({
+    required String paramName,
+    required String value,
+  });
+
   /// Log tab navigation events
   void logTabChanged(
     AppTab previousTab,
@@ -755,6 +779,55 @@ class FirebaseAnalyticsService implements AnalyticsService {
   }
 
   @override
+  void logRemoteConfigUsedLocal({
+    required String paramName,
+    required String value,
+  }) {
+    _logRemoteConfigUsage(
+      AnalyticsEvent.remoteConfigUsedLocal,
+      paramName: paramName,
+      value: value,
+    );
+  }
+
+  @override
+  void logRemoteConfigUsedError({
+    required String paramName,
+    required String value,
+  }) {
+    _logRemoteConfigUsage(
+      AnalyticsEvent.remoteConfigUsedError,
+      paramName: paramName,
+      value: value,
+      isError: true,
+    );
+  }
+
+  @override
+  void logRemoteConfigUsedDefault({
+    required String paramName,
+    required String value,
+  }) {
+    _logRemoteConfigUsage(
+      AnalyticsEvent.remoteConfigUsedDefault,
+      paramName: paramName,
+      value: value,
+    );
+  }
+
+  @override
+  void logRemoteConfigUsedRemote({
+    required String paramName,
+    required String value,
+  }) {
+    _logRemoteConfigUsage(
+      AnalyticsEvent.remoteConfigUsedRemote,
+      paramName: paramName,
+      value: value,
+    );
+  }
+
+  @override
   void logTabChanged(
     AppTab previousTab,
     AppTab newTab, {
@@ -1020,6 +1093,18 @@ class FirebaseAnalyticsService implements AnalyticsService {
       AnalyticsParameters.source: source,
       AnalyticsParameters.errorMessage: errorMessage,
     }, isError: true);
+  }
+
+  void _logRemoteConfigUsage(
+    AnalyticsEvent event, {
+    required String paramName,
+    required String value,
+    bool isError = false,
+  }) {
+    _logEvent(event, {
+      AnalyticsParameters.remoteConfigName: paramName,
+      AnalyticsParameters.remoteConfigValue: value,
+    }, isError: isError);
   }
 
   /// Internal method to log events with consistent error handling

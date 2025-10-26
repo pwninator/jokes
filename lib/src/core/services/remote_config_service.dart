@@ -261,10 +261,7 @@ abstract class RemoteConfigClient {
   Future<bool> fetchAndActivate();
   Future<void> setConfigSettings(RemoteConfigSettings settings);
   Future<void> setDefaults(Map<String, Object> defaults);
-  int getInt(String key);
-  bool getBool(String key);
-  double getDouble(String key);
-  String getString(String key);
+  RemoteConfigValue getValue(String key);
 }
 
 class FirebaseRemoteConfigClient implements RemoteConfigClient {
@@ -284,16 +281,7 @@ class FirebaseRemoteConfigClient implements RemoteConfigClient {
       _inner.setDefaults(defaults);
 
   @override
-  int getInt(String key) => _inner.getInt(key);
-
-  @override
-  bool getBool(String key) => _inner.getBool(key);
-
-  @override
-  double getDouble(String key) => _inner.getDouble(key);
-
-  @override
-  String getString(String key) => _inner.getString(key);
+  RemoteConfigValue getValue(String key) => _inner.getValue(key);
 }
 
 /// Service responsible for initializing and exposing Remote Config values
@@ -333,9 +321,11 @@ class RemoteConfigService {
       });
       await _client.setDefaults(defaults);
 
+      // As soon as defaults are applied, expose client reads
+      _isInitialized = true;
+
       // Try to fetch fresh values
       await _client.fetchAndActivate();
-      _isInitialized = true;
     } catch (e) {
       // Log analytics + crashlytics on error per project policy
       try {
@@ -381,62 +371,113 @@ class RemoteConfigService {
   /// Expose a typed values reader (no per-param fields)
   RemoteConfigValues get currentValues => _RemoteConfigValues(this);
 
+  T _readParamValue<T>(
+    RemoteParamDescriptor descriptor, {
+    required T localDefaultValue,
+    required T Function(RemoteConfigValue value) convert,
+    bool Function(Object value)? validator,
+  }) {
+    final key = descriptor.key;
+    final localDefaultLogValue = localDefaultValue.toString();
+    if (!_isInitialized) {
+      _analyticsService.logRemoteConfigUsedLocal(
+        paramName: key,
+        value: localDefaultLogValue,
+      );
+      return localDefaultValue;
+    }
+
+    RemoteConfigValue value;
+    try {
+      value = _client.getValue(key);
+    } catch (e) {
+      _analyticsService.logErrorRemoteConfig(
+        phase: 'readParamValue',
+        errorMessage: 'Failed to get value for key: $key: $e',
+      );
+      return localDefaultValue;
+    }
+
+    try {
+      final result = convert(value);
+      final logValue = result.toString();
+      final isValid = validator == null ? true : validator(result as Object);
+      if (!isValid) {
+        _analyticsService.logErrorRemoteConfig(
+          phase: 'readParamValue',
+          errorMessage: 'Invalid value for key: $key: $result',
+        );
+        return localDefaultValue;
+      }
+
+      if (value.source == ValueSource.valueStatic) {
+        _analyticsService.logRemoteConfigUsedError(
+          paramName: key,
+          value: logValue,
+        );
+        return result;
+      }
+
+      if (value.source == ValueSource.valueDefault) {
+        _analyticsService.logRemoteConfigUsedDefault(
+          paramName: key,
+          value: logValue,
+        );
+        return result;
+      }
+
+      _analyticsService.logRemoteConfigUsedRemote(
+        paramName: key,
+        value: logValue,
+      );
+      return result;
+    } catch (e) {
+      _analyticsService.logErrorRemoteConfig(
+        phase: 'readParamValue',
+        errorMessage: 'Error when reading value for key: $key: $e',
+      );
+      return localDefaultValue;
+    }
+  }
+
   // Typed readers used by the values wrapper
   int readInt(RemoteParam param) {
-    final d = _parameters[param]!;
-    if (!_isInitialized) return d.defaultInt!;
-    try {
-      final value = _client.getInt(d.key);
-      if (d.isValid != null && !d.isValid!(value)) return d.defaultInt!;
-      return value;
-    } catch (_) {
-      return d.defaultInt!;
-    }
+    final descriptor = _parameters[param]!;
+    return _readParamValue<int>(
+      descriptor,
+      localDefaultValue: descriptor.defaultInt!,
+      convert: (value) => value.asInt(),
+      validator: descriptor.isValid,
+    );
   }
 
   bool readBool(RemoteParam param) {
-    final d = _parameters[param]!;
-    if (!_isInitialized) return d.defaultBool!;
-    try {
-      final value = _client.getBool(d.key);
-      if (d.isValid != null && !d.isValid!(value)) return d.defaultBool!;
-      return value;
-    } catch (_) {
-      return d.defaultBool!;
-    }
+    final descriptor = _parameters[param]!;
+    return _readParamValue<bool>(
+      descriptor,
+      localDefaultValue: descriptor.defaultBool!,
+      convert: (value) => value.asBool(),
+    );
   }
 
   double readDouble(RemoteParam param) {
-    final d = _parameters[param]!;
-    if (!_isInitialized) return d.defaultDouble!;
-    try {
-      final value = _client.getDouble(d.key);
-      if (d.isValid != null && !d.isValid!(value)) return d.defaultDouble!;
-      return value;
-    } catch (_) {
-      return d.defaultDouble!;
-    }
+    final descriptor = _parameters[param]!;
+    return _readParamValue<double>(
+      descriptor,
+      localDefaultValue: descriptor.defaultDouble!,
+      convert: (value) => value.asDouble(),
+      validator: descriptor.isValid,
+    );
   }
 
   String readString(RemoteParam param) {
-    final d = _parameters[param]!;
-    if (!_isInitialized) {
-      if (d.type == RemoteParamType.enumType) return _enumName(d.enumDefault!);
-      return d.defaultString!;
-    }
-    try {
-      final value = _client.getString(d.key);
-      if (d.isValid != null && !d.isValid!(value)) {
-        return d.type == RemoteParamType.enumType
-            ? _enumName(d.enumDefault!)
-            : d.defaultString!;
-      }
-      return value;
-    } catch (_) {
-      return d.type == RemoteParamType.enumType
-          ? _enumName(d.enumDefault!)
-          : d.defaultString!;
-    }
+    final descriptor = _parameters[param]!;
+    return _readParamValue<String>(
+      descriptor,
+      localDefaultValue: descriptor.defaultValue.toString(),
+      convert: (value) => value.asString(),
+      validator: descriptor.isValid,
+    );
   }
 
   /// Generic: normalize an enum-like string param

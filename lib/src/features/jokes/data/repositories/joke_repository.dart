@@ -166,15 +166,12 @@ class JokeFilter {
 
   /// Baseline filters that constrain results to jokes visible to end users.
   static List<JokeFilter> basePublicFilters() => [
-        whereInValues(
-          JokeField.state,
-          [
-            JokeState.published.value,
-            JokeState.daily.value,
-          ],
-        ),
-        equals(JokeField.isPublic, true),
-      ];
+    whereInValues(JokeField.state, [
+      JokeState.published.value,
+      JokeState.daily.value,
+    ]),
+    equals(JokeField.isPublic, true),
+  ];
 
   Query<Map<String, dynamic>> apply(Query<Map<String, dynamic>> query) {
     return query.where(

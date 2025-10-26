@@ -17,7 +17,8 @@ class MockJokeRepository extends Mock implements JokeRepository {}
 
 class MockAppUsageService extends Mock implements AppUsageService {
   @override
-  Future<List<String>> getUnviewedJokeIds(List<String> jokeIds) async => jokeIds;
+  Future<List<String>> getUnviewedJokeIds(List<String> jokeIds) async =>
+      jokeIds;
 }
 
 const _emptyPage = JokeListPage(ids: <String>[], cursor: null, hasMore: false);

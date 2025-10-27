@@ -503,6 +503,8 @@ Future<PageResult> _loadCategoryPage(Ref ref, int limit, String? cursor) async {
       return _loadPopularCategoryPage(ref, limit, cursor);
     case CategoryType.seasonal:
       return _loadSeasonalCategoryPage(ref, limit, cursor);
+    case CategoryType.daily:
+      return loadDailyJokesPage(ref, limit, cursor);
     default:
       return const PageResult(jokes: [], cursor: null, hasMore: false);
   }

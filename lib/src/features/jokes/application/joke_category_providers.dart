@@ -8,6 +8,7 @@ import 'package:snickerdoodle/src/data/core/database/app_database.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_category.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/firestore_joke_category_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_category_repository.dart';
+import 'package:snickerdoodle/src/features/settings/application/feed_screen_status_provider.dart';
 
 part 'joke_category_providers.g.dart';
 
@@ -77,6 +78,27 @@ final discoverCategoriesProvider = Provider<AsyncValue<List<JokeCategory>>>((
   final randomImageName =
       popularTileImageNames[Random().nextInt(popularTileImageNames.length)];
 
+  // Check if feed screen is disabled (daily jokes should appear in discover)
+  final feedScreenEnabled = ref.read(feedScreenStatusProvider);
+
+  final List<JokeCategory> programmaticTiles = [];
+
+  // Add Daily Jokes tile first if feed screen is disabled
+  if (!feedScreenEnabled) {
+    final dailyTile = JokeCategory(
+      id: 'programmatic:daily',
+      displayName: 'Daily Jokes 📅',
+      jokeDescriptionQuery: null,
+      imageUrl:
+          'https://images.quillsstorybook.com/cdn-cgi/image/width=1024,format=auto,quality=75/joke_assets/$randomImageName',
+      imageDescription: 'Daily jokes',
+      state: JokeCategoryState.approved,
+      type: CategoryType.daily,
+      borderColor: Colors.blue,
+    );
+    programmaticTiles.add(dailyTile);
+  }
+
   // Programmatic Popular tile
   final popularTile = JokeCategory(
     id: 'programmatic:popular',
@@ -103,11 +125,14 @@ final discoverCategoriesProvider = Provider<AsyncValue<List<JokeCategory>>>((
     borderColor: Colors.orange,
   );
 
+  // Add remaining programmatic tiles
+  programmaticTiles.addAll([halloweenTile, popularTile]);
+
   final categoriesAsync = ref.watch(jokeCategoriesProvider);
   return categoriesAsync.whenData((categories) {
     final approvedCategories = categories
         .where((c) => c.state == JokeCategoryState.approved)
         .toList();
-    return [halloweenTile, popularTile, ...approvedCategories];
+    return [...programmaticTiles, ...approvedCategories];
   });
 });

@@ -196,11 +196,13 @@ class _CategoryResultsState extends ConsumerState<_CategoryResults> {
               : 'No jokes found')
         : '';
 
-    // Use popular context if active category type is popular
+    // Use appropriate analytics context based on category type
     final active = ref.watch(activeCategoryProvider);
-    final jokeContext = (active?.type == CategoryType.popular)
-        ? AnalyticsJokeContext.popular
-        : AnalyticsJokeContext.category;
+    final jokeContext = switch (active?.type) {
+      CategoryType.popular => AnalyticsJokeContext.popular,
+      CategoryType.daily => AnalyticsJokeContext.dailyJokes,
+      _ => AnalyticsJokeContext.category,
+    };
     final categoryName = active?.id;
     return JokeListViewer(
       dataSource: widget.dataSource,

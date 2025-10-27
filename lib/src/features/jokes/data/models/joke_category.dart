@@ -13,6 +13,9 @@ enum CategoryType {
 
   /// Composite feed that stitches together multiple sources (e.g., All jokes)
   composite,
+
+  /// Daily jokes category using scheduled joke batches
+  daily,
 }
 
 /// Joke category state values stored in Firestore as uppercase strings

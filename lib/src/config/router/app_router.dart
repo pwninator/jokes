@@ -103,15 +103,29 @@ class TabConfig {
     this.requiresAdmin = false,
     required this.analyticsContext,
   });
+
+  /// Check if this tab is visible given the current admin and feed status
+  bool isVisible({required bool isAdmin, required bool feedEnabled}) {
+    // Check admin requirement
+    if (requiresAdmin && !isAdmin) {
+      return false;
+    }
+
+    // Check feed/daily visibility rules
+    if (id == TabId.feed) {
+      return feedEnabled;
+    } else if (id == TabId.daily) {
+      return !feedEnabled;
+    }
+
+    return true;
+  }
 }
 
 List<TabConfig> _visibleTabs(bool isAdmin, {required bool feedEnabled}) {
-  final base = _allTabs.where((t) => !t.requiresAdmin || isAdmin);
-  return base.where((t) {
-    if (t.id == TabId.feed) return feedEnabled;
-    if (t.id == TabId.daily) return !feedEnabled;
-    return true;
-  }).toList();
+  return _allTabs
+      .where((t) => t.isVisible(isAdmin: isAdmin, feedEnabled: feedEnabled))
+      .toList();
 }
 
 /// App router configuration

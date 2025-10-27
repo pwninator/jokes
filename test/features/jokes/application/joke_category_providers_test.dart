@@ -13,8 +13,8 @@ void main() {
       () async {
         final container = ProviderContainer(
           overrides: [
-            // Mock feed screen status to true (daily jokes tile won't appear)
-            feedScreenStatusProvider.overrideWithValue(true),
+            // Mock feed screen status to false (daily jokes tile won't appear)
+            feedScreenStatusProvider.overrideWithValue(false),
             // Provide some approved categories from Firestore
             jokeCategoriesProvider.overrideWith(
               (ref) => Stream.value([
@@ -45,12 +45,19 @@ void main() {
         expect(async.hasValue, isTrue);
         final categories = async.value!;
 
-        // Expect presence regardless of order
+        // Expect 3 categories: popular + halloween + cats (no daily)
         expect(categories.length, 3);
+        // Daily should NOT be present when feed is enabled
+        expect(
+          categories.any((category) => category.type == CategoryType.daily),
+          isFalse,
+        );
+        // Popular should be present
         expect(
           categories.any((category) => category.type == CategoryType.popular),
           isTrue,
         );
+        // Halloween should be present
         expect(
           categories.any(
             (category) =>
@@ -59,6 +66,7 @@ void main() {
           ),
           isTrue,
         );
+        // Cats from Firestore should be present
         expect(
           categories.any(
             (category) => category.id == '${JokeCategory.firestorePrefix}1',
@@ -68,11 +76,11 @@ void main() {
       },
     );
 
-    test('includes daily jokes tile when feed screen is disabled', () async {
+    test('includes daily jokes tile when feed screen is enabled', () async {
       final container = ProviderContainer(
         overrides: [
-          // Mock feed screen status to false (daily jokes tile will appear)
-          feedScreenStatusProvider.overrideWithValue(false),
+          // Mock feed screen status to true (daily jokes tile will appear)
+          feedScreenStatusProvider.overrideWithValue(true),
           // Provide some approved categories from Firestore
           jokeCategoriesProvider.overrideWith(
             (ref) => Stream.value([
@@ -103,11 +111,33 @@ void main() {
       expect(async.hasValue, isTrue);
       final categories = async.value!;
 
-      // Expect daily jokes tile to be present and first
-      expect(categories.length, 4); // daily + popular + halloween + cats
+      // Expect all 4 categories: daily + popular + halloween + cats
+      expect(categories.length, 4);
+      // Daily tile should be first
       expect(categories.first.type, CategoryType.daily);
-      expect(categories.first.displayName, 'Daily Jokes 📅');
       expect(categories.first.id, 'programmatic:daily');
+      expect(categories.first.displayName, 'Daily Jokes 📅');
+      // Popular should be present
+      expect(
+        categories.any((category) => category.type == CategoryType.popular),
+        isTrue,
+      );
+      // Halloween should be present
+      expect(
+        categories.any(
+          (category) =>
+              category.type == CategoryType.seasonal &&
+              category.seasonalValue == 'Halloween',
+        ),
+        isTrue,
+      );
+      // Cats from Firestore should be present
+      expect(
+        categories.any(
+          (category) => category.id == '${JokeCategory.firestorePrefix}1',
+        ),
+        isTrue,
+      );
     });
   });
 }

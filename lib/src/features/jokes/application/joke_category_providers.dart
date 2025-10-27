@@ -78,19 +78,20 @@ final discoverCategoriesProvider = Provider<AsyncValue<List<JokeCategory>>>((
   final randomImageName =
       popularTileImageNames[Random().nextInt(popularTileImageNames.length)];
 
-  // Check if feed screen is disabled (daily jokes should appear in discover)
+  // Check feed screen status
   final feedScreenEnabled = ref.read(feedScreenStatusProvider);
 
   final List<JokeCategory> programmaticTiles = [];
 
-  // Add Daily Jokes tile first if feed screen is disabled
-  if (!feedScreenEnabled) {
+  // Add Daily Jokes tile first if feed screen is enabled, because then
+  // there is no daily jokes tab.
+  if (feedScreenEnabled) {
     final dailyTile = JokeCategory(
       id: 'programmatic:daily',
-      displayName: 'Daily Jokes 📅',
+      displayName: 'Daily Jokes',
       jokeDescriptionQuery: null,
       imageUrl:
-          'https://images.quillsstorybook.com/cdn-cgi/image/width=1024,format=auto,quality=75/joke_assets/$randomImageName',
+          'https://images.quillsstorybook.com/cdn-cgi/image/width=1024,format=auto,quality=75/pun_agent_image_20251027_071950_137704.png',
       imageDescription: 'Daily jokes',
       state: JokeCategoryState.approved,
       type: CategoryType.daily,

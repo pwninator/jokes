@@ -129,7 +129,8 @@ List<TabConfig> _visibleTabs(bool isAdmin, {required bool feedEnabled}) {
 }
 
 /// Helper class to encapsulate navigation-related state
-class _NavigationState {
+@visibleForTesting
+class NavigationState {
   final bool isAdmin;
   final bool feedEnabled;
   final String currentLocation;
@@ -137,7 +138,7 @@ class _NavigationState {
   final int selectedIndex;
   final String jokeContext;
 
-  _NavigationState({
+  NavigationState({
     required this.isAdmin,
     required this.feedEnabled,
     required this.currentLocation,
@@ -158,8 +159,16 @@ class _NavigationState {
     return false;
   }
 
+  /// Check if navigating to the given index should reset discover tab
+  bool shouldResetDiscoverOnNavigation(int newIndex) {
+    if (newIndex < 0 || newIndex >= visibleTabs.length) {
+      return false;
+    }
+    return visibleTabs[newIndex].id == TabId.discover;
+  }
+
   /// Create navigation state from current context
-  factory _NavigationState.create({
+  factory NavigationState.create({
     required bool isAdmin,
     required String currentLocation,
     required WidgetRef ref,
@@ -170,9 +179,9 @@ class _NavigationState {
       (t) => currentLocation.startsWith(t.route),
     );
     final effectiveSelectedIndex = selectedIndex >= 0 ? selectedIndex : 0;
-    final jokeContext = AppRouter._getJokeContextFromRoute(currentLocation);
+    final jokeContext = _computeJokeContext(currentLocation, visibleTabs);
 
-    return _NavigationState(
+    return NavigationState(
       isAdmin: isAdmin,
       feedEnabled: feedEnabled,
       currentLocation: currentLocation,
@@ -180,6 +189,24 @@ class _NavigationState {
       selectedIndex: effectiveSelectedIndex,
       jokeContext: jokeContext,
     );
+  }
+
+  /// Compute joke context for analytics based on route
+  static String _computeJokeContext(String route, List<TabConfig> tabs) {
+    // Special case for discover/search sub-route
+    if (route.contains('/discover/search')) {
+      return AnalyticsJokeContext.search;
+    }
+
+    // Find matching tab and return its analytics context
+    for (final tab in tabs) {
+      if (route.startsWith(tab.route)) {
+        return tab.analyticsContext;
+      }
+    }
+
+    // Fallback for unknown routes
+    return AnalyticsJokeContext.jokeFeed;
   }
 }
 
@@ -385,24 +412,6 @@ class AppRouter {
     );
   }
 
-  /// Get the joke context for analytics based on current route
-  static String _getJokeContextFromRoute(String route) {
-    // Special case for discover/search sub-route
-    if (route.contains('/discover/search')) {
-      return AnalyticsJokeContext.search;
-    }
-
-    // Find matching tab and return its analytics context
-    for (final tab in _allTabs) {
-      if (route.startsWith(tab.route)) {
-        return tab.analyticsContext;
-      }
-    }
-
-    // Fallback for unknown routes
-    return AnalyticsJokeContext.jokeFeed;
-  }
-
   /// Build the main navigation structure based on current route and user permissions
   static Widget _buildMainNavigation({
     required BuildContext context,
@@ -413,7 +422,7 @@ class AppRouter {
     required WidgetRef ref,
   }) {
     // Create navigation state
-    final navState = _NavigationState.create(
+    final navState = NavigationState.create(
       isAdmin: isAdmin,
       currentLocation: currentLocation,
       ref: ref,
@@ -644,7 +653,7 @@ class AppRouter {
     BuildContext context,
     WidgetRef ref,
     int newIndex,
-    _NavigationState navState,
+    NavigationState navState,
   ) {
     final tabs = navState.visibleTabs;
     if (newIndex < 0 || newIndex >= tabs.length) {
@@ -653,10 +662,8 @@ class AppRouter {
     }
 
     final targetTab = tabs[newIndex];
-    final shouldResetDiscover = shouldResetDiscoverOnNavigation(
-      newIndex: newIndex,
-      isAdmin: navState.isAdmin,
-      feedEnabled: navState.feedEnabled,
+    final shouldResetDiscover = navState.shouldResetDiscoverOnNavigation(
+      newIndex,
     );
 
     if (shouldResetDiscover) {
@@ -679,21 +686,6 @@ class AppRouter {
     );
 
     context.push(targetTab.route);
-  }
-
-  @visibleForTesting
-  static bool shouldResetDiscoverOnNavigation({
-    required int newIndex,
-    required bool isAdmin,
-    required bool feedEnabled,
-  }) {
-    // Use current visible tabs (respecting admin and feed gating)
-    final tabs = _visibleTabs(isAdmin, feedEnabled: feedEnabled);
-    if (newIndex < 0 || newIndex >= tabs.length) {
-      return false;
-    }
-
-    return tabs[newIndex].id == TabId.discover;
   }
 }
 

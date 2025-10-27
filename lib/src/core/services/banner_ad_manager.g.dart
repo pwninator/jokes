@@ -7,7 +7,7 @@ part of 'banner_ad_manager.dart';
 // **************************************************************************
 
 String _$bannerAdControllerHash() =>
-    r'995263e8d8d6a5fe6ed8123ff4071581fa11b310';
+    r'7178652c27b2d13606e134647e65ed161e717ef4';
 
 /// See also [BannerAdController].
 @ProviderFor(BannerAdController)

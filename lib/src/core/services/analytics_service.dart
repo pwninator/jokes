@@ -283,6 +283,7 @@ abstract class AnalyticsService {
   void logAppUsageDays({
     required int numDaysUsed,
     required Brightness brightness,
+    required String homepage,
   });
 
   /// Log joke search completion
@@ -943,11 +944,13 @@ class FirebaseAnalyticsService implements AnalyticsService {
   void logAppUsageDays({
     required int numDaysUsed,
     required Brightness brightness,
+    required String homepage,
   }) {
     final theme = brightness == Brightness.dark ? 'dark' : 'light';
     final parameters = <String, dynamic>{
       AnalyticsParameters.numDaysUsed: numDaysUsed,
       AnalyticsParameters.appTheme: theme,
+      AnalyticsParameters.homepage: homepage,
     };
     _logEvent(AnalyticsEvent.appUsageDayIncremented, parameters);
     if (numDaysUsed > 1) {

@@ -31,6 +31,10 @@ final Map<RemoteParam, RemoteParamDescriptor> testParameters = {
     enumValues: TestEnum.values,
     enumDefault: TestEnum.option2,
   ),
+  RemoteParam.feedScreenEnabled: BoolRemoteParamDescriptor(
+    key: 'test_feed_enabled',
+    defaultBool: false,
+  ),
 };
 
 class MockRemoteConfigClient extends Mock implements RemoteConfigClient {}

@@ -89,6 +89,7 @@ void main() {
         () => analyticsService.logAppUsageDays(
           numDaysUsed: 3,
           brightness: Brightness.light,
+          homepage: 'daily',
         ),
       ];
 
@@ -154,6 +155,7 @@ void main() {
         analyticsService.logAppUsageDays(
           numDaysUsed: 1,
           brightness: Brightness.dark,
+          homepage: 'daily',
         );
 
         await Future.delayed(Duration.zero);
@@ -188,6 +190,7 @@ void main() {
         analyticsService.logAppUsageDays(
           numDaysUsed: 3,
           brightness: Brightness.light,
+          homepage: 'daily',
         );
 
         await Future.delayed(Duration.zero);

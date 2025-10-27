@@ -17,6 +17,7 @@ import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart'
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
 import 'package:snickerdoodle/src/features/settings/application/brightness_provider.dart';
+import 'package:snickerdoodle/src/features/settings/application/feed_screen_status_provider.dart';
 import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
 
 class _MockAnalyticsService extends Mock implements AnalyticsService {}
@@ -130,10 +131,14 @@ void main() {
           () => mocks.analytics.logAppUsageDays(
             numDaysUsed: any<int>(named: 'numDaysUsed'),
             brightness: any<Brightness>(named: 'brightness'),
+            homepage: any<String>(named: 'homepage'),
           ),
         ).thenAnswer((_) async {});
         final container = ProviderContainer(
-          overrides: [brightnessProvider.overrideWithValue(Brightness.light)],
+          overrides: [
+            brightnessProvider.overrideWithValue(Brightness.light),
+            feedScreenStatusProvider.overrideWithValue(false),
+          ],
         );
         final ref = container.read(Provider<Ref>((ref) => ref));
         final service = AppUsageService(
@@ -158,6 +163,7 @@ void main() {
           () => mocks.analytics.logAppUsageDays(
             numDaysUsed: 1,
             brightness: any(named: 'brightness'),
+            homepage: any(named: 'homepage'),
           ),
         ).called(1);
       },
@@ -171,10 +177,14 @@ void main() {
         () => mocks.analytics.logAppUsageDays(
           numDaysUsed: any<int>(named: 'numDaysUsed'),
           brightness: any<Brightness>(named: 'brightness'),
+          homepage: any<String>(named: 'homepage'),
         ),
       ).thenAnswer((_) async {});
       final container = ProviderContainer(
-        overrides: [brightnessProvider.overrideWithValue(Brightness.light)],
+        overrides: [
+          brightnessProvider.overrideWithValue(Brightness.light),
+          feedScreenStatusProvider.overrideWithValue(false),
+        ],
       );
       final ref = container.read(Provider<Ref>((ref) => ref));
       final service = AppUsageService(
@@ -199,6 +209,7 @@ void main() {
         () => mocks.analytics.logAppUsageDays(
           numDaysUsed: any(named: 'numDaysUsed'),
           brightness: any(named: 'brightness'),
+          homepage: any(named: 'homepage'),
         ),
       ).called(1);
     });
@@ -213,10 +224,14 @@ void main() {
           () => mocks.analytics.logAppUsageDays(
             numDaysUsed: any<int>(named: 'numDaysUsed'),
             brightness: any<Brightness>(named: 'brightness'),
+            homepage: any<String>(named: 'homepage'),
           ),
         ).thenAnswer((_) async {});
         final container = ProviderContainer(
-          overrides: [brightnessProvider.overrideWithValue(Brightness.light)],
+          overrides: [
+            brightnessProvider.overrideWithValue(Brightness.light),
+            feedScreenStatusProvider.overrideWithValue(false),
+          ],
         );
         final ref = container.read(Provider<Ref>((ref) => ref));
         final service = AppUsageService(
@@ -249,6 +264,7 @@ void main() {
           () => mocks.analytics.logAppUsageDays(
             numDaysUsed: 2,
             brightness: any(named: 'brightness'),
+            homepage: any(named: 'homepage'),
           ),
         ).called(1);
       },
@@ -979,7 +995,10 @@ void main() {
       final prefs = await SharedPreferences.getInstance();
       final settingsService = SettingsService(prefs);
       final container = ProviderContainer(
-        overrides: [brightnessProvider.overrideWithValue(Brightness.light)],
+        overrides: [
+          brightnessProvider.overrideWithValue(Brightness.light),
+          feedScreenStatusProvider.overrideWithValue(false),
+        ],
       );
       final ref = container.read(Provider<Ref>((ref) => ref));
 
@@ -1036,6 +1055,7 @@ void main() {
       final container = ProviderContainer(
         overrides: [
           brightnessProvider.overrideWithValue(Brightness.light),
+          feedScreenStatusProvider.overrideWithValue(false),
           reviewPromptStateStoreProvider.overrideWithValue(mocks.reviewStore),
           isAdminProvider.overrideWithValue(false),
         ],

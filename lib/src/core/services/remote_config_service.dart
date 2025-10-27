@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
+import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/data/core/app/firebase_providers.dart';
 
 part 'remote_config_service.g.dart';
@@ -99,6 +100,13 @@ const Map<RemoteParam, RemoteParamDescriptor> remoteParams = {
     enumValues: BannerAdPosition.values,
     enumDefault: BannerAdPosition.top,
   ),
+  //////////////////////
+  // Feature Toggles  //
+  //////////////////////
+  RemoteParam.feedScreenEnabled: BoolRemoteParamDescriptor(
+    key: 'feed_screen_enabled',
+    defaultBool: false,
+  ),
 };
 
 enum RemoteParam {
@@ -115,6 +123,7 @@ enum RemoteParam {
   shareImagesMode,
   adDisplayMode,
   bannerAdPosition,
+  feedScreenEnabled,
 }
 
 // Enum used by share images mode configuration
@@ -320,12 +329,14 @@ class RemoteConfigService {
         defaults[descriptor.key] = descriptor.defaultValue;
       });
       await _client.setDefaults(defaults);
+      AppLogger.info('REMOTE_CONFIG: Set in-app defaults');
 
       // As soon as defaults are applied, expose client reads
       _isInitialized = true;
 
       // Try to fetch fresh values
       await _client.fetchAndActivate();
+      AppLogger.info('REMOTE_CONFIG: Fetched and activated remote values');
     } catch (e) {
       // Log analytics + crashlytics on error per project policy
       try {

@@ -101,6 +101,9 @@ class AnalyticsParameters {
   static const String appReviewAcceptedCount = 'app_review_accepted_count';
   static const String appReviewDeclinedCount = 'app_review_declined_count';
   static const String appReviewPromptVariant = 'app_review_prompt_variant';
+
+  // App homepage (feed vs daily)
+  static const String homepage = 'homepage';
 }
 
 /// User type values for analytics

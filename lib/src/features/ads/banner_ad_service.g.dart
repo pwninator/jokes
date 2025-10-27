@@ -6,7 +6,7 @@ part of 'banner_ad_service.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$bannerAdServiceHash() => r'72f5492152a93361b82d516a481be1f21119559e';
+String _$bannerAdServiceHash() => r'b03acbc08a3d8d7f0ce7df43ed1ac7e10a16f336';
 
 /// Provides the ability to determine whether banner ads should be shown.
 ///

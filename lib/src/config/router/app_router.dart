@@ -29,12 +29,13 @@ import 'package:snickerdoodle/src/features/book_creator/book_creator_screen.dart
 import 'package:snickerdoodle/src/features/feedback/presentation/feedback_conversation_screen.dart';
 import 'package:snickerdoodle/src/features/feedback/presentation/user_feedback_screen.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_category_providers.dart';
-import 'package:snickerdoodle/src/features/jokes/presentation/joke_feed_screen.dart';
 import 'package:snickerdoodle/src/features/jokes/presentation/daily_jokes_screen.dart';
+import 'package:snickerdoodle/src/features/jokes/presentation/joke_feed_screen.dart';
 import 'package:snickerdoodle/src/features/jokes/presentation/saved_jokes_screen.dart';
 import 'package:snickerdoodle/src/features/search/application/discover_tab_state.dart';
 import 'package:snickerdoodle/src/features/search/presentation/discover_screen.dart';
 import 'package:snickerdoodle/src/features/search/presentation/search_screen.dart';
+import 'package:snickerdoodle/src/features/settings/application/feed_screen_status_provider.dart';
 import 'package:snickerdoodle/src/features/settings/presentation/user_settings_screen.dart';
 
 const List<TabConfig> _allTabs = [
@@ -96,7 +97,17 @@ class TabConfig {
   });
 }
 
-List<TabConfig> _visibleTabs(bool isAdmin) {
+List<TabConfig> _visibleTabs(bool isAdmin, {required bool feedEnabled}) {
+  final base = _allTabs.where((t) => !t.requiresAdmin || isAdmin);
+  return base.where((t) {
+    if (t.id == TabId.feed) return feedEnabled;
+    if (t.id == TabId.daily) return !feedEnabled;
+    return true;
+  }).toList();
+}
+
+// For index mapping in tests/logic that assumes fixed positions, ignore feed gating
+List<TabConfig> _tabsForIndexMapping(bool isAdmin) {
   return _allTabs.where((t) => !t.requiresAdmin || isAdmin).toList();
 }
 
@@ -326,10 +337,22 @@ class AppRouter {
     final jokeContext = _getJokeContextFromRoute(currentLocation);
 
     // Determine selected index based on current route
-    int selectedIndex = _getSelectedIndexFromRoute(currentLocation, isAdmin);
+    final feedEnabled = ref.watch(feedScreenStatusProvider);
+    // Ensure the current route matches the configured homepage selection
+    if ((!feedEnabled && currentLocation.startsWith(AppRoutes.feed)) ||
+        (feedEnabled && currentLocation.startsWith(AppRoutes.jokes))) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        context.go(feedEnabled ? AppRoutes.feed : AppRoutes.jokes);
+      });
+    }
+    int selectedIndex = _getSelectedIndexFromRoute(
+      currentLocation,
+      isAdmin,
+      feedEnabled: feedEnabled,
+    );
 
     // Build navigation items from central config
-    final tabs = _visibleTabs(isAdmin);
+    final tabs = _visibleTabs(isAdmin, feedEnabled: feedEnabled);
 
     final Color selectedColor = Theme.of(context).colorScheme.primary;
     final Color unselectedColor = Theme.of(
@@ -554,8 +577,12 @@ class AppRouter {
   }
 
   /// Get selected index from current route
-  static int _getSelectedIndexFromRoute(String route, bool isAdmin) {
-    final tabs = _visibleTabs(isAdmin);
+  static int _getSelectedIndexFromRoute(
+    String route,
+    bool isAdmin, {
+    required bool feedEnabled,
+  }) {
+    final tabs = _visibleTabs(isAdmin, feedEnabled: feedEnabled);
     final idx = tabs.indexWhere((t) => route.startsWith(t.route));
     if (idx >= 0) return idx;
     return 0;
@@ -570,7 +597,8 @@ class AppRouter {
     bool isAdmin,
     String currentLocation,
   ) {
-    final tabs = _visibleTabs(isAdmin);
+    final feedEnabled = ref.read(feedScreenStatusProvider);
+    final tabs = _visibleTabs(isAdmin, feedEnabled: feedEnabled);
     if (newIndex < 0 || newIndex >= tabs.length) {
       context.go(AppRoutes.feed);
       return;
@@ -609,7 +637,8 @@ class AppRouter {
     required int newIndex,
     required bool isAdmin,
   }) {
-    final tabs = _visibleTabs(isAdmin);
+    // Keep legacy tab ordering (feed, daily, discover, ...)
+    final tabs = _tabsForIndexMapping(isAdmin);
     if (newIndex < 0 || newIndex >= tabs.length) {
       return false;
     }

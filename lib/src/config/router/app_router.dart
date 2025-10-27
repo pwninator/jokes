@@ -146,6 +146,18 @@ class _NavigationState {
     required this.jokeContext,
   });
 
+  /// Get the homepage route based on feed status
+  String get homepageRoute => feedEnabled ? AppRoutes.feed : AppRoutes.jokes;
+
+  /// Check if the current location is on the wrong homepage route
+  bool get isOnWrongHomepage {
+    if ((currentLocation.startsWith(AppRoutes.feed) && !feedEnabled) ||
+        (currentLocation.startsWith(AppRoutes.jokes) && feedEnabled)) {
+      return true;
+    }
+    return false;
+  }
+
   /// Create navigation state from current context
   factory _NavigationState.create({
     required bool isAdmin,
@@ -175,6 +187,11 @@ class _NavigationState {
 class AppRouter {
   AppRouter._();
 
+  /// Get the homepage route based on feed status
+  static String getHomepageRoute(bool feedEnabled) {
+    return feedEnabled ? AppRoutes.feed : AppRoutes.jokes;
+  }
+
   /// Create the main GoRouter instance
   static GoRouter createRouter({
     required Ref ref,
@@ -183,7 +200,7 @@ class AppRouter {
     final feedEnabled = ref.read(feedScreenStatusProvider);
     return GoRouter(
       navigatorKey: NotificationService.navigatorKey,
-      initialLocation: feedEnabled ? AppRoutes.feed : AppRoutes.jokes,
+      initialLocation: getHomepageRoute(feedEnabled),
       refreshListenable: refreshListenable,
       debugLogDiagnostics: true,
       observers: [
@@ -403,10 +420,9 @@ class AppRouter {
     );
 
     // Ensure the current route matches the configured homepage selection
-    if ((!navState.feedEnabled && currentLocation.startsWith(AppRoutes.feed)) ||
-        (navState.feedEnabled && currentLocation.startsWith(AppRoutes.jokes))) {
+    if (navState.isOnWrongHomepage) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        context.go(navState.feedEnabled ? AppRoutes.feed : AppRoutes.jokes);
+        context.go(navState.homepageRoute);
       });
     }
 
@@ -632,7 +648,7 @@ class AppRouter {
   ) {
     final tabs = navState.visibleTabs;
     if (newIndex < 0 || newIndex >= tabs.length) {
-      context.go(navState.feedEnabled ? AppRoutes.feed : AppRoutes.jokes);
+      context.go(navState.homepageRoute);
       return;
     }
 

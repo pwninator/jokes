@@ -235,7 +235,8 @@ class GenericPagingNotifier extends StateNotifier<PagingState> {
         isLoading: false,
         totalCount: page.totalCount,
       );
-      if (newCursor != previousCursor) {
+      if (newCursor != previousCursor &&
+          appended.length > initialPageSize + loadPageSize) {
         if (previousCursor != null && previousCursor.isNotEmpty) {
           onCursorChanged?.call(ref, previousCursor);
         }

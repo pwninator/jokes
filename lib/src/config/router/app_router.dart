@@ -44,30 +44,35 @@ const List<TabConfig> _allTabs = [
     route: AppRoutes.feed,
     label: 'Joke Feed',
     icon: Icons.dynamic_feed,
+    analyticsContext: AnalyticsJokeContext.jokeFeed,
   ),
   TabConfig(
     id: TabId.daily,
     route: AppRoutes.jokes,
     label: 'Daily Jokes',
     icon: Icons.mood,
+    analyticsContext: AnalyticsJokeContext.dailyJokes,
   ),
   TabConfig(
     id: TabId.discover,
     route: AppRoutes.discover,
     label: 'Discover',
     icon: Icons.explore,
+    analyticsContext: AnalyticsJokeContext.category,
   ),
   TabConfig(
     id: TabId.saved,
     route: AppRoutes.saved,
     label: 'Saved Jokes',
     icon: Icons.favorite,
+    analyticsContext: AnalyticsJokeContext.savedJokes,
   ),
   TabConfig(
     id: TabId.settings,
     route: AppRoutes.settings,
     label: 'Settings',
     icon: Icons.settings,
+    analyticsContext: AnalyticsJokeContext.jokeFeed,
   ),
   TabConfig(
     id: TabId.admin,
@@ -75,6 +80,7 @@ const List<TabConfig> _allTabs = [
     label: 'Admin',
     icon: Icons.admin_panel_settings,
     requiresAdmin: true,
+    analyticsContext: AnalyticsJokeContext.jokeFeed,
   ),
 ];
 
@@ -87,6 +93,7 @@ class TabConfig {
   final String label;
   final IconData icon;
   final bool requiresAdmin;
+  final String analyticsContext;
 
   const TabConfig({
     required this.id,
@@ -94,6 +101,7 @@ class TabConfig {
     required this.label,
     required this.icon,
     this.requiresAdmin = false,
+    required this.analyticsContext,
   });
 }
 
@@ -305,19 +313,19 @@ class AppRouter {
 
   /// Get the joke context for analytics based on current route
   static String _getJokeContextFromRoute(String route) {
-    if (route.startsWith(AppRoutes.feed)) {
-      return AnalyticsJokeContext.jokeFeed;
-    } else if (route.startsWith(AppRoutes.saved)) {
-      return AnalyticsJokeContext.savedJokes;
-    } else if (route.startsWith(AppRoutes.discover)) {
-      if (route.contains('/search')) {
-        return AnalyticsJokeContext.search;
-      }
-      return AnalyticsJokeContext.category;
-    } else if (route.startsWith(AppRoutes.jokes)) {
-      return AnalyticsJokeContext.dailyJokes;
+    // Special case for discover/search sub-route
+    if (route.contains('/discover/search')) {
+      return AnalyticsJokeContext.search;
     }
-    // Default for other routes (settings, admin, etc.)
+
+    // Find matching tab and return its analytics context
+    for (final tab in _allTabs) {
+      if (route.startsWith(tab.route)) {
+        return tab.analyticsContext;
+      }
+    }
+
+    // Fallback for unknown routes
     return AnalyticsJokeContext.jokeFeed;
   }
 
@@ -330,10 +338,9 @@ class AppRouter {
     required String currentLocation,
     required WidgetRef ref,
   }) {
-    final jokeContext = _getJokeContextFromRoute(currentLocation);
-
     // Determine selected index based on current route
     final feedEnabled = ref.watch(feedScreenStatusProvider);
+    final jokeContext = _getJokeContextFromRoute(currentLocation);
     // Ensure the current route matches the configured homepage selection
     if ((!feedEnabled && currentLocation.startsWith(AppRoutes.feed)) ||
         (feedEnabled && currentLocation.startsWith(AppRoutes.jokes))) {

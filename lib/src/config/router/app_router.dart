@@ -128,6 +128,49 @@ List<TabConfig> _visibleTabs(bool isAdmin, {required bool feedEnabled}) {
       .toList();
 }
 
+/// Helper class to encapsulate navigation-related state
+class _NavigationState {
+  final bool isAdmin;
+  final bool feedEnabled;
+  final String currentLocation;
+  final List<TabConfig> visibleTabs;
+  final int selectedIndex;
+  final String jokeContext;
+
+  _NavigationState({
+    required this.isAdmin,
+    required this.feedEnabled,
+    required this.currentLocation,
+    required this.visibleTabs,
+    required this.selectedIndex,
+    required this.jokeContext,
+  });
+
+  /// Create navigation state from current context
+  factory _NavigationState.create({
+    required bool isAdmin,
+    required String currentLocation,
+    required WidgetRef ref,
+  }) {
+    final feedEnabled = ref.read(feedScreenStatusProvider);
+    final visibleTabs = _visibleTabs(isAdmin, feedEnabled: feedEnabled);
+    final selectedIndex = visibleTabs.indexWhere(
+      (t) => currentLocation.startsWith(t.route),
+    );
+    final effectiveSelectedIndex = selectedIndex >= 0 ? selectedIndex : 0;
+    final jokeContext = AppRouter._getJokeContextFromRoute(currentLocation);
+
+    return _NavigationState(
+      isAdmin: isAdmin,
+      feedEnabled: feedEnabled,
+      currentLocation: currentLocation,
+      visibleTabs: visibleTabs,
+      selectedIndex: effectiveSelectedIndex,
+      jokeContext: jokeContext,
+    );
+  }
+}
+
 /// App router configuration
 class AppRouter {
   AppRouter._();
@@ -352,24 +395,20 @@ class AppRouter {
     required String currentLocation,
     required WidgetRef ref,
   }) {
-    // Determine selected index based on current route
-    final feedEnabled = ref.watch(feedScreenStatusProvider);
-    final jokeContext = _getJokeContextFromRoute(currentLocation);
-    // Ensure the current route matches the configured homepage selection
-    if ((!feedEnabled && currentLocation.startsWith(AppRoutes.feed)) ||
-        (feedEnabled && currentLocation.startsWith(AppRoutes.jokes))) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        context.go(feedEnabled ? AppRoutes.feed : AppRoutes.jokes);
-      });
-    }
-    int selectedIndex = _getSelectedIndexFromRoute(
-      currentLocation,
-      isAdmin,
-      feedEnabled: feedEnabled,
+    // Create navigation state
+    final navState = _NavigationState.create(
+      isAdmin: isAdmin,
+      currentLocation: currentLocation,
+      ref: ref,
     );
 
-    // Build navigation items from central config
-    final tabs = _visibleTabs(isAdmin, feedEnabled: feedEnabled);
+    // Ensure the current route matches the configured homepage selection
+    if ((!navState.feedEnabled && currentLocation.startsWith(AppRoutes.feed)) ||
+        (navState.feedEnabled && currentLocation.startsWith(AppRoutes.jokes))) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        context.go(navState.feedEnabled ? AppRoutes.feed : AppRoutes.jokes);
+      });
+    }
 
     final Color selectedColor = Theme.of(context).colorScheme.primary;
     final Color unselectedColor = Theme.of(
@@ -381,7 +420,7 @@ class AppRouter {
         final resize = ref.watch(keyboardResizeProvider);
         final hasUnviewed = ref.watch(hasUnviewedCategoriesProvider);
 
-        final iconsAndLabels = tabs.map((tab) {
+        final iconsAndLabels = navState.visibleTabs.map((tab) {
           final bool isDiscover = tab.id == TabId.discover;
           final Widget iconWidget = isDiscover
               ? BadgedIcon(
@@ -458,15 +497,13 @@ class AppRouter {
                                 Expanded(
                                   child: NavigationRail(
                                     destinations: railDestinations,
-                                    selectedIndex: selectedIndex,
+                                    selectedIndex: navState.selectedIndex,
                                     onDestinationSelected: (index) {
                                       _navigateToIndex(
                                         context,
                                         ref,
                                         index,
-                                        selectedIndex,
-                                        isAdmin,
-                                        currentLocation,
+                                        navState,
                                       );
                                     },
                                     backgroundColor: Theme.of(
@@ -525,7 +562,7 @@ class AppRouter {
                     showTopBannerAd
                         ? AdBannerWidget(
                             key: const Key('banner-ad-top'),
-                            jokeContext: jokeContext,
+                            jokeContext: navState.jokeContext,
                             position: BannerAdPosition.top,
                           )
                         : const SizedBox.shrink(),
@@ -544,7 +581,7 @@ class AppRouter {
                       child: BottomNavigationBar(
                         type: BottomNavigationBarType.fixed,
                         items: navItems,
-                        currentIndex: selectedIndex,
+                        currentIndex: navState.selectedIndex,
                         selectedItemColor: selectedColor,
                         unselectedItemColor: unselectedColor,
                         selectedLabelStyle: TextStyle(
@@ -568,21 +605,14 @@ class AppRouter {
                           color: unselectedColor,
                         ),
                         onTap: (index) {
-                          _navigateToIndex(
-                            context,
-                            ref,
-                            index,
-                            selectedIndex,
-                            isAdmin,
-                            currentLocation,
-                          );
+                          _navigateToIndex(context, ref, index, navState);
                         },
                       ),
                     ),
                     showBottomBannerAd
                         ? AdBannerWidget(
                             key: const Key('banner-ad-bottom'),
-                            jokeContext: jokeContext,
+                            jokeContext: navState.jokeContext,
                             position: BannerAdPosition.bottom,
                           )
                         : const SizedBox.shrink(),
@@ -593,47 +623,32 @@ class AppRouter {
     );
   }
 
-  /// Get selected index from current route
-  static int _getSelectedIndexFromRoute(
-    String route,
-    bool isAdmin, {
-    required bool feedEnabled,
-  }) {
-    final tabs = _visibleTabs(isAdmin, feedEnabled: feedEnabled);
-    final idx = tabs.indexWhere((t) => route.startsWith(t.route));
-    if (idx >= 0) return idx;
-    return 0;
-  }
-
   /// Navigate to tab index
   static void _navigateToIndex(
     BuildContext context,
     WidgetRef ref,
     int newIndex,
-    int currentIndex,
-    bool isAdmin,
-    String currentLocation,
+    _NavigationState navState,
   ) {
-    final feedEnabled = ref.read(feedScreenStatusProvider);
-    final tabs = _visibleTabs(isAdmin, feedEnabled: feedEnabled);
+    final tabs = navState.visibleTabs;
     if (newIndex < 0 || newIndex >= tabs.length) {
-      context.go(feedEnabled ? AppRoutes.feed : AppRoutes.jokes);
+      context.go(navState.feedEnabled ? AppRoutes.feed : AppRoutes.jokes);
       return;
     }
 
     final targetTab = tabs[newIndex];
     final shouldResetDiscover = shouldResetDiscoverOnNavigation(
       newIndex: newIndex,
-      isAdmin: isAdmin,
-      feedEnabled: feedEnabled,
+      isAdmin: navState.isAdmin,
+      feedEnabled: navState.feedEnabled,
     );
 
     if (shouldResetDiscover) {
       resetDiscoverTabState(ref);
     }
 
-    if (newIndex == currentIndex) {
-      if (shouldResetDiscover && currentLocation != targetTab.route) {
+    if (newIndex == navState.selectedIndex) {
+      if (shouldResetDiscover && navState.currentLocation != targetTab.route) {
         context.go(targetTab.route);
       }
       return;
@@ -642,7 +657,7 @@ class AppRouter {
     // Update route state and analytics before navigating so listeners react
     final navigationAnalytics = ref.read(navigationAnalyticsProvider);
     navigationAnalytics.trackRouteChange(
-      currentLocation,
+      navState.currentLocation,
       targetTab.route,
       'tab',
     );

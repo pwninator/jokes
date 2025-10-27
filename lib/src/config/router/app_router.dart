@@ -106,11 +106,6 @@ List<TabConfig> _visibleTabs(bool isAdmin, {required bool feedEnabled}) {
   }).toList();
 }
 
-// For index mapping in tests/logic that assumes fixed positions, ignore feed gating
-List<TabConfig> _tabsForIndexMapping(bool isAdmin) {
-  return _allTabs.where((t) => !t.requiresAdmin || isAdmin).toList();
-}
-
 /// App router configuration
 class AppRouter {
   AppRouter._();
@@ -120,9 +115,10 @@ class AppRouter {
     required Ref ref,
     Listenable? refreshListenable,
   }) {
+    final feedEnabled = ref.read(feedScreenStatusProvider);
     return GoRouter(
       navigatorKey: NotificationService.navigatorKey,
-      initialLocation: AppRoutes.feed,
+      initialLocation: feedEnabled ? AppRoutes.feed : AppRoutes.jokes,
       refreshListenable: refreshListenable,
       debugLogDiagnostics: true,
       observers: [
@@ -600,7 +596,7 @@ class AppRouter {
     final feedEnabled = ref.read(feedScreenStatusProvider);
     final tabs = _visibleTabs(isAdmin, feedEnabled: feedEnabled);
     if (newIndex < 0 || newIndex >= tabs.length) {
-      context.go(AppRoutes.feed);
+      context.go(feedEnabled ? AppRoutes.feed : AppRoutes.jokes);
       return;
     }
 
@@ -608,6 +604,7 @@ class AppRouter {
     final shouldResetDiscover = shouldResetDiscoverOnNavigation(
       newIndex: newIndex,
       isAdmin: isAdmin,
+      feedEnabled: feedEnabled,
     );
 
     if (shouldResetDiscover) {
@@ -636,9 +633,10 @@ class AppRouter {
   static bool shouldResetDiscoverOnNavigation({
     required int newIndex,
     required bool isAdmin,
+    required bool feedEnabled,
   }) {
-    // Keep legacy tab ordering (feed, daily, discover, ...)
-    final tabs = _tabsForIndexMapping(isAdmin);
+    // Use current visible tabs (respecting admin and feed gating)
+    final tabs = _visibleTabs(isAdmin, feedEnabled: feedEnabled);
     if (newIndex < 0 || newIndex >= tabs.length) {
       return false;
     }

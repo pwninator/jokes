@@ -90,6 +90,7 @@ void main() {
         ProviderScope(
           child: MaterialApp(
             home: StartupOrchestrator(
+              performanceService: mockPerf,
               firebaseOverrides: [
                 performanceServiceProvider.overrideWithValue(mockPerf),
               ],
@@ -171,6 +172,7 @@ void main() {
       ProviderScope(
         child: MaterialApp(
           home: StartupOrchestrator(
+            performanceService: mockPerf,
             firebaseOverrides: [
               performanceServiceProvider.overrideWithValue(mockPerf),
             ],
@@ -214,6 +216,7 @@ void main() {
       ProviderScope(
         child: MaterialApp(
           home: StartupOrchestrator(
+            performanceService: mockPerf,
             firebaseOverrides: [
               performanceServiceProvider.overrideWithValue(mockPerf),
             ],
@@ -268,6 +271,7 @@ void main() {
       ProviderScope(
         child: MaterialApp(
           home: StartupOrchestrator(
+            performanceService: mockPerf,
             firebaseOverrides: [
               performanceServiceProvider.overrideWithValue(mockPerf),
             ],
@@ -319,6 +323,7 @@ void main() {
       ProviderScope(
         child: MaterialApp(
           home: StartupOrchestrator(
+            performanceService: mockPerf,
             firebaseOverrides: [
               performanceServiceProvider.overrideWithValue(mockPerf),
             ],

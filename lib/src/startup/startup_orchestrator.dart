@@ -32,6 +32,7 @@ class StartupOrchestrator extends ConsumerStatefulWidget {
     required this.backgroundTasks,
     this.readyWidget,
     this.firebaseOverrides,
+    this.performanceService,
   });
 
   final List<StartupTask> criticalTasks;
@@ -39,6 +40,7 @@ class StartupOrchestrator extends ConsumerStatefulWidget {
   final List<StartupTask> backgroundTasks;
   final Widget? readyWidget;
   final List<Override>? firebaseOverrides;
+  final PerformanceService? performanceService;
 
   @override
   ConsumerState<StartupOrchestrator> createState() =>
@@ -88,6 +90,7 @@ class _StartupOrchestratorState extends ConsumerState<StartupOrchestrator> {
 
   /// Main startup sequence orchestration.
   Future<void> _runStartupSequence() async {
+    PerformanceService? perfService;
     try {
       if (!mounted) return;
       setState(() {
@@ -104,8 +107,12 @@ class _StartupOrchestratorState extends ConsumerState<StartupOrchestrator> {
         parent: null,
       );
 
-      // Get performance service from temp container
-      final perfService = tempContainer.read(performanceServiceProvider);
+      // Use provided performance service (for tests) or create a new one.
+      // We cannot use tempContainer because it'll be disposed before the startup
+      // sequence completes.
+      perfService =
+          widget.performanceService ??
+          FirebasePerformanceService(performance: FirebasePerformance.instance);
 
       // Start performance trace for startup phase
       perfService.startNamedTrace(name: TraceName.startupOverallBlocking);
@@ -136,12 +143,12 @@ class _StartupOrchestratorState extends ConsumerState<StartupOrchestrator> {
       AppLogger.debug('Starting best effort and background tasks...');
       final bestEffortFutures = widget.bestEffortTasks
           .map(
-            (task) => _runBestEffortTask(task, _container!.read, perfService),
+            (task) => _runBestEffortTask(task, _container!.read, perfService!),
           )
           .toList();
       final backgroundFutures = widget.backgroundTasks
           .map(
-            (task) => _runBackgroundTask(task, _container!.read, perfService),
+            (task) => _runBackgroundTask(task, _container!.read, perfService!),
           )
           .toList();
 
@@ -150,13 +157,13 @@ class _StartupOrchestratorState extends ConsumerState<StartupOrchestrator> {
       Future.wait([...bestEffortFutures, ...backgroundFutures])
           .then((_) {
             AppLogger.debug('All tasks completed');
-            perfService.stopNamedTrace(
+            perfService!.stopNamedTrace(
               name: TraceName.startupOverallBackground,
             );
           })
           .catchError((e) {
             AppLogger.warn('Task error: $e');
-            perfService.stopNamedTrace(
+            perfService!.stopNamedTrace(
               name: TraceName.startupOverallBackground,
             );
           });
@@ -197,8 +204,7 @@ class _StartupOrchestratorState extends ConsumerState<StartupOrchestrator> {
     } finally {
       // Stop or drop traces as appropriate
       try {
-        if (_container != null) {
-          final perfService = _container!.read(performanceServiceProvider);
+        if (perfService != null) {
           perfService.stopNamedTrace(name: TraceName.startupOverallBlocking);
           perfService.stopNamedTrace(name: TraceName.startupOverallBackground);
         }

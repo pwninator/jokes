@@ -420,7 +420,7 @@ Future<PageResult> _loadOrderedJokesPage(
     return const PageResult(jokes: [], cursor: null, hasMore: false);
   }
 
-  final jokes = await repository.getJokesByIds(page.ids);
+  final jokes = page.jokes ?? await repository.getJokesByIds(page.ids);
   final now = DateTime.now();
   final filtered = jokes.where((joke) {
     final timestamp = joke.publicTimestamp;

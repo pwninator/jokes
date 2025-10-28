@@ -58,10 +58,13 @@ class JokeListPage {
   final JokeListPageCursor? cursor;
   final bool hasMore;
 
+  final List<Joke>? jokes;
+
   const JokeListPage({
     required this.ids,
     required this.cursor,
     required this.hasMore,
+    this.jokes,
   });
 }
 
@@ -369,8 +372,8 @@ class JokeRepository {
         'filters': filters.length.toString(),
       },
     );
-    final ids = snapshot.docs.map((d) => d.id).toList();
 
+    final ids = snapshot.docs.map((d) => d.id).toList();
     if (ids.isEmpty) {
       return const JokeListPage(ids: <String>[], cursor: null, hasMore: false);
     }
@@ -397,7 +400,15 @@ class JokeRepository {
     // more pages exist if the page is full
     final hasMore = ids.length == limit;
 
-    return JokeListPage(ids: ids, cursor: nextCursor, hasMore: hasMore);
+    final jokes = snapshot.docs
+        .map((d) => Joke.fromMap(d.data(), d.id))
+        .toList();
+    return JokeListPage(
+      ids: ids,
+      cursor: nextCursor,
+      hasMore: hasMore,
+      jokes: jokes,
+    );
   }
 
   /// Get a real-time stream of a joke by ID

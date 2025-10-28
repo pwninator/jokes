@@ -43,7 +43,7 @@ const List<TabConfig> _allTabs = [
     id: TabId.feed,
     route: AppRoutes.feed,
     label: 'Joke Feed',
-    icon: Icons.dynamic_feed,
+    icon: Icons.home,
     analyticsContext: AnalyticsJokeContext.jokeFeed,
   ),
   TabConfig(

@@ -635,6 +635,8 @@ def _refresh_category_caches() -> None:
         joke = res.joke
         jokes_payload.append({
           "joke_id": joke.key,
+          "setup": joke.setup_text,
+          "punchline": joke.punchline_text,
           "setup_image_url": joke.setup_image_url,
           "punchline_image_url": joke.punchline_image_url,
         })

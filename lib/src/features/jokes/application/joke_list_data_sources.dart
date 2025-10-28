@@ -114,13 +114,14 @@ final _savedJokesPagingProviders = createPagingProviders(
 
 /// Shared preferences key for persisting the composite feed cursor.
 const compositeJokeCursorPrefsKey = 'composite_joke_cursor';
-const _popularCompositeLimit = 10;
+const _popularCompositeLimit = 50;
+const _compositeInitialPageSize = 3;
 
 final compositeJokePagingProviders = createPagingProviders(
   loadPage: _loadCompositeJokePage,
   resetTriggers: const [],
   errorAnalyticsSource: 'composite_jokes',
-  initialPageSize: 3,
+  initialPageSize: _compositeInitialPageSize,
   loadPageSize: 10,
   loadMoreThreshold: 5,
   initialCursorProvider: (ref) {
@@ -161,11 +162,22 @@ class CompositeSubSourcePage {
 
   /// This sub source has no more jokes to load.
   /// When this is returned, move to the next sub source.
-  static const empty = CompositeSubSourcePage(
-    jokes: <JokeWithDate>[],
-    hasMore: false,
-    nextCursor: null,
-  );
+  static CompositeSubSourcePage empty(CompositeCursor? cursor) {
+    return CompositeSubSourcePage(
+      jokes: <JokeWithDate>[],
+      hasMore: false,
+      nextCursor: cursor,
+    );
+  }
+
+  /// Loaded 0 jokes, so return empty page with previous cursor as-is.
+  static CompositeSubSourcePage noOpPage(CompositeCursor? cursor) {
+    return CompositeSubSourcePage(
+      jokes: <JokeWithDate>[],
+      hasMore: true,
+      nextCursor: cursor,
+    );
+  }
 }
 
 class CompositeCursor {
@@ -203,18 +215,84 @@ class CompositeCursor {
 
 final List<CompositeJokeSubSource> _compositeSubSources = [
   CompositeJokeSubSource(
-    id: 'most_popular',
-    load: _loadPopularCompositeSubSource,
-  ),
-  CompositeJokeSubSource(
-    id: 'all_jokes_random',
-    load: _loadRandomCompositeSubSource,
+    id: 'popular_and_random',
+    load: _loadPopularAndRandomCompositeSubSource,
   ),
   CompositeJokeSubSource(
     id: 'all_jokes_public_timestamp',
     load: _loadPublicTimestampCompositeSubSource,
   ),
 ];
+
+///
+/// Loads an interleaved page of popular and random jokes.
+///
+/// Behavior:
+/// - Returns jokes interleaving popular and random jokes, with popular jokes first.
+/// - Popular jokes are limited to `_popularCompositeLimit` total across all pages.
+/// - For the initial page, prioritizes popular jokes up to the requested limit.
+/// - For subsequent pages, returns roughly half popular and half random jokes,
+///   respecting the popular joke limit.
+/// - Maintains pagination state for both popular and random joke streams.
+Future<CompositeSubSourcePage> _loadPopularAndRandomCompositeSubSource(
+  Ref ref,
+  int limit,
+  CompositeCursor? cursor,
+) async {
+  final payload = cursor?.payload;
+  final popularCursor = CompositeCursor.decode(
+    payload?['popular_cursor_string'] as String?,
+  );
+  final randomCursor = CompositeCursor.decode(
+    payload?['random_cursor_string'] as String?,
+  );
+  final numPopularSoFar =
+      (popularCursor?.payload?['count'] as num?)?.toInt() ?? 0;
+  final numPopularRemaining = _popularCompositeLimit - numPopularSoFar;
+
+  final numPopularShare = limit == _compositeInitialPageSize
+      ? limit
+      : (limit / 2).ceil();
+  final numPopular = math.min(numPopularRemaining, numPopularShare);
+  final numRandom = limit - numPopular;
+
+  if (numPopular + numRandom == 0) {
+    return CompositeSubSourcePage.noOpPage(cursor);
+  }
+
+  Future<CompositeSubSourcePage> popularPageFuture =
+      _loadPopularCompositeSubSource(ref, numPopular, popularCursor);
+  Future<CompositeSubSourcePage> randomPageFuture =
+      _loadRandomCompositeSubSource(ref, numRandom, randomCursor);
+
+  final popularPage = await popularPageFuture;
+  final randomPage = await randomPageFuture;
+
+  // Interleave the jokes from the two pages.
+  final jokes = <JokeWithDate>[];
+  for (int i = 0; i < limit; i++) {
+    if (i < popularPage.jokes.length) {
+      jokes.add(popularPage.jokes[i]);
+    }
+    if (i < randomPage.jokes.length) {
+      jokes.add(randomPage.jokes[i]);
+    }
+  }
+  final hasMore = popularPage.hasMore || randomPage.hasMore;
+  final nextCursorPayload = {
+    'popular_cursor_string': popularPage.nextCursor?.encode(),
+    'random_cursor_string': randomPage.nextCursor?.encode(),
+  };
+
+  return CompositeSubSourcePage(
+    jokes: jokes,
+    hasMore: hasMore,
+    nextCursor: CompositeCursor(
+      sourceId: 'popular_and_random',
+      payload: nextCursorPayload,
+    ),
+  );
+}
 
 Future<CompositeSubSourcePage> _loadPopularCompositeSubSource(
   Ref ref,
@@ -224,13 +302,17 @@ Future<CompositeSubSourcePage> _loadPopularCompositeSubSource(
   final payload = cursor?.payload;
   final consumed = (payload?['count'] as num?)?.toInt() ?? 0;
   if (consumed >= _popularCompositeLimit) {
-    return CompositeSubSourcePage.empty;
+    return CompositeSubSourcePage.empty(cursor);
+  }
+
+  if (limit <= 0) {
+    return CompositeSubSourcePage.noOpPage(cursor);
   }
 
   final remaining = _popularCompositeLimit - consumed;
   final fetchLimit = math.min(limit, remaining);
   if (fetchLimit <= 0) {
-    return CompositeSubSourcePage.empty;
+    return CompositeSubSourcePage.empty(cursor);
   }
 
   final pageCursor = payload?['cursor'] as String?;
@@ -240,15 +322,17 @@ Future<CompositeSubSourcePage> _loadPopularCompositeSubSource(
   final bool hasMoreWithinTop =
       page.hasMore && newCount < _popularCompositeLimit;
 
-  final nextCursor = hasMoreWithinTop
-      ? CompositeCursor(
-          sourceId: 'most_popular',
-          payload: {
-            'count': newCount,
-            if (page.cursor != null) 'cursor': page.cursor,
-          },
-        )
-      : null;
+  final nextCursor = CompositeCursor(
+    sourceId: 'most_popular',
+    payload: {
+      'count': newCount,
+      if (page.cursor != null) 'cursor': page.cursor,
+    },
+  );
+
+  AppLogger.debug(
+    'PAGING_INTERNAL: Composite: Loaded ${page.jokes.length} popular jokes (hasMore=${page.hasMore})',
+  );
 
   return CompositeSubSourcePage(
     jokes: page.jokes,
@@ -262,6 +346,10 @@ Future<CompositeSubSourcePage> _loadRandomCompositeSubSource(
   int limit,
   CompositeCursor? cursor,
 ) async {
+  if (limit <= 0) {
+    return CompositeSubSourcePage.noOpPage(cursor);
+  }
+
   final payload = cursor?.payload;
   final page = await _loadOrderedJokesPage(
     ref,
@@ -269,6 +357,10 @@ Future<CompositeSubSourcePage> _loadRandomCompositeSubSource(
     payload?['cursor'] as String?,
     orderByField: JokeField.randomId,
     descending: false,
+  );
+
+  AppLogger.debug(
+    'PAGING_INTERNAL: Composite: Loaded ${page.jokes.length} random jokes (hasMore=${page.hasMore})',
   );
 
   return CompositeSubSourcePage(
@@ -288,6 +380,10 @@ Future<CompositeSubSourcePage> _loadPublicTimestampCompositeSubSource(
   int limit,
   CompositeCursor? cursor,
 ) async {
+  if (limit <= 0) {
+    return CompositeSubSourcePage.noOpPage(cursor);
+  }
+
   final payload = cursor?.payload;
   final page = await _loadOrderedJokesPage(
     ref,
@@ -295,6 +391,10 @@ Future<CompositeSubSourcePage> _loadPublicTimestampCompositeSubSource(
     payload?['cursor'] as String?,
     orderByField: JokeField.publicTimestamp,
     descending: false,
+  );
+
+  AppLogger.debug(
+    'PAGING_INTERNAL: Composite: Loaded ${page.jokes.length} public timestamp jokes (hasMore=${page.hasMore})',
   );
 
   return CompositeSubSourcePage(
@@ -358,6 +458,7 @@ Future<PageResult> _loadCompositeJokePage(
         .where((jokeWithDate) => unviewedJokeIds.contains(jokeWithDate.joke.id))
         .toList();
 
+    // Log the jokes that were filtered out for debugging.
     if (kDebugMode && unviewedJokes.length != jokeIds.length) {
       final viewedJokeIds = jokeIds
           .where((id) => !unviewedJokeIds.contains(id))
@@ -390,6 +491,7 @@ Future<PageResult> _loadCompositeJokePage(
       continue;
     }
 
+    // Sub-source exhausted: move to next sub-source
     currentIndex += 1;
     currentCursor = null;
     cursorSignature = null;

@@ -217,7 +217,7 @@ class GenericPagingNotifier extends StateNotifier<PagingState> {
           .toList();
 
       AppLogger.debug(
-        'PAGING_INTERNAL: After dedup, ${newJokes.length} new jokes '
+        'PAGING_INTERNAL: After dedupe, ${newJokes.length} new jokes '
         '(${page.jokes.length - newJokes.length} duplicates removed)',
       );
 

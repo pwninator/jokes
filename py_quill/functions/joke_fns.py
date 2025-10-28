@@ -13,7 +13,6 @@ from agents.endpoints import all_agents
 from agents.puns import pun_postprocessor_agent
 from common import config, image_generation, joke_operations, models
 from firebase_functions import firestore_fn, https_fn, logger, options
-
 from functions.function_utils import (error_response, get_bool_param,
                                       get_float_param, get_int_param,
                                       get_param, get_user_id, success_response)
@@ -303,8 +302,11 @@ def search_jokes(req: https_fn.Request) -> https_fn.Response:
     public_only = get_bool_param(req, 'public_only', True)
     field_filters = []
     if public_only:
-      now_la = datetime.datetime.now(zoneinfo.ZoneInfo("America/Los_Angeles"))
-      field_filters.append(('public_timestamp', '<=', now_la))
+      field_filters.extend([
+        ("state", "in",
+         [models.JokeState.PUBLISHED.value, models.JokeState.DAILY.value]),
+        ("is_public", "==", True),
+      ])
 
     # Search for jokes
     search_results = search.search_jokes(
@@ -482,8 +484,7 @@ def on_joke_category_write(
   """
   # Handle deletes
   if not event.data.after:
-    logger.info(
-      f"Joke category deleted: {event.params.get('category_id')}")
+    logger.info(f"Joke category deleted: {event.params.get('category_id')}")
     return
 
   after_data = event.data.after.to_dict() or {}

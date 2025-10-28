@@ -179,25 +179,33 @@ def joke_daily_maintenance_http(req: https_fn.Request) -> https_fn.Response:
   del req
   try:
     run_time_utc = datetime.datetime.now(datetime.timezone.utc)
-    _joke_daily_maintenance_internal(run_time_utc)
-    return success_response({"message": "Recent joke stats decayed"})
+    maintenance_stats = _joke_daily_maintenance_internal(run_time_utc)
+    return success_response({
+      "message": "Daily maintenance completed successfully",
+      "stats": maintenance_stats
+    })
   except Exception as exc:  # pylint: disable=broad-except
-    return error_response(f'Failed to decay recent joke stats: {exc}')
+    return error_response(f'Failed to run daily maintenance: {exc}')
 
 
-def _joke_daily_maintenance_internal(run_time_utc: datetime.datetime) -> None:
-  """Run daily maintenance tasks for jokes."""
+def _joke_daily_maintenance_internal(
+    run_time_utc: datetime.datetime) -> dict[str, int]:
+  """Run daily maintenance tasks for jokes.
+  
+  Returns:
+    Combined dictionary with all maintenance statistics from joke updates and category cache refresh
+  """
 
-  _update_joke_attributes(run_time_utc)
+  joke_stats = _update_joke_attributes(run_time_utc)
 
   # After updating jokes (including is_public), refresh cached category results
-  _refresh_category_caches()
+  category_stats = _refresh_category_caches()
 
+  # Combine all statistics
+  combined_stats = {**joke_stats, **category_stats}
 
-def _decay_recent_joke_stats_internal(
-  run_time_utc: datetime.datetime, ) -> None:
-  """Backward-compatible alias for legacy invocations."""
-  _joke_daily_maintenance_internal(run_time_utc)
+  logger.info(f"Daily maintenance completed with stats: {combined_stats}")
+  return combined_stats
 
 
 def _should_skip_recent_update(
@@ -517,8 +525,12 @@ def on_joke_write(event: firestore_fn.Event[firestore_fn.Change]) -> None:
       logger.info(f"Successfully updated embedding for joke: {after_joke.key}")
 
 
-def _update_joke_attributes(run_time_utc: datetime.datetime) -> None:
-  """Apply exponential decay to recent counters across all jokes."""
+def _update_joke_attributes(run_time_utc: datetime.datetime) -> dict[str, int]:
+  """Apply exponential decay to recent counters across all jokes.
+  
+  Returns:
+    Dictionary with maintenance statistics: jokes_decayed, public_updated, jokes_skipped
+  """
 
   db_client = firestore.db()
   jokes_collection = db_client.collection("jokes")
@@ -576,8 +588,14 @@ def _update_joke_attributes(run_time_utc: datetime.datetime) -> None:
     f"Joke daily maintenance completed: {jokes_decayed} recent stats decayed, {public_updated} is_public updated, {jokes_skipped} jokes skipped"
   )
 
+  return {
+    "jokes_decayed": jokes_decayed,
+    "public_updated": public_updated,
+    "jokes_skipped": jokes_skipped,
+  }
 
-def _refresh_category_caches() -> None:
+
+def _refresh_category_caches() -> dict[str, int]:
   """Refresh cached joke lists for Firestore categories.
 
   - Processes only categories in APPROVED or PROPOSED state
@@ -588,6 +606,9 @@ def _refresh_category_caches() -> None:
     {joke_id, setup_image_url, punchline_image_url}
   - If a category yields no results, writes an empty array and forces state to
     PROPOSED on the category document
+    
+  Returns:
+    Dictionary with maintenance statistics: categories_processed, categories_updated, categories_emptied
   """
   client = firestore.db()
   categories_collection = client.collection("joke_categories")
@@ -660,3 +681,9 @@ def _refresh_category_caches() -> None:
   logger.info(
     f"Category caches refreshed: processed={total}, updated={updated}, emptied={emptied}"
   )
+
+  return {
+    "categories_processed": total,
+    "categories_updated": updated,
+    "categories_emptied": emptied,
+  }

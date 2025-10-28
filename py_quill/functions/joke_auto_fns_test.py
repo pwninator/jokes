@@ -431,13 +431,24 @@ class TestDecayRecentJokeStats:
 
   def test_http_endpoint_success(self, monkeypatch):
     mock_decay = Mock()
+    mock_decay.return_value = {
+      "jokes_decayed": 5,
+      "public_updated": 3,
+      "jokes_skipped": 2,
+      "categories_processed": 4,
+      "categories_updated": 2,
+      "categories_emptied": 1
+    }
     monkeypatch.setattr(
       'functions.joke_auto_fns._joke_daily_maintenance_internal', mock_decay)
 
     response = joke_auto_fns.joke_daily_maintenance_http(Mock())
 
     mock_decay.assert_called_once()
-    assert response["data"]["message"] == "Recent joke stats decayed"
+    assert response["data"][
+      "message"] == "Daily maintenance completed successfully"
+    assert "stats" in response["data"]
+    assert response["data"]["stats"]["jokes_decayed"] == 5
 
   def test_http_endpoint_failure(self, monkeypatch):
 

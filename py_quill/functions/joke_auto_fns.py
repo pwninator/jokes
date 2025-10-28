@@ -6,7 +6,7 @@ import datetime
 import math
 import zoneinfo
 
-from common import models
+from common import config, models
 from firebase_functions import (firestore_fn, https_fn, logger, options,
                                 scheduler_fn)
 from functions.function_utils import error_response, success_response
@@ -91,7 +91,8 @@ def _send_daily_joke_notification(
       schedule_name: The name of the joke schedule to use
   """
   logger.info(
-    f"Sending daily joke notification for {schedule_name} at {now.isoformat()}")
+    f"Sending daily joke notification for {schedule_name} at {now.isoformat()}"
+  )
 
   if now.tzinfo is None:
     raise ValueError(
@@ -185,62 +186,12 @@ def joke_daily_maintenance_http(req: https_fn.Request) -> https_fn.Response:
 
 
 def _joke_daily_maintenance_internal(run_time_utc: datetime.datetime) -> None:
-  """Apply exponential decay to recent counters across all jokes."""
-  db_client = firestore.db()
-  jokes_collection = db_client.collection("jokes")
-  joke_docs = jokes_collection.stream()
+  """Run daily maintenance tasks for jokes."""
 
-  batch = db_client.batch()
-  writes_in_batch = 0
-  jokes_decayed = 0
-  public_updated = 0
-  jokes_skipped = 0
+  _update_joke_attributes(run_time_utc)
 
-  for joke_doc in joke_docs:
-    if not joke_doc.exists:
-      continue
-    joke_data = joke_doc.to_dict() or {}
-    payload: dict[str, object] = {}
-
-    # Update is_public according to state and public_timestamp
-    expected_is_public = _expected_is_public(joke_data, run_time_utc)
-    current_is_public = joke_data.get("is_public")
-    if not isinstance(current_is_public,
-                      bool) or current_is_public != expected_is_public:
-      payload["is_public"] = expected_is_public
-      public_updated += 1
-
-    # Decay recent stats if needed
-    should_skip_decay = _should_skip_recent_update(joke_data, run_time_utc)
-    if not should_skip_decay:
-      decay_payload = _build_recent_decay_payload(joke_data)
-      if not decay_payload:
-        raise ValueError(
-          f"No payload to decay recent stats for joke: {joke_doc.reference}")
-      payload.update(decay_payload)
-      jokes_decayed += 1
-
-    if not payload:
-      # No updates to apply, skip this joke
-      jokes_skipped += 1
-      continue
-
-    batch.update(joke_doc.reference, payload)
-    writes_in_batch += 1
-
-    if writes_in_batch >= _MAX_FIRESTORE_WRITE_BATCH_SIZE:
-      logger.info(f"Committing batch of {writes_in_batch} writes")
-      batch.commit()
-      batch = db_client.batch()
-      writes_in_batch = 0
-
-  if writes_in_batch:
-    logger.info(f"Committing final batch of {writes_in_batch} writes")
-    batch.commit()
-
-  logger.info(
-    f"Joke daily maintenance completed: {jokes_decayed} recent stats decayed, {public_updated} is_public updated, {jokes_skipped} jokes skipped"
-  )
+  # After updating jokes (including is_public), refresh cached category results
+  _refresh_category_caches()
 
 
 def _decay_recent_joke_stats_internal(
@@ -564,3 +515,146 @@ def on_joke_write(event: firestore_fn.Event[firestore_fn.Change]) -> None:
 
     if should_update_embedding:
       logger.info(f"Successfully updated embedding for joke: {after_joke.key}")
+
+
+def _update_joke_attributes(run_time_utc: datetime.datetime) -> None:
+  """Apply exponential decay to recent counters across all jokes."""
+
+  db_client = firestore.db()
+  jokes_collection = db_client.collection("jokes")
+  joke_docs = jokes_collection.stream()
+
+  batch = db_client.batch()
+  writes_in_batch = 0
+  jokes_decayed = 0
+  public_updated = 0
+  jokes_skipped = 0
+
+  for joke_doc in joke_docs:
+    if not joke_doc.exists:
+      continue
+    joke_data = joke_doc.to_dict() or {}
+    payload: dict[str, object] = {}
+
+    # Update is_public according to state and public_timestamp
+    expected_is_public = _expected_is_public(joke_data, run_time_utc)
+    current_is_public = joke_data.get("is_public")
+    if not isinstance(current_is_public,
+                      bool) or current_is_public != expected_is_public:
+      payload["is_public"] = expected_is_public
+      public_updated += 1
+
+    # Decay recent stats if needed
+    should_skip_decay = _should_skip_recent_update(joke_data, run_time_utc)
+    if not should_skip_decay:
+      decay_payload = _build_recent_decay_payload(joke_data)
+      if not decay_payload:
+        raise ValueError(
+          f"No payload to decay recent stats for joke: {joke_doc.reference}")
+      payload.update(decay_payload)
+      jokes_decayed += 1
+
+    if not payload:
+      # No updates to apply, skip this joke
+      jokes_skipped += 1
+      continue
+
+    batch.update(joke_doc.reference, payload)
+    writes_in_batch += 1
+
+    if writes_in_batch >= _MAX_FIRESTORE_WRITE_BATCH_SIZE:
+      logger.info(f"Committing batch of {writes_in_batch} writes")
+      batch.commit()
+      batch = db_client.batch()
+      writes_in_batch = 0
+
+  if writes_in_batch:
+    logger.info(f"Committing final batch of {writes_in_batch} writes")
+    batch.commit()
+
+  logger.info(
+    f"Joke daily maintenance completed: {jokes_decayed} recent stats decayed, {public_updated} is_public updated, {jokes_skipped} jokes skipped"
+  )
+
+
+def _refresh_category_caches() -> None:
+  """Refresh cached joke lists for Firestore categories.
+
+  - Processes only categories in APPROVED or PROPOSED state
+  - Uses the same search semantics as the app ("jokes about {query}") with
+    tight threshold and public-only filters equivalent to state and is_public
+  - Stores results under: joke_categories/{category_id}/category_jokes/cache
+    with a single field 'jokes' which is an array of maps containing
+    {joke_id, setup_image_url, punchline_image_url}
+  - If a category yields no results, writes an empty array and forces state to
+    PROPOSED on the category document
+  """
+  client = firestore.db()
+  categories_collection = client.collection("joke_categories")
+  docs = categories_collection.stream()
+
+  total = 0
+  updated = 0
+  emptied = 0
+
+  for doc in docs:
+    if not doc.exists:
+      continue
+    total += 1
+    data = doc.to_dict() or {}
+
+    # Filter to categories with valid state and query
+    state = str(data.get("state") or "").upper()
+    if state not in ("APPROVED", "PROPOSED"):
+      continue
+    raw_query = (data.get("joke_description_query") or "").strip()
+    if not raw_query:
+      continue
+
+    # Build search query identical to the app's behavior
+    search_query = f"jokes about {raw_query}"
+
+    # Field filters: only public, currently visible jokes
+    field_filters: list[tuple[str, str, object]] = [
+      ("state", "in",
+       [models.JokeState.PUBLISHED.value, models.JokeState.DAILY.value]),
+      ("is_public", "==", True),
+    ]
+
+    try:
+      results = search.search_jokes(
+        query=search_query,
+        label=f"daily_cache:category:{doc.id}",
+        field_filters=field_filters,  # type: ignore[arg-type]
+        limit=100,
+        distance_threshold=config.JOKE_SEARCH_TIGHT_THRESHOLD,
+      )
+
+      jokes_payload = []
+      for res in results:
+        joke = res.joke
+        jokes_payload.append({
+          "joke_id": joke.key,
+          "setup_image_url": joke.setup_image_url,
+          "punchline_image_url": joke.punchline_image_url,
+        })
+
+      # Write cache document with a sole 'jokes' field
+      cache_ref = categories_collection.document(
+        doc.id).collection("category_jokes").document("cache")
+      cache_ref.set({"jokes": jokes_payload})
+
+      if not jokes_payload:
+        # Force category state to PROPOSED when empty
+        categories_collection.document(doc.id).set({"state": "PROPOSED"},
+                                                   merge=True)
+        emptied += 1
+      else:
+        updated += 1
+
+    except Exception as exc:  # pylint: disable=broad-except
+      logger.error(f"Failed refreshing category cache for {doc.id}: {exc}")
+
+  logger.info(
+    f"Category caches refreshed: processed={total}, updated={updated}, emptied={emptied}"
+  )

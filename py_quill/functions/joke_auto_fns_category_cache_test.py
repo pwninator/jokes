@@ -107,8 +107,10 @@ def fake_env_fixture(monkeypatch):
 
       def __init__(self, key):
         self.joke = models.PunnyJoke(key=key,
-                                     setup_text="S",
-                                     punchline_text="P")
+                                     setup_text="Why did the chicken cross the road?",
+                                     punchline_text="To get to the other side!",
+                                     setup_image_url="https://example.com/setup.jpg",
+                                     punchline_image_url="https://example.com/punchline.jpg")
 
     return [_R("j1"), _R("j2")]
 
@@ -166,7 +168,7 @@ def test_refresh_updates_cache_for_approved_category(monkeypatch, fake_env):
   assert len(cache.set_calls) == 1
   payload = cache.set_calls[0]
   assert isinstance(payload.get("jokes"), list) and len(payload["jokes"]) == 2
-  assert {"joke_id", "setup_image_url",
+  assert {"joke_id", "setup", "punchline", "setup_image_url",
           "punchline_image_url"}.issubset(set(payload["jokes"][0].keys()))
   # No forced state change
   assert fake_env.category_updates == {}

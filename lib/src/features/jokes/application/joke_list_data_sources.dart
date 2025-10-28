@@ -36,6 +36,10 @@ final dailyJokesMostRecentDateProvider = StateProvider<DateTime?>(
 /// Increment the value to trigger a refresh of saved jokes data sources.
 final savedJokesRefreshTriggerProvider = StateProvider<int>((ref) => 0);
 
+/// Active category selection for Discover. Changing this resets the unified
+/// category data source via its reset trigger.
+final activeCategoryProvider = StateProvider<JokeCategory?>((ref) => null);
+
 /// Data source for daily jokes loaded from monthly schedule batches
 class DailyJokesDataSource extends JokeListDataSource {
   DailyJokesDataSource(WidgetRef ref) : super(ref, _dailyJokesPagingProviders);
@@ -112,473 +116,6 @@ final _savedJokesPagingProviders = createPagingProviders(
   loadMoreThreshold: 5,
 );
 
-/// Shared preferences key for persisting the composite feed cursor.
-const compositeJokeCursorPrefsKey = 'composite_joke_cursor';
-const _popularCompositeLimit = 50;
-const _compositeInitialPageSize = 3;
-
-final compositeJokePagingProviders = createPagingProviders(
-  loadPage: _loadCompositeJokePage,
-  resetTriggers: const [],
-  errorAnalyticsSource: 'composite_jokes',
-  initialPageSize: _compositeInitialPageSize,
-  loadPageSize: 10,
-  loadMoreThreshold: 5,
-  initialCursorProvider: (ref) {
-    final settings = ref.read(settingsServiceProvider);
-    return settings.getString(compositeJokeCursorPrefsKey);
-  },
-  onCursorChanged: (ref, cursor) {
-    /// Never clear the saved cursor.
-    if (cursor == null || cursor.isEmpty) return;
-    final settings = ref.read(settingsServiceProvider);
-    unawaited(settings.setString(compositeJokeCursorPrefsKey, cursor));
-    AppLogger.debug('PAGING_INTERNAL: Saved composite cursor: $cursor');
-  },
-);
-
-class CompositeJokeSubSource {
-  const CompositeJokeSubSource({required this.id, required this.load});
-
-  final String id;
-  final Future<CompositeSubSourcePage> Function(
-    Ref ref,
-    int limit,
-    CompositeCursor? cursor,
-  )
-  load;
-}
-
-class CompositeSubSourcePage {
-  const CompositeSubSourcePage({
-    required this.jokes,
-    required this.hasMore,
-    required this.nextCursor,
-  });
-
-  final List<JokeWithDate> jokes;
-  final bool hasMore;
-  final CompositeCursor? nextCursor;
-
-  /// This sub source has no more jokes to load.
-  /// When this is returned, move to the next sub source.
-  static CompositeSubSourcePage empty(CompositeCursor? cursor) {
-    return CompositeSubSourcePage(
-      jokes: <JokeWithDate>[],
-      hasMore: false,
-      nextCursor: cursor,
-    );
-  }
-
-  /// Loaded 0 jokes, so return empty page with previous cursor as-is.
-  static CompositeSubSourcePage noOpPage(CompositeCursor? cursor) {
-    return CompositeSubSourcePage(
-      jokes: <JokeWithDate>[],
-      hasMore: true,
-      nextCursor: cursor,
-    );
-  }
-}
-
-class CompositeCursor {
-  const CompositeCursor({required this.sourceId, this.payload});
-
-  final String sourceId;
-  final Map<String, dynamic>? payload;
-
-  String encode() {
-    return jsonEncode({
-      'source': sourceId,
-      if (payload != null) 'payload': payload,
-    });
-  }
-
-  static CompositeCursor? decode(String? encoded) {
-    if (encoded == null || encoded.isEmpty) return null;
-    try {
-      final Map<String, dynamic> data =
-          jsonDecode(encoded) as Map<String, dynamic>;
-      final source = data['source'] as String?;
-      if (source == null) return null;
-      final payload = data['payload'];
-      return CompositeCursor(
-        sourceId: source,
-        payload: payload is Map<String, dynamic>
-            ? Map<String, dynamic>.from(payload)
-            : null,
-      );
-    } catch (_) {
-      return null;
-    }
-  }
-}
-
-final List<CompositeJokeSubSource> _compositeSubSources = [
-  CompositeJokeSubSource(
-    id: 'popular_and_random',
-    load: _loadPopularAndRandomCompositeSubSource,
-  ),
-  CompositeJokeSubSource(
-    id: 'all_jokes_public_timestamp',
-    load: _loadPublicTimestampCompositeSubSource,
-  ),
-];
-
-///
-/// Loads an interleaved page of popular and random jokes.
-///
-/// Behavior:
-/// - Returns jokes interleaving popular and random jokes, with popular jokes first.
-/// - Popular jokes are limited to `_popularCompositeLimit` total across all pages.
-/// - For the initial page, prioritizes popular jokes up to the requested limit.
-/// - For subsequent pages, returns roughly half popular and half random jokes,
-///   respecting the popular joke limit.
-/// - Maintains pagination state for both popular and random joke streams.
-Future<CompositeSubSourcePage> _loadPopularAndRandomCompositeSubSource(
-  Ref ref,
-  int limit,
-  CompositeCursor? cursor,
-) async {
-  final payload = cursor?.payload;
-  final popularCursor = CompositeCursor.decode(
-    payload?['popular_cursor_string'] as String?,
-  );
-  final randomCursor = CompositeCursor.decode(
-    payload?['random_cursor_string'] as String?,
-  );
-  final numPopularSoFar =
-      (popularCursor?.payload?['count'] as num?)?.toInt() ?? 0;
-  final numPopularRemaining = _popularCompositeLimit - numPopularSoFar;
-
-  final numPopularShare = limit == _compositeInitialPageSize
-      ? limit
-      : (limit / 2).ceil();
-  final numPopular = math.min(numPopularRemaining, numPopularShare);
-  final numRandom = limit - numPopular;
-
-  if (numPopular + numRandom == 0) {
-    return CompositeSubSourcePage.noOpPage(cursor);
-  }
-
-  Future<CompositeSubSourcePage> popularPageFuture =
-      _loadPopularCompositeSubSource(ref, numPopular, popularCursor);
-  Future<CompositeSubSourcePage> randomPageFuture =
-      _loadRandomCompositeSubSource(ref, numRandom, randomCursor);
-
-  final popularPage = await popularPageFuture;
-  final randomPage = await randomPageFuture;
-
-  // Interleave the jokes from the two pages.
-  final jokes = <JokeWithDate>[];
-  for (int i = 0; i < limit; i++) {
-    if (i < popularPage.jokes.length) {
-      jokes.add(popularPage.jokes[i]);
-    }
-    if (i < randomPage.jokes.length) {
-      jokes.add(randomPage.jokes[i]);
-    }
-  }
-  final hasMore = popularPage.hasMore || randomPage.hasMore;
-  final nextCursorPayload = {
-    'popular_cursor_string': popularPage.nextCursor?.encode(),
-    'random_cursor_string': randomPage.nextCursor?.encode(),
-  };
-
-  return CompositeSubSourcePage(
-    jokes: jokes,
-    hasMore: hasMore,
-    nextCursor: CompositeCursor(
-      sourceId: 'popular_and_random',
-      payload: nextCursorPayload,
-    ),
-  );
-}
-
-Future<CompositeSubSourcePage> _loadPopularCompositeSubSource(
-  Ref ref,
-  int limit,
-  CompositeCursor? cursor,
-) async {
-  final payload = cursor?.payload;
-  final consumed = (payload?['count'] as num?)?.toInt() ?? 0;
-  if (consumed >= _popularCompositeLimit) {
-    return CompositeSubSourcePage.empty(cursor);
-  }
-
-  if (limit <= 0) {
-    return CompositeSubSourcePage.noOpPage(cursor);
-  }
-
-  final remaining = _popularCompositeLimit - consumed;
-  final fetchLimit = math.min(limit, remaining);
-  if (fetchLimit <= 0) {
-    return CompositeSubSourcePage.empty(cursor);
-  }
-
-  final pageCursor = payload?['cursor'] as String?;
-  final page = await _loadPopularCategoryPage(ref, fetchLimit, pageCursor);
-
-  final newCount = consumed + page.jokes.length;
-  final bool hasMoreWithinTop =
-      page.hasMore && newCount < _popularCompositeLimit;
-
-  final nextCursor = CompositeCursor(
-    sourceId: 'most_popular',
-    payload: {
-      'count': newCount,
-      if (page.cursor != null) 'cursor': page.cursor,
-    },
-  );
-
-  AppLogger.debug(
-    'PAGING_INTERNAL: Composite: Loaded ${page.jokes.length} popular jokes (hasMore=${page.hasMore})',
-  );
-
-  return CompositeSubSourcePage(
-    jokes: page.jokes,
-    hasMore: hasMoreWithinTop,
-    nextCursor: nextCursor,
-  );
-}
-
-Future<CompositeSubSourcePage> _loadRandomCompositeSubSource(
-  Ref ref,
-  int limit,
-  CompositeCursor? cursor,
-) async {
-  if (limit <= 0) {
-    return CompositeSubSourcePage.noOpPage(cursor);
-  }
-
-  final payload = cursor?.payload;
-  final page = await _loadOrderedJokesPage(
-    ref,
-    limit,
-    payload?['cursor'] as String?,
-    orderByField: JokeField.randomId,
-    descending: false,
-  );
-
-  AppLogger.debug(
-    'PAGING_INTERNAL: Composite: Loaded ${page.jokes.length} random jokes (hasMore=${page.hasMore})',
-  );
-
-  return CompositeSubSourcePage(
-    jokes: page.jokes,
-    hasMore: page.hasMore,
-    nextCursor: page.cursor == null
-        ? null
-        : CompositeCursor(
-            sourceId: 'all_jokes_random',
-            payload: {'cursor': page.cursor},
-          ),
-  );
-}
-
-Future<CompositeSubSourcePage> _loadPublicTimestampCompositeSubSource(
-  Ref ref,
-  int limit,
-  CompositeCursor? cursor,
-) async {
-  if (limit <= 0) {
-    return CompositeSubSourcePage.noOpPage(cursor);
-  }
-
-  final payload = cursor?.payload;
-  final page = await _loadOrderedJokesPage(
-    ref,
-    limit,
-    payload?['cursor'] as String?,
-    orderByField: JokeField.publicTimestamp,
-    descending: false,
-  );
-
-  AppLogger.debug(
-    'PAGING_INTERNAL: Composite: Loaded ${page.jokes.length} public timestamp jokes (hasMore=${page.hasMore})',
-  );
-
-  return CompositeSubSourcePage(
-    jokes: page.jokes,
-    hasMore: page.hasMore,
-    nextCursor: page.cursor == null
-        ? null
-        : CompositeCursor(
-            sourceId: 'all_jokes_public_timestamp',
-            payload: {'cursor': page.cursor},
-          ),
-  );
-}
-
-Future<PageResult> _loadCompositeJokePage(
-  Ref ref,
-  int limit,
-  String? cursor,
-) async {
-  CompositeCursor? currentCursor = CompositeCursor.decode(cursor);
-  int currentIndex = 0;
-
-  if (currentCursor != null) {
-    final index = _compositeSubSources.indexWhere(
-      (source) => source.id == currentCursor!.sourceId,
-    );
-    if (index >= 0) {
-      currentIndex = index;
-    }
-  }
-
-  final collected = <JokeWithDate>[];
-  String? nextCursorEncoded;
-  bool hasMore = false;
-  String? cursorSignature = currentCursor?.encode();
-  bool terminatedEarly = false;
-
-  while (currentIndex < _compositeSubSources.length) {
-    if (collected.length >= limit) {
-      hasMore = true;
-      nextCursorEncoded = currentCursor?.encode();
-      break;
-    }
-
-    final subSource = _compositeSubSources[currentIndex];
-    final remaining = limit - collected.length;
-    final cursorForSource =
-        (currentCursor != null && currentCursor.sourceId == subSource.id)
-        ? currentCursor
-        : null;
-    final page = await subSource.load(ref, remaining, cursorForSource);
-
-    // Filter for unviewed jokes
-    final jokeIds = page.jokes
-        .map((jokeWithDate) => jokeWithDate.joke.id)
-        .toList();
-    final unviewedJokeIds = await ref
-        .read(appUsageServiceProvider)
-        .getUnviewedJokeIds(jokeIds);
-    final unviewedJokes = page.jokes
-        .where((jokeWithDate) => unviewedJokeIds.contains(jokeWithDate.joke.id))
-        .toList();
-
-    // Log the jokes that were filtered out for debugging.
-    if (kDebugMode && unviewedJokes.length != jokeIds.length) {
-      final viewedJokeIds = jokeIds
-          .where((id) => !unviewedJokeIds.contains(id))
-          .toList();
-      AppLogger.info(
-        'PAGING_INTERNAL: Filtering out ${viewedJokeIds.length} viewed jokes: $viewedJokeIds',
-      );
-    }
-
-    collected.addAll(unviewedJokes);
-
-    if (page.hasMore) {
-      final nextCursor = page.nextCursor;
-      final nextSignature = nextCursor?.encode();
-      if (page.jokes.isEmpty && nextSignature == cursorSignature) {
-        // Avoid tight loops if the sub-source reports progress without data.
-        hasMore = false;
-        nextCursorEncoded = null;
-        terminatedEarly = true;
-        break;
-      }
-      currentCursor = nextCursor;
-      cursorSignature = nextSignature;
-      hasMore = true;
-
-      if (collected.length >= limit) {
-        nextCursorEncoded = nextCursor?.encode();
-        break;
-      }
-      continue;
-    }
-
-    // Sub-source exhausted: move to next sub-source
-    currentIndex += 1;
-    currentCursor = null;
-    cursorSignature = null;
-  }
-
-  if (!terminatedEarly &&
-      nextCursorEncoded == null &&
-      currentIndex < _compositeSubSources.length) {
-    hasMore = true;
-    final nextCursor =
-        currentCursor ??
-        CompositeCursor(sourceId: _compositeSubSources[currentIndex].id);
-    nextCursorEncoded = nextCursor.encode();
-  }
-
-  if (currentIndex >= _compositeSubSources.length) {
-    hasMore = false;
-    nextCursorEncoded = null;
-  }
-
-  return PageResult(
-    jokes: collected,
-    cursor: nextCursorEncoded,
-    hasMore: hasMore,
-  );
-}
-
-Future<PageResult> _loadOrderedJokesPage(
-  Ref ref,
-  int limit,
-  String? cursor, {
-  required JokeField orderByField,
-  required bool descending,
-}) async {
-  final repository = ref.read(jokeRepositoryProvider);
-  final pageCursor = cursor != null
-      ? JokeListPageCursor.deserialize(cursor)
-      : null;
-
-  final filters = JokeFilter.basePublicFilters();
-  final page = await repository.getFilteredJokePage(
-    filters: filters,
-    orderByField: orderByField,
-    orderDirection: descending
-        ? OrderDirection.descending
-        : OrderDirection.ascending,
-    limit: limit,
-    cursor: pageCursor,
-  );
-
-  if (page.ids.isEmpty) {
-    return const PageResult(jokes: [], cursor: null, hasMore: false);
-  }
-
-  final jokes = await repository.getJokesByIds(page.ids);
-  final now = DateTime.now();
-  final filtered = jokes.where((joke) {
-    final timestamp = joke.publicTimestamp;
-    if (timestamp == null) return false;
-    return !timestamp.isAfter(now);
-  }).toList();
-  final jokesWithDate = _filterJokesWithImages(filtered);
-
-  final nextCursor = page.cursor?.serialize();
-
-  return PageResult(
-    jokes: jokesWithDate,
-    cursor: nextCursor,
-    hasMore: page.hasMore,
-  );
-}
-
-List<JokeWithDate> _filterJokesWithImages(List<Joke> jokes) {
-  return jokes
-      .where(
-        (j) =>
-            (j.setupImageUrl != null && j.setupImageUrl!.isNotEmpty) &&
-            (j.punchlineImageUrl != null && j.punchlineImageUrl!.isNotEmpty),
-      )
-      .map((j) => JokeWithDate(joke: j))
-      .toList();
-}
-
-/// Active category selection for Discover. Changing this resets the unified
-/// category data source via its reset trigger.
-final activeCategoryProvider = StateProvider<JokeCategory?>((ref) => null);
-
 final _categoryPagingProviders = createPagingProviders(
   loadPage: _loadCategoryPage,
   resetTriggers: [
@@ -594,6 +131,324 @@ final _categoryPagingProviders = createPagingProviders(
   loadMoreThreshold: 5,
 );
 
+/// Shared preferences key for persisting the composite feed cursor.
+const compositeJokeCursorPrefsKey = 'composite_joke_cursor';
+
+final compositeJokePagingProviders = createPagingProviders(
+  loadPage: _loadCompositeJokePage,
+  resetTriggers: const [],
+  initialCursorProvider: (ref) {
+    final settings = ref.read(settingsServiceProvider);
+    return settings.getString(compositeJokeCursorPrefsKey);
+  },
+  onCursorChanged: (ref, cursor) {
+    /// Never clear the saved cursor.
+    if (cursor == null || cursor.isEmpty) return;
+    final settings = ref.read(settingsServiceProvider);
+    unawaited(settings.setString(compositeJokeCursorPrefsKey, cursor));
+    AppLogger.debug('PAGING_INTERNAL: Saved composite cursor: $cursor');
+  },
+  errorAnalyticsSource: 'composite_jokes',
+  initialPageSize: 3,
+  loadPageSize: 12,
+  loadMoreThreshold: 5,
+);
+
+final List<CompositeJokeSubSource> _compositeSubSources = [
+  CompositeJokeSubSource(
+    id: 'best_jokes',
+    minIndex: 0,
+    maxIndex: 200,
+    load: (Ref ref, int limit, String? cursor) => _loadOrderedJokesPage(
+      ref,
+      limit,
+      cursor,
+      orderByField: JokeField.savedFraction,
+      orderDirection: OrderDirection.descending,
+    ),
+  ),
+  CompositeJokeSubSource(
+    id: 'all_jokes_random',
+    minIndex: 10,
+    maxIndex: null,
+    load: (Ref ref, int limit, String? cursor) => _loadOrderedJokesPage(
+      ref,
+      limit,
+      cursor,
+      orderByField: JokeField.randomId,
+      orderDirection: OrderDirection.ascending,
+    ),
+  ),
+  CompositeJokeSubSource(
+    id: 'all_jokes_public_timestamp',
+    minIndex: 200,
+    maxIndex: null,
+    load: (Ref ref, int limit, String? cursor) => _loadOrderedJokesPage(
+      ref,
+      limit,
+      cursor,
+      orderByField: JokeField.publicTimestamp,
+      orderDirection: OrderDirection.ascending,
+    ),
+  ),
+];
+
+final _compositeSubSourceIndexBoundaries = {
+  ..._compositeSubSources.map((subsource) => subsource.minIndex ?? 0),
+  ..._compositeSubSources.map((subsource) => subsource.maxIndex ?? 0),
+}.where((boundary) => boundary > 0).toList()..sort();
+
+class CompositeJokeSubSource {
+  const CompositeJokeSubSource({
+    required this.id,
+    required this.minIndex,
+    required this.maxIndex,
+    required Future<PageResult> Function(Ref<Object?>, int, String?) load,
+  }) : _load = load;
+
+  final String id;
+  final int? minIndex;
+  final int? maxIndex;
+  final Future<PageResult> Function(Ref ref, int limit, String? cursor) _load;
+
+  Future<PageResult> load(Ref ref, int limit, String? cursor) async {
+    if (limit <= 0) {
+      return PageResult.noOpPage(cursor);
+    }
+    final page = await _load(ref, limit, cursor);
+    AppLogger.debug(
+      'PAGING_INTERNAL: Composite: Loaded ${page.jokes.length} jokes from $id (hasMore=${page.hasMore})',
+    );
+    return page;
+  }
+}
+
+class CompositeCursor {
+  const CompositeCursor({
+    this.totalJokesLoaded = 0,
+    this.subSourceCursors = const {},
+  });
+
+  final int totalJokesLoaded;
+  final Map<String, String> subSourceCursors;
+
+  String encode() {
+    return jsonEncode({
+      'totalJokesLoaded': totalJokesLoaded,
+      'subSourceCursors': subSourceCursors,
+    });
+  }
+
+  static CompositeCursor? decode(String? encoded) {
+    if (encoded == null || encoded.isEmpty) return null;
+    try {
+      final Map<String, dynamic> data =
+          jsonDecode(encoded) as Map<String, dynamic>;
+      final totalJokesLoaded = (data['totalJokesLoaded'] as num?)?.toInt() ?? 0;
+      final cursorsData =
+          data['subSourceCursors'] as Map<String, dynamic>? ?? {};
+      final cursors = cursorsData.map(
+        (key, value) => MapEntry(key, value as String),
+      );
+      return CompositeCursor(
+        totalJokesLoaded: totalJokesLoaded,
+        subSourceCursors: cursors,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+}
+
+Future<PageResult> _loadCompositeJokePage(
+  Ref ref,
+  int limit,
+  String? cursor,
+) async {
+  CompositeCursor? currentCursor = CompositeCursor.decode(cursor);
+  final totalJokesLoaded = currentCursor?.totalJokesLoaded ?? 0;
+
+  /// Adjust the limit to stop at the next subsource index boundary.
+  final effectiveLimit = calculateEffectiveLimit(totalJokesLoaded, limit);
+
+  // Determine active subsources based on current totalJokesLoaded
+  final activeSubsources = _compositeSubSources.where((subsource) {
+    final isInRange =
+        subsource.minIndex == null || subsource.minIndex! <= totalJokesLoaded;
+    final isNotExceeded =
+        subsource.maxIndex == null || subsource.maxIndex! > totalJokesLoaded;
+    return isInRange && isNotExceeded;
+  }).toList();
+
+  if (activeSubsources.isEmpty) {
+    // No more active subsources
+    return PageResult(
+      jokes: const <JokeWithDate>[],
+      cursor: null,
+      hasMore: false,
+    );
+  }
+
+  // Calculate how many jokes to request from each active subsource
+  int remaining = effectiveLimit;
+  final jokesPerSource = (effectiveLimit / activeSubsources.length).round();
+
+  // Load from all active subsources in parallel
+  final futuresBySubSourceId = <String, Future<PageResult>>{};
+  final subSourceCursors = currentCursor?.subSourceCursors ?? {};
+  for (final subsource in activeSubsources) {
+    final subsourceCursor = subSourceCursors[subsource.id];
+    final subsourceLimit = math.min(remaining, jokesPerSource);
+    futuresBySubSourceId[subsource.id] = subsource.load(
+      ref,
+      subsourceLimit,
+      subsourceCursor,
+    );
+    remaining -= subsourceLimit;
+  }
+
+  final pagesBySubSourceId = <String, PageResult>{};
+  for (final subsource in activeSubsources) {
+    pagesBySubSourceId[subsource.id] =
+        await futuresBySubSourceId[subsource.id]!;
+  }
+
+  // Interleave results in round-robin order. Assume the sum of all jokes
+  // across all sub source pages is <= limit.
+  final interleavedJokes = <JokeWithDate>[];
+  for (int i = 0; i < effectiveLimit; i++) {
+    for (int j = 0; j < activeSubsources.length; j++) {
+      final subSource = activeSubsources[j];
+      final subSourcePage = pagesBySubSourceId[subSource.id]!;
+      if (i < subSourcePage.jokes.length) {
+        interleavedJokes.add(subSourcePage.jokes[i]);
+      }
+    }
+  }
+
+  // Filter for unviewed jokes
+  final newJokes = await filteredUnviewedJokes(ref, interleavedJokes);
+  final newTotalJokesLoaded = totalJokesLoaded + newJokes.length;
+
+  // Update subsource cursors
+  final updatedSubsourceCursors = Map<String, String>.from(subSourceCursors);
+  bool anyHasMore = false;
+
+  for (int i = 0; i < activeSubsources.length; i++) {
+    final subsource = activeSubsources[i];
+    final subSourcePage = pagesBySubSourceId[subsource.id]!;
+
+    if (subSourcePage.hasMore) {
+      anyHasMore = true;
+    }
+    if (subSourcePage.cursor != null) {
+      // Preserve cursor even if hasMore=false, in case subsource gets more data later
+      updatedSubsourceCursors[subsource.id] = subSourcePage.cursor!;
+    }
+  }
+
+  final nextCompositeCursorEncoded = CompositeCursor(
+    totalJokesLoaded: newTotalJokesLoaded,
+    subSourceCursors: updatedSubsourceCursors,
+  ).encode();
+
+  return PageResult(
+    jokes: newJokes,
+    cursor: nextCompositeCursorEncoded,
+    hasMore: anyHasMore,
+  );
+}
+
+/// Calculate the effective limit to stop at the next subsource index boundary.
+int calculateEffectiveLimit(int totalJokesLoaded, int limit) {
+  final boundary = _compositeSubSourceIndexBoundaries.firstWhere(
+    (boundary) =>
+        boundary > totalJokesLoaded && boundary <= totalJokesLoaded + limit,
+    orElse: () => totalJokesLoaded + limit,
+  );
+  return boundary - totalJokesLoaded;
+}
+
+/// Filter out jokes that have already been viewed.
+Future<List<JokeWithDate>> filteredUnviewedJokes(
+  Ref ref,
+  List<JokeWithDate> jokes,
+) async {
+  final jokeIds = jokes.map((jokeWithDate) => jokeWithDate.joke.id).toList();
+  final unviewedJokeIds = await ref
+      .read(appUsageServiceProvider)
+      .getUnviewedJokeIds(jokeIds);
+  final unviewedJokes = jokes
+      .where((jokeWithDate) => unviewedJokeIds.contains(jokeWithDate.joke.id))
+      .toList();
+
+  // Log the jokes that were filtered out for debugging.
+  if (kDebugMode && unviewedJokes.length != jokeIds.length) {
+    final viewedJokeIds = jokeIds
+        .where((id) => !unviewedJokeIds.contains(id))
+        .toList();
+    AppLogger.info(
+      'PAGING_INTERNAL: Filtering out ${viewedJokeIds.length} viewed jokes: $viewedJokeIds',
+    );
+  }
+
+  return unviewedJokes;
+}
+
+Future<PageResult> _loadOrderedJokesPage(
+  Ref ref,
+  int limit,
+  String? cursor, {
+  required JokeField orderByField,
+  required OrderDirection orderDirection,
+}) async {
+  final repository = ref.read(jokeRepositoryProvider);
+  final pageCursor = cursor != null
+      ? JokeListPageCursor.deserialize(cursor)
+      : null;
+
+  final filters = JokeFilter.basePublicFilters();
+  final page = await repository.getFilteredJokePage(
+    filters: filters,
+    orderByField: orderByField,
+    orderDirection: orderDirection,
+    limit: limit,
+    cursor: pageCursor,
+  );
+
+  if (page.ids.isEmpty) {
+    return const PageResult(jokes: [], cursor: null, hasMore: false);
+  }
+
+  final jokes = await repository.getJokesByIds(page.ids);
+  final now = DateTime.now();
+  final filtered = jokes.where((joke) {
+    final timestamp = joke.publicTimestamp;
+    if (timestamp == null) return false;
+    return !timestamp.isAfter(now);
+  }).toList();
+  final jokesWithDate = filterJokesWithImages(filtered);
+
+  final nextCursor = page.cursor?.serialize();
+
+  return PageResult(
+    jokes: jokesWithDate,
+    cursor: nextCursor,
+    hasMore: page.hasMore,
+  );
+}
+
+List<JokeWithDate> filterJokesWithImages(List<Joke> jokes) {
+  return jokes
+      .where(
+        (j) =>
+            (j.setupImageUrl != null && j.setupImageUrl!.isNotEmpty) &&
+            (j.punchlineImageUrl != null && j.punchlineImageUrl!.isNotEmpty),
+      )
+      .map((j) => JokeWithDate(joke: j))
+      .toList();
+}
+
 Future<PageResult> _loadCategoryPage(Ref ref, int limit, String? cursor) async {
   final category = ref.read(activeCategoryProvider);
   if (category == null) {
@@ -603,7 +458,13 @@ Future<PageResult> _loadCategoryPage(Ref ref, int limit, String? cursor) async {
     case CategoryType.search:
       return _loadSearchCategoryPageFromCache(ref, category, limit, cursor);
     case CategoryType.popular:
-      return _loadPopularCategoryPage(ref, limit, cursor);
+      return _loadOrderedJokesPage(
+        ref,
+        limit,
+        cursor,
+        orderByField: JokeField.popularityScore,
+        orderDirection: OrderDirection.descending,
+      );
     case CategoryType.seasonal:
       return _loadSeasonalCategoryPage(ref, limit, cursor);
     case CategoryType.daily:
@@ -655,7 +516,7 @@ Future<PageResult> _loadSearchCategoryPageFromCache(
       .toList();
 
   // Filter for images (matching existing behavior)
-  final jokesWithDate = _filterJokesWithImages(jokes);
+  final jokesWithDate = filterJokesWithImages(jokes);
 
   final nextOffset = offset + limit;
   final hasMore = nextOffset < cachedJokes.length;
@@ -669,52 +530,6 @@ Future<PageResult> _loadSearchCategoryPageFromCache(
     cursor: hasMore ? nextOffset.toString() : null,
     hasMore: hasMore,
     totalCount: cachedJokes.length,
-  );
-}
-
-Future<PageResult> _loadPopularCategoryPage(
-  Ref ref,
-  int limit,
-  String? cursor,
-) async {
-  AppLogger.debug(
-    'PAGINATION: Loading popular category page with limit: $limit, cursor: $cursor',
-  );
-
-  final repository = ref.read(jokeRepositoryProvider);
-
-  // Deserialize cursor JSON if present
-  final pageCursor = cursor != null
-      ? JokeListPageCursor.deserialize(cursor)
-      : null;
-
-  final page = await repository.getFilteredJokePage(
-    filters: [
-      ...JokeFilter.basePublicFilters(),
-      JokeFilter.greaterThan(JokeField.popularityScore, 0.0),
-    ],
-    orderByField: JokeField.popularityScore,
-    orderDirection: OrderDirection.descending,
-    limit: limit,
-    cursor: pageCursor,
-  );
-
-  if (page.ids.isEmpty) {
-    return const PageResult(jokes: [], cursor: null, hasMore: false);
-  }
-
-  // Fetch full joke documents for the page
-  final jokes = await repository.getJokesByIds(page.ids);
-
-  // Require images
-  final jokesWithDate = _filterJokesWithImages(jokes);
-
-  final nextCursor = page.cursor?.serialize();
-
-  return PageResult(
-    jokes: jokesWithDate,
-    cursor: nextCursor,
-    hasMore: page.hasMore,
   );
 }
 
@@ -758,7 +573,7 @@ Future<PageResult> _loadSeasonalCategoryPage(
   // Fetch full joke documents for the page
   final jokes = await repository.getJokesByIds(page.ids);
 
-  final jokesWithDate = _filterJokesWithImages(jokes);
+  final jokesWithDate = filterJokesWithImages(jokes);
 
   final nextCursor = page.cursor?.serialize();
 

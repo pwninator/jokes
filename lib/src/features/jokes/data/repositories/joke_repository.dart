@@ -66,13 +66,14 @@ class JokeListPage {
 }
 
 enum JokeField {
-  state('state'),
-  popularityScore('popularity_score'),
-  seasonal('seasonal'),
+  creationTime('creation_time'),
   isPublic('is_public'),
+  popularityScore('popularity_score'),
   publicTimestamp('public_timestamp'),
   randomId('random_id'),
-  creationTime('creation_time');
+  savedFraction('num_saved_users_fraction'),
+  seasonal('seasonal'),
+  state('state');
 
   const JokeField(this.firestoreName);
   final String firestoreName;

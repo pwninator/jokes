@@ -17,6 +17,16 @@ class PageResult {
     required this.hasMore,
     this.totalCount,
   });
+
+  /// Returns a page where loading was skipped so it's empty, but has more.
+  static PageResult noOpPage(String? cursor) {
+    return PageResult(jokes: [], cursor: cursor, hasMore: true);
+  }
+
+  /// Returns a page where there are no more results.
+  static PageResult empty(String? cursor) {
+    return PageResult(jokes: [], cursor: cursor, hasMore: false);
+  }
 }
 
 /// Generic paging state for any data source

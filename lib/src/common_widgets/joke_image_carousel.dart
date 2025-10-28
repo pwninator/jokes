@@ -86,7 +86,7 @@ class JokeImageCarousel extends ConsumerStatefulWidget {
 
 class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
   // Duration a page must be visible to be considered "viewed"
-  static const Duration _jokeImageViewThreshold = Duration(seconds: 2);
+  static const Duration _jokeImageViewThreshold = Duration(milliseconds: 1000);
 
   late PageController _pageController;
   int _currentIndex = 0;

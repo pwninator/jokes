@@ -353,21 +353,21 @@ def test_search_jokes_applies_public_only_filter_by_default(monkeypatch):
   assert 'filters' in captured
   filters = captured['filters']
   assert len(filters) == 2
-  
+
   # Check state filter
   state_filter = filters[0]
   field, op, value = state_filter
   assert field == 'state'
   assert op == 'in'
   assert value == ['PUBLISHED', 'DAILY']
-  
+
   # Check is_public filter
   public_filter = filters[1]
   field, op, value = public_filter
   assert field == 'is_public'
   assert op == '=='
   assert value == True
-  
+
   assert captured['label'] == 'test_label'
 
 
@@ -466,21 +466,21 @@ class TestSearchJokes:
     filters = called_kwargs['field_filters']
     assert isinstance(filters, list)
     assert len(filters) == 2
-    
+
     # Check state filter
     state_filter = filters[0]
     field, op, value = state_filter
     assert field == 'state'
     assert op == 'in'
     assert value == ['PUBLISHED', 'DAILY']
-    
+
     # Check is_public filter
     public_filter = filters[1]
     field, op, value = public_filter
     assert field == 'is_public'
     assert op == '=='
     assert value == True
-    
+
     assert resp["data"]["jokes"] == [
       {
         "joke_id": "joke1",

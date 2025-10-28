@@ -116,7 +116,7 @@ void main() {
       // Daily tile should be first
       expect(categories.first.type, CategoryType.daily);
       expect(categories.first.id, 'programmatic:daily');
-      expect(categories.first.displayName, 'Daily Jokes 📅');
+      expect(categories.first.displayName, 'Daily Jokes');
       // Popular should be present
       expect(
         categories.any((category) => category.type == CategoryType.popular),

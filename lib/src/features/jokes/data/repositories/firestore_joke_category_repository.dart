@@ -77,6 +77,27 @@ class FirestoreJokeCategoryRepository implements JokeCategoryRepository {
     });
   }
 
+  @override
+  Future<List<CategoryCachedJoke>> getCachedCategoryJokes(
+    String categoryId,
+  ) async {
+    final snapshot = await _doc(
+      categoryId,
+    ).collection('category_jokes').doc('cache').get();
+
+    final data = snapshot.data();
+    if (!snapshot.exists || data == null) return <CategoryCachedJoke>[];
+
+    final dynamic jokesField = data['jokes'];
+    if (jokesField is! List) return <CategoryCachedJoke>[];
+
+    return jokesField
+        .whereType<Map<String, dynamic>>()
+        .map(CategoryCachedJoke.fromMap)
+        .where((j) => j.jokeId.isNotEmpty)
+        .toList();
+  }
+
   DocumentReference<Map<String, dynamic>> _doc(String categoryId) {
     final docId = categoryId.startsWith(JokeCategory.firestorePrefix)
         ? categoryId.substring(JokeCategory.firestorePrefix.length)

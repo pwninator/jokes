@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
+import 'package:snickerdoodle/src/features/jokes/application/joke_category_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_list_data_source.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_schedule_providers.dart';
@@ -498,7 +499,7 @@ Future<PageResult> _loadCategoryPage(Ref ref, int limit, String? cursor) async {
   }
   switch (category.type) {
     case CategoryType.search:
-      return _makeLoadSearchPage(SearchScope.category)(ref, limit, cursor);
+      return _loadSearchCategoryPageFromCache(ref, category, limit, cursor);
     case CategoryType.popular:
       return _loadPopularCategoryPage(ref, limit, cursor);
     case CategoryType.seasonal:
@@ -508,6 +509,65 @@ Future<PageResult> _loadCategoryPage(Ref ref, int limit, String? cursor) async {
     default:
       return const PageResult(jokes: [], cursor: null, hasMore: false);
   }
+}
+
+Future<PageResult> _loadSearchCategoryPageFromCache(
+  Ref ref,
+  JokeCategory category,
+  int limit,
+  String? cursor,
+) async {
+  AppLogger.debug(
+    'PAGING_INTERNAL: Loading search category from cache: ${category.id}, limit: $limit, cursor: $cursor',
+  );
+
+  final categoryRepo = ref.read(jokeCategoryRepositoryProvider);
+  final cachedJokes = await categoryRepo.getCachedCategoryJokes(
+    category.firestoreDocumentId,
+  );
+
+  if (cachedJokes.isEmpty) {
+    return const PageResult(
+      jokes: [],
+      cursor: null,
+      hasMore: false,
+      totalCount: 0,
+    );
+  }
+
+  // Offset-based pagination
+  final offset = cursor != null ? int.parse(cursor) : 0;
+  final pageCachedJokes = cachedJokes.skip(offset).take(limit).toList();
+
+  // Construct Joke objects directly from cache data
+  final jokes = pageCachedJokes
+      .map(
+        (cachedJoke) => Joke(
+          id: cachedJoke.jokeId,
+          setupText: cachedJoke.setupText,
+          punchlineText: cachedJoke.punchlineText,
+          setupImageUrl: cachedJoke.setupImageUrl,
+          punchlineImageUrl: cachedJoke.punchlineImageUrl,
+        ),
+      )
+      .toList();
+
+  // Filter for images (matching existing behavior)
+  final jokesWithDate = _filterJokesWithImages(jokes);
+
+  final nextOffset = offset + limit;
+  final hasMore = nextOffset < cachedJokes.length;
+
+  AppLogger.debug(
+    'PAGINATION: Loaded cached category page at offset $offset, fetched ${jokesWithDate.length} jokes, total cached: ${cachedJokes.length}, hasMore: $hasMore',
+  );
+
+  return PageResult(
+    jokes: jokesWithDate,
+    cursor: hasMore ? nextOffset.toString() : null,
+    hasMore: hasMore,
+    totalCount: cachedJokes.length,
+  );
 }
 
 Future<PageResult> _loadPopularCategoryPage(

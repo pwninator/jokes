@@ -32,6 +32,15 @@ service cloud.firestore {
       // Mutate access: Only allowed for admin users
       allow create, write, delete:
         if request.auth != null && request.auth.token.role == 'admin';
+
+      // Allow read access to cached category jokes subcollection
+      match /category_jokes/{cacheId} {
+        // Read access: Authenticated users only
+        allow read: if request.auth != null;
+
+        // Mutate access: Server-side only (no client mutations)
+        allow create, update, delete: if false;
+      }
     }
 
     match /joke_schedules/{jokeScheduleId} {

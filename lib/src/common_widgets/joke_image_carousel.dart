@@ -86,7 +86,7 @@ class JokeImageCarousel extends ConsumerStatefulWidget {
 
 class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
   // Duration a page must be visible to be considered "viewed"
-  static const Duration _jokeImageViewThreshold = Duration(milliseconds: 1000);
+  static const Duration _jokeImageViewThreshold = Duration(milliseconds: 1300);
 
   late PageController _pageController;
   int _currentIndex = 0;
@@ -143,7 +143,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
           }
         }
         // For non-REVEAL modes (VERTICAL, HORIZONTAL, BOTH_ADAPTIVE),
-        // automatically chain a second 2s timer to count punchline viewed
+        // automatically chain a second timer to count punchline viewed
         // and then consider the joke fully viewed.
         if (widget.mode != JokeViewerMode.reveal) {
           // Set navigation attribution for punchline + full view to programmatic

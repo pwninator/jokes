@@ -15,7 +15,7 @@ import 'package:snickerdoodle/src/features/jokes/application/joke_search_provide
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_category.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart'
-    show JokeField, JokeFilter, JokeListPageCursor, OrderDirection;
+    show JokeField, JokeFilter, JokeListPageCursor, OrderDirection, dummyDocId;
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
 import 'package:snickerdoodle/src/features/settings/application/random_starting_id_provider.dart';
 import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
@@ -471,7 +471,10 @@ Future<PageResult> loadRandomJokesWithWrapping(
     );
     return PageResult(
       jokes: result.jokes,
-      cursor: null, // This will start from 0 on next load
+      cursor: JokeListPageCursor(
+        orderValue: 0,
+        docId: dummyDocId,
+      ).serialize(), // This will start from 0 on next load
       hasMore: true, // Keep hasMore=true to continue pagination
     );
   }
@@ -493,7 +496,7 @@ Future<String?> getRandomJokeEffectiveCursor(Ref ref, String? cursor) async {
     final randomStartingId = await ref.read(randomStartingIdProvider.future);
     final initialCursor = JokeListPageCursor(
       orderValue: randomStartingId,
-      docId: '_DUMMY_VALUE_',
+      docId: dummyDocId,
     );
     AppLogger.debug(
       "PAGING_INTERNAL: Starting random jokes at user's random ID: $randomStartingId",

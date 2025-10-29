@@ -8,6 +8,9 @@ import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_admin_rating.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_state.dart';
 
+/// Dummy docId value that comes before any real joke docIDs
+const String dummyDocId = ' DUMMY_VALUE ';
+
 @immutable
 class JokeListPageCursor {
   // Timestamp when ordering by creation_time, or double when by popularity_score

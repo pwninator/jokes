@@ -987,7 +987,10 @@ void main() {
       // Assert
       expect(result.jokes.length, 1);
       expect(result.hasMore, isTrue); // Should be true to continue pagination
-      expect(result.cursor, isNull); // Should be null to wrap around
+      expect(
+        result.cursor,
+        '{"o":0,"d":" DUMMY_VALUE "}',
+      ); // Should be dummy docId to wrap around
     });
 
     test('continues normally when hasMore is true', () async {

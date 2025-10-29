@@ -17,6 +17,7 @@ import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart'
     show JokeField, JokeFilter, JokeListPageCursor, OrderDirection;
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
+import 'package:snickerdoodle/src/features/settings/application/random_starting_id_provider.dart';
 import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
 
 /// Signal provider that triggers stale joke checks for daily jokes.
@@ -170,14 +171,9 @@ final List<CompositeJokeSubSource> _compositeSubSources = [
   CompositeJokeSubSource(
     id: 'all_jokes_random',
     minIndex: 10,
-    maxIndex: null,
-    load: (Ref ref, int limit, String? cursor) => _loadOrderedJokesPage(
-      ref,
-      limit,
-      cursor,
-      orderByField: JokeField.randomId,
-      orderDirection: OrderDirection.ascending,
-    ),
+    maxIndex: 500, // Loops infinitely, so need a max limit.
+    load: (Ref ref, int limit, String? cursor) =>
+        loadRandomJokesWithWrapping(ref, limit, cursor),
   ),
   CompositeJokeSubSource(
     id: 'all_jokes_public_timestamp',
@@ -447,6 +443,65 @@ List<JokeWithDate> filterJokesWithImages(List<Joke> jokes) {
       )
       .map((j) => JokeWithDate(joke: j))
       .toList();
+}
+
+/// Load random jokes with wrapping logic for infinite traversal.
+/// On first load ever (no composite cursor), starts at user's random starting ID.
+/// When reaching the end (hasMore=false), wraps around to start from 0.
+Future<PageResult> loadRandomJokesWithWrapping(
+  Ref ref,
+  int limit,
+  String? cursor,
+) async {
+  String? effectiveCursor = await getRandomJokeEffectiveCursor(ref, cursor);
+
+  // Load the page
+  final result = await _loadOrderedJokesPage(
+    ref,
+    limit,
+    effectiveCursor,
+    orderByField: JokeField.randomId,
+    orderDirection: OrderDirection.ascending,
+  );
+
+  // If we've reached the end, wrap around by returning cursor=null
+  if (!result.hasMore) {
+    AppLogger.debug(
+      'PAGING_INTERNAL: Reached end of random jokes, wrapping around to start from 0',
+    );
+    return PageResult(
+      jokes: result.jokes,
+      cursor: null, // This will start from 0 on next load
+      hasMore: true, // Keep hasMore=true to continue pagination
+    );
+  }
+
+  return result;
+}
+
+Future<String?> getRandomJokeEffectiveCursor(Ref ref, String? cursor) async {
+  if (cursor != null) {
+    return cursor;
+  }
+
+  final settings = ref.read(settingsServiceProvider);
+  final hasCompositeCursor = settings.containsKey(compositeJokeCursorPrefsKey);
+
+  // If this is the first load ever (no composite cursor exists) and no cursor provided,
+  // start at the user's random starting ID
+  if (!hasCompositeCursor) {
+    final randomStartingId = await ref.read(randomStartingIdProvider.future);
+    final initialCursor = JokeListPageCursor(
+      orderValue: randomStartingId,
+      docId: '_DUMMY_VALUE_',
+    );
+    AppLogger.debug(
+      "PAGING_INTERNAL: Starting random jokes at user's random ID: $randomStartingId",
+    );
+    return initialCursor.serialize();
+  }
+
+  return cursor;
 }
 
 Future<PageResult> _loadCategoryPage(Ref ref, int limit, String? cursor) async {

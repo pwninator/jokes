@@ -18,6 +18,7 @@ import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_reposito
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_schedule_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_state.dart';
+import 'package:snickerdoodle/src/features/settings/application/random_starting_id_provider.dart';
 import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
 
 class MockJokeScheduleRepository extends Mock
@@ -32,6 +33,8 @@ class MockAppUsageService extends Mock implements AppUsageService {
 }
 
 class MockFirebaseAnalytics extends Mock implements FirebaseAnalytics {}
+
+class MockSettingsService extends Mock implements SettingsService {}
 
 const _emptyPage = JokeListPage(ids: <String>[], cursor: null, hasMore: false);
 
@@ -777,5 +780,272 @@ void main() {
         expect(container.read(dailyJokesMostRecentDateProvider), isNull);
       },
     );
+  });
+
+  group('loadRandomJokesWithWrapping', () {
+    late MockJokeRepository mockJokeRepository;
+    late MockSettingsService mockSettingsService;
+
+    setUp(() {
+      mockJokeRepository = MockJokeRepository();
+      mockSettingsService = MockSettingsService();
+    });
+
+    test('starts at random starting ID on first load ever', () async {
+      // Arrange
+      const randomStartingId = 123456789;
+      final testJokes = [
+        Joke(
+          id: 'joke-1',
+          setupText: 'setup1',
+          punchlineText: 'punchline1',
+          setupImageUrl: 'image1.jpg',
+          punchlineImageUrl: 'punch1.jpg',
+          publicTimestamp: DateTime.now().subtract(const Duration(days: 1)),
+        ),
+        Joke(
+          id: 'joke-2',
+          setupText: 'setup2',
+          punchlineText: 'punchline2',
+          setupImageUrl: 'image2.jpg',
+          punchlineImageUrl: 'punch2.jpg',
+          publicTimestamp: DateTime.now().subtract(const Duration(days: 1)),
+        ),
+      ];
+
+      when(
+        () => mockSettingsService.containsKey('composite_joke_cursor'),
+      ).thenReturn(false); // No composite cursor = first load ever
+      when(
+        () => mockSettingsService.getInt('random_starting_id'),
+      ).thenReturn(randomStartingId);
+
+      when(
+        () => mockJokeRepository.getFilteredJokePage(
+          filters: any(named: 'filters'),
+          orderByField: any(named: 'orderByField'),
+          orderDirection: any(named: 'orderDirection'),
+          limit: any(named: 'limit'),
+          cursor: any(named: 'cursor'),
+        ),
+      ).thenAnswer((_) async {
+        return JokeListPage(
+          ids: ['joke-1', 'joke-2'],
+          cursor: JokeListPageCursor(
+            orderValue: randomStartingId + 2,
+            docId: 'joke-2',
+          ),
+          hasMore: true,
+          jokes: testJokes,
+        );
+      });
+
+      final container = ProviderContainer(
+        overrides: [
+          jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
+          settingsServiceProvider.overrideWithValue(mockSettingsService),
+          randomStartingIdProvider.overrideWith((ref) => randomStartingId),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      // Act
+      final loaderProvider = FutureProvider((ref) {
+        return loadRandomJokesWithWrapping(ref, 5, null);
+      });
+      final result = await container.read(loaderProvider.future);
+
+      // Assert
+      expect(result.jokes.length, 2);
+      expect(result.hasMore, isTrue);
+      expect(result.cursor, isNotNull);
+
+      // Verify the repository was called with a cursor starting at randomStartingId
+      verify(
+        () => mockJokeRepository.getFilteredJokePage(
+          filters: any(named: 'filters'),
+          orderByField: JokeField.randomId,
+          orderDirection: OrderDirection.ascending,
+          limit: 5,
+          cursor: any(named: 'cursor'),
+        ),
+      ).called(1);
+    });
+
+    test('uses provided cursor when composite cursor exists', () async {
+      // Arrange
+      final providedCursor = JokeListPageCursor(
+        orderValue: 100,
+        docId: 'joke-1',
+      ).serialize();
+      final testJokes = [
+        Joke(
+          id: 'joke-1',
+          setupText: 'setup1',
+          punchlineText: 'punchline1',
+          setupImageUrl: 'image1.jpg',
+          punchlineImageUrl: 'punch1.jpg',
+          publicTimestamp: DateTime.now().subtract(const Duration(days: 1)),
+        ),
+      ];
+
+      when(
+        () => mockSettingsService.containsKey('composite_joke_cursor'),
+      ).thenReturn(true); // Composite cursor exists = not first load
+
+      when(
+        () => mockJokeRepository.getFilteredJokePage(
+          filters: any(named: 'filters'),
+          orderByField: any(named: 'orderByField'),
+          orderDirection: any(named: 'orderDirection'),
+          limit: any(named: 'limit'),
+          cursor: any(named: 'cursor'),
+        ),
+      ).thenAnswer((_) async {
+        return JokeListPage(
+          ids: ['joke-1'],
+          cursor: JokeListPageCursor(orderValue: 101, docId: 'joke-1'),
+          hasMore: true,
+          jokes: testJokes,
+        );
+      });
+
+      final container = ProviderContainer(
+        overrides: [
+          jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
+          settingsServiceProvider.overrideWithValue(mockSettingsService),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      // Act
+      final loaderProvider = FutureProvider((ref) {
+        return loadRandomJokesWithWrapping(ref, 5, providedCursor);
+      });
+      final result = await container.read(loaderProvider.future);
+
+      // Assert
+      expect(result.jokes.length, 1);
+      expect(result.hasMore, isTrue);
+
+      // Verify random starting ID provider was not called
+      verifyNever(() => mockSettingsService.getInt('random_starting_id'));
+    });
+
+    test('wraps around when hasMore is false', () async {
+      // Arrange
+      final testJokes = [
+        Joke(
+          id: 'joke-last',
+          setupText: 'setup',
+          punchlineText: 'punchline',
+          setupImageUrl: 'image.jpg',
+          punchlineImageUrl: 'punch.jpg',
+          publicTimestamp: DateTime.now().subtract(const Duration(days: 1)),
+        ),
+      ];
+
+      when(
+        () => mockSettingsService.containsKey('composite_joke_cursor'),
+      ).thenReturn(true);
+
+      when(
+        () => mockJokeRepository.getFilteredJokePage(
+          filters: any(named: 'filters'),
+          orderByField: any(named: 'orderByField'),
+          orderDirection: any(named: 'orderDirection'),
+          limit: any(named: 'limit'),
+          cursor: any(named: 'cursor'),
+        ),
+      ).thenAnswer((_) async {
+        return JokeListPage(
+          ids: ['joke-last'],
+          cursor: JokeListPageCursor(orderValue: 999999999, docId: 'joke-last'),
+          hasMore: false, // End of jokes
+          jokes: testJokes,
+        );
+      });
+
+      final container = ProviderContainer(
+        overrides: [
+          jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
+          settingsServiceProvider.overrideWithValue(mockSettingsService),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      // Act
+      final loaderProvider = FutureProvider((ref) {
+        return loadRandomJokesWithWrapping(
+          ref,
+          5,
+          JokeListPageCursor(orderValue: 100, docId: 'joke-1').serialize(),
+        );
+      });
+      final result = await container.read(loaderProvider.future);
+
+      // Assert
+      expect(result.jokes.length, 1);
+      expect(result.hasMore, isTrue); // Should be true to continue pagination
+      expect(result.cursor, isNull); // Should be null to wrap around
+    });
+
+    test('continues normally when hasMore is true', () async {
+      // Arrange
+      final testJokes = [
+        Joke(
+          id: 'joke-1',
+          setupText: 'setup',
+          punchlineText: 'punchline',
+          setupImageUrl: 'image.jpg',
+          punchlineImageUrl: 'punch.jpg',
+          publicTimestamp: DateTime.now().subtract(const Duration(days: 1)),
+        ),
+      ];
+
+      when(
+        () => mockSettingsService.containsKey('composite_joke_cursor'),
+      ).thenReturn(true);
+
+      when(
+        () => mockJokeRepository.getFilteredJokePage(
+          filters: any(named: 'filters'),
+          orderByField: any(named: 'orderByField'),
+          orderDirection: any(named: 'orderDirection'),
+          limit: any(named: 'limit'),
+          cursor: any(named: 'cursor'),
+        ),
+      ).thenAnswer((_) async {
+        return JokeListPage(
+          ids: ['joke-1'],
+          cursor: JokeListPageCursor(orderValue: 101, docId: 'joke-1'),
+          hasMore: true,
+          jokes: testJokes,
+        );
+      });
+
+      final container = ProviderContainer(
+        overrides: [
+          jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
+          settingsServiceProvider.overrideWithValue(mockSettingsService),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      // Act
+      final loaderProvider = FutureProvider((ref) {
+        return loadRandomJokesWithWrapping(
+          ref,
+          5,
+          JokeListPageCursor(orderValue: 100, docId: 'joke-1').serialize(),
+        );
+      });
+      final result = await container.read(loaderProvider.future);
+
+      // Assert
+      expect(result.jokes.length, 1);
+      expect(result.hasMore, isTrue);
+      expect(result.cursor, isNotNull); // Should preserve the cursor
+    });
   });
 }

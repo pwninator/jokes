@@ -24,6 +24,7 @@ import 'package:snickerdoodle/src/features/jokes/application/joke_search_provide
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_state.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_viewer_mode.dart';
+import 'package:snickerdoodle/src/features/settings/application/admin_settings_service.dart';
 
 /// Controller to allow parent widgets to imperatively control the
 /// `JokeImageCarousel` (e.g., reveal the punchline programmatically).
@@ -60,6 +61,7 @@ class JokeImageCarousel extends ConsumerStatefulWidget {
   final String? overlayBadgeText;
   final bool showSimilarSearchButton;
   final JokeViewerMode mode;
+  final String? dataSource;
 
   const JokeImageCarousel({
     super.key,
@@ -78,6 +80,7 @@ class JokeImageCarousel extends ConsumerStatefulWidget {
     this.overlayBadgeText,
     this.showSimilarSearchButton = false,
     this.mode = JokeViewerMode.reveal,
+    this.dataSource,
   });
 
   @override
@@ -729,23 +732,41 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
     final isPopulating = populationState.populatingJokes.contains(
       widget.joke.id,
     );
+    final shouldShowDataSource = _shouldShowDataSource();
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 24.0),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Title (if provided)
-          if (widget.title != null)
+          // Title and/or data source display
+          if (widget.title != null || shouldShowDataSource)
             Padding(
               padding: const EdgeInsets.only(bottom: 8.0),
-              child: Text(
-                widget.title!,
-                style: theme.textTheme.titleMedium?.copyWith(
-                  color: theme.colorScheme.onSurface,
-                  fontWeight: FontWeight.w500,
-                ),
-                textAlign: TextAlign.center,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (widget.title != null)
+                    Text(
+                      widget.title!,
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        color: theme.colorScheme.onSurface,
+                        fontWeight: FontWeight.w500,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  if (shouldShowDataSource)
+                    Text(
+                      widget.dataSource ?? 'unknown',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurface.withValues(
+                          alpha: 0.6,
+                        ),
+                        fontFamily: 'monospace',
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                ],
               ),
             ),
           // Image carousel
@@ -1404,6 +1425,12 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
         ),
       ),
     );
+  }
+
+  bool _shouldShowDataSource() {
+    if (widget.dataSource == null) return false;
+    final adminSettings = ref.read(adminSettingsServiceProvider);
+    return adminSettings.getAdminShowJokeDataSource();
   }
 
   void _onTapSimilar() async {

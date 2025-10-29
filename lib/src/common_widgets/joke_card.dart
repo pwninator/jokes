@@ -21,6 +21,7 @@ class JokeCard extends ConsumerWidget {
   final JokeImageCarouselController? controller;
   final String? topRightBadgeText;
   final bool showSimilarSearchButton;
+  final String? dataSource;
 
   const JokeCard({
     super.key,
@@ -38,6 +39,7 @@ class JokeCard extends ConsumerWidget {
     this.controller,
     this.topRightBadgeText,
     this.showSimilarSearchButton = false,
+    this.dataSource,
   });
 
   @override
@@ -70,6 +72,7 @@ class JokeCard extends ConsumerWidget {
         overlayBadgeText: topRightBadgeText,
         showSimilarSearchButton: showSimilarSearchButton,
         mode: mode,
+        dataSource: dataSource,
       );
     } else {
       // No images or incomplete images - show text with populate button

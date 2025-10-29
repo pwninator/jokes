@@ -15,6 +15,7 @@ final jokeStreamByIdProvider = StreamProvider.family<Joke?, String>((
 class JokeWithDate {
   final Joke joke;
   final DateTime? date;
+  final String? dataSource;
 
-  const JokeWithDate({required this.joke, this.date});
+  const JokeWithDate({required this.joke, this.date, this.dataSource});
 }

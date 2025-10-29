@@ -23,10 +23,10 @@ import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart'
 import 'package:snickerdoodle/src/features/auth/data/models/app_user.dart';
 import 'package:snickerdoodle/src/features/feedback/presentation/user_feedback_screen.dart';
 import 'package:snickerdoodle/src/features/settings/application/admin_settings_service.dart';
-import 'package:snickerdoodle/src/features/settings/application/joke_viewer_settings_service.dart';
-import 'package:snickerdoodle/src/features/settings/application/theme_settings_service.dart';
 import 'package:snickerdoodle/src/features/settings/application/feed_screen_status_provider.dart';
+import 'package:snickerdoodle/src/features/settings/application/joke_viewer_settings_service.dart';
 import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
+import 'package:snickerdoodle/src/features/settings/application/theme_settings_service.dart';
 
 class UserSettingsScreen extends ConsumerStatefulWidget
     implements TitledScreen {
@@ -583,7 +583,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                // Ad Settings Section
+                // Admin Settings Section
                 Card(
                   child: Padding(
                     padding: const EdgeInsets.all(16.0),
@@ -591,10 +591,11 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Ad Settings',
+                          'Admin Settings',
                           style: Theme.of(context).textTheme.headlineSmall,
                         ),
                         const SizedBox(height: 16),
+                        // Force Show Banner Ads
                         Consumer(
                           builder: (context, ref, _) {
                             final adminSettingsService = ref.read(
@@ -648,24 +649,8 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                             );
                           },
                         ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-
-                // Homepage Settings Section
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Homepage Settings',
-                          style: Theme.of(context).textTheme.headlineSmall,
-                        ),
                         const SizedBox(height: 16),
+                        // Homepage Toggle
                         Consumer(
                           builder: (context, ref, _) {
                             const localKey = 'feed_screen_enabled_local';
@@ -680,151 +665,104 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                             } catch (_) {
                               remoteEnabled = null;
                             }
-                            final feedEnabledEffective = hasLocal
+                            // Use local value if set, otherwise default to remote or false
+                            final feedEnabled = hasLocal
                                 ? (stored ?? false)
                                 : (remoteEnabled ?? false);
 
-                            return Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                            return Row(
                               children: [
-                                Row(
-                                  children: [
-                                    Icon(
-                                      Icons.dynamic_feed,
-                                      color: feedEnabledEffective
-                                          ? Theme.of(
-                                              context,
-                                            ).colorScheme.primary
-                                          : Theme.of(context)
-                                                .colorScheme
-                                                .onSurface
-                                                .withValues(alpha: 0.6),
-                                    ),
-                                    const SizedBox(width: 16),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(
-                                            'Homepage',
-                                            style: menuTitleTextStyle(context),
-                                          ),
-                                          const SizedBox(height: 2),
-                                          Text(
-                                            hasLocal
-                                                ? ((stored ?? false)
-                                                      ? 'Feed is the first tab; Daily Jokes is hidden'
-                                                      : 'Daily Jokes is the first tab; Feed is hidden')
-                                                : 'Follows Remote Config',
-                                            style: menuSubtitleTextStyle(
-                                              context,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
+                                Icon(
+                                  Icons.dynamic_feed,
+                                  color: feedEnabled
+                                      ? Theme.of(context).colorScheme.primary
+                                      : Theme.of(context).colorScheme.onSurface
+                                            .withValues(alpha: 0.6),
                                 ),
-                                const SizedBox(height: 12),
-                                Wrap(
-                                  spacing: 8,
-                                  runSpacing: 8,
-                                  children: [
-                                    _buildStatusToggleButton(
-                                      context: context,
-                                      buttonKey: const Key(
-                                        'user_settings_screen-homepage-not-set-button',
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Homepage',
+                                        style: menuTitleTextStyle(context),
                                       ),
-                                      label: 'Not Set',
-                                      isActive: !hasLocal,
-                                      onPressed: () async {
-                                        final messenger =
-                                            ScaffoldMessenger.maybeOf(context);
-                                        final colorScheme = Theme.of(
-                                          context,
-                                        ).colorScheme;
-                                        await settings.remove(localKey);
-                                        ref.invalidate(
-                                          feedScreenStatusProvider,
-                                        );
-                                        messenger?.showSnackBar(
-                                          SnackBar(
-                                            content: const Text(
-                                              'Homepage follows Remote Config',
-                                            ),
-                                            backgroundColor:
-                                                colorScheme.primary,
-                                            duration: const Duration(
-                                              seconds: 2,
-                                            ),
-                                          ),
-                                        );
-                                      },
-                                    ),
-                                    _buildStatusToggleButton(
-                                      context: context,
-                                      buttonKey: const Key(
-                                        'user_settings_screen-homepage-enabled-button',
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        feedEnabled
+                                            ? 'Feed is the first tab; Daily Jokes is hidden'
+                                            : 'Daily Jokes is the first tab; Feed is hidden',
+                                        style: menuSubtitleTextStyle(context),
                                       ),
-                                      label: 'Enabled',
-                                      isActive: hasLocal && (stored == true),
-                                      onPressed: () async {
-                                        final messenger =
-                                            ScaffoldMessenger.maybeOf(context);
-                                        final colorScheme = Theme.of(
-                                          context,
-                                        ).colorScheme;
-                                        await settings.setBool(localKey, true);
-                                        ref.invalidate(
-                                          feedScreenStatusProvider,
-                                        );
-                                        messenger?.showSnackBar(
-                                          SnackBar(
-                                            content: const Text(
-                                              'Homepage set to Feed',
-                                            ),
-                                            backgroundColor:
-                                                colorScheme.primary,
-                                            duration: const Duration(
-                                              seconds: 2,
-                                            ),
-                                          ),
-                                        );
-                                      },
-                                    ),
-                                    _buildStatusToggleButton(
-                                      context: context,
-                                      buttonKey: const Key(
-                                        'user_settings_screen-homepage-disabled-button',
+                                    ],
+                                  ),
+                                ),
+                                Switch(
+                                  key: const Key(
+                                    'user_settings_screen-homepage-toggle',
+                                  ),
+                                  value: feedEnabled,
+                                  onChanged: (value) async {
+                                    await settings.setBool(localKey, value);
+                                    ref.invalidate(feedScreenStatusProvider);
+                                    if (!mounted) return;
+                                    setState(() {});
+                                  },
+                                ),
+                              ],
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        // Show Joke Data Source
+                        Consumer(
+                          builder: (context, ref, _) {
+                            final adminSettings = ref.read(
+                              adminSettingsServiceProvider,
+                            );
+                            final showDataSource = adminSettings
+                                .getAdminShowJokeDataSource();
+
+                            return Row(
+                              children: [
+                                Icon(
+                                  Icons.source,
+                                  color: showDataSource
+                                      ? Theme.of(context).colorScheme.primary
+                                      : Theme.of(context).colorScheme.onSurface
+                                            .withValues(alpha: 0.6),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Show Joke Data Source',
+                                        style: menuTitleTextStyle(context),
                                       ),
-                                      label: 'Disabled',
-                                      isActive: hasLocal && (stored == false),
-                                      onPressed: () async {
-                                        final messenger =
-                                            ScaffoldMessenger.maybeOf(context);
-                                        final colorScheme = Theme.of(
-                                          context,
-                                        ).colorScheme;
-                                        await settings.setBool(localKey, false);
-                                        ref.invalidate(
-                                          feedScreenStatusProvider,
-                                        );
-                                        messenger?.showSnackBar(
-                                          SnackBar(
-                                            content: const Text(
-                                              'Homepage set to Daily Jokes',
-                                            ),
-                                            backgroundColor:
-                                                colorScheme.primary,
-                                            duration: const Duration(
-                                              seconds: 2,
-                                            ),
-                                          ),
-                                        );
-                                      },
-                                    ),
-                                  ],
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        'Display source ID in joke carousel',
+                                        style: menuSubtitleTextStyle(context),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Switch(
+                                  key: const Key(
+                                    'user_settings_screen-show-data-source-toggle',
+                                  ),
+                                  value: showDataSource,
+                                  onChanged: (value) async {
+                                    await adminSettings
+                                        .setAdminShowJokeDataSource(value);
+                                    if (!mounted) return;
+                                    setState(() {});
+                                  },
                                 ),
                               ],
                             );

@@ -307,6 +307,7 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
                   final jokeWithDate = jokesWithDates[index];
                   final joke = jokeWithDate.joke;
                   final date = jokeWithDate.date;
+                  final dataSource = jokeWithDate.dataSource;
 
                   final formattedDate = date != null
                       ? '${date.month}/${date.day}/${date.year}'
@@ -347,6 +348,7 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
                         joke: joke,
                         index: index,
                         title: titleForCard,
+                        dataSource: dataSource,
                         onImageStateChanged: (imageIndex) =>
                             _onImageStateChanged(index, imageIndex),
                         isAdminMode: false,

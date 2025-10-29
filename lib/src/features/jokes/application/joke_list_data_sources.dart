@@ -166,6 +166,7 @@ final List<CompositeJokeSubSource> _compositeSubSources = [
       cursor,
       orderByField: JokeField.savedFraction,
       orderDirection: OrderDirection.descending,
+      dataSource: 'best_jokes',
     ),
   ),
   CompositeJokeSubSource(
@@ -185,6 +186,7 @@ final List<CompositeJokeSubSource> _compositeSubSources = [
       cursor,
       orderByField: JokeField.publicTimestamp,
       orderDirection: OrderDirection.ascending,
+      dataSource: 'all_jokes_public_timestamp',
     ),
   ),
 ];
@@ -317,7 +319,15 @@ Future<PageResult> _loadCompositeJokePage(
       final subSource = activeSubsources[j];
       final subSourcePage = pagesBySubSourceId[subSource.id]!;
       if (i < subSourcePage.jokes.length) {
-        interleavedJokes.add(subSourcePage.jokes[i]);
+        final originalJoke = subSourcePage.jokes[i];
+        // Create new JokeWithDate with the sub-source ID as dataSource
+        interleavedJokes.add(
+          JokeWithDate(
+            joke: originalJoke.joke,
+            date: originalJoke.date,
+            dataSource: subSource.id,
+          ),
+        );
       }
     }
   }
@@ -397,6 +407,7 @@ Future<PageResult> _loadOrderedJokesPage(
   String? cursor, {
   required JokeField orderByField,
   required OrderDirection orderDirection,
+  String? dataSource,
 }) async {
   final repository = ref.read(jokeRepositoryProvider);
   final pageCursor = cursor != null
@@ -423,7 +434,11 @@ Future<PageResult> _loadOrderedJokesPage(
     if (timestamp == null) return false;
     return !timestamp.isAfter(now);
   }).toList();
-  final jokesWithDate = filterJokesWithImages(filtered);
+  final jokesWithDate = filterJokesWithImages(filtered)
+      .map(
+        (j) => JokeWithDate(joke: j.joke, date: j.date, dataSource: dataSource),
+      )
+      .toList();
 
   final nextCursor = page.cursor?.serialize();
 
@@ -462,6 +477,7 @@ Future<PageResult> loadRandomJokesWithWrapping(
     effectiveCursor,
     orderByField: JokeField.randomId,
     orderDirection: OrderDirection.ascending,
+    dataSource: 'all_jokes_random',
   );
 
   // If we've reached the end, wrap around by returning cursor=null
@@ -522,6 +538,7 @@ Future<PageResult> _loadCategoryPage(Ref ref, int limit, String? cursor) async {
         cursor,
         orderByField: JokeField.popularityScore,
         orderDirection: OrderDirection.descending,
+        dataSource: 'category:popular',
       );
     case CategoryType.seasonal:
       return _loadSeasonalCategoryPage(ref, limit, cursor);
@@ -574,7 +591,15 @@ Future<PageResult> _loadSearchCategoryPageFromCache(
       .toList();
 
   // Filter for images (matching existing behavior)
-  final jokesWithDate = filterJokesWithImages(jokes);
+  final jokesWithDate = filterJokesWithImages(jokes)
+      .map(
+        (j) => JokeWithDate(
+          joke: j.joke,
+          date: j.date,
+          dataSource: 'category:search:${category.id}',
+        ),
+      )
+      .toList();
 
   final nextOffset = offset + limit;
   final hasMore = nextOffset < cachedJokes.length;
@@ -631,7 +656,15 @@ Future<PageResult> _loadSeasonalCategoryPage(
   // Fetch full joke documents for the page
   final jokes = await repository.getJokesByIds(page.ids);
 
-  final jokesWithDate = filterJokesWithImages(jokes);
+  final jokesWithDate = filterJokesWithImages(jokes)
+      .map(
+        (j) => JokeWithDate(
+          joke: j.joke,
+          date: j.date,
+          dataSource: 'category:seasonal:$seasonalValue',
+        ),
+      )
+      .toList();
 
   final nextCursor = page.cursor?.serialize();
 
@@ -672,7 +705,9 @@ _makeLoadSearchPage(SearchScope scope) {
     // Fetch joke data only for this page
     final repository = ref.read(jokeRepositoryProvider);
     final jokes = await repository.getJokesByIds(pageIds);
-    final jokesWithDate = jokes.map((j) => JokeWithDate(joke: j)).toList();
+    final jokesWithDate = jokes
+        .map((j) => JokeWithDate(joke: j, dataSource: 'search:${scope.name}'))
+        .toList();
 
     // Calculate next cursor and hasMore
     final nextOffset = offset + limit;
@@ -748,7 +783,9 @@ Future<PageResult> loadDailyJokesPage(
         joke.setupImageUrl!.isNotEmpty &&
         joke.punchlineImageUrl != null &&
         joke.punchlineImageUrl!.isNotEmpty) {
-      jokesWithDates.add(JokeWithDate(joke: joke, date: jokeDate));
+      jokesWithDates.add(
+        JokeWithDate(joke: joke, date: jokeDate, dataSource: 'daily'),
+      );
     }
   }
 
@@ -853,7 +890,7 @@ Future<PageResult> _loadSavedJokesPage(
         joke.setupImageUrl!.isNotEmpty &&
         joke.punchlineImageUrl != null &&
         joke.punchlineImageUrl!.isNotEmpty) {
-      jokesWithDate.add(JokeWithDate(joke: joke));
+      jokesWithDate.add(JokeWithDate(joke: joke, dataSource: 'saved'));
     }
   }
 

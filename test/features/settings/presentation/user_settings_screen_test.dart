@@ -41,7 +41,10 @@ class MockRemoteConfigService extends Mock implements RemoteConfigService {}
 
 class MockSettingsService extends Mock implements SettingsService {}
 
-class MockAdminSettingsService extends Mock implements AdminSettingsService {}
+class MockAdminSettingsService extends Mock implements AdminSettingsService {
+  @override
+  bool getAdminShowJokeDataSource() => false;
+}
 
 class MockReviewsRepository extends Mock implements ReviewsRepository {}
 

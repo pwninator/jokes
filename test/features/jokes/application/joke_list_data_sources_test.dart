@@ -18,6 +18,8 @@ import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_reposito
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_schedule_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_state.dart';
+import 'package:snickerdoodle/src/features/jokes/application/joke_list_data_source.dart';
+import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
 import 'package:snickerdoodle/src/features/settings/application/random_starting_id_provider.dart';
 import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
 
@@ -143,10 +145,12 @@ void _stubCompositeRepository(
 CompositeCursor _createCompositeCursor({
   int totalJokesLoaded = 0,
   Map<String, String>? subSourceCursors,
+  Map<String, String>? prioritySourceCursors,
 }) {
   return CompositeCursor(
     totalJokesLoaded: totalJokesLoaded,
     subSourceCursors: subSourceCursors ?? {},
+    prioritySourceCursors: prioritySourceCursors ?? {},
   );
 }
 
@@ -304,6 +308,46 @@ void main() {
       expect(decoded, isNotNull);
       expect(decoded!.totalJokesLoaded, original.totalJokesLoaded);
       expect(decoded.subSourceCursors, original.subSourceCursors);
+    });
+
+    test('decode with priority cursors', () {
+      final json =
+          '{"totalJokesLoaded":15,"subSourceCursors":{"popular":"cursor1"},"prioritySourceCursors":{"priority1":"cursor2"}}';
+      final cursor = CompositeCursor.decode(json);
+      expect(cursor, isNotNull);
+      expect(cursor!.totalJokesLoaded, 15);
+      expect(cursor.subSourceCursors['popular'], 'cursor1');
+      expect(cursor.prioritySourceCursors['priority1'], 'cursor2');
+    });
+
+    test(
+      'decode without priority cursors maintains backward compatibility',
+      () {
+        final json =
+            '{"totalJokesLoaded":15,"subSourceCursors":{"popular":"cursor1"}}';
+        final cursor = CompositeCursor.decode(json);
+        expect(cursor, isNotNull);
+        expect(cursor!.totalJokesLoaded, 15);
+        expect(cursor.subSourceCursors['popular'], 'cursor1');
+        expect(cursor.prioritySourceCursors, isEmpty);
+      },
+    );
+
+    test('round-trip encode/decode preserves priority cursors', () {
+      final original = CompositeCursor(
+        totalJokesLoaded: 25,
+        subSourceCursors: {'popular': 'cursor1'},
+        prioritySourceCursors: {
+          'priority1': 'cursor2',
+          'priority2': kPriorityDoneSentinel,
+        },
+      );
+      final encoded = original.encode();
+      final decoded = CompositeCursor.decode(encoded);
+      expect(decoded, isNotNull);
+      expect(decoded!.totalJokesLoaded, original.totalJokesLoaded);
+      expect(decoded.subSourceCursors, original.subSourceCursors);
+      expect(decoded.prioritySourceCursors, original.prioritySourceCursors);
     });
   });
 
@@ -1049,6 +1093,169 @@ void main() {
       expect(result.jokes.length, 1);
       expect(result.hasMore, isTrue);
       expect(result.cursor, isNotNull); // Should preserve the cursor
+    });
+  });
+
+  group('Helper functions', () {
+    test('interleaveCompositePages interleaves in round-robin order using all jokes', () {
+      final p1 = PageResult(
+        jokes: [
+          JokeWithDate(joke: _buildJoke('a1'), dataSource: 's1-old'),
+          JokeWithDate(joke: _buildJoke('a2'), dataSource: 's1-old'),
+        ],
+        cursor: 'c1',
+        hasMore: true,
+      );
+      final p2 = PageResult(
+        jokes: [
+          JokeWithDate(joke: _buildJoke('b1'), dataSource: 's2-old'),
+          JokeWithDate(joke: _buildJoke('b2'), dataSource: 's2-old'),
+          JokeWithDate(joke: _buildJoke('b3'), dataSource: 's2-old'),
+        ],
+        cursor: 'c2',
+        hasMore: true,
+      );
+
+      final pages = {'s1': p1, 's2': p2};
+      final order = ['s1', 's2'];
+
+      final result = interleaveCompositePages(pages, order);
+      final ids = result.map((j) => j.joke.id).toList();
+      expect(ids, ['a1', 'b1', 'a2', 'b2', 'b3']);
+      // Ensure dataSource tagging reflects the interleaving source ids
+      expect(result[0].dataSource, 's1');
+      expect(result[1].dataSource, 's2');
+    });
+
+    test('interleaveCompositePages returns empty when both inputs empty', () {
+      final result = interleaveCompositePages({}, []);
+      expect(result, isEmpty);
+    });
+
+    test('interleaveCompositePages returns empty when order empty, even if pages exist', () {
+      final p = PageResult(
+        jokes: [JokeWithDate(joke: _buildJoke('x1'))],
+        cursor: 'c',
+        hasMore: false,
+      );
+      final result = interleaveCompositePages({'s': p}, []);
+      expect(result, isEmpty);
+    });
+
+    test('interleaveCompositePages ignores pages not listed in order', () {
+      final p = PageResult(
+        jokes: [JokeWithDate(joke: _buildJoke('x1'))],
+        cursor: 'c',
+        hasMore: false,
+      );
+      final result = interleaveCompositePages({'extra': p}, ['s1']);
+      expect(result, isEmpty);
+    });
+
+    test('interleaveCompositePages skips order ids missing from pages', () {
+      final p = PageResult(
+        jokes: [JokeWithDate(joke: _buildJoke('x1'))],
+        cursor: 'c',
+        hasMore: false,
+      );
+      final result = interleaveCompositePages({'s2': p}, ['s1', 's2']);
+      expect(result.map((j) => j.joke.id).toList(), ['x1']);
+    });
+
+    test('interleaveCompositePages does not mutate input pages', () {
+      final p = PageResult(
+        jokes: [
+          JokeWithDate(joke: _buildJoke('x1')),
+          JokeWithDate(joke: _buildJoke('x2')),
+        ],
+        cursor: 'c',
+        hasMore: false,
+      );
+      final pages = {'s': p};
+      final beforeLen = p.jokes.length;
+      final _ = interleaveCompositePages(pages, ['s']);
+      expect(p.jokes.length, beforeLen);
+    });
+
+    testWidgets('createNextPage combines priority and composite, updates cursor correctly', (tester) async {
+      // Arrange container and overrides
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final scope = ProviderContainer(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          settingsServiceProvider.overrideWithValue(SettingsService(prefs)),
+          appUsageServiceProvider.overrideWithValue(MockAppUsageService()),
+        ],
+      );
+      addTearDown(scope.dispose);
+
+      // Previous cursor with some state
+      final prev = CompositeCursor(
+        totalJokesLoaded: 10,
+        subSourceCursors: {'best_jokes': 'best-prev'},
+        prioritySourceCursors: {'p1': 'p1-prev'},
+      );
+
+      // Priority page (single) and composite pages (two)
+      final priorityPages = <String, PageResult>{
+        'p1': PageResult(
+          jokes: [JokeWithDate(joke: _buildJoke('p-1'), dataSource: 'p1')],
+          cursor: 'p1-next',
+          hasMore: false, // will be marked done
+        ),
+      };
+
+      final compositePages = <String, PageResult>{
+        'best_jokes': const PageResult(
+          jokes: [],
+          cursor: null,
+          hasMore: false,
+        ),
+        'all_jokes_random': PageResult(
+          jokes: [
+            JokeWithDate(joke: _buildJoke('r-1'), dataSource: 'all_jokes_random'),
+            JokeWithDate(joke: _buildJoke('r-2'), dataSource: 'all_jokes_random'),
+          ],
+          cursor: 'r-next',
+          hasMore: true,
+        ),
+      };
+
+      // Act
+      final loader = FutureProvider((ref) {
+        return createNextPage(
+          ref: ref,
+          prevCursor: prev,
+          priorityPagesBySubSourceId: priorityPages,
+          compositePagesBySubSourceId: compositePages,
+          prioritySubSourcesOverride: [
+            // Define explicit test order for priority sources
+            CompositeJokeSubSource(
+              id: 'p1',
+              minIndex: 0,
+              maxIndex: null,
+              load: (ref, limit, cursor) async => const PageResult(
+                jokes: [],
+                cursor: null,
+                hasMore: false,
+              ),
+            ),
+          ],
+        );
+      });
+      final page = await scope.read(loader.future);
+
+      // Assert combined jokes: priority first, then composite interleaved (only one composite here)
+      final ids = page.jokes.map((j) => j.joke.id).toList();
+      expect(ids, ['p-1', 'r-1', 'r-2']);
+
+      // Cursor should include p1 key and advance random cursor, total only counts composite
+      final decoded = CompositeCursor.decode(page.cursor);
+      expect(decoded, isNotNull);
+      expect(decoded!.totalJokesLoaded, 12); // +2 composite
+      expect(decoded.prioritySourceCursors.containsKey('p1'), isTrue);
+      expect(decoded.subSourceCursors['all_jokes_random'], 'r-next');
     });
   });
 }

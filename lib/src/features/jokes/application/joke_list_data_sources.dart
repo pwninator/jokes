@@ -135,6 +135,9 @@ final _categoryPagingProviders = createPagingProviders(
 /// Shared preferences key for persisting the composite feed cursor.
 const compositeJokeCursorPrefsKey = 'composite_joke_cursor';
 
+/// Sentinel cursor value marking a priority source as permanently exhausted.
+const String kPriorityDoneSentinel = '__DONE__';
+
 final compositeJokePagingProviders = createPagingProviders(
   loadPage: _loadCompositeJokePage,
   resetTriggers: const [],
@@ -155,6 +158,13 @@ final compositeJokePagingProviders = createPagingProviders(
   loadMoreThreshold: 5,
 );
 
+/// Priority data sources that take precedence over composite sources.
+/// Priority sources are checked first; only the first active one is loaded exclusively.
+/// When a priority source exhausts (hasMore=false), its cursor is marked "__DONE__"
+/// and it will never be loaded again.
+final List<CompositeJokeSubSource> _prioritySubSources = [];
+
+/// "Regular" data sources that will intereaved together.
 final List<CompositeJokeSubSource> _compositeSubSources = [
   CompositeJokeSubSource(
     id: 'best_jokes',
@@ -191,10 +201,13 @@ final List<CompositeJokeSubSource> _compositeSubSources = [
   ),
 ];
 
-final _compositeSubSourceIndexBoundaries = {
-  ..._compositeSubSources.map((subsource) => subsource.minIndex ?? 0),
-  ..._compositeSubSources.map((subsource) => subsource.maxIndex ?? 0),
-}.where((boundary) => boundary > 0).toList()..sort();
+// Combined index boundaries across composite and priority subsources, computed once.
+final List<int> _allSubSourceIndexBoundaries = <int>{
+  ..._compositeSubSources.map((s) => s.minIndex ?? 0),
+  ..._compositeSubSources.map((s) => s.maxIndex ?? 0),
+  ..._prioritySubSources.map((s) => s.minIndex ?? 0),
+  ..._prioritySubSources.map((s) => s.maxIndex ?? 0),
+}.where((b) => b > 0).toList()..sort();
 
 class CompositeJokeSubSource {
   const CompositeJokeSubSource({
@@ -202,12 +215,35 @@ class CompositeJokeSubSource {
     required this.minIndex,
     required this.maxIndex,
     required Future<PageResult> Function(Ref<Object?>, int, String?) load,
+    this.condition,
   }) : _load = load;
 
   final String id;
   final int? minIndex;
   final int? maxIndex;
+  final bool Function(Ref)? condition;
   final Future<PageResult> Function(Ref ref, int limit, String? cursor) _load;
+
+  /// Check if this subsource is active based on condition, cursor state, and index range.
+  ///
+  /// [totalJokesLoaded] is used to determine if the subsource is within its active range.
+  /// [cursor] is checked for the done sentinel value.
+  bool isActive(Ref ref, int totalJokesLoaded, String? cursor) {
+    // Check if marked as done
+    if (cursor == kPriorityDoneSentinel) {
+      return false;
+    }
+
+    // Check condition if present
+    if (condition != null && !condition!(ref)) {
+      return false;
+    }
+
+    // Check index range
+    final isInRange = minIndex == null || minIndex! <= totalJokesLoaded;
+    final isNotExceeded = maxIndex == null || maxIndex! > totalJokesLoaded;
+    return isInRange && isNotExceeded;
+  }
 
   Future<PageResult> load(Ref ref, int limit, String? cursor) async {
     if (limit <= 0) {
@@ -221,19 +257,26 @@ class CompositeJokeSubSource {
   }
 }
 
+const String kTotalJokesLoadedKey = 'totalJokesLoaded';
+const String kSubSourceCursorsKey = 'subSourceCursors';
+const String kPrioritySourceCursorsKey = 'prioritySourceCursors';
+
 class CompositeCursor {
   const CompositeCursor({
     this.totalJokesLoaded = 0,
     this.subSourceCursors = const {},
+    this.prioritySourceCursors = const {},
   });
 
   final int totalJokesLoaded;
   final Map<String, String> subSourceCursors;
+  final Map<String, String> prioritySourceCursors;
 
   String encode() {
     return jsonEncode({
-      'totalJokesLoaded': totalJokesLoaded,
-      'subSourceCursors': subSourceCursors,
+      kTotalJokesLoadedKey: totalJokesLoaded,
+      kSubSourceCursorsKey: subSourceCursors,
+      kPrioritySourceCursorsKey: prioritySourceCursors,
     });
   }
 
@@ -242,15 +285,22 @@ class CompositeCursor {
     try {
       final Map<String, dynamic> data =
           jsonDecode(encoded) as Map<String, dynamic>;
-      final totalJokesLoaded = (data['totalJokesLoaded'] as num?)?.toInt() ?? 0;
+      final totalJokesLoaded =
+          (data[kTotalJokesLoadedKey] as num?)?.toInt() ?? 0;
       final cursorsData =
-          data['subSourceCursors'] as Map<String, dynamic>? ?? {};
+          data[kSubSourceCursorsKey] as Map<String, dynamic>? ?? {};
       final cursors = cursorsData.map(
+        (key, value) => MapEntry(key, value as String),
+      );
+      final priorityCursorsData =
+          data[kPrioritySourceCursorsKey] as Map<String, dynamic>? ?? {};
+      final priorityCursors = priorityCursorsData.map(
         (key, value) => MapEntry(key, value as String),
       );
       return CompositeCursor(
         totalJokesLoaded: totalJokesLoaded,
         subSourceCursors: cursors,
+        prioritySourceCursors: priorityCursors,
       );
     } catch (_) {
       return null;
@@ -269,107 +319,82 @@ Future<PageResult> _loadCompositeJokePage(
   /// Adjust the limit to stop at the next subsource index boundary.
   final effectiveLimit = calculateEffectiveLimit(totalJokesLoaded, limit);
 
-  // Determine active subsources based on current totalJokesLoaded
-  final activeSubsources = _compositeSubSources.where((subsource) {
-    final isInRange =
-        subsource.minIndex == null || subsource.minIndex! <= totalJokesLoaded;
-    final isNotExceeded =
-        subsource.maxIndex == null || subsource.maxIndex! > totalJokesLoaded;
-    return isInRange && isNotExceeded;
-  }).toList();
+  // Check priority sources first
+  final prioritySourceCursors = currentCursor?.prioritySourceCursors ?? {};
+  final Map<String, PageResult> priorityPages = {};
+  for (final prioritySource in _prioritySubSources) {
+    final priorityCursor = prioritySourceCursors[prioritySource.id];
 
-  if (activeSubsources.isEmpty) {
-    // No more active subsources
-    return PageResult(
-      jokes: const <JokeWithDate>[],
-      cursor: null,
-      hasMore: false,
-    );
-  }
+    // Check if this priority source is active
+    if (prioritySource.isActive(ref, totalJokesLoaded, priorityCursor)) {
+      // Load from this priority source exclusively
+      AppLogger.debug(
+        'PAGING_INTERNAL: Loading from priority source: ${prioritySource.id}',
+      );
 
-  // Calculate how many jokes to request from each active subsource
-  int remaining = effectiveLimit;
-  final jokesPerSource = (effectiveLimit / activeSubsources.length).round();
-
-  // Load from all active subsources in parallel
-  final futuresBySubSourceId = <String, Future<PageResult>>{};
-  final subSourceCursors = currentCursor?.subSourceCursors ?? {};
-  for (final subsource in activeSubsources) {
-    final subsourceCursor = subSourceCursors[subsource.id];
-    final subsourceLimit = math.min(remaining, jokesPerSource);
-    futuresBySubSourceId[subsource.id] = subsource.load(
-      ref,
-      subsourceLimit,
-      subsourceCursor,
-    );
-    remaining -= subsourceLimit;
-  }
-
-  final pagesBySubSourceId = <String, PageResult>{};
-  for (final subsource in activeSubsources) {
-    pagesBySubSourceId[subsource.id] =
-        await futuresBySubSourceId[subsource.id]!;
-  }
-
-  // Interleave results in round-robin order. Assume the sum of all jokes
-  // across all sub source pages is <= limit.
-  final interleavedJokes = <JokeWithDate>[];
-  for (int i = 0; i < effectiveLimit; i++) {
-    for (int j = 0; j < activeSubsources.length; j++) {
-      final subSource = activeSubsources[j];
-      final subSourcePage = pagesBySubSourceId[subSource.id]!;
-      if (i < subSourcePage.jokes.length) {
-        final originalJoke = subSourcePage.jokes[i];
-        // Create new JokeWithDate with the sub-source ID as dataSource
-        interleavedJokes.add(
-          JokeWithDate(
-            joke: originalJoke.joke,
-            date: originalJoke.date,
-            dataSource: subSource.id,
-          ),
-        );
-      }
+      final priorityPage = await prioritySource.load(
+        ref,
+        effectiveLimit,
+        priorityCursor,
+      );
+      priorityPages[prioritySource.id] = priorityPage;
+      break; // Current flow loads only the first active priority source
     }
   }
 
-  // Filter for unviewed jokes
-  final newJokes = await filteredUnviewedJokes(ref, interleavedJokes);
-  final newTotalJokesLoaded = totalJokesLoaded + newJokes.length;
+  // Load composite sources if needed
+  final compositePages = <String, PageResult>{};
+  if (priorityPages.isEmpty) {
+    // Determine active subsources based on current totalJokesLoaded and conditions
+    final activeSubsources = _compositeSubSources.where((subsource) {
+      final subsourceCursor = currentCursor?.subSourceCursors[subsource.id];
+      return subsource.isActive(ref, totalJokesLoaded, subsourceCursor);
+    }).toList();
 
-  // Update subsource cursors
-  final updatedSubsourceCursors = Map<String, String>.from(subSourceCursors);
-  bool anyHasMore = false;
-
-  for (int i = 0; i < activeSubsources.length; i++) {
-    final subsource = activeSubsources[i];
-    final subSourcePage = pagesBySubSourceId[subsource.id]!;
-
-    if (subSourcePage.hasMore) {
-      anyHasMore = true;
+    if (activeSubsources.isEmpty) {
+      // No more active subsources
+      return PageResult(
+        jokes: const <JokeWithDate>[],
+        cursor: null,
+        hasMore: false,
+      );
     }
-    if (subSourcePage.cursor != null) {
-      // Preserve cursor even if hasMore=false, in case subsource gets more data later
-      updatedSubsourceCursors[subsource.id] = subSourcePage.cursor!;
+
+    // Calculate how many jokes to request from each active subsource
+    int remaining = effectiveLimit;
+    final jokesPerSource = (effectiveLimit / activeSubsources.length).round();
+
+    // Load from all active subsources in parallel
+    final futuresBySubSourceId = <String, Future<PageResult>>{};
+    final subSourceCursors = currentCursor?.subSourceCursors ?? {};
+    for (final subsource in activeSubsources) {
+      final subsourceCursor = subSourceCursors[subsource.id];
+      final subsourceLimit = math.min(remaining, jokesPerSource);
+      futuresBySubSourceId[subsource.id] = subsource.load(
+        ref,
+        subsourceLimit,
+        subsourceCursor,
+      );
+      remaining -= subsourceLimit;
+    }
+
+    for (final subsource in activeSubsources) {
+      compositePages[subsource.id] = await futuresBySubSourceId[subsource.id]!;
     }
   }
 
-  final nextCompositeCursorEncoded = CompositeCursor(
-    totalJokesLoaded: newTotalJokesLoaded,
-    subSourceCursors: updatedSubsourceCursors,
-  ).encode();
-
-  return PageResult(
-    jokes: newJokes,
-    cursor: nextCompositeCursorEncoded,
-    hasMore: anyHasMore,
+  return await createNextPage(
+    ref: ref,
+    prevCursor: currentCursor,
+    priorityPagesBySubSourceId: priorityPages,
+    compositePagesBySubSourceId: compositePages,
   );
 }
 
 /// Calculate the effective limit to stop at the next subsource index boundary.
 int calculateEffectiveLimit(int totalJokesLoaded, int limit) {
-  final boundary = _compositeSubSourceIndexBoundaries.firstWhere(
-    (boundary) =>
-        boundary > totalJokesLoaded && boundary <= totalJokesLoaded + limit,
+  final boundary = _allSubSourceIndexBoundaries.firstWhere(
+    (b) => b > totalJokesLoaded && b <= totalJokesLoaded + limit,
     orElse: () => totalJokesLoaded + limit,
   );
   return boundary - totalJokesLoaded;
@@ -399,6 +424,134 @@ Future<List<JokeWithDate>> filteredUnviewedJokes(
   }
 
   return unviewedJokes;
+}
+
+/// Interleave composite subsource pages in round-robin order up to [limit].
+List<JokeWithDate> interleaveCompositePages(
+  Map<String, PageResult> pagesBySubSourceId,
+  List<String> orderedCompositeSourceIds,
+) {
+  if (pagesBySubSourceId.isEmpty) {
+    return const <JokeWithDate>[];
+  }
+
+  final interleaved = <JokeWithDate>[];
+  int maxLen = pagesBySubSourceId.entries
+      .map((e) => e.value.jokes.length)
+      .reduce((a, b) => math.max(a, b));
+
+  for (int i = 0; i < maxLen; i++) {
+    for (final sourceId in orderedCompositeSourceIds) {
+      final page = pagesBySubSourceId[sourceId];
+      if (page == null) continue;
+      if (i < page.jokes.length) {
+        final jokeWithDate = page.jokes[i];
+        interleaved.add(
+          JokeWithDate(
+            joke: jokeWithDate.joke,
+            date: jokeWithDate.date,
+            dataSource: sourceId,
+          ),
+        );
+      }
+    }
+  }
+  return interleaved;
+}
+
+/// Assemble a next page from priority and composite pages, update cursor, and return PageResult.
+Future<PageResult> createNextPage({
+  required Ref ref,
+  CompositeCursor? prevCursor,
+  Map<String, PageResult>? priorityPagesBySubSourceId,
+  Map<String, PageResult>? compositePagesBySubSourceId,
+  List<CompositeJokeSubSource>? prioritySubSourcesOverride,
+}) async {
+  final priorityPages = priorityPagesBySubSourceId ?? const {};
+  final compositePages = compositePagesBySubSourceId ?? const {};
+
+  // Build ordered priority jokes per declared or provided priority source order
+  final priorityOrder = (prioritySubSourcesOverride ?? _prioritySubSources)
+      .map((s) => s.id)
+      .toList();
+  final concatenatedPriorityJokes = <JokeWithDate>[];
+  for (final sourceId in priorityOrder) {
+    final page = priorityPages[sourceId];
+    if (page == null) continue;
+    concatenatedPriorityJokes.addAll(page.jokes);
+  }
+  final filteredPriority = await filteredUnviewedJokes(
+    ref,
+    concatenatedPriorityJokes,
+  );
+
+  // Determine composite source order from declared composite subsources
+  final compositeOrder = _compositeSubSources
+      .map((s) => s.id)
+      .where((id) => compositePages.containsKey(id))
+      .toList();
+
+  final interleavedComposite = interleaveCompositePages(
+    compositePages,
+    compositeOrder,
+  );
+  final filteredComposite = await filteredUnviewedJokes(
+    ref,
+    interleavedComposite,
+  );
+
+  // Combine jokes (priority first, then composite)
+  final combinedJokes = <JokeWithDate>[
+    ...filteredPriority,
+    ...filteredComposite,
+  ];
+
+  // Compute hasMore across any page
+  bool anyHasMore = [
+    ...priorityPages.values,
+    ...compositePages.values,
+  ].any((p) => p.hasMore);
+
+  // Update cursor
+  final current = prevCursor ?? const CompositeCursor();
+  // Update priority cursors
+  final updatedPriorityCursors = Map<String, String>.from(
+    current.prioritySourceCursors,
+  );
+  for (final sourceId in priorityOrder) {
+    final page = priorityPages[sourceId];
+    if (page == null) continue;
+    if (page.hasMore) {
+      if (page.cursor != null) {
+        updatedPriorityCursors[sourceId] = page.cursor!;
+      }
+    } else {
+      updatedPriorityCursors[sourceId] = kPriorityDoneSentinel;
+    }
+  }
+  // Update composite cursors
+  final updatedCompositeCursor = Map<String, String>.from(
+    current.subSourceCursors,
+  );
+  for (final sourceId in compositeOrder) {
+    final page = compositePages[sourceId];
+    if (page?.cursor != null) {
+      updatedCompositeCursor[sourceId] = page!.cursor!;
+    }
+  }
+
+  final nextCursor = CompositeCursor(
+    // Priority sources are not counted towards total jokes loaded.
+    totalJokesLoaded: current.totalJokesLoaded + filteredComposite.length,
+    subSourceCursors: updatedCompositeCursor,
+    prioritySourceCursors: updatedPriorityCursors,
+  ).encode();
+
+  return PageResult(
+    jokes: combinedJokes,
+    cursor: nextCursor,
+    hasMore: anyHasMore,
+  );
 }
 
 Future<PageResult> _loadOrderedJokesPage(

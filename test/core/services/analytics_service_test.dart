@@ -367,7 +367,8 @@ void main() {
         expect(
           eventName.length,
           lessThanOrEqualTo(40),
-          reason: 'Event name "$eventName" is ${eventName.length} characters, '
+          reason:
+              'Event name "$eventName" is ${eventName.length} characters, '
               'exceeding Firebase Analytics 40-character limit',
         );
       }

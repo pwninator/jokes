@@ -5,6 +5,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/crash_reporting_service.dart';
+import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:snickerdoodle/src/features/auth/data/models/app_user.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_viewer_mode.dart';
 
@@ -295,6 +296,81 @@ void main() {
           parameters: any(named: 'parameters', that: matcher),
         ),
       ).called(1);
+    });
+  });
+
+  group('Remote Config Event Name Length', () {
+    test('all remote config event names are less than 40 characters', () async {
+      // Import the remote config parameters
+      final remoteParams = <RemoteParam, String>{
+        RemoteParam.feedbackMinJokesViewed: 'feedback_min_jokes_viewed',
+        RemoteParam.subscriptionPromptMinJokesViewed:
+            'subscription_prompt_min_jokes_viewed',
+        RemoteParam.reviewMinDaysUsed: 'review_min_days_used',
+        RemoteParam.reviewMinViewedJokes: 'review_min_viewed_jokes',
+        RemoteParam.reviewMinSavedJokes: 'review_min_saved_jokes',
+        RemoteParam.reviewMinSharedJokes: 'review_min_shared_jokes',
+        RemoteParam.reviewRequestFromJokeViewed:
+            'review_request_from_joke_viewed',
+        RemoteParam.reviewRequireDailySubscription:
+            'review_require_daily_subscription',
+        RemoteParam.reviewPromptVariant: 'review_prompt_variant',
+        RemoteParam.defaultJokeViewerReveal: 'default_joke_viewer_reveal',
+        RemoteParam.shareImagesMode: 'share_images_mode',
+        RemoteParam.adDisplayMode: 'ad_display_mode',
+        RemoteParam.bannerAdPosition: 'banner_ad_position',
+        RemoteParam.feedScreenEnabled: 'feed_screen_enabled',
+      };
+
+      // Capture event names that are logged
+      final capturedEventNames = <String>[];
+
+      when(
+        () => mockFirebaseAnalytics.logEvent(
+          name: any(named: 'name'),
+          parameters: any(named: 'parameters'),
+        ),
+      ).thenAnswer((invocation) {
+        final name = invocation.namedArguments[#name] as String;
+        capturedEventNames.add(name);
+        return Future.value();
+      });
+
+      // Test each remote config function for each parameter
+      for (final entry in remoteParams.entries) {
+        final paramName = entry.value;
+
+        // Test all four logging functions
+        analyticsService.logRemoteConfigUsedLocal(
+          paramName: paramName,
+          value: 'test_value',
+        );
+        analyticsService.logRemoteConfigUsedError(
+          paramName: paramName,
+          value: 'test_value',
+        );
+        analyticsService.logRemoteConfigUsedDefault(
+          paramName: paramName,
+          value: 'test_value',
+        );
+        analyticsService.logRemoteConfigUsedRemote(
+          paramName: paramName,
+          value: 'test_value',
+        );
+      }
+
+      // Wait for all async operations to complete
+      await Future.delayed(const Duration(milliseconds: 100));
+
+      // Verify all event names are less than 40 characters
+      for (final eventName in capturedEventNames) {
+        expect(
+          eventName.length,
+          lessThanOrEqualTo(40),
+          reason: 'Event name "$eventName" is ${eventName.length} characters, '
+              'exceeding Firebase Analytics 40-character limit',
+        );
+      }
     });
   });
 }

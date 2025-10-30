@@ -79,11 +79,11 @@ enum AnalyticsEvent {
   errorNotificationHandling('error_notification_handling'),
 
   // Remote Config
-  errorRemoteConfig('error_remote_config'),
-  remoteConfigUsedLocal('remote_config_used_local'),
-  remoteConfigUsedError('remote_config_used_error'),
-  remoteConfigUsedDefault('remote_config_used_default'),
-  remoteConfigUsedRemote('remote_config_used_remote'),
+  remoteConfigError('remote_config_error'),
+  remoteConfigUsedLocal('rc_local'),
+  remoteConfigUsedError('rc_error'),
+  remoteConfigUsedDefault('rc_default'),
+  remoteConfigUsedRemote('rc_remote'),
 
   // Error events
   analyticsError('analytics_error'),

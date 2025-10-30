@@ -773,7 +773,7 @@ class FirebaseAnalyticsService implements AnalyticsService {
 
   @override
   void logErrorRemoteConfig({required String errorMessage, String? phase}) {
-    _logEvent(AnalyticsEvent.errorRemoteConfig, {
+    _logEvent(AnalyticsEvent.remoteConfigError, {
       if (phase != null) AnalyticsParameters.phase: phase,
       AnalyticsParameters.errorMessage: errorMessage,
     }, isError: true);
@@ -1104,10 +1104,15 @@ class FirebaseAnalyticsService implements AnalyticsService {
     required String value,
     bool isError = false,
   }) {
-    _logEvent(event, {
-      AnalyticsParameters.remoteConfigName: paramName,
-      AnalyticsParameters.remoteConfigValue: value,
-    }, isError: isError);
+    _logEvent(
+      event,
+      {
+        AnalyticsParameters.remoteConfigName: paramName,
+        AnalyticsParameters.remoteConfigValue: value,
+      },
+      isError: isError,
+      eventNameSuffix: '_$paramName',
+    );
   }
 
   /// Internal method to log events with consistent error handling
@@ -1119,7 +1124,15 @@ class FirebaseAnalyticsService implements AnalyticsService {
   }) {
     // Fire-and-forget: execute analytics work in a microtask
     scheduleMicrotask(() async {
-      final eventName = '${event.eventName}$eventNameSuffix';
+      if (event.eventName.length > 40) {
+        throw Exception('Event name is too long: ${event.eventName}');
+      }
+
+      String eventName = '${event.eventName}$eventNameSuffix';
+      if (eventName.length > 40) {
+        eventName = eventName.substring(0, 40);
+      }
+
       try {
         // Convert parameters to Map<String, Object> and filter out null values
         // Also convert non-string/non-num values to strings for Firebase Analytics

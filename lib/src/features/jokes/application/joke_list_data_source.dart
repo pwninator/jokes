@@ -233,9 +233,14 @@ class GenericPagingNotifier extends StateNotifier<PagingState> {
 
       final appended = <JokeWithDate>[...state.loadedJokes, ...newJokes];
 
-      // If we got no new jokes, assume no more results
+      // Continue loading only if the source indicated it has more jokes AND
+      // it either returned jokes or changed the cursor.
+      // This prevents infinite loops when composite sources return the same cursor
+      // but with no jokes (all deduped or exhausted).
       final newCursor = page.cursor;
-      final effectiveHasMore = page.hasMore && newCursor != previousCursor;
+      final effectiveHasMore =
+          page.hasMore &&
+          (page.jokes.isNotEmpty || newCursor != previousCursor);
 
       if (!mounted) return;
       state = state.copyWith(

@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
+import 'package:snickerdoodle/src/data/core/app/app_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_category_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_list_data_source.dart';
@@ -162,7 +163,31 @@ final compositeJokePagingProviders = createPagingProviders(
 /// Priority sources are checked first; only the first active one is loaded exclusively.
 /// When a priority source exhausts (hasMore=false), its cursor is marked "__DONE__"
 /// and it will never be loaded again.
-final List<CompositeJokeSubSource> _prioritySubSources = [];
+final List<CompositeJokeSubSource> _prioritySubSources = [
+  // Halloween priority source takes precedence when active
+  CompositeJokeSubSource(
+    id: 'priority_halloween_jokes',
+    minIndex: null,
+    maxIndex: null,
+    condition: _shouldShowHalloweenJokes,
+    load: (Ref ref, int limit, String? cursor) => _loadSeasonalCategoryPage(
+      ref,
+      limit,
+      cursor,
+      seasonalValueOverride: 'Halloween',
+      orderByFieldOverride: JokeField.savedFraction,
+      orderDirectionOverride: OrderDirection.descending,
+    ),
+  ),
+  // Today's daily joke appears once per day starting at index 5
+  CompositeJokeSubSource(
+    id: 'priority_today_joke',
+    minIndex: 5,
+    maxIndex: null,
+    condition: _shouldShowTodayJoke,
+    load: (Ref ref, int limit, String? cursor) => _loadTodayJoke(ref),
+  ),
+];
 
 /// "Regular" data sources that will intereaved together.
 final List<CompositeJokeSubSource> _compositeSubSources = [
@@ -506,12 +531,6 @@ Future<PageResult> createNextPage({
     ...filteredComposite,
   ];
 
-  // Compute hasMore across any page
-  bool anyHasMore = [
-    ...priorityPages.values,
-    ...compositePages.values,
-  ].any((p) => p.hasMore);
-
   // Update cursor
   final current = prevCursor ?? const CompositeCursor();
   // Update priority cursors
@@ -547,11 +566,8 @@ Future<PageResult> createNextPage({
     prioritySourceCursors: updatedPriorityCursors,
   ).encode();
 
-  return PageResult(
-    jokes: combinedJokes,
-    cursor: nextCursor,
-    hasMore: anyHasMore,
-  );
+  // Always hasMore=true because the composite source is intended to be infinite
+  return PageResult(jokes: combinedJokes, cursor: nextCursor, hasMore: true);
 }
 
 Future<PageResult> _loadOrderedJokesPage(
@@ -581,7 +597,7 @@ Future<PageResult> _loadOrderedJokesPage(
   }
 
   final jokes = page.jokes ?? await repository.getJokesByIds(page.ids);
-  final now = DateTime.now();
+  final now = ref.read(clockProvider)();
   final filtered = jokes.where((joke) {
     final timestamp = joke.publicTimestamp;
     if (timestamp == null) return false;
@@ -758,7 +774,7 @@ Future<PageResult> _loadSearchCategoryPageFromCache(
   final hasMore = nextOffset < cachedJokes.length;
 
   AppLogger.debug(
-    'PAGINATION: Loaded cached category page at offset $offset, fetched ${jokesWithDate.length} jokes, total cached: ${cachedJokes.length}, hasMore: $hasMore',
+    'PAGING_INTERNAL: Loaded cached category page at offset $offset, fetched ${jokesWithDate.length} jokes, total cached: ${cachedJokes.length}, hasMore: $hasMore',
   );
 
   return PageResult(
@@ -772,14 +788,18 @@ Future<PageResult> _loadSearchCategoryPageFromCache(
 Future<PageResult> _loadSeasonalCategoryPage(
   Ref ref,
   int limit,
-  String? cursor,
-) async {
+  String? cursor, {
+  String? seasonalValueOverride,
+  JokeField? orderByFieldOverride,
+  OrderDirection? orderDirectionOverride,
+}) async {
   AppLogger.debug(
-    'PAGINATION: Loading seasonal category page with limit: $limit, cursor: $cursor',
+    'PAGING_INTERNAL: Loading seasonal category page with limit: $limit, cursor: $cursor',
   );
 
   final category = ref.read(activeCategoryProvider);
-  final seasonalValue = category?.seasonalValue?.trim();
+  final seasonalValue = (seasonalValueOverride ?? category?.seasonalValue)
+      ?.trim();
   if (seasonalValue == null || seasonalValue.isEmpty) {
     return const PageResult(jokes: [], cursor: null, hasMore: false);
   }
@@ -794,10 +814,9 @@ Future<PageResult> _loadSeasonalCategoryPage(
     filters: [
       ...JokeFilter.basePublicFilters(),
       JokeFilter.equals(JokeField.seasonal, seasonalValue),
-      JokeFilter.lessThan(JokeField.publicTimestamp, DateTime.now()),
     ],
-    orderByField: JokeField.publicTimestamp,
-    orderDirection: OrderDirection.descending,
+    orderByField: orderByFieldOverride ?? JokeField.publicTimestamp,
+    orderDirection: orderDirectionOverride ?? OrderDirection.descending,
     limit: limit,
     cursor: pageCursor,
   );
@@ -828,12 +847,76 @@ Future<PageResult> _loadSeasonalCategoryPage(
   );
 }
 
+// Settings key for tracking last delivered today joke
+const String kTodayJokeLastDateKey = 'today_joke_last_date';
+
+/// Load exactly today's daily joke and mark today in settings when returned.
+Future<PageResult> _loadTodayJoke(Ref ref) async {
+  // Reuse daily jokes loader with limit 1 and no cursor
+  final page = await loadDailyJokesPage(ref, 1, null);
+  // Always return at most 1 joke
+  final jokes = page.jokes.isEmpty ? [] as List<JokeWithDate> : [page.jokes[0]];
+
+  // Regardless of whether the page has jokes, don't load again today
+  final now = ref.read(clockProvider)();
+  final todayStr =
+      '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
+  final settings = ref.read(settingsServiceProvider);
+  // Fire and forget; no need to await persistence for paging
+  unawaited(settings.setString(kTodayJokeLastDateKey, todayStr));
+
+  // Always hasMore=true to allow the priority mechanism to continue future days.
+  // The cursor isn't actually used, but use todayStr as cursor so the
+  // composite cursor is updated.
+  return PageResult(jokes: jokes, cursor: todayStr, hasMore: true);
+}
+
+bool _shouldShowTodayJoke(Ref ref) {
+  final settings = ref.read(settingsServiceProvider);
+  final storedDateStr = settings.getString(kTodayJokeLastDateKey);
+  if (storedDateStr == null || storedDateStr.isEmpty) {
+    AppLogger.debug(
+      "PAGING_INTERNAL: Today's joke: No stored date, showing today's joke",
+    );
+    return true;
+  }
+
+  final today = getCurrentDate(ref);
+
+  try {
+    final parts = storedDateStr.split('-');
+    if (parts.length != 3) return true; // invalid format -> show
+    final y = int.parse(parts[0]);
+    final m = int.parse(parts[1]);
+    final d = int.parse(parts[2]);
+    final storedDate = DateTime(y, m, d);
+    // Return true only if today > stored
+    final isAfter = today.isAfter(storedDate);
+    AppLogger.debug(
+      "PAGING_INTERNAL: Today's joke: Stored date: $storedDate, today: $today, isAfter: $isAfter",
+    );
+    return isAfter;
+  } catch (e) {
+    AppLogger.error(
+      "PAGING_INTERNAL: Today's joke: Parse failure, showing today's joke",
+    );
+    return true; // parse failure -> show
+  }
+}
+
+bool _shouldShowHalloweenJokes(Ref ref) {
+  final start = DateTime(2025, 10, 30);
+  final end = DateTime(2025, 11, 4);
+  final now = ref.read(clockProvider)();
+  return now.isAfter(start) && now.isBefore(end);
+}
+
 /// Factory that returns a page loader bound to a specific SearchScope
 Future<PageResult> Function(Ref ref, int limit, String? cursor)
 _makeLoadSearchPage(SearchScope scope) {
   return (Ref ref, int limit, String? cursor) async {
     AppLogger.debug(
-      'PAGINATION: Loading search page with limit: $limit, cursor: $cursor, scope: ${scope.name}',
+      'PAGING_INTERNAL: Loading search page with limit: $limit, cursor: $cursor, scope: ${scope.name}',
     );
 
     // Get all search result IDs from the cached provider for this scope
@@ -867,7 +950,7 @@ _makeLoadSearchPage(SearchScope scope) {
     final hasMore = nextOffset < allResults.length;
 
     AppLogger.debug(
-      'PAGINATION: Loaded search page at offset $offset, fetched ${pageIds.length} jokes, total results: ${allResults.length}, hasMore: $hasMore',
+      'PAGING_INTERNAL: Loaded search page at offset $offset, fetched ${pageIds.length} jokes, total results: ${allResults.length}, hasMore: $hasMore',
     );
 
     return PageResult(
@@ -885,12 +968,12 @@ Future<PageResult> loadDailyJokesPage(
   String? cursor,
 ) async {
   AppLogger.debug(
-    'PAGINATION: Loading daily jokes page with limit: $limit, cursor: $cursor',
+    'PAGING_INTERNAL: Loading daily jokes page with limit: $limit, cursor: $cursor',
   );
 
   final repository = ref.read(jokeScheduleRepositoryProvider);
 
-  final now = DateTime.now();
+  final now = ref.read(clockProvider)();
   final today = DateTime(now.year, now.month, now.day);
 
   // Determine target month to load
@@ -912,7 +995,7 @@ Future<PageResult> loadDailyJokesPage(
   );
 
   if (batch == null) {
-    AppLogger.debug('PAGINATION: No batch for this month: $targetMonth');
+    AppLogger.debug('PAGING_INTERNAL: No batch for this month: $targetMonth');
     // No batch for this month: stop pagination
     return const PageResult(jokes: [], cursor: null, hasMore: false);
   }
@@ -958,7 +1041,7 @@ Future<PageResult> loadDailyJokesPage(
   }
 
   AppLogger.debug(
-    'PAGINATION: Loaded daily jokes page with cursor "$cursor", fetched ${jokesWithDates.length} jokes, next cursor: "$nextCursor"',
+    'PAGING_INTERNAL: Loaded daily jokes page with cursor "$cursor", fetched ${jokesWithDates.length} jokes, next cursor: "$nextCursor"',
   );
   return PageResult(jokes: jokesWithDates, cursor: nextCursor, hasMore: true);
 }
@@ -969,9 +1052,9 @@ Future<PageResult> loadDailyJokesPage(
 /// It checks if the first loaded joke is stale (date < today) and
 /// we haven't already reset today (to avoid thrashing).
 bool shouldResetDailyJokesForStaleData(Ref ref, dynamic prev, dynamic next) {
-  AppLogger.debug('PAGINATION: Checking if daily jokes should be reset');
+  AppLogger.debug('PAGING_INTERNAL: Checking if daily jokes should be reset');
 
-  final today = getCurrentDate();
+  final today = getCurrentDate(ref);
   final lastResetDate = ref.read(dailyJokesLastResetDateProvider);
 
   if (lastResetDate != null && !lastResetDate.isBefore(today)) {
@@ -992,7 +1075,7 @@ bool shouldResetDailyJokesForStaleData(Ref ref, dynamic prev, dynamic next) {
   }
 
   AppLogger.debug(
-    'PAGINATION: Resetting stale jokes. First joke date: $firstJokeDate, today: $today',
+    'PAGING_INTERNAL: Resetting stale jokes. First joke date: $firstJokeDate, today: $today',
   );
   // Mark that we're resetting today to prevent multiple resets
   ref.read(dailyJokesLastResetDateProvider.notifier).state = today;
@@ -1005,7 +1088,7 @@ Future<PageResult> _loadSavedJokesPage(
   String? cursor,
 ) async {
   AppLogger.debug(
-    'PAGINATION: Loading saved jokes page with limit: $limit, cursor: $cursor',
+    'PAGING_INTERNAL: Loading saved jokes page with limit: $limit, cursor: $cursor',
   );
 
   final appUsageService = ref.read(appUsageServiceProvider);
@@ -1051,7 +1134,7 @@ Future<PageResult> _loadSavedJokesPage(
   final hasMore = nextOffset < savedJokeIds.length;
 
   AppLogger.debug(
-    'PAGINATION: Loaded saved jokes page at offset $offset, fetched ${jokesWithDate.length} jokes, total saved: ${savedJokeIds.length}, hasMore: $hasMore',
+    'PAGING_INTERNAL: Loaded saved jokes page at offset $offset, fetched ${jokesWithDate.length} jokes, total saved: ${savedJokeIds.length}, hasMore: $hasMore',
   );
 
   return PageResult(
@@ -1063,7 +1146,7 @@ Future<PageResult> _loadSavedJokesPage(
 }
 
 /// Get current date (midnight-normalized) for comparison
-DateTime getCurrentDate() {
-  final now = DateTime.now();
+DateTime getCurrentDate(Ref ref) {
+  final now = ref.read(clockProvider)();
   return DateTime(now.year, now.month, now.day);
 }

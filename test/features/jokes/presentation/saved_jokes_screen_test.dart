@@ -357,6 +357,7 @@ void main() {
       punchlineText: 'Punchline $id',
       setupImageUrl: 'https://example.com/setup_$id.jpg',
       punchlineImageUrl: 'https://example.com/punch_$id.jpg',
+      publicTimestamp: DateTime.utc(2024, 1, 1),
     );
   }
 
@@ -396,6 +397,11 @@ void main() {
     ) async {
       final ids = invocation.positionalArguments.first as List<String>;
       return ids.map(buildTestJoke).toList();
+    });
+    when(() => mockAppUsageService.getUnviewedJokeIds(any())).thenAnswer((
+      invocation,
+    ) async {
+      return invocation.positionalArguments.first as List<String>;
     });
 
     final container = createContainer();

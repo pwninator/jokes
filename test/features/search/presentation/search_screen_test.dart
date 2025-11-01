@@ -259,6 +259,11 @@ void main() {
     when(
       () => mockAppUsageService.getNumJokesViewed(),
     ).thenAnswer((_) async => 0);
+    when(() => mockAppUsageService.getUnviewedJokeIds(any())).thenAnswer((
+      invocation,
+    ) async {
+      return invocation.positionalArguments.first as List<String>;
+    });
 
     return ProviderContainer(
       overrides: [
@@ -441,6 +446,7 @@ void main() {
               punchlineText: 'punch-$id',
               setupImageUrl: 'a',
               punchlineImageUrl: 'b',
+              publicTimestamp: DateTime.utc(2024, 1, 1),
             ),
           )
           .toList();
@@ -454,12 +460,13 @@ void main() {
         ),
         jokeStreamByIdProvider('1').overrideWith(
           (ref) => Stream.value(
-            const Joke(
+            Joke(
               id: '1',
               setupText: 's',
               punchlineText: 'p',
               setupImageUrl: 'a',
               punchlineImageUrl: 'b',
+              publicTimestamp: DateTime.utc(2024, 1, 1),
             ),
           ),
         ),

@@ -19,6 +19,7 @@ Joke _makeJoke(String id) => Joke(
   punchlineText: 'punchline $id',
   setupImageUrl: 'https://img/$id-a.jpg',
   punchlineImageUrl: 'https://img/$id-b.jpg',
+  publicTimestamp: DateTime.utc(2024, 1, 1),
 );
 
 class MockAnalyticsService extends Mock implements AnalyticsService {}

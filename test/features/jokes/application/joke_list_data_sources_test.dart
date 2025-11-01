@@ -72,11 +72,110 @@ Joke _buildJoke(String id, {DateTime? publicTimestamp, bool hasImages = true}) {
   );
 }
 
-/// Helper to get configuration values
-int getBestJokesMinIndex() => 0;
-int getBestJokesMaxIndex() => 200;
-int getRandomMinIndex() => 10;
-int getPublicMinIndex() => 200;
+/// Test helpers for stubbing repository queries for composite joke sources.
+class CompositeTestHelpers {
+  final MockJokeRepository repository;
+
+  CompositeTestHelpers(this.repository);
+
+  /// Stub Halloween priority source query.
+  void stubHalloweenQuery({
+    required List<String> ids,
+    String? cursor,
+    bool hasMore = false,
+  }) {
+    final pageCursor = cursor != null
+        ? JokeListPageCursor.deserialize(cursor)
+        : null;
+    when(
+      () => repository.getFilteredJokePage(
+        filters: any(
+          that: predicate<List<JokeFilter>>(
+            (filters) => _hasSeasonalFilter(filters, 'Halloween'),
+          ),
+          named: 'filters',
+        ),
+        orderByField: JokeField.savedFraction,
+        orderDirection: OrderDirection.descending,
+        limit: any(named: 'limit'),
+        cursor: any(named: 'cursor'),
+      ),
+    ).thenAnswer(
+      _stubOnceSource(ids: ids, cursor: pageCursor, hasMore: hasMore),
+    );
+  }
+
+  /// Stub best jokes composite source query.
+  void stubBestJokesQuery({
+    required List<String> ids,
+    String? cursor,
+    bool hasMore = false,
+  }) {
+    final pageCursor = cursor != null
+        ? JokeListPageCursor.deserialize(cursor)
+        : null;
+    when(
+      () => repository.getFilteredJokePage(
+        filters: any(
+          that: predicate<List<JokeFilter>>(
+            (filters) => !_hasSeasonalFilter(filters, 'Halloween'),
+          ),
+          named: 'filters',
+        ),
+        orderByField: JokeField.savedFraction,
+        orderDirection: OrderDirection.descending,
+        limit: any(named: 'limit'),
+        cursor: any(named: 'cursor'),
+      ),
+    ).thenAnswer(
+      _stubOnceSource(ids: ids, cursor: pageCursor, hasMore: hasMore),
+    );
+  }
+
+  /// Stub random jokes composite source query.
+  void stubRandomJokesQuery({
+    required List<String> ids,
+    String? cursor,
+    bool hasMore = true,
+  }) {
+    final pageCursor = cursor != null
+        ? JokeListPageCursor.deserialize(cursor)
+        : null;
+    when(
+      () => repository.getFilteredJokePage(
+        filters: any(named: 'filters'),
+        orderByField: JokeField.randomId,
+        orderDirection: OrderDirection.ascending,
+        limit: any(named: 'limit'),
+        cursor: any(named: 'cursor'),
+      ),
+    ).thenAnswer(
+      _stubOnceSource(ids: ids, cursor: pageCursor, hasMore: hasMore),
+    );
+  }
+
+  /// Stub public timestamp composite source query.
+  void stubPublicTimestampQuery({
+    required List<String> ids,
+    String? cursor,
+    bool hasMore = false,
+  }) {
+    final pageCursor = cursor != null
+        ? JokeListPageCursor.deserialize(cursor)
+        : null;
+    when(
+      () => repository.getFilteredJokePage(
+        filters: any(named: 'filters'),
+        orderByField: JokeField.publicTimestamp,
+        orderDirection: OrderDirection.ascending,
+        limit: any(named: 'limit'),
+        cursor: any(named: 'cursor'),
+      ),
+    ).thenAnswer(
+      _stubOnceSource(ids: ids, cursor: pageCursor, hasMore: hasMore),
+    );
+  }
+}
 
 /// Wait for async operations to complete
 Future<void> _waitForLoading(ProviderContainer container) async {
@@ -122,6 +221,7 @@ void main() {
   late MockAppUsageService mockAppUsageService;
   late MockFirebaseAnalytics mockFirebaseAnalytics;
   late SharedPreferences prefs;
+  late CompositeTestHelpers testHelpers;
   ProviderContainer? container;
 
   ProviderContainer createContainer({
@@ -151,10 +251,9 @@ void main() {
       jokeRepositoryProvider.overrideWithValue(mockRepository),
       appUsageServiceProvider.overrideWithValue(mockUsageService),
       firebaseAnalyticsProvider.overrideWithValue(mockFirebaseAnalytics),
+      // Always include clockProvider - use provided clock or default to current time
+      clockProvider.overrideWithValue(clock ?? () => DateTime.utc(2025, 1, 1)),
     ];
-    if (clock != null) {
-      overrides.add(clockProvider.overrideWithValue(clock));
-    }
 
     final scope = ProviderContainer(overrides: overrides);
     container = scope;
@@ -167,6 +266,7 @@ void main() {
     mockRepository = MockJokeRepository();
     mockAppUsageService = MockAppUsageService();
     mockFirebaseAnalytics = MockFirebaseAnalytics();
+    testHelpers = CompositeTestHelpers(mockRepository);
 
     // Default: all jokes are unviewed
     when(() => mockAppUsageService.getUnviewedJokeIds(any())).thenAnswer((
@@ -278,21 +378,31 @@ void main() {
     });
 
     test('stops at random boundary when crossing random min index', () {
-      final randomMin = getRandomMinIndex();
+      final randomMin = CompositeJokeSourceBoundaries.randomMinIndex;
       final limit = calculateEffectiveLimit(randomMin - 3, 10);
       expect(limit, 3);
     });
 
     test('stops at public boundary when crossing public min index', () {
-      final publicMin = getPublicMinIndex();
+      final publicMin = CompositeJokeSourceBoundaries.publicMinIndex;
       final limit = calculateEffectiveLimit(publicMin - 3, 10);
       expect(limit, 3);
     });
 
     test('stops at best jokes boundary when crossing best jokes max index', () {
-      final bestMax = getBestJokesMaxIndex();
+      final bestMax = CompositeJokeSourceBoundaries.bestJokesMaxIndex;
       final limit = calculateEffectiveLimit(bestMax - 3, 10);
       expect(limit, 3);
+    });
+
+    test('verifies null boundaries exist for unlimited sources', () {
+      // Priority sources with no limits
+      expect(CompositeJokeSourceBoundaries.halloweenMinIndex, isNull);
+      expect(CompositeJokeSourceBoundaries.halloweenMaxIndex, isNull);
+      expect(CompositeJokeSourceBoundaries.todayJokeMaxIndex, isNull);
+
+      // Composite sources with no max limit
+      expect(CompositeJokeSourceBoundaries.publicMaxIndex, isNull);
     });
   });
 
@@ -302,32 +412,16 @@ void main() {
         'loads Halloween jokes when condition is true and source is active',
         () async {
           // Halloween active: Oct 31, 2025
-          final halloweenTime = DateTime(2025, 10, 31);
-          final clock = () => halloweenTime;
-
-          // Stub Halloween query
-          when(
-            () => mockRepository.getFilteredJokePage(
-              filters: any(
-                that: predicate<List<JokeFilter>>(
-                  (filters) => _hasSeasonalFilter(filters, 'Halloween'),
-                ),
-                named: 'filters',
-              ),
-              orderByField: JokeField.savedFraction,
-              orderDirection: OrderDirection.descending,
-              limit: any(named: 'limit'),
-              cursor: any(named: 'cursor'),
-            ),
-          ).thenAnswer(
-            _stubOnceSource(
-              ids: ['h1', 'h2', 'h3', 'h4', 'h5'],
-              cursor: null,
-              hasMore: false,
-            ),
+          final halloweenTime = SeasonalDateRanges.halloweenStart.add(
+            const Duration(days: 1),
           );
 
-          final scope = createContainer(clock: clock);
+          testHelpers.stubHalloweenQuery(
+            ids: ['h1', 'h2', 'h3', 'h4', 'h5'],
+            hasMore: false,
+          );
+
+          final scope = createContainer(clock: () => halloweenTime);
           final notifier = scope.read(
             compositeJokePagingProviders.paging.notifier,
           );
@@ -345,31 +439,10 @@ void main() {
       test('skips Halloween when condition is false', () async {
         // Not Halloween: Sep 1, 2025
         final notHalloweenTime = DateTime(2025, 9, 1);
-        final clock = () => notHalloweenTime;
 
-        // Stub best jokes (composite source) instead
-        when(
-          () => mockRepository.getFilteredJokePage(
-            filters: any(
-              that: predicate<List<JokeFilter>>(
-                (filters) => !_hasSeasonalFilter(filters, 'Halloween'),
-              ),
-              named: 'filters',
-            ),
-            orderByField: JokeField.savedFraction,
-            orderDirection: OrderDirection.descending,
-            limit: any(named: 'limit'),
-            cursor: any(named: 'cursor'),
-          ),
-        ).thenAnswer(
-          _stubOnceSource(
-            ids: ['b1', 'b2', 'b3'],
-            cursor: null,
-            hasMore: false,
-          ),
-        );
+        testHelpers.stubBestJokesQuery(ids: ['b1', 'b2', 'b3'], hasMore: false);
 
-        final scope = createContainer(clock: clock);
+        final scope = createContainer(clock: () => notHalloweenTime);
         final notifier = scope.read(
           compositeJokePagingProviders.paging.notifier,
         );
@@ -385,25 +458,13 @@ void main() {
       });
 
       test('marks Halloween as done when hasMore is false', () async {
-        final halloweenTime = DateTime(2025, 10, 31);
-        final clock = () => halloweenTime;
+        final halloweenTime = SeasonalDateRanges.halloweenStart.add(
+          const Duration(days: 1),
+        );
 
-        when(
-          () => mockRepository.getFilteredJokePage(
-            filters: any(
-              that: predicate<List<JokeFilter>>(
-                (filters) => _hasSeasonalFilter(filters, 'Halloween'),
-              ),
-              named: 'filters',
-            ),
-            orderByField: JokeField.savedFraction,
-            orderDirection: OrderDirection.descending,
-            limit: any(named: 'limit'),
-            cursor: any(named: 'cursor'),
-          ),
-        ).thenAnswer(_stubOnceSource(ids: [], cursor: null, hasMore: false));
+        testHelpers.stubHalloweenQuery(ids: [], hasMore: false);
 
-        final scope = createContainer(clock: clock);
+        final scope = createContainer(clock: () => halloweenTime);
         final notifier = scope.read(
           compositeJokePagingProviders.paging.notifier,
         );
@@ -421,11 +482,11 @@ void main() {
     group("Today's joke priority source", () {
       test('loads today joke when condition is true and at index 5', () async {
         final testTime = DateTime(2025, 1, 15, 12, 0);
-        final clock = () => testTime;
+        DateTime clock() => testTime;
 
         // Start at index 5 to activate today's joke
         final cursor = _compositeCursor(
-          totalJokesLoaded: 5,
+          totalJokesLoaded: CompositeJokeSourceBoundaries.todayJokeMinIndex,
           prioritySourceCursors: {},
         );
         await prefs.setString(compositeJokeCursorPrefsKey, cursor.encode());
@@ -476,26 +537,14 @@ void main() {
 
       test('skips today joke when already shown today', () async {
         final testTime = DateTime(2025, 1, 15);
-        final clock = () => testTime;
 
         // Set today's date in settings
         final todayStr = '2025-01-15';
         await prefs.setString('today_joke_last_date', todayStr);
 
-        // Stub best jokes (composite source) instead
-        when(
-          () => mockRepository.getFilteredJokePage(
-            filters: any(named: 'filters'),
-            orderByField: JokeField.savedFraction,
-            orderDirection: OrderDirection.descending,
-            limit: any(named: 'limit'),
-            cursor: any(named: 'cursor'),
-          ),
-        ).thenAnswer(
-          _stubOnceSource(ids: ['b1', 'b2'], cursor: null, hasMore: false),
-        );
+        testHelpers.stubBestJokesQuery(ids: ['b1', 'b2'], hasMore: false);
 
-        final scope = createContainer(clock: clock);
+        final scope = createContainer(clock: () => testTime);
         final notifier = scope.read(
           compositeJokePagingProviders.paging.notifier,
         );
@@ -525,20 +574,9 @@ void main() {
         );
         await prefs.setString(compositeJokeCursorPrefsKey, cursor.encode());
 
-        when(
-          () => mockRepository.getFilteredJokePage(
-            filters: any(named: 'filters'),
-            orderByField: JokeField.savedFraction,
-            orderDirection: OrderDirection.descending,
-            limit: any(named: 'limit'),
-            cursor: any(named: 'cursor'),
-          ),
-        ).thenAnswer(
-          _stubOnceSource(
-            ids: ['b1', 'b2', 'b3', 'b4', 'b5'],
-            cursor: null,
-            hasMore: false,
-          ),
+        testHelpers.stubBestJokesQuery(
+          ids: ['b1', 'b2', 'b3', 'b4', 'b5'],
+          hasMore: false,
         );
 
         final scope = createContainer();
@@ -558,7 +596,7 @@ void main() {
     );
 
     test('interleaves best jokes and random when both are active', () async {
-      final randomMin = getRandomMinIndex();
+      final randomMin = CompositeJokeSourceBoundaries.randomMinIndex;
       final cursor = _compositeCursor(
         totalJokesLoaded: randomMin,
         subSourceCursors: {
@@ -572,31 +610,8 @@ void main() {
       );
       await prefs.setString(compositeJokeCursorPrefsKey, cursor.encode());
 
-      // Stub best jokes (match any cursor for this orderByField)
-      when(
-        () => mockRepository.getFilteredJokePage(
-          filters: any(named: 'filters'),
-          orderByField: JokeField.savedFraction,
-          orderDirection: OrderDirection.descending,
-          limit: any(named: 'limit'),
-          cursor: any(named: 'cursor'),
-        ),
-      ).thenAnswer(
-        _stubOnceSource(ids: ['b1', 'b2'], cursor: null, hasMore: false),
-      );
-
-      // Stub random jokes (match any cursor for this orderByField)
-      when(
-        () => mockRepository.getFilteredJokePage(
-          filters: any(named: 'filters'),
-          orderByField: JokeField.randomId,
-          orderDirection: OrderDirection.ascending,
-          limit: any(named: 'limit'),
-          cursor: any(named: 'cursor'),
-        ),
-      ).thenAnswer(
-        _stubOnceSource(ids: ['r1', 'r2'], cursor: null, hasMore: false),
-      );
+      testHelpers.stubBestJokesQuery(ids: ['b1', 'b2'], hasMore: false);
+      testHelpers.stubRandomJokesQuery(ids: ['r1', 'r2'], hasMore: false);
 
       final scope = createContainer();
       final notifier = scope.read(compositeJokePagingProviders.paging.notifier);
@@ -613,12 +628,66 @@ void main() {
       expect(loadedIds, contains('r1'));
     });
 
-    // Skipping this test - composite sources are designed to be infinite
-    // and testing all three active is complex. Covered by other integration tests.
     test(
-      'interleaves all three sources when all are active',
-      () async {},
-      skip: true,
+      'interleaves random and public timestamp when both are active',
+      () async {
+        // At totalJokesLoaded = 200, best_jokes stops (maxIndex exclusive)
+        // but random (10-500) and public_timestamp (200+) are both active
+        final publicMin = CompositeJokeSourceBoundaries.publicMinIndex;
+        final cursor = _compositeCursor(
+          totalJokesLoaded: publicMin,
+          subSourceCursors: {
+            'all_jokes_random': _cursorJson('random-cursor', 5.0),
+            'all_jokes_public_timestamp': _cursorJson('public-cursor', 100.0),
+          },
+          prioritySourceCursors: {
+            'priority_halloween_jokes': kPriorityDoneSentinel,
+            'priority_today_joke': kPriorityDoneSentinel,
+          },
+        );
+        await prefs.setString(compositeJokeCursorPrefsKey, cursor.encode());
+
+        // Stub random jokes - returns 3 jokes
+        testHelpers.stubRandomJokesQuery(
+          ids: ['r1', 'r2', 'r3'],
+          cursor: _cursorJson('random-cursor', 5.0),
+          hasMore: true,
+        );
+
+        // Stub public timestamp jokes - returns 2 jokes
+        testHelpers.stubPublicTimestampQuery(
+          ids: ['p1', 'p2'],
+          cursor: _cursorJson('public-cursor', 100.0),
+          hasMore: true,
+        );
+
+        final scope = createContainer();
+        final notifier = scope.read(
+          compositeJokePagingProviders.paging.notifier,
+        );
+
+        await notifier.loadFirstPage();
+        await _waitForLoading(scope);
+
+        final state = scope.read(compositeJokePagingProviders.paging);
+        final loadedIds = state.loadedJokes.map((j) => j.joke.id).toList();
+
+        // Should interleave: r1, p1, r2, p2, r3 (round-robin order)
+        expect(loadedIds.length, 5);
+        expect(loadedIds[0], 'r1');
+        expect(loadedIds[1], 'p1');
+        expect(loadedIds[2], 'r2');
+        expect(loadedIds[3], 'p2');
+        expect(loadedIds[4], 'r3');
+
+        // Verify all sources contributed
+        expect(loadedIds, containsAll(['r1', 'r2', 'r3']));
+        expect(loadedIds, containsAll(['p1', 'p2']));
+        expect(
+          loadedIds,
+          everyElement(isNot(startsWith('b'))),
+        ); // No best jokes
+      },
     );
 
     test('handles pagination with hasMore true', () async {
@@ -630,7 +699,9 @@ void main() {
       );
       await prefs.setString(compositeJokeCursorPrefsKey, cursor.encode());
 
-      // First call: hasMore true
+      final firstPageCursor = JokeListPageCursor(orderValue: 2.0, docId: 'b2');
+
+      // First call: hasMore true, returns cursor for next page
       when(
         () => mockRepository.getFilteredJokePage(
           filters: any(named: 'filters'),
@@ -642,7 +713,7 @@ void main() {
       ).thenAnswer(
         (_) async => JokeListPage(
           ids: ['b1', 'b2'],
-          cursor: JokeListPageCursor(orderValue: 2.0, docId: 'b2'),
+          cursor: firstPageCursor,
           hasMore: true,
           jokes: ['b1', 'b2'].map(_buildJoke).toList(),
         ),
@@ -662,7 +733,14 @@ void main() {
             named: 'cursor',
           ),
         ),
-      ).thenAnswer(_stubOnceSource(ids: ['b3'], cursor: null, hasMore: false));
+      ).thenAnswer(
+        (_) async => JokeListPage(
+          ids: ['b3'],
+          cursor: null,
+          hasMore: false,
+          jokes: ['b3'].map(_buildJoke).toList(),
+        ),
+      );
 
       final scope = createContainer();
       final notifier = scope.read(compositeJokePagingProviders.paging.notifier);
@@ -714,15 +792,74 @@ void main() {
       expect(loadedIds, isNot(contains('b2')));
     });
 
-    // Skipping this test - boundary crossing logic is complex and tested in integration
-    test(
-      'handles boundary crossing at random min index',
-      () async {},
-      skip: true,
-    );
+    test('handles boundary crossing at random min index', () async {
+      final randomMin = CompositeJokeSourceBoundaries.randomMinIndex;
+      // Start at index 7, just before random boundary at 10
+      // Requesting jokes would cross the boundary, so effectiveLimit should be 3
+      final cursor = _compositeCursor(
+        totalJokesLoaded: randomMin - 3,
+        subSourceCursors: {'best_jokes': _cursorJson('best-cursor', 5.0)},
+        prioritySourceCursors: {
+          'priority_halloween_jokes': kPriorityDoneSentinel,
+          'priority_today_joke': kPriorityDoneSentinel,
+        },
+      );
+      await prefs.setString(compositeJokeCursorPrefsKey, cursor.encode());
+
+      // Catch-all stub for any other calls (auto-load, random, etc.) - put first
+      // so specific stubs below take precedence
+      when(
+        () => mockRepository.getFilteredJokePage(
+          filters: any(named: 'filters'),
+          orderByField: any(named: 'orderByField'),
+          orderDirection: any(named: 'orderDirection'),
+          limit: any(named: 'limit'),
+          cursor: any(named: 'cursor'),
+        ),
+      ).thenAnswer(
+        (_) async => JokeListPage(
+          ids: const [],
+          cursor: null,
+          hasMore: false,
+          jokes: const [],
+        ),
+      );
+
+      // First load: effectiveLimit should be adjusted to 3 (stopping at index 10)
+      // Only best_jokes is active (random starts at 10)
+      // This specific stub should take precedence over the catch-all
+      testHelpers.stubBestJokesQuery(
+        ids: ['b1', 'b2', 'b3'],
+        cursor: _cursorJson('best-cursor', 5.0),
+        hasMore: false, // Stop auto-loading
+      );
+
+      final scope = createContainer();
+      final notifier = scope.read(compositeJokePagingProviders.paging.notifier);
+
+      // First load - should stop at boundary (index 10)
+      // The calculateEffectiveLimit should limit to 3 jokes to stop exactly at index 10
+      await notifier.loadFirstPage();
+      await _waitForLoading(scope);
+
+      final state = scope.read(compositeJokePagingProviders.paging);
+      final loadedIds = state.loadedJokes.map((j) => j.joke.id).toList();
+
+      // Should have exactly 3 jokes (stopped at boundary, not the full requested amount)
+      // Starting at index 7, effectiveLimit should be 3 to stop exactly at index 10
+      expect(loadedIds.length, 3);
+      expect(loadedIds, everyElement(startsWith('b')));
+      expect(loadedIds, containsAll(['b1', 'b2', 'b3']));
+      // Verify only best_jokes loaded (random not active yet at index < 10)
+      expect(loadedIds, everyElement(isNot(startsWith('r'))));
+
+      // Verify boundary crossing: the effectiveLimit was adjusted from the requested
+      // amount to 3, stopping exactly at the random min index boundary (10)
+      // This is verified by having exactly 3 jokes loaded when starting at index 7
+    });
 
     test('stops best jokes at max index', () async {
-      final bestMax = getBestJokesMaxIndex();
+      final bestMax = CompositeJokeSourceBoundaries.bestJokesMaxIndex;
       final cursor = _compositeCursor(
         totalJokesLoaded: bestMax,
         prioritySourceCursors: {
@@ -733,25 +870,8 @@ void main() {
       await prefs.setString(compositeJokeCursorPrefsKey, cursor.encode());
 
       // Only random and public should load (best jokes out of range)
-      when(
-        () => mockRepository.getFilteredJokePage(
-          filters: any(named: 'filters'),
-          orderByField: JokeField.randomId,
-          orderDirection: OrderDirection.ascending,
-          limit: any(named: 'limit'),
-          cursor: any(named: 'cursor'),
-        ),
-      ).thenAnswer(_stubOnceSource(ids: ['r1'], cursor: null, hasMore: false));
-
-      when(
-        () => mockRepository.getFilteredJokePage(
-          filters: any(named: 'filters'),
-          orderByField: JokeField.publicTimestamp,
-          orderDirection: OrderDirection.ascending,
-          limit: any(named: 'limit'),
-          cursor: any(named: 'cursor'),
-        ),
-      ).thenAnswer(_stubOnceSource(ids: ['p1'], cursor: null, hasMore: false));
+      testHelpers.stubRandomJokesQuery(ids: ['r1'], hasMore: false);
+      testHelpers.stubPublicTimestampQuery(ids: ['p1'], hasMore: false);
 
       final scope = createContainer();
       final notifier = scope.read(compositeJokePagingProviders.paging.notifier);
@@ -774,41 +894,8 @@ void main() {
       () async {
         final halloweenTime = DateTime(2025, 10, 31);
 
-        // Halloween first
-        when(
-          () => mockRepository.getFilteredJokePage(
-            filters: any(
-              that: predicate<List<JokeFilter>>(
-                (filters) => _hasSeasonalFilter(filters, 'Halloween'),
-              ),
-              named: 'filters',
-            ),
-            orderByField: JokeField.savedFraction,
-            orderDirection: OrderDirection.descending,
-            limit: any(named: 'limit'),
-            cursor: any(named: 'cursor'),
-          ),
-        ).thenAnswer(
-          _stubOnceSource(ids: ['h1'], cursor: null, hasMore: false),
-        );
-
-        // Then composite (best jokes)
-        when(
-          () => mockRepository.getFilteredJokePage(
-            filters: any(
-              that: predicate<List<JokeFilter>>(
-                (filters) => !_hasSeasonalFilter(filters, 'Halloween'),
-              ),
-              named: 'filters',
-            ),
-            orderByField: JokeField.savedFraction,
-            orderDirection: OrderDirection.descending,
-            limit: any(named: 'limit'),
-            cursor: any(named: 'cursor'),
-          ),
-        ).thenAnswer(
-          _stubOnceSource(ids: ['b1'], cursor: null, hasMore: false),
-        );
+        testHelpers.stubHalloweenQuery(ids: ['h1'], hasMore: false);
+        testHelpers.stubBestJokesQuery(ids: ['b1'], hasMore: false);
 
         final scope = createContainer(clock: () => halloweenTime);
         final notifier = scope.read(
@@ -862,9 +949,18 @@ void main() {
 
     test('getCurrentDate returns normalized date', () async {
       final testTime = DateTime(2025, 6, 15, 14, 30);
+      final mockUsageService = MockAppUsageService();
+      when(() => mockUsageService.getUnviewedJokeIds(any())).thenAnswer((
+        invocation,
+      ) async {
+        return invocation.positionalArguments.first as List<String>;
+      });
 
       final container = ProviderContainer(
-        overrides: [clockProvider.overrideWithValue(() => testTime)],
+        overrides: [
+          clockProvider.overrideWithValue(() => testTime),
+          appUsageServiceProvider.overrideWithValue(mockUsageService),
+        ],
       );
       addTearDown(container.dispose);
 
@@ -904,12 +1000,20 @@ void main() {
           () => mockScheduleRepository.getBatchForMonth(any(), any(), any()),
         ).thenAnswer((_) async => batch);
 
+        final mockUsageService = MockAppUsageService();
+        when(() => mockUsageService.getUnviewedJokeIds(any())).thenAnswer((
+          invocation,
+        ) async {
+          return invocation.positionalArguments.first as List<String>;
+        });
+
         final container = ProviderContainer(
           overrides: [
             jokeScheduleRepositoryProvider.overrideWithValue(
               mockScheduleRepository,
             ),
             clockProvider.overrideWithValue(() => testTime),
+            appUsageServiceProvider.overrideWithValue(mockUsageService),
           ],
         );
         addTearDown(container.dispose);
@@ -965,11 +1069,20 @@ void main() {
         ),
       );
 
+      final mockUsageService = MockAppUsageService();
+      when(() => mockUsageService.getUnviewedJokeIds(any())).thenAnswer((
+        invocation,
+      ) async {
+        return invocation.positionalArguments.first as List<String>;
+      });
+
       final container = ProviderContainer(
         overrides: [
           jokeRepositoryProvider.overrideWithValue(mockRepository),
           settingsServiceProvider.overrideWithValue(mockSettingsService),
           randomStartingIdProvider.overrideWith((ref) => randomStartingId),
+          clockProvider.overrideWithValue(() => DateTime.utc(2025, 1, 1)),
+          appUsageServiceProvider.overrideWithValue(mockUsageService),
         ],
       );
       addTearDown(container.dispose);
@@ -1008,10 +1121,19 @@ void main() {
         ),
       );
 
+      final mockUsageService = MockAppUsageService();
+      when(() => mockUsageService.getUnviewedJokeIds(any())).thenAnswer((
+        invocation,
+      ) async {
+        return invocation.positionalArguments.first as List<String>;
+      });
+
       final container = ProviderContainer(
         overrides: [
           jokeRepositoryProvider.overrideWithValue(mockRepository),
           settingsServiceProvider.overrideWithValue(mockSettingsService),
+          clockProvider.overrideWithValue(() => DateTime.utc(2025, 1, 1)),
+          appUsageServiceProvider.overrideWithValue(mockUsageService),
         ],
       );
       addTearDown(container.dispose);

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime
 import math
+import random
 import zoneinfo
 
 from common import config, models
@@ -16,6 +17,7 @@ from services import firebase_cloud_messaging, firestore, search
 _RECENT_STATS_DAILY_DECAY_FACTOR = 0.9
 _MAX_FIRESTORE_WRITE_BATCH_SIZE = 100
 _LAST_RECENT_STATS_UPDATE_TIME_FIELD_NAME = "last_recent_stats_update_time"
+_MIN_VIEWS_FOR_FRACTIONS = 10
 
 
 @scheduler_fn.on_schedule(
@@ -447,7 +449,7 @@ def on_joke_write(event: firestore_fn.Event[firestore_fn.Change]) -> None:
       "generation_metadata": current_metadata.as_dict,
     })
 
-  if after_joke.num_viewed_users > 0:
+  if after_joke.num_viewed_users >= _MIN_VIEWS_FOR_FRACTIONS:
     num_saved_users_fraction = (after_joke.num_saved_users /
                                 after_joke.num_viewed_users)
     if not math.isclose(after_joke.num_saved_users_fraction,
@@ -529,7 +531,7 @@ def _update_joke_attributes(run_time_utc: datetime.datetime) -> dict[str, int]:
   """Apply exponential decay to recent counters across all jokes.
   
   Returns:
-    Dictionary with maintenance statistics: jokes_decayed, public_updated, jokes_skipped
+    Dictionary with maintenance statistics: jokes_decayed, public_updated, jokes_skipped, jokes_boosted
   """
 
   db_client = firestore.db()
@@ -541,6 +543,7 @@ def _update_joke_attributes(run_time_utc: datetime.datetime) -> dict[str, int]:
   jokes_decayed = 0
   public_updated = 0
   jokes_skipped = 0
+  jokes_boosted = 0
 
   for joke_doc in joke_docs:
     if not joke_doc.exists:
@@ -566,6 +569,24 @@ def _update_joke_attributes(run_time_utc: datetime.datetime) -> dict[str, int]:
       payload.update(decay_payload)
       jokes_decayed += 1
 
+    # Boost num_saved_users_fraction for jokes with low views
+    num_viewed_users = joke_data.get("num_viewed_users", 0)
+    if not isinstance(num_viewed_users, (int, float)):
+      num_viewed_users = 0
+    num_viewed_users = int(num_viewed_users)
+
+    if num_viewed_users < _MIN_VIEWS_FOR_FRACTIONS:
+      current_fraction = joke_data.get("num_saved_users_fraction")
+      if current_fraction is None or not isinstance(current_fraction,
+                                                    (int, float)):
+        current_fraction = 0.0
+      current_fraction = float(current_fraction)
+
+      boost_amount = random.uniform(0.0, 0.02)
+      new_fraction = current_fraction + boost_amount
+      payload["num_saved_users_fraction"] = new_fraction
+      jokes_boosted += 1
+
     if not payload:
       # No updates to apply, skip this joke
       jokes_skipped += 1
@@ -585,13 +606,14 @@ def _update_joke_attributes(run_time_utc: datetime.datetime) -> dict[str, int]:
     batch.commit()
 
   logger.info(
-    f"Joke daily maintenance completed: {jokes_decayed} recent stats decayed, {public_updated} is_public updated, {jokes_skipped} jokes skipped"
+    f"Joke daily maintenance completed: {jokes_decayed} recent stats decayed, {public_updated} is_public updated, {jokes_skipped} jokes skipped, {jokes_boosted} jokes boosted"
   )
 
   return {
     "jokes_decayed": jokes_decayed,
     "public_updated": public_updated,
     "jokes_skipped": jokes_skipped,
+    "jokes_boosted": jokes_boosted,
   }
 
 

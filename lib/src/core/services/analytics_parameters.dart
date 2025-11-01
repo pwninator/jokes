@@ -104,6 +104,7 @@ class AnalyticsParameters {
 
   // App homepage (feed vs daily)
   static const String homepage = 'homepage';
+  static const String homepageName = 'homepage_name';
 }
 
 /// User type values for analytics
@@ -146,4 +147,10 @@ class AnalyticsShareMethod {
 class AnalyticsScreenOrientation {
   static const String portrait = 'portrait';
   static const String landscape = 'landscape';
+}
+
+/// Homepage name values for analytics
+class AnalyticsHomepageName {
+  static const String feed = 'feed';
+  static const String daily = 'daily';
 }

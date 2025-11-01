@@ -108,6 +108,7 @@ enum AnalyticsEvent {
   // Settings
   jokeViewerSettingChanged('joke_viewer_setting_changed'),
   privacyPolicyOpened('privacy_policy_opened'),
+  homepage('homepage'),
 
   // Ad events
   adBannerStatus('ad_banner_status'),

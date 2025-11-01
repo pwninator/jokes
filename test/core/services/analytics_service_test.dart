@@ -92,6 +92,8 @@ void main() {
           brightness: Brightness.light,
           homepage: 'daily',
         ),
+        () => analyticsService.logHomepage(true),
+        () => analyticsService.logHomepage(false),
       ];
 
       for (final logFunction in allLogFunctions) {
@@ -373,5 +375,55 @@ void main() {
         );
       }
     });
+  });
+
+  group('logHomepage', () {
+    test(
+      'logs homepage event with feed value when feedEnabled is true',
+      () async {
+        analyticsService.logHomepage(true);
+
+        await Future.delayed(Duration.zero);
+
+        verify(
+          () => mockFirebaseAnalytics.logEvent(
+            name: 'homepage',
+            parameters: any(
+              named: 'parameters',
+              that: predicate<Map<String, Object>>(
+                (params) =>
+                    params[AnalyticsParameters.homepageName] ==
+                    AnalyticsHomepageName.feed,
+                'contains feed homepage name',
+              ),
+            ),
+          ),
+        ).called(1);
+      },
+    );
+
+    test(
+      'logs homepage event with daily value when feedEnabled is false',
+      () async {
+        analyticsService.logHomepage(false);
+
+        await Future.delayed(Duration.zero);
+
+        verify(
+          () => mockFirebaseAnalytics.logEvent(
+            name: 'homepage',
+            parameters: any(
+              named: 'parameters',
+              that: predicate<Map<String, Object>>(
+                (params) =>
+                    params[AnalyticsParameters.homepageName] ==
+                    AnalyticsHomepageName.daily,
+                'contains daily homepage name',
+              ),
+            ),
+          ),
+        ).called(1);
+      },
+    );
   });
 }

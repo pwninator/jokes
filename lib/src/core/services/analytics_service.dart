@@ -171,6 +171,9 @@ abstract class AnalyticsService {
   /// Settings: privacy policy opened from settings screen
   void logPrivacyPolicyOpened();
 
+  /// Log when homepage is determined (feed vs daily)
+  void logHomepage(bool feedEnabled);
+
   /// Log when subscription prompt is shown
   void logSubscriptionPromptShown();
 
@@ -716,6 +719,15 @@ class FirebaseAnalyticsService implements AnalyticsService {
   @override
   void logPrivacyPolicyOpened() {
     _logEvent(AnalyticsEvent.privacyPolicyOpened, const {});
+  }
+
+  @override
+  void logHomepage(bool feedEnabled) {
+    _logEvent(AnalyticsEvent.homepage, {
+      AnalyticsParameters.homepageName: feedEnabled
+          ? AnalyticsHomepageName.feed
+          : AnalyticsHomepageName.daily,
+    });
   }
 
   @override

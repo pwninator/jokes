@@ -22,192 +22,289 @@ Joke _buildJoke(String id, {DateTime? publicTimestamp, bool hasImages = true}) {
   );
 }
 
+List<String> _ids(List<JokeWithDate> jokes) =>
+    jokes.map((joke) => joke.joke.id).toList();
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  group('filter helper functions', () {
-    test('dedupeJokes keeps first occurrence of duplicate ids', () {
-      final original = JokeWithDate(joke: _buildJoke('keep'), dataSource: 'a');
-      final duplicate = JokeWithDate(joke: _buildJoke('keep'), dataSource: 'b');
-      final other = JokeWithDate(joke: _buildJoke('other'), dataSource: 'c');
+  group('dedupeJokes', () {
+    test('removes duplicate ids while keeping first occurrences in order', () {
+      final jokes = [
+        JokeWithDate(joke: _buildJoke('first')),
+        JokeWithDate(joke: _buildJoke('second')),
+        JokeWithDate(joke: _buildJoke('first'), dataSource: 'duplicate'),
+        JokeWithDate(joke: _buildJoke('third')),
+      ];
 
-      final result = dedupeJokes([original, duplicate, other], {});
+      final result = dedupeJokes(jokes, const {});
 
-      expect(result, [original, other]);
+      expect(_ids(result), equals(['first', 'second', 'third']));
     });
 
     test(
-      'filterJokesWithImages keeps jokes that have both images populated',
+      'omits ids already present in existingIds without mutating the set',
       () {
-        final hasImages = JokeWithDate(joke: _buildJoke('with-images'));
-        final missingImages = JokeWithDate(
-          joke: _buildJoke('without-images', hasImages: false),
-        );
-        final blankImages = JokeWithDate(
-          joke: _buildJoke(
-            'blank-images',
-          ).copyWith(setupImageUrl: '', punchlineImageUrl: ''),
-        );
+        final existingIds = {'seen'};
+        final snapshot = Set<String>.from(existingIds);
+        final jokes = [
+          JokeWithDate(joke: _buildJoke('seen')),
+          JokeWithDate(joke: _buildJoke('fresh')),
+          JokeWithDate(joke: _buildJoke('fresh'), dataSource: 'dup'),
+          JokeWithDate(joke: _buildJoke('another')),
+        ];
 
-        final result = filterJokesWithImages([
-          hasImages,
-          missingImages,
-          blankImages,
-        ]);
+        final result = dedupeJokes(jokes, existingIds);
 
-        expect(result, [hasImages]);
+        expect(_ids(result), equals(['fresh', 'another']));
+        expect(existingIds, equals(snapshot));
       },
     );
+  });
 
-    test(
-      'filterJokesByPublicTimestamp keeps only jokes at or before current time',
-      () {
-        final now = DateTime.utc(2025, 1, 10, 12);
-        final timestampContainer = ProviderContainer(
-          overrides: [clockProvider.overrideWithValue(() => now)],
-        );
-        addTearDown(timestampContainer.dispose);
+  group('filterJokesWithImages', () {
+    test('keeps only jokes with both image urls populated', () {
+      final jokes = [
+        JokeWithDate(joke: _buildJoke('valid')),
+        JokeWithDate(joke: _buildJoke('missing', hasImages: false)),
+        JokeWithDate(
+          joke: _buildJoke(
+            'blank',
+          ).copyWith(setupImageUrl: '', punchlineImageUrl: ''),
+        ),
+      ];
 
-        final past = JokeWithDate(
+      final result = filterJokesWithImages(jokes);
+
+      expect(_ids(result), equals(['valid']));
+    });
+  });
+
+  group('filterJokesByPublicTimestamp', () {
+    test('keeps jokes at or before now and any with null timestamps', () {
+      final now = DateTime.utc(2025, 1, 10, 12);
+      final container = ProviderContainer(
+        overrides: [clockProvider.overrideWithValue(() => now)],
+      );
+      addTearDown(container.dispose);
+
+      final jokes = [
+        JokeWithDate(
           joke: _buildJoke(
             'past',
             publicTimestamp: now.subtract(const Duration(days: 1)),
           ),
-        );
-        final atNow = JokeWithDate(
-          joke: _buildJoke('at-now', publicTimestamp: now),
-        );
-        final future = JokeWithDate(
+        ),
+        JokeWithDate(joke: _buildJoke('at_now', publicTimestamp: now)),
+        JokeWithDate(
           joke: _buildJoke(
             'future',
-            publicTimestamp: now.add(const Duration(minutes: 5)),
+            publicTimestamp: now.add(const Duration(minutes: 1)),
           ),
-        );
-        final noTimestamp = JokeWithDate(
-          joke: Joke(
-            id: 'no-ts',
-            setupText: 'setup no-ts',
-            punchlineText: 'punchline no-ts',
-            setupImageUrl: 'setup_no-ts.png',
-            punchlineImageUrl: 'punch_no-ts.png',
-            state: JokeState.published,
-            publicTimestamp: null,
-          ),
-        );
+        ),
+        JokeWithDate(
+          joke: _buildJoke('null_ts').copyWith(publicTimestamp: null),
+        ),
+      ];
 
-        final provider = Provider(
-          (ref) => filterJokesByPublicTimestamp(ref, [
-            past,
-            atNow,
-            future,
-            noTimestamp,
-          ]),
-        );
+      final provider = Provider(
+        (ref) => filterJokesByPublicTimestamp(ref, jokes),
+      );
 
-        final result = timestampContainer.read(provider);
+      final result = container.read(provider);
 
-        expect(result, [past, atNow, noTimestamp]);
-      },
-    );
+      expect(_ids(result), equals(['past', 'at_now', 'null_ts']));
+    });
+  });
 
-    test('filterViewedJokes returns only unviewed jokes', () async {
+  group('filterViewedJokes', () {
+    test('returns only unviewed ids in original order', () async {
       final jokes = [
         JokeWithDate(joke: _buildJoke('a')),
         JokeWithDate(joke: _buildJoke('b')),
         JokeWithDate(joke: _buildJoke('c')),
       ];
-      final mockUsageService = MockAppUsageService();
-      when(() => mockUsageService.getUnviewedJokeIds(any())).thenAnswer((
+      final mockUsage = MockAppUsageService();
+      when(() => mockUsage.getUnviewedJokeIds(any())).thenAnswer((
         invocation,
       ) async {
         final ids = invocation.positionalArguments.first as List<String>;
-        expect(ids, ['a', 'b', 'c']);
-        return ['a', 'c'];
+        expect(ids, equals(['a', 'b', 'c']));
+        return ['c', 'a'];
       });
 
-      final viewedContainer = ProviderContainer(
-        overrides: [
-          appUsageServiceProvider.overrideWithValue(mockUsageService),
-        ],
+      final container = ProviderContainer(
+        overrides: [appUsageServiceProvider.overrideWithValue(mockUsage)],
       );
-      addTearDown(viewedContainer.dispose);
+      addTearDown(container.dispose);
 
       final provider = FutureProvider((ref) => filterViewedJokes(ref, jokes));
 
-      final result = await viewedContainer.read(provider.future);
+      final result = await container.read(provider.future);
 
-      expect(result, [jokes.first, jokes.last]);
-      verify(() => mockUsageService.getUnviewedJokeIds(any())).called(1);
+      expect(_ids(result), equals(['a', 'c']));
+      verify(() => mockUsage.getUnviewedJokeIds(any())).called(1);
     });
 
+    test('returns empty when every id is already viewed', () async {
+      final jokes = [
+        JokeWithDate(joke: _buildJoke('x')),
+        JokeWithDate(joke: _buildJoke('y')),
+      ];
+      final mockUsage = MockAppUsageService();
+      when(
+        () => mockUsage.getUnviewedJokeIds(any()),
+      ).thenAnswer((_) async => <String>[]);
+
+      final container = ProviderContainer(
+        overrides: [appUsageServiceProvider.overrideWithValue(mockUsage)],
+      );
+      addTearDown(container.dispose);
+
+      final provider = FutureProvider((ref) => filterViewedJokes(ref, jokes));
+
+      final result = await container.read(provider.future);
+
+      expect(result, isEmpty);
+      verify(() => mockUsage.getUnviewedJokeIds(['x', 'y'])).called(1);
+    });
+  });
+
+  group('filterJokes', () {
     test(
-      'filterJokes applies dedupe, image, timestamp, and viewed filters together',
+      'applies dedupe/image/timestamp filters and skips viewed lookup when disabled',
       () async {
-        final now = DateTime.utc(2025, 1, 10);
-        final keep = JokeWithDate(
-          joke: _buildJoke(
-            'keep',
-            publicTimestamp: now.subtract(const Duration(days: 1)),
-          ),
-        );
-        final duplicate = JokeWithDate(
-          joke: _buildJoke(
-            'keep',
-            publicTimestamp: now.subtract(const Duration(hours: 2)),
-          ),
-          dataSource: 'duplicate',
-        );
-        final missingImages = JokeWithDate(
-          joke: _buildJoke(
-            'missing',
-            publicTimestamp: now.subtract(const Duration(days: 2)),
-            hasImages: false,
-          ),
-        );
-        final future = JokeWithDate(
-          joke: _buildJoke(
-            'future',
-            publicTimestamp: now.add(const Duration(days: 1)),
-          ),
-        );
-        final viewed = JokeWithDate(
-          joke: _buildJoke(
-            'viewed',
-            publicTimestamp: now.subtract(const Duration(hours: 3)),
-          ),
-        );
-
-        final mockUsageService = MockAppUsageService();
-        when(() => mockUsageService.getUnviewedJokeIds(any())).thenAnswer((
-          invocation,
-        ) async {
-          final ids = invocation.positionalArguments.first as List<String>;
-          expect(ids, ['keep', 'viewed']);
-          return ['keep'];
-        });
-
+        final now = DateTime.utc(2025, 2, 1);
+        final mockUsage = MockAppUsageService();
         final container = ProviderContainer(
           overrides: [
-            appUsageServiceProvider.overrideWithValue(mockUsageService),
             clockProvider.overrideWithValue(() => now),
+            appUsageServiceProvider.overrideWithValue(mockUsage),
           ],
         );
         addTearDown(container.dispose);
 
+        final existingIds = {'existing'};
+        final jokes = [
+          JokeWithDate(
+            joke: _buildJoke(
+              'existing',
+              publicTimestamp: now.subtract(const Duration(days: 1)),
+            ),
+          ),
+          JokeWithDate(
+            joke: _buildJoke(
+              'keep',
+              publicTimestamp: now.subtract(const Duration(days: 2)),
+            ),
+          ),
+          JokeWithDate(
+            joke: _buildJoke(
+              'keep',
+              publicTimestamp: now.subtract(const Duration(days: 2)),
+            ),
+            dataSource: 'duplicate',
+          ),
+          JokeWithDate(
+            joke: _buildJoke(
+              'missing_images',
+              publicTimestamp: now.subtract(const Duration(days: 3)),
+              hasImages: false,
+            ),
+          ),
+          JokeWithDate(
+            joke: _buildJoke(
+              'blank_images',
+              publicTimestamp: now.subtract(const Duration(days: 4)),
+            ).copyWith(setupImageUrl: '', punchlineImageUrl: ''),
+          ),
+          JokeWithDate(
+            joke: _buildJoke(
+              'future',
+              publicTimestamp: now.add(const Duration(days: 1)),
+            ),
+          ),
+          JokeWithDate(
+            joke: _buildJoke('null_ts').copyWith(publicTimestamp: null),
+          ),
+        ];
+
         final provider = FutureProvider(
-          (ref) => filterJokes(ref, [
-            keep,
-            duplicate,
-            missingImages,
-            future,
-            viewed,
-          ], filterViewed: true),
+          (ref) => filterJokes(
+            ref,
+            jokes,
+            existingIds: existingIds,
+            filterViewed: false,
+          ),
         );
 
         final result = await container.read(provider.future);
 
-        expect(result, [keep]);
-        verify(() => mockUsageService.getUnviewedJokeIds(any())).called(1);
+        expect(_ids(result), equals(['keep', 'null_ts']));
+        verifyNever(() => mockUsage.getUnviewedJokeIds(any()));
+      },
+    );
+
+    test(
+      'performs viewed filtering after other filters and can yield empty results',
+      () async {
+        final now = DateTime.utc(2025, 3, 1);
+        final mockUsage = MockAppUsageService();
+        when(() => mockUsage.getUnviewedJokeIds(any())).thenAnswer((
+          invocation,
+        ) async {
+          final ids = invocation.positionalArguments.first as List<String>;
+          expect(ids, equals(['keep', 'also_keep', 'null_ts']));
+          return <String>[];
+        });
+
+        final container = ProviderContainer(
+          overrides: [
+            clockProvider.overrideWithValue(() => now),
+            appUsageServiceProvider.overrideWithValue(mockUsage),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        final jokes = [
+          JokeWithDate(
+            joke: _buildJoke(
+              'missing',
+              publicTimestamp: now.subtract(const Duration(days: 1)),
+              hasImages: false,
+            ),
+          ),
+          JokeWithDate(
+            joke: _buildJoke(
+              'future',
+              publicTimestamp: now.add(const Duration(days: 2)),
+            ),
+          ),
+          JokeWithDate(
+            joke: _buildJoke(
+              'keep',
+              publicTimestamp: now.subtract(const Duration(days: 2)),
+            ),
+          ),
+          JokeWithDate(
+            joke: _buildJoke(
+              'also_keep',
+              publicTimestamp: now.subtract(const Duration(hours: 12)),
+            ),
+          ),
+          JokeWithDate(
+            joke: _buildJoke('null_ts').copyWith(publicTimestamp: null),
+          ),
+        ];
+
+        final provider = FutureProvider(
+          (ref) => filterJokes(ref, jokes, filterViewed: true),
+        );
+
+        final result = await container.read(provider.future);
+
+        expect(result, isEmpty);
+        verify(() => mockUsage.getUnviewedJokeIds(any())).called(1);
       },
     );
   });

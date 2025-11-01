@@ -1,7 +1,10 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/core/providers/connectivity_providers.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
+import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
+import 'package:snickerdoodle/src/data/core/app/app_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
 
 /// Generic page result containing jokes, cursor, and hasMore flag
@@ -91,6 +94,7 @@ class GenericPagingNotifier extends StateNotifier<PagingState> {
     required this.loadMoreThreshold,
     this.initialCursorProvider,
     this.onCursorChanged,
+    this.unviewedOnly = false,
   }) : super(const PagingState.initial()) {
     // Set up reset triggers
     for (final trigger in resetTriggers) {
@@ -121,6 +125,7 @@ class GenericPagingNotifier extends StateNotifier<PagingState> {
   final int loadMoreThreshold;
   final String? Function(Ref ref)? initialCursorProvider;
   final void Function(Ref ref, String?)? onCursorChanged;
+  final bool unviewedOnly;
 
   /// Current viewing index for auto-loading
   int _currentViewingIndex = 0;
@@ -222,13 +227,16 @@ class GenericPagingNotifier extends StateNotifier<PagingState> {
       final existingIds = Set<String>.from(
         state.loadedJokes.map((j) => j.joke.id),
       );
-      final newJokes = page.jokes
-          .where((jokeWithDate) => !existingIds.contains(jokeWithDate.joke.id))
-          .toList();
+      final newJokes = await filterJokes(
+        ref,
+        page.jokes,
+        filterViewed: unviewedOnly,
+        existingIds: existingIds,
+      );
 
       AppLogger.debug(
-        'PAGING_INTERNAL: After dedupe, ${newJokes.length} new jokes '
-        '(${page.jokes.length - newJokes.length} duplicates removed)',
+        'PAGING_INTERNAL: After filters, ${newJokes.length} new jokes '
+        '(${page.jokes.length - newJokes.length} removed)',
       );
 
       final appended = <JokeWithDate>[...state.loadedJokes, ...newJokes];
@@ -346,6 +354,7 @@ PagingProviderBundle createPagingProviders({
   required int loadMoreThreshold,
   String? Function(Ref ref)? initialCursorProvider,
   void Function(Ref ref, String?)? onCursorChanged,
+  bool unviewedOnly = false,
 }) {
   // Create the main paging provider
   final pagingProvider =
@@ -360,6 +369,7 @@ PagingProviderBundle createPagingProviders({
           loadMoreThreshold: loadMoreThreshold,
           initialCursorProvider: initialCursorProvider,
           onCursorChanged: onCursorChanged,
+          unviewedOnly: unviewedOnly,
         );
       });
 
@@ -445,4 +455,118 @@ class JokeListDataSource {
   void updateViewingIndex(int index) {
     _ref.read(_bundle.paging.notifier).updateViewingIndex(index);
   }
+}
+
+/// Comprehensive filtering for jokes that applies deduplication, image,
+/// public timestamp, and unviewed filters.
+///
+/// - Deduplicates jokes by ID (keeps first occurrence)
+/// - Filters for jokes with both setup and punchline images
+/// - Filters for jokes with public timestamp before or equal to [now]
+/// - Filters out jokes that have already been viewed by the user
+///
+/// Returns a list of [JokeWithDate] objects that pass all filters.
+Future<List<JokeWithDate>> filterJokes(
+  Ref ref,
+  List<JokeWithDate> jokes, {
+  Set<String> existingIds = const {},
+  bool filterViewed = false,
+}) async {
+  List<JokeWithDate> filtered = dedupeJokes(jokes, existingIds);
+  filtered = filterJokesWithImages(filtered);
+  filtered = filterJokesByPublicTimestamp(ref, filtered);
+  filtered = filterViewed ? await filterViewedJokes(ref, filtered) : filtered;
+  return filtered;
+}
+
+/// Remove duplicate jokes by ID, keeping the first occurrence.
+List<JokeWithDate> dedupeJokes(
+  List<JokeWithDate> jokes,
+  Set<String> existingIds,
+) {
+  final seen = Set<String>.from(existingIds);
+  final deduped = jokes
+      .where((jokeWithDate) => seen.add(jokeWithDate.joke.id))
+      .toList();
+  _logJokesFiltered('deduped', jokes, deduped);
+  return deduped;
+}
+
+/// Filter for jokes with both setup and punchline images.
+List<JokeWithDate> filterJokesWithImages(List<JokeWithDate> jokes) {
+  final jokesWithImages = jokes.where((jokeWithDate) {
+    final joke = jokeWithDate.joke;
+    return (joke.setupImageUrl != null && joke.setupImageUrl!.isNotEmpty) &&
+        (joke.punchlineImageUrl != null && joke.punchlineImageUrl!.isNotEmpty);
+  }).toList();
+  _logJokesFiltered('has images', jokes, jokesWithImages);
+  return jokesWithImages;
+}
+
+/// Filter for jokes with public timestamp before or equal to now.
+List<JokeWithDate> filterJokesByPublicTimestamp(
+  Ref ref,
+  List<JokeWithDate> jokes,
+) {
+  final now = ref.read(clockProvider)();
+  final jokesWithTimestamp = jokes.where((jokeWithDate) {
+    final timestamp = jokeWithDate.joke.publicTimestamp;
+    if (timestamp == null) {
+      // Cached jokes don't have public timestamp, so include them.
+      return true;
+    }
+    return !timestamp.isAfter(now);
+  }).toList();
+  _logJokesFiltered('public timestamp', jokes, jokesWithTimestamp);
+  return jokesWithTimestamp;
+}
+
+/// Filter out jokes that have already been viewed by the user.
+Future<List<JokeWithDate>> filterViewedJokes(
+  Ref ref,
+  List<JokeWithDate> jokes,
+) async {
+  final jokeIds = jokes.map((jokeWithDate) => jokeWithDate.joke.id).toList();
+  final unviewedJokeIds = await ref
+      .read(appUsageServiceProvider)
+      .getUnviewedJokeIds(jokeIds);
+  final unviewedJokes = jokes
+      .where((jokeWithDate) => unviewedJokeIds.contains(jokeWithDate.joke.id))
+      .toList();
+
+  _logJokesFiltered('unviewed', jokes, unviewedJokes);
+  return unviewedJokes;
+}
+
+/// Log the diff if in debug mode.
+void _logJokesFiltered(
+  String filterName,
+  List<JokeWithDate> original,
+  List<JokeWithDate> filtered,
+) {
+  final numFiltered = original.length - filtered.length;
+  if (!kDebugMode || numFiltered == 0) {
+    return;
+  }
+
+  final originalIds = original
+      .map((jokeWithDate) => jokeWithDate.joke.id)
+      .toList();
+  final filteredIds = filtered
+      .map((jokeWithDate) => jokeWithDate.joke.id)
+      .toSet();
+
+  // Original and filtered may differ by duplicates, so iterate over the
+  // original and remove from filtered at each step to find the diff.
+  final removedIds = <String>[];
+  for (final id in originalIds) {
+    if (!filteredIds.contains(id)) {
+      removedIds.add(id);
+    } else {
+      filteredIds.remove(id);
+    }
+  }
+  AppLogger.debug(
+    'PAGING_INTERNAL: FILTER: $filterName: Filtered out $numFiltered jokes: $removedIds',
+  );
 }

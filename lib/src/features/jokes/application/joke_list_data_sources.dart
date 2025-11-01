@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
@@ -194,6 +193,7 @@ final compositeJokePagingProviders = createPagingProviders(
   initialPageSize: 3,
   loadPageSize: 12,
   loadMoreThreshold: 5,
+  unviewedOnly: true,
 );
 
 /// Priority data sources that take precedence over composite sources.
@@ -232,7 +232,7 @@ final List<CompositeJokeSubSource> _compositeSubSources = [
     id: 'best_jokes',
     minIndex: CompositeJokeSourceBoundaries.bestJokesMinIndex,
     maxIndex: CompositeJokeSourceBoundaries.bestJokesMaxIndex,
-    load: (Ref ref, int limit, String? cursor) => _loadOrderedJokesPage(
+    load: (Ref ref, int limit, String? cursor) => _loadFirestoreJokes(
       ref,
       limit,
       cursor,
@@ -253,7 +253,7 @@ final List<CompositeJokeSubSource> _compositeSubSources = [
     id: 'all_jokes_public_timestamp',
     minIndex: CompositeJokeSourceBoundaries.publicMinIndex,
     maxIndex: CompositeJokeSourceBoundaries.publicMaxIndex,
-    load: (Ref ref, int limit, String? cursor) => _loadOrderedJokesPage(
+    load: (Ref ref, int limit, String? cursor) => _loadFirestoreJokes(
       ref,
       limit,
       cursor,
@@ -463,79 +463,6 @@ int calculateEffectiveLimit(int totalJokesLoaded, int limit) {
   return boundary - totalJokesLoaded;
 }
 
-/// Comprehensive filtering for jokes that applies deduplication, image,
-/// public timestamp, and unviewed filters.
-///
-/// - Deduplicates jokes by ID (keeps first occurrence)
-/// - Filters for jokes with both setup and punchline images
-/// - Filters for jokes with public timestamp before or equal to [now]
-/// - Filters out jokes that have already been viewed by the user
-///
-/// Returns a list of [JokeWithDate] objects that pass all filters.
-Future<List<JokeWithDate>> filterJokes(
-  Ref ref,
-  List<JokeWithDate> jokes,
-) async {
-  final deduped = _dedupeJokes(jokes);
-  final withImages = _filterJokesWithImages(deduped);
-  final withTimestamp = _filterJokesByPublicTimestamp(ref, withImages);
-  return await _filterViewedJokes(ref, withTimestamp);
-}
-
-/// Remove duplicate jokes by ID, keeping the first occurrence.
-List<JokeWithDate> _dedupeJokes(List<JokeWithDate> jokes) {
-  final seen = <String>{};
-  return jokes.where((jokeWithDate) => seen.add(jokeWithDate.joke.id)).toList();
-}
-
-/// Filter for jokes with both setup and punchline images.
-List<JokeWithDate> _filterJokesWithImages(List<JokeWithDate> jokes) {
-  return jokes.where((jokeWithDate) {
-    final joke = jokeWithDate.joke;
-    return (joke.setupImageUrl != null && joke.setupImageUrl!.isNotEmpty) &&
-        (joke.punchlineImageUrl != null && joke.punchlineImageUrl!.isNotEmpty);
-  }).toList();
-}
-
-/// Filter for jokes with public timestamp before or equal to now.
-List<JokeWithDate> _filterJokesByPublicTimestamp(
-  Ref ref,
-  List<JokeWithDate> jokes,
-) {
-  final now = ref.read(clockProvider)();
-  return jokes.where((jokeWithDate) {
-    final timestamp = jokeWithDate.joke.publicTimestamp;
-    if (timestamp == null) return false;
-    return !timestamp.isAfter(now);
-  }).toList();
-}
-
-/// Filter out jokes that have already been viewed by the user.
-Future<List<JokeWithDate>> _filterViewedJokes(
-  Ref ref,
-  List<JokeWithDate> jokes,
-) async {
-  final jokeIds = jokes.map((jokeWithDate) => jokeWithDate.joke.id).toList();
-  final unviewedJokeIds = await ref
-      .read(appUsageServiceProvider)
-      .getUnviewedJokeIds(jokeIds);
-  final unviewedJokes = jokes
-      .where((jokeWithDate) => unviewedJokeIds.contains(jokeWithDate.joke.id))
-      .toList();
-
-  // Log the jokes that were filtered out for debugging
-  if (kDebugMode && unviewedJokes.length != jokeIds.length) {
-    final viewedJokeIds = jokeIds
-        .where((id) => !unviewedJokeIds.contains(id))
-        .toList();
-    AppLogger.info(
-      'PAGING_INTERNAL: Filtering out ${viewedJokeIds.length} viewed jokes: $viewedJokeIds',
-    );
-  }
-
-  return unviewedJokes;
-}
-
 /// Interleave composite subsource pages in round-robin order up to [limit].
 List<JokeWithDate> interleaveCompositePages(
   Map<String, PageResult> pagesBySubSourceId,
@@ -590,7 +517,6 @@ Future<PageResult> createNextPage({
     if (page == null) continue;
     concatenatedPriorityJokes.addAll(page.jokes);
   }
-  final filteredPriority = await filterJokes(ref, concatenatedPriorityJokes);
 
   // Determine composite source order from declared composite subsources
   final compositeOrder = _compositeSubSources
@@ -602,12 +528,11 @@ Future<PageResult> createNextPage({
     compositePages,
     compositeOrder,
   );
-  final filteredComposite = await filterJokes(ref, interleavedComposite);
 
   // Combine jokes (priority first, then composite)
   final combinedJokes = <JokeWithDate>[
-    ...filteredPriority,
-    ...filteredComposite,
+    ...concatenatedPriorityJokes,
+    ...interleavedComposite,
   ];
 
   // Update cursor
@@ -640,7 +565,7 @@ Future<PageResult> createNextPage({
 
   final nextCursor = CompositeCursor(
     // Priority sources are not counted towards total jokes loaded.
-    totalJokesLoaded: current.totalJokesLoaded + filteredComposite.length,
+    totalJokesLoaded: current.totalJokesLoaded + interleavedComposite.length,
     subSourceCursors: updatedCompositeCursor,
     prioritySourceCursors: updatedPriorityCursors,
   ).encode();
@@ -649,7 +574,7 @@ Future<PageResult> createNextPage({
   return PageResult(jokes: combinedJokes, cursor: nextCursor, hasMore: true);
 }
 
-Future<PageResult> _loadOrderedJokesPage(
+Future<PageResult> _loadFirestoreJokes(
   Ref ref,
   int limit,
   String? cursor, {
@@ -671,19 +596,21 @@ Future<PageResult> _loadOrderedJokesPage(
     cursor: pageCursor,
   );
 
-  if (page.ids.isEmpty) {
+  if (page.jokes == null || page.ids.isEmpty) {
     return const PageResult(jokes: [], cursor: null, hasMore: false);
   }
 
-  final jokes = page.jokes ?? await repository.getJokesByIds(page.ids);
-  final jokesWithDate = jokes
+  final jokesWithDate = page.jokes!
       .map((j) => JokeWithDate(joke: j, dataSource: dataSource))
       .toList();
-  final filtered = await filterJokes(ref, jokesWithDate);
 
   final nextCursor = page.cursor?.serialize();
 
-  return PageResult(jokes: filtered, cursor: nextCursor, hasMore: page.hasMore);
+  return PageResult(
+    jokes: jokesWithDate,
+    cursor: nextCursor,
+    hasMore: page.hasMore,
+  );
 }
 
 /// Load random jokes with wrapping logic for infinite traversal.
@@ -697,7 +624,7 @@ Future<PageResult> loadRandomJokesWithWrapping(
   String? effectiveCursor = await getRandomJokeEffectiveCursor(ref, cursor);
 
   // Load the page
-  final result = await _loadOrderedJokesPage(
+  final result = await _loadFirestoreJokes(
     ref,
     limit,
     effectiveCursor,
@@ -758,7 +685,7 @@ Future<PageResult> _loadCategoryPage(Ref ref, int limit, String? cursor) async {
     case CategoryType.search:
       return _loadSearchCategoryPageFromCache(ref, category, limit, cursor);
     case CategoryType.popular:
-      return _loadOrderedJokesPage(
+      return _loadFirestoreJokes(
         ref,
         limit,
         cursor,
@@ -822,17 +749,16 @@ Future<PageResult> _loadSearchCategoryPageFromCache(
             JokeWithDate(joke: j, dataSource: 'category:search:${category.id}'),
       )
       .toList();
-  final filtered = await filterJokes(ref, jokesWithDate);
 
   final nextOffset = offset + limit;
   final hasMore = nextOffset < cachedJokes.length;
 
   AppLogger.debug(
-    'PAGING_INTERNAL: Loaded cached category page at offset $offset, fetched ${filtered.length} jokes, total cached: ${cachedJokes.length}, hasMore: $hasMore',
+    'PAGING_INTERNAL: Loaded cached category page at offset $offset, fetched ${jokesWithDate.length} jokes, total cached: ${cachedJokes.length}, hasMore: $hasMore',
   );
 
   return PageResult(
-    jokes: filtered,
+    jokes: jokesWithDate,
     cursor: hasMore ? nextOffset.toString() : null,
     hasMore: hasMore,
     totalCount: cachedJokes.length,
@@ -890,11 +816,14 @@ Future<PageResult> _loadSeasonalCategoryPage(
         ),
       )
       .toList();
-  final filtered = await filterJokes(ref, jokesWithDate);
 
   final nextCursor = page.cursor?.serialize();
 
-  return PageResult(jokes: filtered, cursor: nextCursor, hasMore: page.hasMore);
+  return PageResult(
+    jokes: jokesWithDate,
+    cursor: nextCursor,
+    hasMore: page.hasMore,
+  );
 }
 
 // Settings key for tracking last delivered today joke
@@ -993,18 +922,17 @@ _makeLoadSearchPage(SearchScope scope) {
     final jokesWithDate = jokes
         .map((j) => JokeWithDate(joke: j, dataSource: 'search:${scope.name}'))
         .toList();
-    final filtered = await filterJokes(ref, jokesWithDate);
 
     // Calculate next cursor and hasMore
     final nextOffset = offset + limit;
     final hasMore = nextOffset < allResults.length;
 
     AppLogger.debug(
-      'PAGING_INTERNAL: Loaded search page at offset $offset, fetched ${filtered.length} jokes, total results: ${allResults.length}, hasMore: $hasMore',
+      'PAGING_INTERNAL: Loaded search page at offset $offset, fetched ${jokesWithDate.length} jokes, total results: ${allResults.length}, hasMore: $hasMore',
     );
 
     return PageResult(
-      jokes: filtered,
+      jokes: jokesWithDate,
       cursor: hasMore ? nextOffset.toString() : null,
       hasMore: hasMore,
       totalCount: allResults.length,
@@ -1051,7 +979,7 @@ Future<PageResult> loadDailyJokesPage(
   }
 
   // Extract jokes from batch; sort by day descending (newest first)
-  final jokesWithDates = <JokeWithDate>[];
+  final jokesWithDate = <JokeWithDate>[];
   final sortedDays = batch.jokes.keys.toList()..sort((a, b) => b.compareTo(a));
 
   for (final dayKey in sortedDays) {
@@ -1063,22 +991,20 @@ Future<PageResult> loadDailyJokesPage(
 
     final jokeDate = DateTime(batch.year, batch.month, day);
     if (!jokeDate.isAfter(today)) {
-      jokesWithDates.add(
+      jokesWithDate.add(
         JokeWithDate(joke: joke, date: jokeDate, dataSource: 'daily'),
       );
     }
   }
-
-  final filtered = await filterJokes(ref, jokesWithDates);
 
   // Compute next cursor as previous month; keep paginating until no batch exists
   final previousMonth = DateTime(targetMonth.year, targetMonth.month - 1);
   final nextCursor = '${previousMonth.year}_${previousMonth.month.toString()}';
 
   // Update the most recent daily joke date
-  if (filtered.isNotEmpty) {
+  if (jokesWithDate.isNotEmpty) {
     final mostRecentJokeDate = ref.read(dailyJokesMostRecentDateProvider);
-    final firstJokeDate = filtered.first.date;
+    final firstJokeDate = jokesWithDate.first.date;
     if (firstJokeDate != null &&
         (mostRecentJokeDate == null ||
             firstJokeDate.isAfter(mostRecentJokeDate))) {
@@ -1087,9 +1013,9 @@ Future<PageResult> loadDailyJokesPage(
   }
 
   AppLogger.debug(
-    'PAGING_INTERNAL: Loaded daily jokes page with cursor "$cursor", fetched ${filtered.length} jokes, next cursor: "$nextCursor"',
+    'PAGING_INTERNAL: Loaded daily jokes page with cursor "$cursor", fetched ${jokesWithDate.length} jokes, next cursor: "$nextCursor"',
   );
-  return PageResult(jokes: filtered, cursor: nextCursor, hasMore: true);
+  return PageResult(jokes: jokesWithDate, cursor: nextCursor, hasMore: true);
 }
 
 /// Determines if daily jokes should be reset due to stale data.
@@ -1172,17 +1098,15 @@ Future<PageResult> _loadSavedJokesPage(
     }
   }
 
-  final filtered = await filterJokes(ref, jokesWithDate);
-
   final nextOffset = offset + limit;
   final hasMore = nextOffset < savedJokeIds.length;
 
   AppLogger.debug(
-    'PAGING_INTERNAL: Loaded saved jokes page at offset $offset, fetched ${filtered.length} jokes, total saved: ${savedJokeIds.length}, hasMore: $hasMore',
+    'PAGING_INTERNAL: Loaded saved jokes page at offset $offset, fetched ${jokesWithDate.length} jokes, total saved: ${savedJokeIds.length}, hasMore: $hasMore',
   );
 
   return PageResult(
-    jokes: filtered,
+    jokes: jokesWithDate,
     cursor: hasMore ? nextOffset.toString() : null,
     hasMore: hasMore,
     totalCount: savedJokeIds.length,

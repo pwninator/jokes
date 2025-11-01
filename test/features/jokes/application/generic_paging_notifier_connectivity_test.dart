@@ -47,7 +47,7 @@ void main() {
       final bundle = createPagingProviders(
         loadPage: loadPage,
         resetTriggers: const [],
-        errorAnalyticsSource: 'test',
+        dataSourceName: 'test',
         initialPageSize: 1,
         loadPageSize: 1,
         loadMoreThreshold: 1,
@@ -99,7 +99,7 @@ void main() {
       final bundle = createPagingProviders(
         loadPage: loadPage,
         resetTriggers: const [],
-        errorAnalyticsSource: 'test',
+        dataSourceName: 'test',
         initialPageSize: 2,
         loadPageSize: 2,
         loadMoreThreshold: 1,
@@ -200,7 +200,7 @@ void main() {
       final bundle = createPagingProviders(
         loadPage: loadPage,
         resetTriggers: const [],
-        errorAnalyticsSource: 'test',
+        dataSourceName: 'test',
         initialPageSize: 1,
         loadPageSize: 1,
         loadMoreThreshold: -1,

@@ -307,33 +307,36 @@ void main() {
       ).called(1);
     });
 
-    test('logs joke punchline viewed with suffix appended to context', () async {
-      analyticsService.logJokePunchlineViewed(
-        'j456',
-        navigationMethod: 'tap',
-        jokeContext: 'saved',
-        jokeContextSuffix: 'category',
-        jokeViewerMode: JokeViewerMode.bothAdaptive,
-      );
+    test(
+      'logs joke punchline viewed with suffix appended to context',
+      () async {
+        analyticsService.logJokePunchlineViewed(
+          'j456',
+          navigationMethod: 'tap',
+          jokeContext: 'saved',
+          jokeContextSuffix: 'category',
+          jokeViewerMode: JokeViewerMode.bothAdaptive,
+        );
 
-      await Future.delayed(Duration.zero);
+        await Future.delayed(Duration.zero);
 
-      final matcher = predicate<Map<String, Object>>(
-        (params) =>
-            params[AnalyticsParameters.jokeId] == 'j456' &&
-            params[AnalyticsParameters.navigationMethod] == 'tap' &&
-            params[AnalyticsParameters.jokeContext] == 'saved:category' &&
-            params[AnalyticsParameters.jokeViewerMode] == 'bothAdaptive',
-        'includes all joke punchline viewed parameters with suffixed context',
-      );
+        final matcher = predicate<Map<String, Object>>(
+          (params) =>
+              params[AnalyticsParameters.jokeId] == 'j456' &&
+              params[AnalyticsParameters.navigationMethod] == 'tap' &&
+              params[AnalyticsParameters.jokeContext] == 'saved:category' &&
+              params[AnalyticsParameters.jokeViewerMode] == 'bothAdaptive',
+          'includes all joke punchline viewed parameters with suffixed context',
+        );
 
-      verify(
-        () => mockFirebaseAnalytics.logEvent(
-          name: 'joke_punchline_viewed',
-          parameters: any(named: 'parameters', that: matcher),
-        ),
-      ).called(1);
-    });
+        verify(
+          () => mockFirebaseAnalytics.logEvent(
+            name: 'joke_punchline_viewed',
+            parameters: any(named: 'parameters', that: matcher),
+          ),
+        ).called(1);
+      },
+    );
   });
 
   group('logJokeViewed', () {
@@ -638,6 +641,34 @@ void main() {
         () => mockFirebaseAnalytics.logEvent(
           name: 'joke_navigated',
           parameters: any(named: 'parameters', that: matcher),
+        ),
+      ).called(1);
+    });
+  });
+
+  group('logJokeEndReached', () {
+    test('logs joke end reached with context as event name suffix', () async {
+      analyticsService.logJokeEndReached(jokeContext: 'daily');
+
+      await Future.delayed(Duration.zero);
+
+      verify(
+        () => mockFirebaseAnalytics.logEvent(
+          name: 'joke_end_reached_daily',
+          parameters: any(named: 'parameters', that: isEmpty),
+        ),
+      ).called(1);
+    });
+
+    test('logs joke end reached with different contexts', () async {
+      analyticsService.logJokeEndReached(jokeContext: 'saved');
+
+      await Future.delayed(Duration.zero);
+
+      verify(
+        () => mockFirebaseAnalytics.logEvent(
+          name: 'joke_end_reached_saved',
+          parameters: any(named: 'parameters', that: isEmpty),
         ),
       ).called(1);
     });

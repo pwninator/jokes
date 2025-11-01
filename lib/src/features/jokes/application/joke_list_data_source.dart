@@ -88,7 +88,7 @@ class GenericPagingNotifier extends StateNotifier<PagingState> {
     required this.ref,
     required this.loadPage,
     required this.resetTriggers,
-    required this.errorAnalyticsSource,
+    required this.dataSourceName,
     required this.initialPageSize,
     required this.loadPageSize,
     required this.loadMoreThreshold,
@@ -119,7 +119,7 @@ class GenericPagingNotifier extends StateNotifier<PagingState> {
   final Ref ref;
   final Future<PageResult> Function(int limit, String? cursor) loadPage;
   final List<ResetTrigger> resetTriggers;
-  final String errorAnalyticsSource;
+  final String dataSourceName;
   final int initialPageSize;
   final int loadPageSize;
   final int loadMoreThreshold;
@@ -196,7 +196,7 @@ class GenericPagingNotifier extends StateNotifier<PagingState> {
       cursor: startCursor,
       hasMore: true,
     );
-    await _loadInternal(limit: initialPageSize, useCursor: startCursor);
+    await _loadInternal(limit: initialPageSize, cursor: startCursor);
   }
 
   Future<void> loadMore() async {
@@ -207,14 +207,14 @@ class GenericPagingNotifier extends StateNotifier<PagingState> {
     if (state.isLoading || !state.hasMore) return;
     if (_isInRetryBackoff() || !isOnlineNow(ref)) return;
     state = state.copyWith(isLoading: true);
-    await _loadInternal(limit: loadPageSize, useCursor: state.cursor);
+    await _loadInternal(limit: loadPageSize, cursor: state.cursor);
   }
 
-  Future<void> _loadInternal({required int limit, String? useCursor}) async {
+  Future<void> _loadInternal({required int limit, String? cursor}) async {
     if (!mounted) return;
     try {
       final previousCursor = state.cursor;
-      final page = await loadPage(limit, useCursor);
+      final page = await loadPage(limit, cursor);
       if (!mounted) return;
 
       AppLogger.debug(
@@ -250,6 +250,11 @@ class GenericPagingNotifier extends StateNotifier<PagingState> {
           page.hasMore &&
           (page.jokes.isNotEmpty || newCursor != previousCursor);
 
+      if (!effectiveHasMore) {
+        final analytics = ref.read(analyticsServiceProvider);
+        analytics.logJokeEndReached(jokeContext: dataSourceName);
+      }
+
       if (!mounted) return;
       state = state.copyWith(
         loadedJokes: appended,
@@ -282,7 +287,7 @@ class GenericPagingNotifier extends StateNotifier<PagingState> {
       // Log via analytics provider
       final analytics = ref.read(analyticsServiceProvider);
       analytics.logErrorJokesLoad(
-        source: errorAnalyticsSource,
+        source: dataSourceName,
         errorMessage: e.toString(),
       );
     }
@@ -348,7 +353,7 @@ PagingProviderBundle createPagingProviders({
   required Future<PageResult> Function(Ref ref, int limit, String? cursor)
   loadPage,
   required List<ResetTrigger> resetTriggers,
-  required String errorAnalyticsSource,
+  required String dataSourceName,
   required int initialPageSize,
   required int loadPageSize,
   required int loadMoreThreshold,
@@ -363,7 +368,7 @@ PagingProviderBundle createPagingProviders({
           ref: ref,
           loadPage: (limit, cursor) => loadPage(ref, limit, cursor),
           resetTriggers: resetTriggers,
-          errorAnalyticsSource: errorAnalyticsSource,
+          dataSourceName: dataSourceName,
           initialPageSize: initialPageSize,
           loadPageSize: loadPageSize,
           loadMoreThreshold: loadMoreThreshold,

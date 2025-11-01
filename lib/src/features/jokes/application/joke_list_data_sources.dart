@@ -79,7 +79,7 @@ final _userJokeSearchProviders = createPagingProviders(
     ),
   ],
   // Scope-specific analytics source label
-  errorAnalyticsSource: 'search:${SearchScope.userJokeSearch.name}',
+  dataSourceName: 'search:${SearchScope.userJokeSearch.name}',
   initialPageSize: 2,
   loadPageSize: 5,
   loadMoreThreshold: 5,
@@ -93,7 +93,7 @@ final PagingProviderBundle _dailyJokesPagingProviders = createPagingProviders(
       shouldReset: shouldResetDailyJokesForStaleData,
     ),
   ],
-  errorAnalyticsSource: 'daily_jokes',
+  dataSourceName: 'daily_jokes',
   initialPageSize: 5,
   loadPageSize: 10,
   loadMoreThreshold: 10,
@@ -111,7 +111,7 @@ final _savedJokesPagingProviders = createPagingProviders(
     ),
   ],
 
-  errorAnalyticsSource: 'saved_jokes',
+  dataSourceName: 'saved_jokes',
   initialPageSize: 3,
   loadPageSize: 10,
   loadMoreThreshold: 5,
@@ -126,7 +126,7 @@ final _categoryPagingProviders = createPagingProviders(
           (prev as JokeCategory?)?.id != (next as JokeCategory?)?.id,
     ),
   ],
-  errorAnalyticsSource: 'category',
+  dataSourceName: 'category',
   initialPageSize: 2,
   loadPageSize: 5,
   loadMoreThreshold: 5,
@@ -189,7 +189,7 @@ final compositeJokePagingProviders = createPagingProviders(
     unawaited(settings.setString(compositeJokeCursorPrefsKey, cursor));
     AppLogger.debug('PAGING_INTERNAL: Saved composite cursor: $cursor');
   },
-  errorAnalyticsSource: 'composite_jokes',
+  dataSourceName: 'composite_jokes',
   initialPageSize: 3,
   loadPageSize: 12,
   loadMoreThreshold: 5,

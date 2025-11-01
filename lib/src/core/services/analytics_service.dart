@@ -90,6 +90,9 @@ abstract class AnalyticsService {
     required String screenOrientation,
   });
 
+  /// Log when user reaches the end of the joke list
+  void logJokeEndReached({required String jokeContext});
+
   // Ads: banner lifecycle
   void logAdBannerStatus({required String eligibilityStatus});
 
@@ -532,6 +535,15 @@ class FirebaseAnalyticsService implements AnalyticsService {
       AnalyticsParameters.screenOrientation: screenOrientation,
       AnalyticsParameters.jokeNavigatedCount: 1,
     });
+  }
+
+  @override
+  void logJokeEndReached({required String jokeContext}) {
+    _logEvent(
+      AnalyticsEvent.jokeEndReached,
+      {},
+      eventNameSuffix: '_$jokeContext',
+    );
   }
 
   // =====================

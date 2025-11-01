@@ -127,7 +127,7 @@
       "parameters": {
         "feed_screen_enabled": {
           "defaultValue": {
-            "value": "false"
+            "value": "true"
           },
           "description": "Enable Feed screen as the first tab (daily jokes will be hidden)",
           "valueType": "BOOLEAN"

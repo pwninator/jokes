@@ -105,7 +105,7 @@ const Map<RemoteParam, RemoteParamDescriptor> remoteParams = {
   //////////////////////
   RemoteParam.feedScreenEnabled: BoolRemoteParamDescriptor(
     key: 'feed_screen_enabled',
-    defaultBool: false,
+    defaultBool: true,
   ),
 };
 

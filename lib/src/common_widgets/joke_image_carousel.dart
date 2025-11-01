@@ -133,6 +133,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
               navigationMethod:
                   _navMethodSetup ?? AnalyticsNavigationMethod.none,
               jokeContext: widget.jokeContext,
+              jokeContextSuffix: widget.dataSource,
               jokeViewerMode: widget.mode,
             );
           }
@@ -167,6 +168,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
                       _navMethodPunchline ??
                       AnalyticsNavigationMethod.programmatic,
                   jokeContext: widget.jokeContext,
+                  jokeContextSuffix: widget.dataSource,
                   jokeViewerMode: widget.mode,
                 );
               }
@@ -184,6 +186,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
               navigationMethod:
                   _navMethodPunchline ?? AnalyticsNavigationMethod.swipe,
               jokeContext: widget.jokeContext,
+              jokeContextSuffix: widget.dataSource,
               jokeViewerMode: widget.mode,
             );
           }
@@ -216,6 +219,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
         totalJokesViewed: jokesViewedCount,
         navigationMethod: _lastNavigationMethod,
         jokeContext: widget.jokeContext,
+        jokeContextSuffix: widget.dataSource,
         jokeViewerMode: widget.mode,
       );
       // Re-check mounted before reading another provider

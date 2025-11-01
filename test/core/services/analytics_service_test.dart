@@ -222,6 +222,120 @@ void main() {
     );
   });
 
+  group('logJokeSetupViewed', () {
+    test('logs joke setup viewed without suffix', () async {
+      analyticsService.logJokeSetupViewed(
+        'j123',
+        navigationMethod: 'swipe',
+        jokeContext: 'daily',
+        jokeViewerMode: JokeViewerMode.reveal,
+      );
+
+      await Future.delayed(Duration.zero);
+
+      final matcher = predicate<Map<String, Object>>(
+        (params) =>
+            params[AnalyticsParameters.jokeId] == 'j123' &&
+            params[AnalyticsParameters.navigationMethod] == 'swipe' &&
+            params[AnalyticsParameters.jokeContext] == 'daily' &&
+            params[AnalyticsParameters.jokeViewerMode] == 'reveal',
+        'includes all joke setup viewed parameters',
+      );
+
+      verify(
+        () => mockFirebaseAnalytics.logEvent(
+          name: 'joke_setup_viewed',
+          parameters: any(named: 'parameters', that: matcher),
+        ),
+      ).called(1);
+    });
+
+    test('logs joke setup viewed with suffix appended to context', () async {
+      analyticsService.logJokeSetupViewed(
+        'j456',
+        navigationMethod: 'tap',
+        jokeContext: 'saved',
+        jokeContextSuffix: 'category',
+        jokeViewerMode: JokeViewerMode.bothAdaptive,
+      );
+
+      await Future.delayed(Duration.zero);
+
+      final matcher = predicate<Map<String, Object>>(
+        (params) =>
+            params[AnalyticsParameters.jokeId] == 'j456' &&
+            params[AnalyticsParameters.navigationMethod] == 'tap' &&
+            params[AnalyticsParameters.jokeContext] == 'saved:category' &&
+            params[AnalyticsParameters.jokeViewerMode] == 'bothAdaptive',
+        'includes all joke setup viewed parameters with suffixed context',
+      );
+
+      verify(
+        () => mockFirebaseAnalytics.logEvent(
+          name: 'joke_setup_viewed',
+          parameters: any(named: 'parameters', that: matcher),
+        ),
+      ).called(1);
+    });
+  });
+
+  group('logJokePunchlineViewed', () {
+    test('logs joke punchline viewed without suffix', () async {
+      analyticsService.logJokePunchlineViewed(
+        'j123',
+        navigationMethod: 'swipe',
+        jokeContext: 'daily',
+        jokeViewerMode: JokeViewerMode.reveal,
+      );
+
+      await Future.delayed(Duration.zero);
+
+      final matcher = predicate<Map<String, Object>>(
+        (params) =>
+            params[AnalyticsParameters.jokeId] == 'j123' &&
+            params[AnalyticsParameters.navigationMethod] == 'swipe' &&
+            params[AnalyticsParameters.jokeContext] == 'daily' &&
+            params[AnalyticsParameters.jokeViewerMode] == 'reveal',
+        'includes all joke punchline viewed parameters',
+      );
+
+      verify(
+        () => mockFirebaseAnalytics.logEvent(
+          name: 'joke_punchline_viewed',
+          parameters: any(named: 'parameters', that: matcher),
+        ),
+      ).called(1);
+    });
+
+    test('logs joke punchline viewed with suffix appended to context', () async {
+      analyticsService.logJokePunchlineViewed(
+        'j456',
+        navigationMethod: 'tap',
+        jokeContext: 'saved',
+        jokeContextSuffix: 'category',
+        jokeViewerMode: JokeViewerMode.bothAdaptive,
+      );
+
+      await Future.delayed(Duration.zero);
+
+      final matcher = predicate<Map<String, Object>>(
+        (params) =>
+            params[AnalyticsParameters.jokeId] == 'j456' &&
+            params[AnalyticsParameters.navigationMethod] == 'tap' &&
+            params[AnalyticsParameters.jokeContext] == 'saved:category' &&
+            params[AnalyticsParameters.jokeViewerMode] == 'bothAdaptive',
+        'includes all joke punchline viewed parameters with suffixed context',
+      );
+
+      verify(
+        () => mockFirebaseAnalytics.logEvent(
+          name: 'joke_punchline_viewed',
+          parameters: any(named: 'parameters', that: matcher),
+        ),
+      ).called(1);
+    });
+  });
+
   group('logJokeViewed', () {
     test(
       'logs standard event only when total jokes viewed below threshold',
@@ -295,6 +409,37 @@ void main() {
       verify(
         () => mockFirebaseAnalytics.logEvent(
           name: 'joke_viewed_high',
+          parameters: any(named: 'parameters', that: matcher),
+        ),
+      ).called(1);
+    });
+
+    test('logs joke viewed with suffix appended to context', () async {
+      analyticsService.logJokeViewed(
+        'j789',
+        totalJokesViewed: 5,
+        navigationMethod: 'swipe',
+        jokeContext: 'feed',
+        jokeContextSuffix: 'search',
+        jokeViewerMode: JokeViewerMode.reveal,
+      );
+
+      await Future.delayed(Duration.zero);
+
+      final matcher = predicate<Map<String, Object>>(
+        (params) =>
+            params[AnalyticsParameters.jokeId] == 'j789' &&
+            params[AnalyticsParameters.totalJokesViewed] == 5 &&
+            params[AnalyticsParameters.navigationMethod] == 'swipe' &&
+            params[AnalyticsParameters.jokeContext] == 'feed:search' &&
+            params[AnalyticsParameters.jokeViewerMode] == 'reveal' &&
+            params[AnalyticsParameters.jokeViewedCount] == 1,
+        'includes all joke viewed parameters with suffixed context',
+      );
+
+      verify(
+        () => mockFirebaseAnalytics.logEvent(
+          name: 'joke_viewed',
           parameters: any(named: 'parameters', that: matcher),
         ),
       ).called(1);
@@ -425,5 +570,76 @@ void main() {
         ).called(1);
       },
     );
+  });
+
+  group('logJokeNavigation', () {
+    test('logs joke navigation without suffix', () async {
+      analyticsService.logJokeNavigation(
+        'j123',
+        5,
+        method: 'swipe',
+        jokeContext: 'daily',
+        jokeViewerMode: JokeViewerMode.reveal,
+        brightness: Brightness.light,
+        screenOrientation: 'portrait',
+      );
+
+      await Future.delayed(Duration.zero);
+
+      final matcher = predicate<Map<String, Object>>(
+        (params) =>
+            params[AnalyticsParameters.jokeId] == 'j123' &&
+            params[AnalyticsParameters.jokeScrollDepth] == 5 &&
+            params[AnalyticsParameters.navigationMethod] == 'swipe' &&
+            params[AnalyticsParameters.jokeContext] == 'daily' &&
+            params[AnalyticsParameters.jokeViewerMode] == 'reveal' &&
+            params[AnalyticsParameters.appTheme] == 'light' &&
+            params[AnalyticsParameters.screenOrientation] == 'portrait' &&
+            params[AnalyticsParameters.jokeNavigatedCount] == 1,
+        'includes all joke navigation parameters',
+      );
+
+      verify(
+        () => mockFirebaseAnalytics.logEvent(
+          name: 'joke_navigated',
+          parameters: any(named: 'parameters', that: matcher),
+        ),
+      ).called(1);
+    });
+
+    test('logs joke navigation with suffix appended to context', () async {
+      analyticsService.logJokeNavigation(
+        'j456',
+        10,
+        method: 'tap',
+        jokeContext: 'saved',
+        jokeContextSuffix: 'category',
+        jokeViewerMode: JokeViewerMode.bothAdaptive,
+        brightness: Brightness.dark,
+        screenOrientation: 'landscape',
+      );
+
+      await Future.delayed(Duration.zero);
+
+      final matcher = predicate<Map<String, Object>>(
+        (params) =>
+            params[AnalyticsParameters.jokeId] == 'j456' &&
+            params[AnalyticsParameters.jokeScrollDepth] == 10 &&
+            params[AnalyticsParameters.navigationMethod] == 'tap' &&
+            params[AnalyticsParameters.jokeContext] == 'saved:category' &&
+            params[AnalyticsParameters.jokeViewerMode] == 'bothAdaptive' &&
+            params[AnalyticsParameters.appTheme] == 'dark' &&
+            params[AnalyticsParameters.screenOrientation] == 'landscape' &&
+            params[AnalyticsParameters.jokeNavigatedCount] == 1,
+        'includes all joke navigation parameters with suffixed context',
+      );
+
+      verify(
+        () => mockFirebaseAnalytics.logEvent(
+          name: 'joke_navigated',
+          parameters: any(named: 'parameters', that: matcher),
+        ),
+      ).called(1);
+    });
   });
 }

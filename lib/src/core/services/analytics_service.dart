@@ -55,6 +55,7 @@ abstract class AnalyticsService {
     String jokeId, {
     required String navigationMethod,
     required String jokeContext,
+    String? jokeContextSuffix,
     required JokeViewerMode jokeViewerMode,
   });
 
@@ -63,6 +64,7 @@ abstract class AnalyticsService {
     String jokeId, {
     required String navigationMethod,
     required String jokeContext,
+    String? jokeContextSuffix,
     required JokeViewerMode jokeViewerMode,
   });
 
@@ -72,6 +74,7 @@ abstract class AnalyticsService {
     required int totalJokesViewed,
     required String navigationMethod,
     required String jokeContext,
+    String? jokeContextSuffix,
     required JokeViewerMode jokeViewerMode,
   });
 
@@ -81,6 +84,7 @@ abstract class AnalyticsService {
     int jokeScrollDepth, {
     required String method,
     required String jokeContext,
+    String? jokeContextSuffix,
     required JokeViewerMode jokeViewerMode,
     required Brightness brightness,
     required String screenOrientation,
@@ -433,17 +437,28 @@ class FirebaseAnalyticsService implements AnalyticsService {
     }
   }
 
+  /// Builds the final joke context by appending the suffix if provided.
+  String _buildJokeContext(String jokeContext, String? jokeContextSuffix) {
+    return jokeContextSuffix != null
+        ? '$jokeContext:$jokeContextSuffix'
+        : jokeContext;
+  }
+
   @override
   void logJokeSetupViewed(
     String jokeId, {
     required String navigationMethod,
     required String jokeContext,
+    String? jokeContextSuffix,
     required JokeViewerMode jokeViewerMode,
   }) {
     _logEvent(AnalyticsEvent.jokeSetupViewed, {
       AnalyticsParameters.jokeId: jokeId,
       AnalyticsParameters.navigationMethod: navigationMethod,
-      AnalyticsParameters.jokeContext: jokeContext,
+      AnalyticsParameters.jokeContext: _buildJokeContext(
+        jokeContext,
+        jokeContextSuffix,
+      ),
       AnalyticsParameters.jokeViewerMode: jokeViewerMode.name,
     });
   }
@@ -453,12 +468,16 @@ class FirebaseAnalyticsService implements AnalyticsService {
     String jokeId, {
     required String navigationMethod,
     required String jokeContext,
+    String? jokeContextSuffix,
     required JokeViewerMode jokeViewerMode,
   }) {
     _logEvent(AnalyticsEvent.jokePunchlineViewed, {
       AnalyticsParameters.jokeId: jokeId,
       AnalyticsParameters.navigationMethod: navigationMethod,
-      AnalyticsParameters.jokeContext: jokeContext,
+      AnalyticsParameters.jokeContext: _buildJokeContext(
+        jokeContext,
+        jokeContextSuffix,
+      ),
       AnalyticsParameters.jokeViewerMode: jokeViewerMode.name,
     });
   }
@@ -469,13 +488,17 @@ class FirebaseAnalyticsService implements AnalyticsService {
     required int totalJokesViewed,
     required String navigationMethod,
     required String jokeContext,
+    String? jokeContextSuffix,
     required JokeViewerMode jokeViewerMode,
   }) {
     final parameters = <String, dynamic>{
       AnalyticsParameters.jokeId: jokeId,
       AnalyticsParameters.totalJokesViewed: totalJokesViewed,
       AnalyticsParameters.navigationMethod: navigationMethod,
-      AnalyticsParameters.jokeContext: jokeContext,
+      AnalyticsParameters.jokeContext: _buildJokeContext(
+        jokeContext,
+        jokeContextSuffix,
+      ),
       AnalyticsParameters.jokeViewerMode: jokeViewerMode.name,
       AnalyticsParameters.jokeViewedCount: 1,
     };
@@ -491,6 +514,7 @@ class FirebaseAnalyticsService implements AnalyticsService {
     int jokeScrollDepth, {
     required String method,
     required String jokeContext,
+    String? jokeContextSuffix,
     required JokeViewerMode jokeViewerMode,
     required Brightness brightness,
     required String screenOrientation,
@@ -499,7 +523,10 @@ class FirebaseAnalyticsService implements AnalyticsService {
       AnalyticsParameters.jokeId: jokeId,
       AnalyticsParameters.jokeScrollDepth: jokeScrollDepth,
       AnalyticsParameters.navigationMethod: method,
-      AnalyticsParameters.jokeContext: jokeContext,
+      AnalyticsParameters.jokeContext: _buildJokeContext(
+        jokeContext,
+        jokeContextSuffix,
+      ),
       AnalyticsParameters.jokeViewerMode: jokeViewerMode.name,
       AnalyticsParameters.appTheme: brightness.name,
       AnalyticsParameters.screenOrientation: screenOrientation,

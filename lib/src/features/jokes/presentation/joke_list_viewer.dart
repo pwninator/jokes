@@ -295,6 +295,7 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
                       jokeScrollDepth,
                       method: _lastNavigationMethod,
                       jokeContext: widget.jokeContext,
+                      jokeContextSuffix: jokeWithDate.dataSource,
                       jokeViewerMode: viewerCtx.jokeViewerMode,
                       brightness: viewerCtx.brightness,
                       screenOrientation: viewerCtx.screenOrientation,

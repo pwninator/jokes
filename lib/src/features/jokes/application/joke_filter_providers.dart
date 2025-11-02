@@ -1,23 +1,25 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_state.dart';
 
+enum JokeAdminScoreFilter { none, popular, recent, best }
+
 // State class for joke filter
 class JokeFilterState {
   final Set<JokeState> selectedStates;
-  final bool showPopularOnly; // saves + shares > 0
+  final JokeAdminScoreFilter adminScoreFilter;
 
   const JokeFilterState({
     this.selectedStates = const {},
-    this.showPopularOnly = false,
+    this.adminScoreFilter = JokeAdminScoreFilter.none,
   });
 
   JokeFilterState copyWith({
     Set<JokeState>? selectedStates,
-    bool? showPopularOnly,
+    JokeAdminScoreFilter? adminScoreFilter,
   }) {
     return JokeFilterState(
       selectedStates: selectedStates ?? this.selectedStates,
-      showPopularOnly: showPopularOnly ?? this.showPopularOnly,
+      adminScoreFilter: adminScoreFilter ?? this.adminScoreFilter,
     );
   }
 
@@ -56,12 +58,15 @@ class JokeFilterNotifier extends StateNotifier<JokeFilterState> {
     state = state.copyWith(selectedStates: const {});
   }
 
-  void togglePopularOnly() {
-    state = state.copyWith(showPopularOnly: !state.showPopularOnly);
+  void toggleScoreFilter(JokeAdminScoreFilter filter) {
+    final nextFilter = state.adminScoreFilter == filter
+        ? JokeAdminScoreFilter.none
+        : filter;
+    state = state.copyWith(adminScoreFilter: nextFilter);
   }
 
-  void setPopularOnly(bool value) {
-    state = state.copyWith(showPopularOnly: value);
+  void setScoreFilter(JokeAdminScoreFilter filter) {
+    state = state.copyWith(adminScoreFilter: filter);
   }
 }
 

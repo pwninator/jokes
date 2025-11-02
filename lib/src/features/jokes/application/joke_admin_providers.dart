@@ -81,17 +81,35 @@ class AdminPagingNotifier extends StateNotifier<AdminPagingState> {
         ),
       );
     }
-    if (filterState.showPopularOnly) {
-      filters.add(JokeFilter.greaterThan(JokeField.popularityScore, 0.0));
+    switch (filterState.adminScoreFilter) {
+      case JokeAdminScoreFilter.popular:
+        filters.add(JokeFilter.greaterThan(JokeField.popularityScore, 0.0));
+        break;
+      case JokeAdminScoreFilter.recent:
+        filters.add(
+          JokeFilter.greaterThan(JokeField.popularityScoreRecent, 0.0),
+        );
+        break;
+      case JokeAdminScoreFilter.best:
+        filters.add(JokeFilter.greaterThan(JokeField.savedFraction, 0.0));
+        break;
+      case JokeAdminScoreFilter.none:
+        break;
     }
     return filters;
   }
 
   JokeField _getOrderByField(JokeFilterState filterState) {
-    if (filterState.showPopularOnly) {
-      return JokeField.popularityScore;
+    switch (filterState.adminScoreFilter) {
+      case JokeAdminScoreFilter.popular:
+        return JokeField.popularityScore;
+      case JokeAdminScoreFilter.recent:
+        return JokeField.popularityScoreRecent;
+      case JokeAdminScoreFilter.best:
+        return JokeField.savedFraction;
+      case JokeAdminScoreFilter.none:
+        return JokeField.creationTime;
     }
-    return JokeField.creationTime;
   }
 
   Future<void> loadFirstPage({int limit = defaultPageSize}) async {

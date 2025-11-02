@@ -348,11 +348,37 @@ class _JokeManagementScreenState extends ConsumerState<JokeManagementScreen> {
                     _AdminFilterChip(
                       key: const Key('popular-only-filter-chip'),
                       label: 'Popular',
-                      selected: filterState.showPopularOnly,
-                      onSelected: (selected) {
+                      selected:
+                          filterState.adminScoreFilter ==
+                          JokeAdminScoreFilter.popular,
+                      onSelected: (_) {
                         ref
                             .read(jokeFilterProvider.notifier)
-                            .togglePopularOnly();
+                            .toggleScoreFilter(JokeAdminScoreFilter.popular);
+                      },
+                    ),
+                    _AdminFilterChip(
+                      key: const Key('recent-only-filter-chip'),
+                      label: 'Recent',
+                      selected:
+                          filterState.adminScoreFilter ==
+                          JokeAdminScoreFilter.recent,
+                      onSelected: (_) {
+                        ref
+                            .read(jokeFilterProvider.notifier)
+                            .toggleScoreFilter(JokeAdminScoreFilter.recent);
+                      },
+                    ),
+                    _AdminFilterChip(
+                      key: const Key('best-only-filter-chip'),
+                      label: 'Best',
+                      selected:
+                          filterState.adminScoreFilter ==
+                          JokeAdminScoreFilter.best,
+                      onSelected: (_) {
+                        ref
+                            .read(jokeFilterProvider.notifier)
+                            .toggleScoreFilter(JokeAdminScoreFilter.best);
                       },
                     ),
                   ],

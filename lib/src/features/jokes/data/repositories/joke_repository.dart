@@ -75,6 +75,7 @@ enum JokeField {
   creationTime('creation_time'),
   isPublic('is_public'),
   popularityScore('popularity_score'),
+  popularityScoreRecent('popularity_score_recent'),
   publicTimestamp('public_timestamp'),
   randomId('random_id'),
   savedFraction('num_saved_users_fraction'),

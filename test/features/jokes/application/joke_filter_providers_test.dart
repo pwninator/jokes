@@ -17,7 +17,7 @@ void main() {
     test('JokeFilterState should have correct initial values', () {
       const state = JokeFilterState();
       expect(state.selectedStates, isEmpty);
-      expect(state.showPopularOnly, false);
+      expect(state.adminScoreFilter, JokeAdminScoreFilter.none);
       expect(state.hasStateFilter, false);
     });
 
@@ -90,32 +90,78 @@ void main() {
       container.dispose();
     });
 
-    test('JokeFilterNotifier should handle popular only toggle', () {
+    test('JokeFilterNotifier should handle score filter toggle', () {
       final container = ProviderContainer();
       final notifier = container.read(jokeFilterProvider.notifier);
 
-      expect(container.read(jokeFilterProvider).showPopularOnly, false);
+      expect(
+        container.read(jokeFilterProvider).adminScoreFilter,
+        JokeAdminScoreFilter.none,
+      );
 
-      notifier.togglePopularOnly();
-      expect(container.read(jokeFilterProvider).showPopularOnly, true);
+      notifier.toggleScoreFilter(JokeAdminScoreFilter.popular);
+      expect(
+        container.read(jokeFilterProvider).adminScoreFilter,
+        JokeAdminScoreFilter.popular,
+      );
 
-      notifier.togglePopularOnly();
-      expect(container.read(jokeFilterProvider).showPopularOnly, false);
+      notifier.toggleScoreFilter(JokeAdminScoreFilter.popular);
+      expect(
+        container.read(jokeFilterProvider).adminScoreFilter,
+        JokeAdminScoreFilter.none,
+      );
 
       container.dispose();
     });
 
-    test('JokeFilterNotifier should set popular only value', () {
+    test(
+      'JokeFilterNotifier switch score filters should be mutually exclusive',
+      () {
+        final container = ProviderContainer();
+        final notifier = container.read(jokeFilterProvider.notifier);
+
+        notifier.toggleScoreFilter(JokeAdminScoreFilter.popular);
+        expect(
+          container.read(jokeFilterProvider).adminScoreFilter,
+          JokeAdminScoreFilter.popular,
+        );
+
+        notifier.toggleScoreFilter(JokeAdminScoreFilter.recent);
+        expect(
+          container.read(jokeFilterProvider).adminScoreFilter,
+          JokeAdminScoreFilter.recent,
+        );
+
+        notifier.toggleScoreFilter(JokeAdminScoreFilter.best);
+        expect(
+          container.read(jokeFilterProvider).adminScoreFilter,
+          JokeAdminScoreFilter.best,
+        );
+
+        container.dispose();
+      },
+    );
+
+    test('JokeFilterNotifier should set score filter', () {
       final container = ProviderContainer();
       final notifier = container.read(jokeFilterProvider.notifier);
 
-      expect(container.read(jokeFilterProvider).showPopularOnly, false);
+      expect(
+        container.read(jokeFilterProvider).adminScoreFilter,
+        JokeAdminScoreFilter.none,
+      );
 
-      notifier.setPopularOnly(true);
-      expect(container.read(jokeFilterProvider).showPopularOnly, true);
+      notifier.setScoreFilter(JokeAdminScoreFilter.recent);
+      expect(
+        container.read(jokeFilterProvider).adminScoreFilter,
+        JokeAdminScoreFilter.recent,
+      );
 
-      notifier.setPopularOnly(false);
-      expect(container.read(jokeFilterProvider).showPopularOnly, false);
+      notifier.setScoreFilter(JokeAdminScoreFilter.none);
+      expect(
+        container.read(jokeFilterProvider).adminScoreFilter,
+        JokeAdminScoreFilter.none,
+      );
 
       container.dispose();
     });

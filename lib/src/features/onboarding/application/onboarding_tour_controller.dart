@@ -45,7 +45,7 @@ class OnboardingTourSteps {
       saved = OnboardingTourStep(
         key: _savedShowcaseKey,
         title: 'Saved Jokes',
-        description: 'Find all the jokes you\'ve favorited here.',
+        description: "Find all the jokes you've favorited here.",
         automationKey: const Key('app_router-tab-saved-button'),
       );
 

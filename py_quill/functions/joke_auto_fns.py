@@ -17,7 +17,8 @@ from services import firebase_cloud_messaging, firestore, search
 _RECENT_STATS_DAILY_DECAY_FACTOR = 0.9
 _MAX_FIRESTORE_WRITE_BATCH_SIZE = 100
 _LAST_RECENT_STATS_UPDATE_TIME_FIELD_NAME = "last_recent_stats_update_time"
-_MIN_VIEWS_FOR_FRACTIONS = 10
+
+MIN_VIEWS_FOR_FRACTIONS = 20
 
 
 @scheduler_fn.on_schedule(
@@ -449,7 +450,7 @@ def on_joke_write(event: firestore_fn.Event[firestore_fn.Change]) -> None:
       "generation_metadata": current_metadata.as_dict,
     })
 
-  if after_joke.num_viewed_users >= _MIN_VIEWS_FOR_FRACTIONS:
+  if after_joke.num_viewed_users >= MIN_VIEWS_FOR_FRACTIONS:
     num_saved_users_fraction = (after_joke.num_saved_users /
                                 after_joke.num_viewed_users)
     if not math.isclose(after_joke.num_saved_users_fraction,
@@ -575,7 +576,7 @@ def _update_joke_attributes(run_time_utc: datetime.datetime) -> dict[str, int]:
       num_viewed_users = 0
     num_viewed_users = int(num_viewed_users)
 
-    if num_viewed_users < _MIN_VIEWS_FOR_FRACTIONS:
+    if num_viewed_users < MIN_VIEWS_FOR_FRACTIONS:
       current_fraction = joke_data.get("num_saved_users_fraction")
       if current_fraction is None or not isinstance(current_fraction,
                                                     (int, float)):

@@ -1,14 +1,14 @@
 """Utility cloud functions for Firestore migrations."""
 
 import json
+import math
 import traceback
 
 from firebase_admin import firestore
 from firebase_functions import https_fn, logger, options
-from functions.function_utils import (get_bool_param, get_float_param,
-                                      get_int_param, get_param)
+from functions.function_utils import get_bool_param, get_int_param
+from functions.joke_auto_fns import MIN_VIEWS_FOR_FRACTIONS
 from services import firestore as firestore_service
-from services import search
 
 _db = None  # pylint: disable=invalid-name
 
@@ -44,21 +44,8 @@ def run_firestore_migration(req: https_fn.Request) -> https_fn.Response:
   try:
     dry_run = get_bool_param(req, 'dry_run', True)
     max_jokes = get_int_param(req, 'max_jokes', 0)
-    query = get_param(req, 'query')
-    if not query:
-      return https_fn.Response(
-        json.dumps({
-          "error": "query parameter is required",
-          "success": False
-        }),
-        status=400,
-        mimetype='application/json',
-      )
-    threshold = get_float_param(req, 'threshold', 0.3)
 
-    html_response = run_seasonal_migration(
-      query=query,
-      threshold=threshold,
+    html_response = run_saved_fraction_migration(
       dry_run=dry_run,
       max_jokes=max_jokes,
     )
@@ -78,88 +65,94 @@ def run_firestore_migration(req: https_fn.Request) -> https_fn.Response:
     )
 
 
-def run_seasonal_migration(
-  query: str,
-  threshold: float,
+def run_saved_fraction_migration(
   dry_run: bool,
   max_jokes: int,
 ) -> str:
   """
-    Sets the 'seasonal' field to 'Halloween' for jokes matching a search query.
+    Sets num_saved_users_fraction to 0 for jokes with low view counts.
 
     Args:
-        query: The search query for jokes.
-        threshold: The search distance threshold.
         dry_run: If True, the migration will only log the changes that would be made.
         max_jokes: The maximum number of jokes to modify. If 0, all jokes will be processed.
 
     Returns:
         An HTML page listing the jokes that were updated.
     """
-  logger.info("Starting seasonal migration...")
+  logger.info("Starting num_saved_users_fraction migration...")
 
-  search_results = search.search_jokes(
-    query=query,
-    label="seasonal_migration",
-    limit=1000,  # A reasonable upper limit on search results to check
-    field_filters=[],
-    distance_threshold=threshold,
-  )
+  jokes = firestore_service.get_all_punny_jokes()
 
-  updated_jokes = []
-  skipped_jokes = []
+  updated_jokes: list[dict[str, object]] = []
+  skipped_jokes: list[dict[str, object]] = []
   updated_count = 0
 
-  for result in search_results:
+  for joke in jokes:
     if max_jokes and updated_count >= max_jokes:
       logger.info(f"Reached max_jokes limit of {max_jokes}.")
       break
 
-    joke_id = result.joke.key
+    joke_id = joke.key
     if not joke_id:
       continue
 
-    joke = firestore_service.get_punny_joke(joke_id)
-    if not joke:
-      logger.warn(f"Could not retrieve joke with id: {joke_id}")
-      continue
+    num_viewed = joke.num_viewed_users or 0
+    current_fraction = joke.num_saved_users_fraction or 0.0
 
-    if joke.seasonal != "Halloween":
-      updated_jokes.append({
-        "id": joke_id,
-        "setup": joke.setup_text,
-        "punchline": joke.punchline_text,
-        "old_seasonal": joke.seasonal,
-        "distance": result.vector_distance,
-      })
-      if not dry_run:
-        firestore_service.update_punny_joke(joke_id, {"seasonal": "Halloween"})
-      updated_count += 1
-    else:
+    if num_viewed >= MIN_VIEWS_FOR_FRACTIONS:
       skipped_jokes.append({
         "id": joke_id,
-        "setup": joke.setup_text,
-        "punchline": joke.punchline_text,
+        "num_viewed": num_viewed,
+        "num_saved_fraction": current_fraction,
+        "reason": "num_viewed_users>=threshold",
       })
+      continue
+
+    if math.isclose(current_fraction, 0.0, abs_tol=1e-9):
+      skipped_jokes.append({
+        "id": joke_id,
+        "num_viewed": num_viewed,
+        "num_saved_fraction": current_fraction,
+        "reason": "already_zero",
+      })
+      continue
+
+    updated_jokes.append({
+      "id": joke_id,
+      "num_viewed": num_viewed,
+      "old_fraction": current_fraction,
+    })
+    if not dry_run:
+      firestore_service.update_punny_joke(
+        joke_id, {"num_saved_users_fraction": 0.0})
+    updated_count += 1
 
   # Generate HTML response
   html = "<html><body>"
-  html += "<h1>Seasonal Migration Results</h1>"
+  html += "<h1>num_saved_users_fraction Migration Results</h1>"
   html += f"<h2>Dry Run: {dry_run}</h2>"
+  html += f"<h2>Threshold: MIN_VIEWS_FOR_FRACTIONS={MIN_VIEWS_FOR_FRACTIONS}</h2>"
   html += f"<h2>Updated Jokes ({len(updated_jokes)})</h2>"
   if updated_jokes:
     html += "<ul>"
     for joke in updated_jokes:
-      html += f"<li>{round(joke['distance'], 4)}: <b>{joke['id']}</b>: {joke['setup']} / {joke['punchline']} (Old seasonal: {joke['old_seasonal']})</li>"
+      html += (
+        f"<li><b>{joke['id']}</b>: num_viewed={joke['num_viewed']}, "
+        f"old_fraction={joke['old_fraction']}</li>"
+      )
     html += "</ul>"
   else:
     html += "<p>No jokes were updated.</p>"
 
-  html += f"<h2>Skipped Jokes (already Halloween) ({len(skipped_jokes)})</h2>"
+  html += f"<h2>Skipped Jokes ({len(skipped_jokes)})</h2>"
   if skipped_jokes:
     html += "<ul>"
     for joke in skipped_jokes:
-      html += f"<li><b>{joke['id']}</b>: {joke['setup']} / {joke['punchline']}</li>"
+      html += (
+        f"<li><b>{joke['id']}</b>: num_viewed={joke['num_viewed']}, "
+        f"num_saved_fraction={joke['num_saved_fraction']}, "
+        f"reason={joke['reason']}</li>"
+      )
     html += "</ul>"
   else:
     html += "<p>No jokes were skipped.</p>"

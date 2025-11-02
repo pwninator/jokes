@@ -28,17 +28,16 @@ class OnboardingTourStateStore {
 
   Future<bool> hasCompleted() async {
     try {
-      final value = _settings.getBool(_completedKey);
-      if (value == null) {
+      bool? tourAlreadyCompleted = _settings.getBool(_completedKey);
+      if (tourAlreadyCompleted == null) {
         // Initialize the value from remote config
         final shouldShowTour = _remoteConfig.getBool(
           RemoteParam.onboardingShowTour,
         );
-        final completed = !shouldShowTour;
-        await _settings.setBool(_completedKey, completed);
-        return completed;
+        tourAlreadyCompleted = !shouldShowTour;
+        await setCompleted(tourAlreadyCompleted);
       }
-      return value;
+      return tourAlreadyCompleted;
     } catch (e) {
       AppLogger.warn('ONBOARDING_TOUR_STORE read error: $e');
       return false;
@@ -47,11 +46,14 @@ class OnboardingTourStateStore {
 
   Future<void> markCompleted() async => setCompleted(true);
 
+  Future<bool> shouldShowTour() async => !(await hasCompleted());
+
   Future<void> setCompleted(bool value) async {
     try {
       await _settings.setBool(_completedKey, value);
+      AppLogger.debug('ONBOARDING_TOUR: Store set completed to: $value');
     } catch (e) {
-      AppLogger.warn('ONBOARDING_TOUR_STORE write error: $e');
+      AppLogger.warn('ONBOARDING_TOUR: Store write error: $e');
     }
   }
 }

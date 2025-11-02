@@ -76,4 +76,12 @@ void main() {
     expect(await stateStore.hasCompleted(), isFalse);
     expect(settingsService.getBool(completedKey), isFalse);
   });
+
+  test('shouldShowTour reflects completion status', () async {
+    expect(await stateStore.shouldShowTour(), isTrue);
+
+    await stateStore.markCompleted();
+
+    expect(await stateStore.shouldShowTour(), isFalse);
+  });
 }

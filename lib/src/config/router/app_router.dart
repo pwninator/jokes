@@ -35,6 +35,7 @@ import 'package:snickerdoodle/src/features/jokes/presentation/saved_jokes_screen
 import 'package:snickerdoodle/src/features/search/application/discover_tab_state.dart';
 import 'package:snickerdoodle/src/features/search/presentation/discover_screen.dart';
 import 'package:snickerdoodle/src/features/search/presentation/search_screen.dart';
+import 'package:snickerdoodle/src/features/onboarding/application/onboarding_tour_controller.dart';
 import 'package:snickerdoodle/src/features/settings/application/feed_screen_status_provider.dart';
 import 'package:snickerdoodle/src/features/settings/presentation/user_settings_screen.dart';
 
@@ -444,8 +445,28 @@ class AppRouter {
       builder: (context, ref, _) {
         final resize = ref.watch(keyboardResizeProvider);
         final hasUnviewed = ref.watch(hasUnviewedCategoriesProvider);
+        final onboardingSteps = ref.watch(onboardingTourStepsProvider);
 
-        final iconsAndLabels = navState.visibleTabs.map((tab) {
+        final tabs = navState.visibleTabs;
+        const double navFontSize = 12.0;
+        final TextStyle selectedLabelStyle = TextStyle(
+          fontWeight: FontWeight.w700,
+          color: selectedColor,
+          fontSize: navFontSize,
+        );
+        final TextStyle unselectedLabelStyle = TextStyle(
+          fontWeight: FontWeight.w500,
+          color: unselectedColor,
+          fontSize: navFontSize,
+        );
+
+        final List<BottomNavigationBarItem> navItems =
+            <BottomNavigationBarItem>[];
+        final List<Widget> railTiles = [];
+
+        for (var index = 0; index < tabs.length; index++) {
+          final tab = tabs[index];
+          final bool isSelected = navState.selectedIndex == index;
           final bool isDiscover = tab.id == TabId.discover;
           final Widget iconWidget = isDiscover
               ? BadgedIcon(
@@ -455,30 +476,63 @@ class AppRouter {
                   iconSemanticLabel: tab.label,
                   badgeSemanticLabel: 'New Jokes',
                 )
-              : Icon(tab.icon, semanticLabel: tab.label);
-          return (icon: iconWidget, label: tab.label);
-        }).toList();
+              : Icon(
+                  tab.icon,
+                  key: Key('app_router-${tab.id.name}-tab-icon'),
+                  semanticLabel: tab.label,
+                );
 
-        // Build BottomNavigationBar items with possible badge for Discover tab
-        final List<BottomNavigationBarItem> navItems = iconsAndLabels.map((
-          iconAndLabel,
-        ) {
-          return BottomNavigationBarItem(
-            icon: iconAndLabel.icon,
-            label: iconAndLabel.label,
+          OnboardingTourStep? step;
+          switch (tab.id) {
+            case TabId.feed:
+              step = onboardingSteps.feed;
+              break;
+            case TabId.discover:
+              step = onboardingSteps.discover;
+              break;
+            case TabId.saved:
+              step = onboardingSteps.saved;
+              break;
+            default:
+              step = null;
+          }
+
+          final navTile = wrapWithOnboardingShowcase(
+            step: step,
+            child: _OnboardingNavTile(
+              label: tab.label,
+              icon: iconWidget,
+              isSelected: isSelected,
+              selectedLabelStyle: selectedLabelStyle,
+              unselectedLabelStyle: unselectedLabelStyle,
+            ),
           );
-        }).toList();
 
-        // Build NavigationRail destinations with possible badge for Discover tab
-        final List<NavigationRailDestination> railDestinations = iconsAndLabels
-            .map((iconAndLabel) {
-              return NavigationRailDestination(
-                icon: iconAndLabel.icon,
-                label: Text(iconAndLabel.label),
-              );
-            })
-            .toList();
+          navItems.add(
+            BottomNavigationBarItem(
+              icon: navTile,
+              label: ' ',
+              tooltip: tab.label,
+            ),
+          );
 
+          Widget railTile = _RailDestinationTile(
+            isSelected: isSelected,
+            onTap: () => _navigateToIndex(context, ref, index, navState),
+            child: _OnboardingNavTile(
+              label: tab.label,
+              icon: iconWidget,
+              isSelected: isSelected,
+              selectedLabelStyle: selectedLabelStyle,
+              unselectedLabelStyle: unselectedLabelStyle,
+              isRail: true,
+            ),
+          );
+
+          railTile = wrapWithOnboardingShowcase(step: step, child: railTile);
+
+          railTiles.add(railTile);
+        }
         final appBarConfig = ref.watch(appBarConfigProvider);
         final bannerEligibility = ref.watch(bannerAdEligibilityProvider);
         final showTopBannerAd =
@@ -502,7 +556,7 @@ class AppRouter {
 
         final floatingActionButton = ref.watch(floatingActionButtonProvider);
 
-        return Scaffold(
+        final scaffold = Scaffold(
           resizeToAvoidBottomInset: resize,
           appBar: portraitAppBar,
           floatingActionButton: floatingActionButton,
@@ -520,36 +574,14 @@ class AppRouter {
                             return Column(
                               children: [
                                 Expanded(
-                                  child: NavigationRail(
-                                    destinations: railDestinations,
-                                    selectedIndex: navState.selectedIndex,
-                                    onDestinationSelected: (index) {
-                                      _navigateToIndex(
-                                        context,
-                                        ref,
-                                        index,
-                                        navState,
-                                      );
-                                    },
-                                    backgroundColor: Theme.of(
-                                      context,
-                                    ).colorScheme.surface,
-                                    selectedIconTheme: IconThemeData(
-                                      color: selectedColor,
+                                  child: Scrollbar(
+                                    thumbVisibility: false,
+                                    child: ListView(
+                                      padding: const EdgeInsets.symmetric(
+                                        vertical: 8,
+                                      ),
+                                      children: railTiles,
                                     ),
-                                    unselectedIconTheme: IconThemeData(
-                                      color: unselectedColor,
-                                    ),
-                                    selectedLabelTextStyle: TextStyle(
-                                      fontWeight: FontWeight.w600,
-                                      color: selectedColor,
-                                    ),
-                                    unselectedLabelTextStyle: TextStyle(
-                                      fontWeight: FontWeight.normal,
-                                      color: unselectedColor,
-                                    ),
-                                    extended: true,
-                                    useIndicator: false,
                                   ),
                                 ),
                                 if (bottomSlot != null)
@@ -609,6 +641,8 @@ class AppRouter {
                         currentIndex: navState.selectedIndex,
                         selectedItemColor: selectedColor,
                         unselectedItemColor: unselectedColor,
+                        showSelectedLabels: false,
+                        showUnselectedLabels: false,
                         selectedLabelStyle: TextStyle(
                           fontWeight: FontWeight.w700,
                           color: selectedColor,
@@ -644,6 +678,8 @@ class AppRouter {
                   ],
                 ),
         );
+
+        return OnboardingTourLauncher(child: scaffold);
       },
     );
   }
@@ -686,6 +722,115 @@ class AppRouter {
     );
 
     context.push(targetTab.route);
+  }
+}
+
+class _RailDestinationTile extends StatelessWidget {
+  const _RailDestinationTile({
+    required this.child,
+    required this.isSelected,
+    required this.onTap,
+  });
+
+  final Widget child;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final Color background = isSelected
+        ? colorScheme.primary.withValues(alpha: 0.12)
+        : Colors.transparent;
+    final Color foreground = isSelected
+        ? colorScheme.primary
+        : colorScheme.onSurface.withValues(alpha: 0.8);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      child: Material(
+        color: background,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: onTap,
+          child: IconTheme.merge(
+            data: IconThemeData(color: foreground),
+            child: DefaultTextStyle.merge(
+              style: TextStyle(color: foreground),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                child: child,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _OnboardingNavTile extends StatelessWidget {
+  const _OnboardingNavTile({
+    required this.label,
+    required this.icon,
+    required this.isSelected,
+    required this.selectedLabelStyle,
+    required this.unselectedLabelStyle,
+    this.isRail = false,
+  });
+
+  final String label;
+  final Widget icon;
+  final bool isSelected;
+  final TextStyle selectedLabelStyle;
+  final TextStyle unselectedLabelStyle;
+  final bool isRail;
+
+  @override
+  Widget build(BuildContext context) {
+    final iconTheme = IconTheme.of(context);
+    final Color? themeColor = iconTheme.color;
+    final Color resolvedColor =
+        themeColor ??
+        (isSelected ? selectedLabelStyle.color : unselectedLabelStyle.color)!;
+
+    final TextStyle baseStyle = isSelected
+        ? selectedLabelStyle
+        : unselectedLabelStyle;
+
+    final Widget iconWithTheme = IconTheme.merge(
+      data: IconThemeData(color: resolvedColor),
+      child: icon,
+    );
+
+    final Widget labelWidget = Text(
+      label,
+      style: baseStyle.copyWith(color: resolvedColor),
+    );
+
+    if (isRail) {
+      return Row(
+        mainAxisSize: MainAxisSize.max,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          iconWithTheme,
+          const SizedBox(width: 12),
+          Expanded(child: labelWidget),
+        ],
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [iconWithTheme, const SizedBox(height: 2), labelWidget],
+      ),
+    );
   }
 }
 

@@ -1,6 +1,7 @@
 import 'package:firebase_analytics/firebase_analytics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:showcaseview/showcaseview.dart';
 import 'package:go_router/go_router.dart';
 import 'package:snickerdoodle/src/common_widgets/app_bar_widget.dart';
 import 'package:snickerdoodle/src/common_widgets/badged_icon.dart';
@@ -436,13 +437,15 @@ class AppRouter {
       });
     }
 
-    final Color selectedColor = Theme.of(context).colorScheme.primary;
-    final Color unselectedColor = Theme.of(
-      context,
-    ).colorScheme.onSurface.withValues(alpha: 0.7);
-
     return Consumer(
       builder: (context, ref, _) {
+        final colorScheme = Theme.of(context).colorScheme;
+        final Color selectedColor = colorScheme.primary;
+        final Color unselectedColor = colorScheme.onSurface.withValues(
+          alpha: 0.7,
+        );
+        final Color tooltipBackgroundColor = colorScheme.primaryContainer;
+        final Color tooltipTextColor = colorScheme.onPrimaryContainer;
         final resize = ref.watch(keyboardResizeProvider);
         final hasUnviewed = ref.watch(hasUnviewedCategoriesProvider);
         final onboardingSteps = ref.watch(onboardingTourStepsProvider);
@@ -506,6 +509,8 @@ class AppRouter {
               selectedLabelStyle: selectedLabelStyle,
               unselectedLabelStyle: unselectedLabelStyle,
             ),
+            tooltipBackgroundColor: tooltipBackgroundColor,
+            tooltipTextColor: tooltipTextColor,
           );
 
           navItems.add(
@@ -529,7 +534,13 @@ class AppRouter {
             ),
           );
 
-          railTile = wrapWithOnboardingShowcase(step: step, child: railTile);
+          railTile = wrapWithOnboardingShowcase(
+            step: step,
+            child: railTile,
+            tooltipPosition: TooltipPosition.right,
+            tooltipBackgroundColor: tooltipBackgroundColor,
+            tooltipTextColor: tooltipTextColor,
+          );
 
           railTiles.add(railTile);
         }

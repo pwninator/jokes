@@ -73,12 +73,27 @@ final onboardingTourStepsProvider = Provider<OnboardingTourSteps>((ref) {
 Widget wrapWithOnboardingShowcase({
   required OnboardingTourStep? step,
   required Widget child,
+  required Color tooltipBackgroundColor,
+  required Color tooltipTextColor,
+  TooltipPosition? tooltipPosition,
 }) {
   if (step == null) return child;
   return Showcase(
     key: step.key,
     title: step.title,
     description: step.description,
+    disposeOnTap: false,
+    onTargetClick: () {
+      AppLogger.debug('ONBOARDING_TOUR: Target tapped');
+      ShowcaseView.get().next(force: true);
+    },
+    onToolTipClick: () {
+      AppLogger.debug('ONBOARDING_TOUR: Tooltip tapped');
+      ShowcaseView.get().next(force: true);
+    },
+    tooltipPosition: tooltipPosition,
+    tooltipBackgroundColor: tooltipBackgroundColor,
+    textColor: tooltipTextColor,
     child: KeyedSubtree(key: step.automationKey, child: child),
   );
 }

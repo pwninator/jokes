@@ -17,7 +17,12 @@ void main() {
 
   test('wrapWithOnboardingShowcase returns original child when step null', () {
     const child = Text('demo');
-    final result = wrapWithOnboardingShowcase(step: null, child: child);
+    final result = wrapWithOnboardingShowcase(
+      step: null,
+      child: child,
+      tooltipBackgroundColor: Colors.blue,
+      tooltipTextColor: Colors.white,
+    );
     expect(identical(result, child), isTrue);
   });
 
@@ -56,6 +61,8 @@ void main() {
         home: wrapWithOnboardingShowcase(
           step: step,
           child: const SizedBox.shrink(),
+          tooltipBackgroundColor: Colors.blue,
+          tooltipTextColor: Colors.white,
         ),
       ),
     );

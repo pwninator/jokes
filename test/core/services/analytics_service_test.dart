@@ -673,4 +673,32 @@ void main() {
       ).called(1);
     });
   });
+
+  group('Tour events', () {
+    test('logTourCompleted logs tour completed event', () async {
+      analyticsService.logTourCompleted();
+
+      await Future.delayed(Duration.zero);
+
+      verify(
+        () => mockFirebaseAnalytics.logEvent(
+          name: 'tour_completed',
+          parameters: any(named: 'parameters', that: isEmpty),
+        ),
+      ).called(1);
+    });
+
+    test('logTourSkipped logs tour skipped event', () async {
+      analyticsService.logTourSkipped();
+
+      await Future.delayed(Duration.zero);
+
+      verify(
+        () => mockFirebaseAnalytics.logEvent(
+          name: 'tour_skipped',
+          parameters: any(named: 'parameters', that: isEmpty),
+        ),
+      ).called(1);
+    });
+  });
 }

@@ -1,8 +1,12 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/onboarding_tour_state_store.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
+
+class MockAnalyticsService extends Mock implements AnalyticsService {}
 
 class _FakeRemoteConfigValues implements RemoteConfigValues {
   _FakeRemoteConfigValues({required this.showTour});
@@ -36,15 +40,19 @@ void main() {
   late SettingsService settingsService;
   late OnboardingTourStateStore stateStore;
   late _FakeRemoteConfigValues remoteValues;
+  late MockAnalyticsService mockAnalytics;
 
   setUp(() async {
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();
     settingsService = SettingsService(prefs);
     remoteValues = _FakeRemoteConfigValues(showTour: true);
+    mockAnalytics = MockAnalyticsService();
+    when(() => mockAnalytics.logTourSkipped()).thenReturn(null);
     stateStore = OnboardingTourStateStore(
       settingsService: settingsService,
       remoteConfigValues: remoteValues,
+      analyticsService: mockAnalytics,
     );
   });
 
@@ -60,6 +68,7 @@ void main() {
 
     expect(await stateStore.hasCompleted(), isTrue);
     expect(settingsService.getBool(completedKey), isTrue);
+    verify(() => mockAnalytics.logTourSkipped()).called(1);
   });
 
   test('markCompleted persists flag', () async {

@@ -357,6 +357,12 @@ abstract class AnalyticsService {
 
   /// Category viewed: user navigated into a category
   void logJokeCategoryViewed({required String categoryId});
+
+  /// Onboarding tour: user completed the tour
+  void logTourCompleted();
+
+  /// Onboarding tour: tour was skipped (initialized as completed via remote config)
+  void logTourSkipped();
 }
 
 /// Firebase Analytics implementation of the analytics service
@@ -1043,6 +1049,16 @@ class FirebaseAnalyticsService implements AnalyticsService {
     _logEvent(AnalyticsEvent.jokeCategoryViewed, {
       AnalyticsParameters.jokeCategoryId: categoryId,
     });
+  }
+
+  @override
+  void logTourCompleted() {
+    _logEvent(AnalyticsEvent.tourCompleted, {});
+  }
+
+  @override
+  void logTourSkipped() {
+    _logEvent(AnalyticsEvent.tourSkipped, {});
   }
 
   @override

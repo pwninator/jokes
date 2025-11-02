@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
@@ -8,9 +9,11 @@ final onboardingTourStateStoreProvider = Provider<OnboardingTourStateStore>((
 ) {
   final settings = ref.read(settingsServiceProvider);
   final remoteValues = ref.watch(remoteConfigValuesProvider);
+  final analytics = ref.read(analyticsServiceProvider);
   return OnboardingTourStateStore(
     settingsService: settings,
     remoteConfigValues: remoteValues,
+    analyticsService: analytics,
   );
 });
 
@@ -19,12 +22,15 @@ class OnboardingTourStateStore {
   OnboardingTourStateStore({
     required SettingsService settingsService,
     required RemoteConfigValues remoteConfigValues,
+    required AnalyticsService analyticsService,
   }) : _settings = settingsService,
-       _remoteConfig = remoteConfigValues;
+       _remoteConfig = remoteConfigValues,
+       _analytics = analyticsService;
 
   static const String _completedKey = 'onboarding_tour_completed';
   final SettingsService _settings;
   final RemoteConfigValues _remoteConfig;
+  final AnalyticsService _analytics;
 
   Future<bool> hasCompleted() async {
     try {
@@ -36,6 +42,10 @@ class OnboardingTourStateStore {
         );
         tourAlreadyCompleted = !shouldShowTour;
         await setCompleted(tourAlreadyCompleted);
+        // If remote config initialized tour as already completed, log skipped
+        if (!shouldShowTour) {
+          _analytics.logTourSkipped();
+        }
       }
       return tourAlreadyCompleted;
     } catch (e) {

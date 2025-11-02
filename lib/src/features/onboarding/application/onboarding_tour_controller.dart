@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:showcaseview/showcaseview.dart';
+import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/onboarding_tour_state_store.dart';
 
@@ -164,6 +165,8 @@ class _OnboardingTourLauncherState
     if (_tourCompleted) return;
     _tourCompleted = true;
     await store.markCompleted();
+    final analytics = ref.read(analyticsServiceProvider);
+    analytics.logTourCompleted();
   }
 
   void _handleShowcaseFinished() {

@@ -111,6 +111,10 @@ enum AnalyticsEvent {
   privacyPolicyOpened('privacy_policy_opened'),
   homepage('homepage'),
 
+  // Onboarding tour
+  tourCompleted('tour_completed'),
+  tourSkipped('tour_skipped'),
+
   // Ad events
   adBannerStatus('ad_banner_status'),
   adBannerLoaded('ad_banner_loaded'),

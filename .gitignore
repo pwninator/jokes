@@ -11,6 +11,7 @@
 .svn/
 .swiftpm/
 .firebase/
+.venv/
 migrate_working_dir/
 
 # IntelliJ related

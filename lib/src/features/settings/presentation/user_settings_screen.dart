@@ -15,6 +15,7 @@ import 'package:snickerdoodle/src/core/services/app_review_service.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
 import 'package:snickerdoodle/src/core/services/feedback_prompt_state_store.dart';
+import 'package:snickerdoodle/src/core/services/onboarding_tour_state_store.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:snickerdoodle/src/core/services/review_prompt_state_store.dart';
 import 'package:snickerdoodle/src/core/services/url_launcher_service.dart';
@@ -646,6 +647,81 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                                   },
                                 ),
                               ],
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        // Onboarding Tour Completion
+                        Consumer(
+                          builder: (context, ref, _) {
+                            final store = ref.read(
+                              onboardingTourStateStoreProvider,
+                            );
+                            return FutureBuilder<bool>(
+                              future: store.hasCompleted(),
+                              builder: (context, snapshot) {
+                                final completed = snapshot.data ?? true;
+                                final loading =
+                                    snapshot.connectionState !=
+                                    ConnectionState.done;
+
+                                return Row(
+                                  children: [
+                                    Icon(
+                                      Icons.tour,
+                                      color: completed
+                                          ? Theme.of(
+                                              context,
+                                            ).colorScheme.primary
+                                          : Theme.of(context)
+                                                .colorScheme
+                                                .onSurface
+                                                .withValues(alpha: 0.6),
+                                    ),
+                                    const SizedBox(width: 16),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'Onboarding Tour Completed',
+                                            style: menuTitleTextStyle(context),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            completed
+                                                ? 'Tour is marked complete; it will stay hidden until reset.'
+                                                : 'Tour is marked incomplete; it will show the next time it runs.',
+                                            style: menuSubtitleTextStyle(
+                                              context,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    loading
+                                        ? const SizedBox(
+                                            width: 24,
+                                            height: 24,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                            ),
+                                          )
+                                        : Switch(
+                                            key: const Key(
+                                              'user_settings_screen-onboarding-complete-toggle',
+                                            ),
+                                            value: completed,
+                                            onChanged: (value) async {
+                                              await store.setCompleted(value);
+                                              if (!mounted) return;
+                                              setState(() {});
+                                            },
+                                          ),
+                                  ],
+                                );
+                              },
                             );
                           },
                         ),

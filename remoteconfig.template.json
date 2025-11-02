@@ -123,6 +123,17 @@
         }
       }
     },
+    "Onboarding": {
+      "parameters": {
+        "show_tour": {
+          "defaultValue": {
+            "value": "true"
+          },
+          "description": "If false, skip the onboarding tour for all new installs",
+          "valueType": "BOOLEAN"
+        }
+      }
+    },
     "Homepage": {
       "parameters": {
         "feed_screen_enabled": {

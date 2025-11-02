@@ -15,9 +15,11 @@ void main() {
 
   setUp(() {
     mockStore = _MockOnboardingTourStateStore();
-    container = ProviderContainer(overrides: [
-      onboardingTourStateStoreProvider.overrideWithValue(mockStore),
-    ]);
+    container = ProviderContainer(
+      overrides: [
+        onboardingTourStateStoreProvider.overrideWithValue(mockStore),
+      ],
+    );
   });
 
   tearDown(() {
@@ -27,8 +29,9 @@ void main() {
   test('build resolves to true when tour not completed', () async {
     when(() => mockStore.hasCompleted()).thenAnswer((_) async => false);
 
-    final shouldShow =
-        await container.read(onboardingTourControllerProvider.future);
+    final shouldShow = await container.read(
+      onboardingTourControllerProvider.future,
+    );
 
     expect(shouldShow, isTrue);
   });
@@ -36,8 +39,9 @@ void main() {
   test('build resolves to false when tour completed', () async {
     when(() => mockStore.hasCompleted()).thenAnswer((_) async => true);
 
-    final shouldShow =
-        await container.read(onboardingTourControllerProvider.future);
+    final shouldShow = await container.read(
+      onboardingTourControllerProvider.future,
+    );
 
     expect(shouldShow, isFalse);
   });

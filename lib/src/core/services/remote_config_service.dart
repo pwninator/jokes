@@ -100,6 +100,13 @@ const Map<RemoteParam, RemoteParamDescriptor> remoteParams = {
     enumValues: BannerAdPosition.values,
     enumDefault: BannerAdPosition.top,
   ),
+  //////////////////
+  // Onboarding   //
+  //////////////////
+  RemoteParam.onboardingShowTour: BoolRemoteParamDescriptor(
+    key: 'show_tour',
+    defaultBool: true,
+  ),
   //////////////////////
   // Feature Toggles  //
   //////////////////////
@@ -123,6 +130,7 @@ enum RemoteParam {
   shareImagesMode,
   adDisplayMode,
   bannerAdPosition,
+  onboardingShowTour,
   feedScreenEnabled,
 }
 

@@ -6,7 +6,7 @@ part of 'feed_screen_status_provider.dart';
 // RiverpodGenerator
 // **************************************************************************
 
-String _$feedScreenStatusHash() => r'58ca0c2b1f92b9fb99b0213fecaa23c4bb8aa532';
+String _$feedScreenStatusHash() => r'579532366574b3363825fa2ad8b81ec52ef0bf2b';
 
 /// See also [feedScreenStatus].
 @ProviderFor(feedScreenStatus)

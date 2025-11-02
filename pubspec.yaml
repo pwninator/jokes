@@ -69,6 +69,7 @@ dependencies:
   riverpod_annotation: ^2.6.1
   shared_preferences: ^2.2.3
   share_plus: ^11.0.0
+  showcaseview: ^5.0.1
   smooth_page_indicator: ^1.2.1
   timezone: ^0.10.1
   url_launcher: ^6.3.0

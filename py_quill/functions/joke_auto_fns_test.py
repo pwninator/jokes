@@ -9,6 +9,7 @@ import pytest
 
 from common import models
 from functions import joke_auto_fns
+from functions.joke_auto_fns import MIN_VIEWS_FOR_FRACTIONS
 from google.cloud.firestore_v1.vector import Vector
 from services import firestore
 
@@ -292,7 +293,7 @@ class TestDecayRecentJokeStats:
     doc.exists = True
     doc.reference = MagicMock()
     doc.to_dict.return_value = {
-      "num_viewed_users": 15,
+      "num_viewed_users": MIN_VIEWS_FOR_FRACTIONS,
       "last_recent_stats_update_time": now_utc - datetime.timedelta(hours=2),
       "state": models.JokeState.PUBLISHED.value,
       "is_public": False,
@@ -467,7 +468,7 @@ class TestDecayRecentJokeStats:
 
   def test_boosts_fraction_when_views_below_threshold_field_not_set(
       self, monkeypatch):
-    """Test that jokes with < 10 views get boosted when fraction field not set."""
+    """Test that jokes with < MIN_VIEWS_FOR_FRACTIONS views get boosted when fraction field not set."""
     now_utc = datetime.datetime(2024,
                                 1,
                                 20,
@@ -504,7 +505,7 @@ class TestDecayRecentJokeStats:
 
   def test_boosts_fraction_when_views_below_threshold_field_set(
       self, monkeypatch):
-    """Test that jokes with < 10 views get boosted when fraction field already set."""
+    """Test that jokes with < MIN_VIEWS_FOR_FRACTIONS views get boosted when fraction field already set."""
     now_utc = datetime.datetime(2024,
                                 1,
                                 20,
@@ -576,7 +577,7 @@ class TestDecayRecentJokeStats:
     assert payload["num_saved_users_fraction"] == pytest.approx(0.0125)
 
   def test_no_boost_when_views_at_threshold(self, monkeypatch):
-    """Test that jokes with exactly 10 views do not get boosted."""
+    """Test that jokes with exactly MIN_VIEWS_FOR_FRACTIONS views do not get boosted."""
     now_utc = datetime.datetime(2024,
                                 1,
                                 20,
@@ -587,7 +588,7 @@ class TestDecayRecentJokeStats:
     doc.exists = True
     doc.reference = MagicMock()
     doc.to_dict.return_value = {
-      "num_viewed_users": 10,
+      "num_viewed_users": MIN_VIEWS_FOR_FRACTIONS,
       "num_saved_users_fraction": 0.05,
       "last_recent_stats_update_time": now_utc - datetime.timedelta(days=2),
       "state": models.JokeState.PUBLISHED.value,
@@ -613,7 +614,7 @@ class TestDecayRecentJokeStats:
     mock_random.assert_not_called()
 
   def test_no_boost_when_views_above_threshold(self, monkeypatch):
-    """Test that jokes with > 10 views do not get boosted."""
+    """Test that jokes with >= MIN_VIEWS_FOR_FRACTIONS views do not get boosted."""
     now_utc = datetime.datetime(2024,
                                 1,
                                 20,
@@ -624,7 +625,7 @@ class TestDecayRecentJokeStats:
     doc.exists = True
     doc.reference = MagicMock()
     doc.to_dict.return_value = {
-      "num_viewed_users": 50,
+      "num_viewed_users": MIN_VIEWS_FOR_FRACTIONS + 10,
       "num_saved_users_fraction": 0.1,
       "last_recent_stats_update_time": now_utc - datetime.timedelta(days=2),
       "state": models.JokeState.PUBLISHED.value,
@@ -778,7 +779,7 @@ class TestDecayRecentJokeStats:
     doc2.exists = True
     doc2.reference = MagicMock()
     doc2.to_dict.return_value = {
-      "num_viewed_users": 15,
+      "num_viewed_users": MIN_VIEWS_FOR_FRACTIONS,
       "last_recent_stats_update_time": now_utc - datetime.timedelta(days=2),
       "state": models.JokeState.PUBLISHED.value,
       "is_public": True,
@@ -796,11 +797,12 @@ class TestDecayRecentJokeStats:
     monkeypatch.setattr('functions.joke_auto_fns.random.uniform', mock_random)
 
     # Mock category refresh to return empty stats
-    mock_category_refresh = Mock(return_value={
-      "categories_processed": 0,
-      "categories_updated": 0,
-      "categories_emptied": 0
-    })
+    mock_category_refresh = Mock(
+      return_value={
+        "categories_processed": 0,
+        "categories_updated": 0,
+        "categories_emptied": 0
+      })
     monkeypatch.setattr('functions.joke_auto_fns._refresh_category_caches',
                         mock_category_refresh)
 

@@ -14,6 +14,7 @@ import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers
 import 'package:snickerdoodle/src/features/jokes/application/joke_list_data_source.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_navigation_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
+import 'package:snickerdoodle/src/features/jokes/presentation/joke_list_slots.dart';
 import 'package:snickerdoodle/src/features/settings/application/joke_viewer_settings_service.dart';
 import 'package:snickerdoodle/src/utils/joke_viewer_utils.dart';
 
@@ -49,8 +50,8 @@ class JokeListViewer extends ConsumerStatefulWidget {
 class _JokeListViewerState extends ConsumerState<JokeListViewer> {
   int _currentPage = 0;
   late PageController _pageController;
-  final Map<int, int> _currentImageStates = {};
-  final Map<int, JokeImageCarouselController> _carouselControllers = {};
+  final Map<String, int> _currentImageStates = {};
+  final Map<String, JokeImageCarouselController> _carouselControllers = {};
   String _lastNavigationMethod = AnalyticsNavigationMethod.swipe;
 
   @override
@@ -89,41 +90,56 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
     }
   }
 
-  void _onImageStateChanged(int jokeIndex, int imageIndex) {
+  void _onImageStateChanged(String jokeId, int imageIndex) {
     setState(() {
-      _currentImageStates[jokeIndex] = imageIndex;
+      _currentImageStates[jokeId] = imageIndex;
     });
   }
 
-  void _goToNextJoke(int totalJokes, {required String method}) {
+  void _goToNextCard(int totalSlots, {required String method}) {
     final nextPage = _currentPage + 1;
-    if (nextPage < totalJokes) {
-      _lastNavigationMethod = method;
-      _pageController.nextPage(
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOut,
-      );
+    if (nextPage >= totalSlots) {
+      return;
     }
+
+    _lastNavigationMethod = method;
+    _pageController.animateToPage(
+      nextPage,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+    );
   }
 
   Widget _buildCTAButton({
     required BuildContext context,
-    required List<JokeWithDate> jokesWithDates,
+    required JokeListSlotSequence slotSequence,
   }) {
     final isLandscape =
         MediaQuery.of(context).orientation == Orientation.landscape;
-    final bool isEmpty = jokesWithDates.isEmpty;
-    final int total = jokesWithDates.length;
-    final bool isLast = total == 0 || _currentPage >= total - 1;
+    final bool isEmpty = !slotSequence.hasJokes;
 
-    final Joke? currentJoke = (!isEmpty && _currentPage < total)
-        ? jokesWithDates[_currentPage].joke
-        : null;
+    Joke? currentJoke;
+    String? currentJokeId;
+    int? currentJokeIndex;
+    if (!isEmpty) {
+      currentJokeIndex = slotSequence.jokeIndexForSlot(_currentPage);
+      if (currentJokeIndex != null) {
+        final jokeWithDate = slotSequence.jokes[currentJokeIndex];
+        currentJoke = jokeWithDate.joke;
+        currentJokeId = currentJoke.id;
+      }
+    }
+    final bool isLastSlot =
+        slotSequence.slotCount == 0 ||
+        _currentPage >= slotSequence.slotCount - 1;
+
     final bool hasPunchlineImage =
         currentJoke != null &&
         currentJoke.punchlineImageUrl != null &&
         currentJoke.punchlineImageUrl!.trim().isNotEmpty;
-    final int currentImageIndex = _currentImageStates[_currentPage] ?? 0;
+    final int currentImageIndex = currentJokeId != null
+        ? _currentImageStates[currentJokeId] ?? 0
+        : 0;
 
     // Respect user preference: if reveal mode is disabled (show both),
     // there is nothing to reveal, so CTA should be "Next joke" only.
@@ -131,7 +147,8 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
     final bool showReveal =
         revealModeEnabled && hasPunchlineImage && currentImageIndex == 0;
     final String label = showReveal ? 'Reveal' : 'Next joke';
-    final bool disabled = isEmpty || (!showReveal && isLast);
+    final bool disabled =
+        slotSequence.slotCount == 0 || (!showReveal && isLastSlot);
 
     return SizedBox(
       width: double.infinity,
@@ -145,14 +162,15 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
           onPressed: disabled
               ? null
               : () {
-                  if (showReveal) {
+                  if (showReveal && currentJokeId != null) {
+                    final revealJokeId = currentJokeId!;
                     setState(() {
-                      _currentImageStates[_currentPage] = 1;
+                      _currentImageStates[revealJokeId] = 1;
                     });
-                    _carouselControllers[_currentPage]?.revealPunchline();
+                    _carouselControllers[revealJokeId]?.revealPunchline();
                   } else {
-                    _goToNextJoke(
-                      total,
+                    _goToNextCard(
+                      slotSequence.slotCount,
                       method: AnalyticsNavigationMethod.ctaNextJoke,
                     );
                   }
@@ -193,13 +211,14 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
 
     return effectiveAsync.when(
       data: (jokesWithDates) {
+        final slotSequence = JokeListSlotSequence(jokes: jokesWithDates);
         final isLandscape =
             MediaQuery.of(context).orientation == Orientation.landscape;
         final bool railPresent =
             context.dependOnInheritedWidgetOfExactType<RailHost>() != null;
         final Widget? railBottomWidget =
-            (isLandscape && railPresent && jokesWithDates.isNotEmpty)
-            ? _buildCTAButton(context: context, jokesWithDates: jokesWithDates)
+            (isLandscape && railPresent && slotSequence.hasJokes)
+            ? _buildCTAButton(context: context, slotSequence: slotSequence)
             : null;
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (!mounted) return;
@@ -232,16 +251,13 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
             children: [
               Expanded(child: empty),
               if (widget.showCtaWhenEmpty)
-                _buildCTAButton(
-                  context: context,
-                  jokesWithDates: jokesWithDates,
-                ),
+                _buildCTAButton(context: context, slotSequence: slotSequence),
             ],
           );
         }
 
         final safeCurrentPage = _currentPage
-            .clamp(0, jokesWithDates.length - 1)
+            .clamp(0, slotSequence.slotCount - 1)
             .toInt();
         if (_currentPage != safeCurrentPage) {
           WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -254,6 +270,7 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
                         jokeViewerPageIndexProvider(widget.viewerId).notifier,
                       )
                       .state =
+                  slotSequence.jokeIndexForSlot(safeCurrentPage) ??
                   safeCurrentPage;
             }
           });
@@ -266,12 +283,13 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
                 key: const Key('joke_viewer_page_view'),
                 controller: _pageController,
                 scrollDirection: Axis.vertical,
-                itemCount: jokesWithDates.length,
+                itemCount: slotSequence.slotCount,
                 onPageChanged: (index) {
                   if (mounted) {
                     setState(() {
                       _currentPage = index;
                     });
+                    final jokeIndex = slotSequence.jokeIndexForSlot(index);
                     ref
                             .read(
                               jokeViewerPageIndexProvider(
@@ -279,33 +297,51 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
                               ).notifier,
                             )
                             .state =
-                        index;
+                        jokeIndex ?? index;
 
                     // Report viewing position to data source for auto-loading
-                    widget.dataSource?.updateViewingIndex(index);
+                    final int? viewingIndex;
+                    if (jokeIndex != null) {
+                      viewingIndex = jokeIndex;
+                    } else {
+                      final previousSlot = slotSequence.lastJokeSlotAtOrBefore(
+                        index,
+                      );
+                      viewingIndex = previousSlot != null
+                          ? slotSequence.jokeIndexForSlot(previousSlot)
+                          : null;
+                    }
+                    if (viewingIndex != null) {
+                      widget.dataSource?.updateViewingIndex(viewingIndex);
+                    }
 
-                    final jokeWithDate = jokesWithDates[index];
-                    final joke = jokeWithDate.joke;
-                    final jokeScrollDepth = index;
+                    if (jokeIndex != null) {
+                      final jokeWithDate = slotSequence.jokes[jokeIndex];
+                      final joke = jokeWithDate.joke;
+                      final jokeScrollDepth = jokeIndex;
 
-                    final analyticsService = ref.read(analyticsServiceProvider);
-                    final viewerCtx = getJokeViewerContext(context, ref);
-                    analyticsService.logJokeNavigation(
-                      joke.id,
-                      jokeScrollDepth,
-                      method: _lastNavigationMethod,
-                      jokeContext: widget.jokeContext,
-                      jokeContextSuffix: jokeWithDate.dataSource,
-                      jokeViewerMode: viewerCtx.jokeViewerMode,
-                      brightness: viewerCtx.brightness,
-                      screenOrientation: viewerCtx.screenOrientation,
-                    );
+                      final analyticsService = ref.read(
+                        analyticsServiceProvider,
+                      );
+                      final viewerCtx = getJokeViewerContext(context, ref);
+                      analyticsService.logJokeNavigation(
+                        joke.id,
+                        jokeScrollDepth,
+                        method: _lastNavigationMethod,
+                        jokeContext: widget.jokeContext,
+                        jokeContextSuffix: jokeWithDate.dataSource,
+                        jokeViewerMode: viewerCtx.jokeViewerMode,
+                        brightness: viewerCtx.brightness,
+                        screenOrientation: viewerCtx.screenOrientation,
+                      );
+                    }
 
                     _lastNavigationMethod = AnalyticsNavigationMethod.swipe;
                   }
                 },
                 itemBuilder: (context, index) {
-                  final jokeWithDate = jokesWithDates[index];
+                  final jokeSlot = slotSequence.jokeSlotAt(index);
+                  final jokeWithDate = jokeSlot.joke;
                   final joke = jokeWithDate.joke;
                   final date = jokeWithDate.date;
                   final dataSource = jokeWithDate.dataSource;
@@ -315,11 +351,27 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
                       : null;
 
                   final List<Joke> jokesToPreload = [];
-                  if (index + 1 < jokesWithDates.length) {
-                    jokesToPreload.add(jokesWithDates[index + 1].joke);
-                  }
-                  if (index + 2 < jokesWithDates.length) {
-                    jokesToPreload.add(jokesWithDates[index + 2].joke);
+                  int? nextSlot = slotSequence.firstJokeSlotAfter(index);
+                  if (nextSlot != null) {
+                    final nextJokeIndex = slotSequence.jokeIndexForSlot(
+                      nextSlot,
+                    );
+                    if (nextJokeIndex != null) {
+                      jokesToPreload.add(
+                        slotSequence.jokes[nextJokeIndex].joke,
+                      );
+                    }
+                    nextSlot = slotSequence.firstJokeSlotAfter(nextSlot);
+                    if (nextSlot != null) {
+                      final secondIndex = slotSequence.jokeIndexForSlot(
+                        nextSlot,
+                      );
+                      if (secondIndex != null) {
+                        jokesToPreload.add(
+                          slotSequence.jokes[secondIndex].joke,
+                        );
+                      }
+                    }
                   }
 
                   final isLandscape =
@@ -327,8 +379,8 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
                       Orientation.landscape;
 
                   final controller =
-                      _carouselControllers[index] ??
-                      (_carouselControllers[index] =
+                      _carouselControllers[joke.id] ??
+                      (_carouselControllers[joke.id] =
                           JokeImageCarouselController());
 
                   final String? titleForCard = formattedDate;
@@ -347,11 +399,11 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
                       child: JokeCard(
                         key: Key(joke.id),
                         joke: joke,
-                        index: index,
+                        index: jokeSlot.jokeIndex,
                         title: titleForCard,
                         dataSource: dataSource,
                         onImageStateChanged: (imageIndex) =>
-                            _onImageStateChanged(index, imageIndex),
+                            _onImageStateChanged(joke.id, imageIndex),
                         isAdminMode: false,
                         jokesToPreload: jokesToPreload,
                         showSaveButton: true,
@@ -366,8 +418,8 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
                 },
               ),
             ),
-            if ((!isLandscape || !railPresent) && jokesWithDates.isNotEmpty)
-              _buildCTAButton(context: context, jokesWithDates: jokesWithDates),
+            if ((!isLandscape || !railPresent) && slotSequence.hasJokes)
+              _buildCTAButton(context: context, slotSequence: slotSequence),
           ],
         );
       },

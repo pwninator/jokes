@@ -271,15 +271,17 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
           slotSequence,
           storedJokeIndex,
         );
-        final nearestForCurrent =
-            _nearestJokeIndexForSlot(slotSequence, _currentPage);
+        final nearestForCurrent = _nearestJokeIndexForSlot(
+          slotSequence,
+          _currentPage,
+        );
         final shouldJump =
             targetSlot != null &&
             targetSlot != _currentPage &&
             (storedJokeIndex != nearestForCurrent ||
                 !_pageController.hasClients);
         if (shouldJump) {
-          _scheduleJumpTo(targetSlot!);
+          _scheduleJumpTo(targetSlot);
         }
         final isLandscape =
             MediaQuery.of(context).orientation == Orientation.landscape;

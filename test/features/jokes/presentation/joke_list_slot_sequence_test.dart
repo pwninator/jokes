@@ -153,6 +153,35 @@ void main() {
       final terminalSlot = withTerminal.slotAt(2) as InjectedSlot;
       expect(terminalSlot.realJokesBefore, equals(2));
     });
+
+    test('end of feed strategy injects card when feed exhausted', () {
+      final jokes = buildJokes(2);
+      final sequence = JokeListSlotSequence(
+        jokes: jokes,
+        strategies: const [EndOfFeedInjectedCardStrategy()],
+        hasMore: false,
+        isLoading: false,
+      );
+
+      expect(sequence.slotCount, equals(3));
+      expect(sequence.slotAt(2), isA<InjectedSlot>());
+      final slot = sequence.slotAt(2) as InjectedSlot;
+      expect(slot.id, 'end_of_feed');
+      expect(slot.realJokesBefore, equals(2));
+    });
+
+    test('end of feed strategy does not inject while more jokes remain', () {
+      final jokes = buildJokes(2);
+      final sequence = JokeListSlotSequence(
+        jokes: jokes,
+        strategies: const [EndOfFeedInjectedCardStrategy()],
+        hasMore: true,
+        isLoading: false,
+      );
+
+      expect(sequence.slotCount, equals(2));
+      expect(sequence.slotAt(1), isA<JokeSlot>());
+    });
   });
 }
 

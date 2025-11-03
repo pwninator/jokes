@@ -72,6 +72,15 @@ void main() {
       JokeWithDate(joke: buildJoke('j2')),
     ];
 
+    final previewSequence = JokeListSlotSequence(
+      jokes: jokes,
+      strategies: const [EndOfFeedInjectedCardStrategy()],
+      hasMore: false,
+      isLoading: false,
+    );
+    expect(previewSequence.slotCount, equals(3));
+    expect(previewSequence.slotAt(2), isA<InjectedSlot>());
+
     final analytics = MockAnalyticsService();
     when(
       () => analytics.logJokeNavigation(
@@ -99,26 +108,31 @@ void main() {
             jokeContext: 'test',
             viewerId: 'viewer',
             jokesAsyncValue: AsyncValue<List<JokeWithDate>>.data(jokes),
-            injectionStrategies: [
-              _FixedStrategy(
-                InjectedSlotDescriptor(
-                  id: 'promo',
-                  jokesBefore: 1,
-                  builder: (_, data) =>
-                      Text('Injected card ${data.realJokesBefore}'),
-                ),
-              ),
-            ],
+            injectionStrategies: const [EndOfFeedInjectedCardStrategy()],
           ),
         ),
       ),
     );
 
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('joke_list_viewer-cta-button')));
+    final ctaFinder = find.byKey(const Key('joke_list_viewer-cta-button'));
+    await tester.tap(ctaFinder);
     await tester.pumpAndSettle();
+    await tester.tap(ctaFinder);
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 400));
 
-    expect(find.text('Injected card 1'), findsOneWidget);
+    final pageViewFinder = find.byKey(const Key('joke_viewer_page_view'));
+    final pageView = tester.widget<PageView>(pageViewFinder);
+    expect(pageView.controller?.page, closeTo(2, 0.01));
+    expect(
+      find.byKey(const ValueKey('page-injected-end_of_feed')),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('Fresh illustrated jokes drop tomorrow'),
+      findsOneWidget,
+    );
   });
 }
 

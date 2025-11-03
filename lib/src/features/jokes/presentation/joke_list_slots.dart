@@ -1,4 +1,4 @@
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
 
 typedef InjectedSlotBuilder =
@@ -185,6 +185,30 @@ class TerminalInjectedCardStrategy extends JokeListInjectionStrategy {
         jokesBefore: jokes.length,
         builder: builder,
         priority: priority,
+      ),
+    ];
+  }
+}
+
+/// Injection strategy that adds an end-of-feed message when the viewer is
+/// exhausted.
+class EndOfFeedInjectedCardStrategy extends JokeListInjectionStrategy {
+  const EndOfFeedInjectedCardStrategy();
+
+  @override
+  Iterable<InjectedSlotDescriptor> build({
+    required List<JokeWithDate> jokes,
+    required bool hasMore,
+    required bool isLoading,
+  }) {
+    final shouldInject = jokes.isNotEmpty && !hasMore && !isLoading;
+    if (!shouldInject) return const Iterable<InjectedSlotDescriptor>.empty();
+    return <InjectedSlotDescriptor>[
+      InjectedSlotDescriptor(
+        id: 'end_of_feed',
+        jokesBefore: jokes.length,
+        builder: (context, data) => const _EndOfFeedCard(),
+        priority: 1,
       ),
     ];
   }
@@ -387,5 +411,51 @@ class JokeListSlotSequence {
       if (_slots[i] is JokeSlot) return i;
     }
     return null;
+  }
+}
+
+class _EndOfFeedCard extends StatelessWidget {
+  const _EndOfFeedCard();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final background = theme.colorScheme.surfaceContainerHighest;
+    final textColor = theme.textTheme.bodyMedium?.color;
+    final subtleTextColor = textColor?.withAlpha((0.8 * 255).round());
+    return Card(
+      elevation: 0,
+      color: background,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.emoji_emotions_outlined,
+              color: theme.colorScheme.primary,
+              size: 28,
+            ),
+            const SizedBox(height: 12),
+            Text(
+              "You're all caught up!",
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Fresh jokes drop tomorrow. Come back for more laughs!',
+              style: theme.textTheme.bodyMedium?.copyWith(
+                color: subtleTextColor,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

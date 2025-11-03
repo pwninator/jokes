@@ -6,6 +6,7 @@ import 'package:snickerdoodle/src/common_widgets/titled_screen.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/features/jokes/presentation/joke_feed_screen.dart';
 import 'package:snickerdoodle/src/features/jokes/presentation/joke_list_viewer.dart';
+import 'package:snickerdoodle/src/features/jokes/presentation/joke_list_slots.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_viewer_mode.dart';
 import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
@@ -145,5 +146,9 @@ void main() {
     expect(viewer.jokeContext, 'joke_feed');
     expect(viewer.viewerId, 'joke_feed');
     expect(viewer.dataSource, isNotNull);
+    expect(
+      viewer.injectionStrategies.single,
+      isA<EndOfFeedInjectedCardStrategy>(),
+    );
   });
 }

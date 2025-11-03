@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/widgets.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/presentation/joke_list_slots.dart';
@@ -20,6 +21,11 @@ void main() {
       (index) => JokeWithDate(joke: buildJoke('j$index')),
     );
   }
+
+  Widget alwaysShrinkBuilder(
+    BuildContext context,
+    InjectedSlotRenderData data,
+  ) => const SizedBox.shrink();
 
   group('JokeListSlotSequence', () {
     test('exposes slot and joke counts', () {
@@ -76,5 +82,89 @@ void main() {
       expect(sequence.firstJokeSlotAfter(0), isNull);
       expect(sequence.lastJokeSlotAtOrBefore(0), isNull);
     });
+
+    test('injected slots appear at configured positions', () {
+      final jokes = buildJokes(3);
+      final strategy = _FixedStrategy([
+        InjectedSlotDescriptor(
+          id: 'injected',
+          jokesBefore: 1,
+          builder: alwaysShrinkBuilder,
+        ),
+      ]);
+
+      final sequence = JokeListSlotSequence(
+        jokes: jokes,
+        strategies: [strategy],
+      );
+
+      expect(sequence.slotCount, equals(4));
+      expect(sequence.slotAt(1), isA<InjectedSlot>());
+      expect(sequence.jokeIndexForSlot(0), equals(0));
+      expect(sequence.jokeIndexForSlot(1), isNull);
+      expect(sequence.jokeIndexForSlot(2), equals(1));
+      expect(sequence.realJokesBefore(1), equals(1));
+    });
+
+    test('periodic strategy inserts after every N jokes', () {
+      final jokes = buildJokes(5);
+      final sequence = JokeListSlotSequence(
+        jokes: jokes,
+        strategies: [
+          PeriodicInjectedCardStrategy(
+            every: 2,
+            builder: alwaysShrinkBuilder,
+            idPrefix: 'ad',
+          ),
+        ],
+      );
+
+      expect(sequence.slotCount, equals(7));
+      expect(sequence.slotAt(2), isA<InjectedSlot>());
+      expect(sequence.slotAt(5), isA<InjectedSlot>());
+      expect(sequence.jokeIndexForSlot(3), equals(2));
+      expect(sequence.jokeIndexForSlot(6), equals(4));
+    });
+
+    test('terminal strategy inserts only when hasMore is false', () {
+      final jokes = buildJokes(2);
+      final withoutTerminal = JokeListSlotSequence(
+        jokes: jokes,
+        strategies: [
+          TerminalInjectedCardStrategy(id: 'end', builder: alwaysShrinkBuilder),
+        ],
+        hasMore: true,
+      );
+      expect(
+        withoutTerminal.slotCount,
+        equals(2),
+        reason: 'hasMore true should skip terminal card',
+      );
+
+      final withTerminal = JokeListSlotSequence(
+        jokes: jokes,
+        strategies: [
+          TerminalInjectedCardStrategy(id: 'end', builder: alwaysShrinkBuilder),
+        ],
+        hasMore: false,
+      );
+      expect(withTerminal.slotCount, equals(3));
+      expect(withTerminal.slotAt(2), isA<InjectedSlot>());
+      final terminalSlot = withTerminal.slotAt(2) as InjectedSlot;
+      expect(terminalSlot.realJokesBefore, equals(2));
+    });
   });
+}
+
+class _FixedStrategy extends JokeListInjectionStrategy {
+  _FixedStrategy(this._descriptors);
+
+  final List<InjectedSlotDescriptor> _descriptors;
+
+  @override
+  Iterable<InjectedSlotDescriptor> build({
+    required List<JokeWithDate> jokes,
+    required bool hasMore,
+    required bool isLoading,
+  }) => _descriptors;
 }

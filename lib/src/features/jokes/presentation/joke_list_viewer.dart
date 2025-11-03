@@ -31,6 +31,7 @@ class JokeListViewer extends ConsumerStatefulWidget {
     this.showCtaWhenEmpty = false,
     this.emptyState,
     this.showSimilarSearchButton = true,
+    this.injectionStrategies = const [],
   });
 
   final AsyncValue<List<JokeWithDate>>? jokesAsyncValue;
@@ -42,6 +43,7 @@ class JokeListViewer extends ConsumerStatefulWidget {
   final bool showCtaWhenEmpty;
   final Widget? emptyState;
   final bool showSimilarSearchButton;
+  final List<JokeListInjectionStrategy> injectionStrategies;
 
   @override
   ConsumerState<JokeListViewer> createState() => _JokeListViewerState();
@@ -53,11 +55,11 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
   final Map<String, int> _currentImageStates = {};
   final Map<String, JokeImageCarouselController> _carouselControllers = {};
   String _lastNavigationMethod = AnalyticsNavigationMethod.swipe;
+  int? _scheduledJumpTarget;
 
   @override
   void initState() {
     super.initState();
-    final initialIndex = ref.read(jokeViewerPageIndexProvider(widget.viewerId));
     _pageController = PageController(
       viewportFraction: 1.0,
       // For some reason, _resetToFirstJoke() always resets not to 0, but to this
@@ -65,11 +67,6 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
       // resets bring it back to 0.
       initialPage: 0,
     );
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && _pageController.hasClients) {
-        _pageController.jumpToPage(initialIndex);
-      }
-    });
     widget.onInitRegisterReset?.call(_resetToFirstJoke);
   }
 
@@ -108,6 +105,49 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
       duration: const Duration(milliseconds: 300),
       curve: Curves.easeInOut,
     );
+  }
+
+  void _scheduleJumpTo(int targetSlot) {
+    if (_scheduledJumpTarget == targetSlot) {
+      return;
+    }
+    _scheduledJumpTarget = targetSlot;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (!_pageController.hasClients) {
+        _scheduledJumpTarget = null;
+        _scheduleJumpTo(targetSlot);
+        return;
+      }
+      _pageController.jumpToPage(targetSlot);
+    });
+  }
+
+  int? _nearestJokeIndexForSlot(JokeListSlotSequence sequence, int slotIndex) {
+    final direct = sequence.jokeIndexForSlot(slotIndex);
+    if (direct != null) return direct;
+    final prevSlot = sequence.lastJokeSlotAtOrBefore(slotIndex);
+    if (prevSlot != null) {
+      final prevIndex = sequence.jokeIndexForSlot(prevSlot);
+      if (prevIndex != null) return prevIndex;
+    }
+    final nextSlot = sequence.firstJokeSlotAfter(slotIndex);
+    if (nextSlot != null) {
+      final nextIndex = sequence.jokeIndexForSlot(nextSlot);
+      if (nextIndex != null) return nextIndex;
+    }
+    return null;
+  }
+
+  int? _slotIndexForStoredJoke(
+    JokeListSlotSequence sequence,
+    int storedJokeIndex,
+  ) {
+    if (!sequence.hasJokes) return null;
+    final maxIndex = sequence.totalJokes - 1;
+    final clamped = storedJokeIndex.clamp(0, maxIndex);
+    final normalized = (clamped as num).toInt();
+    return sequence.slotIndexForJokeIndex(normalized);
   }
 
   Widget _buildCTAButton({
@@ -163,7 +203,7 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
               ? null
               : () {
                   if (showReveal && currentJokeId != null) {
-                    final revealJokeId = currentJokeId!;
+                    final revealJokeId = currentJokeId;
                     setState(() {
                       _currentImageStates[revealJokeId] = 1;
                     });
@@ -199,6 +239,10 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
       return const SizedBox.expand();
     }
 
+    final int storedJokeIndex = ref.watch(
+      jokeViewerPageIndexProvider(widget.viewerId),
+    );
+
     final AsyncValue<List<JokeWithDate>> effectiveAsync =
         widget.dataSource != null
         ? ref.watch(widget.dataSource!.items)
@@ -211,7 +255,32 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
 
     return effectiveAsync.when(
       data: (jokesWithDates) {
-        final slotSequence = JokeListSlotSequence(jokes: jokesWithDates);
+        bool hasMore = false;
+        bool isLoading = false;
+        if (widget.dataSource != null) {
+          hasMore = ref.watch(widget.dataSource!.hasMore);
+          isLoading = ref.watch(widget.dataSource!.isLoading);
+        }
+        final slotSequence = JokeListSlotSequence(
+          jokes: jokesWithDates,
+          strategies: widget.injectionStrategies,
+          hasMore: hasMore,
+          isLoading: isLoading,
+        );
+        final targetSlot = _slotIndexForStoredJoke(
+          slotSequence,
+          storedJokeIndex,
+        );
+        final nearestForCurrent =
+            _nearestJokeIndexForSlot(slotSequence, _currentPage);
+        final shouldJump =
+            targetSlot != null &&
+            targetSlot != _currentPage &&
+            (storedJokeIndex != nearestForCurrent ||
+                !_pageController.hasClients);
+        if (shouldJump) {
+          _scheduleJumpTo(targetSlot!);
+        }
         final isLandscape =
             MediaQuery.of(context).orientation == Orientation.landscape;
         final bool railPresent =
@@ -265,13 +334,18 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
               setState(() {
                 _currentPage = safeCurrentPage;
               });
-              ref
-                      .read(
-                        jokeViewerPageIndexProvider(widget.viewerId).notifier,
-                      )
-                      .state =
-                  slotSequence.jokeIndexForSlot(safeCurrentPage) ??
-                  safeCurrentPage;
+              final fallbackIndex = _nearestJokeIndexForSlot(
+                slotSequence,
+                safeCurrentPage,
+              );
+              if (fallbackIndex != null) {
+                ref
+                        .read(
+                          jokeViewerPageIndexProvider(widget.viewerId).notifier,
+                        )
+                        .state =
+                    fallbackIndex;
+              }
             }
           });
         }
@@ -289,7 +363,19 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
                     setState(() {
                       _currentPage = index;
                     });
+                    if (_scheduledJumpTarget == index) {
+                      _scheduledJumpTarget = null;
+                    }
                     final jokeIndex = slotSequence.jokeIndexForSlot(index);
+                    final previousStoredIndex = ref.read(
+                      jokeViewerPageIndexProvider(widget.viewerId),
+                    );
+                    final nearestIndex = _nearestJokeIndexForSlot(
+                      slotSequence,
+                      index,
+                    );
+                    final nextStoredIndex =
+                        jokeIndex ?? nearestIndex ?? previousStoredIndex;
                     ref
                             .read(
                               jokeViewerPageIndexProvider(
@@ -297,7 +383,7 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
                               ).notifier,
                             )
                             .state =
-                        jokeIndex ?? index;
+                        nextStoredIndex;
 
                     // Report viewing position to data source for auto-loading
                     final int? viewingIndex;
@@ -340,79 +426,92 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
                   }
                 },
                 itemBuilder: (context, index) {
-                  final jokeSlot = slotSequence.jokeSlotAt(index);
-                  final jokeWithDate = jokeSlot.joke;
-                  final joke = jokeWithDate.joke;
-                  final date = jokeWithDate.date;
-                  final dataSource = jokeWithDate.dataSource;
-
-                  final formattedDate = date != null
-                      ? '${date.month}/${date.day}/${date.year}'
-                      : null;
-
-                  final List<Joke> jokesToPreload = [];
-                  int? nextSlot = slotSequence.firstJokeSlotAfter(index);
-                  if (nextSlot != null) {
-                    final nextJokeIndex = slotSequence.jokeIndexForSlot(
-                      nextSlot,
-                    );
-                    if (nextJokeIndex != null) {
-                      jokesToPreload.add(
-                        slotSequence.jokes[nextJokeIndex].joke,
-                      );
-                    }
-                    nextSlot = slotSequence.firstJokeSlotAfter(nextSlot);
-                    if (nextSlot != null) {
-                      final secondIndex = slotSequence.jokeIndexForSlot(
-                        nextSlot,
-                      );
-                      if (secondIndex != null) {
-                        jokesToPreload.add(
-                          slotSequence.jokes[secondIndex].joke,
-                        );
-                      }
-                    }
-                  }
-
+                  final slot = slotSequence.slotAt(index);
                   final isLandscape =
                       MediaQuery.of(context).orientation ==
                       Orientation.landscape;
 
-                  final controller =
-                      _carouselControllers[joke.id] ??
-                      (_carouselControllers[joke.id] =
-                          JokeImageCarouselController());
+                  Widget child;
+                  String keySuffix;
 
-                  final String? titleForCard = formattedDate;
+                  if (slot is JokeSlot) {
+                    final jokeWithDate = slot.joke;
+                    final joke = jokeWithDate.joke;
+                    final date = jokeWithDate.date;
+                    final dataSource = jokeWithDate.dataSource;
+
+                    final formattedDate = date != null
+                        ? '${date.month}/${date.day}/${date.year}'
+                        : null;
+
+                    final List<Joke> jokesToPreload = [];
+                    int? nextSlot = slotSequence.firstJokeSlotAfter(index);
+                    if (nextSlot != null) {
+                      final nextJokeIndex = slotSequence.jokeIndexForSlot(
+                        nextSlot,
+                      );
+                      if (nextJokeIndex != null) {
+                        jokesToPreload.add(
+                          slotSequence.jokes[nextJokeIndex].joke,
+                        );
+                      }
+                      nextSlot = slotSequence.firstJokeSlotAfter(nextSlot);
+                      if (nextSlot != null) {
+                        final secondIndex = slotSequence.jokeIndexForSlot(
+                          nextSlot,
+                        );
+                        if (secondIndex != null) {
+                          jokesToPreload.add(
+                            slotSequence.jokes[secondIndex].joke,
+                          );
+                        }
+                      }
+                    }
+
+                    final controller =
+                        _carouselControllers[joke.id] ??
+                        (_carouselControllers[joke.id] =
+                            JokeImageCarouselController());
+
+                    child = JokeCard(
+                      key: Key(joke.id),
+                      joke: joke,
+                      index: slot.jokeIndex,
+                      title: formattedDate,
+                      dataSource: dataSource,
+                      onImageStateChanged: (imageIndex) =>
+                          _onImageStateChanged(joke.id, imageIndex),
+                      isAdminMode: false,
+                      jokesToPreload: jokesToPreload,
+                      showSaveButton: true,
+                      showShareButton: true,
+                      showAdminRatingButtons: false,
+                      jokeContext: widget.jokeContext,
+                      controller: controller,
+                      showSimilarSearchButton: widget.showSimilarSearchButton,
+                    );
+                    keySuffix = 'joke-${joke.id}';
+                  } else if (slot is InjectedSlot) {
+                    child = slot.build(context);
+                    keySuffix = 'injected-${slot.id}';
+                  } else {
+                    throw StateError(
+                      'Unsupported slot type: ${slot.runtimeType}',
+                    );
+                  }
 
                   return Center(
-                    key: ValueKey('page-${joke.id}'),
+                    key: ValueKey('page-$keySuffix'),
                     child: Container(
                       width: isLandscape ? null : double.infinity,
                       height: isLandscape ? double.infinity : null,
-                      padding: EdgeInsets.only(
+                      padding: const EdgeInsets.only(
                         left: 16.0,
                         right: 16.0,
                         top: 4.0,
                         bottom: 4.0,
                       ),
-                      child: JokeCard(
-                        key: Key(joke.id),
-                        joke: joke,
-                        index: jokeSlot.jokeIndex,
-                        title: titleForCard,
-                        dataSource: dataSource,
-                        onImageStateChanged: (imageIndex) =>
-                            _onImageStateChanged(joke.id, imageIndex),
-                        isAdminMode: false,
-                        jokesToPreload: jokesToPreload,
-                        showSaveButton: true,
-                        showShareButton: true,
-                        showAdminRatingButtons: false,
-                        jokeContext: widget.jokeContext,
-                        controller: controller,
-                        showSimilarSearchButton: widget.showSimilarSearchButton,
-                      ),
+                      child: child,
                     ),
                   );
                 },

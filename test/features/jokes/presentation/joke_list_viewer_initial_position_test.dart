@@ -7,9 +7,9 @@ import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers
 import 'package:snickerdoodle/src/features/jokes/application/joke_list_data_source.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_navigation_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
+import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_viewer_mode.dart';
 import 'package:snickerdoodle/src/features/jokes/presentation/joke_list_viewer.dart';
-import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
 
 import '../../../helpers/joke_viewer_test_utils.dart';
 
@@ -36,6 +36,8 @@ void main() {
     late MockAnalyticsService mockAnalyticsService;
     late Provider<AsyncValue<List<JokeWithDate>>> itemsProvider;
     late Provider<bool> isDataPendingProvider;
+    late Provider<bool> hasMoreProvider;
+    late Provider<bool> isLoadingProvider;
 
     setUp(() {
       mockDataSource = MockJokeListDataSource();
@@ -64,11 +66,15 @@ void main() {
         (ref) => const AsyncValue<List<JokeWithDate>>.data([]),
       );
       isDataPendingProvider = Provider((ref) => false);
+      hasMoreProvider = Provider((ref) => false);
+      isLoadingProvider = Provider((ref) => false);
 
       when(() => mockDataSource.items).thenAnswer((_) => itemsProvider);
       when(
         () => mockDataSource.isDataPending,
       ).thenAnswer((_) => isDataPendingProvider);
+      when(() => mockDataSource.hasMore).thenAnswer((_) => hasMoreProvider);
+      when(() => mockDataSource.isLoading).thenAnswer((_) => isLoadingProvider);
     });
 
     void setLoadedJokes(List<JokeWithDate> jokes) {
@@ -138,18 +144,55 @@ void main() {
     );
 
     testWidgets(
-      'defers jump until the target joke id becomes available in the data',
+      'clamps stored joke index greater than loaded jokes to last joke',
       (tester) async {
-        // This test is no longer relevant since initialJokeId functionality has been removed
-        // The test is kept as a placeholder to maintain test structure
-        expect(true, isTrue);
+        final jokes = List.generate(
+          2,
+          (index) => JokeWithDate(
+            joke: Joke(
+              id: 'joke_$index',
+              setupText: 'Setup $index',
+              punchlineText: 'Punchline $index',
+              setupImageUrl: 'https://example.com/setup$index.png',
+              punchlineImageUrl: 'https://example.com/punchline$index.png',
+            ),
+          ),
+        );
+
+        setLoadedJokes(jokes);
+        setIsDataPending(false);
+
+        await tester.pumpWidget(
+          ProviderScope(
+            overrides: [
+              ...buildJokeViewerOverrides(
+                analyticsService: mockAnalyticsService,
+              ),
+              jokeViewerPageIndexProvider('viewer').overrideWith((ref) => 10),
+            ],
+            child: MaterialApp(
+              home: Scaffold(
+                body: JokeListViewer(
+                  viewerId: 'viewer',
+                  jokeContext: 'ctx',
+                  dataSource: mockDataSource,
+                ),
+              ),
+            ),
+          ),
+        );
+
+        await tester.pumpAndSettle();
+
+        final container = ProviderScope.containerOf(
+          tester.element(find.byType(JokeListViewer)),
+        );
+        expect(container.read(jokeViewerPageIndexProvider('viewer')), 1);
+        final pageView = tester.widget<PageView>(
+          find.byKey(const Key('joke_viewer_page_view')),
+        );
+        expect(pageView.controller?.page, closeTo(1, 0.01));
       },
     );
-
-    testWidgets('invokes onJokeChange when navigation occurs', (tester) async {
-      // This test is no longer relevant since onJokeChange functionality has been removed
-      // The test is kept as a placeholder to maintain test structure
-      expect(true, isTrue);
-    });
   });
 }

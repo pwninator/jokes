@@ -299,7 +299,7 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
           }
         });
 
-        if (jokesWithDates.isEmpty) {
+        if (slotSequence.slotCount == 0) {
           // Defensive: if a data source forgot to emit loading on first-load,
           // fallback to loading UI when it reports loading and no items.
           if (widget.dataSource != null &&
@@ -404,13 +404,13 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
                     }
 
                     if (jokeIndex != null) {
+                      final analyticsService = ref.read(
+                        analyticsServiceProvider,
+                      );
                       final jokeWithDate = slotSequence.jokes[jokeIndex];
                       final joke = jokeWithDate.joke;
                       final jokeScrollDepth = jokeIndex;
 
-                      final analyticsService = ref.read(
-                        analyticsServiceProvider,
-                      );
                       final viewerCtx = getJokeViewerContext(context, ref);
                       analyticsService.logJokeNavigation(
                         joke.id,

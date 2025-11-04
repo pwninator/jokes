@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
 
 typedef InjectedSlotBuilder =
@@ -193,7 +195,10 @@ class TerminalInjectedCardStrategy extends JokeListInjectionStrategy {
 /// Injection strategy that adds an end-of-feed message when the viewer is
 /// exhausted.
 class EndOfFeedInjectedCardStrategy extends JokeListInjectionStrategy {
-  const EndOfFeedInjectedCardStrategy();
+  const EndOfFeedInjectedCardStrategy({required this.jokeContext});
+
+  static const String slotId = 'end_of_feed';
+  final String jokeContext;
 
   @override
   Iterable<InjectedSlotDescriptor> build({
@@ -201,13 +206,13 @@ class EndOfFeedInjectedCardStrategy extends JokeListInjectionStrategy {
     required bool hasMore,
     required bool isLoading,
   }) {
-    final shouldInject = jokes.isNotEmpty && !hasMore && !isLoading;
+    final shouldInject = !hasMore && !isLoading;
     if (!shouldInject) return const Iterable<InjectedSlotDescriptor>.empty();
     return <InjectedSlotDescriptor>[
       InjectedSlotDescriptor(
-        id: 'end_of_feed',
+        id: slotId,
         jokesBefore: jokes.length,
-        builder: (context, data) => const _EndOfFeedCard(),
+        builder: (context, data) => _EndOfFeedCard(jokeContext: jokeContext),
         priority: 1,
       ),
     ];
@@ -414,8 +419,29 @@ class JokeListSlotSequence {
   }
 }
 
-class _EndOfFeedCard extends StatelessWidget {
-  const _EndOfFeedCard();
+class _EndOfFeedCard extends ConsumerStatefulWidget {
+  const _EndOfFeedCard({required this.jokeContext});
+
+  final String jokeContext;
+
+  @override
+  ConsumerState<_EndOfFeedCard> createState() => _EndOfFeedCardState();
+}
+
+class _EndOfFeedCardState extends ConsumerState<_EndOfFeedCard> {
+  bool _logged = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_logged) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _logged) return;
+      final analytics = ref.read(analyticsServiceProvider);
+      analytics.logJokeFeedEndViewed(jokeContext: widget.jokeContext);
+      _logged = true;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {

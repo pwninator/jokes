@@ -93,6 +93,9 @@ abstract class AnalyticsService {
   /// Log when user reaches the end of the joke list
   void logJokeEndReached({required String jokeContext});
 
+  /// Log when the end-of-feed card is presented to the user.
+  void logJokeFeedEndViewed({required String jokeContext});
+
   // Ads: banner lifecycle
   void logAdBannerStatus({required String eligibilityStatus});
 
@@ -550,6 +553,13 @@ class FirebaseAnalyticsService implements AnalyticsService {
       {},
       eventNameSuffix: '_$jokeContext',
     );
+  }
+
+  @override
+  void logJokeFeedEndViewed({required String jokeContext}) {
+    _logEvent(AnalyticsEvent.jokeFeedEndViewed, {
+      AnalyticsParameters.jokeContext: jokeContext,
+    });
   }
 
   // =====================

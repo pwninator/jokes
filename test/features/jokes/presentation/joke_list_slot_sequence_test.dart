@@ -158,7 +158,7 @@ void main() {
       final jokes = buildJokes(2);
       final sequence = JokeListSlotSequence(
         jokes: jokes,
-        strategies: const [EndOfFeedInjectedCardStrategy()],
+        strategies: const [EndOfFeedInjectedCardStrategy(jokeContext: 'test')],
         hasMore: false,
         isLoading: false,
       );
@@ -166,7 +166,7 @@ void main() {
       expect(sequence.slotCount, equals(3));
       expect(sequence.slotAt(2), isA<InjectedSlot>());
       final slot = sequence.slotAt(2) as InjectedSlot;
-      expect(slot.id, 'end_of_feed');
+      expect(slot.id, EndOfFeedInjectedCardStrategy.slotId);
       expect(slot.realJokesBefore, equals(2));
     });
 
@@ -174,13 +174,28 @@ void main() {
       final jokes = buildJokes(2);
       final sequence = JokeListSlotSequence(
         jokes: jokes,
-        strategies: const [EndOfFeedInjectedCardStrategy()],
+        strategies: const [EndOfFeedInjectedCardStrategy(jokeContext: 'test')],
         hasMore: true,
         isLoading: false,
       );
 
       expect(sequence.slotCount, equals(2));
       expect(sequence.slotAt(1), isA<JokeSlot>());
+    });
+
+    test('end of feed strategy injects when zero jokes and feed exhausted', () {
+      final sequence = JokeListSlotSequence(
+        jokes: const <JokeWithDate>[],
+        strategies: const [EndOfFeedInjectedCardStrategy(jokeContext: 'test')],
+        hasMore: false,
+        isLoading: false,
+      );
+
+      expect(sequence.slotCount, equals(1));
+      expect(sequence.slotAt(0), isA<InjectedSlot>());
+      final slot = sequence.slotAt(0) as InjectedSlot;
+      expect(slot.id, EndOfFeedInjectedCardStrategy.slotId);
+      expect(slot.realJokesBefore, equals(0));
     });
   });
 }

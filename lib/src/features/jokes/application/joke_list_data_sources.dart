@@ -155,13 +155,13 @@ class CompositeJokeSourceBoundaries {
   // Composite sources
 
   static const int bestJokesMinIndex = 0;
-  static const int bestJokesMaxIndex = 20;
+  static const int bestJokesMaxIndex = 200;
 
   static const int randomMinIndex = 10;
-  static const int randomMaxIndex = 50;
+  static const int randomMaxIndex = 500;
 
-  static const int publicMinIndex = 20;
-  static const int publicMaxIndex = 50;
+  static const int publicMinIndex = 200;
+  static const int? publicMaxIndex = null;
 }
 
 /// Date ranges for seasonal priority sources.

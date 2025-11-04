@@ -74,7 +74,7 @@ void main() {
 
     final previewSequence = JokeListSlotSequence(
       jokes: jokes,
-      strategies: const [EndOfFeedInjectedCardStrategy()],
+      strategies: const [EndOfFeedInjectedCardStrategy(jokeContext: 'test')],
       hasMore: false,
       isLoading: false,
     );
@@ -99,6 +99,11 @@ void main() {
         errorMessage: any(named: 'errorMessage'),
       ),
     ).thenAnswer((_) async {});
+    when(
+      () => analytics.logJokeFeedEndViewed(
+        jokeContext: any(named: 'jokeContext'),
+      ),
+    ).thenAnswer((_) {});
 
     await tester.pumpWidget(
       ProviderScope(
@@ -108,7 +113,9 @@ void main() {
             jokeContext: 'test',
             viewerId: 'viewer',
             jokesAsyncValue: AsyncValue<List<JokeWithDate>>.data(jokes),
-            injectionStrategies: const [EndOfFeedInjectedCardStrategy()],
+            injectionStrategies: const [
+              EndOfFeedInjectedCardStrategy(jokeContext: 'test'),
+            ],
           ),
         ),
       ),
@@ -129,10 +136,60 @@ void main() {
       find.byKey(const ValueKey('page-injected-end_of_feed')),
       findsOneWidget,
     );
+    expect(find.textContaining('Fresh jokes drop tomorrow'), findsOneWidget);
+    verify(
+      () => analytics.logJokeFeedEndViewed(
+        jokeContext: any(named: 'jokeContext'),
+      ),
+    ).called(1);
+  });
+
+  testWidgets('shows end-of-feed card when no jokes are available', (
+    tester,
+  ) async {
+    final analytics = MockAnalyticsService();
+    when(
+      () => analytics.logJokeFeedEndViewed(
+        jokeContext: any(named: 'jokeContext'),
+      ),
+    ).thenAnswer((_) {});
+    when(
+      () => analytics.logErrorJokesLoad(
+        source: any(named: 'source'),
+        errorMessage: any(named: 'errorMessage'),
+      ),
+    ).thenAnswer((_) async {});
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [...buildJokeViewerOverrides(analyticsService: analytics)],
+        child: MaterialApp(
+          home: JokeListViewer(
+            jokeContext: 'test',
+            viewerId: 'viewer',
+            jokesAsyncValue: const AsyncValue<List<JokeWithDate>>.data(
+              <JokeWithDate>[],
+            ),
+            injectionStrategies: const [
+              EndOfFeedInjectedCardStrategy(jokeContext: 'test'),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
     expect(
-      find.textContaining('Fresh illustrated jokes drop tomorrow'),
+      find.byKey(const ValueKey('page-injected-end_of_feed')),
       findsOneWidget,
     );
+    expect(find.textContaining('Fresh jokes drop tomorrow'), findsOneWidget);
+    verify(
+      () => analytics.logJokeFeedEndViewed(
+        jokeContext: any(named: 'jokeContext'),
+      ),
+    ).called(1);
   });
 }
 

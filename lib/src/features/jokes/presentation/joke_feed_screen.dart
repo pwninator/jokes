@@ -46,7 +46,11 @@ class _JokeFeedScreenState extends ConsumerState<JokeFeedScreen> {
         dataSource: _dataSource,
         jokeContext: AnalyticsJokeContext.jokeFeed,
         viewerId: 'joke_feed',
-        injectionStrategies: const [EndOfFeedInjectedCardStrategy()],
+        injectionStrategies: [
+          EndOfFeedInjectedCardStrategy(
+            jokeContext: AnalyticsJokeContext.jokeFeed,
+          ),
+        ],
       ),
     );
   }

@@ -13,6 +13,7 @@ enum AnalyticsEvent {
   jokeViewedHigh('joke_viewed_high'),
   jokeNavigated('joke_navigated'),
   jokeEndReached('joke_end_reached'),
+  jokeFeedEndViewed('joke_feed_end_viewed'),
   // Joke search event
   jokeSearch('joke_search'),
   // Similar search CTA event

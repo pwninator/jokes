@@ -92,19 +92,26 @@ class JokeCategory {
        );
 
   factory JokeCategory.fromMap(Map<String, dynamic> map, String id) {
+    final displayName = (map['display_name'] as String?)?.trim() ?? '';
+    final searchQuery = (map['joke_description_query'] as String?)?.trim();
+    final seasonalName = (map['seasonal_name'] as String?)?.trim();
+    final imageUrl = (map['image_url'] as String?)?.trim();
+    final imageDescription = (map['image_description'] as String?)?.trim();
+    final state =
+        JokeCategoryState.fromString(map['state'] as String?) ??
+        JokeCategoryState.proposed;
+
+    final isSeasonal = seasonalName != null && seasonalName.isNotEmpty;
+
     return JokeCategory(
       id: '$firestorePrefix$id',
-      displayName: (map['display_name'] as String?)?.trim() ?? '',
-      jokeDescriptionQuery: (map['joke_description_query'] as String?)?.trim(),
-      imageUrl: (map['image_url'] as String?)?.trim(),
-      imageDescription: (map['image_description'] as String?)?.trim(),
-      state:
-          JokeCategoryState.fromString(map['state'] as String?) ??
-          JokeCategoryState.proposed,
-      // Firestore categories are currently search-based; seasonal/programmatic
-      // tiles are added in code, not from Firestore.
-      type: CategoryType.search,
-      seasonalValue: null,
+      displayName: displayName,
+      jokeDescriptionQuery: isSeasonal ? null : searchQuery,
+      imageUrl: imageUrl,
+      imageDescription: imageDescription,
+      state: state,
+      type: isSeasonal ? CategoryType.seasonal : CategoryType.search,
+      seasonalValue: isSeasonal ? seasonalName : null,
     );
   }
 

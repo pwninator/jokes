@@ -71,12 +71,12 @@ void main() {
       when(
         () => mockDataSource.updateViewingIndex(any()),
       ).thenAnswer((_) async {});
-      when(() => mockDataSource.hasMore).thenReturn(
-        Provider<bool>((ref) => false),
-      );
-      when(() => mockDataSource.isLoading).thenReturn(
-        Provider<bool>((ref) => false),
-      );
+      when(
+        () => mockDataSource.hasMore,
+      ).thenReturn(Provider<bool>((ref) => false));
+      when(
+        () => mockDataSource.isLoading,
+      ).thenReturn(Provider<bool>((ref) => false));
 
       // Setup analytics service defaults
       when(
@@ -111,9 +111,9 @@ void main() {
       when(
         () => mockDataSource.isDataPending,
       ).thenReturn(Provider<bool>((ref) => true));
-      when(() => mockDataSource.isLoading).thenReturn(
-        Provider<bool>((ref) => true),
-      );
+      when(
+        () => mockDataSource.isLoading,
+      ).thenReturn(Provider<bool>((ref) => true));
 
       // Act: Build widget with ProviderScope
       await tester.pumpWidget(

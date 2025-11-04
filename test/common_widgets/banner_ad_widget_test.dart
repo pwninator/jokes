@@ -395,4 +395,112 @@ void main() {
     expect(find.byType(SizedBox), findsOneWidget);
     expect(find.byType(AdWidget), findsNothing);
   });
+
+  testWidgets('wraps bottom-positioned ads in SafeArea', (tester) async {
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = const Size(400, 800); // portrait
+    addTearDown(() {
+      tester.view.resetDevicePixelRatio();
+      tester.view.resetPhysicalSize();
+    });
+
+    final fakeRemoteConfig = FakeRemoteConfigValues(AdDisplayMode.banner);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          bannerAdEligibilityProvider.overrideWithValue(
+            const BannerAdEligibility(
+              isEligible: true,
+              reason: BannerAdService.eligibleReason,
+              position: BannerAdPosition.bottom,
+            ),
+          ),
+          remoteConfigValuesProvider.overrideWithValue(fakeRemoteConfig),
+          analyticsServiceProvider.overrideWithValue(mockAnalyticsService),
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          jokeViewerRevealProvider.overrideWith(
+            (ref) => JokeViewerRevealNotifier(
+              JokeViewerSettingsService(
+                settingsService: SettingsService(prefs),
+                remoteConfigValues: fakeRemoteConfig,
+                analyticsService: mockAnalyticsService,
+              ),
+            ),
+          ),
+        ],
+        child: const MaterialApp(
+          home: DeviceOrientationObserver(
+            child: Scaffold(
+              body: AdBannerWidget(
+                jokeContext: 'daily',
+                position: BannerAdPosition.bottom,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    // Should render SafeArea for bottom-positioned ads
+    expect(find.byType(AdBannerWidget), findsOneWidget);
+    expect(find.byType(SafeArea), findsOneWidget);
+    expect(_bannerSizedBoxFinder(), findsOneWidget);
+  });
+
+  testWidgets('does not wrap top-positioned ads in SafeArea', (tester) async {
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = const Size(400, 800); // portrait
+    addTearDown(() {
+      tester.view.resetDevicePixelRatio();
+      tester.view.resetPhysicalSize();
+    });
+
+    final fakeRemoteConfig = FakeRemoteConfigValues(AdDisplayMode.banner);
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          bannerAdEligibilityProvider.overrideWithValue(
+            const BannerAdEligibility(
+              isEligible: true,
+              reason: BannerAdService.eligibleReason,
+              position: BannerAdPosition.top,
+            ),
+          ),
+          remoteConfigValuesProvider.overrideWithValue(fakeRemoteConfig),
+          analyticsServiceProvider.overrideWithValue(mockAnalyticsService),
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          jokeViewerRevealProvider.overrideWith(
+            (ref) => JokeViewerRevealNotifier(
+              JokeViewerSettingsService(
+                settingsService: SettingsService(prefs),
+                remoteConfigValues: fakeRemoteConfig,
+                analyticsService: mockAnalyticsService,
+              ),
+            ),
+          ),
+        ],
+        child: const MaterialApp(
+          home: DeviceOrientationObserver(
+            child: Scaffold(
+              body: AdBannerWidget(
+                jokeContext: 'daily',
+                position: BannerAdPosition.top,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.pumpAndSettle();
+
+    // Should NOT render SafeArea for top-positioned ads
+    expect(find.byType(AdBannerWidget), findsOneWidget);
+    expect(find.byType(SafeArea), findsNothing);
+    expect(_bannerSizedBoxFinder(), findsOneWidget);
+  });
 }

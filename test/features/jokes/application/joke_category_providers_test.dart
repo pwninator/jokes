@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_category_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_category.dart';
+import 'package:snickerdoodle/src/features/settings/application/admin_settings_service.dart';
 import 'package:snickerdoodle/src/features/settings/application/feed_screen_status_provider.dart';
 
 void main() {
@@ -11,13 +12,24 @@ void main() {
     test(
       'includes popular, Halloween seasonal, and approved categories',
       () async {
+        final adminSettings = _FakeAdminSettingsService(
+          initialShowProposedCategories: false,
+        );
         final container = ProviderContainer(
           overrides: [
             // Mock feed screen status to false (daily jokes tile won't appear)
             feedScreenStatusProvider.overrideWithValue(false),
+            adminSettingsServiceProvider.overrideWithValue(adminSettings),
             // Provide some approved categories from Firestore
             jokeCategoriesProvider.overrideWith(
               (ref) => Stream.value([
+                JokeCategory(
+                  id: '${JokeCategory.firestorePrefix}halloween',
+                  displayName: 'Halloween',
+                  type: CategoryType.seasonal,
+                  seasonalValue: 'Halloween',
+                  state: JokeCategoryState.approved,
+                ),
                 JokeCategory(
                   id: '${JokeCategory.firestorePrefix}1',
                   displayName: 'Cats',
@@ -61,6 +73,7 @@ void main() {
         expect(
           categories.any(
             (category) =>
+                category.id == '${JokeCategory.firestorePrefix}halloween' &&
                 category.type == CategoryType.seasonal &&
                 category.seasonalValue == 'Halloween',
           ),
@@ -77,13 +90,24 @@ void main() {
     );
 
     test('includes daily jokes tile when feed screen is enabled', () async {
+      final adminSettings = _FakeAdminSettingsService(
+        initialShowProposedCategories: false,
+      );
       final container = ProviderContainer(
         overrides: [
           // Mock feed screen status to true (daily jokes tile will appear)
           feedScreenStatusProvider.overrideWithValue(true),
+          adminSettingsServiceProvider.overrideWithValue(adminSettings),
           // Provide some approved categories from Firestore
           jokeCategoriesProvider.overrideWith(
             (ref) => Stream.value([
+              JokeCategory(
+                id: '${JokeCategory.firestorePrefix}halloween',
+                displayName: 'Halloween',
+                type: CategoryType.seasonal,
+                seasonalValue: 'Halloween',
+                state: JokeCategoryState.approved,
+              ),
               JokeCategory(
                 id: '${JokeCategory.firestorePrefix}1',
                 displayName: 'Cats',
@@ -126,6 +150,7 @@ void main() {
       expect(
         categories.any(
           (category) =>
+              category.id == '${JokeCategory.firestorePrefix}halloween' &&
               category.type == CategoryType.seasonal &&
               category.seasonalValue == 'Halloween',
         ),
@@ -139,5 +164,145 @@ void main() {
         isTrue,
       );
     });
+
+    test('excludes proposed categories when toggle disabled', () async {
+      final adminSettings = _FakeAdminSettingsService(
+        initialShowProposedCategories: false,
+      );
+      final container = ProviderContainer(
+        overrides: [
+          feedScreenStatusProvider.overrideWithValue(false),
+          adminSettingsServiceProvider.overrideWithValue(adminSettings),
+          jokeCategoriesProvider.overrideWith(
+            (ref) => Stream.value([
+              JokeCategory(
+                id: '${JokeCategory.firestorePrefix}approved',
+                displayName: 'Approved',
+                type: CategoryType.search,
+                jokeDescriptionQuery: 'approved',
+                state: JokeCategoryState.approved,
+              ),
+              JokeCategory(
+                id: '${JokeCategory.firestorePrefix}proposed',
+                displayName: 'Proposed',
+                type: CategoryType.search,
+                jokeDescriptionQuery: 'proposed',
+                state: JokeCategoryState.proposed,
+              ),
+            ]),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final completer = Completer<void>();
+      final sub = container.listen(discoverCategoriesProvider, (_, next) {
+        if (next.hasValue && !completer.isCompleted) {
+          completer.complete();
+        }
+      }, fireImmediately: true);
+      addTearDown(sub.close);
+      await completer.future;
+
+      final value = container.read(discoverCategoriesProvider).value!;
+      expect(
+        value.any(
+          (category) =>
+              category.id == '${JokeCategory.firestorePrefix}proposed',
+        ),
+        isFalse,
+      );
+      expect(
+        value.any(
+          (category) =>
+              category.id == '${JokeCategory.firestorePrefix}approved',
+        ),
+        isTrue,
+      );
+    });
+
+    test('includes proposed categories when toggle enabled', () async {
+      final adminSettings = _FakeAdminSettingsService(
+        initialShowProposedCategories: true,
+      );
+      final container = ProviderContainer(
+        overrides: [
+          feedScreenStatusProvider.overrideWithValue(false),
+          adminSettingsServiceProvider.overrideWithValue(adminSettings),
+          jokeCategoriesProvider.overrideWith(
+            (ref) => Stream.value([
+              JokeCategory(
+                id: '${JokeCategory.firestorePrefix}approved',
+                displayName: 'Approved',
+                type: CategoryType.search,
+                jokeDescriptionQuery: 'approved',
+                state: JokeCategoryState.approved,
+              ),
+              JokeCategory(
+                id: '${JokeCategory.firestorePrefix}proposed',
+                displayName: 'Proposed',
+                type: CategoryType.search,
+                jokeDescriptionQuery: 'proposed',
+                state: JokeCategoryState.proposed,
+              ),
+            ]),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final completer = Completer<void>();
+      final sub = container.listen(discoverCategoriesProvider, (_, next) {
+        if (next.hasValue && !completer.isCompleted) {
+          completer.complete();
+        }
+      }, fireImmediately: true);
+      addTearDown(sub.close);
+      await completer.future;
+
+      final value = container.read(discoverCategoriesProvider).value!;
+      expect(
+        value.any(
+          (category) =>
+              category.id == '${JokeCategory.firestorePrefix}proposed',
+        ),
+        isTrue,
+      );
+    });
   });
+}
+
+class _FakeAdminSettingsService implements AdminSettingsService {
+  _FakeAdminSettingsService({bool initialShowProposedCategories = false})
+    : adminOverrideShowBannerAd = false,
+      showJokeDataSource = false,
+      showProposedCategories = initialShowProposedCategories;
+
+  bool adminOverrideShowBannerAd;
+  bool showJokeDataSource;
+  bool showProposedCategories;
+
+  @override
+  bool getAdminOverrideShowBannerAd() => adminOverrideShowBannerAd;
+
+  @override
+  Future<void> setAdminOverrideShowBannerAd(bool value) async {
+    adminOverrideShowBannerAd = value;
+  }
+
+  @override
+  bool getAdminShowJokeDataSource() => showJokeDataSource;
+
+  @override
+  Future<void> setAdminShowJokeDataSource(bool value) async {
+    showJokeDataSource = value;
+  }
+
+  @override
+  bool getAdminShowProposedCategories() => showProposedCategories;
+
+  @override
+  Future<void> setAdminShowProposedCategories(bool value) async {
+    showProposedCategories = value;
+  }
 }

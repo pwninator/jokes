@@ -96,5 +96,34 @@ void main() {
       expect(category.isFirestoreCategory, isFalse);
       expect(category.firestoreDocumentId, 'programmatic:popular');
     });
+
+    test('fromMap returns search category when query provided', () {
+      final map = {
+        'display_name': 'Cats',
+        'joke_description_query': 'cats',
+        'state': 'APPROVED',
+      };
+
+      final category = JokeCategory.fromMap(map, 'cats');
+
+      expect(category.type, CategoryType.search);
+      expect(category.jokeDescriptionQuery, 'cats');
+      expect(category.seasonalValue, isNull);
+    });
+
+    test('fromMap returns seasonal category when seasonal name provided', () {
+      final map = {
+        'display_name': 'Halloween',
+        'seasonal_name': 'Halloween',
+        'state': 'APPROVED',
+        'joke_description_query': 'should be ignored',
+      };
+
+      final category = JokeCategory.fromMap(map, 'halloween');
+
+      expect(category.type, CategoryType.seasonal);
+      expect(category.seasonalValue, 'Halloween');
+      expect(category.jokeDescriptionQuery, isNull);
+    });
   });
 }

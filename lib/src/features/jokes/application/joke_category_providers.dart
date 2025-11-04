@@ -8,6 +8,7 @@ import 'package:snickerdoodle/src/data/core/database/app_database.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_category.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/firestore_joke_category_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_category_repository.dart';
+import 'package:snickerdoodle/src/features/settings/application/admin_settings_service.dart';
 import 'package:snickerdoodle/src/features/settings/application/feed_screen_status_provider.dart';
 
 part 'joke_category_providers.g.dart';
@@ -113,27 +114,20 @@ final discoverCategoriesProvider = Provider<AsyncValue<List<JokeCategory>>>((
     borderColor: Colors.red,
   );
 
-  // Programmatic Seasonal (Halloween) tile
-  final halloweenTile = JokeCategory(
-    id: 'programmatic:seasonal:halloween',
-    displayName: 'Halloween 🎃',
-    imageUrl:
-        "https://images.quillsstorybook.com/cdn-cgi/image/width=1024,format=auto,quality=75/pun_agent_image_20251012_054130_531907.png",
-    imageDescription: 'Halloween jokes',
-    state: JokeCategoryState.approved,
-    type: CategoryType.seasonal,
-    seasonalValue: 'Halloween',
-    borderColor: Colors.orange,
-  );
-
   // Add remaining programmatic tiles
-  programmaticTiles.addAll([halloweenTile, popularTile]);
+  programmaticTiles.add(popularTile);
 
   final categoriesAsync = ref.watch(jokeCategoriesProvider);
+  final adminSettings = ref.read(adminSettingsServiceProvider);
+  final includeProposed = adminSettings.getAdminShowProposedCategories();
   return categoriesAsync.whenData((categories) {
-    final approvedCategories = categories
-        .where((c) => c.state == JokeCategoryState.approved)
-        .toList();
-    return [...programmaticTiles, ...approvedCategories];
+    final filteredCategories = categories.where((c) {
+      if (c.state == JokeCategoryState.approved) return true;
+      if (includeProposed && c.state == JokeCategoryState.proposed) {
+        return true;
+      }
+      return false;
+    }).toList();
+    return [...programmaticTiles, ...filteredCategories];
   });
 });

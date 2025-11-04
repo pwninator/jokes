@@ -32,6 +32,7 @@ import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_functi
 import 'package:snickerdoodle/src/features/jokes/domain/joke_search_result.dart';
 import 'package:snickerdoodle/src/features/search/application/discover_tab_state.dart';
 import 'package:snickerdoodle/src/features/search/presentation/discover_screen.dart';
+import 'package:snickerdoodle/src/features/settings/application/admin_settings_service.dart';
 import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
 
 // Mock classes
@@ -54,6 +55,8 @@ class MockFirebaseAnalytics extends Mock implements FirebaseAnalytics {}
 class MockAppUsageService extends Mock implements AppUsageService {}
 
 class MockAnalyticsService extends Mock implements AnalyticsService {}
+
+class MockAdminSettingsService extends Mock implements AdminSettingsService {}
 
 // Test implementations
 class _TestRemoteConfigValues implements RemoteConfigValues {
@@ -138,6 +141,10 @@ List<Override> getCoreProviderOverrides() {
   final mockSubscriptionService = MockDailyJokeSubscriptionService();
   final mockReviewsRepository = MockReviewsRepository();
   final mockAppUsageService = MockAppUsageService();
+  final mockAdminSettingsService = MockAdminSettingsService();
+  var adminOverrideShowBannerAd = false;
+  var adminShowJokeDataSource = false;
+  var adminShowProposedCategories = false;
   // Setup default behaviors for mocks
   when(() => mockSettingsService.getBool(any())).thenReturn(null);
   when(
@@ -199,6 +206,30 @@ List<Override> getCoreProviderOverrides() {
   when(
     () => mockAppUsageService.getNumJokesViewed(),
   ).thenAnswer((_) async => 0);
+  when(
+    () => mockAdminSettingsService.getAdminOverrideShowBannerAd(),
+  ).thenAnswer((_) => adminOverrideShowBannerAd);
+  when(
+    () => mockAdminSettingsService.setAdminOverrideShowBannerAd(any()),
+  ).thenAnswer((invocation) async {
+    adminOverrideShowBannerAd = invocation.positionalArguments.first as bool;
+  });
+  when(
+    () => mockAdminSettingsService.getAdminShowJokeDataSource(),
+  ).thenAnswer((_) => adminShowJokeDataSource);
+  when(
+    () => mockAdminSettingsService.setAdminShowJokeDataSource(any()),
+  ).thenAnswer((invocation) async {
+    adminShowJokeDataSource = invocation.positionalArguments.first as bool;
+  });
+  when(
+    () => mockAdminSettingsService.getAdminShowProposedCategories(),
+  ).thenAnswer((_) => adminShowProposedCategories);
+  when(
+    () => mockAdminSettingsService.setAdminShowProposedCategories(any()),
+  ).thenAnswer((invocation) async {
+    adminShowProposedCategories = invocation.positionalArguments.first as bool;
+  });
 
   return [
     settingsServiceProvider.overrideWithValue(mockSettingsService),
@@ -208,6 +239,7 @@ List<Override> getCoreProviderOverrides() {
       mockSubscriptionService,
     ),
     reviewsRepositoryProvider.overrideWithValue(mockReviewsRepository),
+    adminSettingsServiceProvider.overrideWithValue(mockAdminSettingsService),
     performanceServiceProvider.overrideWithValue(_TestNoopPerformanceService()),
     appVersionProvider.overrideWith((_) async => 'Snickerdoodle v0.0.1+1'),
     appUsageServiceProvider.overrideWithValue(mockAppUsageService),
@@ -501,9 +533,6 @@ void main() {
             imageUrl: null,
             state: JokeCategoryState.approved,
 
-
-
-            
             type: CategoryType.search,
           ),
         );
@@ -534,13 +563,16 @@ void main() {
           of: gridFinder,
           matching: find.byType(Scrollable),
         );
-        final scrollState =
-            tester.state<ScrollableState>(scrollableFinder.first);
+        final scrollState = tester.state<ScrollableState>(
+          scrollableFinder.first,
+        );
         final initialOffset = scrollState.position.pixels;
         expect(initialOffset, greaterThan(0));
 
-        final tileElements =
-            find.byType(JokeCategoryTile).evaluate().toList(growable: false);
+        final tileElements = find
+            .byType(JokeCategoryTile)
+            .evaluate()
+            .toList(growable: false);
         Finder? visibleTileFinder;
         for (final element in tileElements) {
           final candidate = find.byWidget(element.widget);
@@ -570,8 +602,9 @@ void main() {
           of: gridFinder,
           matching: find.byType(Scrollable),
         );
-        final restoredState = tester
-            .state<ScrollableState>(restoredScrollableFinder.first);
+        final restoredState = tester.state<ScrollableState>(
+          restoredScrollableFinder.first,
+        );
         expect(
           restoredState.position.pixels,
           moreOrLessEquals(initialOffset, epsilon: 0.1),
@@ -638,6 +671,37 @@ void main() {
       expect(recordedNavigations.single['push'], isTrue);
       expect(recordedNavigations.single['method'], 'discover_search_button');
     });
+
+    testWidgets('shows proposed categories when admin toggle enabled', (
+      tester,
+    ) async {
+      final proposedCategory = JokeCategory(
+        id: '${JokeCategory.firestorePrefix}proposed',
+        displayName: 'Space Cats',
+        type: CategoryType.search,
+        jokeDescriptionQuery: 'space cats',
+        state: JokeCategoryState.proposed,
+      );
+
+      final container = ProviderContainer(
+        overrides: [
+          ...getFirebaseProviderOverrides(),
+          ...getCoreProviderOverrides(),
+          adminSettingsServiceProvider.overrideWithValue(
+            _FakeAdminSettingsService(showProposedCategories: true),
+          ),
+          jokeCategoriesProvider.overrideWith(
+            (ref) => Stream.value([animalCategory, proposedCategory]),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await pumpDiscover(tester, container);
+
+      expect(find.text(animalCategory.displayName), findsOneWidget);
+      expect(find.text(proposedCategory.displayName), findsOneWidget);
+    });
   });
 
   group('Discover tab unviewed indicator', () {
@@ -696,7 +760,7 @@ void main() {
               (ref) => Stream.value({
                 'animal',
                 'programmatic:popular',
-                'programmatic:seasonal:halloween',
+                'firestore:halloween',
                 'programmatic:daily',
               }),
             ),
@@ -739,7 +803,7 @@ void main() {
               (ref) => Stream.value({
                 'animal',
                 'programmatic:popular',
-                'programmatic:seasonal:halloween',
+                'firestore:halloween',
                 'programmatic:daily',
               }),
             ),
@@ -787,4 +851,42 @@ class _TestNavigationHelpers extends NavigationHelpers {
 
   @override
   void pop() {}
+}
+
+class _FakeAdminSettingsService implements AdminSettingsService {
+  _FakeAdminSettingsService({
+    bool showProposedCategories = false,
+    bool overrideBannerAd = false,
+    bool showJokeDataSource = false,
+  }) : _showProposedCategories = showProposedCategories,
+       _overrideBannerAd = overrideBannerAd,
+       _showJokeDataSource = showJokeDataSource;
+
+  bool _showProposedCategories;
+  bool _overrideBannerAd;
+  bool _showJokeDataSource;
+
+  @override
+  bool getAdminOverrideShowBannerAd() => _overrideBannerAd;
+
+  @override
+  Future<void> setAdminOverrideShowBannerAd(bool value) async {
+    _overrideBannerAd = value;
+  }
+
+  @override
+  bool getAdminShowJokeDataSource() => _showJokeDataSource;
+
+  @override
+  Future<void> setAdminShowJokeDataSource(bool value) async {
+    _showJokeDataSource = value;
+  }
+
+  @override
+  bool getAdminShowProposedCategories() => _showProposedCategories;
+
+  @override
+  Future<void> setAdminShowProposedCategories(bool value) async {
+    _showProposedCategories = value;
+  }
 }

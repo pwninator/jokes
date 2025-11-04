@@ -308,11 +308,15 @@ class _CategoryGrid extends ConsumerWidget {
 
     return categoriesAsync.when(
       data: (categories) {
-        final approved = categories
-            .where((c) => c.state == JokeCategoryState.approved)
+        final visibleCategories = categories
+            .where(
+              (c) =>
+                  c.state == JokeCategoryState.approved ||
+                  c.state == JokeCategoryState.proposed,
+            )
             .toList();
 
-        if (approved.isEmpty) {
+        if (visibleCategories.isEmpty) {
           return const Center(child: Text('Search for jokes!'));
         }
 
@@ -351,9 +355,9 @@ class _CategoryGrid extends ConsumerWidget {
                 controller: scrollController,
                 mainAxisSpacing: spacing,
                 crossAxisSpacing: spacing,
-                itemCount: approved.length,
+                itemCount: visibleCategories.length,
                 itemBuilder: (context, index) {
-                  final category = approved[index];
+                  final category = visibleCategories[index];
                   return JokeCategoryTile(
                     category: category,
                     borderColor:

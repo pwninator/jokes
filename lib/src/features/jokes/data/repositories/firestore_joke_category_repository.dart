@@ -32,13 +32,25 @@ class FirestoreJokeCategoryRepository implements JokeCategoryRepository {
 
   @override
   Future<void> upsertCategory(JokeCategory category) {
-    return _doc(category.id).set({
+    final data = <String, dynamic>{
       'display_name': category.displayName,
-      'joke_description_query': category.jokeDescriptionQuery,
       'image_description': category.imageDescription,
       'image_url': category.imageUrl,
       'state': category.state.value,
-    }, SetOptions(merge: true));
+    };
+
+    if (category.type == CategoryType.seasonal) {
+      data['seasonal_name'] = category.seasonalValue;
+      data['joke_description_query'] = FieldValue.delete();
+    } else if (category.type == CategoryType.search) {
+      data['joke_description_query'] = category.jokeDescriptionQuery;
+      data['seasonal_name'] = FieldValue.delete();
+    } else {
+      data['joke_description_query'] = FieldValue.delete();
+      data['seasonal_name'] = FieldValue.delete();
+    }
+
+    return _doc(category.id).set(data, SetOptions(merge: true));
   }
 
   @override

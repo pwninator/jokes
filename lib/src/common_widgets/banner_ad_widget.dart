@@ -70,6 +70,13 @@ class _AdBannerWidgetState extends ConsumerState<AdBannerWidget> {
         ad?.size.height.toDouble() ?? AdSize.banner.height.toDouble();
     final width = ad?.size.width.toDouble() ?? AdSize.banner.width.toDouble();
     final adWidget = ad != null ? AdWidget(ad: ad) : const SizedBox.shrink();
-    return SizedBox(height: height, width: width, child: adWidget);
+    final content = SizedBox(height: height, width: width, child: adWidget);
+
+    // Wrap bottom-positioned ads in SafeArea to avoid system UI overlap
+    if (widget.position == BannerAdPosition.bottom) {
+      return SafeArea(top: false, bottom: true, child: content);
+    }
+
+    return content;
   }
 }

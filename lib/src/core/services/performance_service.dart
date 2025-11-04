@@ -47,7 +47,6 @@ enum TraceName {
   startupTaskRemoteConfig,
   startupTaskAuth,
   startupTaskAnalytics,
-  startupTaskAppUsage,
   startupTaskDrift,
   startupTaskNotifications,
   startupTaskAdMob,
@@ -103,8 +102,6 @@ extension TraceNameWire on TraceName {
         return 'startup_task_auth';
       case TraceName.startupTaskAnalytics:
         return 'startup_task_analytics';
-      case TraceName.startupTaskAppUsage:
-        return 'startup_task_app_usage';
       case TraceName.startupTaskNotifications:
         return 'startup_task_notifications';
       case TraceName.startupTaskAdMob:

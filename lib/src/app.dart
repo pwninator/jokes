@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/config/router/router_providers.dart';
@@ -5,6 +7,7 @@ import 'package:snickerdoodle/src/core/providers/crash_reporting_provider.dart';
 import 'package:snickerdoodle/src/core/providers/device_orientation_provider.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
+import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/settings/application/theme_settings_service.dart';
@@ -25,6 +28,26 @@ class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+
+    // Call logAppUsage after startup completes and remote config is ready
+    // This ensures feedScreenStatusProvider reads the actual remote value (or A/B test variant)
+    // rather than locking in the default before initialization completes
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      try {
+        final appUsageService = ref.read(appUsageServiceProvider);
+        unawaited(
+          appUsageService.logAppUsage().catchError((
+            Object e,
+            StackTrace stack,
+          ) {
+            AppLogger.error('App usage logging failed: $e', stackTrace: stack);
+          }),
+        );
+      } catch (e, stack) {
+        AppLogger.error('App usage logging failed: $e', stackTrace: stack);
+      }
+    });
   }
 
   @override

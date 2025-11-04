@@ -9,7 +9,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/providers/settings_providers.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
-import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/notification_service.dart';
 import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
@@ -74,11 +73,6 @@ const List<StartupTask> bestEffortBlockingTasks = [
     id: 'analytics',
     execute: _initializeAnalytics,
     traceName: TraceName.startupTaskAnalytics,
-  ),
-  StartupTask(
-    id: 'app_usage',
-    execute: _initializeAppUsage,
-    traceName: TraceName.startupTaskAppUsage,
   ),
   StartupTask(
     id: 'migrate_reactions',
@@ -197,23 +191,6 @@ Future<List<Override>> _initializeAnalytics(StartupReader read) async {
     // via the analyticsUserTrackingProvider listener in the running app
   } catch (e, stack) {
     AppLogger.fatal('Analytics initialization failed: $e', stackTrace: stack);
-  }
-  return const [];
-}
-
-/// Log app usage for analytics.
-Future<List<Override>> _initializeAppUsage(StartupReader read) async {
-  try {
-    final service = read(appUsageServiceProvider);
-
-    // Fire and forget
-    unawaited(
-      service.logAppUsage().catchError((Object e, StackTrace stack) {
-        AppLogger.fatal('App usage logging failed: $e', stackTrace: stack);
-      }),
-    );
-  } catch (e, stack) {
-    AppLogger.fatal('App usage logging failed: $e', stackTrace: stack);
   }
   return const [];
 }

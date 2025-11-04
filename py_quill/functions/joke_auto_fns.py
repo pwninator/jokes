@@ -7,10 +7,11 @@ import math
 import random
 import zoneinfo
 
-from common import config, models
+from common import config, image_generation, models
 from firebase_functions import (firestore_fn, https_fn, logger, options,
                                 scheduler_fn)
 from functions.function_utils import error_response, success_response
+from google.cloud.firestore import FieldFilter
 from google.cloud.firestore_v1.vector import Vector
 from services import firebase_cloud_messaging, firestore, search
 
@@ -363,6 +364,79 @@ def _sync_joke_to_search_subcollection(
 
 
 @firestore_fn.on_document_written(
+  document="joke_categories/{category_id}",
+  memory=options.MemoryOption.GB_1,
+  timeout_sec=300,
+)
+def on_joke_category_write(
+    event: firestore_fn.Event[firestore_fn.Change]) -> None:
+  """Trigger on writes to `joke_categories` collection.
+
+  If the document is newly created or the `image_description` field value
+  changed compared to before, log that the description changed.
+  """
+  # Handle deletes
+  if not event.data.after:
+    logger.info(f"Joke category deleted: {event.params.get('category_id')}")
+    return
+
+  after_data = event.data.after.to_dict() or {}
+  before_data = event.data.before.to_dict() if event.data.before else None
+
+  if (before_data is None or (before_data or {}).get("image_description")
+      != after_data.get("image_description")):
+    image_description = after_data.get("image_description")
+    if not image_description:
+      logger.info("image_description missing; skipping image generation")
+      return
+
+    # Generate a category image at high quality without pun text or references
+    generated_image = image_generation.generate_pun_image(
+      pun_text=None,
+      image_description=image_description,
+      image_quality="high",
+      reference_images=None,
+    )
+
+    if not generated_image or not generated_image.url:
+      logger.info("Image generation returned no URL; skipping update")
+      return
+
+    category_id = event.params.get("category_id")
+    if not category_id:
+      logger.info("Missing category_id param; cannot update Firestore")
+      return
+
+    # Get the current document to check for existing all_image_urls
+    doc_ref = firestore.db().collection("joke_categories").document(
+      category_id)
+    current_doc = doc_ref.get()
+
+    if current_doc.exists:
+      current_data = current_doc.to_dict() or {}
+      all_image_urls = current_data.get("all_image_urls", [])
+
+      # If all_image_urls doesn't exist, initialize it with the current image_url
+      if not all_image_urls and current_data.get("image_url"):
+        all_image_urls = [current_data["image_url"]]
+
+      # Append the new image URL to all_image_urls
+      all_image_urls.append(generated_image.url)
+
+      # Update both fields
+      doc_ref.update({
+        "image_url": generated_image.url,
+        "all_image_urls": all_image_urls
+      })
+    else:
+      # Document doesn't exist, just set both fields
+      doc_ref.set({
+        "image_url": generated_image.url,
+        "all_image_urls": [generated_image.url]
+      })
+
+
+@firestore_fn.on_document_written(
   document="jokes/{joke_id}",
   memory=options.MemoryOption.GB_1,
   timeout_sec=300,
@@ -626,12 +700,12 @@ def _refresh_category_caches() -> dict[str, int]:
     tight threshold and public-only filters equivalent to state and is_public
   - Stores results under: joke_categories/{category_id}/category_jokes/cache
     with a single field 'jokes' which is an array of maps containing
-    {joke_id, setup_image_url, punchline_image_url}
+    {joke_id, setup, punchline, setup_image_url, punchline_image_url}
   - If a category yields no results, writes an empty array and forces state to
     PROPOSED on the category document
     
   Returns:
-    Dictionary with maintenance statistics: categories_processed, categories_updated, categories_emptied
+    Dictionary with maintenance statistics: categories_processed, categories_updated, categories_emptied, categories_failed
   """
   client = firestore.db()
   categories_collection = client.collection("joke_categories")
@@ -640,6 +714,7 @@ def _refresh_category_caches() -> dict[str, int]:
   total = 0
   updated = 0
   emptied = 0
+  failed = 0
 
   for doc in docs:
     if not doc.exists:
@@ -652,38 +727,20 @@ def _refresh_category_caches() -> dict[str, int]:
     if state not in ("APPROVED", "PROPOSED"):
       continue
     raw_query = (data.get("joke_description_query") or "").strip()
-    if not raw_query:
+    seasonal_name = (data.get("seasonal_name") or "").strip()
+
+    if not raw_query and not seasonal_name:
+      if state != "PROPOSED":
+        categories_collection.document(doc.id).set({"state": "PROPOSED"},
+                                                   merge=True)
       continue
 
-    # Build search query identical to the app's behavior
-    search_query = f"jokes about {raw_query}"
-
-    # Field filters: only public, currently visible jokes
-    field_filters: list[tuple[str, str, object]] = [
-      ("state", "in",
-       [models.JokeState.PUBLISHED.value, models.JokeState.DAILY.value]),
-      ("is_public", "==", True),
-    ]
-
     try:
-      results = search.search_jokes(
-        query=search_query,
-        label=f"daily_cache:category:{doc.id}",
-        field_filters=field_filters,  # type: ignore[arg-type]
-        limit=100,
-        distance_threshold=config.JOKE_SEARCH_TIGHT_THRESHOLD,
-      )
-
-      jokes_payload = []
-      for res in results:
-        joke = res.joke
-        jokes_payload.append({
-          "joke_id": joke.key,
-          "setup": joke.setup_text,
-          "punchline": joke.punchline_text,
-          "setup_image_url": joke.setup_image_url,
-          "punchline_image_url": joke.punchline_image_url,
-        })
+      if seasonal_name:
+        jokes_payload = _query_seasonal_category_jokes(client, seasonal_name)
+      else:
+        search_query = f"jokes about {raw_query}"
+        jokes_payload = _search_category_jokes(search_query, doc.id)
 
       # Write cache document with a sole 'jokes' field
       cache_ref = categories_collection.document(
@@ -700,13 +757,61 @@ def _refresh_category_caches() -> dict[str, int]:
 
     except Exception as exc:  # pylint: disable=broad-except
       logger.error(f"Failed refreshing category cache for {doc.id}: {exc}")
+      failed += 1
 
   logger.info(
-    f"Category caches refreshed: processed={total}, updated={updated}, emptied={emptied}"
+    f"Category caches refreshed: processed={total}, updated={updated}, emptied={emptied}, failed={failed}"
   )
 
   return {
     "categories_processed": total,
     "categories_updated": updated,
     "categories_emptied": emptied,
+    "categories_failed": failed,
   }
+
+
+def _search_category_jokes(search_query: str, category_id: str):
+  field_filters: list[tuple[str, str, object]] = [
+    ("state", "in",
+     [models.JokeState.PUBLISHED.value, models.JokeState.DAILY.value]),
+    ("is_public", "==", True),
+  ]
+
+  results = search.search_jokes(
+    query=search_query,
+    label=f"daily_cache:category:{category_id}",
+    field_filters=field_filters,  # type: ignore[arg-type]
+    limit=100,
+    distance_threshold=config.JOKE_SEARCH_TIGHT_THRESHOLD,
+  )
+
+  return [{
+    "joke_id": res.joke.key,
+    "setup": res.joke.setup_text,
+    "punchline": res.joke.punchline_text,
+    "setup_image_url": res.joke.setup_image_url,
+    "punchline_image_url": res.joke.punchline_image_url,
+  } for res in results]
+
+
+def _query_seasonal_category_jokes(client, seasonal_name: str):
+  states = [models.JokeState.PUBLISHED.value, models.JokeState.DAILY.value]
+  query = client.collection("jokes")
+  query = query.where(filter=FieldFilter("state", "in", states))
+  query = query.where(filter=FieldFilter("is_public", "==", True))
+  query = query.where(filter=FieldFilter("seasonal", "==", seasonal_name))
+  query = query.limit(100)
+
+  docs = query.stream()
+  payload = []
+  for doc in docs:
+    data = doc.to_dict() or {}
+    payload.append({
+      "joke_id": doc.id,
+      "setup": data.get("setup_text", ""),
+      "punchline": data.get("punchline_text", ""),
+      "setup_image_url": data.get("setup_image_url"),
+      "punchline_image_url": data.get("punchline_image_url"),
+    })
+  return payload

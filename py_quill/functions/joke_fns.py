@@ -10,7 +10,7 @@ from agents import agents_common, constants
 from agents.endpoints import all_agents
 from agents.puns import pun_postprocessor_agent
 from common import config, image_generation, joke_operations, models
-from firebase_functions import firestore_fn, https_fn, logger, options
+from firebase_functions import https_fn, logger, options
 from functions.function_utils import (error_response, get_bool_param,
                                       get_float_param, get_int_param,
                                       get_param, get_user_id, success_response)
@@ -466,79 +466,6 @@ def _modify_and_set_image(
 
   image_setter(new_image)
   return None
-
-
-@firestore_fn.on_document_written(
-  document="joke_categories/{category_id}",
-  memory=options.MemoryOption.GB_1,
-  timeout_sec=300,
-)
-def on_joke_category_write(
-    event: firestore_fn.Event[firestore_fn.Change]) -> None:
-  """Trigger on writes to `joke_categories` collection.
-
-  If the document is newly created or the `image_description` field value
-  changed compared to before, log that the description changed.
-  """
-  # Handle deletes
-  if not event.data.after:
-    logger.info(f"Joke category deleted: {event.params.get('category_id')}")
-    return
-
-  after_data = event.data.after.to_dict() or {}
-  before_data = event.data.before.to_dict() if event.data.before else None
-
-  if (before_data is None or (before_data or {}).get("image_description")
-      != after_data.get("image_description")):
-    image_description = after_data.get("image_description")
-    if not image_description:
-      logger.info("image_description missing; skipping image generation")
-      return
-
-    # Generate a category image at high quality without pun text or references
-    generated_image = image_generation.generate_pun_image(
-      pun_text=None,
-      image_description=image_description,
-      image_quality="high",
-      reference_images=None,
-    )
-
-    if not generated_image or not generated_image.url:
-      logger.info("Image generation returned no URL; skipping update")
-      return
-
-    category_id = event.params.get("category_id")
-    if not category_id:
-      logger.info("Missing category_id param; cannot update Firestore")
-      return
-
-    # Get the current document to check for existing all_image_urls
-    doc_ref = firestore.db().collection("joke_categories").document(
-      category_id)
-    current_doc = doc_ref.get()
-
-    if current_doc.exists:
-      current_data = current_doc.to_dict() or {}
-      all_image_urls = current_data.get("all_image_urls", [])
-
-      # If all_image_urls doesn't exist, initialize it with the current image_url
-      if not all_image_urls and current_data.get("image_url"):
-        all_image_urls = [current_data["image_url"]]
-
-      # Append the new image URL to all_image_urls
-      all_image_urls.append(generated_image.url)
-
-      # Update both fields
-      doc_ref.update({
-        "image_url": generated_image.url,
-        "all_image_urls": all_image_urls
-      })
-    else:
-      # Document doesn't exist, just set both fields
-      doc_ref.set({
-        "image_url": generated_image.url,
-        "all_image_urls": [generated_image.url]
-      })
 
 
 def _populate_joke_internal(

@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from common import models, config
+from common import models
 
 
 class _FakeDoc:
@@ -89,33 +89,48 @@ class _FakeDb:
 
 @pytest.fixture(name="fake_env")
 def fake_env_fixture(monkeypatch):
-  # Capture search calls
-  calls: list[dict] = []
+  search_calls: list[dict] = []
+  seasonal_calls: list[str] = []
 
-  def fake_search_jokes(query, label, field_filters, limit,
-                        distance_threshold):  # pylint: disable=unused-argument
-    calls.append({
+  def fake_search_category_jokes(query, category_id):
+    search_calls.append({
       "query": query,
-      "label": label,
-      "filters": list(field_filters),
-      "limit": limit,
-      "threshold": distance_threshold,
+      "category": category_id,
     })
+    return [
+      {
+        "joke_id": "j1",
+        "setup": "Why did the chicken cross the road?",
+        "punchline": "To get to the other side!",
+        "setup_image_url": "https://example.com/setup.jpg",
+        "punchline_image_url": "https://example.com/punchline.jpg",
+      },
+      {
+        "joke_id": "j2",
+        "setup": "Knock knock!",
+        "punchline": "Who's there?",
+        "setup_image_url": "https://example.com/setup2.jpg",
+        "punchline_image_url": "https://example.com/punchline2.jpg",
+      },
+    ]
 
-    # Return two results by default
-    class _R:
+  def fake_query_seasonal_jokes(client, seasonal_name):  # pylint: disable=unused-argument
+    seasonal_calls.append(seasonal_name)
+    return [
+      {
+        "joke_id": f"{seasonal_name}-1",
+        "setup": "Seasonal setup",
+        "punchline": "Seasonal punchline",
+        "setup_image_url": "https://example.com/seasonal_setup.jpg",
+        "punchline_image_url": "https://example.com/seasonal_punchline.jpg",
+      },
+    ]
 
-      def __init__(self, key):
-        self.joke = models.PunnyJoke(
-          key=key,
-          setup_text="Why did the chicken cross the road?",
-          punchline_text="To get to the other side!",
-          setup_image_url="https://example.com/setup.jpg",
-          punchline_image_url="https://example.com/punchline.jpg")
-
-    return [_R("j1"), _R("j2")]
-
-  monkeypatch.setattr("services.search.search_jokes", fake_search_jokes)
+  monkeypatch.setattr("py_quill.functions.joke_auto_fns._search_category_jokes",
+                      fake_search_category_jokes)
+  monkeypatch.setattr(
+    "py_quill.functions.joke_auto_fns._query_seasonal_category_jokes",
+    fake_query_seasonal_jokes)
 
   # Prepare fake categories store and outputs
   cache_refs: dict[str, _FakeCacheDocRef] = {}
@@ -125,7 +140,8 @@ def fake_env_fixture(monkeypatch):
     docs = [_FakeDoc(doc_id, data) for doc_id, data in categories]
     return _FakeDb(docs, cache_refs, category_updates)
 
-  return SimpleNamespace(calls=calls,
+  return SimpleNamespace(search_calls=search_calls,
+                         seasonal_calls=seasonal_calls,
                          cache_refs=cache_refs,
                          category_updates=category_updates,
                          make_db=make_db)
@@ -151,18 +167,11 @@ def test_refresh_updates_cache_for_approved_category(monkeypatch, fake_env):
   _run_refresh(monkeypatch, fake_db)
 
   # Assert: search params
-  assert len(fake_env.calls) == 1
-  call = fake_env.calls[0]
+  assert len(fake_env.search_calls) == 1
+  call = fake_env.search_calls[0]
   assert call["query"] == "jokes about cats"
-  assert call["label"] == "daily_cache:category:animals"
-  assert call["limit"] == 100
-  assert call["threshold"] == config.JOKE_SEARCH_TIGHT_THRESHOLD
-  # Filters include state in [PUBLISHED, DAILY] and is_public True
-  assert ("state", "in",
-          [models.JokeState.PUBLISHED.value,
-           models.JokeState.DAILY.value]) in call["filters"]
-  assert ("is_public", "==", True) in call["filters"]
-
+  assert call["category"] == "animals"
+  
   # Cache write
   cache = fake_env.cache_refs.get("animals")
   assert cache is not None
@@ -178,11 +187,9 @@ def test_refresh_updates_cache_for_approved_category(monkeypatch, fake_env):
 
 def test_refresh_forces_proposed_when_empty_results(monkeypatch, fake_env):
   # Arrange: search returns empty for this test
-  def empty_search(**kwargs):  # pylint: disable=unused-argument
-    return []
-
-  monkeypatch.setattr("services.search.search_jokes",
-                      lambda **kwargs: empty_search(**kwargs))
+  monkeypatch.setattr(
+    "py_quill.functions.joke_auto_fns._search_category_jokes",
+    lambda *args, **kwargs: [])
 
   categories = [("sports", {
     "display_name": "Sports",
@@ -198,6 +205,36 @@ def test_refresh_forces_proposed_when_empty_results(monkeypatch, fake_env):
   cache = fake_env.cache_refs.get("sports")
   assert cache is not None and cache.set_calls[0] == {"jokes": []}
   assert fake_env.category_updates.get("sports") == {"state": "PROPOSED"}
+
+
+def test_refresh_uses_seasonal_name_when_present(monkeypatch, fake_env):
+  categories = [("halloween", {
+    "display_name": "Halloween",
+    "seasonal_name": "Halloween",
+    "state": "APPROVED",
+  })]
+  fake_db = fake_env.make_db(categories)
+
+  _run_refresh(monkeypatch, fake_db)
+
+  assert fake_env.seasonal_calls == ["Halloween"]
+  assert fake_env.search_calls == []
+  cache = fake_env.cache_refs.get("halloween")
+  assert cache is not None
+  assert cache.set_calls[0]["jokes"][0]["joke_id"] == "Halloween-1"
+
+
+def test_refresh_sets_proposed_when_no_query_or_seasonal(monkeypatch, fake_env):
+  categories = [("misc", {
+    "display_name": "Misc",
+    "state": "APPROVED",
+  })]
+  fake_db = fake_env.make_db(categories)
+
+  _run_refresh(monkeypatch, fake_db)
+
+  assert "misc" not in fake_env.cache_refs
+  assert fake_env.category_updates.get("misc") == {"state": "PROPOSED"}
 
 
 def test_refresh_skips_non_target_states_and_blank_queries(
@@ -220,10 +257,12 @@ def test_refresh_skips_non_target_states_and_blank_queries(
   # Act
   _run_refresh(monkeypatch, fake_db)
 
-  # Assert: no search calls and no writes
-  assert fake_env.calls == []
+  # Assert: no search calls and no cache writes
+  assert fake_env.search_calls == []
+  assert fake_env.seasonal_calls == []
   assert fake_env.cache_refs == {}
-  assert fake_env.category_updates == {}
+  # Blank query category should be set to PROPOSED
+  assert fake_env.category_updates == {"blank": {"state": "PROPOSED"}}
 
 
 def test_refresh_continues_on_search_error(monkeypatch, fake_env):

@@ -17,6 +17,8 @@ class AdminSettingsService {
       'admin_override_show_banner_ad';
   static const String _adminShowJokeDataSourceKey =
       'admin_show_joke_data_source';
+  static const String _adminShowProposedCategoriesKey =
+      'admin_show_proposed_categories';
 
   bool getAdminOverrideShowBannerAd() {
     return _settingsService.getBool(_adminOverrideShowBannerAdKey) ?? false;
@@ -32,5 +34,13 @@ class AdminSettingsService {
 
   Future<void> setAdminShowJokeDataSource(bool value) async {
     await _settingsService.setBool(_adminShowJokeDataSourceKey, value);
+  }
+
+  bool getAdminShowProposedCategories() {
+    return _settingsService.getBool(_adminShowProposedCategoriesKey) ?? false;
+  }
+
+  Future<void> setAdminShowProposedCategories(bool value) async {
+    await _settingsService.setBool(_adminShowProposedCategoriesKey, value);
   }
 }

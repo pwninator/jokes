@@ -25,6 +25,45 @@ import 'package:snickerdoodle/src/features/settings/application/joke_viewer_sett
 import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
 import 'package:snickerdoodle/src/features/settings/presentation/user_settings_screen.dart';
 
+Future<void> enableDeveloperMode(WidgetTester tester) async {
+  await tester.ensureVisible(find.text('Theme Settings'));
+  await tester.pump();
+  await tester.tap(find.text('Theme Settings'), warnIfMissed: false);
+  await tester.pump(const Duration(milliseconds: 100));
+  await tester.ensureVisible(find.text('Theme Settings'));
+  await tester.pump();
+  await tester.tap(find.text('Theme Settings'), warnIfMissed: false);
+  await tester.pump(const Duration(milliseconds: 100));
+  await tester.ensureVisible(find.text('Snickerdoodle v0.0.1+1'));
+  await tester.pump();
+  await tester.tap(find.text('Snickerdoodle v0.0.1+1'), warnIfMissed: false);
+  await tester.pump(const Duration(milliseconds: 100));
+  await tester.ensureVisible(find.text('Snickerdoodle v0.0.1+1'));
+  await tester.pump();
+  await tester.tap(find.text('Snickerdoodle v0.0.1+1'), warnIfMissed: false);
+  await tester.pump(const Duration(milliseconds: 100));
+  await tester.ensureVisible(find.text('Notifications'));
+  await tester.pump();
+  await tester.tap(find.text('Notifications'), warnIfMissed: false);
+  await tester.pump(const Duration(milliseconds: 100));
+  await tester.ensureVisible(find.text('Notifications'));
+  await tester.pump();
+  await tester.tap(find.text('Notifications'), warnIfMissed: false);
+  await tester.pump(const Duration(milliseconds: 100));
+  await tester.ensureVisible(find.text('Notifications'));
+  await tester.pump();
+  await tester.tap(find.text('Notifications'), warnIfMissed: false);
+  await tester.pump(const Duration(milliseconds: 100));
+  await tester.ensureVisible(find.text('Notifications'));
+  await tester.pump();
+  await tester.tap(find.text('Notifications'), warnIfMissed: false);
+  await tester.pumpAndSettle();
+
+  final scaffoldContext = tester.element(find.byType(Scaffold).first);
+  ScaffoldMessenger.of(scaffoldContext).clearSnackBars();
+  await tester.pump();
+}
+
 class FakeBuildContext extends Fake implements BuildContext {}
 
 // Mock classes
@@ -41,10 +80,7 @@ class MockRemoteConfigService extends Mock implements RemoteConfigService {}
 
 class MockSettingsService extends Mock implements SettingsService {}
 
-class MockAdminSettingsService extends Mock implements AdminSettingsService {
-  @override
-  bool getAdminShowJokeDataSource() => false;
-}
+class MockAdminSettingsService extends Mock implements AdminSettingsService {}
 
 class MockReviewsRepository extends Mock implements ReviewsRepository {}
 
@@ -94,6 +130,9 @@ void main() {
   late MockFeedbackPromptStateStore mockFeedbackPromptStore;
   late bool reviewRequestedState;
   late bool feedbackViewedState;
+  late bool adminOverrideBannerState;
+  late bool adminShowDataSourceState;
+  late bool adminShowProposedCategoriesState;
 
   setUp(() {
     // Create fresh mocks per test
@@ -111,6 +150,9 @@ void main() {
     mockUrlLauncherService = MockUrlLauncherService();
     reviewRequestedState = false;
     feedbackViewedState = false;
+    adminOverrideBannerState = false;
+    adminShowDataSourceState = false;
+    adminShowProposedCategoriesState = false;
 
     when(
       () => mockReviewPromptStore.hasRequested(),
@@ -143,9 +185,33 @@ void main() {
     _setupSubscriptionServiceDefaults(mockSubscriptionService);
     _setupRemoteConfigValuesDefaults(mockRemoteConfigValues);
     _setupSettingsServiceDefaults(mockSettingsService);
-    _setupAdminSettingsServiceDefaults(mockAdminSettingsService);
     _setupReviewsRepositoryDefaults(mockReviewsRepository);
     _setupFirebaseAnalyticsDefaults(mockFirebaseAnalytics);
+    when(
+      () => mockAdminSettingsService.getAdminOverrideShowBannerAd(),
+    ).thenAnswer((_) => adminOverrideBannerState);
+    when(
+      () => mockAdminSettingsService.setAdminOverrideShowBannerAd(any()),
+    ).thenAnswer((invocation) async {
+      adminOverrideBannerState = invocation.positionalArguments.first as bool;
+    });
+    when(
+      () => mockAdminSettingsService.getAdminShowJokeDataSource(),
+    ).thenAnswer((_) => adminShowDataSourceState);
+    when(
+      () => mockAdminSettingsService.setAdminShowJokeDataSource(any()),
+    ).thenAnswer((invocation) async {
+      adminShowDataSourceState = invocation.positionalArguments.first as bool;
+    });
+    when(
+      () => mockAdminSettingsService.getAdminShowProposedCategories(),
+    ).thenAnswer((_) => adminShowProposedCategoriesState);
+    when(
+      () => mockAdminSettingsService.setAdminShowProposedCategories(any()),
+    ).thenAnswer((invocation) async {
+      adminShowProposedCategoriesState =
+          invocation.positionalArguments.first as bool;
+    });
 
     when(
       () => mockUrlLauncherService.launchUrl(any<Uri>()),
@@ -613,52 +679,6 @@ void main() {
     });
 
     group('Developer Mode Features', () {
-      Future<void> enableDeveloperMode(WidgetTester tester) async {
-        // Execute the secret sequence to enable developer mode
-        await tester.ensureVisible(find.text('Theme Settings'));
-        await tester.pump();
-        await tester.tap(find.text('Theme Settings'), warnIfMissed: false);
-        await tester.pump(const Duration(milliseconds: 100));
-        await tester.ensureVisible(find.text('Theme Settings'));
-        await tester.pump();
-        await tester.tap(find.text('Theme Settings'), warnIfMissed: false);
-        await tester.pump(const Duration(milliseconds: 100));
-        await tester.ensureVisible(find.text('Snickerdoodle v0.0.1+1'));
-        await tester.pump();
-        await tester.tap(
-          find.text('Snickerdoodle v0.0.1+1'),
-          warnIfMissed: false,
-        );
-        await tester.pump(const Duration(milliseconds: 100));
-        await tester.ensureVisible(find.text('Snickerdoodle v0.0.1+1'));
-        await tester.pump();
-        await tester.tap(
-          find.text('Snickerdoodle v0.0.1+1'),
-          warnIfMissed: false,
-        );
-        await tester.pump(const Duration(milliseconds: 100));
-        await tester.ensureVisible(find.text('Notifications'));
-        await tester.pump();
-        await tester.tap(find.text('Notifications'), warnIfMissed: false);
-        await tester.pump(const Duration(milliseconds: 100));
-        await tester.ensureVisible(find.text('Notifications'));
-        await tester.pump();
-        await tester.tap(find.text('Notifications'), warnIfMissed: false);
-        await tester.pump(const Duration(milliseconds: 100));
-        await tester.ensureVisible(find.text('Notifications'));
-        await tester.pump();
-        await tester.tap(find.text('Notifications'), warnIfMissed: false);
-        await tester.pump(const Duration(milliseconds: 100));
-        await tester.ensureVisible(find.text('Notifications'));
-        await tester.pump();
-        await tester.tap(find.text('Notifications'), warnIfMissed: false);
-        await tester.pumpAndSettle();
-
-        final scaffoldContext = tester.element(find.byType(Scaffold).first);
-        ScaffoldMessenger.of(scaffoldContext).clearSnackBars();
-        await tester.pump();
-      }
-
       testWidgets('shows User Information section when enabled', (
         tester,
       ) async {
@@ -1083,6 +1103,33 @@ void main() {
         expect(find.text('Authentication'), findsOneWidget);
       });
     });
+
+    group('Admin settings toggles', () {
+      testWidgets('toggling show proposed categories saves preference', (
+        tester,
+      ) async {
+        adminShowProposedCategoriesState = false;
+        final widget = createTestWidget();
+        await tester.pumpWidget(widget);
+        await tester.pumpAndSettle();
+
+        await enableDeveloperMode(tester);
+
+        final toggleFinder = find.byKey(
+          const Key('user_settings_screen-show-proposed-categories-toggle'),
+        );
+        expect(toggleFinder, findsOneWidget);
+
+        await tester.ensureVisible(toggleFinder);
+        await tester.tap(toggleFinder, warnIfMissed: false);
+        await tester.pumpAndSettle();
+
+        expect(adminShowProposedCategoriesState, isTrue);
+        verify(
+          () => mockAdminSettingsService.setAdminShowProposedCategories(true),
+        ).called(1);
+      });
+    });
   });
 }
 
@@ -1177,11 +1224,6 @@ void _setupSettingsServiceDefaults(MockSettingsService mock) {
   when(() => mock.containsKey(any())).thenReturn(false);
   when(() => mock.remove(any())).thenAnswer((_) async {});
   when(() => mock.clear()).thenAnswer((_) async {});
-}
-
-void _setupAdminSettingsServiceDefaults(MockAdminSettingsService mock) {
-  when(() => mock.getAdminOverrideShowBannerAd()).thenReturn(false);
-  when(() => mock.setAdminOverrideShowBannerAd(any())).thenAnswer((_) async {});
 }
 
 void _setupReviewsRepositoryDefaults(MockReviewsRepository mock) {

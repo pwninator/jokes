@@ -23,6 +23,7 @@ import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
 import 'package:snickerdoodle/src/features/auth/data/models/app_user.dart';
 import 'package:snickerdoodle/src/features/feedback/presentation/user_feedback_screen.dart';
+import 'package:snickerdoodle/src/features/jokes/application/joke_category_providers.dart';
 import 'package:snickerdoodle/src/features/settings/application/admin_settings_service.dart';
 import 'package:snickerdoodle/src/features/settings/application/feed_screen_status_provider.dart';
 import 'package:snickerdoodle/src/features/settings/application/joke_viewer_settings_service.dart';
@@ -836,6 +837,59 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                                   onChanged: (value) async {
                                     await adminSettings
                                         .setAdminShowJokeDataSource(value);
+                                    if (!mounted) return;
+                                    setState(() {});
+                                  },
+                                ),
+                              ],
+                            );
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        Consumer(
+                          builder: (context, ref, _) {
+                            final adminSettings = ref.read(
+                              adminSettingsServiceProvider,
+                            );
+                            final showProposed = adminSettings
+                                .getAdminShowProposedCategories();
+
+                            return Row(
+                              children: [
+                                Icon(
+                                  Icons.category,
+                                  color: showProposed
+                                      ? Theme.of(context).colorScheme.primary
+                                      : Theme.of(context).colorScheme.onSurface
+                                            .withValues(alpha: 0.6),
+                                ),
+                                const SizedBox(width: 16),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Show Proposed Categories',
+                                        style: menuTitleTextStyle(context),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        'Include proposed Discover categories',
+                                        style: menuSubtitleTextStyle(context),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Switch(
+                                  key: const Key(
+                                    'user_settings_screen-show-proposed-categories-toggle',
+                                  ),
+                                  value: showProposed,
+                                  onChanged: (value) async {
+                                    await adminSettings
+                                        .setAdminShowProposedCategories(value);
+                                    ref.invalidate(discoverCategoriesProvider);
                                     if (!mounted) return;
                                     setState(() {});
                                   },

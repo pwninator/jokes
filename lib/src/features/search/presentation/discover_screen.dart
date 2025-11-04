@@ -31,12 +31,15 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
   static const _viewerId = discoverViewerId;
   VoidCallback? _resetViewer;
   late final JokeListDataSource _dataSource;
+  late final ScrollController _categoryScrollController;
+  double? _savedCategoryScrollOffset;
 
   @override
   void initState() {
     super.initState();
     // Use unified category data source that routes by activeCategoryProvider
     _dataSource = CategoryDataSource(ref);
+    _categoryScrollController = ScrollController();
   }
 
   @override
@@ -103,6 +106,7 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
                   : _CategoryGrid(
                       onCategorySelected: _onCategorySelected,
                       viewedCategoryIds: viewedCategoryIds,
+                      scrollController: _categoryScrollController,
                     ),
             ),
           ],
@@ -112,6 +116,9 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
   }
 
   void _onCategorySelected(WidgetRef ref, JokeCategory category) {
+    if (_categoryScrollController.hasClients) {
+      _savedCategoryScrollOffset = _categoryScrollController.offset;
+    }
     // Set active category so the unified data source routes and resets
     ref.read(activeCategoryProvider.notifier).state = category;
 
@@ -159,7 +166,34 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
     ref.read(activeCategoryProvider.notifier).state = null;
     ref.read(jokeViewerPageIndexProvider(_viewerId).notifier).state = 0;
     _resetViewer?.call();
+    _scheduleCategoryScrollRestore();
     return true;
+  }
+
+  void _scheduleCategoryScrollRestore() {
+    final offset = _savedCategoryScrollOffset;
+    if (offset == null) return;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_categoryScrollController.hasClients) {
+        _scheduleCategoryScrollRestore();
+        return;
+      }
+      final position = _categoryScrollController.position;
+      final clamped = offset.clamp(
+        position.minScrollExtent,
+        position.maxScrollExtent,
+      );
+      if ((position.pixels - clamped).abs() > 0.5) {
+        _categoryScrollController.jumpTo(clamped.toDouble());
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _categoryScrollController.dispose();
+    super.dispose();
   }
 }
 
@@ -261,10 +295,12 @@ class _CategoryGrid extends ConsumerWidget {
   const _CategoryGrid({
     required this.onCategorySelected,
     required this.viewedCategoryIds,
+    required this.scrollController,
   });
 
   final void Function(WidgetRef ref, JokeCategory category) onCategorySelected;
   final Set<String>? viewedCategoryIds;
+  final ScrollController scrollController;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -308,8 +344,11 @@ class _CategoryGrid extends ConsumerWidget {
             return Padding(
               padding: const EdgeInsets.all(padding),
               child: MasonryGridView.count(
-                key: const Key('discover_screen-categories-grid'),
+                key: const PageStorageKey<String>(
+                  'discover_screen-categories-grid',
+                ),
                 crossAxisCount: columns,
+                controller: scrollController,
                 mainAxisSpacing: spacing,
                 crossAxisSpacing: spacing,
                 itemCount: approved.length,

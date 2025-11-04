@@ -19,6 +19,7 @@ import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:snickerdoodle/src/data/core/app/firebase_providers.dart';
 import 'package:snickerdoodle/src/data/reviews/reviews_repository.dart';
+import 'package:snickerdoodle/src/features/admin/presentation/joke_category_tile.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_category_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_list_data_sources.dart';
@@ -373,7 +374,9 @@ void main() {
       await pumpDiscover(tester, container);
 
       expect(
-        find.byKey(const Key('discover_screen-categories-grid')),
+        find.byKey(
+          const PageStorageKey<String>('discover_screen-categories-grid'),
+        ),
         findsOneWidget,
       );
       expect(find.text('Animal Jokes'), findsOneWidget);
@@ -424,7 +427,9 @@ void main() {
       // expect(find.byKey(const Key('search-results-count')), findsOneWidget);
       // expect(find.text('1 joke'), findsOneWidget);
       expect(
-        find.byKey(const Key('discover_screen-categories-grid')),
+        find.byKey(
+          const PageStorageKey<String>('discover_screen-categories-grid'),
+        ),
         findsNothing,
       );
       // Back button may be in AppBar actions; allow extra pump to let config propagate
@@ -470,7 +475,9 @@ void main() {
       expect(searchQuery.query, '');
       expect(searchQuery.label, SearchLabel.none);
       expect(
-        find.byKey(const Key('discover_screen-categories-grid')),
+        find.byKey(
+          const PageStorageKey<String>('discover_screen-categories-grid'),
+        ),
         findsOneWidget,
       );
       expect(
@@ -481,6 +488,96 @@ void main() {
       expect(appBarTitleFinder('Discover'), findsOneWidget);
       expect(find.byKey(const Key('search-results-count')), findsNothing);
     });
+
+    testWidgets(
+      'restores category grid scroll position after exiting category view',
+      (tester) async {
+        final categories = List.generate(
+          30,
+          (index) => JokeCategory(
+            id: 'category-$index',
+            displayName: 'Category $index',
+            jokeDescriptionQuery: 'topic $index',
+            imageUrl: null,
+            state: JokeCategoryState.approved,
+
+
+
+            
+            type: CategoryType.search,
+          ),
+        );
+
+        final container = ProviderContainer(
+          overrides: [
+            ...getFirebaseProviderOverrides(),
+            ...getCoreProviderOverrides(),
+            ...buildOverrides(includeResults: false),
+            jokeCategoriesProvider.overrideWith(
+              (ref) => Stream.value(categories),
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
+
+        await pumpDiscover(tester, container);
+
+        final gridFinder = find.byKey(
+          const PageStorageKey<String>('discover_screen-categories-grid'),
+        );
+        expect(gridFinder, findsOneWidget);
+
+        await tester.drag(gridFinder, const Offset(0, -400));
+        await tester.pumpAndSettle();
+
+        final scrollableFinder = find.descendant(
+          of: gridFinder,
+          matching: find.byType(Scrollable),
+        );
+        final scrollState =
+            tester.state<ScrollableState>(scrollableFinder.first);
+        final initialOffset = scrollState.position.pixels;
+        expect(initialOffset, greaterThan(0));
+
+        final tileElements =
+            find.byType(JokeCategoryTile).evaluate().toList(growable: false);
+        Finder? visibleTileFinder;
+        for (final element in tileElements) {
+          final candidate = find.byWidget(element.widget);
+          final rect = tester.getRect(candidate);
+          if (rect.top >= 100 && rect.bottom <= 1100) {
+            visibleTileFinder = candidate;
+            break;
+          }
+        }
+        visibleTileFinder ??= find.byType(JokeCategoryTile).first;
+        await tester.tap(visibleTileFinder, warnIfMissed: false);
+        await tester.pump();
+        await tester.pumpAndSettle();
+
+        expect(gridFinder, findsNothing);
+        expect(
+          find.byKey(const Key('discover_screen-back-button')),
+          findsOneWidget,
+        );
+
+        await tester.tap(find.byKey(const Key('discover_screen-back-button')));
+        await tester.pump();
+        await tester.pumpAndSettle();
+
+        expect(gridFinder, findsOneWidget);
+        final restoredScrollableFinder = find.descendant(
+          of: gridFinder,
+          matching: find.byType(Scrollable),
+        );
+        final restoredState = tester
+            .state<ScrollableState>(restoredScrollableFinder.first);
+        expect(
+          restoredState.position.pixels,
+          moreOrLessEquals(initialOffset, epsilon: 0.1),
+        );
+      },
+    );
 
     testWidgets('search button clears user search state before navigation', (
       tester,

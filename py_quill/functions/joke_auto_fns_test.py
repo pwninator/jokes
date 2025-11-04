@@ -1197,3 +1197,124 @@ class TestOnJokeCategoryWrite:
     # Assert
     mock_generate.assert_not_called()
     mock_db.collection.assert_not_called()
+
+  def test_query_change_refreshes_cache(self, monkeypatch):
+    # Arrange
+    mock_image_gen = MagicMock()
+    monkeypatch.setattr(joke_auto_fns.image_generation, "generate_pun_image",
+                        mock_image_gen)
+
+    mock_db = MagicMock()
+    mock_cache_doc = MagicMock()
+    mock_cache_doc_ref = MagicMock(return_value=mock_cache_doc)
+    mock_cache_collection = MagicMock(document=mock_cache_doc_ref)
+    mock_category_doc = MagicMock()
+    mock_category_doc.collection.return_value = mock_cache_collection
+    mock_category_doc_ref = MagicMock(return_value=mock_category_doc)
+    mock_categories_collection = MagicMock(document=mock_category_doc_ref)
+    mock_db.collection.return_value = mock_categories_collection
+    monkeypatch.setattr(joke_auto_fns.firestore, "db",
+                        MagicMock(return_value=mock_db))
+
+    # Mock the cache refresh helper
+    mock_refresh = MagicMock(return_value="updated")
+    monkeypatch.setattr(joke_auto_fns, "_refresh_single_category_cache",
+                        mock_refresh)
+
+    event = self._create_event(before_data={"joke_description_query": "cats"},
+                               after_data={
+                                 "joke_description_query": "dogs",
+                                 "state": "APPROVED"
+                               })
+
+    # Act
+    joke_auto_fns.on_joke_category_write.__wrapped__(event)
+
+    # Assert
+    mock_refresh.assert_called_once_with("cat1", event.data.after.to_dict())
+
+  def test_seasonal_name_change_refreshes_cache(self, monkeypatch):
+    # Arrange
+    mock_image_gen = MagicMock()
+    monkeypatch.setattr(joke_auto_fns.image_generation, "generate_pun_image",
+                        mock_image_gen)
+
+    mock_db = MagicMock()
+    monkeypatch.setattr(joke_auto_fns.firestore, "db",
+                        MagicMock(return_value=mock_db))
+
+    # Mock the cache refresh helper
+    mock_refresh = MagicMock(return_value="updated")
+    monkeypatch.setattr(joke_auto_fns, "_refresh_single_category_cache",
+                        mock_refresh)
+
+    event = self._create_event(before_data={"seasonal_name": "Halloween"},
+                               after_data={
+                                 "seasonal_name": "Christmas",
+                                 "state": "APPROVED"
+                               })
+
+    # Act
+    joke_auto_fns.on_joke_category_write.__wrapped__(event)
+
+    # Assert
+    mock_refresh.assert_called_once_with("cat1", event.data.after.to_dict())
+
+  def test_query_and_seasonal_unchanged_does_not_refresh_cache(
+      self, monkeypatch):
+    # Arrange
+    mock_image_gen = MagicMock()
+    monkeypatch.setattr(joke_auto_fns.image_generation, "generate_pun_image",
+                        mock_image_gen)
+
+    mock_db = MagicMock()
+    monkeypatch.setattr(joke_auto_fns.firestore, "db",
+                        MagicMock(return_value=mock_db))
+
+    # Mock the cache refresh helper
+    mock_refresh = MagicMock()
+    monkeypatch.setattr(joke_auto_fns, "_refresh_single_category_cache",
+                        mock_refresh)
+
+    event = self._create_event(before_data={
+      "joke_description_query": "cats",
+      "seasonal_name": None
+    },
+                               after_data={
+                                 "joke_description_query": "cats",
+                                 "seasonal_name": None,
+                                 "image_description": "new description"
+                               })
+
+    # Act
+    joke_auto_fns.on_joke_category_write.__wrapped__(event)
+
+    # Assert
+    mock_refresh.assert_not_called()
+
+  def test_new_doc_with_query_refreshes_cache(self, monkeypatch):
+    # Arrange
+    mock_image_gen = MagicMock()
+    monkeypatch.setattr(joke_auto_fns.image_generation, "generate_pun_image",
+                        mock_image_gen)
+
+    mock_db = MagicMock()
+    monkeypatch.setattr(joke_auto_fns.firestore, "db",
+                        MagicMock(return_value=mock_db))
+
+    # Mock the cache refresh helper
+    mock_refresh = MagicMock(return_value="updated")
+    monkeypatch.setattr(joke_auto_fns, "_refresh_single_category_cache",
+                        mock_refresh)
+
+    event = self._create_event(before_data=None,
+                               after_data={
+                                 "joke_description_query": "animals",
+                                 "state": "APPROVED"
+                               })
+
+    # Act
+    joke_auto_fns.on_joke_category_write.__wrapped__(event)
+
+    # Assert
+    mock_refresh.assert_called_once_with("cat1", event.data.after.to_dict())

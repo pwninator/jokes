@@ -372,68 +372,100 @@ def on_joke_category_write(
     event: firestore_fn.Event[firestore_fn.Change]) -> None:
   """Trigger on writes to `joke_categories` collection.
 
-  If the document is newly created or the `image_description` field value
-  changed compared to before, log that the description changed.
+  - If the document is newly created or the `image_description` field value
+    changed compared to before, generates and updates the category image.
+  - If the `joke_description_query` or `seasonal_name` field changed, refreshes
+    the cached joke list for the category.
   """
   # Handle deletes
   if not event.data.after:
     logger.info(f"Joke category deleted: {event.params.get('category_id')}")
     return
 
+  category_id = event.params.get("category_id")
+  if not category_id:
+    logger.info("Missing category_id param; cannot process category update")
+    return
+
   after_data = event.data.after.to_dict() or {}
   before_data = event.data.before.to_dict() if event.data.before else None
 
+  # Handle image_description changes
   if (before_data is None or (before_data or {}).get("image_description")
       != after_data.get("image_description")):
     image_description = after_data.get("image_description")
     if not image_description:
       logger.info("image_description missing; skipping image generation")
-      return
-
-    # Generate a category image at high quality without pun text or references
-    generated_image = image_generation.generate_pun_image(
-      pun_text=None,
-      image_description=image_description,
-      image_quality="high",
-      reference_images=None,
-    )
-
-    if not generated_image or not generated_image.url:
-      logger.info("Image generation returned no URL; skipping update")
-      return
-
-    category_id = event.params.get("category_id")
-    if not category_id:
-      logger.info("Missing category_id param; cannot update Firestore")
-      return
-
-    # Get the current document to check for existing all_image_urls
-    doc_ref = firestore.db().collection("joke_categories").document(
-      category_id)
-    current_doc = doc_ref.get()
-
-    if current_doc.exists:
-      current_data = current_doc.to_dict() or {}
-      all_image_urls = current_data.get("all_image_urls", [])
-
-      # If all_image_urls doesn't exist, initialize it with the current image_url
-      if not all_image_urls and current_data.get("image_url"):
-        all_image_urls = [current_data["image_url"]]
-
-      # Append the new image URL to all_image_urls
-      all_image_urls.append(generated_image.url)
-
-      # Update both fields
-      doc_ref.update({
-        "image_url": generated_image.url,
-        "all_image_urls": all_image_urls
-      })
     else:
-      # Document doesn't exist, just set both fields
-      doc_ref.set({
-        "image_url": generated_image.url,
-        "all_image_urls": [generated_image.url]
-      })
+      # Generate a category image at high quality without pun text or references
+      generated_image = image_generation.generate_pun_image(
+        pun_text=None,
+        image_description=image_description,
+        image_quality="high",
+        reference_images=None,
+      )
+
+      if not generated_image or not generated_image.url:
+        logger.info("Image generation returned no URL; skipping update")
+      else:
+        # Get the current document to check for existing all_image_urls
+        doc_ref = firestore.db().collection("joke_categories").document(
+          category_id)
+        current_doc = doc_ref.get()
+
+        if current_doc.exists:
+          current_data = current_doc.to_dict() or {}
+          all_image_urls = current_data.get("all_image_urls", [])
+
+          # If all_image_urls doesn't exist, initialize it with the current image_url
+          if not all_image_urls and current_data.get("image_url"):
+            all_image_urls = [current_data["image_url"]]
+
+          # Append the new image URL to all_image_urls
+          all_image_urls.append(generated_image.url)
+
+          # Update both fields
+          doc_ref.update({
+            "image_url": generated_image.url,
+            "all_image_urls": all_image_urls
+          })
+        else:
+          # Document doesn't exist, just set both fields
+          doc_ref.set({
+            "image_url": generated_image.url,
+            "all_image_urls": [generated_image.url]
+          })
+
+  # Handle joke_description_query or seasonal_name changes
+  # Normalize values by stripping whitespace to match how _refresh_single_category_cache processes them
+  def _normalize_field(value):
+    """Normalize field value by stripping whitespace, treating None and empty string as equivalent."""
+    if value is None:
+      return ""
+    return (value or "").strip()
+
+  before_query = _normalize_field((
+    before_data or {}).get("joke_description_query") if before_data else None)
+  after_query = _normalize_field(after_data.get("joke_description_query"))
+
+  before_seasonal = _normalize_field((
+    before_data or {}).get("seasonal_name") if before_data else None)
+  after_seasonal = _normalize_field(after_data.get("seasonal_name"))
+
+  query_changed = (before_data is None or before_query != after_query)
+  seasonal_changed = (before_data is None or before_seasonal != after_seasonal)
+
+  if query_changed or seasonal_changed:
+    try:
+      result = _refresh_single_category_cache(category_id, after_data)
+      if result == "updated":
+        logger.info(f"Refreshed category cache for {category_id}: updated")
+      elif result == "emptied":
+        logger.info(f"Refreshed category cache for {category_id}: emptied")
+      # If result is None, category was skipped (invalid state or missing query)
+    except Exception as exc:  # pylint: disable=broad-except
+      logger.error(
+        f"Failed refreshing category cache for {category_id}: {exc}")
 
 
 @firestore_fn.on_document_written(
@@ -692,6 +724,57 @@ def _update_joke_attributes(run_time_utc: datetime.datetime) -> dict[str, int]:
   }
 
 
+def _refresh_single_category_cache(
+    category_id: str, category_data: dict[str, object]) -> str | None:
+  """Refresh cached joke list for a single category.
+
+  Args:
+    category_id: The ID of the category document
+    category_data: The category document data dictionary
+
+  Returns:
+    "updated" if cache was updated with jokes, "emptied" if cache was set to empty,
+    None if the category was skipped (invalid state or missing query/seasonal)
+    
+  Raises:
+    Exception if cache refresh fails (caller should handle)
+  """
+  # Filter to categories with valid state and query
+  state = str(category_data.get("state") or "").upper()
+  if state not in ("APPROVED", "PROPOSED"):
+    return None
+
+  raw_query = (category_data.get("joke_description_query") or "").strip()
+  seasonal_name = (category_data.get("seasonal_name") or "").strip()
+
+  client = firestore.db()
+
+  if not raw_query and not seasonal_name:
+    if state != "PROPOSED":
+      client.collection("joke_categories").document(category_id).set(
+        {"state": "PROPOSED"}, merge=True)
+    return None
+
+  if seasonal_name:
+    jokes_payload = _query_seasonal_category_jokes(client, seasonal_name)
+  else:
+    search_query = f"jokes about {raw_query}"
+    jokes_payload = _search_category_jokes(search_query, category_id)
+
+  # Write cache document with a sole 'jokes' field
+  cache_ref = client.collection("joke_categories").document(
+    category_id).collection("category_jokes").document("cache")
+  cache_ref.set({"jokes": jokes_payload})
+
+  if not jokes_payload:
+    # Force category state to PROPOSED when empty
+    client.collection("joke_categories").document(category_id).set(
+      {"state": "PROPOSED"}, merge=True)
+    return "emptied"
+
+  return "updated"
+
+
 def _refresh_category_caches() -> dict[str, int]:
   """Refresh cached joke lists for Firestore categories.
 
@@ -722,39 +805,13 @@ def _refresh_category_caches() -> dict[str, int]:
     total += 1
     data = doc.to_dict() or {}
 
-    # Filter to categories with valid state and query
-    state = str(data.get("state") or "").upper()
-    if state not in ("APPROVED", "PROPOSED"):
-      continue
-    raw_query = (data.get("joke_description_query") or "").strip()
-    seasonal_name = (data.get("seasonal_name") or "").strip()
-
-    if not raw_query and not seasonal_name:
-      if state != "PROPOSED":
-        categories_collection.document(doc.id).set({"state": "PROPOSED"},
-                                                   merge=True)
-      continue
-
     try:
-      if seasonal_name:
-        jokes_payload = _query_seasonal_category_jokes(client, seasonal_name)
-      else:
-        search_query = f"jokes about {raw_query}"
-        jokes_payload = _search_category_jokes(search_query, doc.id)
-
-      # Write cache document with a sole 'jokes' field
-      cache_ref = categories_collection.document(
-        doc.id).collection("category_jokes").document("cache")
-      cache_ref.set({"jokes": jokes_payload})
-
-      if not jokes_payload:
-        # Force category state to PROPOSED when empty
-        categories_collection.document(doc.id).set({"state": "PROPOSED"},
-                                                   merge=True)
-        emptied += 1
-      else:
+      result = _refresh_single_category_cache(doc.id, data)
+      if result == "updated":
         updated += 1
-
+      elif result == "emptied":
+        emptied += 1
+      # If result is None, category was skipped (invalid state or missing query)
     except Exception as exc:  # pylint: disable=broad-except
       logger.error(f"Failed refreshing category cache for {doc.id}: {exc}")
       failed += 1

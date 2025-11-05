@@ -828,7 +828,8 @@ def _refresh_category_caches() -> dict[str, int]:
   }
 
 
-def _search_category_jokes(search_query: str, category_id: str):
+def _search_category_jokes(search_query: str,
+                           category_id: str) -> list[dict[str, object]]:
   field_filters: list[tuple[str, str, object]] = [
     ("state", "in",
      [models.JokeState.PUBLISHED.value, models.JokeState.DAILY.value]),
@@ -852,7 +853,8 @@ def _search_category_jokes(search_query: str, category_id: str):
   } for res in results]
 
 
-def _query_seasonal_category_jokes(client, seasonal_name: str):
+def _query_seasonal_category_jokes(
+    client, seasonal_name: str) -> list[dict[str, object]]:
   states = [models.JokeState.PUBLISHED.value, models.JokeState.DAILY.value]
   query = client.collection("jokes")
   query = query.where(filter=FieldFilter("state", "in", states))

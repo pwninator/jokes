@@ -63,6 +63,8 @@ void main() {
           firebaseAnalyticsProvider.overrideWithValue(mockFirebaseAnalytics),
           // Mock offlineToOnlineProvider to never emit (no transitions in this test)
           offlineToOnlineProvider.overrideWith((ref) => const Stream.empty()),
+          // Mock isOnlineNowProvider to ensure loadFirstPage proceeds
+          isOnlineNowProvider.overrideWith((ref) => true),
         ],
       );
       addTearDown(container.dispose);

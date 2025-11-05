@@ -311,17 +311,16 @@ def _get_joke_embedding(
   )
 
 
-def _sync_joke_to_search_subcollection(
+def _sync_joke_to_search_collection(
   joke: models.PunnyJoke,
   new_embedding: Vector | None,
 ) -> None:
-  """Syncs joke data to a search subcollection document."""
+  """Syncs joke data to the joke_search collection document."""
   if not joke.key:
     return
 
   joke_id = joke.key
-  search_doc_ref = firestore.db().collection("jokes").document(
-    joke_id).collection("search").document("search")
+  search_doc_ref = firestore.db().collection("joke_search").document(joke_id)
   search_doc = search_doc_ref.get()
   search_data = search_doc.to_dict() if search_doc.exists else {}
 
@@ -337,30 +336,49 @@ def _sync_joke_to_search_subcollection(
   if search_data.get("state") != joke.state.value:
     update_payload["state"] = joke.state.value
 
-  # 3. Sync public_timestamp
+  # 3. Sync is_public
+  if search_data.get("is_public") != joke.is_public:
+    update_payload["is_public"] = joke.is_public
+
+  # 4. Sync public_timestamp
   if search_data.get("public_timestamp") != joke.public_timestamp:
     update_payload["public_timestamp"] = joke.public_timestamp
 
-  # 4. Sync num_saved_users_fraction
+  # 5. Sync num_saved_users_fraction
   if search_data.get(
       "num_saved_users_fraction") != joke.num_saved_users_fraction:
     update_payload["num_saved_users_fraction"] = joke.num_saved_users_fraction
 
-  # 5. Sync num_shared_users_fraction
+  # 6. Sync num_shared_users_fraction
   if search_data.get(
       "num_shared_users_fraction") != joke.num_shared_users_fraction:
     update_payload[
       "num_shared_users_fraction"] = joke.num_shared_users_fraction
 
-  # 6. Sync popularity_score
+  # 7. Sync popularity_score
   if search_data.get("popularity_score") != joke.popularity_score:
     update_payload["popularity_score"] = joke.popularity_score
 
   if update_payload:
     logger.info(
-      f"Syncing joke to search subcollection: {joke_id} with payload keys {update_payload.keys()}"
+      f"Syncing joke to joke_search collection: {joke_id} with payload keys {update_payload.keys()}"
     )
     search_doc_ref.set(update_payload, merge=True)
+
+
+def _sync_joke_deletion_to_search_collection(joke_id: str) -> None:
+  """Deletes the corresponding search document when a joke is deleted."""
+  if not joke_id:
+    logger.info("Joke document deleted but joke_id not provided")
+    return
+
+  search_doc_ref = firestore.db().collection("joke_search").document(joke_id)
+  search_doc = search_doc_ref.get()
+  if search_doc.exists:
+    search_doc_ref.delete()
+    logger.info(f"Joke document deleted: {joke_id}, deleted search document")
+  else:
+    logger.info(f"Joke document deleted: {joke_id}, search document not found")
 
 
 @firestore_fn.on_document_written(
@@ -476,7 +494,9 @@ def on_joke_category_write(
 def on_joke_write(event: firestore_fn.Event[firestore_fn.Change]) -> None:
   """A cloud function that triggers on joke document changes."""
   if not event.data.after:
-    logger.info(f"Joke document deleted: {event.params['joke_id']}")
+    # Joke document deleted - delete corresponding search document
+    joke_id = event.params.get('joke_id')
+    _sync_joke_deletion_to_search_collection(joke_id)
     return
 
   after_data = event.data.after.to_dict() or {}
@@ -622,7 +642,7 @@ def on_joke_write(event: firestore_fn.Event[firestore_fn.Change]) -> None:
       f"Joke tags changed, updating from {after_joke.tags} to {tags_lowered} for: {after_joke.key}"
     )
 
-  _sync_joke_to_search_subcollection(
+  _sync_joke_to_search_collection(
     joke=after_joke,
     new_embedding=new_embedding,
   )
@@ -702,10 +722,22 @@ def _update_joke_attributes(run_time_utc: datetime.datetime) -> dict[str, int]:
     if not payload:
       # No updates to apply, skip this joke
       jokes_skipped += 1
-      continue
+    else:
+      batch.update(joke_doc.reference, payload)
+      writes_in_batch += 1
 
-    batch.update(joke_doc.reference, payload)
-    writes_in_batch += 1
+    # Sync joke to search collection (merge payload into joke_data for updated values)
+    updated_joke_data = {**joke_data, **payload} if payload else joke_data
+    try:
+      joke = models.PunnyJoke.from_firestore_dict(
+        updated_joke_data,
+        joke_doc.id,
+      )
+      _sync_joke_to_search_collection(joke=joke, new_embedding=None)
+    except Exception as sync_error:  # pylint: disable=broad-except
+      logger.warn(
+        f"Failed to sync joke {joke_doc.id} to search collection: {sync_error}"
+      )
 
     if writes_in_batch >= _MAX_FIRESTORE_WRITE_BATCH_SIZE:
       logger.info(f"Committing batch of {writes_in_batch} writes")

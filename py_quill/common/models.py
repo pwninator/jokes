@@ -717,6 +717,7 @@ class PunnyJoke:
 
   owner_user_id: str | None = None
   public_timestamp: datetime.datetime | None = None
+  is_public: bool = False
   generation_metadata: GenerationMetadata = field(
     default_factory=GenerationMetadata)
 

@@ -334,6 +334,25 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
+                // Joke Stats Section
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: Theme.of(
+                        context,
+                      ).colorScheme.outline.withValues(alpha: 0.3),
+                    ),
+                  ),
+                  child: _buildJokeStats(context),
+                ),
+
                 // Joke Metadata Section
                 if (widget.joke.tags.isNotEmpty || widget.joke.seasonal != null)
                   Container(
@@ -391,6 +410,107 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildJokeStats(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'JOKE STATS',
+          style: TextStyle(
+            fontFamily: 'monospace',
+            fontSize: 14,
+            fontWeight: FontWeight.bold,
+            color: Theme.of(context).colorScheme.primary,
+          ),
+        ),
+        const SizedBox(height: 8),
+        // Top row: Views, Saves, Shares
+        Row(
+          children: [
+            _buildStatRow(
+              context,
+              icon: Icons.visibility,
+              value: '${widget.joke.numViews}',
+              color: widget.joke.numViews > 0
+                  ? Colors.green.withValues(alpha: 0.9)
+                  : Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withValues(alpha: 0.4),
+            ),
+            const SizedBox(width: 12),
+            _buildStatRow(
+              context,
+              icon: Icons.favorite,
+              value: '${widget.joke.numSaves}',
+              color: widget.joke.numSaves > 0
+                  ? Colors.red.withValues(alpha: 0.9)
+                  : Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withValues(alpha: 0.4),
+            ),
+            const SizedBox(width: 12),
+            _buildStatRow(
+              context,
+              icon: Icons.share,
+              value: '${widget.joke.numShares}',
+              color: widget.joke.numShares > 0
+                  ? Colors.blue.withValues(alpha: 0.9)
+                  : Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withValues(alpha: 0.4),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        // Bottom row: Popularity Score, Saved Users Fraction
+        Row(
+          children: [
+            _buildStatRow(
+              context,
+              icon: Icons.trending_up,
+              value: widget.joke.popularityScore.toStringAsPrecision(3),
+              color: widget.joke.popularityScore > 0
+                  ? Colors.purple.withValues(alpha: 0.9)
+                  : Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withValues(alpha: 0.4),
+            ),
+            const SizedBox(width: 12),
+            _buildStatRow(
+              context,
+              icon: Icons.favorite_outline,
+              value: widget.joke.numSavedUsersFraction.toStringAsPrecision(2),
+              color: widget.joke.numSavedUsersFraction > 0
+                  ? Colors.red.withValues(alpha: 0.9)
+                  : Theme.of(
+                      context,
+                    ).colorScheme.onSurface.withValues(alpha: 0.4),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatRow(
+    BuildContext context, {
+    required IconData icon,
+    required String value,
+    required Color color,
+  }) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 20, color: color),
+        const SizedBox(width: 4),
+        Text(
+          value,
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+        ),
+      ],
     );
   }
 
@@ -1126,7 +1246,52 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
   }
 
   Widget _buildRightControls() {
-    // Create a list of buttons to show
+    // Build popularity score and save fraction (left-aligned in right section)
+    Widget? statsWidget;
+    if (widget.showUsageStats) {
+      final Color popularityColor = widget.joke.popularityScore > 0
+          ? Colors.purple.withValues(alpha: 0.9)
+          : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4);
+      final Color saveFractionColor = widget.joke.numSavedUsersFraction > 0
+          ? Colors.red.withValues(alpha: 0.9)
+          : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4);
+      statsWidget = Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.trending_up, size: 20, color: popularityColor),
+              const SizedBox(width: 4),
+              Text(
+                widget.joke.popularityScore.toStringAsPrecision(3),
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(width: 12),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.favorite_outline, size: 20, color: saveFractionColor),
+              const SizedBox(width: 4),
+              Text(
+                widget.joke.numSavedUsersFraction.toStringAsPrecision(2),
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ],
+      );
+    }
+
+    // Build buttons (right-aligned in right section)
     final List<Widget> buttons = [];
 
     // Add admin rating buttons if enabled
@@ -1149,24 +1314,42 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
 
     // Add save button if enabled
     if (widget.showSaveButton) {
+      if (buttons.isNotEmpty) {
+        buttons.add(const SizedBox(width: 8));
+      }
       buttons.add(
         SaveJokeButton(jokeId: widget.joke.id, jokeContext: widget.jokeContext),
       );
     }
 
-    // If no buttons, return empty space
-    if (buttons.isEmpty) {
+    // If nothing to show, return empty space
+    if (statsWidget == null && buttons.isEmpty) {
       return const SizedBox();
     }
 
-    // Return aligned row of buttons, scaling down to avoid overflow in tight widths
-    return Align(
-      alignment: Alignment.centerRight,
-      child: FittedBox(
-        fit: BoxFit.scaleDown,
-        alignment: Alignment.centerRight,
-        child: Row(mainAxisSize: MainAxisSize.min, children: buttons),
-      ),
+    // Return row with stats on left and buttons on right
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        // Left side: popularity score and save fraction
+        if (statsWidget != null)
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: statsWidget,
+          )
+        else
+          const SizedBox(),
+        // Right side: buttons
+        if (buttons.isNotEmpty)
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerRight,
+            child: Row(mainAxisSize: MainAxisSize.min, children: buttons),
+          )
+        else
+          const SizedBox(),
+      ],
     );
   }
 
@@ -1360,25 +1543,6 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
             const SizedBox(width: 4),
             Text(
               '${widget.joke.numShares}',
-              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
-            ),
-          ],
-        ),
-      );
-
-      // Popularity score counter
-      items.add(const SizedBox(width: 12));
-      final Color popularityColor = widget.joke.popularityScore > 0
-          ? Colors.purple.withValues(alpha: 0.9)
-          : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4);
-      items.add(
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.trending_up, size: 20, color: popularityColor),
-            const SizedBox(width: 4),
-            Text(
-              widget.joke.popularityScore.toStringAsPrecision(3),
               style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
             ),
           ],

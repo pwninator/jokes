@@ -844,13 +844,17 @@ def _search_category_jokes(search_query: str,
     distance_threshold=config.JOKE_SEARCH_TIGHT_THRESHOLD,
   )
 
+  sorted_jokes = sorted(results,
+                        key=lambda res: res.joke.num_shared_users_fraction,
+                        reverse=True)
+
   return [{
-    "joke_id": res.joke.key,
-    "setup": res.joke.setup_text,
-    "punchline": res.joke.punchline_text,
-    "setup_image_url": res.joke.setup_image_url,
-    "punchline_image_url": res.joke.punchline_image_url,
-  } for res in results]
+    "joke_id": j.joke.key,
+    "setup": j.joke.setup_text,
+    "punchline": j.joke.punchline_text,
+    "setup_image_url": j.joke.setup_image_url,
+    "punchline_image_url": j.joke.punchline_image_url,
+  } for j in sorted_jokes]
 
 
 def _query_seasonal_category_jokes(
@@ -863,11 +867,16 @@ def _query_seasonal_category_jokes(
   query = query.limit(100)
 
   docs = query.stream()
+  docs_list = [(doc.id, doc.to_dict() or {}) for doc in docs]
+  sorted_docs_list = sorted(
+    docs_list,
+    key=lambda item: item[1].get("num_shared_users_fraction", 0.0),
+    reverse=True)
+
   payload = []
-  for doc in docs:
-    data = doc.to_dict() or {}
+  for doc_id, data in sorted_docs_list:
     payload.append({
-      "joke_id": doc.id,
+      "joke_id": doc_id,
       "setup": data.get("setup_text", ""),
       "punchline": data.get("punchline_text", ""),
       "setup_image_url": data.get("setup_image_url"),

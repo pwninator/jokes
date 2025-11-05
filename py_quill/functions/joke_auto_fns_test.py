@@ -1318,3 +1318,171 @@ class TestOnJokeCategoryWrite:
 
     # Assert
     mock_refresh.assert_called_once_with("cat1", event.data.after.to_dict())
+
+
+class TestSearchCategoryJokesSorting:
+  """Tests for _search_category_jokes sorting behavior."""
+
+  def test_sorts_results_by_num_shared_users_fraction(self, monkeypatch):
+    """Test that search results are sorted by num_shared_users_fraction in descending order."""
+
+    # Arrange
+    class _MockResult:
+
+      def __init__(self, joke_id, fraction):
+        self.joke = models.PunnyJoke(
+          key=joke_id,
+          setup_text=f"Setup {joke_id}",
+          punchline_text=f"Punchline {joke_id}",
+          num_shared_users_fraction=fraction,
+        )
+        self.vector_distance = 0.1
+
+    results = [
+      _MockResult("j1", 0.1),
+      _MockResult("j2", 0.5),
+      _MockResult("j3", 0.0),
+      _MockResult("j4", 0.3),
+    ]
+
+    def fake_search_jokes(**kwargs):  # pylint: disable=unused-argument
+      return results
+
+    monkeypatch.setattr("py_quill.functions.joke_auto_fns.search.search_jokes",
+                        fake_search_jokes)
+
+    # Act
+    jokes = joke_auto_fns._search_category_jokes("test query", "cat1")
+
+    # Assert
+    assert len(jokes) == 4
+    assert jokes[0]["joke_id"] == "j2"
+    assert jokes[1]["joke_id"] == "j4"
+    assert jokes[2]["joke_id"] == "j1"
+    assert jokes[3]["joke_id"] == "j3"
+
+
+class TestQuerySeasonalCategoryJokesSorting:
+  """Tests for _query_seasonal_category_jokes sorting behavior."""
+
+  def test_sorts_docs_by_num_shared_users_fraction(self, monkeypatch):
+    """Test that seasonal jokes are sorted by num_shared_users_fraction in descending order."""
+
+    # Arrange
+    class _MockDoc:
+
+      def __init__(self, doc_id, fraction):
+        self.id = doc_id
+        self._fraction = fraction
+        self._data = {
+          "setup_text": f"Setup {doc_id}",
+          "punchline_text": f"Punchline {doc_id}",
+          "num_shared_users_fraction": fraction,
+        }
+
+      def to_dict(self):
+        return self._data
+
+    class _MockQuery:
+
+      def __init__(self, docs):
+        self._docs = docs
+
+      def where(self, filter):  # pylint: disable=redefined-builtin
+        return self
+
+      def limit(self, limit):
+        return self
+
+      def stream(self):
+        return iter(self._docs)
+
+    class _MockCollection:
+
+      def __init__(self, docs):
+        self._docs = docs
+
+      def collection(self, name):
+        return self
+
+      def where(self, filter):  # pylint: disable=redefined-builtin
+        return _MockQuery(self._docs)
+
+    docs = [
+      _MockDoc("j1", 0.1),
+      _MockDoc("j2", 0.5),
+      _MockDoc("j3", 0.0),
+      _MockDoc("j4", 0.3),
+    ]
+
+    mock_client = _MockCollection(docs)
+
+    # Act
+    jokes = joke_auto_fns._query_seasonal_category_jokes(
+      mock_client, "Halloween")
+
+    # Assert
+    assert len(jokes) == 4
+    assert jokes[0]["joke_id"] == "j2"
+    assert jokes[1]["joke_id"] == "j4"
+    assert jokes[2]["joke_id"] == "j1"
+    assert jokes[3]["joke_id"] == "j3"
+
+  def test_handles_missing_fraction_field(self, monkeypatch):
+    """Test that docs without num_shared_users_fraction are sorted last."""
+
+    # Arrange
+    class _MockDoc:
+
+      def __init__(self, doc_id, fraction=None):
+        self.id = doc_id
+        self._data = {
+          "setup_text": f"Setup {doc_id}",
+          "punchline_text": f"Punchline {doc_id}",
+        }
+        if fraction is not None:
+          self._data["num_shared_users_fraction"] = fraction
+
+      def to_dict(self):
+        return self._data
+
+    class _MockQuery:
+
+      def __init__(self, docs):
+        self._docs = docs
+
+      def where(self, filter):  # pylint: disable=redefined-builtin
+        return self
+
+      def limit(self, limit):
+        return self
+
+      def stream(self):
+        return iter(self._docs)
+
+    class _MockCollection:
+
+      def __init__(self, docs):
+        self._docs = docs
+
+      def collection(self, name):
+        return self
+
+      def where(self, filter):  # pylint: disable=redefined-builtin
+        return _MockQuery(self._docs)
+
+    docs = [
+      _MockDoc("j1", None),
+      _MockDoc("j2", 0.2),
+    ]
+
+    mock_client = _MockCollection(docs)
+
+    # Act
+    jokes = joke_auto_fns._query_seasonal_category_jokes(
+      mock_client, "Halloween")
+
+    # Assert
+    assert len(jokes) == 2
+    assert jokes[0]["joke_id"] == "j2"
+    assert jokes[1]["joke_id"] == "j1"

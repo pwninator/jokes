@@ -50,7 +50,7 @@ def _manual_tag_result(
   distance: float = 0.1,
 ) -> SimpleNamespace:
   """Wrap a joke in a fake search result."""
-  return SimpleNamespace(joke=joke, vector_distance=distance)
+  return SimpleNamespace(joke_id=joke.key, vector_distance=distance)
 
 
 def test_run_manual_season_tag_updates_joke(monkeypatch):
@@ -426,16 +426,9 @@ class TestSearchJokes:
     """Test that a valid request returns jokes with id and vector distance."""
 
     # Arrange
-    class _J:
-
-      def __init__(self, key):
-        self.joke = Mock(key=key)
-        self.vector_distance = 0.0
-
-    j1 = _J('joke1')
-    j1.vector_distance = 0.1
-    j2 = _J('joke2')
-    j2.vector_distance = 0.2
+    from services.search import JokeSearchResult
+    j1 = JokeSearchResult(joke_id='joke1', vector_distance=0.1)
+    j2 = JokeSearchResult(joke_id='joke2', vector_distance=0.2)
     mock_search.return_value = [j1, j2]
 
     req = MagicMock()

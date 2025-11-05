@@ -209,14 +209,11 @@ async def test_search_for_jokes_returns_formatted_jokes(tool, monkeypatch):
            label=label,
            field_filters=field_filters))
 
-    class _R:
-
-      def __init__(self, key):
-        self.joke = models.PunnyJoke(key=key,
-                                     setup_text="S",
-                                     punchline_text="P")
-
-    return [_R("a1"), _R("a2")]
+    from services.search import JokeSearchResult
+    return [
+      JokeSearchResult(joke_id="a1", vector_distance=0.1),
+      JokeSearchResult(joke_id="a2", vector_distance=0.2),
+    ]
 
   def fake_get_punny_jokes(keys):
     assert keys == ["a1", "a2"]

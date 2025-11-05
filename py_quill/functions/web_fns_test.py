@@ -17,8 +17,7 @@ def test_topic_page_uses_batch_fetch(monkeypatch):
                       mock_get_punny_jokes,
                       raising=False)
 
-  search_result = search.JokeSearchResult(joke=models.PunnyJoke(
-    key="joke1", setup_text="s", punchline_text="p"),
+  search_result = search.JokeSearchResult(joke_id="joke1",
                                           vector_distance=0.1)
   mock_search_jokes.return_value = [search_result]
 
@@ -62,12 +61,8 @@ def test_topic_page_renders_with_json_ld_and_reveal(monkeypatch):
                       mock_get_punny_jokes,
                       raising=False)
 
-  search_result = search.JokeSearchResult(
-    joke=models.PunnyJoke(key="j1",
-                          setup_text="Setup one",
-                          punchline_text="Punch one"),
-    vector_distance=0.01,
-  )
+  search_result = search.JokeSearchResult(joke_id="j1",
+                                          vector_distance=0.01)
   mock_search_jokes.return_value = [search_result]
 
   joke = models.PunnyJoke(
@@ -157,13 +152,10 @@ def test_fetch_topic_jokes_sorts_by_popularity_then_distance(monkeypatch):
 
   # Three results: A and B same popularity; B has smaller distance than A
   # C has higher popularity than both and should come first.
-  jA = models.PunnyJoke(key="A", setup_text="sa", punchline_text="pa")
-  jB = models.PunnyJoke(key="B", setup_text="sb", punchline_text="pb")
-  jC = models.PunnyJoke(key="C", setup_text="sc", punchline_text="pc")
   mock_search_jokes.return_value = [
-    search.JokeSearchResult(joke=jA, vector_distance=0.20),
-    search.JokeSearchResult(joke=jB, vector_distance=0.10),
-    search.JokeSearchResult(joke=jC, vector_distance=0.30),
+    search.JokeSearchResult(joke_id="A", vector_distance=0.20),
+    search.JokeSearchResult(joke_id="B", vector_distance=0.10),
+    search.JokeSearchResult(joke_id="C", vector_distance=0.30),
   ]
 
   # Populate num_saved_users_fraction when firestore objects are returned
@@ -205,10 +197,8 @@ def test_pages_include_ga4_tag_and_parchment_background(monkeypatch):
   monkeypatch.setattr(web_fns.firestore, "get_daily_jokes",
                       mock_get_daily_jokes)
 
-  search_result = search.JokeSearchResult(
-    joke=models.PunnyJoke(key="j3", setup_text="S", punchline_text="P"),
-    vector_distance=0.03,
-  )
+  search_result = search.JokeSearchResult(joke_id="j3",
+                                          vector_distance=0.03)
   mock_search_jokes.return_value = [search_result]
 
   joke = models.PunnyJoke(

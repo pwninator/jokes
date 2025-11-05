@@ -205,7 +205,7 @@ def _run_manual_season_tag(
       logger.info(f"Reached max_jokes limit of {max_jokes}.")
       break
 
-    joke_id = result.joke.key
+    joke_id = result.joke_id
     if not joke_id:
       continue
 
@@ -317,7 +317,7 @@ def search_jokes(req: https_fn.Request) -> https_fn.Response:
 
     # Return jokes with id and vector distance
     jokes = [{
-      "joke_id": result.joke.key,
+      "joke_id": result.joke_id,
       "vector_distance": result.vector_distance
     } for result in search_results]
     return success_response({"jokes": jokes})

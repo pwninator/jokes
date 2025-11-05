@@ -93,7 +93,7 @@ def get_embedding(
 @dataclasses.dataclass
 class JokeSearchResult:
   """A search result for a punny joke."""
-  joke: models.PunnyJoke
+  joke_id: str
   vector_distance: float
 
 
@@ -131,7 +131,7 @@ def search_jokes(
       distance = data.pop("vector_distance")
       results.append(
         JokeSearchResult(
-          joke=models.PunnyJoke.from_firestore_dict(data, doc.id),
+          joke_id=doc.id,
           vector_distance=distance,
         ))
 

@@ -118,7 +118,7 @@ async def search_for_jokes(joke_description_query: str) -> list[str]:
     label="joke_search_tool",
     field_filters=[('public_timestamp', '<=', now_la)],
   )
-  joke_ids = [result.joke.key for result in search_results if result.joke.key]
+  joke_ids = [result.joke_id for result in search_results if result.joke_id]
   jokes = await asyncio.to_thread(firestore.get_punny_jokes, joke_ids)
   return [f"{joke.setup_text} {joke.punchline_text}" for joke in jokes]
 
@@ -143,22 +143,22 @@ async def get_num_search_results(joke_description_query: str) -> int:
 
 
 _EDITABLE_JOKE_FIELDS = [
-    "pun_theme",
-    "phrase_topic",
-    "tags",
-    "for_kids",
-    "for_adults",
-    "seasonal",
-    "pun_word",
-    "punned_word",
-    "setup_image_description",
-    "punchline_image_description",
+  "pun_theme",
+  "phrase_topic",
+  "tags",
+  "for_kids",
+  "for_adults",
+  "seasonal",
+  "pun_word",
+  "punned_word",
+  "setup_image_description",
+  "punchline_image_description",
 ]
 
 
 async def update_joke(
-    joke_id: str,
-    update_data: dict[str, any],
+  joke_id: str,
+  update_data: dict[str, any],
 ) -> None:
   """Updates a joke in Firestore. Only the fields provided in the update_data dictionary will be updated.
   Any fields not included in the dictionary will be left unchanged in Firestore.
@@ -186,14 +186,14 @@ async def update_joke(
     raise ValueError("update_data must not be empty")
 
   filtered_update_data = {
-      k: v
-      for k, v in update_data.items()
-      if k in _EDITABLE_JOKE_FIELDS and v is not None
+    k: v
+    for k, v in update_data.items()
+    if k in _EDITABLE_JOKE_FIELDS and v is not None
   }
 
   if not filtered_update_data:
     raise ValueError(
-        "update_data must contain at least one valid and non-None field")
+      "update_data must contain at least one valid and non-None field")
 
   await asyncio.to_thread(firestore.update_punny_joke, joke_id,
                           filtered_update_data)
@@ -230,9 +230,9 @@ async def get_joke_details(joke_id: str) -> dict[str, any]:
     return {}
 
   details = {
-      "joke_id": joke.key,
-      "setup_text": joke.setup_text,
-      "punchline_text": joke.punchline_text,
+    "joke_id": joke.key,
+    "setup_text": joke.setup_text,
+    "punchline_text": joke.punchline_text,
   }
 
   for field in _EDITABLE_JOKE_FIELDS:

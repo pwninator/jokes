@@ -2194,21 +2194,12 @@ class TestSearchCategoryJokesSorting:
     """Test that search results are sorted by num_saved_users_fraction in descending order."""
 
     # Arrange
-    class _MockResult:
-
-      def __init__(self, joke_id):
-        self.joke = models.PunnyJoke(
-          key=joke_id,
-          setup_text=f"Setup {joke_id}",
-          punchline_text=f"Punchline {joke_id}",
-        )
-        self.vector_distance = 0.1
-
+    from services.search import JokeSearchResult
     results = [
-      _MockResult("j1"),
-      _MockResult("j2"),
-      _MockResult("j3"),
-      _MockResult("j4"),
+      JokeSearchResult(joke_id="j1", vector_distance=0.1),
+      JokeSearchResult(joke_id="j2", vector_distance=0.1),
+      JokeSearchResult(joke_id="j3", vector_distance=0.1),
+      JokeSearchResult(joke_id="j4", vector_distance=0.1),
     ]
 
     def fake_search_jokes(**kwargs):  # pylint: disable=unused-argument

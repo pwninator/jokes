@@ -892,7 +892,7 @@ def _search_category_jokes(search_query: str,
   )
 
   # Extract joke IDs
-  joke_ids = [result.joke.key for result in results if result.joke.key]
+  joke_ids = [result.joke_id for result in results if result.joke_id]
 
   # Fetch full jokes
   jokes = firestore.get_punny_jokes(joke_ids)

@@ -70,9 +70,8 @@ def _fetch_topic_jokes(topic: str, limit: int) -> list[models.PunnyJoke]:
     field_filters=field_filters,
   )
   # Fetch full jokes by IDs and sort by popularity desc, then vector distance asc
-  joke_ids = [r.joke.key for r in results]
-  id_to_distance = {r.joke.key: r.vector_distance for r in results}
-  jokes = firestore.get_punny_jokes(joke_ids)
+  id_to_distance = {r.joke_id: r.vector_distance for r in results}
+  jokes = firestore.get_punny_jokes(list(id_to_distance.keys()))
   jokes.sort(key=lambda j: (
     -1 * (getattr(j, 'num_saved_users_fraction', 0) or 0),
     id_to_distance.get(j.key, float('inf')),

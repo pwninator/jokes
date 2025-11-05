@@ -912,11 +912,11 @@ _makeLoadSearchPage(SearchScope scope) {
 
     // Slice the IDs for this page
     final pageResults = allResults.skip(offset).take(limit).toList();
-    final pageIds = pageResults.map((r) => r.id).toList();
+    final jokeIds = pageResults.map((r) => r.id).toList();
 
     // Fetch joke data only for this page
     final repository = ref.read(jokeRepositoryProvider);
-    final jokes = await repository.getJokesByIds(pageIds);
+    final jokes = await repository.getJokesByIds(jokeIds);
     final jokesWithDate = jokes
         .map((j) => JokeWithDate(joke: j, dataSource: 'search:${scope.name}'))
         .toList();

@@ -1,16 +1,44 @@
 import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_category.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/firestore_joke_category_repository.dart';
+
+class _NoopPerformanceService implements PerformanceService {
+  @override
+  void dropNamedTrace({required TraceName name, String? key}) {}
+
+  @override
+  void putNamedTraceAttributes({
+    required TraceName name,
+    String? key,
+    required Map<String, String> attributes,
+  }) {}
+
+  @override
+  void startNamedTrace({
+    required TraceName name,
+    String? key,
+    Map<String, String>? attributes,
+  }) {}
+
+  @override
+  void stopNamedTrace({required TraceName name, String? key}) {}
+}
 
 void main() {
   group('FirestoreJokeCategoryRepository', () {
     late FakeFirebaseFirestore firestore;
     late FirestoreJokeCategoryRepository repository;
+    late PerformanceService perf;
 
     setUp(() {
       firestore = FakeFirebaseFirestore();
-      repository = FirestoreJokeCategoryRepository(firestore: firestore);
+      perf = _NoopPerformanceService();
+      repository = FirestoreJokeCategoryRepository(
+        firestore: firestore,
+        perf: perf,
+      );
     });
 
     test('upsertCategory strips firestore prefix when writing', () async {

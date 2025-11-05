@@ -1,14 +1,19 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_category.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_category_repository.dart';
 
 class FirestoreJokeCategoryRepository implements JokeCategoryRepository {
   final FirebaseFirestore _firestore;
+  final PerformanceService _perf;
 
   static const String _collection = 'joke_categories';
 
-  FirestoreJokeCategoryRepository({required FirebaseFirestore firestore})
-    : _firestore = firestore;
+  FirestoreJokeCategoryRepository({
+    required FirebaseFirestore firestore,
+    required PerformanceService perf,
+  }) : _firestore = firestore,
+       _perf = perf;
 
   @override
   Stream<List<JokeCategory>> watchCategories() {
@@ -89,21 +94,49 @@ class FirestoreJokeCategoryRepository implements JokeCategoryRepository {
   Future<List<CategoryCachedJoke>> getCachedCategoryJokes(
     String categoryId,
   ) async {
-    final snapshot = await _doc(
-      categoryId,
-    ).collection('category_jokes').doc('cache').get();
+    final key = '$categoryId:cache';
+    _perf.startNamedTrace(
+      name: TraceName.fsReadCategoryCache,
+      key: key,
+      attributes: {'collection': _collection, 'docId': categoryId, 'op': 'get'},
+    );
 
-    final data = snapshot.data();
-    if (!snapshot.exists || data == null) return <CategoryCachedJoke>[];
+    try {
+      final snapshot = await _doc(
+        categoryId,
+      ).collection('category_jokes').doc('cache').get();
 
-    final dynamic jokesField = data['jokes'];
-    if (jokesField is! List) return <CategoryCachedJoke>[];
+      final data = snapshot.data();
+      if (!snapshot.exists || data == null) {
+        _perf.stopNamedTrace(name: TraceName.fsReadCategoryCache, key: key);
+        return <CategoryCachedJoke>[];
+      }
 
-    return jokesField
-        .whereType<Map<String, dynamic>>()
-        .map(CategoryCachedJoke.fromMap)
-        .where((j) => j.jokeId.isNotEmpty)
-        .toList();
+      final dynamic jokesField = data['jokes'];
+      if (jokesField is! List) {
+        _perf.stopNamedTrace(name: TraceName.fsReadCategoryCache, key: key);
+        return <CategoryCachedJoke>[];
+      }
+
+      final result = jokesField
+          .whereType<Map<String, dynamic>>()
+          .map(CategoryCachedJoke.fromMap)
+          .where((j) => j.jokeId.isNotEmpty)
+          .toList();
+
+      _perf.putNamedTraceAttributes(
+        name: TraceName.fsReadCategoryCache,
+        key: key,
+        attributes: {'result_count': result.length.toString()},
+      );
+
+      _perf.stopNamedTrace(name: TraceName.fsReadCategoryCache, key: key);
+
+      return result;
+    } catch (e) {
+      _perf.dropNamedTrace(name: TraceName.fsReadCategoryCache, key: key);
+      rethrow;
+    }
   }
 
   DocumentReference<Map<String, dynamic>> _doc(String categoryId) {

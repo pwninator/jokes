@@ -39,6 +39,7 @@ enum TraceName {
   driftGetViewedJokeInteractions,
   driftGetSharedJokeInteractions,
   driftGetAllJokeInteractions,
+  fsReadCategoryCache,
   startupOverallBlocking,
   startupOverallBackground,
   startupTaskEmulators,
@@ -86,6 +87,8 @@ extension TraceNameWire on TraceName {
         return 'drift_get_shared_joke_interactions';
       case TraceName.driftGetAllJokeInteractions:
         return 'drift_get_all_joke_interactions';
+      case TraceName.fsReadCategoryCache:
+        return 'fs_read_category_cache';
       case TraceName.startupOverallBlocking:
         return 'startup_overall_blocking';
       case TraceName.startupOverallBackground:

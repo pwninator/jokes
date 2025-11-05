@@ -20,7 +20,7 @@ void main() {
         jokeDescriptionQuery: 'cats',
         imageDescription: 'Images of cats',
         state: JokeCategoryState.approved,
-        type: CategoryType.search,
+        type: CategoryType.firestore,
       );
 
       await repository.upsertCategory(category);

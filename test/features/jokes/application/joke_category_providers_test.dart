@@ -26,14 +26,14 @@ void main() {
                 JokeCategory(
                   id: '${JokeCategory.firestorePrefix}halloween',
                   displayName: 'Halloween',
-                  type: CategoryType.seasonal,
+                  type: CategoryType.firestore,
                   seasonalValue: 'Halloween',
                   state: JokeCategoryState.approved,
                 ),
                 JokeCategory(
                   id: '${JokeCategory.firestorePrefix}1',
                   displayName: 'Cats',
-                  type: CategoryType.search,
+                  type: CategoryType.firestore,
                   jokeDescriptionQuery: 'cats',
                   state: JokeCategoryState.approved,
                 ),
@@ -74,7 +74,7 @@ void main() {
           categories.any(
             (category) =>
                 category.id == '${JokeCategory.firestorePrefix}halloween' &&
-                category.type == CategoryType.seasonal &&
+                category.type == CategoryType.firestore &&
                 category.seasonalValue == 'Halloween',
           ),
           isTrue,
@@ -104,14 +104,14 @@ void main() {
               JokeCategory(
                 id: '${JokeCategory.firestorePrefix}halloween',
                 displayName: 'Halloween',
-                type: CategoryType.seasonal,
+                type: CategoryType.firestore,
                 seasonalValue: 'Halloween',
                 state: JokeCategoryState.approved,
               ),
               JokeCategory(
                 id: '${JokeCategory.firestorePrefix}1',
                 displayName: 'Cats',
-                type: CategoryType.search,
+                type: CategoryType.firestore,
                 jokeDescriptionQuery: 'cats',
                 state: JokeCategoryState.approved,
               ),
@@ -151,7 +151,7 @@ void main() {
         categories.any(
           (category) =>
               category.id == '${JokeCategory.firestorePrefix}halloween' &&
-              category.type == CategoryType.seasonal &&
+              category.type == CategoryType.firestore &&
               category.seasonalValue == 'Halloween',
         ),
         isTrue,
@@ -178,14 +178,14 @@ void main() {
               JokeCategory(
                 id: '${JokeCategory.firestorePrefix}approved',
                 displayName: 'Approved',
-                type: CategoryType.search,
+                type: CategoryType.firestore,
                 jokeDescriptionQuery: 'approved',
                 state: JokeCategoryState.approved,
               ),
               JokeCategory(
                 id: '${JokeCategory.firestorePrefix}proposed',
                 displayName: 'Proposed',
-                type: CategoryType.search,
+                type: CategoryType.firestore,
                 jokeDescriptionQuery: 'proposed',
                 state: JokeCategoryState.proposed,
               ),
@@ -234,14 +234,14 @@ void main() {
               JokeCategory(
                 id: '${JokeCategory.firestorePrefix}approved',
                 displayName: 'Approved',
-                type: CategoryType.search,
+                type: CategoryType.firestore,
                 jokeDescriptionQuery: 'approved',
                 state: JokeCategoryState.approved,
               ),
               JokeCategory(
                 id: '${JokeCategory.firestorePrefix}proposed',
                 displayName: 'Proposed',
-                type: CategoryType.search,
+                type: CategoryType.firestore,
                 jokeDescriptionQuery: 'proposed',
                 state: JokeCategoryState.proposed,
               ),

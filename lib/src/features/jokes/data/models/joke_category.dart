@@ -2,19 +2,13 @@ import 'package:flutter/material.dart';
 
 /// Type of category behavior used by Discover tiles
 enum CategoryType {
-  /// Search-based category using cloud function search
-  search,
+  /// Firestore-based category
+  firestore,
 
-  /// Firestore-based category for most popular jokes
+  /// Programmatic category for most popular jokes
   popular,
 
-  /// Firestore-based category filtered by a seasonal field
-  seasonal,
-
-  /// Composite feed that stitches together multiple sources (e.g., All jokes)
-  composite,
-
-  /// Daily jokes category using scheduled joke batches
+  /// Programmatic daily jokes category using scheduled joke batches
   daily,
 }
 
@@ -44,15 +38,16 @@ class JokeCategory {
   final String id;
   final String displayName;
   final String?
-  jokeDescriptionQuery; // When type == search, this must be non-empty
+  jokeDescriptionQuery; // When type == firestore and not seasonal, this must be non-empty
   final String? imageUrl;
   final String? imageDescription;
   final JokeCategoryState state;
   final CategoryType type;
-  final String? seasonalValue; // When type == seasonal, this must be non-empty
+  final String?
+  seasonalValue; // When type == firestore and seasonal, this must be non-empty
   final Color? borderColor;
 
-  JokeCategory({
+  const JokeCategory({
     required this.id,
     required this.displayName,
     this.jokeDescriptionQuery,
@@ -62,34 +57,7 @@ class JokeCategory {
     required this.type,
     this.seasonalValue,
     this.borderColor,
-  }) : // Search-specific validation
-       assert(
-         type != CategoryType.search ||
-             (jokeDescriptionQuery != null &&
-                 jokeDescriptionQuery.trim().isNotEmpty),
-         'For search, provide non-empty jokeDescriptionQuery.',
-       ),
-       // Seasonal-specific validation: no search query allowed
-       assert(
-         type != CategoryType.seasonal ||
-             (jokeDescriptionQuery == null ||
-                 jokeDescriptionQuery.trim().isEmpty),
-         'For seasonal, do not provide jokeDescriptionQuery.',
-       ),
-       // Seasonal-specific validation: require non-empty seasonalValue
-       assert(
-         type != CategoryType.seasonal ||
-             (seasonalValue != null && seasonalValue.trim().isNotEmpty),
-         'For seasonal, provide non-empty seasonalValue.',
-       ),
-       // Other types: must not provide search query
-       assert(
-         type == CategoryType.search ||
-             type == CategoryType.seasonal ||
-             (jokeDescriptionQuery == null ||
-                 jokeDescriptionQuery.trim().isEmpty),
-         'For non-search, non-seasonal types, jokeDescriptionQuery must be null/empty.',
-       );
+  });
 
   factory JokeCategory.fromMap(Map<String, dynamic> map, String id) {
     final displayName = (map['display_name'] as String?)?.trim() ?? '';
@@ -110,7 +78,7 @@ class JokeCategory {
       imageUrl: imageUrl,
       imageDescription: imageDescription,
       state: state,
-      type: isSeasonal ? CategoryType.seasonal : CategoryType.search,
+      type: CategoryType.firestore,
       seasonalValue: isSeasonal ? seasonalName : null,
     );
   }

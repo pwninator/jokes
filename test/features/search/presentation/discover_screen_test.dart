@@ -320,7 +320,7 @@ void main() {
     jokeDescriptionQuery: 'animal',
     imageUrl: null,
     state: JokeCategoryState.approved,
-    type: CategoryType.search,
+    type: CategoryType.firestore,
   );
 
   const sampleJoke = Joke(
@@ -533,7 +533,7 @@ void main() {
             imageUrl: null,
             state: JokeCategoryState.approved,
 
-            type: CategoryType.search,
+            type: CategoryType.firestore,
           ),
         );
 
@@ -678,7 +678,7 @@ void main() {
       final proposedCategory = JokeCategory(
         id: '${JokeCategory.firestorePrefix}proposed',
         displayName: 'Space Cats',
-        type: CategoryType.search,
+        type: CategoryType.firestore,
         jokeDescriptionQuery: 'space cats',
         state: JokeCategoryState.proposed,
       );
@@ -745,7 +745,7 @@ void main() {
           jokeDescriptionQuery: 'nature',
           imageUrl: null,
           state: JokeCategoryState.approved,
-          type: CategoryType.search,
+          type: CategoryType.firestore,
         );
         final categories = [animalCategory, natureCategory];
 

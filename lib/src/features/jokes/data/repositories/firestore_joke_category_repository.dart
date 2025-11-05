@@ -39,15 +39,11 @@ class FirestoreJokeCategoryRepository implements JokeCategoryRepository {
       'state': category.state.value,
     };
 
-    if (category.type == CategoryType.seasonal) {
+    if (category.seasonalValue != null) {
       data['seasonal_name'] = category.seasonalValue;
-      data['joke_description_query'] = FieldValue.delete();
-    } else if (category.type == CategoryType.search) {
+    }
+    if (category.jokeDescriptionQuery != null) {
       data['joke_description_query'] = category.jokeDescriptionQuery;
-      data['seasonal_name'] = FieldValue.delete();
-    } else {
-      data['joke_description_query'] = FieldValue.delete();
-      data['seasonal_name'] = FieldValue.delete();
     }
 
     return _doc(category.id).set(data, SetOptions(merge: true));

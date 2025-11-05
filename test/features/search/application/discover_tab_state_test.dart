@@ -19,7 +19,7 @@ void main() {
       jokeDescriptionQuery: 'animal',
       imageUrl: null,
       state: JokeCategoryState.approved,
-      type: CategoryType.search,
+      type: CategoryType.firestore,
     );
 
     container.read(activeCategoryProvider.notifier).state = category;

@@ -682,8 +682,8 @@ Future<PageResult> _loadCategoryPage(Ref ref, int limit, String? cursor) async {
     return const PageResult(jokes: [], cursor: null, hasMore: false);
   }
   switch (category.type) {
-    case CategoryType.search:
-      return _loadSearchCategoryPageFromCache(ref, category, limit, cursor);
+    case CategoryType.firestore:
+      return _loadCategoryPageFromCache(ref, category, limit, cursor);
     case CategoryType.popular:
       return _loadFirestoreJokes(
         ref,
@@ -693,23 +693,19 @@ Future<PageResult> _loadCategoryPage(Ref ref, int limit, String? cursor) async {
         orderDirection: OrderDirection.descending,
         dataSource: 'category:popular',
       );
-    case CategoryType.seasonal:
-      return _loadSeasonalCategoryPage(ref, limit, cursor);
     case CategoryType.daily:
       return loadDailyJokesPage(ref, limit, cursor);
-    default:
-      return const PageResult(jokes: [], cursor: null, hasMore: false);
   }
 }
 
-Future<PageResult> _loadSearchCategoryPageFromCache(
+Future<PageResult> _loadCategoryPageFromCache(
   Ref ref,
   JokeCategory category,
   int limit,
   String? cursor,
 ) async {
   AppLogger.debug(
-    'PAGING_INTERNAL: Loading search category from cache: ${category.id}, limit: $limit, cursor: $cursor',
+    'PAGING_INTERNAL: Loading Firestore category from cache: ${category.id}, limit: $limit, cursor: $cursor',
   );
 
   final categoryRepo = ref.read(jokeCategoryRepositoryProvider);
@@ -745,8 +741,10 @@ Future<PageResult> _loadSearchCategoryPageFromCache(
 
   final jokesWithDate = jokes
       .map(
-        (j) =>
-            JokeWithDate(joke: j, dataSource: 'category:search:${category.id}'),
+        (j) => JokeWithDate(
+          joke: j,
+          dataSource: 'category:firestore:${category.id}',
+        ),
       )
       .toList();
 

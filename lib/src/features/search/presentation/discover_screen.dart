@@ -126,7 +126,7 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
     ref.read(appUsageServiceProvider).logCategoryViewed(category.id);
 
     // Update search query only for search-type categories
-    if (category.type == CategoryType.search) {
+    if (category.type == CategoryType.firestore) {
       final rawQuery = (category.jokeDescriptionQuery ?? '').trim();
       if (rawQuery.isNotEmpty) {
         final notifier = ref.read(

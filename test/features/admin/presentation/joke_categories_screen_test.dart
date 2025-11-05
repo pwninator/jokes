@@ -24,7 +24,7 @@ class MockPerformanceService extends Mock implements PerformanceService {}
 void main() {
   setUpAll(() {
     // Register fallback values for mocktail
-    registerFallbackValue(CategoryType.search);
+    registerFallbackValue(CategoryType.firestore);
     registerFallbackValue(TraceName.fsRead);
     registerFallbackValue(<String, String>{});
   });
@@ -99,14 +99,14 @@ void main() {
           displayName: 'Animal Jokes',
           jokeDescriptionQuery: 'animal',
           imageUrl: 'https://example.com/image.jpg',
-          type: CategoryType.search,
+          type: CategoryType.firestore,
         ),
         JokeCategory(
           id: 'seasonal',
           displayName: 'Seasonal',
           jokeDescriptionQuery: 'season',
           imageUrl: null,
-          type: CategoryType.search,
+          type: CategoryType.firestore,
         ),
       ]),
     );
@@ -153,7 +153,7 @@ void main() {
           displayName: 'Test Category',
           jokeDescriptionQuery: 'test',
           imageUrl: null,
-          type: CategoryType.search,
+          type: CategoryType.firestore,
         ),
       ]),
     );

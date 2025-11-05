@@ -53,7 +53,7 @@ def _setup_decay_test_mocks(monkeypatch,
     monkeypatch.setattr(
       'functions.joke_auto_fns.firestore.update_public_joke_ids', Mock())
   monkeypatch.setattr(
-    'functions.joke_auto_fns._refresh_category_caches',
+    'common.joke_category_operations.refresh_category_caches',
     Mock(
       return_value={
         "categories_processed": 0,
@@ -159,7 +159,7 @@ class TestDecayRecentJokeStats:
     monkeypatch.setattr(
       'functions.joke_auto_fns.firestore.update_public_joke_ids', Mock())
     monkeypatch.setattr(
-      'functions.joke_auto_fns._refresh_category_caches',
+      'common.joke_category_operations.refresh_category_caches',
       Mock(
         return_value={
           "categories_processed": 0,
@@ -328,7 +328,7 @@ class TestDecayRecentJokeStats:
     monkeypatch.setattr(
       'functions.joke_auto_fns._sync_joke_to_search_collection', Mock())
     monkeypatch.setattr(
-      'functions.joke_auto_fns._refresh_category_caches',
+      'common.joke_category_operations.refresh_category_caches',
       Mock(
         return_value={
           "categories_processed": 0,
@@ -373,7 +373,7 @@ class TestDecayRecentJokeStats:
     monkeypatch.setattr(
       'functions.joke_auto_fns._sync_joke_to_search_collection', Mock())
     monkeypatch.setattr(
-      'functions.joke_auto_fns._refresh_category_caches',
+      'common.joke_category_operations.refresh_category_caches',
       Mock(
         return_value={
           "categories_processed": 0,
@@ -409,7 +409,7 @@ class TestDecayRecentJokeStats:
     monkeypatch.setattr(
       'functions.joke_auto_fns._sync_joke_to_search_collection', Mock())
     monkeypatch.setattr(
-      'functions.joke_auto_fns._refresh_category_caches',
+      'common.joke_category_operations.refresh_category_caches',
       Mock(
         return_value={
           "categories_processed": 0,
@@ -462,7 +462,7 @@ class TestDecayRecentJokeStats:
 
     # Mock category refresh to return empty stats
     monkeypatch.setattr(
-      'functions.joke_auto_fns._refresh_category_caches',
+      'common.joke_category_operations.refresh_category_caches',
       Mock(
         return_value={
           "categories_processed": 0,
@@ -539,7 +539,7 @@ class TestDecayRecentJokeStats:
     monkeypatch.setattr(
       'functions.joke_auto_fns._sync_joke_to_search_collection', Mock())
     monkeypatch.setattr(
-      'functions.joke_auto_fns._refresh_category_caches',
+      'common.joke_category_operations.refresh_category_caches',
       Mock(
         return_value={
           "categories_processed": 0,
@@ -663,7 +663,7 @@ class TestDecayRecentJokeStats:
     monkeypatch.setattr(
       'functions.joke_auto_fns.firestore.update_public_joke_ids', Mock())
     monkeypatch.setattr(
-      'functions.joke_auto_fns._refresh_category_caches',
+      'common.joke_category_operations.refresh_category_caches',
       Mock(
         return_value={
           "categories_processed": 0,
@@ -741,7 +741,7 @@ class TestDecayRecentJokeStats:
     monkeypatch.setattr(
       'functions.joke_auto_fns.firestore.update_public_joke_ids', Mock())
     monkeypatch.setattr(
-      'functions.joke_auto_fns._refresh_category_caches',
+      'common.joke_category_operations.refresh_category_caches',
       Mock(
         return_value={
           "categories_processed": 0,
@@ -793,7 +793,7 @@ class TestDecayRecentJokeStats:
     monkeypatch.setattr(
       'functions.joke_auto_fns.firestore.update_public_joke_ids', Mock())
     monkeypatch.setattr(
-      'functions.joke_auto_fns._refresh_category_caches',
+      'common.joke_category_operations.refresh_category_caches',
       Mock(
         return_value={
           "categories_processed": 0,
@@ -1497,8 +1497,9 @@ class TestOnJokeCategoryWrite:
 
     # Mock the cache refresh helper
     mock_refresh = MagicMock(return_value="updated")
-    monkeypatch.setattr(joke_auto_fns, "_refresh_single_category_cache",
-                        mock_refresh)
+    monkeypatch.setattr(
+      "common.joke_category_operations.refresh_single_category_cache",
+      mock_refresh)
 
     event = self._create_event(before_data=before_data, after_data=after_data)
 
@@ -1510,211 +1511,3 @@ class TestOnJokeCategoryWrite:
       mock_refresh.assert_called_once_with("cat1", event.data.after.to_dict())
     else:
       mock_refresh.assert_not_called()
-
-
-class TestSearchCategoryJokesSorting:
-  """Tests for _search_category_jokes sorting behavior."""
-
-  def test_sorts_results_by_num_saved_users_fraction(self, monkeypatch):
-    """Test that search results are sorted by num_saved_users_fraction in descending order."""
-
-    # Arrange
-    from services.search import JokeSearchResult
-    results = [
-      JokeSearchResult(joke_id="j1", vector_distance=0.1),
-      JokeSearchResult(joke_id="j2", vector_distance=0.1),
-      JokeSearchResult(joke_id="j3", vector_distance=0.1),
-      JokeSearchResult(joke_id="j4", vector_distance=0.1),
-    ]
-
-    def fake_search_jokes(**kwargs):  # pylint: disable=unused-argument
-      return results
-
-    # Mock full jokes returned by firestore.get_punny_jokes
-    # These should have the fresh num_saved_users_fraction values
-    full_jokes = [
-      models.PunnyJoke(
-        key="j1",
-        setup_text="Setup j1",
-        punchline_text="Punchline j1",
-        setup_image_url="https://example.com/j1-setup.jpg",
-        punchline_image_url="https://example.com/j1-punchline.jpg",
-        num_saved_users_fraction=0.1,
-      ),
-      models.PunnyJoke(
-        key="j2",
-        setup_text="Setup j2",
-        punchline_text="Punchline j2",
-        setup_image_url="https://example.com/j2-setup.jpg",
-        punchline_image_url="https://example.com/j2-punchline.jpg",
-        num_saved_users_fraction=0.5,
-      ),
-      models.PunnyJoke(
-        key="j3",
-        setup_text="Setup j3",
-        punchline_text="Punchline j3",
-        setup_image_url="https://example.com/j3-setup.jpg",
-        punchline_image_url="https://example.com/j3-punchline.jpg",
-        num_saved_users_fraction=0.0,
-      ),
-      models.PunnyJoke(
-        key="j4",
-        setup_text="Setup j4",
-        punchline_text="Punchline j4",
-        setup_image_url="https://example.com/j4-setup.jpg",
-        punchline_image_url="https://example.com/j4-punchline.jpg",
-        num_saved_users_fraction=0.3,
-      ),
-    ]
-
-    def fake_get_punny_jokes(joke_ids):
-      # Return jokes in the order requested (preserve order for testing)
-      id_to_joke = {j.key: j for j in full_jokes}
-      return [id_to_joke[jid] for jid in joke_ids if jid in id_to_joke]
-
-    monkeypatch.setattr("py_quill.functions.joke_auto_fns.search.search_jokes",
-                        fake_search_jokes)
-    monkeypatch.setattr(
-      "py_quill.functions.joke_auto_fns.firestore.get_punny_jokes",
-      fake_get_punny_jokes)
-
-    # Act
-    jokes = joke_auto_fns._search_category_jokes("test query", "cat1")
-
-    # Assert
-    assert len(jokes) == 4
-    assert jokes[0]["joke_id"] == "j2"
-    assert jokes[0]["setup"] == "Setup j2"
-    assert jokes[0]["punchline"] == "Punchline j2"
-    assert jokes[1]["joke_id"] == "j4"
-    assert jokes[1]["setup"] == "Setup j4"
-    assert jokes[2]["joke_id"] == "j1"
-    assert jokes[2]["setup"] == "Setup j1"
-    assert jokes[3]["joke_id"] == "j3"
-    assert jokes[3]["setup"] == "Setup j3"
-
-
-class TestQuerySeasonalCategoryJokesSorting:
-  """Tests for _query_seasonal_category_jokes sorting behavior."""
-
-  def test_sorts_docs_by_num_saved_users_fraction(self, monkeypatch):
-    """Test that seasonal jokes are sorted by num_saved_users_fraction in descending order."""
-
-    # Arrange
-    class _MockDoc:
-
-      def __init__(self, doc_id, fraction):
-        self.id = doc_id
-        self._fraction = fraction
-        self._data = {
-          "setup_text": f"Setup {doc_id}",
-          "punchline_text": f"Punchline {doc_id}",
-          "num_saved_users_fraction": fraction,
-        }
-
-      def to_dict(self):
-        return self._data
-
-    class _MockQuery:
-
-      def __init__(self, docs):
-        self._docs = docs
-
-      def where(self, filter):  # pylint: disable=redefined-builtin
-        return self
-
-      def limit(self, limit):
-        return self
-
-      def stream(self):
-        return iter(self._docs)
-
-    class _MockCollection:
-
-      def __init__(self, docs):
-        self._docs = docs
-
-      def collection(self, name):
-        return self
-
-      def where(self, filter):  # pylint: disable=redefined-builtin
-        return _MockQuery(self._docs)
-
-    docs = [
-      _MockDoc("j1", 0.1),
-      _MockDoc("j2", 0.5),
-      _MockDoc("j3", 0.0),
-      _MockDoc("j4", 0.3),
-    ]
-
-    mock_client = _MockCollection(docs)
-
-    # Act
-    jokes = joke_auto_fns._query_seasonal_category_jokes(
-      mock_client, "Halloween")
-
-    # Assert
-    assert len(jokes) == 4
-    assert jokes[0]["joke_id"] == "j2"
-    assert jokes[1]["joke_id"] == "j4"
-    assert jokes[2]["joke_id"] == "j1"
-    assert jokes[3]["joke_id"] == "j3"
-
-  def test_handles_missing_fraction_field(self, monkeypatch):
-    """Test that docs without num_saved_users_fraction are sorted last."""
-
-    # Arrange
-    class _MockDoc:
-
-      def __init__(self, doc_id, fraction=None):
-        self.id = doc_id
-        self._data = {
-          "setup_text": f"Setup {doc_id}",
-          "punchline_text": f"Punchline {doc_id}",
-        }
-        if fraction is not None:
-          self._data["num_saved_users_fraction"] = fraction
-
-      def to_dict(self):
-        return self._data
-
-    class _MockQuery:
-
-      def __init__(self, docs):
-        self._docs = docs
-
-      def where(self, filter):  # pylint: disable=redefined-builtin
-        return self
-
-      def limit(self, limit):
-        return self
-
-      def stream(self):
-        return iter(self._docs)
-
-    class _MockCollection:
-
-      def __init__(self, docs):
-        self._docs = docs
-
-      def collection(self, name):
-        return self
-
-      def where(self, filter):  # pylint: disable=redefined-builtin
-        return _MockQuery(self._docs)
-
-    docs = [
-      _MockDoc("j1", None),
-      _MockDoc("j2", 0.2),
-    ]
-
-    mock_client = _MockCollection(docs)
-
-    # Act
-    jokes = joke_auto_fns._query_seasonal_category_jokes(
-      mock_client, "Halloween")
-
-    # Assert
-    assert len(jokes) == 2
-    assert jokes[0]["joke_id"] == "j2"
-    assert jokes[1]["joke_id"] == "j1"

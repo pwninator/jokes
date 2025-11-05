@@ -6,7 +6,8 @@ import vertexai
 from common import config, firebase_init
 from firebase_functions.core import init
 from functions import (admin_fns, analytics_fns, dummy_fns, joke_auto_fns,
-                       joke_book_fns, joke_fns, util_fns, web_fns)
+                       joke_book_fns, joke_fns, joke_notification_fns,
+                       util_fns, web_fns)
 
 # Configure basic logging for the application (primarily for emulator visibility)
 logging.basicConfig(level=logging.INFO)
@@ -53,10 +54,12 @@ joke_manual_tag = joke_fns.joke_manual_tag
 # Export the joke auto functions
 on_joke_write = joke_auto_fns.on_joke_write
 on_joke_category_write = joke_auto_fns.on_joke_category_write
-send_daily_joke_http = joke_auto_fns.send_daily_joke_http
-send_daily_joke_scheduler = joke_auto_fns.send_daily_joke_scheduler
 joke_daily_maintenance_scheduler = joke_auto_fns.joke_daily_maintenance_scheduler
 joke_daily_maintenance_http = joke_auto_fns.joke_daily_maintenance_http
+
+# Export the joke notification functions
+send_daily_joke_http = joke_notification_fns.send_daily_joke_http
+send_daily_joke_scheduler = joke_notification_fns.send_daily_joke_scheduler
 
 # Export the joke book functions
 create_book = joke_book_fns.create_book

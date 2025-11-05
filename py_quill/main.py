@@ -7,7 +7,7 @@ from common import config, firebase_init
 from firebase_functions.core import init
 from functions import (admin_fns, analytics_fns, dummy_fns, joke_auto_fns,
                        joke_book_fns, joke_fns, joke_notification_fns,
-                       util_fns, web_fns)
+                       joke_trigger_fns, util_fns, web_fns)
 
 # Configure basic logging for the application (primarily for emulator visibility)
 logging.basicConfig(level=logging.INFO)
@@ -51,9 +51,11 @@ upscale_joke = joke_fns.upscale_joke
 search_jokes = joke_fns.search_jokes
 joke_manual_tag = joke_fns.joke_manual_tag
 
+# Export the joke trigger functions
+on_joke_write = joke_trigger_fns.on_joke_write
+on_joke_category_write = joke_trigger_fns.on_joke_category_write
+
 # Export the joke auto functions
-on_joke_write = joke_auto_fns.on_joke_write
-on_joke_category_write = joke_auto_fns.on_joke_category_write
 joke_daily_maintenance_scheduler = joke_auto_fns.joke_daily_maintenance_scheduler
 joke_daily_maintenance_http = joke_auto_fns.joke_daily_maintenance_http
 

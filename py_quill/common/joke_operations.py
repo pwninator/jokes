@@ -1,8 +1,12 @@
 """Operations for jokes."""
 
+from __future__ import annotations
+
 from typing import Literal
 
 from common import models
+from firebase_functions import logger
+from google.cloud.firestore_v1.vector import Vector
 from services import cloud_storage, firestore, image_client
 
 
@@ -64,3 +68,58 @@ def upscale_joke(
   firestore.update_punny_joke(joke.key, update_data)
 
   return joke
+
+
+def sync_joke_to_search_collection(
+  joke: models.PunnyJoke,
+  new_embedding: Vector | None,
+) -> None:
+  """Syncs joke data to the joke_search collection document."""
+  if not joke.key:
+    return
+
+  joke_id = joke.key
+  search_doc_ref = firestore.db().collection("joke_search").document(joke_id)
+  search_doc = search_doc_ref.get()
+  search_data = search_doc.to_dict() if search_doc.exists else {}
+
+  update_payload = {}
+
+  # 1. Sync embedding
+  if new_embedding:
+    update_payload["text_embedding"] = new_embedding
+  elif "text_embedding" not in search_data and joke.zzz_joke_text_embedding:
+    update_payload["text_embedding"] = joke.zzz_joke_text_embedding
+
+  # 2. Sync state
+  if search_data.get("state") != joke.state.value:
+    update_payload["state"] = joke.state.value
+
+  # 3. Sync is_public
+  if search_data.get("is_public") != joke.is_public:
+    update_payload["is_public"] = joke.is_public
+
+  # 4. Sync public_timestamp
+  if search_data.get("public_timestamp") != joke.public_timestamp:
+    update_payload["public_timestamp"] = joke.public_timestamp
+
+  # 5. Sync num_saved_users_fraction
+  if search_data.get(
+      "num_saved_users_fraction") != joke.num_saved_users_fraction:
+    update_payload["num_saved_users_fraction"] = joke.num_saved_users_fraction
+
+  # 6. Sync num_shared_users_fraction
+  if search_data.get(
+      "num_shared_users_fraction") != joke.num_shared_users_fraction:
+    update_payload[
+      "num_shared_users_fraction"] = joke.num_shared_users_fraction
+
+  # 7. Sync popularity_score
+  if search_data.get("popularity_score") != joke.popularity_score:
+    update_payload["popularity_score"] = joke.popularity_score
+
+  if update_payload:
+    logger.info(
+      f"Syncing joke to joke_search collection: {joke_id} with payload keys {update_payload.keys()}"
+    )
+    search_doc_ref.set(update_payload, merge=True)

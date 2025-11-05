@@ -860,7 +860,7 @@ def _search_category_jokes(search_query: str,
   )
 
   sorted_jokes = sorted(results,
-                        key=lambda res: res.joke.num_shared_users_fraction,
+                        key=lambda res: res.joke.num_saved_users_fraction,
                         reverse=True)
 
   return [{
@@ -885,7 +885,7 @@ def _query_seasonal_category_jokes(
   docs_list = [(doc.id, doc.to_dict() or {}) for doc in docs]
   sorted_docs_list = sorted(
     docs_list,
-    key=lambda item: item[1].get("num_shared_users_fraction", 0.0),
+    key=lambda item: item[1].get("num_saved_users_fraction", 0.0),
     reverse=True)
 
   payload = []

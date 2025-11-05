@@ -1563,8 +1563,8 @@ class TestOnJokeCategoryWrite:
 class TestSearchCategoryJokesSorting:
   """Tests for _search_category_jokes sorting behavior."""
 
-  def test_sorts_results_by_num_shared_users_fraction(self, monkeypatch):
-    """Test that search results are sorted by num_shared_users_fraction in descending order."""
+  def test_sorts_results_by_num_saved_users_fraction(self, monkeypatch):
+    """Test that search results are sorted by num_saved_users_fraction in descending order."""
 
     # Arrange
     class _MockResult:
@@ -1574,7 +1574,7 @@ class TestSearchCategoryJokesSorting:
           key=joke_id,
           setup_text=f"Setup {joke_id}",
           punchline_text=f"Punchline {joke_id}",
-          num_shared_users_fraction=fraction,
+          num_saved_users_fraction=fraction,
         )
         self.vector_distance = 0.1
 
@@ -1605,8 +1605,8 @@ class TestSearchCategoryJokesSorting:
 class TestQuerySeasonalCategoryJokesSorting:
   """Tests for _query_seasonal_category_jokes sorting behavior."""
 
-  def test_sorts_docs_by_num_shared_users_fraction(self, monkeypatch):
-    """Test that seasonal jokes are sorted by num_shared_users_fraction in descending order."""
+  def test_sorts_docs_by_num_saved_users_fraction(self, monkeypatch):
+    """Test that seasonal jokes are sorted by num_saved_users_fraction in descending order."""
 
     # Arrange
     class _MockDoc:
@@ -1617,7 +1617,7 @@ class TestQuerySeasonalCategoryJokesSorting:
         self._data = {
           "setup_text": f"Setup {doc_id}",
           "punchline_text": f"Punchline {doc_id}",
-          "num_shared_users_fraction": fraction,
+          "num_saved_users_fraction": fraction,
         }
 
       def to_dict(self):
@@ -1669,7 +1669,7 @@ class TestQuerySeasonalCategoryJokesSorting:
     assert jokes[3]["joke_id"] == "j3"
 
   def test_handles_missing_fraction_field(self, monkeypatch):
-    """Test that docs without num_shared_users_fraction are sorted last."""
+    """Test that docs without num_saved_users_fraction are sorted last."""
 
     # Arrange
     class _MockDoc:
@@ -1681,7 +1681,7 @@ class TestQuerySeasonalCategoryJokesSorting:
           "punchline_text": f"Punchline {doc_id}",
         }
         if fraction is not None:
-          self._data["num_shared_users_fraction"] = fraction
+          self._data["num_saved_users_fraction"] = fraction
 
       def to_dict(self):
         return self._data

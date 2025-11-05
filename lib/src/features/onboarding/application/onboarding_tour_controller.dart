@@ -143,7 +143,6 @@ class _OnboardingTourLauncherState
       final shouldShow = await store.shouldShowTour();
       if (!mounted || _tourCompleted) return;
       if (!shouldShow) {
-        AppLogger.debug('ONBOARDING_TOUR: Skipping tour because flag is false');
         return;
       }
       _shouldRunTour = true;

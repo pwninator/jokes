@@ -1,9 +1,11 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/onboarding_tour_state_store.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
+import 'package:snickerdoodle/src/features/settings/application/feed_screen_status_provider.dart';
 import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
 
 class MockAnalyticsService extends Mock implements AnalyticsService {}
@@ -53,6 +55,7 @@ void main() {
       settingsService: settingsService,
       remoteConfigValues: remoteValues,
       analyticsService: mockAnalytics,
+      getFeedScreenStatus: () => true,
     );
   });
 
@@ -93,4 +96,30 @@ void main() {
 
     expect(await stateStore.shouldShowTour(), isFalse);
   });
+
+  test(
+    'shouldShowTour returns false when feedScreenStatusProvider is false',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      final settingsService = SettingsService(prefs);
+      final remoteValues = _FakeRemoteConfigValues(showTour: true);
+      final mockAnalytics = MockAnalyticsService();
+      when(() => mockAnalytics.logTourSkipped()).thenReturn(null);
+
+      final container = ProviderContainer(
+        overrides: [
+          settingsServiceProvider.overrideWithValue(settingsService),
+          remoteConfigValuesProvider.overrideWithValue(remoteValues),
+          analyticsServiceProvider.overrideWithValue(mockAnalytics),
+          feedScreenStatusProvider.overrideWithValue(false),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final store = container.read(onboardingTourStateStoreProvider);
+
+      expect(await store.shouldShowTour(), isFalse);
+    },
+  );
 }

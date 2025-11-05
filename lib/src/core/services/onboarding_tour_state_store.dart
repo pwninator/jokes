@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
+import 'package:snickerdoodle/src/features/settings/application/feed_screen_status_provider.dart';
 import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
 
 final onboardingTourStateStoreProvider = Provider<OnboardingTourStateStore>((
@@ -14,6 +15,7 @@ final onboardingTourStateStoreProvider = Provider<OnboardingTourStateStore>((
     settingsService: settings,
     remoteConfigValues: remoteValues,
     analyticsService: analytics,
+    getFeedScreenStatus: () => ref.read(feedScreenStatusProvider),
   );
 });
 
@@ -23,14 +25,17 @@ class OnboardingTourStateStore {
     required SettingsService settingsService,
     required RemoteConfigValues remoteConfigValues,
     required AnalyticsService analyticsService,
+    required bool Function() getFeedScreenStatus,
   }) : _settings = settingsService,
        _remoteConfig = remoteConfigValues,
-       _analytics = analyticsService;
+       _analytics = analyticsService,
+       _getFeedScreenStatus = getFeedScreenStatus;
 
   static const String _completedKey = 'onboarding_tour_completed';
   final SettingsService _settings;
   final RemoteConfigValues _remoteConfig;
   final AnalyticsService _analytics;
+  final bool Function() _getFeedScreenStatus;
 
   Future<bool> hasCompleted() async {
     try {
@@ -56,7 +61,16 @@ class OnboardingTourStateStore {
 
   Future<void> markCompleted() async => setCompleted(true);
 
-  Future<bool> shouldShowTour() async => !(await hasCompleted());
+  Future<bool> shouldShowTour() async {
+    // Tour should only show if feed screen is enabled
+    if (!_getFeedScreenStatus()) {
+      AppLogger.debug(
+        'ONBOARDING_TOUR: Feed screen is disabled, skipping tour',
+      );
+      return false;
+    }
+    return !(await hasCompleted());
+  }
 
   Future<void> setCompleted(bool value) async {
     try {

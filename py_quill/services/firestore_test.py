@@ -540,3 +540,137 @@ def test_upsert_joke_user_usage_increment_new_day(monkeypatch):
   assert count == 8
   assert updates["num_distinct_day_used"] == 8
   assert updates["last_login_at"] == "TS"
+
+
+def test_update_public_joke_ids_creates_new_document(monkeypatch):
+  """Test that update_public_joke_ids creates a new document when it doesn't exist."""
+  captured_data = {}
+  captured_collection = None
+  captured_doc_id = None
+  merge_value = None
+
+  class DummyDoc:
+
+    def set(self, data, merge=None):
+      nonlocal merge_value
+      captured_data.update(data)
+      merge_value = merge
+
+  class DummyCol:
+
+    def document(self, doc_id):
+      nonlocal captured_doc_id
+      captured_doc_id = doc_id
+      return DummyDoc()
+
+  class DummyDB:
+
+    def collection(self, collection_name):
+      nonlocal captured_collection
+      captured_collection = collection_name
+      return DummyCol()
+
+  monkeypatch.setattr(firestore, "db", DummyDB)
+
+  joke_ids = {"joke1", "joke2", "joke3"}
+  firestore.update_public_joke_ids(joke_ids)
+
+  assert captured_collection == "joke_collections"
+  assert captured_doc_id == "public_joke_ids"
+  # Verify it's a list and contains all IDs (order may vary with sets)
+  assert isinstance(captured_data["joke_ids"], list)
+  assert set(captured_data["joke_ids"]) == {"joke1", "joke2", "joke3"}
+  assert len(captured_data["joke_ids"]) == 3
+  assert merge_value is True
+
+
+def test_update_public_joke_ids_updates_existing_document(monkeypatch):
+  """Test that update_public_joke_ids updates an existing document."""
+  captured_data = {}
+  merge_value = None
+
+  class DummyDoc:
+
+    def set(self, data, merge=None):
+      nonlocal merge_value
+      captured_data.update(data)
+      merge_value = merge
+
+  class DummyCol:
+
+    def document(self, doc_id):
+      return DummyDoc()
+
+  class DummyDB:
+
+    def collection(self, collection_name):
+      return DummyCol()
+
+  monkeypatch.setattr(firestore, "db", DummyDB)
+
+  joke_ids = ["joke4", "joke5"]
+  firestore.update_public_joke_ids(joke_ids)
+
+  assert captured_data["joke_ids"] == ["joke4", "joke5"]
+  assert merge_value is True
+
+
+def test_update_public_joke_ids_with_empty_collection(monkeypatch):
+  """Test that update_public_joke_ids handles empty collections."""
+  captured_data = {}
+  merge_value = None
+
+  class DummyDoc:
+
+    def set(self, data, merge=None):
+      nonlocal merge_value
+      captured_data.update(data)
+      merge_value = merge
+
+  class DummyCol:
+
+    def document(self, doc_id):
+      return DummyDoc()
+
+  class DummyDB:
+
+    def collection(self, collection_name):
+      return DummyCol()
+
+  monkeypatch.setattr(firestore, "db", DummyDB)
+
+  joke_ids = []
+  firestore.update_public_joke_ids(joke_ids)
+
+  assert captured_data["joke_ids"] == []
+  assert merge_value is True
+
+
+def test_update_public_joke_ids_with_set_collection(monkeypatch):
+  """Test that update_public_joke_ids converts set to list correctly."""
+  captured_data = {}
+
+  class DummyDoc:
+
+    def set(self, data, merge=None):
+      captured_data.update(data)
+
+  class DummyCol:
+
+    def document(self, doc_id):
+      return DummyDoc()
+
+  class DummyDB:
+
+    def collection(self, collection_name):
+      return DummyCol()
+
+  monkeypatch.setattr(firestore, "db", DummyDB)
+
+  joke_ids = {"joke-a", "joke-b", "joke-c"}
+  firestore.update_public_joke_ids(joke_ids)
+
+  # Verify it's a list (not a set) and contains all IDs
+  assert isinstance(captured_data["joke_ids"], list)
+  assert len(captured_data["joke_ids"]) == 3
+  assert set(captured_data["joke_ids"]) == {"joke-a", "joke-b", "joke-c"}

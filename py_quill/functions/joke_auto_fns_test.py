@@ -811,6 +811,246 @@ class TestDecayRecentJokeStats:
 
     assert result["jokes_boosted"] == 1
 
+  def test_update_public_joke_ids_called_when_public_jokes_exist(
+      self, monkeypatch):
+    """Test that update_public_joke_ids is called when there are public jokes."""
+    now_utc = datetime.datetime(2024,
+                                1,
+                                20,
+                                0,
+                                0,
+                                tzinfo=datetime.timezone.utc)
+
+    # Create two public jokes (PUBLISHED state)
+    doc1 = MagicMock()
+    doc1.exists = True
+    doc1.id = "joke1"
+    doc1.reference = MagicMock()
+    doc1.to_dict.return_value = {
+      "state": models.JokeState.PUBLISHED.value,
+      "is_public": True,
+      "num_viewed_users": MIN_VIEWS_FOR_FRACTIONS,
+      "last_recent_stats_update_time": now_utc - datetime.timedelta(days=2),
+    }
+
+    doc2 = MagicMock()
+    doc2.exists = True
+    doc2.id = "joke2"
+    doc2.reference = MagicMock()
+    doc2.to_dict.return_value = {
+      "state": models.JokeState.PUBLISHED.value,
+      "is_public": True,
+      "num_viewed_users": MIN_VIEWS_FOR_FRACTIONS,
+      "last_recent_stats_update_time": now_utc - datetime.timedelta(days=2),
+    }
+
+    mock_batch = MagicMock()
+    mock_db = MagicMock()
+    mock_db.collection.return_value.stream.return_value = [doc1, doc2]
+    mock_db.batch.return_value = mock_batch
+
+    mock_update_public_joke_ids = Mock()
+    monkeypatch.setattr('functions.joke_auto_fns.firestore.db',
+                        lambda: mock_db)
+    monkeypatch.setattr(
+      'functions.joke_auto_fns.firestore.update_public_joke_ids',
+      mock_update_public_joke_ids)
+
+    joke_auto_fns._joke_daily_maintenance_internal(now_utc)  # pylint: disable=protected-access
+
+    # Verify update_public_joke_ids was called with the correct set of joke IDs
+    mock_update_public_joke_ids.assert_called_once()
+    call_args = mock_update_public_joke_ids.call_args[0][0]
+    assert set(call_args) == {"joke1", "joke2"}
+
+  def test_update_public_joke_ids_not_called_when_no_public_jokes(
+      self, monkeypatch):
+    """Test that update_public_joke_ids is not called when there are no public jokes."""
+    now_utc = datetime.datetime(2024,
+                                1,
+                                20,
+                                0,
+                                0,
+                                tzinfo=datetime.timezone.utc)
+
+    # Create a non-public joke (DRAFT state)
+    doc = MagicMock()
+    doc.exists = True
+    doc.id = "joke1"
+    doc.reference = MagicMock()
+    doc.to_dict.return_value = {
+      "state": models.JokeState.DRAFT.value,
+      "is_public": False,
+      "num_viewed_users": MIN_VIEWS_FOR_FRACTIONS,
+      "last_recent_stats_update_time": now_utc - datetime.timedelta(days=2),
+    }
+
+    mock_batch = MagicMock()
+    mock_db = MagicMock()
+    mock_db.collection.return_value.stream.return_value = [doc]
+    mock_db.batch.return_value = mock_batch
+
+    mock_update_public_joke_ids = Mock()
+    monkeypatch.setattr('functions.joke_auto_fns.firestore.db',
+                        lambda: mock_db)
+    monkeypatch.setattr(
+      'functions.joke_auto_fns.firestore.update_public_joke_ids',
+      mock_update_public_joke_ids)
+
+    joke_auto_fns._joke_daily_maintenance_internal(now_utc)  # pylint: disable=protected-access
+
+    # Verify update_public_joke_ids was not called
+    mock_update_public_joke_ids.assert_not_called()
+
+  def test_update_public_joke_ids_includes_daily_jokes_with_past_timestamp(
+      self, monkeypatch):
+    """Test that update_public_joke_ids includes DAILY jokes with past public_timestamp."""
+    now_utc = datetime.datetime(2024,
+                                1,
+                                20,
+                                0,
+                                0,
+                                tzinfo=datetime.timezone.utc)
+
+    # Create a DAILY joke with public_timestamp in the past
+    doc = MagicMock()
+    doc.exists = True
+    doc.id = "daily-joke"
+    doc.reference = MagicMock()
+    doc.to_dict.return_value = {
+      "state": models.JokeState.DAILY.value,
+      "public_timestamp": now_utc - datetime.timedelta(hours=1),
+      "is_public": False,
+      "num_viewed_users": MIN_VIEWS_FOR_FRACTIONS,
+      "last_recent_stats_update_time": now_utc - datetime.timedelta(days=2),
+    }
+
+    mock_batch = MagicMock()
+    mock_db = MagicMock()
+    mock_db.collection.return_value.stream.return_value = [doc]
+    mock_db.batch.return_value = mock_batch
+
+    mock_update_public_joke_ids = Mock()
+    monkeypatch.setattr('functions.joke_auto_fns.firestore.db',
+                        lambda: mock_db)
+    monkeypatch.setattr(
+      'functions.joke_auto_fns.firestore.update_public_joke_ids',
+      mock_update_public_joke_ids)
+
+    joke_auto_fns._joke_daily_maintenance_internal(now_utc)  # pylint: disable=protected-access
+
+    # Verify update_public_joke_ids was called with the daily joke ID
+    mock_update_public_joke_ids.assert_called_once()
+    call_args = mock_update_public_joke_ids.call_args[0][0]
+    assert "daily-joke" in call_args
+
+  def test_update_public_joke_ids_excludes_daily_jokes_with_future_timestamp(
+      self, monkeypatch):
+    """Test that update_public_joke_ids excludes DAILY jokes with future public_timestamp."""
+    now_utc = datetime.datetime(2024,
+                                1,
+                                20,
+                                0,
+                                0,
+                                tzinfo=datetime.timezone.utc)
+
+    # Create a DAILY joke with public_timestamp in the future
+    doc = MagicMock()
+    doc.exists = True
+    doc.id = "future-daily-joke"
+    doc.reference = MagicMock()
+    doc.to_dict.return_value = {
+      "state": models.JokeState.DAILY.value,
+      "public_timestamp": now_utc + datetime.timedelta(hours=1),
+      "is_public": False,
+      "num_viewed_users": MIN_VIEWS_FOR_FRACTIONS,
+      "last_recent_stats_update_time": now_utc - datetime.timedelta(days=2),
+    }
+
+    mock_batch = MagicMock()
+    mock_db = MagicMock()
+    mock_db.collection.return_value.stream.return_value = [doc]
+    mock_db.batch.return_value = mock_batch
+
+    mock_update_public_joke_ids = Mock()
+    monkeypatch.setattr('functions.joke_auto_fns.firestore.db',
+                        lambda: mock_db)
+    monkeypatch.setattr(
+      'functions.joke_auto_fns.firestore.update_public_joke_ids',
+      mock_update_public_joke_ids)
+
+    joke_auto_fns._joke_daily_maintenance_internal(now_utc)  # pylint: disable=protected-access
+
+    # Verify update_public_joke_ids was not called
+    mock_update_public_joke_ids.assert_not_called()
+
+  def test_update_public_joke_ids_includes_mixed_public_jokes(
+      self, monkeypatch):
+    """Test that update_public_joke_ids includes both PUBLISHED and DAILY jokes."""
+    now_utc = datetime.datetime(2024,
+                                1,
+                                20,
+                                0,
+                                0,
+                                tzinfo=datetime.timezone.utc)
+
+    # Create a PUBLISHED joke
+    doc1 = MagicMock()
+    doc1.exists = True
+    doc1.id = "published-joke"
+    doc1.reference = MagicMock()
+    doc1.to_dict.return_value = {
+      "state": models.JokeState.PUBLISHED.value,
+      "is_public": True,
+      "num_viewed_users": MIN_VIEWS_FOR_FRACTIONS,
+      "last_recent_stats_update_time": now_utc - datetime.timedelta(days=2),
+    }
+
+    # Create a DAILY joke with past public_timestamp
+    doc2 = MagicMock()
+    doc2.exists = True
+    doc2.id = "daily-joke"
+    doc2.reference = MagicMock()
+    doc2.to_dict.return_value = {
+      "state": models.JokeState.DAILY.value,
+      "public_timestamp": now_utc - datetime.timedelta(hours=1),
+      "is_public": False,
+      "num_viewed_users": MIN_VIEWS_FOR_FRACTIONS,
+      "last_recent_stats_update_time": now_utc - datetime.timedelta(days=2),
+    }
+
+    # Create a DRAFT joke (should not be included)
+    doc3 = MagicMock()
+    doc3.exists = True
+    doc3.id = "draft-joke"
+    doc3.reference = MagicMock()
+    doc3.to_dict.return_value = {
+      "state": models.JokeState.DRAFT.value,
+      "is_public": False,
+      "num_viewed_users": MIN_VIEWS_FOR_FRACTIONS,
+      "last_recent_stats_update_time": now_utc - datetime.timedelta(days=2),
+    }
+
+    mock_batch = MagicMock()
+    mock_db = MagicMock()
+    mock_db.collection.return_value.stream.return_value = [doc1, doc2, doc3]
+    mock_db.batch.return_value = mock_batch
+
+    mock_update_public_joke_ids = Mock()
+    monkeypatch.setattr('functions.joke_auto_fns.firestore.db',
+                        lambda: mock_db)
+    monkeypatch.setattr(
+      'functions.joke_auto_fns.firestore.update_public_joke_ids',
+      mock_update_public_joke_ids)
+
+    joke_auto_fns._joke_daily_maintenance_internal(now_utc)  # pylint: disable=protected-access
+
+    # Verify update_public_joke_ids was called with both public joke IDs
+    mock_update_public_joke_ids.assert_called_once()
+    call_args = mock_update_public_joke_ids.call_args[0][0]
+    assert set(call_args) == {"published-joke", "daily-joke"}
+    assert "draft-joke" not in call_args
+
 
 class TestOnJokeWrite:
   """Tests for the on_joke_write trigger."""

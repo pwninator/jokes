@@ -652,6 +652,8 @@ def _update_joke_attributes(run_time_utc: datetime.datetime) -> dict[str, int]:
   jokes_skipped = 0
   jokes_boosted = 0
 
+  public_joke_ids = set[str]()
+
   for joke_doc in joke_docs:
     if not joke_doc.exists:
       continue
@@ -660,6 +662,9 @@ def _update_joke_attributes(run_time_utc: datetime.datetime) -> dict[str, int]:
 
     # Update is_public according to state and public_timestamp
     expected_is_public = _expected_is_public(joke_data, run_time_utc)
+    if expected_is_public:
+      public_joke_ids.add(joke_doc.id)
+
     current_is_public = joke_data.get("is_public")
     if not isinstance(current_is_public,
                       bool) or current_is_public != expected_is_public:
@@ -712,6 +717,10 @@ def _update_joke_attributes(run_time_utc: datetime.datetime) -> dict[str, int]:
     logger.info(f"Committing final batch of {writes_in_batch} writes")
     batch.commit()
 
+  if public_joke_ids:
+    logger.info(f"Public joke IDs: {public_joke_ids}")
+    firestore.update_public_joke_ids(public_joke_ids)
+
   logger.info(
     f"Joke daily maintenance completed: {jokes_decayed} recent stats decayed, {public_updated} is_public updated, {jokes_skipped} jokes skipped, {jokes_boosted} jokes boosted"
   )
@@ -721,6 +730,7 @@ def _update_joke_attributes(run_time_utc: datetime.datetime) -> dict[str, int]:
     "public_updated": public_updated,
     "jokes_skipped": jokes_skipped,
     "jokes_boosted": jokes_boosted,
+    "num_public_jokes": len(public_joke_ids),
   }
 
 

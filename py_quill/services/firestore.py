@@ -317,6 +317,22 @@ def update_punny_joke(joke_id: str, update_data: dict[str, Any]) -> None:
   joke_ref.update(update_data)
 
 
+def update_public_joke_ids(joke_ids: Collection[str]) -> None:
+  """Update the public joke IDs in Firestore.
+  
+  Upserts a document in the 'joke_collections' collection with ID 'public_joke_ids'
+  containing a 'joke_ids' field that is an array of joke ID strings.
+  
+  Args:
+      joke_ids: Collection of joke ID strings to store
+  """
+  joke_ref = db().collection('joke_collections').document('public_joke_ids')
+  # Convert to list for Firestore array serialization
+  joke_ids_list = list(joke_ids)
+  # Upsert: merge=True will create if not exists, update if exists
+  joke_ref.set({'joke_ids': joke_ids_list}, merge=True)
+
+
 def create_character(character: models.Character) -> models.Character:
   """Create a character."""
   character_data = character.to_dict(include_key=False)

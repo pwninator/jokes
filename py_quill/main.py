@@ -48,11 +48,11 @@ populate_joke = joke_fns.populate_joke
 modify_joke_image = joke_fns.modify_joke_image
 upscale_joke = joke_fns.upscale_joke
 search_jokes = joke_fns.search_jokes
-on_joke_category_write = joke_fns.on_joke_category_write
 joke_manual_tag = joke_fns.joke_manual_tag
 
 # Export the joke auto functions
 on_joke_write = joke_auto_fns.on_joke_write
+on_joke_category_write = joke_auto_fns.on_joke_category_write
 send_daily_joke_http = joke_auto_fns.send_daily_joke_http
 send_daily_joke_scheduler = joke_auto_fns.send_daily_joke_scheduler
 joke_daily_maintenance_scheduler = joke_auto_fns.joke_daily_maintenance_scheduler

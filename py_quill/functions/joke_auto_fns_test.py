@@ -2196,27 +2196,70 @@ class TestSearchCategoryJokesSorting:
     # Arrange
     class _MockResult:
 
-      def __init__(self, joke_id, fraction):
+      def __init__(self, joke_id):
         self.joke = models.PunnyJoke(
           key=joke_id,
           setup_text=f"Setup {joke_id}",
           punchline_text=f"Punchline {joke_id}",
-          num_saved_users_fraction=fraction,
         )
         self.vector_distance = 0.1
 
     results = [
-      _MockResult("j1", 0.1),
-      _MockResult("j2", 0.5),
-      _MockResult("j3", 0.0),
-      _MockResult("j4", 0.3),
+      _MockResult("j1"),
+      _MockResult("j2"),
+      _MockResult("j3"),
+      _MockResult("j4"),
     ]
 
     def fake_search_jokes(**kwargs):  # pylint: disable=unused-argument
       return results
 
+    # Mock full jokes returned by firestore.get_punny_jokes
+    # These should have the fresh num_saved_users_fraction values
+    full_jokes = [
+      models.PunnyJoke(
+        key="j1",
+        setup_text="Setup j1",
+        punchline_text="Punchline j1",
+        setup_image_url="https://example.com/j1-setup.jpg",
+        punchline_image_url="https://example.com/j1-punchline.jpg",
+        num_saved_users_fraction=0.1,
+      ),
+      models.PunnyJoke(
+        key="j2",
+        setup_text="Setup j2",
+        punchline_text="Punchline j2",
+        setup_image_url="https://example.com/j2-setup.jpg",
+        punchline_image_url="https://example.com/j2-punchline.jpg",
+        num_saved_users_fraction=0.5,
+      ),
+      models.PunnyJoke(
+        key="j3",
+        setup_text="Setup j3",
+        punchline_text="Punchline j3",
+        setup_image_url="https://example.com/j3-setup.jpg",
+        punchline_image_url="https://example.com/j3-punchline.jpg",
+        num_saved_users_fraction=0.0,
+      ),
+      models.PunnyJoke(
+        key="j4",
+        setup_text="Setup j4",
+        punchline_text="Punchline j4",
+        setup_image_url="https://example.com/j4-setup.jpg",
+        punchline_image_url="https://example.com/j4-punchline.jpg",
+        num_saved_users_fraction=0.3,
+      ),
+    ]
+
+    def fake_get_punny_jokes(joke_ids):
+      # Return jokes in the order requested (preserve order for testing)
+      id_to_joke = {j.key: j for j in full_jokes}
+      return [id_to_joke[jid] for jid in joke_ids if jid in id_to_joke]
+
     monkeypatch.setattr("py_quill.functions.joke_auto_fns.search.search_jokes",
                         fake_search_jokes)
+    monkeypatch.setattr("py_quill.functions.joke_auto_fns.firestore.get_punny_jokes",
+                        fake_get_punny_jokes)
 
     # Act
     jokes = joke_auto_fns._search_category_jokes("test query", "cat1")
@@ -2224,9 +2267,14 @@ class TestSearchCategoryJokesSorting:
     # Assert
     assert len(jokes) == 4
     assert jokes[0]["joke_id"] == "j2"
+    assert jokes[0]["setup"] == "Setup j2"
+    assert jokes[0]["punchline"] == "Punchline j2"
     assert jokes[1]["joke_id"] == "j4"
+    assert jokes[1]["setup"] == "Setup j4"
     assert jokes[2]["joke_id"] == "j1"
+    assert jokes[2]["setup"] == "Setup j1"
     assert jokes[3]["joke_id"] == "j3"
+    assert jokes[3]["setup"] == "Setup j3"
 
 
 class TestQuerySeasonalCategoryJokesSorting:

@@ -891,16 +891,25 @@ def _search_category_jokes(search_query: str,
     distance_threshold=config.JOKE_SEARCH_TIGHT_THRESHOLD,
   )
 
-  sorted_jokes = sorted(results,
-                        key=lambda res: res.joke.num_saved_users_fraction,
-                        reverse=True)
+  # Extract joke IDs
+  joke_ids = [result.joke.key for result in results if result.joke.key]
+
+  # Fetch full jokes
+  jokes = firestore.get_punny_jokes(joke_ids)
+
+  # Sort by num_saved_users_fraction (descending)
+  sorted_jokes = sorted(
+    jokes,
+    key=lambda j: j.num_saved_users_fraction or 0.0,
+    reverse=True,
+  )
 
   return [{
-    "joke_id": j.joke.key,
-    "setup": j.joke.setup_text,
-    "punchline": j.joke.punchline_text,
-    "setup_image_url": j.joke.setup_image_url,
-    "punchline_image_url": j.joke.punchline_image_url,
+    "joke_id": j.key,
+    "setup": j.setup_text,
+    "punchline": j.punchline_text,
+    "setup_image_url": j.setup_image_url,
+    "punchline_image_url": j.punchline_image_url,
   } for j in sorted_jokes]
 
 

@@ -260,9 +260,11 @@ class _ResultsSummary extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Don't show count for Popular category because there are many jokes
+    // Don't show count for Popular/daily categories because there are many jokes
     // so the partial count is misleading
-    if (category == null || category!.type == CategoryType.popular) {
+    if (category == null ||
+        category!.type == CategoryType.popular ||
+        category!.type == CategoryType.daily) {
       return const SizedBox.shrink();
     }
 

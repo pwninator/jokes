@@ -765,11 +765,16 @@ def _refresh_single_category_cache(
   cache_ref = client.collection("joke_categories").document(
     category_id).collection("category_jokes").document("cache")
   cache_ref.set({"jokes": jokes_payload})
+  logger.info(
+    f"Category cache updated for {category_id}, with {len(jokes_payload)} jokes"
+  )
 
   if not jokes_payload:
     # Force category state to PROPOSED when empty
     client.collection("joke_categories").document(category_id).set(
       {"state": "PROPOSED"}, merge=True)
+    logger.info(
+      f"Category cache emptied for {category_id}, forcing state to PROPOSED")
     return "emptied"
 
   return "updated"

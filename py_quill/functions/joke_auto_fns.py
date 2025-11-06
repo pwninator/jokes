@@ -162,7 +162,7 @@ def _update_joke_attributes(run_time_utc: datetime.datetime) -> dict[str, int]:
   jokes_skipped = 0
   jokes_boosted = 0
 
-  public_joke_ids = set[str]()
+  public_jokes: list[models.PunnyJoke] = []
 
   for joke_doc in joke_docs:
     if not joke_doc.exists:
@@ -172,9 +172,6 @@ def _update_joke_attributes(run_time_utc: datetime.datetime) -> dict[str, int]:
 
     # Update is_public according to state and public_timestamp
     expected_is_public = _expected_is_public(joke_data, run_time_utc)
-    if expected_is_public:
-      public_joke_ids.add(joke_doc.id)
-
     current_is_public = joke_data.get("is_public")
     if not isinstance(current_is_public,
                       bool) or current_is_public != expected_is_public:
@@ -209,26 +206,30 @@ def _update_joke_attributes(run_time_utc: datetime.datetime) -> dict[str, int]:
       payload["num_saved_users_fraction"] = new_fraction
       jokes_boosted += 1
 
-    if not payload:
-      # No updates to apply, skip this joke
-      jokes_skipped += 1
-    else:
+    # Create the final joke model object once, including any potential updates.
+    final_joke_data = {**joke_data, **payload}
+    try:
+      joke = models.PunnyJoke.from_firestore_dict(final_joke_data, joke_doc.id)
+    except Exception as parse_error:
+      logger.warn(f"Failed to parse joke {joke_doc.id}, skipping: {parse_error}")
+      continue  # Skip malformed documents
+
+    # Perform actions based on the final state.
+    if payload:
       batch.update(joke_doc.reference, payload)
       writes_in_batch += 1
+      try:
+        joke_operations.sync_joke_to_search_collection(joke=joke, new_embedding=None)
+      except Exception as sync_error:
+        logger.warn(
+            f"Failed to sync updated joke {joke_doc.id} to search collection: {sync_error}"
+        )
+    else:
+      jokes_skipped += 1
 
-    # Sync joke to search collection (merge payload into joke_data for updated values)
-    updated_joke_data = {**joke_data, **payload} if payload else joke_data
-    try:
-      joke = models.PunnyJoke.from_firestore_dict(
-        updated_joke_data,
-        joke_doc.id,
-      )
-      joke_operations.sync_joke_to_search_collection(joke=joke,
-                                                     new_embedding=None)
-    except Exception as sync_error:  # pylint: disable=broad-except
-      logger.warn(
-        f"Failed to sync joke {joke_doc.id} to search collection: {sync_error}"
-      )
+    # Add to public feed if the joke is public in its final state.
+    if joke.is_public:
+      public_jokes.append(joke)
 
     if writes_in_batch >= _MAX_FIRESTORE_WRITE_BATCH_SIZE:
       logger.info(f"Committing batch of {writes_in_batch} writes")
@@ -240,9 +241,11 @@ def _update_joke_attributes(run_time_utc: datetime.datetime) -> dict[str, int]:
     logger.info(f"Committing final batch of {writes_in_batch} writes")
     batch.commit()
 
-  if public_joke_ids:
-    logger.info(f"Public joke IDs: {public_joke_ids}")
-    firestore.update_public_joke_ids(public_joke_ids)
+  if public_jokes:
+    logger.info(f"Public jokes found: {len(public_jokes)}")
+    sorted_feed = build_joke_feed(public_jokes)
+    firestore.update_joke_feed(
+      [j.get_minimal_joke_data() for j in sorted_feed])
 
   logger.info(
     f"Joke daily maintenance completed: {jokes_decayed} recent stats decayed, {public_updated} is_public updated, {jokes_skipped} jokes skipped, {jokes_boosted} jokes boosted"
@@ -253,5 +256,43 @@ def _update_joke_attributes(run_time_utc: datetime.datetime) -> dict[str, int]:
     "public_updated": public_updated,
     "jokes_skipped": jokes_skipped,
     "jokes_boosted": jokes_boosted,
-    "num_public_jokes": len(public_joke_ids),
+    "num_public_jokes": len(public_jokes),
   }
+
+
+def build_joke_feed(jokes: list[models.PunnyJoke]) -> list[models.PunnyJoke]:
+  """Reorders the input list of jokes to build a feed.
+
+  The returned list contains all input jokes, ordered as follows:
+  1. The 10 jokes with the highest `num_saved_users_fraction` appear first,
+     sorted in descending order of that fraction.
+  2. The remaining jokes follow, arranged in an alternating pattern of:
+     a. The highest-ranked joke not yet included in the list.
+     b. A randomly selected joke from the remaining pool.
+
+  If the input contains fewer than 10 jokes, the entire list is simply sorted
+  by `num_saved_users_fraction` in descending order.
+  """
+  if not jokes:
+    return []
+
+  # Create a copy to avoid modifying the original list, then sort
+  source_list = sorted(
+    jokes,
+    key=lambda j: j.num_saved_users_fraction,
+    reverse=True,
+  )
+
+  result_list = source_list[:10]
+  source_list = source_list[10:]  # The remaining jokes
+
+  while source_list:
+    # 1. Add the next-highest-ranked joke
+    result_list.append(source_list.pop(0))
+
+    # 2. Add a random joke from the remaining pool, if any exist
+    if source_list:
+      random_index = random.randint(0, len(source_list) - 1)
+      result_list.append(source_list.pop(random_index))
+
+  return result_list

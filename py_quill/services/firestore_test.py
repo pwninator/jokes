@@ -542,135 +542,233 @@ def test_upsert_joke_user_usage_increment_new_day(monkeypatch):
   assert updates["last_login_at"] == "TS"
 
 
-def test_update_public_joke_ids_creates_new_document(monkeypatch):
-  """Test that update_public_joke_ids creates a new document when it doesn't exist."""
-  captured_data = {}
-  captured_collection = None
-  captured_doc_id = None
-  merge_value = None
+def test_update_joke_feed_single_chunk(monkeypatch):
+  """Test that update_joke_feed creates a single document when jokes fit in one chunk."""
+  from services import firestore as fs
+
+  captured_docs = {}
 
   class DummyDoc:
 
-    def set(self, data, merge=None):
-      nonlocal merge_value
-      captured_data.update(data)
-      merge_value = merge
+    def __init__(self, doc_id):
+      self._doc_id = doc_id
+
+    def set(self, data):
+      captured_docs[self._doc_id] = data
 
   class DummyCol:
 
     def document(self, doc_id):
-      nonlocal captured_doc_id
-      captured_doc_id = doc_id
-      return DummyDoc()
+      return DummyDoc(doc_id)
 
   class DummyDB:
 
     def collection(self, collection_name):
-      nonlocal captured_collection
-      captured_collection = collection_name
+      assert collection_name == "joke_feed"
       return DummyCol()
 
-  monkeypatch.setattr(firestore, "db", DummyDB)
+  monkeypatch.setattr(fs, "db", DummyDB)
 
-  joke_ids = {"joke1", "joke2", "joke3"}
-  firestore.update_public_joke_ids(joke_ids)
+  jokes = [{"id": f"joke{i}", "text": f"joke {i}"} for i in range(30)]
+  fs.update_joke_feed(jokes)
 
-  assert captured_collection == "joke_collections"
-  assert captured_doc_id == "public_joke_ids"
-  # Verify it's a list and contains all IDs (order may vary with sets)
-  assert isinstance(captured_data["joke_ids"], list)
-  assert set(captured_data["joke_ids"]) == {"joke1", "joke2", "joke3"}
-  assert len(captured_data["joke_ids"]) == 3
-  assert merge_value is True
+  assert len(captured_docs) == 1
+  assert "0" in captured_docs
+  assert captured_docs["0"]["jokes"] == jokes
+  assert len(captured_docs["0"]["jokes"]) == 30
 
 
-def test_update_public_joke_ids_updates_existing_document(monkeypatch):
-  """Test that update_public_joke_ids updates an existing document."""
-  captured_data = {}
-  merge_value = None
+def test_update_joke_feed_multiple_chunks(monkeypatch):
+  """Test that update_joke_feed creates multiple documents when jokes exceed chunk size."""
+  from services import firestore as fs
+
+  captured_docs = {}
 
   class DummyDoc:
 
-    def set(self, data, merge=None):
-      nonlocal merge_value
-      captured_data.update(data)
-      merge_value = merge
+    def __init__(self, doc_id):
+      self._doc_id = doc_id
+
+    def set(self, data):
+      captured_docs[self._doc_id] = data
 
   class DummyCol:
 
     def document(self, doc_id):
-      return DummyDoc()
+      return DummyDoc(doc_id)
 
   class DummyDB:
 
     def collection(self, collection_name):
+      assert collection_name == "joke_feed"
       return DummyCol()
 
-  monkeypatch.setattr(firestore, "db", DummyDB)
+  monkeypatch.setattr(fs, "db", DummyDB)
 
-  joke_ids = ["joke4", "joke5"]
-  firestore.update_public_joke_ids(joke_ids)
+  jokes = [{"id": f"joke{i}", "text": f"joke {i}"} for i in range(120)]
+  fs.update_joke_feed(jokes)
 
-  assert captured_data["joke_ids"] == ["joke4", "joke5"]
-  assert merge_value is True
+  assert len(captured_docs) == 3  # 120 jokes / 50 = 3 chunks
+  assert "0" in captured_docs
+  assert "1" in captured_docs
+  assert "2" in captured_docs
+
+  # First chunk: jokes 0-49
+  assert len(captured_docs["0"]["jokes"]) == 50
+  assert captured_docs["0"]["jokes"][0]["id"] == "joke0"
+  assert captured_docs["0"]["jokes"][49]["id"] == "joke49"
+
+  # Second chunk: jokes 50-99
+  assert len(captured_docs["1"]["jokes"]) == 50
+  assert captured_docs["1"]["jokes"][0]["id"] == "joke50"
+  assert captured_docs["1"]["jokes"][49]["id"] == "joke99"
+
+  # Third chunk: jokes 100-119
+  assert len(captured_docs["2"]["jokes"]) == 20
+  assert captured_docs["2"]["jokes"][0]["id"] == "joke100"
+  assert captured_docs["2"]["jokes"][19]["id"] == "joke119"
 
 
-def test_update_public_joke_ids_with_empty_collection(monkeypatch):
-  """Test that update_public_joke_ids handles empty collections."""
-  captured_data = {}
-  merge_value = None
+def test_update_joke_feed_exactly_one_chunk(monkeypatch):
+  """Test that update_joke_feed handles exactly 50 jokes (one chunk)."""
+  from services import firestore as fs
+
+  captured_docs = {}
 
   class DummyDoc:
 
-    def set(self, data, merge=None):
-      nonlocal merge_value
-      captured_data.update(data)
-      merge_value = merge
+    def __init__(self, doc_id):
+      self._doc_id = doc_id
+
+    def set(self, data):
+      captured_docs[self._doc_id] = data
 
   class DummyCol:
 
     def document(self, doc_id):
-      return DummyDoc()
+      return DummyDoc(doc_id)
 
   class DummyDB:
 
     def collection(self, collection_name):
+      assert collection_name == "joke_feed"
       return DummyCol()
 
-  monkeypatch.setattr(firestore, "db", DummyDB)
+  monkeypatch.setattr(fs, "db", DummyDB)
 
-  joke_ids = []
-  firestore.update_public_joke_ids(joke_ids)
+  jokes = [{"id": f"joke{i}", "text": f"joke {i}"} for i in range(50)]
+  fs.update_joke_feed(jokes)
 
-  assert captured_data["joke_ids"] == []
-  assert merge_value is True
+  assert len(captured_docs) == 1
+  assert "0" in captured_docs
+  assert len(captured_docs["0"]["jokes"]) == 50
+  assert captured_docs["0"]["jokes"] == jokes
 
 
-def test_update_public_joke_ids_with_set_collection(monkeypatch):
-  """Test that update_public_joke_ids converts set to list correctly."""
-  captured_data = {}
+def test_update_joke_feed_exactly_two_chunks(monkeypatch):
+  """Test that update_joke_feed handles exactly 100 jokes (two chunks)."""
+  from services import firestore as fs
+
+  captured_docs = {}
 
   class DummyDoc:
 
-    def set(self, data, merge=None):
-      captured_data.update(data)
+    def __init__(self, doc_id):
+      self._doc_id = doc_id
+
+    def set(self, data):
+      captured_docs[self._doc_id] = data
 
   class DummyCol:
 
     def document(self, doc_id):
-      return DummyDoc()
+      return DummyDoc(doc_id)
 
   class DummyDB:
 
     def collection(self, collection_name):
+      assert collection_name == "joke_feed"
       return DummyCol()
 
-  monkeypatch.setattr(firestore, "db", DummyDB)
+  monkeypatch.setattr(fs, "db", DummyDB)
 
-  joke_ids = {"joke-a", "joke-b", "joke-c"}
-  firestore.update_public_joke_ids(joke_ids)
+  jokes = [{"id": f"joke{i}", "text": f"joke {i}"} for i in range(100)]
+  fs.update_joke_feed(jokes)
 
-  # Verify it's a list (not a set) and contains all IDs
-  assert isinstance(captured_data["joke_ids"], list)
-  assert len(captured_data["joke_ids"]) == 3
-  assert set(captured_data["joke_ids"]) == {"joke-a", "joke-b", "joke-c"}
+  assert len(captured_docs) == 2
+  assert "0" in captured_docs
+  assert "1" in captured_docs
+  assert len(captured_docs["0"]["jokes"]) == 50
+  assert len(captured_docs["1"]["jokes"]) == 50
+
+
+def test_update_joke_feed_empty_list(monkeypatch):
+  """Test that update_joke_feed handles empty joke list."""
+  from services import firestore as fs
+
+  captured_docs = {}
+
+  class DummyDoc:
+
+    def __init__(self, doc_id):
+      self._doc_id = doc_id
+
+    def set(self, data):
+      captured_docs[self._doc_id] = data
+
+  class DummyCol:
+
+    def document(self, doc_id):
+      return DummyDoc(doc_id)
+
+  class DummyDB:
+
+    def collection(self, collection_name):
+      assert collection_name == "joke_feed"
+      return DummyCol()
+
+  monkeypatch.setattr(fs, "db", DummyDB)
+
+  jokes = []
+  fs.update_joke_feed(jokes)
+
+  # Should create no documents for empty list
+  assert len(captured_docs) == 0
+
+
+def test_update_joke_feed_one_over_chunk(monkeypatch):
+  """Test that update_joke_feed handles exactly 51 jokes (two chunks)."""
+  from services import firestore as fs
+
+  captured_docs = {}
+
+  class DummyDoc:
+
+    def __init__(self, doc_id):
+      self._doc_id = doc_id
+
+    def set(self, data):
+      captured_docs[self._doc_id] = data
+
+  class DummyCol:
+
+    def document(self, doc_id):
+      return DummyDoc(doc_id)
+
+  class DummyDB:
+
+    def collection(self, collection_name):
+      assert collection_name == "joke_feed"
+      return DummyCol()
+
+  monkeypatch.setattr(fs, "db", DummyDB)
+
+  jokes = [{"id": f"joke{i}", "text": f"joke {i}"} for i in range(51)]
+  fs.update_joke_feed(jokes)
+
+  assert len(captured_docs) == 2
+  assert "0" in captured_docs
+  assert "1" in captured_docs
+  assert len(captured_docs["0"]["jokes"]) == 50
+  assert len(captured_docs["1"]["jokes"]) == 1
+  assert captured_docs["1"]["jokes"][0]["id"] == "joke50"

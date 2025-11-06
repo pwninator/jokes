@@ -846,6 +846,16 @@ class PunnyJoke:
       data.pop('key', None)
     return data
 
+  def get_minimal_joke_data(self) -> dict[str, str | None]:
+    """Get a minimal dictionary representation of the joke for feed generation."""
+    return {
+      "key": self.key,
+      "setup_text": self.setup_text,
+      "punchline_text": self.punchline_text,
+      "setup_image_url": self.setup_image_url,
+      "punchline_image_url": self.punchline_image_url,
+    }
+
 
 def _parse_enum_field(
   data: dict,

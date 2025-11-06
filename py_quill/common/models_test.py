@@ -129,3 +129,69 @@ def test_set_punchline_image_skips_text_update_when_false():
   assert joke.punchline_image_url == "http://example.com/img.png"
   assert joke.punchline_image_description == "before"
   assert joke.punchline_image_prompt == "before"
+
+
+def test_get_minimal_joke_data_returns_correct_fields():
+  """Test that get_minimal_joke_data returns a dictionary with the correct fields."""
+  joke = models.PunnyJoke(
+    key="joke123",
+    setup_text="Why did the scarecrow win an award?",
+    punchline_text="Because he was outstanding in his field.",
+    setup_image_url="http://example.com/setup.png",
+    punchline_image_url="http://example.com/punchline.png",
+    pun_theme="awards",
+    num_viewed_users=100,
+  )
+  minimal_data = joke.get_minimal_joke_data()
+  expected_keys = {
+    "key",
+    "setup_text",
+    "punchline_text",
+    "setup_image_url",
+    "punchline_image_url",
+  }
+  assert set(minimal_data.keys()) == expected_keys
+  assert minimal_data["key"] == "joke123"
+  assert minimal_data["setup_text"] == "Why did the scarecrow win an award?"
+  assert minimal_data[
+    "punchline_text"] == "Because he was outstanding in his field."
+  assert minimal_data["setup_image_url"] == "http://example.com/setup.png"
+  assert minimal_data[
+    "punchline_image_url"] == "http://example.com/punchline.png"
+
+
+def test_get_minimal_joke_data_with_none_values():
+  """Test that get_minimal_joke_data handles None values correctly."""
+  joke = models.PunnyJoke(setup_text="setup", punchline_text="punchline")
+  # key, setup_image_url, and punchline_image_url are None by default
+  minimal_data = joke.get_minimal_joke_data()
+  expected_keys = {
+    "key",
+    "setup_text",
+    "punchline_text",
+    "setup_image_url",
+    "punchline_image_url",
+  }
+  assert set(minimal_data.keys()) == expected_keys
+  assert minimal_data["key"] is None
+  assert minimal_data["setup_text"] == "setup"
+  assert minimal_data["punchline_text"] == "punchline"
+  assert minimal_data["setup_image_url"] is None
+  assert minimal_data["punchline_image_url"] is None
+
+
+def test_get_minimal_joke_data_with_partial_image_urls():
+  """Test that get_minimal_joke_data handles partial image URLs."""
+  joke = models.PunnyJoke(
+    key="joke456",
+    setup_text="Why did the chicken cross the road?",
+    punchline_text="To get to the other side.",
+    setup_image_url="http://example.com/setup.png",
+    # punchline_image_url is None
+  )
+  minimal_data = joke.get_minimal_joke_data()
+  assert minimal_data["key"] == "joke456"
+  assert minimal_data["setup_text"] == "Why did the chicken cross the road?"
+  assert minimal_data["punchline_text"] == "To get to the other side."
+  assert minimal_data["setup_image_url"] == "http://example.com/setup.png"
+  assert minimal_data["punchline_image_url"] is None

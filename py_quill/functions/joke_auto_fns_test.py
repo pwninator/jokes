@@ -63,56 +63,57 @@ def _setup_decay_test_mocks(monkeypatch,
       }))
 
 
-def _create_mock_joke_doc(
-    joke_id: str, overrides: dict | None = None
-) -> MagicMock:
+def _create_mock_joke_doc(joke_id: str,
+                          overrides: dict | None = None) -> MagicMock:
   """Creates a mock Firestore document for a joke with complete default data."""
   now = _create_test_datetime()
   default_data = {
-      "key": joke_id,
-      "setup_text": f"Setup for {joke_id}",
-      "punchline_text": f"Punchline for {joke_id}",
-      "state": models.JokeState.PUBLISHED.value,
-      "is_public": True,
-      "public_timestamp": now - datetime.timedelta(days=1),
-      "last_recent_stats_update_time": now - datetime.timedelta(days=1),
-      "num_viewed_users": 100,
-      "num_saved_users": 50,
-      "num_shared_users": 10,
-      "num_thumbs_up": 60,
-      "num_thumbs_down": 5,
-      "num_viewed_users_recent": 10.0,
-      "num_saved_users_recent": 5.0,
-      "num_shared_users_recent": 1.0,
-      "num_saved_users_fraction": 0.5,
-      "num_shared_users_fraction": 0.1,
-      "popularity_score": 100.0,
-      "pun_theme": None,
-      "phrase_topic": None,
-      "tags": [],
-      "for_kids": False,
-      "for_adults": False,
-      "seasonal": None,
-      "pun_word": None,
-      "punned_word": None,
-      "setup_image_description": None,
-      "punchline_image_description": None,
-      "setup_image_prompt": None,
-      "punchline_image_prompt": None,
-      "setup_image_url": None,
-      "punchline_image_url": None,
-      "setup_image_url_upscaled": None,
-      "punchline_image_url_upscaled": None,
-      "all_setup_image_urls": [],
-      "all_punchline_image_urls": [],
-      "admin_rating": models.JokeAdminRating.UNREVIEWED.value,
-      "zzz_joke_text_embedding": None,
-      "owner_user_id": None,
-      "generation_metadata": {"generations": []},
-      "random_id": None,
+    "key": joke_id,
+    "setup_text": f"Setup for {joke_id}",
+    "punchline_text": f"Punchline for {joke_id}",
+    "state": models.JokeState.PUBLISHED.value,
+    "is_public": True,
+    "public_timestamp": now - datetime.timedelta(days=1),
+    "last_recent_stats_update_time": now - datetime.timedelta(days=1),
+    "num_viewed_users": 100,
+    "num_saved_users": 50,
+    "num_shared_users": 10,
+    "num_thumbs_up": 60,
+    "num_thumbs_down": 5,
+    "num_viewed_users_recent": 10.0,
+    "num_saved_users_recent": 5.0,
+    "num_shared_users_recent": 1.0,
+    "num_saved_users_fraction": 0.5,
+    "num_shared_users_fraction": 0.1,
+    "popularity_score": 100.0,
+    "pun_theme": None,
+    "phrase_topic": None,
+    "tags": [],
+    "for_kids": False,
+    "for_adults": False,
+    "seasonal": None,
+    "pun_word": None,
+    "punned_word": None,
+    "setup_image_description": None,
+    "punchline_image_description": None,
+    "setup_image_prompt": None,
+    "punchline_image_prompt": None,
+    "setup_image_url": None,
+    "punchline_image_url": None,
+    "setup_image_url_upscaled": None,
+    "punchline_image_url_upscaled": None,
+    "all_setup_image_urls": [],
+    "all_punchline_image_urls": [],
+    "admin_rating": models.JokeAdminRating.UNREVIEWED.value,
+    "zzz_joke_text_embedding": None,
+    "owner_user_id": None,
+    "generation_metadata": {
+      "generations": []
+    },
+    "random_id": None,
   }
   if overrides:
-      default_data.update(overrides)
+    default_data.update(overrides)
 
   doc = MagicMock()
   doc.exists = True
@@ -125,28 +126,29 @@ def _create_mock_joke_doc(
 class TestDecayRecentJokeStats:
   """Tests for the recent joke stats decay job."""
 
-  def test_updates_counters_when_last_update_stale_and_syncs(self, monkeypatch):
+  def test_updates_counters_when_last_update_stale_and_syncs(
+      self, monkeypatch):
     """Test that stale jokes are updated and synced."""
     now_utc = _create_test_datetime()
     overrides = {
-        "num_viewed_users_recent": 100,
-        "num_saved_users_recent": 50,
-        "num_shared_users_recent": 10,
-        "last_recent_stats_update_time": now_utc - datetime.timedelta(hours=22),
-        "state": models.JokeState.PUBLISHED.value,
-        "is_public": False,
+      "num_viewed_users_recent": 100,
+      "num_saved_users_recent": 50,
+      "num_shared_users_recent": 10,
+      "last_recent_stats_update_time": now_utc - datetime.timedelta(hours=22),
+      "state": models.JokeState.PUBLISHED.value,
+      "is_public": False,
     }
     doc = _create_mock_joke_doc("joke-1", overrides=overrides)
 
     _, mock_batch = _setup_mock_db_and_batch(monkeypatch, [doc])
     mock_sync = Mock()
     monkeypatch.setattr(
-        'common.joke_operations.sync_joke_to_search_collection', mock_sync)
+      'common.joke_operations.sync_joke_to_search_collection', mock_sync)
     monkeypatch.setattr('functions.joke_auto_fns.firestore.update_joke_feed',
                         Mock())
     monkeypatch.setattr(
-        'common.joke_category_operations.refresh_category_caches',
-        Mock(return_value={}))
+      'common.joke_category_operations.refresh_category_caches',
+      Mock(return_value={}))
 
     joke_auto_fns._joke_daily_maintenance_internal(now_utc)
 
@@ -157,17 +159,17 @@ class TestDecayRecentJokeStats:
     assert payload["num_shared_users_recent"] == pytest.approx(9.0)
     assert payload["is_public"] is True
     assert payload[
-        "last_recent_stats_update_time"] is firestore.SERVER_TIMESTAMP
+      "last_recent_stats_update_time"] is firestore.SERVER_TIMESTAMP
     mock_sync.assert_called_once()
 
   def test_skips_when_recently_updated_and_does_not_sync(self, monkeypatch):
     """Test that a recently updated joke is skipped for both writes and search sync."""
     now_utc = _create_test_datetime()
     overrides = {
-        "last_recent_stats_update_time": now_utc - datetime.timedelta(hours=4),
-        "state": models.JokeState.APPROVED.value,
-        "is_public": False,
-        "num_viewed_users": MIN_VIEWS_FOR_FRACTIONS, # Prevent fraction boost
+      "last_recent_stats_update_time": now_utc - datetime.timedelta(hours=4),
+      "state": models.JokeState.APPROVED.value,
+      "is_public": False,
+      "num_viewed_users": MIN_VIEWS_FOR_FRACTIONS,  # Prevent fraction boost
     }
     doc = _create_mock_joke_doc("joke-1", overrides=overrides)
 
@@ -175,12 +177,12 @@ class TestDecayRecentJokeStats:
 
     mock_sync = Mock()
     monkeypatch.setattr(
-        'common.joke_operations.sync_joke_to_search_collection', mock_sync)
+      'common.joke_operations.sync_joke_to_search_collection', mock_sync)
     monkeypatch.setattr('functions.joke_auto_fns.firestore.update_joke_feed',
                         Mock())
     monkeypatch.setattr(
-        'common.joke_category_operations.refresh_category_caches',
-        Mock(return_value={}))
+      'common.joke_category_operations.refresh_category_caches',
+      Mock(return_value={}))
 
     joke_auto_fns._joke_daily_maintenance_internal(now_utc)
 
@@ -191,13 +193,13 @@ class TestDecayRecentJokeStats:
     """Test that if recent fields are None, only the timestamp is updated."""
     now_utc = _create_test_datetime()
     overrides = {
-        "num_viewed_users_recent": None,
-        "num_saved_users_recent": None,
-        "num_shared_users_recent": None,
-        "last_recent_stats_update_time": now_utc - datetime.timedelta(days=2),
-        "state": models.JokeState.APPROVED.value,
-        "is_public": False,
-        "num_viewed_users": MIN_VIEWS_FOR_FRACTIONS,  # Prevent fraction boost
+      "num_viewed_users_recent": None,
+      "num_saved_users_recent": None,
+      "num_shared_users_recent": None,
+      "last_recent_stats_update_time": now_utc - datetime.timedelta(days=2),
+      "state": models.JokeState.APPROVED.value,
+      "is_public": False,
+      "num_viewed_users": MIN_VIEWS_FOR_FRACTIONS,  # Prevent fraction boost
     }
     doc = _create_mock_joke_doc("joke-1", overrides=overrides)
 
@@ -211,34 +213,35 @@ class TestDecayRecentJokeStats:
 
     # The only update should be the timestamp, as decay runs but finds no fields.
     assert payload == {
-        "last_recent_stats_update_time": firestore.SERVER_TIMESTAMP
+      "last_recent_stats_update_time": firestore.SERVER_TIMESTAMP
     }
 
   def test_recent_update_still_updates_is_public_when_mismatch(
       self, monkeypatch):
     now_utc = _create_test_datetime()
     overrides = {
-        "last_recent_stats_update_time": now_utc - datetime.timedelta(hours=2),
-        "state": models.JokeState.PUBLISHED.value,
-        "is_public": False,
-        "num_viewed_users": MIN_VIEWS_FOR_FRACTIONS, # Explicitly set to prevent boost
+      "last_recent_stats_update_time": now_utc - datetime.timedelta(hours=2),
+      "state": models.JokeState.PUBLISHED.value,
+      "is_public": False,
+      "num_viewed_users":
+      MIN_VIEWS_FOR_FRACTIONS,  # Explicitly set to prevent boost
     }
     doc = _create_mock_joke_doc("joke-1", overrides=overrides)
 
     _, mock_batch = _setup_mock_db_and_batch(monkeypatch, [doc])
     monkeypatch.setattr(
-        'common.joke_operations.sync_joke_to_search_collection', Mock())
+      'common.joke_operations.sync_joke_to_search_collection', Mock())
     monkeypatch.setattr('functions.joke_auto_fns.firestore.update_joke_feed',
                         Mock())
     monkeypatch.setattr(
-        'common.joke_category_operations.refresh_category_caches',
-        Mock(
-            return_value={
-                "categories_processed": 0,
-                "categories_updated": 0,
-                "categories_emptied": 0,
-                "categories_failed": 0
-            }))
+      'common.joke_category_operations.refresh_category_caches',
+      Mock(
+        return_value={
+          "categories_processed": 0,
+          "categories_updated": 0,
+          "categories_emptied": 0,
+          "categories_failed": 0
+        }))
 
     joke_auto_fns._joke_daily_maintenance_internal(now_utc)  # pylint: disable=protected-access
 
@@ -257,10 +260,10 @@ class TestDecayRecentJokeStats:
       expected_is_public):
     now_utc = _create_test_datetime()
     overrides = {
-        "last_recent_stats_update_time": now_utc - datetime.timedelta(days=1),
-        "state": models.JokeState.DAILY.value,
-        "public_timestamp": now_utc + public_timestamp_offset,
-        "is_public": initial_is_public,
+      "last_recent_stats_update_time": now_utc - datetime.timedelta(days=1),
+      "state": models.JokeState.DAILY.value,
+      "public_timestamp": now_utc + public_timestamp_offset,
+      "is_public": initial_is_public,
     }
     doc = _create_mock_joke_doc("joke-1", overrides=overrides)
 
@@ -362,127 +365,129 @@ class TestDecayRecentJokeStats:
 
     assert "boom" in response["data"]["error"]
 
-    @pytest.mark.parametrize(
-      "num_viewed_users,existing_fraction,random_value,expected_fraction",
-      [
-        (0, 0.0, 0.02, 0.02),  # Zero views, no existing fraction
-        (5, 0.0, 0.015, 0.015),  # Below threshold, no existing fraction
-        (8, 0.03, 0.01, 0.04),  # Below threshold, with existing fraction
-        (9, 0.0, 0.0125, 0.0125),  # Exactly 9 views
-        (MIN_VIEWS_FOR_FRACTIONS, 0.05, None, None),  # At threshold - no boost
-        (MIN_VIEWS_FOR_FRACTIONS + 10, 0.1, None,
-         None),  # Above threshold - no boost
-      ])
-    def test_boost_fraction_behavior(self, monkeypatch, num_viewed_users,
-                                     existing_fraction, random_value,
-                                     expected_fraction):
-      """Test fraction boost behavior for various view counts."""
-      now_utc = _create_test_datetime()
-      overrides = {
-          "num_viewed_users": num_viewed_users,
-          "num_saved_users_fraction": existing_fraction,
-          "last_recent_stats_update_time": now_utc - datetime.timedelta(days=2),
-      }
-  
-      doc = _create_mock_joke_doc("joke-1", overrides=overrides)
-  
-      _, mock_batch = _setup_mock_db_and_batch(monkeypatch, [doc])
-      monkeypatch.setattr(
-        'common.joke_operations.sync_joke_to_search_collection', Mock())
-      monkeypatch.setattr(
-        'common.joke_category_operations.refresh_category_caches',
-        Mock(
-          return_value={
-            "categories_processed": 0,
-            "categories_updated": 0,
-            "categories_emptied": 0,
-            "categories_failed": 0
-          }))
-  
-      mock_random = Mock(
-        return_value=random_value if random_value is not None else 0.01)
-      monkeypatch.setattr('functions.joke_auto_fns.random.uniform', mock_random)
-  
-      joke_auto_fns._joke_daily_maintenance_internal(now_utc)  # pylint: disable=protected-access
-  
-      payload = mock_batch.update.call_args.args[
-        1] if mock_batch.update.called else {}
-      if expected_fraction is None:
-        # No boost expected
-        assert "num_saved_users_fraction" not in payload
-        mock_random.assert_not_called()
-      else:
-        # Boost expected
-        assert "num_saved_users_fraction" in payload
-        assert payload["num_saved_users_fraction"] == pytest.approx(
-          expected_fraction)
-        mock_random.assert_called_once_with(0.0, 0.02)
-  
-    def test_boost_handles_invalid_fraction_type(self, monkeypatch):
-      """Test that invalid fraction types are treated as 0.0."""
-      now_utc = _create_test_datetime()
-      overrides = {
-          "num_viewed_users": 3,
-          "num_saved_users_fraction": "invalid",
-          "last_recent_stats_update_time": now_utc - datetime.timedelta(days=2),
-      }
-      doc = _create_mock_joke_doc("joke-1", overrides=overrides)
-  
-      _, mock_batch = _setup_mock_db_and_batch(monkeypatch, [doc])
-      monkeypatch.setattr(
-        'common.joke_operations.sync_joke_to_search_collection', Mock())
-      monkeypatch.setattr(
-        'common.joke_category_operations.refresh_category_caches',
-        Mock(
-          return_value={
-            "categories_processed": 0,
-            "categories_updated": 0,
-            "categories_emptied": 0,
-            "categories_failed": 0
-          }))
-  
-      # Mock random.uniform to return a predictable value
-      mock_random = Mock(return_value=0.01)
-      monkeypatch.setattr('functions.joke_auto_fns.random.uniform', mock_random)
-  
-      joke_auto_fns._joke_daily_maintenance_internal(now_utc)  # pylint: disable=protected-access
-  
-      mock_batch.update.assert_called_once()
-      payload = mock_batch.update.call_args.args[1]
-      assert payload["num_saved_users_fraction"] == pytest.approx(0.01)
-  
-    def test_boost_handles_invalid_view_count_type(self, monkeypatch):
-      """Test that invalid view count types are treated as 0."""
-      now_utc = _create_test_datetime()
-      overrides = {
-          "num_viewed_users": "invalid",
-          "num_saved_users_fraction": 0.0, # Set base to 0 for predictable assertion
-          "last_recent_stats_update_time": now_utc - datetime.timedelta(days=2),
-      }
-      doc = _create_mock_joke_doc("joke-1", overrides=overrides)
-  
-      _, mock_batch = _setup_mock_db_and_batch(monkeypatch, [doc])
-      monkeypatch.setattr(
-        'common.joke_operations.sync_joke_to_search_collection', Mock())
-      monkeypatch.setattr(
-        'common.joke_category_operations.refresh_category_caches',
-        Mock(
-          return_value={
-            "categories_processed": 0,
-            "categories_updated": 0,
-            "categories_emptied": 0,
-            "categories_failed": 0
-          }))
-  
-      # Mock random.uniform to return a predictable value
-      mock_random = Mock(return_value=0.01)
-      monkeypatch.setattr('functions.joke_auto_fns.random.uniform', mock_random)
-  
-      joke_auto_fns._joke_daily_maintenance_internal(now_utc)  # pylint: disable=protected-access
-  
-      mock_batch.update.assert_called_once()
-      payload = mock_batch.update.call_args.args[1]
-      assert payload["num_saved_users_fraction"] == pytest.approx(0.01)
+  @pytest.mark.parametrize(
+    "num_viewed_users,existing_fraction,random_value,expected_fraction",
+    [
+      (0, 0.0, 0.02, 0.02),  # Zero views, no existing fraction
+      (5, 0.0, 0.015, 0.015),  # Below threshold, no existing fraction
+      (8, 0.03, 0.01, 0.04),  # Below threshold, with existing fraction
+      (9, 0.0, 0.0125, 0.0125),  # Exactly 9 views
+      (MIN_VIEWS_FOR_FRACTIONS, 0.05, None, None),  # At threshold - no boost
+      (MIN_VIEWS_FOR_FRACTIONS + 10, 0.1, None,
+       None),  # Above threshold - no boost
+    ])
+  def test_boost_fraction_behavior(self, monkeypatch, num_viewed_users,
+                                   existing_fraction, random_value,
+                                   expected_fraction):
+    """Test fraction boost behavior for various view counts."""
+    now_utc = _create_test_datetime()
+    overrides = {
+      "num_viewed_users": num_viewed_users,
+      "num_saved_users_fraction": existing_fraction,
+      "last_recent_stats_update_time": now_utc - datetime.timedelta(days=2),
+    }
+
+    doc = _create_mock_joke_doc("joke-1", overrides=overrides)
+
+    _, mock_batch = _setup_mock_db_and_batch(monkeypatch, [doc])
+    monkeypatch.setattr(
+      'common.joke_operations.sync_joke_to_search_collection', Mock())
+    monkeypatch.setattr(
+      'common.joke_category_operations.refresh_category_caches',
+      Mock(
+        return_value={
+          "categories_processed": 0,
+          "categories_updated": 0,
+          "categories_emptied": 0,
+          "categories_failed": 0
+        }))
+
+    mock_random = Mock(
+      return_value=random_value if random_value is not None else 0.01)
+    monkeypatch.setattr('functions.joke_auto_fns.random.uniform', mock_random)
+
+    joke_auto_fns._joke_daily_maintenance_internal(now_utc)  # pylint: disable=protected-access
+
+    payload = mock_batch.update.call_args.args[
+      1] if mock_batch.update.called else {}
+    if expected_fraction is None:
+      # No boost expected
+      assert "num_saved_users_fraction" not in payload
+      mock_random.assert_not_called()
+    else:
+      # Boost expected
+      assert "num_saved_users_fraction" in payload
+      assert payload["num_saved_users_fraction"] == pytest.approx(
+        expected_fraction)
+      mock_random.assert_called_once_with(0.0, 0.02)
+
+  def test_boost_handles_invalid_fraction_type(self, monkeypatch):
+    """Test that invalid fraction types are treated as 0.0."""
+    now_utc = _create_test_datetime()
+    overrides = {
+      "num_viewed_users": 3,
+      "num_saved_users_fraction": "invalid",
+      "last_recent_stats_update_time": now_utc - datetime.timedelta(days=2),
+    }
+    doc = _create_mock_joke_doc("joke-1", overrides=overrides)
+
+    _, mock_batch = _setup_mock_db_and_batch(monkeypatch, [doc])
+    monkeypatch.setattr(
+      'common.joke_operations.sync_joke_to_search_collection', Mock())
+    monkeypatch.setattr(
+      'common.joke_category_operations.refresh_category_caches',
+      Mock(
+        return_value={
+          "categories_processed": 0,
+          "categories_updated": 0,
+          "categories_emptied": 0,
+          "categories_failed": 0
+        }))
+
+    # Mock random.uniform to return a predictable value
+    mock_random = Mock(return_value=0.01)
+    monkeypatch.setattr('functions.joke_auto_fns.random.uniform', mock_random)
+
+    joke_auto_fns._joke_daily_maintenance_internal(now_utc)  # pylint: disable=protected-access
+
+    mock_batch.update.assert_called_once()
+    payload = mock_batch.update.call_args.args[1]
+    assert payload["num_saved_users_fraction"] == pytest.approx(0.01)
+
+  def test_boost_handles_invalid_view_count_type(self, monkeypatch):
+    """Test that invalid view count types are treated as 0."""
+    now_utc = _create_test_datetime()
+    overrides = {
+      "num_viewed_users": "invalid",
+      "num_saved_users_fraction":
+      0.0,  # Set base to 0 for predictable assertion
+      "last_recent_stats_update_time": now_utc - datetime.timedelta(days=2),
+    }
+    doc = _create_mock_joke_doc("joke-1", overrides=overrides)
+
+    _, mock_batch = _setup_mock_db_and_batch(monkeypatch, [doc])
+    monkeypatch.setattr(
+      'common.joke_operations.sync_joke_to_search_collection', Mock())
+    monkeypatch.setattr(
+      'common.joke_category_operations.refresh_category_caches',
+      Mock(
+        return_value={
+          "categories_processed": 0,
+          "categories_updated": 0,
+          "categories_emptied": 0,
+          "categories_failed": 0
+        }))
+
+    # Mock random.uniform to return a predictable value
+    mock_random = Mock(return_value=0.01)
+    monkeypatch.setattr('functions.joke_auto_fns.random.uniform', mock_random)
+
+    joke_auto_fns._joke_daily_maintenance_internal(now_utc)  # pylint: disable=protected-access
+
+    mock_batch.update.assert_called_once()
+    payload = mock_batch.update.call_args.args[1]
+    assert payload["num_saved_users_fraction"] == pytest.approx(0.01)
+
   def test_boost_statistics_tracked(self, monkeypatch):
     """Test that boosted jokes are counted in statistics."""
     now_utc = _create_test_datetime()
@@ -881,7 +886,8 @@ class TestDecayRecentJokeStats:
       "is_public": True,
       "public_timestamp": now_utc - datetime.timedelta(days=1),
       "last_recent_stats_update_time": now_utc - datetime.timedelta(hours=4),
-      "num_viewed_users": MIN_VIEWS_FOR_FRACTIONS,  # This prevents fraction boost
+      "num_viewed_users":
+      MIN_VIEWS_FOR_FRACTIONS,  # This prevents fraction boost
     }
 
     _, mock_batch = _setup_mock_db_and_batch(monkeypatch, [doc1, doc2])
@@ -959,12 +965,12 @@ class TestDecayRecentJokeStats:
 
 
 def _create_joke(key: str, fraction: float) -> MagicMock:
-    """Helper to create a mock PunnyJoke for feed building tests."""
-    joke = MagicMock(spec=models.PunnyJoke)
-    joke.key = key
-    joke.num_saved_users_fraction = fraction
-    joke.__repr__ = lambda self: f"Joke(id='{self.key}', f={self.num_saved_users_fraction})"
-    return joke
+  """Helper to create a mock PunnyJoke for feed building tests."""
+  joke = MagicMock(spec=models.PunnyJoke)
+  joke.key = key
+  joke.num_saved_users_fraction = fraction
+  joke.__repr__ = lambda self: f"Joke(id='{self.key}', f={self.num_saved_users_fraction})"
+  return joke
 
 
 class TestBuildJokeFeed:

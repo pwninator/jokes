@@ -261,38 +261,82 @@ class JokeInteractionsRepository {
     perf: _perf,
   );
 
-  /// Sync feed joke data to local database, preserving existing interaction timestamps.
+  /// Sync feed jokes to local database in a single batch transaction.
   ///
   /// Updates the feed-related columns (setupText, punchlineText, setupImageUrl,
   /// punchlineImageUrl, feedIndex) while preserving viewedTimestamp, savedTimestamp,
   /// and sharedTimestamp if they already exist.
-  Future<bool> syncFeedJoke({
-    required Joke joke,
-    required int feedIndex,
+  Future<bool> syncFeedJokes({
+    required List<({Joke joke, int feedIndex})> jokes,
   }) async => runWithTrace(
     name: TraceName.driftSetInteraction,
-    traceKey: 'sync_feed_joke',
+    traceKey: 'sync_feed_jokes_batch',
     body: () async {
+      if (jokes.isEmpty) return true;
+
       final now = DateTime.now();
-      await _db
-          .into(_db.jokeInteractions)
-          .insertOnConflictUpdate(
-            JokeInteractionsCompanion(
-              jokeId: Value(joke.id),
-              setupText: Value(joke.setupText),
-              punchlineText: Value(joke.punchlineText),
-              setupImageUrl: Value(joke.setupImageUrl),
-              punchlineImageUrl: Value(joke.punchlineImageUrl),
-              feedIndex: Value(feedIndex),
-              lastUpdateTimestamp: Value(now),
-              viewedTimestamp: const Value.absent(),
-              savedTimestamp: const Value.absent(),
-              sharedTimestamp: const Value.absent(),
-            ),
-          );
+      await _db.transaction(() async {
+        for (final entry in jokes) {
+          await _db
+              .into(_db.jokeInteractions)
+              .insertOnConflictUpdate(
+                JokeInteractionsCompanion(
+                  jokeId: Value(entry.joke.id),
+                  setupText: Value(entry.joke.setupText),
+                  punchlineText: Value(entry.joke.punchlineText),
+                  setupImageUrl: Value(entry.joke.setupImageUrl),
+                  punchlineImageUrl: Value(entry.joke.punchlineImageUrl),
+                  feedIndex: Value(entry.feedIndex),
+                  lastUpdateTimestamp: Value(now),
+                  viewedTimestamp: const Value.absent(),
+                  savedTimestamp: const Value.absent(),
+                  sharedTimestamp: const Value.absent(),
+                ),
+              );
+        }
+      });
       return true;
     },
     fallback: false,
+    perf: _perf,
+  );
+
+  /// Get feed jokes ordered by feedIndex with cursor-based pagination.
+  ///
+  /// Returns jokes where feedIndex is not null, ordered by feedIndex ascending.
+  /// [cursorFeedIndex] is the feedIndex to start after (exclusive). If null, starts from the beginning.
+  /// [limit] is the maximum number of results to return.
+  Future<List<JokeInteraction>> getFeedJokeInteractions({
+    int? cursorFeedIndex,
+    required int limit,
+  }) async => runWithTrace(
+    name: TraceName.driftGetAllJokeInteractions,
+    traceKey: 'feed_jokes',
+    body: () async {
+      if (limit <= 0) return <JokeInteraction>[];
+
+      final query = _db.select(_db.jokeInteractions);
+
+      if (cursorFeedIndex != null) {
+        query.where(
+          (tbl) =>
+              tbl.feedIndex.isNotNull() &
+              tbl.feedIndex.isBiggerThanValue(cursorFeedIndex),
+        );
+      } else {
+        query.where((tbl) => tbl.feedIndex.isNotNull());
+      }
+
+      query
+        ..orderBy([
+          (t) => OrderingTerm(expression: t.feedIndex, mode: OrderingMode.asc),
+          (t) => OrderingTerm(expression: t.jokeId, mode: OrderingMode.asc),
+        ])
+        ..limit(limit);
+
+      return await query.get();
+    },
+    fallback: <JokeInteraction>[],
     perf: _perf,
   );
 }

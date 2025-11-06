@@ -415,6 +415,71 @@ class JokeRepository {
     );
   }
 
+  Future<JokeListPage> readFeedJokes({JokeListPageCursor? cursor}) async {
+    Query<Map<String, dynamic>> query = _firestore.collection('joke_feed');
+
+    // Order by document ID for stable pagination. Document IDs are chronological.
+    query = query.orderBy(FieldPath.documentId);
+
+    if (cursor != null) {
+      // For feed jokes, the orderValue is the document ID itself.
+      // We use startAfter with the doc ID from the last read document.
+      query = query.startAfter([cursor.orderValue]);
+    }
+
+    // We only fetch one feed document (which is a batch of jokes) at a time.
+    query = query.limit(1);
+
+    final snapshot = await _traceFs(
+      traceName: TraceName.fsReadJokeFeed,
+      op: 'query_get',
+      collection: 'joke_feed',
+      action: () => query.get(),
+      extra: {'limit': '1', 'cursor': (cursor != null).toString()},
+    );
+
+    if (snapshot.docs.isEmpty) {
+      return const JokeListPage(
+        ids: [],
+        cursor: null,
+        hasMore: false,
+        jokes: [],
+      );
+    }
+
+    final doc = snapshot.docs.first;
+    final docData = doc.data();
+    final List<dynamic> jokesData = docData['jokes'] as List<dynamic>? ?? [];
+
+    final List<Joke> jokes = [];
+    final List<String> ids = [];
+    for (final jokeData in jokesData) {
+      if (jokeData is Map<String, dynamic>) {
+        final jokeId = jokeData['key'] as String?;
+        if (jokeId != null) {
+          // The joke data is nested inside the feed document.
+          // The `fromMap` factory expects the joke data map and its ID.
+          jokes.add(Joke.fromMap(jokeData, jokeId));
+          ids.add(jokeId);
+        }
+      }
+    }
+
+    final nextCursor = JokeListPageCursor(orderValue: doc.id, docId: doc.id);
+
+    // If we reached here, we have a page. We can't know if it's the last one
+    // without another read, so we assume there could be more. The next fetch
+    // with the returned cursor will return an empty list if this was the end.
+    const hasMore = true;
+
+    return JokeListPage(
+      ids: ids,
+      cursor: nextCursor,
+      hasMore: hasMore,
+      jokes: jokes,
+    );
+  }
+
   /// Get a real-time stream of a joke by ID
   Stream<Joke?> getJokeByIdStream(String jokeId) {
     final source = _firestore.collection('jokes').doc(jokeId).snapshots();

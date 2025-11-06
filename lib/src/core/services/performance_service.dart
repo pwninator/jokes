@@ -29,6 +29,8 @@ enum TraceName {
   carouselToVisible,
   cfCall,
   fsRead,
+  fsReadJokeFeed,
+  fsReadCategoryCache,
   fsWrite,
   fsWriteBatch,
   sharePreparation,
@@ -39,7 +41,6 @@ enum TraceName {
   driftGetViewedJokeInteractions,
   driftGetSharedJokeInteractions,
   driftGetAllJokeInteractions,
-  fsReadCategoryCache,
   startupOverallBlocking,
   startupOverallBackground,
   startupTaskEmulators,
@@ -67,6 +68,8 @@ extension TraceNameWire on TraceName {
         return 'cf_call';
       case TraceName.fsRead:
         return 'fs_read';
+      case TraceName.fsReadJokeFeed:
+        return 'fs_read_joke_feed';
       case TraceName.fsWrite:
         return 'fs_write';
       case TraceName.fsWriteBatch:

@@ -252,14 +252,11 @@ Future<List<Override>> _syncFeedJokes(StartupReader read) async {
       final page = await repository.readFeedJokes(cursor: cursor);
 
       if (page.jokes != null && page.jokes!.isNotEmpty) {
-        for (final joke in page.jokes!) {
-          await interactionsRepository.syncFeedJoke(
-            joke: joke,
-            feedIndex: feedIndex,
-          );
+        final jokes = page.jokes!
+            .map((joke) => (joke: joke, feedIndex: feedIndex++))
+            .toList();
 
-          feedIndex++;
-        }
+        await interactionsRepository.syncFeedJokes(jokes: jokes);
       }
       AppLogger.info(
         'STARTUP_TASKS: SYNC_FEED_JOKES: Synced feed joke: ${page.jokes?.length} jokes, feedIndex: $feedIndex',

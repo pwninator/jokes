@@ -182,9 +182,6 @@ def _update_joke_attributes(run_time_utc: datetime.datetime) -> dict[str, int]:
     should_skip_decay = _should_skip_recent_update(joke_data, run_time_utc)
     if not should_skip_decay:
       decay_payload = _build_recent_decay_payload(joke_data)
-      if not decay_payload:
-        raise ValueError(
-          f"No payload to decay recent stats for joke: {joke_doc.reference}")
       payload.update(decay_payload)
       jokes_decayed += 1
 

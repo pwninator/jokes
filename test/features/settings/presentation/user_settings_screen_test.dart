@@ -125,6 +125,7 @@ void main() {
   late MockReviewsRepository mockReviewsRepository;
   late MockFirebaseAnalytics mockFirebaseAnalytics;
   late MockUrlLauncherService mockUrlLauncherService;
+  late MockAuthController mockAuthController;
 
   late MockReviewPromptStateStore mockReviewPromptStore;
   late MockFeedbackPromptStateStore mockFeedbackPromptStore;
@@ -148,11 +149,14 @@ void main() {
     mockFirebaseAnalytics = MockFirebaseAnalytics();
     mockFeedbackPromptStore = MockFeedbackPromptStateStore();
     mockUrlLauncherService = MockUrlLauncherService();
+    mockAuthController = MockAuthController();
     reviewRequestedState = false;
     feedbackViewedState = false;
     adminOverrideBannerState = false;
     adminShowDataSourceState = false;
     adminShowProposedCategoriesState = false;
+
+    when(() => mockAuthController.signInWithGoogle()).thenAnswer((_) async {});
 
     when(
       () => mockReviewPromptStore.hasRequested(),
@@ -229,7 +233,7 @@ void main() {
 
         // Auth
         currentUserProvider.overrideWith((_) => user),
-        authControllerProvider.overrideWith((ref) => MockAuthController()),
+        authControllerProvider.overrideWithValue(mockAuthController),
 
         // Settings
         settingsServiceProvider.overrideWithValue(mockSettingsService),

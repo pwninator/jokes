@@ -573,9 +573,9 @@ def test_update_joke_feed_single_chunk(monkeypatch):
   fs.update_joke_feed(jokes)
 
   assert len(captured_docs) == 1
-  assert "0" in captured_docs
-  assert captured_docs["0"]["jokes"] == jokes
-  assert len(captured_docs["0"]["jokes"]) == 30
+  assert "0000000000" in captured_docs
+  assert captured_docs["0000000000"]["jokes"] == jokes
+  assert len(captured_docs["0000000000"]["jokes"]) == 30
 
 
 def test_update_joke_feed_multiple_chunks(monkeypatch):
@@ -609,24 +609,24 @@ def test_update_joke_feed_multiple_chunks(monkeypatch):
   fs.update_joke_feed(jokes)
 
   assert len(captured_docs) == 3  # 120 jokes / 50 = 3 chunks
-  assert "0" in captured_docs
-  assert "1" in captured_docs
-  assert "2" in captured_docs
+  assert "0000000000" in captured_docs
+  assert "0000000001" in captured_docs
+  assert "0000000002" in captured_docs
 
   # First chunk: jokes 0-49
-  assert len(captured_docs["0"]["jokes"]) == 50
-  assert captured_docs["0"]["jokes"][0]["id"] == "joke0"
-  assert captured_docs["0"]["jokes"][49]["id"] == "joke49"
+  assert len(captured_docs["0000000000"]["jokes"]) == 50
+  assert captured_docs["0000000000"]["jokes"][0]["id"] == "joke0"
+  assert captured_docs["0000000000"]["jokes"][49]["id"] == "joke49"
 
   # Second chunk: jokes 50-99
-  assert len(captured_docs["1"]["jokes"]) == 50
-  assert captured_docs["1"]["jokes"][0]["id"] == "joke50"
-  assert captured_docs["1"]["jokes"][49]["id"] == "joke99"
+  assert len(captured_docs["0000000001"]["jokes"]) == 50
+  assert captured_docs["0000000001"]["jokes"][0]["id"] == "joke50"
+  assert captured_docs["0000000001"]["jokes"][49]["id"] == "joke99"
 
   # Third chunk: jokes 100-119
-  assert len(captured_docs["2"]["jokes"]) == 20
-  assert captured_docs["2"]["jokes"][0]["id"] == "joke100"
-  assert captured_docs["2"]["jokes"][19]["id"] == "joke119"
+  assert len(captured_docs["0000000002"]["jokes"]) == 20
+  assert captured_docs["0000000002"]["jokes"][0]["id"] == "joke100"
+  assert captured_docs["0000000002"]["jokes"][19]["id"] == "joke119"
 
 
 def test_update_joke_feed_exactly_one_chunk(monkeypatch):
@@ -660,9 +660,9 @@ def test_update_joke_feed_exactly_one_chunk(monkeypatch):
   fs.update_joke_feed(jokes)
 
   assert len(captured_docs) == 1
-  assert "0" in captured_docs
-  assert len(captured_docs["0"]["jokes"]) == 50
-  assert captured_docs["0"]["jokes"] == jokes
+  assert "0000000000" in captured_docs
+  assert len(captured_docs["0000000000"]["jokes"]) == 50
+  assert captured_docs["0000000000"]["jokes"] == jokes
 
 
 def test_update_joke_feed_exactly_two_chunks(monkeypatch):
@@ -696,10 +696,10 @@ def test_update_joke_feed_exactly_two_chunks(monkeypatch):
   fs.update_joke_feed(jokes)
 
   assert len(captured_docs) == 2
-  assert "0" in captured_docs
-  assert "1" in captured_docs
-  assert len(captured_docs["0"]["jokes"]) == 50
-  assert len(captured_docs["1"]["jokes"]) == 50
+  assert "0000000000" in captured_docs
+  assert "0000000001" in captured_docs
+  assert len(captured_docs["0000000000"]["jokes"]) == 50
+  assert len(captured_docs["0000000001"]["jokes"]) == 50
 
 
 def test_update_joke_feed_empty_list(monkeypatch):
@@ -767,8 +767,8 @@ def test_update_joke_feed_one_over_chunk(monkeypatch):
   fs.update_joke_feed(jokes)
 
   assert len(captured_docs) == 2
-  assert "0" in captured_docs
-  assert "1" in captured_docs
-  assert len(captured_docs["0"]["jokes"]) == 50
-  assert len(captured_docs["1"]["jokes"]) == 1
-  assert captured_docs["1"]["jokes"][0]["id"] == "joke50"
+  assert "0000000000" in captured_docs
+  assert "0000000001" in captured_docs
+  assert len(captured_docs["0000000000"]["jokes"]) == 50
+  assert len(captured_docs["0000000001"]["jokes"]) == 1
+  assert captured_docs["0000000001"]["jokes"][0]["id"] == "joke50"

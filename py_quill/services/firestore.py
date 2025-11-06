@@ -325,7 +325,9 @@ def update_joke_feed(jokes: list[dict[str, Any]]) -> None:
 
   for i in range(0, len(jokes), chunk_size):
     chunk = jokes[i:i + chunk_size]
-    doc_ref = feed_collection.document(str(i // chunk_size))
+    chunk_index = i // chunk_size
+    doc_id = f"{chunk_index:010d}"
+    doc_ref = feed_collection.document(doc_id)
     doc_ref.set({"jokes": chunk})
 
 

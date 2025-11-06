@@ -7,7 +7,7 @@ part of 'joke_category_providers.dart';
 // **************************************************************************
 
 String _$jokeCategoryRepositoryHash() =>
-    r'df8ea33f7e6e8269eb10bbce2edb1c56b20a9ef4';
+    r'a90b44542ec17e50f43655afd468556383b85c32';
 
 /// See also [jokeCategoryRepository].
 @ProviderFor(jokeCategoryRepository)

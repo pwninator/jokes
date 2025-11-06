@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/data/core/database/app_database.dart';
+import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 
 part 'joke_interactions_repository.g.dart';
 
@@ -257,6 +258,41 @@ class JokeInteractionsRepository {
       return result.read(_db.jokeInteractions.jokeId.count()) ?? 0;
     },
     fallback: 0,
+    perf: _perf,
+  );
+
+  /// Sync feed joke data to local database, preserving existing interaction timestamps.
+  ///
+  /// Updates the feed-related columns (setupText, punchlineText, setupImageUrl,
+  /// punchlineImageUrl, feedIndex) while preserving viewedTimestamp, savedTimestamp,
+  /// and sharedTimestamp if they already exist.
+  Future<bool> syncFeedJoke({
+    required Joke joke,
+    required int feedIndex,
+  }) async => runWithTrace(
+    name: TraceName.driftSetInteraction,
+    traceKey: 'sync_feed_joke',
+    body: () async {
+      final now = DateTime.now();
+      await _db
+          .into(_db.jokeInteractions)
+          .insertOnConflictUpdate(
+            JokeInteractionsCompanion(
+              jokeId: Value(joke.id),
+              setupText: Value(joke.setupText),
+              punchlineText: Value(joke.punchlineText),
+              setupImageUrl: Value(joke.setupImageUrl),
+              punchlineImageUrl: Value(joke.punchlineImageUrl),
+              feedIndex: Value(feedIndex),
+              lastUpdateTimestamp: Value(now),
+              viewedTimestamp: const Value.absent(),
+              savedTimestamp: const Value.absent(),
+              sharedTimestamp: const Value.absent(),
+            ),
+          );
+      return true;
+    },
+    fallback: false,
     perf: _perf,
   );
 }

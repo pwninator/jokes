@@ -65,6 +65,62 @@ class $JokeInteractionsTable extends JokeInteractions
         type: DriftSqlType.dateTime,
         requiredDuringInsert: true,
       );
+  static const VerificationMeta _setupTextMeta = const VerificationMeta(
+    'setupText',
+  );
+  @override
+  late final GeneratedColumn<String> setupText = GeneratedColumn<String>(
+    'setup_text',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _punchlineTextMeta = const VerificationMeta(
+    'punchlineText',
+  );
+  @override
+  late final GeneratedColumn<String> punchlineText = GeneratedColumn<String>(
+    'punchline_text',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _setupImageUrlMeta = const VerificationMeta(
+    'setupImageUrl',
+  );
+  @override
+  late final GeneratedColumn<String> setupImageUrl = GeneratedColumn<String>(
+    'setup_image_url',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _punchlineImageUrlMeta = const VerificationMeta(
+    'punchlineImageUrl',
+  );
+  @override
+  late final GeneratedColumn<String> punchlineImageUrl =
+      GeneratedColumn<String>(
+        'punchline_image_url',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      );
+  static const VerificationMeta _feedIndexMeta = const VerificationMeta(
+    'feedIndex',
+  );
+  @override
+  late final GeneratedColumn<int> feedIndex = GeneratedColumn<int>(
+    'feed_index',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     jokeId,
@@ -72,6 +128,11 @@ class $JokeInteractionsTable extends JokeInteractions
     savedTimestamp,
     sharedTimestamp,
     lastUpdateTimestamp,
+    setupText,
+    punchlineText,
+    setupImageUrl,
+    punchlineImageUrl,
+    feedIndex,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -131,6 +192,45 @@ class $JokeInteractionsTable extends JokeInteractions
     } else if (isInserting) {
       context.missing(_lastUpdateTimestampMeta);
     }
+    if (data.containsKey('setup_text')) {
+      context.handle(
+        _setupTextMeta,
+        setupText.isAcceptableOrUnknown(data['setup_text']!, _setupTextMeta),
+      );
+    }
+    if (data.containsKey('punchline_text')) {
+      context.handle(
+        _punchlineTextMeta,
+        punchlineText.isAcceptableOrUnknown(
+          data['punchline_text']!,
+          _punchlineTextMeta,
+        ),
+      );
+    }
+    if (data.containsKey('setup_image_url')) {
+      context.handle(
+        _setupImageUrlMeta,
+        setupImageUrl.isAcceptableOrUnknown(
+          data['setup_image_url']!,
+          _setupImageUrlMeta,
+        ),
+      );
+    }
+    if (data.containsKey('punchline_image_url')) {
+      context.handle(
+        _punchlineImageUrlMeta,
+        punchlineImageUrl.isAcceptableOrUnknown(
+          data['punchline_image_url']!,
+          _punchlineImageUrlMeta,
+        ),
+      );
+    }
+    if (data.containsKey('feed_index')) {
+      context.handle(
+        _feedIndexMeta,
+        feedIndex.isAcceptableOrUnknown(data['feed_index']!, _feedIndexMeta),
+      );
+    }
     return context;
   }
 
@@ -160,6 +260,26 @@ class $JokeInteractionsTable extends JokeInteractions
         DriftSqlType.dateTime,
         data['${effectivePrefix}last_update_timestamp'],
       )!,
+      setupText: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}setup_text'],
+      ),
+      punchlineText: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}punchline_text'],
+      ),
+      setupImageUrl: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}setup_image_url'],
+      ),
+      punchlineImageUrl: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}punchline_image_url'],
+      ),
+      feedIndex: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}feed_index'],
+      ),
     );
   }
 
@@ -175,12 +295,22 @@ class JokeInteraction extends DataClass implements Insertable<JokeInteraction> {
   final DateTime? savedTimestamp;
   final DateTime? sharedTimestamp;
   final DateTime lastUpdateTimestamp;
+  final String? setupText;
+  final String? punchlineText;
+  final String? setupImageUrl;
+  final String? punchlineImageUrl;
+  final int? feedIndex;
   const JokeInteraction({
     required this.jokeId,
     this.viewedTimestamp,
     this.savedTimestamp,
     this.sharedTimestamp,
     required this.lastUpdateTimestamp,
+    this.setupText,
+    this.punchlineText,
+    this.setupImageUrl,
+    this.punchlineImageUrl,
+    this.feedIndex,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -196,6 +326,21 @@ class JokeInteraction extends DataClass implements Insertable<JokeInteraction> {
       map['shared_timestamp'] = Variable<DateTime>(sharedTimestamp);
     }
     map['last_update_timestamp'] = Variable<DateTime>(lastUpdateTimestamp);
+    if (!nullToAbsent || setupText != null) {
+      map['setup_text'] = Variable<String>(setupText);
+    }
+    if (!nullToAbsent || punchlineText != null) {
+      map['punchline_text'] = Variable<String>(punchlineText);
+    }
+    if (!nullToAbsent || setupImageUrl != null) {
+      map['setup_image_url'] = Variable<String>(setupImageUrl);
+    }
+    if (!nullToAbsent || punchlineImageUrl != null) {
+      map['punchline_image_url'] = Variable<String>(punchlineImageUrl);
+    }
+    if (!nullToAbsent || feedIndex != null) {
+      map['feed_index'] = Variable<int>(feedIndex);
+    }
     return map;
   }
 
@@ -212,6 +357,21 @@ class JokeInteraction extends DataClass implements Insertable<JokeInteraction> {
           ? const Value.absent()
           : Value(sharedTimestamp),
       lastUpdateTimestamp: Value(lastUpdateTimestamp),
+      setupText: setupText == null && nullToAbsent
+          ? const Value.absent()
+          : Value(setupText),
+      punchlineText: punchlineText == null && nullToAbsent
+          ? const Value.absent()
+          : Value(punchlineText),
+      setupImageUrl: setupImageUrl == null && nullToAbsent
+          ? const Value.absent()
+          : Value(setupImageUrl),
+      punchlineImageUrl: punchlineImageUrl == null && nullToAbsent
+          ? const Value.absent()
+          : Value(punchlineImageUrl),
+      feedIndex: feedIndex == null && nullToAbsent
+          ? const Value.absent()
+          : Value(feedIndex),
     );
   }
 
@@ -228,6 +388,13 @@ class JokeInteraction extends DataClass implements Insertable<JokeInteraction> {
       lastUpdateTimestamp: serializer.fromJson<DateTime>(
         json['lastUpdateTimestamp'],
       ),
+      setupText: serializer.fromJson<String?>(json['setupText']),
+      punchlineText: serializer.fromJson<String?>(json['punchlineText']),
+      setupImageUrl: serializer.fromJson<String?>(json['setupImageUrl']),
+      punchlineImageUrl: serializer.fromJson<String?>(
+        json['punchlineImageUrl'],
+      ),
+      feedIndex: serializer.fromJson<int?>(json['feedIndex']),
     );
   }
   @override
@@ -239,6 +406,11 @@ class JokeInteraction extends DataClass implements Insertable<JokeInteraction> {
       'savedTimestamp': serializer.toJson<DateTime?>(savedTimestamp),
       'sharedTimestamp': serializer.toJson<DateTime?>(sharedTimestamp),
       'lastUpdateTimestamp': serializer.toJson<DateTime>(lastUpdateTimestamp),
+      'setupText': serializer.toJson<String?>(setupText),
+      'punchlineText': serializer.toJson<String?>(punchlineText),
+      'setupImageUrl': serializer.toJson<String?>(setupImageUrl),
+      'punchlineImageUrl': serializer.toJson<String?>(punchlineImageUrl),
+      'feedIndex': serializer.toJson<int?>(feedIndex),
     };
   }
 
@@ -248,6 +420,11 @@ class JokeInteraction extends DataClass implements Insertable<JokeInteraction> {
     Value<DateTime?> savedTimestamp = const Value.absent(),
     Value<DateTime?> sharedTimestamp = const Value.absent(),
     DateTime? lastUpdateTimestamp,
+    Value<String?> setupText = const Value.absent(),
+    Value<String?> punchlineText = const Value.absent(),
+    Value<String?> setupImageUrl = const Value.absent(),
+    Value<String?> punchlineImageUrl = const Value.absent(),
+    Value<int?> feedIndex = const Value.absent(),
   }) => JokeInteraction(
     jokeId: jokeId ?? this.jokeId,
     viewedTimestamp: viewedTimestamp.present
@@ -260,6 +437,17 @@ class JokeInteraction extends DataClass implements Insertable<JokeInteraction> {
         ? sharedTimestamp.value
         : this.sharedTimestamp,
     lastUpdateTimestamp: lastUpdateTimestamp ?? this.lastUpdateTimestamp,
+    setupText: setupText.present ? setupText.value : this.setupText,
+    punchlineText: punchlineText.present
+        ? punchlineText.value
+        : this.punchlineText,
+    setupImageUrl: setupImageUrl.present
+        ? setupImageUrl.value
+        : this.setupImageUrl,
+    punchlineImageUrl: punchlineImageUrl.present
+        ? punchlineImageUrl.value
+        : this.punchlineImageUrl,
+    feedIndex: feedIndex.present ? feedIndex.value : this.feedIndex,
   );
   JokeInteraction copyWithCompanion(JokeInteractionsCompanion data) {
     return JokeInteraction(
@@ -276,6 +464,17 @@ class JokeInteraction extends DataClass implements Insertable<JokeInteraction> {
       lastUpdateTimestamp: data.lastUpdateTimestamp.present
           ? data.lastUpdateTimestamp.value
           : this.lastUpdateTimestamp,
+      setupText: data.setupText.present ? data.setupText.value : this.setupText,
+      punchlineText: data.punchlineText.present
+          ? data.punchlineText.value
+          : this.punchlineText,
+      setupImageUrl: data.setupImageUrl.present
+          ? data.setupImageUrl.value
+          : this.setupImageUrl,
+      punchlineImageUrl: data.punchlineImageUrl.present
+          ? data.punchlineImageUrl.value
+          : this.punchlineImageUrl,
+      feedIndex: data.feedIndex.present ? data.feedIndex.value : this.feedIndex,
     );
   }
 
@@ -286,7 +485,12 @@ class JokeInteraction extends DataClass implements Insertable<JokeInteraction> {
           ..write('viewedTimestamp: $viewedTimestamp, ')
           ..write('savedTimestamp: $savedTimestamp, ')
           ..write('sharedTimestamp: $sharedTimestamp, ')
-          ..write('lastUpdateTimestamp: $lastUpdateTimestamp')
+          ..write('lastUpdateTimestamp: $lastUpdateTimestamp, ')
+          ..write('setupText: $setupText, ')
+          ..write('punchlineText: $punchlineText, ')
+          ..write('setupImageUrl: $setupImageUrl, ')
+          ..write('punchlineImageUrl: $punchlineImageUrl, ')
+          ..write('feedIndex: $feedIndex')
           ..write(')'))
         .toString();
   }
@@ -298,6 +502,11 @@ class JokeInteraction extends DataClass implements Insertable<JokeInteraction> {
     savedTimestamp,
     sharedTimestamp,
     lastUpdateTimestamp,
+    setupText,
+    punchlineText,
+    setupImageUrl,
+    punchlineImageUrl,
+    feedIndex,
   );
   @override
   bool operator ==(Object other) =>
@@ -307,7 +516,12 @@ class JokeInteraction extends DataClass implements Insertable<JokeInteraction> {
           other.viewedTimestamp == this.viewedTimestamp &&
           other.savedTimestamp == this.savedTimestamp &&
           other.sharedTimestamp == this.sharedTimestamp &&
-          other.lastUpdateTimestamp == this.lastUpdateTimestamp);
+          other.lastUpdateTimestamp == this.lastUpdateTimestamp &&
+          other.setupText == this.setupText &&
+          other.punchlineText == this.punchlineText &&
+          other.setupImageUrl == this.setupImageUrl &&
+          other.punchlineImageUrl == this.punchlineImageUrl &&
+          other.feedIndex == this.feedIndex);
 }
 
 class JokeInteractionsCompanion extends UpdateCompanion<JokeInteraction> {
@@ -316,6 +530,11 @@ class JokeInteractionsCompanion extends UpdateCompanion<JokeInteraction> {
   final Value<DateTime?> savedTimestamp;
   final Value<DateTime?> sharedTimestamp;
   final Value<DateTime> lastUpdateTimestamp;
+  final Value<String?> setupText;
+  final Value<String?> punchlineText;
+  final Value<String?> setupImageUrl;
+  final Value<String?> punchlineImageUrl;
+  final Value<int?> feedIndex;
   final Value<int> rowid;
   const JokeInteractionsCompanion({
     this.jokeId = const Value.absent(),
@@ -323,6 +542,11 @@ class JokeInteractionsCompanion extends UpdateCompanion<JokeInteraction> {
     this.savedTimestamp = const Value.absent(),
     this.sharedTimestamp = const Value.absent(),
     this.lastUpdateTimestamp = const Value.absent(),
+    this.setupText = const Value.absent(),
+    this.punchlineText = const Value.absent(),
+    this.setupImageUrl = const Value.absent(),
+    this.punchlineImageUrl = const Value.absent(),
+    this.feedIndex = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   JokeInteractionsCompanion.insert({
@@ -331,6 +555,11 @@ class JokeInteractionsCompanion extends UpdateCompanion<JokeInteraction> {
     this.savedTimestamp = const Value.absent(),
     this.sharedTimestamp = const Value.absent(),
     required DateTime lastUpdateTimestamp,
+    this.setupText = const Value.absent(),
+    this.punchlineText = const Value.absent(),
+    this.setupImageUrl = const Value.absent(),
+    this.punchlineImageUrl = const Value.absent(),
+    this.feedIndex = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : jokeId = Value(jokeId),
        lastUpdateTimestamp = Value(lastUpdateTimestamp);
@@ -340,6 +569,11 @@ class JokeInteractionsCompanion extends UpdateCompanion<JokeInteraction> {
     Expression<DateTime>? savedTimestamp,
     Expression<DateTime>? sharedTimestamp,
     Expression<DateTime>? lastUpdateTimestamp,
+    Expression<String>? setupText,
+    Expression<String>? punchlineText,
+    Expression<String>? setupImageUrl,
+    Expression<String>? punchlineImageUrl,
+    Expression<int>? feedIndex,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -349,6 +583,11 @@ class JokeInteractionsCompanion extends UpdateCompanion<JokeInteraction> {
       if (sharedTimestamp != null) 'shared_timestamp': sharedTimestamp,
       if (lastUpdateTimestamp != null)
         'last_update_timestamp': lastUpdateTimestamp,
+      if (setupText != null) 'setup_text': setupText,
+      if (punchlineText != null) 'punchline_text': punchlineText,
+      if (setupImageUrl != null) 'setup_image_url': setupImageUrl,
+      if (punchlineImageUrl != null) 'punchline_image_url': punchlineImageUrl,
+      if (feedIndex != null) 'feed_index': feedIndex,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -359,6 +598,11 @@ class JokeInteractionsCompanion extends UpdateCompanion<JokeInteraction> {
     Value<DateTime?>? savedTimestamp,
     Value<DateTime?>? sharedTimestamp,
     Value<DateTime>? lastUpdateTimestamp,
+    Value<String?>? setupText,
+    Value<String?>? punchlineText,
+    Value<String?>? setupImageUrl,
+    Value<String?>? punchlineImageUrl,
+    Value<int?>? feedIndex,
     Value<int>? rowid,
   }) {
     return JokeInteractionsCompanion(
@@ -367,6 +611,11 @@ class JokeInteractionsCompanion extends UpdateCompanion<JokeInteraction> {
       savedTimestamp: savedTimestamp ?? this.savedTimestamp,
       sharedTimestamp: sharedTimestamp ?? this.sharedTimestamp,
       lastUpdateTimestamp: lastUpdateTimestamp ?? this.lastUpdateTimestamp,
+      setupText: setupText ?? this.setupText,
+      punchlineText: punchlineText ?? this.punchlineText,
+      setupImageUrl: setupImageUrl ?? this.setupImageUrl,
+      punchlineImageUrl: punchlineImageUrl ?? this.punchlineImageUrl,
+      feedIndex: feedIndex ?? this.feedIndex,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -391,6 +640,21 @@ class JokeInteractionsCompanion extends UpdateCompanion<JokeInteraction> {
         lastUpdateTimestamp.value,
       );
     }
+    if (setupText.present) {
+      map['setup_text'] = Variable<String>(setupText.value);
+    }
+    if (punchlineText.present) {
+      map['punchline_text'] = Variable<String>(punchlineText.value);
+    }
+    if (setupImageUrl.present) {
+      map['setup_image_url'] = Variable<String>(setupImageUrl.value);
+    }
+    if (punchlineImageUrl.present) {
+      map['punchline_image_url'] = Variable<String>(punchlineImageUrl.value);
+    }
+    if (feedIndex.present) {
+      map['feed_index'] = Variable<int>(feedIndex.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -405,6 +669,11 @@ class JokeInteractionsCompanion extends UpdateCompanion<JokeInteraction> {
           ..write('savedTimestamp: $savedTimestamp, ')
           ..write('sharedTimestamp: $sharedTimestamp, ')
           ..write('lastUpdateTimestamp: $lastUpdateTimestamp, ')
+          ..write('setupText: $setupText, ')
+          ..write('punchlineText: $punchlineText, ')
+          ..write('setupImageUrl: $setupImageUrl, ')
+          ..write('punchlineImageUrl: $punchlineImageUrl, ')
+          ..write('feedIndex: $feedIndex, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -720,6 +989,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     'idx_last_update_timestamp',
     'CREATE INDEX idx_last_update_timestamp ON joke_interactions (last_update_timestamp)',
   );
+  late final Index idxFeedIndex = Index(
+    'idx_feed_index',
+    'CREATE INDEX idx_feed_index ON joke_interactions (feed_index)',
+  );
   late final Index idxCategoryLastUpdate = Index(
     'idx_category_last_update',
     'CREATE INDEX idx_category_last_update ON category_interactions (last_update_timestamp)',
@@ -732,6 +1005,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     jokeInteractions,
     categoryInteractions,
     idxLastUpdateTimestamp,
+    idxFeedIndex,
     idxCategoryLastUpdate,
   ];
 }
@@ -743,6 +1017,11 @@ typedef $$JokeInteractionsTableCreateCompanionBuilder =
       Value<DateTime?> savedTimestamp,
       Value<DateTime?> sharedTimestamp,
       required DateTime lastUpdateTimestamp,
+      Value<String?> setupText,
+      Value<String?> punchlineText,
+      Value<String?> setupImageUrl,
+      Value<String?> punchlineImageUrl,
+      Value<int?> feedIndex,
       Value<int> rowid,
     });
 typedef $$JokeInteractionsTableUpdateCompanionBuilder =
@@ -752,6 +1031,11 @@ typedef $$JokeInteractionsTableUpdateCompanionBuilder =
       Value<DateTime?> savedTimestamp,
       Value<DateTime?> sharedTimestamp,
       Value<DateTime> lastUpdateTimestamp,
+      Value<String?> setupText,
+      Value<String?> punchlineText,
+      Value<String?> setupImageUrl,
+      Value<String?> punchlineImageUrl,
+      Value<int?> feedIndex,
       Value<int> rowid,
     });
 
@@ -786,6 +1070,31 @@ class $$JokeInteractionsTableFilterComposer
 
   ColumnFilters<DateTime> get lastUpdateTimestamp => $composableBuilder(
     column: $table.lastUpdateTimestamp,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get setupText => $composableBuilder(
+    column: $table.setupText,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get punchlineText => $composableBuilder(
+    column: $table.punchlineText,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get setupImageUrl => $composableBuilder(
+    column: $table.setupImageUrl,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get punchlineImageUrl => $composableBuilder(
+    column: $table.punchlineImageUrl,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get feedIndex => $composableBuilder(
+    column: $table.feedIndex,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -823,6 +1132,31 @@ class $$JokeInteractionsTableOrderingComposer
     column: $table.lastUpdateTimestamp,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get setupText => $composableBuilder(
+    column: $table.setupText,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get punchlineText => $composableBuilder(
+    column: $table.punchlineText,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get setupImageUrl => $composableBuilder(
+    column: $table.setupImageUrl,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get punchlineImageUrl => $composableBuilder(
+    column: $table.punchlineImageUrl,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get feedIndex => $composableBuilder(
+    column: $table.feedIndex,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$JokeInteractionsTableAnnotationComposer
@@ -856,6 +1190,27 @@ class $$JokeInteractionsTableAnnotationComposer
     column: $table.lastUpdateTimestamp,
     builder: (column) => column,
   );
+
+  GeneratedColumn<String> get setupText =>
+      $composableBuilder(column: $table.setupText, builder: (column) => column);
+
+  GeneratedColumn<String> get punchlineText => $composableBuilder(
+    column: $table.punchlineText,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get setupImageUrl => $composableBuilder(
+    column: $table.setupImageUrl,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get punchlineImageUrl => $composableBuilder(
+    column: $table.punchlineImageUrl,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get feedIndex =>
+      $composableBuilder(column: $table.feedIndex, builder: (column) => column);
 }
 
 class $$JokeInteractionsTableTableManager
@@ -900,6 +1255,11 @@ class $$JokeInteractionsTableTableManager
                 Value<DateTime?> savedTimestamp = const Value.absent(),
                 Value<DateTime?> sharedTimestamp = const Value.absent(),
                 Value<DateTime> lastUpdateTimestamp = const Value.absent(),
+                Value<String?> setupText = const Value.absent(),
+                Value<String?> punchlineText = const Value.absent(),
+                Value<String?> setupImageUrl = const Value.absent(),
+                Value<String?> punchlineImageUrl = const Value.absent(),
+                Value<int?> feedIndex = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => JokeInteractionsCompanion(
                 jokeId: jokeId,
@@ -907,6 +1267,11 @@ class $$JokeInteractionsTableTableManager
                 savedTimestamp: savedTimestamp,
                 sharedTimestamp: sharedTimestamp,
                 lastUpdateTimestamp: lastUpdateTimestamp,
+                setupText: setupText,
+                punchlineText: punchlineText,
+                setupImageUrl: setupImageUrl,
+                punchlineImageUrl: punchlineImageUrl,
+                feedIndex: feedIndex,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -916,6 +1281,11 @@ class $$JokeInteractionsTableTableManager
                 Value<DateTime?> savedTimestamp = const Value.absent(),
                 Value<DateTime?> sharedTimestamp = const Value.absent(),
                 required DateTime lastUpdateTimestamp,
+                Value<String?> setupText = const Value.absent(),
+                Value<String?> punchlineText = const Value.absent(),
+                Value<String?> setupImageUrl = const Value.absent(),
+                Value<String?> punchlineImageUrl = const Value.absent(),
+                Value<int?> feedIndex = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => JokeInteractionsCompanion.insert(
                 jokeId: jokeId,
@@ -923,6 +1293,11 @@ class $$JokeInteractionsTableTableManager
                 savedTimestamp: savedTimestamp,
                 sharedTimestamp: sharedTimestamp,
                 lastUpdateTimestamp: lastUpdateTimestamp,
+                setupText: setupText,
+                punchlineText: punchlineText,
+                setupImageUrl: setupImageUrl,
+                punchlineImageUrl: punchlineImageUrl,
+                feedIndex: feedIndex,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

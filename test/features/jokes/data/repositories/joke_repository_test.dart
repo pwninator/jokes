@@ -107,7 +107,10 @@ void main() {
     }
 
     // Helper for joke_feed documents
-    MockDocumentSnapshot createMockFeedDoc(String id, List<Map<String, dynamic>> jokes) {
+    MockDocumentSnapshot createMockFeedDoc(
+      String id,
+      List<Map<String, dynamic>> jokes,
+    ) {
       final doc = MockDocumentSnapshot();
       when(() => doc.id).thenReturn(id);
       when(() => doc.data()).thenReturn({'jokes': jokes});
@@ -754,14 +757,30 @@ void main() {
         when(
           () => mockJokeFeedCollection.orderBy(FieldPath.documentId),
         ).thenReturn(mockJokeFeedQuery);
-        when(() => mockJokeFeedQuery.limit(any())).thenReturn(mockJokeFeedQuery);
-        when(() => mockJokeFeedQuery.get()).thenAnswer((_) async => mockQuerySnapshot);
+        when(
+          () => mockJokeFeedQuery.limit(any()),
+        ).thenReturn(mockJokeFeedQuery);
+        when(
+          () => mockJokeFeedQuery.get(),
+        ).thenAnswer((_) async => mockQuerySnapshot);
       });
 
       test('returns a page of jokes when no cursor is provided', () async {
         final jokesInDoc = [
-          {'key': 'joke001', 'setup_text': 'S1', 'punchline_text': 'P1', 'setup_image_url': 'url1', 'punchline_image_url': 'url2'},
-          {'key': 'joke002', 'setup_text': 'S2', 'punchline_text': 'P2', 'setup_image_url': 'url3', 'punchline_image_url': 'url4'},
+          {
+            'key': 'joke001',
+            'setup_text': 'S1',
+            'punchline_text': 'P1',
+            'setup_image_url': 'url1',
+            'punchline_image_url': 'url2',
+          },
+          {
+            'key': 'joke002',
+            'setup_text': 'S2',
+            'punchline_text': 'P2',
+            'setup_image_url': 'url3',
+            'punchline_image_url': 'url4',
+          },
         ];
         final mockDoc = createMockFeedDoc('0000000000', jokesInDoc);
         when(() => mockQuerySnapshot.docs).thenReturn([mockDoc]);
@@ -776,20 +795,31 @@ void main() {
         expect(page.cursor!.orderValue, '0000000000');
         expect(page.hasMore, isTrue);
 
-        verify(() => mockJokeFeedCollection.orderBy(FieldPath.documentId)).called(1);
+        verify(
+          () => mockJokeFeedCollection.orderBy(FieldPath.documentId),
+        ).called(1);
         verify(() => mockJokeFeedQuery.limit(1)).called(1);
         verify(() => mockJokeFeedQuery.get()).called(1);
       });
 
       test('returns a page of jokes when a cursor is provided', () async {
         final jokesInDoc = [
-          {'key': 'joke003', 'setup_text': 'S3', 'punchline_text': 'P3', 'setup_image_url': 'url5', 'punchline_image_url': 'url6'},
+          {
+            'key': 'joke003',
+            'setup_text': 'S3',
+            'punchline_text': 'P3',
+            'setup_image_url': 'url5',
+            'punchline_image_url': 'url6',
+          },
         ];
         final mockDoc = createMockFeedDoc('0000000001', jokesInDoc);
         when(() => mockQuerySnapshot.docs).thenReturn([mockDoc]);
 
-        final cursor = JokeListPageCursor(orderValue: '0000000000', docId: '0000000000');
-        
+        final cursor = JokeListPageCursor(
+          orderValue: '0000000000',
+          docId: '0000000000',
+        );
+
         // Mock startAfter call
         when(
           () => mockJokeFeedQuery.startAfter([cursor.orderValue]),
@@ -805,22 +835,29 @@ void main() {
         expect(page.cursor!.orderValue, '0000000001');
         expect(page.hasMore, isTrue);
 
-        verify(() => mockJokeFeedCollection.orderBy(FieldPath.documentId)).called(1);
-        verify(() => mockJokeFeedQuery.startAfter([cursor.orderValue])).called(1);
+        verify(
+          () => mockJokeFeedCollection.orderBy(FieldPath.documentId),
+        ).called(1);
+        verify(
+          () => mockJokeFeedQuery.startAfter([cursor.orderValue]),
+        ).called(1);
         verify(() => mockJokeFeedQuery.limit(1)).called(1);
         verify(() => mockJokeFeedQuery.get()).called(1);
       });
 
-      test('returns an empty page when no more documents are available', () async {
-        when(() => mockQuerySnapshot.docs).thenReturn([]);
+      test(
+        'returns an empty page when no more documents are available',
+        () async {
+          when(() => mockQuerySnapshot.docs).thenReturn([]);
 
-        final page = await repository.readFeedJokes();
+          final page = await repository.readFeedJokes();
 
-        expect(page.ids, isEmpty);
-        expect(page.jokes, isEmpty);
-        expect(page.cursor, isNull);
-        expect(page.hasMore, isFalse);
-      });
+          expect(page.ids, isEmpty);
+          expect(page.jokes, isEmpty);
+          expect(page.cursor, isNull);
+          expect(page.hasMore, isFalse);
+        },
+      );
 
       test('handles a joke_feed document with an empty jokes array', () async {
         final mockDoc = createMockFeedDoc('0000000000', []);
@@ -837,7 +874,10 @@ void main() {
 
       test('propagates Firebase errors', () async {
         when(() => mockJokeFeedQuery.get()).thenThrow(
-          FirebaseException(plugin: 'firestore', message: 'Error fetching feed jokes'),
+          FirebaseException(
+            plugin: 'firestore',
+            message: 'Error fetching feed jokes',
+          ),
         );
 
         expect(

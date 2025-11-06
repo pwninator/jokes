@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
+import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_admin_rating.dart';
@@ -439,6 +440,7 @@ class JokeRepository {
     );
 
     if (snapshot.docs.isEmpty) {
+      AppLogger.info('JOKE_FEED_REPO: No feed jokes found');
       return const JokeListPage(
         ids: [],
         cursor: null,
@@ -472,6 +474,9 @@ class JokeRepository {
     // with the returned cursor will return an empty list if this was the end.
     const hasMore = true;
 
+    AppLogger.info(
+      'JOKE_FEED_REPO: Found feed jokes: ${jokes.length}, next cursor: ${nextCursor.docId}, hasMore: $hasMore',
+    );
     return JokeListPage(
       ids: ids,
       cursor: nextCursor,

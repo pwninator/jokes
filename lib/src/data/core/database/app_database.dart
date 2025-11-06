@@ -17,6 +17,7 @@ AppDatabase appDatabase(Ref ref) {
 
 // Drift table for joke interactions
 @TableIndex(name: 'idx_last_update_timestamp', columns: {#lastUpdateTimestamp})
+@TableIndex(name: 'idx_feed_index', columns: {#feedIndex})
 class JokeInteractions extends Table {
   // Primary key: one row per joke
   TextColumn get jokeId => text()();
@@ -28,6 +29,15 @@ class JokeInteractions extends Table {
 
   // Last updated timestamp (required)
   DateTimeColumn get lastUpdateTimestamp => dateTime()();
+
+  // Feed joke content (nullable)
+  TextColumn get setupText => text().nullable()();
+  TextColumn get punchlineText => text().nullable()();
+  TextColumn get setupImageUrl => text().nullable()();
+  TextColumn get punchlineImageUrl => text().nullable()();
+
+  // Feed index (nullable, for jokes added later)
+  IntColumn get feedIndex => integer().nullable()();
 
   @override
   Set<Column<Object>>? get primaryKey => {jokeId};
@@ -72,7 +82,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -92,6 +102,13 @@ class AppDatabase extends _$AppDatabase {
       }
       if (from < 3) {
         await m.createTable(categoryInteractions);
+      }
+      if (from < 4) {
+        await m.addColumn(jokeInteractions, jokeInteractions.setupText);
+        await m.addColumn(jokeInteractions, jokeInteractions.punchlineText);
+        await m.addColumn(jokeInteractions, jokeInteractions.setupImageUrl);
+        await m.addColumn(jokeInteractions, jokeInteractions.punchlineImageUrl);
+        await m.addColumn(jokeInteractions, jokeInteractions.feedIndex);
       }
     },
   );

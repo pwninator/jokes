@@ -6,18 +6,21 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/providers/settings_providers.dart';
+import 'package:snickerdoodle/src/core/services/admob_service.dart';
+import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/notification_service.dart';
 import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:snickerdoodle/src/data/core/database/app_database.dart';
+import 'package:snickerdoodle/src/data/jokes/joke_interactions_repository.dart';
 import 'package:snickerdoodle/src/data/jokes/joke_reactions_migration_service.dart';
 import 'package:snickerdoodle/src/features/auth/application/auth_startup_manager.dart';
+import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
+import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
 import 'package:snickerdoodle/src/startup/startup_task.dart';
 import 'package:snickerdoodle/src/utils/device_utils.dart';
-import 'package:snickerdoodle/src/core/services/admob_service.dart';
 
 /// Timeout duration for best effort blocking tasks.
 ///
@@ -78,6 +81,11 @@ const List<StartupTask> bestEffortBlockingTasks = [
     id: 'migrate_reactions',
     execute: _migrateReactionsToDrift,
     traceName: TraceName.startupTaskMigrateReactions,
+  ),
+  StartupTask(
+    id: 'sync_feed_jokes',
+    execute: _syncFeedJokes,
+    traceName: TraceName.startupTaskSyncFeedJokes,
   ),
 ];
 
@@ -227,6 +235,52 @@ Future<List<Override>> _initializeAdMob(StartupReader read) async {
     await admob.initialize();
   } catch (e, stack) {
     AppLogger.fatal('AdMob initialization failed: $e', stackTrace: stack);
+  }
+  return const [];
+}
+
+/// Sync feed jokes to local database.
+Future<List<Override>> _syncFeedJokes(StartupReader read) async {
+  try {
+    final repository = read(jokeRepositoryProvider);
+    final interactionsRepository = read(jokeInteractionsRepositoryProvider);
+
+    JokeListPageCursor? cursor;
+    int feedIndex = 0;
+
+    while (true) {
+      final page = await repository.readFeedJokes(cursor: cursor);
+
+      if (page.jokes != null && page.jokes!.isNotEmpty) {
+        for (final joke in page.jokes!) {
+          await interactionsRepository.syncFeedJoke(
+            joke: joke,
+            feedIndex: feedIndex,
+          );
+
+          feedIndex++;
+        }
+      }
+      AppLogger.info(
+        'STARTUP_TASKS: SYNC_FEED_JOKES: Synced feed joke: ${page.jokes?.length} jokes, feedIndex: $feedIndex',
+      );
+
+      if (!page.hasMore ||
+          page.cursor == null ||
+          page.cursor?.docId == cursor?.docId) {
+        AppLogger.info(
+          'STARTUP_TASKS: SYNC_FEED_JOKES: No more feed jokes to sync: hasMore: ${page.hasMore}, prev cursor: ${cursor?.docId}, new cursor: ${page.cursor?.docId}',
+        );
+        break;
+      }
+
+      cursor = page.cursor;
+    }
+  } catch (e, stack) {
+    AppLogger.fatal(
+      'STARTUP_TASKS: SYNC_FEED_JOKES: Feed jokes sync task failed: $e',
+      stackTrace: stack,
+    );
   }
   return const [];
 }

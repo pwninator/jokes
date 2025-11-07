@@ -241,10 +241,114 @@ Future<List<Override>> _initializeAdMob(StartupReader read) async {
 
 /// Sync feed jokes to local database.
 Future<List<Override>> _syncFeedJokes(StartupReader read) async {
-  try {
-    final repository = read(jokeRepositoryProvider);
-    final interactionsRepository = read(jokeInteractionsRepositoryProvider);
+  final repository = read(jokeRepositoryProvider);
+  final interactionsRepository = read(jokeInteractionsRepositoryProvider);
 
+  // Continue syncing feed jokes beyond the initial window in the background.
+  unawaited(
+    _runFullFeedSync(
+      repository: repository,
+      interactionsRepository: interactionsRepository,
+    ),
+  );
+
+  // Only block startup until the first 10 feed jokes are available locally.
+  try {
+    await _waitForInitialFeedWindow(interactionsRepository);
+  } catch (e, stack) {
+    AppLogger.fatal(
+      'STARTUP_TASKS: SYNC_FEED_JOKES: Failed waiting for initial feed window: $e',
+      stackTrace: stack,
+    );
+  }
+
+  return const [];
+}
+
+const int initialFeedWindowStartIndex = 0;
+const int initialFeedWindowEndIndex = 99;
+const Duration _initialFeedWindowTimeout = Duration(seconds: 5);
+
+Future<void> _waitForInitialFeedWindow(
+  JokeInteractionsRepository interactionsRepository, {
+  int startIndex = initialFeedWindowStartIndex,
+  int endIndex = initialFeedWindowEndIndex,
+  Duration timeout = _initialFeedWindowTimeout,
+}) async {
+  if (endIndex < startIndex) return;
+
+  final completer = Completer<void>();
+  StreamSubscription<List<JokeInteraction>>? subscription;
+
+  void completeIfNeeded() {
+    if (!completer.isCompleted) {
+      completer.complete();
+    }
+  }
+
+  AppLogger.info(
+    'STARTUP_TASKS: SYNC_FEED_JOKES: Waiting for feed indexes '
+    '$startIndex-$endIndex',
+  );
+
+  subscription = interactionsRepository
+      .watchFeedHead(limit: endIndex + 1)
+      .listen(
+        (interactions) {
+          final hasWindow = _hasFeedWindowInInteractions(
+            interactions,
+            startIndex: startIndex,
+            endIndex: endIndex,
+          );
+          if (hasWindow) {
+            AppLogger.info(
+              'STARTUP_TASKS: SYNC_FEED_JOKES: Initial feed window ready',
+            );
+            completeIfNeeded();
+          }
+        },
+        onError: (error, stack) {
+          AppLogger.error(
+            'STARTUP_TASKS: SYNC_FEED_JOKES: watchFeedHead error: $error',
+            stackTrace: stack,
+          );
+        },
+      );
+
+  try {
+    await completer.future.timeout(timeout);
+  } on TimeoutException {
+    AppLogger.warn(
+      'STARTUP_TASKS: SYNC_FEED_JOKES: Timed out waiting for feed window '
+      '$startIndex-$endIndex',
+    );
+  } finally {
+    await subscription.cancel();
+  }
+}
+
+bool _hasFeedWindowInInteractions(
+  Iterable<JokeInteraction> interactions, {
+  required int startIndex,
+  required int endIndex,
+}) {
+  if (endIndex < startIndex) return true;
+  final requiredCount = endIndex - startIndex + 1;
+  final indexes = interactions
+      .map((interaction) => interaction.feedIndex)
+      .whereType<int>()
+      .where((index) => index >= startIndex && index <= endIndex)
+      .toSet();
+  return indexes.length == requiredCount;
+}
+
+/// Background feed sync that pulls every page from Firestore.
+Future<void> _runFullFeedSync({
+  required JokeRepository repository,
+  required JokeInteractionsRepository interactionsRepository,
+}) async {
+  try {
+    AppLogger.info('STARTUP_TASKS: SYNC_FEED_JOKES: Starting full feed sync');
     JokeListPageCursor? cursor;
     int feedIndex = 0;
 
@@ -273,11 +377,11 @@ Future<List<Override>> _syncFeedJokes(StartupReader read) async {
 
       cursor = page.cursor;
     }
+    AppLogger.info('STARTUP_TASKS: SYNC_FEED_JOKES: Full feed sync completed');
   } catch (e, stack) {
     AppLogger.fatal(
-      'STARTUP_TASKS: SYNC_FEED_JOKES: Feed jokes sync task failed: $e',
+      'STARTUP_TASKS: SYNC_FEED_JOKES: Background feed sync failed: $e',
       stackTrace: stack,
     );
   }
-  return const [];
 }

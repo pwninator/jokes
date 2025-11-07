@@ -1,7 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:snickerdoodle/src/core/services/performance_service.dart';
+import 'package:snickerdoodle/src/data/core/database/app_database.dart';
 import 'package:snickerdoodle/src/data/jokes/joke_interactions_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
@@ -9,35 +11,57 @@ import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_reposito
 import 'package:snickerdoodle/src/startup/startup_task.dart';
 import 'package:snickerdoodle/src/startup/startup_tasks.dart';
 
+const int _feedWindowSize =
+    initialFeedWindowEndIndex - initialFeedWindowStartIndex + 1;
+const int _partialFeedWindowSize = _feedWindowSize > 1
+    ? _feedWindowSize - 1
+    : 0;
+
 class MockJokeRepository extends Mock implements JokeRepository {}
 
 class MockJokeInteractionsRepository extends Mock
     implements JokeInteractionsRepository {}
-
-class MockPerformanceService extends Mock implements PerformanceService {}
 
 class FakeJoke extends Fake implements Joke {}
 
 void main() {
   setUpAll(() {
     registerFallbackValue(FakeJoke());
+    registerFallbackValue(<JokeInteraction>[]);
+    registerFallbackValue(
+      const JokeListPageCursor(orderValue: 'cursor', docId: 'cursor'),
+    );
   });
 
   late MockJokeRepository mockJokeRepository;
-  late MockJokeInteractionsRepository mockJokeInteractionsRepository;
+  late MockJokeInteractionsRepository mockInteractionsRepository;
 
   setUp(() {
     mockJokeRepository = MockJokeRepository();
-    mockJokeInteractionsRepository = MockJokeInteractionsRepository();
+    mockInteractionsRepository = MockJokeInteractionsRepository();
 
     when(
-      () => mockJokeInteractionsRepository.syncFeedJokes(
-        jokes: any(named: 'jokes'),
-      ),
+      () =>
+          mockInteractionsRepository.syncFeedJokes(jokes: any(named: 'jokes')),
     ).thenAnswer((_) async => true);
+
+    when(
+      () =>
+          mockInteractionsRepository.watchFeedHead(limit: any(named: 'limit')),
+    ).thenAnswer((invocation) {
+      final limit = invocation.namedArguments[#limit] as int;
+      return Stream.value(_buildInteractions(limit));
+    });
+
+    when(
+      () => mockJokeRepository.readFeedJokes(cursor: any(named: 'cursor')),
+    ).thenAnswer(
+      (_) async =>
+          const JokeListPage(ids: [], cursor: null, hasMore: false, jokes: []),
+    );
   });
 
-  StartupTask getSyncFeedJokesTask() {
+  StartupTask getTask() {
     return bestEffortBlockingTasks.firstWhere(
       (task) => task.id == 'sync_feed_jokes',
     );
@@ -49,7 +73,7 @@ void main() {
         return mockJokeRepository as T;
       }
       if (identical(provider, jokeInteractionsRepositoryProvider)) {
-        return mockJokeInteractionsRepository as T;
+        return mockInteractionsRepository as T;
       }
       throw UnimplementedError('Unknown provider: $provider');
     }
@@ -57,238 +81,138 @@ void main() {
     return reader;
   }
 
-  test(
-    '_syncFeedJokes breaks when cursor is the same as previous cursor',
-    () async {
-      final cursor1 = JokeListPageCursor(orderValue: 'doc1', docId: 'doc1');
-      final cursor2 = JokeListPageCursor(orderValue: 'doc2', docId: 'doc2');
+  test('completes when initial watcher batch already has window', () async {
+    final task = getTask();
+    final reader = createReader();
 
-      // First call returns page with jokes
-      when(() => mockJokeRepository.readFeedJokes(cursor: null)).thenAnswer(
-        (_) async => JokeListPage(
-          ids: ['joke-1'],
-          cursor: cursor1,
-          hasMore: true,
-          jokes: [
-            Joke(
-              id: 'joke-1',
-              setupText: 'Setup 1',
-              punchlineText: 'Punchline 1',
-            ),
-          ],
-        ),
-      );
+    await task.execute(reader);
 
-      // Second call returns empty page with same cursor
-      when(() => mockJokeRepository.readFeedJokes(cursor: cursor1)).thenAnswer(
-        (_) async => JokeListPage(
-          ids: [],
-          cursor: cursor1, // Same cursor as previous
-          hasMore: true,
-          jokes: [],
-        ),
-      );
+    verify(
+      () => mockInteractionsRepository.watchFeedHead(limit: _feedWindowSize),
+    ).called(1);
+    verify(
+      () => mockJokeRepository.readFeedJokes(cursor: any(named: 'cursor')),
+    ).called(1);
+  });
 
-      // Create a StartupReader that provides our mocks
-      final reader = createReader();
+  test('waits for watcher when feed window missing', () async {
+    final controller = StreamController<List<JokeInteraction>>();
 
-      // Execute the task
-      final task = getSyncFeedJokesTask();
-      await task.execute(reader);
+    when(
+      () =>
+          mockInteractionsRepository.watchFeedHead(limit: any(named: 'limit')),
+    ).thenAnswer((_) => controller.stream);
 
-      // Verify first call was made
-      verify(() => mockJokeRepository.readFeedJokes(cursor: null)).called(1);
+    final task = getTask();
+    final reader = createReader();
 
-      // Verify second call was made
-      verify(() => mockJokeRepository.readFeedJokes(cursor: cursor1)).called(1);
+    var completed = false;
+    final future = task.execute(reader).then((value) => completed = true);
 
-      // Verify syncFeedJokes was called with the first joke
-      verify(
-        () => mockJokeInteractionsRepository.syncFeedJokes(
-          jokes: any(
-            named: 'jokes',
-            that: predicate<List<({Joke joke, int feedIndex})>>(
-              (list) =>
-                  list.length == 1 &&
-                  list.first.joke.id == 'joke-1' &&
-                  list.first.feedIndex == 0,
-            ),
-          ),
-        ),
-      ).called(1);
+    controller.add(_buildInteractions(_partialFeedWindowSize));
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+    expect(completed, isFalse);
 
-      // Verify no third call was made (should have broken due to same cursor)
-      verifyNever(() => mockJokeRepository.readFeedJokes(cursor: cursor2));
-    },
-  );
+    controller.add(_buildInteractions(_feedWindowSize));
+    await future;
+    expect(completed, isTrue);
+    await controller.close();
+  });
 
-  test('_syncFeedJokes processes multiple pages correctly', () async {
+  test('background sync continues after task completes', () async {
     final cursor1 = JokeListPageCursor(orderValue: 'doc1', docId: 'doc1');
     final cursor2 = JokeListPageCursor(orderValue: 'doc2', docId: 'doc2');
 
-    // First page
     when(() => mockJokeRepository.readFeedJokes(cursor: null)).thenAnswer(
       (_) async => JokeListPage(
         ids: ['joke-1'],
         cursor: cursor1,
         hasMore: true,
         jokes: [
-          Joke(
-            id: 'joke-1',
-            setupText: 'Setup 1',
-            punchlineText: 'Punchline 1',
-          ),
+          Joke(id: 'joke-1', setupText: 'setup1', punchlineText: 'punch1'),
         ],
       ),
     );
 
-    // Second page
     when(() => mockJokeRepository.readFeedJokes(cursor: cursor1)).thenAnswer(
       (_) async => JokeListPage(
         ids: ['joke-2'],
         cursor: cursor2,
         hasMore: true,
         jokes: [
-          Joke(
-            id: 'joke-2',
-            setupText: 'Setup 2',
-            punchlineText: 'Punchline 2',
-          ),
+          Joke(id: 'joke-2', setupText: 'setup2', punchlineText: 'punch2'),
         ],
       ),
     );
 
-    // Third page (last)
     when(() => mockJokeRepository.readFeedJokes(cursor: cursor2)).thenAnswer(
       (_) async => JokeListPage(
         ids: ['joke-3'],
         cursor: null,
         hasMore: false,
         jokes: [
-          Joke(
-            id: 'joke-3',
-            setupText: 'Setup 3',
-            punchlineText: 'Punchline 3',
-          ),
+          Joke(id: 'joke-3', setupText: 'setup3', punchlineText: 'punch3'),
         ],
       ),
     );
 
+    final task = getTask();
     final reader = createReader();
 
-    final task = getSyncFeedJokesTask();
     await task.execute(reader);
 
-    // Verify all pages were fetched
+    await untilCalled(() => mockJokeRepository.readFeedJokes(cursor: cursor2));
+
     verify(() => mockJokeRepository.readFeedJokes(cursor: null)).called(1);
     verify(() => mockJokeRepository.readFeedJokes(cursor: cursor1)).called(1);
     verify(() => mockJokeRepository.readFeedJokes(cursor: cursor2)).called(1);
-
-    // Verify all jokes were synced with correct feedIndex
-    verify(
-      () => mockJokeInteractionsRepository.syncFeedJokes(
-        jokes: any(
-          named: 'jokes',
-          that: predicate<List<({Joke joke, int feedIndex})>>(
-            (list) =>
-                list.length == 1 &&
-                list.first.joke.id == 'joke-1' &&
-                list.first.feedIndex == 0,
-          ),
-        ),
-      ),
-    ).called(1);
-    verify(
-      () => mockJokeInteractionsRepository.syncFeedJokes(
-        jokes: any(
-          named: 'jokes',
-          that: predicate<List<({Joke joke, int feedIndex})>>(
-            (list) =>
-                list.length == 1 &&
-                list.first.joke.id == 'joke-2' &&
-                list.first.feedIndex == 1,
-          ),
-        ),
-      ),
-    ).called(1);
-    verify(
-      () => mockJokeInteractionsRepository.syncFeedJokes(
-        jokes: any(
-          named: 'jokes',
-          that: predicate<List<({Joke joke, int feedIndex})>>(
-            (list) =>
-                list.length == 1 &&
-                list.first.joke.id == 'joke-3' &&
-                list.first.feedIndex == 2,
-          ),
-        ),
-      ),
-    ).called(1);
   });
 
-  test('_syncFeedJokes handles empty pages and continues', () async {
-    final cursor1 = JokeListPageCursor(orderValue: 'doc1', docId: 'doc1');
-    final cursor2 = JokeListPageCursor(orderValue: 'doc2', docId: 'doc2');
-
-    // First page is empty but hasMore is true
-    when(() => mockJokeRepository.readFeedJokes(cursor: null)).thenAnswer(
-      (_) async =>
-          JokeListPage(ids: [], cursor: cursor1, hasMore: true, jokes: []),
-    );
-
-    // Second page has jokes
-    when(() => mockJokeRepository.readFeedJokes(cursor: cursor1)).thenAnswer(
-      (_) async => JokeListPage(
-        ids: ['joke-1'],
-        cursor: cursor2,
-        hasMore: false,
-        jokes: [
-          Joke(
-            id: 'joke-1',
-            setupText: 'Setup 1',
-            punchlineText: 'Punchline 1',
-          ),
-        ],
-      ),
-    );
-
-    final reader = createReader();
-
-    final task = getSyncFeedJokesTask();
-    await task.execute(reader);
-
-    // Verify both pages were fetched
-    verify(() => mockJokeRepository.readFeedJokes(cursor: null)).called(1);
-    verify(() => mockJokeRepository.readFeedJokes(cursor: cursor1)).called(1);
-
-    // Verify joke was synced
-    verify(
-      () => mockJokeInteractionsRepository.syncFeedJokes(
-        jokes: any(
-          named: 'jokes',
-          that: predicate<List<({Joke joke, int feedIndex})>>(
-            (list) =>
-                list.length == 1 &&
-                list.first.joke.id == 'joke-1' &&
-                list.first.feedIndex == 0,
-          ),
-        ),
-      ),
-    ).called(1);
-  });
-
-  test('_syncFeedJokes handles errors gracefully', () async {
+  test('background sync errors do not fail startup task', () async {
     when(
-      () => mockJokeRepository.readFeedJokes(cursor: null),
-    ).thenThrow(Exception('Network error'));
+      () => mockJokeRepository.readFeedJokes(cursor: any(named: 'cursor')),
+    ).thenThrow(Exception('network error'));
 
+    final task = getTask();
     final reader = createReader();
 
-    // Should not throw
-    final task = getSyncFeedJokesTask();
     await task.execute(reader);
 
-    // Verify the call was made
-    verify(() => mockJokeRepository.readFeedJokes(cursor: null)).called(1);
+    verify(
+      () => mockJokeRepository.readFeedJokes(cursor: any(named: 'cursor')),
+    ).called(1);
   });
+
+  test('watchFeedHead errors do not prevent completion', () async {
+    final controller = StreamController<List<JokeInteraction>>();
+
+    when(
+      () =>
+          mockInteractionsRepository.watchFeedHead(limit: any(named: 'limit')),
+    ).thenAnswer((_) => controller.stream);
+
+    final task = getTask();
+    final reader = createReader();
+
+    final future = task.execute(reader);
+
+    controller.addError(Exception('db error'));
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+    controller.add(_buildInteractions(_feedWindowSize));
+
+    await future;
+    await controller.close();
+  });
+}
+
+List<JokeInteraction> _buildInteractions(int count) {
+  final now = DateTime.now();
+  return List.generate(
+    count,
+    (index) => JokeInteraction(
+      jokeId: 'joke-$index',
+      lastUpdateTimestamp: now.add(Duration(milliseconds: index)),
+      feedIndex: index,
+    ),
+  );
 }

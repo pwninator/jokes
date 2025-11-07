@@ -116,14 +116,10 @@ void _stubFeedInteractions(
   ).thenAnswer((invocation) async {
     final cursor =
         invocation.namedArguments[const Symbol('cursorFeedIndex')] as int?;
-    final limit =
-        invocation.namedArguments[const Symbol('limit')] as int? ?? 0;
+    final limit = invocation.namedArguments[const Symbol('limit')] as int? ?? 0;
 
     final sorted = List<JokeInteraction>.from(interactions)
-      ..sort(
-        (a, b) =>
-            (a.feedIndex ?? 0).compareTo(b.feedIndex ?? 0),
-      );
+      ..sort((a, b) => (a.feedIndex ?? 0).compareTo(b.feedIndex ?? 0));
 
     final filtered = sorted.where((interaction) {
       final index = interaction.feedIndex ?? -1;
@@ -525,14 +521,11 @@ void main() {
         // Not Halloween: Sep 1, 2025
         final notHalloweenTime = DateTime(2025, 9, 1);
 
-        _stubFeedInteractions(
-          mockInteractionsRepository,
-          [
-            _buildInteraction('feed-0', 0),
-            _buildInteraction('feed-1', 1),
-            _buildInteraction('feed-2', 2),
-          ],
-        );
+        _stubFeedInteractions(mockInteractionsRepository, [
+          _buildInteraction('feed-0', 0),
+          _buildInteraction('feed-1', 1),
+          _buildInteraction('feed-2', 2),
+        ]);
 
         final scope = createContainer(clock: () => notHalloweenTime);
         final notifier = scope.read(
@@ -628,14 +621,11 @@ void main() {
         final todayStr = '2025-01-15';
         await prefs.setString('today_joke_last_date', todayStr);
 
-        _stubFeedInteractions(
-          mockInteractionsRepository,
-          [
-            _buildInteraction('feed-0', 0),
-            _buildInteraction('feed-1', 1),
-            _buildInteraction('feed-2', 2),
-          ],
-        );
+        _stubFeedInteractions(mockInteractionsRepository, [
+          _buildInteraction('feed-0', 0),
+          _buildInteraction('feed-1', 1),
+          _buildInteraction('feed-2', 2),
+        ]);
 
         final scope = createContainer(clock: () => testTime);
         final notifier = scope.read(

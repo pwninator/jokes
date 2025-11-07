@@ -534,4 +534,68 @@ void main() {
       expect(interactions[0].feedIndex, 999999);
     });
   });
+
+  group('watchFeedHead', () {
+    test('emits ordered feed interactions limited by requested size', () async {
+      await service.syncFeedJokes(
+        jokes: [
+          (
+            joke: Joke(id: 'j3', setupText: 's', punchlineText: 'p'),
+            feedIndex: 3,
+          ),
+          (
+            joke: Joke(id: 'j1', setupText: 's', punchlineText: 'p'),
+            feedIndex: 1,
+          ),
+          (
+            joke: Joke(id: 'j2', setupText: 's', punchlineText: 'p'),
+            feedIndex: 2,
+          ),
+        ],
+      );
+
+      final stream = service.watchFeedHead(limit: 2);
+      final firstEmission = await stream.first;
+
+      expect(firstEmission.length, 2);
+      expect(firstEmission.map((e) => e.feedIndex), [1, 2]);
+    });
+
+    test('emits updates when leading portion changes', () async {
+      await service.syncFeedJokes(
+        jokes: [
+          (
+            joke: Joke(id: 'j2', setupText: 's', punchlineText: 'p'),
+            feedIndex: 2,
+          ),
+          (
+            joke: Joke(id: 'j3', setupText: 's', punchlineText: 'p'),
+            feedIndex: 3,
+          ),
+          (
+            joke: Joke(id: 'j4', setupText: 's', punchlineText: 'p'),
+            feedIndex: 4,
+          ),
+        ],
+      );
+
+      final stream = service.watchFeedHead(limit: 3);
+      final first = await stream.first;
+      expect(first.map((e) => e.feedIndex), [2, 3, 4]);
+
+      final nextEmissionFuture = stream.skip(1).first;
+
+      await service.syncFeedJokes(
+        jokes: [
+          (
+            joke: Joke(id: 'j1', setupText: 's', punchlineText: 'p'),
+            feedIndex: 1,
+          ),
+        ],
+      );
+
+      final next = await nextEmissionFuture;
+      expect(next.map((e) => e.feedIndex), [1, 2, 3]);
+    });
+  });
 }

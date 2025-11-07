@@ -339,4 +339,17 @@ class JokeInteractionsRepository {
     fallback: <JokeInteraction>[],
     perf: _perf,
   );
+
+  /// Watch the leading portion of the feed-ordered joke interactions.
+  Stream<List<JokeInteraction>> watchFeedHead({required int limit}) {
+    assert(limit > 0, 'watchFeedHead limit must be positive');
+    final query = _db.select(_db.jokeInteractions)
+      ..where((tbl) => tbl.feedIndex.isNotNull())
+      ..orderBy([
+        (t) => OrderingTerm(expression: t.feedIndex, mode: OrderingMode.asc),
+        (t) => OrderingTerm(expression: t.jokeId, mode: OrderingMode.asc),
+      ])
+      ..limit(limit);
+    return query.watch();
+  }
 }

@@ -257,21 +257,42 @@ void main() {
 
     test('does not repeat loadFirstPage when first page filtered away', () async {
       final requestedCursors = <String?>[];
+      int initialCursorCalls = 0;
+      var repeatedLoadFirstPage = false;
 
       Future<PageResult> loadPage(Ref ref, int limit, String? cursor) async {
         requestedCursors.add(cursor);
-        final filteredJoke = Joke(
-          id: 'filtered',
-          setupText: 'setup filtered',
-          punchlineText: 'punchline filtered',
-          setupImageUrl: '',
-          punchlineImageUrl: '',
-          publicTimestamp: DateTime.utc(2024, 1, 1),
-        );
+
+        if (cursor == null) {
+          initialCursorCalls++;
+          if (initialCursorCalls > 1) {
+            repeatedLoadFirstPage = true;
+            return const PageResult(
+              jokes: [],
+              cursor: null,
+              hasMore: false,
+            );
+          }
+          final filteredJoke = Joke(
+            id: 'filtered',
+            setupText: 'setup filtered',
+            punchlineText: 'punchline filtered',
+            setupImageUrl: '',
+            punchlineImageUrl: '',
+            publicTimestamp: DateTime.utc(2024, 1, 1),
+          );
+          return PageResult(
+            jokes: [JokeWithDate(joke: filteredJoke, dataSource: 'test')],
+            cursor: 'cursor-1',
+            hasMore: true,
+          );
+        }
+
+        final validJoke = _makeJoke('kept');
         return PageResult(
-          jokes: [JokeWithDate(joke: filteredJoke, dataSource: 'test')],
-          cursor: 'cursor-1',
-          hasMore: true,
+          jokes: [JokeWithDate(joke: validJoke, dataSource: 'test')],
+          cursor: null,
+          hasMore: false,
         );
       }
 
@@ -299,11 +320,15 @@ void main() {
 
       container.read(bundle.paging);
 
-      await Future<void>.delayed(const Duration(milliseconds: 50));
+      await waitUntil(() =>
+          repeatedLoadFirstPage ||
+          (!container.read(bundle.paging).isLoading &&
+              container.read(bundle.paging).loadedJokes.length == 1));
 
-      expect(requestedCursors.length >= 2, isTrue);
-      expect(requestedCursors[0], isNull);
-      expect(requestedCursors[1], 'cursor-1');
+      expect(repeatedLoadFirstPage, isFalse,
+          reason: 'loadFirstPage was invoked more than once');
+      expect(initialCursorCalls, 1);
+      expect(container.read(bundle.paging).loadedJokes.single.joke.id, 'kept');
     });
 
     test('clears cached cursor when page returns null', () async {

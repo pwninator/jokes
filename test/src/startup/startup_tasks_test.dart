@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:snickerdoodle/src/core/providers/settings_providers.dart';
 import 'package:snickerdoodle/src/data/core/database/app_database.dart';
 import 'package:snickerdoodle/src/data/jokes/joke_interactions_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
@@ -35,8 +37,9 @@ void main() {
 
   late MockJokeRepository mockJokeRepository;
   late MockJokeInteractionsRepository mockInteractionsRepository;
+  late SharedPreferences sharedPreferences;
 
-  setUp(() {
+  setUp(() async {
     mockJokeRepository = MockJokeRepository();
     mockInteractionsRepository = MockJokeInteractionsRepository();
 
@@ -59,6 +62,9 @@ void main() {
       (_) async =>
           const JokeListPage(ids: [], cursor: null, hasMore: false, jokes: []),
     );
+
+    SharedPreferences.setMockInitialValues({});
+    sharedPreferences = await SharedPreferences.getInstance();
   });
 
   StartupTask getTask() {
@@ -74,6 +80,9 @@ void main() {
       }
       if (identical(provider, jokeInteractionsRepositoryProvider)) {
         return mockInteractionsRepository as T;
+      }
+      if (identical(provider, sharedPreferencesProvider)) {
+        return sharedPreferences as T;
       }
       throw UnimplementedError('Unknown provider: $provider');
     }

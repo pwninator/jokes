@@ -327,6 +327,8 @@ class JokeInteractionsRepository {
         query.where((tbl) => tbl.feedIndex.isNotNull());
       }
 
+      query.where((tbl) => tbl.viewedTimestamp.isNull());
+
       query
         ..orderBy([
           (t) => OrderingTerm(expression: t.feedIndex, mode: OrderingMode.asc),

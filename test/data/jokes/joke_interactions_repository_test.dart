@@ -393,6 +393,31 @@ void main() {
       expect(interactions[0].feedIndex, 1);
     });
 
+    test('filters out jokes that have been viewed', () async {
+      final joke1 = Joke(
+        id: 'joke-1',
+        setupText: 'Setup 1',
+        punchlineText: 'Punchline 1',
+      );
+      final joke2 = Joke(
+        id: 'joke-2',
+        setupText: 'Setup 2',
+        punchlineText: 'Punchline 2',
+      );
+
+      await service.syncFeedJokes(
+        jokes: [(joke: joke1, feedIndex: 1), (joke: joke2, feedIndex: 2)],
+      );
+
+      await service.setViewed('joke-1');
+
+      final interactions = await service.getFeedJokeInteractions(limit: 10);
+      expect(interactions.length, 1);
+      expect(interactions[0].jokeId, 'joke-2');
+      expect(interactions[0].feedIndex, 2);
+      expect(interactions[0].viewedTimestamp, isNull);
+    });
+
     test(
       'handles pagination correctly (first page, subsequent pages)',
       () async {

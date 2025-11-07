@@ -109,7 +109,7 @@ void _stubFeedInteractions(
   List<JokeInteraction> interactions,
 ) {
   when(
-    () => repository.getFeedJokeInteractions(
+    () => repository.getFeedJokes(
       cursorFeedIndex: any(named: 'cursorFeedIndex'),
       limit: any(named: 'limit'),
     ),
@@ -350,7 +350,7 @@ void main() {
     });
 
     when(
-      () => mockInteractionsRepository.getFeedJokeInteractions(
+      () => mockInteractionsRepository.getFeedJokes(
         cursorFeedIndex: any(named: 'cursorFeedIndex'),
         limit: any(named: 'limit'),
       ),
@@ -655,7 +655,7 @@ void main() {
         ];
 
         when(
-          () => mockInteractionsRepository.getFeedJokeInteractions(
+          () => mockInteractionsRepository.getFeedJokes(
             cursorFeedIndex: any(named: 'cursorFeedIndex'),
             limit: any(named: 'limit'),
           ),
@@ -697,7 +697,7 @@ void main() {
 
     test('loads from local feed jokes source', () async {
       when(
-        () => mockInteractionsRepository.getFeedJokeInteractions(
+        () => mockInteractionsRepository.getFeedJokes(
           cursorFeedIndex: any(named: 'cursorFeedIndex'),
           limit: any(named: 'limit'),
         ),
@@ -737,7 +737,7 @@ void main() {
 
     test('loads from local feed jokes source with pagination', () async {
       when(
-        () => mockInteractionsRepository.getFeedJokeInteractions(
+        () => mockInteractionsRepository.getFeedJokes(
           cursorFeedIndex: any(named: 'cursorFeedIndex'),
           limit: any(named: 'limit'),
         ),
@@ -781,7 +781,7 @@ void main() {
 
     test('handles pagination with hasMore true', () async {
       when(
-        () => mockInteractionsRepository.getFeedJokeInteractions(
+        () => mockInteractionsRepository.getFeedJokes(
           cursorFeedIndex: any(named: 'cursorFeedIndex'),
           limit: any(named: 'limit'),
         ),
@@ -827,7 +827,7 @@ void main() {
 
     test('filters out viewed jokes', () async {
       when(
-        () => mockInteractionsRepository.getFeedJokeInteractions(
+        () => mockInteractionsRepository.getFeedJokes(
           cursorFeedIndex: any(named: 'cursorFeedIndex'),
           limit: any(named: 'limit'),
         ),
@@ -869,7 +869,7 @@ void main() {
 
     test('loads from local feed jokes source at any index', () async {
       when(
-        () => mockInteractionsRepository.getFeedJokeInteractions(
+        () => mockInteractionsRepository.getFeedJokes(
           cursorFeedIndex: any(named: 'cursorFeedIndex'),
           limit: any(named: 'limit'),
         ),
@@ -912,7 +912,7 @@ void main() {
 
     test('local feed jokes source has no max index limit', () async {
       when(
-        () => mockInteractionsRepository.getFeedJokeInteractions(
+        () => mockInteractionsRepository.getFeedJokes(
           cursorFeedIndex: any(named: 'cursorFeedIndex'),
           limit: any(named: 'limit'),
         ),
@@ -956,7 +956,7 @@ void main() {
       'priority source loads first, then switches to composite when done',
       () async {
         when(
-          () => mockInteractionsRepository.getFeedJokeInteractions(
+          () => mockInteractionsRepository.getFeedJokes(
             cursorFeedIndex: any(named: 'cursorFeedIndex'),
             limit: any(named: 'limit'),
           ),

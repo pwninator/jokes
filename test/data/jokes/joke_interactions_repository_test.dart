@@ -288,7 +288,7 @@ void main() {
           ],
         );
 
-        final interactions = await service.getFeedJokeInteractions(limit: 10);
+        final interactions = await service.getFeedJokes(limit: 10);
         expect(interactions.length, 3);
         expect(interactions[0].jokeId, 'joke-1');
         expect(interactions[0].feedIndex, 1);
@@ -332,7 +332,7 @@ void main() {
           ],
         );
 
-        final interactions = await service.getFeedJokeInteractions(
+        final interactions = await service.getFeedJokes(
           cursorFeedIndex: 2,
           limit: 10,
         );
@@ -362,7 +362,7 @@ void main() {
             .toList(),
       );
 
-      final interactions = await service.getFeedJokeInteractions(limit: 5);
+      final interactions = await service.getFeedJokes(limit: 5);
       expect(interactions.length, 5);
       expect(interactions[0].feedIndex, 0);
       expect(interactions[4].feedIndex, 4);
@@ -373,7 +373,7 @@ void main() {
       await service.setViewed('joke-1');
       await service.setSaved('joke-2');
 
-      final interactions = await service.getFeedJokeInteractions(limit: 10);
+      final interactions = await service.getFeedJokes(limit: 10);
       expect(interactions, isEmpty);
     });
 
@@ -387,7 +387,7 @@ void main() {
       await service.syncFeedJokes(jokes: [(joke: joke1, feedIndex: 1)]);
       await service.setViewed('joke-2'); // This won't have feedIndex
 
-      final interactions = await service.getFeedJokeInteractions(limit: 10);
+      final interactions = await service.getFeedJokes(limit: 10);
       expect(interactions.length, 1);
       expect(interactions[0].jokeId, 'joke-1');
       expect(interactions[0].feedIndex, 1);
@@ -411,7 +411,7 @@ void main() {
 
       await service.setViewed('joke-1');
 
-      final interactions = await service.getFeedJokeInteractions(limit: 10);
+      final interactions = await service.getFeedJokes(limit: 10);
       expect(interactions.length, 1);
       expect(interactions[0].jokeId, 'joke-2');
       expect(interactions[0].feedIndex, 2);
@@ -439,13 +439,13 @@ void main() {
         );
 
         // First page
-        final page1 = await service.getFeedJokeInteractions(limit: 3);
+        final page1 = await service.getFeedJokes(limit: 3);
         expect(page1.length, 3);
         expect(page1[0].feedIndex, 0);
         expect(page1[2].feedIndex, 2);
 
         // Second page
-        final page2 = await service.getFeedJokeInteractions(
+        final page2 = await service.getFeedJokes(
           cursorFeedIndex: 2,
           limit: 3,
         );
@@ -456,7 +456,7 @@ void main() {
     );
 
     test('empty database returns empty list', () async {
-      final interactions = await service.getFeedJokeInteractions(limit: 10);
+      final interactions = await service.getFeedJokes(limit: 10);
       expect(interactions, isEmpty);
     });
 
@@ -468,7 +468,7 @@ void main() {
       );
       await service.syncFeedJokes(jokes: [(joke: joke, feedIndex: 1)]);
 
-      final interactions = await service.getFeedJokeInteractions(
+      final interactions = await service.getFeedJokes(
         cursorFeedIndex: 1,
         limit: 10,
       );
@@ -483,7 +483,7 @@ void main() {
       );
       await service.syncFeedJokes(jokes: [(joke: joke, feedIndex: 1)]);
 
-      final interactions = await service.getFeedJokeInteractions(
+      final interactions = await service.getFeedJokes(
         cursorFeedIndex: 10,
         limit: 10,
       );
@@ -498,7 +498,7 @@ void main() {
       );
       await service.syncFeedJokes(jokes: [(joke: joke, feedIndex: 1)]);
 
-      final interactions = await service.getFeedJokeInteractions(limit: 0);
+      final interactions = await service.getFeedJokes(limit: 0);
       expect(interactions, isEmpty);
     });
 
@@ -518,7 +518,7 @@ void main() {
         jokes: [(joke: joke1, feedIndex: 1), (joke: joke2, feedIndex: 2)],
       );
 
-      final interactions = await service.getFeedJokeInteractions(limit: 10);
+      final interactions = await service.getFeedJokes(limit: 10);
       expect(interactions.length, 2);
     });
 
@@ -539,7 +539,7 @@ void main() {
         jokes: [(joke: joke2, feedIndex: 1), (joke: joke1, feedIndex: 1)],
       );
 
-      final interactions = await service.getFeedJokeInteractions(limit: 10);
+      final interactions = await service.getFeedJokes(limit: 10);
       expect(interactions.length, 2);
       // Should be ordered by jokeId as secondary sort
       expect(interactions[0].jokeId, 'joke-a');
@@ -554,7 +554,7 @@ void main() {
       );
       await service.syncFeedJokes(jokes: [(joke: joke, feedIndex: 999999)]);
 
-      final interactions = await service.getFeedJokeInteractions(limit: 10);
+      final interactions = await service.getFeedJokes(limit: 10);
       expect(interactions.length, 1);
       expect(interactions[0].feedIndex, 999999);
     });

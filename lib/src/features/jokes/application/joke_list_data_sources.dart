@@ -231,9 +231,11 @@ final List<CompositeJokeSubSource> _prioritySubSources = [
 ];
 
 /// "Regular" data sources that will intereaved together.
+const String localFeedJokesSubSourceId = 'local_feed_jokes';
+
 final List<CompositeJokeSubSource> _compositeSubSources = [
   CompositeJokeSubSource(
-    id: 'local_feed_jokes',
+    id: localFeedJokesSubSourceId,
     minIndex: CompositeJokeSourceBoundaries.localFeedJokesMinIndex,
     maxIndex: CompositeJokeSourceBoundaries.localFeedJokesMaxIndex,
     load: (Ref ref, int limit, String? cursor) =>
@@ -1147,7 +1149,7 @@ Future<PageResult> _loadFeedJokesFromDatabase(
     }
   }
 
-  final interactions = await interactionsRepository.getFeedJokeInteractions(
+  final interactions = await interactionsRepository.getFeedJokes(
     cursorFeedIndex: cursorFeedIndex,
     limit: limit,
   );

@@ -248,6 +248,7 @@ class GenericPagingNotifier extends StateNotifier<PagingState> {
       final newCursor = page.cursor;
       final effectiveHasMore =
           page.hasMore &&
+          newCursor != null &&
           (page.jokes.isNotEmpty || newCursor != previousCursor);
 
       if (!effectiveHasMore) {

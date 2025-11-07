@@ -7,6 +7,7 @@ import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/data/core/app/app_providers.dart';
+import 'package:snickerdoodle/src/data/jokes/joke_interactions_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_category_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_list_data_source.dart';
@@ -136,7 +137,7 @@ final _categoryPagingProviders = createPagingProviders(
 const compositeJokeCursorPrefsKey = 'composite_joke_cursor';
 
 /// Sentinel cursor value marking a priority source as permanently exhausted.
-const String kPriorityDoneSentinel = '__DONE__';
+const String kDoneSentinel = '__DONE__';
 
 /// Constants for composite joke source index boundaries and date ranges.
 /// These values define when different subsources become active or inactive.
@@ -153,6 +154,9 @@ class CompositeJokeSourceBoundaries {
   static const int? todayJokeMaxIndex = null;
 
   // Composite sources
+
+  static const int localFeedJokesMinIndex = 0;
+  static const int? localFeedJokesMaxIndex = null;
 
   static const int bestJokesMinIndex = 0;
   static const int bestJokesMaxIndex = 200;
@@ -229,39 +233,47 @@ final List<CompositeJokeSubSource> _prioritySubSources = [
 /// "Regular" data sources that will intereaved together.
 final List<CompositeJokeSubSource> _compositeSubSources = [
   CompositeJokeSubSource(
-    id: 'best_jokes',
-    minIndex: CompositeJokeSourceBoundaries.bestJokesMinIndex,
-    maxIndex: CompositeJokeSourceBoundaries.bestJokesMaxIndex,
-    load: (Ref ref, int limit, String? cursor) => _loadFirestoreJokes(
-      ref,
-      limit,
-      cursor,
-      orderByField: JokeField.savedFraction,
-      orderDirection: OrderDirection.descending,
-      dataSource: 'best_jokes',
-    ),
-  ),
-  CompositeJokeSubSource(
-    id: 'all_jokes_random',
-    minIndex: CompositeJokeSourceBoundaries.randomMinIndex,
-    maxIndex: CompositeJokeSourceBoundaries
-        .randomMaxIndex, // Loops infinitely, so need a max limit.
+    id: 'local_feed_jokes',
+    minIndex: CompositeJokeSourceBoundaries.localFeedJokesMinIndex,
+    maxIndex: CompositeJokeSourceBoundaries.localFeedJokesMaxIndex,
     load: (Ref ref, int limit, String? cursor) =>
-        loadRandomJokesWithWrapping(ref, limit, cursor),
+        _loadFeedJokesFromDatabase(ref, limit, cursor),
   ),
-  CompositeJokeSubSource(
-    id: 'all_jokes_public_timestamp',
-    minIndex: CompositeJokeSourceBoundaries.publicMinIndex,
-    maxIndex: CompositeJokeSourceBoundaries.publicMaxIndex,
-    load: (Ref ref, int limit, String? cursor) => _loadFirestoreJokes(
-      ref,
-      limit,
-      cursor,
-      orderByField: JokeField.publicTimestamp,
-      orderDirection: OrderDirection.ascending,
-      dataSource: 'all_jokes_public_timestamp',
-    ),
-  ),
+  // Temporarily disabled. Keep this code for now.
+  // CompositeJokeSubSource(
+  //   id: 'best_jokes',
+  //   minIndex: CompositeJokeSourceBoundaries.bestJokesMinIndex,
+  //   maxIndex: CompositeJokeSourceBoundaries.bestJokesMaxIndex,
+  //   load: (Ref ref, int limit, String? cursor) => _loadFirestoreJokes(
+  //     ref,
+  //     limit,
+  //     cursor,
+  //     orderByField: JokeField.savedFraction,
+  //     orderDirection: OrderDirection.descending,
+  //     dataSource: 'best_jokes',
+  //   ),
+  // ),
+  // CompositeJokeSubSource(
+  //   id: 'all_jokes_random',
+  //   minIndex: CompositeJokeSourceBoundaries.randomMinIndex,
+  //   maxIndex: CompositeJokeSourceBoundaries
+  //       .randomMaxIndex, // Loops infinitely, so need a max limit.
+  //   load: (Ref ref, int limit, String? cursor) =>
+  //       loadRandomJokesWithWrapping(ref, limit, cursor),
+  // ),
+  // CompositeJokeSubSource(
+  //   id: 'all_jokes_public_timestamp',
+  //   minIndex: CompositeJokeSourceBoundaries.publicMinIndex,
+  //   maxIndex: CompositeJokeSourceBoundaries.publicMaxIndex,
+  //   load: (Ref ref, int limit, String? cursor) => _loadFirestoreJokes(
+  //     ref,
+  //     limit,
+  //     cursor,
+  //     orderByField: JokeField.publicTimestamp,
+  //     orderDirection: OrderDirection.ascending,
+  //     dataSource: 'all_jokes_public_timestamp',
+  //   ),
+  // ),
 ];
 
 // Combined index boundaries across composite and priority subsources, computed once.
@@ -293,7 +305,7 @@ class CompositeJokeSubSource {
   /// [cursor] is checked for the done sentinel value.
   bool isActive(Ref ref, int totalJokesLoaded, String? cursor) {
     // Check if marked as done
-    if (cursor == kPriorityDoneSentinel) {
+    if (cursor == kDoneSentinel) {
       return false;
     }
 
@@ -549,7 +561,7 @@ Future<PageResult> createNextPage({
         updatedPriorityCursors[sourceId] = page.cursor!;
       }
     } else {
-      updatedPriorityCursors[sourceId] = kPriorityDoneSentinel;
+      updatedPriorityCursors[sourceId] = kDoneSentinel;
     }
   }
   // Update composite cursors
@@ -1109,6 +1121,70 @@ Future<PageResult> _loadSavedJokesPage(
     hasMore: hasMore,
     totalCount: savedJokeIds.length,
   );
+}
+
+Future<PageResult> _loadFeedJokesFromDatabase(
+  Ref ref,
+  int limit,
+  String? cursor,
+) async {
+  AppLogger.debug(
+    'PAGING_INTERNAL: Loading feed jokes from database with limit: $limit, cursor: $cursor',
+  );
+
+  final interactionsRepository = ref.read(jokeInteractionsRepositoryProvider);
+
+  // Parse cursor as integer (feedIndex) or default to null for first page
+  int? cursorFeedIndex;
+  if (cursor != null && cursor.isNotEmpty) {
+    try {
+      cursorFeedIndex = int.parse(cursor);
+    } catch (e) {
+      AppLogger.debug(
+        'PAGING_INTERNAL: Invalid cursor format "$cursor", defaulting to null',
+      );
+      cursorFeedIndex = null;
+    }
+  }
+
+  final interactions = await interactionsRepository.getFeedJokeInteractions(
+    cursorFeedIndex: cursorFeedIndex,
+    limit: limit,
+  );
+
+  if (interactions.isEmpty) {
+    return const PageResult(jokes: [], cursor: null, hasMore: false);
+  }
+
+  // Convert JokeInteraction objects to Joke objects using feed data
+  final jokes = interactions
+      .map(
+        (interaction) => Joke(
+          id: interaction.jokeId,
+          setupText: interaction.setupText ?? '',
+          punchlineText: interaction.punchlineText ?? '',
+          setupImageUrl: interaction.setupImageUrl,
+          punchlineImageUrl: interaction.punchlineImageUrl,
+        ),
+      )
+      .toList();
+
+  final jokesWithDate = jokes
+      .map((j) => JokeWithDate(joke: j, dataSource: 'local_feed_jokes'))
+      .toList();
+
+  // Determine hasMore and next cursor
+  final hasMore = interactions.length == limit;
+  final lastFeedIndex = interactions.last.feedIndex;
+  final nextCursor = hasMore && lastFeedIndex != null
+      ? lastFeedIndex.toString()
+      : kDoneSentinel;
+
+  AppLogger.debug(
+    'PAGING_INTERNAL: Loaded feed jokes from database: ${jokesWithDate.length} jokes, hasMore: $hasMore, nextCursor: $nextCursor',
+  );
+
+  return PageResult(jokes: jokesWithDate, cursor: nextCursor, hasMore: hasMore);
 }
 
 /// Get current date (midnight-normalized) for comparison

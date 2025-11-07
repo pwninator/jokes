@@ -43,6 +43,20 @@ void main() {
     );
   }
 
+  StartupReader createReader() {
+    T reader<T>(ProviderListenable<T> provider) {
+      if (identical(provider, jokeRepositoryProvider)) {
+        return mockJokeRepository as T;
+      }
+      if (identical(provider, jokeInteractionsRepositoryProvider)) {
+        return mockJokeInteractionsRepository as T;
+      }
+      throw UnimplementedError('Unknown provider: $provider');
+    }
+
+    return reader;
+  }
+
   test(
     '_syncFeedJokes breaks when cursor is the same as previous cursor',
     () async {
@@ -76,15 +90,7 @@ void main() {
       );
 
       // Create a StartupReader that provides our mocks
-      StartupReader reader = <T>(ProviderListenable<T> provider) {
-        if (provider == jokeRepositoryProvider) {
-          return mockJokeRepository as T;
-        }
-        if (provider == jokeInteractionsRepositoryProvider) {
-          return mockJokeInteractionsRepository as T;
-        }
-        throw UnimplementedError('Unknown provider: $provider');
-      };
+      final reader = createReader();
 
       // Execute the task
       final task = getSyncFeedJokesTask();
@@ -168,15 +174,7 @@ void main() {
       ),
     );
 
-    StartupReader reader = <T>(ProviderListenable<T> provider) {
-      if (provider == jokeRepositoryProvider) {
-        return mockJokeRepository as T;
-      }
-      if (provider == jokeInteractionsRepositoryProvider) {
-        return mockJokeInteractionsRepository as T;
-      }
-      throw UnimplementedError('Unknown provider: $provider');
-    };
+    final reader = createReader();
 
     final task = getSyncFeedJokesTask();
     await task.execute(reader);
@@ -254,15 +252,7 @@ void main() {
       ),
     );
 
-    StartupReader reader = <T>(ProviderListenable<T> provider) {
-      if (provider == jokeRepositoryProvider) {
-        return mockJokeRepository as T;
-      }
-      if (provider == jokeInteractionsRepositoryProvider) {
-        return mockJokeInteractionsRepository as T;
-      }
-      throw UnimplementedError('Unknown provider: $provider');
-    };
+    final reader = createReader();
 
     final task = getSyncFeedJokesTask();
     await task.execute(reader);
@@ -292,15 +282,7 @@ void main() {
       () => mockJokeRepository.readFeedJokes(cursor: null),
     ).thenThrow(Exception('Network error'));
 
-    StartupReader reader = <T>(ProviderListenable<T> provider) {
-      if (provider == jokeRepositoryProvider) {
-        return mockJokeRepository as T;
-      }
-      if (provider == jokeInteractionsRepositoryProvider) {
-        return mockJokeInteractionsRepository as T;
-      }
-      throw UnimplementedError('Unknown provider: $provider');
-    };
+    final reader = createReader();
 
     // Should not throw
     final task = getSyncFeedJokesTask();

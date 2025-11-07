@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import datetime
 import random
+from collections import deque
 
 from common import joke_category_operations, joke_operations, models
 from firebase_functions import https_fn, logger, options, scheduler_fn
@@ -69,7 +70,7 @@ def _joke_daily_maintenance_internal(
   # Combine all statistics
   combined_stats = {**joke_stats, **category_stats}
 
-  logger.info(f"Daily maintenance completed with stats: {combined_stats}")
+  logger.info(f"Joke maintenance completed with stats: {combined_stats}")
   return combined_stats
 
 
@@ -208,7 +209,8 @@ def _update_joke_attributes(run_time_utc: datetime.datetime) -> dict[str, int]:
     try:
       joke = models.PunnyJoke.from_firestore_dict(final_joke_data, joke_doc.id)
     except Exception as parse_error:
-      logger.warn(f"Failed to parse joke {joke_doc.id}, skipping: {parse_error}")
+      logger.warn(
+        f"Failed to parse joke {joke_doc.id}, skipping: {parse_error}")
       continue  # Skip malformed documents
 
     # Perform actions based on the final state.
@@ -216,10 +218,11 @@ def _update_joke_attributes(run_time_utc: datetime.datetime) -> dict[str, int]:
       batch.update(joke_doc.reference, payload)
       writes_in_batch += 1
       try:
-        joke_operations.sync_joke_to_search_collection(joke=joke, new_embedding=None)
+        joke_operations.sync_joke_to_search_collection(joke=joke,
+                                                       new_embedding=None)
       except Exception as sync_error:
         logger.warn(
-            f"Failed to sync updated joke {joke_doc.id} to search collection: {sync_error}"
+          f"Failed to sync updated joke {joke_doc.id} to search collection: {sync_error}"
         )
     else:
       jokes_skipped += 1
@@ -265,7 +268,7 @@ def build_joke_feed(jokes: list[models.PunnyJoke]) -> list[models.PunnyJoke]:
      sorted in descending order of that fraction.
   2. The remaining jokes follow, arranged in an alternating pattern of:
      a. The highest-ranked joke not yet included in the list.
-     b. A randomly selected joke from the remaining pool.
+     b. The lowest-viewed joke (by `num_viewed_users`) from the remaining pool.
 
   If the input contains fewer than 10 jokes, the entire list is simply sorted
   by `num_saved_users_fraction` in descending order.
@@ -273,23 +276,39 @@ def build_joke_feed(jokes: list[models.PunnyJoke]) -> list[models.PunnyJoke]:
   if not jokes:
     return []
 
-  # Create a copy to avoid modifying the original list, then sort
-  source_list = sorted(
-    jokes,
-    key=lambda j: j.num_saved_users_fraction,
-    reverse=True,
-  )
+  sorted_by_fraction = deque[models.PunnyJoke](sorted(
+    jokes, key=lambda j: j.num_saved_users_fraction, reverse=True))
+  sorted_by_views = deque[models.PunnyJoke](sorted(
+    jokes, key=lambda j: j.num_viewed_users))
+  unused_ids = {id(joke) for joke in jokes}
+  result_list: list[models.PunnyJoke] = []
 
-  result_list = source_list[:10]
-  source_list = source_list[10:]  # The remaining jokes
+  def _pop_next(queue: deque[models.PunnyJoke]) -> models.PunnyJoke | None:
+    while queue:
+      candidate = queue.popleft()
+      candidate_id = id(candidate)
+      if candidate_id in unused_ids:
+        unused_ids.remove(candidate_id)
+        return candidate
+    return None
 
-  while source_list:
-    # 1. Add the next-highest-ranked joke
-    result_list.append(source_list.pop(0))
+  top_pick_count = min(10, len(jokes))
+  for _ in range(top_pick_count):
+    next_joke = _pop_next(sorted_by_fraction)
+    if next_joke is None:
+      break
+    result_list.append(next_joke)
 
-    # 2. Add a random joke from the remaining pool, if any exist
-    if source_list:
-      random_index = random.randint(0, len(source_list) - 1)
-      result_list.append(source_list.pop(random_index))
+  while unused_ids:
+    ranked_joke = _pop_next(sorted_by_fraction)
+    if ranked_joke:
+      result_list.append(ranked_joke)
+
+    if not unused_ids:
+      break
+
+    lowest_viewed_joke = _pop_next(sorted_by_views)
+    if lowest_viewed_joke:
+      result_list.append(lowest_viewed_joke)
 
   return result_list

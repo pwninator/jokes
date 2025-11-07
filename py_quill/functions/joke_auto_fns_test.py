@@ -964,11 +964,14 @@ class TestDecayRecentJokeStats:
     assert "Sync failed" in warn_call
 
 
-def _create_joke(key: str, fraction: float) -> MagicMock:
+def _create_joke(key: str,
+                 fraction: float,
+                 views: int | None = None) -> MagicMock:
   """Helper to create a mock PunnyJoke for feed building tests."""
   joke = MagicMock(spec=models.PunnyJoke)
   joke.key = key
   joke.num_saved_users_fraction = fraction
+  joke.num_viewed_users = views if views is not None else 0
   joke.__repr__ = lambda self: f"Joke(id='{self.key}', f={self.num_saved_users_fraction})"
   return joke
 
@@ -998,15 +1001,9 @@ class TestBuildJokeFeed:
     expected_order = [str(i) for i in range(9, -1, -1)]
     assert [j.key for j in result] == expected_order
 
-  def test_alternating_logic_for_15_jokes(self, monkeypatch):
+  def test_alternating_logic_for_15_jokes(self):
     """Test the alternating logic for more than 10 jokes (15 total)."""
-    jokes = [_create_joke(f"j{i}", i / 10.0) for i in range(15)]
-
-    # Remaining list after top 10: 5 items.
-    # 1st random choice from 4 items, 2nd from 2 items.
-    # Mock randint to pick the last element, then the first.
-    mock_randint = Mock(side_effect=[3, 0])
-    monkeypatch.setattr("functions.joke_auto_fns.random.randint", mock_randint)
+    jokes = [_create_joke(f"j{i}", i / 10.0, views=i) for i in range(15)]
 
     result = joke_auto_fns.build_joke_feed(jokes)
     result_keys = [j.key for j in result]
@@ -1020,31 +1017,26 @@ class TestBuildJokeFeed:
     #
     # Iteration 1:
     # - Sorted pick: j4. Remaining: [j3, j2, j1, j0]
-    # - Random pick (randint(0,3) -> 3): j0. Remaining: [j3, j2, j1]
+    # - Lowest viewed pick: j0. Remaining: [j3, j2, j1]
     #
     # Iteration 2:
     # - Sorted pick: j3. Remaining: [j2, j1]
-    # - Random pick (randint(0,1) -> 0): j2. Remaining: [j1]
+    # - Lowest viewed pick: j1. Remaining: [j2]
     #
     # Iteration 3:
-    # - Sorted pick: j1. Remaining: []
+    # - Sorted pick: j2. Remaining: []
     #
-    # Expected alternating part: [j4, j0, j3, j2, j1]
+    # Expected alternating part: [j4, j0, j3, j1, j2]
     alternating_part = result_keys[10:]
-    assert alternating_part == ["j4", "j0", "j3", "j2", "j1"]
+    assert alternating_part == ["j4", "j0", "j3", "j1", "j2"]
 
     # 3. Check total length and no duplicates
     assert len(result_keys) == 15
     assert len(set(result_keys)) == 15
 
-  def test_alternating_logic_for_14_jokes(self, monkeypatch):
+  def test_alternating_logic_for_14_jokes(self):
     """Test the alternating logic for an even number of remaining jokes (14 total)."""
-    jokes = [_create_joke(f"j{i}", i / 10.0) for i in range(14)]
-
-    # Remaining list after top 10: 4 items.
-    # 1st random choice from 3 items, 2nd from 1 item.
-    mock_randint = Mock(side_effect=[2, 0])
-    monkeypatch.setattr("functions.joke_auto_fns.random.randint", mock_randint)
+    jokes = [_create_joke(f"j{i}", i / 10.0, views=i) for i in range(14)]
 
     result = joke_auto_fns.build_joke_feed(jokes)
     result_keys = [j.key for j in result]
@@ -1058,11 +1050,11 @@ class TestBuildJokeFeed:
     #
     # Iteration 1:
     # - Sorted pick: j3. Remaining: [j2, j1, j0]
-    # - Random pick (randint(0,2) -> 2): j0. Remaining: [j2, j1]
+    # - Lowest viewed pick: j0. Remaining: [j2, j1]
     #
     # Iteration 2:
     # - Sorted pick: j2. Remaining: [j1]
-    # - Random pick (randint(0,0) -> 0): j1. Remaining: []
+    # - Lowest viewed pick: j1. Remaining: []
     #
     # Expected alternating part: [j3, j0, j2, j1]
     alternating_part = result_keys[10:]
@@ -1074,7 +1066,7 @@ class TestBuildJokeFeed:
 
   def test_handles_odd_number_of_remaining_jokes(self):
     """Test that the last item is handled correctly if the remaining list has an odd number of items (11 total)."""
-    jokes = [_create_joke(f"j{i}", i / 10.0) for i in range(11)]
+    jokes = [_create_joke(f"j{i}", i / 10.0, views=i) for i in range(11)]
 
     result = joke_auto_fns.build_joke_feed(jokes)
     result_keys = [j.key for j in result]

@@ -16,8 +16,8 @@ _LAST_RECENT_STATS_UPDATE_TIME_FIELD_NAME = "last_recent_stats_update_time"
 
 
 @scheduler_fn.on_schedule(
-  # Runs at 12:00 AM PST every day
-  schedule="0 0 * * *",
+  # Runs at every hour PST every day
+  schedule="0 * * * *",
   timezone="America/Los_Angeles",
   memory=options.MemoryOption.GB_1,
   timeout_sec=600,

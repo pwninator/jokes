@@ -96,6 +96,33 @@
           "order": "ASCENDING"
         },
         {
+          "fieldPath": "num_saved_users_fraction",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "jokes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "is_public",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "seasonal",
+          "order": "ASCENDING"
+        },
+        {
+          "fieldPath": "state",
+          "order": "ASCENDING"
+        },
+        {
           "fieldPath": "public_timestamp",
           "order": "DESCENDING"
         },

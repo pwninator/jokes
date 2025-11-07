@@ -1,26 +1,6 @@
 {
-  "IDX.aI.enableInlineCompletion": true,
-  "IDX.aI.enableCodebaseIndexing": true,
-  "python.testing.pytestArgs": [
-    "py_quill"
-  ],
-  "python.testing.unittestEnabled": false,
-  "python.testing.pytestEnabled": true,
-  "python.testing.unittestArgs": [
-    "-v",
-    "-s",
-    "./functions",
-    "-p",
-    "*_test.py"
-  ],
-  "[python]": {
-    "editor.formatOnSaveMode": "file",
-    "editor.formatOnSave": true,
-    "editor.defaultFormatter": "eeyore.yapf",
-    "editor.formatOnType": false
-  },
-  "yapf.args": [
-    "--style",
-    "{INDENT_WIDTH: 2, CONTINUATION_INDENT_WIDTH: 2}"
-  ],
+  "dart.flutterSdkPath": "/home/tonyw/development/flutter",
+  "jdk.jdkhome": "/usr/lib/jvm/java-17-openjdk-amd64",
+  "python.defaultInterpreterPath": "${workspaceFolder}/py_quill/venv/bin/python3",
+  "pylint.cwd": "${workspaceFolder}/py_quill/",
 }

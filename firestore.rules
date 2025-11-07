@@ -26,8 +26,8 @@ service cloud.firestore {
     }
 
     match /joke_feed/{feedId} {
-      // Read access: All authenticated users
-      allow read: if request.auth != null;
+      // Read access: Open
+      allow read: if true;
 
       // Disallow client-side mutations (handled by cloud function)
       allow create, update, delete: if false;

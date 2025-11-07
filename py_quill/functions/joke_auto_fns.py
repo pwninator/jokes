@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import datetime
-import random
 from collections import deque
 
 from common import joke_category_operations, joke_operations, models
@@ -14,8 +13,6 @@ from services import firestore
 _RECENT_STATS_DAILY_DECAY_FACTOR = 0.9
 _MAX_FIRESTORE_WRITE_BATCH_SIZE = 100
 _LAST_RECENT_STATS_UPDATE_TIME_FIELD_NAME = "last_recent_stats_update_time"
-
-MIN_VIEWS_FOR_FRACTIONS = 20
 
 
 @scheduler_fn.on_schedule(
@@ -149,7 +146,7 @@ def _update_joke_attributes(run_time_utc: datetime.datetime) -> dict[str, int]:
   """Apply exponential decay to recent counters across all jokes.
   
   Returns:
-    Dictionary with maintenance statistics: jokes_decayed, public_updated, jokes_skipped, jokes_boosted
+    Dictionary with maintenance statistics: jokes_decayed, public_updated, jokes_skipped
   """
 
   db_client = firestore.db()
@@ -161,7 +158,6 @@ def _update_joke_attributes(run_time_utc: datetime.datetime) -> dict[str, int]:
   jokes_decayed = 0
   public_updated = 0
   jokes_skipped = 0
-  jokes_boosted = 0
 
   public_jokes: list[models.PunnyJoke] = []
 
@@ -185,24 +181,6 @@ def _update_joke_attributes(run_time_utc: datetime.datetime) -> dict[str, int]:
       decay_payload = _build_recent_decay_payload(joke_data)
       payload.update(decay_payload)
       jokes_decayed += 1
-
-    # Boost num_saved_users_fraction for jokes with low views
-    num_viewed_users = joke_data.get("num_viewed_users", 0)
-    if not isinstance(num_viewed_users, (int, float)):
-      num_viewed_users = 0
-    num_viewed_users = int(num_viewed_users)
-
-    if num_viewed_users < MIN_VIEWS_FOR_FRACTIONS:
-      current_fraction = joke_data.get("num_saved_users_fraction")
-      if current_fraction is None or not isinstance(current_fraction,
-                                                    (int, float)):
-        current_fraction = 0.0
-      current_fraction = float(current_fraction)
-
-      boost_amount = random.uniform(0.0, 0.02)
-      new_fraction = current_fraction + boost_amount
-      payload["num_saved_users_fraction"] = new_fraction
-      jokes_boosted += 1
 
     # Create the final joke model object once, including any potential updates.
     final_joke_data = {**joke_data, **payload}
@@ -248,14 +226,13 @@ def _update_joke_attributes(run_time_utc: datetime.datetime) -> dict[str, int]:
       [j.get_minimal_joke_data() for j in sorted_feed])
 
   logger.info(
-    f"Joke daily maintenance completed: {jokes_decayed} recent stats decayed, {public_updated} is_public updated, {jokes_skipped} jokes skipped, {jokes_boosted} jokes boosted"
+    f"Joke daily maintenance completed: {jokes_decayed} recent stats decayed, {public_updated} is_public updated, {jokes_skipped} jokes skipped"
   )
 
   return {
     "jokes_decayed": jokes_decayed,
     "public_updated": public_updated,
     "jokes_skipped": jokes_skipped,
-    "jokes_boosted": jokes_boosted,
     "num_public_jokes": len(public_jokes),
   }
 

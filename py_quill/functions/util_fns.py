@@ -7,7 +7,7 @@ import traceback
 from firebase_admin import firestore
 from firebase_functions import https_fn, logger, options
 from functions.function_utils import get_bool_param, get_int_param
-from functions.joke_auto_fns import MIN_VIEWS_FOR_FRACTIONS
+from functions.joke_trigger_fns import MIN_VIEWS_FOR_FRACTIONS
 from services import firestore as firestore_service
 
 _db = None  # pylint: disable=invalid-name
@@ -123,8 +123,8 @@ def run_saved_fraction_migration(
       "old_fraction": current_fraction,
     })
     if not dry_run:
-      firestore_service.update_punny_joke(
-        joke_id, {"num_saved_users_fraction": 0.0})
+      firestore_service.update_punny_joke(joke_id,
+                                          {"num_saved_users_fraction": 0.0})
     updated_count += 1
 
   # Generate HTML response
@@ -136,10 +136,8 @@ def run_saved_fraction_migration(
   if updated_jokes:
     html += "<ul>"
     for joke in updated_jokes:
-      html += (
-        f"<li><b>{joke['id']}</b>: num_viewed={joke['num_viewed']}, "
-        f"old_fraction={joke['old_fraction']}</li>"
-      )
+      html += (f"<li><b>{joke['id']}</b>: num_viewed={joke['num_viewed']}, "
+               f"old_fraction={joke['old_fraction']}</li>")
     html += "</ul>"
   else:
     html += "<p>No jokes were updated.</p>"
@@ -148,11 +146,9 @@ def run_saved_fraction_migration(
   if skipped_jokes:
     html += "<ul>"
     for joke in skipped_jokes:
-      html += (
-        f"<li><b>{joke['id']}</b>: num_viewed={joke['num_viewed']}, "
-        f"num_saved_fraction={joke['num_saved_fraction']}, "
-        f"reason={joke['reason']}</li>"
-      )
+      html += (f"<li><b>{joke['id']}</b>: num_viewed={joke['num_viewed']}, "
+               f"num_saved_fraction={joke['num_saved_fraction']}, "
+               f"reason={joke['reason']}</li>")
     html += "</ul>"
   else:
     html += "<p>No jokes were skipped.</p>"

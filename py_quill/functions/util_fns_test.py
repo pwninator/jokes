@@ -5,7 +5,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from common import models
 from functions import util_fns
-from functions.joke_auto_fns import MIN_VIEWS_FOR_FRACTIONS
+from functions.joke_trigger_fns import MIN_VIEWS_FOR_FRACTIONS
 
 
 @pytest.fixture(name='mock_get_all_punny_jokes')

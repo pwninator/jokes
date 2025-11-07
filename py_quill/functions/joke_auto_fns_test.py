@@ -9,7 +9,6 @@ from unittest.mock import MagicMock, Mock
 import pytest
 from common import models
 from functions import joke_auto_fns
-from functions.joke_auto_fns import MIN_VIEWS_FOR_FRACTIONS
 from services import firestore
 
 
@@ -169,7 +168,6 @@ class TestDecayRecentJokeStats:
       "last_recent_stats_update_time": now_utc - datetime.timedelta(hours=4),
       "state": models.JokeState.APPROVED.value,
       "is_public": False,
-      "num_viewed_users": MIN_VIEWS_FOR_FRACTIONS,  # Prevent fraction boost
     }
     doc = _create_mock_joke_doc("joke-1", overrides=overrides)
 
@@ -199,7 +197,6 @@ class TestDecayRecentJokeStats:
       "last_recent_stats_update_time": now_utc - datetime.timedelta(days=2),
       "state": models.JokeState.APPROVED.value,
       "is_public": False,
-      "num_viewed_users": MIN_VIEWS_FOR_FRACTIONS,  # Prevent fraction boost
     }
     doc = _create_mock_joke_doc("joke-1", overrides=overrides)
 
@@ -223,8 +220,6 @@ class TestDecayRecentJokeStats:
       "last_recent_stats_update_time": now_utc - datetime.timedelta(hours=2),
       "state": models.JokeState.PUBLISHED.value,
       "is_public": False,
-      "num_viewed_users":
-      MIN_VIEWS_FOR_FRACTIONS,  # Explicitly set to prevent boost
     }
     doc = _create_mock_joke_doc("joke-1", overrides=overrides)
 
@@ -336,7 +331,6 @@ class TestDecayRecentJokeStats:
       "jokes_decayed": 5,
       "public_updated": 3,
       "jokes_skipped": 2,
-      "jokes_boosted": 1,
       "categories_processed": 4,
       "categories_updated": 2,
       "categories_emptied": 1,
@@ -364,176 +358,6 @@ class TestDecayRecentJokeStats:
     response = joke_auto_fns.joke_daily_maintenance_http(Mock())
 
     assert "boom" in response["data"]["error"]
-
-  @pytest.mark.parametrize(
-    "num_viewed_users,existing_fraction,random_value,expected_fraction",
-    [
-      (0, 0.0, 0.02, 0.02),  # Zero views, no existing fraction
-      (5, 0.0, 0.015, 0.015),  # Below threshold, no existing fraction
-      (8, 0.03, 0.01, 0.04),  # Below threshold, with existing fraction
-      (9, 0.0, 0.0125, 0.0125),  # Exactly 9 views
-      (MIN_VIEWS_FOR_FRACTIONS, 0.05, None, None),  # At threshold - no boost
-      (MIN_VIEWS_FOR_FRACTIONS + 10, 0.1, None,
-       None),  # Above threshold - no boost
-    ])
-  def test_boost_fraction_behavior(self, monkeypatch, num_viewed_users,
-                                   existing_fraction, random_value,
-                                   expected_fraction):
-    """Test fraction boost behavior for various view counts."""
-    now_utc = _create_test_datetime()
-    overrides = {
-      "num_viewed_users": num_viewed_users,
-      "num_saved_users_fraction": existing_fraction,
-      "last_recent_stats_update_time": now_utc - datetime.timedelta(days=2),
-    }
-
-    doc = _create_mock_joke_doc("joke-1", overrides=overrides)
-
-    _, mock_batch = _setup_mock_db_and_batch(monkeypatch, [doc])
-    monkeypatch.setattr(
-      'common.joke_operations.sync_joke_to_search_collection', Mock())
-    monkeypatch.setattr(
-      'common.joke_category_operations.refresh_category_caches',
-      Mock(
-        return_value={
-          "categories_processed": 0,
-          "categories_updated": 0,
-          "categories_emptied": 0,
-          "categories_failed": 0
-        }))
-
-    mock_random = Mock(
-      return_value=random_value if random_value is not None else 0.01)
-    monkeypatch.setattr('functions.joke_auto_fns.random.uniform', mock_random)
-
-    joke_auto_fns._joke_daily_maintenance_internal(now_utc)  # pylint: disable=protected-access
-
-    payload = mock_batch.update.call_args.args[
-      1] if mock_batch.update.called else {}
-    if expected_fraction is None:
-      # No boost expected
-      assert "num_saved_users_fraction" not in payload
-      mock_random.assert_not_called()
-    else:
-      # Boost expected
-      assert "num_saved_users_fraction" in payload
-      assert payload["num_saved_users_fraction"] == pytest.approx(
-        expected_fraction)
-      mock_random.assert_called_once_with(0.0, 0.02)
-
-  def test_boost_handles_invalid_fraction_type(self, monkeypatch):
-    """Test that invalid fraction types are treated as 0.0."""
-    now_utc = _create_test_datetime()
-    overrides = {
-      "num_viewed_users": 3,
-      "num_saved_users_fraction": "invalid",
-      "last_recent_stats_update_time": now_utc - datetime.timedelta(days=2),
-    }
-    doc = _create_mock_joke_doc("joke-1", overrides=overrides)
-
-    _, mock_batch = _setup_mock_db_and_batch(monkeypatch, [doc])
-    monkeypatch.setattr(
-      'common.joke_operations.sync_joke_to_search_collection', Mock())
-    monkeypatch.setattr(
-      'common.joke_category_operations.refresh_category_caches',
-      Mock(
-        return_value={
-          "categories_processed": 0,
-          "categories_updated": 0,
-          "categories_emptied": 0,
-          "categories_failed": 0
-        }))
-
-    # Mock random.uniform to return a predictable value
-    mock_random = Mock(return_value=0.01)
-    monkeypatch.setattr('functions.joke_auto_fns.random.uniform', mock_random)
-
-    joke_auto_fns._joke_daily_maintenance_internal(now_utc)  # pylint: disable=protected-access
-
-    mock_batch.update.assert_called_once()
-    payload = mock_batch.update.call_args.args[1]
-    assert payload["num_saved_users_fraction"] == pytest.approx(0.01)
-
-  def test_boost_handles_invalid_view_count_type(self, monkeypatch):
-    """Test that invalid view count types are treated as 0."""
-    now_utc = _create_test_datetime()
-    overrides = {
-      "num_viewed_users": "invalid",
-      "num_saved_users_fraction":
-      0.0,  # Set base to 0 for predictable assertion
-      "last_recent_stats_update_time": now_utc - datetime.timedelta(days=2),
-    }
-    doc = _create_mock_joke_doc("joke-1", overrides=overrides)
-
-    _, mock_batch = _setup_mock_db_and_batch(monkeypatch, [doc])
-    monkeypatch.setattr(
-      'common.joke_operations.sync_joke_to_search_collection', Mock())
-    monkeypatch.setattr(
-      'common.joke_category_operations.refresh_category_caches',
-      Mock(
-        return_value={
-          "categories_processed": 0,
-          "categories_updated": 0,
-          "categories_emptied": 0,
-          "categories_failed": 0
-        }))
-
-    # Mock random.uniform to return a predictable value
-    mock_random = Mock(return_value=0.01)
-    monkeypatch.setattr('functions.joke_auto_fns.random.uniform', mock_random)
-
-    joke_auto_fns._joke_daily_maintenance_internal(now_utc)  # pylint: disable=protected-access
-
-    mock_batch.update.assert_called_once()
-    payload = mock_batch.update.call_args.args[1]
-    assert payload["num_saved_users_fraction"] == pytest.approx(0.01)
-
-  def test_boost_statistics_tracked(self, monkeypatch):
-    """Test that boosted jokes are counted in statistics."""
-    now_utc = _create_test_datetime()
-
-    doc1 = MagicMock()
-    doc1.exists = True
-    doc1.reference = MagicMock()
-    doc1.to_dict.return_value = {
-      "num_viewed_users": 5,
-      "last_recent_stats_update_time": now_utc - datetime.timedelta(days=2),
-      "state": models.JokeState.PUBLISHED.value,
-      "is_public": True,
-    }
-
-    doc2 = MagicMock()
-    doc2.exists = True
-    doc2.reference = MagicMock()
-    doc2.to_dict.return_value = {
-      "num_viewed_users": MIN_VIEWS_FOR_FRACTIONS,
-      "last_recent_stats_update_time": now_utc - datetime.timedelta(days=2),
-      "state": models.JokeState.PUBLISHED.value,
-      "is_public": True,
-    }
-
-    _, mock_batch = _setup_mock_db_and_batch(monkeypatch, [doc1, doc2])
-    monkeypatch.setattr(
-      'common.joke_operations.sync_joke_to_search_collection', Mock())
-
-    # Mock random.uniform
-    mock_random = Mock(return_value=0.01)
-    monkeypatch.setattr('functions.joke_auto_fns.random.uniform', mock_random)
-
-    # Mock category refresh to return empty stats
-    monkeypatch.setattr(
-      'common.joke_category_operations.refresh_category_caches',
-      Mock(
-        return_value={
-          "categories_processed": 0,
-          "categories_updated": 0,
-          "categories_emptied": 0,
-          "categories_failed": 0
-        }))
-
-    result = joke_auto_fns._joke_daily_maintenance_internal(now_utc)  # pylint: disable=protected-access
-
-    assert result["jokes_boosted"] == 1
 
   @pytest.mark.parametrize(
     "joke_docs,expected_joke_ids,should_be_called",
@@ -587,7 +411,6 @@ class TestDecayRecentJokeStats:
         "punchline_text": f"Punchline for {joke_id}",
         "state": state.value,
         "is_public": is_public,
-        "num_viewed_users": MIN_VIEWS_FOR_FRACTIONS,
         "num_saved_users_fraction": 0.5,
         "last_recent_stats_update_time": now_utc - datetime.timedelta(days=2),
       }
@@ -648,7 +471,6 @@ class TestDecayRecentJokeStats:
       "punchline_text": "Punchline 1",
       "state": models.JokeState.PUBLISHED.value,
       "is_public": True,
-      "num_viewed_users": MIN_VIEWS_FOR_FRACTIONS,
       "num_saved_users_fraction": 0.3,  # Lowest
       "last_recent_stats_update_time": now_utc - datetime.timedelta(days=2),
     }
@@ -662,7 +484,6 @@ class TestDecayRecentJokeStats:
       "punchline_text": "Punchline 2",
       "state": models.JokeState.PUBLISHED.value,
       "is_public": True,
-      "num_viewed_users": MIN_VIEWS_FOR_FRACTIONS,
       "num_saved_users_fraction": 0.7,  # Highest
       "last_recent_stats_update_time": now_utc - datetime.timedelta(days=2),
     }
@@ -676,7 +497,6 @@ class TestDecayRecentJokeStats:
       "punchline_text": "Punchline 3",
       "state": models.JokeState.PUBLISHED.value,
       "is_public": True,
-      "num_viewed_users": MIN_VIEWS_FOR_FRACTIONS,
       "num_saved_users_fraction": 0.5,  # Middle
       "last_recent_stats_update_time": now_utc - datetime.timedelta(days=2),
     }
@@ -712,7 +532,7 @@ class TestDecayRecentJokeStats:
     assert call_args[2]["key"] == "joke1"
 
   @pytest.mark.parametrize(
-    "update_type,doc_data,expected_is_public,expected_fraction_range",
+    "update_type,doc_data,expected_is_public,expected_fraction",
     [
       # Test with is_public update
       (
@@ -743,22 +563,7 @@ class TestDecayRecentJokeStats:
           "last_recent_stats_update_time": -4,  # hours - recent
         },
         True,
-        (0.5, 0.5)),
-      # Test with fraction boost
-      (
-        "fraction_boost",
-        {
-          "is_public": True,
-          "num_viewed_users": 10,  # Below threshold
-          "num_saved_users": 5,
-          "num_shared_users": 2,
-          "num_saved_users_fraction": 0.3,  # Will be boosted
-          "num_shared_users_fraction": 0.2,
-          "popularity_score": 4.9,
-          "last_recent_stats_update_time": -4,  # hours
-        },
-        True,
-        (0.3, 0.32)),  # Range: 0.3 to 0.32
+        None),
       # Test with decay
       (
         "decay",
@@ -776,11 +581,11 @@ class TestDecayRecentJokeStats:
           "last_recent_stats_update_time": -22,  # hours
         },
         True,
-        (0.5, 0.5)),
+        0.5),
     ])
   def test_syncs_joke_to_search_collection(self, monkeypatch, update_type,
                                            doc_data, expected_is_public,
-                                           expected_fraction_range):
+                                           expected_fraction):
     """Test that jokes are synced to search collection with appropriate merged data."""
     now_utc = _create_test_datetime()
     doc = MagicMock()
@@ -821,12 +626,6 @@ class TestDecayRecentJokeStats:
           "categories_failed": 0
         }))
 
-    # Mock random for boost test
-    if update_type == "fraction_boost":
-      mock_random = Mock(return_value=0.01)
-      monkeypatch.setattr('functions.joke_auto_fns.random.uniform',
-                          mock_random)
-
     joke_auto_fns._joke_daily_maintenance_internal(now_utc)  # pylint: disable=protected-access
 
     # Verify sync was called or not, based on the update type
@@ -845,21 +644,14 @@ class TestDecayRecentJokeStats:
     assert new_embedding is None
 
     # Verify fraction if specified
-    if expected_fraction_range:
-      if expected_fraction_range[0] == expected_fraction_range[1]:
-        # Exact value
-        assert joke.num_saved_users_fraction == pytest.approx(
-          expected_fraction_range[0])
-      else:
-        # Range
-        assert joke.num_saved_users_fraction >= expected_fraction_range[0]
-        assert joke.num_saved_users_fraction <= expected_fraction_range[1]
+    if expected_fraction is not None:
+      assert joke.num_saved_users_fraction == pytest.approx(expected_fraction)
 
   def test_syncs_multiple_jokes_with_different_updates(self, monkeypatch):
     """Test that only updated jokes are synced."""
     now_utc = _create_test_datetime()
 
-    # Joke 1: Has updates (decay and fraction boost)
+    # Joke 1: Has updates (decay)
     doc1 = MagicMock()
     doc1.exists = True
     doc1.id = "joke1"
@@ -886,8 +678,6 @@ class TestDecayRecentJokeStats:
       "is_public": True,
       "public_timestamp": now_utc - datetime.timedelta(days=1),
       "last_recent_stats_update_time": now_utc - datetime.timedelta(hours=4),
-      "num_viewed_users":
-      MIN_VIEWS_FOR_FRACTIONS,  # This prevents fraction boost
     }
 
     _, mock_batch = _setup_mock_db_and_batch(monkeypatch, [doc1, doc2])

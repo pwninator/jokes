@@ -18,6 +18,7 @@ import 'package:snickerdoodle/src/data/jokes/joke_interactions_repository.dart';
 import 'package:snickerdoodle/src/data/jokes/joke_reactions_migration_service.dart';
 import 'package:snickerdoodle/src/features/auth/application/auth_startup_manager.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
+import 'package:snickerdoodle/src/features/jokes/application/joke_list_data_sources.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
 import 'package:snickerdoodle/src/startup/startup_task.dart';
 import 'package:snickerdoodle/src/utils/device_utils.dart';
@@ -244,6 +245,16 @@ Future<List<Override>> _syncFeedJokes(StartupReader read) async {
   final repository = read(jokeRepositoryProvider);
   final interactionsRepository = read(jokeInteractionsRepositoryProvider);
 
+  // Reset the feed cursor if it was marked as done, since we're about to sync.
+  try {
+    unawaited(_resetDoneFeedCursor(read));
+  } catch (e, stack) {
+    AppLogger.error(
+      'STARTUP_TASKS: SYNC_FEED_JOKES: Failed to reset feed cursor: $e',
+      stackTrace: stack,
+    );
+  }
+
   // Continue syncing feed jokes beyond the initial window in the background.
   unawaited(
     _runFullFeedSync(
@@ -263,6 +274,34 @@ Future<List<Override>> _syncFeedJokes(StartupReader read) async {
   }
 
   return const [];
+}
+
+Future<void> _resetDoneFeedCursor(StartupReader read) async {
+  final prefs = read(sharedPreferencesProvider);
+  final rawCursor = prefs.getString(compositeJokeCursorPrefsKey);
+  if (rawCursor == null) return;
+
+  final compositeCursor = CompositeCursor.decode(rawCursor);
+  if (compositeCursor == null) return;
+
+  final feedCursor =
+      compositeCursor.subSourceCursors[localFeedJokesSubSourceId];
+  if (feedCursor == kDoneSentinel) {
+    AppLogger.debug(
+      'STARTUP_TASKS: SYNC_FEED_JOKES: Resetting "done" feed cursor.',
+    );
+    final newSubSourceCursors =
+        Map<String, String>.from(compositeCursor.subSourceCursors)
+          ..remove(localFeedJokesSubSourceId);
+
+    final newCursor = CompositeCursor(
+      totalJokesLoaded: compositeCursor.totalJokesLoaded,
+      subSourceCursors: newSubSourceCursors,
+      prioritySourceCursors: compositeCursor.prioritySourceCursors,
+    );
+
+    await prefs.setString(compositeJokeCursorPrefsKey, newCursor.encode());
+  }
 }
 
 const int initialFeedWindowStartIndex = 0;

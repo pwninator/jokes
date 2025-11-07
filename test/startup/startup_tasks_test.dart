@@ -5,9 +5,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:snickerdoodle/src/core/providers/settings_providers.dart';
+import 'package:snickerdoodle/src/data/core/database/app_database.dart';
 import 'package:snickerdoodle/src/data/jokes/joke_interactions_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_list_data_sources.dart';
-import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
 import 'package:snickerdoodle/src/startup/startup_tasks.dart';
@@ -17,7 +17,13 @@ class MockJokeRepository extends Mock implements JokeRepository {}
 class MockJokeInteractionsRepository extends Mock
     implements JokeInteractionsRepository {}
 
+class MockJokeInteraction extends Mock implements JokeInteraction {}
+
 void main() {
+  setUpAll(() {
+    registerFallbackValue(const JokeListPageCursor(orderValue: '', docId: ''));
+  });
+
   group('_syncFeedJokes startup task', () {
     late MockJokeRepository mockJokeRepository;
     late MockJokeInteractionsRepository mockJokeInteractionsRepository;
@@ -34,18 +40,20 @@ void main() {
       mockJokeInteractionsRepository = MockJokeInteractionsRepository();
 
       // Mock the full feed sync to do nothing and complete instantly
-      when(
-        () => mockJokeRepository.readFeedJokes(
-          cursor: any(named: 'cursor'),
-        ),
-      ).thenAnswer(
-        (_) async => const JokeListPage(ids: [], hasMore: false),
+      when(() => mockJokeRepository.readFeedJokes(cursor: any(named: 'cursor')))
+          .thenAnswer(
+        (_) async => const JokeListPage(ids: [], cursor: null, hasMore: false),
       );
 
-      // Mock the feed head watch to return an empty list
-      when(() =>
-              mockJokeInteractionsRepository.watchFeedHead(limit: any(named: 'limit')))
-          .thenAnswer((_) => Stream.value([]));
+      // Mock the feed head watch to return a list that satisfies the initial window
+      final mockInteractions = List.generate(100, (i) {
+        final mockInteraction = MockJokeInteraction();
+        when(() => mockInteraction.feedIndex).thenReturn(i);
+        return mockInteraction;
+      });
+      when(() => mockJokeInteractionsRepository.watchFeedHead(
+              limit: any(named: 'limit')))
+          .thenAnswer((_) => Stream.value(mockInteractions));
     });
 
     tearDown(() {

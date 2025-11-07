@@ -22,6 +22,16 @@ Joke _makeJoke(String id) => Joke(
   publicTimestamp: DateTime.utc(2024, 1, 1),
 );
 
+Future<void> waitUntil(bool Function() condition) async {
+  final deadline = DateTime.now().add(const Duration(seconds: 1));
+  while (!condition()) {
+    if (DateTime.now().isAfter(deadline)) {
+      fail('Timed out waiting for condition');
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 5));
+  }
+}
+
 class MockAnalyticsService extends Mock implements AnalyticsService {}
 
 class MockFirebaseAnalytics extends Mock implements FirebaseAnalytics {}
@@ -168,17 +178,135 @@ void main() {
       await offlineToOnlineController.close();
     });
 
-    test('clears cached cursor when page returns null', () async {
-      Future<void> waitUntil(bool Function() condition) async {
-        final deadline = DateTime.now().add(const Duration(seconds: 1));
-        while (!condition()) {
-          if (DateTime.now().isAfter(deadline)) {
-            fail('Timed out waiting for condition');
-          }
-          await Future<void>.delayed(const Duration(milliseconds: 5));
+    test('continues paging when first page filters out all jokes', () async {
+      final requestedCursors = <String?>[];
+      int callCount = 0;
+
+      Future<PageResult> loadPage(Ref ref, int limit, String? cursor) async {
+        requestedCursors.add(cursor);
+        callCount++;
+
+        if (callCount == 1) {
+          final filteredJoke = Joke(
+            id: 'filtered',
+            setupText: 'setup filtered',
+            punchlineText: 'punchline filtered',
+            setupImageUrl: '', // Will be filtered out (no image URL)
+            punchlineImageUrl: '',
+            publicTimestamp: DateTime.utc(2024, 1, 1),
+          );
+          return PageResult(
+            jokes: [JokeWithDate(joke: filteredJoke, dataSource: 'test')],
+            cursor: 'cursor-1',
+            hasMore: true,
+          );
         }
+
+        final validJoke = Joke(
+          id: 'kept',
+          setupText: 'setup kept',
+          punchlineText: 'punchline kept',
+          setupImageUrl: 'https://img/kept-a.jpg',
+          punchlineImageUrl: 'https://img/kept-b.jpg',
+          publicTimestamp: DateTime.utc(2024, 1, 1),
+        );
+        return PageResult(
+          jokes: [JokeWithDate(joke: validJoke, dataSource: 'test')],
+          cursor: null,
+          hasMore: false,
+        );
       }
 
+      final bundle = createPagingProviders(
+        loadPage: loadPage,
+        resetTriggers: const [],
+        dataSourceName: 'test',
+        initialPageSize: 1,
+        loadPageSize: 1,
+        loadMoreThreshold: 1,
+      );
+
+      final mockAnalyticsService = MockAnalyticsService();
+      final mockFirebaseAnalytics = MockFirebaseAnalytics();
+
+      final container = ProviderContainer(
+        overrides: [
+          analyticsServiceProvider.overrideWithValue(mockAnalyticsService),
+          firebaseAnalyticsProvider.overrideWithValue(mockFirebaseAnalytics),
+          offlineToOnlineProvider.overrideWith((ref) => const Stream.empty()),
+          isOnlineNowProvider.overrideWith((ref) => true),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      container.read(bundle.paging);
+
+      await waitUntil(() => requestedCursors.length >= 2);
+      await waitUntil(
+        () =>
+            container.read(bundle.paging).loadedJokes.length == 1 &&
+            !container.read(bundle.paging).isLoading,
+      );
+
+      expect(requestedCursors, [null, 'cursor-1']);
+      final state = container.read(bundle.paging);
+      expect(state.loadedJokes.single.joke.id, 'kept');
+      expect(state.cursor, isNull);
+      expect(state.hasMore, isFalse);
+    });
+
+    test('does not repeat loadFirstPage when first page filtered away', () async {
+      final requestedCursors = <String?>[];
+
+      Future<PageResult> loadPage(Ref ref, int limit, String? cursor) async {
+        requestedCursors.add(cursor);
+        final filteredJoke = Joke(
+          id: 'filtered',
+          setupText: 'setup filtered',
+          punchlineText: 'punchline filtered',
+          setupImageUrl: '',
+          punchlineImageUrl: '',
+          publicTimestamp: DateTime.utc(2024, 1, 1),
+        );
+        return PageResult(
+          jokes: [JokeWithDate(joke: filteredJoke, dataSource: 'test')],
+          cursor: 'cursor-1',
+          hasMore: true,
+        );
+      }
+
+      final bundle = createPagingProviders(
+        loadPage: loadPage,
+        resetTriggers: const [],
+        dataSourceName: 'test',
+        initialPageSize: 1,
+        loadPageSize: 1,
+        loadMoreThreshold: 1,
+      );
+
+      final mockAnalyticsService = MockAnalyticsService();
+      final mockFirebaseAnalytics = MockFirebaseAnalytics();
+
+      final container = ProviderContainer(
+        overrides: [
+          analyticsServiceProvider.overrideWithValue(mockAnalyticsService),
+          firebaseAnalyticsProvider.overrideWithValue(mockFirebaseAnalytics),
+          offlineToOnlineProvider.overrideWith((ref) => const Stream.empty()),
+          isOnlineNowProvider.overrideWith((ref) => true),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      container.read(bundle.paging);
+
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(requestedCursors.length >= 2, isTrue);
+      expect(requestedCursors[0], isNull);
+      expect(requestedCursors[1], 'cursor-1');
+    });
+
+    test('clears cached cursor when page returns null', () async {
       final requestedCursors = <String?>[];
       int callCount = 0;
 

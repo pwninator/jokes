@@ -147,6 +147,28 @@ class TestOnJokeWrite:
     assert "num_saved_users_fraction" not in update_data
     assert "num_shared_users_fraction" not in update_data
 
+  def test_low_view_count_resets_fractions_to_zero(self,
+                                                   mock_get_joke_embedding,
+                                                   mock_firestore_service):
+    after_joke = models.PunnyJoke(
+      key="joke1",
+      setup_text="s",
+      punchline_text="p",
+      num_saved_users=30,
+      num_shared_users=10,
+      num_viewed_users=joke_trigger_fns.MIN_VIEWS_FOR_FRACTIONS - 1,
+      num_saved_users_fraction=0.5,
+      num_shared_users_fraction=0.2,
+    ).to_dict()
+
+    event = self._create_event(before=None, after=after_joke)
+
+    joke_trigger_fns.on_joke_write.__wrapped__(event)
+
+    update_data = mock_firestore_service.update_punny_joke.call_args[0][1]
+    assert update_data["num_saved_users_fraction"] == pytest.approx(0.0)
+    assert update_data["num_shared_users_fraction"] == pytest.approx(0.0)
+
 
 class TestOnJokeWriteSearchSync:
   """Tests for syncing jokes to the joke_search collection via on_joke_write."""

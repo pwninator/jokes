@@ -10,7 +10,7 @@ from firebase_functions import firestore_fn, logger, options
 from google.cloud.firestore_v1.vector import Vector
 from services import firestore, search
 
-MIN_VIEWS_FOR_FRACTIONS = 20
+MIN_VIEWS_FOR_FRACTIONS = 100
 
 
 @firestore_fn.on_document_written(
@@ -209,30 +209,31 @@ def on_joke_write(event: firestore_fn.Event[firestore_fn.Change]) -> None:
       "generation_metadata": current_metadata.as_dict,
     })
 
-  if after_joke.num_viewed_users >= MIN_VIEWS_FOR_FRACTIONS:
-    num_saved_users_fraction = (after_joke.num_saved_users /
-                                after_joke.num_viewed_users)
-    if not math.isclose(after_joke.num_saved_users_fraction,
-                        num_saved_users_fraction,
-                        rel_tol=1e-9,
-                        abs_tol=1e-12):
-      logger.info(
-        f"Joke num_saved_users_fraction mismatch, updating from {after_joke.num_saved_users_fraction} to {num_saved_users_fraction} for: {after_joke.key}"
-      )
-      update_data["num_saved_users_fraction"] = num_saved_users_fraction
-      after_joke.num_saved_users_fraction = num_saved_users_fraction
+  num_saved_users_fraction = (
+    after_joke.num_saved_users / after_joke.num_viewed_users
+  ) if after_joke.num_viewed_users >= MIN_VIEWS_FOR_FRACTIONS else 0.0
+  if not math.isclose(after_joke.num_saved_users_fraction,
+                      num_saved_users_fraction,
+                      rel_tol=1e-9,
+                      abs_tol=1e-12):
+    logger.info(
+      f"Joke num_saved_users_fraction mismatch, updating from {after_joke.num_saved_users_fraction} to {num_saved_users_fraction} for: {after_joke.key}"
+    )
+    update_data["num_saved_users_fraction"] = num_saved_users_fraction
+    after_joke.num_saved_users_fraction = num_saved_users_fraction
 
-    num_shared_users_fraction = (after_joke.num_shared_users /
-                                 after_joke.num_viewed_users)
-    if not math.isclose(after_joke.num_shared_users_fraction,
-                        num_shared_users_fraction,
-                        rel_tol=1e-9,
-                        abs_tol=1e-12):
-      logger.info(
-        f"Joke num_shared_users_fraction mismatch, updating from {after_joke.num_shared_users_fraction} to {num_shared_users_fraction} for: {after_joke.key}"
-      )
-      update_data["num_shared_users_fraction"] = num_shared_users_fraction
-      after_joke.num_shared_users_fraction = num_shared_users_fraction
+  num_shared_users_fraction = (
+    after_joke.num_shared_users / after_joke.num_viewed_users
+  ) if after_joke.num_viewed_users >= MIN_VIEWS_FOR_FRACTIONS else 0.0
+  if not math.isclose(after_joke.num_shared_users_fraction,
+                      num_shared_users_fraction,
+                      rel_tol=1e-9,
+                      abs_tol=1e-12):
+    logger.info(
+      f"Joke num_shared_users_fraction mismatch, updating from {after_joke.num_shared_users_fraction} to {num_shared_users_fraction} for: {after_joke.key}"
+    )
+    update_data["num_shared_users_fraction"] = num_shared_users_fraction
+    after_joke.num_shared_users_fraction = num_shared_users_fraction
 
   popularity_score = 0.0
   if after_joke.num_viewed_users > 0:

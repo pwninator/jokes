@@ -173,7 +173,13 @@ class GenericPagingNotifier extends StateNotifier<PagingState> {
       AppLogger.debug(
         'PAGING_INTERNAL: Triggering load (remaining=$remaining, threshold=$loadMoreThreshold)',
       );
-      if (state.loadedJokes.isEmpty) {
+
+      final hasAdvancedCursor =
+          state.cursor != null &&
+          state.cursor!.isNotEmpty &&
+          state.cursor != _initialCursorCache;
+
+      if (state.loadedJokes.isEmpty && !hasAdvancedCursor) {
         loadFirstPage();
       } else {
         loadMore();

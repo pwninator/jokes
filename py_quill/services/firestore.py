@@ -258,6 +258,22 @@ def get_daily_jokes(
   return [j for _, j in collected]
 
 
+def get_top_jokes(sort_field: str, limit: int) -> list[models.PunnyJoke]:
+  """Get top jokes from firestore sorted by a given field.
+
+  Args:
+      sort_field: The field to sort by (e.g., 'popularity_score_recent').
+      limit: The maximum number of jokes to return.
+  """
+  docs = (db().collection('jokes').where(
+    filter=FieldFilter('is_public', '==', True)).order_by(
+      sort_field, direction=Query.DESCENDING).limit(limit).stream())
+  return [
+    models.PunnyJoke.from_firestore_dict(doc.to_dict(), key=doc.id)
+    for doc in docs if doc.exists and doc.to_dict() is not None
+  ]
+
+
 def get_daily_joke(
   schedule_name: str,
   joke_date: datetime.date,

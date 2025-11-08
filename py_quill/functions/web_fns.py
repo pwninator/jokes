@@ -81,19 +81,18 @@ def _fetch_topic_jokes(topic: str, limit: int) -> list[models.PunnyJoke]:
 
 @web_bp.route('/')
 def index():
-  """Render the landing page with the joke of the day."""
-  today = datetime.datetime.now(datetime.timezone.utc).date()
-  jokes = firestore.get_daily_jokes("daily_jokes", today, 10)
+  """Render the landing page with the top 10 jokes."""
+  jokes = firestore.get_top_jokes('popularity_score_recent', 10)
 
   if not jokes:
-    return "Could not find a joke of the day.", 404
+    return "Could not find any top jokes.", 404
 
   html = flask.render_template(
     'index.html',
     jokes=jokes,
     canonical_url=flask.url_for('web.index', _external=True),
     site_name='Snickerdoodle',
-    now_year=today.year,
+    now_year=datetime.datetime.now(datetime.timezone.utc).year,
   )
   return _html_response(html, cache_seconds=300, cdn_seconds=1800)
 

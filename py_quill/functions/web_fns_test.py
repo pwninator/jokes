@@ -99,12 +99,11 @@ def test_topic_page_renders_with_json_ld_and_reveal(monkeypatch):
   assert 'Cache-Control' in resp.headers
 
 
-def test_index_page_renders_joke_of_the_day(monkeypatch):
-  """Verify that the index page '/' renders the joke of the day."""
+def test_index_page_renders_top_jokes(monkeypatch):
+  """Verify that the index page '/' renders the top jokes."""
   # Arrange
-  mock_get_daily_jokes = Mock()
-  monkeypatch.setattr(web_fns.firestore, "get_daily_jokes",
-                      mock_get_daily_jokes)
+  mock_get_top_jokes = Mock()
+  monkeypatch.setattr(web_fns.firestore, "get_top_jokes", mock_get_top_jokes)
 
   joke = models.PunnyJoke(
     key="joke123",
@@ -113,7 +112,7 @@ def test_index_page_renders_joke_of_the_day(monkeypatch):
     setup_image_url="http://example.com/setup.jpg",
     punchline_image_url="http://example.com/punchline.jpg",
   )
-  mock_get_daily_jokes.return_value = [joke]
+  mock_get_top_jokes.return_value = [joke]
 
   # Act
   with web_fns.app.test_client() as client:
@@ -122,7 +121,8 @@ def test_index_page_renders_joke_of_the_day(monkeypatch):
   # Assert
   assert resp.status_code == 200
   html = resp.get_data(as_text=True)
-  assert "Today's Joke" in html
+  assert "Fan-Favorite Jokes" in html
+  assert "Here are some of our most popular jokes, right from the app!" in html
   assert "What do you call a fake noodle?" in html
   assert "An Impasta!" in html
   assert 'data-analytics-event="web_index_joke_scroll_click"' in html
@@ -193,9 +193,9 @@ def test_pages_include_ga4_tag_and_parchment_background(monkeypatch):
                       "get_punny_jokes",
                       mock_get_punny_jokes,
                       raising=False)
-  mock_get_daily_jokes = Mock()
-  monkeypatch.setattr(web_fns.firestore, "get_daily_jokes",
-                      mock_get_daily_jokes)
+  mock_get_top_jokes = Mock()
+  monkeypatch.setattr(web_fns.firestore, "get_top_jokes",
+                      mock_get_top_jokes)
 
   search_result = search.JokeSearchResult(joke_id="j3",
                                           vector_distance=0.03)
@@ -209,14 +209,14 @@ def test_pages_include_ga4_tag_and_parchment_background(monkeypatch):
     punchline_image_url="http://example.com/p3.jpg",
   )
   mock_get_punny_jokes.return_value = [joke]
-  daily_joke = models.PunnyJoke(
-    key="daily1",
-    setup_text="Daily setup",
-    punchline_text="Daily punch",
+  top_joke = models.PunnyJoke(
+    key="top1",
+    setup_text="Top setup",
+    punchline_text="Top punch",
     setup_image_url="http://example.com/d.jpg",
     punchline_image_url="http://example.com/pd.jpg",
   )
-  mock_get_daily_jokes.return_value = [daily_joke]
+  mock_get_top_jokes.return_value = [top_joke]
 
   # Act
   with web_fns.app.test_client() as client:

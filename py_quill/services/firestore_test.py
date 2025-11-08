@@ -823,3 +823,115 @@ def test_update_joke_feed_one_over_chunk(monkeypatch):
   assert len(captured_docs["0000000000"]["jokes"]) == 50
   assert len(captured_docs["0000000001"]["jokes"]) == 1
   assert captured_docs["0000000001"]["jokes"][0]["id"] == "joke50"
+
+
+def test_get_top_jokes(monkeypatch):
+  """Test that get_top_jokes returns a list of PunnyJoke objects, filtered, sorted, and limited."""
+  from services import firestore as fs
+  from google.cloud.firestore import Query
+
+  class DummyDoc:
+
+    def __init__(self, id_, exists=True, data=None):
+      self.id = id_
+      self._exists = exists
+      self._data = data or {"setup_text": "s", "punchline_text": "p"}
+
+    @property
+    def exists(self):
+      return self._exists
+
+    def to_dict(self):
+      return self._data
+
+  class DummyQuery:
+
+    def __init__(self, docs):
+      self._docs = docs
+      self._filters = []
+      self._order_by = None
+      self._limit = None
+
+    def where(self, filter):
+      self._filters.append(filter)
+      return self
+
+    def order_by(self, field, direction=Query.ASCENDING):
+      self._order_by = (field, direction)
+      return self
+
+    def limit(self, limit):
+      self._limit = limit
+      return self
+
+    def stream(self):
+      # Simulate filtering
+      filtered_docs = [
+        doc for doc in self._docs
+        if all(
+          (f.field_path == 'is_public' and doc.to_dict().get('is_public') == f.value)
+          for f in self._filters)
+      ]
+      # Simulate sorting
+      if self._order_by:
+        field, direction = self._order_by
+        filtered_docs.sort(
+          key=lambda doc: doc.to_dict().get(field, 0),
+          reverse=(direction == Query.DESCENDING))
+
+      # Simulate limiting
+      if self._limit is not None:
+        filtered_docs = filtered_docs[:self._limit]
+
+      return filtered_docs
+
+  class DummyCol:
+
+    def __init__(self, docs):
+      self._docs = docs
+
+    def where(self, filter):
+      return DummyQuery(self._docs).where(filter)
+
+    def document(self, _id):
+      # Not used in get_top_jokes, but needed for other tests
+      pass
+
+  class DummyDB:
+
+    def __init__(self, docs):
+      self._docs = docs
+
+    def collection(self, _name):
+      return DummyCol(self._docs)
+
+  # Prepare dummy data
+  joke1 = DummyDoc("joke1", data={"setup_text": "s1", "punchline_text": "p1", "is_public": True, "popularity_score_recent": 100})
+  joke2 = DummyDoc("joke2", data={"setup_text": "s2", "punchline_text": "p2", "is_public": True, "popularity_score_recent": 200})
+  joke3 = DummyDoc("joke3", data={"setup_text": "s3", "punchline_text": "p3", "is_public": False, "popularity_score_recent": 300}) # Not public
+  joke4 = DummyDoc("joke4", data={"setup_text": "s4", "punchline_text": "p4", "is_public": True, "popularity_score_recent": 150})
+
+  all_jokes = [joke1, joke2, joke3, joke4]
+
+  monkeypatch.setattr(fs, "db", lambda: DummyDB(all_jokes))
+
+  # Test case 1: Get top 2 public jokes by popularity
+  top_jokes = fs.get_top_jokes('popularity_score_recent', 2)
+  assert len(top_jokes) == 2
+  assert top_jokes[0].key == "joke2" # popularity 200
+  assert top_jokes[1].key == "joke4" # popularity 150
+
+  # Test case 2: Get top 1 public joke
+  top_jokes = fs.get_top_jokes('popularity_score_recent', 1)
+  assert len(top_jokes) == 1
+  assert top_jokes[0].key == "joke2"
+
+  # Test case 3: No public jokes
+  monkeypatch.setattr(fs, "db", lambda: DummyDB([joke3])) # Only non-public joke
+  top_jokes = fs.get_top_jokes('popularity_score_recent', 5)
+  assert len(top_jokes) == 0
+
+  # Test case 4: Empty collection
+  monkeypatch.setattr(fs, "db", lambda: DummyDB([]))
+  top_jokes = fs.get_top_jokes('popularity_score_recent', 5)
+  assert len(top_jokes) == 0

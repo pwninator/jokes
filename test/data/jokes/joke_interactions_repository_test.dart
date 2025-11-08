@@ -77,6 +77,13 @@ void main() {
     expect(await service.countViewed(), 2);
   });
 
+  test('countNavigated returns count of navigated jokes', () async {
+    expect(await service.countNavigated(), 0);
+    await service.setNavigated('n1');
+    await service.setNavigated('n2');
+    expect(await service.countNavigated(), 2);
+  });
+
   test('countSaved returns count of saved jokes', () async {
     expect(await service.countSaved(), 0);
     await service.setSaved('s1');
@@ -84,6 +91,15 @@ void main() {
     expect(await service.countSaved(), 2);
     await service.setUnsaved('s1');
     expect(await service.countSaved(), 1);
+  });
+
+  test('getNavigatedJokeInteractions orders ASC', () async {
+    await service.setNavigated('n1');
+    await Future<void>.delayed(const Duration(milliseconds: 2));
+    await service.setNavigated('n2');
+
+    final rows = await service.getNavigatedJokeInteractions();
+    expect(rows.map((e) => e.jokeId).toList(), ['n1', 'n2']);
   });
 
   test('countShared returns count of shared jokes', () async {

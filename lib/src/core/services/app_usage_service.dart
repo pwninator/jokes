@@ -258,6 +258,16 @@ class AppUsageService {
   Future<int> getNumJokesViewed() async =>
       await _jokeInteractions.countViewed();
 
+  /// Get the number of jokes navigated
+  Future<int> getNumJokesNavigated() async =>
+      await _jokeInteractions.countNavigated();
+
+  /// Get navigated joke IDs ordered by the time they were first navigated.
+  Future<List<String>> getNavigatedJokeIds() async {
+    final rows = await _jokeInteractions.getNavigatedJokeInteractions();
+    return rows.map((row) => row.jokeId).toList(growable: false);
+  }
+
   /// Get viewed joke IDs ordered by the time they were viewed.
   Future<List<String>> getViewedJokeIds() async {
     final rows = await _jokeInteractions.getViewedJokeInteractions();

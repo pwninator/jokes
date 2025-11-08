@@ -722,9 +722,10 @@ void main() {
         expect(find.text('First Used Date:'), findsOneWidget);
         expect(find.text('Last Used Date:'), findsOneWidget);
         expect(find.text('Days Used:'), findsOneWidget);
-        expect(find.text('Num Jokes Viewed:'), findsOneWidget);
-        expect(find.text('Num Jokes Saved:'), findsOneWidget);
-        expect(find.text('Num Jokes Shared:'), findsOneWidget);
+        expect(find.text('Navigated'), findsOneWidget);
+        expect(find.text('Viewed'), findsOneWidget);
+        expect(find.text('Saved'), findsOneWidget);
+        expect(find.text('Shared'), findsOneWidget);
         expect(
           find.byKey(const Key('user_settings_screen-first-used-date-button')),
           findsOneWidget,
@@ -738,11 +739,19 @@ void main() {
           findsOneWidget,
         );
         expect(
-          find.byKey(const Key('user_settings_screen-subscribe-toggle-button')),
+          find.byKey(const Key('user_settings_screen-navigated-jokes-button')),
           findsOneWidget,
         );
         expect(
-          find.byKey(const Key('user_settings_screen-subscribe-toggle-button')),
+          find.byKey(const Key('user_settings_screen-viewed-jokes-button')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const Key('user_settings_screen-saved-jokes-button')),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const Key('user_settings_screen-shared-jokes-button')),
           findsOneWidget,
         );
       });
@@ -860,6 +869,35 @@ void main() {
         await tester.pumpAndSettle();
 
         expect(find.text('Viewed Jokes (2)'), findsNothing);
+      });
+
+      testWidgets('tapping navigated jokes button shows dialog with joke IDs', (
+        tester,
+      ) async {
+        await tester.pumpWidget(createTestWidget());
+        await tester.pumpAndSettle();
+
+        await enableDeveloperMode(tester);
+        await tester.pump(const Duration(milliseconds: 100));
+
+        final navigatedButton = find.byKey(
+          const Key('user_settings_screen-navigated-jokes-button'),
+        );
+        await tester.ensureVisible(navigatedButton);
+        await tester.tap(navigatedButton);
+        await tester.pumpAndSettle();
+
+        expect(find.text('Navigated Jokes (2)'), findsOneWidget);
+        expect(find.text('joke-nav-1'), findsOneWidget);
+        expect(find.text('joke-nav-2'), findsOneWidget);
+
+        final closeButton = find.byKey(
+          const Key('user_settings_screen-joke-ids-dialog-close-button'),
+        );
+        await tester.tap(closeButton);
+        await tester.pumpAndSettle();
+
+        expect(find.text('Navigated Jokes (2)'), findsNothing);
       });
 
       testWidgets('can tap Google sign-in button in developer mode', (
@@ -1174,9 +1212,13 @@ void _setupAppUsageServiceDefaults(MockAppUsageService mock) {
   when(() => mock.getFirstUsedDate()).thenAnswer((_) async => '2024-01-01');
   when(() => mock.getLastUsedDate()).thenAnswer((_) async => '2024-01-01');
   when(() => mock.getNumDaysUsed()).thenAnswer((_) async => 1);
+  when(() => mock.getNumJokesNavigated()).thenAnswer((_) async => 2);
   when(() => mock.getNumJokesViewed()).thenAnswer((_) async => 2);
   when(() => mock.getNumSavedJokes()).thenAnswer((_) async => 2);
   when(() => mock.getNumSharedJokes()).thenAnswer((_) async => 3);
+  when(
+    () => mock.getNavigatedJokeIds(),
+  ).thenAnswer((_) async => const ['joke-nav-1', 'joke-nav-2']);
   when(
     () => mock.getViewedJokeIds(),
   ).thenAnswer((_) async => const ['joke-view-1', 'joke-view-2']);

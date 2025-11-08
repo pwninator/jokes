@@ -528,50 +528,108 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                                       ],
                                     ),
                                     const SizedBox(height: 8),
-                                    _buildInfoRowButton(
-                                      label: 'Num Jokes Viewed',
-                                      buttonLabel: metrics.numJokesViewed
-                                          .toString(),
-                                      buttonKey: const Key(
-                                        'user_settings_screen-viewed-jokes-button',
-                                      ),
-                                      onPressed: () => _handleJokeIdsDialog(
-                                        context: context,
-                                        ref: ref,
-                                        title: 'Viewed Jokes',
-                                        loadJokeIds: (usage) =>
-                                            usage.getViewedJokeIds(),
-                                      ),
-                                    ),
-                                    _buildInfoRowButton(
-                                      label: 'Num Jokes Saved',
-                                      buttonLabel: metrics.numJokesSaved
-                                          .toString(),
-                                      buttonKey: const Key(
-                                        'user_settings_screen-saved-jokes-button',
-                                      ),
-                                      onPressed: () => _handleJokeIdsDialog(
-                                        context: context,
-                                        ref: ref,
-                                        title: 'Saved Jokes',
-                                        loadJokeIds: (usage) =>
-                                            usage.getSavedJokeIds(),
-                                      ),
-                                    ),
-                                    _buildInfoRowButton(
-                                      label: 'Num Jokes Shared',
-                                      buttonLabel: metrics.numJokesShared
-                                          .toString(),
-                                      buttonKey: const Key(
-                                        'user_settings_screen-shared-jokes-button',
-                                      ),
-                                      onPressed: () => _handleJokeIdsDialog(
-                                        context: context,
-                                        ref: ref,
-                                        title: 'Shared Jokes',
-                                        loadJokeIds: (usage) =>
-                                            usage.getSharedJokeIds(),
-                                      ),
+                                    const SizedBox(height: 8),
+                                    Table(
+                                      columnWidths: const {
+                                        0: FlexColumnWidth(),
+                                        1: FlexColumnWidth(),
+                                        2: FlexColumnWidth(),
+                                        3: FlexColumnWidth(),
+                                      },
+                                      defaultVerticalAlignment:
+                                          TableCellVerticalAlignment.middle,
+                                      children: [
+                                        TableRow(
+                                          children: [
+                                            _buildMetricsHeaderCell(
+                                              context,
+                                              'Navigated',
+                                            ),
+                                            _buildMetricsHeaderCell(
+                                              context,
+                                              'Viewed',
+                                            ),
+                                            _buildMetricsHeaderCell(
+                                              context,
+                                              'Saved',
+                                            ),
+                                            _buildMetricsHeaderCell(
+                                              context,
+                                              'Shared',
+                                            ),
+                                          ],
+                                        ),
+                                        TableRow(
+                                          children: [
+                                            _buildMetricsCountCell(
+                                              context: context,
+                                              buttonKey: const Key(
+                                                'user_settings_screen-navigated-jokes-button',
+                                              ),
+                                              value: metrics.numJokesNavigated
+                                                  .toString(),
+                                              onPressed: () =>
+                                                  _handleJokeIdsDialog(
+                                                    context: context,
+                                                    ref: ref,
+                                                    title: 'Navigated Jokes',
+                                                    loadJokeIds: (usage) => usage
+                                                        .getNavigatedJokeIds(),
+                                                  ),
+                                            ),
+                                            _buildMetricsCountCell(
+                                              context: context,
+                                              buttonKey: const Key(
+                                                'user_settings_screen-viewed-jokes-button',
+                                              ),
+                                              value: metrics.numJokesViewed
+                                                  .toString(),
+                                              onPressed: () =>
+                                                  _handleJokeIdsDialog(
+                                                    context: context,
+                                                    ref: ref,
+                                                    title: 'Viewed Jokes',
+                                                    loadJokeIds: (usage) =>
+                                                        usage
+                                                            .getViewedJokeIds(),
+                                                  ),
+                                            ),
+                                            _buildMetricsCountCell(
+                                              context: context,
+                                              buttonKey: const Key(
+                                                'user_settings_screen-saved-jokes-button',
+                                              ),
+                                              value: metrics.numJokesSaved
+                                                  .toString(),
+                                              onPressed: () =>
+                                                  _handleJokeIdsDialog(
+                                                    context: context,
+                                                    ref: ref,
+                                                    title: 'Saved Jokes',
+                                                    loadJokeIds: (usage) =>
+                                                        usage.getSavedJokeIds(),
+                                                  ),
+                                            ),
+                                            _buildMetricsCountCell(
+                                              context: context,
+                                              buttonKey: const Key(
+                                                'user_settings_screen-shared-jokes-button',
+                                              ),
+                                              value: metrics.numJokesShared
+                                                  .toString(),
+                                              onPressed: () =>
+                                                  _handleJokeIdsDialog(
+                                                    context: context,
+                                                    ref: ref,
+                                                    title: 'Shared Jokes',
+                                                    loadJokeIds: (usage) =>
+                                                        usage
+                                                            .getSharedJokeIds(),
+                                                  ),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
                                     ),
                                   ],
                                 );
@@ -1233,6 +1291,48 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
     );
   }
 
+  Widget _buildMetricsHeaderCell(BuildContext context, String label) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      child: Text(
+        label,
+        style: Theme.of(
+          context,
+        ).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.bold),
+        textAlign: TextAlign.center,
+      ),
+    );
+  }
+
+  Widget _buildMetricsCountCell({
+    required BuildContext context,
+    required Key buttonKey,
+    required String value,
+    required VoidCallback onPressed,
+  }) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      child: TextButton(
+        key: buttonKey,
+        onPressed: onPressed,
+        style: TextButton.styleFrom(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+          minimumSize: const Size(0, 36),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          foregroundColor: theme.colorScheme.primary,
+        ),
+        child: Text(
+          value,
+          style: theme.textTheme.titleMedium?.copyWith(
+            fontWeight: FontWeight.w600,
+            color: theme.colorScheme.primary,
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildStatusToggleButton({
     required BuildContext context,
     required Key buttonKey,
@@ -1418,6 +1518,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
     final lastUsed = await usage.getLastUsedDate();
     final daysUsed = await usage.getNumDaysUsed();
     final jokesViewed = await usage.getNumJokesViewed();
+    final jokesNavigated = await usage.getNumJokesNavigated();
     final jokesSaved = await usage.getNumSavedJokes();
     final jokesShared = await usage.getNumSharedJokes();
     final reviewRequested = reviewStore.hasRequested();
@@ -1427,6 +1528,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
       firstUsedDate: firstUsed,
       lastUsedDate: lastUsed,
       numDaysUsed: daysUsed,
+      numJokesNavigated: jokesNavigated,
       numJokesViewed: jokesViewed,
       numJokesSaved: jokesSaved,
       numJokesShared: jokesShared,
@@ -1726,6 +1828,7 @@ class _UsageMetrics {
   final String? firstUsedDate;
   final String? lastUsedDate;
   final int numDaysUsed;
+  final int numJokesNavigated;
   final int numJokesViewed;
   final int numJokesSaved;
   final int numJokesShared;
@@ -1737,6 +1840,7 @@ class _UsageMetrics {
     required this.firstUsedDate,
     required this.lastUsedDate,
     required this.numDaysUsed,
+    required this.numJokesNavigated,
     required this.numJokesViewed,
     required this.numJokesSaved,
     required this.numJokesShared,

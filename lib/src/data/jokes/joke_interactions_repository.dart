@@ -135,6 +135,25 @@ class JokeInteractionsRepository {
     perf: _perf,
   );
 
+  Future<List<JokeInteraction>> getNavigatedJokeInteractions() async =>
+      runWithTrace(
+        name: TraceName.driftGetViewedJokeInteractions,
+        traceKey: 'navigated',
+        body: () async {
+          final query = _db.select(_db.jokeInteractions)
+            ..where((tbl) => tbl.navigatedTimestamp.isNotNull())
+            ..orderBy([
+              (t) => OrderingTerm(
+                expression: t.navigatedTimestamp,
+                mode: OrderingMode.asc,
+              ),
+            ]);
+          return await query.get();
+        },
+        fallback: <JokeInteraction>[],
+        perf: _perf,
+      );
+
   Future<List<JokeInteraction>> getViewedJokeInteractions() async =>
       runWithTrace(
         name: TraceName.driftGetViewedJokeInteractions,
@@ -235,6 +254,21 @@ class JokeInteractionsRepository {
       ..where((tbl) => tbl.jokeId.equals(jokeId));
     return query.watchSingleOrNull();
   }
+
+  /// Count jokes that have been navigated to at least once
+  Future<int> countNavigated() async => runWithTrace(
+    name: TraceName.driftGetInteractionCount,
+    traceKey: 'count_navigated',
+    body: () async {
+      final query = _db.selectOnly(_db.jokeInteractions)
+        ..addColumns([_db.jokeInteractions.jokeId.count()])
+        ..where(_db.jokeInteractions.navigatedTimestamp.isNotNull());
+      final result = await query.getSingle();
+      return result.read(_db.jokeInteractions.jokeId.count()) ?? 0;
+    },
+    fallback: 0,
+    perf: _perf,
+  );
 
   /// Count jokes that have been viewed at least once
   Future<int> countViewed() async => runWithTrace(

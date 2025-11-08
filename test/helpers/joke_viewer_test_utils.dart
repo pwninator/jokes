@@ -167,6 +167,9 @@ class NoopAppUsageService implements AppUsageService {
   Future<int> getNumDaysUsed() async => 0;
 
   @override
+  Future<int> getNumJokesNavigated() async => 0;
+
+  @override
   Future<int> getNumJokesViewed() async => 0;
 
   @override
@@ -225,6 +228,9 @@ class NoopAppUsageService implements AppUsageService {
 
   @override
   Future<List<String>> getSharedJokeIds() async => const [];
+
+  @override
+  Future<List<String>> getNavigatedJokeIds() async => const [];
 
   @override
   Future<List<String>> getViewedJokeIds() async => const [];

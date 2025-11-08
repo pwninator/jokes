@@ -219,6 +219,10 @@
         summaryEl.setAttribute('aria-disabled', 'true');
         summaryEl.dataset.analyticsLabel = 'cta_stage_disabled';
         summaryEl.textContent = 'Next Joke';
+        window.gtag('event', 'web_index_cta_card_view', {
+          event_label: 'end_of_jokes',
+          transport_type: 'beacon'
+        });
         return;
       }
       summaryEl.removeAttribute('aria-disabled');

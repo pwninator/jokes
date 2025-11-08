@@ -290,9 +290,9 @@ Future<void> _resetDoneFeedCursor(StartupReader read) async {
     AppLogger.debug(
       'STARTUP_TASKS: SYNC_FEED_JOKES: Resetting "done" feed cursor.',
     );
-    final newSubSourceCursors =
-        Map<String, String>.from(compositeCursor.subSourceCursors)
-          ..remove(localFeedJokesSubSourceId);
+    final newSubSourceCursors = Map<String, String>.from(
+      compositeCursor.subSourceCursors,
+    )..remove(localFeedJokesSubSourceId);
 
     final newCursor = CompositeCursor(
       totalJokesLoaded: compositeCursor.totalJokesLoaded,

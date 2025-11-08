@@ -40,8 +40,9 @@ void main() {
       mockJokeInteractionsRepository = MockJokeInteractionsRepository();
 
       // Mock the full feed sync to do nothing and complete instantly
-      when(() => mockJokeRepository.readFeedJokes(cursor: any(named: 'cursor')))
-          .thenAnswer(
+      when(
+        () => mockJokeRepository.readFeedJokes(cursor: any(named: 'cursor')),
+      ).thenAnswer(
         (_) async => const JokeListPage(ids: [], cursor: null, hasMore: false),
       );
 
@@ -51,9 +52,11 @@ void main() {
         when(() => mockInteraction.feedIndex).thenReturn(i);
         return mockInteraction;
       });
-      when(() => mockJokeInteractionsRepository.watchFeedHead(
-              limit: any(named: 'limit')))
-          .thenAnswer((_) => Stream.value(mockInteractions));
+      when(
+        () => mockJokeInteractionsRepository.watchFeedHead(
+          limit: any(named: 'limit'),
+        ),
+      ).thenAnswer((_) => Stream.value(mockInteractions));
     });
 
     tearDown(() {
@@ -61,88 +64,94 @@ void main() {
     });
 
     test(
-        'resets composite cursor for feed jokes if it is marked as __DONE__',
-        () async {
-      // Arrange: Set up SharedPreferences with a "done" cursor
-      final initialCursor = const CompositeCursor(
-        totalJokesLoaded: 100,
-        subSourceCursors: {
-          localFeedJokesSubSourceId: kDoneSentinel,
-          'another_source': 'cursor-123',
-        },
-        prioritySourceCursors: {},
-      ).encode();
+      'resets composite cursor for feed jokes if it is marked as __DONE__',
+      () async {
+        // Arrange: Set up SharedPreferences with a "done" cursor
+        final initialCursor = const CompositeCursor(
+          totalJokesLoaded: 100,
+          subSourceCursors: {
+            localFeedJokesSubSourceId: kDoneSentinel,
+            'another_source': 'cursor-123',
+          },
+          prioritySourceCursors: {},
+        ).encode();
 
-      SharedPreferences.setMockInitialValues({
-        compositeJokeCursorPrefsKey: initialCursor,
-      });
-      sharedPreferences = await SharedPreferences.getInstance();
+        SharedPreferences.setMockInitialValues({
+          compositeJokeCursorPrefsKey: initialCursor,
+        });
+        sharedPreferences = await SharedPreferences.getInstance();
 
-      container = ProviderContainer(
-        overrides: [
-          jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
-          jokeInteractionsRepositoryProvider
-              .overrideWithValue(mockJokeInteractionsRepository),
-          sharedPreferencesProvider.overrideWithValue(sharedPreferences),
-        ],
-      );
+        container = ProviderContainer(
+          overrides: [
+            jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
+            jokeInteractionsRepositoryProvider.overrideWithValue(
+              mockJokeInteractionsRepository,
+            ),
+            sharedPreferencesProvider.overrideWithValue(sharedPreferences),
+          ],
+        );
 
-      final startupReader = container.read;
+        final startupReader = container.read;
 
-      // Act: Run the startup task
-      await syncFeedJokesExecute(startupReader);
+        // Act: Run the startup task
+        await syncFeedJokesExecute(startupReader);
 
-      // Assert: Check that the cursor was modified correctly
-      final updatedRawCursor =
-          sharedPreferences.getString(compositeJokeCursorPrefsKey);
-      final updatedCursor = CompositeCursor.decode(updatedRawCursor);
+        // Assert: Check that the cursor was modified correctly
+        final updatedRawCursor = sharedPreferences.getString(
+          compositeJokeCursorPrefsKey,
+        );
+        final updatedCursor = CompositeCursor.decode(updatedRawCursor);
 
-      expect(updatedCursor, isNotNull);
-      expect(
-        updatedCursor!.subSourceCursors.containsKey(localFeedJokesSubSourceId),
-        isFalse,
-      );
-      expect(
-        updatedCursor.subSourceCursors['another_source'],
-        'cursor-123',
-      );
-    });
+        expect(updatedCursor, isNotNull);
+        expect(
+          updatedCursor!.subSourceCursors.containsKey(
+            localFeedJokesSubSourceId,
+          ),
+          isFalse,
+        );
+        expect(updatedCursor.subSourceCursors['another_source'], 'cursor-123');
+      },
+    );
 
-    test('does not modify cursor if feed joke cursor is not __DONE__',
-        () async {
-      // Arrange: Set up SharedPreferences with a "normal" cursor
-      final initialCursor = const CompositeCursor(
-        totalJokesLoaded: 50,
-        subSourceCursors: {
-          localFeedJokesSubSourceId: 'some-feed-cursor',
-          'another_source': 'cursor-123',
-        },
-        prioritySourceCursors: {},
-      ).encode();
+    test(
+      'does not modify cursor if feed joke cursor is not __DONE__',
+      () async {
+        // Arrange: Set up SharedPreferences with a "normal" cursor
+        final initialCursor = const CompositeCursor(
+          totalJokesLoaded: 50,
+          subSourceCursors: {
+            localFeedJokesSubSourceId: 'some-feed-cursor',
+            'another_source': 'cursor-123',
+          },
+          prioritySourceCursors: {},
+        ).encode();
 
-      SharedPreferences.setMockInitialValues({
-        compositeJokeCursorPrefsKey: initialCursor,
-      });
-      sharedPreferences = await SharedPreferences.getInstance();
+        SharedPreferences.setMockInitialValues({
+          compositeJokeCursorPrefsKey: initialCursor,
+        });
+        sharedPreferences = await SharedPreferences.getInstance();
 
-      container = ProviderContainer(
-        overrides: [
-          jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
-          jokeInteractionsRepositoryProvider
-              .overrideWithValue(mockJokeInteractionsRepository),
-          sharedPreferencesProvider.overrideWithValue(sharedPreferences),
-        ],
-      );
+        container = ProviderContainer(
+          overrides: [
+            jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
+            jokeInteractionsRepositoryProvider.overrideWithValue(
+              mockJokeInteractionsRepository,
+            ),
+            sharedPreferencesProvider.overrideWithValue(sharedPreferences),
+          ],
+        );
 
-      final startupReader = container.read;
+        final startupReader = container.read;
 
-      // Act: Run the startup task
-      await syncFeedJokesExecute(startupReader);
+        // Act: Run the startup task
+        await syncFeedJokesExecute(startupReader);
 
-      // Assert: Check that the cursor was not changed
-      final updatedRawCursor =
-          sharedPreferences.getString(compositeJokeCursorPrefsKey);
-      expect(updatedRawCursor, initialCursor);
-    });
+        // Assert: Check that the cursor was not changed
+        final updatedRawCursor = sharedPreferences.getString(
+          compositeJokeCursorPrefsKey,
+        );
+        expect(updatedRawCursor, initialCursor);
+      },
+    );
   });
 }

@@ -674,6 +674,43 @@ void main() {
     });
   });
 
+  group('logJokeFeedEnd events', () {
+    test('logJokeFeedEndViewed logs event with context parameter', () async {
+      analyticsService.logJokeFeedEndViewed(jokeContext: 'joke_feed');
+
+      await Future.delayed(Duration.zero);
+
+      verify(
+        () => mockFirebaseAnalytics.logEvent(
+          name: 'joke_feed_end_viewed',
+          parameters: any(
+            named: 'parameters',
+            that: containsPair(AnalyticsParameters.jokeContext, 'joke_feed'),
+          ),
+        ),
+      ).called(1);
+    });
+
+    test(
+      'logJokeFeedEndEmptyViewed logs event with context parameter',
+      () async {
+        analyticsService.logJokeFeedEndEmptyViewed(jokeContext: 'joke_feed');
+
+        await Future.delayed(Duration.zero);
+
+        verify(
+          () => mockFirebaseAnalytics.logEvent(
+            name: 'joke_feed_end_empty_viewed',
+            parameters: any(
+              named: 'parameters',
+              that: containsPair(AnalyticsParameters.jokeContext, 'joke_feed'),
+            ),
+          ),
+        ).called(1);
+      },
+    );
+  });
+
   group('Tour events', () {
     test('logTourCompleted logs tour completed event', () async {
       analyticsService.logTourCompleted();

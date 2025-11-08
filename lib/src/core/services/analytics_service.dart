@@ -96,6 +96,9 @@ abstract class AnalyticsService {
   /// Log when the end-of-feed card is presented to the user.
   void logJokeFeedEndViewed({required String jokeContext});
 
+  /// Log when the feed viewer shows an empty state (no jokes available).
+  void logJokeFeedEndEmptyViewed({required String jokeContext});
+
   // Ads: banner lifecycle
   void logAdBannerStatus({required String eligibilityStatus});
 
@@ -558,6 +561,13 @@ class FirebaseAnalyticsService implements AnalyticsService {
   @override
   void logJokeFeedEndViewed({required String jokeContext}) {
     _logEvent(AnalyticsEvent.jokeFeedEndViewed, {
+      AnalyticsParameters.jokeContext: jokeContext,
+    });
+  }
+
+  @override
+  void logJokeFeedEndEmptyViewed({required String jokeContext}) {
+    _logEvent(AnalyticsEvent.jokeFeedEndEmptyViewed, {
       AnalyticsParameters.jokeContext: jokeContext,
     });
   }

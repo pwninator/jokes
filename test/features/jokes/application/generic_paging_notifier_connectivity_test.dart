@@ -255,81 +255,88 @@ void main() {
       expect(state.hasMore, isFalse);
     });
 
-    test('does not repeat loadFirstPage when first page filtered away', () async {
-      final requestedCursors = <String?>[];
-      int initialCursorCalls = 0;
-      var repeatedLoadFirstPage = false;
+    test(
+      'does not repeat loadFirstPage when first page filtered away',
+      () async {
+        final requestedCursors = <String?>[];
+        int initialCursorCalls = 0;
+        var repeatedLoadFirstPage = false;
 
-      Future<PageResult> loadPage(Ref ref, int limit, String? cursor) async {
-        requestedCursors.add(cursor);
+        Future<PageResult> loadPage(Ref ref, int limit, String? cursor) async {
+          requestedCursors.add(cursor);
 
-        if (cursor == null) {
-          initialCursorCalls++;
-          if (initialCursorCalls > 1) {
-            repeatedLoadFirstPage = true;
-            return const PageResult(
-              jokes: [],
-              cursor: null,
-              hasMore: false,
+          if (cursor == null) {
+            initialCursorCalls++;
+            if (initialCursorCalls > 1) {
+              repeatedLoadFirstPage = true;
+              return const PageResult(jokes: [], cursor: null, hasMore: false);
+            }
+            final filteredJoke = Joke(
+              id: 'filtered',
+              setupText: 'setup filtered',
+              punchlineText: 'punchline filtered',
+              setupImageUrl: '',
+              punchlineImageUrl: '',
+              publicTimestamp: DateTime.utc(2024, 1, 1),
+            );
+            return PageResult(
+              jokes: [JokeWithDate(joke: filteredJoke, dataSource: 'test')],
+              cursor: 'cursor-1',
+              hasMore: true,
             );
           }
-          final filteredJoke = Joke(
-            id: 'filtered',
-            setupText: 'setup filtered',
-            punchlineText: 'punchline filtered',
-            setupImageUrl: '',
-            punchlineImageUrl: '',
-            publicTimestamp: DateTime.utc(2024, 1, 1),
-          );
+
+          final validJoke = _makeJoke('kept');
           return PageResult(
-            jokes: [JokeWithDate(joke: filteredJoke, dataSource: 'test')],
-            cursor: 'cursor-1',
-            hasMore: true,
+            jokes: [JokeWithDate(joke: validJoke, dataSource: 'test')],
+            cursor: null,
+            hasMore: false,
           );
         }
 
-        final validJoke = _makeJoke('kept');
-        return PageResult(
-          jokes: [JokeWithDate(joke: validJoke, dataSource: 'test')],
-          cursor: null,
-          hasMore: false,
+        final bundle = createPagingProviders(
+          loadPage: loadPage,
+          resetTriggers: const [],
+          dataSourceName: 'test',
+          initialPageSize: 1,
+          loadPageSize: 1,
+          loadMoreThreshold: 1,
         );
-      }
 
-      final bundle = createPagingProviders(
-        loadPage: loadPage,
-        resetTriggers: const [],
-        dataSourceName: 'test',
-        initialPageSize: 1,
-        loadPageSize: 1,
-        loadMoreThreshold: 1,
-      );
+        final mockAnalyticsService = MockAnalyticsService();
+        final mockFirebaseAnalytics = MockFirebaseAnalytics();
 
-      final mockAnalyticsService = MockAnalyticsService();
-      final mockFirebaseAnalytics = MockFirebaseAnalytics();
+        final container = ProviderContainer(
+          overrides: [
+            analyticsServiceProvider.overrideWithValue(mockAnalyticsService),
+            firebaseAnalyticsProvider.overrideWithValue(mockFirebaseAnalytics),
+            offlineToOnlineProvider.overrideWith((ref) => const Stream.empty()),
+            isOnlineNowProvider.overrideWith((ref) => true),
+          ],
+        );
+        addTearDown(container.dispose);
 
-      final container = ProviderContainer(
-        overrides: [
-          analyticsServiceProvider.overrideWithValue(mockAnalyticsService),
-          firebaseAnalyticsProvider.overrideWithValue(mockFirebaseAnalytics),
-          offlineToOnlineProvider.overrideWith((ref) => const Stream.empty()),
-          isOnlineNowProvider.overrideWith((ref) => true),
-        ],
-      );
-      addTearDown(container.dispose);
+        container.read(bundle.paging);
 
-      container.read(bundle.paging);
+        await waitUntil(
+          () =>
+              repeatedLoadFirstPage ||
+              (!container.read(bundle.paging).isLoading &&
+                  container.read(bundle.paging).loadedJokes.length == 1),
+        );
 
-      await waitUntil(() =>
-          repeatedLoadFirstPage ||
-          (!container.read(bundle.paging).isLoading &&
-              container.read(bundle.paging).loadedJokes.length == 1));
-
-      expect(repeatedLoadFirstPage, isFalse,
-          reason: 'loadFirstPage was invoked more than once');
-      expect(initialCursorCalls, 1);
-      expect(container.read(bundle.paging).loadedJokes.single.joke.id, 'kept');
-    });
+        expect(
+          repeatedLoadFirstPage,
+          isFalse,
+          reason: 'loadFirstPage was invoked more than once',
+        );
+        expect(initialCursorCalls, 1);
+        expect(
+          container.read(bundle.paging).loadedJokes.single.joke.id,
+          'kept',
+        );
+      },
+    );
 
     test('clears cached cursor when page returns null', () async {
       final requestedCursors = <String?>[];

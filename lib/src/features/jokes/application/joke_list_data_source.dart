@@ -219,6 +219,7 @@ class GenericPagingNotifier extends StateNotifier<PagingState> {
   Future<void> _loadInternal({required int limit, String? cursor}) async {
     if (!mounted) return;
     try {
+      final previousState = state;
       final previousCursor = state.cursor;
       final page = await loadPage(limit, cursor);
       if (!mounted) return;
@@ -258,6 +259,17 @@ class GenericPagingNotifier extends StateNotifier<PagingState> {
           (page.jokes.isNotEmpty || newCursor != previousCursor);
 
       if (!effectiveHasMore) {
+        _logCompositeFeedEnd(
+          previousState: previousState,
+          page: page,
+          filteredNewJokesCount: newJokes.length,
+          filteredOutCount: page.jokes.length - newJokes.length,
+          appendedCount: appended.length,
+          requestedCursor: cursor,
+          previousCursor: previousCursor,
+          newCursor: newCursor,
+          effectiveHasMore: effectiveHasMore,
+        );
         final analytics = ref.read(analyticsServiceProvider);
         analytics.logJokeEndReached(jokeContext: dataSourceName);
       }
@@ -325,6 +337,52 @@ class GenericPagingNotifier extends StateNotifier<PagingState> {
 
   void _clearRetryBackoff() {
     _blockRetriesLoadsUntil = null;
+  }
+
+  bool get _isCompositeDataSource => dataSourceName == 'composite_jokes';
+
+  void _logCompositeFeedEnd({
+    required PagingState previousState,
+    required PageResult page,
+    required int filteredNewJokesCount,
+    required int filteredOutCount,
+    required int appendedCount,
+    required String? requestedCursor,
+    required String? previousCursor,
+    required String? newCursor,
+    required bool effectiveHasMore,
+  }) {
+    if (!_isCompositeDataSource) return;
+    final contextDetails = <String, Object?>{
+      'requestedCursor': requestedCursor,
+      'previousCursor': previousCursor,
+      'page.cursor': page.cursor,
+      'page.hasMore': page.hasMore,
+      'page.count': page.jokes.length,
+      'page.totalCount': page.totalCount,
+      'filtered.newJokes': filteredNewJokesCount,
+      'filtered.removed': filteredOutCount,
+      'previous.loadedCount': previousState.loadedJokes.length,
+      'appended.totalCount': appendedCount,
+      'previous.hasMore': previousState.hasMore,
+      'previous.isLoading': previousState.isLoading,
+      'previous.isInitialized': previousState.isInitialized,
+      'previous.totalCount': previousState.totalCount,
+      'previous.cursor': previousState.cursor,
+      'effectiveHasMore': effectiveHasMore,
+      'currentViewingIndex': _currentViewingIndex,
+      'retry.blockUntil': _blockRetriesLoadsUntil,
+      'retry.failureAttemptIndex': _failureAttemptIndex,
+      'retry.inBackoff': _isInRetryBackoff(),
+    }..removeWhere((_, value) => value == null);
+
+    final formattedDetails = contextDetails.entries
+        .map((entry) => '${entry.key}=${entry.value}')
+        .join(', ');
+
+    AppLogger.error(
+      'PAGING_INTERNAL: COMPOSITE: Data source exhausted ($formattedDetails)',
+    );
   }
 }
 

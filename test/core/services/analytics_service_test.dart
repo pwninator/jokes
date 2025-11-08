@@ -90,10 +90,7 @@ void main() {
         () => analyticsService.logAppUsageDays(
           numDaysUsed: 3,
           brightness: Brightness.light,
-          homepage: 'daily',
         ),
-        () => analyticsService.logHomepage(true),
-        () => analyticsService.logHomepage(false),
       ];
 
       for (final logFunction in allLogFunctions) {
@@ -158,7 +155,6 @@ void main() {
         analyticsService.logAppUsageDays(
           numDaysUsed: 1,
           brightness: Brightness.dark,
-          homepage: 'daily',
         );
 
         await Future.delayed(Duration.zero);
@@ -193,7 +189,6 @@ void main() {
         analyticsService.logAppUsageDays(
           numDaysUsed: 3,
           brightness: Brightness.light,
-          homepage: 'daily',
         );
 
         await Future.delayed(Duration.zero);
@@ -469,7 +464,6 @@ void main() {
         RemoteParam.shareImagesMode: 'share_images_mode',
         RemoteParam.adDisplayMode: 'ad_display_mode',
         RemoteParam.bannerAdPosition: 'banner_ad_position',
-        RemoteParam.feedScreenEnabled: 'feed_screen_enabled',
       };
 
       // Capture event names that are logged
@@ -523,56 +517,6 @@ void main() {
         );
       }
     });
-  });
-
-  group('logHomepage', () {
-    test(
-      'logs homepage event with feed value when feedEnabled is true',
-      () async {
-        analyticsService.logHomepage(true);
-
-        await Future.delayed(Duration.zero);
-
-        verify(
-          () => mockFirebaseAnalytics.logEvent(
-            name: 'homepage',
-            parameters: any(
-              named: 'parameters',
-              that: predicate<Map<String, Object>>(
-                (params) =>
-                    params[AnalyticsParameters.homepageName] ==
-                    AnalyticsHomepageName.feed,
-                'contains feed homepage name',
-              ),
-            ),
-          ),
-        ).called(1);
-      },
-    );
-
-    test(
-      'logs homepage event with daily value when feedEnabled is false',
-      () async {
-        analyticsService.logHomepage(false);
-
-        await Future.delayed(Duration.zero);
-
-        verify(
-          () => mockFirebaseAnalytics.logEvent(
-            name: 'homepage',
-            parameters: any(
-              named: 'parameters',
-              that: predicate<Map<String, Object>>(
-                (params) =>
-                    params[AnalyticsParameters.homepageName] ==
-                    AnalyticsHomepageName.daily,
-                'contains daily homepage name',
-              ),
-            ),
-          ),
-        ).called(1);
-      },
-    );
   });
 
   group('logJokeNavigation', () {

@@ -111,7 +111,6 @@ enum AnalyticsEvent {
   // Settings
   jokeViewerSettingChanged('joke_viewer_setting_changed'),
   privacyPolicyOpened('privacy_policy_opened'),
-  homepage('homepage'),
 
   // Onboarding tour
   tourCompleted('tour_completed'),
@@ -142,7 +141,6 @@ enum SubscriptionSource {
 /// Tab names for navigation tracking
 enum AppTab {
   jokeFeed('joke_feed'),
-  dailyJokes('daily_jokes'),
   savedJokes('saved_jokes'),
   discover('discover'),
   settings('settings'),

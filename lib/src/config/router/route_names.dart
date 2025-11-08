@@ -9,7 +9,6 @@ class AppRoutes {
 
   // Main app routes (shell route)
   static const String feed = '/feed';
-  static const String jokes = '/jokes';
   static const String saved = '/saved';
   static const String discover = '/discover';
   static const String discoverSearch = '/discover/search';
@@ -35,7 +34,6 @@ class AppRoutes {
 class RouteNames {
   RouteNames._();
 
-  static const String jokes = 'jokes';
   static const String feed = 'feed';
   static const String saved = 'saved';
   static const String discover = 'discover';
@@ -67,8 +65,6 @@ extension AppRoutesExtension on String {
     switch (this) {
       case AppRoutes.feed:
         return RouteNames.feed;
-      case AppRoutes.jokes:
-        return RouteNames.jokes;
       case AppRoutes.saved:
         return RouteNames.saved;
       case AppRoutes.discover:

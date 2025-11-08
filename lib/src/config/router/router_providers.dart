@@ -65,7 +65,6 @@ class NavigationAnalytics {
   /// Convert route path to AppTab for analytics compatibility
   AppTab? _routeToAppTab(String route) {
     if (route.startsWith(AppRoutes.feed)) return AppTab.jokeFeed;
-    if (route.startsWith(AppRoutes.jokes)) return AppTab.dailyJokes;
     if (route.startsWith(AppRoutes.saved)) return AppTab.savedJokes;
     if (route.startsWith(AppRoutes.discover)) return AppTab.discover;
     if (route.startsWith(AppRoutes.settings)) return AppTab.settings;

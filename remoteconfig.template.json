@@ -133,17 +133,6 @@
           "valueType": "BOOLEAN"
         }
       }
-    },
-    "Homepage": {
-      "parameters": {
-        "feed_screen_enabled": {
-          "defaultValue": {
-            "value": "true"
-          },
-          "description": "Enable Feed screen as the first tab (daily jokes will be hidden)",
-          "valueType": "BOOLEAN"
-        }
-      }
     }
   }
 }

@@ -51,8 +51,6 @@ class _FakeRemoteValues implements RemoteConfigValues {
         return false;
       case RemoteParam.bannerAdPosition:
         return false;
-      case RemoteParam.feedScreenEnabled:
-        return false;
       case RemoteParam.onboardingShowTour:
         return true;
       case RemoteParam.subscriptionPromptMinJokesViewed:
@@ -96,8 +94,6 @@ class _FakeRemoteValues implements RemoteConfigValues {
       case RemoteParam.adDisplayMode:
         return 0;
       case RemoteParam.bannerAdPosition:
-        return 0;
-      case RemoteParam.feedScreenEnabled:
         return 0;
       case RemoteParam.onboardingShowTour:
         return 0;

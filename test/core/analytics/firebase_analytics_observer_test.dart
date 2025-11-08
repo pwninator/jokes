@@ -67,7 +67,7 @@ void main() {
             routes: [
               GoRoute(
                 path: '/home',
-                name: RouteNames.jokes,
+                name: RouteNames.feed,
                 builder: (context, state) => const Scaffold(body: Text('Home')),
               ),
               GoRoute(

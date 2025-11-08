@@ -25,9 +25,7 @@ import 'package:snickerdoodle/src/features/auth/data/models/app_user.dart';
 import 'package:snickerdoodle/src/features/feedback/presentation/user_feedback_screen.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_category_providers.dart';
 import 'package:snickerdoodle/src/features/settings/application/admin_settings_service.dart';
-import 'package:snickerdoodle/src/features/settings/application/feed_screen_status_provider.dart';
 import 'package:snickerdoodle/src/features/settings/application/joke_viewer_settings_service.dart';
-import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
 import 'package:snickerdoodle/src/features/settings/application/theme_settings_service.dart';
 
 class UserSettingsScreen extends ConsumerStatefulWidget
@@ -781,72 +779,6 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                                   ],
                                 );
                               },
-                            );
-                          },
-                        ),
-                        const SizedBox(height: 16),
-                        // Homepage Toggle
-                        Consumer(
-                          builder: (context, ref, _) {
-                            const localKey = 'feed_screen_enabled_local';
-                            final settings = ref.watch(settingsServiceProvider);
-                            final hasLocal = settings.containsKey(localKey);
-                            final stored = settings.getBool(localKey);
-                            bool? remoteEnabled;
-                            try {
-                              remoteEnabled = ref
-                                  .watch(remoteConfigValuesProvider)
-                                  .getBool(RemoteParam.feedScreenEnabled);
-                            } catch (_) {
-                              remoteEnabled = null;
-                            }
-                            // Use local value if set, otherwise default to remote or false
-                            final feedEnabled = hasLocal
-                                ? (stored ?? false)
-                                : (remoteEnabled ?? false);
-
-                            return Row(
-                              children: [
-                                Icon(
-                                  Icons.dynamic_feed,
-                                  color: feedEnabled
-                                      ? Theme.of(context).colorScheme.primary
-                                      : Theme.of(context).colorScheme.onSurface
-                                            .withValues(alpha: 0.6),
-                                ),
-                                const SizedBox(width: 16),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        'Homepage',
-                                        style: menuTitleTextStyle(context),
-                                      ),
-                                      const SizedBox(height: 2),
-                                      Text(
-                                        feedEnabled
-                                            ? 'Feed is the first tab; Daily Jokes is hidden'
-                                            : 'Daily Jokes is the first tab; Feed is hidden',
-                                        style: menuSubtitleTextStyle(context),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Switch(
-                                  key: const Key(
-                                    'user_settings_screen-homepage-toggle',
-                                  ),
-                                  value: feedEnabled,
-                                  onChanged: (value) async {
-                                    await settings.setBool(localKey, value);
-                                    ref.invalidate(feedScreenStatusProvider);
-                                    if (!mounted) return;
-                                    setState(() {});
-                                  },
-                                ),
-                              ],
                             );
                           },
                         ),

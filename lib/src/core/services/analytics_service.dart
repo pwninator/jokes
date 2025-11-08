@@ -184,9 +184,6 @@ abstract class AnalyticsService {
   /// Settings: privacy policy opened from settings screen
   void logPrivacyPolicyOpened();
 
-  /// Log when homepage is determined (feed vs daily)
-  void logHomepage(bool feedEnabled);
-
   /// Log when subscription prompt is shown
   void logSubscriptionPromptShown();
 
@@ -299,7 +296,6 @@ abstract class AnalyticsService {
   void logAppUsageDays({
     required int numDaysUsed,
     required Brightness brightness,
-    required String homepage,
   });
 
   /// Log joke search completion
@@ -787,15 +783,6 @@ class FirebaseAnalyticsService implements AnalyticsService {
   }
 
   @override
-  void logHomepage(bool feedEnabled) {
-    _logEvent(AnalyticsEvent.homepage, {
-      AnalyticsParameters.homepageName: feedEnabled
-          ? AnalyticsHomepageName.feed
-          : AnalyticsHomepageName.daily,
-    });
-  }
-
-  @override
   void logSubscriptionPromptShown() {
     _logEvent(AnalyticsEvent.subscriptionPromptShown, {
       AnalyticsParameters.subscriptionPromptShownCount: 1,
@@ -1021,13 +1008,11 @@ class FirebaseAnalyticsService implements AnalyticsService {
   void logAppUsageDays({
     required int numDaysUsed,
     required Brightness brightness,
-    required String homepage,
   }) {
     final theme = brightness == Brightness.dark ? 'dark' : 'light';
     final parameters = <String, dynamic>{
       AnalyticsParameters.numDaysUsed: numDaysUsed,
       AnalyticsParameters.appTheme: theme,
-      AnalyticsParameters.homepage: homepage,
     };
     _logEvent(AnalyticsEvent.appUsageDayIncremented, parameters);
     if (numDaysUsed > 1) {

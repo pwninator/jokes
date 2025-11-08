@@ -36,8 +36,7 @@ class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
         .startNamedTrace(name: TraceName.appCreateToFirstJoke);
 
     // Call logAppUsage after startup completes and remote config is ready
-    // This ensures feedScreenStatusProvider reads the actual remote value (or A/B test variant)
-    // rather than locking in the default before initialization completes
+    // This ensures readers of remote config values get the remote values.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       try {

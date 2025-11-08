@@ -107,13 +107,6 @@ const Map<RemoteParam, RemoteParamDescriptor> remoteParams = {
     key: 'show_tour',
     defaultBool: true,
   ),
-  //////////////////////
-  // Feature Toggles  //
-  //////////////////////
-  RemoteParam.feedScreenEnabled: BoolRemoteParamDescriptor(
-    key: 'feed_screen_enabled',
-    defaultBool: true,
-  ),
 };
 
 enum RemoteParam {
@@ -131,7 +124,6 @@ enum RemoteParam {
   adDisplayMode,
   bannerAdPosition,
   onboardingShowTour,
-  feedScreenEnabled,
 }
 
 // Enum used by share images mode configuration

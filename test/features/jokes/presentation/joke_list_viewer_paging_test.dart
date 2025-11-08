@@ -49,12 +49,12 @@ void main() {
       when(
         () => mockViewerSettingsService.setReveal(any()),
       ).thenAnswer((_) async {});
-      when(() => mockAppUsageService.getNumJokesViewed()).thenAnswer(
-        (_) async => 0,
-      );
-      when(() => mockAppUsageService.getNumJokesNavigated()).thenAnswer(
-        (_) async => 0,
-      );
+      when(
+        () => mockAppUsageService.getNumJokesViewed(),
+      ).thenAnswer((_) async => 0);
+      when(
+        () => mockAppUsageService.getNumJokesNavigated(),
+      ).thenAnswer((_) async => 0);
 
       // Stub default behavior to avoid errors
       when(() => mockDataSource.loadMore()).thenAnswer((_) async {});

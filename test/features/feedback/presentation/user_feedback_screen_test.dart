@@ -33,7 +33,7 @@ void main() {
     registerFallbackValue(FakeAppUser());
     registerFallbackValue(SpeakerType.user);
     registerFallbackValue(JokeViewerMode.reveal);
-    registerFallbackValue(AppTab.dailyJokes);
+    registerFallbackValue(AppTab.jokeFeed);
     registerFallbackValue(Brightness.light);
   });
 

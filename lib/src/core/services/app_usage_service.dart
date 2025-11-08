@@ -19,7 +19,6 @@ import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_reposito
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
 import 'package:snickerdoodle/src/features/settings/application/brightness_provider.dart';
-import 'package:snickerdoodle/src/features/settings/application/feed_screen_status_provider.dart';
 import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
 
 part 'app_usage_service.g.dart';
@@ -143,11 +142,9 @@ class AppUsageService {
       // Fire-and-forget analytics + backend usage snapshot
       try {
         final brightness = _ref.read(brightnessProvider);
-        final feedEnabled = _ref.read(feedScreenStatusProvider);
         _analyticsService.logAppUsageDays(
           numDaysUsed: newNumDaysUsed,
           brightness: brightness,
-          homepage: feedEnabled ? 'feed' : 'daily',
         );
       } catch (e) {
         AppLogger.warn('APP_USAGE analytics error: $e');

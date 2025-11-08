@@ -1241,6 +1241,10 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
       showLoadingIndicator: true,
       showErrorIcon: true,
       onFirstImagePaint: (widthHint) {
+        // Stop app create to first joke trace
+        _perf.stopNamedTrace(name: TraceName.appCreateToFirstJoke);
+        _perf.stopNamedTrace(name: TraceName.startupToFirstJoke);
+
         // Stop any active search traces
         _perf.stopNamedTrace(name: TraceName.searchToFirstImage);
 

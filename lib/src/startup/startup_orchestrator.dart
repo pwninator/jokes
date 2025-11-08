@@ -136,6 +136,11 @@ class _StartupOrchestratorState extends ConsumerState<StartupOrchestrator> {
       ];
       _container = ProviderContainer(overrides: finalOverrides, parent: null);
 
+      // Start the trace for startup-complete to first joke render.
+      _container!
+          .read(performanceServiceProvider)
+          .startNamedTrace(name: TraceName.startupToFirstJoke);
+
       // Background trace starts now
       perfService.startNamedTrace(name: TraceName.startupOverallBackground);
 

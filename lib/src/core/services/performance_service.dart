@@ -24,6 +24,8 @@ PerformanceService performanceService(Ref ref) {
 ///   call stop() so they appear in the dashboard.
 /// Centralized names for Firebase Performance traces used in the app
 enum TraceName {
+  appCreateToFirstJoke,
+  startupToFirstJoke,
   searchToFirstImage,
   imageDownload,
   carouselToVisible,
@@ -59,6 +61,10 @@ enum TraceName {
 extension TraceNameWire on TraceName {
   String get wireName {
     switch (this) {
+      case TraceName.appCreateToFirstJoke:
+        return 'app_create_to_first_joke';
+      case TraceName.startupToFirstJoke:
+        return 'startup_to_first_joke';
       case TraceName.searchToFirstImage:
         return 'search_to_first_image';
       case TraceName.imageDownload:

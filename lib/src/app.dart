@@ -8,6 +8,7 @@ import 'package:snickerdoodle/src/core/providers/device_orientation_provider.dar
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
+import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/settings/application/theme_settings_service.dart';
@@ -28,6 +29,11 @@ class _AppState extends ConsumerState<App> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+
+    // Start trace from app creation to first joke render
+    ref
+        .read(performanceServiceProvider)
+        .startNamedTrace(name: TraceName.appCreateToFirstJoke);
 
     // Call logAppUsage after startup completes and remote config is ready
     // This ensures feedScreenStatusProvider reads the actual remote value (or A/B test variant)

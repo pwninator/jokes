@@ -2,68 +2,48 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
-import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
+import 'package:snickerdoodle/src/core/services/app_logger.dart';
+import 'package:snickerdoodle/src/core/services/crash_reporting_service.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_list_data_source.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_viewer_mode.dart';
 import 'package:snickerdoodle/src/features/jokes/presentation/joke_list_viewer.dart';
 import 'package:snickerdoodle/src/features/settings/application/joke_viewer_settings_service.dart';
-import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
 
 class MockJokeListDataSource extends Mock implements JokeListDataSource {}
 
 class MockAnalyticsService extends Mock implements AnalyticsService {}
 
-class MockSettingsService extends Mock implements SettingsService {}
+class MockCrashReportingService extends Mock implements CrashReportingService {}
 
-class _TestJokeViewerRevealNotifier extends JokeViewerRevealNotifier {
-  _TestJokeViewerRevealNotifier(bool initialValue)
-    : super(_TestJokeViewerSettingsService()) {
-    state = initialValue;
-  }
-}
-
-class _TestJokeViewerSettingsService extends JokeViewerSettingsService {
-  _TestJokeViewerSettingsService()
-    : super(
-        settingsService: _MockSettingsService(),
-        remoteConfigValues: _TestRemoteConfigValues(),
-        analyticsService: _MockAnalyticsService(),
-      );
-}
-
-class _TestRemoteConfigValues implements RemoteConfigValues {
-  @override
-  bool getBool(RemoteParam param) => false;
-  @override
-  double getDouble(RemoteParam param) => 0;
-  @override
-  int getInt(RemoteParam param) => 0;
-  @override
-  String getString(RemoteParam param) => '';
-  @override
-  T getEnum<T>(RemoteParam param) => '' as T;
-}
-
-class _MockAnalyticsService extends Mock implements AnalyticsService {}
-
-class _MockSettingsService extends Mock implements SettingsService {}
+class MockJokeViewerSettingsService extends Mock
+    implements JokeViewerSettingsService {}
 
 void main() {
   setUpAll(() {
     // Register fallback values for mocktail
     registerFallbackValue(JokeViewerMode.reveal);
     registerFallbackValue(Brightness.light);
+    registerFallbackValue(StackTrace.empty);
   });
 
   group('JokeListViewer Paging', () {
     late MockJokeListDataSource mockDataSource;
     late MockAnalyticsService mockAnalyticsService;
+    late MockJokeViewerSettingsService mockViewerSettingsService;
 
     setUp(() {
       mockDataSource = MockJokeListDataSource();
       mockAnalyticsService = MockAnalyticsService();
+      mockViewerSettingsService = MockJokeViewerSettingsService();
+      when(
+        () => mockViewerSettingsService.getReveal(),
+      ).thenAnswer((_) async => false);
+      when(
+        () => mockViewerSettingsService.setReveal(any()),
+      ).thenAnswer((_) async {});
 
       // Stub default behavior to avoid errors
       when(() => mockDataSource.loadMore()).thenAnswer((_) async {});
@@ -77,6 +57,14 @@ void main() {
       when(
         () => mockDataSource.isLoading,
       ).thenReturn(Provider<bool>((ref) => false));
+      when(
+        () => mockDataSource.isDataPending,
+      ).thenReturn(Provider<bool>((ref) => false));
+      when(() => mockDataSource.resultCount).thenReturn(
+        Provider<({int count, bool hasMore})>(
+          (ref) => (count: 0, hasMore: false),
+        ),
+      );
 
       // Setup analytics service defaults
       when(
@@ -95,6 +83,11 @@ void main() {
         () => mockAnalyticsService.logErrorJokesLoad(
           source: any(named: 'source'),
           errorMessage: any(named: 'errorMessage'),
+        ),
+      ).thenAnswer((_) async {});
+      when(
+        () => mockAnalyticsService.logJokeFeedEndEmptyViewed(
+          jokeContext: any(named: 'jokeContext'),
         ),
       ).thenAnswer((_) async {});
     });
@@ -121,7 +114,7 @@ void main() {
           overrides: [
             analyticsServiceProvider.overrideWithValue(mockAnalyticsService),
             jokeViewerRevealProvider.overrideWith(
-              (ref) => _TestJokeViewerRevealNotifier(false),
+              (ref) => JokeViewerRevealNotifier(mockViewerSettingsService),
             ),
           ],
           child: MaterialApp(
@@ -162,7 +155,7 @@ void main() {
           overrides: [
             analyticsServiceProvider.overrideWithValue(mockAnalyticsService),
             jokeViewerRevealProvider.overrideWith(
-              (ref) => _TestJokeViewerRevealNotifier(false),
+              (ref) => JokeViewerRevealNotifier(mockViewerSettingsService),
             ),
           ],
           child: MaterialApp(
@@ -202,7 +195,7 @@ void main() {
           overrides: [
             analyticsServiceProvider.overrideWithValue(mockAnalyticsService),
             jokeViewerRevealProvider.overrideWith(
-              (ref) => _TestJokeViewerRevealNotifier(false),
+              (ref) => JokeViewerRevealNotifier(mockViewerSettingsService),
             ),
           ],
           child: MaterialApp(
@@ -223,6 +216,92 @@ void main() {
       // Assert: Error message is shown
       expect(find.textContaining('Error loading jokes'), findsOneWidget);
       expect(find.byType(CircularProgressIndicator), findsNothing);
+    });
+
+    testWidgets('logs analytics and error when feed viewer shows empty state', (
+      tester,
+    ) async {
+      // Arrange: feed viewer with empty data
+      final mockCrashService = MockCrashReportingService();
+      when(
+        () => mockCrashService.recordNonFatal(
+          any(),
+          stackTrace: any(named: 'stackTrace'),
+          keys: any(named: 'keys'),
+        ),
+      ).thenAnswer((_) async {});
+      when(
+        () => mockCrashService.recordFatal(
+          any(),
+          any(),
+          keys: any(named: 'keys'),
+        ),
+      ).thenAnswer((_) async {});
+      when(() => mockCrashService.log(any())).thenAnswer((_) async {});
+      when(() => mockCrashService.setKeys(any())).thenAnswer((_) async {});
+      AppLogger.setInstanceForTesting(
+        AppLogger.createForTesting(crashReportingService: mockCrashService),
+      );
+      addTearDown(() {
+        AppLogger.setInstanceForTesting(
+          AppLogger.createForTesting(
+            crashReportingService: NoopCrashReportingService(),
+          ),
+        );
+      });
+
+      when(() => mockDataSource.items).thenReturn(
+        Provider<AsyncValue<List<JokeWithDate>>>(
+          (ref) => const AsyncValue.data([]),
+        ),
+      );
+      when(
+        () => mockDataSource.isDataPending,
+      ).thenReturn(Provider<bool>((ref) => false));
+      when(() => mockDataSource.resultCount).thenReturn(
+        Provider<({int count, bool hasMore})>(
+          (ref) => (count: 0, hasMore: false),
+        ),
+      );
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            analyticsServiceProvider.overrideWithValue(mockAnalyticsService),
+            jokeViewerRevealProvider.overrideWith(
+              (ref) => JokeViewerRevealNotifier(mockViewerSettingsService),
+            ),
+          ],
+          child: MaterialApp(
+            home: Scaffold(
+              body: JokeListViewer(
+                key: Key('joke_list_viewer_paging_test-feed-empty'),
+                viewerId: 'joke_feed',
+                jokeContext: AnalyticsJokeContext.jokeFeed,
+                dataSource: mockDataSource,
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pump();
+
+      verify(
+        () => mockAnalyticsService.logJokeFeedEndEmptyViewed(
+          jokeContext: AnalyticsJokeContext.jokeFeed,
+        ),
+      ).called(1);
+
+      final verificationResult = verify(
+        () => mockCrashService.recordNonFatal(
+          captureAny(),
+          stackTrace: any(named: 'stackTrace'),
+          keys: any(named: 'keys'),
+        ),
+      );
+      final loggedError = verificationResult.captured.first.toString();
+      expect(loggedError, contains('Empty feed state shown'));
     });
   });
 }

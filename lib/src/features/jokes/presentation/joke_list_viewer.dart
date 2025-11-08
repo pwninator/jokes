@@ -56,6 +56,7 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
   final Map<String, JokeImageCarouselController> _carouselControllers = {};
   String _lastNavigationMethod = AnalyticsNavigationMethod.swipe;
   int? _scheduledJumpTarget;
+  bool _emptyStateLogged = false;
 
   @override
   void initState() {
@@ -228,6 +229,47 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
     );
   }
 
+  void _maybeLogFeedEmptyState({
+    required bool hasMore,
+    required bool isLoading,
+    required bool isDataPending,
+    required bool isOnline,
+    required int jokesLength,
+    required int slotCount,
+  }) {
+    if (!_isJokeFeedViewer || _emptyStateLogged) return;
+    final analyticsService = ref.read(analyticsServiceProvider);
+    analyticsService.logJokeFeedEndEmptyViewed(jokeContext: widget.jokeContext);
+    final dataSourceType = widget.dataSource?.runtimeType.toString() ?? 'none';
+    final ({int count, bool hasMore})? resultMetadata =
+        widget.dataSource != null
+        ? ref.read(widget.dataSource!.resultCount)
+        : null;
+    final logDetails = <String, Object?>{
+      'viewerId': widget.viewerId,
+      'jokeContext': widget.jokeContext,
+      'hasMore': hasMore,
+      'isLoading': isLoading,
+      'isDataPending': isDataPending,
+      'isOnline': isOnline,
+      'jokesLength': jokesLength,
+      'slotCount': slotCount,
+      'dataSourceType': dataSourceType,
+      if (resultMetadata != null) 'result.count': resultMetadata.count,
+      if (resultMetadata != null) 'result.hasMore': resultMetadata.hasMore,
+    }..removeWhere((_, value) => value == null);
+    final formatted = logDetails.entries
+        .map((entry) => '${entry.key}=${entry.value}')
+        .join(', ');
+    AppLogger.error(
+      'PAGING_INTERNAL: COMPOSITE: Empty feed state shown ($formatted)',
+    );
+    _emptyStateLogged = true;
+  }
+
+  bool get _isJokeFeedViewer =>
+      widget.jokeContext == AnalyticsJokeContext.jokeFeed;
+
   @override
   Widget build(BuildContext context) {
     // If this viewer is not on the current (top) route, avoid any heavy work.
@@ -257,9 +299,11 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
       data: (jokesWithDates) {
         bool hasMore = false;
         bool isLoading = false;
+        bool isDataPending = false;
         if (widget.dataSource != null) {
           hasMore = ref.watch(widget.dataSource!.hasMore);
           isLoading = ref.watch(widget.dataSource!.isLoading);
+          isDataPending = ref.watch(widget.dataSource!.isDataPending);
         }
         final slotSequence = JokeListSlotSequence(
           jokes: jokesWithDates,
@@ -267,6 +311,11 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
           hasMore: hasMore,
           isLoading: isLoading,
         );
+        if (_emptyStateLogged &&
+            slotSequence.slotCount > 0 &&
+            _isJokeFeedViewer) {
+          _emptyStateLogged = false;
+        }
         final targetSlot = _slotIndexForStoredJoke(
           slotSequence,
           storedJokeIndex,
@@ -300,14 +349,21 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
         });
 
         if (slotSequence.slotCount == 0) {
+          final isOnline = ref.read(isOnlineNowProvider);
+          _maybeLogFeedEmptyState(
+            hasMore: hasMore,
+            isLoading: isLoading,
+            isDataPending: isDataPending,
+            isOnline: isOnline,
+            jokesLength: jokesWithDates.length,
+            slotCount: slotSequence.slotCount,
+          );
           // Defensive: if a data source forgot to emit loading on first-load,
           // fallback to loading UI when it reports loading and no items.
-          if (widget.dataSource != null &&
-              ref.watch(widget.dataSource!.isDataPending) == true) {
+          if (widget.dataSource != null && isDataPending == true) {
             return const Center(child: CircularProgressIndicator());
           }
 
-          final isOnline = ref.read(isOnlineNowProvider);
           if (!isOnline) {
             return const Center(
               child: Text('No internet connection. Please try again later.'),

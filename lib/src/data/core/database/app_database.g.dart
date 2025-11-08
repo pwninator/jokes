@@ -1051,6 +1051,22 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     'idx_feed_index',
     'CREATE INDEX idx_feed_index ON joke_interactions (feed_index)',
   );
+  late final Index idxNavigatedTimestamp = Index(
+    'idx_navigated_timestamp',
+    'CREATE INDEX idx_navigated_timestamp ON joke_interactions (navigated_timestamp)',
+  );
+  late final Index idxViewedTimestamp = Index(
+    'idx_viewed_timestamp',
+    'CREATE INDEX idx_viewed_timestamp ON joke_interactions (viewed_timestamp)',
+  );
+  late final Index idxSavedTimestamp = Index(
+    'idx_saved_timestamp',
+    'CREATE INDEX idx_saved_timestamp ON joke_interactions (saved_timestamp)',
+  );
+  late final Index idxSharedTimestamp = Index(
+    'idx_shared_timestamp',
+    'CREATE INDEX idx_shared_timestamp ON joke_interactions (shared_timestamp)',
+  );
   late final Index idxCategoryLastUpdate = Index(
     'idx_category_last_update',
     'CREATE INDEX idx_category_last_update ON category_interactions (last_update_timestamp)',
@@ -1064,6 +1080,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     categoryInteractions,
     idxLastUpdateTimestamp,
     idxFeedIndex,
+    idxNavigatedTimestamp,
+    idxViewedTimestamp,
+    idxSavedTimestamp,
+    idxSharedTimestamp,
     idxCategoryLastUpdate,
   ];
 }

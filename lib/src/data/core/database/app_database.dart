@@ -18,6 +18,10 @@ AppDatabase appDatabase(Ref ref) {
 // Drift table for joke interactions
 @TableIndex(name: 'idx_last_update_timestamp', columns: {#lastUpdateTimestamp})
 @TableIndex(name: 'idx_feed_index', columns: {#feedIndex})
+@TableIndex(name: 'idx_navigated_timestamp', columns: {#navigatedTimestamp})
+@TableIndex(name: 'idx_viewed_timestamp', columns: {#viewedTimestamp})
+@TableIndex(name: 'idx_saved_timestamp', columns: {#savedTimestamp})
+@TableIndex(name: 'idx_shared_timestamp', columns: {#sharedTimestamp})
 class JokeInteractions extends Table {
   // Primary key: one row per joke
   TextColumn get jokeId => text()();
@@ -83,7 +87,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -116,6 +120,10 @@ class AppDatabase extends _$AppDatabase {
           jokeInteractions,
           jokeInteractions.navigatedTimestamp,
         );
+      }
+      if (from < 6) {
+        // Indexes added in v6 are handled automatically by Drift by reading the
+        // @TableIndex annotations. No explicit migration code is needed.
       }
     },
   );

@@ -34,6 +34,11 @@ def usage(req: https_fn.Request) -> https_fn.Response:
     client_num_saved_int = get_int_param(req, 'num_saved', default=None)
     client_num_viewed_int = get_int_param(req, 'num_viewed', default=None)
     client_num_shared_int = get_int_param(req, 'num_shared', default=None)
+    client_num_navigated_int = get_int_param(
+      req,
+      'num_navigated',
+      default=None,
+    )
     requested_review = get_bool_param(req, "requested_review", default=False)
 
     final_days_used = firestore_service.upsert_joke_user_usage(
@@ -41,6 +46,7 @@ def usage(req: https_fn.Request) -> https_fn.Response:
       client_num_days_used=client_days_used_int,
       client_num_saved=client_num_saved_int,
       client_num_viewed=client_num_viewed_int,
+      client_num_navigated=client_num_navigated_int,
       client_num_shared=client_num_shared_int,
       requested_review=requested_review,
     )
@@ -56,6 +62,7 @@ def usage(req: https_fn.Request) -> https_fn.Response:
           "num_distinct_day_used_client": client_days_used_int,
           "client_num_saved": client_num_saved_int,
           "client_num_viewed": client_num_viewed_int,
+          "client_num_navigated": client_num_navigated_int,
           "client_num_shared": client_num_shared_int,
         }
       },
@@ -66,6 +73,7 @@ num_distinct_day_used_server: {final_days_used}
 num_distinct_day_used_client: {client_days_used_int}
 client_num_saved: {client_num_saved_int}
 client_num_viewed: {client_num_viewed_int}
+client_num_navigated: {client_num_navigated_int}
 client_num_shared: {client_num_shared_int}
 """)
 

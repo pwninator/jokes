@@ -544,6 +544,7 @@ class AppUsageService {
       final int numDaysUsed = await getNumDaysUsed();
       final int numSaved = await getNumSavedJokes();
       final int numViewed = await getNumJokesViewed();
+      final int numNavigated = await getNumJokesNavigated();
       final int numShared = await getNumSharedJokes();
       final bool requestedReview = _ref
           .read(reviewPromptStateStoreProvider)
@@ -554,6 +555,7 @@ class AppUsageService {
               numDaysUsed: numDaysUsed,
               numSaved: numSaved,
               numViewed: numViewed,
+              numNavigated: numNavigated,
               numShared: numShared,
               requestedReview: requestedReview,
             )

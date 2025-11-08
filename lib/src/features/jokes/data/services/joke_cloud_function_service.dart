@@ -57,6 +57,7 @@ class JokeCloudFunctionService {
     required int numDaysUsed,
     required int numSaved,
     required int numViewed,
+    required int numNavigated,
     required int numShared,
     bool? requestedReview,
   }) async {
@@ -69,6 +70,7 @@ class JokeCloudFunctionService {
             'num_days_used': numDaysUsed.toString(),
             'num_saved': numSaved.toString(),
             'num_viewed': numViewed.toString(),
+            'num_navigated': numNavigated.toString(),
             'num_shared': numShared.toString(),
             'requested_review': requestedReview,
           });

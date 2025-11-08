@@ -90,6 +90,9 @@ class _TestRemoteConfigValues implements RemoteConfigValues {
 
 /// Test fixture class that creates fresh mocks for each test
 class TestMocks {
+  TestMocks() {
+    when(() => repo.countNavigated()).thenAnswer((_) async => 0);
+  }
   final AnalyticsService analytics = _MockAnalyticsService();
   final JokeCloudFunctionService jokeCloudFn = _MockJokeCloudFunctionService();
   final JokeInteractionsRepository repo = _MockJokeInteractionsRepository();
@@ -1151,6 +1154,7 @@ void main() {
           numDaysUsed: any<int>(named: 'numDaysUsed'),
           numSaved: any<int>(named: 'numSaved'),
           numViewed: any<int>(named: 'numViewed'),
+          numNavigated: any<int>(named: 'numNavigated'),
           numShared: any<int>(named: 'numShared'),
           requestedReview: any<bool?>(named: 'requestedReview'),
         ),
@@ -1170,6 +1174,7 @@ void main() {
       // Stub repo counts used by _pushUsageSnapshot
       when(() => mocks.repo.countSaved()).thenAnswer((_) async => 2);
       when(() => mocks.repo.countViewed()).thenAnswer((_) async => 5);
+      when(() => mocks.repo.countNavigated()).thenAnswer((_) async => 4);
       when(() => mocks.repo.countShared()).thenAnswer((_) async => 1);
 
       final testService = AppUsageService(
@@ -1200,6 +1205,7 @@ void main() {
           numDaysUsed: any(named: 'numDaysUsed'),
           numSaved: any(named: 'numSaved'),
           numViewed: any(named: 'numViewed'),
+          numNavigated: any(named: 'numNavigated'),
           numShared: any(named: 'numShared'),
           requestedReview: captureAny(named: 'requestedReview'),
         ),

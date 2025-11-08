@@ -358,6 +358,57 @@ def test_upsert_joke_user_usage_insert(monkeypatch):
   assert captured["num_distinct_day_used"] == 1
 
 
+def test_upsert_joke_user_usage_includes_client_navigated(monkeypatch):
+  """Records client_num_navigated when provided."""
+  from services import firestore as fs
+
+  captured = {}
+
+  class DummyDoc:
+
+    def __init__(self):
+      self._exists = False
+
+    def get(self, transaction=None):  # pylint: disable=unused-argument
+
+      class R:
+
+        def __init__(self):
+          self.exists = False
+
+      return R()
+
+  class DummyCol:
+
+    def document(self, _id):  # pylint: disable=unused-argument
+      return DummyDoc()
+
+  class DummyTxn:
+    _read_only = False
+
+    def set(self, doc_ref, data):  # pylint: disable=unused-argument
+      captured.update(data)
+
+  class DummyDB:
+
+    def collection(self, _name):  # pylint: disable=unused-argument
+      return DummyCol()
+
+    def transaction(self):
+      return DummyTxn()
+
+  monkeypatch.setattr(fs, "db", DummyDB)
+  monkeypatch.setattr(fs, "SERVER_TIMESTAMP", "TS")
+
+  fs._upsert_joke_user_usage_logic(  # pylint: disable=protected-access
+    DummyTxn(),
+    "user1",
+    client_num_navigated=42,
+  )
+
+  assert captured["client_num_navigated"] == 42
+
+
 def test_upsert_joke_user_usage_no_increment_same_day(monkeypatch):
   """Does not increment when last_login_at and now fall in same day bucket."""
   from services import firestore as fs

@@ -655,6 +655,7 @@ def _upsert_joke_user_usage_logic(transaction: Transaction,
                                   client_num_days_used: int | None = None,
                                   client_num_saved: int | None = None,
                                   client_num_viewed: int | None = None,
+                                  client_num_navigated: int | None = None,
                                   client_num_shared: int | None = None,
                                   requested_review: bool | None = None) -> int:
   """Transactional helper to upsert joke user usage and return final count.
@@ -678,6 +679,8 @@ def _upsert_joke_user_usage_logic(transaction: Transaction,
     client_updates['client_num_saved'] = int(client_num_saved)
   if client_num_viewed is not None:
     client_updates['client_num_viewed'] = int(client_num_viewed)
+  if client_num_navigated is not None:
+    client_updates['client_num_navigated'] = int(client_num_navigated)
   if client_num_shared is not None:
     client_updates['client_num_shared'] = int(client_num_shared)
   if requested_review is not None:
@@ -745,6 +748,7 @@ def _upsert_joke_user_usage_in_txn(
     client_num_days_used: int | None = None,
     client_num_saved: int | None = None,
     client_num_viewed: int | None = None,
+    client_num_navigated: int | None = None,
     client_num_shared: int | None = None,
     requested_review: bool | None = None) -> int:
   """Transactional wrapper that handles the transaction."""
@@ -756,6 +760,7 @@ def _upsert_joke_user_usage_in_txn(
     client_num_days_used=client_num_days_used,
     client_num_saved=client_num_saved,
     client_num_viewed=client_num_viewed,
+    client_num_navigated=client_num_navigated,
     client_num_shared=client_num_shared,
     requested_review=requested_review,
   )
@@ -767,6 +772,7 @@ def upsert_joke_user_usage(user_id: str,
                            client_num_days_used: int | None = None,
                            client_num_saved: int | None = None,
                            client_num_viewed: int | None = None,
+                           client_num_navigated: int | None = None,
                            client_num_shared: int | None = None,
                            requested_review: bool | None = None) -> int:
   """Create or update the joke user usage document and return final count.
@@ -790,6 +796,7 @@ def upsert_joke_user_usage(user_id: str,
     client_num_days_used=client_num_days_used,
     client_num_saved=client_num_saved,
     client_num_viewed=client_num_viewed,
+    client_num_navigated=client_num_navigated,
     client_num_shared=client_num_shared,
     requested_review=requested_review,
   )

@@ -428,6 +428,7 @@ void main() {
           numDaysUsed: 1,
           numSaved: 2,
           numViewed: 3,
+          numNavigated: 5,
           numShared: 4,
           requestedReview: true,
         );
@@ -438,6 +439,7 @@ void main() {
         expect(captured['num_days_used'], '1');
         expect(captured['num_saved'], '2');
         expect(captured['num_viewed'], '3');
+        expect(captured['num_navigated'], '5');
         expect(captured['num_shared'], '4');
         expect(captured['requested_review'], isTrue);
       });
@@ -456,6 +458,7 @@ void main() {
           numDaysUsed: 1,
           numSaved: 2,
           numViewed: 3,
+          numNavigated: 5,
           numShared: 4,
           requestedReview: true,
         );
@@ -466,6 +469,7 @@ void main() {
         expect(captured['num_days_used'], '1');
         expect(captured['num_saved'], '2');
         expect(captured['num_viewed'], '3');
+        expect(captured['num_navigated'], '5');
         expect(captured['num_shared'], '4');
         expect(captured['requested_review'], isTrue);
       });

@@ -295,6 +295,9 @@ void main() {
     List<Override> extraOverrides = const [],
   }) {
     final mockUsageService = MockAppUsageService();
+    when(() => mockUsageService.getNumJokesViewed()).thenAnswer((_) async => 0);
+    when(() => mockUsageService.getNumJokesNavigated())
+        .thenAnswer((_) async => 0);
     // Setup viewed jokes filtering
     if (viewedJokes != null) {
       when(() => mockUsageService.getUnviewedJokeIds(any())).thenAnswer((

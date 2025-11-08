@@ -5,6 +5,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
+import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/crash_reporting_service.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_list_data_source.dart';
@@ -21,6 +22,8 @@ class MockCrashReportingService extends Mock implements CrashReportingService {}
 class MockJokeViewerSettingsService extends Mock
     implements JokeViewerSettingsService {}
 
+class MockAppUsageService extends Mock implements AppUsageService {}
+
 void main() {
   setUpAll(() {
     // Register fallback values for mocktail
@@ -33,17 +36,25 @@ void main() {
     late MockJokeListDataSource mockDataSource;
     late MockAnalyticsService mockAnalyticsService;
     late MockJokeViewerSettingsService mockViewerSettingsService;
+    late MockAppUsageService mockAppUsageService;
 
     setUp(() {
       mockDataSource = MockJokeListDataSource();
       mockAnalyticsService = MockAnalyticsService();
       mockViewerSettingsService = MockJokeViewerSettingsService();
+      mockAppUsageService = MockAppUsageService();
       when(
         () => mockViewerSettingsService.getReveal(),
       ).thenAnswer((_) async => false);
       when(
         () => mockViewerSettingsService.setReveal(any()),
       ).thenAnswer((_) async {});
+      when(() => mockAppUsageService.getNumJokesViewed()).thenAnswer(
+        (_) async => 0,
+      );
+      when(() => mockAppUsageService.getNumJokesNavigated()).thenAnswer(
+        (_) async => 0,
+      );
 
       // Stub default behavior to avoid errors
       when(() => mockDataSource.loadMore()).thenAnswer((_) async {});
@@ -113,6 +124,7 @@ void main() {
         ProviderScope(
           overrides: [
             analyticsServiceProvider.overrideWithValue(mockAnalyticsService),
+            appUsageServiceProvider.overrideWithValue(mockAppUsageService),
             jokeViewerRevealProvider.overrideWith(
               (ref) => JokeViewerRevealNotifier(mockViewerSettingsService),
             ),
@@ -154,6 +166,7 @@ void main() {
         ProviderScope(
           overrides: [
             analyticsServiceProvider.overrideWithValue(mockAnalyticsService),
+            appUsageServiceProvider.overrideWithValue(mockAppUsageService),
             jokeViewerRevealProvider.overrideWith(
               (ref) => JokeViewerRevealNotifier(mockViewerSettingsService),
             ),
@@ -194,6 +207,7 @@ void main() {
         ProviderScope(
           overrides: [
             analyticsServiceProvider.overrideWithValue(mockAnalyticsService),
+            appUsageServiceProvider.overrideWithValue(mockAppUsageService),
             jokeViewerRevealProvider.overrideWith(
               (ref) => JokeViewerRevealNotifier(mockViewerSettingsService),
             ),
@@ -268,6 +282,7 @@ void main() {
         ProviderScope(
           overrides: [
             analyticsServiceProvider.overrideWithValue(mockAnalyticsService),
+            appUsageServiceProvider.overrideWithValue(mockAppUsageService),
             jokeViewerRevealProvider.overrideWith(
               (ref) => JokeViewerRevealNotifier(mockViewerSettingsService),
             ),

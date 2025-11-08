@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/common_widgets/bouncing_button.dart';
@@ -10,6 +12,7 @@ import 'package:snickerdoodle/src/core/providers/connectivity_providers.dart';
 import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
+import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_list_data_source.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_navigation_providers.dart';
@@ -261,10 +264,20 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
     final formatted = logDetails.entries
         .map((entry) => '${entry.key}=${entry.value}')
         .join(', ');
-    AppLogger.error(
-      'PAGING_INTERNAL: COMPOSITE: Empty feed state shown ($formatted)',
-    );
+    unawaited(_logFeedEmptyStateUsage(formattedDetails: formatted));
     _emptyStateLogged = true;
+  }
+
+  Future<void> _logFeedEmptyStateUsage({
+    required String formattedDetails,
+  }) async {
+    final appUsage = ref.read(appUsageServiceProvider);
+    final jokesViewed = await appUsage.getNumJokesViewed();
+    final jokesNavigated = await appUsage.getNumJokesNavigated();
+    AppLogger.error(
+      'PAGING_INTERNAL: COMPOSITE: Empty feed state shown ($formattedDetails, '
+      'usage.jokesViewed=$jokesViewed, usage.jokesNavigated=$jokesNavigated)',
+    );
   }
 
   bool get _isJokeFeedViewer =>

@@ -259,7 +259,7 @@ class GenericPagingNotifier extends StateNotifier<PagingState> {
           (page.jokes.isNotEmpty || newCursor != previousCursor);
 
       if (!effectiveHasMore) {
-        _logCompositeFeedEnd(
+        await _logCompositeFeedEnd(
           previousState: previousState,
           page: page,
           filteredNewJokesCount: newJokes.length,
@@ -341,7 +341,7 @@ class GenericPagingNotifier extends StateNotifier<PagingState> {
 
   bool get _isCompositeDataSource => dataSourceName == 'composite_jokes';
 
-  void _logCompositeFeedEnd({
+  Future<void> _logCompositeFeedEnd({
     required PagingState previousState,
     required PageResult page,
     required int filteredNewJokesCount,
@@ -351,8 +351,11 @@ class GenericPagingNotifier extends StateNotifier<PagingState> {
     required String? previousCursor,
     required String? newCursor,
     required bool effectiveHasMore,
-  }) {
+  }) async {
     if (!_isCompositeDataSource) return;
+    final appUsage = ref.read(appUsageServiceProvider);
+    final jokesViewed = await appUsage.getNumJokesViewed();
+    final jokesNavigated = await appUsage.getNumJokesNavigated();
     final contextDetails = <String, Object?>{
       'requestedCursor': requestedCursor,
       'previousCursor': previousCursor,
@@ -374,6 +377,8 @@ class GenericPagingNotifier extends StateNotifier<PagingState> {
       'retry.blockUntil': _blockRetriesLoadsUntil,
       'retry.failureAttemptIndex': _failureAttemptIndex,
       'retry.inBackoff': _isInRetryBackoff(),
+      'usage.jokesViewed': jokesViewed,
+      'usage.jokesNavigated': jokesNavigated,
     }..removeWhere((_, value) => value == null);
 
     final formattedDetails = contextDetails.entries

@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
+import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
 
 typedef InjectedSlotBuilder =
@@ -440,22 +443,27 @@ class _EndOfFeedCardState extends ConsumerState<_EndOfFeedCard> {
     if (_logged) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || _logged) return;
-      _logCompositeScrollState();
+      unawaited(_logCompositeScrollState());
       final analytics = ref.read(analyticsServiceProvider);
       analytics.logJokeFeedEndViewed(jokeContext: widget.jokeContext);
       _logged = true;
     });
   }
 
-  void _logCompositeScrollState() {
+  Future<void> _logCompositeScrollState() async {
     final data = widget.slotData;
+    final appUsage = ref.read(appUsageServiceProvider);
+    final jokesViewed = await appUsage.getNumJokesViewed();
+    final jokesNavigated = await appUsage.getNumJokesNavigated();
     AppLogger.error(
       'PAGING_INTERNAL: COMPOSITE: End-of-feed card viewed ('
       'jokeContext=${widget.jokeContext}, '
       'slotIndex=${data.slotIndex}, '
       'totalJokes=${data.totalJokes}, '
       'hasMore=${data.hasMore}, '
-      'isLoading=${data.isLoading})',
+      'isLoading=${data.isLoading}, '
+      'usage.jokesViewed=$jokesViewed, '
+      'usage.jokesNavigated=$jokesNavigated)',
     );
   }
 

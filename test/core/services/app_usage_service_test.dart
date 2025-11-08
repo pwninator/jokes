@@ -120,6 +120,111 @@ void main() {
     SharedPreferences.setMockInitialValues({});
   });
 
+  group('AppUsageService.logJokeNavigated', () {
+    test('writes to repo when navigation occurs for first time', () async {
+      final mocks = TestMocks();
+      final prefs = await SharedPreferences.getInstance();
+      final settingsService = SettingsService(prefs);
+
+      when(
+        () => mocks.repo.getJokeInteraction(any()),
+      ).thenAnswer((_) async => null);
+      when(() => mocks.repo.setNavigated(any())).thenAnswer((_) async => true);
+
+      final container = ProviderContainer(
+        overrides: [
+          brightnessProvider.overrideWithValue(Brightness.light),
+          subscriptionPromptProvider.overrideWith(
+            (ref) => mocks.subscriptionPromptNotifier,
+          ),
+          reviewPromptCoordinatorProvider.overrideWithValue(
+            mocks.reviewCoordinator,
+          ),
+          remoteConfigValuesProvider.overrideWithValue(
+            const _TestRemoteConfigValues(reviewRequestEnabled: false),
+          ),
+          isAdminProvider.overrideWithValue(false),
+          reviewPromptStateStoreProvider.overrideWithValue(mocks.reviewStore),
+        ],
+      );
+      final testRefProvider = Provider<Ref>((ref) => ref);
+      final ref = container.read(testRefProvider);
+
+      final service = AppUsageService(
+        settingsService: settingsService,
+        ref: ref,
+        analyticsService: mocks.analytics,
+        jokeCloudFn: mocks.jokeCloudFn,
+        categoryInteractionsService: _MockCategoryInteractionsService(),
+        jokeInteractionsRepository: mocks.repo,
+        jokeRepository: _MockJokeRepository(),
+        reviewPromptCoordinator: mocks.reviewCoordinator,
+        isDebugMode: true,
+      );
+
+      await service.logJokeNavigated('nav-1');
+
+      verify(() => mocks.repo.setNavigated('nav-1')).called(1);
+      container.dispose();
+    });
+
+    test('returns early when joke already navigated', () async {
+      final mocks = TestMocks();
+      final prefs = await SharedPreferences.getInstance();
+      final settingsService = SettingsService(prefs);
+
+      final now = DateTime.now();
+      final interaction = JokeInteraction(
+        jokeId: 'nav-2',
+        navigatedTimestamp: now,
+        viewedTimestamp: null,
+        savedTimestamp: null,
+        sharedTimestamp: null,
+        lastUpdateTimestamp: now,
+      );
+
+      when(
+        () => mocks.repo.getJokeInteraction('nav-2'),
+      ).thenAnswer((_) async => interaction);
+
+      final container = ProviderContainer(
+        overrides: [
+          brightnessProvider.overrideWithValue(Brightness.light),
+          subscriptionPromptProvider.overrideWith(
+            (ref) => mocks.subscriptionPromptNotifier,
+          ),
+          reviewPromptCoordinatorProvider.overrideWithValue(
+            mocks.reviewCoordinator,
+          ),
+          remoteConfigValuesProvider.overrideWithValue(
+            const _TestRemoteConfigValues(reviewRequestEnabled: false),
+          ),
+          isAdminProvider.overrideWithValue(false),
+          reviewPromptStateStoreProvider.overrideWithValue(mocks.reviewStore),
+        ],
+      );
+      final testRefProvider = Provider<Ref>((ref) => ref);
+      final ref = container.read(testRefProvider);
+
+      final service = AppUsageService(
+        settingsService: settingsService,
+        ref: ref,
+        analyticsService: mocks.analytics,
+        jokeCloudFn: mocks.jokeCloudFn,
+        categoryInteractionsService: _MockCategoryInteractionsService(),
+        jokeInteractionsRepository: mocks.repo,
+        jokeRepository: _MockJokeRepository(),
+        reviewPromptCoordinator: mocks.reviewCoordinator,
+        isDebugMode: true,
+      );
+
+      await service.logJokeNavigated('nav-2');
+
+      verifyNever(() => mocks.repo.setNavigated(any()));
+      container.dispose();
+    });
+  });
+
   group('AppUsageService.logAppUsage', () {
     test(
       'first run initializes dates and increments unique day count',

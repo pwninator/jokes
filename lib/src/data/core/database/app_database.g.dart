@@ -18,6 +18,17 @@ class $JokeInteractionsTable extends JokeInteractions
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _navigatedTimestampMeta =
+      const VerificationMeta('navigatedTimestamp');
+  @override
+  late final GeneratedColumn<DateTime> navigatedTimestamp =
+      GeneratedColumn<DateTime>(
+        'navigated_timestamp',
+        aliasedName,
+        true,
+        type: DriftSqlType.dateTime,
+        requiredDuringInsert: false,
+      );
   static const VerificationMeta _viewedTimestampMeta = const VerificationMeta(
     'viewedTimestamp',
   );
@@ -124,6 +135,7 @@ class $JokeInteractionsTable extends JokeInteractions
   @override
   List<GeneratedColumn> get $columns => [
     jokeId,
+    navigatedTimestamp,
     viewedTimestamp,
     savedTimestamp,
     sharedTimestamp,
@@ -153,6 +165,15 @@ class $JokeInteractionsTable extends JokeInteractions
       );
     } else if (isInserting) {
       context.missing(_jokeIdMeta);
+    }
+    if (data.containsKey('navigated_timestamp')) {
+      context.handle(
+        _navigatedTimestampMeta,
+        navigatedTimestamp.isAcceptableOrUnknown(
+          data['navigated_timestamp']!,
+          _navigatedTimestampMeta,
+        ),
+      );
     }
     if (data.containsKey('viewed_timestamp')) {
       context.handle(
@@ -244,6 +265,10 @@ class $JokeInteractionsTable extends JokeInteractions
         DriftSqlType.string,
         data['${effectivePrefix}joke_id'],
       )!,
+      navigatedTimestamp: attachedDatabase.typeMapping.read(
+        DriftSqlType.dateTime,
+        data['${effectivePrefix}navigated_timestamp'],
+      ),
       viewedTimestamp: attachedDatabase.typeMapping.read(
         DriftSqlType.dateTime,
         data['${effectivePrefix}viewed_timestamp'],
@@ -291,6 +316,7 @@ class $JokeInteractionsTable extends JokeInteractions
 
 class JokeInteraction extends DataClass implements Insertable<JokeInteraction> {
   final String jokeId;
+  final DateTime? navigatedTimestamp;
   final DateTime? viewedTimestamp;
   final DateTime? savedTimestamp;
   final DateTime? sharedTimestamp;
@@ -302,6 +328,7 @@ class JokeInteraction extends DataClass implements Insertable<JokeInteraction> {
   final int? feedIndex;
   const JokeInteraction({
     required this.jokeId,
+    this.navigatedTimestamp,
     this.viewedTimestamp,
     this.savedTimestamp,
     this.sharedTimestamp,
@@ -316,6 +343,9 @@ class JokeInteraction extends DataClass implements Insertable<JokeInteraction> {
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['joke_id'] = Variable<String>(jokeId);
+    if (!nullToAbsent || navigatedTimestamp != null) {
+      map['navigated_timestamp'] = Variable<DateTime>(navigatedTimestamp);
+    }
     if (!nullToAbsent || viewedTimestamp != null) {
       map['viewed_timestamp'] = Variable<DateTime>(viewedTimestamp);
     }
@@ -347,6 +377,9 @@ class JokeInteraction extends DataClass implements Insertable<JokeInteraction> {
   JokeInteractionsCompanion toCompanion(bool nullToAbsent) {
     return JokeInteractionsCompanion(
       jokeId: Value(jokeId),
+      navigatedTimestamp: navigatedTimestamp == null && nullToAbsent
+          ? const Value.absent()
+          : Value(navigatedTimestamp),
       viewedTimestamp: viewedTimestamp == null && nullToAbsent
           ? const Value.absent()
           : Value(viewedTimestamp),
@@ -382,6 +415,9 @@ class JokeInteraction extends DataClass implements Insertable<JokeInteraction> {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return JokeInteraction(
       jokeId: serializer.fromJson<String>(json['jokeId']),
+      navigatedTimestamp: serializer.fromJson<DateTime?>(
+        json['navigatedTimestamp'],
+      ),
       viewedTimestamp: serializer.fromJson<DateTime?>(json['viewedTimestamp']),
       savedTimestamp: serializer.fromJson<DateTime?>(json['savedTimestamp']),
       sharedTimestamp: serializer.fromJson<DateTime?>(json['sharedTimestamp']),
@@ -402,6 +438,7 @@ class JokeInteraction extends DataClass implements Insertable<JokeInteraction> {
     serializer ??= driftRuntimeOptions.defaultSerializer;
     return <String, dynamic>{
       'jokeId': serializer.toJson<String>(jokeId),
+      'navigatedTimestamp': serializer.toJson<DateTime?>(navigatedTimestamp),
       'viewedTimestamp': serializer.toJson<DateTime?>(viewedTimestamp),
       'savedTimestamp': serializer.toJson<DateTime?>(savedTimestamp),
       'sharedTimestamp': serializer.toJson<DateTime?>(sharedTimestamp),
@@ -416,6 +453,7 @@ class JokeInteraction extends DataClass implements Insertable<JokeInteraction> {
 
   JokeInteraction copyWith({
     String? jokeId,
+    Value<DateTime?> navigatedTimestamp = const Value.absent(),
     Value<DateTime?> viewedTimestamp = const Value.absent(),
     Value<DateTime?> savedTimestamp = const Value.absent(),
     Value<DateTime?> sharedTimestamp = const Value.absent(),
@@ -427,6 +465,9 @@ class JokeInteraction extends DataClass implements Insertable<JokeInteraction> {
     Value<int?> feedIndex = const Value.absent(),
   }) => JokeInteraction(
     jokeId: jokeId ?? this.jokeId,
+    navigatedTimestamp: navigatedTimestamp.present
+        ? navigatedTimestamp.value
+        : this.navigatedTimestamp,
     viewedTimestamp: viewedTimestamp.present
         ? viewedTimestamp.value
         : this.viewedTimestamp,
@@ -452,6 +493,9 @@ class JokeInteraction extends DataClass implements Insertable<JokeInteraction> {
   JokeInteraction copyWithCompanion(JokeInteractionsCompanion data) {
     return JokeInteraction(
       jokeId: data.jokeId.present ? data.jokeId.value : this.jokeId,
+      navigatedTimestamp: data.navigatedTimestamp.present
+          ? data.navigatedTimestamp.value
+          : this.navigatedTimestamp,
       viewedTimestamp: data.viewedTimestamp.present
           ? data.viewedTimestamp.value
           : this.viewedTimestamp,
@@ -482,6 +526,7 @@ class JokeInteraction extends DataClass implements Insertable<JokeInteraction> {
   String toString() {
     return (StringBuffer('JokeInteraction(')
           ..write('jokeId: $jokeId, ')
+          ..write('navigatedTimestamp: $navigatedTimestamp, ')
           ..write('viewedTimestamp: $viewedTimestamp, ')
           ..write('savedTimestamp: $savedTimestamp, ')
           ..write('sharedTimestamp: $sharedTimestamp, ')
@@ -498,6 +543,7 @@ class JokeInteraction extends DataClass implements Insertable<JokeInteraction> {
   @override
   int get hashCode => Object.hash(
     jokeId,
+    navigatedTimestamp,
     viewedTimestamp,
     savedTimestamp,
     sharedTimestamp,
@@ -513,6 +559,7 @@ class JokeInteraction extends DataClass implements Insertable<JokeInteraction> {
       identical(this, other) ||
       (other is JokeInteraction &&
           other.jokeId == this.jokeId &&
+          other.navigatedTimestamp == this.navigatedTimestamp &&
           other.viewedTimestamp == this.viewedTimestamp &&
           other.savedTimestamp == this.savedTimestamp &&
           other.sharedTimestamp == this.sharedTimestamp &&
@@ -526,6 +573,7 @@ class JokeInteraction extends DataClass implements Insertable<JokeInteraction> {
 
 class JokeInteractionsCompanion extends UpdateCompanion<JokeInteraction> {
   final Value<String> jokeId;
+  final Value<DateTime?> navigatedTimestamp;
   final Value<DateTime?> viewedTimestamp;
   final Value<DateTime?> savedTimestamp;
   final Value<DateTime?> sharedTimestamp;
@@ -538,6 +586,7 @@ class JokeInteractionsCompanion extends UpdateCompanion<JokeInteraction> {
   final Value<int> rowid;
   const JokeInteractionsCompanion({
     this.jokeId = const Value.absent(),
+    this.navigatedTimestamp = const Value.absent(),
     this.viewedTimestamp = const Value.absent(),
     this.savedTimestamp = const Value.absent(),
     this.sharedTimestamp = const Value.absent(),
@@ -551,6 +600,7 @@ class JokeInteractionsCompanion extends UpdateCompanion<JokeInteraction> {
   });
   JokeInteractionsCompanion.insert({
     required String jokeId,
+    this.navigatedTimestamp = const Value.absent(),
     this.viewedTimestamp = const Value.absent(),
     this.savedTimestamp = const Value.absent(),
     this.sharedTimestamp = const Value.absent(),
@@ -565,6 +615,7 @@ class JokeInteractionsCompanion extends UpdateCompanion<JokeInteraction> {
        lastUpdateTimestamp = Value(lastUpdateTimestamp);
   static Insertable<JokeInteraction> custom({
     Expression<String>? jokeId,
+    Expression<DateTime>? navigatedTimestamp,
     Expression<DateTime>? viewedTimestamp,
     Expression<DateTime>? savedTimestamp,
     Expression<DateTime>? sharedTimestamp,
@@ -578,6 +629,7 @@ class JokeInteractionsCompanion extends UpdateCompanion<JokeInteraction> {
   }) {
     return RawValuesInsertable({
       if (jokeId != null) 'joke_id': jokeId,
+      if (navigatedTimestamp != null) 'navigated_timestamp': navigatedTimestamp,
       if (viewedTimestamp != null) 'viewed_timestamp': viewedTimestamp,
       if (savedTimestamp != null) 'saved_timestamp': savedTimestamp,
       if (sharedTimestamp != null) 'shared_timestamp': sharedTimestamp,
@@ -594,6 +646,7 @@ class JokeInteractionsCompanion extends UpdateCompanion<JokeInteraction> {
 
   JokeInteractionsCompanion copyWith({
     Value<String>? jokeId,
+    Value<DateTime?>? navigatedTimestamp,
     Value<DateTime?>? viewedTimestamp,
     Value<DateTime?>? savedTimestamp,
     Value<DateTime?>? sharedTimestamp,
@@ -607,6 +660,7 @@ class JokeInteractionsCompanion extends UpdateCompanion<JokeInteraction> {
   }) {
     return JokeInteractionsCompanion(
       jokeId: jokeId ?? this.jokeId,
+      navigatedTimestamp: navigatedTimestamp ?? this.navigatedTimestamp,
       viewedTimestamp: viewedTimestamp ?? this.viewedTimestamp,
       savedTimestamp: savedTimestamp ?? this.savedTimestamp,
       sharedTimestamp: sharedTimestamp ?? this.sharedTimestamp,
@@ -625,6 +679,9 @@ class JokeInteractionsCompanion extends UpdateCompanion<JokeInteraction> {
     final map = <String, Expression>{};
     if (jokeId.present) {
       map['joke_id'] = Variable<String>(jokeId.value);
+    }
+    if (navigatedTimestamp.present) {
+      map['navigated_timestamp'] = Variable<DateTime>(navigatedTimestamp.value);
     }
     if (viewedTimestamp.present) {
       map['viewed_timestamp'] = Variable<DateTime>(viewedTimestamp.value);
@@ -665,6 +722,7 @@ class JokeInteractionsCompanion extends UpdateCompanion<JokeInteraction> {
   String toString() {
     return (StringBuffer('JokeInteractionsCompanion(')
           ..write('jokeId: $jokeId, ')
+          ..write('navigatedTimestamp: $navigatedTimestamp, ')
           ..write('viewedTimestamp: $viewedTimestamp, ')
           ..write('savedTimestamp: $savedTimestamp, ')
           ..write('sharedTimestamp: $sharedTimestamp, ')
@@ -1013,6 +1071,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
 typedef $$JokeInteractionsTableCreateCompanionBuilder =
     JokeInteractionsCompanion Function({
       required String jokeId,
+      Value<DateTime?> navigatedTimestamp,
       Value<DateTime?> viewedTimestamp,
       Value<DateTime?> savedTimestamp,
       Value<DateTime?> sharedTimestamp,
@@ -1027,6 +1086,7 @@ typedef $$JokeInteractionsTableCreateCompanionBuilder =
 typedef $$JokeInteractionsTableUpdateCompanionBuilder =
     JokeInteractionsCompanion Function({
       Value<String> jokeId,
+      Value<DateTime?> navigatedTimestamp,
       Value<DateTime?> viewedTimestamp,
       Value<DateTime?> savedTimestamp,
       Value<DateTime?> sharedTimestamp,
@@ -1050,6 +1110,11 @@ class $$JokeInteractionsTableFilterComposer
   });
   ColumnFilters<String> get jokeId => $composableBuilder(
     column: $table.jokeId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<DateTime> get navigatedTimestamp => $composableBuilder(
+    column: $table.navigatedTimestamp,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -1113,6 +1178,11 @@ class $$JokeInteractionsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<DateTime> get navigatedTimestamp => $composableBuilder(
+    column: $table.navigatedTimestamp,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<DateTime> get viewedTimestamp => $composableBuilder(
     column: $table.viewedTimestamp,
     builder: (column) => ColumnOrderings(column),
@@ -1170,6 +1240,11 @@ class $$JokeInteractionsTableAnnotationComposer
   });
   GeneratedColumn<String> get jokeId =>
       $composableBuilder(column: $table.jokeId, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get navigatedTimestamp => $composableBuilder(
+    column: $table.navigatedTimestamp,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<DateTime> get viewedTimestamp => $composableBuilder(
     column: $table.viewedTimestamp,
@@ -1251,6 +1326,7 @@ class $$JokeInteractionsTableTableManager
           updateCompanionCallback:
               ({
                 Value<String> jokeId = const Value.absent(),
+                Value<DateTime?> navigatedTimestamp = const Value.absent(),
                 Value<DateTime?> viewedTimestamp = const Value.absent(),
                 Value<DateTime?> savedTimestamp = const Value.absent(),
                 Value<DateTime?> sharedTimestamp = const Value.absent(),
@@ -1263,6 +1339,7 @@ class $$JokeInteractionsTableTableManager
                 Value<int> rowid = const Value.absent(),
               }) => JokeInteractionsCompanion(
                 jokeId: jokeId,
+                navigatedTimestamp: navigatedTimestamp,
                 viewedTimestamp: viewedTimestamp,
                 savedTimestamp: savedTimestamp,
                 sharedTimestamp: sharedTimestamp,
@@ -1277,6 +1354,7 @@ class $$JokeInteractionsTableTableManager
           createCompanionCallback:
               ({
                 required String jokeId,
+                Value<DateTime?> navigatedTimestamp = const Value.absent(),
                 Value<DateTime?> viewedTimestamp = const Value.absent(),
                 Value<DateTime?> savedTimestamp = const Value.absent(),
                 Value<DateTime?> sharedTimestamp = const Value.absent(),
@@ -1289,6 +1367,7 @@ class $$JokeInteractionsTableTableManager
                 Value<int> rowid = const Value.absent(),
               }) => JokeInteractionsCompanion.insert(
                 jokeId: jokeId,
+                navigatedTimestamp: navigatedTimestamp,
                 viewedTimestamp: viewedTimestamp,
                 savedTimestamp: savedTimestamp,
                 sharedTimestamp: sharedTimestamp,

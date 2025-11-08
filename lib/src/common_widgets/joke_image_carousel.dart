@@ -15,6 +15,7 @@ import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
 import 'package:snickerdoodle/src/core/providers/image_providers.dart';
 import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
+import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
@@ -108,6 +109,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
   String? _navMethodSetup;
   String? _navMethodPunchline;
   bool _nextPrecacheScheduled = false;
+  bool _navigationLogged = false;
 
   bool get _hasBothImages {
     final joke = widget.joke;
@@ -203,6 +205,25 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
     });
   }
 
+  void _logNavigationIfNeeded() {
+    if (_navigationLogged || widget.isAdminMode) return;
+    try {
+      final appUsageService = ref.read(appUsageServiceProvider);
+      _navigationLogged = true;
+      Future.sync(
+        () => appUsageService.logJokeNavigated(widget.joke.id),
+      ).catchError((Object error, StackTrace stackTrace) {
+        AppLogger.debug(
+          'JOKE_CAROUSEL: logJokeNavigated deferred error: $error\n$stackTrace',
+        );
+      });
+    } catch (error, stackTrace) {
+      AppLogger.debug(
+        'JOKE_CAROUSEL: logJokeNavigated skipped: $error\n$stackTrace',
+      );
+    }
+  }
+
   Future<void> _maybeLogJokeFullyViewed() async {
     // Guard against running after disposal or when conditions aren't met
     if (!mounted || _jokeViewedLogged || !_hasBothImages) return;
@@ -244,6 +265,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
 
       // Record navigation method and start timing for setup image being visible
       _navMethodSetup = AnalyticsNavigationMethod.none;
+      _logNavigationIfNeeded();
       _startViewTimerForIndex(0);
 
       // Start a carousel_to_visible trace once per carousel instance (per joke) - skip in admin mode

@@ -4,8 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/providers/app_usage_events_provider.dart';
+import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/app_review_service.dart';
 import 'package:snickerdoodle/src/core/services/daily_joke_subscription_service.dart';
@@ -183,6 +183,30 @@ class AppUsageService {
   // -------------------------------
   // JOKE VIEWS
   // -------------------------------
+
+  /// Record that the user navigated to a joke (e.g., scrolled into view).
+  ///
+  /// This writes a timestamp the first time the user reaches the joke to avoid
+  /// double counting navigation events.
+  Future<void> logJokeNavigated(String jokeId) async {
+    try {
+      final interaction = await _jokeInteractions.getJokeInteraction(jokeId);
+      final alreadyNavigated = interaction?.navigatedTimestamp != null;
+      if (alreadyNavigated) {
+        AppLogger.debug(
+          'APP_USAGE logJokeNavigated skipped (already navigated): { joke_id: $jokeId }',
+        );
+        return;
+      }
+
+      await _jokeInteractions.setNavigated(jokeId);
+
+      _notifyUsageChanged();
+      AppLogger.debug('APP_USAGE logJokeNavigated: { joke_id: $jokeId }');
+    } catch (e) {
+      AppLogger.warn('APP_USAGE logJokeNavigated DB error: $e');
+    }
+  }
 
   /// Set the joke as viewed.
   ///

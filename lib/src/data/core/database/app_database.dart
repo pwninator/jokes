@@ -23,6 +23,7 @@ class JokeInteractions extends Table {
   TextColumn get jokeId => text()();
 
   // Nullable interaction timestamps
+  DateTimeColumn get navigatedTimestamp => dateTime().nullable()();
   DateTimeColumn get viewedTimestamp => dateTime().nullable()();
   DateTimeColumn get savedTimestamp => dateTime().nullable()();
   DateTimeColumn get sharedTimestamp => dateTime().nullable()();
@@ -82,7 +83,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -109,6 +110,12 @@ class AppDatabase extends _$AppDatabase {
         await m.addColumn(jokeInteractions, jokeInteractions.setupImageUrl);
         await m.addColumn(jokeInteractions, jokeInteractions.punchlineImageUrl);
         await m.addColumn(jokeInteractions, jokeInteractions.feedIndex);
+      }
+      if (from < 5) {
+        await m.addColumn(
+          jokeInteractions,
+          jokeInteractions.navigatedTimestamp,
+        );
       }
     },
   );

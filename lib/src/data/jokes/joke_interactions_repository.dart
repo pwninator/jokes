@@ -25,6 +25,26 @@ class JokeInteractionsRepository {
   final PerformanceService _perf;
   final AppDatabase _db;
 
+  Future<bool> setNavigated(String jokeId) async => runWithTrace(
+    name: TraceName.driftSetInteraction,
+    traceKey: 'navigated',
+    body: () async {
+      final now = DateTime.now();
+      await _db
+          .into(_db.jokeInteractions)
+          .insertOnConflictUpdate(
+            JokeInteractionsCompanion.insert(
+              jokeId: jokeId,
+              navigatedTimestamp: Value(now),
+              lastUpdateTimestamp: now,
+            ),
+          );
+      return true;
+    },
+    fallback: false,
+    perf: _perf,
+  );
+
   Future<bool> setViewed(String jokeId) async => runWithTrace(
     name: TraceName.driftSetInteraction,
     traceKey: 'viewed',
@@ -264,8 +284,8 @@ class JokeInteractionsRepository {
   /// Sync feed jokes to local database in a single batch transaction.
   ///
   /// Updates the feed-related columns (setupText, punchlineText, setupImageUrl,
-  /// punchlineImageUrl, feedIndex) while preserving viewedTimestamp, savedTimestamp,
-  /// and sharedTimestamp if they already exist.
+  /// punchlineImageUrl, feedIndex) while preserving navigatedTimestamp,
+  /// viewedTimestamp, savedTimestamp, and sharedTimestamp if they already exist.
   Future<bool> syncFeedJokes({
     required List<({Joke joke, int feedIndex})> jokes,
   }) async => runWithTrace(
@@ -288,6 +308,7 @@ class JokeInteractionsRepository {
                   punchlineImageUrl: Value(entry.joke.punchlineImageUrl),
                   feedIndex: Value(entry.feedIndex),
                   lastUpdateTimestamp: Value(now),
+                  navigatedTimestamp: const Value.absent(),
                   viewedTimestamp: const Value.absent(),
                   savedTimestamp: const Value.absent(),
                   sharedTimestamp: const Value.absent(),

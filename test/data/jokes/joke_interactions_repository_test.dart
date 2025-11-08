@@ -62,6 +62,14 @@ void main() {
     },
   );
 
+  test('setNavigated upserts navigated timestamp', () async {
+    await service.setNavigated('nav-1');
+
+    final interaction = await service.getJokeInteraction('nav-1');
+    expect(interaction, isNotNull);
+    expect(interaction!.navigatedTimestamp, isNotNull);
+  });
+
   test('countViewed returns count of viewed jokes', () async {
     expect(await service.countViewed(), 0);
     await service.setViewed('j1');
@@ -107,6 +115,7 @@ void main() {
     expect(interaction.setupImageUrl, 'https://example.com/setup.jpg');
     expect(interaction.punchlineImageUrl, 'https://example.com/punchline.jpg');
     expect(interaction.feedIndex, 0);
+    expect(interaction.navigatedTimestamp, isNull);
     expect(interaction.viewedTimestamp, isNull);
     expect(interaction.savedTimestamp, isNull);
     expect(interaction.sharedTimestamp, isNull);
@@ -132,13 +141,15 @@ void main() {
 
   test('syncFeedJokes preserves existing interaction timestamps', () async {
     // First, set interaction timestamps
+    await service.setNavigated('joke-3');
     await service.setViewed('joke-3');
     await service.setSaved('joke-3');
     await service.setShared('joke-3');
 
     final beforeSync = await service.getJokeInteraction('joke-3');
     expect(beforeSync, isNotNull);
-    final viewedBefore = beforeSync!.viewedTimestamp;
+    final navigatedBefore = beforeSync!.navigatedTimestamp;
+    final viewedBefore = beforeSync.viewedTimestamp;
     final savedBefore = beforeSync.savedTimestamp;
     final sharedBefore = beforeSync.sharedTimestamp;
 
@@ -155,7 +166,8 @@ void main() {
 
     final afterSync = await service.getJokeInteraction('joke-3');
     expect(afterSync, isNotNull);
-    expect(afterSync!.viewedTimestamp, viewedBefore);
+    expect(afterSync!.navigatedTimestamp, navigatedBefore);
+    expect(afterSync.viewedTimestamp, viewedBefore);
     expect(afterSync.savedTimestamp, savedBefore);
     expect(afterSync.sharedTimestamp, sharedBefore);
     expect(afterSync.setupText, 'Updated setup');
@@ -445,10 +457,7 @@ void main() {
         expect(page1[2].feedIndex, 2);
 
         // Second page
-        final page2 = await service.getFeedJokes(
-          cursorFeedIndex: 2,
-          limit: 3,
-        );
+        final page2 = await service.getFeedJokes(cursorFeedIndex: 2, limit: 3);
         expect(page2.length, 3);
         expect(page2[0].feedIndex, 3);
         expect(page2[2].feedIndex, 5);

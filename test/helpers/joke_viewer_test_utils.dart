@@ -191,6 +191,9 @@ class NoopAppUsageService implements AppUsageService {
   }) async {}
 
   @override
+  Future<void> logJokeNavigated(String jokeId) async {}
+
+  @override
   Future<void> setFirstUsedDate(String? date) async {}
 
   @override

@@ -123,7 +123,10 @@ class _NoopPerformanceService implements PerformanceService {
   void stopNamedTrace({required TraceName name, String? key}) {}
 }
 
-SlotSource _buildStaticSlotSource(List<JokeWithDate> jokes, {String? debugLabel}) {
+SlotSource _buildStaticSlotSource(
+  List<JokeWithDate> jokes, {
+  String? debugLabel,
+}) {
   final slots = jokes
       .map((j) => JokeSlotEntry(joke: j))
       .toList(growable: false);
@@ -309,13 +312,13 @@ void main() {
           child: MaterialApp(
             home: TickerMode(
               enabled: false,
-                child: JokeListViewer(
-                  key: const Key(
-                    'joke_list_viewer_state_persistence_test-initial',
-                  ),
-                  slotSource: _buildStaticSlotSource(jokes),
-                  jokeContext: 'test_ctx',
-                  viewerId: viewerId,
+              child: JokeListViewer(
+                key: const Key(
+                  'joke_list_viewer_state_persistence_test-initial',
+                ),
+                slotSource: _buildStaticSlotSource(jokes),
+                jokeContext: 'test_ctx',
+                viewerId: viewerId,
               ),
             ),
           ),
@@ -347,13 +350,13 @@ void main() {
           child: MaterialApp(
             home: TickerMode(
               enabled: false,
-                child: JokeListViewer(
-                  key: const Key(
-                    'joke_list_viewer_state_persistence_test-remount',
-                  ),
-                  slotSource: _buildStaticSlotSource(jokes),
-                  jokeContext: 'test_ctx',
-                  viewerId: viewerId,
+              child: JokeListViewer(
+                key: const Key(
+                  'joke_list_viewer_state_persistence_test-remount',
+                ),
+                slotSource: _buildStaticSlotSource(jokes),
+                jokeContext: 'test_ctx',
+                viewerId: viewerId,
               ),
             ),
           ),
@@ -423,13 +426,13 @@ void main() {
           child: MaterialApp(
             home: TickerMode(
               enabled: false,
-                child: JokeListViewer(
-                  key: const Key(
-                    'joke_list_viewer_state_persistence_test-viewer1',
-                  ),
-                  slotSource: _buildStaticSlotSource(jokes),
-                  jokeContext: 'test_ctx',
-                  viewerId: viewerId1,
+              child: JokeListViewer(
+                key: const Key(
+                  'joke_list_viewer_state_persistence_test-viewer1',
+                ),
+                slotSource: _buildStaticSlotSource(jokes),
+                jokeContext: 'test_ctx',
+                viewerId: viewerId1,
               ),
             ),
           ),
@@ -452,13 +455,13 @@ void main() {
           child: MaterialApp(
             home: TickerMode(
               enabled: false,
-                child: JokeListViewer(
-                  key: const Key(
-                    'joke_list_viewer_state_persistence_test-viewer2',
-                  ),
-                  slotSource: _buildStaticSlotSource(jokes),
-                  jokeContext: 'test_ctx',
-                  viewerId: viewerId2,
+              child: JokeListViewer(
+                key: const Key(
+                  'joke_list_viewer_state_persistence_test-viewer2',
+                ),
+                slotSource: _buildStaticSlotSource(jokes),
+                jokeContext: 'test_ctx',
+                viewerId: viewerId2,
               ),
             ),
           ),
@@ -595,13 +598,13 @@ void main() {
           child: MaterialApp(
             home: TickerMode(
               enabled: false,
-                child: JokeListViewer(
-                  key: const Key(
-                    'joke_list_viewer_state_persistence_test-initial_id',
-                  ),
-                  slotSource: _buildStaticSlotSource(jokes),
-                  jokeContext: 'test_ctx',
-                  viewerId: initialViewerId,
+              child: JokeListViewer(
+                key: const Key(
+                  'joke_list_viewer_state_persistence_test-initial_id',
+                ),
+                slotSource: _buildStaticSlotSource(jokes),
+                jokeContext: 'test_ctx',
+                viewerId: initialViewerId,
               ),
             ),
           ),
@@ -627,13 +630,13 @@ void main() {
           child: MaterialApp(
             home: TickerMode(
               enabled: false,
-                child: JokeListViewer(
-                  key: const Key(
-                    'joke_list_viewer_state_persistence_test-new_id',
-                  ),
-                  slotSource: _buildStaticSlotSource(jokes),
-                  jokeContext: 'test_ctx',
-                  viewerId: newViewerId,
+              child: JokeListViewer(
+                key: const Key(
+                  'joke_list_viewer_state_persistence_test-new_id',
+                ),
+                slotSource: _buildStaticSlotSource(jokes),
+                jokeContext: 'test_ctx',
+                viewerId: newViewerId,
               ),
             ),
           ),

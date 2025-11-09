@@ -12,3 +12,17 @@ class JokeSlotEntry extends SlotEntry {
   /// Joke payload being rendered.
   final JokeWithDate joke;
 }
+
+/// Slot entry that signals the viewer has reached the end of the feed.
+class EndOfFeedSlotEntry extends SlotEntry {
+  const EndOfFeedSlotEntry({
+    required this.jokeContext,
+    required this.totalJokes,
+  });
+
+  /// Analytics context in which the viewer is operating.
+  final String jokeContext;
+
+  /// Total real jokes displayed once this entry is appended.
+  final int totalJokes;
+}

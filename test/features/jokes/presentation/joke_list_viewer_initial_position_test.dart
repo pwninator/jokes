@@ -78,13 +78,16 @@ void main() {
       ).thenAnswer((_) => isDataPendingProvider);
       when(() => mockDataSource.hasMore).thenAnswer((_) => hasMoreProvider);
       when(() => mockDataSource.isLoading).thenAnswer((_) => isLoadingProvider);
-      when(() => mockDataSource.resultCount).thenAnswer((_) => resultCountProvider);
+      when(
+        () => mockDataSource.resultCount,
+      ).thenAnswer((_) => resultCountProvider);
     });
 
     void setLoadedJokes(List<JokeWithDate> jokes) {
       itemsProvider = Provider((ref) => AsyncValue.data(jokes));
-      resultCountProvider =
-          Provider((ref) => (count: jokes.length, hasMore: false));
+      resultCountProvider = Provider(
+        (ref) => (count: jokes.length, hasMore: false),
+      );
     }
 
     void setIsDataPending(bool value) {

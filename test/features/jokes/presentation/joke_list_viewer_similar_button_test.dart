@@ -235,13 +235,13 @@ void main() {
           child: MaterialApp(
             home: RailHost(
               railWidth: 180,
-                child: JokeListViewer(
-                  key: const Key(
-                    'joke_list_viewer_similar_button_test-navigation',
-                  ),
-                  slotSource: _slotSourceFor([JokeWithDate(joke: joke)]),
-                  jokeContext: 'daily_jokes',
-                  viewerId: 'sim_button_nav',
+              child: JokeListViewer(
+                key: const Key(
+                  'joke_list_viewer_similar_button_test-navigation',
+                ),
+                slotSource: _slotSourceFor([JokeWithDate(joke: joke)]),
+                jokeContext: 'daily_jokes',
+                viewerId: 'sim_button_nav',
                 showSimilarSearchButton: true,
               ),
             ),

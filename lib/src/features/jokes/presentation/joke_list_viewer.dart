@@ -150,7 +150,8 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
         currentJokeId = currentJoke.id;
       }
     }
-    final bool isLastEntry = entries.isEmpty || _currentPage >= entries.length - 1;
+    final bool isLastEntry =
+        entries.isEmpty || _currentPage >= entries.length - 1;
 
     final bool hasPunchlineImage =
         currentEntryIsJoke &&
@@ -165,9 +166,7 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
     // there is nothing to reveal, so CTA should be "Next joke" only.
     final bool revealModeEnabled = ref.watch(jokeViewerRevealProvider);
     final bool showReveal =
-        revealModeEnabled &&
-        hasPunchlineImage &&
-        currentImageIndex == 0;
+        revealModeEnabled && hasPunchlineImage && currentImageIndex == 0;
     final String label = showReveal ? 'Reveal' : 'Next joke';
     final bool disabled = entries.isEmpty || (!showReveal && isLastEntry);
 
@@ -285,8 +284,10 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
         if (_emptyStateLogged && totalEntries > 0 && _isJokeFeedViewer) {
           _emptyStateLogged = false;
         }
-        final targetSlot =
-            _slotIndexForStoredJoke(totalEntries, storedJokeIndex);
+        final targetSlot = _slotIndexForStoredJoke(
+          totalEntries,
+          storedJokeIndex,
+        );
         if (targetSlot != null && targetSlot != _currentPage) {
           _scheduleJumpTo(targetSlot);
         }

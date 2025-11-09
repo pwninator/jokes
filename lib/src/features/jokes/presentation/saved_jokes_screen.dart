@@ -6,6 +6,7 @@ import 'package:snickerdoodle/src/config/router/router_providers.dart';
 import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_list_data_sources.dart';
 import 'package:snickerdoodle/src/features/jokes/presentation/joke_list_viewer.dart';
+import 'package:snickerdoodle/src/features/jokes/presentation/slot_source.dart';
 
 class SavedJokesScreen extends ConsumerStatefulWidget implements TitledScreen {
   const SavedJokesScreen({super.key});
@@ -18,14 +19,14 @@ class SavedJokesScreen extends ConsumerStatefulWidget implements TitledScreen {
 }
 
 class _SavedJokesScreenState extends ConsumerState<SavedJokesScreen> {
-  late final SavedJokesDataSource _dataSource;
+  late final SlotSource _slotSource;
 
   @override
   void initState() {
     super.initState();
 
     // Create the data source once and reuse it across rebuilds
-    _dataSource = SavedJokesDataSource(ref);
+    _slotSource = SlotSource.fromDataSource(SavedJokesDataSource(ref));
 
     // Refresh user reactions from SharedPreferences when entering the screen
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -54,7 +55,7 @@ class _SavedJokesScreenState extends ConsumerState<SavedJokesScreen> {
         children: [
           Consumer(
             builder: (context, ref, _) {
-              final countInfo = ref.watch(_dataSource.resultCount);
+              final countInfo = ref.watch(_slotSource.resultCountProvider);
               final count = countInfo.count;
 
               if (count == 0) return const SizedBox.shrink();
@@ -81,7 +82,7 @@ class _SavedJokesScreenState extends ConsumerState<SavedJokesScreen> {
           ),
           Expanded(
             child: JokeListViewer(
-              dataSource: _dataSource,
+              slotSource: _slotSource,
               jokeContext: AnalyticsJokeContext.savedJokes,
               viewerId: 'saved_jokes',
             ),

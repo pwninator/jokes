@@ -10,6 +10,7 @@ import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_viewer_mode.dart';
 import 'package:snickerdoodle/src/features/jokes/presentation/joke_list_viewer.dart';
+import 'package:snickerdoodle/src/features/jokes/presentation/slot_source.dart';
 
 import '../../../helpers/joke_viewer_test_utils.dart';
 
@@ -38,6 +39,7 @@ void main() {
     late Provider<bool> isDataPendingProvider;
     late Provider<bool> hasMoreProvider;
     late Provider<bool> isLoadingProvider;
+    late Provider<({int count, bool hasMore})> resultCountProvider;
 
     setUp(() {
       mockDataSource = MockJokeListDataSource();
@@ -68,6 +70,7 @@ void main() {
       isDataPendingProvider = Provider((ref) => false);
       hasMoreProvider = Provider((ref) => false);
       isLoadingProvider = Provider((ref) => false);
+      resultCountProvider = Provider((ref) => (count: 0, hasMore: false));
 
       when(() => mockDataSource.items).thenAnswer((_) => itemsProvider);
       when(
@@ -75,10 +78,13 @@ void main() {
       ).thenAnswer((_) => isDataPendingProvider);
       when(() => mockDataSource.hasMore).thenAnswer((_) => hasMoreProvider);
       when(() => mockDataSource.isLoading).thenAnswer((_) => isLoadingProvider);
+      when(() => mockDataSource.resultCount).thenAnswer((_) => resultCountProvider);
     });
 
     void setLoadedJokes(List<JokeWithDate> jokes) {
       itemsProvider = Provider((ref) => AsyncValue.data(jokes));
+      resultCountProvider =
+          Provider((ref) => (count: jokes.length, hasMore: false));
     }
 
     void setIsDataPending(bool value) {
@@ -105,6 +111,8 @@ void main() {
         setLoadedJokes(jokes);
         setIsDataPending(false);
 
+        final slotSource = SlotSource.fromDataSource(mockDataSource);
+
         // Act
         await tester.pumpWidget(
           ProviderScope(
@@ -116,7 +124,7 @@ void main() {
                 body: JokeListViewer(
                   viewerId: 'viewer',
                   jokeContext: 'ctx',
-                  dataSource: mockDataSource,
+                  slotSource: slotSource,
                 ),
               ),
             ),
@@ -162,6 +170,8 @@ void main() {
         setLoadedJokes(jokes);
         setIsDataPending(false);
 
+        final slotSource = SlotSource.fromDataSource(mockDataSource);
+
         await tester.pumpWidget(
           ProviderScope(
             overrides: [
@@ -175,7 +185,7 @@ void main() {
                 body: JokeListViewer(
                   viewerId: 'viewer',
                   jokeContext: 'ctx',
-                  dataSource: mockDataSource,
+                  slotSource: slotSource,
                 ),
               ),
             ),

@@ -144,6 +144,6 @@ void main() {
     final viewer = tester.widget<JokeListViewer>(find.byType(JokeListViewer));
     expect(viewer.jokeContext, 'joke_feed');
     expect(viewer.viewerId, 'joke_feed');
-    expect(viewer.dataSource, isNotNull);
+    expect(viewer.slotSource, isNotNull);
   });
 }

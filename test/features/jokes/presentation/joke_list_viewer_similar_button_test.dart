@@ -19,6 +19,8 @@ import 'package:snickerdoodle/src/features/jokes/application/joke_search_provide
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_viewer_mode.dart';
 import 'package:snickerdoodle/src/features/jokes/presentation/joke_list_viewer.dart';
+import 'package:snickerdoodle/src/features/jokes/presentation/slot_entries.dart';
+import 'package:snickerdoodle/src/features/jokes/presentation/slot_source.dart';
 import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
 
 // Mock classes
@@ -159,7 +161,7 @@ void main() {
           child: MaterialApp(
             home: JokeListViewer(
               key: const Key('joke_list_viewer_similar_button_test-flag_off'),
-              jokesAsyncValue: AsyncValue.data([JokeWithDate(joke: joke)]),
+              slotSource: _slotSourceFor([JokeWithDate(joke: joke)]),
               jokeContext: 'daily_jokes',
               viewerId: 'sim_button_off',
               showSimilarSearchButton: false,
@@ -177,7 +179,7 @@ void main() {
           child: MaterialApp(
             home: JokeListViewer(
               key: const Key('joke_list_viewer_similar_button_test-flag_on'),
-              jokesAsyncValue: AsyncValue.data([JokeWithDate(joke: joke)]),
+              slotSource: _slotSourceFor([JokeWithDate(joke: joke)]),
               jokeContext: 'daily_jokes',
               viewerId: 'sim_button_on',
               showSimilarSearchButton: true,
@@ -233,13 +235,13 @@ void main() {
           child: MaterialApp(
             home: RailHost(
               railWidth: 180,
-              child: JokeListViewer(
-                key: const Key(
-                  'joke_list_viewer_similar_button_test-navigation',
-                ),
-                jokesAsyncValue: AsyncValue.data([JokeWithDate(joke: joke)]),
-                jokeContext: 'daily_jokes',
-                viewerId: 'sim_button_nav',
+                child: JokeListViewer(
+                  key: const Key(
+                    'joke_list_viewer_similar_button_test-navigation',
+                  ),
+                  slotSource: _slotSourceFor([JokeWithDate(joke: joke)]),
+                  jokeContext: 'daily_jokes',
+                  viewerId: 'sim_button_nav',
                 showSimilarSearchButton: true,
               ),
             ),
@@ -316,7 +318,7 @@ void main() {
           child: MaterialApp(
             home: JokeListViewer(
               key: const Key('joke_list_viewer_similar_button_test-empty_text'),
-              jokesAsyncValue: AsyncValue.data([JokeWithDate(joke: joke)]),
+              slotSource: _slotSourceFor([JokeWithDate(joke: joke)]),
               jokeContext: 'daily_jokes',
               viewerId: 'sim_button_empty',
               showSimilarSearchButton: true,
@@ -342,4 +344,26 @@ void main() {
       expect(query.query, isEmpty);
     });
   });
+}
+
+SlotSource _slotSourceFor(List<JokeWithDate> jokes) {
+  final slots = jokes
+      .map((j) => JokeSlotEntry(joke: j))
+      .toList(growable: false);
+  final slotsProvider = Provider<AsyncValue<List<SlotEntry>>>(
+    (ref) => AsyncValue<List<SlotEntry>>.data(slots),
+  );
+  final boolProvider = Provider<bool>((ref) => false);
+  final resultProvider = Provider<({int count, bool hasMore})>(
+    (ref) => (count: jokes.length, hasMore: false),
+  );
+  return SlotSource(
+    slotsProvider: slotsProvider,
+    hasMoreProvider: boolProvider,
+    isLoadingProvider: boolProvider,
+    isDataPendingProvider: boolProvider,
+    resultCountProvider: resultProvider,
+    onViewingIndexUpdated: null,
+    debugLabel: 'similar_button_test',
+  );
 }

@@ -10,12 +10,12 @@ import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/features/admin/presentation/joke_category_tile.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_category_providers.dart';
-import 'package:snickerdoodle/src/features/jokes/application/joke_list_data_source.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_list_data_sources.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_navigation_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_search_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_category.dart';
 import 'package:snickerdoodle/src/features/jokes/presentation/joke_list_viewer.dart';
+import 'package:snickerdoodle/src/features/jokes/presentation/slot_source.dart';
 import 'package:snickerdoodle/src/features/search/application/discover_tab_state.dart';
 
 /// Discover screen presents curated categories by default and lets users
@@ -30,7 +30,7 @@ class DiscoverScreen extends ConsumerStatefulWidget {
 class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
   static const _viewerId = discoverViewerId;
   VoidCallback? _resetViewer;
-  late final JokeListDataSource _dataSource;
+  late final SlotSource _slotSource;
   late final ScrollController _categoryScrollController;
   double? _savedCategoryScrollOffset;
 
@@ -38,7 +38,7 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
   void initState() {
     super.initState();
     // Use unified category data source that routes by activeCategoryProvider
-    _dataSource = CategoryDataSource(ref);
+    _slotSource = SlotSource.fromDataSource(CategoryDataSource(ref));
     _categoryScrollController = ScrollController();
   }
 
@@ -94,14 +94,14 @@ class _DiscoverScreenState extends ConsumerState<DiscoverScreen> {
         automaticallyImplyLeading: false,
         body: Column(
           children: [
-            _ResultsSummary(category: activeCategory, dataSource: _dataSource),
+            _ResultsSummary(category: activeCategory, slotSource: _slotSource),
             Expanded(
               child: hasActiveCategory
                   ? _CategoryResults(
                       viewerId: _viewerId,
                       onInitRegisterReset: (cb) => _resetViewer = cb,
                       categoryName: categoryName,
-                      dataSource: _dataSource,
+                      slotSource: _slotSource,
                     )
                   : _CategoryGrid(
                       onCategorySelected: _onCategorySelected,
@@ -202,13 +202,13 @@ class _CategoryResults extends ConsumerStatefulWidget {
     required this.viewerId,
     required this.onInitRegisterReset,
     required this.categoryName,
-    required this.dataSource,
+    required this.slotSource,
   });
 
   final String viewerId;
   final ValueChanged<VoidCallback?> onInitRegisterReset;
   final String? categoryName;
-  final JokeListDataSource dataSource;
+  final SlotSource slotSource;
 
   @override
   ConsumerState<_CategoryResults> createState() => _CategoryResultsState();
@@ -239,7 +239,7 @@ class _CategoryResultsState extends ConsumerState<_CategoryResults> {
     };
     final categoryName = active?.id;
     return JokeListViewer(
-      dataSource: widget.dataSource,
+      slotSource: widget.slotSource,
       jokeContext: categoryName != null
           ? '$jokeContext:$categoryName'
           : jokeContext,
@@ -253,10 +253,10 @@ class _CategoryResultsState extends ConsumerState<_CategoryResults> {
 }
 
 class _ResultsSummary extends ConsumerWidget {
-  const _ResultsSummary({required this.category, required this.dataSource});
+  const _ResultsSummary({required this.category, required this.slotSource});
 
   final JokeCategory? category;
-  final JokeListDataSource dataSource;
+  final SlotSource slotSource;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -268,7 +268,7 @@ class _ResultsSummary extends ConsumerWidget {
       return const SizedBox.shrink();
     }
 
-    final countInfo = ref.watch(dataSource.resultCount);
+    final countInfo = ref.watch(slotSource.resultCountProvider);
     final count = countInfo.count;
     final hasMore = countInfo.hasMore;
 

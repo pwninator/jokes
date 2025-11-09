@@ -4,11 +4,11 @@ import 'package:snickerdoodle/src/common_widgets/app_bar_configured_screen.dart'
 import 'package:snickerdoodle/src/config/router/router_providers.dart';
 import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
 import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
-import 'package:snickerdoodle/src/features/jokes/application/joke_list_data_source.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_list_data_sources.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_navigation_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_search_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/presentation/joke_list_viewer.dart';
+import 'package:snickerdoodle/src/features/jokes/presentation/slot_source.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key});
@@ -23,7 +23,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   VoidCallback? _resetViewer;
   final FocusNode _focusNode = FocusNode();
   final TextEditingController _controller = TextEditingController();
-  late final JokeListDataSource _dataSource;
+  late final SlotSource _slotSource;
 
   @override
   void initState() {
@@ -36,7 +36,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     });
 
     // Create the data source once and reuse it across rebuilds
-    _dataSource = UserJokeSearchDataSource(ref);
+    _slotSource = SlotSource.fromDataSource(UserJokeSearchDataSource(ref));
 
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
@@ -190,7 +190,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 return const SizedBox.shrink();
               }
 
-              final countInfo = ref.watch(_dataSource.resultCount);
+              final countInfo = ref.watch(_slotSource.resultCountProvider);
               final count = countInfo.count;
               if (count == 0) return const SizedBox.shrink();
               final label = count == 1 ? '1 result' : '$count results';
@@ -226,7 +226,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                     ? 'No jokes found'
                     : '';
                 return JokeListViewer(
-                  dataSource: _dataSource,
+                  slotSource: _slotSource,
                   jokeContext: AnalyticsJokeContext.search,
                   viewerId: 'search_user',
                   onInitRegisterReset: (cb) => _resetViewer = cb,

@@ -11,6 +11,7 @@ import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers
 import 'package:snickerdoodle/src/features/jokes/application/joke_list_data_source.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_viewer_mode.dart';
 import 'package:snickerdoodle/src/features/jokes/presentation/joke_list_viewer.dart';
+import 'package:snickerdoodle/src/features/jokes/presentation/slot_source.dart';
 import 'package:snickerdoodle/src/features/settings/application/joke_viewer_settings_service.dart';
 
 class MockJokeListDataSource extends Mock implements JokeListDataSource {}
@@ -119,6 +120,8 @@ void main() {
         () => mockDataSource.isLoading,
       ).thenReturn(Provider<bool>((ref) => true));
 
+      final slotSource = SlotSource.fromDataSource(mockDataSource);
+
       // Act: Build widget with ProviderScope
       await tester.pumpWidget(
         ProviderScope(
@@ -135,7 +138,7 @@ void main() {
                 key: const Key('joke_list_viewer_paging_test-loading'),
                 viewerId: 'test-viewer',
                 jokeContext: 'test',
-                dataSource: mockDataSource,
+                slotSource: slotSource,
               ),
             ),
           ),
@@ -161,6 +164,8 @@ void main() {
         () => mockDataSource.isDataPending,
       ).thenReturn(Provider<bool>((ref) => false));
 
+      final slotSource = SlotSource.fromDataSource(mockDataSource);
+
       // Act: Build widget
       await tester.pumpWidget(
         ProviderScope(
@@ -177,7 +182,7 @@ void main() {
                 key: const Key('joke_list_viewer_paging_test-empty'),
                 viewerId: 'test-viewer',
                 jokeContext: 'test',
-                dataSource: mockDataSource,
+                slotSource: slotSource,
               ),
             ),
           ),
@@ -202,6 +207,8 @@ void main() {
         ),
       );
 
+      final slotSource = SlotSource.fromDataSource(mockDataSource);
+
       // Act: Build widget
       await tester.pumpWidget(
         ProviderScope(
@@ -218,7 +225,7 @@ void main() {
                 key: const Key('joke_list_viewer_paging_test-error'),
                 viewerId: 'test-viewer',
                 jokeContext: 'test',
-                dataSource: mockDataSource,
+                slotSource: slotSource,
               ),
             ),
           ),
@@ -278,6 +285,8 @@ void main() {
         ),
       );
 
+      final slotSource = SlotSource.fromDataSource(mockDataSource);
+
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
@@ -293,7 +302,7 @@ void main() {
                 key: Key('joke_list_viewer_paging_test-feed-empty'),
                 viewerId: 'joke_feed',
                 jokeContext: AnalyticsJokeContext.jokeFeed,
-                dataSource: mockDataSource,
+                slotSource: slotSource,
               ),
             ),
           ),

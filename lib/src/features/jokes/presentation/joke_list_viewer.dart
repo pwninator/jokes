@@ -14,9 +14,10 @@ import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
-import 'package:snickerdoodle/src/features/jokes/application/joke_list_data_source.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_navigation_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
+import 'package:snickerdoodle/src/features/jokes/presentation/slot_entries.dart';
+import 'package:snickerdoodle/src/features/jokes/presentation/slot_source.dart';
 import 'package:snickerdoodle/src/features/settings/application/joke_viewer_settings_service.dart';
 import 'package:snickerdoodle/src/utils/joke_viewer_utils.dart';
 
@@ -24,9 +25,7 @@ import 'package:snickerdoodle/src/utils/joke_viewer_utils.dart';
 class JokeListViewer extends ConsumerStatefulWidget {
   const JokeListViewer({
     super.key,
-    this.jokesAsyncValue,
-    this.jokesAsyncProvider,
-    this.dataSource,
+    required this.slotSource,
     required this.jokeContext,
     required this.viewerId,
     this.onInitRegisterReset,
@@ -35,9 +34,7 @@ class JokeListViewer extends ConsumerStatefulWidget {
     this.showSimilarSearchButton = true,
   });
 
-  final AsyncValue<List<JokeWithDate>>? jokesAsyncValue;
-  final ProviderListenable<AsyncValue<List<JokeWithDate>>>? jokesAsyncProvider;
-  final JokeListDataSource? dataSource;
+  final SlotSource slotSource;
   final String jokeContext;
   final String viewerId;
   final Function(VoidCallback)? onInitRegisterReset;
@@ -216,11 +213,10 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
     if (!_isJokeFeedViewer || _emptyStateLogged) return;
     final analyticsService = ref.read(analyticsServiceProvider);
     analyticsService.logJokeFeedEndEmptyViewed(jokeContext: widget.jokeContext);
-    final dataSourceType = widget.dataSource?.runtimeType.toString() ?? 'none';
-    final ({int count, bool hasMore})? resultMetadata =
-        widget.dataSource != null
-        ? ref.read(widget.dataSource!.resultCount)
-        : null;
+    final dataSourceType = widget.slotSource.debugLabel ?? 'unknown';
+    final ({int count, bool hasMore}) resultMetadata = ref.read(
+      widget.slotSource.resultCountProvider,
+    );
     final logDetails = <String, Object?>{
       'viewerId': widget.viewerId,
       'jokeContext': widget.jokeContext,
@@ -231,8 +227,8 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
       'jokesLength': jokesLength,
       'slotCount': slotCount,
       'dataSourceType': dataSourceType,
-      if (resultMetadata != null) 'result.count': resultMetadata.count,
-      if (resultMetadata != null) 'result.hasMore': resultMetadata.hasMore,
+      'result.count': resultMetadata.count,
+      'result.hasMore': resultMetadata.hasMore,
     }..removeWhere((_, value) => value == null);
     final formatted = logDetails.entries
         .map((entry) => '${entry.key}=${entry.value}')
@@ -271,27 +267,26 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
       jokeViewerPageIndexProvider(widget.viewerId),
     );
 
-    final AsyncValue<List<JokeWithDate>> effectiveAsync =
-        widget.dataSource != null
-        ? ref.watch(widget.dataSource!.items)
-        : (widget.jokesAsyncValue ??
-              (widget.jokesAsyncProvider != null
-                  ? ref.watch(widget.jokesAsyncProvider!)
-                  : const AsyncValue<List<JokeWithDate>>.data(
-                      <JokeWithDate>[],
-                    )));
+    final slotEntriesAsync = ref.watch(widget.slotSource.slotsProvider);
 
-    return effectiveAsync.when(
-      data: (jokesWithDates) {
-        bool hasMore = false;
-        bool isLoading = false;
-        bool isDataPending = false;
-        if (widget.dataSource != null) {
-          hasMore = ref.watch(widget.dataSource!.hasMore);
-          isLoading = ref.watch(widget.dataSource!.isLoading);
-          isDataPending = ref.watch(widget.dataSource!.isDataPending);
-        }
-        final totalSlots = jokesWithDates.length;
+    return slotEntriesAsync.when(
+      data: (entries) {
+        final hasMore = ref.watch(widget.slotSource.hasMoreProvider);
+        final isLoading = ref.watch(widget.slotSource.isLoadingProvider);
+        final isDataPending = ref.watch(
+          widget.slotSource.isDataPendingProvider,
+        );
+        final totalSlots = entries.length;
+        final jokesWithDates = entries
+            .map((entry) {
+              if (entry case JokeSlotEntry(:final joke)) {
+                return joke;
+              }
+              throw StateError(
+                'Unsupported slot entry ${entry.runtimeType} in JokeListViewer',
+              );
+            })
+            .toList(growable: false);
         if (_emptyStateLogged && totalSlots > 0 && _isJokeFeedViewer) {
           _emptyStateLogged = false;
         }
@@ -327,7 +322,7 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
           );
           // Defensive: if a data source forgot to emit loading on first-load,
           // fallback to loading UI when it reports loading and no items.
-          if (widget.dataSource != null && isDataPending == true) {
+          if (isDataPending) {
             return const Center(child: CircularProgressIndicator());
           }
 
@@ -392,7 +387,7 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
                             .state =
                         index;
 
-                    widget.dataSource?.updateViewingIndex(index);
+                    widget.slotSource.onViewingIndexUpdated?.call(index);
 
                     final analyticsService = ref.read(analyticsServiceProvider);
                     final jokeWithDate = jokesWithDates[index];

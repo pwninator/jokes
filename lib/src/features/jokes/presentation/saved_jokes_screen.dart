@@ -84,6 +84,7 @@ class _SavedJokesScreenState extends ConsumerState<SavedJokesScreen> {
             child: JokeListViewer(
               slotSource: _slotSource,
               jokeContext: AnalyticsJokeContext.savedJokes,
+              emptyState: const Center(child: Text('No saved jokes yet.')),
               viewerId: 'saved_jokes',
             ),
           ),

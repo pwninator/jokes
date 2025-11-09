@@ -50,10 +50,8 @@ class FirebaseCrashReportingService implements CrashReportingService {
 
   @override
   Future<void> recordFlutterError(FlutterErrorDetails details) async {
-    if (kReleaseMode) {
-      await _crashlytics.recordFlutterError(details);
-      AppLogger.debug('CRASHLYTICS: Flutter error recorded: $details');
-    }
+    await _crashlytics.recordFlutterError(details);
+    AppLogger.debug('CRASHLYTICS: Flutter error recorded: $details');
   }
 
   @override
@@ -62,13 +60,11 @@ class FirebaseCrashReportingService implements CrashReportingService {
     StackTrace stackTrace, {
     Map<String, Object?>? keys,
   }) async {
-    if (kReleaseMode) {
-      if (keys != null && keys.isNotEmpty) {
-        await setKeys(keys);
-      }
-      await _crashlytics.recordError(error, stackTrace, fatal: true);
-      AppLogger.debug('CRASHLYTICS: Fatal error recorded: $error');
+    if (keys != null && keys.isNotEmpty) {
+      await setKeys(keys);
     }
+    await _crashlytics.recordError(error, stackTrace, fatal: true);
+    AppLogger.debug('CRASHLYTICS: Fatal error recorded: $error');
   }
 
   @override
@@ -77,21 +73,17 @@ class FirebaseCrashReportingService implements CrashReportingService {
     StackTrace? stackTrace,
     Map<String, Object?>? keys,
   }) async {
-    if (kReleaseMode) {
-      if (keys != null && keys.isNotEmpty) {
-        await setKeys(keys);
-      }
-      await _crashlytics.recordError(error, stackTrace, fatal: false);
-      AppLogger.debug('CRASHLYTICS: Non-fatal error recorded: $error');
+    if (keys != null && keys.isNotEmpty) {
+      await setKeys(keys);
     }
+    await _crashlytics.recordError(error, stackTrace, fatal: false);
+    AppLogger.debug('CRASHLYTICS: Non-fatal error recorded: $error');
   }
 
   @override
   Future<void> log(String message) async {
-    if (kReleaseMode) {
-      await _crashlytics.log(message);
-      AppLogger.debug('CRASHLYTICS: Log recorded: $message');
-    }
+    await _crashlytics.log(message);
+    AppLogger.debug('CRASHLYTICS: Log recorded: $message');
   }
 
   @override

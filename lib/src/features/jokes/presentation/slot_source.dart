@@ -89,7 +89,16 @@ class SlotEntriesNotifier extends StateNotifier<AsyncValue<List<SlotEntry>>> {
   }
 
   bool _shouldReset(List<JokeWithDate> jokes) {
-    if (_jokeIds.isEmpty) return false;
+    if (_jokeIds.isEmpty) {
+      if (_entries.isNotEmpty) {
+        // If we have no tracked jokes yet but we do have existing entries (e.g., an injected
+        // EndOfFeed entry), and new jokes arrive, clear the injected entries so that real jokes
+        // render from a clean slate.
+        return jokes.isNotEmpty;
+      } else {
+        return false;
+      }
+    }
     if (jokes.length < _jokeIds.length) return true;
     for (int i = 0; i < _jokeIds.length; i++) {
       if (_jokeIds[i] != jokes[i].joke.id) return true;

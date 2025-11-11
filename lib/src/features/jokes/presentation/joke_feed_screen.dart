@@ -6,6 +6,7 @@ import 'package:snickerdoodle/src/config/router/router_providers.dart';
 import 'package:snickerdoodle/src/core/services/analytics_parameters.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_list_data_sources.dart';
 import 'package:snickerdoodle/src/features/jokes/presentation/joke_list_viewer.dart';
+import 'package:snickerdoodle/src/features/jokes/presentation/slot_injection_strategies.dart';
 import 'package:snickerdoodle/src/features/jokes/presentation/slot_source.dart';
 
 class JokeFeedScreen extends ConsumerStatefulWidget implements TitledScreen {
@@ -24,7 +25,14 @@ class _JokeFeedScreenState extends ConsumerState<JokeFeedScreen> {
   @override
   void initState() {
     super.initState();
-    _slotSource = SlotSource.fromDataSource(CompositeJokeDataSource(ref));
+    _slotSource = SlotSource.fromDataSource(
+      CompositeJokeDataSource(ref),
+      strategiesBuilder: (_) => const [
+        EndOfFeedSlotInjectionStrategy(
+          jokeContext: AnalyticsJokeContext.jokeFeed,
+        ),
+      ],
+    );
   }
 
   @override

@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/common_widgets/bouncing_button.dart';
-import 'package:snickerdoodle/src/common_widgets/joke_card.dart';
 import 'package:snickerdoodle/src/common_widgets/joke_image_carousel.dart'
     show JokeImageCarouselController;
 import 'package:snickerdoodle/src/config/router/app_router.dart' show RailHost;
@@ -16,6 +15,7 @@ import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_navigation_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/presentation/slot_entries.dart';
+import 'package:snickerdoodle/src/features/jokes/presentation/slot_entry_renderers.dart';
 import 'package:snickerdoodle/src/features/jokes/presentation/slot_source.dart';
 import 'package:snickerdoodle/src/features/settings/application/joke_viewer_settings_service.dart';
 import 'package:snickerdoodle/src/utils/joke_viewer_utils.dart';
@@ -46,6 +46,11 @@ class JokeListViewer extends ConsumerStatefulWidget {
 }
 
 class _JokeListViewerState extends ConsumerState<JokeListViewer> {
+  static const List<SlotEntryRenderer> _slotEntryRenderers = [
+    JokeSlotEntryRenderer(),
+    EndOfFeedSlotEntryRenderer(),
+  ];
+
   int _currentPage = 0;
   late PageController _pageController;
   final Map<String, int> _currentImageStates = {};
@@ -88,6 +93,28 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
     setState(() {
       _currentImageStates[jokeId] = imageIndex;
     });
+  }
+
+  JokeImageCarouselController _controllerForJoke(String jokeId) {
+    return _carouselControllers.putIfAbsent(
+      jokeId,
+      () => JokeImageCarouselController(),
+    );
+  }
+
+  List<Joke> _jokesToPreload(List<SlotEntry> entries, int index) {
+    final jokes = <Joke>[];
+    for (var offset = 1; offset <= 2; offset++) {
+      final targetIndex = index + offset;
+      if (targetIndex >= entries.length) {
+        break;
+      }
+      final entry = entries[targetIndex];
+      if (entry is JokeSlotEntry) {
+        jokes.add(entry.joke.joke);
+      }
+    }
+    return jokes;
   }
 
   void _goToNextCard(int totalEntries, {required String method}) {
@@ -256,6 +283,15 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
   bool get _isJokeFeedViewer =>
       widget.jokeContext == AnalyticsJokeContext.jokeFeed;
 
+  SlotEntryRenderer _rendererFor(SlotEntry entry) {
+    for (final renderer in _slotEntryRenderers) {
+      if (renderer.supports(entry)) {
+        return renderer;
+      }
+    }
+    throw StateError('No renderer registered for ${entry.runtimeType}');
+  }
+
   @override
   Widget build(BuildContext context) {
     // If this viewer is not on the current (top) route, avoid any heavy work.
@@ -414,61 +450,49 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
                   final isLandscape =
                       MediaQuery.of(context).orientation ==
                       Orientation.landscape;
-
                   final entry = entries[index];
-                  if (entry is! JokeSlotEntry) {
-                    throw StateError(
-                      'Unsupported slot entry ${entry.runtimeType} for rendering',
+                  final renderer = _rendererFor(entry);
+
+                  final SlotEntryViewConfig viewConfig;
+                  if (entry is JokeSlotEntry) {
+                    final jokeWithDate = entry.joke;
+                    final joke = jokeWithDate.joke;
+                    final date = jokeWithDate.date;
+                    final formattedDate = date != null
+                        ? '${date.month}/${date.day}/${date.year}'
+                        : null;
+                    viewConfig = SlotEntryViewConfig(
+                      context: context,
+                      ref: ref,
+                      index: index,
+                      isLandscape: isLandscape,
+                      jokeContext: widget.jokeContext,
+                      showSimilarSearchButton: widget.showSimilarSearchButton,
+                      jokeConfig: JokeEntryViewConfig(
+                        formattedDate: formattedDate,
+                        jokesToPreload: _jokesToPreload(entries, index),
+                        carouselController: _controllerForJoke(joke.id),
+                        onImageStateChanged: (imageIndex) =>
+                            _onImageStateChanged(joke.id, imageIndex),
+                        dataSource: jokeWithDate.dataSource,
+                      ),
+                    );
+                  } else {
+                    viewConfig = SlotEntryViewConfig(
+                      context: context,
+                      ref: ref,
+                      index: index,
+                      isLandscape: isLandscape,
+                      jokeContext: widget.jokeContext,
+                      showSimilarSearchButton: widget.showSimilarSearchButton,
                     );
                   }
-                  final jokeWithDate = entry.joke;
-                  final joke = jokeWithDate.joke;
-                  final date = jokeWithDate.date;
-                  final dataSource = jokeWithDate.dataSource;
 
-                  final formattedDate = date != null
-                      ? '${date.month}/${date.day}/${date.year}'
-                      : null;
-
-                  final List<Joke> jokesToPreload = [];
-                  final nextIndex = index + 1;
-                  if (nextIndex < totalEntries) {
-                    final nextEntry = entries[nextIndex];
-                    if (nextEntry is JokeSlotEntry) {
-                      jokesToPreload.add(nextEntry.joke.joke);
-                    }
-                  }
-                  final secondIndex = index + 2;
-                  if (secondIndex < totalEntries) {
-                    final futureEntry = entries[secondIndex];
-                    if (futureEntry is JokeSlotEntry) {
-                      jokesToPreload.add(futureEntry.joke.joke);
-                    }
-                  }
-
-                  final controller =
-                      _carouselControllers[joke.id] ??
-                      (_carouselControllers[joke.id] =
-                          JokeImageCarouselController());
-
-                  final child = JokeCard(
-                    key: Key(joke.id),
-                    joke: joke,
-                    index: index,
-                    title: formattedDate,
-                    dataSource: dataSource,
-                    onImageStateChanged: (imageIndex) =>
-                        _onImageStateChanged(joke.id, imageIndex),
-                    isAdminMode: false,
-                    jokesToPreload: jokesToPreload,
-                    showSaveButton: true,
-                    showShareButton: true,
-                    showAdminRatingButtons: false,
-                    jokeContext: widget.jokeContext,
-                    controller: controller,
-                    showSimilarSearchButton: widget.showSimilarSearchButton,
+                  final child = renderer.build(
+                    entry: entry,
+                    config: viewConfig,
                   );
-                  final keySuffix = 'joke-${joke.id}';
+                  final keySuffix = renderer.key(entry, viewConfig);
 
                   return Center(
                     key: ValueKey('page-$keySuffix'),

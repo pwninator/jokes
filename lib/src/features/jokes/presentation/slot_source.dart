@@ -5,13 +5,18 @@ import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers
 import 'package:snickerdoodle/src/features/jokes/application/joke_list_data_source.dart';
 
 import 'slot_entries.dart';
+import 'slot_injection_strategies.dart';
 
 /// Watches jokes from a data source and emits slot entries for rendering.
 class SlotEntriesNotifier extends StateNotifier<AsyncValue<List<SlotEntry>>> {
-  SlotEntriesNotifier(this._ref, this._dataSource)
-    : _entries = <SlotEntry>[],
-      _jokeIds = const <String>[],
-      super(const AsyncValue.loading()) {
+  SlotEntriesNotifier(
+    this._ref,
+    this._dataSource, {
+    required this.strategies,
+    required this.hasMoreProvider,
+  }) : _entries = <SlotEntry>[],
+       _jokeIds = const <String>[],
+       super(const AsyncValue.loading()) {
     _subscription = _ref.listen<AsyncValue<List<JokeWithDate>>>(
       _dataSource.items,
       (_, next) => _enqueueUpdate(next),
@@ -32,6 +37,9 @@ class SlotEntriesNotifier extends StateNotifier<AsyncValue<List<SlotEntry>>> {
 
   /// Subscription to the data source's items provider.
   late final ProviderSubscription<AsyncValue<List<JokeWithDate>>> _subscription;
+
+  final List<SlotInjectionStrategy> strategies;
+  final ProviderListenable<bool> hasMoreProvider;
   bool _isDisposed = false;
 
   @override
@@ -63,9 +71,20 @@ class SlotEntriesNotifier extends StateNotifier<AsyncValue<List<SlotEntry>>> {
       _jokeIds = const <String>[];
     }
 
+    final newJokes = <SlotEntry>[];
     for (int i = _jokeIds.length; i < jokes.length; i++) {
-      _entries.add(JokeSlotEntry(joke: jokes[i]));
+      newJokes.add(JokeSlotEntry(joke: jokes[i]));
     }
+    final existingEntries = List<SlotEntry>.unmodifiable(_entries);
+    final injected = strategies.fold<List<SlotEntry>>(
+      newJokes,
+      (current, strategy) => strategy.apply(
+        existingEntries: existingEntries,
+        newEntries: current,
+        hasMore: _ref.read(hasMoreProvider),
+      ),
+    );
+    _entries.addAll(injected);
     _jokeIds = jokes.map((j) => j.joke.id).toList(growable: false);
   }
 
@@ -80,12 +99,28 @@ class SlotEntriesNotifier extends StateNotifier<AsyncValue<List<SlotEntry>>> {
 }
 
 /// Provider that emits slot entries for a given data source.
+typedef SlotEntryStrategiesBuilder =
+    List<SlotInjectionStrategy> Function(JokeListDataSource dataSource);
+
+List<SlotInjectionStrategy> _defaultStrategiesBuilder(
+  JokeListDataSource dataSource,
+) => const [];
+
 final slotEntriesProvider =
     AutoDisposeStateNotifierProvider.family<
       SlotEntriesNotifier,
       AsyncValue<List<SlotEntry>>,
-      JokeListDataSource
-    >((ref, dataSource) => SlotEntriesNotifier(ref, dataSource));
+      (JokeListDataSource, SlotEntryStrategiesBuilder)
+    >((ref, args) {
+      final dataSource = args.$1;
+      final strategies = args.$2(dataSource);
+      return SlotEntriesNotifier(
+        ref,
+        dataSource,
+        strategies: strategies,
+        hasMoreProvider: dataSource.hasMore,
+      );
+    });
 
 /// Simple wrapper exposing the providers the viewer needs.
 class SlotSource {
@@ -99,16 +134,18 @@ class SlotSource {
     this.debugLabel,
   });
 
-  factory SlotSource.fromDataSource(JokeListDataSource dataSource) =>
-      SlotSource(
-        slotsProvider: slotEntriesProvider(dataSource),
-        hasMoreProvider: dataSource.hasMore,
-        isLoadingProvider: dataSource.isLoading,
-        isDataPendingProvider: dataSource.isDataPending,
-        onViewingIndexUpdated: dataSource.updateViewingIndex,
-        resultCountProvider: dataSource.resultCount,
-        debugLabel: dataSource.runtimeType.toString(),
-      );
+  factory SlotSource.fromDataSource(
+    JokeListDataSource dataSource, {
+    SlotEntryStrategiesBuilder strategiesBuilder = _defaultStrategiesBuilder,
+  }) => SlotSource(
+    slotsProvider: slotEntriesProvider((dataSource, strategiesBuilder)),
+    hasMoreProvider: dataSource.hasMore,
+    isLoadingProvider: dataSource.isLoading,
+    isDataPendingProvider: dataSource.isDataPending,
+    onViewingIndexUpdated: dataSource.updateViewingIndex,
+    resultCountProvider: dataSource.resultCount,
+    debugLabel: dataSource.runtimeType.toString(),
+  );
 
   final ProviderListenable<AsyncValue<List<SlotEntry>>> slotsProvider;
   final ProviderListenable<bool> hasMoreProvider;

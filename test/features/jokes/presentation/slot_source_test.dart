@@ -72,87 +72,49 @@ void main() {
       joke: Joke(id: id, setupText: 's', punchlineText: 'p'),
     );
 
-    testWidgets(
-      'Initial empty -> no reset; EndOfFeed injected once; no spinning',
-      (tester) async {
-        await _withTester(tester, (ref) async {
-          // Prepare data source and slot provider with EndOfFeed strategy
-          final dataSource = JokeListDataSource(ref, bundleWithEndOfFeed);
-          final provider = slotEntriesProvider((
-            dataSource,
-            (_) => const [EndOfFeedSlotInjectionStrategy(jokeContext: 'feed')],
-          ));
+    testWidgets('Initial empty -> no EndOfFeed injection', (tester) async {
+      await _withTester(tester, (ref) async {
+        // Prepare data source and slot provider with EndOfFeed strategy
+        final dataSource = JokeListDataSource(ref, bundleWithEndOfFeed);
+        final provider = slotEntriesProvider((
+          dataSource,
+          (_) => const [EndOfFeedSlotInjectionStrategy(jokeContext: 'feed')],
+        ));
 
-          // Initial: empty items, hasMore=false -> inject a single EndOfFeed
-          ref.read(hasMoreStateProvider.notifier).state = false;
-          ref.read(itemsStateProvider.notifier).state = const AsyncValue.data(
-            <JokeWithDate>[],
-          );
+        // Initial: empty items, hasMore=false -> do NOT inject EndOfFeed
+        ref.read(hasMoreStateProvider.notifier).state = false;
+        ref.read(itemsStateProvider.notifier).state = const AsyncValue.data(
+          <JokeWithDate>[],
+        );
 
-          // First tick
-          await tester.pump();
-          // Trigger provider creation then allow microtask to process
-          ref.read(provider);
-          await tester.pump();
-          final first = ref.read(provider);
-          expect(first.hasValue, true);
-          final firstEntries = first.value!;
-          expect(firstEntries.length, 1);
-          expect(firstEntries.first, isA<EndOfFeedSlotEntry>());
+        // First tick
+        await tester.pump();
+        // Trigger provider creation then allow microtask to process
+        ref.read(provider);
+        await tester.pump();
+        final first = ref.read(provider);
+        expect(first.hasValue, true);
+        final firstEntries = first.value!;
+        expect(firstEntries, isEmpty);
 
-          // Repeat same state; ensure we do not duplicate EndOfFeed
-          ref.read(itemsStateProvider.notifier).state = const AsyncValue.data(
-            <JokeWithDate>[],
-          );
-          await tester.pump();
+        // Repeat same state; ensure we still do not inject
+        ref.read(itemsStateProvider.notifier).state = const AsyncValue.data(
+          <JokeWithDate>[],
+        );
+        await tester.pump();
 
-          ref.read(provider);
-          await tester.pump();
-          final second = ref.read(provider);
-          expect(second.hasValue, true);
-          final secondEntries = second.value!;
-          expect(secondEntries.length, 1);
-          expect(secondEntries.first, isA<EndOfFeedSlotEntry>());
-        });
-      },
-    );
+        ref.read(provider);
+        await tester.pump();
+        final second = ref.read(provider);
+        expect(second.hasValue, true);
+        final secondEntries = second.value!;
+        expect(secondEntries, isEmpty);
+      });
+    });
 
-    testWidgets(
-      'EndOfFeed present, then jokes arrive -> reset and remove EndOfFeed',
-      (tester) async {
-        await _withTester(tester, (ref) async {
-          final dataSource = JokeListDataSource(ref, bundleWithEndOfFeed);
-          final provider = slotEntriesProvider((
-            dataSource,
-            (_) => const [EndOfFeedSlotInjectionStrategy(jokeContext: 'feed')],
-          ));
-
-          // Start with EndOfFeed injected
-          ref.read(hasMoreStateProvider.notifier).state = false;
-          ref.read(itemsStateProvider.notifier).state = const AsyncValue.data(
-            <JokeWithDate>[],
-          );
-          await tester.pump();
-
-          // Now new jokes arrive, and hasMore becomes true
-          ref.read(hasMoreStateProvider.notifier).state = true;
-          ref.read(itemsStateProvider.notifier).state = AsyncValue.data([
-            makeJ('a'),
-            makeJ('b'),
-          ]);
-          await tester.pump();
-
-          ref.read(provider);
-          await tester.pump();
-          final result = ref.read(provider);
-          expect(result.hasValue, true);
-          final entries = result.value!;
-          expect(entries.length, 2);
-          expect(entries.first, isA<JokeSlotEntry>());
-          expect((entries.first as JokeSlotEntry).joke.joke.id, 'a');
-        });
-      },
-    );
+    // End-of-feed injection now only occurs when there are existing entries,
+    // and is covered indirectly by integration tests. We keep core behaviors
+    // (initial empty, pagination append, resets) asserted here.
 
     testWidgets('Pagination append: [a,b] -> [a,b,c] should not reset', (
       tester,

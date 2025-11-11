@@ -33,16 +33,14 @@ class EndOfFeedSlotInjectionStrategy extends SlotInjectionStrategy {
       return newEntries;
     }
 
-    final hasNewEntries = newEntries.isNotEmpty;
-    if (!hasNewEntries) {
-      final SlotEntry? lastExisting = existingEntries.isNotEmpty
-          ? existingEntries.last
-          : null;
-      if (_isEndOfFeedEntry(lastExisting)) {
-        // End-of-feed entry already exists, return new entries unchanged.
-        return newEntries;
-      }
-    }
+    // Only inject EndOfFeed if there are already existing entries.
+    if (existingEntries.isEmpty) return newEntries;
+
+    // Avoid duplicating EndOfFeed if it was already injected previously.
+    final SlotEntry? lastExisting = existingEntries.isNotEmpty
+        ? existingEntries.last
+        : null;
+    if (_isEndOfFeedEntry(lastExisting)) return newEntries;
 
     final totalJokes =
         existingEntries.whereType<JokeSlotEntry>().length +

@@ -66,6 +66,12 @@ class SlotEntriesNotifier extends StateNotifier<AsyncValue<List<SlotEntry>>> {
   }
 
   void _updateEntries(List<JokeWithDate> jokes) {
+    // If more data became available again, remove any trailing EndOfFeed entry.
+    if (_entries.isNotEmpty &&
+        _entries.last is EndOfFeedSlotEntry &&
+        _ref.read(hasMoreProvider)) {
+      _entries.removeLast();
+    }
     if (_shouldReset(jokes)) {
       _entries.clear();
       _jokeIds = const <String>[];

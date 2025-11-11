@@ -440,7 +440,7 @@ class JokeRepository {
     );
 
     if (snapshot.docs.isEmpty) {
-      AppLogger.info('JOKE_FEED_REPO: No feed jokes found ($query)');
+      AppLogger.info('JOKE_FEED_REPO: No feed jokes found (cursor: $cursor)');
       return const JokeListPage(
         ids: [],
         cursor: null,

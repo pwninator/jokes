@@ -49,6 +49,7 @@ class FeedSyncService {
       // Only react on positive transitions; provider increments on offline->online.
       next.whenData((_) {
         AppLogger.debug('FEED_SYNC: Connectivity restored; considering sync');
+        _resetRetryBackoff();
         unawaited(triggerSync(forceSync: false));
       });
     });
@@ -84,7 +85,7 @@ class FeedSyncService {
       AppLogger.debug(
         'FEED_SYNC: Skipping connectivity/manual sync; DB has $existingCount feed jokes',
       );
-      _resetBackoffOnSuccess();
+      _resetRetryBackoff();
       return false;
     }
 
@@ -125,7 +126,7 @@ class FeedSyncService {
           AppLogger.info('FEED_SYNC: Triggering composite reset');
           _ref.read(compositeJokesResetTriggerProvider.notifier).state++;
         }
-        _resetBackoffOnSuccess();
+        _resetRetryBackoff();
       } else {
         _scheduleRetry();
       }
@@ -142,27 +143,23 @@ class FeedSyncService {
   /// Watches the local DB until at least [minJokes] feed jokes exist.
   Future<void> _waitForFeedWindow({required int minJokes}) async {
     final completer = Completer<void>();
-    final subscription = _interactionsRepository
-        .watchFeedHead(limit: 100)
-        .listen(
-          (interactions) {
-            if (interactions.length >= minJokes && !completer.isCompleted) {
-              AppLogger.info(
-                'FEED_SYNC: Reached threshold (${interactions.length} >= $minJokes)',
-              );
-              completer.complete();
-            }
-          },
-          onError: (error, stack) {
-            if (!completer.isCompleted) {
-              AppLogger.error(
-                'FEED_SYNC: watchFeedHead error: $error',
-                stackTrace: stack,
-              );
-              completer.completeError(error, stack);
-            }
-          },
-        );
+    final subscription = _interactionsRepository.watchFeedJokeCount().listen(
+      (count) {
+        if (count >= minJokes && !completer.isCompleted) {
+          AppLogger.info('FEED_SYNC: Reached threshold ($count >= $minJokes)');
+          completer.complete();
+        }
+      },
+      onError: (error, stack) {
+        if (!completer.isCompleted) {
+          AppLogger.error(
+            'FEED_SYNC: watchFeedJokeCount error: $error',
+            stackTrace: stack,
+          );
+          completer.completeError(error, stack);
+        }
+      },
+    );
 
     try {
       await completer.future;
@@ -219,7 +216,9 @@ class FeedSyncService {
       return;
     }
     const schedule = <Duration>[
+      Duration(seconds: 3),
       Duration(seconds: 5),
+      Duration(seconds: 10),
       Duration(seconds: 30),
       Duration(minutes: 2),
       Duration(minutes: 5),
@@ -236,7 +235,7 @@ class FeedSyncService {
     });
   }
 
-  void _resetBackoffOnSuccess() {
+  void _resetRetryBackoff() {
     _retryAttemptIndex = 0;
     _cancelRetry();
   }

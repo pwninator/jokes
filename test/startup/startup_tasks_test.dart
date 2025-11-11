@@ -52,17 +52,10 @@ void main() {
         (_) async => const JokeListPage(ids: [], cursor: null, hasMore: false),
       );
 
-      // Mock the feed head watch to return a list that satisfies the initial window
-      final mockInteractions = List.generate(100, (i) {
-        final mockInteraction = MockJokeInteraction();
-        when(() => mockInteraction.feedIndex).thenReturn(i);
-        return mockInteraction;
-      });
+      // Mock the feed count watcher to satisfy the initial window
       when(
-        () => mockJokeInteractionsRepository.watchFeedHead(
-          limit: any(named: 'limit'),
-        ),
-      ).thenAnswer((_) => Stream.value(mockInteractions));
+        () => mockJokeInteractionsRepository.watchFeedJokeCount(),
+      ).thenAnswer((_) => Stream<int>.value(100));
     });
 
     tearDown(() {
@@ -148,8 +141,8 @@ void main() {
     ).thenAnswer((_) async => true);
     when(() => mockInteractions.countFeedJokes()).thenAnswer((_) async => 0);
     when(
-      () => mockInteractions.watchFeedHead(limit: any(named: 'limit')),
-    ).thenAnswer((_) => Stream.value(const []));
+      () => mockInteractions.watchFeedJokeCount(),
+    ).thenAnswer((_) => Stream<int>.value(0));
 
     final container = ProviderContainer(
       overrides: [

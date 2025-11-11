@@ -9,7 +9,6 @@ import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
 import 'package:snickerdoodle/src/data/jokes/joke_interactions_repository.dart';
-import 'package:snickerdoodle/src/data/core/database/app_database.dart';
 
 class MockJokeRepository extends Mock implements JokeRepository {}
 
@@ -29,32 +28,15 @@ void main() {
   late MockJokeInteractionsRepository mockInteractionsRepo;
 
   Future<void> stubWatchWithCounts(List<int> counts) async {
-    // Create a stream that emits lists of length = each count entry
-    final controller = StreamController<List<JokeInteraction>>.broadcast();
+    // Create a stream that emits the total count values
+    final controller = StreamController<int>.broadcast();
     when(
-      () => mockInteractionsRepo.watchFeedHead(limit: any(named: 'limit')),
+      () => mockInteractionsRepo.watchFeedJokeCount(),
     ).thenAnswer((_) => controller.stream);
     // Emit when a listener attaches to avoid racing before subscription
     controller.onListen = () async {
       for (final c in counts) {
-        final now = DateTime.now();
-        final items = List<JokeInteraction>.generate(
-          c,
-          (i) => JokeInteraction(
-            jokeId: 'j$i',
-            navigatedTimestamp: null,
-            viewedTimestamp: null,
-            savedTimestamp: null,
-            sharedTimestamp: null,
-            lastUpdateTimestamp: now,
-            setupText: null,
-            punchlineText: null,
-            setupImageUrl: null,
-            punchlineImageUrl: null,
-            feedIndex: i,
-          ),
-        );
-        controller.add(items);
+        controller.add(c);
         // Yield to event loop to simulate stream cadence
         await Future<void>.delayed(const Duration(milliseconds: 1));
       }

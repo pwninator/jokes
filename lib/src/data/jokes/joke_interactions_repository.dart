@@ -407,16 +407,14 @@ class JokeInteractionsRepository {
     perf: _perf,
   );
 
-  /// Watch the leading portion of the feed-ordered joke interactions.
-  Stream<List<JokeInteraction>> watchFeedHead({required int limit}) {
-    assert(limit > 0, 'watchFeedHead limit must be positive');
-    final query = _db.select(_db.jokeInteractions)
-      ..where((tbl) => tbl.feedIndex.isNotNull())
-      ..orderBy([
-        (t) => OrderingTerm(expression: t.feedIndex, mode: OrderingMode.asc),
-        (t) => OrderingTerm(expression: t.jokeId, mode: OrderingMode.asc),
-      ])
-      ..limit(limit);
-    return query.watch();
+  /// Watch the count of feed jokes (rows where feedIndex is not null).
+  ///
+  /// Emits a new integer whenever the count changes.
+  Stream<int> watchFeedJokeCount() {
+    final countExpr = _db.jokeInteractions.jokeId.count();
+    final query = _db.selectOnly(_db.jokeInteractions)
+      ..addColumns([countExpr])
+      ..where(_db.jokeInteractions.feedIndex.isNotNull());
+    return query.watchSingle().map((row) => row.read(countExpr) ?? 0);
   }
 }

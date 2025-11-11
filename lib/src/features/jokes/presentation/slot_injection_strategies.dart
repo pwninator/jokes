@@ -40,7 +40,9 @@ class EndOfFeedSlotInjectionStrategy extends SlotInjectionStrategy {
     final SlotEntry? lastExisting = existingEntries.isNotEmpty
         ? existingEntries.last
         : null;
-    if (_isEndOfFeedEntry(lastExisting)) return newEntries;
+    if (newEntries.isEmpty && _isEndOfFeedEntry(lastExisting)) {
+      return newEntries;
+    }
 
     final totalJokes =
         existingEntries.whereType<JokeSlotEntry>().length +

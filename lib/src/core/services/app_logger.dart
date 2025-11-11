@@ -70,8 +70,12 @@ class AppLogger {
     _maybeDebugPrint(message);
   }
 
-  void _info(String message) {
+  void _info(String message) async {
     _maybeDebugPrint(message);
+
+    try {
+      await _crashReportingService.log('INFO: $message');
+    } catch (_) {}
   }
 
   void _warn(String message) async {

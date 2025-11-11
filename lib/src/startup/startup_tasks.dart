@@ -14,12 +14,9 @@ import 'package:snickerdoodle/src/core/services/notification_service.dart';
 import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:snickerdoodle/src/data/core/database/app_database.dart';
-import 'package:snickerdoodle/src/data/jokes/joke_interactions_repository.dart';
 import 'package:snickerdoodle/src/data/jokes/joke_reactions_migration_service.dart';
 import 'package:snickerdoodle/src/features/auth/application/auth_startup_manager.dart';
-import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
-import 'package:snickerdoodle/src/features/jokes/application/joke_list_data_sources.dart';
-import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
+import 'package:snickerdoodle/src/features/jokes/application/feed_sync_service.dart';
 import 'package:snickerdoodle/src/startup/startup_task.dart';
 import 'package:snickerdoodle/src/utils/device_utils.dart';
 
@@ -242,185 +239,11 @@ Future<List<Override>> _initializeAdMob(StartupReader read) async {
 
 /// Sync feed jokes to local database.
 Future<List<Override>> _syncFeedJokes(StartupReader read) async {
-  final repository = read(jokeRepositoryProvider);
-  final interactionsRepository = read(jokeInteractionsRepositoryProvider);
-
-  // Reset the feed cursor if it was marked as done, since we're about to sync.
   try {
-    unawaited(_resetDoneFeedCursor(read));
+    final syncService = read(feedSyncServiceProvider);
+    await syncService.triggerSync(forceSync: true);
   } catch (e, stack) {
-    AppLogger.error(
-      'STARTUP_TASKS: SYNC_FEED_JOKES: Failed to reset feed cursor: $e',
-      stackTrace: stack,
-    );
+    AppLogger.fatal('Feed jokes sync task failed: $e', stackTrace: stack);
   }
-
-  // Continue syncing feed jokes beyond the initial window in the background.
-  unawaited(
-    _runFullFeedSync(
-      repository: repository,
-      interactionsRepository: interactionsRepository,
-    ),
-  );
-
-  // Only block startup until the first 10 feed jokes are available locally.
-  try {
-    await _waitForInitialFeedWindow(interactionsRepository);
-  } catch (e, stack) {
-    AppLogger.fatal(
-      'STARTUP_TASKS: SYNC_FEED_JOKES: Failed waiting for initial feed window: $e',
-      stackTrace: stack,
-    );
-  }
-
   return const [];
-}
-
-Future<void> _resetDoneFeedCursor(StartupReader read) async {
-  final prefs = read(sharedPreferencesProvider);
-  final rawCursor = prefs.getString(compositeJokeCursorPrefsKey);
-  if (rawCursor == null) return;
-
-  final compositeCursor = CompositeCursor.decode(rawCursor);
-  if (compositeCursor == null) return;
-
-  final feedCursor =
-      compositeCursor.subSourceCursors[localFeedJokesSubSourceId];
-  if (feedCursor == kDoneSentinel) {
-    AppLogger.debug(
-      'STARTUP_TASKS: SYNC_FEED_JOKES: Resetting "done" feed cursor.',
-    );
-    final newSubSourceCursors = Map<String, String>.from(
-      compositeCursor.subSourceCursors,
-    )..remove(localFeedJokesSubSourceId);
-
-    final newCursor = CompositeCursor(
-      totalJokesLoaded: compositeCursor.totalJokesLoaded,
-      subSourceCursors: newSubSourceCursors,
-      prioritySourceCursors: compositeCursor.prioritySourceCursors,
-    );
-
-    await prefs.setString(compositeJokeCursorPrefsKey, newCursor.encode());
-  }
-}
-
-const int initialFeedWindowStartIndex = 0;
-const int initialFeedWindowEndIndex = 99;
-const Duration _initialFeedWindowTimeout = Duration(seconds: 5);
-
-Future<void> _waitForInitialFeedWindow(
-  JokeInteractionsRepository interactionsRepository, {
-  int startIndex = initialFeedWindowStartIndex,
-  int endIndex = initialFeedWindowEndIndex,
-  Duration timeout = _initialFeedWindowTimeout,
-}) async {
-  if (endIndex < startIndex) return;
-
-  final completer = Completer<void>();
-  StreamSubscription<List<JokeInteraction>>? subscription;
-
-  void completeIfNeeded() {
-    if (!completer.isCompleted) {
-      completer.complete();
-    }
-  }
-
-  AppLogger.info(
-    'STARTUP_TASKS: SYNC_FEED_JOKES: Waiting for feed indexes '
-    '$startIndex-$endIndex',
-  );
-
-  subscription = interactionsRepository
-      .watchFeedHead(limit: endIndex + 1)
-      .listen(
-        (interactions) {
-          final hasWindow = _hasFeedWindowInInteractions(
-            interactions,
-            startIndex: startIndex,
-            endIndex: endIndex,
-          );
-          if (hasWindow) {
-            AppLogger.info(
-              'STARTUP_TASKS: SYNC_FEED_JOKES: Initial feed window ready',
-            );
-            completeIfNeeded();
-          }
-        },
-        onError: (error, stack) {
-          AppLogger.error(
-            'STARTUP_TASKS: SYNC_FEED_JOKES: watchFeedHead error: $error',
-            stackTrace: stack,
-          );
-        },
-      );
-
-  try {
-    await completer.future.timeout(timeout);
-  } on TimeoutException {
-    AppLogger.warn(
-      'STARTUP_TASKS: SYNC_FEED_JOKES: Timed out waiting for feed window '
-      '$startIndex-$endIndex',
-    );
-  } finally {
-    await subscription.cancel();
-  }
-}
-
-bool _hasFeedWindowInInteractions(
-  Iterable<JokeInteraction> interactions, {
-  required int startIndex,
-  required int endIndex,
-}) {
-  if (endIndex < startIndex) return true;
-  final requiredCount = endIndex - startIndex + 1;
-  final indexes = interactions
-      .map((interaction) => interaction.feedIndex)
-      .whereType<int>()
-      .where((index) => index >= startIndex && index <= endIndex)
-      .toSet();
-  return indexes.length == requiredCount;
-}
-
-/// Background feed sync that pulls every page from Firestore.
-Future<void> _runFullFeedSync({
-  required JokeRepository repository,
-  required JokeInteractionsRepository interactionsRepository,
-}) async {
-  try {
-    AppLogger.info('STARTUP_TASKS: SYNC_FEED_JOKES: Starting full feed sync');
-    JokeListPageCursor? cursor;
-    int feedIndex = 0;
-
-    while (true) {
-      final page = await repository.readFeedJokes(cursor: cursor);
-
-      if (page.jokes != null && page.jokes!.isNotEmpty) {
-        final jokes = page.jokes!
-            .map((joke) => (joke: joke, feedIndex: feedIndex++))
-            .toList();
-
-        await interactionsRepository.syncFeedJokes(jokes: jokes);
-      }
-      AppLogger.info(
-        'STARTUP_TASKS: SYNC_FEED_JOKES: Synced feed joke: ${page.jokes?.length} jokes, feedIndex: $feedIndex',
-      );
-
-      if (!page.hasMore ||
-          page.cursor == null ||
-          page.cursor?.docId == cursor?.docId) {
-        AppLogger.info(
-          'STARTUP_TASKS: SYNC_FEED_JOKES: No more feed jokes to sync: hasMore: ${page.hasMore}, prev cursor: ${cursor?.docId}, new cursor: ${page.cursor?.docId}',
-        );
-        break;
-      }
-
-      cursor = page.cursor;
-    }
-    AppLogger.info('STARTUP_TASKS: SYNC_FEED_JOKES: Full feed sync completed');
-  } catch (e, stack) {
-    AppLogger.fatal(
-      'STARTUP_TASKS: SYNC_FEED_JOKES: Background feed sync failed: $e',
-      stackTrace: stack,
-    );
-  }
 }

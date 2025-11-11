@@ -146,7 +146,7 @@ class NoopCrashReportingService implements CrashReportingService {
 
   @override
   Future<void> log(String message) async {
-    AppLogger.debug('CRASHLYTICS NO-OP: Log recorded: $message');
+    // No op. It's already logged by the app logger.
   }
 
   @override

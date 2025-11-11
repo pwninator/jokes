@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/common_widgets/joke_card.dart';
 import 'package:snickerdoodle/src/common_widgets/joke_image_carousel.dart';
-import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
+import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 
 import 'slot_entries.dart';
 
@@ -19,10 +19,7 @@ abstract class SlotEntryRenderer {
   String key(SlotEntry entry, SlotEntryViewConfig config) =>
       '${entry.runtimeType}-${config.index}';
 
-  Widget build({
-    required SlotEntry entry,
-    required SlotEntryViewConfig config,
-  });
+  Widget build({required SlotEntry entry, required SlotEntryViewConfig config});
 }
 
 /// Context shared with renderers so they can build appropriate widgets.
@@ -131,10 +128,7 @@ class EndOfFeedSlotEntryRenderer extends SlotEntryRenderer {
 }
 
 class _EndOfFeedCard extends ConsumerStatefulWidget {
-  const _EndOfFeedCard({
-    required this.jokeContext,
-    required this.totalJokes,
-  });
+  const _EndOfFeedCard({required this.jokeContext, required this.totalJokes});
 
   final String jokeContext;
   final int totalJokes;

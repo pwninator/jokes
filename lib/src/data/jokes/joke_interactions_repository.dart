@@ -356,6 +356,21 @@ class JokeInteractionsRepository {
     perf: _perf,
   );
 
+  /// Count jokes that have a feed index (feed jokes synced from Firestore)
+  Future<int> countFeedJokes() async => runWithTrace(
+    name: TraceName.driftGetInteractionCount,
+    traceKey: 'count_feed_jokes',
+    body: () async {
+      final query = _db.selectOnly(_db.jokeInteractions)
+        ..addColumns([_db.jokeInteractions.jokeId.count()])
+        ..where(_db.jokeInteractions.feedIndex.isNotNull());
+      final result = await query.getSingle();
+      return result.read(_db.jokeInteractions.jokeId.count()) ?? 0;
+    },
+    fallback: 0,
+    perf: _perf,
+  );
+
   /// Get feed jokes ordered by feedIndex with cursor-based pagination.
   ///
   /// Returns jokes where feedIndex is not null, ordered by feedIndex ascending.

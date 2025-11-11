@@ -42,6 +42,10 @@ final savedJokesRefreshTriggerProvider = StateProvider<int>((ref) => 0);
 /// category data source via its reset trigger.
 final activeCategoryProvider = StateProvider<JokeCategory?>((ref) => null);
 
+/// Signal to trigger reset of composite joke feed after initial sync completes.
+/// Only incremented once when feed is first populated.
+final compositeJokesResetTriggerProvider = StateProvider<int>((ref) => 0);
+
 /// Data source for daily jokes loaded from monthly schedule batches
 class DailyJokesDataSource extends JokeListDataSource {
   DailyJokesDataSource(WidgetRef ref) : super(ref, _dailyJokesPagingProviders);
@@ -181,7 +185,12 @@ class SeasonalDateRanges {
 
 final compositeJokePagingProviders = createPagingProviders(
   loadPage: _loadCompositeJokePage,
-  resetTriggers: const [],
+  resetTriggers: [
+    ResetTrigger(
+      provider: compositeJokesResetTriggerProvider,
+      shouldReset: (_, prev, next) => prev != null && prev != next,
+    ),
+  ],
   initialCursorProvider: (ref) {
     final settings = ref.read(settingsServiceProvider);
     return settings.getString(compositeJokeCursorPrefsKey);

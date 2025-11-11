@@ -8,6 +8,7 @@ import 'package:snickerdoodle/src/core/providers/settings_providers.dart';
 import 'package:snickerdoodle/src/data/core/database/app_database.dart';
 import 'package:snickerdoodle/src/data/jokes/joke_interactions_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_list_data_sources.dart';
+import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
 import 'package:snickerdoodle/src/startup/startup_tasks.dart';
@@ -20,6 +21,7 @@ class MockJokeInteractionsRepository extends Mock
 class MockJokeInteraction extends Mock implements JokeInteraction {}
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
   setUpAll(() {
     registerFallbackValue(const JokeListPageCursor(orderValue: '', docId: ''));
   });
@@ -38,6 +40,9 @@ void main() {
     setUp(() async {
       mockJokeRepository = MockJokeRepository();
       mockJokeInteractionsRepository = MockJokeInteractionsRepository();
+      when(
+        () => mockJokeInteractionsRepository.countFeedJokes(),
+      ).thenAnswer((_) async => 0);
 
       // Mock the full feed sync to do nothing and complete instantly
       when(
@@ -63,72 +68,42 @@ void main() {
       container.dispose();
     });
 
-    test(
-      'resets composite cursor for feed jokes if it is marked as __DONE__',
-      () async {
-        // Arrange: Set up SharedPreferences with a "done" cursor
-        final initialCursor = const CompositeCursor(
-          totalJokesLoaded: 100,
-          subSourceCursors: {
-            localFeedJokesSubSourceId: kDoneSentinel,
-            'another_source': 'cursor-123',
-          },
-          prioritySourceCursors: {},
-        ).encode();
+    test('triggers composite reset when DB initially empty', () async {
+      // Arrange
+      when(
+        () => mockJokeInteractionsRepository.countFeedJokes(),
+      ).thenAnswer((_) async => 0);
 
-        SharedPreferences.setMockInitialValues({
-          compositeJokeCursorPrefsKey: initialCursor,
-        });
-        sharedPreferences = await SharedPreferences.getInstance();
+      SharedPreferences.setMockInitialValues({});
+      sharedPreferences = await SharedPreferences.getInstance();
 
-        container = ProviderContainer(
-          overrides: [
-            jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
-            jokeInteractionsRepositoryProvider.overrideWithValue(
-              mockJokeInteractionsRepository,
-            ),
-            sharedPreferencesProvider.overrideWithValue(sharedPreferences),
-          ],
-        );
-
-        final startupReader = container.read;
-
-        // Act: Run the startup task
-        await syncFeedJokesExecute(startupReader);
-
-        // Assert: Check that the cursor was modified correctly
-        final updatedRawCursor = sharedPreferences.getString(
-          compositeJokeCursorPrefsKey,
-        );
-        final updatedCursor = CompositeCursor.decode(updatedRawCursor);
-
-        expect(updatedCursor, isNotNull);
-        expect(
-          updatedCursor!.subSourceCursors.containsKey(
-            localFeedJokesSubSourceId,
+      container = ProviderContainer(
+        overrides: [
+          jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
+          jokeInteractionsRepositoryProvider.overrideWithValue(
+            mockJokeInteractionsRepository,
           ),
-          isFalse,
-        );
-        expect(updatedCursor.subSourceCursors['another_source'], 'cursor-123');
-      },
-    );
+          sharedPreferencesProvider.overrideWithValue(sharedPreferences),
+        ],
+      );
+
+      final before = container.read(compositeJokesResetTriggerProvider);
+      // Act
+      await syncFeedJokesExecute(container.read);
+      final after = container.read(compositeJokesResetTriggerProvider);
+      // Assert
+      expect(after, greaterThan(before));
+    });
 
     test(
-      'does not modify cursor if feed joke cursor is not __DONE__',
+      'does not trigger composite reset when DB already populated',
       () async {
-        // Arrange: Set up SharedPreferences with a "normal" cursor
-        final initialCursor = const CompositeCursor(
-          totalJokesLoaded: 50,
-          subSourceCursors: {
-            localFeedJokesSubSourceId: 'some-feed-cursor',
-            'another_source': 'cursor-123',
-          },
-          prioritySourceCursors: {},
-        ).encode();
+        // Arrange
+        when(
+          () => mockJokeInteractionsRepository.countFeedJokes(),
+        ).thenAnswer((_) async => 10);
 
-        SharedPreferences.setMockInitialValues({
-          compositeJokeCursorPrefsKey: initialCursor,
-        });
+        SharedPreferences.setMockInitialValues({});
         sharedPreferences = await SharedPreferences.getInstance();
 
         container = ProviderContainer(
@@ -141,17 +116,54 @@ void main() {
           ],
         );
 
-        final startupReader = container.read;
-
-        // Act: Run the startup task
-        await syncFeedJokesExecute(startupReader);
-
-        // Assert: Check that the cursor was not changed
-        final updatedRawCursor = sharedPreferences.getString(
-          compositeJokeCursorPrefsKey,
-        );
-        expect(updatedRawCursor, initialCursor);
+        final before = container.read(compositeJokesResetTriggerProvider);
+        // Act
+        await syncFeedJokesExecute(container.read);
+        final after = container.read(compositeJokesResetTriggerProvider);
+        // Assert
+        expect(after, equals(before));
       },
     );
+  });
+
+  test('startup sync task completes without error', () async {
+    final mockRepo = MockJokeRepository();
+    final mockInteractions = MockJokeInteractionsRepository();
+
+    // Stub repository to return at least 50 jokes in one page
+    when(() => mockRepo.readFeedJokes(cursor: any(named: 'cursor'))).thenAnswer(
+      (_) async => JokeListPage(
+        ids: List.generate(50, (i) => 'id_$i'),
+        cursor: const JokeListPageCursor(orderValue: '1', docId: '1'),
+        hasMore: false,
+        jokes: List.generate(
+          50,
+          (i) => Joke(id: 'id_$i', setupText: 's', punchlineText: 'p'),
+        ),
+      ),
+    );
+    when(
+      () => mockInteractions.syncFeedJokes(jokes: any(named: 'jokes')),
+    ).thenAnswer((_) async => true);
+    when(() => mockInteractions.countFeedJokes()).thenAnswer((_) async => 0);
+    when(
+      () => mockInteractions.watchFeedHead(limit: any(named: 'limit')),
+    ).thenAnswer((_) => Stream.value(const []));
+
+    final container = ProviderContainer(
+      overrides: [
+        jokeRepositoryProvider.overrideWithValue(mockRepo),
+        jokeInteractionsRepositoryProvider.overrideWithValue(mockInteractions),
+      ],
+    );
+
+    T reader<T>(ProviderListenable<T> provider) {
+      return container.read(provider);
+    }
+
+    final task = bestEffortBlockingTasks.firstWhere(
+      (t) => t.id == 'sync_feed_jokes',
+    );
+    await task.execute(reader);
   });
 }

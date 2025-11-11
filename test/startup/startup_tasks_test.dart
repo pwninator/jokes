@@ -11,6 +11,7 @@ import 'package:snickerdoodle/src/features/jokes/application/joke_list_data_sour
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
+import 'package:snickerdoodle/src/features/jokes/application/feed_sync_service.dart';
 import 'package:snickerdoodle/src/startup/startup_tasks.dart';
 
 class MockJokeRepository extends Mock implements JokeRepository {}
@@ -130,14 +131,14 @@ void main() {
     final mockRepo = MockJokeRepository();
     final mockInteractions = MockJokeInteractionsRepository();
 
-    // Stub repository to return at least 50 jokes in one page
+    // Stub repository to return at least threshold jokes in one page
     when(() => mockRepo.readFeedJokes(cursor: any(named: 'cursor'))).thenAnswer(
       (_) async => JokeListPage(
-        ids: List.generate(50, (i) => 'id_$i'),
+        ids: List.generate(kFeedSyncMinInitialJokes, (i) => 'id_$i'),
         cursor: const JokeListPageCursor(orderValue: '1', docId: '1'),
         hasMore: false,
         jokes: List.generate(
-          50,
+          kFeedSyncMinInitialJokes,
           (i) => Joke(id: 'id_$i', setupText: 's', punchlineText: 'p'),
         ),
       ),

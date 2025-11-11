@@ -11,6 +11,12 @@ import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_reposito
 
 part 'feed_sync_service.g.dart';
 
+/// Minimum number of feed jokes to wait for during initial sync.
+const int kFeedSyncMinInitialJokes = 50;
+
+/// Maximum time to wait for [kFeedSyncMinInitialJokes] to be available locally.
+const Duration kFeedSyncInitialWaitTimeout = Duration(seconds: 10);
+
 /// Provides a singleton FeedSyncService instance.
 @Riverpod(keepAlive: true)
 FeedSyncService feedSyncService(Ref ref) {
@@ -53,6 +59,8 @@ class FeedSyncService {
   final JokeRepository _jokeRepository;
 
   bool _isSyncing = false;
+  Timer? _retryTimer;
+  int _retryAttemptIndex = 0;
 
   /// Triggers a feed sync.
   ///
@@ -63,6 +71,9 @@ class FeedSyncService {
   /// Returns true if a sync was started. This call blocks until at least 50 jokes
   /// are available locally or a 10 second timeout elapses (background sync continues).
   Future<bool> triggerSync({required bool forceSync}) async {
+    // If a retry was scheduled, cancel as we're attempting now.
+    _cancelRetry();
+
     if (_isSyncing) {
       AppLogger.debug('FEED_SYNC: Skipping; sync already in progress');
       return false;
@@ -73,6 +84,7 @@ class FeedSyncService {
       AppLogger.debug(
         'FEED_SYNC: Skipping connectivity/manual sync; DB has $existingCount feed jokes',
       );
+      _resetBackoffOnSuccess();
       return false;
     }
 
@@ -84,7 +96,9 @@ class FeedSyncService {
     );
 
     try {
-      // Start the full sync in the background; this continues beyond the threshold.
+      // Start waiting for the initial window FIRST to avoid missing early emissions,
+      // then kick off the background sync concurrently.
+      final waitFuture = _waitForFeedWindow(minJokes: kFeedSyncMinInitialJokes);
       unawaited(
         _runFullFeedSync().whenComplete(() {
           _isSyncing = false;
@@ -92,24 +106,35 @@ class FeedSyncService {
         }),
       );
 
-      // Wait until we have at least 50 jokes or timeout after 10s.
-      await _waitForFeedWindow(minJokes: 50).timeout(
-        const Duration(seconds: 10),
+      // Wait until we have at least threshold jokes or timeout.
+      var syncSuccessful = true;
+      await waitFuture.timeout(
+        kFeedSyncInitialWaitTimeout,
         onTimeout: () {
-          AppLogger.warn('FEED_SYNC: Timed out waiting for 50 jokes');
+          AppLogger.warn(
+            'FEED_SYNC: Timed out waiting for $kFeedSyncMinInitialJokes jokes',
+          );
+          syncSuccessful = false;
         },
       );
 
-      // Only reset composite if DB was empty when we began syncing.
-      if (shouldResetComposite) {
-        AppLogger.info('FEED_SYNC: Triggering composite reset');
-        _ref.read(compositeJokesResetTriggerProvider.notifier).state++;
+      if (syncSuccessful) {
+        // Only reset composite if DB was empty when we began syncing and we
+        // successfully reached the initial threshold (no timeout).
+        if (shouldResetComposite) {
+          AppLogger.info('FEED_SYNC: Triggering composite reset');
+          _ref.read(compositeJokesResetTriggerProvider.notifier).state++;
+        }
+        _resetBackoffOnSuccess();
+      } else {
+        _scheduleRetry();
       }
 
       return true;
     } catch (e, stack) {
       _isSyncing = false;
       AppLogger.fatal('FEED_SYNC: Sync failed: $e', stackTrace: stack);
+      _scheduleRetry();
       return false;
     }
   }
@@ -186,5 +211,40 @@ class FeedSyncService {
       );
       rethrow;
     }
+  }
+
+  void _scheduleRetry() {
+    if (_retryTimer?.isActive ?? false) {
+      // A retry is already scheduled.
+      return;
+    }
+    const schedule = <Duration>[
+      Duration(seconds: 5),
+      Duration(seconds: 30),
+      Duration(minutes: 2),
+      Duration(minutes: 5),
+    ];
+    final idx = _retryAttemptIndex.clamp(0, schedule.length - 1);
+    final delay = schedule[idx];
+    _retryAttemptIndex = (idx + 1).clamp(0, schedule.length - 1);
+    AppLogger.info(
+      'FEED_SYNC: Scheduling retry in ${delay.inSeconds} seconds (attemptIndex=$_retryAttemptIndex)',
+    );
+    _retryTimer = Timer(delay, () {
+      _retryTimer = null;
+      unawaited(triggerSync(forceSync: false));
+    });
+  }
+
+  void _resetBackoffOnSuccess() {
+    _retryAttemptIndex = 0;
+    _cancelRetry();
+  }
+
+  void _cancelRetry() {
+    if (_retryTimer?.isActive ?? false) {
+      _retryTimer?.cancel();
+    }
+    _retryTimer = null;
   }
 }

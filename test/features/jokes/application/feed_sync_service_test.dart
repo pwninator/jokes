@@ -34,8 +34,8 @@ void main() {
     when(
       () => mockInteractionsRepo.watchFeedHead(limit: any(named: 'limit')),
     ).thenAnswer((_) => controller.stream);
-    // Emit asynchronously to allow triggerSync to subscribe
-    Future.microtask(() async {
+    // Emit when a listener attaches to avoid racing before subscription
+    controller.onListen = () async {
       for (final c in counts) {
         final now = DateTime.now();
         final items = List<JokeInteraction>.generate(
@@ -55,8 +55,10 @@ void main() {
           ),
         );
         controller.add(items);
+        // Yield to event loop to simulate stream cadence
+        await Future<void>.delayed(const Duration(milliseconds: 1));
       }
-    });
+    };
   }
 
   JokeListPage makePage({required int count, required bool hasMore}) {
@@ -97,7 +99,7 @@ void main() {
   });
 
   test(
-    'First startup (empty DB) triggers sync and composite reset after 50',
+    'First startup (empty DB) triggers sync and composite reset after threshold',
     () async {
       when(
         () => mockInteractionsRepo.countFeedJokes(),
@@ -109,7 +111,7 @@ void main() {
         () => mockJokeRepo.readFeedJokes(cursor: any(named: 'cursor')),
       ).thenAnswer((_) async => makePage(count: 60, hasMore: false));
 
-      await stubWatchWithCounts([10, 30, 50]);
+      await stubWatchWithCounts([10, 30, kFeedSyncMinInitialJokes]);
 
       final service = container.read(feedSyncServiceProvider);
       final before = container.read(compositeJokesResetTriggerProvider);
@@ -149,7 +151,7 @@ void main() {
         () => mockJokeRepo.readFeedJokes(cursor: any(named: 'cursor')),
       ).thenAnswer((_) async => makePage(count: 10, hasMore: false));
 
-      await stubWatchWithCounts([50]);
+      await stubWatchWithCounts([kFeedSyncMinInitialJokes]);
 
       final before = container.read(compositeJokesResetTriggerProvider);
       final service = container.read(feedSyncServiceProvider);

@@ -13,7 +13,6 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('SlotEntriesNotifier reset behavior', () {
-
     // Test-controlled providers
     late StateProvider<AsyncValue<List<JokeWithDate>>> itemsStateProvider;
     late StateProvider<bool> hasMoreStateProvider;
@@ -22,7 +21,6 @@ void main() {
     late PagingProviderBundle bundleNoStrategies;
 
     setUp(() {
-
       // State we can control in tests
       itemsStateProvider = StateProvider<AsyncValue<List<JokeWithDate>>>(
         (ref) => const AsyncValue.data(<JokeWithDate>[]),
@@ -156,8 +154,9 @@ void main() {
       },
     );
 
-    testWidgets('Pagination append: [a,b] -> [a,b,c] should not reset',
-        (tester) async {
+    testWidgets('Pagination append: [a,b] -> [a,b,c] should not reset', (
+      tester,
+    ) async {
       await _withTester(tester, (ref) async {
         final dataSource = JokeListDataSource(ref, bundleWithEndOfFeed);
         final provider = slotEntriesProvider((

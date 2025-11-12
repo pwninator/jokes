@@ -9,6 +9,8 @@ from firebase_functions import https_fn, logger, options
 from functions.function_utils import get_param
 from services import firestore
 
+_DEFAULT_TOP_JOKES_LIMIT = 5
+
 
 def _json_response(payload: dict[str, object], *,
                    status: int) -> https_fn.Response:
@@ -48,7 +50,10 @@ def create_ad_assets(req: https_fn.Request) -> https_fn.Response:
     joke_ids = []
 
   if not joke_ids:
-    top_jokes = firestore.get_top_jokes('popularity_score_recent', 3)
+    top_jokes = firestore.get_top_jokes(
+      'popularity_score_recent',
+      _DEFAULT_TOP_JOKES_LIMIT,
+    )
     joke_ids = [joke.key for joke in top_jokes if getattr(joke, 'key', None)]
     if not joke_ids:
       return _json_response(
@@ -59,11 +64,11 @@ def create_ad_assets(req: https_fn.Request) -> https_fn.Response:
         status=404,
       )
 
-  rendered_creatives: list[tuple[str, str]] = []
+  rendered_creatives: list[tuple[str, list[str]]] = []
   for joke_id in joke_ids:
     try:
-      final_url = image_operations.create_ad_assets(joke_id)
-      rendered_creatives.append((joke_id, final_url))
+      final_urls = image_operations.create_ad_assets(joke_id)
+      rendered_creatives.append((joke_id, final_urls))
     except ValueError as err:
       return _json_response(
         {
@@ -82,12 +87,14 @@ def create_ad_assets(req: https_fn.Request) -> https_fn.Response:
         status=500,
       )
 
-  creatives_html = "\n".join([
-    f"""    <section class="creative">
+  creatives_html_parts: list[str] = []
+  for joke_id, urls in rendered_creatives:
+    for url in urls:
+      creatives_html_parts.append(f"""    <section class="creative">
       <h2>{joke_id}</h2>
       <img src="{url}" alt="Joke {joke_id} ad creative" />
-    </section>""" for joke_id, url in rendered_creatives
-  ])
+    </section>""")
+  creatives_html = "\n".join(creatives_html_parts)
 
   html = f"""<!DOCTYPE html>
 <html lang="en">

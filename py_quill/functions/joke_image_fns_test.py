@@ -44,12 +44,12 @@ def test_create_ad_assets_returns_html(monkeypatch: pytest.MonkeyPatch):
   """Successful requests should return HTML rendering the creative."""
   called_ids: list[str] = []
 
-  def _fake_create(joke_id: str) -> str:
+  def _fake_create(joke_id: str) -> list[str]:
     called_ids.append(joke_id)
-    return f'https://cdn.example.com/{joke_id}.png'
+    return [f'https://cdn.example.com/{joke_id}.png']
 
-  monkeypatch.setattr(joke_image_fns.image_operations,
-                      'create_ad_assets', _fake_create)
+  monkeypatch.setattr(joke_image_fns.image_operations, 'create_ad_assets',
+                      _fake_create)
 
   req = DummyReq(data={'joke_ids': 'joke123, joke456 '})
 
@@ -67,51 +67,57 @@ def test_create_ad_assets_returns_html(monkeypatch: pytest.MonkeyPatch):
 def test_create_ad_assets_uses_top_jokes_when_missing_param(
     monkeypatch: pytest.MonkeyPatch):
   """When joke_ids missing, fallback to top jokes."""
-  mock_top_jokes = [Mock(key='top1'), Mock(key='top2'), Mock(key=None)]
-  monkeypatch.setattr(joke_image_fns.firestore,
-                      'get_top_jokes',
+  mock_top_jokes = [
+    Mock(key=f'top{i}')
+    for i in range(1, joke_image_fns._DEFAULT_TOP_JOKES_LIMIT + 1)
+  ]
+  monkeypatch.setattr(joke_image_fns.firestore, 'get_top_jokes',
                       Mock(return_value=mock_top_jokes))
 
   called_ids: list[str] = []
 
-  def _fake_create(joke_id: str) -> str:
+  def _fake_create(joke_id: str) -> list[str]:
     called_ids.append(joke_id)
-    return f'https://cdn.example.com/{joke_id}.png'
+    return [f'https://cdn.example.com/{joke_id}.png']
 
-  monkeypatch.setattr(joke_image_fns.image_operations,
-                      'create_ad_assets', _fake_create)
+  monkeypatch.setattr(joke_image_fns.image_operations, 'create_ad_assets',
+                      _fake_create)
 
   req = DummyReq(data={})
 
   resp = joke_image_fns.create_ad_assets(req)
 
   joke_image_fns.firestore.get_top_jokes.assert_called_once_with(
-    'popularity_score_recent', 3)
-  assert called_ids == ['top1', 'top2']
+    'popularity_score_recent', joke_image_fns._DEFAULT_TOP_JOKES_LIMIT)
+  expected_ids = [
+    f'top{i}' for i in range(1, joke_image_fns._DEFAULT_TOP_JOKES_LIMIT + 1)
+  ]
+  assert called_ids == expected_ids
   assert resp.mimetype == 'text/html'
   assert resp.status_code == 200
   html = _html_response(resp)
-  assert html.count('<img') == 2
-  assert 'https://cdn.example.com/top1.png' in html
-  assert 'https://cdn.example.com/top2.png' in html
+  assert html.count('<img') == len(expected_ids)
+  for joke_id in expected_ids:
+    assert f'https://cdn.example.com/{joke_id}.png' in html
 
 
-def test_create_ad_assets_no_top_jokes_available(monkeypatch:
-                                                 pytest.MonkeyPatch):
+def test_create_ad_assets_no_top_jokes_available(
+    monkeypatch: pytest.MonkeyPatch):
   """If no jokes available, return a 404 error."""
-  monkeypatch.setattr(joke_image_fns.firestore,
-                      'get_top_jokes',
+  monkeypatch.setattr(joke_image_fns.firestore, 'get_top_jokes',
                       Mock(return_value=[]))
   mock_create = Mock()
-  monkeypatch.setattr(joke_image_fns.image_operations,
-                      'create_ad_assets', mock_create)
+  monkeypatch.setattr(joke_image_fns.image_operations, 'create_ad_assets',
+                      mock_create)
 
   req = DummyReq(data={})
 
   resp = joke_image_fns.create_ad_assets(req)
 
   joke_image_fns.firestore.get_top_jokes.assert_called_once_with(
-    'popularity_score_recent', 3)
+    'popularity_score_recent',
+    joke_image_fns._DEFAULT_TOP_JOKES_LIMIT,
+  )
   mock_create.assert_not_called()
   assert resp.mimetype == 'application/json'
   assert resp.status_code == 404
@@ -124,13 +130,14 @@ def test_create_ad_assets_no_top_jokes_available(monkeypatch:
 
 def test_create_ad_assets_value_error(monkeypatch: pytest.MonkeyPatch):
   """ValueErrors from image operations should surface as 400 responses."""
-  def _fake_create(joke_id: str) -> str:
+
+  def _fake_create(joke_id: str) -> list[str]:
     if joke_id == 'joke_bad':
       raise ValueError('Joke missing')
-    return f'https://cdn.example.com/{joke_id}.png'
+    return [f'https://cdn.example.com/{joke_id}.png']
 
-  monkeypatch.setattr(joke_image_fns.image_operations,
-                      'create_ad_assets', _fake_create)
+  monkeypatch.setattr(joke_image_fns.image_operations, 'create_ad_assets',
+                      _fake_create)
 
   req = DummyReq(data={'joke_ids': 'joke_good, joke_bad'})
 
@@ -156,5 +163,3 @@ def test_create_ad_assets_method_not_allowed():
   payload = _json_payload(resp)
   assert payload['success'] is False
   assert payload['error'].startswith('Method not allowed')
-
-

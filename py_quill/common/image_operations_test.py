@@ -88,7 +88,7 @@ class CreateAdAssetsTest(unittest.TestCase):
 
     result = image_operations.create_ad_assets('joke123', editor)
 
-    self.assertEqual(result, 'https://cdn.example.com/ad.png')
+    self.assertEqual(result, ['https://cdn.example.com/ad.png'])
     mock_firestore.get_punny_joke.assert_called_once_with('joke123')
     self.assertEqual(editor.create_calls, [(2048, 1024)])
     self.assertEqual(editor.paste_calls, [(0, 0, (1024, 1024)),
@@ -154,7 +154,7 @@ class CreateAdAssetsTest(unittest.TestCase):
 
     result = image_operations.create_ad_assets('jokeABC', mock_editor)
 
-    self.assertEqual(result, 'https://cdn.example.com/existing.png')
+    self.assertEqual(result, ['https://cdn.example.com/existing.png'])
     mock_editor.create_blank_image.assert_not_called()
     mock_editor.paste_image.assert_not_called()
     mock_storage.extract_gcs_uri_from_image_url.assert_not_called()

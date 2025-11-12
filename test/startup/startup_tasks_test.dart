@@ -21,6 +21,8 @@ class MockJokeInteractionsRepository extends Mock
 
 class MockJokeInteraction extends Mock implements JokeInteraction {}
 
+class MockFeedSyncService extends Mock implements FeedSyncService {}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUpAll(() {
@@ -116,6 +118,93 @@ void main() {
         final after = container.read(compositeJokesResetTriggerProvider);
         // Assert
         expect(after, equals(before));
+      },
+    );
+
+    test('removes done sentinel feed cursor before sync completes', () async {
+      SharedPreferences.setMockInitialValues({
+        compositeJokeCursorPrefsKey: const CompositeCursor(
+          totalJokesLoaded: 50,
+          subSourceCursors: {
+            localFeedJokesSubSourceId: kDoneSentinel,
+            'another_source': 'cursor-123',
+          },
+          prioritySourceCursors: {'priority_source': 'cursor-xyz'},
+        ).encode(),
+      });
+      final sharedPreferences = await SharedPreferences.getInstance();
+
+      final mockFeedSyncService = MockFeedSyncService();
+      when(
+        () => mockFeedSyncService.triggerSync(forceSync: true),
+      ).thenAnswer((_) async => true);
+
+      container = ProviderContainer(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(sharedPreferences),
+          feedSyncServiceProvider.overrideWithValue(mockFeedSyncService),
+        ],
+      );
+
+      await syncFeedJokesExecute(container.read);
+
+      final updatedRawCursor = sharedPreferences.getString(
+        compositeJokeCursorPrefsKey,
+      );
+      final updatedCursor = CompositeCursor.decode(updatedRawCursor);
+
+      expect(
+        updatedCursor?.subSourceCursors.containsKey(localFeedJokesSubSourceId),
+        isFalse,
+      );
+      expect(updatedCursor?.subSourceCursors['another_source'], 'cursor-123');
+      expect(
+        updatedCursor?.prioritySourceCursors['priority_source'],
+        'cursor-xyz',
+      );
+
+      verify(() => mockFeedSyncService.triggerSync(forceSync: true)).called(1);
+    });
+
+    test(
+      'keeps cursor unchanged when feed cursor is not done sentinel',
+      () async {
+        const initialCursor = CompositeCursor(
+          totalJokesLoaded: 25,
+          subSourceCursors: {
+            localFeedJokesSubSourceId: 'feed-cursor',
+            'another_source': 'cursor-123',
+          },
+          prioritySourceCursors: {},
+        );
+
+        SharedPreferences.setMockInitialValues({
+          compositeJokeCursorPrefsKey: initialCursor.encode(),
+        });
+        final sharedPreferences = await SharedPreferences.getInstance();
+
+        final mockFeedSyncService = MockFeedSyncService();
+        when(
+          () => mockFeedSyncService.triggerSync(forceSync: true),
+        ).thenAnswer((_) async => true);
+
+        container = ProviderContainer(
+          overrides: [
+            sharedPreferencesProvider.overrideWithValue(sharedPreferences),
+            feedSyncServiceProvider.overrideWithValue(mockFeedSyncService),
+          ],
+        );
+
+        await syncFeedJokesExecute(container.read);
+
+        final updatedRawCursor = sharedPreferences.getString(
+          compositeJokeCursorPrefsKey,
+        );
+        expect(updatedRawCursor, initialCursor.encode());
+
+        verify(
+          () => mockFeedSyncService.triggerSync(forceSync: true),
+        ).called(1);
       },
     );
   });

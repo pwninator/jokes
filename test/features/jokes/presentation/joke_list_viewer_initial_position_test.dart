@@ -195,7 +195,8 @@ void main() {
           ),
         );
 
-        await tester.pumpAndSettle();
+        await tester.pump();
+        await tester.pump();
 
         final container = ProviderScope.containerOf(
           tester.element(find.byType(JokeListViewer)),
@@ -205,6 +206,7 @@ void main() {
           find.byKey(const Key('joke_viewer_page_view')),
         );
         expect(pageView.controller?.page, closeTo(1, 0.01));
+        await tester.pump(const Duration(seconds: 2));
       },
     );
   });

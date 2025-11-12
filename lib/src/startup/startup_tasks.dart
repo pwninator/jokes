@@ -17,6 +17,7 @@ import 'package:snickerdoodle/src/data/core/database/app_database.dart';
 import 'package:snickerdoodle/src/data/jokes/joke_reactions_migration_service.dart';
 import 'package:snickerdoodle/src/features/auth/application/auth_startup_manager.dart';
 import 'package:snickerdoodle/src/features/jokes/application/feed_sync_service.dart';
+import 'package:snickerdoodle/src/features/jokes/application/joke_list_data_sources.dart';
 import 'package:snickerdoodle/src/startup/startup_task.dart';
 import 'package:snickerdoodle/src/utils/device_utils.dart';
 
@@ -241,9 +242,46 @@ Future<List<Override>> _initializeAdMob(StartupReader read) async {
 Future<List<Override>> _syncFeedJokes(StartupReader read) async {
   try {
     final syncService = read(feedSyncServiceProvider);
-    await syncService.triggerSync(forceSync: true);
+    final syncFuture = syncService.triggerSync(forceSync: true);
+
+    final resetFuture = _resetDoneFeedCursor(read).catchError((e, stack) {
+      AppLogger.error(
+        'Failed to reset done feed cursor: $e',
+        stackTrace: stack,
+      );
+    });
+
+    await Future.wait([resetFuture, syncFuture]);
   } catch (e, stack) {
     AppLogger.fatal('Feed jokes sync task failed: $e', stackTrace: stack);
   }
   return const [];
+}
+
+Future<void> _resetDoneFeedCursor(StartupReader read) async {
+  final prefs = read(sharedPreferencesProvider);
+  final rawCursor = prefs.getString(compositeJokeCursorPrefsKey);
+  if (rawCursor == null) return;
+
+  final compositeCursor = CompositeCursor.decode(rawCursor);
+  if (compositeCursor == null) return;
+
+  final feedCursor =
+      compositeCursor.subSourceCursors[localFeedJokesSubSourceId];
+  if (feedCursor == kDoneSentinel) {
+    AppLogger.debug(
+      'STARTUP_TASKS: SYNC_FEED_JOKES: Resetting "done" feed cursor.',
+    );
+    final newSubSourceCursors = Map<String, String>.from(
+      compositeCursor.subSourceCursors,
+    )..remove(localFeedJokesSubSourceId);
+
+    final newCursor = CompositeCursor(
+      totalJokesLoaded: compositeCursor.totalJokesLoaded,
+      subSourceCursors: newSubSourceCursors,
+      prioritySourceCursors: compositeCursor.prioritySourceCursors,
+    );
+
+    await prefs.setString(compositeJokeCursorPrefsKey, newCursor.encode());
+  }
 }

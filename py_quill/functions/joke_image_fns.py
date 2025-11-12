@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import json
 
+from common import image_operations
 from firebase_functions import https_fn, logger, options
 from functions.function_utils import get_param
-from common import image_operations
+from services import firestore
 
 
 def _json_response(payload: dict[str, object], *,
@@ -24,7 +25,7 @@ def _json_response(payload: dict[str, object], *,
   timeout_sec=600,
 )
 def create_ad_assets(req: https_fn.Request) -> https_fn.Response:
-  """HTTP endpoint to generate a landscape ad creative for a joke."""
+  """HTTP endpoint to generate landscape ad creatives for jokes."""
   if req.path == "/__/health":
     return https_fn.Response("OK", status=200)
 
@@ -37,61 +38,95 @@ def create_ad_assets(req: https_fn.Request) -> https_fn.Response:
       status=405,
     )
 
-  joke_id = get_param(req, 'joke_id')
-  if not joke_id:
-    return _json_response(
-      {
-        "success": False,
-        "error": "joke_id is required",
-      },
-      status=400,
-    )
+  raw_ids = get_param(req, 'joke_ids')
+  if raw_ids:
+    joke_ids = [
+      joke_id.strip() for joke_id in str(raw_ids).split(',')
+      if joke_id.strip()
+    ]
+  else:
+    joke_ids = []
 
-  try:
-    final_url = image_operations.create_ad_assets(joke_id)
-  except ValueError as err:
-    return _json_response(
-      {
-        "success": False,
-        "error": str(err),
-      },
-      status=400,
-    )
-  except Exception as err:  # pylint: disable=broad-except
-    logger.error(f"Failed to create ad assets for {joke_id}: {err}")
-    return _json_response(
-      {
-        "success": False,
-        "error": "Failed to create ad assets",
-      }, status=500)
+  if not joke_ids:
+    top_jokes = firestore.get_top_jokes('popularity_score_recent', 3)
+    joke_ids = [joke.key for joke in top_jokes if getattr(joke, 'key', None)]
+    if not joke_ids:
+      return _json_response(
+        {
+          "success": False,
+          "error": "No jokes available to create ad assets",
+        },
+        status=404,
+      )
+
+  rendered_creatives: list[tuple[str, str]] = []
+  for joke_id in joke_ids:
+    try:
+      final_url = image_operations.create_ad_assets(joke_id)
+      rendered_creatives.append((joke_id, final_url))
+    except ValueError as err:
+      return _json_response(
+        {
+          "success": False,
+          "error": f"{joke_id}: {err}",
+        },
+        status=400,
+      )
+    except Exception as err:  # pylint: disable=broad-except
+      logger.error(f"Failed to create ad assets for {joke_id}: {err}")
+      return _json_response(
+        {
+          "success": False,
+          "error": f"{joke_id}: Failed to create ad assets",
+        },
+        status=500,
+      )
+
+  creatives_html = "\n".join([
+    f"""    <section class="creative">
+      <h2>{joke_id}</h2>
+      <img src="{url}" alt="Joke {joke_id} ad creative" />
+    </section>""" for joke_id, url in rendered_creatives
+  ])
 
   html = f"""<!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>Joke Ad Creative</title>
+    <title>Joke Ad Creatives</title>
     <style>
       body {{
         font-family: Arial, sans-serif;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        padding: 24px;
         background: #f7f7f7;
+        margin: 0;
+        padding: 24px;
+      }}
+      .creatives {{
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+        gap: 24px;
+      }}
+      .creative {{
+        background: #ffffff;
+        border-radius: 12px;
+        padding: 16px;
+        box-shadow: 0 6px 24px rgba(0, 0, 0, 0.1);
+        text-align: center;
       }}
       img {{
         max-width: 100%;
         height: auto;
-        border: 4px solid #f2d5b1;
-        box-shadow: 0 6px 24px rgba(0, 0, 0, 0.15);
         border-radius: 12px;
+        border: 4px solid #f2d5b1;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.10);
       }}
     </style>
   </head>
   <body>
-    <h1>Landscape Ad Creative</h1>
-    <img src="{final_url}" alt="Joke ad creative" />
+    <h1>Landscape Ad Creatives</h1>
+    <section class="creatives">
+{creatives_html}
+    </section>
   </body>
 </html>"""
 

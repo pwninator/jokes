@@ -62,12 +62,11 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
   @override
   void initState() {
     super.initState();
+    final storedIndex = ref.read(jokeViewerPageIndexProvider(widget.viewerId));
+    _currentPage = storedIndex;
     _pageController = PageController(
       viewportFraction: 1.0,
-      // For some reason, _resetToFirstJoke() always resets not to 0, but to this
-      // initialPage value. So, set it to 0 and jump to the initialIndex so that
-      // resets bring it back to 0.
-      initialPage: 0,
+      initialPage: storedIndex,
     );
     widget.onInitRegisterReset?.call(_resetToFirstJoke);
   }

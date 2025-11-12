@@ -206,7 +206,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
   }
 
   void _logNavigationIfNeeded() {
-    if (_navigationLogged || widget.isAdminMode) return;
+    if (_navigationLogged || widget.isAdminMode || !mounted) return;
     try {
       final appUsageService = ref.read(appUsageServiceProvider);
       _navigationLogged = true;

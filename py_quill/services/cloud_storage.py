@@ -1,6 +1,7 @@
 """Cloud Storage service."""
 
 import datetime
+import re
 
 from common import config, utils
 from google.cloud import storage as gcs
@@ -206,6 +207,77 @@ def get_public_image_cdn_url(
   bucket_name, object_path = parse_gcs_uri(gcs_uri)
   del bucket_name
   return f"https://images.quillsstorybook.com/cdn-cgi/image/width={width},format={image_format},quality={quality}/{object_path}"
+
+
+def get_cdn_url_params(cdn_url: str) -> dict[str, str]:
+  """Extract CDN URL parameters from an image CDN URL.
+  
+  Args:
+    cdn_url: The CDN URL to extract params from
+    
+  Returns:
+    A dictionary with keys 'width', 'format', 'quality' (only present if in URL)
+    
+  Raises:
+    ValueError: If the CDN URL format is invalid
+  """
+  match = re.search(
+    r'https://images\.quillsstorybook\.com/cdn-cgi/image/([^/]+)/', cdn_url)
+  if not match:
+    raise ValueError(f"Invalid CDN URL format: {cdn_url}")
+
+  params_str = match.group(1)
+  params = {}
+  for param in params_str.split(','):
+    key, value = param.split('=', 1)
+    params[key] = value
+
+  return params
+
+
+def set_cdn_url_params(
+  cdn_url: str,
+  width: int | None = None,
+  image_format: str | None = None,
+  quality: int | None = None,
+) -> str:
+  """Modify CDN URL parameters, keeping existing values for unspecified params.
+  
+  Args:
+    cdn_url: The CDN URL to modify
+    width: Optional new width value
+    image_format: Optional new format value
+    quality: Optional new quality value
+    
+  Returns:
+    The modified CDN URL with updated parameters
+  """
+  # Extract GCS URI from the URL
+  gcs_uri = extract_gcs_uri_from_image_url(cdn_url)
+
+  # Get existing params from the URL
+  params = get_cdn_url_params(cdn_url)
+
+  # Update params with new values (only if specified)
+  if width is not None:
+    params['width'] = str(width)
+  if image_format is not None:
+    params['format'] = image_format
+  if quality is not None:
+    params['quality'] = str(quality)
+
+  # Build kwargs dict, only including params that exist
+  # (let get_public_image_cdn_url use its defaults for missing ones)
+  kwargs = {}
+  if 'width' in params:
+    kwargs['width'] = int(params['width'])
+  if 'format' in params:
+    kwargs['image_format'] = params['format']
+  if 'quality' in params:
+    kwargs['quality'] = int(params['quality'])
+
+  # Reconstruct the URL using get_public_image_cdn_url
+  return get_public_image_cdn_url(gcs_uri, **kwargs)
 
 
 def get_final_image_url(gcs_uri: str, width: int = 1024) -> str:

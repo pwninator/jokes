@@ -7,7 +7,7 @@ import json
 from common import image_operations
 from firebase_functions import https_fn, logger, options
 from functions.function_utils import get_param
-from services import firestore
+from services import cloud_storage, firestore
 
 _DEFAULT_TOP_JOKES_LIMIT = 5
 
@@ -102,9 +102,11 @@ def create_ad_assets(req: https_fn.Request) -> https_fn.Response:
   creatives_html_parts: list[str] = []
   for joke_id, urls in rendered_creatives:
     for url in urls:
+      # Modify URL to use PNG format
+      png_url = cloud_storage.set_cdn_url_params(url, image_format='png')
       creatives_html_parts.append(f"""    <section class="creative">
       <h2>{joke_id}</h2>
-      <img src="{url}" alt="Joke {joke_id} ad creative" />
+      <img src="{png_url}" alt="Joke {joke_id} ad creative" />
     </section>""")
   creatives_html = "\n".join(creatives_html_parts)
 

@@ -51,6 +51,14 @@ def test_create_ad_assets_returns_html(monkeypatch: pytest.MonkeyPatch):
   monkeypatch.setattr(joke_image_fns.image_operations, 'create_ad_assets',
                       _fake_create)
 
+  def _fake_set_params(cdn_url: str, width: int | None = None,
+                       image_format: str | None = None,
+                       quality: int | None = None) -> str:
+    return cdn_url
+
+  monkeypatch.setattr(joke_image_fns.cloud_storage, 'set_cdn_url_params',
+                      _fake_set_params)
+
   req = DummyReq(data={'joke_ids': 'joke123, joke456 '})
 
   resp = joke_image_fns.create_ad_assets(req)
@@ -82,6 +90,14 @@ def test_create_ad_assets_uses_top_jokes_when_missing_param(
 
   monkeypatch.setattr(joke_image_fns.image_operations, 'create_ad_assets',
                       _fake_create)
+
+  def _fake_set_params(cdn_url: str, width: int | None = None,
+                       image_format: str | None = None,
+                       quality: int | None = None) -> str:
+    return cdn_url
+
+  monkeypatch.setattr(joke_image_fns.cloud_storage, 'set_cdn_url_params',
+                      _fake_set_params)
 
   req = DummyReq(data={})
 

@@ -22,7 +22,9 @@ version: 2.0.5+200050
 # Feed Firebase fallback
 
 environment:
-  sdk: ^3.8.1
+  # Flutter 3.38.1 has Dart version 3.10.0
+  # https://docs.flutter.dev/install/archive
+  sdk: ^3.10.0
 
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions

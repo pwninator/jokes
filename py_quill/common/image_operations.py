@@ -11,9 +11,9 @@ from common import config
 from PIL import Image
 from services import cloud_storage, firestore, image_editor
 
-_AD_BACKGROUND_PORTRAIT_DRAWING_URI = "gs://images.quillsstorybook.com/joke_assets/background_drawing_1024_1280.png"
-_AD_BACKGROUND_LANDSCAPE_DESK_URI = "gs://images.quillsstorybook.com/joke_assets/background_desk_1024_1280.png"
-_AD_BACKGROUND_LANDSCAPE_CORKBOARD_URI = "gs://images.quillsstorybook.com/joke_assets/background_corkboard_1024_1280.png"
+_AD_BACKGROUND_SQUARE_DRAWING_URI = "gs://images.quillsstorybook.com/joke_assets/background_drawing_1280_1280.png"
+_AD_BACKGROUND_SQUARE_DESK_URI = "gs://images.quillsstorybook.com/joke_assets/background_desk_1280_1280.png"
+_AD_BACKGROUND_SQUARE_CORKBOARD_URI = "gs://images.quillsstorybook.com/joke_assets/background_corkboard_1280_1280.png"
 
 
 def create_ad_assets(
@@ -60,15 +60,15 @@ def create_ad_assets(
     tuple[bytes, int]]] = {
       'landscape':
       _compose_landscape_ad_image,
-      'portrait_drawing':
-      partial(_compose_portrait_drawing_ad_image,
-              background_uri=_AD_BACKGROUND_PORTRAIT_DRAWING_URI),
-      'portrait_desk':
-      partial(_compose_portrait_drawing_ad_image,
-              background_uri=_AD_BACKGROUND_LANDSCAPE_DESK_URI),
-      'portrait_corkboard':
-      partial(_compose_portrait_drawing_ad_image,
-              background_uri=_AD_BACKGROUND_LANDSCAPE_CORKBOARD_URI),
+      'square_drawing':
+      partial(_compose_square_drawing_ad_image,
+              background_uri=_AD_BACKGROUND_SQUARE_DRAWING_URI),
+      'square_desk':
+      partial(_compose_square_drawing_ad_image,
+              background_uri=_AD_BACKGROUND_SQUARE_DESK_URI),
+      'square_corkboard':
+      partial(_compose_square_drawing_ad_image,
+              background_uri=_AD_BACKGROUND_SQUARE_CORKBOARD_URI),
     }
 
   if not overwrite:
@@ -141,13 +141,13 @@ def _compose_landscape_ad_image(
   return buffer.getvalue(), base.width
 
 
-def _compose_portrait_drawing_ad_image(
+def _compose_square_drawing_ad_image(
   editor: image_editor.ImageEditor,
   setup_image: Image.Image,
   punchline_image: Image.Image,
   background_uri: str,
 ) -> tuple[bytes, int]:
-  """Create a 1024x1280 portrait PNG with background and post-it style shadows."""
+  """Create a 1200x1200 square PNG with background and post-it style shadows."""
   # Load the portrait background image from GCS
   bg_bytes = cloud_storage.download_bytes_from_gcs(background_uri)
   base = Image.open(BytesIO(bg_bytes))
@@ -157,13 +157,13 @@ def _compose_portrait_drawing_ad_image(
   punchline_scaled = editor.scale_image(punchline_image, 0.57)
   punchline_rotated = editor.rotate_image(punchline_scaled, -2)
   # Paste roughly bottom-right (diagonally opposed)
-  base = editor.paste_image(base, punchline_rotated, 355, 630, add_shadow=True)
+  base = editor.paste_image(base, punchline_rotated, 470, 635, add_shadow=True)
 
   # Transform setup image
   setup_scaled = editor.scale_image(setup_image, 0.57)
   setup_rotated = editor.rotate_image(setup_scaled, 5)
   # Paste near top-left
-  base = editor.paste_image(base, setup_rotated, 40, 40, add_shadow=True)
+  base = editor.paste_image(base, setup_rotated, 170, 35, add_shadow=True)
 
   buffer = BytesIO()
   base.save(buffer, format='PNG')

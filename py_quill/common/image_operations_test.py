@@ -4,13 +4,12 @@ from __future__ import annotations
 
 import datetime as std_datetime
 import unittest
-from types import SimpleNamespace
 from io import BytesIO
+from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock, patch
 
-from PIL import Image
-
 from common import image_operations
+from PIL import Image
 from services import image_editor
 
 
@@ -91,9 +90,9 @@ class CreateAdAssetsTest(unittest.TestCase):
 
     def _download_side_effect(gcs_uri: str):
       if gcs_uri in (
-          image_operations._AD_BACKGROUND_PORTRAIT_DRAWING_URI,
-          image_operations._AD_BACKGROUND_LANDSCAPE_DESK_URI,
-          image_operations._AD_BACKGROUND_LANDSCAPE_CORKBOARD_URI,
+          image_operations._AD_BACKGROUND_SQUARE_DRAWING_URI,
+          image_operations._AD_BACKGROUND_SQUARE_DESK_URI,
+          image_operations._AD_BACKGROUND_SQUARE_CORKBOARD_URI,
       ):
         return bg_bytes
       if gcs_uri.endswith('setup.png'):
@@ -106,17 +105,16 @@ class CreateAdAssetsTest(unittest.TestCase):
     landscape_gcs_uri = (
       f'gs://test-bucket/joke123_ad_landscape_{expected_timestamp}.png')
     portrait_drawing_gcs_uri = (
-      f'gs://test-bucket/joke123_ad_portrait_drawing_{expected_timestamp}.png')
+      f'gs://test-bucket/joke123_ad_square_drawing_{expected_timestamp}.png')
     portrait_desk_gcs_uri = (
-      f'gs://test-bucket/joke123_ad_portrait_desk_{expected_timestamp}.png')
+      f'gs://test-bucket/joke123_ad_square_desk_{expected_timestamp}.png')
     portrait_corkboard_gcs_uri = (
-      f'gs://test-bucket/joke123_ad_portrait_corkboard_{expected_timestamp}.png'
-    )
+      f'gs://test-bucket/joke123_ad_square_corkboard_{expected_timestamp}.png')
     mock_storage.get_final_image_url.side_effect = [
       'https://cdn.example.com/ad_landscape.png',
-      'https://cdn.example.com/ad_portrait_drawing.png',
-      'https://cdn.example.com/ad_portrait_desk.png',
-      'https://cdn.example.com/ad_portrait_corkboard.png',
+      'https://cdn.example.com/ad_square_drawing.png',
+      'https://cdn.example.com/ad_square_desk.png',
+      'https://cdn.example.com/ad_square_corkboard.png',
     ]
 
     editor = RecordingImageEditor()
@@ -125,9 +123,9 @@ class CreateAdAssetsTest(unittest.TestCase):
 
     self.assertEqual(result, [
       'https://cdn.example.com/ad_landscape.png',
-      'https://cdn.example.com/ad_portrait_drawing.png',
-      'https://cdn.example.com/ad_portrait_desk.png',
-      'https://cdn.example.com/ad_portrait_corkboard.png',
+      'https://cdn.example.com/ad_square_drawing.png',
+      'https://cdn.example.com/ad_square_desk.png',
+      'https://cdn.example.com/ad_square_corkboard.png',
     ])
     mock_firestore.get_punny_joke.assert_called_once_with('joke123')
     # Landscape created via blank canvas; portrait uses background image
@@ -165,12 +163,12 @@ class CreateAdAssetsTest(unittest.TestCase):
       {
         'ad_creative_landscape':
         'https://cdn.example.com/ad_landscape.png',
-        'ad_creative_portrait_drawing':
-        'https://cdn.example.com/ad_portrait_drawing.png',
-        'ad_creative_portrait_desk':
-        'https://cdn.example.com/ad_portrait_desk.png',
-        'ad_creative_portrait_corkboard':
-        'https://cdn.example.com/ad_portrait_corkboard.png',
+        'ad_creative_square_drawing':
+        'https://cdn.example.com/ad_square_drawing.png',
+        'ad_creative_square_desk':
+        'https://cdn.example.com/ad_square_desk.png',
+        'ad_creative_square_corkboard':
+        'https://cdn.example.com/ad_square_corkboard.png',
       },
       merge=True)
     mock_metadata_doc.get.assert_called_once()
@@ -216,12 +214,12 @@ class CreateAdAssetsTest(unittest.TestCase):
     metadata_snapshot.to_dict.return_value = {
       'ad_creative_landscape':
       'https://cdn.example.com/existing_landscape.png',
-      'ad_creative_portrait_drawing':
-      'https://cdn.example.com/existing_portrait_drawing.png',
-      'ad_creative_portrait_desk':
-      'https://cdn.example.com/existing_portrait_desk.png',
-      'ad_creative_portrait_corkboard':
-      'https://cdn.example.com/existing_portrait_corkboard.png',
+      'ad_creative_square_drawing':
+      'https://cdn.example.com/existing_square_drawing.png',
+      'ad_creative_square_desk':
+      'https://cdn.example.com/existing_square_desk.png',
+      'ad_creative_square_corkboard':
+      'https://cdn.example.com/existing_square_corkboard.png',
     }
     mock_metadata_doc.get.return_value = metadata_snapshot
 
@@ -233,9 +231,9 @@ class CreateAdAssetsTest(unittest.TestCase):
 
     self.assertEqual(result, [
       'https://cdn.example.com/existing_landscape.png',
-      'https://cdn.example.com/existing_portrait_drawing.png',
-      'https://cdn.example.com/existing_portrait_desk.png',
-      'https://cdn.example.com/existing_portrait_corkboard.png',
+      'https://cdn.example.com/existing_square_drawing.png',
+      'https://cdn.example.com/existing_square_desk.png',
+      'https://cdn.example.com/existing_square_corkboard.png',
     ])
     mock_editor.create_blank_image.assert_not_called()
     mock_editor.paste_image.assert_not_called()
@@ -264,11 +262,11 @@ class ComposePortraitDrawingTest(unittest.TestCase):
 
     editor = RecordingImageEditor()
 
-    bytes_out, width = image_operations._compose_portrait_drawing_ad_image(
+    bytes_out, width = image_operations._compose_square_drawing_ad_image(
       editor,
       setup,
       punchline,
-      background_uri=image_operations._AD_BACKGROUND_PORTRAIT_DRAWING_URI)
+      background_uri=image_operations._AD_BACKGROUND_SQUARE_DRAWING_URI)
 
     self.assertIsInstance(bytes_out, (bytes, bytearray))
     self.assertEqual(width, 1024)
@@ -331,9 +329,9 @@ class ComposePortraitDrawingTest(unittest.TestCase):
 
     def _download_side_effect(gcs_uri: str):
       if gcs_uri in (
-          image_operations._AD_BACKGROUND_PORTRAIT_DRAWING_URI,
-          image_operations._AD_BACKGROUND_LANDSCAPE_DESK_URI,
-          image_operations._AD_BACKGROUND_LANDSCAPE_CORKBOARD_URI,
+          image_operations._AD_BACKGROUND_SQUARE_DRAWING_URI,
+          image_operations._AD_BACKGROUND_SQUARE_DESK_URI,
+          image_operations._AD_BACKGROUND_SQUARE_CORKBOARD_URI,
       ):
         return bg_bytes
       if gcs_uri.endswith('setup.png'):
@@ -346,12 +344,11 @@ class ComposePortraitDrawingTest(unittest.TestCase):
     landscape_gcs_uri = (
       f'gs://test-bucket/jokeXYZ_ad_landscape_{expected_timestamp}.png')
     portrait_drawing_gcs_uri = (
-      f'gs://test-bucket/jokeXYZ_ad_portrait_drawing_{expected_timestamp}.png')
+      f'gs://test-bucket/jokeXYZ_ad_square_drawing_{expected_timestamp}.png')
     portrait_desk_gcs_uri = (
-      f'gs://test-bucket/jokeXYZ_ad_portrait_desk_{expected_timestamp}.png')
+      f'gs://test-bucket/jokeXYZ_ad_square_desk_{expected_timestamp}.png')
     portrait_corkboard_gcs_uri = (
-      f'gs://test-bucket/jokeXYZ_ad_portrait_corkboard_{expected_timestamp}.png'
-    )
+      f'gs://test-bucket/jokeXYZ_ad_square_corkboard_{expected_timestamp}.png')
 
     mock_storage.get_final_image_url.side_effect = [
       'https://cdn.example.com/new_landscape.png',

@@ -49,10 +49,19 @@ def create_ad_assets(req: https_fn.Request) -> https_fn.Response:
   else:
     joke_ids = []
 
+  # Allow optional num_jokes parameter to override default limit
+  num_jokes_limit = _DEFAULT_TOP_JOKES_LIMIT
+  raw_num = get_param(req, 'num_jokes')
+  if raw_num:
+    try:
+      num_jokes_limit = int(raw_num)
+    except (ValueError, TypeError):
+      pass  # Use default if not a valid integer
+
   if not joke_ids:
     top_jokes = firestore.get_top_jokes(
       'popularity_score_recent',
-      _DEFAULT_TOP_JOKES_LIMIT,
+      num_jokes_limit,
     )
     joke_ids = [joke.key for joke in top_jokes if getattr(joke, 'key', None)]
     if not joke_ids:
@@ -67,7 +76,10 @@ def create_ad_assets(req: https_fn.Request) -> https_fn.Response:
   rendered_creatives: list[tuple[str, list[str]]] = []
   for joke_id in joke_ids:
     try:
-      final_urls = image_operations.create_ad_assets(joke_id)
+      final_urls = image_operations.create_ad_assets(
+        joke_id,
+        overwrite=True,
+      )
       rendered_creatives.append((joke_id, final_urls))
     except ValueError as err:
       return _json_response(

@@ -34,9 +34,18 @@ class RecordingImageEditor(image_editor.ImageEditor):
     self.create_calls.append((width, height))
     return super().create_blank_image(width, height, color)
 
-  def paste_image(self, base_image, image_to_paste, x: int, y: int):
+  def paste_image(self,
+                  base_image,
+                  image_to_paste,
+                  x: int,
+                  y: int,
+                  add_shadow: bool = False):
     self.paste_calls.append((x, y, image_to_paste.size))
-    return super().paste_image(base_image, image_to_paste, x, y)
+    return super().paste_image(base_image,
+                               image_to_paste,
+                               x,
+                               y,
+                               add_shadow=add_shadow)
 
 
 class CreateAdAssetsTest(unittest.TestCase):
@@ -70,41 +79,99 @@ class CreateAdAssetsTest(unittest.TestCase):
 
     setup_bytes = _create_image_bytes('red')
     punchline_bytes = _create_image_bytes('blue')
+    bg_img = Image.new('RGB', (1024, 1280), color='white')
+    bg_buffer = BytesIO()
+    bg_img.save(bg_buffer, format='PNG')
+    bg_bytes = bg_buffer.getvalue()
 
     def _extract(uri):
       return f'gs://bucket/{uri.split("/")[-1]}'
 
     mock_storage.extract_gcs_uri_from_image_url.side_effect = _extract
-    mock_storage.download_bytes_from_gcs.side_effect = (
-      lambda gcs_uri: setup_bytes
-      if gcs_uri.endswith('setup.png') else punchline_bytes)
+
+    def _download_side_effect(gcs_uri: str):
+      if gcs_uri in (
+          image_operations._AD_BACKGROUND_PORTRAIT_DRAWING_URI,
+          image_operations._AD_BACKGROUND_LANDSCAPE_DESK_URI,
+          image_operations._AD_BACKGROUND_LANDSCAPE_CORKBOARD_URI,
+      ):
+        return bg_bytes
+      if gcs_uri.endswith('setup.png'):
+        return setup_bytes
+      return punchline_bytes
+
+    mock_storage.download_bytes_from_gcs.side_effect = _download_side_effect
 
     expected_timestamp = fixed_dt.strftime("%Y%m%d_%H%M%S_%f")
-    expected_gcs_uri = (
+    landscape_gcs_uri = (
       f'gs://test-bucket/joke123_ad_landscape_{expected_timestamp}.png')
-    mock_storage.get_final_image_url.return_value = 'https://cdn.example.com/ad.png'
+    portrait_drawing_gcs_uri = (
+      f'gs://test-bucket/joke123_ad_portrait_drawing_{expected_timestamp}.png')
+    portrait_desk_gcs_uri = (
+      f'gs://test-bucket/joke123_ad_portrait_desk_{expected_timestamp}.png')
+    portrait_corkboard_gcs_uri = (
+      f'gs://test-bucket/joke123_ad_portrait_corkboard_{expected_timestamp}.png'
+    )
+    mock_storage.get_final_image_url.side_effect = [
+      'https://cdn.example.com/ad_landscape.png',
+      'https://cdn.example.com/ad_portrait_drawing.png',
+      'https://cdn.example.com/ad_portrait_desk.png',
+      'https://cdn.example.com/ad_portrait_corkboard.png',
+    ]
 
     editor = RecordingImageEditor()
 
     result = image_operations.create_ad_assets('joke123', editor)
 
-    self.assertEqual(result, ['https://cdn.example.com/ad.png'])
+    self.assertEqual(result, [
+      'https://cdn.example.com/ad_landscape.png',
+      'https://cdn.example.com/ad_portrait_drawing.png',
+      'https://cdn.example.com/ad_portrait_desk.png',
+      'https://cdn.example.com/ad_portrait_corkboard.png',
+    ])
     mock_firestore.get_punny_joke.assert_called_once_with('joke123')
+    # Landscape created via blank canvas; portrait uses background image
     self.assertEqual(editor.create_calls, [(2048, 1024)])
-    self.assertEqual(editor.paste_calls, [(0, 0, (1024, 1024)),
-                                          (1024, 0, (1024, 1024))])
+    # Verify landscape paste coordinates present, plus portrait coordinates
+    self.assertIn((0, 0, (1024, 1024)), editor.paste_calls)
+    self.assertIn((1024, 0, (1024, 1024)), editor.paste_calls)
+    # Portrait placements (sizes vary due to rotation; only check coordinates)
+    self.assertTrue(
+      any(pc[0] == 40 and pc[1] == 40 for pc in editor.paste_calls))
+    self.assertTrue(
+      any(pc[0] == 342 and pc[1] == 598 for pc in editor.paste_calls))
 
-    mock_storage.upload_bytes_to_gcs.assert_called_once()
-    upload_args, upload_kwargs = mock_storage.upload_bytes_to_gcs.call_args
-    self.assertIsInstance(upload_args[0], (bytes, bytearray))
-    self.assertEqual(upload_args[1], expected_gcs_uri)
-    self.assertEqual(upload_args[2], "image/png")
-    self.assertFalse(upload_kwargs)
+    self.assertEqual(mock_storage.upload_bytes_to_gcs.call_count, 4)
+    upload_calls = mock_storage.upload_bytes_to_gcs.call_args_list
+    self.assertEqual(upload_calls[0].args[1], landscape_gcs_uri)
+    self.assertEqual(upload_calls[1].args[1], portrait_drawing_gcs_uri)
+    self.assertEqual(upload_calls[2].args[1], portrait_desk_gcs_uri)
+    self.assertEqual(upload_calls[3].args[1], portrait_corkboard_gcs_uri)
+    for call in upload_calls:
+      self.assertIsInstance(call.args[0], (bytes, bytearray))
+      self.assertEqual(call.args[2], "image/png")
+      self.assertEqual(call.kwargs, {})
 
-    mock_storage.get_final_image_url.assert_called_once_with(expected_gcs_uri,
-                                                             width=2048)
+    mock_storage.get_final_image_url.assert_any_call(landscape_gcs_uri,
+                                                     width=2048)
+    mock_storage.get_final_image_url.assert_any_call(portrait_drawing_gcs_uri,
+                                                     width=1024)
+    mock_storage.get_final_image_url.assert_any_call(portrait_desk_gcs_uri,
+                                                     width=1024)
+    mock_storage.get_final_image_url.assert_any_call(
+      portrait_corkboard_gcs_uri, width=1024)
     mock_metadata_doc.set.assert_called_once_with(
-      {'ad_creative_landscape': 'https://cdn.example.com/ad.png'}, merge=True)
+      {
+        'ad_creative_landscape':
+        'https://cdn.example.com/ad_landscape.png',
+        'ad_creative_portrait_drawing':
+        'https://cdn.example.com/ad_portrait_drawing.png',
+        'ad_creative_portrait_desk':
+        'https://cdn.example.com/ad_portrait_desk.png',
+        'ad_creative_portrait_corkboard':
+        'https://cdn.example.com/ad_portrait_corkboard.png',
+      },
+      merge=True)
     mock_metadata_doc.get.assert_called_once()
 
   @patch('common.image_operations.firestore.get_punny_joke', return_value=None)
@@ -146,15 +213,29 @@ class CreateAdAssetsTest(unittest.TestCase):
     metadata_snapshot = MagicMock()
     metadata_snapshot.exists = True
     metadata_snapshot.to_dict.return_value = {
-      'ad_creative_landscape': 'https://cdn.example.com/existing.png'
+      'ad_creative_landscape':
+      'https://cdn.example.com/existing_landscape.png',
+      'ad_creative_portrait_drawing':
+      'https://cdn.example.com/existing_portrait_drawing.png',
+      'ad_creative_portrait_desk':
+      'https://cdn.example.com/existing_portrait_desk.png',
+      'ad_creative_portrait_corkboard':
+      'https://cdn.example.com/existing_portrait_corkboard.png',
     }
     mock_metadata_doc.get.return_value = metadata_snapshot
 
     mock_editor = Mock(spec=image_editor.ImageEditor)
 
-    result = image_operations.create_ad_assets('jokeABC', mock_editor)
+    result = image_operations.create_ad_assets('jokeABC',
+                                               mock_editor,
+                                               overwrite=False)
 
-    self.assertEqual(result, ['https://cdn.example.com/existing.png'])
+    self.assertEqual(result, [
+      'https://cdn.example.com/existing_landscape.png',
+      'https://cdn.example.com/existing_portrait_drawing.png',
+      'https://cdn.example.com/existing_portrait_desk.png',
+      'https://cdn.example.com/existing_portrait_corkboard.png',
+    ])
     mock_editor.create_blank_image.assert_not_called()
     mock_editor.paste_image.assert_not_called()
     mock_storage.extract_gcs_uri_from_image_url.assert_not_called()
@@ -164,6 +245,152 @@ class CreateAdAssetsTest(unittest.TestCase):
     mock_metadata_doc.set.assert_not_called()
     mock_metadata_doc.get.assert_called_once()
     mock_firestore.get_punny_joke.assert_called_once_with('jokeABC')
+
+
+class ComposePortraitDrawingTest(unittest.TestCase):
+
+  @patch('common.image_operations.cloud_storage')
+  def test_compose_portrait_drawing_positions_and_size(self, mock_storage):
+    # Prepare background
+    bg_img = Image.new('RGB', (1024, 1280), color='white')
+    bg_buffer = BytesIO()
+    bg_img.save(bg_buffer, format='PNG')
+    mock_storage.download_bytes_from_gcs.return_value = bg_buffer.getvalue()
+
+    # Prepare setup/punchline
+    setup = Image.new('RGB', (1024, 1024), color='red')
+    punchline = Image.new('RGB', (1024, 1024), color='blue')
+
+    editor = RecordingImageEditor()
+
+    bytes_out, width = image_operations._compose_portrait_drawing_ad_image(
+      editor,
+      setup,
+      punchline,
+      background_uri=image_operations._AD_BACKGROUND_PORTRAIT_DRAWING_URI)
+
+    self.assertIsInstance(bytes_out, (bytes, bytearray))
+    self.assertEqual(width, 1024)
+    # Coordinates should be recorded
+    self.assertTrue(
+      any(pc[0] == 40 and pc[1] == 40 for pc in editor.paste_calls))
+    self.assertTrue(
+      any(pc[0] == 342 and pc[1] == 598 for pc in editor.paste_calls))
+
+  @patch('common.image_operations.firestore')
+  @patch('common.image_operations.cloud_storage')
+  @patch('common.image_operations.datetime.datetime')
+  @patch('common.image_operations.config.IMAGE_BUCKET_NAME', 'test-bucket')
+  def test_create_ad_assets_overwrite_true_generates_new(
+      self, mock_datetime, mock_storage, mock_firestore):
+    # Arrange existing metadata
+    fixed_dt = std_datetime.datetime(2025, 2, 3, 4, 5, 6, 7000)
+    mock_datetime.now.return_value = fixed_dt
+
+    mock_joke = SimpleNamespace(
+      key='jokeXYZ',
+      setup_image_url='https://cdn.example.com/setup.png',
+      punchline_image_url='https://cdn.example.com/punchline.png',
+    )
+    mock_firestore.get_punny_joke.return_value = mock_joke
+
+    mock_firestore_db = MagicMock()
+    mock_metadata_doc = MagicMock()
+    (mock_firestore_db.collection.return_value.document.return_value.
+     collection.return_value.document.return_value) = mock_metadata_doc
+    mock_firestore.db.return_value = mock_firestore_db
+
+    metadata_snapshot = MagicMock()
+    metadata_snapshot.exists = True
+    metadata_snapshot.to_dict.return_value = {
+      'ad_creative_landscape':
+      'https://cdn.example.com/existing_landscape.png',
+      'ad_creative_portrait_drawing':
+      'https://cdn.example.com/existing_portrait_drawing.png',
+      'ad_creative_portrait_desk':
+      'https://cdn.example.com/existing_portrait_desk.png',
+      'ad_creative_portrait_corkboard':
+      'https://cdn.example.com/existing_portrait_corkboard.png',
+    }
+    mock_metadata_doc.get.return_value = metadata_snapshot
+
+    # Image bytes for setup/punchline and backgrounds
+    setup_bytes = _create_image_bytes('red')
+    punchline_bytes = _create_image_bytes('blue')
+    bg_img = Image.new('RGB', (1024, 1280), color='white')
+    bg_buffer = BytesIO()
+    bg_img.save(bg_buffer, format='PNG')
+    bg_bytes = bg_buffer.getvalue()
+
+    def _extract(uri):
+      return f'gs://bucket/{uri.split(' / ')[-1]}'
+
+    mock_storage.extract_gcs_uri_from_image_url.side_effect = _extract
+
+    def _download_side_effect(gcs_uri: str):
+      if gcs_uri in (
+          image_operations._AD_BACKGROUND_PORTRAIT_DRAWING_URI,
+          image_operations._AD_BACKGROUND_LANDSCAPE_DESK_URI,
+          image_operations._AD_BACKGROUND_LANDSCAPE_CORKBOARD_URI,
+      ):
+        return bg_bytes
+      if gcs_uri.endswith('setup.png'):
+        return setup_bytes
+      return punchline_bytes
+
+    mock_storage.download_bytes_from_gcs.side_effect = _download_side_effect
+
+    expected_timestamp = fixed_dt.strftime('%Y%m%d_%H%M%S_%f')
+    landscape_gcs_uri = (
+      f'gs://test-bucket/jokeXYZ_ad_landscape_{expected_timestamp}.png')
+    portrait_drawing_gcs_uri = (
+      f'gs://test-bucket/jokeXYZ_ad_portrait_drawing_{expected_timestamp}.png')
+    portrait_desk_gcs_uri = (
+      f'gs://test-bucket/jokeXYZ_ad_portrait_desk_{expected_timestamp}.png')
+    portrait_corkboard_gcs_uri = (
+      f'gs://test-bucket/jokeXYZ_ad_portrait_corkboard_{expected_timestamp}.png'
+    )
+
+    mock_storage.get_final_image_url.side_effect = [
+      'https://cdn.example.com/new_landscape.png',
+      'https://cdn.example.com/new_portrait_drawing.png',
+      'https://cdn.example.com/new_portrait_desk.png',
+      'https://cdn.example.com/new_portrait_corkboard.png',
+    ]
+
+    editor = RecordingImageEditor()
+
+    # Act with overwrite=True
+    result = image_operations.create_ad_assets('jokeXYZ',
+                                               editor,
+                                               overwrite=True)
+
+    # Assert new assets generated
+    self.assertEqual(result, [
+      'https://cdn.example.com/new_landscape.png',
+      'https://cdn.example.com/new_portrait_drawing.png',
+      'https://cdn.example.com/new_portrait_desk.png',
+      'https://cdn.example.com/new_portrait_corkboard.png',
+    ])
+
+    # Four uploads with expected URIs
+    self.assertEqual(mock_storage.upload_bytes_to_gcs.call_count, 4)
+    upload_calls = mock_storage.upload_bytes_to_gcs.call_args_list
+    self.assertEqual(upload_calls[0].args[1], landscape_gcs_uri)
+    self.assertEqual(upload_calls[1].args[1], portrait_drawing_gcs_uri)
+    self.assertEqual(upload_calls[2].args[1], portrait_desk_gcs_uri)
+    self.assertEqual(upload_calls[3].args[1], portrait_corkboard_gcs_uri)
+
+    # Metadata updated with new URLs
+    mock_storage.get_final_image_url.assert_any_call(landscape_gcs_uri,
+                                                     width=2048)
+    mock_storage.get_final_image_url.assert_any_call(portrait_drawing_gcs_uri,
+                                                     width=1024)
+    mock_storage.get_final_image_url.assert_any_call(portrait_desk_gcs_uri,
+                                                     width=1024)
+    mock_storage.get_final_image_url.assert_any_call(
+      portrait_corkboard_gcs_uri, width=1024)
+    mock_metadata_doc.set.assert_called_once()
 
 
 if __name__ == '__main__':

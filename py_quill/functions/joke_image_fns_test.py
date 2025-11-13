@@ -44,7 +44,7 @@ def test_create_ad_assets_returns_html(monkeypatch: pytest.MonkeyPatch):
   """Successful requests should return HTML rendering the creative."""
   called_ids: list[str] = []
 
-  def _fake_create(joke_id: str) -> list[str]:
+  def _fake_create(joke_id: str, *, overwrite: bool = False) -> list[str]:
     called_ids.append(joke_id)
     return [f'https://cdn.example.com/{joke_id}.png']
 
@@ -76,7 +76,7 @@ def test_create_ad_assets_uses_top_jokes_when_missing_param(
 
   called_ids: list[str] = []
 
-  def _fake_create(joke_id: str) -> list[str]:
+  def _fake_create(joke_id: str, *, overwrite: bool = False) -> list[str]:
     called_ids.append(joke_id)
     return [f'https://cdn.example.com/{joke_id}.png']
 
@@ -131,7 +131,7 @@ def test_create_ad_assets_no_top_jokes_available(
 def test_create_ad_assets_value_error(monkeypatch: pytest.MonkeyPatch):
   """ValueErrors from image operations should surface as 400 responses."""
 
-  def _fake_create(joke_id: str) -> list[str]:
+  def _fake_create(joke_id: str, *, overwrite: bool = False) -> list[str]:
     if joke_id == 'joke_bad':
       raise ValueError('Joke missing')
     return [f'https://cdn.example.com/{joke_id}.png']

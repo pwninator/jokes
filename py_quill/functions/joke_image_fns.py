@@ -6,7 +6,7 @@ import json
 
 from common import image_operations
 from firebase_functions import https_fn, logger, options
-from functions.function_utils import get_param
+from functions.function_utils import get_bool_param, get_param
 from services import cloud_storage, firestore
 
 _DEFAULT_TOP_JOKES_LIMIT = 5
@@ -73,12 +73,14 @@ def create_ad_assets(req: https_fn.Request) -> https_fn.Response:
         status=404,
       )
 
+  overwrite = get_bool_param(req, 'overwrite', False)
+
   rendered_creatives: list[tuple[str, list[str]]] = []
   for joke_id in joke_ids:
     try:
       final_urls = image_operations.create_ad_assets(
         joke_id,
-        overwrite=True,
+        overwrite=overwrite,
       )
       rendered_creatives.append((joke_id, final_urls))
     except ValueError as err:

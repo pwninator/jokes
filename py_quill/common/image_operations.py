@@ -163,7 +163,7 @@ def _compose_square_drawing_ad_image(
   setup_scaled = editor.scale_image(setup_image, 0.57)
   setup_rotated = editor.rotate_image(setup_scaled, 5)
   # Paste near top-left
-  base = editor.paste_image(base, setup_rotated, 170, 35, add_shadow=True)
+  base = editor.paste_image(base, setup_rotated, 190, 35, add_shadow=True)
 
   buffer = BytesIO()
   base.save(buffer, format='PNG')

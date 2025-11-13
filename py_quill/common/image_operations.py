@@ -152,17 +152,18 @@ def _compose_portrait_drawing_ad_image(
   bg_bytes = cloud_storage.download_bytes_from_gcs(background_uri)
   base = Image.open(BytesIO(bg_bytes))
 
-  # Transform setup image: scale 50%, rotate -4 degrees
-  setup_scaled = editor.scale_image(setup_image, 0.6)
-  setup_rotated = editor.rotate_image(setup_scaled, -4)
+  # Paste punchline image first so it's below the setup image
+  # Transform punchline image
+  punchline_scaled = editor.scale_image(punchline_image, 0.57)
+  punchline_rotated = editor.rotate_image(punchline_scaled, -2)
+  # Paste roughly bottom-right (diagonally opposed)
+  base = editor.paste_image(base, punchline_rotated, 355, 630, add_shadow=True)
+
+  # Transform setup image
+  setup_scaled = editor.scale_image(setup_image, 0.57)
+  setup_rotated = editor.rotate_image(setup_scaled, 5)
   # Paste near top-left
   base = editor.paste_image(base, setup_rotated, 40, 40, add_shadow=True)
-
-  # Transform punchline image: scale 50%, rotate +3 degrees
-  punchline_scaled = editor.scale_image(punchline_image, 0.6)
-  punchline_rotated = editor.rotate_image(punchline_scaled, 3)
-  # Paste roughly bottom-right (diagonally opposed)
-  base = editor.paste_image(base, punchline_rotated, 342, 598, add_shadow=True)
 
   buffer = BytesIO()
   base.save(buffer, format='PNG')

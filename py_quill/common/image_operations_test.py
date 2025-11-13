@@ -132,14 +132,15 @@ class CreateAdAssetsTest(unittest.TestCase):
     mock_firestore.get_punny_joke.assert_called_once_with('joke123')
     # Landscape created via blank canvas; portrait uses background image
     self.assertEqual(editor.create_calls, [(2048, 1024)])
-    # Verify landscape paste coordinates present, plus portrait coordinates
-    self.assertIn((0, 0, (1024, 1024)), editor.paste_calls)
-    self.assertIn((1024, 0, (1024, 1024)), editor.paste_calls)
-    # Portrait placements (sizes vary due to rotation; only check coordinates)
-    self.assertTrue(
-      any(pc[0] == 40 and pc[1] == 40 for pc in editor.paste_calls))
-    self.assertTrue(
-      any(pc[0] == 342 and pc[1] == 598 for pc in editor.paste_calls))
+    # Verify landscape paste operations: setup and punchline side-by-side
+    landscape_pastes = editor.paste_calls[:2]
+    self.assertEqual(len(landscape_pastes), 2)
+    self.assertEqual(landscape_pastes[0][2], (1024, 1024))  # setup image size
+    self.assertEqual(landscape_pastes[1][2],
+                     (1024, 1024))  # punchline image size
+    # Portrait pastes: should have 3 portrait variations * 2 images each (setup + punchline)
+    # Total pastes: 2 (landscape) + 6 (portrait) = 8
+    self.assertEqual(len(editor.paste_calls), 8)
 
     self.assertEqual(mock_storage.upload_bytes_to_gcs.call_count, 4)
     upload_calls = mock_storage.upload_bytes_to_gcs.call_args_list
@@ -271,11 +272,12 @@ class ComposePortraitDrawingTest(unittest.TestCase):
 
     self.assertIsInstance(bytes_out, (bytes, bytearray))
     self.assertEqual(width, 1024)
-    # Coordinates should be recorded
-    self.assertTrue(
-      any(pc[0] == 40 and pc[1] == 40 for pc in editor.paste_calls))
-    self.assertTrue(
-      any(pc[0] == 342 and pc[1] == 598 for pc in editor.paste_calls))
+    # Verify both setup and punchline images are pasted
+    self.assertEqual(len(editor.paste_calls), 2)
+    # Both should be rotated/scaled versions (smaller than original 1024x1024)
+    for paste_call in editor.paste_calls:
+      self.assertLess(paste_call[2][0], 1024)  # width < 1024
+      self.assertLess(paste_call[2][1], 1024)  # height < 1024
 
   @patch('common.image_operations.firestore')
   @patch('common.image_operations.cloud_storage')

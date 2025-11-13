@@ -373,7 +373,7 @@ class JokeInteractionsRepository {
 
   /// Get feed jokes ordered by feedIndex with cursor-based pagination.
   ///
-  /// Returns jokes where feedIndex is not null, ordered by feedIndex ascending.
+  /// Returns unviewed jokes where feedIndex is not null, ordered by feedIndex ascending.
   /// [cursorFeedIndex] is the feedIndex to start after (exclusive). If null, starts from the beginning.
   /// [limit] is the maximum number of results to return.
   Future<List<JokeInteraction>> getFeedJokes({

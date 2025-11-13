@@ -12,6 +12,7 @@ import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/data/core/app/app_providers.dart';
 import 'package:snickerdoodle/src/data/core/app/firebase_providers.dart';
 import 'package:snickerdoodle/src/data/jokes/joke_interactions_repository.dart';
+import 'package:snickerdoodle/src/features/jokes/application/feed_sync_service.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_list_data_source.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_list_data_sources.dart';
@@ -38,6 +39,8 @@ class MockSettingsService extends Mock implements SettingsService {}
 
 class MockJokeInteractionsRepository extends Mock
     implements JokeInteractionsRepository {}
+
+class MockFeedSyncService extends Mock implements FeedSyncService {}
 
 class MockTrace extends Mock implements Trace {
   @override
@@ -92,7 +95,11 @@ Joke _buildJoke(String id, {DateTime? publicTimestamp, bool hasImages = true}) {
   );
 }
 
-JokeInteraction _buildInteraction(String id, int feedIndex) {
+JokeInteraction _buildInteraction(
+  String id,
+  int feedIndex, {
+  DateTime? viewedTimestamp,
+}) {
   return JokeInteraction(
     jokeId: id,
     lastUpdateTimestamp: DateTime.utc(2025, 1, 1),
@@ -101,6 +108,7 @@ JokeInteraction _buildInteraction(String id, int feedIndex) {
     setupImageUrl: 'setup_$id.png',
     punchlineImageUrl: 'punch_$id.png',
     feedIndex: feedIndex,
+    viewedTimestamp: viewedTimestamp,
   );
 }
 
@@ -285,6 +293,7 @@ void main() {
   late MockFirebaseAnalytics mockFirebaseAnalytics;
   late MockJokeInteractionsRepository mockInteractionsRepository;
   late MockFirebasePerformanceWithTrace mockFirebasePerformance;
+  late MockFeedSyncService mockFeedSyncService;
   late SharedPreferences prefs;
   late CompositeTestHelpers testHelpers;
   ProviderContainer? container;
@@ -323,6 +332,7 @@ void main() {
       firebaseAnalyticsProvider.overrideWithValue(mockFirebaseAnalytics),
       firebasePerformanceProvider.overrideWithValue(mockFirebasePerformance),
       performanceServiceProvider.overrideWithValue(_NoopPerf()),
+      feedSyncServiceProvider.overrideWithValue(mockFeedSyncService),
       jokeInteractionsRepositoryProvider.overrideWithValue(
         mockInteractionsRepository,
       ),
@@ -344,6 +354,7 @@ void main() {
     mockFirebaseAnalytics = MockFirebaseAnalytics();
     mockInteractionsRepository = MockJokeInteractionsRepository();
     mockFirebasePerformance = MockFirebasePerformanceWithTrace();
+    mockFeedSyncService = MockFeedSyncService();
     testHelpers = CompositeTestHelpers(mockRepository);
 
     // Default: all jokes are unviewed
@@ -359,6 +370,18 @@ void main() {
         limit: any(named: 'limit'),
       ),
     ).thenAnswer((_) async => []);
+
+    when(
+      () => mockInteractionsRepository.countFeedJokes(),
+    ).thenAnswer((_) async => 1000);
+
+    when(
+      () => mockInteractionsRepository.getJokeInteractions(any()),
+    ).thenAnswer((_) async => []);
+
+    when(
+      () => mockFeedSyncService.triggerSync(forceSync: any(named: 'forceSync')),
+    ).thenAnswer((_) async => true);
 
     // Default: return jokes by IDs
     when(() => mockRepository.getJokesByIds(any())).thenAnswer((invocation) {
@@ -377,6 +400,12 @@ void main() {
       ),
     ).thenThrow(
       Exception('Unstubbed repository query - test setup incomplete'),
+    );
+
+    when(
+      () => mockRepository.readFeedJokes(cursor: any(named: 'cursor')),
+    ).thenThrow(
+      Exception('Unstubbed readFeedJokes query - test setup incomplete'),
     );
   });
 
@@ -726,7 +755,7 @@ void main() {
       );
       await prefs.setString(compositeJokeCursorPrefsKey, cursor.encode());
 
-      final scope = createContainer();
+      final scope = createContainer(viewedJokes: {'fs-1': true});
 
       final notifier = scope.read(compositeJokePagingProviders.paging.notifier);
 
@@ -869,6 +898,255 @@ void main() {
 
       expect(loadedIds, containsAll(['feed-1', 'feed-3']));
       expect(loadedIds, isNot(contains('feed-2')));
+    });
+
+    test('falls back to Firestore when local feed is empty', () async {
+      when(
+        () => mockInteractionsRepository.countFeedJokes(),
+      ).thenAnswer((_) async => 0);
+      when(
+        () => mockInteractionsRepository.getFeedJokes(
+          cursorFeedIndex: any(named: 'cursorFeedIndex'),
+          limit: any(named: 'limit'),
+        ),
+      ).thenAnswer((_) async => []);
+
+      final doc0Jokes = List.generate(50, (i) => _buildJoke('fs-$i'));
+      final doc1Jokes = List.generate(50, (i) => _buildJoke('fs-${50 + i}'));
+
+      final doc0Page = JokeListPage(
+        ids: doc0Jokes.map((j) => j.id).toList(),
+        cursor: const JokeListPageCursor(
+          orderValue: '0000000000',
+          docId: '0000000000',
+        ),
+        hasMore: true,
+        jokes: doc0Jokes,
+      );
+      final doc1Page = JokeListPage(
+        ids: doc1Jokes.map((j) => j.id).toList(),
+        cursor: const JokeListPageCursor(
+          orderValue: '0000000001',
+          docId: '0000000001',
+        ),
+        hasMore: true,
+        jokes: doc1Jokes,
+      );
+
+      when(
+        () => mockRepository.readFeedJokes(cursor: any(named: 'cursor')),
+      ).thenAnswer((invocation) async {
+        final cursorArg =
+            invocation.namedArguments[const Symbol('cursor')]
+                as JokeListPageCursor?;
+        if (cursorArg == null) {
+          return doc0Page;
+        }
+        if (cursorArg.docId == '0000000000') {
+          return doc1Page;
+        }
+        return const JokeListPage(
+          ids: [],
+          cursor: null,
+          hasMore: false,
+          jokes: [],
+        );
+      });
+
+      final cursor = _compositeCursor(
+        prioritySourceCursors: {
+          'priority_halloween_jokes': kDoneSentinel,
+          'priority_today_joke': kDoneSentinel,
+        },
+      );
+      await prefs.setString(compositeJokeCursorPrefsKey, cursor.encode());
+
+      final scope = createContainer();
+
+      final notifier = scope.read(compositeJokePagingProviders.paging.notifier);
+
+      await notifier.loadFirstPage();
+      await _waitForLoading(scope);
+
+      final state = scope.read(compositeJokePagingProviders.paging);
+      final loadedIds = state.loadedJokes.map((j) => j.joke.id).toList();
+
+      expect(loadedIds, containsAll(['fs-0', 'fs-1', 'fs-2']));
+      final syncCalls = verify(
+        () => mockFeedSyncService.triggerSync(forceSync: false),
+      );
+      expect(syncCalls.callCount, greaterThanOrEqualTo(1));
+    });
+
+    test('Firestore fallback paginates using feed cursor', () async {
+      when(
+        () => mockInteractionsRepository.countFeedJokes(),
+      ).thenAnswer((_) async => 0);
+      when(
+        () => mockInteractionsRepository.getFeedJokes(
+          cursorFeedIndex: any(named: 'cursorFeedIndex'),
+          limit: any(named: 'limit'),
+        ),
+      ).thenAnswer((_) async => []);
+
+      final doc0Jokes = List.generate(50, (i) => _buildJoke('fs-$i'));
+      final doc1Jokes = List.generate(50, (i) => _buildJoke('fs-${50 + i}'));
+      final doc2Jokes = List.generate(50, (i) => _buildJoke('fs-${100 + i}'));
+
+      final doc0Page = JokeListPage(
+        ids: doc0Jokes.map((j) => j.id).toList(),
+        cursor: const JokeListPageCursor(
+          orderValue: '0000000000',
+          docId: '0000000000',
+        ),
+        hasMore: true,
+        jokes: doc0Jokes,
+      );
+      final doc1Page = JokeListPage(
+        ids: doc1Jokes.map((j) => j.id).toList(),
+        cursor: const JokeListPageCursor(
+          orderValue: '0000000001',
+          docId: '0000000001',
+        ),
+        hasMore: true,
+        jokes: doc1Jokes,
+      );
+      final doc2Page = JokeListPage(
+        ids: doc2Jokes.map((j) => j.id).toList(),
+        cursor: const JokeListPageCursor(
+          orderValue: '0000000002',
+          docId: '0000000002',
+        ),
+        hasMore: true,
+        jokes: doc2Jokes,
+      );
+
+      when(
+        () => mockRepository.readFeedJokes(cursor: any(named: 'cursor')),
+      ).thenAnswer((invocation) async {
+        final cursorArg =
+            invocation.namedArguments[const Symbol('cursor')]
+                as JokeListPageCursor?;
+        if (cursorArg == null) {
+          return doc0Page;
+        }
+        if (cursorArg.docId == '0000000000') {
+          return doc1Page;
+        }
+        if (cursorArg.docId == '0000000001') {
+          return doc2Page;
+        }
+        return const JokeListPage(
+          ids: [],
+          cursor: null,
+          hasMore: false,
+          jokes: [],
+        );
+      });
+
+      final cursor = _compositeCursor(
+        prioritySourceCursors: {
+          'priority_halloween_jokes': kDoneSentinel,
+          'priority_today_joke': kDoneSentinel,
+        },
+      );
+      await prefs.setString(compositeJokeCursorPrefsKey, cursor.encode());
+
+      final scope = createContainer();
+
+      final notifier = scope.read(compositeJokePagingProviders.paging.notifier);
+
+      await notifier.loadFirstPage();
+      await _waitForLoading(scope);
+
+      await notifier.loadMore();
+      await _waitForLoading(scope);
+
+      final state = scope.read(compositeJokePagingProviders.paging);
+      final loadedIds = state.loadedJokes.map((j) => j.joke.id).toList();
+
+      expect(loadedIds, containsAll(['fs-0', 'fs-1', 'fs-2', 'fs-3', 'fs-10']));
+      final syncCalls = verify(
+        () => mockFeedSyncService.triggerSync(forceSync: false),
+      );
+      expect(syncCalls.callCount, greaterThanOrEqualTo(2));
+    });
+
+    test('Firestore fallback filters viewed jokes using local state', () async {
+      when(
+        () => mockInteractionsRepository.countFeedJokes(),
+      ).thenAnswer((_) async => 0);
+      when(
+        () => mockInteractionsRepository.getFeedJokes(
+          cursorFeedIndex: any(named: 'cursorFeedIndex'),
+          limit: any(named: 'limit'),
+        ),
+      ).thenAnswer((_) async => []);
+
+      final doc0Jokes = List.generate(50, (i) => _buildJoke('fs-$i'));
+      final doc0Page = JokeListPage(
+        ids: doc0Jokes.map((j) => j.id).toList(),
+        cursor: const JokeListPageCursor(
+          orderValue: '0000000000',
+          docId: '0000000000',
+        ),
+        hasMore: true,
+        jokes: doc0Jokes,
+      );
+
+      when(
+        () => mockRepository.readFeedJokes(cursor: any(named: 'cursor')),
+      ).thenAnswer((invocation) async {
+        final cursorArg =
+            invocation.namedArguments[const Symbol('cursor')]
+                as JokeListPageCursor?;
+        if (cursorArg == null) {
+          return doc0Page;
+        }
+        return const JokeListPage(
+          ids: [],
+          cursor: null,
+          hasMore: false,
+          jokes: [],
+        );
+      });
+
+      when(
+        () => mockInteractionsRepository.getJokeInteractions(any()),
+      ).thenAnswer((invocation) async {
+        final ids = invocation.positionalArguments.first as List<String>;
+        return [
+          _buildInteraction(
+            ids[1],
+            1,
+            viewedTimestamp: DateTime.utc(2025, 1, 2),
+          ),
+        ];
+      });
+
+      final cursor = _compositeCursor(
+        prioritySourceCursors: {
+          'priority_halloween_jokes': kDoneSentinel,
+          'priority_today_joke': kDoneSentinel,
+        },
+      );
+      await prefs.setString(compositeJokeCursorPrefsKey, cursor.encode());
+
+      final scope = createContainer();
+
+      final notifier = scope.read(compositeJokePagingProviders.paging.notifier);
+
+      await notifier.loadFirstPage();
+      await _waitForLoading(scope);
+
+      final state = scope.read(compositeJokePagingProviders.paging);
+      final loadedIds = state.loadedJokes.map((j) => j.joke.id).toList();
+
+      expect(loadedIds, contains('fs-0'));
+      final syncCalls = verify(
+        () => mockFeedSyncService.triggerSync(forceSync: false),
+      );
+      expect(syncCalls.callCount, greaterThanOrEqualTo(1));
     });
 
     test('loads from local feed jokes source at any index', () async {

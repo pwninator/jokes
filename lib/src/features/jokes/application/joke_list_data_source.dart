@@ -353,9 +353,14 @@ class GenericPagingNotifier extends StateNotifier<PagingState> {
     required bool effectiveHasMore,
   }) async {
     if (!_isCompositeDataSource) return;
+
+    // Don't log if offline, since then end of feed is expected.
+    if (!isOnlineNow(ref)) return;
+
     final appUsage = ref.read(appUsageServiceProvider);
     final jokesViewed = await appUsage.getNumJokesViewed();
     final jokesNavigated = await appUsage.getNumJokesNavigated();
+    final isOnline = isOnlineNow(ref);
     final contextDetails = <String, Object?>{
       'requestedCursor': requestedCursor,
       'previousCursor': previousCursor,
@@ -379,6 +384,7 @@ class GenericPagingNotifier extends StateNotifier<PagingState> {
       'retry.inBackoff': _isInRetryBackoff(),
       'usage.jokesViewed': jokesViewed,
       'usage.jokesNavigated': jokesNavigated,
+      'isOnline': isOnline,
     }..removeWhere((_, value) => value == null);
 
     final formattedDetails = contextDetails.entries

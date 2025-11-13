@@ -8,6 +8,7 @@ import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/data/core/app/app_providers.dart';
 import 'package:snickerdoodle/src/data/jokes/joke_interactions_repository.dart';
+import 'package:snickerdoodle/src/features/jokes/application/feed_sync_service.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_category_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_list_data_source.dart';
@@ -142,6 +143,12 @@ const compositeJokeCursorPrefsKey = 'composite_joke_cursor';
 
 /// Sentinel cursor value marking a priority source as permanently exhausted.
 const String kDoneSentinel = '__DONE__';
+
+/// Maximum number of local feed jokes required before skipping Firestore fallback.
+const int _kFeedFallbackLocalThreshold = 300;
+
+/// Number of jokes stored per Firestore feed document (except possibly the last).
+const int _kFeedJokesPerFirestoreDoc = 50;
 
 /// Constants for composite joke source index boundaries and date ranges.
 /// These values define when different subsources become active or inactive.
@@ -1145,19 +1152,49 @@ Future<PageResult> _loadFeedJokesFromDatabase(
 
   final interactionsRepository = ref.read(jokeInteractionsRepositoryProvider);
 
-  // Parse cursor as integer (feedIndex) or default to null for first page
-  int? cursorFeedIndex;
-  if (cursor != null && cursor.isNotEmpty) {
-    try {
-      cursorFeedIndex = int.parse(cursor);
-    } catch (e) {
-      AppLogger.debug(
-        'PAGING_INTERNAL: Invalid cursor format "$cursor", defaulting to null',
-      );
-      cursorFeedIndex = null;
-    }
+  final cursorFeedIndex = _parseFeedCursor(cursor);
+
+  final localPage = await _loadFeedJokesFromLocalDatabase(
+    ref: ref,
+    interactionsRepository: interactionsRepository,
+    limit: limit,
+    cursorFeedIndex: cursorFeedIndex,
+  );
+
+  if (localPage.jokes.isNotEmpty) {
+    return localPage;
   }
 
+  final feedCount = await interactionsRepository.countFeedJokes();
+  if (feedCount >= _kFeedFallbackLocalThreshold) {
+    AppLogger.debug(
+      'PAGING_INTERNAL: Local DB returned empty but has $feedCount feed entries; skipping Firestore fallback.',
+    );
+    return localPage;
+  }
+
+  AppLogger.info(
+    'PAGING_INTERNAL: Local DB returned empty and has $feedCount feed entries; falling back to Firestore.',
+  );
+  final syncService = ref.read(feedSyncServiceProvider);
+  unawaited(syncService.triggerSync(forceSync: false));
+
+  final fallbackPage = await _loadFeedJokesFromFirestore(
+    ref: ref,
+    interactionsRepository: interactionsRepository,
+    limit: limit,
+    cursorFeedIndex: cursorFeedIndex,
+  );
+
+  return fallbackPage;
+}
+
+Future<PageResult> _loadFeedJokesFromLocalDatabase({
+  required Ref ref,
+  required JokeInteractionsRepository interactionsRepository,
+  required int limit,
+  required int? cursorFeedIndex,
+}) async {
   final interactions = await interactionsRepository.getFeedJokes(
     cursorFeedIndex: cursorFeedIndex,
     limit: limit,
@@ -1167,24 +1204,21 @@ Future<PageResult> _loadFeedJokesFromDatabase(
     return const PageResult(jokes: [], cursor: null, hasMore: false);
   }
 
-  // Convert JokeInteraction objects to Joke objects using feed data
-  final jokes = interactions
+  final jokesWithDate = interactions
       .map(
-        (interaction) => Joke(
-          id: interaction.jokeId,
-          setupText: interaction.setupText ?? '',
-          punchlineText: interaction.punchlineText ?? '',
-          setupImageUrl: interaction.setupImageUrl,
-          punchlineImageUrl: interaction.punchlineImageUrl,
+        (interaction) => JokeWithDate(
+          joke: Joke(
+            id: interaction.jokeId,
+            setupText: interaction.setupText ?? '',
+            punchlineText: interaction.punchlineText ?? '',
+            setupImageUrl: interaction.setupImageUrl,
+            punchlineImageUrl: interaction.punchlineImageUrl,
+          ),
+          dataSource: 'local_feed_jokes',
         ),
       )
       .toList();
 
-  final jokesWithDate = jokes
-      .map((j) => JokeWithDate(joke: j, dataSource: 'local_feed_jokes'))
-      .toList();
-
-  // Determine hasMore and next cursor
   final hasMore = interactions.length == limit;
   final lastFeedIndex = interactions.last.feedIndex;
   final nextCursor = hasMore && lastFeedIndex != null
@@ -1196,6 +1230,83 @@ Future<PageResult> _loadFeedJokesFromDatabase(
   );
 
   return PageResult(jokes: jokesWithDate, cursor: nextCursor, hasMore: hasMore);
+}
+
+Future<PageResult> _loadFeedJokesFromFirestore({
+  required Ref ref,
+  required JokeInteractionsRepository interactionsRepository,
+  required int limit,
+  required int? cursorFeedIndex,
+}) async {
+  if (limit <= 0) {
+    return const PageResult(jokes: [], cursor: kDoneSentinel, hasMore: false);
+  }
+
+  final repository = ref.read(jokeRepositoryProvider);
+  final startFeedIndex = (cursorFeedIndex ?? -1) + 1;
+  final targetDocIndex = startFeedIndex ~/ _kFeedJokesPerFirestoreDoc;
+  final offsetInDoc = startFeedIndex % _kFeedJokesPerFirestoreDoc;
+
+  // Jump directly to the target doc by constructing a cursor just before it.
+  final JokeListPageCursor? repoCursor = targetDocIndex == 0
+      ? null
+      : JokeListPageCursor(
+          orderValue: _zeroPad10(targetDocIndex - 1),
+          docId: _zeroPad10(targetDocIndex - 1),
+        );
+
+  final page = await repository.readFeedJokes(cursor: repoCursor);
+  final jokes = page.jokes ?? const <Joke>[];
+  if (jokes.isEmpty) {
+    return const PageResult(jokes: [], cursor: kDoneSentinel, hasMore: false);
+  }
+
+  final baseFeedIndex = targetDocIndex * _kFeedJokesPerFirestoreDoc;
+  final rawCandidates = <({Joke joke, int feedIndex})>[];
+  for (var j = offsetInDoc; j < jokes.length; j++) {
+    final feedIndex = baseFeedIndex + j;
+    if (feedIndex < startFeedIndex) continue;
+    rawCandidates.add((joke: jokes[j], feedIndex: feedIndex));
+  }
+
+  if (rawCandidates.isEmpty) {
+    return const PageResult(jokes: [], cursor: kDoneSentinel, hasMore: false);
+  }
+
+  // Return raw slice; viewed filtering happens in GenericPagingNotifier.filterJokes.
+  final visible = rawCandidates.take(limit).toList();
+  final hasMore = visible.length == limit || page.hasMore;
+  final lastFeedIndex = visible.last.feedIndex;
+
+  final jokesWithDate = visible
+      .map(
+        (entry) =>
+            JokeWithDate(joke: entry.joke, dataSource: 'firestore_feed_jokes'),
+      )
+      .toList();
+
+  final nextCursor = hasMore ? lastFeedIndex.toString() : kDoneSentinel;
+
+  AppLogger.debug(
+    'PAGING_INTERNAL: Firestore fallback loaded ${jokesWithDate.length} jokes (hasMore=$hasMore, nextCursor=$nextCursor).',
+  );
+
+  return PageResult(jokes: jokesWithDate, cursor: nextCursor, hasMore: hasMore);
+}
+
+String _zeroPad10(int value) => value.toString().padLeft(10, '0');
+int? _parseFeedCursor(String? cursor) {
+  if (cursor == null || cursor.isEmpty) {
+    return null;
+  }
+  try {
+    return int.parse(cursor);
+  } catch (e) {
+    AppLogger.debug(
+      'PAGING_INTERNAL: Invalid feed cursor "$cursor", defaulting to null',
+    );
+    return null;
+  }
 }
 
 /// Get current date (midnight-normalized) for comparison

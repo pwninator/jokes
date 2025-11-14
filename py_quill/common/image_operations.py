@@ -7,7 +7,7 @@ from functools import partial
 from io import BytesIO
 from typing import Callable
 
-from common import config
+from common import config, joke_operations
 from PIL import Image
 from services import cloud_storage, firestore, image_editor
 
@@ -15,11 +15,131 @@ _AD_BACKGROUND_SQUARE_DRAWING_URI = "gs://images.quillsstorybook.com/joke_assets
 _AD_BACKGROUND_SQUARE_DESK_URI = "gs://images.quillsstorybook.com/joke_assets/background_desk_1280_1280.png"
 _AD_BACKGROUND_SQUARE_CORKBOARD_URI = "gs://images.quillsstorybook.com/joke_assets/background_corkboard_1280_1280.png"
 
+_BOOK_PAGE_BASE_SIZE = 1800
+_BOOK_PAGE_BLEED_PX = 38
+_BOOK_PAGE_TARGET_SIZE = _BOOK_PAGE_BASE_SIZE + (_BOOK_PAGE_BLEED_PX * 2)
+
+
+def create_book_pages(
+  joke_id: str,
+  image_editor_instance: image_editor.ImageEditor | None = None,
+  overwrite: bool = False,
+) -> list[str]:
+  """Create book page images for a joke and store their URLs.
+
+  Book pages are 6x6 inches at 300 DPI, or 1800x1800 pixels. However, there is
+  0.125 inches (38 pixels) of bleed on the top, bottom, and outer edges. The
+  inner edge (towards the binding) does NOT have bleed.
+
+  Setup images will be on the right side of the page, and punchline images will
+  be on the left side of the page. Therefore, the square joke images should be
+  scaled to 1876x1876 pixels, and then have 38 pixels cropped from the inner
+  edge. Crop the left side of setup images and the right side of punchline
+  images.
+
+  Args:
+      joke_id: Firestore joke document ID
+      image_editor_instance: Optional ImageEditor for dependency injection
+      overwrite: Whether to overwrite existing assets
+
+  Returns:
+      List containing setup and punchline book page URLs, in that order.
+
+  Raises:
+      ValueError: If the joke is not found or is missing required image URLs.
+  """
+  editor = image_editor_instance or image_editor.ImageEditor()
+
+  joke = firestore.get_punny_joke(joke_id)
+  if not joke:
+    raise ValueError(f'Joke not found: {joke_id}')
+  if not joke.setup_image_url or not joke.punchline_image_url:
+    raise ValueError(f'Joke {joke_id} does not have image URLs')
+
+  metadata_ref = (firestore.db().collection('jokes').document(
+    joke_id).collection('metadata').document('metadata'))
+  metadata_snapshot = metadata_ref.get()
+  metadata_data: dict[str, object] = {}
+  if metadata_snapshot.exists:
+    metadata_data = metadata_snapshot.to_dict() or {}
+
+  if not overwrite:
+    existing_setup = metadata_data.get('book_page_setup_image_url')
+    existing_punchline = metadata_data.get('book_page_punchline_image_url')
+    if (isinstance(existing_setup, str) and existing_setup
+        and isinstance(existing_punchline, str) and existing_punchline):
+      return [existing_setup, existing_punchline]
+
+  if (not joke.setup_image_url_upscaled
+      or not joke.punchline_image_url_upscaled):
+    joke = joke_operations.upscale_joke(joke_id)
+
+  if (not joke.setup_image_url_upscaled
+      or not joke.punchline_image_url_upscaled):
+    raise ValueError(f'Joke {joke_id} does not have upscaled image URLs')
+
+  setup_source_url = joke.setup_image_url_upscaled
+  punchline_source_url = joke.punchline_image_url_upscaled
+
+  setup_gcs_uri = cloud_storage.extract_gcs_uri_from_image_url(
+    setup_source_url)
+  punchline_gcs_uri = cloud_storage.extract_gcs_uri_from_image_url(
+    punchline_source_url)
+
+  setup_bytes = cloud_storage.download_bytes_from_gcs(setup_gcs_uri)
+  punchline_bytes = cloud_storage.download_bytes_from_gcs(punchline_gcs_uri)
+
+  setup_img = Image.open(BytesIO(setup_bytes))
+  punchline_img = Image.open(BytesIO(punchline_bytes))
+
+  timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
+
+  setup_tiff_bytes = _create_book_page_image_bytes(
+    editor,
+    setup_img,
+    crop_left=True,
+  )
+  punchline_tiff_bytes = _create_book_page_image_bytes(
+    editor,
+    punchline_img,
+    crop_left=False,
+  )
+
+  setup_filename = f"{joke_id}_book_page_setup_{timestamp}.tif"
+  punchline_filename = f"{joke_id}_book_page_punchline_{timestamp}.tif"
+
+  setup_gcs_dest = f"gs://{config.IMAGE_BUCKET_NAME}/{setup_filename}"
+  punchline_gcs_dest = f"gs://{config.IMAGE_BUCKET_NAME}/{punchline_filename}"
+
+  cloud_storage.upload_bytes_to_gcs(
+    setup_tiff_bytes,
+    setup_gcs_dest,
+    "image/tiff",
+  )
+  cloud_storage.upload_bytes_to_gcs(
+    punchline_tiff_bytes,
+    punchline_gcs_dest,
+    "image/tiff",
+  )
+
+  setup_url = cloud_storage.get_public_url(setup_gcs_dest)
+  punchline_url = cloud_storage.get_public_url(punchline_gcs_dest)
+
+  metadata_updates = {
+    'book_page_setup_image_url': setup_url,
+    'book_page_punchline_image_url': punchline_url,
+  }
+  metadata_ref.set(
+    metadata_updates,
+    merge=True,
+  )
+
+  return [setup_url, punchline_url]
+
 
 def create_ad_assets(
   joke_id: str,
-  image_editor_instance: image_editor.ImageEditor
-  | None = None,
+  image_editor_instance: image_editor.ImageEditor | None = None,
   overwrite: bool = False,
 ) -> list[str]:
   """Create ad creative images for a joke and store their URLs.
@@ -124,6 +244,43 @@ def create_ad_assets(
     )
 
   return final_urls
+
+
+def _create_book_page_image_bytes(
+  editor: image_editor.ImageEditor,
+  source_image: Image.Image,
+  crop_left: bool,
+) -> bytes:
+  """Create a single print-ready book page image as CMYK TIFF bytes.
+
+  The source image is assumed to be square. It is scaled uniformly so that the
+  shorter side reaches 1876px, then 38px is cropped from either the left or
+  right edge to provide inner binding clearance.
+  """
+  scale_factor = _BOOK_PAGE_TARGET_SIZE / float(source_image.width)
+  scaled = editor.scale_image(source_image, scale_factor)
+
+  width, height = scaled.width, scaled.height
+  bleed = min(_BOOK_PAGE_BLEED_PX, max(1, width - 1))
+  if crop_left:
+    left = bleed
+    right = width
+  else:
+    left = 0
+    right = max(bleed, width - bleed)
+
+  cropped = editor.crop_image(
+    scaled,
+    left=int(left),
+    top=0,
+    right=int(right),
+    bottom=height,
+  )
+  cmyk_image = cropped.convert('CMYK')
+
+  buffer = BytesIO()
+  cmyk_image.save(buffer, format='TIFF', compression='tiff_lzw')
+  return buffer.getvalue()
 
 
 def _compose_landscape_ad_image(

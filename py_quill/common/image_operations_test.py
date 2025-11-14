@@ -392,5 +392,275 @@ class ComposePortraitDrawingTest(unittest.TestCase):
     mock_metadata_doc.set.assert_called_once()
 
 
+class CreateBookPagesTest(unittest.TestCase):
+  """Tests for create_book_pages function."""
+
+  @patch('common.image_operations.joke_operations.upscale_joke')
+  @patch('common.image_operations.firestore')
+  @patch('common.image_operations.cloud_storage')
+  @patch('common.image_operations.datetime.datetime')
+  @patch('common.image_operations.config.IMAGE_BUCKET_NAME', 'test-bucket')
+  def test_create_book_pages_success(self, mock_datetime, mock_storage,
+                                     mock_firestore, mock_upscale):
+    fixed_dt = std_datetime.datetime(2025, 3, 4, 5, 6, 7, 8000)
+    mock_datetime.now.return_value = fixed_dt
+
+    mock_joke = SimpleNamespace(
+      key='joke123',
+      setup_image_url='https://cdn.example.com/setup.png',
+      punchline_image_url='https://cdn.example.com/punchline.png',
+      setup_image_url_upscaled=None,
+      punchline_image_url_upscaled=None,
+    )
+    mock_firestore.get_punny_joke.return_value = mock_joke
+
+    mock_upscaled_joke = SimpleNamespace(
+      key='joke123',
+      setup_image_url='https://cdn.example.com/setup.png',
+      punchline_image_url='https://cdn.example.com/punchline.png',
+      setup_image_url_upscaled='https://cdn.example.com/setup_upscaled.png',
+      punchline_image_url_upscaled=(
+        'https://cdn.example.com/punchline_upscaled.png'),
+    )
+    mock_upscale.return_value = mock_upscaled_joke
+
+    mock_firestore_db = MagicMock()
+    mock_metadata_doc = MagicMock()
+    (mock_firestore_db.collection.return_value.document.return_value.
+     collection.return_value.document.return_value) = mock_metadata_doc
+    mock_firestore.db.return_value = mock_firestore_db
+
+    metadata_snapshot = MagicMock()
+    metadata_snapshot.exists = False
+    mock_metadata_doc.get.return_value = metadata_snapshot
+
+    setup_bytes = _create_image_bytes('red')
+    punchline_bytes = _create_image_bytes('blue')
+
+    def _extract(uri):
+      return f'gs://bucket/{uri.split('/')[-1]}'
+
+    mock_storage.extract_gcs_uri_from_image_url.side_effect = _extract
+
+    def _download_side_effect(gcs_uri: str):
+      if gcs_uri.endswith('setup_upscaled.png'):
+        return setup_bytes
+      return punchline_bytes
+
+    mock_storage.download_bytes_from_gcs.side_effect = _download_side_effect
+
+    expected_timestamp = fixed_dt.strftime('%Y%m%d_%H%M%S_%f')
+    setup_gcs_uri = (
+      f'gs://test-bucket/joke123_book_page_setup_{expected_timestamp}.tif')
+    punchline_gcs_uri = (
+      f'gs://test-bucket/joke123_book_page_punchline_{expected_timestamp}.tif')
+
+    mock_storage.get_public_url.side_effect = [
+      'https://cdn.example.com/book_page_setup.tif',
+      'https://cdn.example.com/book_page_punchline.tif',
+    ]
+
+    editor = image_editor.ImageEditor()
+
+    result = image_operations.create_book_pages('joke123', editor)
+
+    self.assertEqual(result, [
+      'https://cdn.example.com/book_page_setup.tif',
+      'https://cdn.example.com/book_page_punchline.tif',
+    ])
+    mock_firestore.get_punny_joke.assert_called_once_with('joke123')
+    mock_upscale.assert_called_once_with('joke123')
+
+    self.assertEqual(mock_storage.upload_bytes_to_gcs.call_count, 2)
+    upload_calls = mock_storage.upload_bytes_to_gcs.call_args_list
+    self.assertEqual(upload_calls[0].args[1], setup_gcs_uri)
+    self.assertEqual(upload_calls[1].args[1], punchline_gcs_uri)
+    for call in upload_calls:
+      self.assertIsInstance(call.args[0], (bytes, bytearray))
+      self.assertEqual(call.args[2], 'image/tiff')
+
+      img = Image.open(BytesIO(call.args[0]))
+      self.assertEqual(img.mode, 'CMYK')
+      self.assertEqual(img.format, 'TIFF')
+      self.assertEqual(img.size[1], 1876)
+      self.assertEqual(img.size[0], 1838)
+
+    mock_storage.get_public_url.assert_any_call(setup_gcs_uri)
+    mock_storage.get_public_url.assert_any_call(punchline_gcs_uri)
+
+    mock_metadata_doc.set.assert_called_once_with(
+      {
+        'book_page_setup_image_url':
+        'https://cdn.example.com/book_page_setup.tif',
+        'book_page_punchline_image_url':
+        'https://cdn.example.com/book_page_punchline.tif',
+      },
+      merge=True)
+    mock_metadata_doc.get.assert_called_once()
+
+  @patch('common.image_operations.firestore.get_punny_joke', return_value=None)
+  def test_create_book_pages_missing_joke(self, mock_get_joke):
+    with self.assertRaisesRegex(ValueError, 'Joke not found'):
+      image_operations.create_book_pages('missing-joke')
+    mock_get_joke.assert_called_once_with('missing-joke')
+
+  @patch('common.image_operations.firestore')
+  def test_create_book_pages_missing_images(self, mock_firestore):
+    mock_joke = SimpleNamespace(
+      key='joke123',
+      setup_image_url=None,
+      punchline_image_url=None,
+    )
+    mock_firestore.get_punny_joke.return_value = mock_joke
+
+    with self.assertRaisesRegex(ValueError, 'does not have image URLs'):
+      image_operations.create_book_pages('joke123')
+
+    mock_firestore.get_punny_joke.assert_called_once_with('joke123')
+
+  @patch('common.image_operations.cloud_storage')
+  @patch('common.image_operations.firestore')
+  def test_create_book_pages_returns_existing_metadata(self, mock_firestore,
+                                                       mock_storage):
+    mock_joke = SimpleNamespace(
+      key='jokeABC',
+      setup_image_url='https://cdn.example.com/setup.png',
+      punchline_image_url='https://cdn.example.com/punchline.png',
+    )
+    mock_firestore.get_punny_joke.return_value = mock_joke
+
+    mock_firestore_db = MagicMock()
+    mock_metadata_doc = MagicMock()
+    (mock_firestore_db.collection.return_value.document.return_value.
+     collection.return_value.document.return_value) = mock_metadata_doc
+    mock_firestore.db.return_value = mock_firestore_db
+
+    metadata_snapshot = MagicMock()
+    metadata_snapshot.exists = True
+    metadata_snapshot.to_dict.return_value = {
+      'book_page_setup_image_url':
+      'https://cdn.example.com/existing_setup.tif',
+      'book_page_punchline_image_url':
+      'https://cdn.example.com/existing_punchline.tif',
+    }
+    mock_metadata_doc.get.return_value = metadata_snapshot
+
+    mock_editor = Mock(spec=image_editor.ImageEditor)
+
+    result = image_operations.create_book_pages(
+      'jokeABC',
+      mock_editor,
+      overwrite=False,
+    )
+
+    self.assertEqual(result, [
+      'https://cdn.example.com/existing_setup.tif',
+      'https://cdn.example.com/existing_punchline.tif',
+    ])
+    mock_editor.scale_image.assert_not_called()
+    mock_editor.crop_image.assert_not_called()
+    mock_storage.extract_gcs_uri_from_image_url.assert_not_called()
+    mock_storage.download_bytes_from_gcs.assert_not_called()
+    mock_storage.upload_bytes_to_gcs.assert_not_called()
+    mock_storage.get_public_url.assert_not_called()
+    mock_metadata_doc.set.assert_not_called()
+    mock_metadata_doc.get.assert_called_once()
+    mock_firestore.get_punny_joke.assert_called_once_with('jokeABC')
+
+  @patch('common.image_operations.joke_operations.upscale_joke')
+  @patch('common.image_operations.firestore')
+  @patch('common.image_operations.cloud_storage')
+  @patch('common.image_operations.datetime.datetime')
+  @patch('common.image_operations.config.IMAGE_BUCKET_NAME', 'test-bucket')
+  def test_create_book_pages_overwrite_true_generates_new(
+      self, mock_datetime, mock_storage, mock_firestore, mock_upscale):
+    fixed_dt = std_datetime.datetime(2025, 4, 5, 6, 7, 8, 9000)
+    mock_datetime.now.return_value = fixed_dt
+
+    mock_joke = SimpleNamespace(
+      key='jokeXYZ',
+      setup_image_url='https://cdn.example.com/setup.png',
+      punchline_image_url='https://cdn.example.com/punchline.png',
+      setup_image_url_upscaled=None,
+      punchline_image_url_upscaled=None,
+    )
+    mock_firestore.get_punny_joke.return_value = mock_joke
+
+    mock_upscaled_joke = SimpleNamespace(
+      key='jokeXYZ',
+      setup_image_url='https://cdn.example.com/setup.png',
+      punchline_image_url='https://cdn.example.com/punchline.png',
+      setup_image_url_upscaled='https://cdn.example.com/setup_upscaled.png',
+      punchline_image_url_upscaled=(
+        'https://cdn.example.com/punchline_upscaled.png'),
+    )
+    mock_upscale.return_value = mock_upscaled_joke
+
+    mock_firestore_db = MagicMock()
+    mock_metadata_doc = MagicMock()
+    (mock_firestore_db.collection.return_value.document.return_value.
+     collection.return_value.document.return_value) = mock_metadata_doc
+    mock_firestore.db.return_value = mock_firestore_db
+
+    metadata_snapshot = MagicMock()
+    metadata_snapshot.exists = True
+    metadata_snapshot.to_dict.return_value = {
+      'book_page_setup_image_url':
+      'https://cdn.example.com/existing_setup.tif',
+      'book_page_punchline_image_url':
+      'https://cdn.example.com/existing_punchline.tif',
+    }
+    mock_metadata_doc.get.return_value = metadata_snapshot
+
+    setup_bytes = _create_image_bytes('red')
+    punchline_bytes = _create_image_bytes('blue')
+
+    def _extract(uri):
+      return f'gs://bucket/{uri.split('/')[-1]}'
+
+    mock_storage.extract_gcs_uri_from_image_url.side_effect = _extract
+
+    def _download_side_effect(gcs_uri: str):
+      if gcs_uri.endswith('setup_upscaled.png'):
+        return setup_bytes
+      return punchline_bytes
+
+    mock_storage.download_bytes_from_gcs.side_effect = _download_side_effect
+
+    expected_timestamp = fixed_dt.strftime('%Y%m%d_%H%M%S_%f')
+    setup_gcs_uri = (
+      f'gs://test-bucket/jokeXYZ_book_page_setup_{expected_timestamp}.tif')
+    punchline_gcs_uri = (
+      f'gs://test-bucket/jokeXYZ_book_page_punchline_{expected_timestamp}.tif')
+
+    mock_storage.get_public_url.side_effect = [
+      'https://cdn.example.com/new_setup.tif',
+      'https://cdn.example.com/new_punchline.tif',
+    ]
+
+    editor = image_editor.ImageEditor()
+
+    result = image_operations.create_book_pages(
+      'jokeXYZ',
+      editor,
+      overwrite=True,
+    )
+
+    self.assertEqual(result, [
+      'https://cdn.example.com/new_setup.tif',
+      'https://cdn.example.com/new_punchline.tif',
+    ])
+
+    self.assertEqual(mock_storage.upload_bytes_to_gcs.call_count, 2)
+    upload_calls = mock_storage.upload_bytes_to_gcs.call_args_list
+    self.assertEqual(upload_calls[0].args[1], setup_gcs_uri)
+    self.assertEqual(upload_calls[1].args[1], punchline_gcs_uri)
+
+    mock_storage.get_public_url.assert_any_call(setup_gcs_uri)
+    mock_storage.get_public_url.assert_any_call(punchline_gcs_uri)
+    mock_metadata_doc.set.assert_called_once()
+    mock_upscale.assert_called_once_with('jokeXYZ')
+
+
 if __name__ == '__main__':
   unittest.main()

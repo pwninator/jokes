@@ -1,7 +1,7 @@
 """Joke book cloud functions."""
 import traceback
 
-from common import joke_operations, models, utils
+from common import image_operations, utils
 from firebase_functions import https_fn, options
 from functions.function_utils import (error_response, get_param, get_user_id,
                                       success_response)
@@ -12,30 +12,41 @@ from services import firestore
   memory=options.MemoryOption.GB_1,
   timeout_sec=600,
 )
-def create_book(req: https_fn.Request) -> https_fn.Response:
+def create_joke_book(req: https_fn.Request) -> https_fn.Response:
   """Create a new joke book from a list of jokes."""
   try:
     # Skip processing for health check requests
     if req.path == "/__/health":
       return https_fn.Response("OK", status=200)
 
-    if req.method != 'POST':
+    if req.method not in ['GET', 'POST']:
       return error_response(f'Method not allowed: {req.method}')
 
     user_id = get_user_id(req)
     if not user_id:
-      return error_response('User not authenticated')
+      # TODO: Add back the admin check later once app is ready
+      user_id = 'ADMIN'
+      # return error_response('User not authenticated')
 
-    joke_ids = get_param(req, 'joke_ids')
+    raw_joke_ids = get_param(req, 'joke_ids')
     book_name = get_param(req, 'book_name')
 
-    if joke_ids is None:
-      return error_response('joke_ids is required')
+    if raw_joke_ids is None:
+      top_jokes = firestore.get_top_jokes(
+        'popularity_score_recent',
+        5,
+      )
+      joke_ids = [joke.key for joke in top_jokes if getattr(joke, 'key', None)]
+      if not joke_ids:
+        return error_response('No jokes available to create joke book')
+    else:
+      joke_ids = raw_joke_ids
+
     if not book_name:
       return error_response('book_name is required')
 
     for joke_id in joke_ids:
-      joke_operations.upscale_joke(joke_id)
+      image_operations.create_book_pages(joke_id)
 
     doc_id = utils.create_timestamped_firestore_key(user_id)
     firestore.db().collection('joke_books').document(doc_id).set({
@@ -83,14 +94,6 @@ def get_joke_book(req: https_fn.Request) -> https_fn.Response:
     book_title = book_data.get('book_name', 'My Joke Book')
     joke_ids = book_data.get('jokes', [])
 
-    jokes: list[models.PunnyJoke] = []
-    for joke_id in joke_ids:
-      joke_ref = firestore.db().collection('jokes').document(joke_id)
-      joke_doc = joke_ref.get()
-      if joke_doc.exists:
-        jokes.append(
-          models.PunnyJoke.from_firestore_dict(joke_doc.to_dict(), joke_id))
-
     html_content = f"""
     <!DOCTYPE html>
     <html>
@@ -106,9 +109,23 @@ def get_joke_book(req: https_fn.Request) -> https_fn.Response:
         <h1>{book_title}</h1>
     """
 
-    for joke in jokes:
-      setup_img = joke.setup_image_url_upscaled
-      punchline_img = joke.punchline_image_url_upscaled
+    for joke_id in joke_ids:
+      joke_ref = firestore.db().collection('jokes').document(joke_id)
+      joke_doc = joke_ref.get()
+      if not joke_doc.exists:
+        continue
+
+      metadata_ref = joke_ref.collection('metadata').document('metadata')
+      metadata_doc = metadata_ref.get()
+      setup_img = None
+      punchline_img = None
+      if metadata_doc.exists:
+        metadata = metadata_doc.to_dict() or {}
+        setup_img = metadata.get('book_page_setup_image_url')
+        punchline_img = metadata.get('book_page_punchline_image_url')
+
+      if not setup_img or not punchline_img:
+        return error_response(f'Joke {joke_id} does not have book page images')
       if setup_img:
         setup_img = utils.format_image_url(
           setup_img,

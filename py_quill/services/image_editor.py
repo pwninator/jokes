@@ -118,3 +118,18 @@ class ImageEditor:
     base_rgba.paste(paste_img, (x, y), paste_img)
 
     return base_rgba
+
+  def crop_image(
+    self,
+    image: Image.Image,
+    left: int = 0,
+    top: int = 0,
+    right: int | None = None,
+    bottom: int | None = None,
+  ) -> Image.Image:
+    """Return a cropped view of the image using the provided box coordinates."""
+    if right is None:
+      right = image.width
+    if bottom is None:
+      bottom = image.height
+    return image.crop((left, top, right, bottom))

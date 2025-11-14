@@ -1,8 +1,11 @@
 """Tests for the joke_book_fns module."""
+from io import BytesIO
 from unittest.mock import MagicMock, patch
+import zipfile
 
 from firebase_functions import https_fn
 from functions import joke_book_fns
+from PIL import Image
 
 
 class DummyReq:
@@ -42,6 +45,7 @@ def test_get_joke_book_returns_html(mock_firestore):
   mock_book_snapshot.to_dict.return_value = {
     "book_name": "My Test Joke Book",
     "jokes": ["joke1", "joke2"],
+    "zip_url": "https://cdn.example.com/book.zip",
   }
 
   mock_joke1_snapshot = MagicMock()
@@ -137,6 +141,8 @@ def test_get_joke_book_returns_html(mock_firestore):
 
   assert "<title>My Test Joke Book</title>" in html_content
   assert '<h1>My Test Joke Book</h1>' in html_content
+  # Download link should point to the stored zip_url
+  assert 'href="https://cdn.example.com/book.zip"' in html_content
   assert '<img src="http://example.com/page_setup1.tif"' in html_content
   assert '<img src="http://example.com/page_punchline1.tif"' in html_content
   assert '<img src="http://example.com/page_setup2.tif"' in html_content
@@ -220,10 +226,11 @@ def test_get_joke_book_errors_when_book_pages_missing(mock_firestore):
 
 
 @patch('functions.joke_book_fns.get_user_id', return_value='test-admin')
+@patch('functions.joke_book_fns.image_operations.zip_joke_page_images')
 @patch('functions.joke_book_fns.image_operations.create_book_pages')
 @patch('functions.joke_book_fns.firestore')
 def test_create_book_uses_top_jokes_when_joke_ids_missing(
-    mock_firestore, mock_create_pages, mock_get_user_id):
+    mock_firestore, mock_create_pages, mock_zip_pages, mock_get_user_id):
   """create_book should use top jokes when joke_ids is not provided."""
   # Arrange
   top_joke1 = MagicMock()
@@ -231,6 +238,7 @@ def test_create_book_uses_top_jokes_when_joke_ids_missing(
   top_joke2 = MagicMock()
   top_joke2.key = "j2"
   mock_firestore.get_top_jokes.return_value = [top_joke1, top_joke2]
+  mock_zip_pages.return_value = 'https://cdn.example.com/book.zip'
 
   mock_collection = MagicMock()
   mock_doc_ref = MagicMock()
@@ -254,9 +262,11 @@ def test_create_book_uses_top_jokes_when_joke_ids_missing(
     'popularity_score_recent',
     5,
   )
+  mock_zip_pages.assert_called_once_with(['j1', 'j2'])
   mock_doc_ref.set.assert_called_once_with({
     'book_name': 'My Auto Book',
     'jokes': ['j1', 'j2'],
+    'zip_url': 'https://cdn.example.com/book.zip',
   })
   mock_create_pages.assert_any_call('j1', overwrite=True)
   mock_create_pages.assert_any_call('j2', overwrite=True)

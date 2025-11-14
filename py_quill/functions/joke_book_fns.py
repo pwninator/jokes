@@ -9,8 +9,8 @@ from services import firestore
 
 
 @https_fn.on_request(
-  memory=options.MemoryOption.GB_1,
-  timeout_sec=600,
+  memory=options.MemoryOption.GB_4,
+  timeout_sec=1200,
 )
 def create_joke_book(req: https_fn.Request) -> https_fn.Response:
   """Create a new joke book from a list of jokes."""
@@ -35,7 +35,7 @@ def create_joke_book(req: https_fn.Request) -> https_fn.Response:
     if raw_joke_ids is None:
       top_jokes = firestore.get_top_jokes(
         'popularity_score_recent',
-        5,
+        20,
       )
       joke_ids = [joke.key for joke in top_jokes if getattr(joke, 'key', None)]
       if not joke_ids:
@@ -48,12 +48,17 @@ def create_joke_book(req: https_fn.Request) -> https_fn.Response:
     for joke_id in joke_ids:
       image_operations.create_book_pages(joke_id, overwrite=True)
 
+    # Generate ZIP of all book pages and store in temp files bucket
+    zip_url = image_operations.zip_joke_page_images(joke_ids)
+
     doc_id = utils.create_timestamped_firestore_key(user_id)
     firestore.db().collection('joke_books').document(doc_id).set({
       'book_name':
       book_name,
       'jokes':
       joke_ids,
+      'zip_url':
+      zip_url,
     })
 
     return success_response({'book_id': doc_id})
@@ -61,6 +66,17 @@ def create_joke_book(req: https_fn.Request) -> https_fn.Response:
     stacktrace = traceback.format_exc()
     print(f"Error creating joke book: {e}\nStacktrace:\n{stacktrace}")
     return error_response(f'Failed to create joke book: {str(e)}')
+
+
+def _get_joke_book_id_from_request(req: https_fn.Request) -> str | None:
+  """Extract the joke_book_id from query params or path."""
+  joke_book_id = get_param(req, 'joke_book_id')
+  if not joke_book_id:
+    # Also support path-based IDs for simpler URLs
+    path_parts = req.path.split('/')
+    if len(path_parts) > 1 and path_parts[-1]:
+      joke_book_id = path_parts[-1]
+  return joke_book_id
 
 
 @https_fn.on_request(
@@ -74,12 +90,7 @@ def get_joke_book(req: https_fn.Request) -> https_fn.Response:
     if req.path == "/__/health":
       return https_fn.Response("OK", status=200)
 
-    joke_book_id = get_param(req, 'joke_book_id')
-    if not joke_book_id:
-      # Also support path-based IDs for simpler URLs
-      path_parts = req.path.split('/')
-      if len(path_parts) > 1 and path_parts[-1]:
-        joke_book_id = path_parts[-1]
+    joke_book_id = _get_joke_book_id_from_request(req)
 
     if not joke_book_id:
       return error_response('joke_book_id is required')
@@ -93,6 +104,7 @@ def get_joke_book(req: https_fn.Request) -> https_fn.Response:
     book_data = book_doc.to_dict()
     book_title = book_data.get('book_name', 'My Joke Book')
     joke_ids = book_data.get('jokes', [])
+    zip_url = book_data.get('zip_url')
 
     # Collect ordered page image URLs for spreads
     setup_pages: list[str] = []
@@ -118,6 +130,11 @@ def get_joke_book(req: https_fn.Request) -> https_fn.Response:
 
       setup_pages.append(str(setup_img))
       punchline_pages.append(str(punchline_img))
+
+    download_link_html = ""
+    if zip_url:
+      download_link_html = (
+        f'<p><a href="{zip_url}" download>Download All Pages (ZIP)</a></p>')
 
     html_content = f"""
     <!DOCTYPE html>
@@ -153,6 +170,7 @@ def get_joke_book(req: https_fn.Request) -> https_fn.Response:
     </head>
     <body>
         <h1>{book_title}</h1>
+        {download_link_html}
         <section class="spreads">
     """
 
@@ -211,8 +229,9 @@ def get_joke_book(req: https_fn.Request) -> https_fn.Response:
           </div>
       """
 
-    html_content += """
+    html_content += f"""
         </section>
+        {download_link_html}
     </body>
     </html>
     """

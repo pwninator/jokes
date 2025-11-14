@@ -9,6 +9,8 @@ from firebase_functions import logger
 from google.cloud.firestore_v1.vector import Vector
 from services import cloud_storage, firestore, image_client
 
+_IMAGE_UPSCALE_FACTOR = "x2"
+
 
 def upscale_joke(
   joke_id: str,
@@ -41,10 +43,11 @@ def upscale_joke(
   if joke.setup_image_url and not joke.setup_image_url_upscaled:
     gcs_uri = cloud_storage.extract_gcs_uri_from_image_url(
       joke.setup_image_url)
-    upscaled_image = client.upscale_image_flexible(
-      gcs_uri=gcs_uri,
+    upscaled_image = client.upscale_image(
+      upscale_factor=_IMAGE_UPSCALE_FACTOR,
       mime_type=mime_type,
       compression_quality=compression_quality,
+      gcs_uri=gcs_uri,
     )
     joke.setup_image_url_upscaled = upscaled_image.url_upscaled
     joke.generation_metadata.add_generation(upscaled_image.generation_metadata)
@@ -52,10 +55,11 @@ def upscale_joke(
   if joke.punchline_image_url and not joke.punchline_image_url_upscaled:
     gcs_uri = cloud_storage.extract_gcs_uri_from_image_url(
       joke.punchline_image_url)
-    upscaled_image = client.upscale_image_flexible(
-      gcs_uri=gcs_uri,
+    upscaled_image = client.upscale_image(
+      upscale_factor=_IMAGE_UPSCALE_FACTOR,
       mime_type=mime_type,
       compression_quality=compression_quality,
+      gcs_uri=gcs_uri,
     )
     joke.punchline_image_url_upscaled = upscaled_image.url_upscaled
     joke.generation_metadata.add_generation(upscaled_image.generation_metadata)

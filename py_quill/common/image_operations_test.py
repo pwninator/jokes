@@ -7,6 +7,7 @@ import unittest
 from io import BytesIO
 from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock, patch
+import zipfile
 
 from common import image_operations
 from PIL import Image
@@ -660,6 +661,131 @@ class CreateBookPagesTest(unittest.TestCase):
     mock_storage.get_public_url.assert_any_call(punchline_gcs_uri)
     mock_metadata_doc.set.assert_called_once()
     mock_upscale.assert_called_once_with('jokeXYZ')
+
+
+class ZipJokePageImagesTest(unittest.TestCase):
+  """Tests for zip_joke_page_images function."""
+
+  @patch('common.image_operations.cloud_storage.get_public_url')
+  @patch('common.image_operations.cloud_storage.upload_bytes_to_gcs')
+  @patch('common.image_operations.cloud_storage.download_bytes_from_gcs')
+  @patch('common.image_operations.cloud_storage.extract_gcs_uri_from_image_url')
+  @patch('common.image_operations.firestore')
+  def test_zip_joke_page_images_builds_zip_and_uploads(
+      self,
+      mock_firestore,
+      mock_extract_gcs_uri,
+      mock_download_bytes,
+      mock_upload_bytes,
+      mock_get_public_url,
+  ):
+    """zip_joke_page_images should upload a ZIP and return its public URL."""
+    joke_ids = ['joke1']
+
+    # Firestore metadata for book pages
+    mock_db = MagicMock()
+    mock_firestore.db.return_value = mock_db
+
+    jokes_collection = MagicMock()
+
+    def collection_side_effect(name):
+      if name == "jokes":
+        return jokes_collection
+      return MagicMock()
+
+    mock_db.collection.side_effect = collection_side_effect
+
+    mock_joke_doc = MagicMock()
+    mock_joke_doc.exists = True
+
+    metadata_doc = MagicMock()
+    metadata_snapshot = MagicMock()
+    metadata_snapshot.exists = True
+    setup_url = "http://example.com/setup1.jpg"
+    punch_url = "http://example.com/punch1.png"
+    metadata_snapshot.to_dict.return_value = {
+      "book_page_setup_image_url": setup_url,
+      "book_page_punchline_image_url": punch_url,
+    }
+    metadata_doc.get.return_value = metadata_snapshot
+
+    def jokes_document_side_effect(doc_id):
+      joke_ref = MagicMock()
+      if doc_id == "joke1":
+        joke_ref.get.return_value = mock_joke_doc
+        metadata_collection = MagicMock()
+        metadata_collection.document.return_value = metadata_doc
+        joke_ref.collection.return_value = metadata_collection
+      return joke_ref
+
+    jokes_collection.document.side_effect = jokes_document_side_effect
+
+    # Cloud Storage helpers
+    def extract_side_effect(url):
+      if url == setup_url:
+        return "gs://bucket/setup1.jpg"
+      if url == punch_url:
+        return "gs://bucket/punch1.png"
+      raise ValueError(f"Unexpected URL {url}")
+
+    mock_extract_gcs_uri.side_effect = extract_side_effect
+
+    setup_image = Image.new('RGB', (10, 10), 'red')
+    punch_image = Image.new('RGB', (10, 10), 'blue')
+    setup_buffer = BytesIO()
+    punch_buffer = BytesIO()
+    setup_image.save(setup_buffer, format='JPEG')
+    punch_image.save(punch_buffer, format='JPEG')
+    setup_bytes = setup_buffer.getvalue()
+    punch_bytes = punch_buffer.getvalue()
+
+    def download_side_effect(gcs_uri):
+      if gcs_uri == "gs://bucket/setup1.jpg":
+        return setup_bytes
+      if gcs_uri == "gs://bucket/punch1.png":
+        return punch_bytes
+      raise ValueError(f"Unexpected GCS URI {gcs_uri}")
+
+    mock_download_bytes.side_effect = download_side_effect
+
+    mock_get_public_url.return_value = 'https://cdn.example.com/book.zip'
+
+    # Act
+    result_url = image_operations.zip_joke_page_images(joke_ids)
+
+    # Assert URL is returned
+    self.assertEqual(result_url, 'https://cdn.example.com/book.zip')
+
+    # One ZIP upload with application/zip content type
+    mock_upload_bytes.assert_called_once()
+    upload_args, upload_kwargs = mock_upload_bytes.call_args
+    self.assertIsInstance(upload_args[0], (bytes, bytearray))
+    self.assertEqual(upload_args[2], 'application/zip')
+    self.assertEqual(upload_kwargs, {})
+
+    # Inspect ZIP structure
+    zip_bytes = upload_args[0]
+    with zipfile.ZipFile(BytesIO(zip_bytes), 'r') as zip_file:
+      names = sorted(zip_file.namelist())
+      self.assertEqual(names, [
+        '000_cover.jpg',
+        '001_setup1.jpg',
+        '002_punch1.png',
+        '003_back_cover.jpg',
+      ])
+
+      cover_bytes = zip_file.read('000_cover.jpg')
+      cover_image = Image.open(BytesIO(cover_bytes))
+      self.assertEqual(cover_image.mode, 'CMYK')
+      self.assertEqual(cover_image.size, (1838, 1876))
+
+      back_cover_bytes = zip_file.read('003_back_cover.jpg')
+      back_cover_image = Image.open(BytesIO(back_cover_bytes))
+      self.assertEqual(back_cover_image.mode, 'CMYK')
+      self.assertEqual(back_cover_image.size, (1838, 1876))
+
+      self.assertEqual(zip_file.read('001_setup1.jpg'), setup_bytes)
+      self.assertEqual(zip_file.read('002_punch1.png'), punch_bytes)
 
 
 if __name__ == '__main__':

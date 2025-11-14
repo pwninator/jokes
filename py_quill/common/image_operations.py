@@ -6,6 +6,7 @@ import datetime
 from functools import partial
 from io import BytesIO
 from typing import Callable
+import zipfile
 
 from common import config, joke_operations
 from firebase_functions import logger
@@ -19,6 +20,115 @@ _AD_BACKGROUND_SQUARE_CORKBOARD_URI = "gs://images.quillsstorybook.com/joke_asse
 _BOOK_PAGE_BASE_SIZE = 1800
 _BOOK_PAGE_BLEED_PX = 38
 _BOOK_PAGE_TARGET_SIZE = _BOOK_PAGE_BASE_SIZE + (_BOOK_PAGE_BLEED_PX * 2)
+
+
+def create_blank_book_cover() -> bytes:
+  """Create a blank CMYK JPEG cover image matching book page dimensions.
+
+  The final book page images are (_BOOK_PAGE_TARGET_SIZE - _BOOK_PAGE_BLEED_PX)
+  by _BOOK_PAGE_TARGET_SIZE pixels (after bleed cropping on the inner edge),
+  so the cover uses the same size to align with the printed pages.
+  """
+  width = _BOOK_PAGE_TARGET_SIZE - _BOOK_PAGE_BLEED_PX
+  height = _BOOK_PAGE_TARGET_SIZE
+  # CMYK white is (0, 0, 0, 0)
+  cover = Image.new('CMYK', (width, height), (0, 0, 0, 0))
+
+  buffer = BytesIO()
+  cover.save(
+    buffer,
+    format='JPEG',
+    quality=100,
+    subsampling=0,
+  )
+  return buffer.getvalue()
+
+
+def zip_joke_page_images(joke_ids: list[str]) -> str:
+  """Create and store a ZIP of book page images for the given jokes.
+
+  The ZIP will contain:
+    - 000_cover.jpg: blank CMYK cover page
+    - Sequentially numbered setup/punchline pages for each joke, using the
+      original file names with a three-digit page prefix
+    - A final back cover page as NNN_back_cover.jpg where NNN is the last index
+
+  Args:
+    joke_ids: Ordered list of joke document IDs.
+
+  Returns:
+    Public URL of the stored ZIP file.
+
+  Raises:
+    ValueError: If the joke list is empty, a joke is missing, or required
+      metadata/images are missing.
+  """
+  if not joke_ids:
+    raise ValueError("Joke book has no jokes")
+
+  files: list[tuple[str, bytes]] = []
+
+  # Front cover
+  cover_bytes = create_blank_book_cover()
+  files.append(('000_cover.jpg', cover_bytes))
+  page_index = 1
+
+  for joke_id in joke_ids:
+    joke_ref = firestore.db().collection('jokes').document(joke_id)
+    joke_doc = joke_ref.get()
+    if not joke_doc.exists:
+      raise ValueError(f"Joke {joke_id} not found")
+
+    metadata_ref = joke_ref.collection('metadata').document('metadata')
+    metadata_doc = metadata_ref.get()
+    if not metadata_doc.exists:
+      raise ValueError(f"Joke {joke_id} does not have book page metadata")
+
+    metadata = metadata_doc.to_dict() or {}
+    setup_img = metadata.get('book_page_setup_image_url')
+    punchline_img = metadata.get('book_page_punchline_image_url')
+    if not setup_img or not punchline_img:
+      raise ValueError(f"Joke {joke_id} does not have book page images")
+
+    for image_url in (setup_img, punchline_img):
+      gcs_uri = cloud_storage.extract_gcs_uri_from_image_url(str(image_url))
+      _, blob_name = cloud_storage.parse_gcs_uri(gcs_uri)
+      original_filename = blob_name.rsplit('/', 1)[-1]
+      image_bytes = cloud_storage.download_bytes_from_gcs(gcs_uri)
+
+      filename = f"{page_index:03d}_{original_filename}"
+      files.append((filename, image_bytes))
+      page_index += 1
+
+  # Back cover
+  back_cover_name = f"{page_index:03d}_back_cover.jpg"
+  files.append((back_cover_name, cover_bytes))
+
+  # Build ZIP in memory
+  zip_buffer = BytesIO()
+  with zipfile.ZipFile(
+      zip_buffer,
+      mode='w',
+      compression=zipfile.ZIP_DEFLATED,
+  ) as zip_file:
+    for filename, content in files:
+      zip_file.writestr(filename, content)
+
+  zip_bytes = zip_buffer.getvalue()
+
+  # Store ZIP in temporary files bucket and return its public URL
+  timestamp = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
+  gcs_uri = cloud_storage.get_gcs_uri(
+    'snickerdoodle_temp_files',
+    f'joke_book_pages_{timestamp}',
+    'zip',
+  )
+  cloud_storage.upload_bytes_to_gcs(
+    zip_bytes,
+    gcs_uri,
+    'application/zip',
+  )
+  return cloud_storage.get_public_url(gcs_uri)
 
 
 def create_book_pages(
@@ -290,6 +400,7 @@ def _create_book_page_image_bytes(
     format='JPEG',
     quality=100,
     subsampling=0,
+    dpi=(300, 300),
   )
   return buffer.getvalue()
 

@@ -409,10 +409,14 @@ class JokeCloudFunctionService {
   }) async {
     try {
       final result = await _traceCf(
-        functionName: 'create_book',
+        functionName: 'create_joke_book',
         action: () async {
-          final callable = _fns.httpsCallable('create_book');
-          return await callable.call({'book_name': title, 'joke_ids': jokeIds});
+          final callable = _fns.httpsCallable('create_joke_book');
+          final payload = <String, dynamic>{'book_name': title};
+          if (jokeIds.isNotEmpty) {
+            payload['joke_ids'] = jokeIds;
+          }
+          return await callable.call(payload);
         },
       );
 
@@ -420,7 +424,7 @@ class JokeCloudFunctionService {
       return {'success': true, 'data': result.data};
     } on FirebaseFunctionsException catch (e) {
       AppLogger.warn(
-        'Firebase Functions error (create_book): ${e.code} - ${e.message}',
+        'Firebase Functions error (create_joke_book): ${e.code} - ${e.message}',
       );
       return {
         'success': false,

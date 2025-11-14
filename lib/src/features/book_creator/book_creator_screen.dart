@@ -11,23 +11,13 @@ class BookCreatorScreen extends ConsumerWidget {
     final selectedJokes = ref.watch(selectedJokesProvider);
     final bookCreatorState = ref.watch(bookCreatorControllerProvider);
 
-    ref.listen<AsyncValue<void>>(bookCreatorControllerProvider, (_, state) {
+    ref.listen<AsyncValue<void>>(bookCreatorControllerProvider,
+        (previous, state) {
       state.whenOrNull(
         error: (error, stackTrace) {
           ScaffoldMessenger.of(
             context,
           ).showSnackBar(SnackBar(content: Text('Error: $error')));
-        },
-        data: (_) {
-          // Check if the state is not loading, implying success
-          if (!state.isLoading) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Book created successfully!')),
-            );
-            // Optionally, clear fields or navigate away
-            ref.read(bookTitleProvider.notifier).setTitle('');
-            ref.read(selectedJokesProvider.notifier).setJokes([]);
-          }
         },
       );
     });
@@ -124,10 +114,22 @@ class BookCreatorScreen extends ConsumerWidget {
               key: const Key('book_creator_screen-save-book-button'),
               onPressed: bookCreatorState.isLoading
                   ? null
-                  : () {
-                      ref
+                  : () async {
+                      final success = await ref
                           .read(bookCreatorControllerProvider.notifier)
                           .createBook();
+                      if (!context.mounted) return;
+                      if (success) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Book created successfully!'),
+                          ),
+                        );
+                        ref.read(bookTitleProvider.notifier).setTitle('');
+                        ref
+                            .read(selectedJokesProvider.notifier)
+                            .setJokes([]);
+                      }
                     },
               child: bookCreatorState.isLoading
                   ? const SizedBox(

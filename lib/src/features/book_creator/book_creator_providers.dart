@@ -81,8 +81,8 @@ class BookCreatorController extends AutoDisposeAsyncNotifier<void> {
     final title = ref.read(bookTitleProvider);
     final jokes = ref.read(selectedJokesProvider);
 
-    if (title.isEmpty || jokes.isEmpty) {
-      state = AsyncError('Title and jokes cannot be empty', StackTrace.current);
+    if (title.isEmpty) {
+      state = AsyncError('Title cannot be empty', StackTrace.current);
       return false;
     }
 

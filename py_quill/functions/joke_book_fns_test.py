@@ -258,6 +258,6 @@ def test_create_book_uses_top_jokes_when_joke_ids_missing(
     'book_name': 'My Auto Book',
     'jokes': ['j1', 'j2'],
   })
-  mock_create_pages.assert_any_call('j1')
-  mock_create_pages.assert_any_call('j2')
+  mock_create_pages.assert_any_call('j1', overwrite=True)
+  mock_create_pages.assert_any_call('j2', overwrite=True)
   assert resp == {"data": {"book_id": "book123"}}

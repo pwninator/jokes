@@ -94,20 +94,9 @@ def get_joke_book(req: https_fn.Request) -> https_fn.Response:
     book_title = book_data.get('book_name', 'My Joke Book')
     joke_ids = book_data.get('jokes', [])
 
-    html_content = f"""
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>{book_title}</title>
-        <style>
-            body {{ font-family: sans-serif; margin: 2em; }}
-            img {{ max-width: 400px; display: block; margin-bottom: 1em; }}
-            hr {{ margin: 2em 0; }}
-        </style>
-    </head>
-    <body>
-        <h1>{book_title}</h1>
-    """
+    # Collect ordered page image URLs for spreads
+    setup_pages: list[str] = []
+    punchline_pages: list[str] = []
 
     for joke_id in joke_ids:
       joke_ref = firestore.db().collection('jokes').document(joke_id)
@@ -126,23 +115,104 @@ def get_joke_book(req: https_fn.Request) -> https_fn.Response:
 
       if not setup_img or not punchline_img:
         return error_response(f'Joke {joke_id} does not have book page images')
-      if setup_img:
-        setup_img = utils.format_image_url(
-          setup_img,
+
+      setup_pages.append(str(setup_img))
+      punchline_pages.append(str(punchline_img))
+
+    html_content = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>{book_title}</title>
+        <style>
+            body {{ font-family: sans-serif; margin: 2em; }}
+            .spreads {{
+              display: flex;
+              flex-direction: column;
+              gap: 16px;
+            }}
+            .spread-row {{
+              display: flex;
+              width: 100%;
+            }}
+            .page {{
+              flex: 1 1 50%;
+              margin: 0;
+              padding: 0;
+            }}
+            .page-image {{
+              display: block;
+              width: 100%;
+              height: auto;
+              margin: 0;
+            }}
+            .page-empty {{
+              background: #f4f4f4;
+            }}
+        </style>
+    </head>
+    <body>
+        <h1>{book_title}</h1>
+        <section class="spreads">
+    """
+
+    num_jokes = len(setup_pages)
+    if num_jokes:
+      # First spread: only right page (setup of first joke)
+      first_setup = utils.format_image_url(
+        setup_pages[0],
+        image_format='png',
+        quality=100,
+      )
+      html_content += f"""
+          <div class="spread-row">
+            <div class="page page-left page-empty"></div>
+            <div class="page page-right">
+              <img src="{first_setup}" alt="Joke 1 Setup" class="page-image" />
+            </div>
+          </div>
+      """
+
+      # Middle spreads: left = punchline of previous, right = setup of current
+      for index in range(1, num_jokes):
+        left_src = utils.format_image_url(
+          punchline_pages[index - 1],
           image_format='png',
           quality=100,
         )
-        html_content += f'<img src="{setup_img}" alt="Joke Setup"><br>'
-      if punchline_img:
-        punchline_img = utils.format_image_url(
-          punchline_img,
+        right_src = utils.format_image_url(
+          setup_pages[index],
           image_format='png',
           quality=100,
         )
-        html_content += f'<img src="{punchline_img}" alt="Joke Punchline"><br>'
-      html_content += "<hr>"
+        html_content += f"""
+          <div class="spread-row">
+            <div class="page page-left">
+              <img src="{left_src}" alt="Joke {index} Punchline" class="page-image" />
+            </div>
+            <div class="page page-right">
+              <img src="{right_src}" alt="Joke {index + 1} Setup" class="page-image" />
+            </div>
+          </div>
+      """
+
+      # Final spread: only left page (punchline of last joke)
+      last_punchline = utils.format_image_url(
+        punchline_pages[-1],
+        image_format='png',
+        quality=100,
+      )
+      html_content += f"""
+          <div class="spread-row">
+            <div class="page page-left">
+              <img src="{last_punchline}" alt="Joke {num_jokes} Punchline" class="page-image" />
+            </div>
+            <div class="page page-right page-empty"></div>
+          </div>
+      """
 
     html_content += """
+        </section>
     </body>
     </html>
     """

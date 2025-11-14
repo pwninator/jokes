@@ -59,11 +59,28 @@ def test_extract_gcs_uri_from_image_url_any_url_format(monkeypatch):
   assert result == expected
 
 
+def test_extract_gcs_uri_from_image_url_cdn_nested_path(monkeypatch):
+  """Test extracting GCS URI from CDN URL with nested object path."""
+  monkeypatch.setattr("services.cloud_storage.config.IMAGE_BUCKET_NAME",
+                      "images.quillsstorybook.com")
+
+  input_url = ("https://images.quillsstorybook.com/cdn-cgi/image/"
+               "width=4096,format=auto,quality=75/"
+               "pun_agent_image_20250831_205102_920445_upscale_4096.png/"
+               "1759042812664/sample_0.png")
+  expected = ("gs://images.quillsstorybook.com/"
+              "pun_agent_image_20250831_205102_920445_upscale_4096.png/"
+              "1759042812664/sample_0.png")
+
+  result = cloud_storage.extract_gcs_uri_from_image_url(input_url)
+  assert result == expected
+
+
 def test_get_cdn_url_params_basic():
   """Test extracting params from a CDN URL."""
   cdn_url = "https://images.quillsstorybook.com/cdn-cgi/image/width=1024,format=auto,quality=75/image_file.png"
   result = cloud_storage.get_cdn_url_params(cdn_url)
-  
+
   assert result == {'width': '1024', 'format': 'auto', 'quality': '75'}
 
 
@@ -71,14 +88,14 @@ def test_get_cdn_url_params_different_values():
   """Test extracting params with different values."""
   cdn_url = "https://images.quillsstorybook.com/cdn-cgi/image/width=2048,format=png,quality=90/different_image.jpg"
   result = cloud_storage.get_cdn_url_params(cdn_url)
-  
+
   assert result == {'width': '2048', 'format': 'png', 'quality': '90'}
 
 
 def test_get_cdn_url_params_invalid_url():
   """Test that invalid CDN URL raises ValueError."""
   invalid_url = "https://example.com/image.png"
-  
+
   try:
     cloud_storage.get_cdn_url_params(invalid_url)
     assert False, "Should have raised ValueError"
@@ -90,10 +107,10 @@ def test_set_cdn_url_params_change_format(monkeypatch):
   """Test changing format param while keeping others."""
   monkeypatch.setattr("services.cloud_storage.config.IMAGE_BUCKET_NAME",
                       "test-bucket")
-  
+
   cdn_url = "https://images.quillsstorybook.com/cdn-cgi/image/width=1024,format=auto,quality=75/image.png"
   result = cloud_storage.set_cdn_url_params(cdn_url, image_format='png')
-  
+
   # Should have png format and original width/quality
   assert 'format=png' in result
   assert 'width=1024' in result
@@ -104,10 +121,10 @@ def test_set_cdn_url_params_change_width(monkeypatch):
   """Test changing width param while keeping others."""
   monkeypatch.setattr("services.cloud_storage.config.IMAGE_BUCKET_NAME",
                       "test-bucket")
-  
+
   cdn_url = "https://images.quillsstorybook.com/cdn-cgi/image/width=1024,format=auto,quality=75/image.png"
   result = cloud_storage.set_cdn_url_params(cdn_url, width=2048)
-  
+
   # Should have new width and original format/quality
   assert 'width=2048' in result
   assert 'format=auto' in result
@@ -118,15 +135,13 @@ def test_set_cdn_url_params_multiple_changes(monkeypatch):
   """Test changing multiple params at once."""
   monkeypatch.setattr("services.cloud_storage.config.IMAGE_BUCKET_NAME",
                       "test-bucket")
-  
+
   cdn_url = "https://images.quillsstorybook.com/cdn-cgi/image/width=1024,format=auto,quality=75/image.png"
-  result = cloud_storage.set_cdn_url_params(
-    cdn_url,
-    width=2048,
-    image_format='png',
-    quality=90
-  )
-  
+  result = cloud_storage.set_cdn_url_params(cdn_url,
+                                            width=2048,
+                                            image_format='png',
+                                            quality=90)
+
   # Should have all new values
   assert 'width=2048' in result
   assert 'format=png' in result

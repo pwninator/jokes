@@ -139,20 +139,37 @@ def get_gcs_uri(bucket: str, file_name_base: str, extension: str) -> str:
 
 
 def extract_gcs_uri_from_image_url(image_url: str) -> str:
-  """Extract GCS URI from image URL by getting the filename and using IMAGE_BUCKET_NAME.
-  
-  Args:
-    image_url: Any image URL format
-    
-  Returns:
-    The GCS URI (gs://IMAGE_BUCKET_NAME/filename)
+  """Extract GCS URI from an image URL.
+
+  Supports:
+    - GCS URIs: gs://bucket/object_path
+    - CDN URLs: https://images.quillsstorybook.com/cdn-cgi/image/<params>/<object_path>
+    - Direct GCS URLs: https://storage.googleapis.com/<bucket>/<object_path>
+    - Emulator URLs: http://10.0.2.2:9199/<bucket>/<object_path>
+    - Any other URL: uses the last path segment as filename in IMAGE_BUCKET_NAME.
   """
   # Handle GCS URI format (already correct)
   if image_url.startswith("gs://"):
     return image_url
 
-  # Extract filename from any URL format
-  filename = image_url.split("/")[-1]
+  # Regex-based patterns to DRY up path extraction for supported URL types.
+  patterns: list[str] = [
+    # CDN URL: https://images.quillsstorybook.com/cdn-cgi/image/<params>/<object_path>
+    r"^https://images\.quillsstorybook\.com/cdn-cgi/image/[^/]+/(.+)$",
+    # Direct GCS URL: https://storage.googleapis.com/<bucket>/<object_path>
+    r"^https://storage\.googleapis\.com/[^/]+/(.+)$",
+    # Emulator URL: http://10.0.2.2:9199/<bucket>/<object_path>
+    r"^http://10\.0\.2\.2:9199/[^/]+/(.+)$",
+  ]
+
+  for pattern in patterns:
+    match = re.match(pattern, image_url)
+    if match:
+      object_path = match.group(1)
+      return f"gs://{config.IMAGE_BUCKET_NAME}/{object_path}"
+
+  # Fallback: use only the filename from any other URL format.
+  filename = image_url.rsplit("/", 1)[-1]
   return f"gs://{config.IMAGE_BUCKET_NAME}/{filename}"
 
 

@@ -8,6 +8,7 @@ from io import BytesIO
 from typing import Callable
 
 from common import config, joke_operations
+from firebase_functions import logger
 from PIL import Image
 from services import cloud_storage, firestore, image_editor
 
@@ -48,6 +49,8 @@ def create_book_pages(
   Raises:
       ValueError: If the joke is not found or is missing required image URLs.
   """
+  logger.info(f'Creating book pages for joke {joke_id}')
+
   editor = image_editor_instance or image_editor.ImageEditor()
 
   joke = firestore.get_punny_joke(joke_id)
@@ -80,11 +83,14 @@ def create_book_pages(
 
   setup_source_url = joke.setup_image_url_upscaled
   punchline_source_url = joke.punchline_image_url_upscaled
+  logger.info(
+    f"Using upscaled images: {setup_source_url} and {punchline_source_url}")
 
   setup_gcs_uri = cloud_storage.extract_gcs_uri_from_image_url(
     setup_source_url)
   punchline_gcs_uri = cloud_storage.extract_gcs_uri_from_image_url(
     punchline_source_url)
+  logger.info(f"Extracted GCS URIs: {setup_gcs_uri} and {punchline_gcs_uri}")
 
   setup_bytes = cloud_storage.download_bytes_from_gcs(setup_gcs_uri)
   punchline_bytes = cloud_storage.download_bytes_from_gcs(punchline_gcs_uri)

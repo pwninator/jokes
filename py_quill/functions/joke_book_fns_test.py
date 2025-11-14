@@ -219,10 +219,11 @@ def test_get_joke_book_errors_when_book_pages_missing(mock_firestore):
   }
 
 
+@patch('functions.joke_book_fns.get_user_id', return_value='test-admin')
 @patch('functions.joke_book_fns.image_operations.create_book_pages')
 @patch('functions.joke_book_fns.firestore')
 def test_create_book_uses_top_jokes_when_joke_ids_missing(
-    mock_firestore, mock_create_pages):
+    mock_firestore, mock_create_pages, mock_get_user_id):
   """create_book should use top jokes when joke_ids is not provided."""
   # Arrange
   top_joke1 = MagicMock()
@@ -244,8 +245,6 @@ def test_create_book_uses_top_jokes_when_joke_ids_missing(
     args={"book_name": "My Auto Book"},
     method="POST",
   )
-  # Allow unauthenticated user by setting Authorization header to trigger get_user_id
-  req.headers["Authorization"] = "Bearer dummy-token"
 
   # Act
   resp = joke_book_fns.create_joke_book(req)

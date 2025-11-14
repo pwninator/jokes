@@ -2,7 +2,7 @@
 import traceback
 
 from common import image_operations, utils
-from firebase_functions import https_fn, options
+from firebase_functions import https_fn, logger, options
 from functions.function_utils import (error_response, get_param, get_user_id,
                                       success_response)
 from services import firestore
@@ -24,12 +24,13 @@ def create_joke_book(req: https_fn.Request) -> https_fn.Response:
 
     user_id = get_user_id(req)
     if not user_id:
-      # TODO: Add back the admin check later once app is ready
-      user_id = 'ADMIN'
-      # return error_response('User not authenticated')
+      return error_response('User not authenticated')
 
     raw_joke_ids = get_param(req, 'joke_ids')
     book_name = get_param(req, 'book_name')
+
+    if not book_name:
+      return error_response('book_name is required')
 
     if raw_joke_ids is None:
       top_jokes = firestore.get_top_jokes(
@@ -42,8 +43,7 @@ def create_joke_book(req: https_fn.Request) -> https_fn.Response:
     else:
       joke_ids = raw_joke_ids
 
-    if not book_name:
-      return error_response('book_name is required')
+    logger.info(f'Creating book {book_name} with jokes: {joke_ids}')
 
     for joke_id in joke_ids:
       image_operations.create_book_pages(joke_id)

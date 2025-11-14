@@ -100,32 +100,32 @@ def create_book_pages(
 
   timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
 
-  setup_tiff_bytes = _create_book_page_image_bytes(
+  setup_page_bytes = _create_book_page_image_bytes(
     editor,
     setup_img,
     crop_left=True,
   )
-  punchline_tiff_bytes = _create_book_page_image_bytes(
+  punchline_page_bytes = _create_book_page_image_bytes(
     editor,
     punchline_img,
     crop_left=False,
   )
 
-  setup_filename = f"{joke_id}_book_page_setup_{timestamp}.tif"
-  punchline_filename = f"{joke_id}_book_page_punchline_{timestamp}.tif"
+  setup_filename = f"{joke_id}_book_page_setup_{timestamp}.jpg"
+  punchline_filename = f"{joke_id}_book_page_punchline_{timestamp}.jpg"
 
   setup_gcs_dest = f"gs://{config.IMAGE_BUCKET_NAME}/{setup_filename}"
   punchline_gcs_dest = f"gs://{config.IMAGE_BUCKET_NAME}/{punchline_filename}"
 
   cloud_storage.upload_bytes_to_gcs(
-    setup_tiff_bytes,
+    setup_page_bytes,
     setup_gcs_dest,
-    "image/tiff",
+    "image/jpeg",
   )
   cloud_storage.upload_bytes_to_gcs(
-    punchline_tiff_bytes,
+    punchline_page_bytes,
     punchline_gcs_dest,
-    "image/tiff",
+    "image/jpeg",
   )
 
   setup_url = cloud_storage.get_public_url(setup_gcs_dest)
@@ -257,7 +257,7 @@ def _create_book_page_image_bytes(
   source_image: Image.Image,
   crop_left: bool,
 ) -> bytes:
-  """Create a single print-ready book page image as CMYK TIFF bytes.
+  """Create a single print-ready book page image as CMYK JPEG bytes.
 
   The source image is assumed to be square. It is scaled uniformly so that the
   shorter side reaches 1876px, then 38px is cropped from either the left or
@@ -285,7 +285,12 @@ def _create_book_page_image_bytes(
   cmyk_image = cropped.convert('CMYK')
 
   buffer = BytesIO()
-  cmyk_image.save(buffer, format='TIFF', compression='tiff_lzw')
+  cmyk_image.save(
+    buffer,
+    format='JPEG',
+    quality=100,
+    subsampling=0,
+  )
   return buffer.getvalue()
 
 

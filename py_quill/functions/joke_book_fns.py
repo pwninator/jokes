@@ -46,7 +46,7 @@ def create_joke_book(req: https_fn.Request) -> https_fn.Response:
     logger.info(f'Creating book {book_name} with jokes: {joke_ids}')
 
     for joke_id in joke_ids:
-      image_operations.create_book_pages(joke_id)
+      image_operations.create_book_pages(joke_id, overwrite=True)
 
     doc_id = utils.create_timestamped_firestore_key(user_id)
     firestore.db().collection('joke_books').document(doc_id).set({

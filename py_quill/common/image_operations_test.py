@@ -451,13 +451,13 @@ class CreateBookPagesTest(unittest.TestCase):
 
     expected_timestamp = fixed_dt.strftime('%Y%m%d_%H%M%S_%f')
     setup_gcs_uri = (
-      f'gs://test-bucket/joke123_book_page_setup_{expected_timestamp}.tif')
+      f'gs://test-bucket/joke123_book_page_setup_{expected_timestamp}.jpg')
     punchline_gcs_uri = (
-      f'gs://test-bucket/joke123_book_page_punchline_{expected_timestamp}.tif')
+      f'gs://test-bucket/joke123_book_page_punchline_{expected_timestamp}.jpg')
 
     mock_storage.get_public_url.side_effect = [
-      'https://cdn.example.com/book_page_setup.tif',
-      'https://cdn.example.com/book_page_punchline.tif',
+      'https://cdn.example.com/book_page_setup.jpg',
+      'https://cdn.example.com/book_page_punchline.jpg',
     ]
 
     editor = image_editor.ImageEditor()
@@ -465,8 +465,8 @@ class CreateBookPagesTest(unittest.TestCase):
     result = image_operations.create_book_pages('joke123', editor)
 
     self.assertEqual(result, [
-      'https://cdn.example.com/book_page_setup.tif',
-      'https://cdn.example.com/book_page_punchline.tif',
+      'https://cdn.example.com/book_page_setup.jpg',
+      'https://cdn.example.com/book_page_punchline.jpg',
     ])
     mock_firestore.get_punny_joke.assert_called_once_with('joke123')
     mock_upscale.assert_called_once_with('joke123')
@@ -477,11 +477,11 @@ class CreateBookPagesTest(unittest.TestCase):
     self.assertEqual(upload_calls[1].args[1], punchline_gcs_uri)
     for call in upload_calls:
       self.assertIsInstance(call.args[0], (bytes, bytearray))
-      self.assertEqual(call.args[2], 'image/tiff')
+      self.assertEqual(call.args[2], 'image/jpeg')
 
       img = Image.open(BytesIO(call.args[0]))
       self.assertEqual(img.mode, 'CMYK')
-      self.assertEqual(img.format, 'TIFF')
+      self.assertEqual(img.format, 'JPEG')
       self.assertEqual(img.size[1], 1876)
       self.assertEqual(img.size[0], 1838)
 
@@ -491,9 +491,9 @@ class CreateBookPagesTest(unittest.TestCase):
     mock_metadata_doc.set.assert_called_once_with(
       {
         'book_page_setup_image_url':
-        'https://cdn.example.com/book_page_setup.tif',
+        'https://cdn.example.com/book_page_setup.jpg',
         'book_page_punchline_image_url':
-        'https://cdn.example.com/book_page_punchline.tif',
+        'https://cdn.example.com/book_page_punchline.jpg',
       },
       merge=True)
     mock_metadata_doc.get.assert_called_once()
@@ -539,9 +539,9 @@ class CreateBookPagesTest(unittest.TestCase):
     metadata_snapshot.exists = True
     metadata_snapshot.to_dict.return_value = {
       'book_page_setup_image_url':
-      'https://cdn.example.com/existing_setup.tif',
+      'https://cdn.example.com/existing_setup.jpg',
       'book_page_punchline_image_url':
-      'https://cdn.example.com/existing_punchline.tif',
+      'https://cdn.example.com/existing_punchline.jpg',
     }
     mock_metadata_doc.get.return_value = metadata_snapshot
 
@@ -554,8 +554,8 @@ class CreateBookPagesTest(unittest.TestCase):
     )
 
     self.assertEqual(result, [
-      'https://cdn.example.com/existing_setup.tif',
-      'https://cdn.example.com/existing_punchline.tif',
+      'https://cdn.example.com/existing_setup.jpg',
+      'https://cdn.example.com/existing_punchline.jpg',
     ])
     mock_editor.scale_image.assert_not_called()
     mock_editor.crop_image.assert_not_called()
@@ -606,9 +606,9 @@ class CreateBookPagesTest(unittest.TestCase):
     metadata_snapshot.exists = True
     metadata_snapshot.to_dict.return_value = {
       'book_page_setup_image_url':
-      'https://cdn.example.com/existing_setup.tif',
+      'https://cdn.example.com/existing_setup.jpg',
       'book_page_punchline_image_url':
-      'https://cdn.example.com/existing_punchline.tif',
+      'https://cdn.example.com/existing_punchline.jpg',
     }
     mock_metadata_doc.get.return_value = metadata_snapshot
 
@@ -629,13 +629,13 @@ class CreateBookPagesTest(unittest.TestCase):
 
     expected_timestamp = fixed_dt.strftime('%Y%m%d_%H%M%S_%f')
     setup_gcs_uri = (
-      f'gs://test-bucket/jokeXYZ_book_page_setup_{expected_timestamp}.tif')
+      f'gs://test-bucket/jokeXYZ_book_page_setup_{expected_timestamp}.jpg')
     punchline_gcs_uri = (
-      f'gs://test-bucket/jokeXYZ_book_page_punchline_{expected_timestamp}.tif')
+      f'gs://test-bucket/jokeXYZ_book_page_punchline_{expected_timestamp}.jpg')
 
     mock_storage.get_public_url.side_effect = [
-      'https://cdn.example.com/new_setup.tif',
-      'https://cdn.example.com/new_punchline.tif',
+      'https://cdn.example.com/new_setup.jpg',
+      'https://cdn.example.com/new_punchline.jpg',
     ]
 
     editor = image_editor.ImageEditor()
@@ -647,8 +647,8 @@ class CreateBookPagesTest(unittest.TestCase):
     )
 
     self.assertEqual(result, [
-      'https://cdn.example.com/new_setup.tif',
-      'https://cdn.example.com/new_punchline.tif',
+      'https://cdn.example.com/new_setup.jpg',
+      'https://cdn.example.com/new_punchline.jpg',
     ])
 
     self.assertEqual(mock_storage.upload_bytes_to_gcs.call_count, 2)

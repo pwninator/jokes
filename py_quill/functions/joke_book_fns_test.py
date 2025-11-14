@@ -260,13 +260,15 @@ def test_create_book_uses_top_jokes_when_joke_ids_missing(
   # Assert
   mock_firestore.get_top_jokes.assert_called_once_with(
     'popularity_score_recent',
-    5,
+    20,
   )
   mock_zip_pages.assert_called_once_with(['j1', 'j2'])
   mock_doc_ref.set.assert_called_once_with({
-    'book_name': 'My Auto Book',
+    'book_name':
+    'My Auto Book',
     'jokes': ['j1', 'j2'],
-    'zip_url': 'https://cdn.example.com/book.zip',
+    'zip_url':
+    'https://cdn.example.com/book.zip',
   })
   mock_create_pages.assert_any_call('j1', overwrite=True)
   mock_create_pages.assert_any_call('j2', overwrite=True)

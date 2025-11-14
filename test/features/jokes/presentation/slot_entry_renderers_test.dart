@@ -58,7 +58,7 @@ void main() {
   });
 
   group('EndOfFeedSlotEntryRenderer', () {
-    testWidgets('renders end-of-feed card text', (tester) async {
+    testWidgets('renders end-of-feed card text when online', (tester) async {
       final entry = EndOfFeedSlotEntry(jokeContext: 'feed', totalJokes: 5);
       final renderer = EndOfFeedSlotEntryRenderer();
 
@@ -85,7 +85,46 @@ void main() {
         ),
       );
 
+      await tester.pump();
+
       expect(find.text("You're all caught up!"), findsOneWidget);
+    });
+
+    testWidgets('shows connection message when offline', (tester) async {
+      final entry = EndOfFeedSlotEntry(jokeContext: 'feed', totalJokes: 5);
+      final renderer = EndOfFeedSlotEntryRenderer();
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: viewer_test_utils.buildJokeViewerOverrides(
+            analyticsService: viewer_test_utils.NoopAnalyticsService(),
+            isOnline: false,
+          ),
+          child: MaterialApp(
+            home: Consumer(
+              builder: (context, ref, _) {
+                final config = SlotEntryViewConfig(
+                  context: context,
+                  ref: ref,
+                  index: 1,
+                  isLandscape: false,
+                  jokeContext: 'feed',
+                  showSimilarSearchButton: false,
+                );
+                return renderer.build(entry: entry, config: config);
+              },
+            ),
+          ),
+        ),
+      );
+
+      await tester.pump();
+
+      expect(
+        find.text("We're having trouble loading your jokes."),
+        findsOneWidget,
+      );
+      expect(find.text('Please check that you are connected.'), findsOneWidget);
     });
   });
 }

@@ -768,24 +768,12 @@ class ZipJokePageImagesTest(unittest.TestCase):
     with zipfile.ZipFile(BytesIO(zip_bytes), 'r') as zip_file:
       names = sorted(zip_file.namelist())
       self.assertEqual(names, [
-        '000_cover.jpg',
-        '001_setup1.jpg',
-        '002_punch1.png',
-        '003_back_cover.jpg',
+        '000_setup1.jpg',
+        '001_punch1.png',
       ])
 
-      cover_bytes = zip_file.read('000_cover.jpg')
-      cover_image = Image.open(BytesIO(cover_bytes))
-      self.assertEqual(cover_image.mode, 'CMYK')
-      self.assertEqual(cover_image.size, (1838, 1876))
-
-      back_cover_bytes = zip_file.read('003_back_cover.jpg')
-      back_cover_image = Image.open(BytesIO(back_cover_bytes))
-      self.assertEqual(back_cover_image.mode, 'CMYK')
-      self.assertEqual(back_cover_image.size, (1838, 1876))
-
-      self.assertEqual(zip_file.read('001_setup1.jpg'), setup_bytes)
-      self.assertEqual(zip_file.read('002_punch1.png'), punch_bytes)
+      self.assertEqual(zip_file.read('000_setup1.jpg'), setup_bytes)
+      self.assertEqual(zip_file.read('001_punch1.png'), punch_bytes)
 
 
 if __name__ == '__main__':

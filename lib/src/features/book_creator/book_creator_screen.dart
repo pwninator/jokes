@@ -11,8 +11,10 @@ class BookCreatorScreen extends ConsumerWidget {
     final selectedJokes = ref.watch(selectedJokesProvider);
     final bookCreatorState = ref.watch(bookCreatorControllerProvider);
 
-    ref.listen<AsyncValue<void>>(bookCreatorControllerProvider,
-        (previous, state) {
+    ref.listen<AsyncValue<void>>(bookCreatorControllerProvider, (
+      previous,
+      state,
+    ) {
       state.whenOrNull(
         error: (error, stackTrace) {
           ScaffoldMessenger.of(
@@ -126,9 +128,7 @@ class BookCreatorScreen extends ConsumerWidget {
                           ),
                         );
                         ref.read(bookTitleProvider.notifier).setTitle('');
-                        ref
-                            .read(selectedJokesProvider.notifier)
-                            .setJokes([]);
+                        ref.read(selectedJokesProvider.notifier).setJokes([]);
                       }
                     },
               child: bookCreatorState.isLoading

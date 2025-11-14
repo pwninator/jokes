@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/common_widgets/joke_card.dart';
 import 'package:snickerdoodle/src/common_widgets/joke_image_carousel.dart';
+import 'package:snickerdoodle/src/core/providers/connectivity_providers.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
+import 'package:snickerdoodle/src/data/jokes/joke_interactions_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 
 import 'slot_entries.dart';
@@ -139,18 +141,37 @@ class _EndOfFeedCard extends ConsumerStatefulWidget {
 
 class _EndOfFeedCardState extends ConsumerState<_EndOfFeedCard> {
   bool _logged = false;
+  bool? _showConnectionMessage;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (_logged) return;
-    Future.microtask(() async {
-      if (!mounted || _logged) return;
-      await _logCompositeScrollState();
-      final analytics = ref.read(analyticsServiceProvider);
-      analytics.logJokeFeedEndViewed(jokeContext: widget.jokeContext);
-      _logged = true;
-    });
+    if (!_logged) {
+      Future.microtask(() async {
+        if (!mounted || _logged) return;
+        await _logCompositeScrollState();
+        final analytics = ref.read(analyticsServiceProvider);
+        analytics.logJokeFeedEndViewed(jokeContext: widget.jokeContext);
+        _logged = true;
+      });
+    }
+
+    if (_showConnectionMessage == null) {
+      Future.microtask(() async {
+        if (!mounted) return;
+        final isOnline = ref.read(isOnlineNowProvider);
+        final interactionsRepository = ref.read(
+          jokeInteractionsRepositoryProvider,
+        );
+        final feedCount = await interactionsRepository.countFeedJokes();
+        final showConnection = !isOnline || feedCount < 300;
+        if (!mounted) return;
+        if (_showConnectionMessage == showConnection) return;
+        setState(() {
+          _showConnectionMessage = showConnection;
+        });
+      });
+    }
   }
 
   Future<void> _logCompositeScrollState() async {
@@ -172,6 +193,13 @@ class _EndOfFeedCardState extends ConsumerState<_EndOfFeedCard> {
     final background = theme.colorScheme.surfaceContainerHighest;
     final textColor = theme.textTheme.bodyMedium?.color;
     final subtleTextColor = textColor?.withAlpha((0.8 * 255).round());
+    final showConnectionMessage = _showConnectionMessage ?? false;
+    final title = showConnectionMessage
+        ? "We're having trouble loading your jokes."
+        : "You're all caught up!";
+    final subtitle = showConnectionMessage
+        ? 'Please check that you are connected.'
+        : 'Fresh jokes drop tomorrow. Come back for more laughs!';
     return Card(
       elevation: 0,
       color: background,
@@ -188,7 +216,7 @@ class _EndOfFeedCardState extends ConsumerState<_EndOfFeedCard> {
             ),
             const SizedBox(height: 12),
             Text(
-              "You're all caught up!",
+              title,
               style: theme.textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w600,
               ),
@@ -196,7 +224,7 @@ class _EndOfFeedCardState extends ConsumerState<_EndOfFeedCard> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Fresh jokes drop tomorrow. Come back for more laughs!',
+              subtitle,
               style: theme.textTheme.bodyMedium?.copyWith(
                 color: subtleTextColor,
               ),

@@ -251,6 +251,9 @@ List<Override> buildJokeViewerOverrides({
   bool isOnline = true,
 }) {
   final mockJokeInteractionsRepository = MockJokeInteractionsRepository();
+  when(
+    () => mockJokeInteractionsRepository.countFeedJokes(),
+  ).thenAnswer((_) async => 500);
   final mockCategoryInteractionsRepository =
       MockCategoryInteractionsRepository();
 

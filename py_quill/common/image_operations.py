@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import datetime
+import zipfile
 from functools import partial
 from io import BytesIO
 from typing import Callable
-import zipfile
 
 from common import config, joke_operations
 from firebase_functions import logger
@@ -47,11 +47,7 @@ def create_blank_book_cover() -> bytes:
 def zip_joke_page_images(joke_ids: list[str]) -> str:
   """Create and store a ZIP of book page images for the given jokes.
 
-  The ZIP will contain:
-    - 000_cover.jpg: blank CMYK cover page
-    - Sequentially numbered setup/punchline pages for each joke, using the
-      original file names with a three-digit page prefix
-    - A final back cover page as NNN_back_cover.jpg where NNN is the last index
+  The ZIP will contain sequentially numbered setup/punchline pages for each joke, using the original file names with a three-digit page prefix
 
   Args:
     joke_ids: Ordered list of joke document IDs.
@@ -67,11 +63,7 @@ def zip_joke_page_images(joke_ids: list[str]) -> str:
     raise ValueError("Joke book has no jokes")
 
   files: list[tuple[str, bytes]] = []
-
-  # Front cover
-  cover_bytes = create_blank_book_cover()
-  files.append(('000_cover.jpg', cover_bytes))
-  page_index = 1
+  page_index = 0
 
   for joke_id in joke_ids:
     joke_ref = firestore.db().collection('jokes').document(joke_id)
@@ -99,10 +91,6 @@ def zip_joke_page_images(joke_ids: list[str]) -> str:
       filename = f"{page_index:03d}_{original_filename}"
       files.append((filename, image_bytes))
       page_index += 1
-
-  # Back cover
-  back_cover_name = f"{page_index:03d}_back_cover.jpg"
-  files.append((back_cover_name, cover_bytes))
 
   # Build ZIP in memory
   zip_buffer = BytesIO()

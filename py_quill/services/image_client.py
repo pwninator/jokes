@@ -6,6 +6,7 @@ import base64
 import os
 import time
 from abc import ABC, abstractmethod
+from datetime import datetime
 from enum import Enum
 from io import BytesIO
 from typing import Any, Generic, Literal, TypeVar, override
@@ -14,7 +15,10 @@ from common import config, models
 from firebase_functions import logger
 from google import genai
 from google.api_core import exceptions
-from google.genai import types
+from google.genai.types import EditImageConfig, EditMode
+from google.genai.types import Image as GenAIImage
+from google.genai.types import (MaskReferenceConfig, MaskReferenceImage,
+                                RawReferenceImage)
 from openai import OpenAI
 from PIL import Image
 from services import cloud_storage, firestore
@@ -88,6 +92,14 @@ class ImageModel(Enum):
       "images": 0.02
     },
     ImageProvider.IMAGEN,
+  )
+  # https://cloud.google.com/vertex-ai/generative-ai/pricing#imagen-models
+  IMAGEN_3_CAPABILITY = (
+    "imagen-3.0-capability-001",
+    {
+      "images": 0.04,
+    },
+    ImageProvider.GEMINI,
   )
 
   # https://platform.openai.com/docs/models/gpt-image-1
@@ -393,6 +405,85 @@ class ImageClient(ABC, Generic[_T]):
         firestore.create_image(new_image)
       return new_image
 
+  def outpaint_image(
+    self,
+    top: int = 0,
+    bottom: int = 0,
+    left: int = 0,
+    right: int = 0,
+    prompt: str = "",
+    image: models.Image | None = None,
+    gcs_uri: str | None = None,
+    save_to_firestore: bool = True,
+  ) -> models.Image:
+    """Outpaint an image by expanding it in specified directions within the canvas.
+
+    Args:
+      top: Pixels to expand at the top edge.
+      bottom: Pixels to expand at the bottom edge.
+      left: Pixels to expand at the left edge.
+      right: Pixels to expand at the right edge.
+      prompt: Optional prompt describing what to generate in expanded areas.
+      image: Image model to outpaint.
+      gcs_uri: Alternative to image parameter - GCS URI of image to outpaint.
+      save_to_firestore: Whether to save result to Firestore.
+
+    Returns:
+      A new Image model representing the outpainted image.
+    """
+    if not (image or gcs_uri) or (image and gcs_uri):
+      raise ValueError("Exactly one of 'image' or 'gcs_uri' must be provided.")
+
+    if top <= 0 and bottom <= 0 and left <= 0 and right <= 0:
+      raise ValueError(
+        "At least one of 'top', 'bottom', 'left', or 'right' must be greater than 0."
+      )
+
+    source_gcs_uri = image.gcs_uri if image else gcs_uri
+    if not source_gcs_uri:
+      raise ValueError("The provided image must have a gcs_uri.")
+
+    start_time = time.perf_counter()
+    outpainted_gcs_uri = self._outpaint_image_internal(
+      source_gcs_uri,
+      top=top,
+      bottom=bottom,
+      left=left,
+      right=right,
+      prompt=prompt,
+    )
+
+    generation_metadata = _build_generation_metadata(
+      label=self.label,
+      model_name=self.model.model_name,
+      usage_dict={"images": 1},
+      token_costs=self.model.token_costs,
+      generation_time_sec=time.perf_counter() - start_time,
+    )
+
+    final_url = cloud_storage.get_final_image_url(outpainted_gcs_uri)
+
+    base_prompt = prompt or (
+      (image.final_prompt or image.original_prompt) if image else "")
+    owner_user_id = image.owner_user_id if image else None
+
+    new_image = models.Image(
+      url=final_url,
+      gcs_uri=outpainted_gcs_uri,
+      original_prompt=base_prompt,
+      final_prompt=base_prompt,
+      error=None,
+      owner_user_id=owner_user_id,
+      generation_metadata=models.GenerationMetadata(),
+    )
+    new_image.generation_metadata.add_generation(generation_metadata)
+
+    if save_to_firestore:
+      logger.info("Creating new image with outpainted version.")
+      firestore.create_image(new_image)
+
+    return new_image
+
   @abstractmethod
   def _create_model_client(self) -> _T:
     """Create the model."""
@@ -437,6 +528,30 @@ class ImageClient(ABC, Generic[_T]):
 
     Returns:
       The GCS URI of the upscaled image.
+    """
+    raise NotImplementedError
+
+  def _outpaint_image_internal(
+    self,
+    gcs_uri: str,
+    top: int,
+    bottom: int,
+    left: int,
+    right: int,
+    prompt: str,
+  ) -> str:
+    """Outpaint an image.
+
+    Args:
+      gcs_uri: The GCS URI of the image to outpaint.
+      top: Pixels to expand at the top.
+      bottom: Pixels to expand at the bottom.
+      left: Pixels to expand at the left.
+      right: Pixels to expand at the right.
+      prompt: Prompt describing what to generate in expanded areas.
+
+    Returns:
+      The GCS URI of the outpainted image.
     """
     raise NotImplementedError
 
@@ -593,6 +708,19 @@ class ImagenClient(ImageClient[ImageGenerationModel]):
 
     return final_gcs_uri
 
+  @override
+  def _outpaint_image_internal(
+    self,
+    gcs_uri: str,
+    top: int,
+    bottom: int,
+    left: int,
+    right: int,
+    prompt: str,
+  ) -> str:
+    raise NotImplementedError(
+      f"Outpainting is not supported for {self.__class__.__name__}")
+
 
 class OpenAiImageClient(ImageClient[OpenAI]):
   """OpenAI client implementation for the Images API."""
@@ -704,6 +832,19 @@ class OpenAiImageClient(ImageClient[OpenAI]):
       ))
 
     return image_model
+
+  @override
+  def _outpaint_image_internal(
+    self,
+    gcs_uri: str,
+    top: int,
+    bottom: int,
+    left: int,
+    right: int,
+    prompt: str,
+  ) -> str:
+    raise NotImplementedError(
+      f"Outpainting is not supported for {self.__class__.__name__}")
 
 
 class OpenAiResponsesClient(ImageClient[OpenAI]):
@@ -864,8 +1005,10 @@ class GeminiImageClient(ImageClient[genai.Client]):
   @override
   def _create_model_client(self) -> genai.Client:
     return genai.Client(
-      api_key=config.get_gemini_api_key(),
-      http_options=types.HttpOptions(api_version="v1"),
+      # api_key=config.get_gemini_api_key(),
+      vertexai=True,
+      project=config.PROJECT_ID,
+      location=config.PROJECT_LOCATION,
     )
 
   @override
@@ -959,6 +1102,108 @@ class GeminiImageClient(ImageClient[genai.Client]):
       ))
 
     return image_model
+
+  @override
+  def _outpaint_image_internal(
+    self,
+    gcs_uri: str,
+    top: int,
+    bottom: int,
+    left: int,
+    right: int,
+    prompt: str,
+  ) -> str:
+    """Outpaint an image using Imagen 3 via the GenAI SDK."""
+    # Clamp requested margins to sensible bounds (not strictly required, but safe).
+    top = max(0, top)
+    bottom = max(0, bottom)
+    left = max(0, left)
+    right = max(0, right)
+
+    image_bytes = cloud_storage.download_bytes_from_gcs(gcs_uri)
+    pil_image = Image.open(BytesIO(image_bytes)).convert("RGB")
+    original_width, original_height = pil_image.size
+
+    # Final outpainted canvas dimensions.
+    new_width = original_width + left + right
+    new_height = original_height + top + bottom
+
+    # Build reference image: original content pasted into a larger white canvas.
+    ref_image = Image.new("RGB", (new_width, new_height), color="black")
+    ref_image.paste(pil_image, (left, top))
+
+    # Build mask image: black where original content exists, white elsewhere.
+    mask = Image.new("RGB", (new_width, new_height), color="white")
+    black_patch = Image.new(
+      "RGB",
+      (original_width, original_height),
+      color="black",
+    )
+    mask.paste(black_patch, (left, top))
+
+    # Construct GenAI image references fully in memory using bytes.
+    ref_buffer = BytesIO()
+    ref_image.save(ref_buffer, format="PNG")
+    ref_bytes = ref_buffer.getvalue()
+
+    raw_ref = RawReferenceImage(
+      reference_image=GenAIImage(
+        image_bytes=ref_bytes,
+        mime_type="image/png",
+      ),
+      reference_id=0,
+    )
+
+    mask_buffer = BytesIO()
+    mask.save(mask_buffer, format="PNG")
+    outpaint_mask_bytes = mask_buffer.getvalue()
+
+    mask_ref = MaskReferenceImage(
+      reference_id=1,
+      reference_image=GenAIImage(
+        image_bytes=outpaint_mask_bytes,
+        mime_type="image/png",
+      ),
+      config=MaskReferenceConfig(
+        mask_mode="MASK_MODE_USER_PROVIDED",
+        mask_dilation=0.03,
+      ),
+    )
+
+    # Save raw_ref and mask_ref for debugging
+    gcs_uri_base, ext = os.path.splitext(gcs_uri)
+    if not ext:
+      ext = ".png"
+    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+    gcs_uri_base = f"{gcs_uri_base}_{timestamp}"
+
+    outpaint_gcs_uri = f"{gcs_uri_base}_outpaint{ext}"
+    print(
+      f"Outpainting image with Google GenAI API (Imagen 3 capability) to {outpaint_gcs_uri}"
+    )
+    response = self.model_client.models.edit_image(
+      model=self.model.model_name,
+      prompt=prompt or "",
+      reference_images=[raw_ref, mask_ref],
+      config=EditImageConfig(
+        edit_mode=EditMode.EDIT_MODE_OUTPAINT,
+        number_of_images=1,
+        output_mime_type="image/png",
+        output_gcs_uri=outpaint_gcs_uri,
+      ),
+    )
+    logger.info(f"Outpainting response: {response}")
+
+    if not response.generated_images:
+      raise ValueError("No outpainted image returned from Imagen 3")
+
+    generated = response.generated_images[0]
+    if not getattr(generated, "image", None) or not getattr(
+        generated.image, "gcs_uri", None):
+      raise ValueError(
+        "No image gcs_uri returned from Imagen 3 outpaint operation")
+
+    return generated.image.gcs_uri
 
 
 def _build_generation_metadata(

@@ -35,7 +35,7 @@ def create_joke_book(req: https_fn.Request) -> https_fn.Response:
     if raw_joke_ids is None:
       top_jokes = firestore.get_top_jokes(
         'popularity_score_recent',
-        20,
+        50,
       )
       joke_ids = [joke.key for joke in top_jokes if getattr(joke, 'key', None)]
       if not joke_ids:

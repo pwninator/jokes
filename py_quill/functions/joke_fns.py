@@ -33,19 +33,15 @@ def create_joke(req: https_fn.Request) -> https_fn.Response:
     if req.method not in ['GET', 'POST']:
       return error_response(f'Method not allowed: {req.method}')
 
-    joke_data = get_param(req, 'joke_data', {})
     should_populate = get_bool_param(req, 'populate_joke', False)
     admin_owned = get_bool_param(req, 'admin_owned', False)
     punchline_text = get_param(req, 'punchline_text')
     setup_text = get_param(req, 'setup_text')
 
-    user_id = get_user_id(req, allow_unauthenticated=True)
-    if not user_id:
-      user_id = "ANONYMOUS"
+    user_id = get_user_id(req)
 
     try:
       saved_joke = joke_operations.create_joke(
-        joke_data=joke_data,
         setup_text=setup_text,
         punchline_text=punchline_text,
         admin_owned=admin_owned,

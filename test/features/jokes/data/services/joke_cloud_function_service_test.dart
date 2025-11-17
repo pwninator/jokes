@@ -101,8 +101,6 @@ void main() {
               'joke_data': {
                 'setup_text': setupText,
                 'punchline_text': punchlineText,
-                'setup_image_url': null,
-                'punchline_image_url': null,
               },
             }),
           ).thenAnswer((_) async => mockResult);

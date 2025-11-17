@@ -93,8 +93,6 @@ class JokeCloudFunctionService {
     required String setupText,
     required String punchlineText,
     required bool adminOwned,
-    String? setupImageUrl,
-    String? punchlineImageUrl,
   }) async {
     try {
       final result = await _traceCf(
@@ -103,12 +101,8 @@ class JokeCloudFunctionService {
           final callable = _fns.httpsCallable('create_joke');
           return await callable.call({
             'admin_owned': adminOwned,
-            'joke_data': {
-              'setup_text': setupText,
-              'punchline_text': punchlineText,
-              'setup_image_url': setupImageUrl,
-              'punchline_image_url': punchlineImageUrl,
-            },
+            'setup_text': setupText,
+            'punchline_text': punchlineText,
           });
         },
       );

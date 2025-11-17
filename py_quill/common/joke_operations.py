@@ -23,39 +23,28 @@ class JokePopulationError(JokeOperationsError):
 
 def create_joke(
   *,
-  joke_data: dict[str, Any] | None,
-  setup_text: str | None,
-  punchline_text: str | None,
+  setup_text: str,
+  punchline_text: str,
   admin_owned: bool,
-  user_id: str | None,
+  user_id: str,
 ) -> models.PunnyJoke:
   """Create a new punny joke with default metadata and persist it."""
-  if not joke_data:
-    if not setup_text or not punchline_text:
-      raise ValueError('Setup text and punchline text are required')
-    joke_data = {
-      'setup_text': setup_text,
-      'punchline_text': punchline_text,
-    }
-
-  if not isinstance(joke_data, dict):
-    raise ValueError(f'Joke data is not a dictionary: {joke_data}')
-
-  if not joke_data.get('setup_text'):
+  setup_text = setup_text.strip()
+  punchline_text = punchline_text.strip()
+  if not setup_text:
     raise ValueError('Setup text is required')
-
-  if not joke_data.get('punchline_text'):
+  if not punchline_text:
     raise ValueError('Punchline text is required')
 
-  owner_user_id = "ADMIN" if admin_owned else (user_id or "ANONYMOUS")
+  owner_user_id = "ADMIN" if admin_owned else user_id
 
-  payload = dict(joke_data)
-  payload["owner_user_id"] = owner_user_id
-
-  if not payload.get("state"):
-    payload["state"] = models.JokeState.DRAFT
-
-  payload["random_id"] = random.randint(0, 2**31 - 1)
+  payload = {
+    "setup_text": setup_text,
+    "punchline_text": punchline_text,
+    "owner_user_id": owner_user_id,
+    "state": models.JokeState.DRAFT,
+    "random_id": random.randint(0, 2**31 - 1),
+  }
 
   logger.info("Creating joke for owner %s", owner_user_id)
   joke = models.PunnyJoke(**payload)

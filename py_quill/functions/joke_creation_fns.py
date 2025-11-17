@@ -46,7 +46,6 @@ def joke_creation_process(req: https_fn.Request) -> https_fn.Response:
     if not joke and setup_text and punchline_text:
       # Scenario 1: create a new joke from setup/punchline strings.
       saved_joke = joke_operations.create_joke(
-        joke_data=None,
         setup_text=setup_text,
         punchline_text=punchline_text,
         admin_owned=admin_owned,

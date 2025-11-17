@@ -209,8 +209,6 @@ void main() {
         setupText: any(named: 'setupText'),
         punchlineText: any(named: 'punchlineText'),
         adminOwned: any(named: 'adminOwned'),
-        setupImageUrl: any(named: 'setupImageUrl'),
-        punchlineImageUrl: any(named: 'punchlineImageUrl'),
       ),
     ).thenAnswer((_) async => {'success': true, 'joke_id': 'test-id'});
 

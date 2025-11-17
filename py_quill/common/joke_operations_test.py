@@ -52,7 +52,6 @@ def test_create_joke_sets_defaults_and_owner(monkeypatch, mock_firestore):
   mock_firestore.upsert_punny_joke.side_effect = fake_upsert
 
   saved = joke_operations.create_joke(
-    joke_data=None,
     setup_text="Setup text",
     punchline_text="Punchline text",
     admin_owned=False,
@@ -69,12 +68,10 @@ def test_create_joke_sets_defaults_and_owner(monkeypatch, mock_firestore):
 
 def test_create_joke_requires_text(monkeypatch, mock_firestore):
   """create_joke should raise when setup/punchline are missing."""
-  with pytest.raises(ValueError,
-                     match='Setup text and punchline text are required'):
+  with pytest.raises(ValueError, match='Setup text is required'):
     joke_operations.create_joke(
-      joke_data=None,
-      setup_text=None,
-      punchline_text=None,
+      setup_text="",
+      punchline_text="",
       admin_owned=False,
       user_id="user-1",
     )

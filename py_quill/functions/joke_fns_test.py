@@ -570,6 +570,8 @@ class TestUpscaleJoke:
   def mock_joke_operations_fixture(self, monkeypatch):
     """Fixture that mocks the joke_operations module."""
     mock_operations = Mock()
+    mock_operations.to_response_joke.side_effect = lambda joke: joke.to_dict(
+      include_key=True)
     monkeypatch.setattr('functions.joke_fns.joke_operations', mock_operations)
     return mock_operations
 

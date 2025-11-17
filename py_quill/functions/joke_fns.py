@@ -2,7 +2,6 @@
 
 import functools
 import json
-import random
 import traceback
 from typing import Any
 
@@ -10,19 +9,12 @@ from agents import agents_common, constants
 from agents.endpoints import all_agents
 from agents.puns import pun_postprocessor_agent
 from common import config, image_generation, joke_operations, models
+from common.joke_operations import JokePopulationError
 from firebase_functions import https_fn, logger, options
 from functions.function_utils import (error_response, get_bool_param,
                                       get_float_param, get_int_param,
                                       get_param, get_user_id, success_response)
 from services import cloud_storage, firestore, search
-
-
-class Error(Exception):
-  """Base class for exceptions in this module."""
-
-
-class JokePopulationError(Error):
-  """Exception raised for errors in joke population."""
 
 
 @https_fn.on_request(
@@ -41,54 +33,26 @@ def create_joke(req: https_fn.Request) -> https_fn.Response:
     if req.method not in ['GET', 'POST']:
       return error_response(f'Method not allowed: {req.method}')
 
-    # Get the joke data from request body or args
     joke_data = get_param(req, 'joke_data', {})
     should_populate = get_bool_param(req, 'populate_joke', False)
-    # Default to user-owned unless explicitly marked as admin-owned
     admin_owned = get_bool_param(req, 'admin_owned', False)
     punchline_text = get_param(req, 'punchline_text')
     setup_text = get_param(req, 'setup_text')
-    if not joke_data and setup_text and punchline_text:
-      joke_data = {
-        'setup_text': setup_text,
-        'punchline_text': punchline_text,
-      }
-
-    if not joke_data:
-      return error_response(f'Joke data is required: {req.get_json()}')
-
-    if not isinstance(joke_data, dict):
-      return error_response(f'Joke data is not a dictionary: {joke_data}')
-
-    if not joke_data.get('setup_text'):
-      return error_response('Setup text is required')
-
-    if not joke_data.get('punchline_text'):
-      return error_response('Punchline text is required')
 
     user_id = get_user_id(req, allow_unauthenticated=True)
     if not user_id:
       user_id = "ANONYMOUS"
 
-    # Set ownership: admin-owned overrides request user
-    joke_data["owner_user_id"] = "ADMIN" if admin_owned else user_id
-
-    # Initialize state to DRAFT if not provided
-    if not joke_data.get("state"):
-      joke_data["state"] = models.JokeState.DRAFT
-
-    # Initialize random_id as 32-bit positive integer (0 to 2^31-1)
-    joke_data["random_id"] = random.randint(0, 2**31 - 1)
-
-    print(f"Creating joke: {joke_data}")
-
-    # Create the joke model
-    joke = models.PunnyJoke(**joke_data)
-
-    # Save to firestore
-    saved_joke = firestore.upsert_punny_joke(joke)
-    if not saved_joke:
-      return error_response('Failed to save joke - may already exist')
+    try:
+      saved_joke = joke_operations.create_joke(
+        joke_data=joke_data,
+        setup_text=setup_text,
+        punchline_text=punchline_text,
+        admin_owned=admin_owned,
+        user_id=user_id,
+      )
+    except ValueError as creation_error:
+      return error_response(str(creation_error))
 
     # Populate joke if requested
     if should_populate:
@@ -104,7 +68,8 @@ def create_joke(req: https_fn.Request) -> https_fn.Response:
         print(f"Error populating joke: {populate_error}")
         # Continue without populating if it fails
 
-    return success_response({"joke_data": _to_response_joke(saved_joke)})
+    return success_response(
+      {"joke_data": joke_operations.to_response_joke(saved_joke)})
   except Exception as e:
     stacktrace = traceback.format_exc()
     print(f"Error creating joke: {e}\nStacktrace:\n{stacktrace}")
@@ -374,7 +339,8 @@ def populate_joke(req: https_fn.Request) -> https_fn.Response:
       overwrite=overwrite,
     )
 
-    return success_response({"joke_data": _to_response_joke(saved_joke)})
+    return success_response(
+      {"joke_data": joke_operations.to_response_joke(saved_joke)})
 
   except Exception as e:
     stacktrace = traceback.format_exc()
@@ -440,7 +406,8 @@ def modify_joke_image(req: https_fn.Request) -> https_fn.Response:
     if not saved_joke:
       return error_response('Failed to save modified joke')
 
-    return success_response({"joke_data": _to_response_joke(saved_joke)})
+    return success_response(
+      {"joke_data": joke_operations.to_response_joke(saved_joke)})
 
   except Exception as e:
     stacktrace = traceback.format_exc()
@@ -487,7 +454,7 @@ def _populate_joke_internal(
     raise JokePopulationError(f'Joke not found: {joke_id}')
 
   if images_only:
-    joke = _populate_joke_images(joke, image_quality)
+    joke = joke_operations.generate_joke_images(joke, image_quality)
   else:
     joke = _populate_entire_joke_internal(joke, user_id, overwrite)
 
@@ -597,45 +564,6 @@ def _populate_entire_joke_internal(
   return joke
 
 
-def _populate_joke_images(
-  joke: models.PunnyJoke,
-  image_quality: str,
-) -> models.PunnyJoke:
-  """Populate a joke with new images using the image generation service."""
-
-  # Check if joke has all required fields
-  if not joke.setup_text:
-    raise JokePopulationError('Joke is missing setup text')
-  if not joke.punchline_text:
-    raise JokePopulationError('Joke is missing punchline text')
-  if not joke.setup_image_description:
-    raise JokePopulationError('Joke is missing setup image description')
-  if not joke.punchline_image_description:
-    raise JokePopulationError('Joke is missing punchline image description')
-
-  # Prepare pun data for image generation
-  pun_data = [(joke.setup_text, joke.setup_image_description),
-              (joke.punchline_text, joke.punchline_image_description)]
-
-  # Generate images
-  images = image_generation.generate_pun_images(pun_data, image_quality)
-
-  # Update joke with new image URLs
-  if len(images) == 2:
-    joke.set_setup_image(images[0])
-    joke.set_punchline_image(images[1])
-  else:
-    raise JokePopulationError(
-      f'Image generation returned insufficient images: expected 2, got {len(images)}'
-    )
-
-  # Clear upscaled URLs since they are now out of date
-  joke.setup_image_url_upscaled = None
-  joke.punchline_image_url_upscaled = None
-
-  return joke
-
-
 @https_fn.on_request(
   memory=options.MemoryOption.GB_1,
   timeout_sec=600,
@@ -708,14 +636,6 @@ def critique_jokes(req: https_fn.Request) -> https_fn.Response:
     return error_response(f'Failed to critique jokes: {str(e)}')
 
 
-def _to_response_joke(joke: models.PunnyJoke) -> dict[str, Any]:
-  """Convert a PunnyJoke to a dictionary for a function response."""
-  joke_dict = joke.to_dict(include_key=True)
-  if 'zzz_joke_text_embedding' in joke_dict:
-    del joke_dict['zzz_joke_text_embedding']
-  return joke_dict
-
-
 @https_fn.on_request(
   memory=options.MemoryOption.GB_1,
   timeout_sec=600,
@@ -744,7 +664,8 @@ def upscale_joke(req: https_fn.Request) -> https_fn.Response:
     except Exception as e:
       return error_response(f'Failed to upscale joke: {str(e)}')
 
-    return success_response({"joke_data": _to_response_joke(joke)})
+    return success_response(
+      {"joke_data": joke_operations.to_response_joke(joke)})
   except Exception as e:
     stacktrace = traceback.format_exc()
     print(f"Error upscaling joke: {e}\nStacktrace:\n{stacktrace}")

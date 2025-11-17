@@ -2,14 +2,116 @@
 
 from __future__ import annotations
 
-from typing import Literal
+import random
+from typing import Any, Literal
 
-from common import models
+from common import image_generation, models
 from firebase_functions import logger
 from google.cloud.firestore_v1.vector import Vector
 from services import cloud_storage, firestore, image_client
 
 _IMAGE_UPSCALE_FACTOR = "x2"
+
+
+class JokeOperationsError(Exception):
+  """Base exception for joke operation failures."""
+
+
+class JokePopulationError(JokeOperationsError):
+  """Exception raised for errors in joke population."""
+
+
+def create_joke(
+  *,
+  joke_data: dict[str, Any] | None,
+  setup_text: str | None,
+  punchline_text: str | None,
+  admin_owned: bool,
+  user_id: str | None,
+) -> models.PunnyJoke:
+  """Create a new punny joke with default metadata and persist it."""
+  if not joke_data:
+    if not setup_text or not punchline_text:
+      raise ValueError('Setup text and punchline text are required')
+    joke_data = {
+      'setup_text': setup_text,
+      'punchline_text': punchline_text,
+    }
+
+  if not isinstance(joke_data, dict):
+    raise ValueError(f'Joke data is not a dictionary: {joke_data}')
+
+  if not joke_data.get('setup_text'):
+    raise ValueError('Setup text is required')
+
+  if not joke_data.get('punchline_text'):
+    raise ValueError('Punchline text is required')
+
+  owner_user_id = "ADMIN" if admin_owned else (user_id or "ANONYMOUS")
+
+  payload = dict(joke_data)
+  payload["owner_user_id"] = owner_user_id
+
+  if not payload.get("state"):
+    payload["state"] = models.JokeState.DRAFT
+
+  payload["random_id"] = random.randint(0, 2**31 - 1)
+
+  logger.info("Creating joke for owner %s", owner_user_id)
+  joke = models.PunnyJoke(**payload)
+
+  saved_joke = firestore.upsert_punny_joke(joke)
+  if not saved_joke:
+    raise ValueError('Failed to save joke - may already exist')
+
+  return saved_joke
+
+
+def modify_image_descriptions(
+  joke: models.PunnyJoke,
+  setup_suggestion: str,
+  punchline_suggestion: str,
+) -> models.PunnyJoke:
+  """Update a joke's image descriptions using the provided suggestions.
+
+  This is a placeholder implementation that will be fleshed out later.
+  """
+  _ = (setup_suggestion, punchline_suggestion)
+  saved_joke = firestore.upsert_punny_joke(joke)
+  if not saved_joke:
+    raise ValueError('Failed to save joke while updating image descriptions')
+  return saved_joke
+
+
+def generate_joke_images(joke: models.PunnyJoke,
+                         image_quality: str) -> models.PunnyJoke:
+  """Populate a joke with new images using the image generation service."""
+  if not joke.setup_text:
+    raise JokePopulationError('Joke is missing setup text')
+  if not joke.punchline_text:
+    raise JokePopulationError('Joke is missing punchline text')
+  if not joke.setup_image_description:
+    raise JokePopulationError('Joke is missing setup image description')
+  if not joke.punchline_image_description:
+    raise JokePopulationError('Joke is missing punchline image description')
+
+  pun_data = [(joke.setup_text, joke.setup_image_description),
+              (joke.punchline_text, joke.punchline_image_description)]
+
+  images = image_generation.generate_pun_images(pun_data, image_quality)
+
+  if len(images) == 2:
+    joke.set_setup_image(images[0])
+    joke.set_punchline_image(images[1])
+  else:
+    raise JokePopulationError(
+      f'Image generation returned insufficient images: expected 2, got {len(images)}'
+    )
+
+  joke.setup_image_url_upscaled = None
+  joke.punchline_image_url_upscaled = None
+
+  return joke
 
 
 def upscale_joke(
@@ -127,3 +229,10 @@ def sync_joke_to_search_collection(
       f"Syncing joke to joke_search collection: {joke_id} with payload keys {update_payload.keys()}"
     )
     search_doc_ref.set(update_payload, merge=True)
+
+
+def to_response_joke(joke: models.PunnyJoke) -> dict[str, Any]:
+  """Convert a PunnyJoke to a dictionary suitable for API responses."""
+  joke_dict = joke.to_dict(include_key=True)
+  joke_dict.pop('zzz_joke_text_embedding', None)
+  return joke_dict

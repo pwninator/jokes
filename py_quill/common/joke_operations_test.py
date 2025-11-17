@@ -31,6 +31,112 @@ def mock_cloud_storage_fixture(monkeypatch):
   return mock_cloud_storage
 
 
+@pytest.fixture(name='mock_image_generation')
+def mock_image_generation_fixture(monkeypatch):
+  """Fixture that mocks the image_generation service."""
+  mock_image_generation = Mock()
+  monkeypatch.setattr(joke_operations, 'image_generation',
+                      mock_image_generation)
+  return mock_image_generation
+
+
+def test_create_joke_sets_defaults_and_owner(monkeypatch, mock_firestore):
+  """create_joke should set defaults and persist via firestore."""
+  monkeypatch.setattr(joke_operations.random, 'randint',
+                      lambda _a, _b: 12345)
+
+  def fake_upsert(joke):
+    joke.key = "joke-key"
+    return joke
+
+  mock_firestore.upsert_punny_joke.side_effect = fake_upsert
+
+  saved = joke_operations.create_joke(
+    joke_data=None,
+    setup_text="Setup text",
+    punchline_text="Punchline text",
+    admin_owned=False,
+    user_id="user-1",
+  )
+
+  assert saved.key == "joke-key"
+  mock_firestore.upsert_punny_joke.assert_called_once()
+  persisted = mock_firestore.upsert_punny_joke.call_args.args[0]
+  assert persisted.owner_user_id == "user-1"
+  assert persisted.state == models.JokeState.DRAFT
+  assert persisted.random_id == 12345
+
+
+def test_create_joke_requires_text(monkeypatch, mock_firestore):
+  """create_joke should raise when setup/punchline are missing."""
+  with pytest.raises(ValueError,
+                     match='Setup text and punchline text are required'):
+    joke_operations.create_joke(
+      joke_data=None,
+      setup_text=None,
+      punchline_text=None,
+      admin_owned=False,
+      user_id="user-1",
+    )
+
+  mock_firestore.upsert_punny_joke.assert_not_called()
+
+
+def test_generate_joke_images_updates_images(mock_image_generation):
+  """generate_joke_images should update images and clear upscaled URLs."""
+  joke = models.PunnyJoke(
+    key="joke-1",
+    setup_text="Setup",
+    punchline_text="Punch",
+    setup_image_description="setup desc",
+    punchline_image_description="punch desc",
+    setup_image_url_upscaled="old_setup_upscaled",
+    punchline_image_url_upscaled="old_punch_upscaled",
+  )
+  setup_image = models.Image(url="setup-url")
+  punch_image = models.Image(url="punch-url")
+  mock_image_generation.generate_pun_images.return_value = [
+    setup_image, punch_image
+  ]
+
+  updated = joke_operations.generate_joke_images(joke, "medium")
+
+  assert updated.setup_image_url == "setup-url"
+  assert updated.punchline_image_url == "punch-url"
+  assert updated.setup_image_url_upscaled is None
+  assert updated.punchline_image_url_upscaled is None
+
+
+def test_generate_joke_images_missing_description_raises():
+  """generate_joke_images should raise when descriptions are missing."""
+  joke = models.PunnyJoke(
+    key="joke-1",
+    setup_text="Setup",
+    punchline_text="Punch",
+    setup_image_description=None,
+    punchline_image_description="desc",
+  )
+
+  with pytest.raises(joke_operations.JokePopulationError,
+                     match='setup image description'):
+    joke_operations.generate_joke_images(joke, "medium")
+
+
+def test_to_response_joke_strips_embedding():
+  """to_response_joke should remove embedding fields."""
+  joke = models.PunnyJoke(
+    key="joke-1",
+    setup_text="Setup",
+    punchline_text="Punch",
+  )
+  joke.zzz_joke_text_embedding = [1.0, 2.0]
+
+  response = joke_operations.to_response_joke(joke)
+
+  assert response["key"] == "joke-1"
+  assert 'zzz_joke_text_embedding' not in response
+
+
 def test_upscale_joke_success(mock_firestore, mock_image_client,
                               mock_cloud_storage):
   """Test that upscale_joke successfully upscales a joke's images."""

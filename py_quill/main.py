@@ -6,9 +6,9 @@ import vertexai
 from common import config, firebase_init
 from firebase_functions.core import init
 from functions import (admin_fns, analytics_fns, dummy_fns, joke_auto_fns,
-                       joke_book_fns, joke_fns, joke_image_fns,
-                       joke_notification_fns, joke_trigger_fns, util_fns,
-                       web_fns)
+                       joke_book_fns, joke_creation_fns, joke_fns,
+                       joke_image_fns, joke_notification_fns, joke_trigger_fns,
+                       util_fns, web_fns)
 
 # Configure basic logging for the application (primarily for emulator visibility)
 logging.basicConfig(level=logging.INFO)
@@ -51,6 +51,7 @@ modify_joke_image = joke_fns.modify_joke_image
 upscale_joke = joke_fns.upscale_joke
 search_jokes = joke_fns.search_jokes
 joke_manual_tag = joke_fns.joke_manual_tag
+joke_creation_process = joke_creation_fns.joke_creation_process
 
 # Export the joke trigger functions
 on_joke_write = joke_trigger_fns.on_joke_write

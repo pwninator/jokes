@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import 'package:snickerdoodle/src/core/constants/joke_constants.dart';
 import 'package:snickerdoodle/src/core/providers/app_usage_events_provider.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
@@ -103,6 +104,8 @@ class AppUsageService {
   static const String _firstUsedDateKey = 'first_used_date';
   static const String _lastUsedDateKey = 'last_used_date';
   static const String _numDaysUsedKey = 'num_days_used';
+  static const String _compositeCursorKey =
+      JokeConstants.compositeJokeCursorPrefsKey;
 
   // ==============================
   // APP USAGE TRACKING
@@ -537,30 +540,30 @@ class AppUsageService {
         return;
       }
 
-      final futures = <Future<void>>[];
       final int numDaysUsed = await getNumDaysUsed();
       final int numSaved = await getNumSavedJokes();
       final int numViewed = await getNumJokesViewed();
       final int numNavigated = await getNumJokesNavigated();
       final int numShared = await getNumSharedJokes();
+      final int localFeedCount = await _jokeInteractions.countFeedJokes();
+      final String feedCursor = _settings.getString(_compositeCursorKey) ?? '';
       final bool requestedReview = _ref
           .read(reviewPromptStateStoreProvider)
           .hasRequested();
-      futures.add(
-        _jokeCloudFn
-            .trackUsage(
-              numDaysUsed: numDaysUsed,
-              numSaved: numSaved,
-              numViewed: numViewed,
-              numNavigated: numNavigated,
-              numShared: numShared,
-              requestedReview: requestedReview,
-            )
-            .catchError(
-              (e, _) => AppLogger.warn('APP_USAGE trackUsage error: $e'),
-            ),
-      );
-      await Future.wait(futures);
+      await _jokeCloudFn
+          .trackUsage(
+            numDaysUsed: numDaysUsed,
+            numSaved: numSaved,
+            numViewed: numViewed,
+            numNavigated: numNavigated,
+            numShared: numShared,
+            requestedReview: requestedReview,
+            feedCursor: feedCursor,
+            localFeedCount: localFeedCount,
+          )
+          .catchError(
+            (e, _) => AppLogger.warn('APP_USAGE trackUsage error: $e'),
+          );
     } catch (e) {
       AppLogger.warn('APP_USAGE pushUsageSnapshot error: $e');
     }

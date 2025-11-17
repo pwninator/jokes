@@ -664,16 +664,20 @@ def _to_utc_naive(dt: datetime.datetime) -> datetime.datetime:
   return dt
 
 
-def _upsert_joke_user_usage_logic(transaction: Transaction,
-                                  user_id: str,
-                                  now_utc: datetime.datetime | None = None,
-                                  *,
-                                  client_num_days_used: int | None = None,
-                                  client_num_saved: int | None = None,
-                                  client_num_viewed: int | None = None,
-                                  client_num_navigated: int | None = None,
-                                  client_num_shared: int | None = None,
-                                  requested_review: bool | None = None) -> int:
+def _upsert_joke_user_usage_logic(
+  transaction: Transaction,
+  user_id: str,
+  now_utc: datetime.datetime | None = None,
+  *,
+  client_num_days_used: int | None = None,
+  client_num_saved: int | None = None,
+  client_num_viewed: int | None = None,
+  client_num_navigated: int | None = None,
+  client_num_shared: int | None = None,
+  requested_review: bool | None = None,
+  feed_cursor: str | None = None,
+  local_feed_count: int | None = None,
+) -> int:
   """Transactional helper to upsert joke user usage and return final count.
 
   Args:
@@ -688,7 +692,7 @@ def _upsert_joke_user_usage_logic(transaction: Transaction,
   snapshot = doc_ref.get(transaction=transaction)
 
   # Collect client counters if provided
-  client_updates: dict[str, int | bool] = {}
+  client_updates: dict[str, int | bool | str] = {}
   if client_num_days_used is not None:
     client_updates['client_num_days_used'] = int(client_num_days_used)
   if client_num_saved is not None:
@@ -701,6 +705,9 @@ def _upsert_joke_user_usage_logic(transaction: Transaction,
     client_updates['client_num_shared'] = int(client_num_shared)
   if requested_review is not None:
     client_updates['requested_review'] = requested_review
+  # Always include feed_cursor and local_feed_count (may be empty/zero)
+  client_updates['feed_cursor'] = (feed_cursor or '').strip()
+  client_updates['local_feed_count'] = int(local_feed_count or 0)
 
   # Insert path
   if not snapshot.exists:
@@ -757,16 +764,19 @@ def _upsert_joke_user_usage_logic(transaction: Transaction,
 
 @transactional
 def _upsert_joke_user_usage_in_txn(
-    transaction: Transaction,
-    user_id: str,
-    now_utc: datetime.datetime | None = None,
-    *,
-    client_num_days_used: int | None = None,
-    client_num_saved: int | None = None,
-    client_num_viewed: int | None = None,
-    client_num_navigated: int | None = None,
-    client_num_shared: int | None = None,
-    requested_review: bool | None = None) -> int:
+  transaction: Transaction,
+  user_id: str,
+  now_utc: datetime.datetime | None = None,
+  *,
+  client_num_days_used: int | None = None,
+  client_num_saved: int | None = None,
+  client_num_viewed: int | None = None,
+  client_num_navigated: int | None = None,
+  client_num_shared: int | None = None,
+  requested_review: bool | None = None,
+  feed_cursor: str | None = None,
+  local_feed_count: int | None = None,
+) -> int:
   """Transactional wrapper that handles the transaction."""
   # The actual logic is in a separate function for testability
   return _upsert_joke_user_usage_logic(
@@ -779,18 +789,24 @@ def _upsert_joke_user_usage_in_txn(
     client_num_navigated=client_num_navigated,
     client_num_shared=client_num_shared,
     requested_review=requested_review,
+    feed_cursor=feed_cursor,
+    local_feed_count=local_feed_count,
   )
 
 
-def upsert_joke_user_usage(user_id: str,
-                           now_utc: datetime.datetime | None = None,
-                           *,
-                           client_num_days_used: int | None = None,
-                           client_num_saved: int | None = None,
-                           client_num_viewed: int | None = None,
-                           client_num_navigated: int | None = None,
-                           client_num_shared: int | None = None,
-                           requested_review: bool | None = None) -> int:
+def upsert_joke_user_usage(
+  user_id: str,
+  now_utc: datetime.datetime | None = None,
+  *,
+  client_num_days_used: int | None = None,
+  client_num_saved: int | None = None,
+  client_num_viewed: int | None = None,
+  client_num_navigated: int | None = None,
+  client_num_shared: int | None = None,
+  requested_review: bool | None = None,
+  feed_cursor: str | None = None,
+  local_feed_count: int | None = None,
+) -> int:
   """Create or update the joke user usage document and return final count.
 
   Args:
@@ -815,4 +831,6 @@ def upsert_joke_user_usage(user_id: str,
     client_num_navigated=client_num_navigated,
     client_num_shared=client_num_shared,
     requested_review=requested_review,
+    feed_cursor=feed_cursor,
+    local_feed_count=local_feed_count,
   )

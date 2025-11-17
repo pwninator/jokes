@@ -2,7 +2,7 @@
 
 from firebase_functions import https_fn, logger, options
 from functions.function_utils import (error_response, get_bool_param,
-                                      get_int_param, get_user_id,
+                                      get_int_param, get_param, get_user_id,
                                       success_response)
 from services import firestore as firestore_service
 
@@ -40,6 +40,12 @@ def usage(req: https_fn.Request) -> https_fn.Response:
       default=None,
     )
     requested_review = get_bool_param(req, "requested_review", default=False)
+    feed_cursor = get_param(req, "feed_cursor", default="UNKNOWN")
+    local_feed_count = get_int_param(
+      req,
+      "local_feed_count",
+      default=None,
+    )
 
     final_days_used = firestore_service.upsert_joke_user_usage(
       user_id,
@@ -49,6 +55,8 @@ def usage(req: https_fn.Request) -> https_fn.Response:
       client_num_navigated=client_num_navigated_int,
       client_num_shared=client_num_shared_int,
       requested_review=requested_review,
+      feed_cursor=feed_cursor,
+      local_feed_count=local_feed_count,
     )
 
     # Client counters are persisted within upsert_joke_user_usage

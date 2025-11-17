@@ -431,6 +431,8 @@ void main() {
           numNavigated: 5,
           numShared: 4,
           requestedReview: true,
+          feedCursor: 'cursor123',
+          localFeedCount: 42,
         );
 
         final captured =
@@ -442,6 +444,8 @@ void main() {
         expect(captured['num_navigated'], '5');
         expect(captured['num_shared'], '4');
         expect(captured['requested_review'], isTrue);
+        expect(captured['feed_cursor'], 'cursor123');
+        expect(captured['local_feed_count'], '42');
       });
     });
 
@@ -461,6 +465,8 @@ void main() {
           numNavigated: 5,
           numShared: 4,
           requestedReview: true,
+          feedCursor: 'cursor123',
+          localFeedCount: 42,
         );
 
         final captured =
@@ -472,6 +478,8 @@ void main() {
         expect(captured['num_navigated'], '5');
         expect(captured['num_shared'], '4');
         expect(captured['requested_review'], isTrue);
+        expect(captured['feed_cursor'], 'cursor123');
+        expect(captured['local_feed_count'], '42');
       });
     });
   });

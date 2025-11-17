@@ -1137,7 +1137,9 @@ void main() {
           numViewed: any<int>(named: 'numViewed'),
           numNavigated: any<int>(named: 'numNavigated'),
           numShared: any<int>(named: 'numShared'),
-          requestedReview: any<bool?>(named: 'requestedReview'),
+          requestedReview: any<bool>(named: 'requestedReview'),
+          feedCursor: any<String>(named: 'feedCursor'),
+          localFeedCount: any<int>(named: 'localFeedCount'),
         ),
       ).thenAnswer((_) async {});
 
@@ -1156,6 +1158,7 @@ void main() {
       when(() => mocks.repo.countViewed()).thenAnswer((_) async => 5);
       when(() => mocks.repo.countNavigated()).thenAnswer((_) async => 4);
       when(() => mocks.repo.countShared()).thenAnswer((_) async => 1);
+      when(() => mocks.repo.countFeedJokes()).thenAnswer((_) async => 7);
 
       final testService = AppUsageService(
         settingsService: settingsService,
@@ -1180,18 +1183,25 @@ void main() {
       // Allow microtasks to complete
       await Future.delayed(Duration.zero);
 
-      final captured = verify(
+      final invocation = verify(
         () => mocks.jokeCloudFn.trackUsage(
-          numDaysUsed: any(named: 'numDaysUsed'),
-          numSaved: any(named: 'numSaved'),
-          numViewed: any(named: 'numViewed'),
-          numNavigated: any(named: 'numNavigated'),
-          numShared: any(named: 'numShared'),
+          numDaysUsed: captureAny(named: 'numDaysUsed'),
+          numSaved: captureAny(named: 'numSaved'),
+          numViewed: captureAny(named: 'numViewed'),
+          numNavigated: captureAny(named: 'numNavigated'),
+          numShared: captureAny(named: 'numShared'),
           requestedReview: captureAny(named: 'requestedReview'),
+          feedCursor: captureAny(named: 'feedCursor'),
+          localFeedCount: captureAny(named: 'localFeedCount'),
         ),
-      ).captured;
-
-      expect(captured.first, isTrue);
+      );
+      final captured = invocation.captured;
+      final requestedReviewValue = captured[5] as bool?;
+      final feedCursorValue = captured[6] as String?;
+      final localFeedCountValue = captured[7] as int?;
+      expect(requestedReviewValue, isTrue);
+      expect(feedCursorValue, isNotNull);
+      expect(localFeedCountValue, 7);
     });
   });
 }

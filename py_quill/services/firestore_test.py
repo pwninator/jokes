@@ -351,11 +351,18 @@ def test_upsert_joke_user_usage_insert(monkeypatch):
   monkeypatch.setattr(fs, "SERVER_TIMESTAMP", "TS")
 
   # Call the undecorated logic directly with our dummy txn
-  count = fs._upsert_joke_user_usage_logic(DummyTxn(), "user1")  # pylint: disable=protected-access
+  count = fs._upsert_joke_user_usage_logic(  # pylint: disable=protected-access
+    DummyTxn(),
+    "user1",
+    feed_cursor="cursor123",
+    local_feed_count=10,
+  )
   assert count == 1
   assert captured["created_at"] == "TS"
   assert captured["last_login_at"] == "TS"
   assert captured["num_distinct_day_used"] == 1
+  assert captured["feed_cursor"] == "cursor123"
+  assert captured["local_feed_count"] == 10
 
 
 def test_upsert_joke_user_usage_includes_client_navigated(monkeypatch):

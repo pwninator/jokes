@@ -6,6 +6,9 @@ import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_functi
 class JokeConstants {
   JokeConstants._();
 
+  // Settings keys
+  static const String compositeJokeCursorPrefsKey = 'composite_joke_cursor';
+
   static const String iconCookie01TransparentDark300 =
       'assets/images/icon_cookie_01_transparent_dark2_300.png';
 

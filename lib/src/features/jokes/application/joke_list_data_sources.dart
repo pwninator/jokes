@@ -139,7 +139,7 @@ final _categoryPagingProviders = createPagingProviders(
 );
 
 /// Shared preferences key for persisting the composite feed cursor.
-const compositeJokeCursorPrefsKey = 'composite_joke_cursor';
+const compositeJokeCursorPrefsKey = JokeConstants.compositeJokeCursorPrefsKey;
 
 /// Sentinel cursor value marking a priority source as permanently exhausted.
 const String kDoneSentinel = '__DONE__';

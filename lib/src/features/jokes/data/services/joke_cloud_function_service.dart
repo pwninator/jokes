@@ -53,27 +53,34 @@ class JokeCloudFunctionService {
   }
 
   /// Track app usage in Cloud Functions (HTTP on_request endpoint).
+  ///
+  /// All fields are required and always sent to the backend.
   Future<void> trackUsage({
     required int numDaysUsed,
     required int numSaved,
     required int numViewed,
     required int numNavigated,
     required int numShared,
-    bool? requestedReview,
+    required bool requestedReview,
+    required String feedCursor,
+    required int localFeedCount,
   }) async {
     try {
       await _traceCf(
         functionName: 'usage',
         action: () async {
           final callable = _fns.httpsCallable('usage');
-          await callable.call({
+          final payload = <String, dynamic>{
             'num_days_used': numDaysUsed.toString(),
             'num_saved': numSaved.toString(),
             'num_viewed': numViewed.toString(),
             'num_navigated': numNavigated.toString(),
             'num_shared': numShared.toString(),
             'requested_review': requestedReview,
-          });
+            'feed_cursor': feedCursor,
+            'local_feed_count': localFeedCount.toString(),
+          };
+          await callable.call(payload);
           return null;
         },
       );

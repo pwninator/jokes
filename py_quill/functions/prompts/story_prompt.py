@@ -1,5 +1,6 @@
 """Functions for generating story prompts."""
 
+# pylint: disable=line-too-long
 
 import json
 import random
@@ -10,99 +11,105 @@ from services import llm_client
 from services.llm_client import LlmModel
 
 _SETTINGS = [
-    # Real Man-made
-    "Garden",
-    "School",
-    "Marketplace",
-    "Playground",
-    "Factory",
-    "Junkyard",
-    "Village",
-    "Library",
-    "Attic",
-    "Carnival",
-    "Castle",
+  # Real Man-made
+  "Garden",
+  "School",
+  "Marketplace",
+  "Playground",
+  "Factory",
+  "Junkyard",
+  "Village",
+  "Library",
+  "Attic",
+  "Carnival",
+  "Castle",
 
-    # Real Natural
-    "Forest",
-    "Underwater",
-    "Outer Space",
-    "Swamp",
-    "Beach",
-    "Mountain",
-    "Desert",
-    "Cave",
-    "Underground",
+  # Real Natural
+  "Forest",
+  "Underwater",
+  "Outer Space",
+  "Swamp",
+  "Beach",
+  "Mountain",
+  "Desert",
+  "Cave",
+  "Underground",
 
-    # Fantasy
-    "Candy Land",
-    "Sky World",
-    "a magical forest",
-    "Magic School",
+  # Fantasy
+  "Candy Land",
+  "Sky World",
+  "a magical forest",
+  "Magic School",
 ]
 
 _GENRES = [
-    # Realistic Fiction
-    "Adventure",
-    "Mystery",
-    "Action",
-    "Western",
-    "Comedy",
-    "Slice of Life",
-    "Sports",
-    "Magical Realism",
+  # Realistic Fiction
+  "Adventure",
+  "Mystery",
+  "Action",
+  "Western",
+  "Comedy",
+  "Slice of Life",
+  "Sports",
+  "Magical Realism",
 
-    # Fantasy
-    "Fantasy",
-    "High fantasy",
-    "Urban Fantasy",
-    "Animal Fantasy",
-    "Mythological Fantasy",
-    "Fairy Tale Retelling",
-    "Dragons",
+  # Fantasy
+  "Fantasy",
+  "High fantasy",
+  "Urban Fantasy",
+  "Animal Fantasy",
+  "Mythological Fantasy",
+  "Fairy Tale Retelling",
+  "Dragons",
 
-    # Space
-    "Space",
-    "Space Opera",
-    "Space Western",
+  # Space
+  "Space",
+  "Space Opera",
+  "Space Western",
 
-    # Science Fiction
-    "Science Fiction",
-    "Time Travel",
-    "Steampunk",
-    "Superhero",
+  # Science Fiction
+  "Science Fiction",
+  "Time Travel",
+  "Steampunk",
+  "Superhero",
 
-    # Historical
-    "Historical",
-    "Alternate History",
-    "Historical Fiction",
+  # Historical
+  "Historical",
+  "Alternate History",
+  "Historical Fiction",
 ]
 
 _CHARACTER_INSTRUCTION = [
-    "one that closely fits expectations of this character's description",
-    "one that pushes the boundaries of imagination on what this character can do",
-    "one that ignores this character's preferred activities, putting them in novel situations",
+  "one that closely fits expectations of this character's description",
+  "one that pushes the boundaries of imagination on what this character can do",
+  "one that ignores this character's preferred activities, putting them in novel situations",
 ]
 
-
 _READING_LEVEL_GUIDELINES = {
-    ReadingLevel.PRE_K: """The story should be suitable for a Pre-K reader.""",
-    ReadingLevel.KINDERGARTEN: """The story should be suitable for a Kindergarten reader.""",
-    ReadingLevel.FIRST: """The story should be suitable for a 1st Grade reader.""",
-    ReadingLevel.SECOND: """The story should be suitable for a 2nd Grade reader.""",
-    ReadingLevel.THIRD: """The story should be suitable for a 3rd Grade reader.""",
-    ReadingLevel.FOURTH: """The story should be suitable for a 4th Grade reader.""",
-    ReadingLevel.FIFTH: """The story should be suitable for a 5th Grade reader.""",
-    ReadingLevel.SIXTH: """The story should be suitable for a 6th Grade reader.""",
+  ReadingLevel.PRE_K: """The story should be suitable for a Pre-K reader.""",
+  ReadingLevel.KINDERGARTEN:
+  """The story should be suitable for a Kindergarten reader.""",
+  ReadingLevel.FIRST:
+  """The story should be suitable for a 1st Grade reader.""",
+  ReadingLevel.SECOND:
+  """The story should be suitable for a 2nd Grade reader.""",
+  ReadingLevel.THIRD:
+  """The story should be suitable for a 3rd Grade reader.""",
+  ReadingLevel.FOURTH:
+  """The story should be suitable for a 4th Grade reader.""",
+  ReadingLevel.FIFTH:
+  """The story should be suitable for a 5th Grade reader.""",
+  ReadingLevel.SIXTH:
+  """The story should be suitable for a 6th Grade reader.""",
 }
 
 # pylint: disable=line-too-long
 _llm = llm_client.get_client(
-    label="Story Prompt Generator",
-    model=LlmModel.GEMINI_2_0_FLASH,
-    temperature=1.0,
-    system_instructions=[
-        """As a best selling children's author, write a short prompt for a Pixar-style children's story.
+  label="Story Prompt Generator",
+  model=LlmModel.GEMINI_2_5_FLASH,
+  temperature=1.0,
+  system_instructions=[
+    """As a best selling children's author, write a short prompt for a Pixar-style children's story.
 The prompt should be 1 sentence and no more than 20 words.
 Just mention the main character(s) by name. Do not describe them because the author already knows them.
 
@@ -113,27 +120,26 @@ Guidelines:
 Format your response as a JSON object with:
 - A "story_prompt" field containing a single 1-sentence story prompt
 """
-    ],
-    response_schema={
-        "type": "OBJECT",
-        "properties": {
-            "story_prompt": {
-                "type": "STRING",
-                "description": "1 sentence story prompt"
-            },
-        },
+  ],
+  response_schema={
+    "type": "OBJECT",
+    "properties": {
+      "story_prompt": {
+        "type": "STRING",
+        "description": "1 sentence story prompt"
+      },
     },
+  },
 )
 # pylint: enable=line-too-long
-
 
 _SUGGESTION_PROBABILITY = 0.5
 
 
 def get_random_prompt(
-    main_characters: list[models.Character],
-    side_characters: list[models.Character],
-    reading_level: int = ReadingLevel.THIRD.value,
+  main_characters: list[models.Character],
+  side_characters: list[models.Character],
+  reading_level: int = ReadingLevel.THIRD.value,
 ) -> str | None:
   """Generates a random story prompt.
 
@@ -157,14 +163,15 @@ def get_random_prompt(
     suggest_settings_probability = _SUGGESTION_PROBABILITY
   else:
     prompt_parts.append(
-        "The main characters will be chosen by a separate process, "
-        "so just write the prompt for the story setting/plot."
-    )
+      "The main characters will be chosen by a separate process, "
+      "so just write the prompt for the story setting/plot.")
     # Always suggest a setting if there are no characters
     suggest_settings_probability = 1.0
 
-  _randomized(prompt_parts, "suggested setting", _SETTINGS, suggest_settings_probability)
-  _randomized(prompt_parts, "suggested genre", _GENRES, _SUGGESTION_PROBABILITY)
+  _randomized(prompt_parts, "suggested setting", _SETTINGS,
+              suggest_settings_probability)
+  _randomized(prompt_parts, "suggested genre", _GENRES,
+              _SUGGESTION_PROBABILITY)
 
   print("\n\n".join(prompt_parts))
   response = _llm.generate("\n\n".join(prompt_parts))
@@ -177,10 +184,11 @@ def get_random_prompt(
     return None
 
 
+# pylint: disable=line-too-long
 def _add_characters(
-    prompt_parts: list[str],
-    characters: list[models.Character],
-    character_type: str,
+  prompt_parts: list[str],
+  characters: list[models.Character],
+  character_type: str,
 ) -> None:
   """Adds the characters to the prompt parts.
 
@@ -191,13 +199,15 @@ def _add_characters(
   """
   if len(characters) > 1:
     prompt_parts.append(
-        "The story prompt should involve all of the given characters, with each playing a unique role suited to their individual characteristics.")
+      "The story prompt should involve all of the given characters, with each playing a unique role suited to their individual characteristics."
+    )
 
   for char in characters:
     char_lines = [f"{character_type}:"]
     if char.is_public:
       char_lines.append(
-          "The story should be directly inspired by and perfectly suited to this character's description.")
+        "The story should be directly inspired by and perfectly suited to this character's description."
+      )
     else:
       _randomized(char_lines, "story", _CHARACTER_INSTRUCTION, 0.7)
     char_lines.append(char.description_xml)
@@ -205,10 +215,10 @@ def _add_characters(
 
 
 def _randomized(
-    prompt_parts: list[str],
-    suggestion_type: str,
-    options: list[str],
-    probability: float,
+  prompt_parts: list[str],
+  suggestion_type: str,
+  options: list[str],
+  probability: float,
 ) -> None:
   """Adds a randomized suggestion to the prompt parts.
 

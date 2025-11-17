@@ -1,4 +1,5 @@
 """Test cloud functions."""
+# pylint: disable=unused-import
 
 import json
 import pprint

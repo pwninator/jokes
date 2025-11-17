@@ -9,30 +9,38 @@ from services.llm_client import LlmModel
 
 # pylint: disable=line-too-long
 _llm = llm_client.get_client(
-    label="Character Description",
-    model=LlmModel.GEMINI_2_0_FLASH,
-    temperature=0.4,
-    response_schema={
-        "type": "OBJECT",
-        "properties": {
-            "improved_description": {
-                "type": "STRING",
-                "description": "An improved version of the user's description that is detailed and appropriate for a children's story"
-            },
-            "tagline": {
-                "type": "STRING",
-                "description": "A one-line noun phrase description that captures the character's essence in a children's story style"
-            },
-            "portrait_description": {
-                "type": "STRING",
-                "description": "A detailed visual description for generating the character's portrait image"
-            }
-        },
-        "required": ["improved_description", "tagline", "portrait_description"],
-        "property_ordering": ["improved_description", "tagline", "portrait_description"]
+  label="Character Description",
+  model=LlmModel.GEMINI_2_5_FLASH,
+  temperature=0.4,
+  response_schema={
+    "type":
+    "OBJECT",
+    "properties": {
+      "improved_description": {
+        "type":
+        "STRING",
+        "description":
+        "An improved version of the user's description that is detailed and appropriate for a children's story"
+      },
+      "tagline": {
+        "type":
+        "STRING",
+        "description":
+        "A one-line noun phrase description that captures the character's essence in a children's story style"
+      },
+      "portrait_description": {
+        "type":
+        "STRING",
+        "description":
+        "A detailed visual description for generating the character's portrait image"
+      }
     },
-    system_instructions=[
-        """You are an expert character designer helping to create descriptions for characters in a humorous children's book.
+    "required": ["improved_description", "tagline", "portrait_description"],
+    "property_ordering":
+    ["improved_description", "tagline", "portrait_description"]
+  },
+  system_instructions=[
+    """You are an expert character designer helping to create descriptions for characters in a humorous children's book.
 
 A user has provided a description of a character that they want to see in a children's story.
 However, the user's description may contain ambiguous wording, or may contain parts that are not appropriate for a children's story.
@@ -89,16 +97,14 @@ A detailed visual description for generating their portrait image:
   * "A 7-year-old Asian girl with a black ponytail, wearing a blue baseball cap, green t-shirt, and blue jeans. She has a bright smile and is holding a red juice box."
   * "A crimson dragon with gleaming gold scales, sharp obsidian claws, and wisps of white smoke curling from its nostrils. Its eyes are friendly and it has a gentle expression."
   * "A small, boxy robot with a single glowing blue eye, polished silver plating, and a rusty copper antenna. It hovers slightly above the ground with soft blue light emanating from underneath."
-"""],
+"""
+  ],
 )
 # pylint: enable=line-too-long
 
 
 def generate_character_description(
-    name: str,
-    age: int,
-    gender: str,
-    user_description: str
+  name: str, age: int, gender: str, user_description: str
 ) -> Tuple[str, str, str, models.SingleGenerationMetadata]:
   """Generate character descriptions using Gemini.
 
@@ -115,12 +121,14 @@ def generate_character_description(
       tagline is a one-line noun phrase that captures their essence in a children's story style,
       and portrait_description is a detailed visual description for generating the portrait
   """
-  prompt = [f"""
+  prompt = [
+    f"""
 Character Details:
 Name: {name}
 Age: {age}
 Gender: {gender}
-User's Description: {user_description}"""]
+User's Description: {user_description}"""
+  ]
 
   # Generate the description
   response = _llm.generate(prompt)
@@ -128,8 +136,8 @@ User's Description: {user_description}"""]
   # Parse the response
   result = json.loads(response.text)
   return (
-      result["improved_description"],
-      result["tagline"],
-      result["portrait_description"],
-      response.metadata,
+    result["improved_description"],
+    result["tagline"],
+    result["portrait_description"],
+    response.metadata,
   )

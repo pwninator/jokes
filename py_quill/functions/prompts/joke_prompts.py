@@ -16,12 +16,12 @@ _MIN_JOKE_LENGTH = 10
 
 # LLM client for joke generation
 _llm = llm_client.get_client(
-    label="Joke Generation",
-    model=LlmModel.GEMINI_2_0_FLASH,
-    temperature=_TEMPERATURE,
-    output_tokens=2000,
-    system_instructions=[
-        """You are a comedian specialized in reciting clean, appropriate jokes for children's books.
+  label="Joke Generation",
+  model=LlmModel.GEMINI_2_5_FLASH,
+  temperature=_TEMPERATURE,
+  output_tokens=2000,
+  system_instructions=[
+    """You are a comedian specialized in reciting clean, appropriate jokes for children's books.
 Your goal is to recite jokes related to themes, characters, or concepts from a given prompt.
 DO NOT make up your own jokes. Just recite ones that are related to things in the prompt.
 The jokes should be:
@@ -49,14 +49,14 @@ Example output:
 - What do you get if you cross a hamster with a car? A fur-rari!
 - etc.
 """
-    ],
+  ],
 )
 
 
 def generate_jokes(
-    prompt: str,
-    extra_log_data: dict[str, Any],
-    num_jokes: int = _DEFAULT_NUM_JOKES,
+  prompt: str,
+  extra_log_data: dict[str, Any],
+  num_jokes: int = _DEFAULT_NUM_JOKES,
 ) -> Generator[tuple[list[str], models.GenerationMetadata], None, None]:
   """Generate jokes related to a story prompt.
 
@@ -69,7 +69,7 @@ def generate_jokes(
       Tuple of (list of jokes, generation metadata)
   """
   prompt_parts = [
-      f"""Generate {num_jokes} funny, clean jokes related to elements in the following prompt:
+    f"""Generate {num_jokes} funny, clean jokes related to elements in the following prompt:
 
 Prompt:
 {prompt}
@@ -121,7 +121,9 @@ def parse_jokes(text: str, is_final: bool) -> tuple[List[str], str]:
     if line.startswith('-') or line.startswith('*'):
       # Extract the joke by removing the bullet/dash and trimming whitespace
       joke = line[1:].strip()
-      if joke and len(joke) > _MIN_JOKE_LENGTH:  # Ensure it's not an empty line or too short
+      if joke and len(
+          joke
+      ) > _MIN_JOKE_LENGTH:  # Ensure it's not an empty line or too short
         jokes.append(joke)
 
   return jokes, text_to_buffer

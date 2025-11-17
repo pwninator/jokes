@@ -77,14 +77,8 @@ class LlmResponse:
 
 class LlmModel(str, Enum):
   """LLM model names."""
-  # Vertex AI models
-  GEMINI_2_0_FLASH_LITE = "gemini-2.0-flash-lite"
-  GEMINI_2_0_FLASH = "gemini-2.0-flash"
-  # GEMINI_2_0_FLASH = "gemini-2.0-flash-exp"
-  GEMINI_2_0_FLASH_THINKING = "gemini-2.0-flash-thinking-exp-01-21"
-  GEMINI_2_0_PRO = "gemini-2.0-pro-exp-02-05"
-
-  GEMINI_2_5_FLASH_LITE = "gemini-2.5-flash-lite-preview-06-17"
+  # Gemini models
+  GEMINI_2_5_FLASH_LITE = "gemini-2.5-flash-lite"
   GEMINI_2_5_FLASH = "gemini-2.5-flash"
   GEMINI_2_5_PRO = "gemini-2.5-pro"
 
@@ -466,27 +460,6 @@ class VertexClient(LlmClient[GenerativeModel]):
 
   # https://cloud.google.com/vertex-ai/generative-ai/pricing
   GENERATION_COSTS = {
-    # Gemini 2.0
-    LlmModel.GEMINI_2_0_FLASH_LITE: {
-      "prompt_tokens": 0.075 / 1_000_000,
-      "cached_prompt_tokens": 0.075 / 1_000_000,
-      "output_tokens": 0.30 / 1_000_000,
-    },
-    LlmModel.GEMINI_2_0_FLASH: {
-      "prompt_tokens": 0.15 / 1_000_000,
-      "cached_prompt_tokens": 0.15 / 1_000_000,
-      "output_tokens": 0.60 / 1_000_000,
-    },
-    LlmModel.GEMINI_2_0_FLASH_THINKING: {
-      "prompt_tokens": 0.15 / 1_000_000,
-      "cached_prompt_tokens": 0.15 / 1_000_000,
-      "output_tokens": 0.60 / 1_000_000,
-    },
-    LlmModel.GEMINI_2_0_PRO: {
-      "prompt_tokens": 0.3125 / 1_000_000,
-      "cached_prompt_tokens": 0.3125 / 1_000_000,
-      "output_tokens": 1.25 / 1_000_000,
-    },
     # Gemini 2.5
     LlmModel.GEMINI_2_5_FLASH_LITE: {
       "prompt_tokens": 0.1 / 1_000_000,
@@ -534,14 +507,7 @@ final answer...
     output_tokens: int,
     max_retries: int,
   ):
-    if response_schema and model == LlmModel.GEMINI_2_0_FLASH_THINKING:
-      raise ValueError(
-        "Gemini V2 Flash Thinking does not support response schemas")
-
     system_instructions = system_instructions or []
-    if not thinking_tokens and model == LlmModel.GEMINI_2_0_FLASH_THINKING:
-      thinking_tokens = output_tokens // 2
-      output_tokens = output_tokens - thinking_tokens
     if thinking_tokens:
       system_instructions.append(self._THINKING_INSTRUCTIONS)
 

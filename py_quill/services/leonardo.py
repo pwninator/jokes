@@ -173,7 +173,7 @@ def _select_best_image(
   """Uses Gemini to select the best image based on the prompt."""
   llm = llm_client.get_client(
     label="Best Image Selection",
-    model=LlmModel.GEMINI_2_0_FLASH,
+    model=LlmModel.GEMINI_2_5_FLASH,
     temperature=0.1,
   )
 
@@ -368,7 +368,7 @@ def _log_generation_results(
   # Format the URLs with scores
   for i, url in enumerate(all_urls):
     score = "-"
-    is_best = (url == best_url)
+    is_best = url == best_url
 
     # Try to get score from evaluation results
     if evaluation_results and f"Image {i}" in evaluation_results:

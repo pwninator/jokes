@@ -8,10 +8,10 @@ from services.llm_client import LlmModel
 
 # pylint: disable=line-too-long
 _all_illustrations_llm = llm_client.get_client(
-    label="Illustration Descriptions",
-    model=LlmModel.GEMINI_2_0_FLASH,
-    system_instructions=[
-        """You are an expert art director helping to create illustrations for a humorous children's book.
+  label="Illustration Descriptions",
+  model=LlmModel.GEMINI_2_5_FLASH,
+  system_instructions=[
+    """You are an expert art director helping to create illustrations for a humorous children's book.
 I will provide you with:
 1. The story text for context
 2. Descriptions of the characters that may appear in the illustrations
@@ -53,17 +53,17 @@ PAGE 2 ILLUSTRATION:
 [Description of the illustration for page 2]
 
 ...and so on for each page.
-"""],
-    temperature=0.2,
-    output_tokens=1000,
+"""
+  ],
+  temperature=0.2,
+  output_tokens=1000,
 )
 
-
 _all_illustrations_llm = llm_client.get_client(
-    label="Illustration Refinement",
-    model=LlmModel.GEMINI_2_0_FLASH,
-    system_instructions=[
-        """You are a visual description generator. Given a base scene description (which may contain character names) and character descriptions, create a purely visual description of the scene suitable for an image generator. **Crucially, remove character names *only if* their description is provided**, describing figures based on their provided descriptions.
+  label="Illustration Refinement",
+  model=LlmModel.GEMINI_2_5_FLASH,
+  system_instructions=[
+    """You are a visual description generator. Given a base scene description (which may contain character names) and character descriptions, create a purely visual description of the scene suitable for an image generator. **Crucially, remove character names *only if* their description is provided**, describing figures based on their provided descriptions.
 
 **Rules:**
 
@@ -117,16 +117,17 @@ _all_illustrations_llm = llm_client.get_client(
 * Base Image Description: "Alice and Merlin watch the sunset."
 * **Expected Output:** "A 5 year old girl with long, straight blond hair, blue eyes, wearing a red dress, and Merlin watch the sunset."
 
-"""],
-    temperature=0.1,
+"""
+  ],
+  temperature=0.1,
 )
 # pylint: enable=line-too-long
 
 
 def refine_illustration_description(
-    base_description: str,
-    character_descriptions: dict[str, str],
-    extra_log_data: dict[str, Any],
+  base_description: str,
+  character_descriptions: dict[str, str],
+  extra_log_data: dict[str, Any],
 ) -> str:
   """Refine the illustration description by adding relevant details.
 
@@ -149,14 +150,15 @@ Character Description:
 {name}: {char_description}
 """)
 
-  response = _all_illustrations_llm.generate(prompt_parts, extra_log_data=extra_log_data)
+  response = _all_illustrations_llm.generate(prompt_parts,
+                                             extra_log_data=extra_log_data)
   return response.text
 
 
 def generate_all(
-    story_pages: list[models.StoryPageData],
-    main_character_description: tuple[str, str],
-    supporting_character_descriptions: dict[str, str],
+  story_pages: list[models.StoryPageData],
+  main_character_description: tuple[str, str],
+  supporting_character_descriptions: dict[str, str],
 ) -> tuple[str, list[str], models.SingleGenerationMetadata]:
   """Generate descriptions for the cover and all pages of the story in a single LLM call.
 
@@ -192,9 +194,10 @@ def generate_all(
 
   # Build story context from pages
   story_context = "\n\n".join(
-      [f"PAGE {i+1}:\n{page.text}" for i, page in enumerate(story_pages)])
+    [f"PAGE {i+1}:\n{page.text}" for i, page in enumerate(story_pages)])
 
-  prompt_parts = [f"""
+  prompt_parts = [
+    f"""
 Story context:
 {story_context}
 
@@ -203,7 +206,8 @@ Main character: {main_character_name}
 {supporting_character_desc_text}
 
 Please create illustration descriptions for the cover and each page of this children's book.
-"""]
+"""
+  ]
 
   response = _all_illustrations_llm.generate(prompt_parts)
 
@@ -219,7 +223,7 @@ Please create illustration descriptions for the cover and each page of this chil
   for i, _ in enumerate(story_pages):
     page_marker = f"PAGE {i+1} ILLUSTRATION:"
     next_page_marker = f"PAGE {i+2} ILLUSTRATION:" if i < len(
-        story_pages) - 1 else None
+      story_pages) - 1 else None
 
     if page_marker in response.text:
       parts = response.text.split(page_marker, 1)
@@ -236,8 +240,7 @@ Please create illustration descriptions for the cover and each page of this chil
       page_descriptions.append(page_description)
 
   # Print the result for debugging
-  print(
-      f"Generated {len(page_descriptions)} page descriptions and "
-      f"{1 if cover_description else 0} cover description")
+  print(f"Generated {len(page_descriptions)} page descriptions and "
+        f"{1 if cover_description else 0} cover description")
 
   return cover_description, page_descriptions, response.metadata

@@ -1,7 +1,7 @@
 """Tests for the joke_book_fns module."""
+import zipfile
 from io import BytesIO
 from unittest.mock import MagicMock, patch
-import zipfile
 
 from firebase_functions import https_fn
 from functions import joke_book_fns
@@ -260,7 +260,7 @@ def test_create_book_uses_top_jokes_when_joke_ids_missing(
   # Assert
   mock_firestore.get_top_jokes.assert_called_once_with(
     'popularity_score_recent',
-    20,
+    joke_book_fns.NUM_TOP_JOKES_FOR_BOOKS,
   )
   mock_zip_pages.assert_called_once_with(['j1', 'j2'])
   mock_doc_ref.set.assert_called_once_with({

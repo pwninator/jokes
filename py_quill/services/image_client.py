@@ -6,6 +6,7 @@ import base64
 import os
 import time
 from abc import ABC, abstractmethod
+from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
 from io import BytesIO
@@ -14,16 +15,10 @@ from typing import Any, Generic, Literal, TypeVar, override
 from common import config, models
 from firebase_functions import logger
 from google import genai
-from google.api_core import exceptions
-from google.genai.types import EditImageConfig, EditMode
-from google.genai.types import Image as GenAIImage
-from google.genai.types import (MaskReferenceConfig, MaskReferenceImage,
-                                RawReferenceImage)
+from google.genai import types as genai_types
 from openai import OpenAI
 from PIL import Image
 from services import cloud_storage, firestore
-from vertexai.preview.vision_models import Image as VertexImage
-from vertexai.preview.vision_models import ImageGenerationModel
 
 _T = TypeVar("_T")
 
@@ -65,23 +60,37 @@ class ImageModel(Enum):
 
   # https://cloud.google.com/vertex-ai/generative-ai/pricing#imagen-models
   IMAGEN_4_0_ULTRA = (
-    "imagen-4.0-ultra-generate-preview-06-06",
+    "imagen-4.0-ultra-generate-001",
     {
       "images": 0.06
     },
     ImageProvider.IMAGEN,
   )
   IMAGEN_4_0_STANDARD = (
-    "imagen-4.0-generate-preview-06-06",
+    "imagen-4.0-generate-001",
     {
       "images": 0.04
     },
     ImageProvider.IMAGEN,
   )
   IMAGEN_4_0_FAST = (
-    "imagen-4.0-fast-generate-preview-06-06",
+    "imagen-4.0-fast-generate-001",
     {
       "images": 0.02
+    },
+    ImageProvider.IMAGEN,
+  )
+  IMAGEN_4_UPSCALE = (
+    "imagen-4.0-upscale-preview",
+    {
+      "upscale_images": 0.06,
+    },
+    ImageProvider.IMAGEN,
+  )
+  IMAGEN_3_CAPABILITY = (
+    "imagen-3.0-capability-001",
+    {
+      "images": 0.04,
     },
     ImageProvider.IMAGEN,
   )
@@ -92,14 +101,6 @@ class ImageModel(Enum):
       "images": 0.02
     },
     ImageProvider.IMAGEN,
-  )
-  # https://cloud.google.com/vertex-ai/generative-ai/pricing#imagen-models
-  IMAGEN_3_CAPABILITY = (
-    "imagen-3.0-capability-001",
-    {
-      "images": 0.04,
-    },
-    ImageProvider.GEMINI,
   )
 
   # https://platform.openai.com/docs/models/gpt-image-1
@@ -297,6 +298,9 @@ class ImageClient(ABC, Generic[_T]):
     extra_log_data: dict[str, Any] | None = None,
   ) -> models.Image:
     """Generate an image from a prompt."""
+    logger.info(
+      f"Generating image with {self.__class__.__name__} ({self.model.model_name})"
+    )
     image = self._generate_image_internal(
       prompt,
       reference_images,
@@ -352,6 +356,9 @@ class ImageClient(ABC, Generic[_T]):
     save_to_firestore: bool = True,
   ) -> models.Image:
     """Upscale an image."""
+    logger.info(
+      f"Upscaling image with {self.__class__.__name__} ({self.model.model_name})"
+    )
     if not (image or gcs_uri) or (image and gcs_uri):
       raise ValueError("Exactly one of 'image' or 'gcs_uri' must be provided.")
 
@@ -431,6 +438,9 @@ class ImageClient(ABC, Generic[_T]):
     Returns:
       A new Image model representing the outpainted image.
     """
+    logger.info(
+      f"Outpainting image with {self.__class__.__name__} ({self.model.model_name})"
+    )
     if not (image or gcs_uri) or (image and gcs_uri):
       raise ValueError("Exactly one of 'image' or 'gcs_uri' must be provided.")
 
@@ -556,7 +566,7 @@ class ImageClient(ABC, Generic[_T]):
     raise NotImplementedError
 
 
-class ImagenClient(ImageClient[ImageGenerationModel]):
+class ImagenClient(ImageClient[genai.Client]):
   """Imagen client implementation."""
 
   def __init__(self, label: str, model: ImageModel, file_name_base: str,
@@ -568,8 +578,12 @@ class ImagenClient(ImageClient[ImageGenerationModel]):
                      **kwargs)
 
   @override
-  def _create_model_client(self) -> ImageGenerationModel:
-    return ImageGenerationModel.from_pretrained(self.model.model_name)
+  def _create_model_client(self) -> genai.Client:
+    return genai.Client(
+      vertexai=True,
+      project=config.PROJECT_ID,
+      location=config.PROJECT_LOCATION,
+    )
 
   @override
   def _generate_image_internal(
@@ -597,35 +611,23 @@ class ImagenClient(ImageClient[ImageGenerationModel]):
     output_gcs_uri = cloud_storage.get_image_gcs_uri(self.file_name_base,
                                                      self.extension)
 
-    print("Generating image with Imagen")
-    images = self.model_client.generate_images(
+    response = self.model_client.models.generate_images(
+      model=self.model.model_name,
       prompt=prompt,
-      number_of_images=1,
-      language="en",
-      aspect_ratio="1:1",
-      output_gcs_uri=output_gcs_uri,
-      safety_filter_level="block_few",
-      person_generation="allow_adult",
+      config=genai_types.GenerateImagesConfig(
+        number_of_images=1,
+        language=genai_types.ImagePromptLanguage.en,
+        aspect_ratio="1:1",
+        output_gcs_uri=output_gcs_uri,
+        safety_filter_level=genai_types.SafetyFilterLevel.BLOCK_ONLY_HIGH,
+        person_generation=genai_types.PersonGeneration.ALLOW_ADULT,
+      ),
     )
 
-    # GenAI version
-    # response = self.model_client.models.generate_images(
-    #   model=self.model.model_name,
-    #   prompt=prompt,
-    #   config=types.GenerateImagesConfig(
-    #     number_of_images=1,
-    #     language=types.ImagePromptLanguage.en,
-    #     aspect_ratio="1:1",
-    #     output_gcs_uri=output_gcs_uri,
-    #     safety_filter_level=types.SafetyFilterLevel.BLOCK_NONE,
-    #     person_generation=types.PersonGeneration.ALLOW_ADULT,
-    #   ),
-    # )
-
     # There should only be one image, since we only asked for one
-    image = images[0]
+    image = response.generated_images[0].image
 
-    final_gcs_uri = image._gcs_uri  # pylint: disable=protected-access
+    final_gcs_uri = image.gcs_uri
     if not final_gcs_uri:
       raise ValueError(f"No GCS URI returned for image (label={self.label})")
 
@@ -651,6 +653,7 @@ class ImagenClient(ImageClient[ImageGenerationModel]):
 
     return image_model
 
+  @override
   def _upscale_image_internal(
     self,
     gcs_uri: str,
@@ -659,49 +662,29 @@ class ImagenClient(ImageClient[ImageGenerationModel]):
     compression_quality: int | None,
   ) -> str:
     """Upscales an image using the Imagen model."""
-    if self.model != ImageModel.IMAGEN_1:
-      raise ValueError(
-        f"Upscaling is only supported for the {ImageModel.IMAGEN_1.model_name} model with ImagenClient."
-      )
 
     print(
-      f"Upscaling image with Imagen: upscale_factor={upscale_factor}, mime_type={mime_type}, compression_quality={compression_quality}"
+      f"Upscaling image with Imagen ({self.model.model_name}): upscale_factor={upscale_factor}, mime_type={mime_type}, compression_quality={compression_quality}"
     )
-    image_to_upscale = VertexImage.load_from_file(location=gcs_uri)
-
     output_gcs_uri = _get_upscaled_gcs_uri(gcs_uri, upscale_factor)
-    try:
-      upscaled_image = self.model_client.upscale_image(
-        image=image_to_upscale,
-        upscale_factor=upscale_factor,
+
+    image_to_upscale = genai_types.Image.from_file(location=gcs_uri)
+    response = self.model_client.models.upscale_image(
+      model=self.model.model_name,
+      image=image_to_upscale,
+      upscale_factor=upscale_factor,
+      config=genai_types.UpscaleImageConfig(
         output_gcs_uri=output_gcs_uri,
         output_mime_type=mime_type,
         output_compression_quality=compression_quality,
-      )
-    except exceptions.FailedPrecondition as e:
-      if "Response size too large" in str(e):
-        raise ImageUpscaleTooLargeError(f"Failed to upscale image: {e}") from e
-      else:
-        raise e
+      ),
+    )
+    upscaled_image = response.generated_images[0].image
 
-    # GenAI version, not supported yet as of 2025-09-28
-    # response = self.model_client.models.upscale_image(
-    #   model=self.model.model_name,
-    #   image=image_to_upscale,
-    #   upscale_factor=upscale_factor,
-    #   config=types.UpscaleImageConfig(
-    #     output_gcs_uri=output_gcs_uri,
-    #     output_mime_type=mime_type,
-    #     output_compression_quality=compression_quality,
-    #   ),
-    # )
-
-    # upscaled_image = response.generated_images[0]
-    # if not upscaled_image or not upscaled_image.image:
     if not upscaled_image:
       raise ValueError("No upscaled image returned from Imagen")
 
-    final_gcs_uri = upscaled_image._gcs_uri  # pylint: disable=protected-access
+    final_gcs_uri = upscaled_image.gcs_uri
     if not final_gcs_uri:
       raise ValueError(
         f"No GCS URI returned for upscaled image (label={self.label})")
@@ -718,8 +701,87 @@ class ImagenClient(ImageClient[ImageGenerationModel]):
     right: int,
     prompt: str,
   ) -> str:
-    raise NotImplementedError(
-      f"Outpainting is not supported for {self.__class__.__name__}")
+    """Outpaint an image using Imagen 3 via the GenAI SDK."""
+    # Clamp requested margins to sensible bounds (not strictly required, but safe).
+    top = max(0, top)
+    bottom = max(0, bottom)
+    left = max(0, left)
+    right = max(0, right)
+
+    image_bytes = cloud_storage.download_bytes_from_gcs(gcs_uri)
+    pil_image = Image.open(BytesIO(image_bytes)).convert("RGB")
+
+    ref_image, mask_image = get_upscale_image_and_mask(
+      pil_image,
+      top=top,
+      bottom=bottom,
+      left=left,
+      right=right,
+    )
+
+    # Construct GenAI image references fully in memory using bytes.
+    ref_buffer = BytesIO()
+    ref_image.save(ref_buffer, format="PNG")
+    ref_bytes = ref_buffer.getvalue()
+
+    raw_ref = genai_types.RawReferenceImage(
+      reference_image=genai_types.Image(
+        image_bytes=ref_bytes,
+        mime_type="image/png",
+      ),
+      reference_id=0,
+    )
+
+    mask_buffer = BytesIO()
+    mask_image.save(mask_buffer, format="PNG")
+    outpaint_mask_bytes = mask_buffer.getvalue()
+
+    mask_ref = genai_types.MaskReferenceImage(
+      reference_id=1,
+      reference_image=genai_types.Image(
+        image_bytes=outpaint_mask_bytes,
+        mime_type="image/png",
+      ),
+      config=genai_types.MaskReferenceConfig(
+        mask_mode="MASK_MODE_USER_PROVIDED",
+        mask_dilation=0.03,
+      ),
+    )
+
+    # Save raw_ref and mask_ref for debugging
+    gcs_uri_base, ext = os.path.splitext(gcs_uri)
+    if not ext:
+      ext = ".png"
+    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+    gcs_uri_base = f"{gcs_uri_base}_{timestamp}"
+
+    outpaint_gcs_uri = f"{gcs_uri_base}_outpaint{ext}"
+    print(
+      f"Outpainting image with Google GenAI API ({self.model.model_name}) to {outpaint_gcs_uri}"
+    )
+    response = self.model_client.models.edit_image(
+      model=self.model.model_name,
+      prompt=prompt or "",
+      reference_images=[raw_ref, mask_ref],
+      config=genai_types.EditImageConfig(
+        edit_mode=genai_types.EditMode.EDIT_MODE_OUTPAINT,
+        number_of_images=1,
+        output_mime_type="image/png",
+        output_gcs_uri=outpaint_gcs_uri,
+      ),
+    )
+    logger.info(f"Outpainting response: {response}")
+
+    if not response.generated_images:
+      raise ValueError("No outpainted image returned from Imagen 3")
+
+    generated = response.generated_images[0]
+    if not getattr(generated, "image", None) or not getattr(
+        generated.image, "gcs_uri", None):
+      raise ValueError(
+        "No image gcs_uri returned from Imagen 3 outpaint operation")
+
+    return generated.image.gcs_uri
 
 
 class OpenAiImageClient(ImageClient[OpenAI]):
@@ -832,19 +894,6 @@ class OpenAiImageClient(ImageClient[OpenAI]):
       ))
 
     return image_model
-
-  @override
-  def _outpaint_image_internal(
-    self,
-    gcs_uri: str,
-    top: int,
-    bottom: int,
-    left: int,
-    right: int,
-    prompt: str,
-  ) -> str:
-    raise NotImplementedError(
-      f"Outpainting is not supported for {self.__class__.__name__}")
 
 
 class OpenAiResponsesClient(ImageClient[OpenAI]):
@@ -1034,23 +1083,15 @@ class GeminiImageClient(ImageClient[genai.Client]):
 
     contents = []
 
-    if reference_images:
-      for image_data in reference_images:
-        if isinstance(image_data, bytes):
-          img = Image.open(BytesIO(image_data))
-        elif isinstance(image_data, Image.Image):
-          img = image_data
-        elif isinstance(image_data, str):
-          image_bytes = Image.open(
-            BytesIO(cloud_storage.download_bytes_from_gcs(image_data)))
-          img = Image.open(BytesIO(image_bytes))
-        else:
-          raise ValueError(
-            f"Gemini reference image must be a PIL Image or bytes, got {type(image_data)}"
-          )
-        contents.append(img)
+    for img in _get_reference_images(reference_images):
+      contents.append(img)
 
     contents.append(prompt)
+
+    output_gcs_uri = cloud_storage.get_image_gcs_uri(
+      self.file_name_base,
+      self.extension,
+    )
 
     print("Generating image with Google GenAI API")
     response = self.model_client.models.generate_content(
@@ -1067,11 +1108,6 @@ class GeminiImageClient(ImageClient[genai.Client]):
       raise ValueError("No image data returned from Gemini")
 
     image_bytes = image_parts[0]
-
-    output_gcs_uri = cloud_storage.get_image_gcs_uri(
-      self.file_name_base,
-      self.extension,
-    )
 
     # Upload image bytes to GCS
     print("Uploading image to GCS")
@@ -1103,108 +1139,6 @@ class GeminiImageClient(ImageClient[genai.Client]):
 
     return image_model
 
-  @override
-  def _outpaint_image_internal(
-    self,
-    gcs_uri: str,
-    top: int,
-    bottom: int,
-    left: int,
-    right: int,
-    prompt: str,
-  ) -> str:
-    """Outpaint an image using Imagen 3 via the GenAI SDK."""
-    # Clamp requested margins to sensible bounds (not strictly required, but safe).
-    top = max(0, top)
-    bottom = max(0, bottom)
-    left = max(0, left)
-    right = max(0, right)
-
-    image_bytes = cloud_storage.download_bytes_from_gcs(gcs_uri)
-    pil_image = Image.open(BytesIO(image_bytes)).convert("RGB")
-    original_width, original_height = pil_image.size
-
-    # Final outpainted canvas dimensions.
-    new_width = original_width + left + right
-    new_height = original_height + top + bottom
-
-    # Build reference image: original content pasted into a larger white canvas.
-    ref_image = Image.new("RGB", (new_width, new_height), color="black")
-    ref_image.paste(pil_image, (left, top))
-
-    # Build mask image: black where original content exists, white elsewhere.
-    mask = Image.new("RGB", (new_width, new_height), color="white")
-    black_patch = Image.new(
-      "RGB",
-      (original_width, original_height),
-      color="black",
-    )
-    mask.paste(black_patch, (left, top))
-
-    # Construct GenAI image references fully in memory using bytes.
-    ref_buffer = BytesIO()
-    ref_image.save(ref_buffer, format="PNG")
-    ref_bytes = ref_buffer.getvalue()
-
-    raw_ref = RawReferenceImage(
-      reference_image=GenAIImage(
-        image_bytes=ref_bytes,
-        mime_type="image/png",
-      ),
-      reference_id=0,
-    )
-
-    mask_buffer = BytesIO()
-    mask.save(mask_buffer, format="PNG")
-    outpaint_mask_bytes = mask_buffer.getvalue()
-
-    mask_ref = MaskReferenceImage(
-      reference_id=1,
-      reference_image=GenAIImage(
-        image_bytes=outpaint_mask_bytes,
-        mime_type="image/png",
-      ),
-      config=MaskReferenceConfig(
-        mask_mode="MASK_MODE_USER_PROVIDED",
-        mask_dilation=0.03,
-      ),
-    )
-
-    # Save raw_ref and mask_ref for debugging
-    gcs_uri_base, ext = os.path.splitext(gcs_uri)
-    if not ext:
-      ext = ".png"
-    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-    gcs_uri_base = f"{gcs_uri_base}_{timestamp}"
-
-    outpaint_gcs_uri = f"{gcs_uri_base}_outpaint{ext}"
-    print(
-      f"Outpainting image with Google GenAI API (Imagen 3 capability) to {outpaint_gcs_uri}"
-    )
-    response = self.model_client.models.edit_image(
-      model=self.model.model_name,
-      prompt=prompt or "",
-      reference_images=[raw_ref, mask_ref],
-      config=EditImageConfig(
-        edit_mode=EditMode.EDIT_MODE_OUTPAINT,
-        number_of_images=1,
-        output_mime_type="image/png",
-        output_gcs_uri=outpaint_gcs_uri,
-      ),
-    )
-    logger.info(f"Outpainting response: {response}")
-
-    if not response.generated_images:
-      raise ValueError("No outpainted image returned from Imagen 3")
-
-    generated = response.generated_images[0]
-    if not getattr(generated, "image", None) or not getattr(
-        generated.image, "gcs_uri", None):
-      raise ValueError(
-        "No image gcs_uri returned from Imagen 3 outpaint operation")
-
-    return generated.image.gcs_uri
-
 
 def _build_generation_metadata(
   label: str,
@@ -1232,3 +1166,154 @@ def _build_generation_metadata(
     cost=cost,
     retry_count=0,
   )
+
+
+def _get_reference_images(
+    reference_images: list[Any] | None) -> list[Image.Image]:
+  """Get the reference images from the list of images or GCS URIs."""
+  images: list[Image.Image] = []
+  if not reference_images:
+    return images
+
+  for image_data in reference_images:
+    if isinstance(image_data, bytes):
+      img = Image.open(BytesIO(image_data))
+    elif isinstance(image_data, Image.Image):
+      img = image_data
+    elif isinstance(image_data, str):
+      image_bytes = cloud_storage.download_bytes_from_gcs(image_data)
+      img = Image.open(BytesIO(image_bytes))
+    else:
+      raise ValueError(
+        f"Reference image must be a PIL Image or bytes, got {type(image_data)}"
+      )
+    images.append(img)
+
+  return images
+
+
+@dataclass(frozen=True)
+class UpscaleDimensions:
+  """Container for canvas and paste coordinates for outpainting/upscaling."""
+
+  new_canvas_width: int
+  """Width of the new canvas in pixels."""
+  new_canvas_height: int
+  """Height of the new canvas in pixels."""
+  image_x: int
+  """X coordinate of the original image on the new canvas."""
+  image_y: int
+  """Y coordinate of the original image on the new canvas."""
+  mask_width: int
+  """Width of the mask in pixels."""
+  mask_height: int
+  """Height of the mask in pixels."""
+  mask_x: int
+  """X coordinate of the mask on the new canvas."""
+  mask_y: int
+  """Y coordinate of the mask on the new canvas."""
+
+
+def get_upscale_dimensions(
+  original_width: int,
+  original_height: int,
+  top: int,
+  bottom: int,
+  left: int,
+  right: int,
+) -> UpscaleDimensions:
+  """Compute canvas size and paste coordinates for outpainting/upscaling.
+
+  Args:
+    original_width: Width of the original image in pixels.
+    original_height: Height of the original image in pixels.
+    top: Pixels to expand at the top.
+    bottom: Pixels to expand at the bottom.
+    left: Pixels to expand at the left.
+    right: Pixels to expand at the right.
+
+  Returns:
+    An UpscaleDimensions instance describing the canvas and paste positions.
+  """
+  new_canvas_width = original_width + left + right
+  new_canvas_height = original_height + top + bottom
+
+  # The original image is placed insight any left/top expansions.
+  image_x = left
+  image_y = top
+
+  # Add a ~5% margin on the outpainting sides so transitions can be redrawn.
+  margin_left = int(round(original_width * 0.05)) if left > 0 else 0
+  margin_right = int(round(original_width * 0.05)) if right > 0 else 0
+  margin_top = int(round(original_height * 0.05)) if top > 0 else 0
+  margin_bottom = int(round(original_height * 0.05)) if bottom > 0 else 0
+
+  mask_width = max(1, original_width - margin_left - margin_right)
+  mask_height = max(1, original_height - margin_top - margin_bottom)
+
+  mask_x = left + margin_left
+  mask_y = top + margin_top
+
+  return UpscaleDimensions(
+    new_canvas_width=new_canvas_width,
+    new_canvas_height=new_canvas_height,
+    image_x=image_x,
+    image_y=image_y,
+    mask_x=mask_x,
+    mask_y=mask_y,
+    mask_width=mask_width,
+    mask_height=mask_height,
+  )
+
+
+def get_upscale_image_and_mask(
+  original_image: Image.Image,
+  top: int,
+  bottom: int,
+  left: int,
+  right: int,
+) -> tuple[Image.Image, Image.Image]:
+  """Create the reference and mask images for outpainting/upscaling.
+
+  Args:
+    original_image: Original image to be placed on the canvas.
+    top: Pixels to expand at the top.
+    bottom: Pixels to expand at the bottom.
+    left: Pixels to expand at the left.
+    right: Pixels to expand at the right.
+
+  Returns:
+    A tuple of (reference_image, mask_image).
+  """
+  original_width, original_height = original_image.size
+  dims = get_upscale_dimensions(
+    original_width=original_width,
+    original_height=original_height,
+    top=top,
+    bottom=bottom,
+    left=left,
+    right=right,
+  )
+
+  # Build reference image: original content pasted into a larger canvas.
+  ref_image = Image.new(
+    "RGB",
+    (dims.new_canvas_width, dims.new_canvas_height),
+    color="black",
+  )
+  ref_image.paste(original_image, (dims.image_x, dims.image_y))
+
+  # Build mask image: black where original content exists, white elsewhere.
+  mask_image = Image.new(
+    "RGB",
+    (dims.new_canvas_width, dims.new_canvas_height),
+    color="white",
+  )
+  black_patch = Image.new(
+    "RGB",
+    (dims.mask_width, dims.mask_height),
+    color="black",
+  )
+  mask_image.paste(black_patch, (dims.mask_x, dims.mask_y))
+
+  return ref_image, mask_image

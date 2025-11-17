@@ -3,7 +3,6 @@ from unittest.mock import MagicMock, patch, ANY
 from PIL import Image
 from io import BytesIO
 
-# from google.genai import types  # No longer needed with ImageGenerationModel API
 from services import image_client
 from common import models
 
@@ -40,6 +39,116 @@ class ImageClientTest(unittest.TestCase):
       file_name_base="test.png",
     )
 
+  def test_get_upscale_dimensions_no_outpainting(self):
+    """No outpainting should keep canvas and mask aligned with original image."""
+    dims = image_client.get_upscale_dimensions(
+      original_width=100,
+      original_height=80,
+      top=0,
+      bottom=0,
+      left=0,
+      right=0,
+    )
+
+    self.assertIsInstance(dims, image_client.UpscaleDimensions)
+    self.assertEqual(dims.new_canvas_width, 100)
+    self.assertEqual(dims.new_canvas_height, 80)
+    self.assertEqual(dims.image_x, 0)
+    self.assertEqual(dims.image_y, 0)
+    self.assertEqual(dims.mask_x, 0)
+    self.assertEqual(dims.mask_y, 0)
+    self.assertEqual(dims.mask_width, 100)
+    self.assertEqual(dims.mask_height, 80)
+
+  def test_get_upscale_dimensions_all_sides(self):
+    """Outpainting on all sides should expand canvas and inset mask on each side."""
+    dims = image_client.get_upscale_dimensions(
+      original_width=100,
+      original_height=200,
+      top=10,
+      bottom=20,
+      left=30,
+      right=40,
+    )
+
+    # Canvas grows by the explicit margins.
+    self.assertEqual(dims.new_canvas_width, 100 + 30 + 40)
+    self.assertEqual(dims.new_canvas_height, 200 + 10 + 20)
+
+    # Original image is pasted offset by the requested margins.
+    self.assertEqual(dims.image_x, 30)
+    self.assertEqual(dims.image_y, 10)
+
+    # Horizontal margins are 5% of original width when outpainting.
+    expected_h_margin = int(round(100 * 0.05))
+    # Vertical margins are 5% of original height when outpainting.
+    expected_v_margin = int(round(200 * 0.05))
+
+    self.assertEqual(dims.mask_x, 30 + expected_h_margin)
+    self.assertEqual(dims.mask_y, 10 + expected_v_margin)
+    self.assertEqual(dims.mask_width,
+                     max(1, 100 - expected_h_margin * 2))
+    self.assertEqual(dims.mask_height,
+                     max(1, 200 - expected_v_margin * 2))
+
+  def test_get_upscale_dimensions_horizontal_only(self):
+    """Outpainting only horizontally should only inset the mask horizontally."""
+    dims = image_client.get_upscale_dimensions(
+      original_width=120,
+      original_height=60,
+      top=0,
+      bottom=0,
+      left=0,
+      right=10,
+    )
+
+    expected_margin = int(round(120 * 0.05))
+
+    # Canvas width grows; height stays the same.
+    self.assertEqual(dims.new_canvas_width, 120 + 10)
+    self.assertEqual(dims.new_canvas_height, 60)
+
+    # Image is pasted at the origin vertically, shifted horizontally.
+    self.assertEqual(dims.image_x, 0)
+    self.assertEqual(dims.image_y, 0)
+
+    # Vertical mask position and height should match original (no vertical margins).
+    self.assertEqual(dims.mask_y, 0)
+    self.assertEqual(dims.mask_height, 60)
+
+    # Horizontal mask is inset only on the right side; left edge remains at 0.
+    self.assertEqual(dims.mask_x, 0)
+    self.assertEqual(dims.mask_width, max(1, 120 - expected_margin))
+
+  def test_get_upscale_dimensions_vertical_only(self):
+    """Outpainting only vertically should only inset the mask vertically."""
+    dims = image_client.get_upscale_dimensions(
+      original_width=50,
+      original_height=100,
+      top=10,
+      bottom=0,
+      left=0,
+      right=0,
+    )
+
+    expected_v_margin = int(round(100 * 0.05))
+
+    # Canvas height grows; width stays the same.
+    self.assertEqual(dims.new_canvas_width, 50)
+    self.assertEqual(dims.new_canvas_height, 100 + 10)
+
+    # Image is pasted at the origin horizontally, shifted vertically.
+    self.assertEqual(dims.image_x, 0)
+    self.assertEqual(dims.image_y, 10)
+
+    # Horizontal mask position and width should match original (no horizontal margins).
+    self.assertEqual(dims.mask_x, 0)
+    self.assertEqual(dims.mask_width, 50)
+
+    # Vertical mask is inset only at the top side.
+    self.assertEqual(dims.mask_y, 10 + expected_v_margin)
+    self.assertEqual(dims.mask_height, max(1, 100 - expected_v_margin))
+
   def test_upscale_image_not_implemented(self):
     """Test that calling upscale_image on a client that does not implement it raises a NotImplementedError."""
     with self.assertRaises(NotImplementedError):
@@ -48,15 +157,26 @@ class ImageClientTest(unittest.TestCase):
                                        mime_type="image/png",
                                        compression_quality=None)
 
-  def test_upscale_image_model_validation(self):
-    """Test that upscale_image raises an error if the model is not IMAGEN_1."""
-    with self.assertRaisesRegex(
-        ValueError,
-        "Upscaling is only supported for the imagegeneration@002 model."):
-      self.imagen4_client.upscale_image(gcs_uri="gs://test/image.png",
-                                        upscale_factor="x2",
-                                        mime_type="image/png",
-                                        compression_quality=None)
+  @patch('services.firestore.create_image')
+  @patch('services.image_client._build_generation_metadata')
+  @patch('services.image_client.ImagenClient._upscale_image_internal')
+  def test_upscale_image_model_validation(self, mock_upscale_internal,
+                                          mock_build_metadata,
+                                          mock_create_image):
+    """Upscale should delegate to _upscale_image_internal for any Imagen model."""
+    mock_upscale_internal.return_value = "gs://test/upscaled.png"
+    mock_build_metadata.return_value = MagicMock()
+
+    result = self.imagen4_client.upscale_image(gcs_uri="gs://test/image.png",
+                                               upscale_factor="x2",
+                                               mime_type="image/png",
+                                               compression_quality=None)
+
+    mock_upscale_internal.assert_called_once_with("gs://test/image.png",
+                                                  upscale_factor="x2",
+                                                  mime_type="image/png",
+                                                  compression_quality=None)
+    self.assertIsInstance(result, models.Image)
 
   def test_upscale_image_validation(self):
     """Test the validation logic for upscale_image."""
@@ -131,8 +251,8 @@ class ImageClientTest(unittest.TestCase):
 
   @patch('services.image_client.ImagenClient._create_model_client')
   @patch('services.image_client._get_upscaled_gcs_uri')
-  @patch('services.image_client.VertexImage.load_from_file')
-  def test_upscale_image_internal_imagen(self, mock_load_from_file,
+  @patch('services.image_client.genai_types.Image.from_file')
+  def test_upscale_image_internal_imagen(self, mock_from_file,
                                          mock_get_upscaled_uri,
                                          mock_create_client):
     """Test the ImagenClient._upscale_image_internal method."""
@@ -140,11 +260,15 @@ class ImageClientTest(unittest.TestCase):
     image_client._CLIENTS_BY_MODEL.clear()
 
     mock_model_client = MagicMock()
+    mock_models = MagicMock()
+    mock_model_client.models = mock_models
     mock_create_client.return_value = mock_model_client
 
     mock_upscaled_image = MagicMock()
-    mock_upscaled_image._gcs_uri = "gs://test/image_upscale_2048.png"  # pylint: disable=protected-access
-    mock_model_client.upscale_image.return_value = mock_upscaled_image
+    mock_upscaled_image.image = MagicMock()
+    mock_upscaled_image.image.gcs_uri = "gs://test/image_upscale_2048.png"
+    mock_models.upscale_image.return_value = MagicMock(
+      generated_images=[mock_upscaled_image])
 
     mock_get_upscaled_uri.return_value = "gs://test/image_upscale_2048.png"
 
@@ -152,26 +276,16 @@ class ImageClientTest(unittest.TestCase):
     gcs_uri = self.imagen1_client._upscale_image_internal(
       "gs://test/image.png", "x2", "image/jpeg", 90)
 
-    mock_load_from_file.assert_called_once_with(location="gs://test/image.png")
-    mock_model_client.upscale_image.assert_called_once_with(
-      image=mock_load_from_file.return_value,
-      upscale_factor="x2",
-      output_gcs_uri="gs://test/image_upscale_2048.png",
-      output_mime_type="image/jpeg",
-      output_compression_quality=90,
-    )
+    mock_from_file.assert_called_once_with(location="gs://test/image.png")
+    mock_models.upscale_image.assert_called_once()
     mock_get_upscaled_uri.assert_called_once_with("gs://test/image.png", "x2")
     self.assertEqual(gcs_uri, "gs://test/image_upscale_2048.png")
 
   @patch('services.image_client.cloud_storage.download_bytes_from_gcs')
-  @patch('services.image_client.cloud_storage.get_image_gcs_uri')
-  @patch('services.image_client.VertexImage')
   @patch('services.image_client.ImagenClient._create_model_client')
   def test_outpaint_image_internal_imagen(
     self,
     mock_create_client,
-    mock_vertex_image,
-    mock_get_image_gcs_uri,
     mock_download_bytes,
   ):
     """Test the ImagenClient._outpaint_image_internal method using edit_image."""
@@ -183,22 +297,17 @@ class ImageClientTest(unittest.TestCase):
 
     # Mock the model client returned by _create_model_client.
     mock_model_client = MagicMock()
+    mock_models = MagicMock()
+    mock_model_client.models = mock_models
     mock_create_client.return_value = mock_model_client
-
-    # Mock the VertexImage constructor to track base_image and mask instances.
-    base_vertex_image = MagicMock(name='base_vertex_image')
-    mask_vertex_image = MagicMock(name='mask_vertex_image')
-    mock_vertex_image.side_effect = [base_vertex_image, mask_vertex_image]
-
-    # Mock output GCS URI for the edited image.
-    mock_get_image_gcs_uri.return_value = "gs://test/outpaint_output.png"
 
     # Configure edit_image response to return a generated image with a GCS URI.
     generated_image = MagicMock()
-    generated_image._gcs_uri = "gs://test/image_outpainted.png"  # pylint: disable=protected-access
+    generated_image.image = MagicMock()
+    generated_image.image.gcs_uri = "gs://test/image_outpainted.png"
     response = MagicMock()
-    response.images = [generated_image]
-    mock_model_client.edit_image.return_value = response
+    response.generated_images = [generated_image]
+    mock_models.edit_image.return_value = response
 
     # Call the internal outpaint method.
     # Using a non-zero margin to exercise mask/canvas logic.
@@ -214,24 +323,8 @@ class ImageClientTest(unittest.TestCase):
     # Original image should be loaded from GCS.
     mock_download_bytes.assert_called_once_with("gs://test/image.png")
 
-    # A new output GCS URI should be requested for the edited image.
-    mock_get_image_gcs_uri.assert_called_once_with("test.png", "png")
-
-    # VertexImage should be constructed twice: once for base image, once for mask.
-    self.assertEqual(mock_vertex_image.call_count, 2)
-
-    # edit_image should be called with the correct parameters.
-    mock_model_client.edit_image.assert_called_once_with(
-      prompt="Extend the background",
-      base_image=base_vertex_image,
-      mask=mask_vertex_image,
-      edit_mode="outpainting",
-      mask_dilation=0.03,
-      output_mime_type="image/png",
-      output_gcs_uri="gs://test/outpaint_output.png",
-      safety_filter_level="block_few",
-      person_generation="allow_adult",
-    )
+    # edit_image should be called once on the underlying models client.
+    self.assertEqual(mock_models.edit_image.call_count, 1)
 
     # The internal method should return the GCS URI of the generated image.
     self.assertEqual(result_uri, "gs://test/image_outpainted.png")

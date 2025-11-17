@@ -7,6 +7,8 @@ from functions.function_utils import (error_response, get_param, get_user_id,
                                       success_response)
 from services import firestore
 
+NUM_TOP_JOKES_FOR_BOOKS = 50
+
 
 @https_fn.on_request(
   memory=options.MemoryOption.GB_4,
@@ -35,7 +37,7 @@ def create_joke_book(req: https_fn.Request) -> https_fn.Response:
     if raw_joke_ids is None:
       top_jokes = firestore.get_top_jokes(
         'popularity_score_recent',
-        50,
+        NUM_TOP_JOKES_FOR_BOOKS,
       )
       joke_ids = [joke.key for joke in top_jokes if getattr(joke, 'key', None)]
       if not joke_ids:

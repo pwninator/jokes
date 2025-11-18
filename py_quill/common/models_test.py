@@ -16,9 +16,13 @@ def test_punnyjoke_from_firestore_maps_state_string_to_enum():
     "setup_text": "s",
     "punchline_text": "p",
     "state": "DRAFT",
+    "setup_scene_idea": "Setup concept",
+    "punchline_scene_idea": "Punchline concept",
   }
   joke = models.PunnyJoke.from_firestore_dict(data, key="abc")
   assert joke.state == models.JokeState.DRAFT
+  assert joke.setup_scene_idea == "Setup concept"
+  assert joke.punchline_scene_idea == "Punchline concept"
 
 
 def test_punnyjoke_from_firestore_missing_state_defaults_unknown():
@@ -36,6 +40,8 @@ def test_punnyjoke_to_dict_serializes_state_and_metadata_and_key_optional():
   joke = models.PunnyJoke(setup_text="setup", punchline_text="punchline")
   joke.state = models.JokeState.DRAFT
   joke.key = "abc123"
+  joke.setup_scene_idea = "Setup idea"
+  joke.punchline_scene_idea = "Punchline idea"
 
   md = models.GenerationMetadata()
   md.add_generation(
@@ -45,6 +51,8 @@ def test_punnyjoke_to_dict_serializes_state_and_metadata_and_key_optional():
   d1 = joke.to_dict(include_key=False)
   assert d1["state"] == "DRAFT"
   assert "key" not in d1
+  assert d1["setup_scene_idea"] == "Setup idea"
+  assert d1["punchline_scene_idea"] == "Punchline idea"
   assert isinstance(d1["generation_metadata"], dict)
   assert "generations" in d1["generation_metadata"]
 

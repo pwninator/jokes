@@ -686,6 +686,12 @@ class PunnyJoke:
   pun_word: str | None = None
   punned_word: str | None = None
 
+  setup_scene_idea: str | None = None
+  """Conceptual outline for the setup illustration."""
+
+  punchline_scene_idea: str | None = None
+  """Conceptual outline for the punchline illustration."""
+
   setup_image_description: str | None = None
   punchline_image_description: str | None = None
 

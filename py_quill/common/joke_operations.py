@@ -7,6 +7,7 @@ from typing import Any, Literal
 
 from common import image_generation, models
 from firebase_functions import logger
+from functions.prompts import joke_operation_prompts
 from google.cloud.firestore_v1.vector import Vector
 from services import cloud_storage, firestore, image_client
 
@@ -38,12 +39,26 @@ def create_joke(
 
   owner_user_id = "ADMIN" if admin_owned else user_id
 
+  (
+    setup_scene_idea,
+    punchline_scene_idea,
+    single_generation_metadata,
+  ) = joke_operation_prompts.generate_joke_scene_ideas(
+    setup_text,
+    punchline_text,
+  )
+  generation_metadata = models.GenerationMetadata()
+  generation_metadata.add_generation(single_generation_metadata)
+
   payload = {
     "setup_text": setup_text,
     "punchline_text": punchline_text,
+    "setup_scene_idea": setup_scene_idea,
+    "punchline_scene_idea": punchline_scene_idea,
     "owner_user_id": owner_user_id,
     "state": models.JokeState.DRAFT,
     "random_id": random.randint(0, 2**31 - 1),
+    "generation_metadata": generation_metadata,
   }
 
   logger.info("Creating joke for owner %s", owner_user_id)

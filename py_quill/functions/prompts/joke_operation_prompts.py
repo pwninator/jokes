@@ -24,13 +24,13 @@ First, think about the joke and its humor. What's the humor and why is it funny?
 ## Guidelines
 
 * Both scenes must be incredibly cute and visually enticing, such as incorporating adorable baby animals, depicting absurdly funny situations, etc.
-* Keep the ideas conceptual: focus on the story idea, pacing, and emotional beats that help the illustration compliment the joke.
+* Keep the ideas conceptual: focus on the story idea, pacing, and emotional beats that help the illustration compliment the joke. Avoid too much detail.
 * Highlight the key subjects, props, and relationships essential for understanding each line.
 * Describe how the scene should feel (mood, energy, comedic timing) without detailing every visual texture or color.
 * Be as specific as possible, stating exactly what should be included in the scene idea without any ambiguity.
 * The scenes should specific to the joke so that they are visually distinct from images of other jokes. Prefer to describe a very specific or narrow scene that fits this particular joke over a generic scene.
 * Both scenes must be wholesome, cute, funny, and appropriate for all ages.
-* Each idea should be 2-3 sentences.
+* Each idea should be 2-3 sentences in simple, clear English that a 7 year old would understand.
 
 ### Setup Scene
 * Build intrigue without revealing the twist.
@@ -59,6 +59,10 @@ Setup:
     * Reason: Contains ambiguity. It should name the specific animal to use.
   * INCORRECT: A panda looks curiously at a piano.
     * Reason: Gives away the punchline.
+  * INCORRECT: A jubilant scene of an anthropomorphic penguin whimsically playing a piano.
+    * Reason: Vocabulary is too complex for a 7 year old.
+  * INCORRECT: A wide-angle shot of a baby penguin with a yellow beak and black and white body standing in the middle of a large, snowy field with large pine trees and snow-capped mountains in the background.
+    * Reason: Too much detail. The idea should be high-level and conceptual.
   * CORRECT: A zebra, with a confused expression, awkwardly tries to play a piano.
     * Reason: Unambiguously describes a comically absurd situation that is specific to the joke.
 

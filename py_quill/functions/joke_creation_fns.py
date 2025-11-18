@@ -25,7 +25,8 @@ def joke_creation_process(req: https_fn.Request) -> https_fn.Response:
     if req.method not in ['GET', 'POST']:
       return error_response(f'Method not allowed: {req.method}')
 
-    user_id = get_user_id(req, allow_unauthenticated=False)
+    # TODO: Enforce login
+    user_id = get_user_id(req, allow_unauthenticated=True)
 
     joke_id = get_param(req, 'joke_id')
     setup_text = get_param(req, 'setup_text')

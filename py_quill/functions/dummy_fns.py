@@ -3,12 +3,14 @@
 
 import json
 import pprint
+from html import escape
 
 from agents import agents_common, constants
 from agents.endpoints import all_agents
 from common import image_generation
 from firebase_functions import https_fn, options
 from functions.function_utils import get_param
+from functions.prompts import joke_operation_prompts
 from services import cloud_storage, image_client
 
 
@@ -30,52 +32,47 @@ def dummy_endpoint(req: https_fn.Request) -> https_fn.Response:
     return https_fn.Response("OK", status=200)
 
   if req.method != 'GET':
-    return https_fn.Response(json.dumps({
-      "error": "Only GET requests are supported",
-      "success": False
-    }),
-                             status=405,
-                             mimetype='application/json')
+    return https_fn.Response(
+      json.dumps({
+        "error": "Only GET requests are supported",
+        "success": False
+      }),
+      status=405,
+      mimetype='application/json',
+    )
 
-  # joke_categorizer_agent = all_agents.get_joke_categorizer_agent_adk_app()
-  # output, final_state, agent_generation_metadata = agents_common.run_agent(
-  #   adk_app=joke_categorizer_agent,
-  #   inputs="Group jokes into categories.",
-  #   user_id="dummy_user",
-  # )
+  setup_text = get_param(req, "setup_text")
+  punchline_text = get_param(req, "punchline_text")
 
-  #   return_val = f"""
-  # <html>
-  # <body>
-  # <p>Output: {output}</p>
-  # <p>Final State: {pprint.pformat(final_state, width=120, sort_dicts=False)}</p>
-  # <p>Agent Generation Metadata: {agent_generation_metadata}</p>
-  # </body>
-  # </html>
-  # """
-
-  input_url = "https://images.quillsstorybook.com/cdn-cgi/image/width=1024,format=auto,quality=75/pun_agent_image_20250904_085432_338763.png"
-  client = image_client.get_client(
-    label="dummy",
-    model=image_client.ImageModel.IMAGEN_3_CAPABILITY,
-    file_name_base="dummy")
-
-  input_gcs_uri = cloud_storage.extract_gcs_uri_from_image_url(input_url)
-  outpainted_image = client.outpaint_image(
-    top=100,
-    bottom=100,
-    left=100,
-    right=100,
-    prompt=get_param(req, "prompt", ""),
-    gcs_uri=input_gcs_uri,
+  (
+    setup_scene_description,
+    punchline_scene_description,
+    generation_metadata,
+  ) = joke_operation_prompts.generate_joke_scene_ideas(
+    setup_text,
+    punchline_text,
   )
-  output_url = outpainted_image.url
+
+  metadata_json = json.dumps(generation_metadata.as_dict, indent=2)
 
   return_val = f"""
 <html>
 <body>
-<img src="{input_url}" />
-<img src="{output_url}" />
+  <h1>Joke Scene Descriptions</h1>
+  <section>
+    <h2>Setup</h2>
+    <p><strong>Text:</strong> {escape(setup_text or '')}</p>
+    <p><strong>Scene Description:</strong> {escape(setup_scene_description)}</p>
+  </section>
+  <section>
+    <h2>Punchline</h2>
+    <p><strong>Text:</strong> {escape(punchline_text or '')}</p>
+    <p><strong>Scene Description:</strong> {escape(punchline_scene_description)}</p>
+  </section>
+  <section>
+    <h2>Generation Metadata</h2>
+    <pre>{escape(metadata_json)}</pre>
+  </section>
 </body>
 </html>
 """

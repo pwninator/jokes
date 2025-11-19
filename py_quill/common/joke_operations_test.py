@@ -40,12 +40,25 @@ def mock_image_generation_fixture(monkeypatch):
   return mock_image_generation
 
 
-def test_create_joke_sets_defaults_and_owner(monkeypatch, mock_firestore):
-  """create_joke should set defaults and persist via firestore."""
-  monkeypatch.setattr(joke_operations.random, 'randint',
-                      lambda _a, _b: 12345)
+@pytest.fixture(name='mock_scene_ideas')
+def mock_scene_ideas_fixture(monkeypatch):
+  """Fixture that stubs scene idea and safety generation."""
 
-  def fake_upsert(joke):
+  def fake_generate(scene_setup: str, scene_punch: str):
+    _ = (scene_setup, scene_punch)
+    return "idea-setup", "idea-punch", models.GenerationMetadata()
+
+  monkeypatch.setattr(joke_operations, "_generate_scene_ideas", fake_generate)
+  return fake_generate
+
+
+def test_create_joke_sets_defaults_and_owner(monkeypatch, mock_firestore,
+                                             mock_scene_ideas):
+  """create_joke should set defaults and persist via firestore."""
+  monkeypatch.setattr(joke_operations.random, 'randint', lambda _a, _b: 12345)
+
+  def fake_upsert(joke, *, operation_log_entry=None):
+    _ = operation_log_entry
     joke.key = "joke-key"
     return joke
 
@@ -64,9 +77,19 @@ def test_create_joke_sets_defaults_and_owner(monkeypatch, mock_firestore):
   assert persisted.owner_user_id == "user-1"
   assert persisted.state == models.JokeState.DRAFT
   assert persisted.random_id == 12345
+  log_entry = mock_firestore.upsert_punny_joke.call_args.kwargs[
+    'operation_log_entry']
+  assert log_entry == {
+    joke_operations.OPERATION: "CREATE",
+    "setup_text": joke_operations.SAVED_VALUE,
+    "punchline_text": joke_operations.SAVED_VALUE,
+    "setup_scene_idea": joke_operations.SAVED_VALUE,
+    "punchline_scene_idea": joke_operations.SAVED_VALUE,
+  }
 
 
-def test_create_joke_requires_text(monkeypatch, mock_firestore):
+def test_create_joke_requires_text(monkeypatch, mock_firestore,
+                                   mock_scene_ideas):
   """create_joke should raise when setup/punchline are missing."""
   with pytest.raises(ValueError, match='Setup text is required'):
     joke_operations.create_joke(

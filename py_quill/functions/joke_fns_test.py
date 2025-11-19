@@ -218,11 +218,15 @@ def test_create_joke_sets_admin_owner_and_draft(monkeypatch):
   monkeypatch.setattr(joke_fns,
                       "get_user_id",
                       lambda req, allow_unauthenticated=True: None)
+  monkeypatch.setattr(
+    joke_fns.joke_operations, "_generate_scene_ideas",
+    lambda _s, _p: ("idea-setup", "idea-punch", models.GenerationMetadata()))
 
   saved = None
 
-  def fake_upsert(joke):
+  def fake_upsert(joke, *, operation_log_entry=None):
     nonlocal saved
+    _ = operation_log_entry
     saved = joke
     joke.key = "key123"
     return joke
@@ -252,11 +256,15 @@ def test_create_joke_sets_user_owner_when_not_admin(monkeypatch):
   monkeypatch.setattr(joke_fns,
                       "get_user_id",
                       lambda req, allow_unauthenticated=True: "user1")
+  monkeypatch.setattr(
+    joke_fns.joke_operations, "_generate_scene_ideas",
+    lambda _s, _p: ("idea-setup", "idea-punch", models.GenerationMetadata()))
 
   saved = None
 
-  def fake_upsert(joke):
+  def fake_upsert(joke, *, operation_log_entry=None):
     nonlocal saved
+    _ = operation_log_entry
     saved = joke
     joke.key = "key123"
     return joke

@@ -59,6 +59,118 @@ def test_upsert_punny_joke_serializes_state_string(monkeypatch):
   assert "key" not in captured
 
 
+def test_upsert_punny_joke_logs_operation(monkeypatch):
+  """upsert_punny_joke should append operation log entries."""
+  joke = models.PunnyJoke(
+    setup_text="s",
+    punchline_text="p",
+    setup_scene_idea="scene setup",
+    punchline_scene_idea="scene punch",
+  )
+  joke.key = None
+
+  captured_main = {}
+  captured_operations: list[tuple[dict, bool]] = []
+
+  class DummyOperationsDoc:
+    """Dummy operations document for capturing writes."""
+
+    def __init__(self):
+      self._data: dict | None = None
+      self.exists = False
+
+    class _Snapshot:
+
+      def __init__(self, exists, data):
+        self.exists = exists
+        self._data = data
+
+      def to_dict(self):
+        return self._data
+
+    def get(self):
+      return self._Snapshot(self.exists, self._data)
+
+    def set(self, data, merge=False):
+      captured_operations.append((data, merge))
+      self._data = data
+      self.exists = True
+
+  class DummyDoc:
+    """Dummy joke document."""
+
+    def __init__(self):
+      self._exists = False
+      self._operations_doc = DummyOperationsDoc()
+
+    def get(self):
+      class Snapshot:
+
+        def __init__(self, exists):
+          self.exists = exists
+
+      return Snapshot(self._exists)
+
+    def set(self, data):
+      captured_main.update(data)
+      self._exists = True
+
+    def collection(self, name):
+      assert name == 'metadata'
+
+      class DummyMetadataCol:
+
+        def __init__(self, operations_doc):
+          self._operations_doc = operations_doc
+
+        def document(self, doc_name):
+          assert doc_name == 'operations'
+          return self._operations_doc
+
+      return DummyMetadataCol(self._operations_doc)
+
+  dummy_doc = DummyDoc()
+
+  class DummyCol:
+
+    def document(self, _id):
+      return dummy_doc
+
+  class DummyDB:
+
+    def collection(self, name):
+      assert name == 'jokes'
+      return DummyCol()
+
+  monkeypatch.setattr(firestore, "db", DummyDB)
+  monkeypatch.setattr(firestore, "SERVER_TIMESTAMP", "TS")
+  monkeypatch.setattr(firestore.utils, "create_firestore_key",
+                      lambda *args, **kwargs: "joke-key")
+
+  res = firestore.upsert_punny_joke(joke,
+                                    operation_log_entry={
+                                      firestore.OPERATION: "CREATE",
+                                      "setup_text": firestore.SAVED_VALUE,
+                                      "punchline_text": firestore.SAVED_VALUE,
+                                      "setup_scene_idea": firestore.SAVED_VALUE,
+                                      "punchline_scene_idea":
+                                      firestore.SAVED_VALUE,
+                                    })
+
+  assert res is not None
+  assert captured_main["creation_time"] == "TS"
+  assert captured_main["last_modification_time"] == "TS"
+  assert captured_operations == [({
+    'log': [{
+      firestore.OPERATION: "CREATE",
+      "setup_text": "s",
+      "punchline_text": "p",
+      "setup_scene_idea": "scene setup",
+      "punchline_scene_idea": "scene punch",
+    }]
+  }, True)]
+
+
 def test_update_punny_joke_sets_is_public_when_published(monkeypatch):
   captured = {}
 
@@ -414,6 +526,59 @@ def test_upsert_joke_user_usage_includes_client_navigated(monkeypatch):
   )
 
   assert captured["client_num_navigated"] == 42
+
+
+def test_upsert_joke_user_usage_includes_client_thumbs(monkeypatch):
+  """Records client thumb counts when provided."""
+  from services import firestore as fs
+
+  captured = {}
+
+  class DummyDoc:
+
+    def __init__(self):
+      self._exists = False
+
+    def get(self, transaction=None):  # pylint: disable=unused-argument
+
+      class R:
+
+        def __init__(self):
+          self.exists = False
+
+      return R()
+
+  class DummyCol:
+
+    def document(self, _id):  # pylint: disable=unused-argument
+      return DummyDoc()
+
+  class DummyTxn:
+    _read_only = False
+
+    def set(self, doc_ref, data):  # pylint: disable=unused-argument
+      captured.update(data)
+
+  class DummyDB:
+
+    def collection(self, _name):  # pylint: disable=unused-argument
+      return DummyCol()
+
+    def transaction(self):
+      return DummyTxn()
+
+  monkeypatch.setattr(fs, "db", DummyDB)
+  monkeypatch.setattr(fs, "SERVER_TIMESTAMP", "TS")
+
+  fs._upsert_joke_user_usage_logic(  # pylint: disable=protected-access
+    DummyTxn(),
+    "user1",
+    client_num_thumbs_up=5,
+    client_num_thumbs_down=7,
+  )
+
+  assert captured["client_num_thumbs_up"] == 5
+  assert captured["client_num_thumbs_down"] == 7
 
 
 def test_upsert_joke_user_usage_no_increment_same_day(monkeypatch):

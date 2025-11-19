@@ -47,6 +47,7 @@ def dummy_endpoint(req: https_fn.Request) -> https_fn.Response:
   (
     setup_scene_description,
     punchline_scene_description,
+    _ideas_are_safe,
     generation_metadata,
   ) = joke_operation_prompts.generate_joke_scene_ideas(
     setup_text,

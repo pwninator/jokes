@@ -14,6 +14,9 @@ from google.cloud.firestore import (SERVER_TIMESTAMP, DocumentReference,
 _db = None  # pylint: disable=invalid-name
 _async_db = None  # pylint: disable=invalid-name
 
+OPERATION = "_operation"
+SAVED_VALUE = "__SAVED_VALUE__"
+
 
 def get_async_db() -> firestore_async.client:
   """Get the firestore async client."""
@@ -283,33 +286,64 @@ def get_daily_joke(
   return jokes[0] if jokes else None
 
 
-def upsert_punny_joke(punny_joke: models.PunnyJoke) -> models.PunnyJoke | None:
+def upsert_punny_joke(
+  punny_joke: models.PunnyJoke,
+  operation_log_entry: dict[str, str] | None = None,
+) -> models.PunnyJoke | None:
   """Create or update a punny joke."""
 
   # If joke has a key, try to update existing, otherwise create new
+  saved_joke: models.PunnyJoke | None
   if punny_joke.key:
     update_punny_joke(punny_joke.key, punny_joke.to_dict(include_key=False))
-    return punny_joke
+    saved_joke = punny_joke
+  else:
+    # Create new joke with custom ID
+    custom_id = utils.create_firestore_key(
+      punny_joke.punchline_text,
+      punny_joke.setup_text,
+      max_length=30,
+    )
 
-  # Create new joke with custom ID
-  custom_id = utils.create_firestore_key(
-    punny_joke.punchline_text,
-    punny_joke.setup_text,
-    max_length=30,
-  )
+    joke_ref = db().collection('jokes').document(custom_id)
+    if joke_ref.get().exists:
+      return None
 
-  joke_ref = db().collection('jokes').document(custom_id)
-  if joke_ref.get().exists:
-    return None
+    joke_data = punny_joke.to_dict(include_key=False)
+    joke_data['creation_time'] = SERVER_TIMESTAMP
+    joke_data['last_modification_time'] = SERVER_TIMESTAMP
 
-  joke_data = punny_joke.to_dict(include_key=False)
-  joke_data['creation_time'] = SERVER_TIMESTAMP
-  joke_data['last_modification_time'] = SERVER_TIMESTAMP
+    joke_ref.set(joke_data)
 
-  joke_ref.set(joke_data)
+    punny_joke.key = custom_id
+    saved_joke = punny_joke
 
-  punny_joke.key = custom_id
-  return punny_joke
+  if saved_joke and operation_log_entry:
+    joke_id = saved_joke.key
+    if joke_id:
+      resolved_entry: dict[str, str] = {}
+      for field, value in operation_log_entry.items():
+        if value == SAVED_VALUE:
+          attr_value = getattr(saved_joke, field, "")
+          resolved_entry[field] = str(attr_value)
+        else:
+          resolved_entry[field] = value
+
+      operations_ref = (db().collection('jokes').document(joke_id).collection(
+        'metadata').document('operations'))
+      operations_doc = operations_ref.get()
+      log_entries: list[dict[str, str]] = []
+      if operations_doc.exists:
+        existing_data = operations_doc.to_dict() or {}
+        existing_log = existing_data.get('log')
+        if isinstance(existing_log, list):
+          log_entries.extend(entry for entry in existing_log
+                             if isinstance(entry, dict))
+
+      log_entries.append(resolved_entry)
+      operations_ref.set({'log': log_entries}, merge=True)
+
+  return saved_joke
 
 
 def update_punny_joke(joke_id: str, update_data: dict[str, Any]) -> None:
@@ -674,6 +708,8 @@ def _upsert_joke_user_usage_logic(
   client_num_viewed: int | None = None,
   client_num_navigated: int | None = None,
   client_num_shared: int | None = None,
+  client_num_thumbs_up: int | None = None,
+  client_num_thumbs_down: int | None = None,
   requested_review: bool | None = None,
   feed_cursor: str | None = None,
   local_feed_count: int | None = None,
@@ -703,6 +739,10 @@ def _upsert_joke_user_usage_logic(
     client_updates['client_num_navigated'] = int(client_num_navigated)
   if client_num_shared is not None:
     client_updates['client_num_shared'] = int(client_num_shared)
+  if client_num_thumbs_up is not None:
+    client_updates['client_num_thumbs_up'] = int(client_num_thumbs_up)
+  if client_num_thumbs_down is not None:
+    client_updates['client_num_thumbs_down'] = int(client_num_thumbs_down)
   if requested_review is not None:
     client_updates['requested_review'] = requested_review
   # Always include feed_cursor and local_feed_count (may be empty/zero)
@@ -773,6 +813,8 @@ def _upsert_joke_user_usage_in_txn(
   client_num_viewed: int | None = None,
   client_num_navigated: int | None = None,
   client_num_shared: int | None = None,
+  client_num_thumbs_up: int | None = None,
+  client_num_thumbs_down: int | None = None,
   requested_review: bool | None = None,
   feed_cursor: str | None = None,
   local_feed_count: int | None = None,
@@ -788,6 +830,8 @@ def _upsert_joke_user_usage_in_txn(
     client_num_viewed=client_num_viewed,
     client_num_navigated=client_num_navigated,
     client_num_shared=client_num_shared,
+    client_num_thumbs_up=client_num_thumbs_up,
+    client_num_thumbs_down=client_num_thumbs_down,
     requested_review=requested_review,
     feed_cursor=feed_cursor,
     local_feed_count=local_feed_count,
@@ -803,6 +847,8 @@ def upsert_joke_user_usage(
   client_num_viewed: int | None = None,
   client_num_navigated: int | None = None,
   client_num_shared: int | None = None,
+  client_num_thumbs_up: int | None = None,
+  client_num_thumbs_down: int | None = None,
   requested_review: bool | None = None,
   feed_cursor: str | None = None,
   local_feed_count: int | None = None,
@@ -830,6 +876,8 @@ def upsert_joke_user_usage(
     client_num_viewed=client_num_viewed,
     client_num_navigated=client_num_navigated,
     client_num_shared=client_num_shared,
+    client_num_thumbs_up=client_num_thumbs_up,
+    client_num_thumbs_down=client_num_thumbs_down,
     requested_review=requested_review,
     feed_cursor=feed_cursor,
     local_feed_count=local_feed_count,

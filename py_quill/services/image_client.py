@@ -18,7 +18,7 @@ from google import genai
 from google.genai import types as genai_types
 from openai import OpenAI
 from PIL import Image
-from services import cloud_storage, firestore
+from services import cloud_storage, firestore, image_editor
 
 _T = TypeVar("_T")
 
@@ -296,6 +296,7 @@ class ImageClient(ABC, Generic[_T]):
     save_to_firestore: bool = True,
     user_uid: str | None = None,
     extra_log_data: dict[str, Any] | None = None,
+    auto_enhance: bool = True,
   ) -> models.Image:
     """Generate an image from a prompt."""
     logger.info(
@@ -310,6 +311,9 @@ class ImageClient(ABC, Generic[_T]):
 
     if not image.is_success:
       raise ValueError(f"Image generation failed: {image}")
+
+    if auto_enhance:
+      image = image_editor.ImageEditor().enhance_image(image)
 
     if save_to_firestore:
       logger.info("Saving image to Firestore")

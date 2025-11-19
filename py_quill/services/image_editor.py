@@ -21,8 +21,11 @@ class ImageEditor:
     """Create a new blank RGB image of specified size."""
     return Image.new('RGB', (width, height), color)
 
-  def scale_image(self, image: Image.Image,
-                  scale_factor: float) -> Image.Image:
+  def scale_image(
+    self,
+    image: Image.Image,
+    scale_factor: float,
+  ) -> Image.Image:
     """Return a new image scaled by scale_factor using high-quality resampling."""
     new_width = max(1, int(round(image.width * scale_factor)))
     new_height = max(1, int(round(image.height * scale_factor)))
@@ -141,12 +144,12 @@ class ImageEditor:
     image: Image.Image,
     histogram_strength: float = 1.0,
     soft_clip_base: float = 0.0,
-    strong_clip_base: float = 3.5,
-    edge_threshold: int = 70,
+    strong_clip_base: float = 4.0,
+    edge_threshold: int = 150,
     mask_blur_ksize: int = 35,
     saturation_boost: float = 1.3,
-    contrast_alpha: float = 1.1,
-    brightness_beta: float = 7.0,
+    contrast_alpha: float = 1.05,
+    brightness_beta: float = 5.0,
     sharpen_amount: float = 1.0,
   ) -> Image.Image:
     """Enhance image quality using robust white balance, CLAHE, and adjustments.

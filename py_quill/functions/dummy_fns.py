@@ -82,23 +82,23 @@ def dummy_endpoint(req: https_fn.Request) -> https_fn.Response:
 
   default_params = {
     'soft_clip_base': 0.0,
-    'strong_clip_base': 3.0,
-    'edge_threshold': 70,
+    'strong_clip_base': 4.0,
+    'edge_threshold': 150,
     'mask_blur_ksize': 35,
     'saturation_boost': 1.3,
-    'contrast_alpha': 1.1,
-    'brightness_beta': 7.0,
+    'contrast_alpha': 1.05,
+    'brightness_beta': 5.0,
     'sharpen_amount': 1.0,
   }
 
   grid_configs = [
     ("Soft Clip Base", 'soft_clip_base', [0.0, 0.5, 1.0]),
-    ("Strong Clip Base", 'strong_clip_base', [2.0, 3.0, 4.0]),
-    ("Edge Threshold", 'edge_threshold', [50, 70, 90]),
+    ("Strong Clip Base", 'strong_clip_base', [3.0, 4.0, 5.0]),
+    ("Edge Threshold", 'edge_threshold', [150, 200, 250]),
     ("Mask Blur Size", 'mask_blur_ksize', [9, 35, 51]),
     ("Saturation Boost", 'saturation_boost', [1.2, 1.3, 1.4]),
-    ("Contrast Alpha", 'contrast_alpha', [1.07, 1.1, 1.15]),
-    ("Brightness Beta", 'brightness_beta', [5, 7, 10]),
+    ("Contrast Alpha", 'contrast_alpha', [1.025, 1.05, 1.1]),
+    ("Brightness Beta", 'brightness_beta', [2.5, 5.0, 7.0]),
     ("Sharpen Amount", 'sharpen_amount', [0.5, 1.0, 1.5]),
   ]
 

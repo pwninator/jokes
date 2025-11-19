@@ -273,3 +273,66 @@ def test_create_book_uses_top_jokes_when_joke_ids_missing(
   mock_create_pages.assert_any_call('j1', overwrite=True)
   mock_create_pages.assert_any_call('j2', overwrite=True)
   assert resp == {"data": {"book_id": "book123"}}
+
+
+@patch('functions.joke_book_fns.get_user_id', return_value='test-admin')
+@patch('functions.joke_book_fns.image_operations.zip_joke_page_images')
+@patch('functions.joke_book_fns.image_operations.create_book_pages')
+@patch('functions.joke_book_fns.firestore')
+def test_update_joke_book_regenerates_pages_and_zip(mock_firestore,
+                                                    mock_create_pages,
+                                                    mock_zip_pages,
+                                                    mock_get_user_id):
+  """update_joke_book should regenerate pages and zip for existing book."""
+  # Arrange
+  joke_book_id = "book123"
+  joke_ids = ["j1", "j2"]
+
+  mock_book_snapshot = MagicMock()
+  mock_book_snapshot.exists = True
+  mock_book_snapshot.to_dict.return_value = {
+    "book_name": "My Book",
+    "jokes": joke_ids,
+    "zip_url": "old_url.zip"
+  }
+
+  mock_db = MagicMock()
+  mock_firestore.db.return_value = mock_db
+
+  mock_collection = MagicMock()
+  mock_doc_ref = MagicMock()
+  mock_doc_ref.get.return_value = mock_book_snapshot
+  mock_collection.document.return_value = mock_doc_ref
+  mock_db.collection.return_value = mock_collection
+
+  mock_zip_pages.return_value = 'https://cdn.example.com/new_book.zip'
+
+  req = DummyReq(
+    path="/update_book",
+    args={"joke_book_id": joke_book_id},
+    method="POST",
+  )
+
+  # Act
+  resp = joke_book_fns.update_joke_book(req)
+
+  # Assert
+  mock_db.collection.assert_called_with('joke_books')
+  mock_collection.document.assert_called_with(joke_book_id)
+
+  mock_create_pages.assert_any_call('j1', overwrite=True)
+  mock_create_pages.assert_any_call('j2', overwrite=True)
+
+  mock_zip_pages.assert_called_once_with(joke_ids)
+
+  mock_doc_ref.update.assert_called_once_with({
+    'zip_url':
+    'https://cdn.example.com/new_book.zip',
+  })
+
+  assert resp == {
+    "data": {
+      "book_id": joke_book_id,
+      "zip_url": "https://cdn.example.com/new_book.zip"
+    }
+  }

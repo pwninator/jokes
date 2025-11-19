@@ -17,6 +17,8 @@ google-cloud-texttospeech
 google-cloud-vision
 google-genai
 more_itertools
+numpy
+opencv-python-headless
 openai
 pandas
 Pillow

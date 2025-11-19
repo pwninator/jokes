@@ -70,6 +70,7 @@ send_daily_joke_scheduler = joke_notification_fns.send_daily_joke_scheduler
 
 # Export the joke book functions
 create_joke_book = joke_book_fns.create_joke_book
+update_joke_book = joke_book_fns.update_joke_book
 get_joke_book = joke_book_fns.get_joke_book
 
 # Export the admin functions

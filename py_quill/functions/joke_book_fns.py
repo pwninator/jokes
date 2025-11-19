@@ -70,6 +70,59 @@ def create_joke_book(req: https_fn.Request) -> https_fn.Response:
     return error_response(f'Failed to create joke book: {str(e)}')
 
 
+@https_fn.on_request(
+  memory=options.MemoryOption.GB_4,
+  timeout_sec=1200,
+)
+def update_joke_book(req: https_fn.Request) -> https_fn.Response:
+  """Update an existing joke book by regenerating pages and zip."""
+  try:
+    # Skip processing for health check requests
+    if req.path == "/__/health":
+      return https_fn.Response("OK", status=200)
+
+    if req.method not in ['POST']:
+      return error_response(f'Method not allowed: {req.method}')
+
+    user_id = get_user_id(req)
+    if not user_id:
+      return error_response('User not authenticated')
+
+    joke_book_id = get_param(req, 'joke_book_id')
+    if not joke_book_id:
+      return error_response('joke_book_id is required')
+
+    book_ref = firestore.db().collection('joke_books').document(joke_book_id)
+    book_doc = book_ref.get()
+
+    if not book_doc.exists:
+      return error_response(f'Joke book {joke_book_id} not found')
+
+    book_data = book_doc.to_dict()
+    joke_ids = book_data.get('jokes', [])
+
+    if not joke_ids:
+      return error_response('Joke book has no jokes')
+
+    logger.info(f'Updating book {joke_book_id} with jokes: {joke_ids}')
+
+    for joke_id in joke_ids:
+      image_operations.create_book_pages(joke_id, overwrite=True)
+
+    # Generate ZIP of all book pages and store in temp files bucket
+    zip_url = image_operations.zip_joke_page_images(joke_ids)
+
+    book_ref.update({
+      'zip_url': zip_url,
+    })
+
+    return success_response({'book_id': joke_book_id, 'zip_url': zip_url})
+  except Exception as e:
+    stacktrace = traceback.format_exc()
+    print(f"Error updating joke book: {e}\nStacktrace:\n{stacktrace}")
+    return error_response(f'Failed to update joke book: {str(e)}')
+
+
 def _get_joke_book_id_from_request(req: https_fn.Request) -> str | None:
   """Extract the joke_book_id from query params or path."""
   joke_book_id = get_param(req, 'joke_book_id')
@@ -164,6 +217,7 @@ def get_joke_book(req: https_fn.Request) -> https_fn.Response:
               width: 100%;
               height: auto;
               margin: 0;
+              padding: 0;
             }}
             .page-empty {{
               background: #f4f4f4;

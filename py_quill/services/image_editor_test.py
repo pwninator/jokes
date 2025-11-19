@@ -52,6 +52,43 @@ class ImageEditorTest(unittest.TestCase):
     shadow_pixel = result.getpixel((52, 54))
     self.assertTrue(any(channel < 240 for channel in shadow_pixel))
 
+  def test_enhance_image_returns_valid_image(self):
+    img = Image.new('RGB', (100, 100), color='blue')
+    enhanced = self.editor.enhance_image(img)
+    self.assertEqual(enhanced.size, (100, 100))
+    self.assertEqual(enhanced.mode, 'RGB')
+
+  def test_enhance_image_preserves_alpha(self):
+    img = Image.new('RGBA', (100, 100), color=(0, 255, 0, 128))
+    enhanced = self.editor.enhance_image(img)
+    self.assertEqual(enhanced.size, (100, 100))
+    self.assertEqual(enhanced.mode, 'RGBA')
+    # Check alpha is preserved (roughly) - it's copied back directly so should be exact
+    self.assertEqual(enhanced.getpixel((50, 50))[3], 128)
+
+  def test_enhance_image_with_zero_soft_clip_base(self):
+    img = Image.new('RGB', (80, 60), color='blue')
+    # soft_clip_base=0 should skip the soft CLAHE branch gracefully
+    enhanced = self.editor.enhance_image(
+      img,
+      histogram_strength=1.0,
+      soft_clip_base=0.0,
+    )
+    self.assertEqual(enhanced.size, (80, 60))
+    self.assertEqual(enhanced.mode, 'RGB')
+
+  def test_enhance_image_with_custom_tone_and_sharpen_params(self):
+    img = Image.new('RGB', (64, 64), color='red')
+    enhanced = self.editor.enhance_image(
+      img,
+      saturation_boost=0.8,
+      contrast_alpha=1.1,
+      brightness_beta=0,
+      sharpen_amount=0.0,
+    )
+    self.assertEqual(enhanced.size, (64, 64))
+    self.assertEqual(enhanced.mode, 'RGB')
+
 
 if __name__ == '__main__':
   unittest.main()

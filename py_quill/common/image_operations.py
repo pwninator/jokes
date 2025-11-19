@@ -173,7 +173,7 @@ def create_book_pages(
 
   if (not joke.setup_image_url_upscaled
       or not joke.punchline_image_url_upscaled):
-    joke = joke_operations.upscale_joke(joke_id)
+    joke = joke_operations.upscale_joke(joke_id, high_quality=True)
 
   if (not joke.setup_image_url_upscaled
       or not joke.punchline_image_url_upscaled):
@@ -361,6 +361,8 @@ def _create_book_page_image_bytes(
   shorter side reaches 1876px, then 38px is cropped from either the left or
   right edge to provide inner binding clearance.
   """
+
+  # TODO: Need a better way to add bleed to the image.
   scale_factor = _BOOK_PAGE_TARGET_SIZE / float(source_image.width)
   scaled = editor.scale_image(source_image, scale_factor)
 

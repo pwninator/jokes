@@ -4,16 +4,24 @@ from __future__ import annotations
 
 import random
 from concurrent.futures import ThreadPoolExecutor
+from io import BytesIO
 from typing import Any, Literal, Tuple
 
+from PIL import Image
 from common import image_generation, models
 from firebase_functions import logger
 from functions.prompts import joke_operation_prompts
 from google.cloud.firestore_v1.vector import Vector
-from services import cloud_storage, firestore, image_client
+from services import cloud_storage, firestore, image_client, image_editor
 from services.firestore import OPERATION, SAVED_VALUE
 
 _IMAGE_UPSCALE_FACTOR = "x2"
+_HIGH_QUALITY_UPSCALE_FACTOR = "x2"
+
+_MIME_TYPE_CONFIG: dict[str, Tuple[str, str]] = {
+  "image/png": ("PNG", "png"),
+  "image/jpeg": ("JPEG", "jpg"),
+}
 
 
 class JokeOperationsError(Exception):
@@ -165,63 +173,217 @@ def generate_joke_images(joke: models.PunnyJoke,
 def upscale_joke(
   joke_id: str,
   mime_type: Literal["image/png", "image/jpeg"] = "image/png",
+  *,
   compression_quality: int | None = None,
+  override: bool = False,
+  high_quality: bool = False,
 ) -> models.PunnyJoke:
   """Upscales a joke's images.
 
-  This function is idempotent. If the joke already has upscaled URLs,
-  it will return immediately.
+  If override is False, this function is idempotent. If the joke already
+  has upscaled URLs, it will return immediately.
 
   Args:
     joke_id: The ID of the joke to upscale.
     mime_type: The MIME type of the image.
     compression_quality: The compression quality of the image.
+    override: Whether to force re-upscaling even if URLs already exist.
+    high_quality: Whether to use high-quality upscaling and replace base images.
   """
   joke = firestore.get_punny_joke(joke_id)
   if not joke:
     raise ValueError(f'Joke not found: {joke_id}')
 
-  if joke.setup_image_url_upscaled and joke.punchline_image_url_upscaled:
+  setup_needs_upscale = bool(joke.setup_image_url and
+                             (override or not joke.setup_image_url_upscaled))
+  punchline_needs_upscale = bool(
+    joke.punchline_image_url
+    and (override or not joke.punchline_image_url_upscaled))
+
+  if not (setup_needs_upscale or punchline_needs_upscale):
     return joke
 
+  model = (image_client.ImageModel.IMAGEN_4_UPSCALE
+           if high_quality else image_client.ImageModel.IMAGEN_1)
+  upscale_factor = (_HIGH_QUALITY_UPSCALE_FACTOR
+                    if high_quality else _IMAGE_UPSCALE_FACTOR)
   client = image_client.get_client(
-    label="upscale_joke",
-    model=image_client.ImageModel.IMAGEN_1,
+    label="upscale_joke_high" if high_quality else "upscale_joke_standard",
+    model=model,
     file_name_base="upscaled_joke_image",
   )
+  if joke.generation_metadata is None:
+    joke.generation_metadata = models.GenerationMetadata()
 
-  if joke.setup_image_url and not joke.setup_image_url_upscaled:
-    gcs_uri = cloud_storage.extract_gcs_uri_from_image_url(
-      joke.setup_image_url)
-    upscaled_image = client.upscale_image(
-      upscale_factor=_IMAGE_UPSCALE_FACTOR,
-      mime_type=mime_type,
-      compression_quality=compression_quality,
-      gcs_uri=gcs_uri,
-    )
-    joke.setup_image_url_upscaled = upscaled_image.url_upscaled
-    joke.generation_metadata.add_generation(upscaled_image.generation_metadata)
+  update_data: dict[str, Any] = {}
 
-  if joke.punchline_image_url and not joke.punchline_image_url_upscaled:
-    gcs_uri = cloud_storage.extract_gcs_uri_from_image_url(
-      joke.punchline_image_url)
-    upscaled_image = client.upscale_image(
-      upscale_factor=_IMAGE_UPSCALE_FACTOR,
-      mime_type=mime_type,
-      compression_quality=compression_quality,
-      gcs_uri=gcs_uri,
-    )
-    joke.punchline_image_url_upscaled = upscaled_image.url_upscaled
-    joke.generation_metadata.add_generation(upscaled_image.generation_metadata)
+  if setup_needs_upscale:
+    update_data.update(
+      _process_upscale_for_image(
+        joke=joke,
+        image_role="setup",
+        client=client,
+        mime_type=mime_type,
+        compression_quality=compression_quality,
+        upscale_factor=upscale_factor,
+        replace_original=high_quality,
+      ))
 
-  update_data = {
-    "setup_image_url_upscaled": joke.setup_image_url_upscaled,
-    "punchline_image_url_upscaled": joke.punchline_image_url_upscaled,
-    "generation_metadata": joke.generation_metadata.as_dict,
-  }
+  if punchline_needs_upscale:
+    update_data.update(
+      _process_upscale_for_image(
+        joke=joke,
+        image_role="punchline",
+        client=client,
+        mime_type=mime_type,
+        compression_quality=compression_quality,
+        upscale_factor=upscale_factor,
+        replace_original=high_quality,
+      ))
+
+  update_data["generation_metadata"] = joke.generation_metadata.as_dict
   firestore.update_punny_joke(joke.key, update_data)
 
   return joke
+
+
+def _process_upscale_for_image(
+  *,
+  joke: models.PunnyJoke,
+  image_role: Literal["setup", "punchline"],
+  client: image_client.ImageClient,
+  mime_type: Literal["image/png", "image/jpeg"],
+  compression_quality: int | None,
+  upscale_factor: Literal["x2", "x4"],
+  replace_original: bool,
+) -> dict[str, Any]:
+  """Upscale a single image (setup or punchline) and return updated fields."""
+  url_attr = f"{image_role}_image_url"
+  upscaled_attr = f"{image_role}_image_url_upscaled"
+  all_urls_attr = f"all_{image_role}_image_urls"
+  set_method = getattr(joke,
+                       f"set_{image_role}_image") if replace_original else None
+
+  source_url = getattr(joke, url_attr)
+  if not source_url:
+    return {}
+
+  gcs_uri = cloud_storage.extract_gcs_uri_from_image_url(source_url)
+  upscaled_image = client.upscale_image(
+    upscale_factor=upscale_factor,
+    mime_type=mime_type,
+    compression_quality=compression_quality,
+    gcs_uri=gcs_uri,
+  )
+
+  setattr(joke, upscaled_attr, upscaled_image.url_upscaled)
+  joke.generation_metadata.add_generation(upscaled_image.generation_metadata)
+
+  update_data: dict[str, Any] = {
+    upscaled_attr: getattr(joke, upscaled_attr),
+  }
+
+  if replace_original and upscaled_image.gcs_uri_upscaled:
+    original_dimensions = _get_image_dimensions(gcs_uri)
+    downscaled_gcs_uri, downscaled_url = _create_downscaled_image(
+      joke=joke,
+      image_role=image_role,
+      editor=image_editor.ImageEditor(),
+      target_dimensions=original_dimensions,
+      mime_type=mime_type,
+      compression_quality=compression_quality,
+      upscaled_image_gcs_uri=upscaled_image.gcs_uri_upscaled,
+    )
+    replacement_image = models.Image(
+      url=downscaled_url,
+      gcs_uri=downscaled_gcs_uri,
+      url_upscaled=upscaled_image.url_upscaled,
+      gcs_uri_upscaled=upscaled_image.gcs_uri_upscaled,
+      generation_metadata=models.GenerationMetadata(),  # Already added above
+    )
+    set_method(replacement_image, update_text=False)
+    update_data[url_attr] = getattr(joke, url_attr)
+    update_data[all_urls_attr] = getattr(joke, all_urls_attr)
+
+  return update_data
+
+
+def _get_image_dimensions(gcs_uri: str) -> Tuple[int, int]:
+  """Load image dimensions from GCS."""
+  with Image.open(BytesIO(
+      cloud_storage.download_bytes_from_gcs(gcs_uri))) as img:
+    return img.width, img.height
+
+
+def _create_downscaled_image(
+  *,
+  joke: models.PunnyJoke,
+  image_role: str,
+  editor: image_editor.ImageEditor,
+  target_dimensions: Tuple[int, int],
+  mime_type: Literal["image/png", "image/jpeg"],
+  compression_quality: int | None,
+  upscaled_image_gcs_uri: str,
+) -> Tuple[str, str]:
+  """Create a downscaled image that matches the original dimensions."""
+  upscaled_image = cloud_storage.download_image_from_gcs(
+    upscaled_image_gcs_uri)
+  target_width, target_height = target_dimensions
+
+  if upscaled_image.width == 0 or upscaled_image.height == 0:
+    raise ValueError("Upscaled image has invalid dimensions")
+
+  scale_factor = min(
+    target_width / upscaled_image.width,
+    target_height / upscaled_image.height,
+  )
+  scaled_image = editor.scale_image(upscaled_image, scale_factor)
+  if (scaled_image.width, scaled_image.height) != target_dimensions:
+    scaled_image = scaled_image.resize(
+      size=target_dimensions,
+      resample=Image.Resampling.LANCZOS,
+    )
+
+  image_bytes = _image_to_bytes(
+    scaled_image,
+    mime_type=mime_type,
+    compression_quality=compression_quality,
+  )
+
+  _, extension = _MIME_TYPE_CONFIG[mime_type]
+  file_base = f"{joke.key or 'joke'}_{image_role}_hq"
+  downscaled_gcs_uri = cloud_storage.get_image_gcs_uri(file_base, extension)
+  cloud_storage.upload_bytes_to_gcs(
+    content_bytes=image_bytes,
+    gcs_uri=downscaled_gcs_uri,
+    content_type=mime_type,
+  )
+  downscaled_url = cloud_storage.get_final_image_url(downscaled_gcs_uri,
+                                                     width=target_width)
+  return downscaled_gcs_uri, downscaled_url
+
+
+def _image_to_bytes(
+  image: Image.Image,
+  *,
+  mime_type: Literal["image/png", "image/jpeg"],
+  compression_quality: int | None,
+) -> bytes:
+  """Serialize an image to bytes according to the provided MIME type."""
+  format_name, _ = _MIME_TYPE_CONFIG[mime_type]
+  save_kwargs: dict[str, Any] = {}
+
+  if mime_type == "image/jpeg":
+    if image.mode not in ("RGB", "L"):
+      image = image.convert("RGB")
+    save_kwargs["quality"] = compression_quality or 95
+    save_kwargs["optimize"] = True
+  elif mime_type == "image/png" and image.mode == "CMYK":
+    image = image.convert("RGBA")
+
+  buffer = BytesIO()
+  image.save(buffer, format=format_name, **save_kwargs)
+  return buffer.getvalue()
 
 
 def sync_joke_to_search_collection(

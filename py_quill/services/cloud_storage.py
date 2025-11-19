@@ -1,7 +1,10 @@
 """Cloud Storage service."""
 
 import datetime
+from io import BytesIO
 import re
+
+from PIL import Image
 
 from common import config, utils
 from google.cloud import storage as gcs
@@ -119,6 +122,11 @@ def download_bytes_from_gcs(gcs_uri: str) -> bytes:
 
   # Download the bytes
   return blob.download_as_bytes()
+
+
+def download_image_from_gcs(gcs_uri: str) -> Image.Image:
+  """Download an image from GCS into memory."""
+  return Image.open(BytesIO(download_bytes_from_gcs(gcs_uri)))
 
 
 def get_audio_gcs_uri(file_name_base: str, extension: str) -> str:

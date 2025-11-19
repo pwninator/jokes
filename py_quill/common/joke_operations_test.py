@@ -1,8 +1,10 @@
 """Tests for the joke_operations module."""
 import datetime
+from io import BytesIO
 from unittest.mock import MagicMock, Mock
 
 import pytest
+from PIL import Image
 from common import joke_operations, models
 from google.cloud.firestore_v1.vector import Vector
 
@@ -341,6 +343,134 @@ def test_upscale_joke_updates_metadata(mock_firestore, mock_image_client,
     0].model_name == "initial_model"
   assert upscaled_joke.generation_metadata.generations[
     1].model_name == "upscale_model"
+
+
+def test_upscale_joke_override_forces_upscale(mock_firestore,
+                                              mock_image_client,
+                                              mock_cloud_storage):
+  """Override parameter should force re-upscaling even if URLs exist."""
+  mock_joke = models.PunnyJoke(
+    key="joke1",
+    setup_text="test",
+    punchline_text="test",
+    setup_image_url="https://storage.googleapis.com/example/setup.png",
+    punchline_image_url="https://storage.googleapis.com/example/punchline.png",
+    setup_image_url_upscaled="http://example.com/existing_setup.png",
+    punchline_image_url_upscaled="http://example.com/existing_punchline.png",
+    generation_metadata=models.GenerationMetadata(),
+  )
+  mock_firestore.get_punny_joke.return_value = mock_joke
+
+  mock_client_instance = MagicMock()
+  mock_image_client.get_client.return_value = mock_client_instance
+  mock_client_instance.upscale_image.side_effect = [
+    models.Image(url_upscaled="http://example.com/new_setup.png",
+                 generation_metadata=models.GenerationMetadata()),
+    models.Image(url_upscaled="http://example.com/new_punchline.png",
+                 generation_metadata=models.GenerationMetadata()),
+  ]
+
+  mock_cloud_storage.extract_gcs_uri_from_image_url.side_effect = [
+    "gs://example/setup.png", "gs://example/punchline.png"
+  ]
+
+  joke_operations.upscale_joke("joke1", override=True)
+
+  assert mock_client_instance.upscale_image.call_count == 2
+
+
+def test_upscale_joke_high_quality_replaces_main_images(
+  mock_firestore,
+  mock_image_client,
+  mock_cloud_storage,
+  monkeypatch,
+):
+  """High quality upscaling should replace the primary image with downscaled copy."""
+  mock_joke = models.PunnyJoke(
+    key="joke1",
+    setup_text="test",
+    punchline_text="test",
+    setup_image_url="https://storage.googleapis.com/example/setup.png",
+    punchline_image_url=None,
+    generation_metadata=models.GenerationMetadata(),
+  )
+  mock_firestore.get_punny_joke.return_value = mock_joke
+
+  mock_client_instance = MagicMock()
+  mock_image_client.get_client.return_value = mock_client_instance
+
+  upscale_metadata = models.GenerationMetadata()
+  upscale_metadata.add_generation(
+    models.SingleGenerationMetadata(model_name="hq"))
+  mock_client_instance.upscale_image.return_value = models.Image(
+    url_upscaled="http://example.com/upscaled_setup.png",
+    gcs_uri_upscaled="gs://example/upscaled_setup.png",
+    generation_metadata=upscale_metadata,
+  )
+
+  original_bytes = _encode_test_image((1024, 1024))
+  upscaled_bytes = _encode_test_image((2048, 2048))  # x2 upscale from 1024
+
+  def fake_download_bytes(gcs_uri: str) -> bytes:
+    if gcs_uri == "gs://example/setup.png":
+      return original_bytes
+    if gcs_uri == "gs://example/upscaled_setup.png":
+      return upscaled_bytes
+    raise AssertionError(f"Unexpected download URI: {gcs_uri}")
+
+  def fake_download_image(gcs_uri: str) -> Image.Image:
+    """Mock download_image_from_gcs to return a PIL Image."""
+    bytes_data = fake_download_bytes(gcs_uri)
+    return Image.open(BytesIO(bytes_data))
+
+  mock_cloud_storage.extract_gcs_uri_from_image_url.return_value = "gs://example/setup.png"
+  mock_cloud_storage.download_bytes_from_gcs.side_effect = fake_download_bytes
+  mock_cloud_storage.download_image_from_gcs.side_effect = fake_download_image
+  mock_cloud_storage.get_image_gcs_uri.return_value = "gs://example/downscaled_setup.png"
+  mock_cloud_storage.get_final_image_url.return_value = "http://cdn/downscaled_setup.png"
+
+  uploaded_payloads: list[tuple[bytes, str, str]] = []
+
+  def fake_upload(*, content_bytes: bytes, gcs_uri: str, content_type: str):
+    uploaded_payloads.append((content_bytes, gcs_uri, content_type))
+    assert gcs_uri == "gs://example/downscaled_setup.png"
+    assert content_type == "image/png"
+    return gcs_uri
+
+  mock_cloud_storage.upload_bytes_to_gcs.side_effect = fake_upload
+
+  class FakeEditor:
+
+    def scale_image(self, image: Image.Image,
+                    scale_factor: float) -> Image.Image:
+      new_width = max(1, int(round(image.width * scale_factor)))
+      new_height = max(1, int(round(image.height * scale_factor)))
+      return image.resize((new_width, new_height), Image.Resampling.NEAREST)
+
+  monkeypatch.setattr(joke_operations.image_editor, "ImageEditor",
+                      lambda: FakeEditor())
+
+  result = joke_operations.upscale_joke("joke1", high_quality=True)
+
+  assert result.setup_image_url == "http://cdn/downscaled_setup.png"
+  assert result.setup_image_url_upscaled == "http://example.com/upscaled_setup.png"
+  assert uploaded_payloads, "Should upload newly downscaled image"
+  assert len(result.generation_metadata.generations) == 1
+  mock_firestore.update_punny_joke.assert_called_once()
+  update_payload = mock_firestore.update_punny_joke.call_args.args[1]
+  assert update_payload["setup_image_url"] == "http://cdn/downscaled_setup.png"
+  assert update_payload["all_setup_image_urls"][
+    0] == "http://cdn/downscaled_setup.png"
+  assert "https://storage.googleapis.com/example/setup.png" in update_payload[
+    "all_setup_image_urls"]
+
+
+def _encode_test_image(size: tuple[int, int]) -> bytes:
+  """Create an in-memory PNG image of the requested size."""
+  image = Image.new("RGB", size, color=(255, 0, 0))
+  buffer = BytesIO()
+  image.save(buffer, format="PNG")
+  return buffer.getvalue()
 
 
 @pytest.fixture(name='mock_search_collection')

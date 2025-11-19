@@ -13,3 +13,10 @@ build-backend = "setuptools.build_meta"
 
 [tool.pylint.MAIN]
 extension-pkg-allow-list = ["cv2"]
+
+[tool.pylint.typecheck]
+# List of members which are set dynamically and missed by pylint inference
+# system, and so shouldn't trigger E1101 when accessed. Python regular
+# expressions are accepted.
+generated-members = ["cv2.*"]
+

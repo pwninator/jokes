@@ -2,21 +2,21 @@
 # pylint: disable=unused-import
 
 import base64
-from io import BytesIO
 import json
 import pprint
+import traceback
 from html import escape
+from io import BytesIO
 
 import requests
-from PIL import Image
-
 from agents import agents_common, constants
 from agents.endpoints import all_agents
-from common import image_generation
+from common import image_generation, joke_operations
 from firebase_functions import https_fn, options
 from functions.function_utils import get_param
 from functions.prompts import joke_operation_prompts
-from services import cloud_storage, image_client, image_editor
+from PIL import Image
+from services import cloud_storage, firestore, image_client, image_editor
 
 
 @https_fn.on_request(
@@ -24,13 +24,13 @@ from services import cloud_storage, image_client, image_editor
   timeout_sec=600,
 )
 def dummy_endpoint(req: https_fn.Request) -> https_fn.Response:
-  """Simple test endpoint that returns a success message.
+  """Test endpoint that compares standard vs high-quality upscaling.
 
   Args:
-      req: The HTTP request.
+      req: The HTTP request. Requires 'joke_id' parameter.
 
   Returns:
-      HTTP response with test message.
+      HTTP response with HTML page showing comparison images.
   """
   # Skip processing for health check requests
   if req.path == "/__/health":
@@ -46,81 +46,92 @@ def dummy_endpoint(req: https_fn.Request) -> https_fn.Response:
       mimetype='application/json',
     )
 
-  image_url = get_param(
-    req, "url",
-    "https://images.quillsstorybook.com/cdn-cgi/image/width=1024,format=auto,quality=75/pun_agent_image_20250711_232323_723301.png"
-  )
-  input_image = Image.open(BytesIO(
-    requests.get(image_url, timeout=30).content))
+  joke_id = get_param(req, "joke_id")
+  if not joke_id:
+    return https_fn.Response(
+      json.dumps({
+        "error": "joke_id parameter is required",
+        "success": False
+      }),
+      status=400,
+      mimetype='application/json',
+    )
 
-  editor = image_editor.ImageEditor()
-
-  # Convert images to base64 for HTML embedding as 600x600 JPEG @ 50% quality
-  def image_to_base64(img: Image.Image) -> str:
-    # Ensure RGB (JPEG does not support alpha)
-    if img.mode not in ('RGB', 'L'):
-      img = img.convert('RGB')
-
-    # Resize to fit within 600x600 while preserving aspect ratio
-    max_size = (600, 600)
-    img = img.copy()
-    img.thumbnail(max_size, Image.Resampling.LANCZOS)
-
-    buffer = BytesIO()
-    img.save(buffer, format='JPEG', quality=50, optimize=True)
-    img_bytes = buffer.getvalue()
-    return base64.b64encode(img_bytes).decode('utf-8')
-
-  original_b64 = image_to_base64(input_image)
-
-  # Enhanced image using all default enhancement parameters
-  default_enhanced = editor.enhance_image(input_image)
-  default_enhanced_b64 = image_to_base64(default_enhanced)
-
-  # For grid exploration, we fix histogram_strength to 1.0.
-  strength_value = 1.0
-
-  default_params = {
-    'soft_clip_base': 0.0,
-    'strong_clip_base': 4.0,
-    'edge_threshold': 150,
-    'mask_blur_ksize': 35,
-    'saturation_boost': 1.3,
-    'contrast_alpha': 1.05,
-    'brightness_beta': 5.0,
-    'sharpen_amount': 1.0,
-  }
-
-  grid_configs = [
-    ("Soft Clip Base", 'soft_clip_base', [0.0, 0.5, 1.0]),
-    ("Strong Clip Base", 'strong_clip_base', [3.0, 4.0, 5.0]),
-    ("Edge Threshold", 'edge_threshold', [150, 200, 250]),
-    ("Mask Blur Size", 'mask_blur_ksize', [9, 35, 51]),
-    ("Saturation Boost", 'saturation_boost', [1.2, 1.3, 1.4]),
-    ("Contrast Alpha", 'contrast_alpha', [1.025, 1.05, 1.1]),
-    ("Brightness Beta", 'brightness_beta', [2.5, 5.0, 7.0]),
-    ("Sharpen Amount", 'sharpen_amount', [0.5, 1.0, 1.5]),
-  ]
-
-  grid_results = []
-  for title, param_key, param_values in grid_configs:
-    # For each grid, generate a single row of images (one per param value)
-    row_cells = []
-    for param_value in param_values:
-      param_kwargs = default_params.copy()
-      param_kwargs[param_key] = param_value
-      enhanced = editor.enhance_image(
-        input_image,
-        histogram_strength=strength_value,
-        **param_kwargs,
+  try:
+    # Get original joke to capture original image URLs before upscaling
+    original_joke = firestore.get_punny_joke(joke_id)
+    if not original_joke:
+      return https_fn.Response(
+        json.dumps({
+          "error": f"Joke not found: {joke_id}",
+          "success": False
+        }),
+        status=404,
+        mimetype='application/json',
       )
-      row_cells.append(image_to_base64(enhanced))
-    grid_results.append((title, param_key, param_values, row_cells))
 
-  return_val = f"""
+    original_setup_url = original_joke.setup_image_url
+    original_punchline_url = original_joke.punchline_image_url
+
+    # Standard upscale (doesn't replace original)
+    standard_joke = joke_operations.upscale_joke(
+      joke_id,
+      override=True,
+      high_quality=False,
+    )
+    standard_setup_upscaled_url = standard_joke.setup_image_url_upscaled
+    standard_punchline_upscaled_url = standard_joke.punchline_image_url_upscaled
+
+    # High quality upscale (replaces original with downscaled version)
+    hq_joke = joke_operations.upscale_joke(
+      joke_id,
+      override=True,
+      high_quality=True,
+    )
+    hq_setup_downscaled_url = hq_joke.setup_image_url  # This is now the downscaled version
+    hq_setup_upscaled_url = hq_joke.setup_image_url_upscaled
+    hq_punchline_downscaled_url = hq_joke.punchline_image_url  # This is now the downscaled version
+    hq_punchline_upscaled_url = hq_joke.punchline_image_url_upscaled
+
+    def render_image_section(title: str, original_url: str,
+                             hq_downscaled_url: str,
+                             standard_upscaled_url: str,
+                             hq_upscaled_url: str) -> str:
+      """Render a section with 4 comparison images."""
+
+      def img_tag(url: str, alt: str) -> str:
+        if url:
+          return f'<img src="{escape(url)}" alt="{escape(alt)}" />'
+        return '<div class="error-message">No image URL</div>'
+
+      return f"""
+    <section class="image-section">
+      <h2>{escape(title)}</h2>
+      <div class="comparison-grid">
+        <div class="image-panel">
+          <h3>Original</h3>
+          {img_tag(original_url, f"{title} - Original")}
+        </div>
+        <div class="image-panel">
+          <h3>High Quality Downscaled<br/>(New Main Image)</h3>
+          {img_tag(hq_downscaled_url, f"{title} - High Quality Downscaled")}
+        </div>
+        <div class="image-panel">
+          <h3>Standard Upscaled</h3>
+          {img_tag(standard_upscaled_url, f"{title} - Standard Upscaled")}
+        </div>
+        <div class="image-panel">
+          <h3>High Quality Upscaled</h3>
+          {img_tag(hq_upscaled_url, f"{title} - High Quality Upscaled")}
+        </div>
+      </div>
+    </section>
+"""
+
+    return_val = f"""
 <html>
 <head>
-  <title>Image Enhancement Comparison</title>
+  <title>Upscale Comparison - Joke {escape(joke_id)}</title>
   <style>
     body {{
       font-family: Arial, sans-serif;
@@ -131,137 +142,66 @@ def dummy_endpoint(req: https_fn.Request) -> https_fn.Response:
       text-align: center;
       color: #333;
     }}
-    .grid-section {{
+    .image-section {{
       margin-bottom: 40px;
     }}
-    .grid-section h2 {{
+    .image-section h2 {{
       text-align: center;
       color: #444;
-      margin-bottom: 12px;
+      font-size: 1.5em;
+      margin-bottom: 20px;
     }}
-    table.param-grid {{
-      width: 100%;
-      border-collapse: collapse;
+    .comparison-grid {{
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 24px;
+      max-width: 1800px;
       margin: 0 auto;
-      max-width: 1920px;
     }}
-    table.param-grid th,
-    table.param-grid td {{
-      border: 1px solid #ddd;
-      padding: 8px;
-      background-color: white;
-      vertical-align: top;
+    .image-panel {{
       text-align: center;
+      background-color: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }}
-    table.param-grid th.param-header {{
-      width: 160px;
-      background-color: #f0f3f7;
-      font-weight: 600;
-      color: #333;
+    .image-panel h3 {{
+      margin-top: 0;
+      color: #444;
+      font-size: 1.1em;
     }}
-    table.param-grid th.strength-header {{
-      background-color: #f0f3f7;
-      font-weight: 600;
-      color: #333;
-    }}
-    table.param-grid img {{
-      width: 600px;
+    .image-panel img {{
+      max-width: 100%;
       height: auto;
       border-radius: 6px;
-      border: 1px solid #ccc;
+      border: 2px solid #ddd;
     }}
-    .original-wrapper {{
-      display: flex;
-      justify-content: center;
-      gap: 24px;
-      margin-bottom: 40px;
-    }}
-    .original-panel {{
-      text-align: center;
-    }}
-    .original-panel img {{
-      width: 600px;
-      border-radius: 6px;
-      border: 1px solid #ccc;
+    .error-message {{
+      color: #d32f2f;
+      padding: 10px;
+      background-color: #ffebee;
+      border-radius: 4px;
     }}
   </style>
 </head>
 <body>
-  <h1>Image Enhancement Comparison</h1>
-  <div class="original-wrapper">
-    <div class="original-panel">
-      <h2>Original</h2>
-      <img src="data:image/jpeg;base64,{original_b64}" alt="Original Image" />
-    </div>
-    <div class="original-panel">
-      <h2>Default Enhanced</h2>
-      <img src="data:image/jpeg;base64,{default_enhanced_b64}" alt="Default Enhanced Image" />
-    </div>
-  </div>
-  {''.join(
-    f'''
-    <section class="grid-section">
-      <h2>{title}</h2>
-      <table class="param-grid">
-        <thead>
-          <tr>
-            <th class="param-header">{param_key.replace('_', ' ').title()}</th>
-            {''.join(f'<th class="strength-header">{param_value}</th>' for param_value in param_values)}
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <th class='param-header'>strength = {strength_value:.1f}</th>
-            {''.join(
-              f"<td><img src='data:image/jpeg;base64,{row_cells[idx]}' alt='Enhanced ({param_key}={param_values[idx]}, strength={strength_value:.1f})' /></td>"
-              for idx in range(len(param_values))
-            )}
-          </tr>
-        </tbody>
-      </table>
-    </section>
-    '''
-    for title, param_key, param_values, row_cells in grid_results
-  )}
+  <h1>Upscale Comparison - Joke {escape(joke_id)}</h1>
+  {render_image_section("Setup Image", original_setup_url, hq_setup_downscaled_url, standard_setup_upscaled_url, hq_setup_upscaled_url)}
+  {render_image_section("Punchline Image", original_punchline_url, hq_punchline_downscaled_url, standard_punchline_upscaled_url, hq_punchline_upscaled_url)}
 </body>
 </html>
-  """
+"""
 
-  #   setup_text = get_param(req, "setup_text")
-  #   punchline_text = get_param(req, "punchline_text")
+    return https_fn.Response(return_val, status=200, mimetype='text/html')
 
-  #   (
-  #     setup_scene_description,
-  #     punchline_scene_description,
-  #     _ideas_are_safe,
-  #     generation_metadata,
-  #   ) = joke_operation_prompts.generate_joke_scene_ideas(
-  #     setup_text,
-  #     punchline_text,
-  #   )
-
-  #   metadata_json = json.dumps(generation_metadata.as_dict, indent=2)
-
-  #   return_val = f"""
-  # <html>
-  # <body>
-  #   <h1>Joke Scene Descriptions</h1>
-  #   <section>
-  #     <h2>Setup</h2>
-  #     <p><strong>Text:</strong> {escape(setup_text or '')}</p>
-  #     <p><strong>Scene Description:</strong> {escape(setup_scene_description)}</p>
-  #   </section>
-  #   <section>
-  #     <h2>Punchline</h2>
-  #     <p><strong>Text:</strong> {escape(punchline_text or '')}</p>
-  #     <p><strong>Scene Description:</strong> {escape(punchline_scene_description)}</p>
-  #   </section>
-  #   <section>
-  #     <h2>Generation Metadata</h2>
-  #     <pre>{escape(metadata_json)}</pre>
-  #   </section>
-  # </body>
-  # </html>
-  # """
-
-  return https_fn.Response(return_val, status=200, mimetype='text/html')
+  except Exception as e:
+    stacktrace = traceback.format_exc()
+    return https_fn.Response(
+      json.dumps({
+        "error": f"Failed to process request: {str(e)}",
+        "stacktrace": stacktrace,
+        "success": False
+      }),
+      status=500,
+      mimetype='application/json',
+    )

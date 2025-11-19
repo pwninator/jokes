@@ -76,7 +76,7 @@ def dummy_endpoint(req: https_fn.Request) -> https_fn.Response:
     # Standard upscale (doesn't replace original)
     standard_joke = joke_operations.upscale_joke(
       joke_id,
-      override=True,
+      overwrite=True,
       high_quality=False,
     )
     standard_setup_upscaled_url = standard_joke.setup_image_url_upscaled
@@ -85,7 +85,7 @@ def dummy_endpoint(req: https_fn.Request) -> https_fn.Response:
     # High quality upscale (replaces original with downscaled version)
     hq_joke = joke_operations.upscale_joke(
       joke_id,
-      override=True,
+      overwrite=True,
       high_quality=True,
     )
     hq_setup_downscaled_url = hq_joke.setup_image_url  # This is now the downscaled version

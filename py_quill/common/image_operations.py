@@ -171,9 +171,11 @@ def create_book_pages(
         and isinstance(existing_punchline, str) and existing_punchline):
       return [existing_setup, existing_punchline]
 
-  if (not joke.setup_image_url_upscaled
-      or not joke.punchline_image_url_upscaled):
-    joke = joke_operations.upscale_joke(joke_id, high_quality=True)
+  joke = joke_operations.upscale_joke(
+    joke_id,
+    high_quality=True,
+    overwrite=overwrite,
+  )
 
   if (not joke.setup_image_url_upscaled
       or not joke.punchline_image_url_upscaled):

@@ -7,11 +7,11 @@ from concurrent.futures import ThreadPoolExecutor
 from io import BytesIO
 from typing import Any, Literal, Tuple
 
-from PIL import Image
 from common import image_generation, models
 from firebase_functions import logger
 from functions.prompts import joke_operation_prompts
 from google.cloud.firestore_v1.vector import Vector
+from PIL import Image
 from services import cloud_storage, firestore, image_client, image_editor
 from services.firestore import OPERATION, SAVED_VALUE
 
@@ -175,19 +175,19 @@ def upscale_joke(
   mime_type: Literal["image/png", "image/jpeg"] = "image/png",
   *,
   compression_quality: int | None = None,
-  override: bool = False,
+  overwrite: bool = False,
   high_quality: bool = False,
 ) -> models.PunnyJoke:
   """Upscales a joke's images.
 
-  If override is False, this function is idempotent. If the joke already
+  If overwrite is False, this function is idempotent. If the joke already
   has upscaled URLs, it will return immediately.
 
   Args:
     joke_id: The ID of the joke to upscale.
     mime_type: The MIME type of the image.
     compression_quality: The compression quality of the image.
-    override: Whether to force re-upscaling even if URLs already exist.
+    overwrite: Whether to force re-upscaling even if URLs already exist.
     high_quality: Whether to use high-quality upscaling and replace base images.
   """
   joke = firestore.get_punny_joke(joke_id)
@@ -195,10 +195,10 @@ def upscale_joke(
     raise ValueError(f'Joke not found: {joke_id}')
 
   setup_needs_upscale = bool(joke.setup_image_url and
-                             (override or not joke.setup_image_url_upscaled))
+                             (overwrite or not joke.setup_image_url_upscaled))
   punchline_needs_upscale = bool(
     joke.punchline_image_url
-    and (override or not joke.punchline_image_url_upscaled))
+    and (overwrite or not joke.punchline_image_url_upscaled))
 
   if not (setup_needs_upscale or punchline_needs_upscale):
     return joke

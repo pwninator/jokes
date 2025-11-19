@@ -374,7 +374,7 @@ def test_upscale_joke_override_forces_upscale(mock_firestore,
     "gs://example/setup.png", "gs://example/punchline.png"
   ]
 
-  joke_operations.upscale_joke("joke1", override=True)
+  joke_operations.upscale_joke("joke1", overwrite=True)
 
   assert mock_client_instance.upscale_image.call_count == 2
 

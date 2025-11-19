@@ -4,6 +4,7 @@ import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/data/core/database/app_database.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
+import 'package:snickerdoodle/src/features/jokes/domain/joke_thumbs_reaction.dart';
 
 part 'joke_interactions_repository.g.dart';
 
@@ -255,6 +256,54 @@ class JokeInteractionsRepository {
     return query.watchSingleOrNull();
   }
 
+  Future<bool> setThumbsReaction(
+    String jokeId,
+    JokeThumbsReaction reaction,
+  ) async => runWithTrace(
+    name: TraceName.driftSetInteraction,
+    traceKey: 'thumbs_${reaction.storageValue}',
+    body: () async {
+      final now = DateTime.now();
+      await _db
+          .into(_db.jokeInteractions)
+          .insertOnConflictUpdate(
+            JokeInteractionsCompanion.insert(
+              jokeId: jokeId,
+              thumbsReaction: Value(reaction),
+              lastUpdateTimestamp: now,
+            ),
+          );
+      return true;
+    },
+    fallback: false,
+    perf: _perf,
+  );
+
+  Future<bool> clearThumbsReaction(String jokeId) async => runWithTrace(
+    name: TraceName.driftSetInteraction,
+    traceKey: 'thumbs_clear',
+    body: () async {
+      final now = DateTime.now();
+      await _db
+          .into(_db.jokeInteractions)
+          .insertOnConflictUpdate(
+            JokeInteractionsCompanion.insert(
+              jokeId: jokeId,
+              thumbsReaction: const Value(null),
+              lastUpdateTimestamp: now,
+            ),
+          );
+      return true;
+    },
+    fallback: false,
+    perf: _perf,
+  );
+
+  Future<JokeThumbsReaction> getThumbsReaction(String jokeId) async {
+    final interaction = await getJokeInteraction(jokeId);
+    return interaction?.thumbsReaction ?? JokeThumbsReaction.none;
+  }
+
   /// Count jokes that have been navigated to at least once
   Future<int> countNavigated() async => runWithTrace(
     name: TraceName.driftGetInteractionCount,
@@ -308,6 +357,42 @@ class JokeInteractionsRepository {
       final query = _db.selectOnly(_db.jokeInteractions)
         ..addColumns([_db.jokeInteractions.jokeId.count()])
         ..where(_db.jokeInteractions.sharedTimestamp.isNotNull());
+      final result = await query.getSingle();
+      return result.read(_db.jokeInteractions.jokeId.count()) ?? 0;
+    },
+    fallback: 0,
+    perf: _perf,
+  );
+
+  Future<int> countThumbsUp() async => runWithTrace(
+    name: TraceName.driftGetInteractionCount,
+    traceKey: 'count_thumbs_up',
+    body: () async {
+      final query = _db.selectOnly(_db.jokeInteractions)
+        ..addColumns([_db.jokeInteractions.jokeId.count()])
+        ..where(
+          _db.jokeInteractions.thumbsReaction.equalsValue(
+            JokeThumbsReaction.up,
+          ),
+        );
+      final result = await query.getSingle();
+      return result.read(_db.jokeInteractions.jokeId.count()) ?? 0;
+    },
+    fallback: 0,
+    perf: _perf,
+  );
+
+  Future<int> countThumbsDown() async => runWithTrace(
+    name: TraceName.driftGetInteractionCount,
+    traceKey: 'count_thumbs_down',
+    body: () async {
+      final query = _db.selectOnly(_db.jokeInteractions)
+        ..addColumns([_db.jokeInteractions.jokeId.count()])
+        ..where(
+          _db.jokeInteractions.thumbsReaction.equalsValue(
+            JokeThumbsReaction.down,
+          ),
+        );
       final result = await query.getSingle();
       return result.read(_db.jokeInteractions.jokeId.count()) ?? 0;
     },

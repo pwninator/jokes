@@ -22,6 +22,7 @@ import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
+import 'package:snickerdoodle/src/features/jokes/domain/joke_thumbs_reaction.dart';
 import 'package:snickerdoodle/src/features/jokes/presentation/joke_list_viewer.dart';
 import 'package:snickerdoodle/src/features/jokes/presentation/slot_entries.dart';
 import 'package:snickerdoodle/src/features/jokes/presentation/slot_source.dart';
@@ -224,6 +225,24 @@ class _NoopAppUsageService implements AppUsageService {
   @override
   Future<List<String>> getUnviewedJokeIds(List<String> jokeIds) async =>
       jokeIds;
+
+  @override
+  Future<int> getNumThumbsUp() async => 0;
+
+  @override
+  Future<int> getNumThumbsDown() async => 0;
+
+  @override
+  Future<JokeThumbsReaction> logJokeThumbsUp(
+    String jokeId, {
+    required String jokeContext,
+  }) async => JokeThumbsReaction.none;
+
+  @override
+  Future<JokeThumbsReaction> logJokeThumbsDown(
+    String jokeId, {
+    required String jokeContext,
+  }) async => JokeThumbsReaction.none;
 }
 
 class _NoopReviewPromptCoordinator extends Mock

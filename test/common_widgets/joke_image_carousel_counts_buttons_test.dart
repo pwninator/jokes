@@ -19,6 +19,7 @@ import 'package:snickerdoodle/src/features/jokes/application/joke_population_pro
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
+import 'package:snickerdoodle/src/features/jokes/domain/joke_thumbs_reaction.dart';
 
 import '../common/test_utils/joke_carousel_test_utils.dart';
 
@@ -514,6 +515,137 @@ void main() {
       await tester.pump();
 
       expect(find.byKey(const Key('regenerate-images-button')), findsOneWidget);
+    });
+  });
+
+  group('Thumbs reactions', () {
+    testWidgets('shows thumbs buttons in non-admin mode', (tester) async {
+      const joke = Joke(
+        id: 'thumbs-joke',
+        setupText: 'setup',
+        punchlineText: 'punch',
+        setupImageUrl: 'https://example.com/a.jpg',
+        punchlineImageUrl: 'https://example.com/b.jpg',
+      );
+
+      const widget = JokeImageCarousel(
+        joke: joke,
+        jokeContext: 'test-context',
+        showUserRatingButtons: true,
+      );
+
+      await tester.pumpWidget(
+        wrapWithCarouselOverrides(
+          widget,
+          imageService: mockImageService,
+          appUsageService: mockAppUsageService,
+          analyticsService: mockAnalyticsService,
+          performanceService: mockPerformanceService,
+        ),
+      );
+
+      await tester.pump();
+
+      expect(
+        find.byKey(const Key('joke_carousel-thumbs-up-button-thumbs-joke')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const Key('joke_carousel-thumbs-down-button-thumbs-joke')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('tapping thumbs up logs reaction', (tester) async {
+      const joke = Joke(
+        id: 'thumbs-action',
+        setupText: 'setup',
+        punchlineText: 'punch',
+        setupImageUrl: 'https://example.com/a.jpg',
+        punchlineImageUrl: 'https://example.com/b.jpg',
+      );
+
+      when(
+        () => mockAppUsageService.logJokeThumbsUp(
+          any(),
+          jokeContext: any(named: 'jokeContext'),
+        ),
+      ).thenAnswer((_) async => JokeThumbsReaction.up);
+
+      const widget = JokeImageCarousel(
+        joke: joke,
+        jokeContext: 'feed',
+        showUserRatingButtons: true,
+      );
+
+      await tester.pumpWidget(
+        wrapWithCarouselOverrides(
+          widget,
+          imageService: mockImageService,
+          appUsageService: mockAppUsageService,
+          analyticsService: mockAnalyticsService,
+          performanceService: mockPerformanceService,
+        ),
+      );
+
+      await tester.pump();
+      await tester.tap(
+        find.byKey(const Key('joke_carousel-thumbs-up-button-thumbs-action')),
+      );
+      await tester.pump();
+
+      verify(
+        () => mockAppUsageService.logJokeThumbsUp(
+          'thumbs-action',
+          jokeContext: 'feed',
+        ),
+      ).called(1);
+    });
+
+    testWidgets('tapping thumbs down logs reaction', (tester) async {
+      const joke = Joke(
+        id: 'thumbs-down',
+        setupText: 'setup',
+        punchlineText: 'punch',
+        setupImageUrl: 'https://example.com/a.jpg',
+        punchlineImageUrl: 'https://example.com/b.jpg',
+      );
+
+      when(
+        () => mockAppUsageService.logJokeThumbsDown(
+          any(),
+          jokeContext: any(named: 'jokeContext'),
+        ),
+      ).thenAnswer((_) async => JokeThumbsReaction.down);
+
+      const widget = JokeImageCarousel(
+        joke: joke,
+        jokeContext: 'search',
+        showUserRatingButtons: true,
+      );
+
+      await tester.pumpWidget(
+        wrapWithCarouselOverrides(
+          widget,
+          imageService: mockImageService,
+          appUsageService: mockAppUsageService,
+          analyticsService: mockAnalyticsService,
+          performanceService: mockPerformanceService,
+        ),
+      );
+
+      await tester.pump();
+      await tester.tap(
+        find.byKey(const Key('joke_carousel-thumbs-down-button-thumbs-down')),
+      );
+      await tester.pump();
+
+      verify(
+        () => mockAppUsageService.logJokeThumbsDown(
+          'thumbs-down',
+          jokeContext: 'search',
+        ),
+      ).called(1);
     });
   });
 

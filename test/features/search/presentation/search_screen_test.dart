@@ -209,13 +209,13 @@ void main() {
       () => mockReviewsRepository.recordAppReview(),
     ).thenAnswer((_) async {});
 
-  when(
-    () => mockCloudFunctionService.createJokeWithResponse(
-      setupText: any(named: 'setupText'),
-      punchlineText: any(named: 'punchlineText'),
-      adminOwned: any(named: 'adminOwned'),
-    ),
-  ).thenAnswer((_) async => {'success': true, 'joke_id': 'test-id'});
+    when(
+      () => mockCloudFunctionService.createJokeWithResponse(
+        setupText: any(named: 'setupText'),
+        punchlineText: any(named: 'punchlineText'),
+        adminOwned: any(named: 'adminOwned'),
+      ),
+    ).thenAnswer((_) async => {'success': true, 'joke_id': 'test-id'});
 
     when(
       () => mockCloudFunctionService.populateJoke(

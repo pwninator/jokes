@@ -54,6 +54,8 @@ class _JokeFeedScreenState extends ConsumerState<JokeFeedScreen> {
         slotSource: _slotSource,
         jokeContext: AnalyticsJokeContext.jokeFeed,
         viewerId: 'joke_feed',
+        // TODO: Temporarily disabled for now
+        showUserRatingButtons: false,
       ),
     );
   }

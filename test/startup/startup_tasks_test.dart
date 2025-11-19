@@ -229,14 +229,18 @@ void main() {
       () => mockInteractions.syncFeedJokes(jokes: any(named: 'jokes')),
     ).thenAnswer((_) async => true);
     when(() => mockInteractions.countFeedJokes()).thenAnswer((_) async => 0);
-    when(
-      () => mockInteractions.watchFeedJokeCount(),
-    ).thenAnswer((_) => Stream<int>.value(0));
+    when(() => mockInteractions.watchFeedJokeCount()).thenAnswer(
+      (_) => Stream<int>.fromIterable([0, kFeedSyncMinInitialJokes]),
+    );
+
+    SharedPreferences.setMockInitialValues({});
+    final sharedPrefs = await SharedPreferences.getInstance();
 
     final container = ProviderContainer(
       overrides: [
         jokeRepositoryProvider.overrideWithValue(mockRepo),
         jokeInteractionsRepositoryProvider.overrideWithValue(mockInteractions),
+        sharedPreferencesProvider.overrideWithValue(sharedPrefs),
       ],
     );
 

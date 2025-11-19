@@ -12,8 +12,11 @@ import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_modification_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_population_providers.dart';
+import 'package:snickerdoodle/src/data/core/database/app_database.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
+import 'package:snickerdoodle/src/data/jokes/joke_interactions_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
+import 'package:snickerdoodle/src/features/jokes/domain/joke_thumbs_reaction.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_viewer_mode.dart';
 import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
 
@@ -113,6 +116,9 @@ class FakeSubscriptionPromptNotifier extends SubscriptionPromptNotifier {
 class MockJokeCloudFunctionService extends Mock
     implements JokeCloudFunctionService {}
 
+class _MockJokeInteractionsRepository extends Mock
+    implements JokeInteractionsRepository {}
+
 // No-op notifier for population provider
 class TestJokePopulationNotifier extends JokePopulationNotifier {
   TestJokePopulationNotifier() : super(MockJokeCloudFunctionService());
@@ -205,10 +211,17 @@ void stubPerformanceNoOps(PerformanceService mock) {
 }
 
 void stubAppUsageViewed(AppUsageService mock, {int viewedCount = 1}) {
+  when(() => mock.logJokeNavigated(any())).thenAnswer((_) async {});
   when(
     () => mock.logJokeViewed(any(), context: any(named: 'context')),
   ).thenAnswer((_) async {});
   when(() => mock.getNumJokesViewed()).thenAnswer((_) async => viewedCount);
+  when(
+    () => mock.logJokeThumbsUp(any(), jokeContext: any(named: 'jokeContext')),
+  ).thenAnswer((_) async => JokeThumbsReaction.up);
+  when(
+    () => mock.logJokeThumbsDown(any(), jokeContext: any(named: 'jokeContext')),
+  ).thenAnswer((_) async => JokeThumbsReaction.down);
 }
 
 // Wrap helper for minimal overrides
@@ -221,6 +234,16 @@ Widget wrapWithCarouselOverrides(
   JokeCloudFunctionService? jokeFn,
   List<Override> extraOverrides = const [],
 }) {
+  final mockInteractions = _MockJokeInteractionsRepository();
+  when(
+    () => mockInteractions.watchJokeInteraction(any()),
+  ).thenAnswer((_) => Stream<JokeInteraction?>.value(null));
+  when(
+    () => mockInteractions.getThumbsReaction(any()),
+  ).thenAnswer((_) async => JokeThumbsReaction.none);
+  when(() => mockInteractions.countThumbsUp()).thenAnswer((_) async => 0);
+  when(() => mockInteractions.countThumbsDown()).thenAnswer((_) async => 0);
+
   return ProviderScope(
     overrides: [
       imageServiceProvider.overrideWithValue(imageService),
@@ -230,6 +253,7 @@ Widget wrapWithCarouselOverrides(
       subscriptionPromptProvider.overrideWith(
         (ref) => FakeSubscriptionPromptNotifier(),
       ),
+      jokeInteractionsRepositoryProvider.overrideWithValue(mockInteractions),
       jokeCloudFunctionServiceProvider.overrideWithValue(
         jokeFn ?? MockJokeCloudFunctionService(),
       ),

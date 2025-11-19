@@ -304,5 +304,140 @@ class _IsJokeSharedProviderElement
   String get jokeId => (origin as IsJokeSharedProvider).jokeId;
 }
 
+String _$jokeThumbsReactionHash() =>
+    r'0e893b346ab3165cc66e1ccde5fcdc159ee73946';
+
+/// Provider for watching thumbs reaction state changes
+///
+/// Copied from [jokeThumbsReaction].
+@ProviderFor(jokeThumbsReaction)
+const jokeThumbsReactionProvider = JokeThumbsReactionFamily();
+
+/// Provider for watching thumbs reaction state changes
+///
+/// Copied from [jokeThumbsReaction].
+class JokeThumbsReactionFamily extends Family<AsyncValue<JokeThumbsReaction>> {
+  /// Provider for watching thumbs reaction state changes
+  ///
+  /// Copied from [jokeThumbsReaction].
+  const JokeThumbsReactionFamily();
+
+  /// Provider for watching thumbs reaction state changes
+  ///
+  /// Copied from [jokeThumbsReaction].
+  JokeThumbsReactionProvider call(String jokeId) {
+    return JokeThumbsReactionProvider(jokeId);
+  }
+
+  @override
+  JokeThumbsReactionProvider getProviderOverride(
+    covariant JokeThumbsReactionProvider provider,
+  ) {
+    return call(provider.jokeId);
+  }
+
+  static const Iterable<ProviderOrFamily>? _dependencies = null;
+
+  @override
+  Iterable<ProviderOrFamily>? get dependencies => _dependencies;
+
+  static const Iterable<ProviderOrFamily>? _allTransitiveDependencies = null;
+
+  @override
+  Iterable<ProviderOrFamily>? get allTransitiveDependencies =>
+      _allTransitiveDependencies;
+
+  @override
+  String? get name => r'jokeThumbsReactionProvider';
+}
+
+/// Provider for watching thumbs reaction state changes
+///
+/// Copied from [jokeThumbsReaction].
+class JokeThumbsReactionProvider
+    extends AutoDisposeStreamProvider<JokeThumbsReaction> {
+  /// Provider for watching thumbs reaction state changes
+  ///
+  /// Copied from [jokeThumbsReaction].
+  JokeThumbsReactionProvider(String jokeId)
+    : this._internal(
+        (ref) => jokeThumbsReaction(ref as JokeThumbsReactionRef, jokeId),
+        from: jokeThumbsReactionProvider,
+        name: r'jokeThumbsReactionProvider',
+        debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
+            ? null
+            : _$jokeThumbsReactionHash,
+        dependencies: JokeThumbsReactionFamily._dependencies,
+        allTransitiveDependencies:
+            JokeThumbsReactionFamily._allTransitiveDependencies,
+        jokeId: jokeId,
+      );
+
+  JokeThumbsReactionProvider._internal(
+    super._createNotifier, {
+    required super.name,
+    required super.dependencies,
+    required super.allTransitiveDependencies,
+    required super.debugGetCreateSourceHash,
+    required super.from,
+    required this.jokeId,
+  }) : super.internal();
+
+  final String jokeId;
+
+  @override
+  Override overrideWith(
+    Stream<JokeThumbsReaction> Function(JokeThumbsReactionRef provider) create,
+  ) {
+    return ProviderOverride(
+      origin: this,
+      override: JokeThumbsReactionProvider._internal(
+        (ref) => create(ref as JokeThumbsReactionRef),
+        from: from,
+        name: null,
+        dependencies: null,
+        allTransitiveDependencies: null,
+        debugGetCreateSourceHash: null,
+        jokeId: jokeId,
+      ),
+    );
+  }
+
+  @override
+  AutoDisposeStreamProviderElement<JokeThumbsReaction> createElement() {
+    return _JokeThumbsReactionProviderElement(this);
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return other is JokeThumbsReactionProvider && other.jokeId == jokeId;
+  }
+
+  @override
+  int get hashCode {
+    var hash = _SystemHash.combine(0, runtimeType.hashCode);
+    hash = _SystemHash.combine(hash, jokeId.hashCode);
+
+    return _SystemHash.finish(hash);
+  }
+}
+
+@Deprecated('Will be removed in 3.0. Use Ref instead')
+// ignore: unused_element
+mixin JokeThumbsReactionRef
+    on AutoDisposeStreamProviderRef<JokeThumbsReaction> {
+  /// The parameter `jokeId` of this provider.
+  String get jokeId;
+}
+
+class _JokeThumbsReactionProviderElement
+    extends AutoDisposeStreamProviderElement<JokeThumbsReaction>
+    with JokeThumbsReactionRef {
+  _JokeThumbsReactionProviderElement(super.provider);
+
+  @override
+  String get jokeId => (origin as JokeThumbsReactionProvider).jokeId;
+}
+
 // ignore_for_file: type=lint
 // ignore_for_file: subtype_of_sealed_class, invalid_use_of_internal_member, invalid_use_of_visible_for_testing_member, deprecated_member_use_from_same_package

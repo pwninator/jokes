@@ -31,6 +31,7 @@ class JokeListViewer extends ConsumerStatefulWidget {
     this.showCtaWhenEmpty = false,
     this.emptyState,
     this.showSimilarSearchButton = true,
+    this.showUserRatingButtons = false,
   });
 
   final SlotSource slotSource;
@@ -40,6 +41,7 @@ class JokeListViewer extends ConsumerStatefulWidget {
   final bool showCtaWhenEmpty;
   final Widget? emptyState;
   final bool showSimilarSearchButton;
+  final bool showUserRatingButtons;
 
   @override
   ConsumerState<JokeListViewer> createState() => _JokeListViewerState();
@@ -474,6 +476,7 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
                         onImageStateChanged: (imageIndex) =>
                             _onImageStateChanged(joke.id, imageIndex),
                         dataSource: jokeWithDate.dataSource,
+                        showUserRatingButtons: widget.showUserRatingButtons,
                       ),
                     );
                   } else {

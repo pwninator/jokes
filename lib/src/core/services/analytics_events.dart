@@ -26,6 +26,9 @@ enum AnalyticsEvent {
   // Joke reaction events
   jokeSaved('joke_saved'),
   jokeUnsaved('joke_unsaved'),
+  jokeThumbsUp('joke_thumbs_up'),
+  jokeThumbsDown('joke_thumbs_down'),
+  jokeThumbsCleared('joke_thumbs_cleared'),
 
   // Joke sharing events
   jokeShareSuccess('joke_share_success'),

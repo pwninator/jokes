@@ -217,6 +217,124 @@ void main() {
     );
   });
 
+  group('thumb reaction events', () {
+    test('logJokeThumbsUp sends expected parameters', () async {
+      analyticsService.logJokeThumbsUp(
+        'joke-123',
+        jokeContext: 'feed',
+        totalThumbsUp: 4,
+        totalThumbsDown: 1,
+      );
+
+      await Future.delayed(Duration.zero);
+
+      verify(
+        () => mockFirebaseAnalytics.logEvent(
+          name: 'joke_thumbs_up',
+          parameters: any(
+            named: 'parameters',
+            that: predicate<Map<String, Object?>>(
+              (params) =>
+                  params[AnalyticsParameters.jokeId] == 'joke-123' &&
+                  params[AnalyticsParameters.jokeContext] == 'feed' &&
+                  params[AnalyticsParameters.jokeThumbsUpCount] == 1 &&
+                  params[AnalyticsParameters.totalThumbsUp] == 4 &&
+                  params[AnalyticsParameters.totalThumbsDown] == 1,
+              'thumbs up parameters match',
+            ),
+          ),
+        ),
+      ).called(1);
+    });
+
+    test('logJokeThumbsDown sends expected parameters', () async {
+      analyticsService.logJokeThumbsDown(
+        'joke-456',
+        jokeContext: 'saved',
+        totalThumbsDown: 2,
+        totalThumbsUp: 3,
+      );
+
+      await Future.delayed(Duration.zero);
+
+      verify(
+        () => mockFirebaseAnalytics.logEvent(
+          name: 'joke_thumbs_down',
+          parameters: any(
+            named: 'parameters',
+            that: predicate<Map<String, Object?>>(
+              (params) =>
+                  params[AnalyticsParameters.jokeId] == 'joke-456' &&
+                  params[AnalyticsParameters.jokeContext] == 'saved' &&
+                  params[AnalyticsParameters.jokeThumbsDownCount] == 1 &&
+                  params[AnalyticsParameters.totalThumbsDown] == 2 &&
+                  params[AnalyticsParameters.totalThumbsUp] == 3,
+              'thumbs down parameters match',
+            ),
+          ),
+        ),
+      ).called(1);
+    });
+
+    test('logJokeThumbsUpClear sends expected parameters', () async {
+      analyticsService.logJokeThumbsUpClear(
+        'joke-789',
+        jokeContext: 'search',
+        totalThumbsUp: 1,
+        totalThumbsDown: 0,
+      );
+
+      await Future.delayed(Duration.zero);
+
+      verify(
+        () => mockFirebaseAnalytics.logEvent(
+          name: 'joke_thumbs_cleared',
+          parameters: any(
+            named: 'parameters',
+            that: predicate<Map<String, Object?>>(
+              (params) =>
+                  params[AnalyticsParameters.jokeId] == 'joke-789' &&
+                  params[AnalyticsParameters.jokeContext] == 'search' &&
+                  params[AnalyticsParameters.jokeThumbsUpCount] == -1 &&
+                  params[AnalyticsParameters.totalThumbsUp] == 1 &&
+                  params[AnalyticsParameters.totalThumbsDown] == 0,
+              'thumbs up clear parameters match',
+            ),
+          ),
+        ),
+      ).called(1);
+    });
+
+    test('logJokeThumbsDownClear sends expected parameters', () async {
+      analyticsService.logJokeThumbsDownClear(
+        'joke-321',
+        jokeContext: 'feed',
+        totalThumbsUp: 2,
+        totalThumbsDown: 5,
+      );
+
+      await Future.delayed(Duration.zero);
+
+      verify(
+        () => mockFirebaseAnalytics.logEvent(
+          name: 'joke_thumbs_cleared',
+          parameters: any(
+            named: 'parameters',
+            that: predicate<Map<String, Object?>>(
+              (params) =>
+                  params[AnalyticsParameters.jokeId] == 'joke-321' &&
+                  params[AnalyticsParameters.jokeContext] == 'feed' &&
+                  params[AnalyticsParameters.jokeThumbsDownCount] == -1 &&
+                  params[AnalyticsParameters.totalThumbsUp] == 2 &&
+                  params[AnalyticsParameters.totalThumbsDown] == 5,
+              'thumbs down clear parameters match',
+            ),
+          ),
+        ),
+      ).called(1);
+    });
+  });
+
   group('logJokeSetupViewed', () {
     test('logs joke setup viewed without suffix', () async {
       analyticsService.logJokeSetupViewed(

@@ -19,6 +19,7 @@ import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart'
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
+import 'package:snickerdoodle/src/features/jokes/domain/joke_thumbs_reaction.dart';
 import 'package:snickerdoodle/src/features/settings/application/brightness_provider.dart';
 import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
 
@@ -66,6 +67,15 @@ Stream<bool> isJokeShared(Ref ref, String jokeId) {
   return interactions
       .watchJokeInteraction(jokeId)
       .map((ji) => ji?.sharedTimestamp != null);
+}
+
+/// Provider for watching thumbs reaction state changes
+@Riverpod()
+Stream<JokeThumbsReaction> jokeThumbsReaction(Ref ref, String jokeId) {
+  final interactions = ref.watch(jokeInteractionsRepositoryProvider);
+  return interactions
+      .watchJokeInteraction(jokeId)
+      .map((ji) => ji?.thumbsReaction ?? JokeThumbsReaction.none);
 }
 
 /// Service responsible for tracking local app usage metrics via SharedPreferences
@@ -410,6 +420,143 @@ class AppUsageService {
     return rows.map((row) => row.jokeId).toList(growable: false);
   }
 
+  // -------------------------------
+  // JOKE REACTIONS (THUMBS UP/DOWN)
+  // -------------------------------
+
+  Future<JokeThumbsReaction> logJokeThumbsUp(
+    String jokeId, {
+    required String jokeContext,
+  }) async {
+    return _setThumbsReaction(
+      jokeId: jokeId,
+      targetReaction: JokeThumbsReaction.up,
+      jokeContext: jokeContext,
+    );
+  }
+
+  Future<JokeThumbsReaction> logJokeThumbsDown(
+    String jokeId, {
+    required String jokeContext,
+  }) async {
+    return _setThumbsReaction(
+      jokeId: jokeId,
+      targetReaction: JokeThumbsReaction.down,
+      jokeContext: jokeContext,
+    );
+  }
+
+  Future<JokeThumbsReaction> _setThumbsReaction({
+    required String jokeId,
+    required JokeThumbsReaction targetReaction,
+    required String jokeContext,
+  }) async {
+    try {
+      final currentReaction = await _jokeInteractions.getThumbsReaction(jokeId);
+
+      if (currentReaction == targetReaction) {
+        await _jokeInteractions.clearThumbsReaction(jokeId);
+        await _adjustRemoteReactionCounts(
+          jokeId: jokeId,
+          removedReaction: targetReaction,
+        );
+        _notifyUsageChanged();
+        _pushUsageSnapshot();
+        final totalThumbsUp = await getNumThumbsUp();
+        final totalThumbsDown = await getNumThumbsDown();
+        if (targetReaction == JokeThumbsReaction.up) {
+          _analyticsService.logJokeThumbsUpClear(
+            jokeId,
+            jokeContext: jokeContext,
+            totalThumbsUp: totalThumbsUp,
+            totalThumbsDown: totalThumbsDown,
+          );
+        } else if (targetReaction == JokeThumbsReaction.down) {
+          _analyticsService.logJokeThumbsDownClear(
+            jokeId,
+            jokeContext: jokeContext,
+            totalThumbsUp: totalThumbsUp,
+            totalThumbsDown: totalThumbsDown,
+          );
+        }
+        return JokeThumbsReaction.none;
+      }
+
+      await _jokeInteractions.setThumbsReaction(jokeId, targetReaction);
+      await _adjustRemoteReactionCounts(
+        jokeId: jokeId,
+        addedReaction: targetReaction,
+        previousReaction: currentReaction,
+      );
+      _notifyUsageChanged();
+      _pushUsageSnapshot();
+      final totalThumbsUp = await getNumThumbsUp();
+      final totalThumbsDown = await getNumThumbsDown();
+
+      if (targetReaction == JokeThumbsReaction.up) {
+        _analyticsService.logJokeThumbsUp(
+          jokeId,
+          jokeContext: jokeContext,
+          totalThumbsUp: totalThumbsUp,
+          totalThumbsDown: totalThumbsDown,
+        );
+      } else {
+        _analyticsService.logJokeThumbsDown(
+          jokeId,
+          jokeContext: jokeContext,
+          totalThumbsDown: totalThumbsDown,
+          totalThumbsUp: totalThumbsUp,
+        );
+      }
+
+      return targetReaction;
+    } catch (e) {
+      AppLogger.warn('APP_USAGE thumbs error: $e');
+      return await _jokeInteractions.getThumbsReaction(jokeId);
+    }
+  }
+
+  Future<void> _adjustRemoteReactionCounts({
+    required String jokeId,
+    JokeThumbsReaction? addedReaction,
+    JokeThumbsReaction? previousReaction,
+    JokeThumbsReaction? removedReaction,
+  }) async {
+    try {
+      if (removedReaction != null) {
+        if (removedReaction == JokeThumbsReaction.up) {
+          await _jokeRepository.decrementJokeThumbsUpUsers(jokeId);
+        } else if (removedReaction == JokeThumbsReaction.down) {
+          await _jokeRepository.decrementJokeThumbsDownUsers(jokeId);
+        }
+      }
+
+      if (previousReaction != null &&
+          previousReaction != JokeThumbsReaction.none &&
+          previousReaction != removedReaction) {
+        if (previousReaction == JokeThumbsReaction.up) {
+          await _jokeRepository.decrementJokeThumbsUpUsers(jokeId);
+        } else if (previousReaction == JokeThumbsReaction.down) {
+          await _jokeRepository.decrementJokeThumbsDownUsers(jokeId);
+        }
+      }
+
+      if (addedReaction != null) {
+        if (addedReaction == JokeThumbsReaction.up) {
+          await _jokeRepository.incrementJokeThumbsUpUsers(jokeId);
+        } else if (addedReaction == JokeThumbsReaction.down) {
+          await _jokeRepository.incrementJokeThumbsDownUsers(jokeId);
+        }
+      }
+    } catch (e) {
+      AppLogger.error('APP_USAGE thumbs Firestore error: $e');
+    }
+  }
+
+  Future<int> getNumThumbsUp() async => _jokeInteractions.countThumbsUp();
+
+  Future<int> getNumThumbsDown() async => _jokeInteractions.countThumbsDown();
+
   // ==============================
   // CATEGORY INTERACTIONS
   // ==============================
@@ -545,6 +692,8 @@ class AppUsageService {
       final int numViewed = await getNumJokesViewed();
       final int numNavigated = await getNumJokesNavigated();
       final int numShared = await getNumSharedJokes();
+      final int numThumbsUp = await getNumThumbsUp();
+      final int numThumbsDown = await getNumThumbsDown();
       final int localFeedCount = await _jokeInteractions.countFeedJokes();
       final String feedCursor = _settings.getString(_compositeCursorKey) ?? '';
       final bool requestedReview = _ref
@@ -557,6 +706,8 @@ class AppUsageService {
             numViewed: numViewed,
             numNavigated: numNavigated,
             numShared: numShared,
+            numThumbsUp: numThumbsUp,
+            numThumbsDown: numThumbsDown,
             requestedReview: requestedReview,
             feedCursor: feedCursor,
             localFeedCount: localFeedCount,

@@ -53,6 +53,7 @@ class JokeEntryViewConfig {
     required this.carouselController,
     required this.onImageStateChanged,
     required this.dataSource,
+    this.showUserRatingButtons = false,
   });
 
   final String? formattedDate;
@@ -60,6 +61,7 @@ class JokeEntryViewConfig {
   final JokeImageCarouselController carouselController;
   final void Function(int imageIndex) onImageStateChanged;
   final String? dataSource;
+  final bool showUserRatingButtons;
 }
 
 class JokeSlotEntryRenderer extends SlotEntryRenderer {
@@ -99,6 +101,7 @@ class JokeSlotEntryRenderer extends SlotEntryRenderer {
       showSaveButton: true,
       showShareButton: true,
       showAdminRatingButtons: false,
+      showUserRatingButtons: jokeConfig.showUserRatingButtons,
       jokeContext: config.jokeContext,
       controller: jokeConfig.carouselController,
       showSimilarSearchButton: config.showSimilarSearchButton,

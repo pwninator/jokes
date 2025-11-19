@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/performance_service.dart';
+import 'package:snickerdoodle/src/features/jokes/domain/joke_thumbs_reaction.dart';
 
 import 'app_database_platform.dart' as platform;
 
@@ -22,6 +23,7 @@ AppDatabase appDatabase(Ref ref) {
 @TableIndex(name: 'idx_viewed_timestamp', columns: {#viewedTimestamp})
 @TableIndex(name: 'idx_saved_timestamp', columns: {#savedTimestamp})
 @TableIndex(name: 'idx_shared_timestamp', columns: {#sharedTimestamp})
+@TableIndex(name: 'idx_thumbs_reaction', columns: {#thumbsReaction})
 class JokeInteractions extends Table {
   // Primary key: one row per joke
   TextColumn get jokeId => text()();
@@ -43,6 +45,9 @@ class JokeInteractions extends Table {
 
   // Feed index (nullable, for jokes added later)
   IntColumn get feedIndex => integer().nullable()();
+
+  TextColumn get thumbsReaction =>
+      text().map(const JokeThumbsReactionConverter()).nullable()();
 
   @override
   Set<Column<Object>>? get primaryKey => {jokeId};
@@ -87,7 +92,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 7;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -125,12 +130,27 @@ class AppDatabase extends _$AppDatabase {
         // Indexes added in v6 are handled automatically by Drift by reading the
         // @TableIndex annotations. No explicit migration code is needed.
       }
+      if (from < 7) {
+        await m.addColumn(jokeInteractions, jokeInteractions.thumbsReaction);
+      }
     },
   );
 
   // For tests
   static AppDatabase inMemory() =>
       AppDatabase._internal(platform.inMemoryExecutor());
+}
+
+class JokeThumbsReactionConverter
+    extends TypeConverter<JokeThumbsReaction, String> {
+  const JokeThumbsReactionConverter();
+
+  @override
+  JokeThumbsReaction fromSql(String fromDb) =>
+      JokeThumbsReaction.fromString(fromDb);
+
+  @override
+  String toSql(JokeThumbsReaction value) => value.storageValue;
 }
 
 /// Shared helper for running DB operations within a performance trace

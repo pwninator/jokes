@@ -133,6 +133,18 @@ class $JokeInteractionsTable extends JokeInteractions
     requiredDuringInsert: false,
   );
   @override
+  late final GeneratedColumnWithTypeConverter<JokeThumbsReaction?, String>
+  thumbsReaction =
+      GeneratedColumn<String>(
+        'thumbs_reaction',
+        aliasedName,
+        true,
+        type: DriftSqlType.string,
+        requiredDuringInsert: false,
+      ).withConverter<JokeThumbsReaction?>(
+        $JokeInteractionsTable.$converterthumbsReactionn,
+      );
+  @override
   List<GeneratedColumn> get $columns => [
     jokeId,
     navigatedTimestamp,
@@ -145,6 +157,7 @@ class $JokeInteractionsTable extends JokeInteractions
     setupImageUrl,
     punchlineImageUrl,
     feedIndex,
+    thumbsReaction,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -305,6 +318,12 @@ class $JokeInteractionsTable extends JokeInteractions
         DriftSqlType.int,
         data['${effectivePrefix}feed_index'],
       ),
+      thumbsReaction: $JokeInteractionsTable.$converterthumbsReactionn.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.string,
+          data['${effectivePrefix}thumbs_reaction'],
+        ),
+      ),
     );
   }
 
@@ -312,6 +331,11 @@ class $JokeInteractionsTable extends JokeInteractions
   $JokeInteractionsTable createAlias(String alias) {
     return $JokeInteractionsTable(attachedDatabase, alias);
   }
+
+  static TypeConverter<JokeThumbsReaction, String> $converterthumbsReaction =
+      const JokeThumbsReactionConverter();
+  static TypeConverter<JokeThumbsReaction?, String?> $converterthumbsReactionn =
+      NullAwareTypeConverter.wrap($converterthumbsReaction);
 }
 
 class JokeInteraction extends DataClass implements Insertable<JokeInteraction> {
@@ -326,6 +350,7 @@ class JokeInteraction extends DataClass implements Insertable<JokeInteraction> {
   final String? setupImageUrl;
   final String? punchlineImageUrl;
   final int? feedIndex;
+  final JokeThumbsReaction? thumbsReaction;
   const JokeInteraction({
     required this.jokeId,
     this.navigatedTimestamp,
@@ -338,6 +363,7 @@ class JokeInteraction extends DataClass implements Insertable<JokeInteraction> {
     this.setupImageUrl,
     this.punchlineImageUrl,
     this.feedIndex,
+    this.thumbsReaction,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -370,6 +396,11 @@ class JokeInteraction extends DataClass implements Insertable<JokeInteraction> {
     }
     if (!nullToAbsent || feedIndex != null) {
       map['feed_index'] = Variable<int>(feedIndex);
+    }
+    if (!nullToAbsent || thumbsReaction != null) {
+      map['thumbs_reaction'] = Variable<String>(
+        $JokeInteractionsTable.$converterthumbsReactionn.toSql(thumbsReaction),
+      );
     }
     return map;
   }
@@ -405,6 +436,9 @@ class JokeInteraction extends DataClass implements Insertable<JokeInteraction> {
       feedIndex: feedIndex == null && nullToAbsent
           ? const Value.absent()
           : Value(feedIndex),
+      thumbsReaction: thumbsReaction == null && nullToAbsent
+          ? const Value.absent()
+          : Value(thumbsReaction),
     );
   }
 
@@ -431,6 +465,9 @@ class JokeInteraction extends DataClass implements Insertable<JokeInteraction> {
         json['punchlineImageUrl'],
       ),
       feedIndex: serializer.fromJson<int?>(json['feedIndex']),
+      thumbsReaction: serializer.fromJson<JokeThumbsReaction?>(
+        json['thumbsReaction'],
+      ),
     );
   }
   @override
@@ -448,6 +485,7 @@ class JokeInteraction extends DataClass implements Insertable<JokeInteraction> {
       'setupImageUrl': serializer.toJson<String?>(setupImageUrl),
       'punchlineImageUrl': serializer.toJson<String?>(punchlineImageUrl),
       'feedIndex': serializer.toJson<int?>(feedIndex),
+      'thumbsReaction': serializer.toJson<JokeThumbsReaction?>(thumbsReaction),
     };
   }
 
@@ -463,6 +501,7 @@ class JokeInteraction extends DataClass implements Insertable<JokeInteraction> {
     Value<String?> setupImageUrl = const Value.absent(),
     Value<String?> punchlineImageUrl = const Value.absent(),
     Value<int?> feedIndex = const Value.absent(),
+    Value<JokeThumbsReaction?> thumbsReaction = const Value.absent(),
   }) => JokeInteraction(
     jokeId: jokeId ?? this.jokeId,
     navigatedTimestamp: navigatedTimestamp.present
@@ -489,6 +528,9 @@ class JokeInteraction extends DataClass implements Insertable<JokeInteraction> {
         ? punchlineImageUrl.value
         : this.punchlineImageUrl,
     feedIndex: feedIndex.present ? feedIndex.value : this.feedIndex,
+    thumbsReaction: thumbsReaction.present
+        ? thumbsReaction.value
+        : this.thumbsReaction,
   );
   JokeInteraction copyWithCompanion(JokeInteractionsCompanion data) {
     return JokeInteraction(
@@ -519,6 +561,9 @@ class JokeInteraction extends DataClass implements Insertable<JokeInteraction> {
           ? data.punchlineImageUrl.value
           : this.punchlineImageUrl,
       feedIndex: data.feedIndex.present ? data.feedIndex.value : this.feedIndex,
+      thumbsReaction: data.thumbsReaction.present
+          ? data.thumbsReaction.value
+          : this.thumbsReaction,
     );
   }
 
@@ -535,7 +580,8 @@ class JokeInteraction extends DataClass implements Insertable<JokeInteraction> {
           ..write('punchlineText: $punchlineText, ')
           ..write('setupImageUrl: $setupImageUrl, ')
           ..write('punchlineImageUrl: $punchlineImageUrl, ')
-          ..write('feedIndex: $feedIndex')
+          ..write('feedIndex: $feedIndex, ')
+          ..write('thumbsReaction: $thumbsReaction')
           ..write(')'))
         .toString();
   }
@@ -553,6 +599,7 @@ class JokeInteraction extends DataClass implements Insertable<JokeInteraction> {
     setupImageUrl,
     punchlineImageUrl,
     feedIndex,
+    thumbsReaction,
   );
   @override
   bool operator ==(Object other) =>
@@ -568,7 +615,8 @@ class JokeInteraction extends DataClass implements Insertable<JokeInteraction> {
           other.punchlineText == this.punchlineText &&
           other.setupImageUrl == this.setupImageUrl &&
           other.punchlineImageUrl == this.punchlineImageUrl &&
-          other.feedIndex == this.feedIndex);
+          other.feedIndex == this.feedIndex &&
+          other.thumbsReaction == this.thumbsReaction);
 }
 
 class JokeInteractionsCompanion extends UpdateCompanion<JokeInteraction> {
@@ -583,6 +631,7 @@ class JokeInteractionsCompanion extends UpdateCompanion<JokeInteraction> {
   final Value<String?> setupImageUrl;
   final Value<String?> punchlineImageUrl;
   final Value<int?> feedIndex;
+  final Value<JokeThumbsReaction?> thumbsReaction;
   final Value<int> rowid;
   const JokeInteractionsCompanion({
     this.jokeId = const Value.absent(),
@@ -596,6 +645,7 @@ class JokeInteractionsCompanion extends UpdateCompanion<JokeInteraction> {
     this.setupImageUrl = const Value.absent(),
     this.punchlineImageUrl = const Value.absent(),
     this.feedIndex = const Value.absent(),
+    this.thumbsReaction = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   JokeInteractionsCompanion.insert({
@@ -610,6 +660,7 @@ class JokeInteractionsCompanion extends UpdateCompanion<JokeInteraction> {
     this.setupImageUrl = const Value.absent(),
     this.punchlineImageUrl = const Value.absent(),
     this.feedIndex = const Value.absent(),
+    this.thumbsReaction = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : jokeId = Value(jokeId),
        lastUpdateTimestamp = Value(lastUpdateTimestamp);
@@ -625,6 +676,7 @@ class JokeInteractionsCompanion extends UpdateCompanion<JokeInteraction> {
     Expression<String>? setupImageUrl,
     Expression<String>? punchlineImageUrl,
     Expression<int>? feedIndex,
+    Expression<String>? thumbsReaction,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -640,6 +692,7 @@ class JokeInteractionsCompanion extends UpdateCompanion<JokeInteraction> {
       if (setupImageUrl != null) 'setup_image_url': setupImageUrl,
       if (punchlineImageUrl != null) 'punchline_image_url': punchlineImageUrl,
       if (feedIndex != null) 'feed_index': feedIndex,
+      if (thumbsReaction != null) 'thumbs_reaction': thumbsReaction,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -656,6 +709,7 @@ class JokeInteractionsCompanion extends UpdateCompanion<JokeInteraction> {
     Value<String?>? setupImageUrl,
     Value<String?>? punchlineImageUrl,
     Value<int?>? feedIndex,
+    Value<JokeThumbsReaction?>? thumbsReaction,
     Value<int>? rowid,
   }) {
     return JokeInteractionsCompanion(
@@ -670,6 +724,7 @@ class JokeInteractionsCompanion extends UpdateCompanion<JokeInteraction> {
       setupImageUrl: setupImageUrl ?? this.setupImageUrl,
       punchlineImageUrl: punchlineImageUrl ?? this.punchlineImageUrl,
       feedIndex: feedIndex ?? this.feedIndex,
+      thumbsReaction: thumbsReaction ?? this.thumbsReaction,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -712,6 +767,13 @@ class JokeInteractionsCompanion extends UpdateCompanion<JokeInteraction> {
     if (feedIndex.present) {
       map['feed_index'] = Variable<int>(feedIndex.value);
     }
+    if (thumbsReaction.present) {
+      map['thumbs_reaction'] = Variable<String>(
+        $JokeInteractionsTable.$converterthumbsReactionn.toSql(
+          thumbsReaction.value,
+        ),
+      );
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -732,6 +794,7 @@ class JokeInteractionsCompanion extends UpdateCompanion<JokeInteraction> {
           ..write('setupImageUrl: $setupImageUrl, ')
           ..write('punchlineImageUrl: $punchlineImageUrl, ')
           ..write('feedIndex: $feedIndex, ')
+          ..write('thumbsReaction: $thumbsReaction, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -1067,6 +1130,10 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     'idx_shared_timestamp',
     'CREATE INDEX idx_shared_timestamp ON joke_interactions (shared_timestamp)',
   );
+  late final Index idxThumbsReaction = Index(
+    'idx_thumbs_reaction',
+    'CREATE INDEX idx_thumbs_reaction ON joke_interactions (thumbs_reaction)',
+  );
   late final Index idxCategoryLastUpdate = Index(
     'idx_category_last_update',
     'CREATE INDEX idx_category_last_update ON category_interactions (last_update_timestamp)',
@@ -1084,6 +1151,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     idxViewedTimestamp,
     idxSavedTimestamp,
     idxSharedTimestamp,
+    idxThumbsReaction,
     idxCategoryLastUpdate,
   ];
 }
@@ -1101,6 +1169,7 @@ typedef $$JokeInteractionsTableCreateCompanionBuilder =
       Value<String?> setupImageUrl,
       Value<String?> punchlineImageUrl,
       Value<int?> feedIndex,
+      Value<JokeThumbsReaction?> thumbsReaction,
       Value<int> rowid,
     });
 typedef $$JokeInteractionsTableUpdateCompanionBuilder =
@@ -1116,6 +1185,7 @@ typedef $$JokeInteractionsTableUpdateCompanionBuilder =
       Value<String?> setupImageUrl,
       Value<String?> punchlineImageUrl,
       Value<int?> feedIndex,
+      Value<JokeThumbsReaction?> thumbsReaction,
       Value<int> rowid,
     });
 
@@ -1182,6 +1252,16 @@ class $$JokeInteractionsTableFilterComposer
     column: $table.feedIndex,
     builder: (column) => ColumnFilters(column),
   );
+
+  ColumnWithTypeConverterFilters<
+    JokeThumbsReaction?,
+    JokeThumbsReaction,
+    String
+  >
+  get thumbsReaction => $composableBuilder(
+    column: $table.thumbsReaction,
+    builder: (column) => ColumnWithTypeConverterFilters(column),
+  );
 }
 
 class $$JokeInteractionsTableOrderingComposer
@@ -1247,6 +1327,11 @@ class $$JokeInteractionsTableOrderingComposer
     column: $table.feedIndex,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get thumbsReaction => $composableBuilder(
+    column: $table.thumbsReaction,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$JokeInteractionsTableAnnotationComposer
@@ -1306,6 +1391,12 @@ class $$JokeInteractionsTableAnnotationComposer
 
   GeneratedColumn<int> get feedIndex =>
       $composableBuilder(column: $table.feedIndex, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<JokeThumbsReaction?, String>
+  get thumbsReaction => $composableBuilder(
+    column: $table.thumbsReaction,
+    builder: (column) => column,
+  );
 }
 
 class $$JokeInteractionsTableTableManager
@@ -1356,6 +1447,8 @@ class $$JokeInteractionsTableTableManager
                 Value<String?> setupImageUrl = const Value.absent(),
                 Value<String?> punchlineImageUrl = const Value.absent(),
                 Value<int?> feedIndex = const Value.absent(),
+                Value<JokeThumbsReaction?> thumbsReaction =
+                    const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => JokeInteractionsCompanion(
                 jokeId: jokeId,
@@ -1369,6 +1462,7 @@ class $$JokeInteractionsTableTableManager
                 setupImageUrl: setupImageUrl,
                 punchlineImageUrl: punchlineImageUrl,
                 feedIndex: feedIndex,
+                thumbsReaction: thumbsReaction,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -1384,6 +1478,8 @@ class $$JokeInteractionsTableTableManager
                 Value<String?> setupImageUrl = const Value.absent(),
                 Value<String?> punchlineImageUrl = const Value.absent(),
                 Value<int?> feedIndex = const Value.absent(),
+                Value<JokeThumbsReaction?> thumbsReaction =
+                    const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => JokeInteractionsCompanion.insert(
                 jokeId: jokeId,
@@ -1397,6 +1493,7 @@ class $$JokeInteractionsTableTableManager
                 setupImageUrl: setupImageUrl,
                 punchlineImageUrl: punchlineImageUrl,
                 feedIndex: feedIndex,
+                thumbsReaction: thumbsReaction,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

@@ -16,6 +16,7 @@ import 'package:snickerdoodle/src/data/jokes/joke_interactions_repository.dart';
 import 'package:snickerdoodle/src/features/auth/application/auth_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
+import 'package:snickerdoodle/src/features/jokes/domain/joke_thumbs_reaction.dart';
 import 'package:snickerdoodle/src/features/settings/application/brightness_provider.dart';
 import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
 
@@ -33,19 +34,7 @@ class _MockCategoryInteractionsService extends Mock
 class _MockJokeInteractionsRepository extends Mock
     implements JokeInteractionsRepository {}
 
-class _MockJokeRepository extends Mock implements JokeRepository {
-  @override
-  Future<void> incrementJokeViews(String jokeId) async {}
-
-  @override
-  Future<void> incrementJokeSaves(String jokeId) async {}
-
-  @override
-  Future<void> decrementJokeSaves(String jokeId) async {}
-
-  @override
-  Future<void> incrementJokeShares(String jokeId) async {}
-}
+class _MockJokeRepository extends Mock implements JokeRepository {}
 
 class _MockSubscriptionPromptNotifier extends Mock
     implements SubscriptionPromptNotifier {}
@@ -91,6 +80,15 @@ class _TestRemoteConfigValues implements RemoteConfigValues {
 class TestMocks {
   TestMocks() {
     when(() => repo.countNavigated()).thenAnswer((_) async => 0);
+    when(() => repo.countThumbsUp()).thenAnswer((_) async => 0);
+    when(() => repo.countThumbsDown()).thenAnswer((_) async => 0);
+    when(
+      () => repo.getThumbsReaction(any()),
+    ).thenAnswer((_) async => JokeThumbsReaction.none);
+    when(
+      () => repo.setThumbsReaction(any(), any<JokeThumbsReaction>()),
+    ).thenAnswer((_) async => true);
+    when(() => repo.clearThumbsReaction(any())).thenAnswer((_) async => true);
   }
   final AnalyticsService analytics = _MockAnalyticsService();
   final JokeCloudFunctionService jokeCloudFn = _MockJokeCloudFunctionService();
@@ -109,6 +107,7 @@ void main() {
     registerFallbackValue(Brightness.light);
     registerFallbackValue(_FakeBuildContext());
     registerFallbackValue(ReviewRequestSource.jokeViewed);
+    registerFallbackValue(JokeThumbsReaction.none);
   });
   String todayString() {
     final now = DateTime.now();
@@ -152,6 +151,20 @@ void main() {
       final testRefProvider = Provider<Ref>((ref) => ref);
       final ref = container.read(testRefProvider);
 
+      final mockJokeRepository = _MockJokeRepository();
+      when(
+        () => mockJokeRepository.incrementJokeThumbsUpUsers(any()),
+      ).thenAnswer((_) async {});
+      when(
+        () => mockJokeRepository.decrementJokeThumbsUpUsers(any()),
+      ).thenAnswer((_) async {});
+      when(
+        () => mockJokeRepository.incrementJokeThumbsDownUsers(any()),
+      ).thenAnswer((_) async {});
+      when(
+        () => mockJokeRepository.decrementJokeThumbsDownUsers(any()),
+      ).thenAnswer((_) async {});
+
       final service = AppUsageService(
         settingsService: settingsService,
         ref: ref,
@@ -159,7 +172,7 @@ void main() {
         jokeCloudFn: mocks.jokeCloudFn,
         categoryInteractionsService: _MockCategoryInteractionsService(),
         jokeInteractionsRepository: mocks.repo,
-        jokeRepository: _MockJokeRepository(),
+        jokeRepository: mockJokeRepository,
         reviewPromptCoordinator: mocks.reviewCoordinator,
         isDebugMode: true,
       );
@@ -208,6 +221,20 @@ void main() {
       final testRefProvider = Provider<Ref>((ref) => ref);
       final ref = container.read(testRefProvider);
 
+      final mockJokeRepository = _MockJokeRepository();
+      when(
+        () => mockJokeRepository.incrementJokeThumbsUpUsers(any()),
+      ).thenAnswer((_) async {});
+      when(
+        () => mockJokeRepository.decrementJokeThumbsUpUsers(any()),
+      ).thenAnswer((_) async {});
+      when(
+        () => mockJokeRepository.incrementJokeThumbsDownUsers(any()),
+      ).thenAnswer((_) async {});
+      when(
+        () => mockJokeRepository.decrementJokeThumbsDownUsers(any()),
+      ).thenAnswer((_) async {});
+
       final service = AppUsageService(
         settingsService: settingsService,
         ref: ref,
@@ -215,7 +242,7 @@ void main() {
         jokeCloudFn: mocks.jokeCloudFn,
         categoryInteractionsService: _MockCategoryInteractionsService(),
         jokeInteractionsRepository: mocks.repo,
-        jokeRepository: _MockJokeRepository(),
+        jokeRepository: mockJokeRepository,
         reviewPromptCoordinator: mocks.reviewCoordinator,
         isDebugMode: true,
       );
@@ -285,6 +312,20 @@ void main() {
         overrides: [brightnessProvider.overrideWithValue(Brightness.light)],
       );
       final ref = container.read(Provider<Ref>((ref) => ref));
+      final mockJokeRepository = _MockJokeRepository();
+      when(
+        () => mockJokeRepository.incrementJokeThumbsUpUsers(any()),
+      ).thenAnswer((_) async {});
+      when(
+        () => mockJokeRepository.decrementJokeThumbsUpUsers(any()),
+      ).thenAnswer((_) async {});
+      when(
+        () => mockJokeRepository.incrementJokeThumbsDownUsers(any()),
+      ).thenAnswer((_) async {});
+      when(
+        () => mockJokeRepository.decrementJokeThumbsDownUsers(any()),
+      ).thenAnswer((_) async {});
+
       final service = AppUsageService(
         settingsService: settingsService,
         ref: ref,
@@ -292,7 +333,7 @@ void main() {
         jokeCloudFn: mocks.jokeCloudFn,
         categoryInteractionsService: _MockCategoryInteractionsService(),
         jokeInteractionsRepository: mocks.repo,
-        jokeRepository: _MockJokeRepository(),
+        jokeRepository: mockJokeRepository,
         reviewPromptCoordinator: mocks.reviewCoordinator,
         isDebugMode: true,
       );
@@ -1123,6 +1164,191 @@ void main() {
     });
   });
 
+  group('AppUsageService thumbs reactions', () {
+    test('logJokeThumbsUp sets reaction and logs analytics', () async {
+      final mocks = TestMocks();
+      final prefs = await SharedPreferences.getInstance();
+      final settingsService = SettingsService(prefs);
+      final container = ProviderContainer(
+        overrides: [isAdminProvider.overrideWithValue(false)],
+      );
+      final ref = container.read(Provider<Ref>((ref) => ref));
+
+      when(
+        () => mocks.repo.getThumbsReaction('j-up'),
+      ).thenAnswer((_) async => JokeThumbsReaction.none);
+      when(() => mocks.repo.countThumbsUp()).thenAnswer((_) async => 1);
+      when(() => mocks.repo.countThumbsDown()).thenAnswer((_) async => 0);
+
+      final mockJokeRepository = _MockJokeRepository();
+      when(
+        () => mockJokeRepository.incrementJokeThumbsUpUsers(any()),
+      ).thenAnswer((_) async {});
+      when(
+        () => mockJokeRepository.decrementJokeThumbsUpUsers(any()),
+      ).thenAnswer((_) async {});
+      when(
+        () => mockJokeRepository.incrementJokeThumbsDownUsers(any()),
+      ).thenAnswer((_) async {});
+      when(
+        () => mockJokeRepository.decrementJokeThumbsDownUsers(any()),
+      ).thenAnswer((_) async {});
+
+      final service = AppUsageService(
+        settingsService: settingsService,
+        ref: ref,
+        analyticsService: mocks.analytics,
+        jokeCloudFn: mocks.jokeCloudFn,
+        categoryInteractionsService: _MockCategoryInteractionsService(),
+        jokeInteractionsRepository: mocks.repo,
+        jokeRepository: mockJokeRepository,
+        reviewPromptCoordinator: mocks.reviewCoordinator,
+        isDebugMode: true,
+      );
+
+      await service.logJokeThumbsUp('j-up', jokeContext: 'feed');
+
+      verify(
+        () => mocks.repo.setThumbsReaction('j-up', JokeThumbsReaction.up),
+      ).called(1);
+      verify(
+        () => mockJokeRepository.incrementJokeThumbsUpUsers('j-up'),
+      ).called(1);
+      verifyNever(() => mockJokeRepository.decrementJokeThumbsUpUsers(any()));
+      verify(
+        () => mocks.analytics.logJokeThumbsUp(
+          'j-up',
+          jokeContext: 'feed',
+          totalThumbsUp: 1,
+          totalThumbsDown: 0,
+        ),
+      ).called(1);
+      container.dispose();
+    });
+
+    test('logJokeThumbsDown replaces thumbs up reaction', () async {
+      final mocks = TestMocks();
+      final prefs = await SharedPreferences.getInstance();
+      final settingsService = SettingsService(prefs);
+      final container = ProviderContainer(
+        overrides: [isAdminProvider.overrideWithValue(false)],
+      );
+      final ref = container.read(Provider<Ref>((ref) => ref));
+
+      when(
+        () => mocks.repo.getThumbsReaction('j-down'),
+      ).thenAnswer((_) async => JokeThumbsReaction.up);
+      when(() => mocks.repo.countThumbsUp()).thenAnswer((_) async => 0);
+      when(() => mocks.repo.countThumbsDown()).thenAnswer((_) async => 1);
+
+      final mockJokeRepository = _MockJokeRepository();
+      when(
+        () => mockJokeRepository.incrementJokeThumbsUpUsers(any()),
+      ).thenAnswer((_) async {});
+      when(
+        () => mockJokeRepository.decrementJokeThumbsUpUsers(any()),
+      ).thenAnswer((_) async {});
+      when(
+        () => mockJokeRepository.incrementJokeThumbsDownUsers(any()),
+      ).thenAnswer((_) async {});
+      when(
+        () => mockJokeRepository.decrementJokeThumbsDownUsers(any()),
+      ).thenAnswer((_) async {});
+
+      final service = AppUsageService(
+        settingsService: settingsService,
+        ref: ref,
+        analyticsService: mocks.analytics,
+        jokeCloudFn: mocks.jokeCloudFn,
+        categoryInteractionsService: _MockCategoryInteractionsService(),
+        jokeInteractionsRepository: mocks.repo,
+        jokeRepository: mockJokeRepository,
+        reviewPromptCoordinator: mocks.reviewCoordinator,
+        isDebugMode: true,
+      );
+
+      await service.logJokeThumbsDown('j-down', jokeContext: 'feed');
+
+      verify(
+        () => mocks.repo.setThumbsReaction('j-down', JokeThumbsReaction.down),
+      ).called(1);
+      verify(
+        () => mockJokeRepository.decrementJokeThumbsUpUsers('j-down'),
+      ).called(1);
+      verify(
+        () => mockJokeRepository.incrementJokeThumbsDownUsers('j-down'),
+      ).called(1);
+      verify(
+        () => mocks.analytics.logJokeThumbsDown(
+          'j-down',
+          jokeContext: 'feed',
+          totalThumbsDown: 1,
+          totalThumbsUp: 0,
+        ),
+      ).called(1);
+      container.dispose();
+    });
+
+    test('logJokeThumbsUp toggled off clears reaction', () async {
+      final mocks = TestMocks();
+      final prefs = await SharedPreferences.getInstance();
+      final settingsService = SettingsService(prefs);
+      final container = ProviderContainer(
+        overrides: [isAdminProvider.overrideWithValue(false)],
+      );
+      final ref = container.read(Provider<Ref>((ref) => ref));
+
+      when(
+        () => mocks.repo.getThumbsReaction('j-up-off'),
+      ).thenAnswer((_) async => JokeThumbsReaction.up);
+      when(() => mocks.repo.countThumbsUp()).thenAnswer((_) async => 0);
+      when(() => mocks.repo.countThumbsDown()).thenAnswer((_) async => 0);
+
+      final mockJokeRepository = _MockJokeRepository();
+      when(
+        () => mockJokeRepository.incrementJokeThumbsUpUsers(any()),
+      ).thenAnswer((_) async {});
+      when(
+        () => mockJokeRepository.decrementJokeThumbsUpUsers(any()),
+      ).thenAnswer((_) async {});
+      when(
+        () => mockJokeRepository.incrementJokeThumbsDownUsers(any()),
+      ).thenAnswer((_) async {});
+      when(
+        () => mockJokeRepository.decrementJokeThumbsDownUsers(any()),
+      ).thenAnswer((_) async {});
+
+      final service = AppUsageService(
+        settingsService: settingsService,
+        ref: ref,
+        analyticsService: mocks.analytics,
+        jokeCloudFn: mocks.jokeCloudFn,
+        categoryInteractionsService: _MockCategoryInteractionsService(),
+        jokeInteractionsRepository: mocks.repo,
+        jokeRepository: mockJokeRepository,
+        reviewPromptCoordinator: mocks.reviewCoordinator,
+        isDebugMode: true,
+      );
+
+      await service.logJokeThumbsUp('j-up-off', jokeContext: 'feed');
+
+      verify(() => mocks.repo.clearThumbsReaction('j-up-off')).called(1);
+      verify(
+        () => mockJokeRepository.decrementJokeThumbsUpUsers('j-up-off'),
+      ).called(1);
+      verifyNever(() => mockJokeRepository.incrementJokeThumbsUpUsers(any()));
+      verify(
+        () => mocks.analytics.logJokeThumbsUpClear(
+          'j-up-off',
+          jokeContext: 'feed',
+          totalThumbsUp: 0,
+          totalThumbsDown: 0,
+        ),
+      ).called(1);
+      container.dispose();
+    });
+  });
+
   group('AppUsageService._pushUsageSnapshot', () {
     test('passes correct requestedReview value to cloud function', () async {
       final mocks = TestMocks();
@@ -1137,6 +1363,8 @@ void main() {
           numViewed: any<int>(named: 'numViewed'),
           numNavigated: any<int>(named: 'numNavigated'),
           numShared: any<int>(named: 'numShared'),
+          numThumbsUp: any<int>(named: 'numThumbsUp'),
+          numThumbsDown: any<int>(named: 'numThumbsDown'),
           requestedReview: any<bool>(named: 'requestedReview'),
           feedCursor: any<String>(named: 'feedCursor'),
           localFeedCount: any<int>(named: 'localFeedCount'),
@@ -1159,6 +1387,8 @@ void main() {
       when(() => mocks.repo.countNavigated()).thenAnswer((_) async => 4);
       when(() => mocks.repo.countShared()).thenAnswer((_) async => 1);
       when(() => mocks.repo.countFeedJokes()).thenAnswer((_) async => 7);
+      when(() => mocks.repo.countThumbsUp()).thenAnswer((_) async => 3);
+      when(() => mocks.repo.countThumbsDown()).thenAnswer((_) async => 2);
 
       final testService = AppUsageService(
         settingsService: settingsService,
@@ -1190,15 +1420,21 @@ void main() {
           numViewed: captureAny(named: 'numViewed'),
           numNavigated: captureAny(named: 'numNavigated'),
           numShared: captureAny(named: 'numShared'),
+          numThumbsUp: captureAny(named: 'numThumbsUp'),
+          numThumbsDown: captureAny(named: 'numThumbsDown'),
           requestedReview: captureAny(named: 'requestedReview'),
           feedCursor: captureAny(named: 'feedCursor'),
           localFeedCount: captureAny(named: 'localFeedCount'),
         ),
       );
       final captured = invocation.captured;
-      final requestedReviewValue = captured[5] as bool?;
-      final feedCursorValue = captured[6] as String?;
-      final localFeedCountValue = captured[7] as int?;
+      final thumbsUpValue = captured[5] as int?;
+      final thumbsDownValue = captured[6] as int?;
+      final requestedReviewValue = captured[7] as bool?;
+      final feedCursorValue = captured[8] as String?;
+      final localFeedCountValue = captured[9] as int?;
+      expect(thumbsUpValue, 3);
+      expect(thumbsDownValue, 2);
       expect(requestedReviewValue, isTrue);
       expect(feedCursorValue, isNotNull);
       expect(localFeedCountValue, 7);

@@ -3,6 +3,7 @@ import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/data/core/database/app_database.dart';
 import 'package:snickerdoodle/src/data/jokes/joke_interactions_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
+import 'package:snickerdoodle/src/features/jokes/domain/joke_thumbs_reaction.dart';
 
 class _NoopPerf implements PerformanceService {
   @override
@@ -107,6 +108,33 @@ void main() {
     await service.setShared('x1');
     await service.setShared('x2');
     expect(await service.countShared(), 2);
+  });
+
+  test('setThumbsReaction persists reaction and updates counts', () async {
+    expect(await service.countThumbsUp(), 0);
+    expect(await service.countThumbsDown(), 0);
+
+    await service.setThumbsReaction('j-reaction', JokeThumbsReaction.up);
+    final reaction = await service.getThumbsReaction('j-reaction');
+    expect(reaction, JokeThumbsReaction.up);
+    expect(await service.countThumbsUp(), 1);
+    expect(await service.countThumbsDown(), 0);
+
+    await service.setThumbsReaction('j-reaction', JokeThumbsReaction.down);
+    final updatedReaction = await service.getThumbsReaction('j-reaction');
+    expect(updatedReaction, JokeThumbsReaction.down);
+    expect(await service.countThumbsUp(), 0);
+    expect(await service.countThumbsDown(), 1);
+  });
+
+  test('clearThumbsReaction removes reaction and decrements counts', () async {
+    await service.setThumbsReaction('j-clear', JokeThumbsReaction.down);
+    expect(await service.countThumbsDown(), 1);
+
+    await service.clearThumbsReaction('j-clear');
+    final reaction = await service.getThumbsReaction('j-clear');
+    expect(reaction, JokeThumbsReaction.none);
+    expect(await service.countThumbsDown(), 0);
   });
 
   test('syncFeedJokes creates new row with feed data', () async {

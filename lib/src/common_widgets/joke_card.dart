@@ -15,6 +15,7 @@ class JokeCard extends ConsumerWidget {
   final bool showSaveButton;
   final bool showShareButton;
   final bool showAdminRatingButtons;
+  final bool showUserRatingButtons;
   final bool showUsageStats;
   final String? title;
   final String jokeContext;
@@ -33,6 +34,7 @@ class JokeCard extends ConsumerWidget {
     this.showSaveButton = false,
     this.showShareButton = false,
     this.showAdminRatingButtons = false,
+    this.showUserRatingButtons = false,
     this.showUsageStats = false,
     this.title,
     required this.jokeContext,
@@ -65,6 +67,7 @@ class JokeCard extends ConsumerWidget {
         showSaveButton: showSaveButton,
         showShareButton: showShareButton,
         showAdminRatingButtons: showAdminRatingButtons,
+        showUserRatingButtons: showUserRatingButtons,
         showUsageStats: showUsageStats,
         title: title,
         jokeContext: jokeContext,

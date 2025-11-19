@@ -92,18 +92,13 @@ void main() {
           final mockResponseData = {'jokeId': 'created-joke-id'};
 
           when(
-            () => mockFunctions.httpsCallable('create_joke'),
+            () => mockFunctions.httpsCallable(
+              'create_joke',
+              options: any(named: 'options'),
+            ),
           ).thenReturn(mockCallable);
           when(() => mockResult.data).thenReturn(mockResponseData);
-          when(
-            () => mockCallable.call({
-              'admin_owned': true,
-              'joke_data': {
-                'setup_text': setupText,
-                'punchline_text': punchlineText,
-              },
-            }),
-          ).thenAnswer((_) async => mockResult);
+          when(() => mockCallable.call(any())).thenAnswer((_) async => mockResult);
 
           final result = await service.createJokeWithResponse(
             setupText: setupText,
@@ -112,7 +107,12 @@ void main() {
           );
 
           expect(result, equals({'success': true, 'data': mockResponseData}));
-          verify(() => mockFunctions.httpsCallable('create_joke')).called(1);
+          verify(
+            () => mockFunctions.httpsCallable(
+              'create_joke',
+              options: any(named: 'options'),
+            ),
+          ).called(1);
         },
       );
     });
@@ -128,7 +128,10 @@ void main() {
         };
 
         when(
-          () => mockFunctions.httpsCallable('update_joke'),
+          () => mockFunctions.httpsCallable(
+            'update_joke',
+            options: any(named: 'options'),
+          ),
         ).thenReturn(mockCallable);
         when(() => mockResult.data).thenReturn(mockResponseData);
         when(
@@ -189,7 +192,10 @@ void main() {
         const q = 'cat';
 
         when(
-          () => mockFunctions.httpsCallable('search_jokes'),
+          () => mockFunctions.httpsCallable(
+            'search_jokes',
+            options: any(named: 'options'),
+          ),
         ).thenReturn(mockCallable);
         when(() => mockResult.data).thenReturn([
           {'joke_id': 'a', 'vector_distance': 0.11},
@@ -209,10 +215,15 @@ void main() {
         );
         expect(results.map((r) => r.id).toList(), ['a', 'b']);
         expect(results.map((r) => r.vectorDistance).toList(), [0.11, 0.23]);
-        verify(() => mockFunctions.httpsCallable('search_jokes')).called(1);
-        final captured =
-            verify(() => mockCallable.call(captureAny())).captured.single
-                as Map<String, dynamic>;
+        verify(
+          () => mockFunctions.httpsCallable(
+            'search_jokes',
+            options: any(named: 'options'),
+          ),
+        ).called(1);
+          final captured =
+              verify(() => mockCallable.call(captureAny())).captured.single
+                  as Map<String, dynamic>;
         expect(captured['search_query'], q);
         expect(captured['max_results'], '50');
         expect(captured['public_only'], isTrue);
@@ -223,7 +234,10 @@ void main() {
         const q = 'dog';
 
         when(
-          () => mockFunctions.httpsCallable('search_jokes'),
+          () => mockFunctions.httpsCallable(
+            'search_jokes',
+            options: any(named: 'options'),
+          ),
         ).thenReturn(mockCallable);
         when(() => mockResult.data).thenReturn({
           'jokes': [
@@ -257,7 +271,10 @@ void main() {
         const q = 'dog';
 
         when(
-          () => mockFunctions.httpsCallable('search_jokes'),
+          () => mockFunctions.httpsCallable(
+            'search_jokes',
+            options: any(named: 'options'),
+          ),
         ).thenReturn(mockCallable);
         when(() => mockResult.data).thenReturn([
           {'joke_id': 'x', 'vector_distance': 0.1},
@@ -288,7 +305,10 @@ void main() {
         const q = 'error';
 
         when(
-          () => mockFunctions.httpsCallable('search_jokes'),
+          () => mockFunctions.httpsCallable(
+            'search_jokes',
+            options: any(named: 'options'),
+          ),
         ).thenReturn(mockCallable);
         when(() => mockCallable.call(any())).thenThrow(Exception('boom'));
 
@@ -309,7 +329,10 @@ void main() {
           const q = 'exclude';
 
           when(
-            () => mockFunctions.httpsCallable('search_jokes'),
+            () => mockFunctions.httpsCallable(
+              'search_jokes',
+              options: any(named: 'options'),
+            ),
           ).thenReturn(mockCallable);
           when(() => mockResult.data).thenReturn([
             {'joke_id': 'keep', 'vector_distance': 0.12},
@@ -344,7 +367,10 @@ void main() {
         const q = 'label test';
 
         when(
-          () => mockFunctions.httpsCallable('search_jokes'),
+          () => mockFunctions.httpsCallable(
+            'search_jokes',
+            options: any(named: 'options'),
+          ),
         ).thenReturn(mockCallable);
         when(() => mockResult.data).thenReturn([]);
         when(
@@ -416,7 +442,10 @@ void main() {
     group('trackUsage', () {
       test('should call httpsCallable with correct parameters', () async {
         when(
-          () => mockFunctions.httpsCallable('usage'),
+          () => mockFunctions.httpsCallable(
+            'usage',
+            options: any(named: 'options'),
+          ),
         ).thenReturn(mockCallable);
         when(
           () => mockCallable.call(any()),
@@ -428,6 +457,8 @@ void main() {
           numViewed: 3,
           numNavigated: 5,
           numShared: 4,
+          numThumbsUp: 6,
+          numThumbsDown: 7,
           requestedReview: true,
           feedCursor: 'cursor123',
           localFeedCount: 42,
@@ -441,6 +472,8 @@ void main() {
         expect(captured['num_viewed'], '3');
         expect(captured['num_navigated'], '5');
         expect(captured['num_shared'], '4');
+        expect(captured['num_thumbs_up'], '6');
+        expect(captured['num_thumbs_down'], '7');
         expect(captured['requested_review'], isTrue);
         expect(captured['feed_cursor'], 'cursor123');
         expect(captured['local_feed_count'], '42');
@@ -450,7 +483,10 @@ void main() {
     group('trackUsage', () {
       test('should call httpsCallable with correct parameters', () async {
         when(
-          () => mockFunctions.httpsCallable('usage'),
+          () => mockFunctions.httpsCallable(
+            'usage',
+            options: any(named: 'options'),
+          ),
         ).thenReturn(mockCallable);
         when(
           () => mockCallable.call(any()),
@@ -462,6 +498,8 @@ void main() {
           numViewed: 3,
           numNavigated: 5,
           numShared: 4,
+          numThumbsUp: 6,
+          numThumbsDown: 7,
           requestedReview: true,
           feedCursor: 'cursor123',
           localFeedCount: 42,
@@ -475,6 +513,8 @@ void main() {
         expect(captured['num_viewed'], '3');
         expect(captured['num_navigated'], '5');
         expect(captured['num_shared'], '4');
+        expect(captured['num_thumbs_up'], '6');
+        expect(captured['num_thumbs_down'], '7');
         expect(captured['requested_review'], isTrue);
         expect(captured['feed_cursor'], 'cursor123');
         expect(captured['local_feed_count'], '42');

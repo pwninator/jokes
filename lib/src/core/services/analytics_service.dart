@@ -134,6 +134,38 @@ abstract class AnalyticsService {
     required int totalJokesSaved,
   });
 
+  /// Log when a user reacts with a thumbs up
+  void logJokeThumbsUp(
+    String jokeId, {
+    required String jokeContext,
+    required int totalThumbsUp,
+    required int totalThumbsDown,
+  });
+
+  /// Log when a user reacts with a thumbs down
+  void logJokeThumbsDown(
+    String jokeId, {
+    required String jokeContext,
+    required int totalThumbsDown,
+    required int totalThumbsUp,
+  });
+
+  /// Log when a user clears a thumbs up reaction
+  void logJokeThumbsUpClear(
+    String jokeId, {
+    required String jokeContext,
+    required int totalThumbsUp,
+    required int totalThumbsDown,
+  });
+
+  /// Log when a user clears a thumbs down reaction
+  void logJokeThumbsDownClear(
+    String jokeId, {
+    required String jokeContext,
+    required int totalThumbsUp,
+    required int totalThumbsDown,
+  });
+
   /// Log successful joke share events
   void logJokeShareSuccess(
     String jokeId, {
@@ -650,6 +682,70 @@ class FirebaseAnalyticsService implements AnalyticsService {
       AnalyticsParameters.jokeContext: jokeContext,
       AnalyticsParameters.totalJokesSaved: totalJokesSaved,
       AnalyticsParameters.jokeSavedCount: -1,
+    });
+  }
+
+  @override
+  void logJokeThumbsUp(
+    String jokeId, {
+    required String jokeContext,
+    required int totalThumbsUp,
+    required int totalThumbsDown,
+  }) {
+    _logEvent(AnalyticsEvent.jokeThumbsUp, {
+      AnalyticsParameters.jokeId: jokeId,
+      AnalyticsParameters.jokeContext: jokeContext,
+      AnalyticsParameters.jokeThumbsUpCount: 1,
+      AnalyticsParameters.totalThumbsUp: totalThumbsUp,
+      AnalyticsParameters.totalThumbsDown: totalThumbsDown,
+    });
+  }
+
+  @override
+  void logJokeThumbsDown(
+    String jokeId, {
+    required String jokeContext,
+    required int totalThumbsDown,
+    required int totalThumbsUp,
+  }) {
+    _logEvent(AnalyticsEvent.jokeThumbsDown, {
+      AnalyticsParameters.jokeId: jokeId,
+      AnalyticsParameters.jokeContext: jokeContext,
+      AnalyticsParameters.jokeThumbsDownCount: 1,
+      AnalyticsParameters.totalThumbsDown: totalThumbsDown,
+      AnalyticsParameters.totalThumbsUp: totalThumbsUp,
+    });
+  }
+
+  @override
+  void logJokeThumbsUpClear(
+    String jokeId, {
+    required String jokeContext,
+    required int totalThumbsUp,
+    required int totalThumbsDown,
+  }) {
+    _logEvent(AnalyticsEvent.jokeThumbsCleared, {
+      AnalyticsParameters.jokeId: jokeId,
+      AnalyticsParameters.jokeContext: jokeContext,
+      AnalyticsParameters.jokeThumbsUpCount: -1,
+      AnalyticsParameters.totalThumbsUp: totalThumbsUp,
+      AnalyticsParameters.totalThumbsDown: totalThumbsDown,
+    });
+  }
+
+  @override
+  void logJokeThumbsDownClear(
+    String jokeId, {
+    required String jokeContext,
+    required int totalThumbsUp,
+    required int totalThumbsDown,
+  }) {
+    _logEvent(AnalyticsEvent.jokeThumbsCleared, {
+      AnalyticsParameters.jokeId: jokeId,
+      AnalyticsParameters.jokeContext: jokeContext,
+      AnalyticsParameters.jokeThumbsDownCount: -1,
+      AnalyticsParameters.totalThumbsUp: totalThumbsUp,
+      AnalyticsParameters.totalThumbsDown: totalThumbsDown,
     });
   }
 

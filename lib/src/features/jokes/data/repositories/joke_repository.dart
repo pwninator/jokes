@@ -713,6 +713,38 @@ class JokeRepository {
     ], 1);
   }
 
+  /// Atomically increment the number of users who gave a thumbs up reaction
+  Future<void> incrementJokeThumbsUpUsers(String jokeId) async {
+    await _incrementJokeField(jokeId, [
+      'num_thumbs_up_users',
+      'num_thumbs_up_users_recent',
+    ], 1);
+  }
+
+  /// Atomically decrement the number of users who gave a thumbs up reaction
+  Future<void> decrementJokeThumbsUpUsers(String jokeId) async {
+    await _incrementJokeField(jokeId, [
+      'num_thumbs_up_users',
+      'num_thumbs_up_users_recent',
+    ], -1);
+  }
+
+  /// Atomically increment the number of users who gave a thumbs down reaction
+  Future<void> incrementJokeThumbsDownUsers(String jokeId) async {
+    await _incrementJokeField(jokeId, [
+      'num_thumbs_down_users',
+      'num_thumbs_down_users_recent',
+    ], 1);
+  }
+
+  /// Atomically decrement the number of users who gave a thumbs down reaction
+  Future<void> decrementJokeThumbsDownUsers(String jokeId) async {
+    await _incrementJokeField(jokeId, [
+      'num_thumbs_down_users',
+      'num_thumbs_down_users_recent',
+    ], -1);
+  }
+
   /// Batch publish jokes
   Future<void> setJokesPublished(
     Map<String, DateTime> jokeIdToPublicTimestamp,

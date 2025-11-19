@@ -15,6 +15,10 @@ class AnalyticsParameters {
   static const String totalJokesViewed = 'total_jokes_viewed';
   static const String totalJokesSaved = 'total_jokes_saved';
   static const String totalJokesShared = 'total_jokes_shared';
+  static const String totalThumbsUp = 'total_thumbs_up';
+  static const String totalThumbsDown = 'total_thumbs_down';
+  static const String jokeThumbsUpCount = 'joke_thumbs_up_count';
+  static const String jokeThumbsDownCount = 'joke_thumbs_down_count';
 
   // Joke category parameters
   static const String jokeCategoryId = 'joke_category_id';
@@ -24,8 +28,6 @@ class AnalyticsParameters {
 
   // User interaction parameters
   static const String jokeScrollDepth = 'joke_scroll_depth';
-  static const String reactionType = 'reaction_type';
-  static const String reactionAdded = 'reaction_added';
   static const String shareMethod = 'share_method';
   static const String shareDestination = 'share_destination';
   static const String shareSuccess = 'share_success';

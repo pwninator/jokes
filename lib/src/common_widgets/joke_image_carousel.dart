@@ -24,6 +24,7 @@ import 'package:snickerdoodle/src/features/jokes/application/joke_schedule_provi
 import 'package:snickerdoodle/src/features/jokes/application/joke_search_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_state.dart';
+import 'package:snickerdoodle/src/features/jokes/domain/joke_thumbs_reaction.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_viewer_mode.dart';
 import 'package:snickerdoodle/src/features/settings/application/admin_settings_service.dart';
 
@@ -55,6 +56,7 @@ class JokeImageCarousel extends ConsumerStatefulWidget {
   final bool showSaveButton;
   final bool showShareButton;
   final bool showAdminRatingButtons;
+  final bool showUserRatingButtons;
   final bool showUsageStats;
   final String? title;
   final String jokeContext;
@@ -74,6 +76,7 @@ class JokeImageCarousel extends ConsumerStatefulWidget {
     this.showSaveButton = false,
     this.showShareButton = false,
     this.showAdminRatingButtons = false,
+    this.showUserRatingButtons = false,
     this.showUsageStats = false,
     this.title,
     required this.jokeContext,
@@ -1319,6 +1322,30 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
 
     // Build buttons (right-aligned in right section)
     final List<Widget> buttons = [];
+    if (widget.showUserRatingButtons) {
+      final reactionAsync = ref.watch(
+        jokeThumbsReactionProvider(widget.joke.id),
+      );
+      final reactionWidget = reactionAsync.when(
+        data: (reaction) => _buildReactionButtons(reaction),
+        loading: () => SizedBox(
+          width: 72,
+          height: 32,
+          child: Center(
+            child: SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+            ),
+          ),
+        ),
+        error: (error, stack) => _buildReactionButtons(JokeThumbsReaction.none),
+      );
+      buttons.add(reactionWidget);
+    }
 
     // Add admin rating buttons if enabled
     if (widget.showAdminRatingButtons) {
@@ -1376,6 +1403,82 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
         else
           const SizedBox(),
       ],
+    );
+  }
+
+  Widget _buildReactionButtons(JokeThumbsReaction reaction) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _buildThumbButton(
+          reaction: reaction,
+          targetReaction: JokeThumbsReaction.up,
+          icon: Icons.thumb_up,
+          keyName: 'joke_carousel-thumbs-up-button-${widget.joke.id}',
+        ),
+        const SizedBox(width: 8),
+        _buildThumbButton(
+          reaction: reaction,
+          targetReaction: JokeThumbsReaction.down,
+          icon: Icons.thumb_down,
+          keyName: 'joke_carousel-thumbs-down-button-${widget.joke.id}',
+        ),
+      ],
+    );
+  }
+
+  Widget _buildThumbButton({
+    required JokeThumbsReaction reaction,
+    required JokeThumbsReaction targetReaction,
+    required IconData icon,
+    required String keyName,
+  }) {
+    final theme = Theme.of(context);
+    final isActive = reaction == targetReaction;
+    final bool isUp = targetReaction == JokeThumbsReaction.up;
+    final Color activeColor = isUp
+        ? theme.colorScheme.primary
+        : theme.colorScheme.error;
+    final Color borderColor = isActive
+        ? activeColor
+        : theme.colorScheme.outline.withValues(alpha: 0.6);
+    final Color backgroundColor = isActive
+        ? activeColor.withValues(alpha: 0.2)
+        : theme.colorScheme.surfaceContainerHighest;
+    final Color iconColor = isActive
+        ? activeColor
+        : theme.colorScheme.onSurface.withValues(alpha: 0.7);
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        key: Key(keyName),
+        onTap: () {
+          final usageService = ref.read(appUsageServiceProvider);
+          if (targetReaction == JokeThumbsReaction.up) {
+            usageService.logJokeThumbsUp(
+              widget.joke.id,
+              jokeContext: widget.jokeContext,
+            );
+          } else {
+            usageService.logJokeThumbsDown(
+              widget.joke.id,
+              jokeContext: widget.jokeContext,
+            );
+          }
+        },
+        borderRadius: BorderRadius.circular(999),
+        child: Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            color: backgroundColor,
+            shape: BoxShape.circle,
+            border: Border.all(color: borderColor, width: isActive ? 2.0 : 1.0),
+          ),
+          child: Icon(icon, size: 18, color: iconColor),
+        ),
+      ),
     );
   }
 

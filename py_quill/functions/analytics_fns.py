@@ -34,6 +34,16 @@ def usage(req: https_fn.Request) -> https_fn.Response:
     client_num_saved_int = get_int_param(req, 'num_saved', default=None)
     client_num_viewed_int = get_int_param(req, 'num_viewed', default=None)
     client_num_shared_int = get_int_param(req, 'num_shared', default=None)
+    client_num_thumbs_up_int = get_int_param(
+      req,
+      'num_thumbs_up',
+      default=None,
+    )
+    client_num_thumbs_down_int = get_int_param(
+      req,
+      'num_thumbs_down',
+      default=None,
+    )
     client_num_navigated_int = get_int_param(
       req,
       'num_navigated',
@@ -54,6 +64,8 @@ def usage(req: https_fn.Request) -> https_fn.Response:
       client_num_viewed=client_num_viewed_int,
       client_num_navigated=client_num_navigated_int,
       client_num_shared=client_num_shared_int,
+      client_num_thumbs_up=client_num_thumbs_up_int,
+      client_num_thumbs_down=client_num_thumbs_down_int,
       requested_review=requested_review,
       feed_cursor=feed_cursor,
       local_feed_count=local_feed_count,
@@ -72,6 +84,8 @@ def usage(req: https_fn.Request) -> https_fn.Response:
           "client_num_viewed": client_num_viewed_int,
           "client_num_navigated": client_num_navigated_int,
           "client_num_shared": client_num_shared_int,
+          "client_num_thumbs_up": client_num_thumbs_up_int,
+          "client_num_thumbs_down": client_num_thumbs_down_int,
         }
       },
     )
@@ -83,6 +97,8 @@ client_num_saved: {client_num_saved_int}
 client_num_viewed: {client_num_viewed_int}
 client_num_navigated: {client_num_navigated_int}
 client_num_shared: {client_num_shared_int}
+client_num_thumbs_up: {client_num_thumbs_up_int}
+client_num_thumbs_down: {client_num_thumbs_down_int}
 """)
 
     return success_response({

@@ -11,7 +11,7 @@ from io import BytesIO
 import requests
 from agents import agents_common, constants
 from agents.endpoints import all_agents
-from common import image_generation, joke_operations
+from common import image_generation, image_operations, joke_operations
 from firebase_functions import https_fn, options
 from functions.function_utils import get_param
 from functions.prompts import joke_operation_prompts
@@ -24,7 +24,7 @@ from services import cloud_storage, firestore, image_client, image_editor
   timeout_sec=600,
 )
 def dummy_endpoint(req: https_fn.Request) -> https_fn.Response:
-  """Test endpoint that compares standard vs high-quality upscaling.
+  """Test endpoint that compares original images with book page versions.
 
   Args:
       req: The HTTP request. Requires 'joke_id' parameter.
@@ -58,7 +58,6 @@ def dummy_endpoint(req: https_fn.Request) -> https_fn.Response:
     )
 
   try:
-    # Get original joke to capture original image URLs before upscaling
     original_joke = firestore.get_punny_joke(joke_id)
     if not original_joke:
       return https_fn.Response(
@@ -73,31 +72,14 @@ def dummy_endpoint(req: https_fn.Request) -> https_fn.Response:
     original_setup_url = original_joke.setup_image_url
     original_punchline_url = original_joke.punchline_image_url
 
-    # Standard upscale (doesn't replace original)
-    standard_joke = joke_operations.upscale_joke(
+    book_page_setup_url, book_page_punchline_url = image_operations.create_book_pages(
       joke_id,
       overwrite=True,
-      high_quality=False,
     )
-    standard_setup_upscaled_url = standard_joke.setup_image_url_upscaled
-    standard_punchline_upscaled_url = standard_joke.punchline_image_url_upscaled
 
-    # High quality upscale (replaces original with downscaled version)
-    hq_joke = joke_operations.upscale_joke(
-      joke_id,
-      overwrite=True,
-      high_quality=True,
-    )
-    hq_setup_downscaled_url = hq_joke.setup_image_url  # This is now the downscaled version
-    hq_setup_upscaled_url = hq_joke.setup_image_url_upscaled
-    hq_punchline_downscaled_url = hq_joke.punchline_image_url  # This is now the downscaled version
-    hq_punchline_upscaled_url = hq_joke.punchline_image_url_upscaled
-
-    def render_image_section(title: str, original_url: str,
-                             hq_downscaled_url: str,
-                             standard_upscaled_url: str,
-                             hq_upscaled_url: str) -> str:
-      """Render a section with 4 comparison images."""
+    def render_image_section(title: str, left_label: str, left_url: str,
+                             right_label: str, right_url: str) -> str:
+      """Render a section comparing two related images."""
 
       def img_tag(url: str, alt: str) -> str:
         if url:
@@ -109,20 +91,12 @@ def dummy_endpoint(req: https_fn.Request) -> https_fn.Response:
       <h2>{escape(title)}</h2>
       <div class="comparison-grid">
         <div class="image-panel">
-          <h3>Original</h3>
-          {img_tag(original_url, f"{title} - Original")}
+          <h3>{escape(left_label)}</h3>
+          {img_tag(left_url, f"{title} - {left_label}")}
         </div>
         <div class="image-panel">
-          <h3>High Quality Downscaled<br/>(New Main Image)</h3>
-          {img_tag(hq_downscaled_url, f"{title} - High Quality Downscaled")}
-        </div>
-        <div class="image-panel">
-          <h3>Standard Upscaled</h3>
-          {img_tag(standard_upscaled_url, f"{title} - Standard Upscaled")}
-        </div>
-        <div class="image-panel">
-          <h3>High Quality Upscaled</h3>
-          {img_tag(hq_upscaled_url, f"{title} - High Quality Upscaled")}
+          <h3>{escape(right_label)}</h3>
+          {img_tag(right_url, f"{title} - {right_label}")}
         </div>
       </div>
     </section>
@@ -131,7 +105,7 @@ def dummy_endpoint(req: https_fn.Request) -> https_fn.Response:
     return_val = f"""
 <html>
 <head>
-  <title>Upscale Comparison - Joke {escape(joke_id)}</title>
+  <title>Book Page Comparison - Joke {escape(joke_id)}</title>
   <style>
     body {{
       font-family: Arial, sans-serif;
@@ -185,9 +159,9 @@ def dummy_endpoint(req: https_fn.Request) -> https_fn.Response:
   </style>
 </head>
 <body>
-  <h1>Upscale Comparison - Joke {escape(joke_id)}</h1>
-  {render_image_section("Setup Image", original_setup_url, hq_setup_downscaled_url, standard_setup_upscaled_url, hq_setup_upscaled_url)}
-  {render_image_section("Punchline Image", original_punchline_url, hq_punchline_downscaled_url, standard_punchline_upscaled_url, hq_punchline_upscaled_url)}
+  <h1>Book Page Comparison - Joke {escape(joke_id)}</h1>
+  {render_image_section("Original Images", "Punchline", original_punchline_url, "Setup", original_setup_url)}
+  {render_image_section("Book Page Images", "Punchline Book Page", book_page_punchline_url, "Setup Book Page", book_page_setup_url)}
 </body>
 </html>
 """

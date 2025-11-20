@@ -573,13 +573,20 @@ class ImageClient(ABC, Generic[_T]):
 class ImagenClient(ImageClient[genai.Client]):
   """Imagen client implementation."""
 
-  def __init__(self, label: str, model: ImageModel, file_name_base: str,
-               **kwargs: Any):
-    super().__init__(label=label,
-                     model=model,
-                     file_name_base=file_name_base,
-                     extension="png",
-                     **kwargs)
+  def __init__(
+    self,
+    label: str,
+    model: ImageModel,
+    file_name_base: str,
+    **kwargs: Any,
+  ):
+    super().__init__(
+      label=label,
+      model=model,
+      file_name_base=file_name_base,
+      extension="png",
+      **kwargs,
+    )
 
   @override
   def _create_model_client(self) -> genai.Client:
@@ -705,7 +712,7 @@ class ImagenClient(ImageClient[genai.Client]):
     right: int,
     prompt: str,
   ) -> str:
-    """Outpaint an image using Imagen 3 via the GenAI SDK."""
+    """Outpaint an image using Imagen."""
     # Clamp requested margins to sensible bounds (not strictly required, but safe).
     top = max(0, top)
     bottom = max(0, bottom)

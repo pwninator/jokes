@@ -3,15 +3,17 @@
 from __future__ import annotations
 
 import datetime
+import math
 import zipfile
+from dataclasses import dataclass
 from functools import partial
 from io import BytesIO
 from typing import Callable
 
-from common import config, joke_operations
+from common import config
 from firebase_functions import logger
 from PIL import Image
-from services import cloud_storage, firestore, image_editor
+from services import cloud_storage, firestore, image_client, image_editor
 
 _AD_BACKGROUND_SQUARE_DRAWING_URI = "gs://images.quillsstorybook.com/joke_assets/background_drawing_1280_1280.png"
 _AD_BACKGROUND_SQUARE_DESK_URI = "gs://images.quillsstorybook.com/joke_assets/background_desk_1280_1280.png"
@@ -19,18 +21,22 @@ _AD_BACKGROUND_SQUARE_CORKBOARD_URI = "gs://images.quillsstorybook.com/joke_asse
 
 _BOOK_PAGE_BASE_SIZE = 1800
 _BOOK_PAGE_BLEED_PX = 38
-_BOOK_PAGE_TARGET_SIZE = _BOOK_PAGE_BASE_SIZE + (_BOOK_PAGE_BLEED_PX * 2)
+_BOOK_PAGE_FINAL_WIDTH = _BOOK_PAGE_BASE_SIZE + _BOOK_PAGE_BLEED_PX
+_BOOK_PAGE_FINAL_HEIGHT = _BOOK_PAGE_BASE_SIZE + (_BOOK_PAGE_BLEED_PX * 2)
+
+_BOOK_OUTPAINT_MODEL = image_client.ImageModel.IMAGEN_3_CAPABILITY
+_BOOK_UPSCALE_MODEL = image_client.ImageModel.IMAGEN_4_UPSCALE
 
 
 def create_blank_book_cover() -> bytes:
   """Create a blank CMYK JPEG cover image matching book page dimensions.
 
-  The final book page images are (_BOOK_PAGE_TARGET_SIZE - _BOOK_PAGE_BLEED_PX)
-  by _BOOK_PAGE_TARGET_SIZE pixels (after bleed cropping on the inner edge),
+  The final book page images are _BOOK_PAGE_FINAL_WIDTH
+  by _BOOK_PAGE_FINAL_HEIGHT pixels (after bleed cropping on the inner edge),
   so the cover uses the same size to align with the printed pages.
   """
-  width = _BOOK_PAGE_TARGET_SIZE - _BOOK_PAGE_BLEED_PX
-  height = _BOOK_PAGE_TARGET_SIZE
+  width = _BOOK_PAGE_FINAL_WIDTH
+  height = _BOOK_PAGE_FINAL_HEIGHT
   # CMYK white is (0, 0, 0, 0)
   cover = Image.new('CMYK', (width, height), (0, 0, 0, 0))
 
@@ -63,7 +69,11 @@ def zip_joke_page_images(joke_ids: list[str]) -> str:
     raise ValueError("Joke book has no jokes")
 
   files: list[tuple[str, bytes]] = []
-  page_index = 0
+  page_index = 3
+
+  # Add a blank intro page as page 002 before any joke pages.
+  intro_bytes = create_blank_book_cover()
+  files.append(("002_intro.jpg", intro_bytes))
 
   for joke_id in joke_ids:
     joke_ref = firestore.db().collection('jokes').document(joke_id)
@@ -130,11 +140,12 @@ def create_book_pages(
   0.125 inches (38 pixels) of bleed on the top, bottom, and outer edges. The
   inner edge (towards the binding) does NOT have bleed.
 
-  Setup images will be on the right side of the page, and punchline images will
-  be on the left side of the page. Therefore, the square joke images should be
-  scaled to 1876x1876 pixels, and then have 38 pixels cropped from the inner
-  edge. Crop the left side of setup images and the right side of punchline
-  images.
+  Setup images render on the right page and punchline images on the left page.
+  To preserve the full joke artwork we first outpaint each source image by
+  adding 5% margin on every side and, on edges that require bleed, enough extra
+  canvas so that the final trimmed image still has 38 pixels of bleed. The
+  outpainted result is then upscaled by 2x before being scaled back down to the
+  exact 1838x1876 print dimensions.
 
   Args:
       joke_id: Firestore joke document ID
@@ -171,44 +182,28 @@ def create_book_pages(
         and isinstance(existing_punchline, str) and existing_punchline):
       return [existing_setup, existing_punchline]
 
-  joke = joke_operations.upscale_joke(
-    joke_id,
-    high_quality=True,
-    overwrite=overwrite,
-  )
-
-  if (not joke.setup_image_url_upscaled
-      or not joke.punchline_image_url_upscaled):
-    raise ValueError(f'Joke {joke_id} does not have upscaled image URLs')
-
-  setup_source_url = joke.setup_image_url_upscaled
-  punchline_source_url = joke.punchline_image_url_upscaled
-  logger.info(
-    f"Using upscaled images: {setup_source_url} and {punchline_source_url}")
-
-  setup_gcs_uri = cloud_storage.extract_gcs_uri_from_image_url(
-    setup_source_url)
-  punchline_gcs_uri = cloud_storage.extract_gcs_uri_from_image_url(
-    punchline_source_url)
-  logger.info(f"Extracted GCS URIs: {setup_gcs_uri} and {punchline_gcs_uri}")
-
-  setup_bytes = cloud_storage.download_bytes_from_gcs(setup_gcs_uri)
-  punchline_bytes = cloud_storage.download_bytes_from_gcs(punchline_gcs_uri)
-
-  setup_img = Image.open(BytesIO(setup_bytes))
-  punchline_img = Image.open(BytesIO(punchline_bytes))
-
   timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
 
-  setup_page_bytes = _create_book_page_image_bytes(
-    editor,
-    setup_img,
-    crop_left=True,
+  setup_gcs_uri = cloud_storage.extract_gcs_uri_from_image_url(
+    joke.setup_image_url)
+  punchline_gcs_uri = cloud_storage.extract_gcs_uri_from_image_url(
+    joke.punchline_image_url)
+  logger.info(
+    f"Processing original images: {setup_gcs_uri} and {punchline_gcs_uri}")
+
+  setup_page_bytes = _process_book_page(
+    joke_id=joke_id,
+    gcs_uri=setup_gcs_uri,
+    is_left_page=False,
+    editor=editor,
+    page_label='setup',
   )
-  punchline_page_bytes = _create_book_page_image_bytes(
-    editor,
-    punchline_img,
-    crop_left=False,
+  punchline_page_bytes = _process_book_page(
+    joke_id=joke_id,
+    gcs_uri=punchline_gcs_uri,
+    is_left_page=True,
+    editor=editor,
+    page_label='punchline',
   )
 
   setup_filename = f"{joke_id}_book_page_setup_{timestamp}.jpg"
@@ -316,11 +311,8 @@ def create_ad_assets(
   punchline_gcs_uri = cloud_storage.extract_gcs_uri_from_image_url(
     joke.punchline_image_url)
 
-  setup_bytes = cloud_storage.download_bytes_from_gcs(setup_gcs_uri)
-  punchline_bytes = cloud_storage.download_bytes_from_gcs(punchline_gcs_uri)
-
-  setup_img = Image.open(BytesIO(setup_bytes))
-  punchline_img = Image.open(BytesIO(punchline_bytes))
+  setup_img = cloud_storage.download_image_from_gcs(setup_gcs_uri)
+  punchline_img = cloud_storage.download_image_from_gcs(punchline_gcs_uri)
 
   final_urls: list[str] = []
   metadata_updates: dict[str, str] = {}
@@ -352,40 +344,170 @@ def create_ad_assets(
   return final_urls
 
 
-def _create_book_page_image_bytes(
+@dataclass(frozen=True)
+class _OutpaintMargins:
+  top: int
+  bottom: int
+  left: int
+  right: int
+
+
+def _process_book_page(
+  *,
+  joke_id: str,
+  gcs_uri: str,
+  is_left_page: bool,
   editor: image_editor.ImageEditor,
-  source_image: Image.Image,
-  crop_left: bool,
+  page_label: str,
 ) -> bytes:
-  """Create a single print-ready book page image as CMYK JPEG bytes.
-
-  The source image is assumed to be square. It is scaled uniformly so that the
-  shorter side reaches 1876px, then 38px is cropped from either the left or
-  right edge to provide inner binding clearance.
-  """
-
-  # TODO: Need a better way to add bleed to the image.
-  scale_factor = _BOOK_PAGE_TARGET_SIZE / float(source_image.width)
-  scaled = editor.scale_image(source_image, scale_factor)
-
-  width, height = scaled.width, scaled.height
-  bleed = min(_BOOK_PAGE_BLEED_PX, max(1, width - 1))
-  if crop_left:
-    left = bleed
-    right = width
-  else:
-    left = 0
-    right = max(bleed, width - bleed)
-
-  cropped = editor.crop_image(
-    scaled,
-    left=int(left),
-    top=0,
-    right=int(right),
-    bottom=height,
+  """Generate a print-ready page from the original joke artwork."""
+  source_image = cloud_storage.download_image_from_gcs(gcs_uri).convert('RGB')
+  margins = _calculate_book_page_margins(
+    width=source_image.width,
+    height=source_image.height,
+    is_left_page=is_left_page,
   )
-  cmyk_image = cropped.convert('CMYK')
 
+  outpaint_client = image_client.get_client(
+    label='book_page_generation',
+    model=_BOOK_OUTPAINT_MODEL,
+    file_name_base=f'{joke_id}_{page_label}_outpaint',
+  )
+  outpainted_image = outpaint_client.outpaint_image(
+    top=margins.top,
+    bottom=margins.bottom,
+    left=margins.left,
+    right=margins.right,
+    gcs_uri=gcs_uri,
+    save_to_firestore=False,
+  )
+  if not outpainted_image.gcs_uri:
+    raise ValueError('Outpaint operation did not return a GCS URI')
+
+  upscale_client = image_client.get_client(
+    label='book_page_generation',
+    model=_BOOK_UPSCALE_MODEL,
+    file_name_base=f'{joke_id}_{page_label}_upscale',
+  )
+  upscaled_image = upscale_client.upscale_image(
+    upscale_factor='x2',
+    mime_type='image/png',
+    compression_quality=None,
+    gcs_uri=outpainted_image.gcs_uri,
+    save_to_firestore=False,
+  )
+  upscaled_gcs_uri = upscaled_image.gcs_uri_upscaled or upscaled_image.gcs_uri
+  if not upscaled_gcs_uri:
+    raise ValueError('Upscale operation did not return a GCS URI')
+
+  upscaled_image = cloud_storage.download_image_from_gcs(
+    upscaled_gcs_uri).convert('RGB')
+  scaled_cropped_image = _scale_and_crop_book_page(
+    editor=editor,
+    image=upscaled_image,
+    is_left_page=is_left_page,
+  )
+  return _convert_to_cmyk_jpeg_bytes(scaled_cropped_image)
+
+
+def _calculate_book_page_margins(
+  *,
+  width: int,
+  height: int,
+  is_left_page: bool,
+) -> _OutpaintMargins:
+  """Compute outpainting margins that preserve art and guarantee bleed."""
+  base_horizontal = max(1, round(width * 0.05))
+  base_vertical = max(1, round(height * 0.05))
+
+  width_without_bleed = width + (base_horizontal * 2)
+  height_without_bleed = height + (base_vertical * 2)
+
+  horizontal_bleed_extra = math.ceil(
+    _BOOK_PAGE_BLEED_PX * width_without_bleed / _BOOK_PAGE_BASE_SIZE)
+  vertical_bleed_extra = math.ceil(_BOOK_PAGE_BLEED_PX * height_without_bleed /
+                                   _BOOK_PAGE_BASE_SIZE)
+
+  left = base_horizontal
+  right = base_horizontal
+  if is_left_page:
+    left += horizontal_bleed_extra
+  else:
+    right += horizontal_bleed_extra
+
+  top = base_vertical + vertical_bleed_extra
+  bottom = base_vertical + vertical_bleed_extra
+
+  return _OutpaintMargins(
+    top=top,
+    bottom=bottom,
+    left=left,
+    right=right,
+  )
+
+
+def _scale_and_crop_book_page(
+  *,
+  editor: image_editor.ImageEditor,
+  image: Image.Image,
+  is_left_page: bool,
+) -> Image.Image:
+  """Scale and crop the outpainted image to the final print dimensions."""
+  target_width = _BOOK_PAGE_FINAL_WIDTH
+  target_height = _BOOK_PAGE_FINAL_HEIGHT
+
+  scale_factor = max(
+    target_width / image.width,
+    target_height / image.height,
+  )
+  scaled = editor.scale_image(image, scale_factor)
+
+  left = 0
+  top = 0
+  right = scaled.width
+  bottom = scaled.height
+
+  excess_width = scaled.width - target_width
+  if excess_width > 0:
+    if is_left_page:
+      right -= excess_width
+    else:
+      left += excess_width
+
+  excess_height = scaled.height - target_height
+  if excess_height > 0:
+    top += excess_height // 2
+    bottom -= excess_height - (excess_height // 2)
+
+  left = int(left)
+  top = int(top)
+  right = int(right)
+  bottom = int(bottom)
+
+  cropped = scaled.crop((left, top, right, bottom))
+
+  horizontal_trim = scaled.width - cropped.width
+  vertical_trim = scaled.height - cropped.height
+  max_trim = 4
+  if horizontal_trim > max_trim or vertical_trim > max_trim:
+    raise ValueError(
+      'Unexpected crop amount: '
+      f'horizontal_trim={horizontal_trim}px (max {max_trim}px), '
+      f'vertical_trim={vertical_trim}px (max {max_trim}px), '
+      f'left={left}, top={top}, right={right}, bottom={bottom}')
+
+  if cropped.width != target_width or cropped.height != target_height:
+    cropped = cropped.resize(
+      (target_width, target_height),
+      Image.Resampling.LANCZOS,
+    )
+
+  return cropped
+
+
+def _convert_to_cmyk_jpeg_bytes(image: Image.Image) -> bytes:
+  """Convert an RGB image to CMYK JPEG bytes suited for print."""
+  cmyk_image = image.convert('CMYK')
   buffer = BytesIO()
   cmyk_image.save(
     buffer,
@@ -420,8 +542,7 @@ def _compose_square_drawing_ad_image(
 ) -> tuple[bytes, int]:
   """Create a 1200x1200 square PNG with background and post-it style shadows."""
   # Load the portrait background image from GCS
-  bg_bytes = cloud_storage.download_bytes_from_gcs(background_uri)
-  base = Image.open(BytesIO(bg_bytes))
+  base = cloud_storage.download_image_from_gcs(background_uri)
 
   # Paste punchline image first so it's below the setup image
   # Transform punchline image

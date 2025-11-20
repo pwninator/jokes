@@ -1225,6 +1225,10 @@ class UpscaleDimensions:
   """Y coordinate of the mask on the new canvas."""
 
 
+UPSCALE_MARGIN_FRACTION = 0.01
+"""Fraction of the original dimension used as margin for outpainting/upscaling."""
+
+
 def get_upscale_dimensions(
   original_width: int,
   original_height: int,
@@ -1253,11 +1257,15 @@ def get_upscale_dimensions(
   image_x = left
   image_y = top
 
-  # Add a ~5% margin on the outpainting sides so transitions can be redrawn.
-  margin_left = int(round(original_width * 0.05)) if left > 0 else 0
-  margin_right = int(round(original_width * 0.05)) if right > 0 else 0
-  margin_top = int(round(original_height * 0.05)) if top > 0 else 0
-  margin_bottom = int(round(original_height * 0.05)) if bottom > 0 else 0
+  # Add a ~1% margin on the outpainting sides so transitions can be redrawn.
+  margin_left = int(round(original_width *
+                          UPSCALE_MARGIN_FRACTION)) if left > 0 else 0
+  margin_right = int(round(original_width *
+                           UPSCALE_MARGIN_FRACTION)) if right > 0 else 0
+  margin_top = int(round(original_height *
+                         UPSCALE_MARGIN_FRACTION)) if top > 0 else 0
+  margin_bottom = int(round(original_height *
+                            UPSCALE_MARGIN_FRACTION)) if bottom > 0 else 0
 
   mask_width = max(1, original_width - margin_left - margin_right)
   mask_height = max(1, original_height - margin_top - margin_bottom)

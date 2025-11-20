@@ -58,51 +58,70 @@ def dummy_endpoint(req: https_fn.Request) -> https_fn.Response:
     )
 
   try:
-    original_joke = firestore.get_punny_joke(joke_id)
-    if not original_joke:
-      return https_fn.Response(
-        json.dumps({
-          "error": f"Joke not found: {joke_id}",
-          "success": False
-        }),
-        status=404,
-        mimetype='application/json',
-      )
+    return_val = run_book_page_test(joke_id)
 
-    original_setup_url = original_joke.setup_image_url
-    original_punchline_url = original_joke.punchline_image_url
+    return https_fn.Response(return_val, status=200, mimetype='text/html')
 
-    book_page_setup_url, book_page_punchline_url = image_operations.create_book_pages(
-      joke_id,
-      overwrite=True,
+  except Exception as e:
+    stacktrace = traceback.format_exc()
+    return https_fn.Response(
+      json.dumps({
+        "error": f"Failed to process request: {str(e)}",
+        "stacktrace": stacktrace,
+        "success": False
+      }),
+      status=500,
+      mimetype='application/json',
     )
 
-    def render_image_section(title: str, left_label: str, left_url: str,
-                             right_label: str, right_url: str) -> str:
-      """Render a section comparing two related images."""
 
-      def img_tag(url: str, alt: str) -> str:
-        if url:
-          return f'<img src="{escape(url)}" alt="{escape(alt)}" />'
-        return '<div class="error-message">No image URL</div>'
+def run_book_page_test(joke_id: str) -> str:
+  """Run a test to compare original images with book page versions."""
+  original_joke = firestore.get_punny_joke(joke_id)
+  if not original_joke:
+    return https_fn.Response(
+      json.dumps({
+        "error": f"Joke not found: {joke_id}",
+        "success": False
+      }),
+      status=404,
+      mimetype='application/json',
+    )
 
-      return f"""
-    <section class="image-section">
-      <h2>{escape(title)}</h2>
-      <div class="comparison-grid">
-        <div class="image-panel">
-          <h3>{escape(left_label)}</h3>
-          {img_tag(left_url, f"{title} - {left_label}")}
-        </div>
-        <div class="image-panel">
-          <h3>{escape(right_label)}</h3>
-          {img_tag(right_url, f"{title} - {right_label}")}
-        </div>
+  original_setup_url = original_joke.setup_image_url
+  original_punchline_url = original_joke.punchline_image_url
+
+  book_page_setup_url, book_page_punchline_url = image_operations.create_book_pages(
+    joke_id,
+    overwrite=True,
+  )
+
+  def render_image_section(title: str, left_label: str, left_url: str,
+                           right_label: str, right_url: str) -> str:
+    """Render a section comparing two related images."""
+
+    def img_tag(url: str, alt: str) -> str:
+      if url:
+        return f'<img src="{escape(url)}" alt="{escape(alt)}" />'
+      return '<div class="error-message">No image URL</div>'
+
+    return f"""
+  <section class="image-section">
+    <h2>{escape(title)}</h2>
+    <div class="comparison-grid">
+      <div class="image-panel">
+        <h3>{escape(left_label)}</h3>
+        {img_tag(left_url, f"{title} - {left_label}")}
       </div>
-    </section>
+      <div class="image-panel">
+        <h3>{escape(right_label)}</h3>
+        {img_tag(right_url, f"{title} - {right_label}")}
+      </div>
+    </div>
+  </section>
 """
 
-    return_val = f"""
+  return_val = f"""
 <html>
 <head>
   <title>Book Page Comparison - Joke {escape(joke_id)}</title>
@@ -165,17 +184,4 @@ def dummy_endpoint(req: https_fn.Request) -> https_fn.Response:
 </body>
 </html>
 """
-
-    return https_fn.Response(return_val, status=200, mimetype='text/html')
-
-  except Exception as e:
-    stacktrace = traceback.format_exc()
-    return https_fn.Response(
-      json.dumps({
-        "error": f"Failed to process request: {str(e)}",
-        "stacktrace": stacktrace,
-        "success": False
-      }),
-      status=500,
-      mimetype='application/json',
-    )
+  return return_val

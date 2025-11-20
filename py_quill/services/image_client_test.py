@@ -79,17 +79,15 @@ class ImageClientTest(unittest.TestCase):
     self.assertEqual(dims.image_x, 30)
     self.assertEqual(dims.image_y, 10)
 
-    # Horizontal margins are 5% of original width when outpainting.
-    expected_h_margin = int(round(100 * 0.05))
-    # Vertical margins are 5% of original height when outpainting.
-    expected_v_margin = int(round(200 * 0.05))
+    # Horizontal and vertical margins are a fixed fraction of the original size
+    # when outpainting.
+    expected_h_margin = int(round(100 * image_client.UPSCALE_MARGIN_FRACTION))
+    expected_v_margin = int(round(200 * image_client.UPSCALE_MARGIN_FRACTION))
 
     self.assertEqual(dims.mask_x, 30 + expected_h_margin)
     self.assertEqual(dims.mask_y, 10 + expected_v_margin)
-    self.assertEqual(dims.mask_width,
-                     max(1, 100 - expected_h_margin * 2))
-    self.assertEqual(dims.mask_height,
-                     max(1, 200 - expected_v_margin * 2))
+    self.assertEqual(dims.mask_width, max(1, 100 - expected_h_margin * 2))
+    self.assertEqual(dims.mask_height, max(1, 200 - expected_v_margin * 2))
 
   def test_get_upscale_dimensions_horizontal_only(self):
     """Outpainting only horizontally should only inset the mask horizontally."""
@@ -102,7 +100,7 @@ class ImageClientTest(unittest.TestCase):
       right=10,
     )
 
-    expected_margin = int(round(120 * 0.05))
+    expected_margin = int(round(120 * image_client.UPSCALE_MARGIN_FRACTION))
 
     # Canvas width grows; height stays the same.
     self.assertEqual(dims.new_canvas_width, 120 + 10)
@@ -131,7 +129,7 @@ class ImageClientTest(unittest.TestCase):
       right=0,
     )
 
-    expected_v_margin = int(round(100 * 0.05))
+    expected_v_margin = int(round(100 * image_client.UPSCALE_MARGIN_FRACTION))
 
     # Canvas height grows; width stays the same.
     self.assertEqual(dims.new_canvas_width, 50)

@@ -41,6 +41,7 @@ class ImageProvider(Enum):
   OPENAI_IMAGES = "openai_images"
   OPENAI_RESPONSES = "openai_responses"
   GEMINI = "gemini"
+  DUMMY_OUTPAINTER = "dummy_outpainter"
 
 
 class ImageModel(Enum):
@@ -215,6 +216,15 @@ class ImageModel(Enum):
     ImageProvider.GEMINI,
   )
 
+  # Dummy outpainter that just adds black margins around the image
+  DUMMY_OUTPAINTER = (
+    "dummy_outpainter",
+    {
+      "images": 0.00,
+    },
+    ImageProvider.DUMMY_OUTPAINTER,
+  )
+
 
 OTHER_TOKEN_COSTS = {
   "gpt-4.1-mini": {
@@ -258,6 +268,11 @@ def get_client(
                                model=model,
                                file_name_base=file_name_base,
                                **kwargs)
+    case ImageProvider.DUMMY_OUTPAINTER:
+      return DummyOutpainterClient(label=label,
+                                   model=model,
+                                   file_name_base=file_name_base,
+                                   **kwargs)
     case _:
       raise ValueError(f"Unknown image provider: {model.provider}")
 
@@ -522,7 +537,6 @@ class ImageClient(ABC, Generic[_T]):
     """Create the model."""
     raise NotImplementedError
 
-  @abstractmethod
   def _generate_image_internal(
     self,
     prompt: str,
@@ -1333,6 +1347,56 @@ class GeminiImageClient(ImageClient[genai.Client]):
       right,
       prompt,
     )
+
+
+class DummyOutpainterClient(ImageClient[None]):
+  """Dummy outpainter client that just adds black margins around the image."""
+
+  def __init__(self, label: str, model: ImageModel, file_name_base: str,
+               **kwargs: Any):
+    super().__init__(label=label,
+                     model=model,
+                     file_name_base=file_name_base,
+                     extension="png",
+                     **kwargs)
+
+  @override
+  def _create_model_client(self) -> None:
+    return None
+
+  @override
+  def _outpaint_image_internal(
+    self,
+    input_image: Image.Image,
+    output_gcs_uri: str,
+    top: int,
+    bottom: int,
+    left: int,
+    right: int,
+    prompt: str,
+  ) -> tuple[str, dict[str, int]]:
+
+    ref_image, _ = get_upscale_image_and_mask(
+      input_image,
+      top=top,
+      bottom=bottom,
+      left=left,
+      right=right,
+    )
+
+    # Upload result
+    final_bytes_io = BytesIO()
+    ref_image.save(final_bytes_io, format="PNG")
+    final_bytes = final_bytes_io.getvalue()
+
+    print(f"Uploading outpainted image to GCS: {output_gcs_uri}")
+    cloud_storage.upload_bytes_to_gcs(
+      final_bytes,
+      output_gcs_uri,
+      content_type="image/png",
+    )
+
+    return output_gcs_uri, {"images": 1}
 
 
 def _build_generation_metadata(

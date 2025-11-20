@@ -307,8 +307,8 @@ def set_cdn_url_params(
 
 def get_final_image_url(gcs_uri: str, width: int = 1024) -> str:
   """Get the final image URL for an image."""
-  if utils.is_emulator():
-    # In emulator mode, the image is not accessible via CDN
-    return get_emulator_accessible_url(gcs_uri)
-  else:
-    return get_public_image_cdn_url(gcs_uri, width=width)
+  # if utils.is_emulator():
+  #   # In emulator mode, the image is not accessible via CDN
+  #   return get_emulator_accessible_url(gcs_uri)
+  # else:
+  return get_public_image_cdn_url(gcs_uri, width=width)

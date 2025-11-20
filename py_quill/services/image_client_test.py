@@ -309,7 +309,7 @@ class ImageClientTest(unittest.TestCase):
 
     # Call the internal outpaint method.
     # Using a non-zero margin to exercise mask/canvas logic.
-    result_uri = self.imagen1_client._outpaint_image_internal(
+    result_uri, usage_dict = self.imagen1_client._outpaint_image_internal(
       pil_image,
       output_gcs_uri,
       top=2,
@@ -325,8 +325,9 @@ class ImageClientTest(unittest.TestCase):
     call_args = mock_models.edit_image.call_args
     self.assertEqual(call_args[1]["config"].output_gcs_uri, output_gcs_uri)
 
-    # The internal method should return the GCS URI of the generated image.
+    # The internal method should return the GCS URI and usage dict.
     self.assertEqual(result_uri, "gs://test/image_outpainted.png")
+    self.assertEqual(usage_dict, {"images": 1})
 
   def test_outpaint_image_validation(self):
     """Test validation logic for outpaint_image."""
@@ -369,7 +370,7 @@ class ImageClientTest(unittest.TestCase):
     """Test outpaint_image when a gcs_uri is provided."""
     # Mock downloading image bytes.
     mock_download_bytes.return_value = _get_dummy_image_bytes()
-    mock_outpaint_internal.return_value = "gs://test/outpainted.png"
+    mock_outpaint_internal.return_value = ("gs://test/outpainted.png", {"images": 1})
     mock_get_final_image_url.return_value = "http://example.com/outpainted.png"
 
     result = self.gemini_client.outpaint_image(
@@ -402,3 +403,217 @@ class ImageClientTest(unittest.TestCase):
     self.assertEqual(result.url, "http://example.com/outpainted.png")
     self.assertEqual(result.generation_metadata.generations[0].token_counts,
                      {"images": 1})
+
+  @patch('services.firestore.create_image')
+  @patch('services.cloud_storage.get_final_image_url')
+  @patch('services.cloud_storage.download_bytes_from_gcs')
+  @patch('services.image_client.GeminiImageClient._outpaint_image_internal')
+  def test_outpaint_image_with_pil_image_and_gcs_uri(
+    self,
+    mock_outpaint_internal,
+    mock_download_bytes,
+    mock_get_final_image_url,
+    mock_create_image,
+  ):
+    """Test outpaint_image when pil_image and gcs_uri are provided."""
+    # Create a PIL image directly
+    test_pil_image = Image.new('RGB', (20, 20), color='blue')
+    mock_outpaint_internal.return_value = ("gs://test/outpainted.png", {"images": 1})
+    mock_get_final_image_url.return_value = "http://example.com/outpainted.png"
+
+    result = self.gemini_client.outpaint_image(
+      top=10,
+      pil_image=test_pil_image,
+      gcs_uri="gs://test/image.png",
+      prompt="Extend the background",
+    )
+
+    # Verify image was NOT downloaded from GCS (pil_image was used directly)
+    mock_download_bytes.assert_not_called()
+    
+    # Verify _outpaint_image_internal was called with the provided PIL.Image
+    self.assertEqual(mock_outpaint_internal.call_count, 1)
+    call_args = mock_outpaint_internal.call_args
+    # First positional arg should be a PIL.Image with same size and mode
+    passed_image = call_args[0][0]
+    self.assertIsInstance(passed_image, Image.Image)
+    self.assertEqual(passed_image.mode, "RGB")
+    self.assertEqual(passed_image.size, test_pil_image.size)
+    # Second positional arg should be the output_gcs_uri string
+    self.assertIsInstance(call_args[0][1], str)
+    self.assertIn("_outpaint", call_args[0][1])
+    # Verify other parameters
+    self.assertEqual(call_args[1]["top"], 10)
+    self.assertEqual(call_args[1]["prompt"], "Extend the background")
+    
+    mock_create_image.assert_called_once_with(ANY)
+    self.assertIsInstance(result, models.Image)
+    self.assertEqual(result.gcs_uri, "gs://test/outpainted.png")
+
+  @patch('services.firestore.create_image')
+  @patch('services.cloud_storage.get_final_image_url')
+  @patch('services.cloud_storage.download_bytes_from_gcs')
+  @patch('services.image_client.GeminiImageClient._outpaint_image_internal')
+  def test_outpaint_image_with_pil_image_and_image_model(
+    self,
+    mock_outpaint_internal,
+    mock_download_bytes,
+    mock_get_final_image_url,
+    mock_create_image,
+  ):
+    """Test outpaint_image when pil_image and image model are provided."""
+    # Create a PIL image directly
+    test_pil_image = Image.new('RGB', (30, 30), color='green')
+    image_model = models.Image(key="test_key", gcs_uri="gs://test/image.png")
+    mock_outpaint_internal.return_value = ("gs://test/outpainted.png", {"images": 1})
+    mock_get_final_image_url.return_value = "http://example.com/outpainted.png"
+
+    result = self.gemini_client.outpaint_image(
+      top=5,
+      bottom=5,
+      pil_image=test_pil_image,
+      image=image_model,
+      prompt="Fill margins",
+    )
+
+    # Verify image was NOT downloaded from GCS (pil_image was used directly)
+    mock_download_bytes.assert_not_called()
+    
+    # Verify _outpaint_image_internal was called with the provided PIL.Image
+    self.assertEqual(mock_outpaint_internal.call_count, 1)
+    call_args = mock_outpaint_internal.call_args
+    passed_image = call_args[0][0]
+    self.assertIsInstance(passed_image, Image.Image)
+    self.assertEqual(passed_image.mode, "RGB")
+    self.assertEqual(passed_image.size, test_pil_image.size)
+    self.assertEqual(call_args[1]["top"], 5)
+    self.assertEqual(call_args[1]["bottom"], 5)
+    self.assertEqual(call_args[1]["prompt"], "Fill margins")
+    
+    mock_create_image.assert_called_once_with(ANY)
+    self.assertIsInstance(result, models.Image)
+    # Verify owner_user_id is preserved from image model
+    self.assertEqual(result.owner_user_id, image_model.owner_user_id)
+
+  def test_outpaint_image_pil_image_only_requires_gcs_uri(self):
+    """Test that pil_image alone is not enough - still need image or gcs_uri."""
+    test_pil_image = Image.new('RGB', (10, 10), color='red')
+    
+    with self.assertRaisesRegex(
+        ValueError, "Exactly one of 'image' or 'gcs_uri' must be provided."):
+      self.gemini_client.outpaint_image(
+        top=10,
+        pil_image=test_pil_image,
+      )
+
+  def test_outpaint_image_pil_image_converts_to_rgb(self):
+    """Test that pil_image is converted to RGB mode."""
+    # Create a PIL image in a different mode (e.g., RGBA)
+    test_pil_image = Image.new('RGBA', (15, 15), color=(255, 0, 0, 128))
+    
+    with patch('services.image_client.GeminiImageClient._outpaint_image_internal') as mock_outpaint:
+      mock_outpaint.return_value = ("gs://test/outpainted.png", {"images": 1})
+      with patch('services.cloud_storage.get_final_image_url') as mock_get_url:
+        mock_get_url.return_value = "http://example.com/outpainted.png"
+        with patch('services.firestore.create_image'):
+          self.gemini_client.outpaint_image(
+            top=10,
+            pil_image=test_pil_image,
+            gcs_uri="gs://test/image.png",
+          )
+      
+      # Verify the image passed to _outpaint_image_internal is RGB
+      call_args = mock_outpaint.call_args
+      passed_image = call_args[0][0]
+      self.assertEqual(passed_image.mode, "RGB")
+
+  @patch('services.cloud_storage.download_bytes_from_gcs')
+  def test_outpaint_image_internal_aspect_ratio_validation_too_wide(
+    self,
+    mock_download_bytes,
+  ):
+    """Test that _outpaint_image_internal raises ValueError when aspect ratio is too wide."""
+    # Create a 100x100 image (1:1 aspect ratio)
+    input_image = Image.new('RGB', (100, 100), color='red')
+    # Request margins that would make it 200x150 (4:3 aspect ratio, too wide)
+    mock_download_bytes.return_value = _get_dummy_image_bytes()
+    
+    with self.assertRaisesRegex(
+        ValueError,
+        r"Requested outpainting margins would change aspect ratio from .* to .*\. "
+        r"Margins must preserve the original image aspect ratio\."):
+      self.gemini_client._outpaint_image_internal(
+        input_image,
+        "gs://test/output.png",
+        top=25,
+        bottom=25,
+        left=50,
+        right=50,
+        prompt="",
+      )
+
+  @patch('services.cloud_storage.download_bytes_from_gcs')
+  def test_outpaint_image_internal_aspect_ratio_validation_too_tall(
+    self,
+    mock_download_bytes,
+  ):
+    """Test that _outpaint_image_internal raises ValueError when aspect ratio is too tall."""
+    # Create a 200x100 image (2:1 aspect ratio)
+    input_image = Image.new('RGB', (200, 100), color='blue')
+    # Request margins that would make it 250x200 (5:4 aspect ratio, too tall)
+    mock_download_bytes.return_value = _get_dummy_image_bytes()
+    
+    with self.assertRaisesRegex(
+        ValueError,
+        r"Requested outpainting margins would change aspect ratio from .* to .*\. "
+        r"Margins must preserve the original image aspect ratio\."):
+      self.gemini_client._outpaint_image_internal(
+        input_image,
+        "gs://test/output.png",
+        top=50,
+        bottom=50,
+        left=25,
+        right=25,
+        prompt="",
+      )
+
+  @patch('services.image_client.GeminiImageClient.generate_image')
+  @patch('services.cloud_storage.download_bytes_from_gcs')
+  @patch('services.cloud_storage.upload_bytes_to_gcs')
+  def test_outpaint_image_internal_aspect_ratio_validation_preserved(
+    self,
+    mock_upload_bytes,
+    mock_download_bytes,
+    mock_generate_image,
+  ):
+    """Test that _outpaint_image_internal succeeds when aspect ratio is preserved."""
+    # Create a 100x100 image (1:1 aspect ratio)
+    input_image = Image.new('RGB', (100, 100), color='green')
+    # Request margins that preserve 1:1 aspect ratio: 200x200
+    generated_image = models.Image(gcs_uri="gs://test/generated.png")
+    generated_image.generation_metadata = models.GenerationMetadata()
+    generated_image.generation_metadata.add_generation(
+      models.SingleGenerationMetadata(
+        label="test",
+        model_name="test-model",
+        token_counts={"images": 1},
+      )
+    )
+    mock_generate_image.return_value = generated_image
+    mock_download_bytes.return_value = _get_dummy_image_bytes()
+    mock_upload_bytes.return_value = "gs://test/output.png"
+    
+    # Should not raise an exception
+    result_uri, usage_dict = self.gemini_client._outpaint_image_internal(
+      input_image,
+      "gs://test/output.png",
+      top=50,
+      bottom=50,
+      left=50,
+      right=50,
+      prompt="",
+    )
+    
+    self.assertEqual(result_uri, "gs://test/output.png")
+    self.assertEqual(usage_dict, {"images": 1})
+    mock_generate_image.assert_called_once()

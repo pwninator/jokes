@@ -424,6 +424,7 @@ class ImageClient(ABC, Generic[_T]):
     right: int = 0,
     prompt: str = "",
     image: models.Image | None = None,
+    pil_image: Image.Image | None = None,
     gcs_uri: str | None = None,
     save_to_firestore: bool = True,
   ) -> models.Image:
@@ -436,6 +437,7 @@ class ImageClient(ABC, Generic[_T]):
       right: Pixels to expand at the right edge.
       prompt: Optional prompt describing what to generate in expanded areas.
       image: Image model to outpaint.
+      pil_image: Alternative to image parameter - PIL Image to outpaint.
       gcs_uri: Alternative to image parameter - GCS URI of image to outpaint.
       save_to_firestore: Whether to save result to Firestore.
 
@@ -457,9 +459,13 @@ class ImageClient(ABC, Generic[_T]):
     if not source_gcs_uri:
       raise ValueError("The provided image must have a gcs_uri.")
 
-    # Load image bytes and create PIL.Image
-    image_bytes = cloud_storage.download_bytes_from_gcs(source_gcs_uri)
-    pil_image = Image.open(BytesIO(image_bytes)).convert("RGB")
+    # Use provided PIL image if available, otherwise load from GCS
+    if pil_image is None:
+      image_bytes = cloud_storage.download_bytes_from_gcs(source_gcs_uri)
+      pil_image = Image.open(BytesIO(image_bytes)).convert("RGB")
+    else:
+      # Ensure the PIL image is in RGB mode
+      pil_image = pil_image.convert("RGB")
 
     # Construct output GCS URI
     gcs_uri_base, ext = os.path.splitext(source_gcs_uri)
@@ -470,7 +476,7 @@ class ImageClient(ABC, Generic[_T]):
     output_gcs_uri = f"{gcs_uri_base}_outpaint{ext}"
 
     start_time = time.perf_counter()
-    outpainted_gcs_uri = self._outpaint_image_internal(
+    outpainted_gcs_uri, usage_dict = self._outpaint_image_internal(
       pil_image,
       output_gcs_uri,
       top=top,
@@ -483,7 +489,7 @@ class ImageClient(ABC, Generic[_T]):
     generation_metadata = _build_generation_metadata(
       label=self.label,
       model_name=self.model.model_name,
-      usage_dict={"images": 1},
+      usage_dict=usage_dict,
       token_costs=self.model.token_costs,
       generation_time_sec=time.perf_counter() - start_time,
     )
@@ -567,7 +573,7 @@ class ImageClient(ABC, Generic[_T]):
     left: int,
     right: int,
     prompt: str,
-  ) -> str:
+  ) -> tuple[str, dict[str, int]]:
     """Outpaint an image.
 
     Args:
@@ -580,9 +586,148 @@ class ImageClient(ABC, Generic[_T]):
       prompt: Prompt describing what to generate in expanded areas.
 
     Returns:
-      The GCS URI of the outpainted image.
+      A tuple of (gcs_uri, usage_dict) where:
+        - gcs_uri: The GCS URI of the outpainted image.
+        - usage_dict: Dictionary of token/usage counts (e.g., {"images": 1}).
     """
     raise NotImplementedError
+
+  def _outpaint_image_using_generate_image(
+    self,
+    input_image: Image.Image,
+    output_gcs_uri: str,
+    top: int,
+    bottom: int,
+    left: int,
+    right: int,
+    prompt: str,
+  ) -> tuple[str, dict[str, int]]:
+    """Outpaint an image using generate_image.
+
+    This implementation performs outpainting by:
+
+    1. **Validating aspect ratio**:
+       The requested `top`, `bottom`, `left`, and `right` margins must
+       preserve the original image's aspect ratio. If the resulting canvas
+       would have a different aspect ratio, a ValueError is raised.
+
+    2. **Building a larger reference canvas**:
+       A new canvas is created via `get_upscale_image_and_mask`, which
+       places the original image in the middle and fills the requested
+       margins with black. The mask output is ignored for Gemini; only
+       the reference image is used.
+
+    3. **Creating a zoomed-out reference image**:
+       The larger reference canvas is downscaled back to the original
+       image size. The resulting image looks like the original content
+       shrunk into the center of a black frame, which Gemini uses as a
+       reference.
+
+    4. **Prompting Gemini to fill margins**:
+       `generate_image` is called with the downscaled reference image
+       and a prompt telling the model to produce an image identical to
+       the reference, except that it should seamlessly extend the
+       background into the black margins. Firestore saving and
+       auto-enhancement are disabled for this intermediate image.
+
+    5. **Upscaling to the final canvas size**:
+       The generated image is downloaded and resized to the full
+       outpainted canvas dimensions, then written to `output_gcs_uri`.
+
+    The net effect is a "zoom-out" style outpaint: the original content
+    remains visually consistent, while Gemini invents plausible content
+    for the newly exposed margins around it.
+    """
+    # 1. Validate that requested margins maintain aspect ratio
+    original_width, original_height = input_image.size
+
+    # Calculate initial target dimensions
+    target_width = original_width + left + right
+    target_height = original_height + top + bottom
+
+    original_aspect = original_width / original_height
+    target_aspect = target_width / target_height
+
+    # Tolerance for aspect ratio comparison
+    if abs(target_aspect - original_aspect) > 1e-3:
+      raise ValueError(
+        f"Requested outpainting margins would change aspect ratio from "
+        f"{original_aspect:.6f} to {target_aspect:.6f}. "
+        f"Margins must preserve the original image aspect ratio.")
+
+    # 2. Create ref_image (canvas)
+    # We use the utility but ignore the mask as requested
+    ref_image, _ = get_upscale_image_and_mask(
+      input_image,
+      top=top,
+      bottom=bottom,
+      left=left,
+      right=right,
+    )
+
+    # 3. Scale down to input size
+    # This creates the input for Gemini which looks like the original image
+    # but shrunk into the center of a black frame.
+    # We use LANCZOS for high quality downscaling.
+    ref_image_downscaled = ref_image.resize(
+      input_image.size,
+      Image.Resampling.LANCZOS,
+    )
+
+    # 4. Generate
+    prompt = prompt if prompt else (
+      """The reference image has black margins around an interior drawing on textured paper. Your task is to "outpaint" the interior drawing into the black margins. Generate a new image where the interior drawing is the same, and the black margin is replaced by a seamless extension of the interior drawing. The final image should NOT have any black margins."""
+    )
+
+    # We use the public generate_image to leverage existing logic,
+    # but disable firestore saving and auto-enhance for this intermediate step.
+    generated_image_model = self.generate_image(
+      prompt=prompt,
+      reference_images=[ref_image_downscaled],
+      save_to_firestore=False,
+      auto_enhance=False,
+    )
+
+    if not generated_image_model.gcs_uri:
+      raise ValueError("Generated outpaint image has no GCS URI")
+
+    # Extract usage dict from generation metadata
+    # The generation metadata should have at least one generation with token_counts
+    if not generated_image_model.generation_metadata or not generated_image_model.generation_metadata.generations:
+      raise ValueError("Generated outpaint image has no generation metadata")
+
+    # Get token counts from the most recent generation
+    latest_generation = generated_image_model.generation_metadata.generations[
+      -1]
+    usage_dict = latest_generation.token_counts.copy()
+
+    # 5. Scale result back to the full outpaint dimensions
+    # Download the result
+    generated_bytes = cloud_storage.download_bytes_from_gcs(
+      generated_image_model.gcs_uri)
+    generated_pil = Image.open(BytesIO(generated_bytes))
+
+    # The generated image should be input_image.size (since we passed that as ref),
+    # but Gemini might output something else. We force resize to the target canvas size.
+    final_width, final_height = ref_image.size
+    final_image = generated_pil.resize(
+      (final_width, final_height),
+      Image.Resampling.LANCZOS,
+    )
+
+    # Upload result
+    final_bytes_io = BytesIO()
+    final_image.save(final_bytes_io, format="PNG")
+    final_bytes = final_bytes_io.getvalue()
+
+    print(f"Uploading outpainted image to GCS: {output_gcs_uri}")
+    cloud_storage.upload_bytes_to_gcs(
+      final_bytes,
+      output_gcs_uri,
+      content_type="image/png",
+    )
+
+    return output_gcs_uri, usage_dict
 
 
 class ImagenClient(ImageClient[genai.Client]):
@@ -727,7 +872,7 @@ class ImagenClient(ImageClient[genai.Client]):
     left: int,
     right: int,
     prompt: str,
-  ) -> str:
+  ) -> tuple[str, dict[str, int]]:
     """Outpaint an image using Imagen."""
     # Clamp requested margins to sensible bounds (not strictly required, but safe).
     top = max(0, top)
@@ -797,7 +942,7 @@ class ImagenClient(ImageClient[genai.Client]):
       raise ValueError(
         "No image gcs_uri returned from Imagen 3 outpaint operation")
 
-    return generated.image.gcs_uri
+    return generated.image.gcs_uri, {"images": 1}
 
 
 class OpenAiImageClient(ImageClient[OpenAI]):
@@ -849,17 +994,9 @@ class OpenAiImageClient(ImageClient[OpenAI]):
 
     if reference_images:
       reference_image_bytes = []
-      for i, img in enumerate(reference_images):
-        if isinstance(img, str):
-          image_bytes = cloud_storage.download_bytes_from_gcs(img)
-        elif isinstance(img, Image.Image):
-          image_bytes = img.tobytes()
-        elif isinstance(img, bytes):
-          image_bytes = img
-        else:
-          raise ValueError(
-            f"OpenAI reference image must be bytes, got {type(img)}")
-
+      for i, img in enumerate(_get_reference_images(reference_images)):
+        image_bytes = BytesIO()
+        img.save(image_bytes, format="PNG")
         reference_image_bytes.append(
           (f"reference_image_{i}.png", image_bytes, "image/png"))
 
@@ -910,6 +1047,27 @@ class OpenAiImageClient(ImageClient[OpenAI]):
       ))
 
     return image_model
+
+  @override
+  def _outpaint_image_internal(
+    self,
+    input_image: Image.Image,
+    output_gcs_uri: str,
+    top: int,
+    bottom: int,
+    left: int,
+    right: int,
+    prompt: str,
+  ) -> tuple[str, dict[str, int]]:
+    return self._outpaint_image_using_generate_image(
+      input_image,
+      output_gcs_uri,
+      top,
+      bottom,
+      left,
+      right,
+      prompt,
+    )
 
 
 class OpenAiResponsesClient(ImageClient[OpenAI]):
@@ -1154,6 +1312,27 @@ class GeminiImageClient(ImageClient[genai.Client]):
       ))
 
     return image_model
+
+  @override
+  def _outpaint_image_internal(
+    self,
+    input_image: Image.Image,
+    output_gcs_uri: str,
+    top: int,
+    bottom: int,
+    left: int,
+    right: int,
+    prompt: str,
+  ) -> tuple[str, dict[str, int]]:
+    return self._outpaint_image_using_generate_image(
+      input_image,
+      output_gcs_uri,
+      top,
+      bottom,
+      left,
+      right,
+      prompt,
+    )
 
 
 def _build_generation_metadata(

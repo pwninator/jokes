@@ -279,19 +279,14 @@ class ImageClientTest(unittest.TestCase):
     mock_get_upscaled_uri.assert_called_once_with("gs://test/image.png", "x2")
     self.assertEqual(gcs_uri, "gs://test/image_upscale_2048.png")
 
-  @patch('services.image_client.cloud_storage.download_bytes_from_gcs')
   @patch('services.image_client.ImagenClient._create_model_client')
   def test_outpaint_image_internal_imagen(
     self,
     mock_create_client,
-    mock_download_bytes,
   ):
     """Test the ImagenClient._outpaint_image_internal method using edit_image."""
     # Ensure a fresh model client is created.
     image_client._CLIENTS_BY_MODEL.clear()
-
-    # Prepare a dummy 10x10 PNG as the original image.
-    mock_download_bytes.return_value = _get_dummy_image_bytes()
 
     # Mock the model client returned by _create_model_client.
     mock_model_client = MagicMock()
@@ -307,10 +302,16 @@ class ImageClientTest(unittest.TestCase):
     response.generated_images = [generated_image]
     mock_models.edit_image.return_value = response
 
+    # Create a PIL.Image from dummy bytes for testing.
+    dummy_image_bytes = _get_dummy_image_bytes()
+    pil_image = Image.open(BytesIO(dummy_image_bytes)).convert("RGB")
+    output_gcs_uri = "gs://test/image_20240101120000_outpaint.png"
+
     # Call the internal outpaint method.
     # Using a non-zero margin to exercise mask/canvas logic.
     result_uri = self.imagen1_client._outpaint_image_internal(
-      "gs://test/image.png",
+      pil_image,
+      output_gcs_uri,
       top=2,
       bottom=3,
       left=4,
@@ -318,11 +319,11 @@ class ImageClientTest(unittest.TestCase):
       prompt="Extend the background",
     )
 
-    # Original image should be loaded from GCS.
-    mock_download_bytes.assert_called_once_with("gs://test/image.png")
-
     # edit_image should be called once on the underlying models client.
     self.assertEqual(mock_models.edit_image.call_count, 1)
+    # Verify output_gcs_uri was passed to edit_image.
+    call_args = mock_models.edit_image.call_args
+    self.assertEqual(call_args[1]["config"].output_gcs_uri, output_gcs_uri)
 
     # The internal method should return the GCS URI of the generated image.
     self.assertEqual(result_uri, "gs://test/image_outpainted.png")
@@ -356,14 +357,18 @@ class ImageClientTest(unittest.TestCase):
 
   @patch('services.firestore.create_image')
   @patch('services.cloud_storage.get_final_image_url')
+  @patch('services.cloud_storage.download_bytes_from_gcs')
   @patch('services.image_client.GeminiImageClient._outpaint_image_internal')
   def test_outpaint_image_with_gcs_uri(
     self,
     mock_outpaint_internal,
+    mock_download_bytes,
     mock_get_final_image_url,
     mock_create_image,
   ):
     """Test outpaint_image when a gcs_uri is provided."""
+    # Mock downloading image bytes.
+    mock_download_bytes.return_value = _get_dummy_image_bytes()
     mock_outpaint_internal.return_value = "gs://test/outpainted.png"
     mock_get_final_image_url.return_value = "http://example.com/outpainted.png"
 
@@ -373,14 +378,24 @@ class ImageClientTest(unittest.TestCase):
       prompt="Extend the sky",
     )
 
-    mock_outpaint_internal.assert_called_once_with(
-      "gs://test/image.png",
-      top=10,
-      bottom=0,
-      left=0,
-      right=0,
-      prompt="Extend the sky",
-    )
+    # Verify image was downloaded from GCS.
+    mock_download_bytes.assert_called_once_with("gs://test/image.png")
+    
+    # Verify _outpaint_image_internal was called with PIL.Image and output_gcs_uri.
+    self.assertEqual(mock_outpaint_internal.call_count, 1)
+    call_args = mock_outpaint_internal.call_args
+    # First positional arg should be a PIL.Image.
+    self.assertIsInstance(call_args[0][0], Image.Image)
+    # Second positional arg should be the output_gcs_uri string.
+    self.assertIsInstance(call_args[0][1], str)
+    self.assertIn("_outpaint", call_args[0][1])
+    # Verify other parameters.
+    self.assertEqual(call_args[1]["top"], 10)
+    self.assertEqual(call_args[1]["bottom"], 0)
+    self.assertEqual(call_args[1]["left"], 0)
+    self.assertEqual(call_args[1]["right"], 0)
+    self.assertEqual(call_args[1]["prompt"], "Extend the sky")
+    
     mock_create_image.assert_called_once_with(ANY)
     self.assertIsInstance(result, models.Image)
     self.assertEqual(result.gcs_uri, "gs://test/outpainted.png")

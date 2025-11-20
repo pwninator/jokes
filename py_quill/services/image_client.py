@@ -457,9 +457,22 @@ class ImageClient(ABC, Generic[_T]):
     if not source_gcs_uri:
       raise ValueError("The provided image must have a gcs_uri.")
 
+    # Load image bytes and create PIL.Image
+    image_bytes = cloud_storage.download_bytes_from_gcs(source_gcs_uri)
+    pil_image = Image.open(BytesIO(image_bytes)).convert("RGB")
+
+    # Construct output GCS URI
+    gcs_uri_base, ext = os.path.splitext(source_gcs_uri)
+    if not ext:
+      ext = ".png"
+    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+    gcs_uri_base = f"{gcs_uri_base}_{timestamp}"
+    output_gcs_uri = f"{gcs_uri_base}_outpaint{ext}"
+
     start_time = time.perf_counter()
     outpainted_gcs_uri = self._outpaint_image_internal(
-      source_gcs_uri,
+      pil_image,
+      output_gcs_uri,
       top=top,
       bottom=bottom,
       left=left,
@@ -547,7 +560,8 @@ class ImageClient(ABC, Generic[_T]):
 
   def _outpaint_image_internal(
     self,
-    gcs_uri: str,
+    input_image: Image.Image,
+    output_gcs_uri: str,
     top: int,
     bottom: int,
     left: int,
@@ -557,7 +571,8 @@ class ImageClient(ABC, Generic[_T]):
     """Outpaint an image.
 
     Args:
-      gcs_uri: The GCS URI of the image to outpaint.
+      input_image: The PIL Image to outpaint.
+      output_gcs_uri: The GCS URI where the outpainted image should be saved.
       top: Pixels to expand at the top.
       bottom: Pixels to expand at the bottom.
       left: Pixels to expand at the left.
@@ -705,7 +720,8 @@ class ImagenClient(ImageClient[genai.Client]):
   @override
   def _outpaint_image_internal(
     self,
-    gcs_uri: str,
+    input_image: Image.Image,
+    output_gcs_uri: str,
     top: int,
     bottom: int,
     left: int,
@@ -719,11 +735,8 @@ class ImagenClient(ImageClient[genai.Client]):
     left = max(0, left)
     right = max(0, right)
 
-    image_bytes = cloud_storage.download_bytes_from_gcs(gcs_uri)
-    pil_image = Image.open(BytesIO(image_bytes)).convert("RGB")
-
     ref_image, mask_image = get_upscale_image_and_mask(
-      pil_image,
+      input_image,
       top=top,
       bottom=bottom,
       left=left,
@@ -759,16 +772,8 @@ class ImagenClient(ImageClient[genai.Client]):
       ),
     )
 
-    # Save raw_ref and mask_ref for debugging
-    gcs_uri_base, ext = os.path.splitext(gcs_uri)
-    if not ext:
-      ext = ".png"
-    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-    gcs_uri_base = f"{gcs_uri_base}_{timestamp}"
-
-    outpaint_gcs_uri = f"{gcs_uri_base}_outpaint{ext}"
     print(
-      f"Outpainting image with Google GenAI API ({self.model.model_name}) to {outpaint_gcs_uri}"
+      f"Outpainting image with Google GenAI API ({self.model.model_name}) to {output_gcs_uri}"
     )
     response = self.model_client.models.edit_image(
       model=self.model.model_name,
@@ -778,7 +783,7 @@ class ImagenClient(ImageClient[genai.Client]):
         edit_mode=genai_types.EditMode.EDIT_MODE_OUTPAINT,
         number_of_images=1,
         output_mime_type="image/png",
-        output_gcs_uri=outpaint_gcs_uri,
+        output_gcs_uri=output_gcs_uri,
       ),
     )
     logger.info(f"Outpainting response: {response}")

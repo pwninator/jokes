@@ -320,8 +320,8 @@ def test_update_joke_book_regenerates_pages_and_zip(mock_firestore,
   mock_db.collection.assert_called_with('joke_books')
   mock_collection.document.assert_called_with(joke_book_id)
 
-  mock_create_pages.assert_any_call('j1', overwrite=True)
-  mock_create_pages.assert_any_call('j2', overwrite=True)
+  mock_create_pages.assert_any_call('j1', overwrite=False)
+  mock_create_pages.assert_any_call('j2', overwrite=False)
 
   mock_zip_pages.assert_called_once_with(joke_ids)
 

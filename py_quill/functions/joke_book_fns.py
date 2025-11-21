@@ -14,6 +14,39 @@ NUM_TOP_JOKES_FOR_BOOKS = 50
   memory=options.MemoryOption.GB_4,
   timeout_sec=1200,
 )
+def generate_joke_book_page(req: https_fn.Request) -> https_fn.Response:
+  """Generate book page images for a joke."""
+  try:
+    # Skip processing for health check requests
+    if req.path == "/__/health":
+      return https_fn.Response("OK", status=200)
+
+    if req.method not in ['GET', 'POST']:
+      return error_response(f'Method not allowed: {req.method}')
+
+    joke_id = get_param(req, 'joke_id', required=True)
+
+    logger.info(f'Generating book page images for joke {joke_id}')
+
+    (setup_url,
+     punchline_url) = image_operations.create_book_pages(joke_id,
+                                                         overwrite=True)
+
+    return success_response({
+      'joke_id': joke_id,
+      'setup_url': setup_url,
+      'punchline_url': punchline_url,
+    })
+  except Exception as e:
+    stacktrace = traceback.format_exc()
+    print(f"Error creating joke book: {e}\nStacktrace:\n{stacktrace}")
+    return error_response(f'Failed to create joke book: {str(e)}')
+
+
+@https_fn.on_request(
+  memory=options.MemoryOption.GB_4,
+  timeout_sec=1200,
+)
 def create_joke_book(req: https_fn.Request) -> https_fn.Response:
   """Create a new joke book from a list of jokes."""
   try:

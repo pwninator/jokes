@@ -46,9 +46,102 @@ def dummy_endpoint(req: https_fn.Request) -> https_fn.Response:
       mimetype='application/json',
     )
 
-  return_val = run_page_generation_test()
+  return_val = run_create_book_pages_test(joke_id=get_param(req, 'joke_id'))
 
   return https_fn.Response(return_val, status=200, mimetype='text/html')
+
+
+def run_create_book_pages_test(joke_id: str) -> str:
+  """Run a test to create book pages for a joke."""
+  book_page_setup_url, book_page_punchline_url = image_operations.create_book_pages(
+    joke_id,
+    use_nano_banana_pro=True,
+    overwrite=True,
+  )
+  return_val = f"""
+<html>
+<head>
+  <title>Book Page Generation Test</title>
+  <style>
+    body {{
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      background-color: #f5f5f5;
+    }}
+    h1 {{
+      text-align: center;
+      color: #333;
+    }}
+    .comparison-grid {{
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 24px;
+      max-width: 4000px;
+      margin: 0 auto;
+    }}
+    .image-panel {{
+      text-align: center;
+      background-color: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }}
+    .image-panel h3 {{
+      margin-top: 0;
+      color: #444;
+      font-size: 1.1em;
+    }}
+    .image-panel img {{
+      max-width: 100%;
+      height: auto;
+      border-radius: 6px;
+      border: 2px solid #ddd;
+    }}
+    .error-message {{
+      color: #d32f2f;
+      padding: 10px;
+      background-color: #ffebee;
+      border-radius: 4px;
+    }}
+    .metadata-grid {{
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 24px;
+      max-width: 1600px;
+      margin: 40px auto 0;
+    }}
+    .metadata-panel {{
+      background-color: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      font-family: 'Courier New', monospace;
+      text-align: left;
+      overflow-x: auto;
+    }}
+    .metadata-panel pre {{
+      white-space: pre-wrap;
+      word-break: break-word;
+      margin: 0;
+    }}
+  </style>
+</head>
+<body>
+  <h1>Book Page Generation Test</h1>
+  <div class="comparison-grid">
+    <div class="image-panel">
+      <h3>Book Page Setup</h3>
+      {img_tag(book_page_setup_url, "Book Page Setup Image")}
+    </div>
+    <div class="image-panel">
+      <h3>Book Page Punchline</h3>
+      {img_tag(book_page_punchline_url, "Book Page Punchline Image")}
+    </div>
+  </div>
+</body>
+</html>
+"""
+  return return_val
 
 
 def run_page_generation_test() -> str:
@@ -84,8 +177,6 @@ def run_page_generation_test() -> str:
   (
     generated_setup_image_object,
     generated_punchline_image_object,
-    setup_image_with_margins,
-    punchline_image_with_margins,
   ) = image_operations.generate_book_pages_with_nano_banana_pro(
     setup_image=original_setup_image,
     punchline_image=original_punchline_image,
@@ -98,34 +189,6 @@ def run_page_generation_test() -> str:
     generated_setup_image_object.gcs_uri)
   generated_punchline_image = cloud_storage.download_image_from_gcs(
     generated_punchline_image_object.gcs_uri)
-
-  def img_tag(url: str, alt: str) -> str:
-    if url:
-      return f'<img src="{escape(url)}" alt="{escape(alt)}" />'
-    return '<div class="error-message">No image URL</div>'
-
-  def img_from_bytes(image: Image.Image, alt: str) -> str:
-    """Convert PIL Image to base64 data URI."""
-    buffer = BytesIO()
-    image.save(buffer, format='PNG')
-    img_bytes = buffer.getvalue()
-    img_base64 = base64.b64encode(img_bytes).decode('utf-8')
-    return f'<img src="data:image/png;base64,{img_base64}" alt="{escape(alt)}" />'
-
-  def metadata_panel(image_obj, title: str) -> str:
-    """Render generation metadata for an image."""
-    metadata = getattr(image_obj, 'generation_metadata', None)
-    if metadata:
-      metadata_dict = metadata.as_dict
-      metadata_json = escape(
-        json.dumps(metadata_dict, indent=2, sort_keys=True))
-      content = f"<pre>{metadata_json}</pre>"
-    else:
-      content = "<p>No metadata available.</p>"
-    return (f'<div class="metadata-panel">\n'
-            f'  <h3>{escape(title)}</h3>\n'
-            f'  {content}\n'
-            f'</div>')
 
   setup_metadata_html = metadata_panel(
     generated_setup_image_object,
@@ -216,10 +279,6 @@ def run_page_generation_test() -> str:
       {img_tag(setup_url, "Original Setup Image")}
     </div>
     <div class="image-panel">
-      <h3>Setup with Margins</h3>
-      {img_from_bytes(setup_image_with_margins, "Setup with Margins Image")}
-    </div>
-    <div class="image-panel">
       <h3>Generated Setup</h3>
       {img_from_bytes(generated_setup_image, "Generated Setup Image")}
     </div>
@@ -228,10 +287,6 @@ def run_page_generation_test() -> str:
     <div class="image-panel">
       <h3>Original Punchline</h3>
       {img_tag(punchline_url, "Original Punchline Image")}
-    </div>
-    <div class="image-panel">
-      <h3>Punchline with Margins</h3>
-      {img_from_bytes(punchline_image_with_margins, "Punchline with Margins Image")}
     </div>
     <div class="image-panel">
       <h3>Generated Punchline</h3>
@@ -289,11 +344,6 @@ def run_outpaint_test(image_url: str, prompt: str) -> str:
   if not outpainted.gcs_uri:
     raise ValueError('Outpainting did not return a GCS URI')
   outpainted_url = cloud_storage.get_final_image_url(outpainted.gcs_uri)
-
-  def img_tag(url: str, alt: str) -> str:
-    if url:
-      return f'<img src="{escape(url)}" alt="{escape(alt)}" />'
-    return '<div class="error-message">No image URL</div>'
 
   return_val = f"""
 <html>
@@ -385,11 +435,6 @@ def run_book_page_test(joke_id: str) -> str:
                            right_label: str, right_url: str) -> str:
     """Render a section comparing two related images."""
 
-    def img_tag(url: str, alt: str) -> str:
-      if url:
-        return f'<img src="{escape(url)}" alt="{escape(alt)}" />'
-      return '<div class="error-message">No image URL</div>'
-
     return f"""
   <section class="image-section">
     <h2>{escape(title)}</h2>
@@ -470,3 +515,33 @@ def run_book_page_test(joke_id: str) -> str:
 </html>
 """
   return return_val
+
+
+def img_tag(url: str, alt: str) -> str:
+  if url:
+    return f'<img src="{escape(url)}" alt="{escape(alt)}" />'
+  return '<div class="error-message">No image URL</div>'
+
+
+def img_from_bytes(image: Image.Image, alt: str) -> str:
+  """Convert PIL Image to base64 data URI."""
+  buffer = BytesIO()
+  image.save(buffer, format='PNG')
+  img_bytes = buffer.getvalue()
+  img_base64 = base64.b64encode(img_bytes).decode('utf-8')
+  return f'<img src="data:image/png;base64,{img_base64}" alt="{escape(alt)}" />'
+
+
+def metadata_panel(image_obj, title: str) -> str:
+  """Render generation metadata for an image."""
+  metadata = getattr(image_obj, 'generation_metadata', None)
+  if metadata:
+    metadata_dict = metadata.as_dict
+    metadata_json = escape(json.dumps(metadata_dict, indent=2, sort_keys=True))
+    content = f"<pre>{metadata_json}</pre>"
+  else:
+    content = "<p>No metadata available.</p>"
+  return (f'<div class="metadata-panel">\n'
+          f'  <h3>{escape(title)}</h3>\n'
+          f'  {content}\n'
+          f'</div>')

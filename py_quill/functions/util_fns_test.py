@@ -1,231 +1,156 @@
 """Tests for Firestore migrations in util_fns.py."""
 
-from io import BytesIO
-from typing import Iterable
 from unittest.mock import MagicMock, patch
 
-import pytest
-from PIL import Image
+from google.cloud.firestore import DELETE_FIELD
 
-from common import models
 from functions import util_fns
 
-
-def _create_sample_png_bytes(color: tuple[int, int, int] = (255, 0, 0)) -> bytes:
-  image = Image.new('RGB', (4, 4), color=color)
-  buffer = BytesIO()
-  image.save(buffer, format='PNG')
-  return buffer.getvalue()
-
-
-def _create_punny_joke(joke_id: str) -> models.PunnyJoke:
-  return models.PunnyJoke(
-    key=joke_id,
-    setup_text=f"Setup {joke_id}",
-    punchline_text=f"Punchline {joke_id}",
-    setup_image_url=f"https://cdn.example.com/{joke_id}_setup.png",
-    punchline_image_url=f"https://cdn.example.com/{joke_id}_punchline.png",
-  )
+BOOK_ID = "20251115_064522__bbcourirwogb9x6wuqwa"
+MONKEY_JOKE_ID = "a_monkey__what_kind_of_key_opens_a_banan"
+HIP_HOP_JOKE_ID = "hip_hop__what_is_a_rabbit_s_favourite_s"
+SHELLFIES_JOKE_ID = "shell_fies__what_kind_of_photos_do_turtles"
+REMOVED_JOKE_ID = (
+  "you_might_step_in_a_poodle__why_should_you_be_careful_when"
+)
 
 
-def _build_snapshot(*, exists: bool, data: dict | None = None):
-  snapshot = MagicMock()
-  snapshot.exists = exists
-  snapshot.to_dict.return_value = data or {}
-  return snapshot
+def _build_book_ref(*, exists: bool, jokes_data):
+  book_ref = MagicMock()
+  book_doc = MagicMock()
+  book_doc.exists = exists
+  if exists:
+    book_doc.to_dict.return_value = {'jokes': jokes_data}
+  book_ref.get.return_value = book_doc
+  return book_ref
 
 
-def _build_doc(snapshot) -> MagicMock:
-  doc = MagicMock()
-  doc.get.return_value = snapshot
-  return doc
+def test_run_joke_book_migration_returns_error_when_book_missing():
+  db_mock = MagicMock()
+  book_collection = MagicMock()
+  book_ref = _build_book_ref(exists=False, jokes_data=[])
+  book_collection.document.return_value = book_ref
+
+  db_mock.collection.side_effect = lambda name: book_collection if name == 'joke_books' else MagicMock()
+
+  with patch('functions.util_fns.db', return_value=db_mock):
+    html = util_fns.run_joke_book_migration(dry_run=False)
+
+  assert "Status: Failed" in html
+  assert f"Joke book {BOOK_ID} not found" in html
+  book_ref.update.assert_not_called()
 
 
-def _side_effect(values: Iterable):
-  iterator = iter(values)
+def test_run_joke_book_migration_fails_when_jokes_field_not_list():
+  db_mock = MagicMock()
+  book_collection = MagicMock()
+  book_ref = _build_book_ref(exists=True, jokes_data='not-a-list')
+  book_collection.document.return_value = book_ref
 
-  def _inner(*_args, **_kwargs):
-    return next(iterator)
+  db_mock.collection.side_effect = lambda name: book_collection if name == 'joke_books' else MagicMock()
 
-  return _inner
+  with patch('functions.util_fns.db', return_value=db_mock):
+    html = util_fns.run_joke_book_migration(dry_run=False)
 
-
-@pytest.fixture(name='mock_editor_class')
-def mock_editor_class_fixture():
-  with patch('functions.util_fns.image_editor.ImageEditor') as mock_class:
-    editor_instance = MagicMock()
-    editor_instance.enhance_image.side_effect = lambda img: img
-    mock_class.return_value = editor_instance
-    yield mock_class
+  assert "Status: Failed" in html
+  assert "Jokes field is not a list" in html
+  book_ref.update.assert_not_called()
 
 
-@pytest.fixture(name='mock_firestore_get_all')
-def mock_firestore_get_all_fixture():
-  with patch('functions.util_fns.firestore_service.get_all_punny_jokes') as mock:
-    yield mock
+def test_run_joke_book_migration_dry_run_skips_firestore_updates():
+  db_mock = MagicMock()
+  book_collection = MagicMock()
+  original_jokes = [
+      MONKEY_JOKE_ID,
+      "duplicate_joke",
+      "duplicate_joke",
+      REMOVED_JOKE_ID,
+  ]
+  book_ref = _build_book_ref(exists=True, jokes_data=original_jokes)
+  book_collection.document.return_value = book_ref
+
+  def _collection_side_effect(name):
+    if name == 'joke_books':
+      return book_collection
+    raise AssertionError(f"Unexpected collection requested: {name}")
+
+  db_mock.collection.side_effect = _collection_side_effect
+
+  with patch('functions.util_fns.db', return_value=db_mock):
+    html = util_fns.run_joke_book_migration(dry_run=True)
+
+  book_ref.update.assert_not_called()
+  assert "Dry Run: True" in html
+  assert "Cleared Book Page URLs" in html
 
 
-@pytest.fixture(name='mock_firestore_upsert')
-def mock_firestore_upsert_fixture():
-  with patch('functions.util_fns.firestore_service.upsert_punny_joke') as mock:
-    yield mock
+def test_run_joke_book_migration_updates_book_and_clears_metadata():
+  db_mock = MagicMock()
+  book_collection = MagicMock()
+  jokes_collection = MagicMock()
 
+  original_jokes = [
+      "existing_joke",
+      "duplicate_joke",
+      "another_joke",
+      REMOVED_JOKE_ID,
+      "duplicate_joke",
+  ]
+  book_ref = _build_book_ref(exists=True, jokes_data=original_jokes)
+  book_collection.document.return_value = book_ref
 
-@pytest.fixture(name='mock_cloud_storage')
-def mock_cloud_storage_fixture():
-  with patch('functions.util_fns.cloud_storage.extract_gcs_uri_from_image_url'
-             ) as mock_extract, \
-      patch('functions.util_fns.cloud_storage.download_bytes_from_gcs'
-            ) as mock_download, \
-      patch('functions.util_fns.cloud_storage.upload_bytes_to_gcs'
-            ) as mock_upload, \
-      patch('functions.util_fns.cloud_storage.get_gcs_uri'
-            ) as mock_get_gcs_uri, \
-      patch('functions.util_fns.cloud_storage.get_final_image_url'
-            ) as mock_final_url:
-    yield {
-        'extract': mock_extract,
-        'download': mock_download,
-        'upload': mock_upload,
-        'get_gcs_uri': mock_get_gcs_uri,
-        'final_url': mock_final_url,
-    }
+  metadata_refs: dict[str, MagicMock] = {}
 
+  def _build_metadata_chain(joke_id: str):
+    metadata_doc = metadata_refs.get(joke_id)
+    if metadata_doc is None:
+      metadata_doc = MagicMock()
+      metadata_refs[joke_id] = metadata_doc
 
-def test_image_migration_updates_images_and_marks_metadata(
-  mock_editor_class: MagicMock,
-  mock_firestore_get_all: MagicMock,
-  mock_firestore_upsert: MagicMock,
-  mock_cloud_storage: dict,
-):
-  joke = _create_punny_joke("j1")
-  mock_firestore_get_all.return_value = [joke]
+    metadata_collection = MagicMock()
+    metadata_collection.document.return_value = metadata_doc
 
-  snapshot = _build_snapshot(exists=False)
-  doc = _build_doc(snapshot)
+    joke_doc = MagicMock()
+    joke_doc.collection.return_value = metadata_collection
+    return joke_doc
 
-  with patch('functions.util_fns._get_migrations_doc_ref',
-             return_value=doc) as mock_get_doc:
-    mock_cloud_storage['extract'].side_effect = [
-        'gs://bucket/j1_setup.png', 'gs://bucket/j1_punchline.png'
-    ]
-    sample_bytes = _create_sample_png_bytes()
-    mock_cloud_storage['download'].side_effect = [sample_bytes, sample_bytes]
-    mock_cloud_storage['get_gcs_uri'].side_effect = [
-        'gs://bucket/enhanced_setup.png', 'gs://bucket/enhanced_punchline.png'
-    ]
-    mock_cloud_storage['final_url'].side_effect = [
-        'https://cdn/enhanced_setup.png', 'https://cdn/enhanced_punchline.png'
-    ]
+  jokes_collection.document.side_effect = _build_metadata_chain
 
-    html_response = util_fns.run_image_enhancement_migration(
-      dry_run=False,
-      max_jokes=0,
-    )
+  def _collection_side_effect(name):
+    if name == 'joke_books':
+      return book_collection
+    if name == 'jokes':
+      return jokes_collection
+    raise AssertionError(f"Unexpected collection requested: {name}")
 
-  mock_get_doc.assert_called_once_with('j1')
-  assert mock_cloud_storage['upload'].call_count == 2
-  mock_firestore_upsert.assert_called_once_with(joke)
-  doc.set.assert_called_once_with({'image_enhancement': True}, merge=True)
-  assert joke.setup_image_url == 'https://cdn/enhanced_setup.png'
-  assert joke.punchline_image_url == 'https://cdn/enhanced_punchline.png'
-  assert "Updated Jokes (1)" in html_response
+  db_mock.collection.side_effect = _collection_side_effect
 
+  with patch('functions.util_fns.db', return_value=db_mock):
+    html = util_fns.run_joke_book_migration(dry_run=False)
 
-def test_image_migration_skips_when_already_migrated(
-  mock_editor_class: MagicMock,
-  mock_firestore_get_all: MagicMock,
-  mock_firestore_upsert: MagicMock,
-  mock_cloud_storage: dict,
-):
-  del mock_cloud_storage
-  joke = _create_punny_joke("j1")
-  mock_firestore_get_all.return_value = [joke]
+  book_ref.update.assert_called_once()
+  update_payload = book_ref.update.call_args.args[0]
+  updated_jokes = update_payload['jokes']
 
-  snapshot = _build_snapshot(exists=True, data={'image_enhancement': True})
-  doc = _build_doc(snapshot)
+  expected_ids = {
+      MONKEY_JOKE_ID,
+      "existing_joke",
+      "duplicate_joke",
+      "another_joke",
+      HIP_HOP_JOKE_ID,
+      SHELLFIES_JOKE_ID,
+  }
 
-  with patch('functions.util_fns._get_migrations_doc_ref',
-             return_value=doc), \
-      patch('functions.util_fns.cloud_storage.upload_bytes_to_gcs') as mock_upload:
-    html_response = util_fns.run_image_enhancement_migration(
-      dry_run=False,
-      max_jokes=0,
-    )
+  assert updated_jokes[0] == MONKEY_JOKE_ID
+  assert set(updated_jokes) == expected_ids
+  assert REMOVED_JOKE_ID not in updated_jokes
 
-  mock_firestore_upsert.assert_not_called()
-  mock_upload.assert_not_called()
-  assert "reason=already_migrated" in html_response
+  assert set(metadata_refs) == set(updated_jokes)
+  for metadata_doc in metadata_refs.values():
+    metadata_doc.update.assert_called_once_with({
+        'book_page_setup_image_url': DELETE_FIELD,
+        'book_page_punchline_image_url': DELETE_FIELD,
+    })
 
-
-def test_image_migration_dry_run_no_side_effects(
-  mock_editor_class: MagicMock,
-  mock_firestore_get_all: MagicMock,
-  mock_firestore_upsert: MagicMock,
-  mock_cloud_storage: dict,
-):
-  joke = _create_punny_joke("j1")
-  mock_firestore_get_all.return_value = [joke]
-  snapshot = _build_snapshot(exists=False)
-  doc = _build_doc(snapshot)
-
-  with patch('functions.util_fns._get_migrations_doc_ref',
-             return_value=doc), \
-      patch('functions.util_fns.cloud_storage.upload_bytes_to_gcs') as mock_upload:
-    html_response = util_fns.run_image_enhancement_migration(
-      dry_run=True,
-      max_jokes=0,
-    )
-
-  mock_editor_class.return_value.enhance_image.assert_not_called()
-  mock_cloud_storage['download'].assert_not_called()
-  mock_upload.assert_not_called()
-  mock_firestore_upsert.assert_not_called()
-  doc.set.assert_not_called()
-  assert "Updated Jokes (1)" in html_response
-  assert "dry_run=True" in html_response
-
-
-def test_image_migration_respects_max_jokes(
-  mock_editor_class: MagicMock,
-  mock_firestore_get_all: MagicMock,
-  mock_firestore_upsert: MagicMock,
-  mock_cloud_storage: dict,
-):
-  joke1 = _create_punny_joke("j1")
-  joke2 = _create_punny_joke("j2")
-  mock_firestore_get_all.return_value = [joke1, joke2]
-
-  snapshot1 = _build_snapshot(exists=False)
-  snapshot2 = _build_snapshot(exists=False)
-  doc1 = _build_doc(snapshot1)
-  doc2 = _build_doc(snapshot2)
-
-  with patch('functions.util_fns._get_migrations_doc_ref',
-             side_effect=[doc1, doc2]) as mock_get_doc:
-    sample_bytes = _create_sample_png_bytes()
-    mock_cloud_storage['extract'].side_effect = _side_effect([
-        'gs://bucket/j1_setup.png',
-        'gs://bucket/j1_punchline.png',
-    ])
-    mock_cloud_storage['download'].side_effect = _side_effect(
-      [sample_bytes, sample_bytes])
-    mock_cloud_storage['get_gcs_uri'].side_effect = _side_effect([
-        'gs://bucket/j1_setup_enhanced.png',
-        'gs://bucket/j1_punchline_enhanced.png',
-    ])
-    mock_cloud_storage['final_url'].side_effect = _side_effect([
-        'https://cdn/j1_setup_enhanced.png',
-        'https://cdn/j1_punchline_enhanced.png',
-    ])
-
-    html_response = util_fns.run_image_enhancement_migration(
-      dry_run=False,
-      max_jokes=1,
-    )
-
-  assert mock_get_doc.call_count == 1
-  assert mock_cloud_storage['upload'].call_count == 2
-  assert mock_firestore_upsert.call_count == 1
-  doc1.set.assert_called_once()
-  assert "Updated Jokes (1)" in html_response
+  assert "Status: Success" in html
+  assert "Cleared Book Page URLs (" in html

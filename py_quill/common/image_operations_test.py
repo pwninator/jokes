@@ -15,8 +15,8 @@ from services import image_client, image_editor
 
 
 def _create_image_bytes(
-  color: str,
-  size: tuple[int, int] = (1024, 1024),
+    color: str,
+    size: tuple[int, int] = (1024, 1024),
 ) -> bytes:
   """Create dummy PNG image bytes of the given color and size."""
   pil_image = Image.new('RGB', size, color=color)
@@ -85,7 +85,8 @@ class CreateAdAssetsTest(unittest.TestCase):
 
     mock_storage.extract_gcs_uri_from_image_url.side_effect = _extract
 
-    def _make_image(color: str, size: tuple[int, int] = (1024, 1024)) -> Image.Image:
+    def _make_image(
+      color: str, size: tuple[int, int] = (1024, 1024)) -> Image.Image:
       return Image.open(BytesIO(_create_image_bytes(color, size)))
 
     def _download_image_side_effect(gcs_uri: str):
@@ -320,7 +321,8 @@ class ComposePortraitDrawingTest(unittest.TestCase):
 
     mock_storage.extract_gcs_uri_from_image_url.side_effect = _extract
 
-    def _make_image(color: str, size: tuple[int, int] = (1024, 1024)) -> Image.Image:
+    def _make_image(
+      color: str, size: tuple[int, int] = (1024, 1024)) -> Image.Image:
       return Image.open(BytesIO(_create_image_bytes(color, size)))
 
     def _download_image_side_effect(gcs_uri: str):
@@ -419,7 +421,7 @@ class CreateBookPagesTest(unittest.TestCase):
     mock_metadata_doc.get.return_value = metadata_snapshot
 
     def _extract(uri):
-      return f'gs://bucket/{uri.split('/')[-1]}'
+      return f'gs://bucket/{uri.split(' / ')[-1]}'
 
     mock_storage.extract_gcs_uri_from_image_url.side_effect = _extract
 
@@ -428,7 +430,8 @@ class CreateBookPagesTest(unittest.TestCase):
     setup_upscaled_uri = 'gs://generated/setup_outpaint_upscale_x2.png'
     punchline_upscaled_uri = 'gs://generated/punchline_outpaint_upscale_x2.png'
 
-    def _make_image(color: str, size: tuple[int, int] = (1024, 1024)) -> Image.Image:
+    def _make_image(
+      color: str, size: tuple[int, int] = (1024, 1024)) -> Image.Image:
       return Image.open(BytesIO(_create_image_bytes(color, size)))
 
     def _download_image_side_effect(gcs_uri: str):
@@ -463,29 +466,30 @@ class CreateBookPagesTest(unittest.TestCase):
     upscale_calls = []
 
     def _make_outpaint_client(page_label: str):
+
       def _outpaint_image(**kwargs):
         outpaint_calls.append((page_label, kwargs))
-        return SimpleNamespace(
-          gcs_uri=(setup_outpaint_uri
-                   if page_label == 'setup' else punchline_outpaint_uri))
+        return SimpleNamespace(gcs_uri=(setup_outpaint_uri if page_label ==
+                                        'setup' else punchline_outpaint_uri))
 
       return SimpleNamespace(outpaint_image=_outpaint_image)
 
     def _make_upscale_client(page_label: str):
+
       def _upscale_image(*args, **kwargs):
         upscale_calls.append((page_label, kwargs))
         return SimpleNamespace(
           gcs_uri=(setup_outpaint_uri
                    if page_label == 'setup' else punchline_outpaint_uri),
-          gcs_uri_upscaled=(setup_upscaled_uri
-                            if page_label == 'setup' else punchline_upscaled_uri),
+          gcs_uri_upscaled=(setup_upscaled_uri if page_label == 'setup' else
+                            punchline_upscaled_uri),
         )
 
       return SimpleNamespace(upscale_image=_upscale_image)
 
     def _get_client_side_effect(label, model, file_name_base, **_kwargs):
       self.assertEqual(label, 'book_page_generation')
-      if model == image_client.ImageModel.IMAGEN_3_CAPABILITY:
+      if model == image_client.ImageModel.DUMMY_OUTPAINTER:
         page_label = 'setup' if 'setup' in file_name_base else 'punchline'
         return _make_outpaint_client(page_label)
       if model == image_client.ImageModel.IMAGEN_4_UPSCALE:
@@ -497,21 +501,25 @@ class CreateBookPagesTest(unittest.TestCase):
 
     editor = image_editor.ImageEditor()
 
-    result = image_operations.create_book_pages('joke123', editor)
+    result = image_operations.create_book_pages(
+      'joke123',
+      use_nano_banana_pro=False,
+      image_editor_instance=editor,
+    )
 
-    self.assertEqual(result, [
+    self.assertEqual(result, (
       'https://cdn.example.com/book_page_setup.jpg',
       'https://cdn.example.com/book_page_punchline.jpg',
-    ])
+    ))
     mock_firestore.get_punny_joke.assert_called_once_with('joke123')
     self.assertEqual(len(outpaint_calls), 2)
     self.assertEqual(len(upscale_calls), 2)
 
     # Verify margins include 5% base plus bleed (38px after scaling).
-    setup_margins = outpaint_calls[0][1] if outpaint_calls[
-      0][0] == 'setup' else outpaint_calls[1][1]
-    punchline_margins = outpaint_calls[0][1] if outpaint_calls[
-      0][0] == 'punchline' else outpaint_calls[1][1]
+    setup_margins = outpaint_calls[0][1] if outpaint_calls[0][
+      0] == 'setup' else outpaint_calls[1][1]
+    punchline_margins = outpaint_calls[0][1] if outpaint_calls[0][
+      0] == 'punchline' else outpaint_calls[1][1]
 
     self.assertEqual(setup_margins['top'], 75)
     self.assertEqual(setup_margins['bottom'], 75)
@@ -527,8 +535,8 @@ class CreateBookPagesTest(unittest.TestCase):
       self.assertEqual(kwargs['upscale_factor'], 'x2')
       self.assertEqual(kwargs['mime_type'], 'image/png')
       self.assertIsNone(kwargs['compression_quality'])
-      expected_uri = (setup_outpaint_uri if page_label == 'setup' else
-                      punchline_outpaint_uri)
+      expected_uri = (setup_outpaint_uri
+                      if page_label == 'setup' else punchline_outpaint_uri)
       self.assertEqual(kwargs['gcs_uri'], expected_uri)
       self.assertFalse(kwargs.get('save_to_firestore', True))
 
@@ -612,14 +620,15 @@ class CreateBookPagesTest(unittest.TestCase):
 
     result = image_operations.create_book_pages(
       'jokeABC',
-      mock_editor,
+      use_nano_banana_pro=False,
+      image_editor_instance=mock_editor,
       overwrite=False,
     )
 
-    self.assertEqual(result, [
+    self.assertEqual(result, (
       'https://cdn.example.com/existing_setup.jpg',
       'https://cdn.example.com/existing_punchline.jpg',
-    ])
+    ))
     mock_editor.scale_image.assert_not_called()
     mock_editor.crop_image.assert_not_called()
     mock_storage.extract_gcs_uri_from_image_url.assert_not_called()
@@ -664,7 +673,7 @@ class CreateBookPagesTest(unittest.TestCase):
     mock_metadata_doc.get.return_value = metadata_snapshot
 
     def _extract(uri):
-      return f'gs://bucket/{uri.split('/')[-1]}'
+      return f'gs://bucket/{uri.split(' / ')[-1]}'
 
     mock_storage.extract_gcs_uri_from_image_url.side_effect = _extract
 
@@ -673,7 +682,8 @@ class CreateBookPagesTest(unittest.TestCase):
     setup_upscaled_uri = 'gs://generated/setup_outpaint_upscale_x2.png'
     punchline_upscaled_uri = 'gs://generated/punchline_outpaint_upscale_x2.png'
 
-    def _make_image(color: str, size: tuple[int, int] = (1024, 1024)) -> Image.Image:
+    def _make_image(
+      color: str, size: tuple[int, int] = (1024, 1024)) -> Image.Image:
       return Image.open(BytesIO(_create_image_bytes(color, size)))
 
     def _download_image_side_effect(gcs_uri: str):
@@ -705,26 +715,27 @@ class CreateBookPagesTest(unittest.TestCase):
     ]
 
     def _make_outpaint_client(page_label: str):
+
       def _outpaint_image(**kwargs):
-        return SimpleNamespace(
-          gcs_uri=(setup_outpaint_uri
-                   if page_label == 'setup' else punchline_outpaint_uri))
+        return SimpleNamespace(gcs_uri=(setup_outpaint_uri if page_label ==
+                                        'setup' else punchline_outpaint_uri))
 
       return SimpleNamespace(outpaint_image=_outpaint_image)
 
     def _make_upscale_client(page_label: str):
+
       def _upscale_image(*args, **kwargs):
         return SimpleNamespace(
           gcs_uri=(setup_outpaint_uri
                    if page_label == 'setup' else punchline_outpaint_uri),
-          gcs_uri_upscaled=(setup_upscaled_uri
-                            if page_label == 'setup' else punchline_upscaled_uri),
+          gcs_uri_upscaled=(setup_upscaled_uri if page_label == 'setup' else
+                            punchline_upscaled_uri),
         )
 
       return SimpleNamespace(upscale_image=_upscale_image)
 
     def _get_client_side_effect(label, model, file_name_base, **_kwargs):
-      if model == image_client.ImageModel.IMAGEN_3_CAPABILITY:
+      if model == image_client.ImageModel.DUMMY_OUTPAINTER:
         page_label = 'setup' if 'setup' in file_name_base else 'punchline'
         return _make_outpaint_client(page_label)
       if model == image_client.ImageModel.IMAGEN_4_UPSCALE:
@@ -738,14 +749,15 @@ class CreateBookPagesTest(unittest.TestCase):
 
     result = image_operations.create_book_pages(
       'jokeXYZ',
-      editor,
+      use_nano_banana_pro=False,
+      image_editor_instance=editor,
       overwrite=True,
     )
 
-    self.assertEqual(result, [
+    self.assertEqual(result, (
       'https://cdn.example.com/new_setup.jpg',
       'https://cdn.example.com/new_punchline.jpg',
-    ])
+    ))
 
     self.assertEqual(mock_storage.upload_bytes_to_gcs.call_count, 2)
     upload_calls = mock_storage.upload_bytes_to_gcs.call_args_list
@@ -763,15 +775,16 @@ class ZipJokePageImagesTest(unittest.TestCase):
   @patch('common.image_operations.cloud_storage.get_public_url')
   @patch('common.image_operations.cloud_storage.upload_bytes_to_gcs')
   @patch('common.image_operations.cloud_storage.download_bytes_from_gcs')
-  @patch('common.image_operations.cloud_storage.extract_gcs_uri_from_image_url')
+  @patch(
+    'common.image_operations.cloud_storage.extract_gcs_uri_from_image_url')
   @patch('common.image_operations.firestore')
   def test_zip_joke_page_images_builds_zip_and_uploads(
-      self,
-      mock_firestore,
-      mock_extract_gcs_uri,
-      mock_download_bytes,
-      mock_upload_bytes,
-      mock_get_public_url,
+    self,
+    mock_firestore,
+    mock_extract_gcs_uri,
+    mock_download_bytes,
+    mock_upload_bytes,
+    mock_get_public_url,
   ):
     """zip_joke_page_images should upload a ZIP and return its public URL."""
     joke_ids = ['joke1']

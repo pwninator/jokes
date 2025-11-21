@@ -19,6 +19,8 @@ _AD_BACKGROUND_SQUARE_DRAWING_URI = "gs://images.quillsstorybook.com/joke_assets
 _AD_BACKGROUND_SQUARE_DESK_URI = "gs://images.quillsstorybook.com/joke_assets/background_desk_1280_1280.png"
 _AD_BACKGROUND_SQUARE_CORKBOARD_URI = "gs://images.quillsstorybook.com/joke_assets/background_corkboard_1280_1280.png"
 
+_BOOK_PAGE_STYLE_REFERENCE_IMAGE_URI = "https://storage.googleapis.com/images.quillsstorybook.com/_joke_assets/book_page_reference_image_1024.jpg"
+
 _BOOK_PAGE_BASE_SIZE = 1800
 _BOOK_PAGE_BLEED_PX = 38
 _BOOK_PAGE_FINAL_WIDTH = _BOOK_PAGE_BASE_SIZE + _BOOK_PAGE_BLEED_PX
@@ -131,9 +133,10 @@ def zip_joke_page_images(joke_ids: list[str]) -> str:
 
 def create_book_pages(
   joke_id: str,
+  use_nano_banana_pro: bool = True,
   image_editor_instance: image_editor.ImageEditor | None = None,
   overwrite: bool = False,
-) -> list[str]:
+) -> tuple[str, str]:
   """Create book page images for a joke and store their URLs.
 
   Book pages are 6x6 inches at 300 DPI, or 1800x1800 pixels. However, there is
@@ -149,11 +152,12 @@ def create_book_pages(
 
   Args:
       joke_id: Firestore joke document ID
+      use_nano_banana_pro: Whether to use Gemini Nano Banana Pro for book page generation
       image_editor_instance: Optional ImageEditor for dependency injection
       overwrite: Whether to overwrite existing assets
 
   Returns:
-      List containing setup and punchline book page URLs, in that order.
+      The setup and punchline book page URLs.
 
   Raises:
       ValueError: If the joke is not found or is missing required image URLs.
@@ -180,7 +184,7 @@ def create_book_pages(
     existing_punchline = metadata_data.get('book_page_punchline_image_url')
     if (isinstance(existing_setup, str) and existing_setup
         and isinstance(existing_punchline, str) and existing_punchline):
-      return [existing_setup, existing_punchline]
+      return existing_setup, existing_punchline
 
   timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
 
@@ -191,40 +195,63 @@ def create_book_pages(
   logger.info(
     f"Processing original images: {setup_gcs_uri} and {punchline_gcs_uri}")
 
-  setup_page_bytes = _process_book_page(
-    joke_id=joke_id,
-    gcs_uri=setup_gcs_uri,
-    is_left_page=False,
-    editor=editor,
-    page_label='setup',
-  )
-  punchline_page_bytes = _process_book_page(
-    joke_id=joke_id,
-    gcs_uri=punchline_gcs_uri,
-    is_left_page=True,
-    editor=editor,
-    page_label='punchline',
-  )
+  if use_nano_banana_pro:
+    setup_image = cloud_storage.download_image_from_gcs(setup_gcs_uri)
+    punchline_image = cloud_storage.download_image_from_gcs(punchline_gcs_uri)
 
-  setup_filename = f"{joke_id}_book_page_setup_{timestamp}.jpg"
-  punchline_filename = f"{joke_id}_book_page_punchline_{timestamp}.jpg"
+    style_reference_gcs_uri = cloud_storage.extract_gcs_uri_from_image_url(
+      _BOOK_PAGE_STYLE_REFERENCE_IMAGE_URI)
+    style_reference_image = cloud_storage.download_image_from_gcs(
+      style_reference_gcs_uri)
+    (
+      generated_setup_image,
+      generated_punchline_image,
+    ) = generate_book_pages_with_nano_banana_pro(
+      setup_image=setup_image,
+      punchline_image=punchline_image,
+      style_reference_image=style_reference_image,
+      setup_image_description=joke.setup_image_description,
+      punchline_image_description=joke.punchline_image_description,
+      output_file_name_base=f'{joke_id}_book_page_{timestamp}',
+    )
+    setup_url = cloud_storage.get_public_url(generated_setup_image.gcs_uri)
+    punchline_url = cloud_storage.get_public_url(
+      generated_punchline_image.gcs_uri)
+  else:
+    setup_page_bytes = _process_book_page(
+      joke_id=joke_id,
+      gcs_uri=setup_gcs_uri,
+      is_left_page=False,
+      editor=editor,
+      page_label='setup',
+    )
+    punchline_page_bytes = _process_book_page(
+      joke_id=joke_id,
+      gcs_uri=punchline_gcs_uri,
+      is_left_page=True,
+      editor=editor,
+      page_label='punchline',
+    )
 
-  setup_gcs_dest = f"gs://{config.IMAGE_BUCKET_NAME}/{setup_filename}"
-  punchline_gcs_dest = f"gs://{config.IMAGE_BUCKET_NAME}/{punchline_filename}"
+    setup_filename = f"{joke_id}_book_page_setup_{timestamp}.jpg"
+    punchline_filename = f"{joke_id}_book_page_punchline_{timestamp}.jpg"
 
-  cloud_storage.upload_bytes_to_gcs(
-    setup_page_bytes,
-    setup_gcs_dest,
-    "image/jpeg",
-  )
-  cloud_storage.upload_bytes_to_gcs(
-    punchline_page_bytes,
-    punchline_gcs_dest,
-    "image/jpeg",
-  )
+    setup_gcs_dest = f"gs://{config.IMAGE_BUCKET_NAME}/{setup_filename}"
+    punchline_gcs_dest = f"gs://{config.IMAGE_BUCKET_NAME}/{punchline_filename}"
 
-  setup_url = cloud_storage.get_public_url(setup_gcs_dest)
-  punchline_url = cloud_storage.get_public_url(punchline_gcs_dest)
+    cloud_storage.upload_bytes_to_gcs(
+      setup_page_bytes,
+      setup_gcs_dest,
+      "image/jpeg",
+    )
+    cloud_storage.upload_bytes_to_gcs(
+      punchline_page_bytes,
+      punchline_gcs_dest,
+      "image/jpeg",
+    )
+
+    setup_url = cloud_storage.get_public_url(setup_gcs_dest)
+    punchline_url = cloud_storage.get_public_url(punchline_gcs_dest)
 
   metadata_updates = {
     'book_page_setup_image_url': setup_url,
@@ -235,7 +262,7 @@ def create_book_pages(
     merge=True,
   )
 
-  return [setup_url, punchline_url]
+  return setup_url, punchline_url
 
 
 def create_ad_assets(
@@ -426,6 +453,7 @@ Generatea new version of the CONTENT image, but with the canvas/foreground/backg
   - Show the exact same words as the CONTENT image.
   - Use the exact same scene, composition, and camera angle as the CONTENT image. The main characters, their poses and positioning, expressions, etc. MUST be identical. You may ONLY make the following changes:
     - Fix mistakes/errors, such as anatomical errors on the characters, objects, etc.
+    - Fix inconsistencies in the font, e.g. if some or all of the text are in cursive, different fonts, different colors, etc., convert the text to match the text font/color/style of the STYLE reference image.
     - Add details to the main characters/objects to make them more polished, complete, and visually appealing, but be sure to respect the artistic style of a child-like colored pencil drawing.
     - Seamlessly replace the black margins with the canvas filled with minor foreground/background elements. Some/all of this area will be trimmed off during printing, so make sure these elements are not critical to the joke. The goal is to use this margin as bleed for printing.
     - Add/remove/change the supporting foreground/background elements to make the image make sense and be more visually appealing.
@@ -454,7 +482,7 @@ _BOOK_PAGE_PUNCHLINE_PROMPT_TEMPLATE = _BOOK_PAGE_PROMPT_TEMPLATE.format(
   intro=
   """You are given 3 images. The first two are a two-panel illustration of a two-liner joke, and the third image is a style reference image:
 
-  * A SETUP image that visualizes the 1st panel: the setup line of the joke. Use this image ONLY as consistency reference for any recurring characters and objects.
+  * A SETUP image that visualizes the 1st panel: the setup line of the joke. Use this image ONLY as consistency reference for any recurring characters, objects, and scenes.
 
   * A CONTENT image of a drawing on textured paper with text with black margins all around it. The black margins represent the bleed area for printing. This image visualizes the punchline of the joke.
   """,

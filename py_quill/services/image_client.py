@@ -208,10 +208,22 @@ class ImageModel(Enum):
 
   # https://ai.google.dev/gemini-api/docs/image-generation#pricing
   # https://cloud.google.com/vertex-ai/generative-ai/docs/models/gemini/2-5-flash-image
+  # https://ai.google.dev/gemini-api/docs/pricing
   GEMINI_NANO_BANANA = (
     "gemini-2.5-flash-image",
     {
-      "images": 0.0387,  # 1290 tokens * $30 / 1M tokens
+      "input_tokens": 0.30 / 1_000_000,
+      "output_text_tokens": 2.50 / 1_000_000,
+      "output_image_tokens": 30.00 / 1_000_000,
+    },
+    ImageProvider.GEMINI,
+  )
+  GEMINI_NANO_BANANA_PRO = (
+    "gemini-3-pro-image-preview",
+    {
+      "input_tokens": 2.00 / 1_000_000,
+      "output_text_tokens": 12.00 / 1_000_000,
+      "output_image_tokens": 120.00 / 1_000_000,
     },
     ImageProvider.GEMINI,
   )
@@ -327,8 +339,9 @@ class ImageClient(ABC, Generic[_T]):
     if not image.is_success:
       raise ValueError(f"Image generation failed: {image}")
 
-    if auto_enhance:
-      image = image_editor.ImageEditor().enhance_image(image)
+    # TODO: enhance_image takes a PIL image, but here we have a models.Image
+    # if auto_enhance:
+    #   image = image_editor.ImageEditor().enhance_image(image)
 
     if save_to_firestore:
       logger.info("Saving image to Firestore")
@@ -1242,10 +1255,10 @@ class GeminiImageClient(ImageClient[genai.Client]):
   @override
   def _create_model_client(self) -> genai.Client:
     return genai.Client(
-      # api_key=config.get_gemini_api_key(),
-      vertexai=True,
-      project=config.PROJECT_ID,
-      location=config.PROJECT_LOCATION,
+      api_key=config.get_gemini_api_key(),
+      # vertexai=True,
+      # project=config.PROJECT_ID,
+      # location=config.PROJECT_LOCATION,
     )
 
   @override
@@ -1281,11 +1294,17 @@ class GeminiImageClient(ImageClient[genai.Client]):
       self.extension,
     )
 
-    print("Generating image with Google GenAI API")
+    print(f"Generating image with Google GenAI API:\n{prompt}")
     response = self.model_client.models.generate_content(
       model=self.model.model_name,
       contents=contents,
+      config=genai_types.GenerateContentConfig(
+        image_config=genai_types.ImageConfig(
+          aspect_ratio="1:1",
+          image_size="2K",
+        ), ),
     )
+    print(f"Gemini response:\n{response}")
 
     image_parts = [
       part.inline_data.data for part in response.candidates[0].content.parts
@@ -1305,6 +1324,32 @@ class GeminiImageClient(ImageClient[genai.Client]):
       content_type="image/png",
     )
 
+    usage_metadata = response.usage_metadata
+    if usage_metadata:
+      input_tokens = usage_metadata.prompt_token_count or 0
+      output_text_tokens = usage_metadata.thoughts_token_count or 0
+      output_image_tokens = sum(
+        detail.token_count
+        for detail in usage_metadata.candidates_tokens_details or []
+        if detail.modality == genai_types.Modality.IMAGE)
+      logger.info(
+        f"Gemini image generation ({self.model.model_name}) usage metadata: {usage_metadata}"
+      )
+    else:
+      # Set to defaults
+      input_tokens = 1500
+      output_text_tokens = 200
+      output_image_tokens = 1120
+      logger.error(
+        f"Gemini image generation ({self.model.model_name}) usage metadata not found, using defaults: {input_tokens}, {output_text_tokens}, {output_image_tokens}"
+      )
+
+    usage_dict = {
+      "input_tokens": input_tokens,
+      "output_text_tokens": output_text_tokens,
+      "output_image_tokens": output_image_tokens,
+    }
+
     image_model = models.Image(
       url=cloud_storage.get_final_image_url(final_gcs_uri),
       gcs_uri=final_gcs_uri,
@@ -1318,9 +1363,7 @@ class GeminiImageClient(ImageClient[genai.Client]):
       _build_generation_metadata(
         label=self.label,
         model_name=self.model.model_name,
-        usage_dict={
-          "images": 1,
-        },
+        usage_dict=usage_dict,
         token_costs=self.model.token_costs,
         generation_time_sec=time.perf_counter() - start_time,
       ))

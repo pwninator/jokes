@@ -40,23 +40,33 @@ def error_response(message: str) -> https_fn.Response:
   return {"data": {"error": message}}
 
 
-def get_param(req: https_fn.Request,
-              param_name: str,
-              default: Any | None = None) -> Any | None:
+def get_param(
+  req: https_fn.Request,
+  param_name: str,
+  default: Any | None = None,
+  required: bool = False,
+) -> Any | None:
   """Get a parameter from the request."""
   if req.is_json:
     json_data = req.get_json()
     data = json_data.get('data', {}) if isinstance(json_data, dict) else {}
-    return data.get(param_name, default)
+    val = data.get(param_name, default)
   else:
-    return req.args.get(param_name, default)
+    val = req.args.get(param_name, default)
+
+  if val is None and required:
+    raise ValueError(f"Missing required parameter '{param_name}'")
+  return val
 
 
-def get_bool_param(req: https_fn.Request,
-                   param_name: str,
-                   default: bool = False) -> bool:
+def get_bool_param(
+  req: https_fn.Request,
+  param_name: str,
+  default: bool = False,
+  required: bool = False,
+) -> bool:
   """Get a boolean parameter from the request."""
-  str_param = get_param(req, param_name, str(default))
+  str_param = get_param(req, param_name, str(default), required=required)
   if str_param is None:
     return default
   elif isinstance(str_param, bool):
@@ -65,15 +75,18 @@ def get_bool_param(req: https_fn.Request,
     return str_param.lower() == 'true'
 
 
-def get_int_param(req: https_fn.Request,
-                  param_name: str,
-                  default: int = 0) -> int:
+def get_int_param(
+  req: https_fn.Request,
+  param_name: str,
+  default: int = 0,
+  required: bool = False,
+) -> int:
   """Get an integer parameter from the request.
 
   Falls back to the provided default if the parameter is missing or
   cannot be converted to an integer.
   """
-  value = get_param(req, param_name, default)
+  value = get_param(req, param_name, default, required=required)
   if value is None:
     return default
   if isinstance(value, int):
@@ -84,15 +97,18 @@ def get_int_param(req: https_fn.Request,
     return default
 
 
-def get_float_param(req: https_fn.Request,
-                    param_name: str,
-                    default: float = 0.0) -> float:
+def get_float_param(
+  req: https_fn.Request,
+  param_name: str,
+  default: float = 0.0,
+  required: bool = False,
+) -> float:
   """Get a float parameter from the request.
 
   Falls back to the provided default if the parameter is missing or
   cannot be converted to a float.
   """
-  value = get_param(req, param_name, default)
+  value = get_param(req, param_name, default, required=required)
   if value is None:
     return default
   if isinstance(value, (float, int)):

@@ -10,7 +10,7 @@ from functools import partial
 from io import BytesIO
 from typing import Callable
 
-from common import config
+from common import config, models
 from firebase_functions import logger
 from PIL import Image
 from services import cloud_storage, firestore, image_client, image_editor
@@ -409,6 +409,112 @@ def _process_book_page(
   )
   return _convert_to_cmyk_jpeg_bytes(scaled_cropped_image)
 
+  # - Use the exact same scene, composition, and camera angle as the CONTENT image. The main characters, their poses and positioning, expressions, etc. MUST be identical. You may ONLY make the following changes:
+
+
+_BOOK_PAGE_PROMPT_TEMPLATE = """
+{intro}
+* A STYLE reference image of a super cute drawing of a construction worker cat on textured paper. Use this image as reference for:
+  - Art style: Super cute colored pencil drawing, with a clear main subject, and supporting/background elements that extend to the edge of the canvas.
+  - Canvas/background: Off-white textured paper
+  - Font: Clean "handwritten" style
+  - Overall aesthetic: Super cute and silly
+
+Generatea new version of the CONTENT image, but with the canvas/foreground/background seamlessly extended through the black bleed margins.
+
+ Your new image must:
+  - Show the exact same words as the CONTENT image.
+  - Use the exact same scene, composition, and camera angle as the CONTENT image. The main characters, their poses and positioning, expressions, etc. MUST be identical. You may ONLY make the following changes:
+    - Fix mistakes/errors, such as anatomical errors on the characters, objects, etc.
+    - Add details to the main characters/objects to make them more polished, complete, and visually appealing, but be sure to respect the artistic style of a child-like colored pencil drawing.
+    - Seamlessly replace the black margins with the canvas filled with minor foreground/background elements. Some/all of this area will be trimmed off during printing, so make sure these elements are not critical to the joke. The goal is to use this margin as bleed for printing.
+    - Add/remove/change the supporting foreground/background elements to make the image make sense and be more visually appealing.
+    - If the CONTENT image has a lot of empty space, add supporting foreground/background elements to fill it. Make sure these elements play a supporting role and do not conflict with the main subject.
+  - All text and major elements must be OUTSIDE of the bleed area.
+  - Be drawn on the same textured paper canvas as the STYLE reference image.
+  - The final image must make sense. If there are any supporting elemments in the CONTENT image that get in the way of your bleed margin expansion, you may change them to make the image make sense.
+{additional_requirements}
+
+Here is the description for the CONTENT image. You must follow this description exactly:
+{{image_description}}
+
+The final generated image should be high quality, professional-looking copy of the CONTENT image, suitable for a children's picture book, and print ready with bleed margins matching all around it.
+"""
+
+_BOOK_PAGE_SETUP_PROMPT_TEMPLATE = _BOOK_PAGE_PROMPT_TEMPLATE.format(
+  intro=
+  """You are given 2 images. The first is a an illustration of the setup line of a two-liner joke, and the second image is a style reference image:
+
+* A CONTENT image of a drawing on textured paper with text with black margins all around it. The black margins represent the bleed area for printing. This image visualizes the setup of the joke.
+""",
+  additional_requirements="",
+)
+
+_BOOK_PAGE_PUNCHLINE_PROMPT_TEMPLATE = _BOOK_PAGE_PROMPT_TEMPLATE.format(
+  intro=
+  """You are given 3 images. The first two are a two-panel illustration of a two-liner joke, and the third image is a style reference image:
+
+  * A SETUP image that visualizes the 1st panel: the setup line of the joke. Use this image ONLY as consistency reference for any recurring characters and objects.
+
+  * A CONTENT image of a drawing on textured paper with text with black margins all around it. The black margins represent the bleed area for printing. This image visualizes the punchline of the joke.
+  """,
+  additional_requirements="""
+  - Any recurring characters or elements from the SETUP image must be consistent with the SETUP image.
+""",
+)
+
+
+def generate_book_pages_with_nano_banana_pro(
+  *,
+  setup_image: Image.Image,
+  punchline_image: Image.Image,
+  style_reference_image: Image.Image,
+  setup_image_description: str,
+  punchline_image_description: str,
+  output_file_name_base: str,
+) -> tuple[models.Image, models.Image]:
+  """Generate a book page image using Gemini Nano Banana Pro.
+
+  Generates a 2048x2048 image that:
+    - Ensures a margin around the image contents
+    - Adds bleed margins
+    - Redraw in the same style
+  """
+  client = image_client.get_client(
+    label='book_page_generation',
+    model=image_client.ImageModel.GEMINI_NANO_BANANA_PRO,
+    file_name_base=output_file_name_base,
+  )
+  margin_pixels = math.ceil(setup_image.width * 0.1)
+
+  setup_image_with_margins, _ = image_client.get_upscale_image_and_mask(
+    setup_image, margin_pixels, margin_pixels, margin_pixels, margin_pixels)
+  generated_setup_image = client.generate_image(
+    prompt=_BOOK_PAGE_SETUP_PROMPT_TEMPLATE.format(
+      image_description=setup_image_description),
+    reference_images=[
+      setup_image_with_margins,
+      style_reference_image,
+    ],
+  )
+  final_setup_image = cloud_storage.download_image_from_gcs(
+    generated_setup_image.gcs_uri)
+
+  punchline_image_with_margins, _ = image_client.get_upscale_image_and_mask(
+    punchline_image, margin_pixels, margin_pixels, margin_pixels,
+    margin_pixels)
+  generated_punchline_image = client.generate_image(
+    prompt=_BOOK_PAGE_PUNCHLINE_PROMPT_TEMPLATE.format(
+      image_description=punchline_image_description),
+    reference_images=[
+      final_setup_image,
+      punchline_image_with_margins,
+      style_reference_image,
+    ],
+  )
+
+  return (generated_setup_image, generated_punchline_image)
+
 
 def _calculate_book_page_margins(
   *,
@@ -416,7 +522,14 @@ def _calculate_book_page_margins(
   height: int,
   is_left_page: bool,
 ) -> _OutpaintMargins:
-  """Compute outpainting margins that preserve art and guarantee bleed."""
+  """Compute outpainting margins for book pages.
+
+  Adds a base 5% padding on all sides of the original image, then adds
+  extra margin for print bleed on the top, bottom, and outer edge so that,
+  after scaling to the 1800x1800 base page size, there is effectively
+  38px of bleed on those edges. The inner edge (towards the binding)
+  only gets the base padding and no extra bleed.
+  """
   base_horizontal = max(1, round(width * 0.05))
   base_vertical = max(1, round(height * 0.05))
 

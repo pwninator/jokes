@@ -46,17 +46,209 @@ def dummy_endpoint(req: https_fn.Request) -> https_fn.Response:
       mimetype='application/json',
     )
 
-  # return_val = run_outpaint_test(
-  #   get_param(req, "image_url"),
-  #   prompt=get_param(
-  #     req,
-  #     "prompt",
-  #     "Extend the image",
-  #   ),
-  # )
-  return_val = run_book_page_test(joke_id=get_param(req, "joke_id"))
+  return_val = run_page_generation_test()
 
   return https_fn.Response(return_val, status=200, mimetype='text/html')
+
+
+def run_page_generation_test() -> str:
+  """Run a test to compare original image with outpainted version.
+  
+  Args:
+    setup_url: The URL of the setup image to test.
+    punchline_url: The URL of the punchline image to test.
+
+  Returns:
+    HTML string showing setup and punchline images and the generated book page image.
+  """
+  setup_description = "A whimsical and silly sketch, appearing as if drawn with colored pencils on lightly textured paper to create a naive charm. The artwork is unbearably cute, with soft, sketchy lines and a vibrant, gentle, but bright color palette where colors sometimes stray playfully outside the lines. A super cute, fluffy brown rabbit is down on one knee in a grassy field, proposing to his equally cute, white fluffy girlfriend rabbit. The girlfriend rabbit has her paws clasped to her chest, looking surprised and delighted. The male rabbit is holding a small, closed ring box behind his back, hiding it from view. The scene is romantic and sweet, with a few small wildflowers in the background. The text 'What did the rabbit use to propose to his girlfriend?' is displayed prominently. The only text on the image is the phrase 'What did the rabbit use to propose to his girlfriend?', prominently displayed in a casual, whimsical hand-written script, resembling a silly pencil sketch."
+
+  punchline_description = "Generate another image using the same artistic style, color palette, background texture, and overall aesthetic as the reference images. Make sure the characters, objects, etc. are consistent. A close-up of the two adorable rabbits. The fluffy brown male rabbit is proudly presenting an open ring box to his girlfriend. Inside the box is a ring cleverly crafted from a bright orange carrot, with a tiny green carrot top acting as the 'gem'. The white female rabbit looks ecstatic, with wide, sparkling eyes and a huge, happy smile. The scene is funny and heartwarming. The text 'A 24-carrot ring' is displayed prominently. The only text on the image is the phrase 'A 24-carrot ring', prominently displayed in a casual, whimsical hand-written script, resembling a silly pencil sketch."
+
+  setup_url = "https://images.quillsstorybook.com/cdn-cgi/image/width=1024,format=auto,quality=75/a_24_carrot_ring__what_did_the_rabbit_use_to_pro_setup_hq_20251119_221531_973121.png"
+
+  punchline_url = "https://images.quillsstorybook.com/cdn-cgi/image/width=1024,format=auto,quality=75/a_24_carrot_ring__what_did_the_rabbit_use_to_pro_2.png"
+
+  response = requests.get(setup_url, timeout=10)
+  response.raise_for_status()
+  original_setup_image = Image.open(BytesIO(response.content))
+  response = requests.get(punchline_url, timeout=10)
+  response.raise_for_status()
+  original_punchline_image = Image.open(BytesIO(response.content))
+
+  reference_image_url = "https://storage.googleapis.com/images.quillsstorybook.com/_joke_assets/book_page_reference_image_1024.jpg"
+  response = requests.get(reference_image_url, timeout=10)
+  response.raise_for_status()
+  reference_image = Image.open(BytesIO(response.content))
+
+  (
+    generated_setup_image_object,
+    generated_punchline_image_object,
+    setup_image_with_margins,
+    punchline_image_with_margins,
+  ) = image_operations.generate_book_pages_with_nano_banana_pro(
+    setup_image=original_setup_image,
+    punchline_image=original_punchline_image,
+    setup_image_description=setup_description,
+    punchline_image_description=punchline_description,
+    style_reference_image=reference_image,
+    output_file_name_base='book_page_generation_test',
+  )
+  generated_setup_image = cloud_storage.download_image_from_gcs(
+    generated_setup_image_object.gcs_uri)
+  generated_punchline_image = cloud_storage.download_image_from_gcs(
+    generated_punchline_image_object.gcs_uri)
+
+  def img_tag(url: str, alt: str) -> str:
+    if url:
+      return f'<img src="{escape(url)}" alt="{escape(alt)}" />'
+    return '<div class="error-message">No image URL</div>'
+
+  def img_from_bytes(image: Image.Image, alt: str) -> str:
+    """Convert PIL Image to base64 data URI."""
+    buffer = BytesIO()
+    image.save(buffer, format='PNG')
+    img_bytes = buffer.getvalue()
+    img_base64 = base64.b64encode(img_bytes).decode('utf-8')
+    return f'<img src="data:image/png;base64,{img_base64}" alt="{escape(alt)}" />'
+
+  def metadata_panel(image_obj, title: str) -> str:
+    """Render generation metadata for an image."""
+    metadata = getattr(image_obj, 'generation_metadata', None)
+    if metadata:
+      metadata_dict = metadata.as_dict
+      metadata_json = escape(
+        json.dumps(metadata_dict, indent=2, sort_keys=True))
+      content = f"<pre>{metadata_json}</pre>"
+    else:
+      content = "<p>No metadata available.</p>"
+    return (f'<div class="metadata-panel">\n'
+            f'  <h3>{escape(title)}</h3>\n'
+            f'  {content}\n'
+            f'</div>')
+
+  setup_metadata_html = metadata_panel(
+    generated_setup_image_object,
+    "Generated Setup Metadata",
+  )
+  punchline_metadata_html = metadata_panel(
+    generated_punchline_image_object,
+    "Generated Punchline Metadata",
+  )
+  metadata_html = ('<div class="metadata-grid">\n'
+                   f'{setup_metadata_html}\n'
+                   f'{punchline_metadata_html}\n'
+                   '</div>')
+
+  return_val = f"""
+<html>
+<head>
+  <title>Book Page Generation Test</title>
+  <style>
+    body {{
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      background-color: #f5f5f5;
+    }}
+    h1 {{
+      text-align: center;
+      color: #333;
+    }}
+    .comparison-grid {{
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 24px;
+      max-width: 4000px;
+      margin: 0 auto;
+    }}
+    .image-panel {{
+      text-align: center;
+      background-color: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }}
+    .image-panel h3 {{
+      margin-top: 0;
+      color: #444;
+      font-size: 1.1em;
+    }}
+    .image-panel img {{
+      max-width: 100%;
+      height: auto;
+      border-radius: 6px;
+      border: 2px solid #ddd;
+    }}
+    .error-message {{
+      color: #d32f2f;
+      padding: 10px;
+      background-color: #ffebee;
+      border-radius: 4px;
+    }}
+    .metadata-grid {{
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 24px;
+      max-width: 1600px;
+      margin: 40px auto 0;
+    }}
+    .metadata-panel {{
+      background-color: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      font-family: 'Courier New', monospace;
+      text-align: left;
+      overflow-x: auto;
+    }}
+    .metadata-panel pre {{
+      white-space: pre-wrap;
+      word-break: break-word;
+      margin: 0;
+    }}
+  </style>
+</head>
+<body>
+  <h1>Book Page Generation Test</h1>
+  <div class="comparison-grid">
+    <div class="image-panel">
+      <h3>Original Setup</h3>
+      {img_tag(setup_url, "Original Setup Image")}
+    </div>
+    <div class="image-panel">
+      <h3>Setup with Margins</h3>
+      {img_from_bytes(setup_image_with_margins, "Setup with Margins Image")}
+    </div>
+    <div class="image-panel">
+      <h3>Generated Setup</h3>
+      {img_from_bytes(generated_setup_image, "Generated Setup Image")}
+    </div>
+  </div>
+  <div class="comparison-grid">
+    <div class="image-panel">
+      <h3>Original Punchline</h3>
+      {img_tag(punchline_url, "Original Punchline Image")}
+    </div>
+    <div class="image-panel">
+      <h3>Punchline with Margins</h3>
+      {img_from_bytes(punchline_image_with_margins, "Punchline with Margins Image")}
+    </div>
+    <div class="image-panel">
+      <h3>Generated Punchline</h3>
+      {img_from_bytes(generated_punchline_image, "Generated Punchline Image")}
+    </div>
+  </div>
+  <div class="comparison-grid">
+    <div class="image-panel">
+      <h3>Style Reference</h3>
+      {img_tag(reference_image_url, "Style Reference Image")}
+    </div>
+  </div>
+  {metadata_html}
+</body>
+</html>
+"""
+  return return_val
 
 
 def run_outpaint_test(image_url: str, prompt: str) -> str:
@@ -82,7 +274,7 @@ def run_outpaint_test(image_url: str, prompt: str) -> str:
   # Outpaint image
   outpaint_client = image_client.get_client(
     label='outpaint_test',
-    model=image_client.ImageModel.DUMMY_OUTPAINTER,
+    model=image_client.ImageModel.GEMINI_NANO_BANANA_PRO,
     file_name_base='outpaint_test',
   )
   outpainted = outpaint_client.outpaint_image(

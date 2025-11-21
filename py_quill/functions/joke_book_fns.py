@@ -81,12 +81,8 @@ def update_joke_book(req: https_fn.Request) -> https_fn.Response:
     if req.path == "/__/health":
       return https_fn.Response("OK", status=200)
 
-    if req.method not in ['POST']:
+    if req.method not in ['POST', 'GET']:
       return error_response(f'Method not allowed: {req.method}')
-
-    user_id = get_user_id(req)
-    if not user_id:
-      return error_response('User not authenticated')
 
     joke_book_id = get_param(req, 'joke_book_id')
     if not joke_book_id:
@@ -107,7 +103,7 @@ def update_joke_book(req: https_fn.Request) -> https_fn.Response:
     logger.info(f'Updating book {joke_book_id} with jokes: {joke_ids}')
 
     for joke_id in joke_ids:
-      image_operations.create_book_pages(joke_id, overwrite=True)
+      image_operations.create_book_pages(joke_id, overwrite=False)
 
     # Generate ZIP of all book pages and store in temp files bucket
     zip_url = image_operations.zip_joke_page_images(joke_ids)

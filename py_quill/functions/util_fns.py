@@ -1,17 +1,13 @@
 """Utility cloud functions for Firestore migrations."""
 
-import datetime
 import json
+import random
 import traceback
-from io import BytesIO
 
 from firebase_admin import firestore
 from firebase_functions import https_fn, logger, options
-from functions.function_utils import get_bool_param, get_int_param
-from PIL import Image, UnidentifiedImageError
-
-from common import config, models
-from services import cloud_storage, firestore as firestore_service, image_editor
+from functions.function_utils import get_bool_param
+from google.cloud.firestore import DELETE_FIELD
 
 _db = None  # pylint: disable=invalid-name
 
@@ -29,7 +25,7 @@ def db() -> firestore.client:
   timeout_sec=1800,
 )
 def run_firestore_migration(req: https_fn.Request) -> https_fn.Response:
-  """Run the image enhancement Firestore migration."""
+  """Run the joke book migration."""
   # Health check
   if req.path == "/__/health":
     return https_fn.Response("OK", status=200)
@@ -46,12 +42,8 @@ def run_firestore_migration(req: https_fn.Request) -> https_fn.Response:
 
   try:
     dry_run = get_bool_param(req, 'dry_run', True)
-    max_jokes = get_int_param(req, 'max_jokes', 0)
 
-    html_response = run_image_enhancement_migration(
-      dry_run=dry_run,
-      max_jokes=max_jokes,
-    )
+    html_response = run_joke_book_migration(dry_run=dry_run)
     return https_fn.Response(html_response, status=200, mimetype='text/html')
 
   except Exception as e:  # pylint: disable=broad-except
@@ -68,196 +60,194 @@ def run_firestore_migration(req: https_fn.Request) -> https_fn.Response:
     )
 
 
-def run_image_enhancement_migration(
-  dry_run: bool,
-  max_jokes: int,
-) -> str:
+def run_joke_book_migration(dry_run: bool) -> str:
   """
-    Enhance setup and punchline images for all jokes unless already migrated.
+    Update a specific joke book's jokes array.
 
     Args:
         dry_run: If True, the migration will only log the changes that would be made.
-        max_jokes: The maximum number of jokes to modify. If 0, all jokes will be processed.
 
     Returns:
-        An HTML page listing the jokes that were updated.
+        An HTML page listing the migration results.
     """
-  logger.info("Starting image enhancement migration...")
+  logger.info("Starting joke book migration...")
 
-  jokes = firestore_service.get_all_punny_jokes()
-  editor = image_editor.ImageEditor()
+  book_id = "20251115_064522__bbcourirwogb9x6wuqwa"
+  book_ref = db().collection('joke_books').document(book_id)
+  book_doc = book_ref.get()
 
-  updated_jokes: list[dict[str, object]] = []
-  skipped_jokes: list[dict[str, object]] = []
-  updated_count = 0
+  if not book_doc.exists:
+    return _build_html_report(
+      dry_run=dry_run,
+      success=False,
+      error=f"Joke book {book_id} not found",
+    )
 
-  for joke in jokes:
-    if max_jokes and updated_count >= max_jokes:
-      logger.info(f"Reached max_jokes limit of {max_jokes}.")
-      break
+  book_data = book_doc.to_dict() or {}
+  original_jokes = book_data.get('jokes', [])
 
-    joke_id = joke.key
-    if not joke_id:
-      skipped_jokes.append({
-        "id": None,
-        "reason": "missing_joke_id",
-      })
-      continue
+  if not isinstance(original_jokes, list):
+    return _build_html_report(
+      dry_run=dry_run,
+      success=False,
+      error=f"Jokes field is not a list: {type(original_jokes)}",
+    )
 
-    try:
-      migration_doc = _get_migrations_doc_ref(joke_id)
-      migration_snapshot = migration_doc.get()
-      if migration_snapshot.exists:
-        data = migration_snapshot.to_dict() or {}
-        if bool(data.get('image_enhancement')):
-          skipped_jokes.append({
-            "id": joke_id,
-            "reason": "already_migrated",
-          })
-          continue
+  # Step 1: Convert to set (removes duplicates)
+  jokes_set = set(original_jokes)
 
-      if not joke.setup_image_url or not joke.punchline_image_url:
-        skipped_jokes.append({
-          "id": joke_id,
-          "reason": "missing_image_urls",
-        })
-        continue
+  # Step 2: Add jokes
+  jokes_to_add = [
+    "hip_hop__what_is_a_rabbit_s_favourite_s",
+    "shell_fies__what_kind_of_photos_do_turtles",
+  ]
+  for joke_id in jokes_to_add:
+    jokes_set.add(joke_id)
 
-      if dry_run:
-        updated_jokes.append({
-          "id": joke_id,
-          "setup_image_url": joke.setup_image_url,
-          "punchline_image_url": joke.punchline_image_url,
-          "dry_run": True,
-        })
-        updated_count += 1
-        continue
+  # Step 3: Remove joke
+  joke_to_remove = "you_might_step_in_a_poodle__why_should_you_be_careful_when"
+  jokes_set.discard(joke_to_remove)
 
-      enhanced_setup = _enhance_single_image(
-        editor=editor,
-        joke_id=joke_id,
-        image_url=joke.setup_image_url,
-        image_kind="setup",
-      )
-      enhanced_punchline = _enhance_single_image(
-        editor=editor,
-        joke_id=joke_id,
-        image_url=joke.punchline_image_url,
-        image_kind="punchline",
-      )
+  # Step 4 & 5: Convert back to list, put monkey joke first, randomize rest
+  jokes_list = list(jokes_set)
+  monkey_joke = "a_monkey__what_kind_of_key_opens_a_banan"
 
-      joke.set_setup_image(enhanced_setup, update_text=False)
-      joke.set_punchline_image(enhanced_punchline, update_text=False)
+  # Remove monkey joke from list if present
+  if monkey_joke in jokes_list:
+    jokes_list.remove(monkey_joke)
 
-      firestore_service.upsert_punny_joke(joke)
-      migration_doc.set({'image_enhancement': True}, merge=True)
+  # Randomize remaining jokes
+  random.shuffle(jokes_list)
 
-      updated_jokes.append({
-        "id": joke_id,
-        "setup_image_url": enhanced_setup.url,
-        "punchline_image_url": enhanced_punchline.url,
-        "dry_run": False,
-      })
-      updated_count += 1
+  # Put monkey joke first
+  updated_jokes = [monkey_joke] + jokes_list
 
-    except Exception as err:  # pylint: disable=broad-except
-      logger.error(f"Failed to enhance images for joke {joke_id}: {err}")
-      skipped_jokes.append({
-        "id": joke_id,
-        "reason": f"error:{err}",
-      })
-      continue
+  if dry_run:
+    # In dry run, simulate clearing metadata for all jokes
+    cleared_jokes = updated_jokes.copy()
+    return _build_html_report(
+      dry_run=dry_run,
+      success=True,
+      book_id=book_id,
+      original_jokes=original_jokes,
+      updated_jokes=updated_jokes,
+      added_jokes=jokes_to_add,
+      removed_joke=joke_to_remove,
+      cleared_jokes=cleared_jokes,
+    )
 
-  return _build_html_report(
-    dry_run=dry_run,
-    updated_jokes=updated_jokes,
-    skipped_jokes=skipped_jokes,
-  )
-
-
-def _get_migrations_doc_ref(joke_id: str):
-  """Return the Firestore document reference for a joke's migrations metadata."""
-  return (db().collection('jokes').document(joke_id).collection(
-    'metadata').document('migrations'))
-
-
-def _enhance_single_image(
-  *,
-  editor: image_editor.ImageEditor,
-  joke_id: str,
-  image_url: str,
-  image_kind: str,
-) -> models.Image:
-  """Download, enhance, and persist a single image, returning its metadata."""
-  if not image_url:
-    raise ValueError(f"Joke {joke_id} missing {image_kind} image URL.")
-
-  source_gcs_uri = cloud_storage.extract_gcs_uri_from_image_url(image_url)
-  image_bytes = cloud_storage.download_bytes_from_gcs(source_gcs_uri)
-
+  # Update Firestore
   try:
-    with Image.open(BytesIO(image_bytes)) as pil_image:
-      enhanced_image = editor.enhance_image(pil_image)
-      buffer = BytesIO()
-      enhanced_image.save(buffer, format='PNG')
-      enhanced_bytes = buffer.getvalue()
-  except UnidentifiedImageError as exc:
-    raise ValueError(
-      f"Unable to decode {image_kind} image for joke {joke_id}") from exc
+    book_ref.update({'jokes': updated_jokes})
+    logger.info(f"Successfully updated joke book {book_id}")
 
-  timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-  file_base = f"{joke_id}_{image_kind}_enhanced_{timestamp}"
-  destination_gcs_uri = cloud_storage.get_gcs_uri(
-    config.IMAGE_BUCKET_NAME,
-    file_base,
-    "png",
-  )
+    # Clear book page image URLs for all jokes in the updated list
+    cleared_jokes: list[str] = []
+    failed_jokes: list[dict[str, str]] = []
 
-  cloud_storage.upload_bytes_to_gcs(
-    enhanced_bytes,
-    destination_gcs_uri,
-    "image/png",
-  )
-  final_url = cloud_storage.get_final_image_url(destination_gcs_uri)
+    for joke_id in updated_jokes:
+      try:
+        metadata_ref = (db().collection('jokes').document(joke_id).collection(
+          'metadata').document('metadata'))
+        metadata_ref.update({
+          'book_page_setup_image_url': DELETE_FIELD,
+          'book_page_punchline_image_url': DELETE_FIELD,
+        })
+        cleared_jokes.append(joke_id)
+        logger.info(f"Cleared book page URLs for joke {joke_id}")
+      except Exception as err:  # pylint: disable=broad-except
+        logger.error(
+          f"Failed to clear book page URLs for joke {joke_id}: {err}")
+        failed_jokes.append({
+          "joke_id": joke_id,
+          "error": str(err),
+        })
 
-  return models.Image(
-    url=final_url,
-    gcs_uri=destination_gcs_uri,
-  )
+    return _build_html_report(
+      dry_run=dry_run,
+      success=True,
+      book_id=book_id,
+      original_jokes=original_jokes,
+      updated_jokes=updated_jokes,
+      added_jokes=jokes_to_add,
+      removed_joke=joke_to_remove,
+      cleared_jokes=cleared_jokes,
+      failed_jokes=failed_jokes,
+    )
+  except Exception as err:  # pylint: disable=broad-except
+    logger.error(f"Failed to update joke book {book_id}: {err}")
+    return _build_html_report(
+      dry_run=dry_run,
+      success=False,
+      error=f"Failed to update Firestore: {err}",
+    )
 
 
 def _build_html_report(
   *,
   dry_run: bool,
-  updated_jokes: list[dict[str, object]],
-  skipped_jokes: list[dict[str, object]],
+  success: bool,
+  book_id: str | None = None,
+  original_jokes: list[str] | None = None,
+  updated_jokes: list[str] | None = None,
+  added_jokes: list[str] | None = None,
+  removed_joke: str | None = None,
+  cleared_jokes: list[str] | None = None,
+  failed_jokes: list[dict[str, str]] | None = None,
+  error: str | None = None,
 ) -> str:
   """Build a simple HTML report of migration results."""
   html = "<html><body>"
-  html += "<h1>Image Enhancement Migration Results</h1>"
+  html += "<h1>Joke Book Migration Results</h1>"
   html += f"<h2>Dry Run: {dry_run}</h2>"
-  html += f"<h2>Updated Jokes ({len(updated_jokes)})</h2>"
+  html += f"<h2>Status: {'Success' if success else 'Failed'}</h2>"
 
-  if updated_jokes:
+  if error:
+    html += f"<p style='color: red;'><b>Error:</b> {error}</p>"
+
+  if book_id:
+    html += f"<h2>Book ID: {book_id}</h2>"
+
+  if original_jokes is not None:
+    html += f"<h2>Original Jokes ({len(original_jokes)})</h2>"
+    html += "<ul>"
+    for joke in original_jokes:
+      html += f"<li>{joke}</li>"
+    html += "</ul>"
+
+  if updated_jokes is not None:
+    html += f"<h2>Updated Jokes ({len(updated_jokes)})</h2>"
     html += "<ul>"
     for joke in updated_jokes:
-      html += (f"<li><b>{joke['id']}</b>: "
-               f"setup_url={joke.get('setup_image_url')}, "
-               f"punchline_url={joke.get('punchline_image_url')}, "
-               f"dry_run={joke.get('dry_run', False)}</li>")
+      html += f"<li>{joke}</li>"
     html += "</ul>"
-  else:
-    html += "<p>No jokes were updated.</p>"
 
-  html += f"<h2>Skipped Jokes ({len(skipped_jokes)})</h2>"
-  if skipped_jokes:
+  if added_jokes:
+    html += f"<h2>Added Jokes ({len(added_jokes)})</h2>"
     html += "<ul>"
-    for joke in skipped_jokes:
-      html += (f"<li><b>{joke.get('id')}</b>: "
-               f"reason={joke.get('reason')}</li>")
+    for joke in added_jokes:
+      html += f"<li>{joke}</li>"
     html += "</ul>"
-  else:
-    html += "<p>No jokes were skipped.</p>"
+
+  if removed_joke:
+    html += "<h2>Removed Joke</h2>"
+    html += f"<p>{removed_joke}</p>"
+
+  if cleared_jokes is not None:
+    html += f"<h2>Cleared Book Page URLs ({len(cleared_jokes)})</h2>"
+    html += "<p>Book page image URLs cleared for the following jokes:</p>"
+    html += "<ul>"
+    for joke in cleared_jokes:
+      html += f"<li>{joke}</li>"
+    html += "</ul>"
+
+  if failed_jokes:
+    html += f"<h2>Failed to Clear URLs ({len(failed_jokes)})</h2>"
+    html += "<ul>"
+    for failed in failed_jokes:
+      html += (f"<li><b>{failed.get('joke_id')}</b>: "
+               f"{failed.get('error')}</li>")
+    html += "</ul>"
 
   html += "</body></html>"
   return html

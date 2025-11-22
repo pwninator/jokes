@@ -9,9 +9,9 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock, patch
 import zipfile
 
-from common import image_operations
+from common import image_operations, models
 from PIL import Image
-from services import image_client, image_editor
+from services import image_editor
 
 
 def _create_image_bytes(
@@ -23,6 +23,21 @@ def _create_image_bytes(
   buffer = BytesIO()
   pil_image.save(buffer, format='PNG')
   return buffer.getvalue()
+
+
+def _make_fake_image_model(
+  *,
+  gcs_uri: str,
+  url: str,
+  model_thought: str | None = None,
+) -> SimpleNamespace:
+  """Create a minimal image-like object for tests."""
+  return SimpleNamespace(
+    gcs_uri=gcs_uri,
+    url=url,
+    model_thought=model_thought,
+    generation_metadata=models.GenerationMetadata(),
+  )
 
 
 class RecordingImageEditor(image_editor.ImageEditor):
@@ -393,12 +408,12 @@ class ComposePortraitDrawingTest(unittest.TestCase):
 class CreateBookPagesTest(unittest.TestCase):
   """Tests for create_book_pages function."""
 
-  @patch('common.image_operations.image_client.get_client')
+  @patch('common.image_operations.generate_book_pages_with_nano_banana_pro')
   @patch('common.image_operations.firestore')
   @patch('common.image_operations.cloud_storage')
   @patch('common.image_operations.config.IMAGE_BUCKET_NAME', 'test-bucket')
   def test_create_book_pages_success(self, mock_storage, mock_firestore,
-                                     mock_get_client):
+                                     mock_generate_pages):
     mock_joke = SimpleNamespace(
       key='joke123',
       setup_image_url='https://cdn.example.com/setup.png',
@@ -406,6 +421,7 @@ class CreateBookPagesTest(unittest.TestCase):
       setup_image_description='setup desc',
       punchline_image_description='punchline desc',
     )
+    mock_joke.generation_metadata = models.GenerationMetadata()
     mock_firestore.get_punny_joke.return_value = mock_joke
     mock_firestore.update_punny_joke = MagicMock()
 
@@ -445,60 +461,46 @@ class CreateBookPagesTest(unittest.TestCase):
 
     mock_storage.download_image_from_gcs.side_effect = _download_image_side_effect
 
-    mock_storage.get_public_url.side_effect = [
-      'https://cdn.example.com/book_page_setup.jpg',
-      'https://cdn.example.com/book_page_punchline.jpg',
-      'https://cdn.example.com/simple_setup.png',
-      'https://cdn.example.com/simple_punchline.png',
-    ]
-
     generated_setup_uri = 'gs://generated/nano_setup.png'
     generated_punch_uri = 'gs://generated/nano_punch.png'
     simple_setup_uri = 'gs://generated/simple_setup.png'
     simple_punch_uri = 'gs://generated/simple_punch.png'
+    generated_setup_url = 'https://cdn.example.com/book_page_setup.jpg'
+    generated_punchline_url = 'https://cdn.example.com/book_page_punchline.jpg'
+    simple_setup_url = 'https://cdn.example.com/simple_setup.png'
+    simple_punchline_url = 'https://cdn.example.com/simple_punchline.png'
 
-    class DummyGenerationClient:
-
-      def __init__(self):
-        self.calls = 0
-
-      def generate_image(self, *args, **_kwargs):
-        self.calls += 1
-        if self.calls == 1:
-          return SimpleNamespace(
-            gcs_uri=generated_setup_uri,
-            generation_metadata=None,
-          )
-        return SimpleNamespace(
+    def _stub_generation(**kwargs):
+      self.assertEqual(kwargs['output_file_name_base'], 'joke123_book_page')
+      return SimpleNamespace(
+        simple_setup_image=_make_fake_image_model(
+          gcs_uri=simple_setup_uri,
+          url=simple_setup_url,
+        ),
+        simple_punchline_image=_make_fake_image_model(
+          gcs_uri=simple_punch_uri,
+          url=simple_punchline_url,
+        ),
+        generated_setup_image=_make_fake_image_model(
+          gcs_uri=generated_setup_uri,
+          url=generated_setup_url,
+          model_thought='setup-thought',
+        ),
+        generated_punchline_image=_make_fake_image_model(
           gcs_uri=generated_punch_uri,
-          generation_metadata=None,
-        )
+          url=generated_punchline_url,
+          model_thought='punchline-thought',
+        ),
+      )
 
-    def _make_outpaint_client(page_label: str):
+    mock_generate_pages.side_effect = _stub_generation
 
-      def _outpaint_image(**_kwargs):
-        return SimpleNamespace(gcs_uri=(simple_setup_uri if page_label
-                                        == 'setup' else simple_punch_uri), )
+    setup_image, punchline_image = (
+      image_operations.generate_and_populate_book_pages('joke123'))
 
-      return SimpleNamespace(outpaint_image=_outpaint_image)
-
-    def _get_client_side_effect(label, model, file_name_base, **_kwargs):
-      self.assertEqual(label, 'book_page_generation')
-      if model == image_client.ImageModel.DUMMY_OUTPAINTER:
-        page_label = 'setup' if 'setup' in file_name_base else 'punchline'
-        return _make_outpaint_client(page_label)
-      if model == image_client.ImageModel.GEMINI_NANO_BANANA_PRO:
-        return DummyGenerationClient()
-      raise AssertionError(f'Unexpected model {model}')
-
-    mock_get_client.side_effect = _get_client_side_effect
-
-    result = image_operations.generate_and_populate_book_pages('joke123')
-
-    self.assertEqual(result, (
-      'https://cdn.example.com/book_page_setup.jpg',
-      'https://cdn.example.com/book_page_punchline.jpg',
-    ))
+    self.assertEqual(setup_image.url, generated_setup_url)
+    self.assertEqual(punchline_image.url, generated_punchline_url)
+    mock_generate_pages.assert_called_once()
     mock_firestore.get_punny_joke.assert_called_once_with('joke123')
     mock_metadata_doc.get.assert_called_once()
     mock_firestore.update_punny_joke.assert_called_once()
@@ -517,6 +519,10 @@ class CreateBookPagesTest(unittest.TestCase):
         'https://cdn.example.com/book_page_setup.jpg',
         'book_page_punchline_image_url':
         'https://cdn.example.com/book_page_punchline.jpg',
+        'book_page_setup_image_model_thought':
+        'setup-thought',
+        'book_page_punchline_image_model_thought':
+        'punchline-thought',
       })
 
     mock_metadata_doc.set.assert_not_called()
@@ -587,12 +593,12 @@ class CreateBookPagesTest(unittest.TestCase):
     mock_metadata_doc.get.assert_called_once()
     mock_firestore.get_punny_joke.assert_called_once_with('jokeABC')
 
-  @patch('common.image_operations.image_client.get_client')
+  @patch('common.image_operations.generate_book_pages_with_nano_banana_pro')
   @patch('common.image_operations.firestore')
   @patch('common.image_operations.cloud_storage')
   @patch('common.image_operations.config.IMAGE_BUCKET_NAME', 'test-bucket')
   def test_create_book_pages_overwrite_true_generates_new(
-      self, mock_storage, mock_firestore, mock_get_client):
+      self, mock_storage, mock_firestore, mock_generate_pages):
     mock_joke = SimpleNamespace(
       key='jokeXYZ',
       setup_image_url='https://cdn.example.com/setup.png',
@@ -600,6 +606,7 @@ class CreateBookPagesTest(unittest.TestCase):
       setup_image_description='setup desc',
       punchline_image_description='punchline desc',
     )
+    mock_joke.generation_metadata = models.GenerationMetadata()
     mock_firestore.get_punny_joke.return_value = mock_joke
     mock_firestore.update_punny_joke = MagicMock()
 
@@ -645,62 +652,49 @@ class CreateBookPagesTest(unittest.TestCase):
 
     mock_storage.download_image_from_gcs.side_effect = _download_image_side_effect
 
-    mock_storage.get_public_url.side_effect = [
-      'https://cdn.example.com/new_setup.jpg',
-      'https://cdn.example.com/new_punchline.jpg',
-      'https://cdn.example.com/simple_setup.png',
-      'https://cdn.example.com/simple_punchline.png',
-    ]
-
     generated_setup_uri = 'gs://generated/nano_setup.png'
     generated_punch_uri = 'gs://generated/nano_punch.png'
     simple_setup_uri = 'gs://generated/simple_setup.png'
     simple_punch_uri = 'gs://generated/simple_punch.png'
+    new_setup_url = 'https://cdn.example.com/new_setup.jpg'
+    new_punchline_url = 'https://cdn.example.com/new_punchline.jpg'
+    simple_setup_url = 'https://cdn.example.com/simple_setup.png'
+    simple_punchline_url = 'https://cdn.example.com/simple_punchline.png'
 
-    class DummyGenerationClient:
-
-      def __init__(self):
-        self.calls = 0
-
-      def generate_image(self, *args, **_kwargs):
-        self.calls += 1
-        if self.calls == 1:
-          return SimpleNamespace(
-            gcs_uri=generated_setup_uri,
-            generation_metadata=None,
-          )
-        return SimpleNamespace(
+    def _stub_generation(**kwargs):
+      self.assertEqual(kwargs['output_file_name_base'], 'jokeXYZ_book_page')
+      return SimpleNamespace(
+        simple_setup_image=_make_fake_image_model(
+          gcs_uri=simple_setup_uri,
+          url=simple_setup_url,
+        ),
+        simple_punchline_image=_make_fake_image_model(
+          gcs_uri=simple_punch_uri,
+          url=simple_punchline_url,
+        ),
+        generated_setup_image=_make_fake_image_model(
+          gcs_uri=generated_setup_uri,
+          url=new_setup_url,
+          model_thought='setup-thought',
+        ),
+        generated_punchline_image=_make_fake_image_model(
           gcs_uri=generated_punch_uri,
-          generation_metadata=None,
-        )
+          url=new_punchline_url,
+          model_thought='punchline-thought',
+        ),
+      )
 
-    def _make_outpaint_client(page_label: str):
+    mock_generate_pages.side_effect = _stub_generation
 
-      def _outpaint_image(**_kwargs):
-        return SimpleNamespace(gcs_uri=(simple_setup_uri if page_label
-                                        == 'setup' else simple_punch_uri), )
+    setup_image, punchline_image = (
+      image_operations.generate_and_populate_book_pages(
+        'jokeXYZ',
+        overwrite=True,
+      ))
 
-      return SimpleNamespace(outpaint_image=_outpaint_image)
-
-    def _get_client_side_effect(label, model, file_name_base, **_kwargs):
-      if model == image_client.ImageModel.DUMMY_OUTPAINTER:
-        page_label = 'setup' if 'setup' in file_name_base else 'punchline'
-        return _make_outpaint_client(page_label)
-      if model == image_client.ImageModel.GEMINI_NANO_BANANA_PRO:
-        return DummyGenerationClient()
-      raise AssertionError(f'Unexpected model {model}')
-
-    mock_get_client.side_effect = _get_client_side_effect
-
-    result = image_operations.generate_and_populate_book_pages(
-      'jokeXYZ',
-      overwrite=True,
-    )
-
-    self.assertEqual(result, (
-      'https://cdn.example.com/new_setup.jpg',
-      'https://cdn.example.com/new_punchline.jpg',
-    ))
+    self.assertEqual(setup_image.url, new_setup_url)
+    self.assertEqual(punchline_image.url, new_punchline_url)
+    mock_generate_pages.assert_called_once()
     mock_firestore.update_punny_joke.assert_called_once()
     update_call = mock_firestore.update_punny_joke.call_args
     update_kwargs = update_call.kwargs
@@ -714,6 +708,10 @@ class CreateBookPagesTest(unittest.TestCase):
         'https://cdn.example.com/new_setup.jpg',
         'book_page_punchline_image_url':
         'https://cdn.example.com/new_punchline.jpg',
+        'book_page_setup_image_model_thought':
+        'setup-thought',
+        'book_page_punchline_image_model_thought':
+        'punchline-thought',
       })
 
 

@@ -46,10 +46,107 @@ def dummy_endpoint(req: https_fn.Request) -> https_fn.Response:
       mimetype='application/json',
     )
 
-  # return_val = run_create_book_pages_test(joke_id=get_param(req, 'joke_id'))
-  return_val = run_page_generation_test()
+  return_val = run_image_generation_test()
 
   return https_fn.Response(return_val, status=200, mimetype='text/html')
+
+
+def run_image_generation_test() -> str:
+  """Test image generation on every client."""
+
+  prompt = """A whimsical and silly sketch, appearing as if drawn with colored pencils on lightly textured paper to create a naive charm. The artwork is unbearably cute, with soft, sketchy lines and a vibrant, gentle, but bright color palette where colors sometimes stray playfully outside the lines. In a brightly lit, sterile hospital hallway, a doctor in a white coat stands completely bewildered, staring at a surreal sight. Two patients in hospital gowns are standing and walking slowly, each looking unwell and confused. Clinging tightly to the back of each patient is a perfectly healthy and super cute baby panda, each holding on like a fuzzy backpack with their faces snuggling against the patients' backs. The pandas have cute happy and content expressions. The scene is cute and funny in a mysterious and bizarre way. The only text on the image is the phrase "What do you call an outbreak of infectiously cute baby pandas?", prominently displayed in a casual, whimsical hand-written script, resembling a silly pencil sketch.
+  
+  The art style evokes a nostalgic, classic children's picture book aesthetic, simulating the medium of soft colored pencils or wax crayons applied to coarse, off-white textured paper. The defining characteristic is the visible "tooth" or grain of the paper, which allows speckles of the background to show through the pigment, creating a warm, organic, and non-digital feel. Outlines are organic and sketchy rather than rigid, drawn in a darker shade of the fill color (e.g., dark orange outlines for orange fur), ensuring figures blend gently into their environment. Shading is achieved through visible cross-hatching and directional strokes rather than smooth gradients, adding tactile volume to objects. The character proportions follow a "cute" or "chibi" standard—oversized heads, large expressive eyes with prominent white highlights, and small bodies, rendered in a palette that balances rich, cheerful vibrancy with a soft, matte finish, mimicking the organic look of hand-applied pigment where the paper's texture naturally diffuses the intensity to create an inviting, analog aesthetic."""
+
+  results = []
+  # for model in image_client.ImageModel:
+  for model in [
+      image_client.ImageModel.GEMINI_NANO_BANANA,
+      image_client.ImageModel.GEMINI_NANO_BANANA_PRO
+  ]:
+    model_name = model.name
+    try:
+      client = image_client.get_client(
+        label='image_generation_test',
+        model=model,
+        file_name_base=f'image_gen_test_{model_name.lower()}',
+      )
+      generated = client.generate_image(prompt, save_to_firestore=False)
+      image_url = cloud_storage.get_final_image_url(generated.gcs_uri,
+                                                    width=600)
+      results.append((model_name, image_url, None))
+    except Exception as e:
+      results.append((model_name, None, str(e)))
+
+  image_panels = []
+  for model_name, image_url, error in results:
+    if error:
+      content = f'<div class="error-message">{escape(error)}</div>'
+    elif image_url:
+      content = img_tag(image_url, f"{model_name} Image")
+    else:
+      content = '<div class="error-message">No image generated</div>'
+    image_panels.append(f'<div class="image-panel">\n'
+                        f'  <h3>{escape(model_name)}</h3>\n'
+                        f'  {content}\n'
+                        f'</div>')
+
+  return f"""
+<html>
+<head>
+  <title>Image Generation Test</title>
+  <style>
+    body {{
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      background-color: #f5f5f5;
+    }}
+    h1 {{
+      text-align: center;
+      color: #333;
+    }}
+    .comparison-grid {{
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(600px, 1fr));
+      gap: 24px;
+      max-width: 4000px;
+      margin: 0 auto;
+    }}
+    .image-panel {{
+      text-align: center;
+      background-color: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }}
+    .image-panel h3 {{
+      margin-top: 0;
+      color: #444;
+      font-size: 1.1em;
+    }}
+    .image-panel img {{
+      width: 600px;
+      height: 600px;
+      object-fit: contain;
+      border-radius: 6px;
+      border: 2px solid #ddd;
+    }}
+    .error-message {{
+      color: #d32f2f;
+      padding: 10px;
+      background-color: #ffebee;
+      border-radius: 4px;
+    }}
+  </style>
+</head>
+<body>
+  <h1>Image Generation Test</h1>
+  <div class="comparison-grid">
+    {chr(10).join(image_panels)}
+  </div>
+</body>
+</html>
+"""
 
 
 def run_create_book_pages_test(joke_id: str) -> str:
@@ -181,6 +278,8 @@ def run_page_generation_test() -> str:
     punchline_image_description=punchline_description,
     style_reference_image=reference_image,
     output_file_name_base='book_page_generation_test',
+    additional_setup_instructions='',
+    additional_punchline_instructions='',
   )
   simple_setup_image = cloud_storage.download_image_from_gcs(
     generation_result.simple_setup_image.gcs_uri)

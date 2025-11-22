@@ -6,7 +6,7 @@ import base64
 import os
 import time
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from io import BytesIO
@@ -44,6 +44,16 @@ class ImageProvider(Enum):
   DUMMY_OUTPAINTER = "dummy_outpainter"
 
 
+OPEN_AI_RESPONSES_CHAT_MODEL_NAME = "gpt-4.1-mini"
+
+OTHER_TOKEN_COSTS = {
+  "gpt-4.1-mini": {
+    "input_tokens": 0.40 / 1_000_000,
+    "output_tokens": 1.60 / 1_000_000,
+  }
+}
+
+
 class ImageModel(Enum):
   """Image models."""
 
@@ -53,8 +63,10 @@ class ImageModel(Enum):
     token_costs: dict[str, float],
     provider: ImageProvider,
     kwargs: dict[str, Any] | None = None,
+    name_for_logging: str | None = None,
   ):
     self.model_name = model_name
+    self.model_name_for_logging = name_for_logging or model_name
     self.token_costs = token_costs
     self.provider = provider
     self.kwargs = kwargs or {}
@@ -179,31 +191,34 @@ class ImageModel(Enum):
     "image_generation",
     {
       "images": 0.011,
-    },
+    } | OTHER_TOKEN_COSTS[OPEN_AI_RESPONSES_CHAT_MODEL_NAME],
     ImageProvider.OPENAI_RESPONSES,
     {
       "quality": "low"
     },
+    "chatgpt_image_low",
   )
   OPENAI_RESPONSES_API_MEDIUM = (
     "image_generation",
     {
       "images": 0.042,
-    },
+    } | OTHER_TOKEN_COSTS[OPEN_AI_RESPONSES_CHAT_MODEL_NAME],
     ImageProvider.OPENAI_RESPONSES,
     {
       "quality": "medium"
     },
+    "chatgpt_image_medium",
   )
   OPENAI_RESPONSES_API_HIGH = (
     "image_generation",
     {
       "images": 0.167,
-    },
+    } | OTHER_TOKEN_COSTS[OPEN_AI_RESPONSES_CHAT_MODEL_NAME],
     ImageProvider.OPENAI_RESPONSES,
     {
       "quality": "high"
     },
+    "chatgpt_image_high",
   )
 
   # https://ai.google.dev/gemini-api/docs/image-generation#pricing
@@ -217,6 +232,10 @@ class ImageModel(Enum):
       "output_image_tokens": 30.00 / 1_000_000,
     },
     ImageProvider.GEMINI,
+    {
+      "thinking": False,
+      "vertexai": True,
+    },
   )
   GEMINI_NANO_BANANA_PRO = (
     "gemini-3-pro-image-preview",
@@ -226,6 +245,10 @@ class ImageModel(Enum):
       "output_image_tokens": 120.00 / 1_000_000,
     },
     ImageProvider.GEMINI,
+    {
+      "thinking": True,
+      "vertexai": False,
+    },
   )
 
   # Dummy outpainter that just adds black margins around the image
@@ -236,14 +259,6 @@ class ImageModel(Enum):
     },
     ImageProvider.DUMMY_OUTPAINTER,
   )
-
-
-OTHER_TOKEN_COSTS = {
-  "gpt-4.1-mini": {
-    "input_tokens": 0.40 / 1_000_000,
-    "output_tokens": 1.60 / 1_000_000,
-  }
-}
 
 
 def _get_upscaled_gcs_uri(gcs_uri: str, upscale_factor: str) -> str:
@@ -289,6 +304,15 @@ def get_client(
       raise ValueError(f"Unknown image provider: {model.provider}")
 
 
+@dataclass(kw_only=True)
+class _ImageGenerationResult:
+  """Result of an image generation."""
+  image: Image.Image
+  model_thought: str | None = None
+  usage_dict: dict[str, int] = field(default_factory=dict)
+  custom_temp_data: dict[str, Any] = field(default_factory=dict)
+
+
 class ImageClient(ABC, Generic[_T]):
   """Abstract base class for image clients."""
 
@@ -329,25 +353,59 @@ class ImageClient(ABC, Generic[_T]):
     logger.info(
       f"Generating image with {self.__class__.__name__} ({self.model.model_name})"
     )
-    image = self._generate_image_internal(
+
+    start_time = time.perf_counter()
+
+    generation_result = self._generate_image_internal(
       prompt,
       reference_images,
       user_uid,
       extra_log_data,
     )
 
-    if not image.is_success:
-      raise ValueError(f"Image generation failed: {image}")
+    output_gcs_uri = cloud_storage.get_image_gcs_uri(self.file_name_base,
+                                                     self.extension)
 
-    # TODO: enhance_image takes a PIL image, but here we have a models.Image
-    # if auto_enhance:
-    #   image = image_editor.ImageEditor().enhance_image(image)
+    image = generation_result.image
+    if auto_enhance:
+      image = image_editor.ImageEditor().enhance_image(generation_result.image)
+
+    # Upload image bytes to GCS
+    print("Uploading image to GCS")
+    image_bytes_io = BytesIO()
+    image.save(image_bytes_io, format="PNG")
+    image_bytes = image_bytes_io.getvalue()
+    final_gcs_uri = cloud_storage.upload_bytes_to_gcs(
+      image_bytes,
+      output_gcs_uri,
+      content_type="image/png",
+    )
+
+    image_model = models.Image(
+      url=cloud_storage.get_final_image_url(final_gcs_uri),
+      gcs_uri=final_gcs_uri,
+      original_prompt=prompt,
+      final_prompt=prompt,
+      error=None,
+      owner_user_id=user_uid,
+      generation_metadata=models.GenerationMetadata(),
+      model_thought=generation_result.model_thought,
+      custom_temp_data=generation_result.custom_temp_data,
+    )
+    image_model.generation_metadata.add_generation(
+      _build_generation_metadata(
+        label=self.label,
+        model_name=self.model.model_name_for_logging,
+        token_costs=self.model.token_costs,
+        usage_dict=generation_result.usage_dict,
+        generation_time_sec=time.perf_counter() - start_time,
+      ))
 
     if save_to_firestore:
       logger.info("Saving image to Firestore")
-      image = firestore.create_image(image)
+      image_model = firestore.create_image(image_model)
 
-    return image
+    return image_model
 
   def upscale_image_flexible(
     self,
@@ -556,7 +614,7 @@ class ImageClient(ABC, Generic[_T]):
     reference_images: list[Any] | None,
     user_uid: str | None,
     extra_log_data: dict[str, Any] | None,
-  ) -> models.Image:
+  ) -> _ImageGenerationResult:
     """Generate an image from a prompt.
 
     Args:
@@ -567,7 +625,7 @@ class ImageClient(ABC, Generic[_T]):
       extra_log_data: Additional data to include in the log.
 
     Returns:
-      The generated image.
+      Image generation result.
     """
     raise NotImplementedError
 
@@ -790,24 +848,9 @@ class ImagenClient(ImageClient[genai.Client]):
     reference_images: list[Any] | None,
     user_uid: str | None,
     extra_log_data: dict[str, Any] | None,
-  ) -> models.Image:
-    """Generates an image using the Imagen model.
-
-    Args:
-      prompt: The text prompt for the image.
-      reference_images: Not supported for this client.
-      user_uid: The UID of the user requesting the image.
-      extra_log_data: Additional data to include in the log.
-
-    Returns:
-      The generated image.
-    """
+  ) -> _ImageGenerationResult:
     if reference_images:
       raise NotImplementedError("Reference images not supported for Imagen")
-
-    start_time = time.perf_counter()
-    output_gcs_uri = cloud_storage.get_image_gcs_uri(self.file_name_base,
-                                                     self.extension)
 
     response = self.model_client.models.generate_images(
       model=self.model.model_name,
@@ -816,40 +859,19 @@ class ImagenClient(ImageClient[genai.Client]):
         number_of_images=1,
         language=genai_types.ImagePromptLanguage.en,
         aspect_ratio="1:1",
-        output_gcs_uri=output_gcs_uri,
         safety_filter_level=genai_types.SafetyFilterLevel.BLOCK_ONLY_HIGH,
         person_generation=genai_types.PersonGeneration.ALLOW_ADULT,
       ),
     )
 
     # There should only be one image, since we only asked for one
-    image = response.generated_images[0].image
+    response_image = response.generated_images[0].image
+    image_bytes = response_image.image_bytes
 
-    final_gcs_uri = image.gcs_uri
-    if not final_gcs_uri:
-      raise ValueError(f"No GCS URI returned for image (label={self.label})")
-
-    image_model = models.Image(
-      url=cloud_storage.get_final_image_url(final_gcs_uri),
-      gcs_uri=final_gcs_uri,
-      original_prompt=prompt,
-      final_prompt=prompt,
-      error=None,
-      owner_user_id=user_uid,
-      generation_metadata=models.GenerationMetadata(),
+    return _ImageGenerationResult(
+      image=Image.open(BytesIO(image_bytes)),
+      usage_dict={"images": 1},
     )
-    image_model.generation_metadata.add_generation(
-      _build_generation_metadata(
-        label=self.label,
-        model_name=self.model.model_name,
-        usage_dict={
-          "images": 1,
-        },
-        token_costs=self.model.token_costs,
-        generation_time_sec=time.perf_counter() - start_time,
-      ))
-
-    return image_model
 
   @override
   def _upscale_image_internal(
@@ -994,20 +1016,7 @@ class OpenAiImageClient(ImageClient[OpenAI]):
     reference_images: list[Any] | None,
     user_uid: str | None,
     extra_log_data: dict[str, Any] | None,
-  ) -> models.Image:
-    """Generates an image using the OpenAI Images API.
-
-    Args:
-      prompt: The text prompt for the image.
-      reference_images: A list of bytes, where each item is the content of a
-        reference image.
-      user_uid: The UID of the user requesting the image.
-      extra_log_data: Additional data to include in the log.
-
-    Returns:
-      The generated image.
-    """
-    start_time = time.perf_counter()
+  ) -> _ImageGenerationResult:
 
     quality = self.model.kwargs["quality"]
     common_args = {
@@ -1043,37 +1052,13 @@ class OpenAiImageClient(ImageClient[OpenAI]):
     image_base64 = result.data[0].b64_json
     image_bytes = base64.b64decode(image_base64)
 
-    output_gcs_uri = cloud_storage.get_image_gcs_uri(self.file_name_base,
-                                                     self.extension)
-
-    # Upload image bytes to GCS
-    print("Uploading image to GCS")
-    final_gcs_uri = cloud_storage.upload_bytes_to_gcs(image_bytes,
-                                                      output_gcs_uri,
-                                                      content_type="image/png")
-
-    image_model = models.Image(
-      url=cloud_storage.get_final_image_url(final_gcs_uri),
-      gcs_uri=final_gcs_uri,
-      original_prompt=prompt,
-      final_prompt=prompt,
-      error=None,
-      owner_user_id=user_uid,
-      generation_metadata=models.GenerationMetadata(),
+    return _ImageGenerationResult(
+      image=Image.open(BytesIO(image_bytes)),
+      usage_dict={
+        "input_tokens": result.usage.input_tokens,
+        "output_tokens": result.usage.output_tokens,
+      },
     )
-    image_model.generation_metadata.add_generation(
-      _build_generation_metadata(
-        label=self.label,
-        model_name=self.model.model_name,
-        token_costs=self.model.token_costs,
-        usage_dict={
-          "input_tokens": result.usage.input_tokens,
-          "output_tokens": result.usage.output_tokens,
-        },
-        generation_time_sec=time.perf_counter() - start_time,
-      ))
-
-    return image_model
 
   @override
   def _outpaint_image_internal(
@@ -1100,8 +1085,6 @@ class OpenAiImageClient(ImageClient[OpenAI]):
 class OpenAiResponsesClient(ImageClient[OpenAI]):
   """OpenAI client implementation for the Responses API."""
 
-  CHAT_MODEL_NAME = "gpt-4.1-mini"
-
   def __init__(self, label: str, model: ImageModel, file_name_base: str,
                **kwargs: Any):
     super().__init__(label=label,
@@ -1121,24 +1104,12 @@ class OpenAiResponsesClient(ImageClient[OpenAI]):
     reference_images: list[Any] | None,
     user_uid: str | None,
     extra_log_data: dict[str, Any] | None,
-  ) -> models.Image:
-    """Generates an image using the OpenAI Responses API.
-
-    Args:
-      prompt: The text prompt for the image.
-      reference_images: A list of strings, where each item is the ID of an
-        image generation call.
-      user_uid: The UID of the user requesting the image.
-      extra_log_data: Additional data to include in the log.
-
-    Returns:
-      The generated image.
-    """
-    start_time = time.perf_counter()
+  ) -> _ImageGenerationResult:
 
     request_inputs = []
     quality = self.model.kwargs["quality"]
 
+    # Reference images must be generation IDs from previous calls.
     if reference_images:
       for image_id in reference_images:
         if not isinstance(image_id, str):
@@ -1169,7 +1140,7 @@ class OpenAiResponsesClient(ImageClient[OpenAI]):
     })
 
     response = self.model_client.responses.create(
-      model=OpenAiResponsesClient.CHAT_MODEL_NAME,
+      model=OPEN_AI_RESPONSES_CHAT_MODEL_NAME,
       input=request_inputs,
       tools=[{
         "type": self.model.model_name,
@@ -1192,53 +1163,19 @@ class OpenAiResponsesClient(ImageClient[OpenAI]):
     image_base64 = image_generation_call.result
     image_bytes = base64.b64decode(image_base64)
 
-    output_gcs_uri = cloud_storage.get_image_gcs_uri(self.file_name_base,
-                                                     self.extension)
-
-    # Upload image bytes to GCS
-    print(f"Uploading image to GCS: {output_gcs_uri}")
-    final_gcs_uri = cloud_storage.upload_bytes_to_gcs(image_bytes,
-                                                      output_gcs_uri,
-                                                      content_type="image/png")
-
-    image = models.Image(
-      url=cloud_storage.get_final_image_url(final_gcs_uri),
-      gcs_uri=final_gcs_uri,
-      original_prompt=prompt,
-      final_prompt=prompt,
-      error=None,
-      owner_user_id=user_uid,
-      generation_metadata=models.GenerationMetadata(),
+    return _ImageGenerationResult(
+      image=Image.open(BytesIO(image_bytes)),
+      usage_dict={
+        # Tokens for the chat
+        "input_tokens": response.usage.input_tokens,
+        "output_tokens": response.usage.output_tokens,
+        # Tokens for the image generation
+        "images": 1,
+      },
       custom_temp_data={
         "image_generation_call_id": image_generation_call.id,
       },
     )
-    # Usage cost for the chat model
-    image.generation_metadata.add_generation(
-      _build_generation_metadata(
-        label=self.label,
-        model_name=OpenAiResponsesClient.CHAT_MODEL_NAME,
-        token_costs=OTHER_TOKEN_COSTS[OpenAiResponsesClient.CHAT_MODEL_NAME],
-        usage_dict={
-          "input_tokens": response.usage.input_tokens,
-          "output_tokens": response.usage.output_tokens,
-        },
-        generation_time_sec=time.perf_counter() - start_time,
-      ))
-
-    # Usage cost for the image generation call
-    image.generation_metadata.add_generation(
-      _build_generation_metadata(
-        label=self.label,
-        model_name=f"{self.model.model_name} ({quality})",
-        token_costs=self.model.token_costs,
-        usage_dict={
-          "images": 1,
-        },
-        generation_time_sec=time.perf_counter() - start_time,
-      ))
-
-    return image
 
 
 class GeminiImageClient(ImageClient[genai.Client]):
@@ -1254,12 +1191,14 @@ class GeminiImageClient(ImageClient[genai.Client]):
 
   @override
   def _create_model_client(self) -> genai.Client:
-    return genai.Client(
-      api_key=config.get_gemini_api_key(),
-      # vertexai=True,
-      # project=config.PROJECT_ID,
-      # location=config.PROJECT_LOCATION,
-    )
+    if self.model.kwargs["vertexai"]:
+      return genai.Client(
+        vertexai=True,
+        project=config.PROJECT_ID,
+        location=config.PROJECT_LOCATION,
+      )
+    else:
+      return genai.Client(api_key=config.get_gemini_api_key())
 
   @override
   def _generate_image_internal(
@@ -1268,19 +1207,7 @@ class GeminiImageClient(ImageClient[genai.Client]):
     reference_images: list[Any] | None,
     user_uid: str | None,
     extra_log_data: dict[str, Any] | None,
-  ) -> models.Image:
-    """Generates an image using the Gemini API.
-
-    Args:
-      prompt: The text prompt for the image.
-      reference_images: A list of PIL.Image.Image objects or bytes.
-      user_uid: The UID of the user requesting the image.
-      extra_log_data: Additional data to include in the log.
-
-    Returns:
-      The generated image.
-    """
-    start_time = time.perf_counter()
+  ) -> _ImageGenerationResult:
 
     contents = []
 
@@ -1289,10 +1216,11 @@ class GeminiImageClient(ImageClient[genai.Client]):
 
     contents.append(prompt)
 
-    output_gcs_uri = cloud_storage.get_image_gcs_uri(
-      self.file_name_base,
-      self.extension,
-    )
+    thinking_enabled = self.model.kwargs["thinking"]
+    thinking_config = genai_types.ThinkingConfig(
+      include_thoughts=True,
+      thinking_budget=2000,
+    ) if thinking_enabled else None
 
     print(f"Generating image with Google GenAI API:\n{prompt}")
     response = self.model_client.models.generate_content(
@@ -1303,7 +1231,7 @@ class GeminiImageClient(ImageClient[genai.Client]):
           aspect_ratio="1:1",
           image_size="2K",
         ),
-        thinking_config=genai_types.ThinkingConfig(include_thoughts=True),
+        thinking_config=thinking_config,
       ),
     )
     print(f"Gemini response:\n{response}")
@@ -1320,14 +1248,6 @@ class GeminiImageClient(ImageClient[genai.Client]):
 
     if not image_bytes:
       raise ValueError("No image data returned from Gemini")
-
-    # Upload image bytes to GCS
-    print("Uploading image to GCS")
-    final_gcs_uri = cloud_storage.upload_bytes_to_gcs(
-      image_bytes,
-      output_gcs_uri,
-      content_type="image/png",
-    )
 
     usage_metadata = response.usage_metadata
     if usage_metadata:
@@ -1349,32 +1269,15 @@ class GeminiImageClient(ImageClient[genai.Client]):
         f"Gemini image generation ({self.model.model_name}) usage metadata not found, using defaults: {input_tokens}, {output_text_tokens}, {output_image_tokens}"
       )
 
-    usage_dict = {
-      "input_tokens": input_tokens,
-      "output_text_tokens": output_text_tokens,
-      "output_image_tokens": output_image_tokens,
-    }
-
-    image_model = models.Image(
-      url=cloud_storage.get_final_image_url(final_gcs_uri),
-      gcs_uri=final_gcs_uri,
-      original_prompt=prompt,
-      final_prompt=prompt,
+    return _ImageGenerationResult(
+      image=Image.open(BytesIO(image_bytes)),
       model_thought="\n".join(thought_lines),
-      error=None,
-      owner_user_id=user_uid,
-      generation_metadata=models.GenerationMetadata(),
+      usage_dict={
+        "input_tokens": input_tokens,
+        "output_text_tokens": output_text_tokens,
+        "output_image_tokens": output_image_tokens,
+      },
     )
-    image_model.generation_metadata.add_generation(
-      _build_generation_metadata(
-        label=self.label,
-        model_name=self.model.model_name,
-        usage_dict=usage_dict,
-        token_costs=self.model.token_costs,
-        generation_time_sec=time.perf_counter() - start_time,
-      ))
-
-    return image_model
 
   @override
   def _outpaint_image_internal(

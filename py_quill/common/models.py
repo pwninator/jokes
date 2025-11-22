@@ -176,6 +176,7 @@ class Image:
   gcs_uri_upscaled: str | None = None
   original_prompt: str | None = None
   final_prompt: str | None = None
+  model_thought: str | None = None
   error: str | None = None
   owner_user_id: str | None = None
   generation_metadata: GenerationMetadata | None = None
@@ -200,6 +201,7 @@ class Image:
       'gcs_uri_upscaled': self.gcs_uri_upscaled,
       'original_prompt': self.original_prompt,
       'final_prompt': self.final_prompt,
+      'model_thought': self.model_thought,
       'error': self.error,
       'owner_user_id': self.owner_user_id,
       'generation_metadata':
@@ -223,6 +225,7 @@ class Image:
       gcs_uri_upscaled=data.get("gcs_uri_upscaled"),
       original_prompt=data.get("original_prompt"),
       final_prompt=data.get("final_prompt"),
+      model_thought=data.get("model_thought"),
       error=data.get("error"),
       owner_user_id=data.get("owner_user_id"),
       generation_metadata=generation_metadata,

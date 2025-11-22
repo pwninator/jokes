@@ -684,7 +684,7 @@ class ImageClient(ABC, Generic[_T]):
 
     # 2. Create ref_image (canvas)
     # We use the utility but ignore the mask as requested
-    ref_image, _ = get_upscale_image_and_mask(
+    ref_image, _ = get_outpaint_image_and_mask(
       input_image,
       top=top,
       bottom=bottom,
@@ -907,7 +907,7 @@ class ImagenClient(ImageClient[genai.Client]):
     left = max(0, left)
     right = max(0, right)
 
-    ref_image, mask_image = get_upscale_image_and_mask(
+    ref_image, mask_image = get_outpaint_image_and_mask(
       input_image,
       top=top,
       bottom=bottom,
@@ -1302,19 +1302,24 @@ class GeminiImageClient(ImageClient[genai.Client]):
         image_config=genai_types.ImageConfig(
           aspect_ratio="1:1",
           image_size="2K",
-        ), ),
+        ),
+        thinking_config=genai_types.ThinkingConfig(include_thoughts=True),
+      ),
     )
     print(f"Gemini response:\n{response}")
 
-    image_parts = [
-      part.inline_data.data for part in response.candidates[0].content.parts
-      if part.inline_data
-    ]
+    image_bytes = None
+    thought_lines = []
+    for part in response.candidates[0].content.parts:
+      if part.inline_data:
+        image_bytes = part.inline_data.data
+      elif part.text:
+        thought_lines.append(part.text)
+      elif part.thought:
+        thought_lines.append(part.thought)
 
-    if not image_parts:
+    if not image_bytes:
       raise ValueError("No image data returned from Gemini")
-
-    image_bytes = image_parts[0]
 
     # Upload image bytes to GCS
     print("Uploading image to GCS")
@@ -1355,6 +1360,7 @@ class GeminiImageClient(ImageClient[genai.Client]):
       gcs_uri=final_gcs_uri,
       original_prompt=prompt,
       final_prompt=prompt,
+      model_thought="\n".join(thought_lines),
       error=None,
       owner_user_id=user_uid,
       generation_metadata=models.GenerationMetadata(),
@@ -1419,7 +1425,7 @@ class DummyOutpainterClient(ImageClient[None]):
     prompt: str,
   ) -> tuple[str, dict[str, int]]:
 
-    ref_image, _ = get_upscale_image_and_mask(
+    ref_image, _ = get_outpaint_image_and_mask(
       input_image,
       top=top,
       bottom=bottom,
@@ -1483,12 +1489,11 @@ def _get_reference_images(
     elif isinstance(image_data, Image.Image):
       img = image_data
     elif isinstance(image_data, str):
-      image_bytes = cloud_storage.download_bytes_from_gcs(image_data)
-      img = Image.open(BytesIO(image_bytes))
+      img = cloud_storage.download_image_from_gcs(image_data)
+    elif isinstance(image_data, models.Image):
+      img = cloud_storage.download_image_from_gcs(image_data.gcs_uri)
     else:
-      raise ValueError(
-        f"Reference image must be a PIL Image or bytes, got {type(image_data)}"
-      )
+      raise ValueError(f"Invalid reference image type: {type(image_data)}")
     images.append(img)
 
   return images
@@ -1576,14 +1581,14 @@ def get_upscale_dimensions(
   )
 
 
-def get_upscale_image_and_mask(
+def get_outpaint_image_and_mask(
   original_image: Image.Image,
   top: int,
   bottom: int,
   left: int,
   right: int,
 ) -> tuple[Image.Image, Image.Image]:
-  """Create the reference and mask images for outpainting/upscaling.
+  """Create the reference and mask images for outpainting.
 
   Args:
     original_image: Original image to be placed on the canvas.

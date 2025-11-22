@@ -124,8 +124,9 @@ def download_bytes_from_gcs(gcs_uri: str) -> bytes:
   return blob.download_as_bytes()
 
 
-def download_image_from_gcs(gcs_uri: str) -> Image.Image:
+def download_image_from_gcs(gcs_uri_or_url: str) -> Image.Image:
   """Download an image from GCS into memory."""
+  gcs_uri = extract_gcs_uri_from_image_url(gcs_uri_or_url)
   return Image.open(BytesIO(download_bytes_from_gcs(gcs_uri)))
 
 

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import unittest
-from PIL import Image
+from PIL import Image, ImageColor
 
 from services.image_editor import ImageEditor
 
@@ -24,6 +24,34 @@ class ImageEditorTest(unittest.TestCase):
     self.assertEqual(rotated.mode, 'RGBA')
     self.assertTrue(rotated.width >= img.width)
     self.assertTrue(rotated.height >= img.height)
+
+  def test_trim_edges_crops_expected_region(self):
+    img = Image.new('RGB', (10, 10), color='white')
+    img.putpixel((2, 2), (0, 0, 255))
+
+    trimmed = self.editor.trim_edges(img, left=2, top=2, right=3, bottom=4)
+
+    self.assertEqual(trimmed.size, (5, 4))
+    self.assertEqual(trimmed.getpixel((0, 0)), (0, 0, 255))
+
+  def test_trim_edges_with_zero_trims_returns_identical_image(self):
+    img = Image.new('RGB', (12, 8), color='purple')
+
+    trimmed = self.editor.trim_edges(img)
+
+    self.assertEqual(trimmed.size, (12, 8))
+    expected_color = ImageColor.getrgb('purple')
+    self.assertEqual(trimmed.getpixel((5, 4)), expected_color)
+
+  def test_trim_edges_invalid_inputs_raise_value_error(self):
+    img = Image.new('RGB', (15, 15), color='orange')
+
+    with self.assertRaises(ValueError):
+      self.editor.trim_edges(img, left=-1)
+    with self.assertRaises(ValueError):
+      self.editor.trim_edges(img, left=10, right=5)
+    with self.assertRaises(ValueError):
+      self.editor.trim_edges(img, top=7, bottom=8)
 
   def test_paste_image_with_shadow_renders_shadow(self):
     base = Image.new('RGB', (100, 100), color='white')

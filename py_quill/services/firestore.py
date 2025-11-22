@@ -346,10 +346,22 @@ def upsert_punny_joke(
   return saved_joke
 
 
-def update_punny_joke(joke_id: str, update_data: dict[str, Any]) -> None:
-  """Update a punny joke with the given ID and data."""
+def update_punny_joke(
+  joke_id: str,
+  update_data: dict[str, Any],
+  *,
+  update_metadata: dict[str, Any] | None = None,
+) -> None:
+  """Update a punny joke document and optionally its metadata sub-document.
+
+  Args:
+    joke_id: Firestore document ID for the joke.
+    update_data: Fields to update on the primary joke document.
+    update_metadata: Optional fields to merge into `metadata/metadata`.
+  """
   joke_ref = db().collection('jokes').document(joke_id)
-  if not joke_ref.get().exists:
+  joke_snapshot = joke_ref.get()
+  if not joke_snapshot.exists:
     raise ValueError(f"Joke {joke_id} not found in Firestore")
   state_value = update_data.get('state')
   resolved_state: models.JokeState | None = None
@@ -365,6 +377,9 @@ def update_punny_joke(joke_id: str, update_data: dict[str, Any]) -> None:
     update_data['is_public'] = resolved_state == models.JokeState.PUBLISHED
   update_data['last_modification_time'] = SERVER_TIMESTAMP
   joke_ref.update(update_data)
+  if update_metadata:
+    metadata_ref = joke_ref.collection('metadata').document('metadata')
+    metadata_ref.set(update_metadata, merge=True)
 
 
 def update_joke_feed(jokes: list[dict[str, Any]]) -> None:

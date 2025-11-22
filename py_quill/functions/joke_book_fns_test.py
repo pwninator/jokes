@@ -226,11 +226,12 @@ def test_get_joke_book_errors_when_book_pages_missing(mock_firestore):
 
 
 @patch('functions.joke_book_fns.get_user_id', return_value='test-admin')
-@patch('functions.joke_book_fns.image_operations.zip_joke_page_images')
-@patch('functions.joke_book_fns.image_operations.create_book_pages')
+@patch('functions.joke_book_fns.image_operations.zip_joke_page_images_for_kdp')
+@patch(
+  'functions.joke_book_fns.image_operations.generate_and_populate_book_pages')
 @patch('functions.joke_book_fns.firestore')
 def test_create_book_uses_top_jokes_when_joke_ids_missing(
-    mock_firestore, mock_create_pages, mock_zip_pages, mock_get_user_id):
+    mock_firestore, mock_generate_pages, mock_zip_pages, mock_get_user_id):
   """create_book should use top jokes when joke_ids is not provided."""
   # Arrange
   top_joke1 = MagicMock()
@@ -270,17 +271,18 @@ def test_create_book_uses_top_jokes_when_joke_ids_missing(
     'zip_url':
     'https://cdn.example.com/book.zip',
   })
-  mock_create_pages.assert_any_call('j1', overwrite=True)
-  mock_create_pages.assert_any_call('j2', overwrite=True)
+  mock_generate_pages.assert_any_call('j1', overwrite=True)
+  mock_generate_pages.assert_any_call('j2', overwrite=True)
   assert resp == {"data": {"book_id": "book123"}}
 
 
 @patch('functions.joke_book_fns.get_user_id', return_value='test-admin')
-@patch('functions.joke_book_fns.image_operations.zip_joke_page_images')
-@patch('functions.joke_book_fns.image_operations.create_book_pages')
+@patch('functions.joke_book_fns.image_operations.zip_joke_page_images_for_kdp')
+@patch(
+  'functions.joke_book_fns.image_operations.generate_and_populate_book_pages')
 @patch('functions.joke_book_fns.firestore')
 def test_update_joke_book_regenerates_pages_and_zip(mock_firestore,
-                                                    mock_create_pages,
+                                                    mock_generate_pages,
                                                     mock_zip_pages,
                                                     mock_get_user_id):
   """update_joke_book should regenerate pages and zip for existing book."""
@@ -320,8 +322,8 @@ def test_update_joke_book_regenerates_pages_and_zip(mock_firestore,
   mock_db.collection.assert_called_with('joke_books')
   mock_collection.document.assert_called_with(joke_book_id)
 
-  mock_create_pages.assert_any_call('j1', overwrite=False)
-  mock_create_pages.assert_any_call('j2', overwrite=False)
+  mock_generate_pages.assert_any_call('j1', overwrite=False)
+  mock_generate_pages.assert_any_call('j2', overwrite=False)
 
   mock_zip_pages.assert_called_once_with(joke_ids)
 

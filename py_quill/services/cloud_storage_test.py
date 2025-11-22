@@ -1,5 +1,8 @@
 """Tests for the cloud_storage module."""
 
+from io import BytesIO
+
+from PIL import Image
 from services import cloud_storage
 
 
@@ -146,3 +149,55 @@ def test_set_cdn_url_params_multiple_changes(monkeypatch):
   assert 'width=2048' in result
   assert 'format=png' in result
   assert 'quality=90' in result
+
+
+def _make_png_bytes(color: str = "red", size: tuple[int, int] = (4, 4)) -> bytes:
+  """Helper to construct in-memory PNG bytes for image download tests."""
+  buffer = BytesIO()
+  Image.new('RGB', size, color=color).save(buffer, format='PNG')
+  return buffer.getvalue()
+
+
+def test_download_image_from_gcs_accepts_gcs_uri(monkeypatch):
+  """download_image_from_gcs should handle native gs:// URIs."""
+  expected_uri = "gs://test-bucket/sample.png"
+  png_bytes = _make_png_bytes(color="green")
+
+  def fake_download_bytes(gcs_uri: str) -> bytes:
+    assert gcs_uri == expected_uri
+    return png_bytes
+
+  monkeypatch.setattr(cloud_storage, "download_bytes_from_gcs",
+                      fake_download_bytes)
+
+  image = cloud_storage.download_image_from_gcs(expected_uri)
+
+  assert image.size == (4, 4)
+  assert image.mode == "RGB"
+
+
+def test_download_image_from_gcs_accepts_http_url(monkeypatch):
+  """download_image_from_gcs should resolve URLs to GCS URIs before download."""
+  http_url = "https://images.quillsstorybook.com/some/path/image.png"
+  resolved_uri = "gs://images.quillsstorybook.com/some/path/image.png"
+  png_bytes = _make_png_bytes(color="blue")
+  captured_url: dict[str, str] = {}
+
+  def fake_extract(url: str) -> str:
+    captured_url["url"] = url
+    return resolved_uri
+
+  def fake_download_bytes(gcs_uri: str) -> bytes:
+    assert gcs_uri == resolved_uri
+    return png_bytes
+
+  monkeypatch.setattr(cloud_storage, "extract_gcs_uri_from_image_url",
+                      fake_extract)
+  monkeypatch.setattr(cloud_storage, "download_bytes_from_gcs",
+                      fake_download_bytes)
+
+  image = cloud_storage.download_image_from_gcs(http_url)
+
+  assert captured_url["url"] == http_url
+  assert image.size == (4, 4)
+  assert image.mode == "RGB"

@@ -396,19 +396,18 @@ class CreateBookPagesTest(unittest.TestCase):
   @patch('common.image_operations.image_client.get_client')
   @patch('common.image_operations.firestore')
   @patch('common.image_operations.cloud_storage')
-  @patch('common.image_operations.datetime.datetime')
   @patch('common.image_operations.config.IMAGE_BUCKET_NAME', 'test-bucket')
-  def test_create_book_pages_success(self, mock_datetime, mock_storage,
-                                     mock_firestore, mock_get_client):
-    fixed_dt = std_datetime.datetime(2025, 3, 4, 5, 6, 7, 8000)
-    mock_datetime.now.return_value = fixed_dt
-
+  def test_create_book_pages_success(self, mock_storage, mock_firestore,
+                                     mock_get_client):
     mock_joke = SimpleNamespace(
       key='joke123',
       setup_image_url='https://cdn.example.com/setup.png',
       punchline_image_url='https://cdn.example.com/punchline.png',
+      setup_image_description='setup desc',
+      punchline_image_description='punchline desc',
     )
     mock_firestore.get_punny_joke.return_value = mock_joke
+    mock_firestore.update_punny_joke = MagicMock()
 
     mock_firestore_db = MagicMock()
     mock_metadata_doc = MagicMock()
@@ -421,158 +420,111 @@ class CreateBookPagesTest(unittest.TestCase):
     mock_metadata_doc.get.return_value = metadata_snapshot
 
     def _extract(uri):
-      return f'gs://bucket/{uri.split(' / ')[-1]}'
+      if uri == 'https://cdn.example.com/setup.png':
+        return 'gs://bucket/setup.png'
+      if uri == 'https://cdn.example.com/punchline.png':
+        return 'gs://bucket/punchline.png'
+      if uri == image_operations._BOOK_PAGE_STYLE_REFERENCE_IMAGE_URI:
+        return 'gs://bucket/style.png'
+      raise AssertionError(f'Unexpected URI: {uri}')
 
     mock_storage.extract_gcs_uri_from_image_url.side_effect = _extract
-
-    setup_outpaint_uri = 'gs://generated/setup_outpaint.png'
-    punchline_outpaint_uri = 'gs://generated/punchline_outpaint.png'
-    setup_upscaled_uri = 'gs://generated/setup_outpaint_upscale_x2.png'
-    punchline_upscaled_uri = 'gs://generated/punchline_outpaint_upscale_x2.png'
 
     def _make_image(
       color: str, size: tuple[int, int] = (1024, 1024)) -> Image.Image:
       return Image.open(BytesIO(_create_image_bytes(color, size)))
 
     def _download_image_side_effect(gcs_uri: str):
-      if gcs_uri.endswith('setup.png'):
+      if gcs_uri == 'gs://bucket/setup.png':
         return _make_image('red')
-      if gcs_uri.endswith('punchline.png'):
+      if gcs_uri == 'gs://bucket/punchline.png':
         return _make_image('blue')
-      if gcs_uri == setup_outpaint_uri:
-        return _make_image('red', (1150, 1174))
-      if gcs_uri == punchline_outpaint_uri:
-        return _make_image('blue', (1150, 1174))
-      if gcs_uri == setup_upscaled_uri:
-        return _make_image('red', (2300, 2348))
-      if gcs_uri == punchline_upscaled_uri:
-        return _make_image('blue', (2300, 2348))
+      if gcs_uri == 'gs://bucket/style.png':
+        return _make_image('green')
       raise AssertionError(f'Unexpected GCS URI: {gcs_uri}')
 
     mock_storage.download_image_from_gcs.side_effect = _download_image_side_effect
 
-    expected_timestamp = fixed_dt.strftime('%Y%m%d_%H%M%S_%f')
-    setup_gcs_uri = (
-      f'gs://test-bucket/joke123_book_page_setup_{expected_timestamp}.jpg')
-    punchline_gcs_uri = (
-      f'gs://test-bucket/joke123_book_page_punchline_{expected_timestamp}.jpg')
-
     mock_storage.get_public_url.side_effect = [
       'https://cdn.example.com/book_page_setup.jpg',
       'https://cdn.example.com/book_page_punchline.jpg',
+      'https://cdn.example.com/simple_setup.png',
+      'https://cdn.example.com/simple_punchline.png',
     ]
 
-    outpaint_calls = []
-    upscale_calls = []
+    generated_setup_uri = 'gs://generated/nano_setup.png'
+    generated_punch_uri = 'gs://generated/nano_punch.png'
+    simple_setup_uri = 'gs://generated/simple_setup.png'
+    simple_punch_uri = 'gs://generated/simple_punch.png'
+
+    class DummyGenerationClient:
+
+      def __init__(self):
+        self.calls = 0
+
+      def generate_image(self, *args, **_kwargs):
+        self.calls += 1
+        if self.calls == 1:
+          return SimpleNamespace(
+            gcs_uri=generated_setup_uri,
+            generation_metadata=None,
+          )
+        return SimpleNamespace(
+          gcs_uri=generated_punch_uri,
+          generation_metadata=None,
+        )
 
     def _make_outpaint_client(page_label: str):
 
-      def _outpaint_image(**kwargs):
-        outpaint_calls.append((page_label, kwargs))
-        return SimpleNamespace(gcs_uri=(setup_outpaint_uri if page_label ==
-                                        'setup' else punchline_outpaint_uri))
+      def _outpaint_image(**_kwargs):
+        return SimpleNamespace(gcs_uri=(simple_setup_uri if page_label
+                                        == 'setup' else simple_punch_uri), )
 
       return SimpleNamespace(outpaint_image=_outpaint_image)
-
-    def _make_upscale_client(page_label: str):
-
-      def _upscale_image(*args, **kwargs):
-        upscale_calls.append((page_label, kwargs))
-        return SimpleNamespace(
-          gcs_uri=(setup_outpaint_uri
-                   if page_label == 'setup' else punchline_outpaint_uri),
-          gcs_uri_upscaled=(setup_upscaled_uri if page_label == 'setup' else
-                            punchline_upscaled_uri),
-        )
-
-      return SimpleNamespace(upscale_image=_upscale_image)
 
     def _get_client_side_effect(label, model, file_name_base, **_kwargs):
       self.assertEqual(label, 'book_page_generation')
       if model == image_client.ImageModel.DUMMY_OUTPAINTER:
         page_label = 'setup' if 'setup' in file_name_base else 'punchline'
         return _make_outpaint_client(page_label)
-      if model == image_client.ImageModel.IMAGEN_4_UPSCALE:
-        page_label = 'setup' if 'setup' in file_name_base else 'punchline'
-        return _make_upscale_client(page_label)
+      if model == image_client.ImageModel.GEMINI_NANO_BANANA_PRO:
+        return DummyGenerationClient()
       raise AssertionError(f'Unexpected model {model}')
 
     mock_get_client.side_effect = _get_client_side_effect
 
-    editor = image_editor.ImageEditor()
-
-    result = image_operations.create_book_pages(
-      'joke123',
-      use_nano_banana_pro=False,
-      image_editor_instance=editor,
-    )
+    result = image_operations.generate_and_populate_book_pages('joke123')
 
     self.assertEqual(result, (
       'https://cdn.example.com/book_page_setup.jpg',
       'https://cdn.example.com/book_page_punchline.jpg',
     ))
     mock_firestore.get_punny_joke.assert_called_once_with('joke123')
-    self.assertEqual(len(outpaint_calls), 2)
-    self.assertEqual(len(upscale_calls), 2)
+    mock_metadata_doc.get.assert_called_once()
+    mock_firestore.update_punny_joke.assert_called_once()
 
-    # Verify margins include 5% base plus bleed (38px after scaling).
-    setup_margins = outpaint_calls[0][1] if outpaint_calls[0][
-      0] == 'setup' else outpaint_calls[1][1]
-    punchline_margins = outpaint_calls[0][1] if outpaint_calls[0][
-      0] == 'punchline' else outpaint_calls[1][1]
-
-    self.assertEqual(setup_margins['top'], 75)
-    self.assertEqual(setup_margins['bottom'], 75)
-    self.assertEqual(setup_margins['left'], 51)
-    self.assertEqual(setup_margins['right'], 75)
-
-    self.assertEqual(punchline_margins['top'], 75)
-    self.assertEqual(punchline_margins['bottom'], 75)
-    self.assertEqual(punchline_margins['left'], 75)
-    self.assertEqual(punchline_margins['right'], 51)
-
-    for page_label, kwargs in upscale_calls:
-      self.assertEqual(kwargs['upscale_factor'], 'x2')
-      self.assertEqual(kwargs['mime_type'], 'image/png')
-      self.assertIsNone(kwargs['compression_quality'])
-      expected_uri = (setup_outpaint_uri
-                      if page_label == 'setup' else punchline_outpaint_uri)
-      self.assertEqual(kwargs['gcs_uri'], expected_uri)
-      self.assertFalse(kwargs.get('save_to_firestore', True))
-
-    self.assertEqual(mock_storage.upload_bytes_to_gcs.call_count, 2)
-    upload_calls = mock_storage.upload_bytes_to_gcs.call_args_list
-    self.assertEqual(upload_calls[0].args[1], setup_gcs_uri)
-    self.assertEqual(upload_calls[1].args[1], punchline_gcs_uri)
-    for call in upload_calls:
-      self.assertIsInstance(call.args[0], (bytes, bytearray))
-      self.assertEqual(call.args[2], 'image/jpeg')
-
-      img = Image.open(BytesIO(call.args[0]))
-      self.assertEqual(img.mode, 'CMYK')
-      self.assertEqual(img.format, 'JPEG')
-      self.assertEqual(img.size[1], 1876)
-      self.assertEqual(img.size[0], 1838)
-      # Verify print DPI is preserved at 300x300.
-      self.assertEqual(img.info.get('dpi'), (300, 300))
-
-    mock_storage.get_public_url.assert_any_call(setup_gcs_uri)
-    mock_storage.get_public_url.assert_any_call(punchline_gcs_uri)
-
-    mock_metadata_doc.set.assert_called_once_with(
-      {
+    update_call = mock_firestore.update_punny_joke.call_args
+    self.assertEqual(update_call.args[0], 'joke123')
+    update_kwargs = update_call.kwargs
+    self.assertIn('generation_metadata', update_kwargs['update_data'])
+    self.assertEqual(
+      update_kwargs['update_metadata'], {
+        'book_page_simple_setup_image_url':
+        'https://cdn.example.com/simple_setup.png',
+        'book_page_simple_punchline_image_url':
+        'https://cdn.example.com/simple_punchline.png',
         'book_page_setup_image_url':
         'https://cdn.example.com/book_page_setup.jpg',
         'book_page_punchline_image_url':
         'https://cdn.example.com/book_page_punchline.jpg',
-      },
-      merge=True)
-    mock_metadata_doc.get.assert_called_once()
+      })
+
+    mock_metadata_doc.set.assert_not_called()
 
   @patch('common.image_operations.firestore.get_punny_joke', return_value=None)
   def test_create_book_pages_missing_joke(self, mock_get_joke):
     with self.assertRaisesRegex(ValueError, 'Joke not found'):
-      image_operations.create_book_pages('missing-joke')
+      image_operations.generate_and_populate_book_pages('missing-joke')
     mock_get_joke.assert_called_once_with('missing-joke')
 
   @patch('common.image_operations.firestore')
@@ -585,7 +537,7 @@ class CreateBookPagesTest(unittest.TestCase):
     mock_firestore.get_punny_joke.return_value = mock_joke
 
     with self.assertRaisesRegex(ValueError, 'does not have image URLs'):
-      image_operations.create_book_pages('joke123')
+      image_operations.generate_and_populate_book_pages('joke123')
 
     mock_firestore.get_punny_joke.assert_called_once_with('joke123')
 
@@ -599,6 +551,7 @@ class CreateBookPagesTest(unittest.TestCase):
       punchline_image_url='https://cdn.example.com/punchline.png',
     )
     mock_firestore.get_punny_joke.return_value = mock_joke
+    mock_firestore.update_punny_joke = MagicMock()
 
     mock_firestore_db = MagicMock()
     mock_metadata_doc = MagicMock()
@@ -616,12 +569,8 @@ class CreateBookPagesTest(unittest.TestCase):
     }
     mock_metadata_doc.get.return_value = metadata_snapshot
 
-    mock_editor = Mock(spec=image_editor.ImageEditor)
-
-    result = image_operations.create_book_pages(
+    result = image_operations.generate_and_populate_book_pages(
       'jokeABC',
-      use_nano_banana_pro=False,
-      image_editor_instance=mock_editor,
       overwrite=False,
     )
 
@@ -629,8 +578,7 @@ class CreateBookPagesTest(unittest.TestCase):
       'https://cdn.example.com/existing_setup.jpg',
       'https://cdn.example.com/existing_punchline.jpg',
     ))
-    mock_editor.scale_image.assert_not_called()
-    mock_editor.crop_image.assert_not_called()
+    mock_firestore.update_punny_joke.assert_not_called()
     mock_storage.extract_gcs_uri_from_image_url.assert_not_called()
     mock_storage.download_image_from_gcs.assert_not_called()
     mock_storage.upload_bytes_to_gcs.assert_not_called()
@@ -642,19 +590,18 @@ class CreateBookPagesTest(unittest.TestCase):
   @patch('common.image_operations.image_client.get_client')
   @patch('common.image_operations.firestore')
   @patch('common.image_operations.cloud_storage')
-  @patch('common.image_operations.datetime.datetime')
   @patch('common.image_operations.config.IMAGE_BUCKET_NAME', 'test-bucket')
   def test_create_book_pages_overwrite_true_generates_new(
-      self, mock_datetime, mock_storage, mock_firestore, mock_get_client):
-    fixed_dt = std_datetime.datetime(2025, 4, 5, 6, 7, 8, 9000)
-    mock_datetime.now.return_value = fixed_dt
-
+      self, mock_storage, mock_firestore, mock_get_client):
     mock_joke = SimpleNamespace(
       key='jokeXYZ',
       setup_image_url='https://cdn.example.com/setup.png',
       punchline_image_url='https://cdn.example.com/punchline.png',
+      setup_image_description='setup desc',
+      punchline_image_description='punchline desc',
     )
     mock_firestore.get_punny_joke.return_value = mock_joke
+    mock_firestore.update_punny_joke = MagicMock()
 
     mock_firestore_db = MagicMock()
     mock_metadata_doc = MagicMock()
@@ -673,84 +620,80 @@ class CreateBookPagesTest(unittest.TestCase):
     mock_metadata_doc.get.return_value = metadata_snapshot
 
     def _extract(uri):
-      return f'gs://bucket/{uri.split(' / ')[-1]}'
+      if uri == 'https://cdn.example.com/setup.png':
+        return 'gs://bucket/setup.png'
+      if uri == 'https://cdn.example.com/punchline.png':
+        return 'gs://bucket/punchline.png'
+      if uri == image_operations._BOOK_PAGE_STYLE_REFERENCE_IMAGE_URI:
+        return 'gs://bucket/style.png'
+      raise AssertionError(f'Unexpected URI: {uri}')
 
     mock_storage.extract_gcs_uri_from_image_url.side_effect = _extract
-
-    setup_outpaint_uri = 'gs://generated/setup_outpaint.png'
-    punchline_outpaint_uri = 'gs://generated/punchline_outpaint.png'
-    setup_upscaled_uri = 'gs://generated/setup_outpaint_upscale_x2.png'
-    punchline_upscaled_uri = 'gs://generated/punchline_outpaint_upscale_x2.png'
 
     def _make_image(
       color: str, size: tuple[int, int] = (1024, 1024)) -> Image.Image:
       return Image.open(BytesIO(_create_image_bytes(color, size)))
 
     def _download_image_side_effect(gcs_uri: str):
-      if gcs_uri.endswith('setup.png'):
+      if gcs_uri == 'gs://bucket/setup.png':
         return _make_image('red')
-      if gcs_uri.endswith('punchline.png'):
+      if gcs_uri == 'gs://bucket/punchline.png':
         return _make_image('blue')
-      if gcs_uri == setup_outpaint_uri:
-        return _make_image('red', (1150, 1174))
-      if gcs_uri == punchline_outpaint_uri:
-        return _make_image('blue', (1150, 1174))
-      if gcs_uri == setup_upscaled_uri:
-        return _make_image('red', (2300, 2348))
-      if gcs_uri == punchline_upscaled_uri:
-        return _make_image('blue', (2300, 2348))
+      if gcs_uri == 'gs://bucket/style.png':
+        return _make_image('green')
       raise AssertionError(f'Unexpected GCS URI: {gcs_uri}')
 
     mock_storage.download_image_from_gcs.side_effect = _download_image_side_effect
 
-    expected_timestamp = fixed_dt.strftime('%Y%m%d_%H%M%S_%f')
-    setup_gcs_uri = (
-      f'gs://test-bucket/jokeXYZ_book_page_setup_{expected_timestamp}.jpg')
-    punchline_gcs_uri = (
-      f'gs://test-bucket/jokeXYZ_book_page_punchline_{expected_timestamp}.jpg')
-
     mock_storage.get_public_url.side_effect = [
       'https://cdn.example.com/new_setup.jpg',
       'https://cdn.example.com/new_punchline.jpg',
+      'https://cdn.example.com/simple_setup.png',
+      'https://cdn.example.com/simple_punchline.png',
     ]
+
+    generated_setup_uri = 'gs://generated/nano_setup.png'
+    generated_punch_uri = 'gs://generated/nano_punch.png'
+    simple_setup_uri = 'gs://generated/simple_setup.png'
+    simple_punch_uri = 'gs://generated/simple_punch.png'
+
+    class DummyGenerationClient:
+
+      def __init__(self):
+        self.calls = 0
+
+      def generate_image(self, *args, **_kwargs):
+        self.calls += 1
+        if self.calls == 1:
+          return SimpleNamespace(
+            gcs_uri=generated_setup_uri,
+            generation_metadata=None,
+          )
+        return SimpleNamespace(
+          gcs_uri=generated_punch_uri,
+          generation_metadata=None,
+        )
 
     def _make_outpaint_client(page_label: str):
 
-      def _outpaint_image(**kwargs):
-        return SimpleNamespace(gcs_uri=(setup_outpaint_uri if page_label ==
-                                        'setup' else punchline_outpaint_uri))
+      def _outpaint_image(**_kwargs):
+        return SimpleNamespace(gcs_uri=(simple_setup_uri if page_label
+                                        == 'setup' else simple_punch_uri), )
 
       return SimpleNamespace(outpaint_image=_outpaint_image)
-
-    def _make_upscale_client(page_label: str):
-
-      def _upscale_image(*args, **kwargs):
-        return SimpleNamespace(
-          gcs_uri=(setup_outpaint_uri
-                   if page_label == 'setup' else punchline_outpaint_uri),
-          gcs_uri_upscaled=(setup_upscaled_uri if page_label == 'setup' else
-                            punchline_upscaled_uri),
-        )
-
-      return SimpleNamespace(upscale_image=_upscale_image)
 
     def _get_client_side_effect(label, model, file_name_base, **_kwargs):
       if model == image_client.ImageModel.DUMMY_OUTPAINTER:
         page_label = 'setup' if 'setup' in file_name_base else 'punchline'
         return _make_outpaint_client(page_label)
-      if model == image_client.ImageModel.IMAGEN_4_UPSCALE:
-        page_label = 'setup' if 'setup' in file_name_base else 'punchline'
-        return _make_upscale_client(page_label)
+      if model == image_client.ImageModel.GEMINI_NANO_BANANA_PRO:
+        return DummyGenerationClient()
       raise AssertionError(f'Unexpected model {model}')
 
     mock_get_client.side_effect = _get_client_side_effect
 
-    editor = image_editor.ImageEditor()
-
-    result = image_operations.create_book_pages(
+    result = image_operations.generate_and_populate_book_pages(
       'jokeXYZ',
-      use_nano_banana_pro=False,
-      image_editor_instance=editor,
       overwrite=True,
     )
 
@@ -758,23 +701,29 @@ class CreateBookPagesTest(unittest.TestCase):
       'https://cdn.example.com/new_setup.jpg',
       'https://cdn.example.com/new_punchline.jpg',
     ))
-
-    self.assertEqual(mock_storage.upload_bytes_to_gcs.call_count, 2)
-    upload_calls = mock_storage.upload_bytes_to_gcs.call_args_list
-    self.assertEqual(upload_calls[0].args[1], setup_gcs_uri)
-    self.assertEqual(upload_calls[1].args[1], punchline_gcs_uri)
-
-    mock_storage.get_public_url.assert_any_call(setup_gcs_uri)
-    mock_storage.get_public_url.assert_any_call(punchline_gcs_uri)
-    mock_metadata_doc.set.assert_called_once()
+    mock_firestore.update_punny_joke.assert_called_once()
+    update_call = mock_firestore.update_punny_joke.call_args
+    update_kwargs = update_call.kwargs
+    self.assertEqual(
+      update_kwargs['update_metadata'], {
+        'book_page_simple_setup_image_url':
+        'https://cdn.example.com/simple_setup.png',
+        'book_page_simple_punchline_image_url':
+        'https://cdn.example.com/simple_punchline.png',
+        'book_page_setup_image_url':
+        'https://cdn.example.com/new_setup.jpg',
+        'book_page_punchline_image_url':
+        'https://cdn.example.com/new_punchline.jpg',
+      })
 
 
 class ZipJokePageImagesTest(unittest.TestCase):
   """Tests for zip_joke_page_images function."""
 
+  @patch('common.image_operations._convert_for_print_kdp')
   @patch('common.image_operations.cloud_storage.get_public_url')
   @patch('common.image_operations.cloud_storage.upload_bytes_to_gcs')
-  @patch('common.image_operations.cloud_storage.download_bytes_from_gcs')
+  @patch('common.image_operations.cloud_storage.download_image_from_gcs')
   @patch(
     'common.image_operations.cloud_storage.extract_gcs_uri_from_image_url')
   @patch('common.image_operations.firestore')
@@ -782,9 +731,10 @@ class ZipJokePageImagesTest(unittest.TestCase):
     self,
     mock_firestore,
     mock_extract_gcs_uri,
-    mock_download_bytes,
+    mock_download_image,
     mock_upload_bytes,
     mock_get_public_url,
+    mock_convert_for_print,
   ):
     """zip_joke_page_images should upload a ZIP and return its public URL."""
     joke_ids = ['joke1']
@@ -837,28 +787,21 @@ class ZipJokePageImagesTest(unittest.TestCase):
 
     mock_extract_gcs_uri.side_effect = extract_side_effect
 
-    setup_image = Image.new('RGB', (10, 10), 'red')
-    punch_image = Image.new('RGB', (10, 10), 'blue')
-    setup_buffer = BytesIO()
-    punch_buffer = BytesIO()
-    setup_image.save(setup_buffer, format='JPEG')
-    punch_image.save(punch_buffer, format='JPEG')
-    setup_bytes = setup_buffer.getvalue()
-    punch_bytes = punch_buffer.getvalue()
+    def download_side_effect(resource):
+      if resource == setup_url:
+        return Image.new('RGB', (10, 10), 'red')
+      if resource == punch_url:
+        return Image.new('RGB', (10, 10), 'blue')
+      raise ValueError(f"Unexpected download request {resource}")
 
-    def download_side_effect(gcs_uri):
-      if gcs_uri == "gs://bucket/setup1.jpg":
-        return setup_bytes
-      if gcs_uri == "gs://bucket/punch1.png":
-        return punch_bytes
-      raise ValueError(f"Unexpected GCS URI {gcs_uri}")
+    mock_download_image.side_effect = download_side_effect
 
-    mock_download_bytes.side_effect = download_side_effect
+    mock_convert_for_print.side_effect = [b'setup-kdp', b'punchline-kdp']
 
     mock_get_public_url.return_value = 'https://cdn.example.com/book.zip'
 
     # Act
-    result_url = image_operations.zip_joke_page_images(joke_ids)
+    result_url = image_operations.zip_joke_page_images_for_kdp(joke_ids)
 
     # Assert URL is returned
     self.assertEqual(result_url, 'https://cdn.example.com/book.zip')
@@ -876,8 +819,8 @@ class ZipJokePageImagesTest(unittest.TestCase):
       names = sorted(zip_file.namelist())
       self.assertEqual(names, [
         '002_intro.jpg',
-        '003_setup1.jpg',
-        '004_punch1.png',
+        '003_joke1_setup.jpg',
+        '004_joke1_punchline.jpg',
       ])
 
       # Intro page exists and is non-empty
@@ -885,8 +828,9 @@ class ZipJokePageImagesTest(unittest.TestCase):
       self.assertIsInstance(intro_bytes, (bytes, bytearray))
       self.assertGreater(len(intro_bytes), 0)
 
-      self.assertEqual(zip_file.read('003_setup1.jpg'), setup_bytes)
-      self.assertEqual(zip_file.read('004_punch1.png'), punch_bytes)
+      self.assertEqual(zip_file.read('003_joke1_setup.jpg'), b'setup-kdp')
+      self.assertEqual(zip_file.read('004_joke1_punchline.jpg'),
+                       b'punchline-kdp')
 
 
 if __name__ == '__main__':

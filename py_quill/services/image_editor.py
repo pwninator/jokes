@@ -24,11 +24,27 @@ class ImageEditor:
   def scale_image(
     self,
     image: Image.Image,
-    scale_factor: float,
+    scale_factor: float | None = None,
+    new_width: int | None = None,
+    new_height: int | None = None,
   ) -> Image.Image:
     """Return a new image scaled by scale_factor using high-quality resampling."""
-    new_width = max(1, int(round(image.width * scale_factor)))
-    new_height = max(1, int(round(image.height * scale_factor)))
+    if scale_factor:
+      if new_width or new_height:
+        raise ValueError(
+          "new_width and new_height cannot be provided when scale_factor is provided"
+        )
+      new_width = max(1, int(round(image.width * scale_factor)))
+      new_height = max(1, int(round(image.height * scale_factor)))
+    elif new_width and new_height:
+      if scale_factor:
+        raise ValueError(
+          "scale_factor cannot be provided when new_width and new_height are provided"
+        )
+    else:
+      raise ValueError(
+        "Either scale_factor or new_width and new_height must be provided")
+
     return image.resize(
       size=(new_width, new_height),
       resample=Image.Resampling.LANCZOS,
@@ -124,20 +140,39 @@ class ImageEditor:
 
     return base_rgba
 
-  def crop_image(
+  def trim_edges(
     self,
     image: Image.Image,
     left: int = 0,
     top: int = 0,
-    right: int | None = None,
-    bottom: int | None = None,
+    right: int = 0,
+    bottom: int = 0,
   ) -> Image.Image:
-    """Return a cropped view of the image using the provided box coordinates."""
-    if right is None:
-      right = image.width
-    if bottom is None:
-      bottom = image.height
-    return image.crop((left, top, right, bottom))
+    """Return a cropped view of the image with edges trimmed.
+    
+    Args:
+      image: The image to trim edges of.
+      left: The amount of pixels to trim from the left edge.
+      top: The amount of pixels to trim from the top edge.
+      right: The amount of pixels to trim from the right edge.
+      bottom: The amount of pixels to trim from the bottom edge.
+    
+    Returns:
+      The trimmed image.
+    """
+    if left < 0 or top < 0 or right < 0 or bottom < 0:
+      raise ValueError("Trim values must be non-negative")
+
+    width, height = image.size
+    if left + right >= width:
+      raise ValueError(
+        "Combined left and right trims must be less than image width")
+    if top + bottom >= height:
+      raise ValueError(
+        "Combined top and bottom trims must be less than image height")
+
+    crop_box = (left, top, width - right, height - bottom)
+    return image.crop(crop_box)
 
   def enhance_image(
     self,

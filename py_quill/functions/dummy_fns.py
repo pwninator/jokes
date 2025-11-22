@@ -46,16 +46,16 @@ def dummy_endpoint(req: https_fn.Request) -> https_fn.Response:
       mimetype='application/json',
     )
 
-  return_val = run_create_book_pages_test(joke_id=get_param(req, 'joke_id'))
+  # return_val = run_create_book_pages_test(joke_id=get_param(req, 'joke_id'))
+  return_val = run_page_generation_test()
 
   return https_fn.Response(return_val, status=200, mimetype='text/html')
 
 
 def run_create_book_pages_test(joke_id: str) -> str:
   """Run a test to create book pages for a joke."""
-  book_page_setup_url, book_page_punchline_url = image_operations.create_book_pages(
+  book_page_setup_url, book_page_punchline_url = image_operations.generate_and_populate_book_pages(
     joke_id,
-    use_nano_banana_pro=True,
     overwrite=True,
   )
   return_val = f"""
@@ -174,10 +174,7 @@ def run_page_generation_test() -> str:
   response.raise_for_status()
   reference_image = Image.open(BytesIO(response.content))
 
-  (
-    generated_setup_image_object,
-    generated_punchline_image_object,
-  ) = image_operations.generate_book_pages_with_nano_banana_pro(
+  generation_result = image_operations.generate_book_pages_with_nano_banana_pro(
     setup_image=original_setup_image,
     punchline_image=original_punchline_image,
     setup_image_description=setup_description,
@@ -185,23 +182,47 @@ def run_page_generation_test() -> str:
     style_reference_image=reference_image,
     output_file_name_base='book_page_generation_test',
   )
+  simple_setup_image = cloud_storage.download_image_from_gcs(
+    generation_result.simple_setup_image.gcs_uri)
+  simple_punchline_image = cloud_storage.download_image_from_gcs(
+    generation_result.simple_punchline_image.gcs_uri)
   generated_setup_image = cloud_storage.download_image_from_gcs(
-    generated_setup_image_object.gcs_uri)
+    generation_result.generated_setup_image.gcs_uri)
   generated_punchline_image = cloud_storage.download_image_from_gcs(
-    generated_punchline_image_object.gcs_uri)
+    generation_result.generated_punchline_image.gcs_uri)
+  setup_image_thought = generation_result.generated_setup_image.model_thought
+  punchline_image_thought = generation_result.generated_punchline_image.model_thought
 
   setup_metadata_html = metadata_panel(
-    generated_setup_image_object,
+    generation_result.generated_setup_image,
     "Generated Setup Metadata",
   )
   punchline_metadata_html = metadata_panel(
-    generated_punchline_image_object,
+    generation_result.generated_punchline_image,
     "Generated Punchline Metadata",
   )
   metadata_html = ('<div class="metadata-grid">\n'
                    f'{setup_metadata_html}\n'
                    f'{punchline_metadata_html}\n'
                    '</div>')
+
+  # Add model thoughts section
+  setup_thought_text = escape(
+    setup_image_thought
+  ) if setup_image_thought else '<em>No thought available</em>'
+  punchline_thought_text = escape(
+    punchline_image_thought
+  ) if punchline_image_thought else '<em>No thought available</em>'
+  thoughts_html = (f'<div class="metadata-grid">\n'
+                   f'  <div class="metadata-panel">\n'
+                   f'    <h3>Setup Model Thought</h3>\n'
+                   f'    <pre>{setup_thought_text}</pre>\n'
+                   f'  </div>\n'
+                   f'  <div class="metadata-panel">\n'
+                   f'    <h3>Punchline Model Thought</h3>\n'
+                   f'    <pre>{punchline_thought_text}</pre>\n'
+                   f'  </div>\n'
+                   f'</div>')
 
   return_val = f"""
 <html>
@@ -279,6 +300,10 @@ def run_page_generation_test() -> str:
       {img_tag(setup_url, "Original Setup Image")}
     </div>
     <div class="image-panel">
+      <h3>Simple Setup</h3>
+      {img_from_bytes(simple_setup_image, "Simple Setup Image")}
+    </div>
+    <div class="image-panel">
       <h3>Generated Setup</h3>
       {img_from_bytes(generated_setup_image, "Generated Setup Image")}
     </div>
@@ -287,6 +312,10 @@ def run_page_generation_test() -> str:
     <div class="image-panel">
       <h3>Original Punchline</h3>
       {img_tag(punchline_url, "Original Punchline Image")}
+    </div>
+    <div class="image-panel">
+      <h3>Simple Punchline</h3>
+      {img_from_bytes(simple_punchline_image, "Simple Punchline Image")}
     </div>
     <div class="image-panel">
       <h3>Generated Punchline</h3>
@@ -300,6 +329,7 @@ def run_page_generation_test() -> str:
     </div>
   </div>
   {metadata_html}
+  {thoughts_html}
 </body>
 </html>
 """
@@ -426,10 +456,14 @@ def run_book_page_test(joke_id: str) -> str:
   original_setup_url = original_joke.setup_image_url
   original_punchline_url = original_joke.punchline_image_url
 
-  book_page_setup_url, book_page_punchline_url = image_operations.create_book_pages(
+  book_page_setup_image, book_page_punchline_image = image_operations.generate_and_populate_book_pages(
     joke_id,
     overwrite=True,
   )
+  book_page_setup_url = cloud_storage.get_public_url(
+    book_page_setup_image.gcs_uri)
+  book_page_punchline_url = cloud_storage.get_public_url(
+    book_page_punchline_image.gcs_uri)
 
   def render_image_section(title: str, left_label: str, left_url: str,
                            right_label: str, right_url: str) -> str:

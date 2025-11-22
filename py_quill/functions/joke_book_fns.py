@@ -25,18 +25,36 @@ def generate_joke_book_page(req: https_fn.Request) -> https_fn.Response:
       return error_response(f'Method not allowed: {req.method}')
 
     joke_id = get_param(req, 'joke_id', required=True)
+    setup_instructions = get_param(req, 'setup_instructions', required=False)
+    punchline_instructions = get_param(req,
+                                       'punchline_instructions',
+                                       required=False)
 
     logger.info(f'Generating book page images for joke {joke_id}')
 
-    (setup_url,
-     punchline_url) = image_operations.create_book_pages(joke_id,
-                                                         overwrite=True)
+    (
+      setup_image,
+      punchline_image,
+    ) = image_operations.generate_and_populate_book_pages(
+      joke_id,
+      overwrite=True,
+      additional_setup_instructions=setup_instructions,
+      additional_punchline_instructions=punchline_instructions,
+    )
 
-    return success_response({
-      'joke_id': joke_id,
-      'setup_url': setup_url,
-      'punchline_url': punchline_url,
-    })
+    return_val = f"""
+  <html>
+  <head>
+    <title>Joke Book Page - {joke_id}</title>
+  </head>
+  <body>
+    <h1>Joke Book Page - {joke_id}</h1>
+    <img src="{setup_image.url}" alt="Book Page Setup Image" width="600" height="600" />
+    <img src="{punchline_image.url}" alt="Book Page Punchline Image" width="600" height="600" />
+  </body>
+  </html>
+  """
+    return return_val
   except Exception as e:
     stacktrace = traceback.format_exc()
     print(f"Error creating joke book: {e}\nStacktrace:\n{stacktrace}")
@@ -81,10 +99,11 @@ def create_joke_book(req: https_fn.Request) -> https_fn.Response:
     logger.info(f'Creating book {book_name} with jokes: {joke_ids}')
 
     for joke_id in joke_ids:
-      image_operations.create_book_pages(joke_id, overwrite=True)
+      image_operations.generate_and_populate_book_pages(joke_id,
+                                                        overwrite=True)
 
     # Generate ZIP of all book pages and store in temp files bucket
-    zip_url = image_operations.zip_joke_page_images(joke_ids)
+    zip_url = image_operations.zip_joke_page_images_for_kdp(joke_ids)
 
     doc_id = utils.create_timestamped_firestore_key(user_id)
     firestore.db().collection('joke_books').document(doc_id).set({
@@ -136,10 +155,11 @@ def update_joke_book(req: https_fn.Request) -> https_fn.Response:
     logger.info(f'Updating book {joke_book_id} with jokes: {joke_ids}')
 
     for joke_id in joke_ids:
-      image_operations.create_book_pages(joke_id, overwrite=False)
+      image_operations.generate_and_populate_book_pages(joke_id,
+                                                        overwrite=False)
 
     # Generate ZIP of all book pages and store in temp files bucket
-    zip_url = image_operations.zip_joke_page_images(joke_ids)
+    zip_url = image_operations.zip_joke_page_images_for_kdp(joke_ids)
 
     book_ref.update({
       'zip_url': zip_url,

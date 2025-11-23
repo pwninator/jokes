@@ -4,6 +4,7 @@ import flask
 import pytest
 from firebase_admin import auth as firebase_auth
 
+from common import config
 from functions import auth_helpers
 
 
@@ -29,7 +30,7 @@ def test_create_session_cookie_uses_configured_expiry(monkeypatch):
   assert result == 'session-cookie-value'
   assert captured['id_token'] == 'id-token'
   assert captured['expires_in'].total_seconds() == pytest.approx(
-    auth_helpers.SESSION_MAX_AGE_SECONDS)
+    config.SESSION_MAX_AGE_SECONDS)
 
 
 def test_set_session_cookie_sets_secure_attributes():
@@ -40,7 +41,7 @@ def test_set_session_cookie_sets_secure_attributes():
                                   domain='example.com')
 
   header = response.headers.get('Set-Cookie')
-  assert f"{auth_helpers.SESSION_COOKIE_NAME}=cookie-value" in header
+  assert f"{config.SESSION_COOKIE_NAME}=cookie-value" in header
   assert 'HttpOnly' in header
   assert 'Secure' in header
   assert 'SameSite=Lax' in header
@@ -54,7 +55,7 @@ def test_clear_session_cookie_expires_cookie():
   auth_helpers.clear_session_cookie(response, domain='example.com')
 
   header = response.headers.get('Set-Cookie')
-  assert f"{auth_helpers.SESSION_COOKIE_NAME}=" in header
+  assert f"{config.SESSION_COOKIE_NAME}=" in header
   assert 'expires=' in header or 'Expires=' in header
   assert 'Domain=example.com' in header
   assert 'Path=/' in header
@@ -74,7 +75,7 @@ def test_verify_session_returns_tuple_when_valid(monkeypatch, flask_app):
 
   monkeypatch.setattr(auth_helpers.auth, 'verify_session_cookie', fake_verify)
 
-  cookie_header = f"{auth_helpers.SESSION_COOKIE_NAME}=session-token"
+  cookie_header = f"{config.SESSION_COOKIE_NAME}=session-token"
   with flask_app.test_request_context('/admin',
                                       headers={'Cookie': cookie_header}):
     result = auth_helpers.verify_session(flask.request)
@@ -89,7 +90,7 @@ def test_verify_session_handles_invalid_cookie(monkeypatch, flask_app):
 
   monkeypatch.setattr(auth_helpers.auth, 'verify_session_cookie', fake_verify)
 
-  cookie_header = f"{auth_helpers.SESSION_COOKIE_NAME}=invalid"
+  cookie_header = f"{config.SESSION_COOKIE_NAME}=invalid"
   with flask_app.test_request_context('/admin',
                                       headers={'Cookie': cookie_header}):
     assert auth_helpers.verify_session(flask.request) is None
@@ -159,19 +160,19 @@ def test_require_admin_allows_admin(monkeypatch, flask_app):
 def test_cookie_domain_for_request_uses_host(monkeypatch, flask_app):
   with flask_app.test_request_context('/'):
     domain = auth_helpers.cookie_domain_for_request(flask.request)
-  assert domain == auth_helpers.ADMIN_HOST
+  assert domain == config.ADMIN_HOST
 
 
 def test_cookie_domain_for_request_ignores_localhost(monkeypatch, flask_app):
   with flask_app.test_request_context('/', headers={'Host': 'localhost:5000'}):
     domain = auth_helpers.cookie_domain_for_request(flask.request)
-  assert domain == auth_helpers.ADMIN_HOST
+  assert domain == config.ADMIN_HOST
 
 
 def test_cookie_domain_for_request_env_override(monkeypatch, flask_app):
   with flask_app.test_request_context('/', headers={'Host': 'ignored.com'}):
     domain = auth_helpers.cookie_domain_for_request(flask.request)
-  assert domain == auth_helpers.ADMIN_HOST
+  assert domain == config.ADMIN_HOST
 
 
 def test_cookie_domain_for_request_emulator(monkeypatch, flask_app):

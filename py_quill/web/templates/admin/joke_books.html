@@ -19,8 +19,8 @@
   <tbody>
     {% for book in books %}
     <tr>
-      <td>{{ book.book_name or "Untitled book" }}</td>
-      <td><code>{{ book.id }}</code></td>
+      <td><a href="{{ url_for('web.admin_joke_book_detail', book_id=book.id) }}">{{ book.book_name or "Untitled book" }}</a></td>
+      <td><code><a href="{{ url_for('web.admin_joke_book_detail', book_id=book.id) }}">{{ book.id }}</a></code></td>
       <td>{{ book.joke_count }}</td>
       <td>
         {% if book.zip_url %}

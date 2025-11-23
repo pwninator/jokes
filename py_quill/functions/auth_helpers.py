@@ -13,14 +13,10 @@ from firebase_functions import logger
 from common import config
 from common import utils
 
-SESSION_COOKIE_NAME = '__session'
-SESSION_MAX_AGE_SECONDS = 14 * 24 * 60 * 60  # 14 days
-ADMIN_HOST = config.ADMIN_HOST.lower()
-
 
 def create_session_cookie(id_token: str) -> str:
   """Exchange an ID token for a Firebase session cookie."""
-  expires_in = datetime.timedelta(seconds=SESSION_MAX_AGE_SECONDS)
+  expires_in = datetime.timedelta(seconds=config.SESSION_MAX_AGE_SECONDS)
   session_cookie = auth.create_session_cookie(id_token, expires_in=expires_in)
   logger.info('Created admin session cookie')
   return session_cookie
@@ -32,9 +28,9 @@ def set_session_cookie(response: flask.Response,
                        domain: str | None = None) -> None:
   """Attach the session cookie to the response."""
   response.set_cookie(
-    SESSION_COOKIE_NAME,
+    config.SESSION_COOKIE_NAME,
     session_cookie,
-    max_age=SESSION_MAX_AGE_SECONDS,
+    max_age=config.SESSION_MAX_AGE_SECONDS,
     httponly=True,
     secure=True,
     samesite='Lax',
@@ -48,7 +44,7 @@ def clear_session_cookie(response: flask.Response,
                          domain: str | None = None) -> None:
   """Remove the session cookie from the response."""
   response.set_cookie(
-    SESSION_COOKIE_NAME,
+    config.SESSION_COOKIE_NAME,
     '',
     expires=0,
     httponly=True,
@@ -64,7 +60,7 @@ def external_host_for_request(request: flask.Request) -> str | None:
   if utils.is_emulator():
     host = (request.host or '').split(':')[0]
     return host.lower() if host else 'localhost'
-  return ADMIN_HOST
+  return config.ADMIN_HOST
 
 
 def external_scheme_for_request(request: flask.Request) -> str:
@@ -107,7 +103,7 @@ def resolve_admin_redirect(request: flask.Request, target: str | None,
 
 def verify_session(request: flask.Request, ) -> Optional[Tuple[str, dict]]:
   """Verify the admin session cookie, returning (uid, claims) if valid."""
-  session_cookie = request.cookies.get(SESSION_COOKIE_NAME)
+  session_cookie = request.cookies.get(config.SESSION_COOKIE_NAME)
   if not session_cookie:
     return None
 
@@ -136,6 +132,9 @@ def require_admin(view_func: Callable) -> Callable:
 
   @functools.wraps(view_func)
   def wrapper(*args, **kwargs):
+    if utils.is_emulator():
+      return view_func(*args, **kwargs)
+
     verification = verify_session(flask.request)
     if not verification:
       logger.warn(

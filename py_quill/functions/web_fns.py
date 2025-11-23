@@ -7,6 +7,8 @@ import zoneinfo
 
 import flask
 from common import models
+from common import config
+from common import utils
 from firebase_functions import https_fn, logger, options
 from services import firestore, search
 from functions import auth_helpers
@@ -34,42 +36,10 @@ _WEB_TOPICS: list[str] = [
   'pandas',
 ]
 
-_FIREBASE_WEB_CONFIG_DEFAULT = {
-  'apiKey': 'AIzaSyDvr_hRrKkHVw7x0AkRaRMNOuFd8e5P3Vo',
-  'appId': '1:416102166155:web:7030e554efae8e3e3dee8e',
-  'messagingSenderId': '416102166155',
-  'projectId': 'storyteller-450807',
-  'authDomain': 'snickerdoodlejokes.com',
-  'storageBucket': 'storyteller-450807.firebasestorage.app',
-  'measurementId': 'G-4KQFXXRSJY',
-}
-
 
 def _firebase_web_config() -> dict[str, str]:
   """Return Firebase config for the web admin login."""
-  return {
-    'apiKey':
-    os.environ.get('FIREBASE_WEB_API_KEY',
-                   _FIREBASE_WEB_CONFIG_DEFAULT['apiKey']),
-    'authDomain':
-    os.environ.get('FIREBASE_WEB_AUTH_DOMAIN',
-                   _FIREBASE_WEB_CONFIG_DEFAULT['authDomain']),
-    'projectId':
-    os.environ.get('FIREBASE_WEB_PROJECT_ID',
-                   _FIREBASE_WEB_CONFIG_DEFAULT['projectId']),
-    'appId':
-    os.environ.get('FIREBASE_WEB_APP_ID',
-                   _FIREBASE_WEB_CONFIG_DEFAULT['appId']),
-    'messagingSenderId':
-    os.environ.get('FIREBASE_WEB_MESSAGING_SENDER_ID',
-                   _FIREBASE_WEB_CONFIG_DEFAULT['messagingSenderId']),
-    'measurementId':
-    os.environ.get('FIREBASE_WEB_MEASUREMENT_ID',
-                   _FIREBASE_WEB_CONFIG_DEFAULT['measurementId']),
-    'storageBucket':
-    os.environ.get('FIREBASE_WEB_STORAGE_BUCKET',
-                   _FIREBASE_WEB_CONFIG_DEFAULT['storageBucket']),
-  }
+  return config.FIREBASE_WEB_CONFIG
 
 
 # -----------------------------
@@ -287,6 +257,63 @@ def admin_joke_books():
   return flask.render_template(
     'admin/joke_books.html',
     books=books,
+    site_name='Snickerdoodle',
+  )
+
+
+def _format_book_page_image(image_url: str | None) -> str | None:
+  """Normalize book page images to 600px squares for admin previews."""
+  if not image_url:
+    return None
+  try:
+    return utils.format_image_url(
+      image_url, image_format='png', quality=95, width=600)
+  except ValueError:
+    # If not a CDN URL, return as-is to avoid breaking the page.
+    return image_url
+
+
+@web_bp.route('/admin/joke-books/<book_id>')
+@auth_helpers.require_admin
+def admin_joke_book_detail(book_id: str):
+  """Render an image-centric view of a single joke book."""
+  client = firestore.db()
+  book_ref = client.collection('joke_books').document(book_id)
+  book_doc = book_ref.get()
+  if not book_doc.exists:
+    return flask.Response('Joke book not found', status=404)
+
+  book_data = book_doc.to_dict() or {}
+  jokes = book_data.get('jokes') or []
+  book = {
+    'id': book_id,
+    'book_name': book_data.get('book_name') or book_id,
+    'zip_url': book_data.get('zip_url'),
+  }
+
+  joke_rows: list[dict[str, object]] = []
+  for index, joke_id in enumerate(jokes, start=1):
+    joke_ref = client.collection('jokes').document(joke_id)
+    metadata_ref = joke_ref.collection('metadata').document('metadata')
+    metadata_doc = metadata_ref.get()
+    setup_url = None
+    punchline_url = None
+    if getattr(metadata_doc, 'exists', False):
+      metadata = metadata_doc.to_dict() or {}
+      setup_url = metadata.get('book_page_setup_image_url')
+      punchline_url = metadata.get('book_page_punchline_image_url')
+
+    joke_rows.append({
+      'sequence': index,
+      'id': joke_id,
+      'setup_image': _format_book_page_image(setup_url),
+      'punchline_image': _format_book_page_image(punchline_url),
+    })
+
+  return flask.render_template(
+    'admin/joke_book_detail.html',
+    book=book,
+    jokes=joke_rows,
     site_name='Snickerdoodle',
   )
 

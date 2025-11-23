@@ -6,6 +6,66 @@ from functions import web_fns
 from services import search
 
 
+def _mock_admin_session(monkeypatch):
+  """Bypass admin auth for route tests."""
+  monkeypatch.setattr(web_fns.auth_helpers,
+                      "verify_session",
+                      lambda _req: ("uid123", {
+                        "role": "admin"
+                      }))
+
+
+class _FakeSnapshot:
+  def __init__(self, doc_id: str, data: dict | None, exists: bool = True):
+    self.id = doc_id
+    self._data = data
+    self.exists = exists
+
+  def to_dict(self):
+    return self._data
+
+
+class _FakeDocumentRef:
+  def __init__(self,
+               snapshot: _FakeSnapshot,
+               subcollections: dict[str, "_FakeCollection"] | None = None):
+    self._snapshot = snapshot
+    self._subcollections = subcollections or {}
+
+  def get(self):
+    return self._snapshot
+
+  def collection(self, name: str):
+    return self._subcollections.get(name, _FakeCollection({}))
+
+
+class _FakeCollection:
+  def __init__(self, docs: dict[str, _FakeDocumentRef]):
+    self._docs = docs
+
+  def stream(self):
+    return [doc.get() for doc in self._docs.values()]
+
+  def document(self, doc_id: str):
+    return self._docs.get(doc_id,
+                          _FakeDocumentRef(
+                            _FakeSnapshot(doc_id, None, exists=False)))
+
+
+class _FakeFirestore:
+  def __init__(self, books: dict[str, _FakeDocumentRef],
+               jokes: dict[str, _FakeDocumentRef]):
+    self._books = books
+    self._jokes = jokes
+
+  def collection(self, name: str):
+    if name == "joke_books":
+      return _FakeCollection(self._books)
+    if name == "jokes":
+      return _FakeCollection(self._jokes)
+    return _FakeCollection({})
+
+
 def test_topic_page_uses_batch_fetch(monkeypatch):
   """Topic page uses batched get_punny_jokes and renders content."""
   mock_search_jokes = Mock()
@@ -180,6 +240,98 @@ def test_fetch_topic_jokes_sorts_by_popularity_then_distance(monkeypatch):
   keys = [j.key for j in ordered]
   # C first (highest popularity), then B (tie pop, closer), then A
   assert keys == ["C", "B", "A"]
+
+
+def test_admin_joke_books_links_to_detail(monkeypatch):
+  """Admin list page links to the detail view."""
+  _mock_admin_session(monkeypatch)
+  book_doc = _FakeSnapshot("book-1", {
+    "book_name": "Pirate Jokes",
+    "jokes": ["joke-a", "joke-b"],
+  })
+  books = {"book-1": _FakeDocumentRef(book_doc)}
+  fake_db = _FakeFirestore(books=books, jokes={})
+  monkeypatch.setattr(web_fns.firestore, "db", lambda: fake_db)
+
+  with web_fns.app.test_client() as client:
+    resp = client.get('/admin/joke-books')
+
+  assert resp.status_code == 200
+  html = resp.get_data(as_text=True)
+  assert '<a href="/admin/joke-books/book-1">' in html
+  assert "Pirate Jokes" in html
+
+
+def test_admin_joke_book_detail_renders_images_and_placeholders(monkeypatch):
+  """Detail view shows 600px images and placeholders when missing."""
+  _mock_admin_session(monkeypatch)
+
+  setup_url = (
+    "https://images.quillsstorybook.com/cdn-cgi/image/"
+    "format=auto,quality=75/path/setup.png")
+  punchline_url = (
+    "https://images.quillsstorybook.com/cdn-cgi/image/"
+    "format=auto,quality=75/path/punchline.png")
+
+  metadata_doc_one = _FakeDocumentRef(
+    _FakeSnapshot("metadata", {
+      "book_page_setup_image_url": setup_url,
+      "book_page_punchline_image_url": punchline_url,
+    }))
+  joke_one = _FakeDocumentRef(_FakeSnapshot("joke-1", {}), {
+    "metadata": _FakeCollection({"metadata": metadata_doc_one})
+  })
+
+  metadata_doc_two = _FakeDocumentRef(_FakeSnapshot("metadata", {}))
+  joke_two = _FakeDocumentRef(_FakeSnapshot("joke-2", {}), {
+    "metadata": _FakeCollection({"metadata": metadata_doc_two})
+  })
+
+  books = {
+    "book-42":
+    _FakeDocumentRef(
+      _FakeSnapshot("book-42", {
+        "book_name": "Space Llamas",
+        "jokes": ["joke-1", "joke-2"],
+        "zip_url": "https://example.com/book.zip",
+      }))
+  }
+  jokes = {"joke-1": joke_one, "joke-2": joke_two}
+  fake_db = _FakeFirestore(books=books, jokes=jokes)
+  monkeypatch.setattr(web_fns.firestore, "db", lambda: fake_db)
+
+  with web_fns.app.test_client() as client:
+    resp = client.get('/admin/joke-books/book-42')
+
+  assert resp.status_code == 200
+  html = resp.get_data(as_text=True)
+  assert "Space Llamas" in html
+  assert "joke-1" in html and "joke-2" in html
+  assert 'width="600"' in html and 'height="600"' in html
+  assert "width=600" in html  # width parameter in formatted CDN URL
+  assert "No punchline image" in html
+  assert "Download all pages" in html
+
+
+def test_admin_routes_allow_emulator_without_auth(monkeypatch):
+  """When in emulator mode, admin routes bypass auth checks."""
+  monkeypatch.setattr(web_fns.auth_helpers.utils, "is_emulator",
+                      lambda: True)
+
+  def _fail(_req):
+    raise AssertionError("verify_session should not be called in emulator")
+
+  monkeypatch.setattr(web_fns.auth_helpers, "verify_session", _fail)
+  fake_db = _FakeFirestore(books={}, jokes={})
+  monkeypatch.setattr(web_fns.firestore, "db", lambda: fake_db)
+
+  with web_fns.app.test_client() as client:
+    resp = client.get('/admin/joke-books')
+
+  assert resp.status_code == 200
+  html = resp.get_data(as_text=True)
+  assert "Joke Books" in html
+  assert "No joke books found." in html
 
 
 def test_pages_include_ga4_tag_and_parchment_background(monkeypatch):

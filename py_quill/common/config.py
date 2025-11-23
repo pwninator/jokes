@@ -11,6 +11,10 @@ AUDIO_BUCKET_NAME = "gen_audio"
 IMAGE_BUCKET_NAME = "images.quillsstorybook.com"
 ADMIN_HOST = "snickerdoodlejokes.com"
 
+# Admin session
+SESSION_COOKIE_NAME = '__session'
+SESSION_MAX_AGE_SECONDS = 14 * 24 * 60 * 60  # 14 days
+
 # Quill specific configuration
 NUM_CHARACTER_PORTRAIT_IMAGE_ATTEMPTS = 8
 NUM_COVER_IMAGE_ATTEMPTS = 8
@@ -19,6 +23,17 @@ NUM_PAGE_IMAGE_ATTEMPTS = 4
 # Joke search constants
 JOKE_SEARCH_TIGHT_THRESHOLD = 0.32
 JOKE_SEARCH_LOOSE_THRESHOLD = 0.37
+
+# Firebase Web Configuration (Public)
+FIREBASE_WEB_CONFIG = {
+  'apiKey': 'AIzaSyDvr_hRrKkHVw7x0AkRaRMNOuFd8e5P3Vo',
+  'appId': '1:416102166155:web:7030e554efae8e3e3dee8e',
+  'messagingSenderId': '416102166155',
+  'projectId': 'storyteller-450807',
+  'authDomain': 'snickerdoodlejokes.com',
+  'storageBucket': 'storyteller-450807.firebasestorage.app',
+  'measurementId': 'G-4KQFXXRSJY',
+}
 
 
 def get_openai_api_key() -> str:

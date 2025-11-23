@@ -1,0 +1,131 @@
+{% extends "admin/base.html" %}
+
+{% block title %}{{ book.book_name }} · Joke Book · {{ site_name }} Admin{% endblock %}
+
+{% block head_extra %}
+<style>
+  .page-actions {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 16px;
+  }
+
+  .joke-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .joke-card {
+    background: var(--surface);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    padding: 16px;
+  }
+
+  .joke-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+    color: var(--muted);
+  }
+
+  .joke-images {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 12px;
+  }
+
+  .image-frame {
+    background: #0f0f0f;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    min-height: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px;
+  }
+
+  .image-frame img,
+  .image-frame .placeholder {
+    width: min(600px, 100%);
+    max-width: 100%;
+    height: auto;
+    aspect-ratio: 1 / 1;
+    object-fit: cover;
+    border-radius: 8px;
+  }
+
+  .placeholder {
+    background: repeating-linear-gradient(
+      45deg,
+      rgba(255, 255, 255, 0.04),
+      rgba(255, 255, 255, 0.04) 12px,
+      rgba(255, 255, 255, 0.08) 12px,
+      rgba(255, 255, 255, 0.08) 24px
+    );
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    text-align: center;
+  }
+
+  .back-link {
+    color: var(--accent);
+    text-decoration: none;
+    font-weight: 700;
+  }
+
+  .back-link:hover {
+    text-decoration: underline;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="page-actions">
+  <a class="back-link" href="{{ url_for('web.admin_joke_books') }}">← Back to joke books</a>
+  {% if book.zip_url %}
+  <a class="back-link" href="{{ book.zip_url }}" target="_blank" rel="noopener noreferrer">Download all pages (ZIP)</a>
+  {% endif %}
+</div>
+
+<h2>{{ book.book_name }}</h2>
+<p class="muted"><code>{{ book.id }}</code></p>
+
+{% if not jokes %}
+<p class="muted">No jokes found for this book.</p>
+{% else %}
+<div class="joke-grid">
+  {% for joke in jokes %}
+  <article class="joke-card">
+    <div class="joke-header">
+      <strong>Joke {{ joke.sequence }}</strong>
+      <code>{{ joke.id }}</code>
+    </div>
+    <div class="joke-images">
+      <div class="image-frame">
+        {% if joke.setup_image %}
+        <img src="{{ joke.setup_image }}" alt="Setup image for {{ joke.id }}" width="600" height="600" loading="lazy">
+        {% else %}
+        <div class="placeholder" role="img" aria-label="Setup image missing">No setup image</div>
+        {% endif %}
+      </div>
+      <div class="image-frame">
+        {% if joke.punchline_image %}
+        <img src="{{ joke.punchline_image }}" alt="Punchline image for {{ joke.id }}" width="600" height="600" loading="lazy">
+        {% else %}
+        <div class="placeholder" role="img" aria-label="Punchline image missing">No punchline image</div>
+        {% endif %}
+      </div>
+    </div>
+  </article>
+  {% endfor %}
+</div>
+{% endif %}
+{% endblock %}

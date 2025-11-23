@@ -30,6 +30,14 @@
     gap: 12px;
     margin-bottom: 12px;
     color: var(--muted);
+    justify-content: space-between;
+  }
+
+  .joke-meta {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
   }
 
   .joke-images {
@@ -84,6 +92,40 @@
   .back-link:hover {
     text-decoration: underline;
   }
+
+  .joke-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+  }
+
+  .cta-btn {
+    background: var(--accent);
+    border: none;
+    color: #181818;
+    font-weight: 700;
+    padding: 8px 14px;
+    border-radius: 999px;
+    cursor: pointer;
+  }
+
+  .cta-btn:hover {
+    opacity: 0.9;
+  }
+
+  .cost-pill {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text);
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-weight: 700;
+    font-size: 0.9rem;
+  }
+
+  .cost-pill.muted {
+    color: var(--muted);
+  }
 </style>
 {% endblock %}
 
@@ -95,7 +137,12 @@
   {% endif %}
 </div>
 
-<h2>{{ book.book_name }}</h2>
+<h2>
+  {{ book.book_name }}
+  {% if book_total_cost is not none %}
+  <span class="cost-pill">${{ '%.4f'|format(book_total_cost) }}</span>
+  {% endif %}
+</h2>
 <p class="muted"><code>{{ book.id }}</code></p>
 
 {% if not jokes %}
@@ -105,8 +152,21 @@
   {% for joke in jokes %}
   <article class="joke-card">
     <div class="joke-header">
-      <strong>Joke {{ joke.sequence }}</strong>
-      <code>{{ joke.id }}</code>
+      <div class="joke-meta">
+        <strong>Joke {{ joke.sequence }}</strong>
+        <code>{{ joke.id }}</code>
+        {% if joke.total_cost is not none %}
+        <span class="cost-pill">${{ '%.4f'|format(joke.total_cost) }}</span>
+        {% else %}
+        <span class="cost-pill muted">Cost unavailable</span>
+        {% endif %}
+      </div>
+      <div class="joke-actions">
+        <form method="post" action="{{ generate_book_page_url }}" target="_blank">
+          <input type="hidden" name="joke_id" value="{{ joke.id }}">
+          <button class="cta-btn" type="submit">Regenerate pages</button>
+        </form>
+      </div>
     </div>
     <div class="joke-images">
       <div class="image-frame">

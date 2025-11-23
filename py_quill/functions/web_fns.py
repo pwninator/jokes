@@ -266,11 +266,29 @@ def _format_book_page_image(image_url: str | None) -> str | None:
   if not image_url:
     return None
   try:
-    return utils.format_image_url(
-      image_url, image_format='png', quality=95, width=600)
+    return utils.format_image_url(image_url,
+                                  image_format='png',
+                                  quality=95,
+                                  width=600)
   except ValueError:
     # If not a CDN URL, return as-is to avoid breaking the page.
     return image_url
+
+
+def _extract_total_cost(joke_data: dict[str, object]) -> float | None:
+  """Safely extract total generation cost from joke data."""
+  generation_metadata = joke_data.get('generation_metadata')
+  if not isinstance(generation_metadata, dict):
+    return None
+
+  total_cost = generation_metadata.get('total_cost')
+  if isinstance(total_cost, (int, float)):
+    return float(total_cost)
+
+  try:
+    return models.GenerationMetadata.from_dict(generation_metadata).total_cost
+  except Exception:
+    return None
 
 
 @web_bp.route('/admin/joke-books/<book_id>')
@@ -292,8 +310,12 @@ def admin_joke_book_detail(book_id: str):
   }
 
   joke_rows: list[dict[str, object]] = []
+  total_book_cost = 0.0
   for index, joke_id in enumerate(jokes, start=1):
     joke_ref = client.collection('jokes').document(joke_id)
+    joke_doc = joke_ref.get()
+    joke_data = joke_doc.to_dict() or {} if getattr(joke_doc, 'exists',
+                                                    False) else {}
     metadata_ref = joke_ref.collection('metadata').document('metadata')
     metadata_doc = metadata_ref.get()
     setup_url = None
@@ -303,17 +325,29 @@ def admin_joke_book_detail(book_id: str):
       setup_url = metadata.get('book_page_setup_image_url')
       punchline_url = metadata.get('book_page_punchline_image_url')
 
+    joke_cost = _extract_total_cost(joke_data)
+    if isinstance(joke_cost, (int, float)):
+      total_book_cost += float(joke_cost)
+
     joke_rows.append({
       'sequence': index,
       'id': joke_id,
       'setup_image': _format_book_page_image(setup_url),
       'punchline_image': _format_book_page_image(punchline_url),
+      'total_cost': joke_cost,
     })
+
+  if utils.is_emulator():
+    generate_book_page_url = "http://127.0.0.1:5001/storyteller-450807/us-central1/generate_joke_book_page"
+  else:
+    generate_book_page_url = "https://generate-joke-book-page-uqdkqas7gq-uc.a.run.app"
 
   return flask.render_template(
     'admin/joke_book_detail.html',
     book=book,
     jokes=joke_rows,
+    generate_book_page_url=generate_book_page_url,
+    book_total_cost=total_book_cost if joke_rows else None,
     site_name='Snickerdoodle',
   )
 

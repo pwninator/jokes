@@ -265,6 +265,7 @@ def test_admin_joke_books_links_to_detail(monkeypatch):
 def test_admin_joke_book_detail_renders_images_and_placeholders(monkeypatch):
   """Detail view shows 600px images and placeholders when missing."""
   _mock_admin_session(monkeypatch)
+  monkeypatch.setattr(web_fns.utils, "is_emulator", lambda: False)
 
   setup_url = (
     "https://images.quillsstorybook.com/cdn-cgi/image/"
@@ -278,12 +279,23 @@ def test_admin_joke_book_detail_renders_images_and_placeholders(monkeypatch):
       "book_page_setup_image_url": setup_url,
       "book_page_punchline_image_url": punchline_url,
     }))
-  joke_one = _FakeDocumentRef(_FakeSnapshot("joke-1", {}), {
+  joke_one = _FakeDocumentRef(_FakeSnapshot("joke-1", {
+    "generation_metadata": {
+      "total_cost": 0.1234,
+    }
+  }), {
     "metadata": _FakeCollection({"metadata": metadata_doc_one})
   })
 
   metadata_doc_two = _FakeDocumentRef(_FakeSnapshot("metadata", {}))
-  joke_two = _FakeDocumentRef(_FakeSnapshot("joke-2", {}), {
+  joke_two = _FakeDocumentRef(_FakeSnapshot("joke-2", {
+    "generation_metadata": {
+      "generations": [{
+        "model_name": "gpt",
+        "cost": 0.05
+      }]
+    }
+  }), {
     "metadata": _FakeCollection({"metadata": metadata_doc_two})
   })
 
@@ -311,6 +323,44 @@ def test_admin_joke_book_detail_renders_images_and_placeholders(monkeypatch):
   assert "width=600" in html  # width parameter in formatted CDN URL
   assert "No punchline image" in html
   assert "Download all pages" in html
+  assert "https://generate-joke-book-page-uqdkqas7gq-uc.a.run.app" in html
+  assert "$0.1234" in html
+  assert "Cost unavailable" not in html
+  assert "$0.0500" in html
+  assert "$0.1734" in html
+
+
+def test_admin_joke_book_detail_uses_emulator_url_when_applicable(monkeypatch):
+  """Detail view uses emulator Cloud Function URL when running locally."""
+  _mock_admin_session(monkeypatch)
+  monkeypatch.setattr(web_fns.utils, "is_emulator", lambda: True)
+
+  books = {
+    "book-local":
+    _FakeDocumentRef(
+      _FakeSnapshot("book-local", {
+    "book_name": "Local Book",
+    "jokes": ["joke-123"],
+  }))
+}
+  metadata_doc = _FakeDocumentRef(_FakeSnapshot("metadata", {}))
+  joke = _FakeDocumentRef(_FakeSnapshot("joke-123", {
+    "generation_metadata": {
+      "total_cost": 1.0
+    }
+  }), {
+    "metadata": _FakeCollection({"metadata": metadata_doc})
+  })
+  fake_db = _FakeFirestore(books=books, jokes={"joke-123": joke})
+  monkeypatch.setattr(web_fns.firestore, "db", lambda: fake_db)
+
+  with web_fns.app.test_client() as client:
+    resp = client.get('/admin/joke-books/book-local')
+
+  assert resp.status_code == 200
+  html = resp.get_data(as_text=True)
+  assert "http://127.0.0.1:5001/storyteller-450807/us-central1/generate_joke_book_page" in html
+  assert "$1.0000" in html
 
 
 def test_admin_routes_allow_emulator_without_auth(monkeypatch):

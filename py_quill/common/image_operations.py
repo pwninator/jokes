@@ -45,6 +45,7 @@ def create_blank_book_cover() -> bytes:
     format='JPEG',
     quality=100,
     subsampling=0,
+    dpi=(300, 300),
   )
   return buffer.getvalue()
 

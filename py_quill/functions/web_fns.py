@@ -9,6 +9,7 @@ import flask
 from common import models
 from firebase_functions import https_fn, logger, options
 from services import firestore, search
+from functions import auth_helpers
 
 _TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), '..', 'web',
                               'templates')
@@ -32,6 +33,44 @@ _WEB_TOPICS: list[str] = [
   'cats',
   'pandas',
 ]
+
+_FIREBASE_WEB_CONFIG_DEFAULT = {
+  'apiKey': 'AIzaSyDvr_hRrKkHVw7x0AkRaRMNOuFd8e5P3Vo',
+  'appId': '1:416102166155:web:7030e554efae8e3e3dee8e',
+  'messagingSenderId': '416102166155',
+  'projectId': 'storyteller-450807',
+  'authDomain': 'snickerdoodlejokes.com',
+  'storageBucket': 'storyteller-450807.firebasestorage.app',
+  'measurementId': 'G-4KQFXXRSJY',
+}
+
+
+def _firebase_web_config() -> dict[str, str]:
+  """Return Firebase config for the web admin login."""
+  return {
+    'apiKey':
+    os.environ.get('FIREBASE_WEB_API_KEY',
+                   _FIREBASE_WEB_CONFIG_DEFAULT['apiKey']),
+    'authDomain':
+    os.environ.get('FIREBASE_WEB_AUTH_DOMAIN',
+                   _FIREBASE_WEB_CONFIG_DEFAULT['authDomain']),
+    'projectId':
+    os.environ.get('FIREBASE_WEB_PROJECT_ID',
+                   _FIREBASE_WEB_CONFIG_DEFAULT['projectId']),
+    'appId':
+    os.environ.get('FIREBASE_WEB_APP_ID',
+                   _FIREBASE_WEB_CONFIG_DEFAULT['appId']),
+    'messagingSenderId':
+    os.environ.get('FIREBASE_WEB_MESSAGING_SENDER_ID',
+                   _FIREBASE_WEB_CONFIG_DEFAULT['messagingSenderId']),
+    'measurementId':
+    os.environ.get('FIREBASE_WEB_MEASUREMENT_ID',
+                   _FIREBASE_WEB_CONFIG_DEFAULT['measurementId']),
+    'storageBucket':
+    os.environ.get('FIREBASE_WEB_STORAGE_BUCKET',
+                   _FIREBASE_WEB_CONFIG_DEFAULT['storageBucket']),
+  }
+
 
 # -----------------------------
 # Topic pages and SEO blueprint
@@ -132,6 +171,124 @@ def topic_page(topic: str):
     now_year=now_year,
   )
   return _html_response(html, cache_seconds=300, cdn_seconds=1800)
+
+
+def _redirect_to_admin_dashboard() -> flask.Response:
+  """Redirect helper that always points to the admin dashboard."""
+  dashboard_path = flask.url_for('web.admin_dashboard')
+  dashboard_url = auth_helpers.resolve_admin_redirect(flask.request,
+                                                      dashboard_path,
+                                                      dashboard_path)
+  return flask.redirect(dashboard_url)
+
+
+@web_bp.route('/admin/login')
+def admin_login():
+  """Render the admin login page with Google Sign-In."""
+  verification = auth_helpers.verify_session(flask.request)
+  if verification:
+    _, claims = verification
+    if claims.get('role') == 'admin':
+      target = flask.request.args.get('next')
+      if target:
+        redirect_url = auth_helpers.resolve_admin_redirect(
+          flask.request,
+          target,
+          flask.url_for('web.admin_dashboard'),
+        )
+        return flask.redirect(redirect_url)
+      return _redirect_to_admin_dashboard()
+
+  next_arg = flask.request.args.get('next')
+  resolved_next = auth_helpers.resolve_admin_redirect(
+    flask.request,
+    next_arg,
+    flask.url_for('web.admin_dashboard'),
+  )
+  firebase_config = _firebase_web_config()
+  return flask.render_template(
+    'admin/login.html',
+    firebase_config=firebase_config,
+    next_url=resolved_next,
+    site_name='Snickerdoodle',
+  )
+
+
+@web_bp.route('/admin/session', methods=['POST'])
+def admin_session():
+  """Exchange an ID token for a session cookie."""
+  payload = flask.request.get_json(silent=True) or {}
+  id_token = payload.get('idToken')
+  if not id_token:
+    return flask.jsonify({'error': 'idToken is required'}), 400
+
+  try:
+    session_cookie = auth_helpers.create_session_cookie(id_token)
+  except Exception as exc:
+    logger.error(f'Failed to create session cookie: {exc}')
+    return flask.jsonify({'error': 'Unauthorized'}), 401
+
+  response = flask.jsonify({'status': 'ok'})
+  cookie_domain = auth_helpers.cookie_domain_for_request(flask.request)
+  auth_helpers.set_session_cookie(response,
+                                  session_cookie,
+                                  domain=cookie_domain)
+  logger.info(
+    'Issued admin session cookie (host=%s xfh=%s scheme=%s cookie_domain=%s)',
+    flask.request.host,
+    flask.request.headers.get('X-Forwarded-Host'),
+    flask.request.scheme,
+    cookie_domain,
+  )
+  return response
+
+
+@web_bp.route('/admin/logout', methods=['POST'])
+def admin_logout():
+  """Clear the admin session cookie."""
+  response = flask.jsonify({'status': 'signed_out'})
+  cookie_domain = auth_helpers.cookie_domain_for_request(flask.request)
+  auth_helpers.clear_session_cookie(response, domain=cookie_domain)
+  return response
+
+
+@web_bp.route('/admin')
+@auth_helpers.require_admin
+def admin_dashboard():
+  """Admin landing page."""
+  return flask.render_template(
+    'admin/dashboard.html',
+    site_name='Snickerdoodle',
+  )
+
+
+@web_bp.route('/admin/joke-books')
+@auth_helpers.require_admin
+def admin_joke_books():
+  """Render a simple table of all joke book documents."""
+  client = firestore.db()
+  docs = client.collection('joke_books').stream()
+  books: list[dict[str, object]] = []
+  for doc in docs:
+    if not doc.exists:
+      continue
+    data = doc.to_dict() or {}
+    jokes = data.get('jokes') or []
+    joke_count = len(jokes) if isinstance(jokes, list) else 0
+    books.append({
+      'id': doc.id,
+      'book_name': data.get('book_name', ''),
+      'joke_count': joke_count,
+      'zip_url': data.get('zip_url'),
+    })
+
+  books.sort(key=lambda book: str(book.get('book_name') or book.get('id')))
+
+  return flask.render_template(
+    'admin/joke_books.html',
+    books=books,
+    site_name='Snickerdoodle',
+  )
 
 
 @web_bp.route('/sitemap.xml')

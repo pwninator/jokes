@@ -1,0 +1,38 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Joke Books · {{ site_name }} Admin{% endblock %}
+
+{% block content %}
+<h2>Joke Books</h2>
+{% if not books %}
+<p class="muted">No joke books found.</p>
+{% else %}
+<table aria-label="Joke books table">
+  <thead>
+    <tr>
+      <th scope="col">Book name</th>
+      <th scope="col">Document ID</th>
+      <th scope="col">Jokes</th>
+      <th scope="col">ZIP</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for book in books %}
+    <tr>
+      <td>{{ book.book_name or "Untitled book" }}</td>
+      <td><code>{{ book.id }}</code></td>
+      <td>{{ book.joke_count }}</td>
+      <td>
+        {% if book.zip_url %}
+        <a href="{{ book.zip_url }}" target="_blank" rel="noopener noreferrer">Download</a>
+        {% else %}
+        <span class="muted">Not generated</span>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endif %}
+{% endblock %}
+

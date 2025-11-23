@@ -62,7 +62,7 @@ class DefaultFirebaseOptions {
     appId: '1:416102166155:web:7030e554efae8e3e3dee8e',
     messagingSenderId: '416102166155',
     projectId: 'storyteller-450807',
-    authDomain: 'storyteller-450807.firebaseapp.com',
+    authDomain: 'snickerdoodlejokes.com',
     storageBucket: 'storyteller-450807.firebasestorage.app',
     measurementId: 'G-4KQFXXRSJY',
   );

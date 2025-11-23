@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Admin · {{ site_name }}{% endblock %}</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #121212;
+      --surface: #1d1d1d;
+      --accent: #E59C48;
+      --text: #f3f3f3;
+      --muted: #b0b0b0;
+    }
+
+    body {
+      margin: 0;
+      font-family: "Nunito Sans", system-ui, -apple-system, Segoe UI, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 24px;
+      background: var(--surface);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 1.2rem;
+    }
+
+    nav a {
+      color: var(--text);
+      text-decoration: none;
+      margin-right: 16px;
+      font-weight: 600;
+    }
+
+    nav a:hover {
+      color: var(--accent);
+    }
+
+    .logout-btn {
+      background: var(--accent);
+      border: none;
+      color: #181818;
+      font-weight: 700;
+      padding: 10px 18px;
+      border-radius: 999px;
+      cursor: pointer;
+    }
+
+    .logout-btn:hover {
+      opacity: 0.92;
+    }
+
+    main {
+      max-width: 960px;
+      margin: 32px auto;
+      padding: 0 24px 64px;
+    }
+
+    .flash {
+      background: rgba(229, 156, 72, 0.12);
+      border: 1px solid rgba(229, 156, 72, 0.5);
+      border-radius: 12px;
+      padding: 12px 16px;
+      margin-bottom: 24px;
+      color: var(--text);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: var(--surface);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+
+    th,
+    td {
+      padding: 12px 16px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+      text-align: left;
+    }
+
+    th {
+      background: rgba(255, 255, 255, 0.04);
+      text-transform: uppercase;
+      font-size: 0.75rem;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    .muted {
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+  </style>
+  {% block head_extra %}{% endblock %}
+</head>
+
+<body>
+  <header>
+    <h1>{% block header_title %}{{ site_name }} Admin{% endblock %}</h1>
+    <nav>
+      <a href="{{ url_for('web.admin_dashboard') }}">Dashboard</a>
+      <a href="{{ url_for('web.admin_joke_books') }}">Joke Books</a>
+      <button id="logout-btn" class="logout-btn" type="button">Sign out</button>
+    </nav>
+  </header>
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+  <script>
+    (function () {
+      const logoutBtn = document.getElementById('logout-btn');
+      if (!logoutBtn) return;
+      logoutBtn.addEventListener('click', async () => {
+        try {
+          await fetch('/admin/logout', {
+            method: 'POST',
+            headers: { 'Accept': 'application/json' },
+            credentials: 'same-origin',
+          });
+        } catch (err) {
+          console.warn('Failed to logout:', err); // eslint-disable-line no-console
+        } finally {
+          window.location.href = '{{ url_for("web.admin_login") }}';
+        }
+      });
+    })();
+  </script>
+  {% block body_extra %}{% endblock %}
+</body>
+
+</html>
+

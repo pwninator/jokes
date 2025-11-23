@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Admin Sign In · {{ site_name }}</title>
+  <style>
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Nunito Sans", system-ui, -apple-system, Segoe UI, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #121212;
+      color: #f3f3f3;
+    }
+
+    .card {
+      width: min(400px, 90%);
+      padding: 32px 28px;
+      border-radius: 16px;
+      background: #1d1d1d;
+      box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+      text-align: center;
+    }
+
+    h1 {
+      margin-top: 0;
+      font-size: 1.6rem;
+    }
+
+    p {
+      margin: 0 0 24px;
+      color: #b0b0b0;
+    }
+
+    .signin-btn {
+      background: #E59C48;
+      border: none;
+      color: #181818;
+      font-weight: 700;
+      padding: 12px 20px;
+      border-radius: 999px;
+      cursor: pointer;
+      width: 100%;
+      font-size: 1rem;
+    }
+
+    .signin-btn:hover {
+      opacity: 0.92;
+    }
+
+    .error {
+      margin-top: 16px;
+      color: #ff6b6b;
+      font-size: 0.95rem;
+      display: none;
+    }
+  </style>
+</head>
+
+<body>
+  <section class="card" aria-label="Admin login">
+    <h1>{{ site_name }} Admin</h1>
+    <p>Sign in with Google using an account that has admin access.</p>
+    <button id="google-signin" class="signin-btn" type="button">Continue with Google</button>
+    <div id="login-error" class="error" role="alert"></div>
+  </section>
+
+  <script type="module">
+    const firebaseConfig = {{ firebase_config | tojson }};
+    const nextUrl = {{ next_url | tojson }};
+    const errorEl = document.getElementById('login-error');
+    const button = document.getElementById('google-signin');
+
+    if (button) {
+      function showError(message) {
+        if (!errorEl) return;
+        errorEl.textContent = message;
+        errorEl.style.display = 'block';
+      }
+
+      button.addEventListener('click', async () => {
+        if (errorEl) {
+          errorEl.style.display = 'none';
+        }
+        button.disabled = true;
+        try {
+          const app = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js');
+          const authModule = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js');
+
+          const initializedApp = app.getApps().length
+            ? app.getApp()
+            : app.initializeApp(firebaseConfig);
+          const auth = authModule.getAuth(initializedApp);
+          auth.languageCode = 'en';
+
+          const provider = new authModule.GoogleAuthProvider();
+          provider.setCustomParameters({ prompt: 'select_account' });
+
+          const result = await authModule.signInWithPopup(auth, provider);
+          const idToken = await result.user.getIdToken(true);
+
+          const response = await fetch('/admin/session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({ idToken }),
+          });
+
+          if (!response.ok) {
+            throw new Error('Unable to create session. Please ensure your account has admin access.');
+          }
+
+          try {
+            await authModule.signOut(auth);
+          } catch (signOutErr) {
+            console.warn('Failed to sign out Firebase Auth session', signOutErr); // eslint-disable-line no-console
+          }
+
+          window.location.href = nextUrl || '/admin';
+        } catch (err) {
+          console.error('Admin login failed', err); // eslint-disable-line no-console
+          showError(err?.message ?? 'Sign-in failed. Please try again.');
+        } finally {
+          button.disabled = false;
+        }
+      });
+    } else {
+      console.error('Google sign-in button missing'); // eslint-disable-line no-console
+    }
+  </script>
+</body>
+
+</html>
+

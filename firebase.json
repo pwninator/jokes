@@ -71,6 +71,22 @@
           "region": "us-central1",
           "codebase": "default"
         }
+      },
+      {
+        "source": "/admin",
+        "function": {
+          "functionId": "web_search_page",
+          "region": "us-central1",
+          "codebase": "default"
+        }
+      },
+      {
+        "source": "/admin/**",
+        "function": {
+          "functionId": "web_search_page",
+          "region": "us-central1",
+          "codebase": "default"
+        }
       }
     ]
   },

@@ -1,0 +1,14 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Dashboard · {{ site_name }} Admin{% endblock %}
+
+{% block content %}
+<h2>Welcome back</h2>
+<p class="muted">Use the links below to manage content.</p>
+<section>
+  <ul>
+    <li><a href="{{ url_for('web.admin_joke_books') }}">Manage joke books</a></li>
+  </ul>
+</section>
+{% endblock %}
+

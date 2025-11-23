@@ -9,6 +9,7 @@ PROJECT_LOCATION = "us-central1"
 # Google Cloud Storage buckets
 AUDIO_BUCKET_NAME = "gen_audio"
 IMAGE_BUCKET_NAME = "images.quillsstorybook.com"
+ADMIN_HOST = "snickerdoodlejokes.com"
 
 # Quill specific configuration
 NUM_CHARACTER_PORTRAIT_IMAGE_ATTEMPTS = 8

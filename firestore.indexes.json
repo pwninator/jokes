@@ -88,6 +88,25 @@
           "order": "ASCENDING"
         },
         {
+          "fieldPath": "popularity_score_recent",
+          "order": "DESCENDING"
+        },
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
+      "collectionGroup": "jokes",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "is_public",
+          "order": "ASCENDING"
+        },
+        {
           "fieldPath": "seasonal",
           "order": "ASCENDING"
         },

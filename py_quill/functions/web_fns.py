@@ -292,6 +292,21 @@ def _format_book_page_thumb(image_url: str | None) -> str | None:
     return image_url
 
 
+def _format_joke_preview(image_url: str | None) -> str | None:
+  """Create a small preview of the main joke images for context."""
+  if not image_url:
+    return None
+  try:
+    return utils.format_image_url(
+      image_url,
+      image_format='png',
+      quality=70,
+      width=200,
+    )
+  except ValueError:
+    return image_url
+
+
 def _extract_total_cost(joke_data: dict[str, object]) -> float | None:
   """Safely extract total generation cost from joke data."""
   generation_metadata = joke_data.get('generation_metadata')
@@ -362,6 +377,10 @@ def admin_joke_book_detail(book_id: str):
       _format_book_page_image(punchline_url),
       'total_cost':
       joke_cost,
+      'setup_preview':
+      _format_joke_preview(joke_data.get('setup_image_url')),
+      'punchline_preview':
+      _format_joke_preview(joke_data.get('punchline_image_url')),
       'setup_variants':
       [_format_book_page_thumb(url) for url in setup_variants if url],
       'punchline_variants':

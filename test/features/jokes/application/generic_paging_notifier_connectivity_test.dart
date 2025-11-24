@@ -44,9 +44,10 @@ void main() {
   });
   group('GenericPagingNotifier connectivity', () {
     test('initial pending emits AsyncLoading before first data', () async {
-      // Build paging providers with a delayed first page to simulate pending
+      // Build paging providers with a controllable first page to simulate pending
+      final firstPageCompleter = Completer<void>();
       Future<PageResult> loadPage(Ref ref, int limit, String? cursor) async {
-        await Future<void>.delayed(const Duration(milliseconds: 50));
+        await firstPageCompleter.future;
         return PageResult(
           jokes: [JokeWithDate(joke: _makeJoke('x'))],
           cursor: null,
@@ -83,8 +84,9 @@ void main() {
       final first = container.read(bundle.items);
       expect(first.isLoading, true);
 
-      // After delay, it should have a value
-      await Future<void>.delayed(const Duration(milliseconds: 80));
+      // Complete the first page load and wait for data to be emitted
+      firstPageCompleter.complete();
+      await waitUntil(() => container.read(bundle.items).hasValue);
       final after = container.read(bundle.items);
       expect(after.hasValue, true);
       expect(after.requireValue.length, 1);
@@ -138,8 +140,8 @@ void main() {
       final container = ProviderContainer(overrides: overrides);
       addTearDown(container.dispose);
 
-      // Trigger initial load microtask
-      await Future<void>.delayed(const Duration(milliseconds: 10));
+      // Wait for the initial load attempt to mark items as loading
+      await waitUntil(() => container.read(bundle.items).isLoading);
 
       // Should be loading while offline (pending)
       final itemsBefore = container.read(bundle.items);

@@ -127,9 +127,10 @@ def on_joke_category_write(
 def on_joke_write(event: firestore_fn.Event[firestore_fn.Change]) -> None:
   """A cloud function that triggers on joke document changes."""
   if not event.data.after:
-    # Joke document deleted - delete corresponding search document
+    # Joke document deleted - delete corresponding search document and subcollections
     joke_id = event.params.get('joke_id')
     _sync_joke_deletion_to_search_collection(joke_id)
+    _delete_joke_subcollections(joke_id)
     return
 
   after_data = event.data.after.to_dict() or {}
@@ -326,3 +327,62 @@ def _sync_joke_deletion_to_search_collection(joke_id: str) -> None:
     logger.info(f"Joke document deleted: {joke_id}, deleted search document")
   else:
     logger.info(f"Joke document deleted: {joke_id}, search document not found")
+
+
+def _delete_joke_subcollections(joke_id: str) -> None:
+  """Recursively delete all subcollections of a joke document."""
+  if not joke_id:
+    logger.info(
+      "Joke document deleted but joke_id not provided for subcollection deletion"
+    )
+    return
+
+  try:
+    joke_ref = firestore.db().collection("jokes").document(joke_id)
+    # Get all subcollections
+    subcollections = joke_ref.collections()
+
+    for subcollection in subcollections:
+      _delete_collection_recursive(subcollection)
+      logger.info(
+        f"Deleted subcollection '{subcollection.id}' for joke {joke_id}")
+  except Exception as e:  # pylint: disable=broad-except
+    logger.error(f"Error deleting subcollections for joke {joke_id}: {e}")
+
+
+def _delete_collection_recursive(collection_ref) -> None:
+  """Recursively delete all documents in a collection and their subcollections.
+  
+  Args:
+    collection_ref: A Firestore CollectionReference to delete.
+  """
+  batch_size = 100
+  deleted_count = 0
+
+  while True:
+    # Get a batch of documents
+    docs = collection_ref.limit(batch_size).stream()
+    doc_batch = list(docs)
+
+    if not doc_batch:
+      break
+
+    # Delete each document and its subcollections
+    for doc in doc_batch:
+      # Recursively delete subcollections of this document
+      subcollections = doc.reference.collections()
+      for subcollection in subcollections:
+        _delete_collection_recursive(subcollection)
+
+      # Delete the document itself
+      doc.reference.delete()
+      deleted_count += 1
+
+    # If we got fewer documents than batch_size, we're done
+    if len(doc_batch) < batch_size:
+      break
+
+  if deleted_count > 0:
+    logger.info(
+      f"Deleted {deleted_count} documents from collection '{collection_ref.id}'"
+    )

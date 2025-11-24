@@ -295,6 +295,317 @@ class TestOnJokeWriteSearchSync:
     mock_search_doc_ref.delete.assert_not_called()
 
 
+class TestOnJokeWriteSubcollectionDeletion:
+  """Tests for subcollection deletion when jokes are deleted."""
+
+  def _create_event(self, before, after):
+    event = MagicMock()
+    event.params = {"joke_id": "joke1"}
+    event.data = MagicMock()
+    event.data.before = MagicMock() if before is not None else None
+    event.data.after = MagicMock() if after is not None else None
+    if before is not None:
+      event.data.before.to_dict.return_value = before
+    if after is not None:
+      event.data.after.to_dict.return_value = after
+    return event
+
+  def _setup_subcollection_mocks(self, monkeypatch):
+    """Set up mocks for subcollection deletion testing."""
+    mock_db = MagicMock()
+    mock_jokes_collection = MagicMock()
+    mock_joke_doc_ref = MagicMock()
+    mock_metadata_collection = MagicMock()
+    mock_operations_doc_ref = MagicMock()
+    mock_metadata_doc_ref = MagicMock()
+
+    # Set up the jokes collection structure
+    def mock_collection(collection_name):
+      if collection_name == "jokes":
+        return mock_jokes_collection
+      return MagicMock()
+
+    mock_db.collection.side_effect = mock_collection
+    mock_jokes_collection.document.return_value = mock_joke_doc_ref
+
+    # Set up subcollections
+    def mock_joke_collections():
+      """Return an iterator of subcollections."""
+      return iter([mock_metadata_collection])
+
+    mock_joke_doc_ref.collections.return_value = mock_joke_collections()
+
+    # Set up metadata subcollection documents
+    mock_metadata_collection.id = "metadata"
+    mock_metadata_collection.document.return_value = mock_operations_doc_ref
+    mock_metadata_collection.limit.return_value.stream.return_value = iter([
+      MagicMock(reference=mock_operations_doc_ref),
+      MagicMock(reference=mock_metadata_doc_ref),
+    ])
+
+    # Set up nested subcollections (empty for these docs)
+    mock_operations_doc_ref.collections.return_value = iter([])
+    mock_metadata_doc_ref.collections.return_value = iter([])
+
+    mock_firestore = Mock()
+    mock_firestore.db = lambda: mock_db
+    mock_firestore.update_punny_joke = Mock()
+    monkeypatch.setattr(joke_trigger_fns, "firestore", mock_firestore)
+    monkeypatch.setattr(joke_operations, "firestore", mock_firestore)
+
+    # Mock search deletion
+    mock_search_collection = MagicMock()
+    mock_search_doc_ref = MagicMock()
+    mock_search_snapshot = MagicMock()
+    mock_search_snapshot.exists = False
+
+    def mock_search_collection_fn(collection_name):
+      if collection_name == "joke_search":
+        return mock_search_collection
+      return mock_collection(collection_name)
+
+    mock_db.collection.side_effect = mock_search_collection_fn
+    mock_search_collection.document.return_value = mock_search_doc_ref
+    mock_search_doc_ref.get.return_value = mock_search_snapshot
+
+    return (mock_joke_doc_ref, mock_metadata_collection,
+            mock_operations_doc_ref, mock_metadata_doc_ref)
+
+  def test_deletes_subcollections_when_joke_deleted(self, monkeypatch):
+    """Test that subcollections are deleted when joke is deleted."""
+    (mock_joke_doc_ref, mock_metadata_collection, mock_operations_doc_ref,
+     mock_metadata_doc_ref) = self._setup_subcollection_mocks(monkeypatch)
+
+    # Create event with no after data (deletion)
+    event = self._create_event(before=None, after=None)
+
+    joke_trigger_fns.on_joke_write.__wrapped__(event)
+
+    # Verify subcollections were queried
+    mock_joke_doc_ref.collections.assert_called_once()
+
+    # Verify documents in metadata subcollection were deleted
+    mock_operations_doc_ref.delete.assert_called_once()
+    mock_metadata_doc_ref.delete.assert_called_once()
+
+  def test_deletes_nested_subcollections(self, monkeypatch):
+    """Test that nested subcollections are recursively deleted."""
+    mock_db = MagicMock()
+    mock_jokes_collection = MagicMock()
+    mock_joke_doc_ref = MagicMock()
+    mock_metadata_collection = MagicMock()
+    mock_operations_doc_ref = MagicMock()
+    mock_nested_collection = MagicMock()
+    mock_nested_doc_ref = MagicMock()
+
+    def mock_collection(collection_name):
+      if collection_name == "jokes":
+        return mock_jokes_collection
+      return MagicMock()
+
+    mock_db.collection.side_effect = mock_collection
+    mock_jokes_collection.document.return_value = mock_joke_doc_ref
+
+    # Set up subcollections
+    def mock_joke_collections():
+      return iter([mock_metadata_collection])
+
+    mock_joke_doc_ref.collections.return_value = mock_joke_collections()
+
+    # Set up metadata subcollection with one document
+    mock_metadata_collection.id = "metadata"
+    mock_metadata_collection.limit.return_value.stream.return_value = iter([
+      MagicMock(reference=mock_operations_doc_ref),
+    ])
+
+    # Set up nested subcollection under operations doc
+    def mock_operations_collections():
+      return iter([mock_nested_collection])
+
+    mock_operations_doc_ref.collections.return_value = mock_operations_collections()
+
+    # Set up nested collection documents
+    mock_nested_collection.id = "nested"
+    mock_nested_collection.limit.return_value.stream.return_value = iter([
+      MagicMock(reference=mock_nested_doc_ref),
+    ])
+    mock_nested_doc_ref.collections.return_value = iter([])
+
+    mock_firestore = Mock()
+    mock_firestore.db = lambda: mock_db
+    mock_firestore.update_punny_joke = Mock()
+    monkeypatch.setattr(joke_trigger_fns, "firestore", mock_firestore)
+    monkeypatch.setattr(joke_operations, "firestore", mock_firestore)
+
+    # Mock search deletion
+    mock_search_collection = MagicMock()
+    mock_search_doc_ref = MagicMock()
+    mock_search_snapshot = MagicMock()
+    mock_search_snapshot.exists = False
+
+    def mock_search_collection_fn(collection_name):
+      if collection_name == "joke_search":
+        return mock_search_collection
+      return mock_collection(collection_name)
+
+    mock_db.collection.side_effect = mock_search_collection_fn
+    mock_search_collection.document.return_value = mock_search_doc_ref
+    mock_search_doc_ref.get.return_value = mock_search_snapshot
+
+    # Create event with no after data (deletion)
+    event = self._create_event(before=None, after=None)
+
+    joke_trigger_fns.on_joke_write.__wrapped__(event)
+
+    # Verify nested subcollection was queried
+    mock_operations_doc_ref.collections.assert_called_once()
+    mock_nested_collection.limit.assert_called()
+
+    # Verify nested document was deleted
+    mock_nested_doc_ref.delete.assert_called_once()
+
+    # Verify parent document was deleted
+    mock_operations_doc_ref.delete.assert_called_once()
+
+  def test_handles_empty_subcollections(self, monkeypatch):
+    """Test that deletion handles jokes with no subcollections."""
+    mock_db = MagicMock()
+    mock_jokes_collection = MagicMock()
+    mock_joke_doc_ref = MagicMock()
+
+    def mock_collection(collection_name):
+      if collection_name == "jokes":
+        return mock_jokes_collection
+      return MagicMock()
+
+    mock_db.collection.side_effect = mock_collection
+    mock_jokes_collection.document.return_value = mock_joke_doc_ref
+
+    # No subcollections
+    mock_joke_doc_ref.collections.return_value = iter([])
+
+    mock_firestore = Mock()
+    mock_firestore.db = lambda: mock_db
+    mock_firestore.update_punny_joke = Mock()
+    monkeypatch.setattr(joke_trigger_fns, "firestore", mock_firestore)
+    monkeypatch.setattr(joke_operations, "firestore", mock_firestore)
+
+    # Mock search deletion
+    mock_search_collection = MagicMock()
+    mock_search_doc_ref = MagicMock()
+    mock_search_snapshot = MagicMock()
+    mock_search_snapshot.exists = False
+
+    def mock_search_collection_fn(collection_name):
+      if collection_name == "joke_search":
+        return mock_search_collection
+      return mock_collection(collection_name)
+
+    mock_db.collection.side_effect = mock_search_collection_fn
+    mock_search_collection.document.return_value = mock_search_doc_ref
+    mock_search_doc_ref.get.return_value = mock_search_snapshot
+
+    # Create event with no after data (deletion)
+    event = self._create_event(before=None, after=None)
+
+    # Should not raise an error
+    joke_trigger_fns.on_joke_write.__wrapped__(event)
+
+    # Verify subcollections were queried
+    mock_joke_doc_ref.collections.assert_called_once()
+
+  def test_handles_missing_joke_id(self, monkeypatch):
+    """Test that deletion handles missing joke_id gracefully."""
+    mock_db = MagicMock()
+    mock_firestore = Mock()
+    mock_firestore.db = lambda: mock_db
+    monkeypatch.setattr(joke_trigger_fns, "firestore", mock_firestore)
+
+    # Create event with no joke_id
+    event = MagicMock()
+    event.params = {}
+    event.data = MagicMock()
+    event.data.after = None
+
+    # Should not raise an error
+    joke_trigger_fns.on_joke_write.__wrapped__(event)
+
+  def test_handles_large_subcollections_with_batching(self, monkeypatch):
+    """Test that large subcollections are deleted in batches."""
+    mock_db = MagicMock()
+    mock_jokes_collection = MagicMock()
+    mock_joke_doc_ref = MagicMock()
+    mock_metadata_collection = MagicMock()
+
+    def mock_collection(collection_name):
+      if collection_name == "jokes":
+        return mock_jokes_collection
+      return MagicMock()
+
+    mock_db.collection.side_effect = mock_collection
+    mock_jokes_collection.document.return_value = mock_joke_doc_ref
+
+    # Set up subcollections
+    def mock_joke_collections():
+      return iter([mock_metadata_collection])
+
+    mock_joke_doc_ref.collections.return_value = mock_joke_collections()
+
+    # Create 150 documents (more than batch size of 100)
+    mock_docs = [
+      MagicMock(reference=MagicMock()) for _ in range(150)
+    ]
+    for doc in mock_docs:
+      doc.reference.collections.return_value = iter([])
+
+    # First batch returns 100 docs, second batch returns 50 docs
+    def mock_stream():
+      first_batch = iter(mock_docs[:100])
+      second_batch = iter(mock_docs[100:])
+      return iter([first_batch, second_batch])
+
+    mock_limit = MagicMock()
+    mock_limit.stream.side_effect = [
+      iter(mock_docs[:100]),
+      iter(mock_docs[100:]),
+    ]
+    mock_metadata_collection.limit.return_value = mock_limit
+    mock_metadata_collection.id = "metadata"
+
+    mock_firestore = Mock()
+    mock_firestore.db = lambda: mock_db
+    mock_firestore.update_punny_joke = Mock()
+    monkeypatch.setattr(joke_trigger_fns, "firestore", mock_firestore)
+    monkeypatch.setattr(joke_operations, "firestore", mock_firestore)
+
+    # Mock search deletion
+    mock_search_collection = MagicMock()
+    mock_search_doc_ref = MagicMock()
+    mock_search_snapshot = MagicMock()
+    mock_search_snapshot.exists = False
+
+    def mock_search_collection_fn(collection_name):
+      if collection_name == "joke_search":
+        return mock_search_collection
+      return mock_collection(collection_name)
+
+    mock_db.collection.side_effect = mock_search_collection_fn
+    mock_search_collection.document.return_value = mock_search_doc_ref
+    mock_search_doc_ref.get.return_value = mock_search_snapshot
+
+    # Create event with no after data (deletion)
+    event = self._create_event(before=None, after=None)
+
+    joke_trigger_fns.on_joke_write.__wrapped__(event)
+
+    # Verify limit was called twice (for batching)
+    assert mock_metadata_collection.limit.call_count >= 1
+
+    # Verify all documents were deleted
+    for doc in mock_docs:
+      doc.reference.delete.assert_called_once()
+
+
 class TestOnJokeCategoryWrite:
   """Tests for the on_joke_category_write cloud function."""
 

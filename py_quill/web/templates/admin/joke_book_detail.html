@@ -166,7 +166,7 @@
     display: flex;
     align-items: center;
     gap: 12px;
-    margin-top: 8px;
+    margin-top: 0;
   }
 
   .timer-chip {
@@ -278,12 +278,15 @@
     margin-top: 0;
   }
 
-  .regenerate-form .submit-btn {
-    align-self: flex-end;
+  .regenerate-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 12px;
   }
 
-  .regenerate-form .status-row {
-    width: 100%;
+  .regenerate-footer .status-row {
+    margin-top: 0;
   }
 
   @media (max-width: 1100px) {
@@ -310,7 +313,7 @@
         <img src="{{ preview }}" alt="{{ label }} preview">
       </div>
       {% endif %}
-      <div class="variants">
+      <div class="variants" data-target-field="{{ target_field }}">
         {% for variant in variants %}
         <button class="variant-tile"
           type="button"
@@ -384,11 +387,13 @@
           <textarea id="punch-{{ joke.id }}" name="punchline_instructions" placeholder="Extra guidance for the punchline image"></textarea>
         </div>
       </div>
-      <div class="status-row hidden">
-        <span class="timer-chip timer-display">0:00</span>
-        <span class="inline-error"></span>
+      <div class="regenerate-footer">
+        <div class="status-row hidden">
+          <span class="timer-chip timer-display">0:00</span>
+          <span class="inline-error"></span>
+        </div>
+        <button class="cta-btn submit-btn hidden" type="submit">Submit</button>
       </div>
-      <button class="cta-btn submit-btn hidden" type="submit">Submit</button>
     </form>
     <div class="joke-images">
       <div class="image-column">
@@ -419,7 +424,6 @@
 <script>
   (function () {
     const forms = Array.from(document.querySelectorAll('.regenerate-form'));
-    const variantTiles = Array.from(document.querySelectorAll('.variant-tile'));
     const updateBookPageUrl = "{{ update_book_page_url }}";
     const accentColor = getComputedStyle(document.documentElement)
       .getPropertyValue('--accent')
@@ -440,12 +444,17 @@
       return remainder.slice(slashIndex + 1);
     };
 
-  const startTimer = (statusRow, timerDisplay) => {
-    statusRow.classList.remove('hidden');
-    const start = Date.now();
-    const renderTime = () => {
-      const elapsed = Math.floor((Date.now() - start) / 1000);
-      const minutes = Math.floor(elapsed / 60);
+    const applyTileHighlight = (tile, isActive) => {
+      tile.style.border = isActive ? `2px solid ${accentColor}` :
+        '2px solid rgba(255, 255, 255, 0.2)';
+    };
+
+    const startTimer = (statusRow, timerDisplay) => {
+      statusRow.classList.remove('hidden');
+      const start = Date.now();
+      const renderTime = () => {
+        const elapsed = Math.floor((Date.now() - start) / 1000);
+        const minutes = Math.floor(elapsed / 60);
         const seconds = String(elapsed % 60).padStart(2, '0');
         timerDisplay.textContent = `${minutes}:${seconds}`;
       };
@@ -454,61 +463,151 @@
       return () => window.clearInterval(id);
     };
 
-    const updateRow = (bookId, jokeId) => fetch(
-      `/admin/joke-books/${encodeURIComponent(bookId)}/jokes/${encodeURIComponent(jokeId)}/refresh`)
-      .then((resp) => {
-        if (!resp.ok) throw new Error('Failed to refresh joke');
-        return resp.json();
-      })
-      .then((data) => {
-        const card = document.querySelector(`[data-joke-id="${jokeId}"]`);
-        if (!card) return;
-        const setupImg = card.querySelector('.setup-img');
-        const punchImg = card.querySelector('.punchline-img');
-        const setupPh = card.querySelector('.setup-placeholder');
-        const punchPh = card.querySelector('.punchline-placeholder');
-        const costPill = card.querySelector('.cost-pill-value');
-        const tiles = card.querySelectorAll('.variant-tile');
+    function attachTileListener(tile) {
+      tile.addEventListener('click', () => {
+        const bookId = tile.dataset.bookId;
+        const jokeId = tile.dataset.jokeId;
+        const targetField = tile.dataset.targetField;
+        const imageUrl = tile.dataset.imageUrl;
+        const card = tile.closest('.joke-card');
+        const statusRow = card?.querySelector('.status-row');
+        const timerDisplay = card?.querySelector('.timer-display');
+        const errorBox = card?.querySelector('.inline-error');
+        if (!bookId || !jokeId || !card || !statusRow || !timerDisplay || !errorBox) {
+          return;
+        }
+        errorBox.textContent = '';
+        const stopper = startTimer(statusRow, timerDisplay);
 
-        if (data.setup_image) {
-          setupImg.classList.remove('hidden');
-          setupImg.src = bustCache(data.setup_image);
-          setupPh.classList.add('hidden');
+        const formData = new FormData();
+        formData.set('joke_book_id', bookId);
+        formData.set('joke_id', jokeId);
+        if (targetField === 'book_page_setup_image_url') {
+          formData.set('new_book_page_setup_image_url', imageUrl);
         } else {
-          setupImg.classList.add('hidden');
-          setupImg.removeAttribute('src');
-          setupPh.classList.remove('hidden');
+          formData.set('new_book_page_punchline_image_url', imageUrl);
         }
 
-        if (data.punchline_image) {
-          punchImg.classList.remove('hidden');
-          punchImg.src = bustCache(data.punchline_image);
-          punchPh.classList.add('hidden');
-        } else {
-          punchImg.classList.add('hidden');
-          punchImg.removeAttribute('src');
-          punchPh.classList.remove('hidden');
-        }
-
-        if (typeof data.total_cost === 'number') {
-          costPill.textContent = `$${data.total_cost.toFixed(4)}`;
-          costPill.classList.remove('muted');
-        } else {
-          costPill.textContent = 'Cost unavailable';
-          costPill.classList.add('muted');
-        }
-
-        tiles.forEach((tile) => {
-          const url = tile.dataset.imageUrl;
-          const isSetup = tile.dataset.targetField === 'book_page_setup_image_url';
-          const current = isSetup ? data.setup_image : data.punchline_image;
-          if (current && url && normalizeUrl(current) === normalizeUrl(url)) {
-            tile.style.border = `2px solid ${accentColor}`;
-          } else {
-            tile.style.border = '2px solid rgba(255, 255, 255, 0.2)';
-          }
-        });
+        fetch(updateBookPageUrl, {
+          method: 'POST',
+          body: formData,
+          mode: 'cors',
+        })
+          .then((resp) => {
+            if (!resp.ok) {
+              return resp.text().then((txt) => {
+                throw new Error(txt || 'Failed to update image');
+              });
+            }
+            return resp.text();
+          })
+          .then(() => updateRow(bookId, jokeId))
+          .catch((err) => {
+            console.error(err);
+            errorBox.textContent = err?.message || 'Failed to update image.';
+          })
+          .finally(() => {
+            if (stopper) stopper();
+          });
       });
+    }
+
+    function rebuildVariantTiles(card, bookId, jokeId, targetField, variants, labelPrefix) {
+      const container = card.querySelector(`.variants[data-target-field="${targetField}"]`);
+      if (!container) return;
+      container.innerHTML = '';
+      (variants || []).forEach((imageUrl, index) => {
+        if (!imageUrl) return;
+        const tile = document.createElement('button');
+        tile.className = 'variant-tile';
+        tile.type = 'button';
+        tile.dataset.jokeId = jokeId;
+        tile.dataset.bookId = bookId;
+        tile.dataset.targetField = targetField;
+        tile.dataset.imageUrl = imageUrl;
+        const img = document.createElement('img');
+        img.src = imageUrl;
+        img.alt = `${labelPrefix} option ${index + 1}`;
+        tile.appendChild(img);
+        attachTileListener(tile);
+        container.appendChild(tile);
+      });
+    }
+
+    function updateRow(bookId, jokeId) {
+      return fetch(
+        `/admin/joke-books/${encodeURIComponent(bookId)}/jokes/${encodeURIComponent(jokeId)}/refresh`)
+        .then((resp) => {
+          if (!resp.ok) throw new Error('Failed to refresh joke');
+          return resp.json();
+        })
+        .then((data) => {
+          const card = document.querySelector(`[data-joke-id="${jokeId}"]`);
+          if (!card) return data;
+          const setupImg = card.querySelector('.setup-img');
+          const punchImg = card.querySelector('.punchline-img');
+          const setupPh = card.querySelector('.setup-placeholder');
+          const punchPh = card.querySelector('.punchline-placeholder');
+          const costPill = card.querySelector('.cost-pill-value');
+
+          if (data.setup_image) {
+            setupImg.classList.remove('hidden');
+            setupImg.src = bustCache(data.setup_image);
+            setupPh.classList.add('hidden');
+          } else {
+            setupImg.classList.add('hidden');
+            setupImg.removeAttribute('src');
+            setupPh.classList.remove('hidden');
+          }
+
+          if (data.punchline_image) {
+            punchImg.classList.remove('hidden');
+            punchImg.src = bustCache(data.punchline_image);
+            punchPh.classList.add('hidden');
+          } else {
+            punchImg.classList.add('hidden');
+            punchImg.removeAttribute('src');
+            punchPh.classList.remove('hidden');
+          }
+
+          if (typeof data.total_cost === 'number') {
+            costPill.textContent = `$${data.total_cost.toFixed(4)}`;
+            costPill.classList.remove('muted');
+          } else {
+            costPill.textContent = 'Cost unavailable';
+            costPill.classList.add('muted');
+          }
+
+          rebuildVariantTiles(
+            card,
+            bookId,
+            jokeId,
+            'book_page_setup_image_url',
+            Array.isArray(data.setup_variants) ? data.setup_variants : [],
+            'Setup options',
+          );
+          rebuildVariantTiles(
+            card,
+            bookId,
+            jokeId,
+            'book_page_punchline_image_url',
+            Array.isArray(data.punchline_variants) ? data.punchline_variants : [],
+            'Punchline options',
+          );
+
+          const tiles = card.querySelectorAll('.variant-tile');
+          tiles.forEach((tile) => {
+            const url = tile.dataset.imageUrl;
+            const isSetup = tile.dataset.targetField === 'book_page_setup_image_url';
+            const current = isSetup ? data.setup_image : data.punchline_image;
+            applyTileHighlight(
+              tile,
+              current && url && normalizeUrl(current) === normalizeUrl(url),
+            );
+          });
+          return data;
+        });
+    }
 
     forms.forEach((form) => {
       const revealBtn = form.querySelector('.reveal-btn');
@@ -571,56 +670,8 @@
       });
     });
 
-    const applyTileHighlight = (tile, isActive) => {
-      tile.style.border = isActive ? `2px solid ${accentColor}` :
-        '2px solid rgba(255, 255, 255, 0.2)';
-    };
-
-    variantTiles.forEach((tile) => {
-      tile.addEventListener('click', () => {
-        const bookId = tile.dataset.bookId;
-        const jokeId = tile.dataset.jokeId;
-        const targetField = tile.dataset.targetField;
-        const imageUrl = tile.dataset.imageUrl;
-        const card = tile.closest('.joke-card');
-        const statusRow = card.querySelector('.status-row');
-        const timerDisplay = card.querySelector('.timer-display');
-        const errorBox = card.querySelector('.inline-error');
-        errorBox.textContent = '';
-        const stopper = startTimer(statusRow, timerDisplay);
-
-        const formData = new FormData();
-        formData.set('joke_book_id', bookId);
-        formData.set('joke_id', jokeId);
-        if (targetField === 'book_page_setup_image_url') {
-          formData.set('new_book_page_setup_image_url', imageUrl);
-        } else {
-          formData.set('new_book_page_punchline_image_url', imageUrl);
-        }
-
-        fetch(updateBookPageUrl, {
-          method: 'POST',
-          body: formData,
-          mode: 'cors',
-        })
-          .then((resp) => {
-            if (!resp.ok) {
-              return resp.text().then((txt) => {
-                throw new Error(txt || 'Failed to update image');
-              });
-            }
-            return resp.text();
-          })
-          .then(() => updateRow(bookId, jokeId))
-          .catch((err) => {
-            console.error(err);
-            errorBox.textContent = err?.message || 'Failed to update image.';
-          })
-          .finally(() => {
-            if (stopper) stopper();
-          });
-      });
-    });
+    document.querySelectorAll('.variant-tile')
+      .forEach((tile) => attachTileListener(tile));
 
     // Initial highlight on load
     document.querySelectorAll('.joke-card').forEach((card) => {

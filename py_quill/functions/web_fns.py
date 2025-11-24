@@ -343,7 +343,7 @@ def admin_joke_book_detail(book_id: str):
 
   joke_rows: list[dict[str, object]] = []
   total_book_cost = 0.0
-  for index, joke_id in enumerate(jokes, start=1):
+  for sequence, joke_id in enumerate(jokes, start=1):
     joke_ref = client.collection('jokes').document(joke_id)
     joke_doc = joke_ref.get()
     joke_data = joke_doc.to_dict() or {} if getattr(joke_doc, 'exists',
@@ -368,7 +368,7 @@ def admin_joke_book_detail(book_id: str):
 
     joke_rows.append({
       'sequence':
-      index,
+      sequence,
       'id':
       joke_id,
       'setup_image':
@@ -410,6 +410,7 @@ def admin_joke_book_detail(book_id: str):
 @auth_helpers.require_admin
 def admin_joke_book_refresh(book_id: str, joke_id: str):
   """Return latest images and cost for a single joke in a book."""
+  logger.info('Refreshing joke %s for book %s', joke_id, book_id)
   client = firestore.db()
   joke_ref = client.collection('jokes').document(joke_id)
   joke_doc = joke_ref.get()
@@ -421,16 +422,29 @@ def admin_joke_book_refresh(book_id: str, joke_id: str):
   metadata_doc = metadata_ref.get()
   setup_url = None
   punchline_url = None
+  setup_variants: list[str] = []
+  punchline_variants: list[str] = []
   if getattr(metadata_doc, 'exists', False):
     metadata = metadata_doc.to_dict() or {}
     setup_url = metadata.get('book_page_setup_image_url')
     punchline_url = metadata.get('book_page_punchline_image_url')
+    setup_variants = metadata.get('all_book_page_setup_image_urls') or []
+    punchline_variants = metadata.get(
+      'all_book_page_punchline_image_urls') or []
 
   resp_data = {
-    'id': joke_id,
-    'setup_image': _format_book_page_image(setup_url),
-    'punchline_image': _format_book_page_image(punchline_url),
-    'total_cost': _extract_total_cost(joke_data),
+    'id':
+    joke_id,
+    'setup_image':
+    _format_book_page_image(setup_url),
+    'punchline_image':
+    _format_book_page_image(punchline_url),
+    'total_cost':
+    _extract_total_cost(joke_data),
+    'setup_variants':
+    [_format_book_page_thumb(url) for url in setup_variants if url],
+    'punchline_variants':
+    [_format_book_page_thumb(url) for url in punchline_variants if url],
   }
   return flask.jsonify(resp_data)
 

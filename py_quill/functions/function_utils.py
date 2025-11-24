@@ -53,6 +53,14 @@ def get_param(
     val = data.get(param_name, default)
   else:
     val = req.args.get(param_name, default)
+    if (val is None or val == default) and hasattr(req, "form"):
+      try:
+        form_val = req.form.get(param_name)
+        if form_val is not None:
+          val = form_val
+      except Exception:
+        # If form is unavailable or raises, keep existing val
+        pass
 
   if val is None and required:
     raise ValueError(f"Missing required parameter '{param_name}'")

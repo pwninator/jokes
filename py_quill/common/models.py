@@ -773,6 +773,42 @@ class PunnyJoke:
 
     return cls(**filtered)
 
+  @staticmethod
+  def prepare_book_page_metadata_updates(
+    existing_metadata: dict[str, Any] | None,
+    new_setup_page_url: str,
+    new_punchline_page_url: str,
+  ) -> dict[str, Any]:
+    """Prepare metadata updates for book page URLs with history tracking."""
+    metadata = existing_metadata or {}
+
+    existing_setup_urls = metadata.get('all_book_page_setup_image_urls')
+    setup_history = (list(existing_setup_urls) if isinstance(
+      existing_setup_urls, list) else [])
+
+    existing_punchline_urls = metadata.get(
+      'all_book_page_punchline_image_urls')
+    punchline_history = (list(existing_punchline_urls) if isinstance(
+      existing_punchline_urls, list) else [])
+
+    previous_setup_url = metadata.get('book_page_setup_image_url')
+    previous_punchline_url = metadata.get('book_page_punchline_image_url')
+
+    for url in (previous_setup_url, new_setup_page_url):
+      if isinstance(url, str) and url and url not in setup_history:
+        setup_history.append(url)
+
+    for url in (previous_punchline_url, new_punchline_page_url):
+      if isinstance(url, str) and url and url not in punchline_history:
+        punchline_history.append(url)
+
+    return {
+      'book_page_setup_image_url': new_setup_page_url,
+      'book_page_punchline_image_url': new_punchline_page_url,
+      'all_book_page_setup_image_urls': setup_history,
+      'all_book_page_punchline_image_urls': punchline_history,
+    }
+
   @property
   def unpopulated_fields(self) -> set[str]:
     """Get the fields that are not populated."""

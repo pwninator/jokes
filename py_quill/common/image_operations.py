@@ -209,19 +209,22 @@ def generate_and_populate_book_pages(
     additional_punchline_instructions=additional_punchline_instructions,
   )
 
+  metadata_book_page_updates = models.PunnyJoke.prepare_book_page_metadata_updates(
+    metadata_data,
+    generation_result.generated_setup_image.url,
+    generation_result.generated_punchline_image.url,
+  )
+
   metadata_updates = {
     'book_page_simple_setup_image_url':
     generation_result.simple_setup_image.url,
     'book_page_simple_punchline_image_url':
     generation_result.simple_punchline_image.url,
-    'book_page_setup_image_url':
-    generation_result.generated_setup_image.url,
-    'book_page_punchline_image_url':
-    generation_result.generated_punchline_image.url,
     'book_page_setup_image_model_thought':
     generation_result.generated_setup_image.model_thought,
     'book_page_punchline_image_model_thought':
     generation_result.generated_punchline_image.model_thought,
+    **metadata_book_page_updates,
   }
 
   joke.generation_metadata.add_generation(
@@ -354,7 +357,7 @@ _BOOK_PAGE_PROMPT_TEMPLATE = """
 Generate a new, polished version of the CONTENT image that is seamlessly extended through the black bleed margins and adheres to the art style defined below.
 
 Art style:
-It evokes a nostalgic, classic children's picture book aesthetic, simulating the medium of soft colored pencils or wax crayons applied to coarse, off-white textured paper. The defining characteristic is the visible "tooth" or grain of the paper, which allows speckles of the background to show through the pigment, creating a warm, organic, and non-digital feel. Outlines are organic and sketchy rather than rigid, drawn in a darker shade of the fill color (e.g., dark orange outlines for orange fur), ensuring figures blend gently into their environment. Shading is achieved through visible cross-hatching and directional strokes rather than smooth gradients, adding tactile volume to objects. The character proportions follow a "cute" or "chibi" standard—oversized heads, large expressive eyes with prominent white highlights, and small bodies, rendered in a palette that balances rich, cheerful vibrancy with a soft, matte finish, mimicking the organic look of hand-applied pigment where the paper's texture naturally diffuses the intensity to create an inviting, analog aesthetic.
+Create a professional-quality children's book illustration in the style of soft-core colored pencils on medium-tooth paper. The artwork must feature organic, sketch-like outlines rendered in a darker, saturated shade of the subject's fill color (e.g., deep orange lines for yellow fur, dark indigo for blue water), strictly avoiding black ink or graphite contours. Use visible directional strokes and tight cross-hatching to build up color saturation layer by layer. The look should be rich and vibrant, yet retain the individual stroke texture, ensuring the white of the paper peeks through slightly to create warmth without looking messy, patchy, or unfinished. The image must be fully rendered in full color across the entire scene—backgrounds must be detailed and finished, not monochromatic or vignette-style. Subject proportions should follow a cute, chibi style (oversized heads, large expressive eyes with highlights, small bodies), resulting in an aesthetic that feels tactile and hand-crafted, yet polished enough for high-quality printing.
 
  Your new image must:
   - Show the exact same words as the CONTENT image.
@@ -469,7 +472,8 @@ def generate_book_pages_with_nano_banana_pro(
   generated_setup_image = generation_client.generate_image(
     prompt=_BOOK_PAGE_SETUP_PROMPT_TEMPLATE.format(
       image_description=setup_image_description,
-      additional_instructions=additional_setup_instructions),
+      additional_instructions=_format_additional_instructions(
+        additional_setup_instructions)),
     reference_images=[simple_setup_image, style_reference_image],
   )
 
@@ -480,7 +484,8 @@ def generate_book_pages_with_nano_banana_pro(
   generated_punchline_image = generation_client.generate_image(
     prompt=_BOOK_PAGE_PUNCHLINE_PROMPT_TEMPLATE.format(
       image_description=punchline_image_description,
-      additional_instructions=additional_punchline_instructions),
+      additional_instructions=_format_additional_instructions(
+        additional_punchline_instructions)),
     reference_images=[generated_setup_image, simple_punchline_image],
   )
 
@@ -490,6 +495,17 @@ def generate_book_pages_with_nano_banana_pro(
     generated_setup_image=generated_setup_image,
     generated_punchline_image=generated_punchline_image,
   )
+
+
+def _format_additional_instructions(
+    additional_instructions: str | None) -> str:
+  """Format additional instructions for book page generation."""
+  if not additional_instructions:
+    return ""
+  return f"""
+In addition, here are crucial instructions from the editor that you must follow:
+{additional_instructions}
+"""
 
 
 def _get_simple_book_page(

@@ -1,4 +1,5 @@
 """Joke book cloud functions."""
+import json
 import traceback
 
 from common import image_operations, utils
@@ -8,6 +9,32 @@ from functions.function_utils import (error_response, get_param, get_user_id,
 from services import firestore
 
 NUM_TOP_JOKES_FOR_BOOKS = 50
+_CORS_HEADERS = {
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+}
+
+
+def _allowed_origins() -> set[str]:
+  """Return allowed origins based on environment (emulator vs prod)."""
+  if utils.is_emulator():
+    return {
+      "http://127.0.0.1:5000",
+      "http://localhost:5000",
+      "http://127.0.0.1",
+      "http://localhost",
+    }
+  else:
+    return {
+      "https://snickerdoodlejokes.com",
+    }
+
+
+def _cors_headers_for_origin(request_origin: str | None) -> dict[str, str]:
+  """Return CORS headers only for allowed origins."""
+  if request_origin and request_origin.rstrip("/") in _allowed_origins():
+    return {**_CORS_HEADERS, "Access-Control-Allow-Origin": request_origin}
+  return {}
 
 
 @https_fn.on_request(
@@ -17,12 +44,21 @@ NUM_TOP_JOKES_FOR_BOOKS = 50
 def generate_joke_book_page(req: https_fn.Request) -> https_fn.Response:
   """Generate book page images for a joke."""
   try:
+    cors_headers = _cors_headers_for_origin(req.headers.get("Origin"))
+
+    if req.method == "OPTIONS":
+      return https_fn.Response("", status=204, headers=cors_headers)
+
     # Skip processing for health check requests
     if req.path == "/__/health":
-      return https_fn.Response("OK", status=200)
+      return https_fn.Response("OK", status=200, headers=cors_headers)
 
     if req.method not in ['GET', 'POST']:
-      return error_response(f'Method not allowed: {req.method}')
+      return https_fn.Response(
+        json.dumps(error_response(f'Method not allowed: {req.method}')),
+        status=405,
+        headers=cors_headers,
+      )
 
     joke_id = get_param(req, 'joke_id', required=True)
     setup_instructions = get_param(req, 'setup_instructions', required=False)
@@ -54,11 +90,15 @@ def generate_joke_book_page(req: https_fn.Request) -> https_fn.Response:
   </body>
   </html>
   """
-    return return_val
+    return https_fn.Response(return_val, status=200, headers=cors_headers)
   except Exception as e:
     stacktrace = traceback.format_exc()
     print(f"Error creating joke book: {e}\nStacktrace:\n{stacktrace}")
-    return error_response(f'Failed to create joke book: {str(e)}')
+    return https_fn.Response(
+      json.dumps(error_response(f'Failed to create joke book: {str(e)}')),
+      status=500,
+      headers=cors_headers,
+    )
 
 
 @https_fn.on_request(

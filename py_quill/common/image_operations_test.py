@@ -515,14 +515,20 @@ class CreateBookPagesTest(unittest.TestCase):
         'https://cdn.example.com/simple_setup.png',
         'book_page_simple_punchline_image_url':
         'https://cdn.example.com/simple_punchline.png',
-        'book_page_setup_image_url':
-        'https://cdn.example.com/book_page_setup.jpg',
-        'book_page_punchline_image_url':
-        'https://cdn.example.com/book_page_punchline.jpg',
         'book_page_setup_image_model_thought':
         'setup-thought',
         'book_page_punchline_image_model_thought':
         'punchline-thought',
+        'book_page_setup_image_url':
+        'https://cdn.example.com/book_page_setup.jpg',
+        'book_page_punchline_image_url':
+        'https://cdn.example.com/book_page_punchline.jpg',
+        'all_book_page_setup_image_urls': [
+          'https://cdn.example.com/book_page_setup.jpg',
+        ],
+        'all_book_page_punchline_image_urls': [
+          'https://cdn.example.com/book_page_punchline.jpg',
+        ],
       })
 
     mock_metadata_doc.set.assert_not_called()
@@ -704,14 +710,22 @@ class CreateBookPagesTest(unittest.TestCase):
         'https://cdn.example.com/simple_setup.png',
         'book_page_simple_punchline_image_url':
         'https://cdn.example.com/simple_punchline.png',
-        'book_page_setup_image_url':
-        'https://cdn.example.com/new_setup.jpg',
-        'book_page_punchline_image_url':
-        'https://cdn.example.com/new_punchline.jpg',
         'book_page_setup_image_model_thought':
         'setup-thought',
         'book_page_punchline_image_model_thought':
         'punchline-thought',
+        'book_page_setup_image_url':
+        'https://cdn.example.com/new_setup.jpg',
+        'book_page_punchline_image_url':
+        'https://cdn.example.com/new_punchline.jpg',
+        'all_book_page_setup_image_urls': [
+          'https://cdn.example.com/existing_setup.jpg',
+          'https://cdn.example.com/new_setup.jpg',
+        ],
+        'all_book_page_punchline_image_urls': [
+          'https://cdn.example.com/existing_punchline.jpg',
+          'https://cdn.example.com/new_punchline.jpg',
+        ],
       })
 
 

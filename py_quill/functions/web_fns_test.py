@@ -325,7 +325,6 @@ def test_admin_joke_book_detail_renders_images_and_placeholders(monkeypatch):
   assert "Download all pages" in html
   assert "https://generate-joke-book-page-uqdkqas7gq-uc.a.run.app" in html
   assert "$0.1234" in html
-  assert "Cost unavailable" not in html
   assert "$0.0500" in html
   assert "$0.1734" in html
 

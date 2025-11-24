@@ -352,6 +352,35 @@ def admin_joke_book_detail(book_id: str):
   )
 
 
+@web_bp.route('/admin/joke-books/<book_id>/jokes/<joke_id>/refresh')
+@auth_helpers.require_admin
+def admin_joke_book_refresh(book_id: str, joke_id: str):
+  """Return latest images and cost for a single joke in a book."""
+  client = firestore.db()
+  joke_ref = client.collection('jokes').document(joke_id)
+  joke_doc = joke_ref.get()
+  if not getattr(joke_doc, 'exists', False):
+    return flask.jsonify({'error': 'Joke not found'}), 404
+
+  joke_data = joke_doc.to_dict() or {}
+  metadata_ref = joke_ref.collection('metadata').document('metadata')
+  metadata_doc = metadata_ref.get()
+  setup_url = None
+  punchline_url = None
+  if getattr(metadata_doc, 'exists', False):
+    metadata = metadata_doc.to_dict() or {}
+    setup_url = metadata.get('book_page_setup_image_url')
+    punchline_url = metadata.get('book_page_punchline_image_url')
+
+  resp_data = {
+    'id': joke_id,
+    'setup_image': _format_book_page_image(setup_url),
+    'punchline_image': _format_book_page_image(punchline_url),
+    'total_cost': _extract_total_cost(joke_data),
+  }
+  return flask.jsonify(resp_data)
+
+
 @web_bp.route('/sitemap.xml')
 def sitemap():
   """Generate a simple sitemap for topics."""

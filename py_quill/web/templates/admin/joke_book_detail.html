@@ -114,6 +114,14 @@
     opacity: 0.9;
   }
 
+  .cta-btn[disabled],
+  .cta-btn[disabled]:hover {
+    background: #5a5a5a;
+    color: #1b1b1b;
+    cursor: default;
+    opacity: 0.8;
+  }
+
   .cost-pill {
     background: rgba(255, 255, 255, 0.08);
     color: var(--text);
@@ -125,6 +133,52 @@
 
   .cost-pill.muted {
     color: var(--muted);
+  }
+
+  .hidden {
+    display: none !important;
+  }
+
+  .instructions {
+    margin-top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .instructions label {
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  .instructions textarea {
+    background: #0f0f0f;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 8px;
+    padding: 8px;
+    color: var(--text);
+    min-height: 64px;
+    resize: vertical;
+  }
+
+  .status-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 8px;
+  }
+
+  .timer-chip {
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text);
+    border-radius: 999px;
+    padding: 4px 10px;
+    font-weight: 700;
+  }
+
+  .inline-error {
+    color: #ffb4a2;
+    font-weight: 700;
   }
 </style>
 {% endblock %}
@@ -150,42 +204,187 @@
 {% else %}
 <div class="joke-grid">
   {% for joke in jokes %}
-  <article class="joke-card">
+  <article class="joke-card" data-joke-id="{{ joke.id }}">
     <div class="joke-header">
       <div class="joke-meta">
         <strong>Joke {{ joke.sequence }}</strong>
         <code>{{ joke.id }}</code>
         {% if joke.total_cost is not none %}
-        <span class="cost-pill">${{ '%.4f'|format(joke.total_cost) }}</span>
+        <span class="cost-pill cost-pill-value">${{ '%.4f'|format(joke.total_cost) }}</span>
         {% else %}
-        <span class="cost-pill muted">Cost unavailable</span>
+        <span class="cost-pill cost-pill-value muted">Cost unavailable</span>
         {% endif %}
       </div>
       <div class="joke-actions">
-        <form method="post" action="{{ generate_book_page_url }}" target="_blank">
+        <form method="post"
+          class="regenerate-form"
+          data-joke-id="{{ joke.id }}"
+          data-book-id="{{ book.id }}"
+          action="{{ generate_book_page_url }}"
+          target="_blank">
           <input type="hidden" name="joke_id" value="{{ joke.id }}">
-          <button class="cta-btn" type="submit">Regenerate pages</button>
+          <div class="instructions hidden">
+            <label for="setup-{{ joke.id }}">Setup instructions (optional)</label>
+            <textarea id="setup-{{ joke.id }}" name="setup_instructions" placeholder="Extra guidance for the setup image"></textarea>
+            <label for="punch-{{ joke.id }}">Punchline instructions (optional)</label>
+            <textarea id="punch-{{ joke.id }}" name="punchline_instructions" placeholder="Extra guidance for the punchline image"></textarea>
+          </div>
+          <div class="joke-actions">
+            <button class="cta-btn reveal-btn" type="button">Regenerate pages</button>
+            <button class="cta-btn submit-btn hidden" type="submit">Submit</button>
+          </div>
+          <div class="status-row hidden">
+            <span class="timer-chip timer-display">0:00</span>
+            <span class="inline-error"></span>
+          </div>
         </form>
       </div>
     </div>
     <div class="joke-images">
       <div class="image-frame">
-        {% if joke.setup_image %}
-        <img src="{{ joke.setup_image }}" alt="Setup image for {{ joke.id }}" width="600" height="600" loading="lazy">
-        {% else %}
-        <div class="placeholder" role="img" aria-label="Setup image missing">No setup image</div>
-        {% endif %}
+        <img class="joke-image setup-img {% if not joke.setup_image %}hidden{% endif %}"
+          src="{{ joke.setup_image or '' }}" alt="Setup image for {{ joke.id }}" width="600" height="600" loading="lazy">
+        <div class="placeholder setup-placeholder {% if joke.setup_image %}hidden{% endif %}" role="img"
+          aria-label="Setup image missing">No setup image</div>
       </div>
       <div class="image-frame">
-        {% if joke.punchline_image %}
-        <img src="{{ joke.punchline_image }}" alt="Punchline image for {{ joke.id }}" width="600" height="600" loading="lazy">
-        {% else %}
-        <div class="placeholder" role="img" aria-label="Punchline image missing">No punchline image</div>
-        {% endif %}
+        <img class="joke-image punchline-img {% if not joke.punchline_image %}hidden{% endif %}"
+          src="{{ joke.punchline_image or '' }}" alt="Punchline image for {{ joke.id }}" width="600" height="600"
+          loading="lazy">
+        <div class="placeholder punchline-placeholder {% if joke.punchline_image %}hidden{% endif %}" role="img"
+          aria-label="Punchline image missing">No punchline image</div>
       </div>
     </div>
   </article>
   {% endfor %}
 </div>
 {% endif %}
+
+<script>
+  (function () {
+    const forms = Array.from(document.querySelectorAll('.regenerate-form'));
+    const bustCache = (url) => {
+      if (!url) return '';
+      const sep = url.includes('?') ? '&' : '?';
+      return `${url}${sep}t=${Date.now()}`;
+    };
+
+    const updateRow = (bookId, jokeId) => fetch(
+      `/admin/joke-books/${encodeURIComponent(bookId)}/jokes/${encodeURIComponent(jokeId)}/refresh`)
+      .then((resp) => {
+        if (!resp.ok) throw new Error('Failed to refresh joke');
+        return resp.json();
+      })
+      .then((data) => {
+        const card = document.querySelector(`[data-joke-id="${jokeId}"]`);
+        if (!card) return;
+        const setupImg = card.querySelector('.setup-img');
+        const punchImg = card.querySelector('.punchline-img');
+        const setupPh = card.querySelector('.setup-placeholder');
+        const punchPh = card.querySelector('.punchline-placeholder');
+        const costPill = card.querySelector('.cost-pill-value');
+
+        if (data.setup_image) {
+          setupImg.classList.remove('hidden');
+          setupImg.src = bustCache(data.setup_image);
+          setupPh.classList.add('hidden');
+        } else {
+          setupImg.classList.add('hidden');
+          setupImg.removeAttribute('src');
+          setupPh.classList.remove('hidden');
+        }
+
+        if (data.punchline_image) {
+          punchImg.classList.remove('hidden');
+          punchImg.src = bustCache(data.punchline_image);
+          punchPh.classList.add('hidden');
+        } else {
+          punchImg.classList.add('hidden');
+          punchImg.removeAttribute('src');
+          punchPh.classList.remove('hidden');
+        }
+
+        if (typeof data.total_cost === 'number') {
+          costPill.textContent = `$${data.total_cost.toFixed(4)}`;
+          costPill.classList.remove('muted');
+        } else {
+          costPill.textContent = 'Cost unavailable';
+          costPill.classList.add('muted');
+        }
+      });
+
+    forms.forEach((form) => {
+      const revealBtn = form.querySelector('.reveal-btn');
+      const submitBtn = form.querySelector('.submit-btn');
+      const instructions = form.querySelector('.instructions');
+      const statusRow = form.querySelector('.status-row');
+      const timerDisplay = form.querySelector('.timer-display');
+      const errorBox = form.querySelector('.inline-error');
+      let timerId = null;
+
+      revealBtn.addEventListener('click', () => {
+        instructions.classList.remove('hidden');
+        submitBtn.classList.remove('hidden');
+        revealBtn.classList.add('hidden');
+        const firstField = instructions.querySelector('textarea');
+        if (firstField) firstField.focus();
+      });
+
+      form.addEventListener('submit', (evt) => {
+        evt.preventDefault();
+        const jokeId = form.dataset.jokeId;
+        const bookId = form.dataset.bookId;
+        const formData = new FormData(form);
+        formData.set('joke_id', jokeId);
+        const original = submitBtn.textContent;
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Regenerating...';
+        errorBox.textContent = '';
+        statusRow.classList.remove('hidden');
+        const start = Date.now();
+        const renderTime = () => {
+          const elapsed = Math.floor((Date.now() - start) / 1000);
+          const minutes = Math.floor(elapsed / 60);
+          const seconds = String(elapsed % 60).padStart(2, '0');
+          timerDisplay.textContent = `${minutes}:${seconds}`;
+        };
+        renderTime();
+        timerId = window.setInterval(renderTime, 1000);
+        const runRefresh = () => updateRow(bookId, jokeId).catch((err) => {
+          console.error(err);
+          errorBox.textContent = 'Regenerated, but failed to refresh images.';
+        });
+
+        fetch(form.action, {
+          method: 'POST',
+          body: formData,
+          mode: 'cors',
+        })
+          .then((resp) => {
+            if (!resp.ok) {
+              return resp.text().then((txt) => {
+                throw new Error(txt || 'Regeneration failed');
+              });
+            }
+            return resp.text();
+          })
+          .then(() => runRefresh())
+          .catch((err) => {
+            console.error(err);
+            // Even if fetch failed (CORS/network), still try to refresh assuming backend ran.
+            errorBox.textContent = err?.message || 'Failed to regenerate pages.';
+            return runRefresh();
+          })
+          .finally(() => {
+            if (timerId !== null) {
+              window.clearInterval(timerId);
+              timerId = null;
+            }
+            submitBtn.disabled = false;
+            submitBtn.textContent = original;
+          });
+      });
+    });
+  })();
+</script>
 {% endblock %}

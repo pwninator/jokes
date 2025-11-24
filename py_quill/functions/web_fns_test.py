@@ -278,6 +278,10 @@ def test_admin_joke_book_detail_renders_images_and_placeholders(monkeypatch):
     _FakeSnapshot("metadata", {
       "book_page_setup_image_url": setup_url,
       "book_page_punchline_image_url": punchline_url,
+      "all_book_page_setup_image_urls": [setup_url, "https://cdn/setup2.png"],
+      "all_book_page_punchline_image_urls": [
+        punchline_url, "https://cdn/punch2.png"
+      ],
     }))
   joke_one = _FakeDocumentRef(_FakeSnapshot("joke-1", {
     "generation_metadata": {
@@ -327,6 +331,9 @@ def test_admin_joke_book_detail_renders_images_and_placeholders(monkeypatch):
   assert "$0.1234" in html
   assert "$0.0500" in html
   assert "$0.1734" in html
+  assert 'class="variant-tile"' in html
+  assert "book_page_setup_image_url" in html
+  assert "book_page_punchline_image_url" in html
 
 
 def test_admin_joke_book_detail_uses_emulator_url_when_applicable(monkeypatch):

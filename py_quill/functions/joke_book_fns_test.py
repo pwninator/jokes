@@ -3,6 +3,7 @@ import zipfile
 from io import BytesIO
 from unittest.mock import MagicMock, patch
 
+from common import models
 from firebase_functions import https_fn
 from functions import joke_book_fns
 from PIL import Image
@@ -311,7 +312,10 @@ def test_update_joke_book_regenerates_pages_and_zip(mock_firestore,
 
   req = DummyReq(
     path="/update_book",
-    args={"joke_book_id": joke_book_id},
+    args={
+      "joke_book_id": joke_book_id,
+      "regenerate_all": "true"
+    },
     method="POST",
   )
 
@@ -332,9 +336,155 @@ def test_update_joke_book_regenerates_pages_and_zip(mock_firestore,
     'https://cdn.example.com/new_book.zip',
   })
 
-  assert resp == {
-    "data": {
-      "book_id": joke_book_id,
-      "zip_url": "https://cdn.example.com/new_book.zip"
-    }
+  payload = resp.get_data(as_text=True)
+  assert '"book_id": "book123"' in payload
+  assert '"zip_url": "https://cdn.example.com/new_book.zip"' in payload
+
+
+@patch('functions.joke_book_fns.firestore')
+def test_update_joke_book_regenerate_all_conflicts_with_update(mock_firestore):
+  """regenerate_all cannot be combined with URL updates."""
+  joke_book_id = "book123"
+  mock_book_snapshot = MagicMock()
+  mock_book_snapshot.exists = True
+  mock_book_snapshot.to_dict.return_value = {
+    "book_name": "My Book",
+    "jokes": ["j1"],
+    "zip_url": "old_url.zip"
+  }
+
+  mock_metadata_ref = MagicMock()
+  mock_metadata_doc = MagicMock()
+  mock_metadata_doc.exists = True
+  mock_metadata_doc.to_dict.return_value = {}
+  mock_metadata_ref.get.return_value = mock_metadata_doc
+
+  mock_joke_doc = MagicMock()
+  mock_joke_doc.collection.return_value = MagicMock(
+    document=MagicMock(return_value=mock_metadata_ref))
+
+  mock_book_collection = MagicMock()
+  mock_book_collection.document.return_value = MagicMock(
+    get=MagicMock(return_value=mock_book_snapshot))
+
+  mock_joke_collection = MagicMock()
+  mock_joke_collection.document.return_value = mock_joke_doc
+
+  mock_db = MagicMock()
+  mock_db.collection.side_effect = lambda name: (mock_book_collection
+                                                 if name == 'joke_books' else
+                                                 mock_joke_collection)
+  mock_firestore.db.return_value = mock_db
+
+  req = DummyReq(
+    path="/update_book",
+    args={
+      "joke_book_id": joke_book_id,
+      "joke_id": "j1",
+      "new_book_page_setup_image_url": "new_setup",
+      "regenerate_all": "true",
+    },
+    method="POST",
+  )
+
+  resp = joke_book_fns.update_joke_book(req)
+  assert resp.status_code == 400
+  payload = resp.get_data(as_text=True)
+  assert 'regenerate_all cannot be used' in payload
+
+
+@patch('functions.joke_book_fns.firestore')
+def test_update_joke_book_sets_book_page_urls(mock_firestore):
+  """update_joke_book should set new page URLs for a specific joke."""
+  joke_book_id = "book123"
+  joke_id = "j1"
+
+  mock_book_snapshot = MagicMock()
+  mock_book_snapshot.exists = True
+  mock_book_snapshot.to_dict.return_value = {
+    "book_name": "My Book",
+    "jokes": [joke_id],
+    "zip_url": "old_url.zip"
+  }
+
+  metadata_doc = MagicMock()
+  metadata_doc.exists = True
+  metadata_doc.to_dict.return_value = {
+    "book_page_setup_image_url": "old_setup",
+    "book_page_punchline_image_url": "old_punchline",
+    "all_book_page_setup_image_urls": ["old_setup"],
+    "all_book_page_punchline_image_urls": ["old_punchline"],
+  }
+
+  mock_metadata_ref = MagicMock()
+  mock_metadata_ref.get.return_value = metadata_doc
+
+  mock_joke_doc = MagicMock()
+  mock_joke_doc.collection.return_value = MagicMock(
+    document=MagicMock(return_value=mock_metadata_ref))
+
+  mock_book_collection = MagicMock()
+  mock_book_collection.document.return_value = MagicMock(
+    get=MagicMock(return_value=mock_book_snapshot))
+
+  mock_joke_collection = MagicMock()
+  mock_joke_collection.document.return_value = mock_joke_doc
+
+  mock_db = MagicMock()
+  mock_db.collection.side_effect = lambda name: (mock_book_collection
+                                                 if name == 'joke_books' else
+                                                 mock_joke_collection)
+  mock_firestore.db.return_value = mock_db
+
+  req = DummyReq(
+    path="/update_book",
+    args={
+      "joke_book_id": joke_book_id,
+      "joke_id": joke_id,
+      "new_book_page_setup_image_url": "new_setup",
+    },
+    method="POST",
+  )
+
+  resp = joke_book_fns.update_joke_book(req)
+  payload = resp.get_data(as_text=True)
+
+  mock_metadata_ref.set.assert_called_once()
+  args, kwargs = mock_metadata_ref.set.call_args
+  assert kwargs.get('merge') is True
+  updates = args[0]
+  assert updates['book_page_setup_image_url'] == "new_setup"
+  assert "new_setup" in updates['all_book_page_setup_image_urls']
+  assert updates['book_page_punchline_image_url'] == "old_punchline"
+  assert '"book_page_setup_image_url": "new_setup"' in payload
+
+
+def test_prepare_book_page_metadata_updates_normalizes_cdn_urls():
+  """URLs should be normalized to canonical CDN params and deduped."""
+  prefix = ("https://images.quillsstorybook.com/cdn-cgi/image/"
+            "width=1024,format=auto,quality=75/")
+  thumb_prefix = ("https://images.quillsstorybook.com/cdn-cgi/image/"
+                  "width=100,format=png,quality=70/")
+  setup_a = f"{prefix}a.png"
+  setup_b_thumb = f"{thumb_prefix}b.png"
+  setup_b_canonical = f"{prefix}b.png"
+  punch_a_thumb = f"{thumb_prefix}p1.png"
+  punch_b = f"{prefix}p2.png"
+  existing = {
+    "book_page_setup_image_url": setup_a,
+    "book_page_punchline_image_url": punch_b,
+    "all_book_page_setup_image_urls": [setup_a, setup_b_thumb],
+    "all_book_page_punchline_image_urls": [punch_a_thumb, punch_b],
+  }
+  updates = models.PunnyJoke.prepare_book_page_metadata_updates(
+    existing, setup_b_thumb, punch_a_thumb)
+
+  assert updates['book_page_setup_image_url'] == setup_b_canonical
+  assert updates['book_page_punchline_image_url'] == punch_a_thumb.replace(
+    thumb_prefix, prefix)
+  assert set(updates['all_book_page_setup_image_urls']) == {
+    setup_a, setup_b_canonical
+  }
+  assert set(updates['all_book_page_punchline_image_urls']) == {
+    punch_b, punch_a_thumb.replace(thumb_prefix, prefix)
   }

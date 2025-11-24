@@ -42,8 +42,9 @@
 
   .joke-images {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-    gap: 12px;
+    grid-template-columns: repeat(2, minmax(400px, 1fr));
+    gap: 24px;
+    align-items: start;
   }
 
   .image-frame {
@@ -60,7 +61,7 @@
   .image-frame img,
   .image-frame .placeholder {
     width: 100%;
-    max-width: 100%;
+    max-width: 800px;
     height: auto;
     aspect-ratio: 1 / 1;
     object-fit: cover;
@@ -180,8 +181,75 @@
     color: #ffb4a2;
     font-weight: 700;
   }
+
+  .variants {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+
+  .variant-tile {
+    width: 100px;
+    height: 100px;
+    padding: 2px;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+    background: #0f0f0f;
+    border-radius: 8px;
+    cursor: pointer;
+  }
+
+  .variant-tile img {
+    width: 96px;
+    height: 96px;
+    object-fit: cover;
+    border-radius: 6px;
+  }
+
+  .variant-label {
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 6px;
+  }
+
+  .image-column {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    width: 100%;
+    align-items: center;
+  }
+
+  @media (max-width: 1100px) {
+    .joke-images {
+      grid-template-columns: 1fr;
+    }
+
+    .image-frame {
+      width: 100%;
+    }
+  }
 </style>
 {% endblock %}
+{% macro render_variants(variants, label, target_field, joke_id, book_id) -%}
+  {% if variants %}
+  <div class="variant-group">
+    <div class="variant-label">{{ label }}</div>
+    <div class="variants">
+      {% for variant in variants %}
+      <button class="variant-tile"
+        type="button"
+        data-joke-id="{{ joke_id }}"
+        data-book-id="{{ book_id }}"
+        data-target-field="{{ target_field }}"
+        data-image-url="{{ variant }}">
+        <img src="{{ variant }}" alt="{{ label }} option {{ loop.index }}">
+      </button>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+{%- endmacro %}
 
 {% block content %}
 <div class="page-actions">
@@ -241,18 +309,24 @@
       </div>
     </div>
     <div class="joke-images">
-      <div class="image-frame">
-        <img class="joke-image setup-img {% if not joke.setup_image %}hidden{% endif %}"
-          src="{{ joke.setup_image or '' }}" alt="Setup image for {{ joke.id }}" width="800" height="800" loading="lazy">
-        <div class="placeholder setup-placeholder {% if joke.setup_image %}hidden{% endif %}" role="img"
-          aria-label="Setup image missing">No setup image</div>
+      <div class="image-column">
+        {{ render_variants(joke.setup_variants, "Setup options", "book_page_setup_image_url", joke.id, book.id) }}
+        <div class="image-frame">
+          <img class="joke-image setup-img {% if not joke.setup_image %}hidden{% endif %}"
+            src="{{ joke.setup_image or '' }}" alt="Setup image for {{ joke.id }}" width="800" height="800" loading="lazy">
+          <div class="placeholder setup-placeholder {% if joke.setup_image %}hidden{% endif %}" role="img"
+            aria-label="Setup image missing">No setup image</div>
+        </div>
       </div>
-      <div class="image-frame">
-        <img class="joke-image punchline-img {% if not joke.punchline_image %}hidden{% endif %}"
-          src="{{ joke.punchline_image or '' }}" alt="Punchline image for {{ joke.id }}" width="800" height="800"
-          loading="lazy">
-        <div class="placeholder punchline-placeholder {% if joke.punchline_image %}hidden{% endif %}" role="img"
-          aria-label="Punchline image missing">No punchline image</div>
+      <div class="image-column">
+        {{ render_variants(joke.punchline_variants, "Punchline options", "book_page_punchline_image_url", joke.id, book.id) }}
+        <div class="image-frame">
+          <img class="joke-image punchline-img {% if not joke.punchline_image %}hidden{% endif %}"
+            src="{{ joke.punchline_image or '' }}" alt="Punchline image for {{ joke.id }}" width="800" height="800"
+            loading="lazy">
+          <div class="placeholder punchline-placeholder {% if joke.punchline_image %}hidden{% endif %}" role="img"
+            aria-label="Punchline image missing">No punchline image</div>
+        </div>
       </div>
     </div>
   </article>
@@ -263,10 +337,29 @@
 <script>
   (function () {
     const forms = Array.from(document.querySelectorAll('.regenerate-form'));
+    const variantTiles = Array.from(document.querySelectorAll('.variant-tile'));
+    const updateBookPageUrl = "{{ update_book_page_url }}";
+    const accentColor = getComputedStyle(document.documentElement)
+      .getPropertyValue('--accent')
+      .trim() || '#E59C48';
     const bustCache = (url) => {
       if (!url) return '';
       const sep = url.includes('?') ? '&' : '?';
       return `${url}${sep}t=${Date.now()}`;
+    };
+
+    const startTimer = (statusRow, timerDisplay) => {
+      statusRow.classList.remove('hidden');
+      const start = Date.now();
+      const renderTime = () => {
+        const elapsed = Math.floor((Date.now() - start) / 1000);
+        const minutes = Math.floor(elapsed / 60);
+        const seconds = String(elapsed % 60).padStart(2, '0');
+        timerDisplay.textContent = `${minutes}:${seconds}`;
+      };
+      renderTime();
+      const id = window.setInterval(renderTime, 1000);
+      return () => window.clearInterval(id);
     };
 
     const updateRow = (bookId, jokeId) => fetch(
@@ -283,6 +376,7 @@
         const setupPh = card.querySelector('.setup-placeholder');
         const punchPh = card.querySelector('.punchline-placeholder');
         const costPill = card.querySelector('.cost-pill-value');
+        const tiles = card.querySelectorAll('.variant-tile');
 
         if (data.setup_image) {
           setupImg.classList.remove('hidden');
@@ -311,6 +405,17 @@
           costPill.textContent = 'Cost unavailable';
           costPill.classList.add('muted');
         }
+
+        tiles.forEach((tile) => {
+          const url = tile.dataset.imageUrl;
+          const isSetup = tile.dataset.targetField === 'book_page_setup_image_url';
+          const current = isSetup ? data.setup_image : data.punchline_image;
+          if (current && url && current.replace(/\\?.*$/, '') === url.replace(/\\?.*$/, '')) {
+            tile.style.border = `2px solid ${accentColor}`;
+          } else {
+            tile.style.border = '2px solid rgba(255, 255, 255, 0.2)';
+          }
+        });
       });
 
     forms.forEach((form) => {
@@ -320,7 +425,7 @@
       const statusRow = form.querySelector('.status-row');
       const timerDisplay = form.querySelector('.timer-display');
       const errorBox = form.querySelector('.inline-error');
-      let timerId = null;
+      let timerStopper = null;
 
       revealBtn.addEventListener('click', () => {
         instructions.classList.remove('hidden');
@@ -340,16 +445,7 @@
         submitBtn.disabled = true;
         submitBtn.textContent = 'Regenerating...';
         errorBox.textContent = '';
-        statusRow.classList.remove('hidden');
-        const start = Date.now();
-        const renderTime = () => {
-          const elapsed = Math.floor((Date.now() - start) / 1000);
-          const minutes = Math.floor(elapsed / 60);
-          const seconds = String(elapsed % 60).padStart(2, '0');
-          timerDisplay.textContent = `${minutes}:${seconds}`;
-        };
-        renderTime();
-        timerId = window.setInterval(renderTime, 1000);
+        timerStopper = startTimer(statusRow, timerDisplay);
         const runRefresh = () => updateRow(bookId, jokeId).catch((err) => {
           console.error(err);
           errorBox.textContent = 'Regenerated, but failed to refresh images.';
@@ -376,13 +472,77 @@
             return runRefresh();
           })
           .finally(() => {
-            if (timerId !== null) {
-              window.clearInterval(timerId);
-              timerId = null;
-            }
+            if (timerStopper) timerStopper();
             submitBtn.disabled = false;
             submitBtn.textContent = original;
           });
+      });
+    });
+
+    const applyTileHighlight = (tile, isActive) => {
+      tile.style.border = isActive ? `2px solid ${accentColor}` :
+        '2px solid rgba(255, 255, 255, 0.2)';
+    };
+
+    variantTiles.forEach((tile) => {
+      tile.addEventListener('click', () => {
+        const bookId = tile.dataset.bookId;
+        const jokeId = tile.dataset.jokeId;
+        const targetField = tile.dataset.targetField;
+        const imageUrl = tile.dataset.imageUrl;
+        const card = tile.closest('.joke-card');
+        const statusRow = card.querySelector('.status-row');
+        const timerDisplay = card.querySelector('.timer-display');
+        const errorBox = card.querySelector('.inline-error');
+        errorBox.textContent = '';
+        const stopper = startTimer(statusRow, timerDisplay);
+
+        const formData = new FormData();
+        formData.set('joke_book_id', bookId);
+        formData.set('joke_id', jokeId);
+        if (targetField === 'book_page_setup_image_url') {
+          formData.set('new_book_page_setup_image_url', imageUrl);
+        } else {
+          formData.set('new_book_page_punchline_image_url', imageUrl);
+        }
+
+        fetch(updateBookPageUrl, {
+          method: 'POST',
+          body: formData,
+          mode: 'cors',
+        })
+          .then((resp) => {
+            if (!resp.ok) {
+              return resp.text().then((txt) => {
+                throw new Error(txt || 'Failed to update image');
+              });
+            }
+            return resp.text();
+          })
+          .then(() => updateRow(bookId, jokeId))
+          .catch((err) => {
+            console.error(err);
+            errorBox.textContent = err?.message || 'Failed to update image.';
+          })
+          .finally(() => {
+            if (stopper) stopper();
+          });
+      });
+    });
+
+    // Initial highlight on load
+    document.querySelectorAll('.joke-card').forEach((card) => {
+      const tiles = card.querySelectorAll('.variant-tile');
+      const setupImg = card.querySelector('.setup-img')?.getAttribute('src') || '';
+      const punchImg = card.querySelector('.punchline-img')?.getAttribute('src') || '';
+      tiles.forEach((tile) => {
+        const url = tile.dataset.imageUrl;
+        const isSetup = tile.dataset.targetField === 'book_page_setup_image_url';
+        const current = isSetup ? setupImg : punchImg;
+        applyTileHighlight(
+          tile,
+          current && url && current.replace(/\\?.*$/, '') === url.replace(/\\?.*$/, ''),
+        );
       });
     });
   })();

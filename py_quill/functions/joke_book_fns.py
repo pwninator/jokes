@@ -2,10 +2,10 @@
 import json
 import traceback
 
-from common import image_operations, utils
+from common import image_operations, models, utils
 from firebase_functions import https_fn, logger, options
-from functions.function_utils import (error_response, get_param, get_user_id,
-                                      success_response)
+from functions.function_utils import (error_response, get_bool_param, get_param,
+                                      get_user_id, success_response)
 from services import firestore
 
 NUM_TOP_JOKES_FOR_BOOKS = 50
@@ -167,49 +167,128 @@ def create_joke_book(req: https_fn.Request) -> https_fn.Response:
   timeout_sec=1200,
 )
 def update_joke_book(req: https_fn.Request) -> https_fn.Response:
-  """Update an existing joke book by regenerating pages and zip."""
+  """Update an existing joke book by regenerating pages and/or setting images."""
   try:
+    cors_headers = _cors_headers_for_origin(req.headers.get("Origin"))
+    if req.method == "OPTIONS":
+      return https_fn.Response("", status=204, headers=cors_headers)
+
     # Skip processing for health check requests
     if req.path == "/__/health":
-      return https_fn.Response("OK", status=200)
+      return https_fn.Response("OK", status=200, headers=cors_headers)
 
     if req.method not in ['POST', 'GET']:
-      return error_response(f'Method not allowed: {req.method}')
+      return https_fn.Response(
+        json.dumps(error_response(f'Method not allowed: {req.method}')),
+        status=405,
+        headers=cors_headers,
+      )
 
     joke_book_id = get_param(req, 'joke_book_id')
     if not joke_book_id:
-      return error_response('joke_book_id is required')
+      return https_fn.Response(
+        json.dumps(error_response('joke_book_id is required')),
+        status=400,
+        headers=cors_headers,
+      )
 
     book_ref = firestore.db().collection('joke_books').document(joke_book_id)
     book_doc = book_ref.get()
 
     if not book_doc.exists:
-      return error_response(f'Joke book {joke_book_id} not found')
+      return https_fn.Response(
+        json.dumps(error_response(f'Joke book {joke_book_id} not found')),
+        status=404,
+        headers=cors_headers,
+      )
 
     book_data = book_doc.to_dict()
     joke_ids = book_data.get('jokes', [])
 
     if not joke_ids:
-      return error_response('Joke book has no jokes')
+      return https_fn.Response(
+        json.dumps(error_response('Joke book has no jokes')),
+        status=400,
+        headers=cors_headers,
+      )
 
     logger.info(f'Updating book {joke_book_id} with jokes: {joke_ids}')
 
-    for joke_id in joke_ids:
-      image_operations.generate_and_populate_book_pages(joke_id,
-                                                        overwrite=False)
+    regenerate_all = get_bool_param(req, 'regenerate_all', default=False)
+    new_setup_url = get_param(req,
+                              'new_book_page_setup_image_url',
+                              required=False)
+    new_punchline_url = get_param(req,
+                                  'new_book_page_punchline_image_url',
+                                  required=False)
+    target_joke_id = get_param(req, 'joke_id', required=False)
+    updated_metadata: dict[str, str] | None = None
+    if regenerate_all and (new_setup_url or new_punchline_url):
+      return https_fn.Response(
+        json.dumps(
+          error_response(
+            'regenerate_all cannot be used with new_book_page_*_image_url')),
+        status=400,
+        headers=cors_headers,
+      )
 
-    # Generate ZIP of all book pages and store in temp files bucket
-    zip_url = image_operations.zip_joke_page_images_for_kdp(joke_ids)
+    if new_setup_url or new_punchline_url:
+      if not target_joke_id:
+        return https_fn.Response(
+          json.dumps(
+            error_response(
+              'joke_id is required when updating book page image URLs')),
+          status=400,
+          headers=cors_headers,
+        )
 
-    book_ref.update({
-      'zip_url': zip_url,
-    })
+      joke_ref = firestore.db().collection('jokes').document(target_joke_id)
+      metadata_ref = joke_ref.collection('metadata').document('metadata')
+      metadata_doc = metadata_ref.get()
+      existing_metadata = metadata_doc.to_dict() if metadata_doc.exists else {}
 
-    return success_response({'book_id': joke_book_id, 'zip_url': zip_url})
+      current_setup = existing_metadata.get('book_page_setup_image_url')
+      current_punchline = existing_metadata.get('book_page_punchline_image_url')
+
+      updated_metadata = models.PunnyJoke.prepare_book_page_metadata_updates(
+        existing_metadata or {}, new_setup_url or current_setup,
+        new_punchline_url or current_punchline)
+
+      metadata_ref.set(updated_metadata, merge=True)
+
+    zip_url = None
+    if regenerate_all:
+      for joke_id in joke_ids:
+        image_operations.generate_and_populate_book_pages(joke_id,
+                                                          overwrite=False)
+
+      # Generate ZIP of all book pages and store in temp files bucket
+      zip_url = image_operations.zip_joke_page_images_for_kdp(joke_ids)
+
+      book_ref.update({
+        'zip_url': zip_url,
+      })
+
+    response_payload: dict[str, object] = {'book_id': joke_book_id}
+    if zip_url:
+      response_payload['zip_url'] = zip_url
+    if updated_metadata:
+      response_payload['book_page_setup_image_url'] = updated_metadata.get(
+        'book_page_setup_image_url')
+      response_payload['book_page_punchline_image_url'] = updated_metadata.get(
+        'book_page_punchline_image_url')
+
+    return https_fn.Response(json.dumps(success_response(response_payload)),
+                             status=200,
+                             headers=cors_headers)
   except Exception as e:
     stacktrace = traceback.format_exc()
     print(f"Error updating joke book: {e}\nStacktrace:\n{stacktrace}")
-    return error_response(f'Failed to update joke book: {str(e)}')
+    return https_fn.Response(
+      json.dumps(error_response(f'Failed to update joke book: {str(e)}')),
+      status=500,
+      headers=cors_headers,
+    )
 
 
 def _get_joke_book_id_from_request(req: https_fn.Request) -> str | None:

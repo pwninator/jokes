@@ -782,31 +782,64 @@ class PunnyJoke:
     """Prepare metadata updates for book page URLs with history tracking."""
     metadata = existing_metadata or {}
 
+    def _normalize_book_page_url(url: str | None) -> str | None:
+      """Normalize CDN params to the canonical book page format."""
+      if not url or not isinstance(url, str):
+        return url
+      prefix = "https://images.quillsstorybook.com/cdn-cgi/image/"
+      if not url.startswith(prefix):
+        return url
+      remainder = url.removeprefix(prefix)
+      slash_index = remainder.find('/')
+      if slash_index == -1:
+        return url
+      object_path = remainder[slash_index + 1:]
+      return (f"{prefix}width=1024,format=auto,quality=75/"
+              f"{object_path}")
+
+    def _unique_normalized(urls: list[str]) -> list[str]:
+      seen = set()
+      result: list[str] = []
+      for url in urls:
+        norm = _normalize_book_page_url(url)
+        if norm and norm not in seen:
+          seen.add(norm)
+          result.append(norm)
+      return result
+
     existing_setup_urls = metadata.get('all_book_page_setup_image_urls')
-    setup_history = (list(existing_setup_urls) if isinstance(
+    setup_history_raw = (list(existing_setup_urls) if isinstance(
       existing_setup_urls, list) else [])
 
     existing_punchline_urls = metadata.get(
       'all_book_page_punchline_image_urls')
-    punchline_history = (list(existing_punchline_urls) if isinstance(
+    punchline_history_raw = (list(existing_punchline_urls) if isinstance(
       existing_punchline_urls, list) else [])
 
-    previous_setup_url = metadata.get('book_page_setup_image_url')
-    previous_punchline_url = metadata.get('book_page_punchline_image_url')
+    previous_setup_url = _normalize_book_page_url(
+      metadata.get('book_page_setup_image_url'))
+    previous_punchline_url = _normalize_book_page_url(
+      metadata.get('book_page_punchline_image_url'))
 
-    for url in (previous_setup_url, new_setup_page_url):
-      if isinstance(url, str) and url and url not in setup_history:
-        setup_history.append(url)
+    normalized_setup_history = _unique_normalized(setup_history_raw)
+    normalized_punchline_history = _unique_normalized(punchline_history_raw)
 
-    for url in (previous_punchline_url, new_punchline_page_url):
-      if isinstance(url, str) and url and url not in punchline_history:
-        punchline_history.append(url)
+    normalized_new_setup = _normalize_book_page_url(new_setup_page_url)
+    normalized_new_punchline = _normalize_book_page_url(new_punchline_page_url)
+
+    for url in (previous_setup_url, normalized_new_setup):
+      if url and url not in normalized_setup_history:
+        normalized_setup_history.append(url)
+
+    for url in (previous_punchline_url, normalized_new_punchline):
+      if url and url not in normalized_punchline_history:
+        normalized_punchline_history.append(url)
 
     return {
-      'book_page_setup_image_url': new_setup_page_url,
-      'book_page_punchline_image_url': new_punchline_page_url,
-      'all_book_page_setup_image_urls': setup_history,
-      'all_book_page_punchline_image_urls': punchline_history,
+      'book_page_setup_image_url': normalized_new_setup,
+      'book_page_punchline_image_url': normalized_new_punchline,
+      'all_book_page_setup_image_urls': normalized_setup_history,
+      'all_book_page_punchline_image_urls': normalized_punchline_history,
     }
 
   @property

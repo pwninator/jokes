@@ -262,14 +262,16 @@ def admin_joke_books():
 
 
 def _format_book_page_image(image_url: str | None) -> str | None:
-  """Normalize book page images to 600px squares for admin previews."""
+  """Normalize book page images to 800px squares for admin previews."""
   if not image_url:
     return None
   try:
-    return utils.format_image_url(image_url,
-                                  image_format='png',
-                                  quality=95,
-                                  width=600)
+    return utils.format_image_url(
+      image_url,
+      image_format='png',
+      quality=70,
+      width=800,
+    )
   except ValueError:
     # If not a CDN URL, return as-is to avoid breaking the page.
     return image_url

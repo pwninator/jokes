@@ -59,7 +59,7 @@
 
   .image-frame img,
   .image-frame .placeholder {
-    width: min(600px, 100%);
+    width: 100%;
     max-width: 100%;
     height: auto;
     aspect-ratio: 1 / 1;
@@ -243,13 +243,13 @@
     <div class="joke-images">
       <div class="image-frame">
         <img class="joke-image setup-img {% if not joke.setup_image %}hidden{% endif %}"
-          src="{{ joke.setup_image or '' }}" alt="Setup image for {{ joke.id }}" width="600" height="600" loading="lazy">
+          src="{{ joke.setup_image or '' }}" alt="Setup image for {{ joke.id }}" width="800" height="800" loading="lazy">
         <div class="placeholder setup-placeholder {% if joke.setup_image %}hidden{% endif %}" role="img"
           aria-label="Setup image missing">No setup image</div>
       </div>
       <div class="image-frame">
         <img class="joke-image punchline-img {% if not joke.punchline_image %}hidden{% endif %}"
-          src="{{ joke.punchline_image or '' }}" alt="Punchline image for {{ joke.id }}" width="600" height="600"
+          src="{{ joke.punchline_image or '' }}" alt="Punchline image for {{ joke.id }}" width="800" height="800"
           loading="lazy">
         <div class="placeholder punchline-placeholder {% if joke.punchline_image %}hidden{% endif %}" role="img"
           aria-label="Punchline image missing">No punchline image</div>

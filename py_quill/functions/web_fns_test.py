@@ -319,8 +319,8 @@ def test_admin_joke_book_detail_renders_images_and_placeholders(monkeypatch):
   html = resp.get_data(as_text=True)
   assert "Space Llamas" in html
   assert "joke-1" in html and "joke-2" in html
-  assert 'width="600"' in html and 'height="600"' in html
-  assert "width=600" in html  # width parameter in formatted CDN URL
+  assert 'width="800"' in html and 'height="800"' in html
+  assert "width=800" in html  # width parameter in formatted CDN URL
   assert "No punchline image" in html
   assert "Download all pages" in html
   assert "https://generate-joke-book-page-uqdkqas7gq-uc.a.run.app" in html

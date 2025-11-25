@@ -27,7 +27,6 @@
   </div>
   <article class="hero-card" id="daily-joke-card" aria-labelledby="hero-card-title">
     {% if daily_joke %}
-    <h2 class="joke-card__setup" id="hero-card-title">{{ daily_joke.setup_text }}</h2>
     <div class="joke-viewer" data-joke-viewer>
       <div class="joke-carousel">
         <div class="joke-carousel-viewport">
@@ -40,7 +39,6 @@
                 <div class="joke-slide-placeholder">Illustration baking…</div>
                 {% endif %}
               </div>
-              <p class="joke-text">{{ daily_joke.setup_text }}</p>
             </div>
             <div class="joke-slide" id="daily-joke-punchline" aria-hidden="true">
               <div class="joke-slide-media">
@@ -50,7 +48,6 @@
                 <div class="joke-slide-placeholder">Punchline ready to read!</div>
                 {% endif %}
               </div>
-              <p class="joke-text">{{ daily_joke.punchline_text }}</p>
             </div>
           </div>
         </div>
@@ -58,13 +55,13 @@
       <button class="joke-reveal"
         type="button"
         data-role="reveal"
-        data-label-show="Reveal the Crumbs!"
+        data-label-show="Reveal Punchline"
         data-label-hide="Back to Setup"
         aria-controls="daily-joke-punchline"
         aria-expanded="false"
         data-analytics-event="web_index_joke_scroll_click"
         data-analytics-label="{{ daily_joke.key or 'daily_joke' }}">
-        Reveal the Crumbs!
+        Reveal Punchline
       </button>
     </div>
     {% else %}
@@ -86,7 +83,6 @@
   <div class="favorites-grid">
     {% for joke in favorites %}
     <article class="joke-card" aria-label="Fan favorite joke {{ loop.index }}">
-      <h3 class="joke-card__setup">{{ joke.setup_text }}</h3>
       <div class="joke-viewer" data-joke-viewer>
         <div class="joke-carousel">
           <div class="joke-carousel-viewport">
@@ -99,7 +95,6 @@
                   <div class="joke-slide-placeholder">Illustration baking…</div>
                   {% endif %}
                 </div>
-                <p class="joke-text">{{ joke.setup_text }}</p>
               </div>
               <div class="joke-slide" id="favorite-{{ loop.index }}-punchline" aria-hidden="true">
                 <div class="joke-slide-media">
@@ -109,7 +104,6 @@
                   <div class="joke-slide-placeholder">Punchline ready to read!</div>
                   {% endif %}
                 </div>
-                <p class="joke-text">{{ joke.punchline_text }}</p>
               </div>
             </div>
           </div>

@@ -21,22 +21,28 @@ app = flask.Flask(__name__,
                   static_folder=_STATIC_DIR)
 
 
-def _load_landing_css() -> str:
-  css_path = os.path.join(_STATIC_DIR, 'css', 'style.css')
+def _load_css(filename: str) -> str:
+  """Load a CSS file from the static directory."""
+  css_path = os.path.join(_STATIC_DIR, 'css', filename)
   try:
     with open(css_path, 'r', encoding='utf-8') as css_file:
       return css_file.read()
   except FileNotFoundError:
-    logger.error('Landing stylesheet missing at %s', css_path)
+    logger.error('Stylesheet missing at %s', css_path)
     return ''
 
 
-_LANDING_CSS = _load_landing_css()
+_BASE_CSS = _load_css('base.css')
+_LANDING_CSS = _BASE_CSS + _load_css('style.css')
+_ADMIN_CSS = _BASE_CSS + _load_css('admin.css')
 
 
 @app.context_processor
-def _inject_landing_css() -> dict[str, str]:
-  return {'landing_css': _LANDING_CSS}
+def _inject_css() -> dict[str, str]:
+  return {
+    'landing_css': _LANDING_CSS,
+    'admin_css': _ADMIN_CSS,
+  }
 
 
 # Canonical public base URL used for sitemaps and absolute links.
@@ -146,6 +152,9 @@ def index():
   except Exception as exc:  # pylint: disable=broad-except
     logger.error('Failed to fetch daily joke for %s: %s', today_la.isoformat(),
                  str(exc))
+
+  # Ensure we never show more than 3 favorites, even if logic above slipped
+  favorites = favorites[:3]
 
   if not daily_joke and not favorites:
     return "Could not find any jokes to display.", 404

@@ -8,14 +8,14 @@ from services import search
 
 def _mock_admin_session(monkeypatch):
   """Bypass admin auth for route tests."""
-  monkeypatch.setattr(web_fns.auth_helpers,
-                      "verify_session",
-                      lambda _req: ("uid123", {
+  monkeypatch.setattr(web_fns.auth_helpers, "verify_session", lambda _req:
+                      ("uid123", {
                         "role": "admin"
                       }))
 
 
 class _FakeSnapshot:
+
   def __init__(self, doc_id: str, data: dict | None, exists: bool = True):
     self.id = doc_id
     self._data = data
@@ -26,6 +26,7 @@ class _FakeSnapshot:
 
 
 class _FakeDocumentRef:
+
   def __init__(self,
                snapshot: _FakeSnapshot,
                subcollections: dict[str, "_FakeCollection"] | None = None):
@@ -40,6 +41,7 @@ class _FakeDocumentRef:
 
 
 class _FakeCollection:
+
   def __init__(self, docs: dict[str, _FakeDocumentRef]):
     self._docs = docs
 
@@ -47,12 +49,12 @@ class _FakeCollection:
     return [doc.get() for doc in self._docs.values()]
 
   def document(self, doc_id: str):
-    return self._docs.get(doc_id,
-                          _FakeDocumentRef(
-                            _FakeSnapshot(doc_id, None, exists=False)))
+    return self._docs.get(
+      doc_id, _FakeDocumentRef(_FakeSnapshot(doc_id, None, exists=False)))
 
 
 class _FakeFirestore:
+
   def __init__(self, books: dict[str, _FakeDocumentRef],
                jokes: dict[str, _FakeDocumentRef]):
     self._books = books
@@ -77,8 +79,7 @@ def test_topic_page_uses_batch_fetch(monkeypatch):
                       mock_get_punny_jokes,
                       raising=False)
 
-  search_result = search.JokeSearchResult(joke_id="joke1",
-                                          vector_distance=0.1)
+  search_result = search.JokeSearchResult(joke_id="joke1", vector_distance=0.1)
   mock_search_jokes.return_value = [search_result]
 
   joke = models.PunnyJoke(
@@ -121,8 +122,7 @@ def test_topic_page_renders_with_json_ld_and_reveal(monkeypatch):
                       mock_get_punny_jokes,
                       raising=False)
 
-  search_result = search.JokeSearchResult(joke_id="j1",
-                                          vector_distance=0.01)
+  search_result = search.JokeSearchResult(joke_id="j1", vector_distance=0.01)
   mock_search_jokes.return_value = [search_result]
 
   joke = models.PunnyJoke(
@@ -164,6 +164,8 @@ def test_index_page_renders_top_jokes(monkeypatch):
   # Arrange
   mock_get_top_jokes = Mock()
   monkeypatch.setattr(web_fns.firestore, "get_top_jokes", mock_get_top_jokes)
+  mock_get_daily_joke = Mock(return_value=None)
+  monkeypatch.setattr(web_fns.firestore, "get_daily_joke", mock_get_daily_joke)
 
   joke = models.PunnyJoke(
     key="joke123",
@@ -181,8 +183,10 @@ def test_index_page_renders_top_jokes(monkeypatch):
   # Assert
   assert resp.status_code == 200
   html = resp.get_data(as_text=True)
-  assert "Fan-Favorite Jokes" in html
-  assert "Here are some of our most popular jokes, right from the app!" in html
+  # Header presence (accessible span) and section scaffolding instead of brittle copy.
+  assert '<span class="visually-hidden">Fan-Favorite Jokes</span>' in html
+  assert '<section class="favorites-section"' in html
+  assert 'class="favorites-grid"' in html
   assert "What do you call a fake noodle?" in html
   assert "An Impasta!" in html
   assert 'data-analytics-event="web_index_joke_scroll_click"' in html
@@ -267,50 +271,49 @@ def test_admin_joke_book_detail_renders_images_and_placeholders(monkeypatch):
   _mock_admin_session(monkeypatch)
   monkeypatch.setattr(web_fns.utils, "is_emulator", lambda: False)
 
-  setup_url = (
-    "https://images.quillsstorybook.com/cdn-cgi/image/"
-    "format=auto,quality=75/path/setup.png")
-  punchline_url = (
-    "https://images.quillsstorybook.com/cdn-cgi/image/"
-    "format=auto,quality=75/path/punchline.png")
+  setup_url = ("https://images.quillsstorybook.com/cdn-cgi/image/"
+               "format=auto,quality=75/path/setup.png")
+  punchline_url = ("https://images.quillsstorybook.com/cdn-cgi/image/"
+                   "format=auto,quality=75/path/punchline.png")
 
   metadata_doc_one = _FakeDocumentRef(
-    _FakeSnapshot("metadata", {
-      "book_page_setup_image_url": setup_url,
-      "book_page_punchline_image_url": punchline_url,
-      "all_book_page_setup_image_urls": [setup_url, "https://cdn/setup2.png"],
-      "all_book_page_punchline_image_urls": [
-        punchline_url, "https://cdn/punch2.png"
-      ],
-    }))
-  joke_one = _FakeDocumentRef(_FakeSnapshot("joke-1", {
-    "generation_metadata": {
+    _FakeSnapshot(
+      "metadata", {
+        "book_page_setup_image_url":
+        setup_url,
+        "book_page_punchline_image_url":
+        punchline_url,
+        "all_book_page_setup_image_urls":
+        [setup_url, "https://cdn/setup2.png"],
+        "all_book_page_punchline_image_urls":
+        [punchline_url, "https://cdn/punch2.png"],
+      }))
+  joke_one = _FakeDocumentRef(
+    _FakeSnapshot("joke-1", {"generation_metadata": {
       "total_cost": 0.1234,
-    }
-  }), {
-    "metadata": _FakeCollection({"metadata": metadata_doc_one})
-  })
+    }}), {"metadata": _FakeCollection({"metadata": metadata_doc_one})})
 
   metadata_doc_two = _FakeDocumentRef(_FakeSnapshot("metadata", {}))
-  joke_two = _FakeDocumentRef(_FakeSnapshot("joke-2", {
-    "generation_metadata": {
-      "generations": [{
-        "model_name": "gpt",
-        "cost": 0.05
-      }]
-    }
-  }), {
-    "metadata": _FakeCollection({"metadata": metadata_doc_two})
-  })
+  joke_two = _FakeDocumentRef(
+    _FakeSnapshot(
+      "joke-2", {
+        "generation_metadata": {
+          "generations": [{
+            "model_name": "gpt",
+            "cost": 0.05
+          }]
+        }
+      }), {"metadata": _FakeCollection({"metadata": metadata_doc_two})})
 
   books = {
     "book-42":
     _FakeDocumentRef(
-      _FakeSnapshot("book-42", {
-        "book_name": "Space Llamas",
-        "jokes": ["joke-1", "joke-2"],
-        "zip_url": "https://example.com/book.zip",
-      }))
+      _FakeSnapshot(
+        "book-42", {
+          "book_name": "Space Llamas",
+          "jokes": ["joke-1", "joke-2"],
+          "zip_url": "https://example.com/book.zip",
+        }))
   }
   jokes = {"joke-1": joke_one, "joke-2": joke_two}
   fake_db = _FakeFirestore(books=books, jokes=jokes)
@@ -345,18 +348,15 @@ def test_admin_joke_book_detail_uses_emulator_url_when_applicable(monkeypatch):
     "book-local":
     _FakeDocumentRef(
       _FakeSnapshot("book-local", {
-    "book_name": "Local Book",
-    "jokes": ["joke-123"],
-  }))
-}
+        "book_name": "Local Book",
+        "jokes": ["joke-123"],
+      }))
+  }
   metadata_doc = _FakeDocumentRef(_FakeSnapshot("metadata", {}))
-  joke = _FakeDocumentRef(_FakeSnapshot("joke-123", {
-    "generation_metadata": {
+  joke = _FakeDocumentRef(
+    _FakeSnapshot("joke-123", {"generation_metadata": {
       "total_cost": 1.0
-    }
-  }), {
-    "metadata": _FakeCollection({"metadata": metadata_doc})
-  })
+    }}), {"metadata": _FakeCollection({"metadata": metadata_doc})})
   fake_db = _FakeFirestore(books=books, jokes={"joke-123": joke})
   monkeypatch.setattr(web_fns.firestore, "db", lambda: fake_db)
 
@@ -371,8 +371,7 @@ def test_admin_joke_book_detail_uses_emulator_url_when_applicable(monkeypatch):
 
 def test_admin_routes_allow_emulator_without_auth(monkeypatch):
   """When in emulator mode, admin routes bypass auth checks."""
-  monkeypatch.setattr(web_fns.auth_helpers.utils, "is_emulator",
-                      lambda: True)
+  monkeypatch.setattr(web_fns.auth_helpers.utils, "is_emulator", lambda: True)
 
   def _fail(_req):
     raise AssertionError("verify_session should not be called in emulator")
@@ -402,11 +401,9 @@ def test_pages_include_ga4_tag_and_parchment_background(monkeypatch):
                       mock_get_punny_jokes,
                       raising=False)
   mock_get_top_jokes = Mock()
-  monkeypatch.setattr(web_fns.firestore, "get_top_jokes",
-                      mock_get_top_jokes)
+  monkeypatch.setattr(web_fns.firestore, "get_top_jokes", mock_get_top_jokes)
 
-  search_result = search.JokeSearchResult(joke_id="j3",
-                                          vector_distance=0.03)
+  search_result = search.JokeSearchResult(joke_id="j3", vector_distance=0.03)
   mock_search_jokes.return_value = [search_result]
 
   joke = models.PunnyJoke(

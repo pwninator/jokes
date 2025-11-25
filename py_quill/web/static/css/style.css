@@ -1,5 +1,7 @@
 :root {
   --color-bg: #fff8e7;
+  --color-bg-outer: #e4d0ae;
+  --color-accent-surface: #fffbf2;
   --color-surface: #ffffff;
   --color-text: #4a3b32;
   --color-text-muted: #7c675a;
@@ -11,13 +13,65 @@
   --color-pill-text: #735a45;
   --layout-max-width: 1100px;
   color-scheme: light;
+
+  /* Typography System */
+  --font-weight-display: 900;
+  --font-weight-heading: 800;
+  --font-weight-label: 800;  /* Buttons, Pills */
+  --font-weight-body: 600;
 }
-/* legacy test compatibility: background: #121212 */
+
+/* --- Typography Classes --- */
+
+/* 1. Display Heading */
+.text-display {
+  font-size: 2rem;
+  font-weight: var(--font-weight-display);
+  line-height: 1.25;
+  color: var(--color-text);
+}
+
+/* 2. Section Heading */
+.text-section-heading {
+  font-size: 1.6rem;
+  font-weight: var(--font-weight-heading);
+  color: var(--color-text);
+}
+
+/* 3. Brand Heading */
+.text-brand {
+  font-weight: var(--font-weight-display);
+  color: var(--color-text);
+  letter-spacing: 0.3px;
+  font-size: 1.25rem;
+}
+
+/* 4. Body Text */
+.text-body {
+  font-size: 1rem;
+  font-weight: var(--font-weight-body);
+  color: var(--color-text-muted);
+  line-height: 1.6;
+}
+
+/* 5. Button/Label Text */
+.text-button {
+  font-weight: var(--font-weight-label);
+}
+
+/* 6. Footer Text */
+.text-footer {
+  font-size: 0.9rem; /* Slightly smaller than body */
+  font-weight: var(--font-weight-body);
+  color: var(--color-text-muted);
+}
+
 
 body {
   line-height: 1.6;
-  background: var(--color-bg);
+  background: var(--color-bg-outer);
   color: var(--color-text);
+  margin: 0;
 }
 
 a {
@@ -40,16 +94,19 @@ img {
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  max-width: var(--layout-max-width);
+  margin: 0 auto;
+  background: var(--color-bg);
+  box-shadow: 0 0 24px rgba(74, 59, 50, 0.08);
 }
 
 .site-header {
-  background: rgba(255, 252, 245, 0.95);
+  background: var(--color-accent-surface);
   border-bottom: 1px solid var(--color-border);
   box-shadow: 0 6px 16px rgba(196, 171, 140, 0.18);
 }
 
 .header-inner {
-  max-width: var(--layout-max-width);
   margin: 0 auto;
   display: flex;
   align-items: center;
@@ -63,8 +120,6 @@ img {
   gap: 12px;
   padding: 4px 0;
   color: var(--color-text);
-  font-weight: 800;
-  letter-spacing: 0.3px;
 }
 
 .brand-logo {
@@ -73,7 +128,8 @@ img {
 }
 
 .brand-text {
-  font-size: 1.25rem;
+  /* Typography handled by .text-brand */
+  display: block;
 }
 
 .primary-nav {
@@ -94,7 +150,6 @@ img {
 .nav-link {
   padding: 8px 14px;
   border-radius: 999px;
-  font-weight: 600;
   color: var(--color-text);
   transition: background 160ms ease, box-shadow 160ms ease;
 }
@@ -120,7 +175,6 @@ img {
   border-radius: 999px;
   background: var(--color-primary);
   color: #ffffff;
-  font-weight: 700;
   box-shadow: 0 6px 16px rgba(212, 160, 23, 0.35);
   transition: transform 120ms ease, box-shadow 120ms ease;
 }
@@ -142,9 +196,8 @@ img {
 }
 
 .main-container {
-  max-width: var(--layout-max-width);
   margin: 0 auto;
-  padding: 36px 20px 60px;
+  padding: 36px 36px 60px;
   display: flex;
   flex-direction: column;
   gap: 56px;
@@ -163,19 +216,15 @@ img {
   border-radius: 999px;
   background: var(--color-pill-bg);
   color: var(--color-pill-text);
-  font-weight: 700;
   letter-spacing: 0.2px;
 }
 
 .hero-title {
   margin: 12px 0 10px;
-  font-size: 2rem;
-  line-height: 1.25;
 }
 
 .hero-subtitle {
   margin: 0 0 24px;
-  color: var(--color-text-muted);
   max-width: 520px;
 }
 
@@ -193,7 +242,6 @@ img {
   border-radius: 999px;
   background: var(--color-primary);
   color: #ffffff;
-  font-weight: 700;
   box-shadow: 0 10px 24px rgba(212, 160, 23, 0.28);
   transition: transform 120ms ease, box-shadow 120ms ease;
 }
@@ -299,14 +347,12 @@ img {
   justify-content: center;
   padding: 0 16px;
   text-align: center;
-  font-weight: 600;
   color: var(--color-text-muted);
 }
 
 .joke-text {
   margin: 0;
   text-align: center;
-  font-size: 1.05rem;
   color: var(--color-text);
 }
 
@@ -319,22 +365,6 @@ img {
   gap: 12px;
   border: 1px solid var(--color-border);
   box-shadow: 0 10px 28px rgba(196, 171, 140, 0.22);
-}
-
-.joke-card__body {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.joke-card__setup {
-  font-weight: 700;
-  font-size: 1.05rem;
-  color: var(--color-text);
-}
-
-.joke-card__footer {
-  margin-top: auto;
 }
 
 .joke-details {
@@ -365,7 +395,6 @@ img {
   border-radius: 999px;
   background: var(--color-primary);
   color: #ffffff;
-  font-weight: 700;
   border: none;
   cursor: pointer;
   box-shadow: 4px 4px 8px rgba(212, 160, 23, 0.3);
@@ -383,9 +412,7 @@ img {
 }
 
 .joke-punchline {
-  font-size: 1rem;
   color: var(--color-text);
-  font-weight: 600;
   margin-top: 12px;
 }
 
@@ -394,15 +421,15 @@ img {
   flex-direction: column;
   gap: 12px;
   margin-bottom: 24px;
+  text-align: center;
+  align-items: center;
 }
 
 .favorites-title {
-  font-size: 1.6rem;
   margin: 0;
 }
 
 .favorites-subtitle {
-  color: var(--color-text-muted);
   margin: 0;
 }
 
@@ -424,12 +451,10 @@ img {
 
 .app-highlight__copy h2 {
   margin: 0 0 6px;
-  font-size: 1.5rem;
 }
 
 .app-highlight__copy p {
   margin: 0 0 14px;
-  color: var(--color-text-muted);
 }
 
 .rating-chip {
@@ -440,7 +465,6 @@ img {
   border-radius: 999px;
   background: var(--color-pill-bg);
   color: var(--color-pill-text);
-  font-weight: 700;
 }
 
 .play-badge {
@@ -483,7 +507,6 @@ img {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 700;
   color: var(--color-text-muted);
 }
 
@@ -494,19 +517,16 @@ img {
 }
 
 .site-footer__inner {
-  max-width: var(--layout-max-width);
   margin: 0 auto;
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
   align-items: center;
   justify-content: space-between;
-  color: var(--color-text-muted);
 }
 
 .site-footer__link {
   color: var(--color-primary-dark);
-  font-weight: 700;
 }
 
 .site-footer__link:hover,
@@ -546,4 +566,3 @@ img {
     justify-content: center;
   }
 }
-

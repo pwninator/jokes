@@ -57,10 +57,10 @@
         <a class="brand" href="{{ url_for('web.index') }}" aria-label="{{ site_name }} home">
           <img class="brand-logo" alt="{{ site_name }} logo"
             src="https://images.quillsstorybook.com/cdn-cgi/image/width=128,format=auto,quality=60/_joke_assets/icon_cookie_01_transparent_light_128.png" />
-          <span class="brand-text">{{ site_name }}</span>
+          <span class="brand-text text-brand">{{ site_name }}</span>
         </a>
         <nav class="primary-nav" aria-label="Main navigation">
-          <a class="nav-cta" href="https://play.google.com/store/apps/details?id=com.builtwithporpoise.jokes"
+          <a class="nav-cta text-button" href="https://play.google.com/store/apps/details?id=com.builtwithporpoise.jokes"
             target="_blank" rel="noopener noreferrer" data-analytics-event="web_index_play_store_click"
             data-analytics-label="header">
             Get the App
@@ -74,7 +74,7 @@
       </div>
     </main>
     <footer class="site-footer">
-      <div class="site-footer__inner">
+      <div class="site-footer__inner text-footer">
         <small>&copy; {{ site_name }} {{ now_year|default(2025) }}</small>
         <a class="site-footer__link"
            href="/privacy.html"

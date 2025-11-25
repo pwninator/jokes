@@ -16,9 +16,9 @@
 {% block content %}
 <section class="hero" aria-labelledby="hero-title">
   <div>
-    <span class="hero-pill">{{ hero_date_label }}</span>
-    <h1 class="hero-title" id="hero-title">Fresh from the oven</h1>
-    <p class="hero-subtitle">Start your day with a sprinkle of sweetness. We bake a brand-new, wholesome joke every single morning to make you smile.</p>
+    <span class="hero-pill text-button">{{ hero_date_label }}</span>
+    <h1 class="hero-title text-display" id="hero-title">Fresh from the oven</h1>
+    <p class="hero-subtitle text-body">Start your day with a sprinkle of sweetness. We bake a brand-new, wholesome joke every single morning to make you smile.</p>
   </div>
   <article class="hero-card" id="daily-joke-card" aria-labelledby="hero-card-title">
     {% if daily_joke %}
@@ -31,7 +31,7 @@
                 {% if daily_joke.setup_image_url %}
                 <img src="{{ daily_joke.setup_image_url | replace('width=1024', 'width=' ~ 800) }}" alt="{{ daily_joke.setup_text }}" width="800" height="800" loading="lazy">
                 {% else %}
-                <div class="joke-slide-placeholder">Illustration baking…</div>
+                <div class="joke-slide-placeholder text-button">Illustration baking…</div>
                 {% endif %}
               </div>
             </div>
@@ -40,14 +40,14 @@
                 {% if daily_joke.punchline_image_url %}
                 <img src="{{ daily_joke.punchline_image_url | replace('width=1024', 'width=' ~ 800) }}" alt="{{ daily_joke.punchline_text }}" width="800" height="800" loading="lazy">
                 {% else %}
-                <div class="joke-slide-placeholder">Punchline ready to read!</div>
+                <div class="joke-slide-placeholder text-button">Punchline ready to read!</div>
                 {% endif %}
               </div>
             </div>
           </div>
         </div>
       </div>
-      <button class="joke-reveal"
+      <button class="joke-reveal text-button"
         type="button"
         data-role="reveal"
         data-label-show="Reveal Punchline"
@@ -61,9 +61,9 @@
     </div>
     {% else %}
     <div class="hero-card__image">
-      <div class="app-highlight__placeholder">Illustration baking…</div>
+      <div class="app-highlight__placeholder text-button">Illustration baking…</div>
     </div>
-    <p class="joke-punchline">Check back soon for a fresh punchline!</p>
+    <p class="joke-punchline text-button">Check back soon for a fresh punchline!</p>
     {% endif %}
   </article>
 </section>
@@ -71,8 +71,8 @@
 <section class="favorites-section" aria-labelledby="favorites-title">
   <header>
     <span class="visually-hidden">Fan-Favorite Jokes</span>
-    <h2 class="favorites-title" id="favorites-title">Fan Favorites from the Cookie Jar</h2>
-    <p class="favorites-subtitle">A handful of the most-loved jokes, straight from the Snickerdoodle community.</p>
+    <h2 class="favorites-title text-section-heading" id="favorites-title">Fan Favorites from the Cookie Jar</h2>
+    <p class="favorites-subtitle text-body">A handful of the most-loved jokes, straight from the Snickerdoodle community.</p>
   </header>
   {% if favorites %}
   <div class="favorites-grid">
@@ -87,7 +87,7 @@
                   {% if joke.setup_image_url %}
                   <img src="{{ joke.setup_image_url | replace('width=1024', 'width=' ~ 600) }}" alt="{{ joke.setup_text }}" width="600" height="600" loading="lazy">
                   {% else %}
-                  <div class="joke-slide-placeholder">Illustration baking…</div>
+                  <div class="joke-slide-placeholder text-button">Illustration baking…</div>
                   {% endif %}
                 </div>
               </div>
@@ -96,14 +96,14 @@
                   {% if joke.punchline_image_url %}
                   <img src="{{ joke.punchline_image_url | replace('width=1024', 'width=' ~ 600) }}" alt="{{ joke.punchline_text }}" width="600" height="600" loading="lazy">
                   {% else %}
-                  <div class="joke-slide-placeholder">Punchline ready to read!</div>
+                  <div class="joke-slide-placeholder text-button">Punchline ready to read!</div>
                   {% endif %}
                 </div>
               </div>
             </div>
           </div>
         </div>
-        <button class="joke-reveal"
+        <button class="joke-reveal text-button"
           type="button"
           data-role="reveal"
           data-label-show="Reveal Punchline"
@@ -119,15 +119,15 @@
     {% endfor %}
   </div>
   {% else %}
-  <p class="favorites-subtitle">Our cookie jar is cooling—check back soon for more fan-favorite jokes.</p>
+  <p class="favorites-subtitle text-body">Our cookie jar is cooling—check back soon for more fan-favorite jokes.</p>
   {% endif %}
 </section>
 
 <section class="app-highlight" id="app-highlight" aria-labelledby="app-highlight-title">
   <div class="app-highlight__copy">
-    <h2 id="app-highlight-title">Get your daily giggle delivered.</h2>
-    <p>Snickerdoodle serves a delightful illustrated joke every morning. Save your favorites, share them with friends, and explore themed collections in the app.</p>
-    <div class="rating-chip">★ 4.7 Stars · US Play Store</div>
+    <h2 id="app-highlight-title" class="text-section-heading">Get your daily giggle delivered.</h2>
+    <p class="text-body">Snickerdoodle serves a delightful illustrated joke every morning. Save your favorites, share them with friends, and explore themed collections in the app.</p>
+    <div class="rating-chip text-button">★ 4.7 Stars · US Play Store</div>
     <a href="https://play.google.com/store/apps/details?id=com.builtwithporpoise.jokes"
       class="play-badge-link" target="_blank" rel="noopener noreferrer" aria-label="Get it on Google Play"
       data-analytics-event="web_index_play_store_click" data-analytics-label="joke_end_card">
@@ -136,7 +136,7 @@
     </a>
   </div>
   <div class="app-highlight__media" aria-hidden="true">
-    <div class="app-highlight__placeholder">App preview baking…</div>
+    <div class="app-highlight__placeholder text-button">App preview baking…</div>
   </div>
 </section>
 {% endblock %}

@@ -29,7 +29,7 @@ ColorScheme darkColorScheme = ColorScheme.fromSeed(
   error: Color.fromARGB(255, 198, 41, 41),
 );
 
-final TextTheme textTheme = GoogleFonts.nunitoSansTextTheme(const TextTheme());
+final TextTheme textTheme = GoogleFonts.nunitoTextTheme(const TextTheme());
 
 const AppBarTheme appBarTheme = AppBarTheme(
   backgroundColor: Colors.transparent,

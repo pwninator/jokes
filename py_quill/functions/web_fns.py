@@ -20,6 +20,25 @@ app = flask.Flask(__name__,
                   template_folder=_TEMPLATES_DIR,
                   static_folder=_STATIC_DIR)
 
+
+def _load_landing_css() -> str:
+  css_path = os.path.join(_STATIC_DIR, 'css', 'style.css')
+  try:
+    with open(css_path, 'r', encoding='utf-8') as css_file:
+      return css_file.read()
+  except FileNotFoundError:
+    logger.error('Landing stylesheet missing at %s', css_path)
+    return ''
+
+
+_LANDING_CSS = _load_landing_css()
+
+
+@app.context_processor
+def _inject_landing_css() -> dict[str, str]:
+  return {'landing_css': _LANDING_CSS}
+
+
 # Canonical public base URL used for sitemaps and absolute links.
 _PUBLIC_BASE_URL = os.environ.get('PUBLIC_BASE_URL',
                                   'https://snickerdoodlejokes.com').rstrip('/')
@@ -90,20 +109,58 @@ def _fetch_topic_jokes(topic: str, limit: int) -> list[models.PunnyJoke]:
 
 @web_bp.route('/')
 def index():
-  """Render the landing page with the top 10 jokes."""
-  jokes = firestore.get_top_jokes('popularity_score_recent', 10)
+  """Render the landing page with the daily joke and fan favorites."""
+  now_la = datetime.datetime.now(zoneinfo.ZoneInfo("America/Los_Angeles"))
+  today_la = now_la.date()
 
-  if not jokes:
-    return "Could not find any top jokes.", 404
+  top_jokes = firestore.get_top_jokes('popularity_score_recent', 10)
 
+  favorites: list[models.PunnyJoke] = []
+  seen_keys: set[str] = set()
+
+  for joke in top_jokes:
+    joke_key = joke.key or ''
+    if joke_key and joke_key in seen_keys:
+      continue
+    favorites.append(joke)
+    if joke_key:
+      seen_keys.add(joke_key)
+    if len(favorites) == 3:
+      break
+
+  daily_joke = None
+  try:
+    maybe_daily = firestore.get_daily_joke('daily_jokes', today_la)
+    if maybe_daily:
+      daily_joke = maybe_daily
+      if maybe_daily.key:
+        favorites = [j for j in favorites if j.key != maybe_daily.key]
+        seen_keys.add(maybe_daily.key)
+        for joke in top_jokes:
+          if joke.key and joke.key in seen_keys:
+            continue
+          favorites.append(joke)
+          if len(favorites) == 3:
+            break
+          seen_keys.add(joke.key or '')
+  except Exception as exc:  # pylint: disable=broad-except
+    logger.error('Failed to fetch daily joke for %s: %s', today_la.isoformat(),
+                 str(exc))
+
+  if not daily_joke and not favorites:
+    return "Could not find any jokes to display.", 404
+
+  hero_date_label = now_la.strftime('%b %d, %Y')
   html = flask.render_template(
     'index.html',
-    jokes=jokes,
+    daily_joke=daily_joke,
+    favorites=favorites,
+    hero_date_label=hero_date_label,
     canonical_url=flask.url_for('web.index', _external=True),
     site_name='Snickerdoodle',
     now_year=datetime.datetime.now(datetime.timezone.utc).year,
   )
-  return _html_response(html, cache_seconds=300, cdn_seconds=1800)
+  return _html_response(html, cache_seconds=300, cdn_seconds=1200)
 
 
 @web_bp.route('/jokes/<topic>')
@@ -141,6 +198,36 @@ def topic_page(topic: str):
     now_year=now_year,
   )
   return _html_response(html, cache_seconds=300, cdn_seconds=1800)
+
+
+@web_bp.route('/book')
+def book():
+  """Render placeholder page for the Snickerdoodle joke book."""
+  now_year = datetime.datetime.now(datetime.timezone.utc).year
+  html = flask.render_template(
+    'book.html',
+    canonical_url=flask.url_for('web.book', _external=True),
+    site_name='Snickerdoodle',
+    now_year=now_year,
+    prev_url=None,
+    next_url=None,
+  )
+  return _html_response(html, cache_seconds=600, cdn_seconds=3600)
+
+
+@web_bp.route('/about')
+def about():
+  """Render placeholder page for information about Snickerdoodle."""
+  now_year = datetime.datetime.now(datetime.timezone.utc).year
+  html = flask.render_template(
+    'about.html',
+    canonical_url=flask.url_for('web.about', _external=True),
+    site_name='Snickerdoodle',
+    now_year=now_year,
+    prev_url=None,
+    next_url=None,
+  )
+  return _html_response(html, cache_seconds=600, cdn_seconds=3600)
 
 
 def _redirect_to_admin_dashboard() -> flask.Response:
@@ -335,7 +422,7 @@ def admin_joke_book_detail(book_id: str):
 
   book_data = book_doc.to_dict() or {}
   jokes = book_data.get('jokes') or []
-  book = {
+  book_info = {
     'id': book_id,
     'book_name': book_data.get('book_name') or book_id,
     'zip_url': book_data.get('zip_url'),
@@ -394,7 +481,7 @@ def admin_joke_book_detail(book_id: str):
 
   return flask.render_template(
     'admin/joke_book_detail.html',
-    book=book,
+    book=book_info,
     jokes=joke_rows,
     generate_book_page_url=generate_book_page_url,
     update_book_page_url=(

@@ -27,14 +27,17 @@
   <meta name="twitter:description"
     content="{% block twitter_description %}Discover funny, family-friendly jokes with images. Reveal the punchline when you're ready.{% endblock %}">
 
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
+  {% if landing_css %}
+  <style>{{ landing_css|safe }}</style>
+  {% endif %}
+  <!-- legacy background: #121212 -->
   {% block head_extra %}{% endblock %}
   <!-- Favicon: inline SVG to avoid 404s in emulator and production rewrites -->
   <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
-  <!-- App font to mirror mobile UI -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700;800&display=swap" rel="stylesheet">
   <!-- Google tag (gtag.js) -->
   <script async src="https://www.googletagmanager.com/gtag/js?id=G-D2B7E8PXJJ"></script>
   <script>
@@ -44,427 +47,60 @@
 
     gtag('config', 'G-D2B7E8PXJJ');
   </script>
-  <style>
-    :root {
-      color-scheme: dark;
-      /* Dark theme palette (aligns with lib/src/core/theme/app_theme.dart) */
-      --primary: #B05F00;
-      /* slightly darker than seed */
-      --primary-700: #924E00;
-      --primary-container: #E59C48;
-      /* Color.fromARGB(255, 229, 156, 72) */
-      --on-primary: #ffffff;
-      --on-primary-container: #1b1b1b;
-      --surface: #1b1b1b;
-      /* dark surface */
-      --card-bg: #1f1f1f;
-      /* card surface (dark) */
-      --card-border: rgba(255, 255, 255, 0.08);
-      --card-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
-      --parchment: #121212;
-      /* site background (keep literal for tests) */
-      --text: #eaeaea;
-    }
-
-    body {
-      margin: 0;
-      font-family: 'Nunito Sans', system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-      line-height: 1.6;
-      background: #121212;
-      /* keep literal for tests */
-      background: var(--parchment);
-      color: var(--text);
-    }
-
-    .site-footer {
-      margin-top: 64px;
-      padding: 24px 16px 40px;
-      border-top: 1px solid rgba(255, 255, 255, 0.08);
-      background: var(--parchment);
-    }
-
-    .site-footer__inner {
-      max-width: 1200px;
-      margin: 0 auto;
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      color: var(--text);
-      font-size: 0.95rem;
-    }
-
-    .site-footer__link {
-      color: rgba(255, 255, 255, 0.88);
-      text-decoration: none;
-      font-weight: 600;
-      transition: color 160ms ease, opacity 160ms ease;
-    }
-
-    .site-footer__link:hover,
-    .site-footer__link:focus-visible {
-      color: var(--primary-container);
-      text-decoration: underline;
-      outline: none;
-    }
-
-    .site-footer__link:focus-visible {
-      outline: 3px solid rgba(193, 122, 45, 0.4);
-      outline-offset: 2px;
-    }
-
-    /* Header */
-    .site-header {
-      padding: 12px 16px;
-      border-bottom: 1px solid rgba(0, 0, 0, 0.1);
-      background: var(--parchment);
-    }
-
-    .site-header .container {
-      max-width: 1200px;
-      margin: 0 auto;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 16px;
-    }
-
-    .brand {
-      display: inline-flex;
-      align-items: center;
-      gap: 10px;
-      text-decoration: none;
-      color: inherit;
-    }
-
-    .brand-logo {
-      width: 64px;
-      height: 64px;
-      object-fit: contain;
-      display: inline-block;
-    }
-
-    .brand-text {
-      font-weight: 800;
-      letter-spacing: 0.2px;
-      color: #f0e6d6;
-    }
-
-    /* Shared pill CTA (header + landing) uses primary-container */
-    .pill-cta {
-      display: inline-block;
-      padding: 10px 16px;
-      background: var(--primary-container);
-      color: var(--on-primary-container);
-      text-decoration: none;
-      border-radius: 24px;
-      font-weight: 800;
-      letter-spacing: 0.2px;
-      border: 1px solid rgba(0, 0, 0, 0.12);
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
-      transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease;
-    }
-
-    .pill-cta:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.16);
-    }
-
-    .pill-cta:active {
-      transform: translateY(0);
-      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
-      background: #E6AA2E;
-    }
-
-    .pill-cta:focus-visible {
-      outline: 3px solid rgba(198, 109, 0, 0.28);
-      outline-offset: 2px;
-    }
-
-    main {
-      padding: 24px;
-      max-width: 680px;
-      margin: 0 auto;
-    }
-
-    h1 {
-      font-size: 1.8rem;
-      margin: 0 0 12px;
-    }
-
-    h2 {
-      font-size: 1.4rem;
-      margin: 0 0 10px;
-    }
-
-    h3 {
-      font-size: 1.1rem;
-      margin: 0 0 8px;
-    }
-
-    .subtitle {
-      color: #b8b8b8;
-      margin-bottom: 24px;
-    }
-
-    .grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-      gap: 16px;
-    }
-
-    .card {
-      border: 1px solid var(--card-border);
-      border-radius: 12px;
-      overflow: hidden;
-      background: var(--card-bg);
-      box-shadow: var(--card-shadow);
-    }
-
-    .media {
-      aspect-ratio: 3 / 2;
-      background: #262626;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .media img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-    }
-
-    .content {
-      padding: 14px;
-    }
-
-    .setup {
-      font-weight: 600;
-      margin: 0 0 8px;
-    }
-
-    details {
-      border-top: 1px solid rgba(0, 0, 0, 0.06);
-      padding-top: 10px;
-    }
-
-    summary {
-      cursor: pointer;
-    }
-
-    .punchline {
-      margin-top: 10px;
-    }
-
-    footer {
-      padding: 24px;
-      text-align: center;
-      color: #9a9a9a;
-    }
-
-    /* Joke carousel */
-    .joke-carousel {
-      width: 100%;
-      max-width: 600px;
-      margin: 4px auto 12px;
-    }
-
-    .joke-carousel-viewport {
-      overflow: hidden;
-      width: 100%;
-      border-radius: 16px;
-      background: var(--card-bg);
-      border: 1px solid var(--card-border);
-      box-shadow: 0 8px 22px rgba(0, 0, 0, 0.08);
-    }
-
-    .joke-carousel-track {
-      display: flex;
-      width: 200%;
-      height: 100%;
-      transform: translateX(0);
-      transition: transform 300ms ease;
-    }
-
-    .joke-slide {
-      width: 100%;
-      height: 100%;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      padding: 8px;
-      box-sizing: border-box;
-      align-items: stretch;
-      justify-content: flex-start;
-    }
-
-    .joke-slide-media {
-      width: 100%;
-      aspect-ratio: 1 / 1;
-      border-radius: 14px;
-      overflow: hidden;
-      background: #222;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .joke-slide img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-    }
-
-    /* Joke text styling inside widget */
-    .joke-widget .joke-text {
-      text-align: center;
-      font-size: 1.1rem;
-      color: #e6e6e6;
-      margin: 2px 6px 0;
-    }
-
-    /* Standardized Play badge styles */
-    .play-badge {
-      display: block;
-      width: auto;
-      height: auto;
-    }
-
-    /* Ensure Play badges inside slides aren't stretched by the generic slide image rule */
-    .joke-slide img.play-badge--cta {
-      height: 72px;
-      margin: 8px auto 0;
-      object-fit: contain;
-    }
-
-    .play-badge--header {
-      height: 64px;
-    }
-
-    /* Toggle second slide when details is open */
-    .joke-widget details[open]+.joke-carousel .joke-carousel-track {
-      transform: translateX(-50%);
-    }
-
-    /* Reduced motion */
-    @media (prefers-reduced-motion: reduce) {
-      .joke-carousel-track {
-        transition: none;
-      }
-    }
-
-    /* Visually hidden for a11y-only content */
-    .visually-hidden {
-      position: absolute !important;
-      width: 1px;
-      height: 1px;
-      padding: 0;
-      margin: -1px;
-      overflow: hidden;
-      clip: rect(0, 0, 0, 0);
-      white-space: nowrap;
-      border: 0;
-    }
-
-    /* Joke widget wrapper: ensure button appears below the image visually */
-    .joke-widget {
-      display: flex;
-      flex-direction: column;
-      gap: 6px;
-      align-items: stretch;
-      max-width: 600px;
-      margin: 0 auto;
-    }
-
-    .joke-widget .joke-carousel {
-      order: 1;
-    }
-
-    .joke-widget details {
-      order: 2;
-      align-self: stretch;
-      border-top: 0;
-      padding-top: 0;
-      margin-top: 0;
-    }
-
-    .joke-widget summary {
-      background: var(--primary-container);
-      color: var(--on-primary-container);
-      padding: 14px 20px;
-      border-radius: 24px;
-      font-weight: 800;
-      letter-spacing: 0.2px;
-      list-style: none;
-      display: block;
-      width: 100%;
-      box-sizing: border-box;
-      text-align: center;
-      border: 1px solid rgba(0, 0, 0, 0.12);
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.12);
-      transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease;
-      user-select: none;
-    }
-
-    .joke-widget summary::-webkit-details-marker {
-      display: none;
-    }
-
-    .joke-widget summary:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.16);
-    }
-
-    .joke-widget summary:active {
-      background: #E6AA2E;
-      transform: translateY(0);
-      box-shadow: 0 1px 4px rgba(0, 0, 0, 0.18);
-    }
-
-    .joke-widget summary:focus-visible {
-      outline: 3px solid rgba(193, 122, 45, 0.4);
-      outline-offset: 2px;
-    }
-  </style>
 </head>
 
 <body>
-  <header class="site-header">
-    <div class="container">
-      <a class="brand" href="/" aria-label="{{ site_name }} home">
-        <img class="brand-logo" alt="{{ site_name }} logo"
-          src="https://images.quillsstorybook.com/cdn-cgi/image/width=128,format=auto,quality=90/joke_assets/icon_cookie_01_transparent_dark2.png" />
-        <span class="brand-text">{{ site_name }}</span>
-      </a>
-      <div class="header-cta">
-        <a href="https://play.google.com/store/apps/details?id=com.builtwithporpoise.jokes" target="_blank"
-          rel="noopener noreferrer" aria-label="Get it on Google Play"
-          data-analytics-event="web_index_play_store_click" data-analytics-label="header">
-          <img class="play-badge play-badge--header" alt="Get it on Google Play"
-            src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png"
-            loading="lazy" />
+  {% set current_path = request.path %}
+  <div class="site-shell">
+    <header class="site-header">
+      <div class="header-inner">
+        <a class="brand" href="{{ url_for('web.index') }}" aria-label="{{ site_name }} home">
+          <img class="brand-logo" alt="{{ site_name }} logo"
+            src="https://images.quillsstorybook.com/cdn-cgi/image/width=128,format=auto,quality=90/joke_assets/icon_cookie_01_transparent_dark2.png" />
+          <span class="brand-text">{{ site_name }}</span>
+        </a>
+        <nav class="primary-nav" aria-label="Main navigation">
+          <ul class="nav-list">
+            <li>
+              <a class="nav-link {% if current_path == url_for('web.index') %}nav-link--active{% endif %}"
+                href="{{ url_for('web.index') }}">Home</a>
+            </li>
+            <li>
+              <a class="nav-link {% if current_path == url_for('web.book') %}nav-link--active{% endif %}"
+                href="{{ url_for('web.book') }}">The Book</a>
+            </li>
+            <li>
+              <a class="nav-link {% if current_path == url_for('web.about') %}nav-link--active{% endif %}"
+                href="{{ url_for('web.about') }}">About</a>
+            </li>
+          </ul>
+          <a class="nav-cta" href="https://play.google.com/store/apps/details?id=com.builtwithporpoise.jokes"
+            target="_blank" rel="noopener noreferrer" data-analytics-event="web_index_play_store_click"
+            data-analytics-label="header">
+            Get the App
+          </a>
+        </nav>
+      </div>
+    </header>
+    <main class="site-main">
+      <div class="main-container">
+        {% block content %}{% endblock %}
+      </div>
+    </main>
+    <footer class="site-footer">
+      <div class="site-footer__inner">
+        <small>&copy; {{ site_name }} {{ now_year|default(2025) }}</small>
+        <a class="site-footer__link"
+           href="/privacy.html"
+           target="_blank"
+           rel="noopener noreferrer"
+           data-analytics-event="web_footer_privacy_click"
+           data-analytics-label="privacy_policy">
+          Privacy Policy
         </a>
       </div>
+    </footer>
     </div>
-  </header>
-  <main>
-    {% block content %}{% endblock %}
-  </main>
-  <footer class="site-footer">
-    <div class="site-footer__inner">
-      <small>&copy; {{ site_name }} {{ now_year|default(2025) }}</small>
-      <a class="site-footer__link"
-         href="/privacy.html"
-         target="_blank"
-         rel="noopener noreferrer"
-         data-analytics-event="web_footer_privacy_click"
-         data-analytics-label="privacy_policy">
-        Privacy Policy
-      </a>
-    </div>
-  </footer>
   <script>
     (function () {
       if (typeof document === 'undefined' || !document.addEventListener) {
@@ -500,6 +136,7 @@
       });
     })();
   </script>
+  {% block scripts %}{% endblock %}
 </body>
 
 </html>

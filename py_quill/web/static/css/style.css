@@ -18,7 +18,8 @@
   /* Typography System */
   --font-weight-display: 900;
   --font-weight-heading: 800;
-  --font-weight-label: 800;  /* Buttons, Pills */
+  --font-weight-label: 800;
+  /* Buttons, Pills */
   --font-weight-body: 600;
 }
 
@@ -26,7 +27,7 @@
 
 /* 1. Display Heading */
 .text-display {
-  font-size: 2rem;
+  font-size: 3rem;
   font-weight: var(--font-weight-display);
   line-height: 1.25;
   color: var(--color-text);
@@ -66,7 +67,8 @@
 
 /* 6. Footer Text */
 .text-footer {
-  font-size: 0.9rem; /* Slightly smaller than body */
+  font-size: 0.9rem;
+  /* Slightly smaller than body */
   font-weight: var(--font-weight-body);
   color: var(--color-text-muted);
 }
@@ -235,38 +237,6 @@ img {
 .hero-subtitle {
   margin: 0 0 24px;
   max-width: 520px;
-}
-
-.hero-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-
-.hero-cta {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 12px 22px;
-  border-radius: 999px;
-  background: var(--color-primary);
-  color: #ffffff;
-  box-shadow: 0 10px 24px rgba(212, 160, 23, 0.28);
-  transition: transform 120ms ease, box-shadow 120ms ease;
-}
-
-.hero-cta:hover,
-.hero-cta:focus-visible {
-  transform: translateY(-1px);
-  text-decoration: none;
-  box-shadow: 0 14px 28px rgba(212, 160, 23, 0.28);
-}
-
-.hero-cta.secondary {
-  background: transparent;
-  color: var(--color-primary-dark);
-  border: 2px solid rgba(212, 160, 23, 0.45);
-  box-shadow: none;
 }
 
 .hero-card {
@@ -614,7 +584,7 @@ tr:last-child td {
   }
 }
 
-@media (max-width: 640px) {
+@media (max-width: 360px) {
   .header-inner {
     flex-wrap: wrap;
   }

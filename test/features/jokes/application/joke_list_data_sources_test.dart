@@ -109,6 +109,7 @@ JokeInteraction _buildInteraction(
     punchlineImageUrl: 'punch_$id.png',
     feedIndex: feedIndex,
     viewedTimestamp: viewedTimestamp,
+    hasEverSaved: false,
   );
 }
 

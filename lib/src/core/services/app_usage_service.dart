@@ -337,13 +337,16 @@ class AppUsageService {
   /// Save a joke (persists to DB)
   Future<void> saveJoke(String jokeId, {required BuildContext context}) async {
     try {
+      final hasEverSaved = await _jokeInteractions.hasEverSaved(jokeId);
       await _jokeInteractions.setSaved(jokeId);
 
-      // Increment Firestore counter atomically
-      try {
-        await _jokeRepository.incrementJokeSaves(jokeId);
-      } catch (e) {
-        AppLogger.error('APP_USAGE saveJoke Firestore increment error: $e');
+      // Increment Firestore counter atomically only on first save for this user
+      if (!hasEverSaved) {
+        try {
+          await _jokeRepository.incrementJokeSaves(jokeId);
+        } catch (e) {
+          AppLogger.error('APP_USAGE saveJoke Firestore increment error: $e');
+        }
       }
 
       _notifyUsageChanged();
@@ -364,13 +367,6 @@ class AppUsageService {
   Future<void> unsaveJoke(String jokeId) async {
     try {
       await _jokeInteractions.setUnsaved(jokeId);
-
-      // Decrement Firestore counter atomically
-      try {
-        await _jokeRepository.decrementJokeSaves(jokeId);
-      } catch (e) {
-        AppLogger.error('APP_USAGE unsaveJoke Firestore decrement error: $e');
-      }
 
       _notifyUsageChanged();
       _pushUsageSnapshot();

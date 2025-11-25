@@ -49,6 +49,9 @@ class JokeInteractions extends Table {
   TextColumn get thumbsReaction =>
       text().map(const JokeThumbsReactionConverter()).nullable()();
 
+  // Tracks if this user has ever saved the joke (never reset once true)
+  BoolColumn get hasEverSaved => boolean().withDefault(const Constant(false))();
+
   @override
   Set<Column<Object>>? get primaryKey => {jokeId};
 }
@@ -92,7 +95,7 @@ class AppDatabase extends _$AppDatabase {
   }
 
   @override
-  int get schemaVersion => 7;
+  int get schemaVersion => 8;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -132,6 +135,12 @@ class AppDatabase extends _$AppDatabase {
       }
       if (from < 7) {
         await m.addColumn(jokeInteractions, jokeInteractions.thumbsReaction);
+      }
+      if (from < 8) {
+        await m.addColumn(jokeInteractions, jokeInteractions.hasEverSaved);
+        await customStatement(
+          'UPDATE joke_interactions SET has_ever_saved = 1 WHERE saved_timestamp IS NOT NULL',
+        );
       }
     },
   );

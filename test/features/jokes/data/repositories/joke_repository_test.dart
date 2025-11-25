@@ -592,17 +592,6 @@ void main() {
         );
       });
 
-      test('decrementJokeSaves decrements num_saved_users by 1', () async {
-        await repository.decrementJokeSaves('joke1');
-
-        verify(
-          () => mockDocumentReference.update({
-            'num_saved_users': FieldValue.increment(-1),
-            'num_saved_users_recent': FieldValue.increment(-1),
-          }),
-        );
-      });
-
       test('incrementJokeShares increments num_shared_users by 1', () async {
         await repository.incrementJokeShares('joke1');
 
@@ -626,11 +615,6 @@ void main() {
 
         expect(
           () => repository.incrementJokeSaves('joke1'),
-          throwsA(isA<FirebaseException>()),
-        );
-
-        expect(
-          () => repository.decrementJokeSaves('joke1'),
           throwsA(isA<FirebaseException>()),
         );
 

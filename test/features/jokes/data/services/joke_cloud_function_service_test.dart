@@ -98,7 +98,9 @@ void main() {
             ),
           ).thenReturn(mockCallable);
           when(() => mockResult.data).thenReturn(mockResponseData);
-          when(() => mockCallable.call(any())).thenAnswer((_) async => mockResult);
+          when(
+            () => mockCallable.call(any()),
+          ).thenAnswer((_) async => mockResult);
 
           final result = await service.createJokeWithResponse(
             setupText: setupText,
@@ -221,9 +223,9 @@ void main() {
             options: any(named: 'options'),
           ),
         ).called(1);
-          final captured =
-              verify(() => mockCallable.call(captureAny())).captured.single
-                  as Map<String, dynamic>;
+        final captured =
+            verify(() => mockCallable.call(captureAny())).captured.single
+                as Map<String, dynamic>;
         expect(captured['search_query'], q);
         expect(captured['max_results'], '50');
         expect(captured['public_only'], isTrue);

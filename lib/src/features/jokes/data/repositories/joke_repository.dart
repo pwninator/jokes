@@ -697,14 +697,6 @@ class JokeRepository {
     ], 1);
   }
 
-  /// Atomically decrement the number of users who saved this joke
-  Future<void> decrementJokeSaves(String jokeId) async {
-    await _incrementJokeField(jokeId, [
-      'num_saved_users',
-      'num_saved_users_recent',
-    ], -1);
-  }
-
   /// Atomically increment the number of users who shared this joke
   Future<void> incrementJokeShares(String jokeId) async {
     await _incrementJokeField(jokeId, [

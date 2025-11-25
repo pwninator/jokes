@@ -82,6 +82,9 @@ class TestMocks {
     when(() => repo.countNavigated()).thenAnswer((_) async => 0);
     when(() => repo.countThumbsUp()).thenAnswer((_) async => 0);
     when(() => repo.countThumbsDown()).thenAnswer((_) async => 0);
+    when(() => repo.hasEverSaved(any())).thenAnswer((_) async => false);
+    when(() => repo.setSaved(any())).thenAnswer((_) async => true);
+    when(() => repo.setUnsaved(any())).thenAnswer((_) async => true);
     when(
       () => repo.getThumbsReaction(any()),
     ).thenAnswer((_) async => JokeThumbsReaction.none);
@@ -196,6 +199,7 @@ void main() {
         savedTimestamp: null,
         sharedTimestamp: null,
         lastUpdateTimestamp: now,
+        hasEverSaved: false,
       );
 
       when(
@@ -515,6 +519,7 @@ void main() {
         savedTimestamp: null,
         sharedTimestamp: null,
         lastUpdateTimestamp: now,
+        hasEverSaved: false,
       );
 
       when(
@@ -758,7 +763,7 @@ void main() {
   });
 
   group('AppUsageService saved/shared via repo', () {
-    test('saveJoke and unsaveJoke update repo and counts from repo', () async {
+    test('saveJoke increments Firestore only on first save per user', () async {
       final mocks = TestMocks();
       final prefs = await SharedPreferences.getInstance();
       final settingsService = SettingsService(prefs);
@@ -766,7 +771,14 @@ void main() {
       final ref = container.read(Provider<Ref>((ref) => ref));
 
       var savedCount = 0;
-      when(() => mocks.repo.setSaved(any())).thenAnswer((_) async {
+      final everSaved = <String, bool>{};
+      when(() => mocks.repo.hasEverSaved(any())).thenAnswer((invocation) async {
+        final jokeId = invocation.positionalArguments.first as String;
+        return everSaved[jokeId] ?? false;
+      });
+      when(() => mocks.repo.setSaved(any())).thenAnswer((invocation) async {
+        final jokeId = invocation.positionalArguments.first as String;
+        everSaved[jokeId] = true;
         savedCount += 1;
         return true;
       });
@@ -778,6 +790,11 @@ void main() {
       when(() => mocks.repo.countViewed()).thenAnswer((_) async => 0);
       when(() => mocks.repo.countShared()).thenAnswer((_) async => 0);
 
+      final mockJokeRepository = _MockJokeRepository();
+      when(() => mockJokeRepository.incrementJokeSaves(any())).thenAnswer(
+        (_) async {},
+      );
+
       final service = AppUsageService(
         settingsService: settingsService,
         ref: ref,
@@ -785,7 +802,7 @@ void main() {
         jokeCloudFn: mocks.jokeCloudFn,
         categoryInteractionsService: _MockCategoryInteractionsService(),
         jokeInteractionsRepository: mocks.repo,
-        jokeRepository: _MockJokeRepository(),
+        jokeRepository: mockJokeRepository,
         reviewPromptCoordinator: mocks.reviewCoordinator,
         isDebugMode: true,
       );
@@ -799,11 +816,22 @@ void main() {
       expect(await service.getNumSavedJokes(), 1);
       await service.unsaveJoke('s2');
       expect(await service.getNumSavedJokes(), 0);
+      await service.saveJoke('s1', context: _FakeBuildContext());
+      await service.saveJoke('s2', context: _FakeBuildContext());
+      expect(await service.getNumSavedJokes(), 2);
 
-      verify(() => mocks.repo.setSaved('s1')).called(1);
-      verify(() => mocks.repo.setSaved('s2')).called(1);
+      verify(() => mocks.repo.setSaved('s1')).called(2);
+      verify(() => mocks.repo.setSaved('s2')).called(2);
       verify(() => mocks.repo.setUnsaved('s1')).called(1);
       verify(() => mocks.repo.setUnsaved('s2')).called(1);
+      verify(
+        () => mockJokeRepository.incrementJokeSaves('s1'),
+      ).called(1);
+      verify(
+        () => mockJokeRepository.incrementJokeSaves('s2'),
+      ).called(1);
+      // Resaving after unsave should not re-increment
+      verifyNoMoreInteractions(mockJokeRepository);
     });
 
     test('getSavedJokeIds mirrors repository order', () async {
@@ -823,6 +851,7 @@ void main() {
             savedTimestamp: savedAtOne,
             sharedTimestamp: null,
             lastUpdateTimestamp: savedAtOne,
+            hasEverSaved: true,
           ),
           JokeInteraction(
             jokeId: 'second',
@@ -830,6 +859,7 @@ void main() {
             savedTimestamp: savedAtTwo,
             sharedTimestamp: null,
             lastUpdateTimestamp: savedAtTwo,
+            hasEverSaved: true,
           ),
         ],
       );
@@ -867,6 +897,7 @@ void main() {
             savedTimestamp: null,
             sharedTimestamp: null,
             lastUpdateTimestamp: viewedAtOne,
+            hasEverSaved: false,
           ),
           JokeInteraction(
             jokeId: 'v2',
@@ -874,6 +905,7 @@ void main() {
             savedTimestamp: null,
             sharedTimestamp: null,
             lastUpdateTimestamp: viewedAtTwo,
+            hasEverSaved: false,
           ),
         ],
       );
@@ -911,6 +943,7 @@ void main() {
             savedTimestamp: null,
             sharedTimestamp: sharedAtOne,
             lastUpdateTimestamp: sharedAtOne,
+            hasEverSaved: false,
           ),
           JokeInteraction(
             jokeId: 's2',
@@ -918,6 +951,7 @@ void main() {
             savedTimestamp: null,
             sharedTimestamp: sharedAtTwo,
             lastUpdateTimestamp: sharedAtTwo,
+            hasEverSaved: false,
           ),
         ],
       );
@@ -961,9 +995,10 @@ void main() {
                 savedTimestamp: null,
                 sharedTimestamp: null,
                 lastUpdateTimestamp: id == 'joke-1' ? viewedAtOne : viewedAtTwo,
+                hasEverSaved: false,
               ),
             )
-            .toList();
+            .toList(growable: false);
       });
 
       final service = AppUsageService(
@@ -1065,8 +1100,9 @@ void main() {
               savedTimestamp: null,
               sharedTimestamp: null,
               lastUpdateTimestamp: viewedAt,
+              hasEverSaved: false,
             );
-          }).toList();
+          }).toList(growable: false);
         });
 
         final service = AppUsageService(

@@ -83,6 +83,7 @@ class JokeInteractionsRepository {
               jokeId: jokeId,
               savedTimestamp: Value(at),
               lastUpdateTimestamp: now,
+              hasEverSaved: const Value(true),
             ),
           );
       return true;
@@ -242,6 +243,11 @@ class JokeInteractionsRepository {
   Future<bool> isJokeSaved(String jokeId) async {
     JokeInteraction? interaction = await getJokeInteraction(jokeId);
     return interaction?.savedTimestamp != null;
+  }
+
+  Future<bool> hasEverSaved(String jokeId) async {
+    final interaction = await getJokeInteraction(jokeId);
+    return interaction?.hasEverSaved ?? false;
   }
 
   Future<bool> isJokeShared(String jokeId) async {
@@ -431,6 +437,7 @@ class JokeInteractionsRepository {
                   viewedTimestamp: const Value.absent(),
                   savedTimestamp: const Value.absent(),
                   sharedTimestamp: const Value.absent(),
+                  hasEverSaved: const Value.absent(),
                 ),
               );
         }

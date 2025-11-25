@@ -144,6 +144,21 @@ class $JokeInteractionsTable extends JokeInteractions
       ).withConverter<JokeThumbsReaction?>(
         $JokeInteractionsTable.$converterthumbsReactionn,
       );
+  static const VerificationMeta _hasEverSavedMeta = const VerificationMeta(
+    'hasEverSaved',
+  );
+  @override
+  late final GeneratedColumn<bool> hasEverSaved = GeneratedColumn<bool>(
+    'has_ever_saved',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("has_ever_saved" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     jokeId,
@@ -158,6 +173,7 @@ class $JokeInteractionsTable extends JokeInteractions
     punchlineImageUrl,
     feedIndex,
     thumbsReaction,
+    hasEverSaved,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -265,6 +281,15 @@ class $JokeInteractionsTable extends JokeInteractions
         feedIndex.isAcceptableOrUnknown(data['feed_index']!, _feedIndexMeta),
       );
     }
+    if (data.containsKey('has_ever_saved')) {
+      context.handle(
+        _hasEverSavedMeta,
+        hasEverSaved.isAcceptableOrUnknown(
+          data['has_ever_saved']!,
+          _hasEverSavedMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -324,6 +349,10 @@ class $JokeInteractionsTable extends JokeInteractions
           data['${effectivePrefix}thumbs_reaction'],
         ),
       ),
+      hasEverSaved: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}has_ever_saved'],
+      )!,
     );
   }
 
@@ -351,6 +380,7 @@ class JokeInteraction extends DataClass implements Insertable<JokeInteraction> {
   final String? punchlineImageUrl;
   final int? feedIndex;
   final JokeThumbsReaction? thumbsReaction;
+  final bool hasEverSaved;
   const JokeInteraction({
     required this.jokeId,
     this.navigatedTimestamp,
@@ -364,6 +394,7 @@ class JokeInteraction extends DataClass implements Insertable<JokeInteraction> {
     this.punchlineImageUrl,
     this.feedIndex,
     this.thumbsReaction,
+    required this.hasEverSaved,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -402,6 +433,7 @@ class JokeInteraction extends DataClass implements Insertable<JokeInteraction> {
         $JokeInteractionsTable.$converterthumbsReactionn.toSql(thumbsReaction),
       );
     }
+    map['has_ever_saved'] = Variable<bool>(hasEverSaved);
     return map;
   }
 
@@ -439,6 +471,7 @@ class JokeInteraction extends DataClass implements Insertable<JokeInteraction> {
       thumbsReaction: thumbsReaction == null && nullToAbsent
           ? const Value.absent()
           : Value(thumbsReaction),
+      hasEverSaved: Value(hasEverSaved),
     );
   }
 
@@ -468,6 +501,7 @@ class JokeInteraction extends DataClass implements Insertable<JokeInteraction> {
       thumbsReaction: serializer.fromJson<JokeThumbsReaction?>(
         json['thumbsReaction'],
       ),
+      hasEverSaved: serializer.fromJson<bool>(json['hasEverSaved']),
     );
   }
   @override
@@ -486,6 +520,7 @@ class JokeInteraction extends DataClass implements Insertable<JokeInteraction> {
       'punchlineImageUrl': serializer.toJson<String?>(punchlineImageUrl),
       'feedIndex': serializer.toJson<int?>(feedIndex),
       'thumbsReaction': serializer.toJson<JokeThumbsReaction?>(thumbsReaction),
+      'hasEverSaved': serializer.toJson<bool>(hasEverSaved),
     };
   }
 
@@ -502,6 +537,7 @@ class JokeInteraction extends DataClass implements Insertable<JokeInteraction> {
     Value<String?> punchlineImageUrl = const Value.absent(),
     Value<int?> feedIndex = const Value.absent(),
     Value<JokeThumbsReaction?> thumbsReaction = const Value.absent(),
+    bool? hasEverSaved,
   }) => JokeInteraction(
     jokeId: jokeId ?? this.jokeId,
     navigatedTimestamp: navigatedTimestamp.present
@@ -531,6 +567,7 @@ class JokeInteraction extends DataClass implements Insertable<JokeInteraction> {
     thumbsReaction: thumbsReaction.present
         ? thumbsReaction.value
         : this.thumbsReaction,
+    hasEverSaved: hasEverSaved ?? this.hasEverSaved,
   );
   JokeInteraction copyWithCompanion(JokeInteractionsCompanion data) {
     return JokeInteraction(
@@ -564,6 +601,9 @@ class JokeInteraction extends DataClass implements Insertable<JokeInteraction> {
       thumbsReaction: data.thumbsReaction.present
           ? data.thumbsReaction.value
           : this.thumbsReaction,
+      hasEverSaved: data.hasEverSaved.present
+          ? data.hasEverSaved.value
+          : this.hasEverSaved,
     );
   }
 
@@ -581,7 +621,8 @@ class JokeInteraction extends DataClass implements Insertable<JokeInteraction> {
           ..write('setupImageUrl: $setupImageUrl, ')
           ..write('punchlineImageUrl: $punchlineImageUrl, ')
           ..write('feedIndex: $feedIndex, ')
-          ..write('thumbsReaction: $thumbsReaction')
+          ..write('thumbsReaction: $thumbsReaction, ')
+          ..write('hasEverSaved: $hasEverSaved')
           ..write(')'))
         .toString();
   }
@@ -600,6 +641,7 @@ class JokeInteraction extends DataClass implements Insertable<JokeInteraction> {
     punchlineImageUrl,
     feedIndex,
     thumbsReaction,
+    hasEverSaved,
   );
   @override
   bool operator ==(Object other) =>
@@ -616,7 +658,8 @@ class JokeInteraction extends DataClass implements Insertable<JokeInteraction> {
           other.setupImageUrl == this.setupImageUrl &&
           other.punchlineImageUrl == this.punchlineImageUrl &&
           other.feedIndex == this.feedIndex &&
-          other.thumbsReaction == this.thumbsReaction);
+          other.thumbsReaction == this.thumbsReaction &&
+          other.hasEverSaved == this.hasEverSaved);
 }
 
 class JokeInteractionsCompanion extends UpdateCompanion<JokeInteraction> {
@@ -632,6 +675,7 @@ class JokeInteractionsCompanion extends UpdateCompanion<JokeInteraction> {
   final Value<String?> punchlineImageUrl;
   final Value<int?> feedIndex;
   final Value<JokeThumbsReaction?> thumbsReaction;
+  final Value<bool> hasEverSaved;
   final Value<int> rowid;
   const JokeInteractionsCompanion({
     this.jokeId = const Value.absent(),
@@ -646,6 +690,7 @@ class JokeInteractionsCompanion extends UpdateCompanion<JokeInteraction> {
     this.punchlineImageUrl = const Value.absent(),
     this.feedIndex = const Value.absent(),
     this.thumbsReaction = const Value.absent(),
+    this.hasEverSaved = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   JokeInteractionsCompanion.insert({
@@ -661,6 +706,7 @@ class JokeInteractionsCompanion extends UpdateCompanion<JokeInteraction> {
     this.punchlineImageUrl = const Value.absent(),
     this.feedIndex = const Value.absent(),
     this.thumbsReaction = const Value.absent(),
+    this.hasEverSaved = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : jokeId = Value(jokeId),
        lastUpdateTimestamp = Value(lastUpdateTimestamp);
@@ -677,6 +723,7 @@ class JokeInteractionsCompanion extends UpdateCompanion<JokeInteraction> {
     Expression<String>? punchlineImageUrl,
     Expression<int>? feedIndex,
     Expression<String>? thumbsReaction,
+    Expression<bool>? hasEverSaved,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -693,6 +740,7 @@ class JokeInteractionsCompanion extends UpdateCompanion<JokeInteraction> {
       if (punchlineImageUrl != null) 'punchline_image_url': punchlineImageUrl,
       if (feedIndex != null) 'feed_index': feedIndex,
       if (thumbsReaction != null) 'thumbs_reaction': thumbsReaction,
+      if (hasEverSaved != null) 'has_ever_saved': hasEverSaved,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -710,6 +758,7 @@ class JokeInteractionsCompanion extends UpdateCompanion<JokeInteraction> {
     Value<String?>? punchlineImageUrl,
     Value<int?>? feedIndex,
     Value<JokeThumbsReaction?>? thumbsReaction,
+    Value<bool>? hasEverSaved,
     Value<int>? rowid,
   }) {
     return JokeInteractionsCompanion(
@@ -725,6 +774,7 @@ class JokeInteractionsCompanion extends UpdateCompanion<JokeInteraction> {
       punchlineImageUrl: punchlineImageUrl ?? this.punchlineImageUrl,
       feedIndex: feedIndex ?? this.feedIndex,
       thumbsReaction: thumbsReaction ?? this.thumbsReaction,
+      hasEverSaved: hasEverSaved ?? this.hasEverSaved,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -774,6 +824,9 @@ class JokeInteractionsCompanion extends UpdateCompanion<JokeInteraction> {
         ),
       );
     }
+    if (hasEverSaved.present) {
+      map['has_ever_saved'] = Variable<bool>(hasEverSaved.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -795,6 +848,7 @@ class JokeInteractionsCompanion extends UpdateCompanion<JokeInteraction> {
           ..write('punchlineImageUrl: $punchlineImageUrl, ')
           ..write('feedIndex: $feedIndex, ')
           ..write('thumbsReaction: $thumbsReaction, ')
+          ..write('hasEverSaved: $hasEverSaved, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -1170,6 +1224,7 @@ typedef $$JokeInteractionsTableCreateCompanionBuilder =
       Value<String?> punchlineImageUrl,
       Value<int?> feedIndex,
       Value<JokeThumbsReaction?> thumbsReaction,
+      Value<bool> hasEverSaved,
       Value<int> rowid,
     });
 typedef $$JokeInteractionsTableUpdateCompanionBuilder =
@@ -1186,6 +1241,7 @@ typedef $$JokeInteractionsTableUpdateCompanionBuilder =
       Value<String?> punchlineImageUrl,
       Value<int?> feedIndex,
       Value<JokeThumbsReaction?> thumbsReaction,
+      Value<bool> hasEverSaved,
       Value<int> rowid,
     });
 
@@ -1262,6 +1318,11 @@ class $$JokeInteractionsTableFilterComposer
     column: $table.thumbsReaction,
     builder: (column) => ColumnWithTypeConverterFilters(column),
   );
+
+  ColumnFilters<bool> get hasEverSaved => $composableBuilder(
+    column: $table.hasEverSaved,
+    builder: (column) => ColumnFilters(column),
+  );
 }
 
 class $$JokeInteractionsTableOrderingComposer
@@ -1332,6 +1393,11 @@ class $$JokeInteractionsTableOrderingComposer
     column: $table.thumbsReaction,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<bool> get hasEverSaved => $composableBuilder(
+    column: $table.hasEverSaved,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$JokeInteractionsTableAnnotationComposer
@@ -1397,6 +1463,11 @@ class $$JokeInteractionsTableAnnotationComposer
     column: $table.thumbsReaction,
     builder: (column) => column,
   );
+
+  GeneratedColumn<bool> get hasEverSaved => $composableBuilder(
+    column: $table.hasEverSaved,
+    builder: (column) => column,
+  );
 }
 
 class $$JokeInteractionsTableTableManager
@@ -1449,6 +1520,7 @@ class $$JokeInteractionsTableTableManager
                 Value<int?> feedIndex = const Value.absent(),
                 Value<JokeThumbsReaction?> thumbsReaction =
                     const Value.absent(),
+                Value<bool> hasEverSaved = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => JokeInteractionsCompanion(
                 jokeId: jokeId,
@@ -1463,6 +1535,7 @@ class $$JokeInteractionsTableTableManager
                 punchlineImageUrl: punchlineImageUrl,
                 feedIndex: feedIndex,
                 thumbsReaction: thumbsReaction,
+                hasEverSaved: hasEverSaved,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -1480,6 +1553,7 @@ class $$JokeInteractionsTableTableManager
                 Value<int?> feedIndex = const Value.absent(),
                 Value<JokeThumbsReaction?> thumbsReaction =
                     const Value.absent(),
+                Value<bool> hasEverSaved = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => JokeInteractionsCompanion.insert(
                 jokeId: jokeId,
@@ -1494,6 +1568,7 @@ class $$JokeInteractionsTableTableManager
                 punchlineImageUrl: punchlineImageUrl,
                 feedIndex: feedIndex,
                 thumbsReaction: thumbsReaction,
+                hasEverSaved: hasEverSaved,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

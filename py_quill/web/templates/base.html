@@ -60,20 +60,6 @@
           <span class="brand-text">{{ site_name }}</span>
         </a>
         <nav class="primary-nav" aria-label="Main navigation">
-          <ul class="nav-list">
-            <li>
-              <a class="nav-link {% if current_path == url_for('web.index') %}nav-link--active{% endif %}"
-                href="{{ url_for('web.index') }}">Home</a>
-            </li>
-            <li>
-              <a class="nav-link {% if current_path == url_for('web.book') %}nav-link--active{% endif %}"
-                href="{{ url_for('web.book') }}">The Book</a>
-            </li>
-            <li>
-              <a class="nav-link {% if current_path == url_for('web.about') %}nav-link--active{% endif %}"
-                href="{{ url_for('web.about') }}">About</a>
-            </li>
-          </ul>
           <a class="nav-cta" href="https://play.google.com/store/apps/details?id=com.builtwithporpoise.jokes"
             target="_blank" rel="noopener noreferrer" data-analytics-event="web_index_play_store_click"
             data-analytics-label="header">

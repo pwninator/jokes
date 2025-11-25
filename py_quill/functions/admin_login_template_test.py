@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from flask import Flask, render_template
+from flask import Blueprint, Flask, render_template, url_for
 
 
 @pytest.fixture(scope='module')
@@ -13,6 +13,13 @@ def flask_app():
   app = Flask(__name__)
   app.template_folder = str(Path('py_quill/web/templates').resolve())
   app.static_folder = str(Path('py_quill/web/static').resolve())
+  web_bp = Blueprint('web', __name__)
+
+  @web_bp.route('/')
+  def index():
+    return ''
+
+  app.register_blueprint(web_bp)
   return app
 
 
@@ -34,8 +41,8 @@ def _ensure_node_installed():
                    stdout=subprocess.PIPE,
                    stderr=subprocess.PIPE)
   except Exception as exc:  # pragma: no cover - defensive
-    raise RuntimeError('Node.js must be installed to run JS syntax checks'
-                       ) from exc
+    raise RuntimeError(
+      'Node.js must be installed to run JS syntax checks') from exc
 
 
 def _run_node_syntax_check(js_source: str) -> subprocess.CompletedProcess:
@@ -44,16 +51,17 @@ def _run_node_syntax_check(js_source: str) -> subprocess.CompletedProcess:
   source_path = tmp_dir / 'inline.mjs'
   source_path.write_text(js_source, encoding='utf-8')
 
-  return subprocess.run(['node', '--check', str(source_path)],
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.PIPE,
-                        text=True)
+  return subprocess.run(
+    ['node', '--check', str(source_path)],
+    stdout=subprocess.PIPE,
+    stderr=subprocess.PIPE,
+    text=True)
 
 
 def test_admin_login_inline_script_is_valid_js(flask_app):
   _ensure_node_installed()
 
-  with flask_app.app_context():
+  with flask_app.test_request_context('/'):
     rendered = render_template(
       'admin/login.html',
       firebase_config={
@@ -61,6 +69,7 @@ def test_admin_login_inline_script_is_valid_js(flask_app):
         'authDomain': 'example.firebaseapp.com',
         'projectId': 'example'
       },
+      site_name='Snickerdoodle',
       next_url='/admin',
     )
 
@@ -71,4 +80,3 @@ def test_admin_login_inline_script_is_valid_js(flask_app):
     pytest.fail(
       f'Admin login inline script has syntax error:\nSTDOUT:\n{result.stdout}\nSTDERR:\n{result.stderr}'
     )
-

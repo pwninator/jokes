@@ -18,10 +18,11 @@
   }
 
   .joke-card {
-    background: var(--surface);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 14px;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 20px;
     padding: 16px;
+    box-shadow: 0 12px 30px rgba(196, 171, 140, 0.18);
   }
 
   .joke-header {
@@ -29,7 +30,6 @@
     align-items: center;
     gap: 12px;
     margin-bottom: 12px;
-    color: var(--muted);
     justify-content: space-between;
   }
 
@@ -48,9 +48,9 @@
   }
 
   .image-frame {
-    background: #0f0f0f;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 10px;
+    background: var(--color-accent-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 16px;
     min-height: 0;
     display: flex;
     align-items: center;
@@ -65,29 +65,25 @@
     height: auto;
     aspect-ratio: 1 / 1;
     object-fit: cover;
-    border-radius: 8px;
+    border-radius: 12px;
   }
 
   .placeholder {
     background: repeating-linear-gradient(
       45deg,
-      rgba(255, 255, 255, 0.04),
-      rgba(255, 255, 255, 0.04) 12px,
-      rgba(255, 255, 255, 0.08) 12px,
-      rgba(255, 255, 255, 0.08) 24px
+      rgba(212, 160, 23, 0.08),
+      rgba(212, 160, 23, 0.08) 12px,
+      rgba(212, 160, 23, 0.15) 12px,
+      rgba(212, 160, 23, 0.15) 24px
     );
-    color: var(--muted);
     display: flex;
     align-items: center;
     justify-content: center;
-    font-weight: 700;
     text-align: center;
   }
 
   .back-link {
-    color: var(--accent);
     text-decoration: none;
-    font-weight: 700;
   }
 
   .back-link:hover {
@@ -102,10 +98,8 @@
   }
 
   .cta-btn {
-    background: var(--accent);
+    background: var(--color-primary);
     border: none;
-    color: #181818;
-    font-weight: 700;
     padding: 8px 14px;
     border-radius: 999px;
     cursor: pointer;
@@ -117,23 +111,15 @@
 
   .cta-btn[disabled],
   .cta-btn[disabled]:hover {
-    background: #5a5a5a;
-    color: #1b1b1b;
+    background: rgba(74, 59, 50, 0.2);
     cursor: default;
-    opacity: 0.8;
+    opacity: 1;
   }
 
   .cost-pill {
-    background: rgba(255, 255, 255, 0.08);
-    color: var(--text);
+    background: var(--color-pill-bg);
     border-radius: 999px;
     padding: 6px 12px;
-    font-weight: 700;
-    font-size: 0.9rem;
-  }
-
-  .cost-pill.muted {
-    color: var(--muted);
   }
 
   .hidden {
@@ -147,17 +133,11 @@
     gap: 8px;
   }
 
-  .instructions label {
-    font-weight: 700;
-    color: var(--text);
-  }
-
   .instructions textarea {
-    background: #0f0f0f;
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 8px;
-    padding: 8px;
-    color: var(--text);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    padding: 10px;
     min-height: 64px;
     resize: vertical;
   }
@@ -170,16 +150,9 @@
   }
 
   .timer-chip {
-    background: rgba(255, 255, 255, 0.08);
-    color: var(--text);
+    background: var(--color-pill-bg);
     border-radius: 999px;
     padding: 4px 10px;
-    font-weight: 700;
-  }
-
-  .inline-error {
-    color: #ffb4a2;
-    font-weight: 700;
   }
 
   .variants {
@@ -190,30 +163,28 @@
     flex: 1 1 0%;
   }
 
-.variant-tile {
-  width: 100px;
-  height: 100px;
-  box-sizing: border-box;
-  border: 2px solid rgba(255, 255, 255, 0.2);
-  background: #0f0f0f;
-  border-radius: 8px;
-  cursor: pointer;
-  padding: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
+  .variant-tile {
+    width: 100px;
+    height: 100px;
+    box-sizing: border-box;
+    border: 2px solid rgba(212, 160, 23, 0.25);
+    background: var(--color-accent-surface);
+    border-radius: 10px;
+    cursor: pointer;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
 
-.variant-tile img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  border-radius: 6px;
-}
+  .variant-tile img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 8px;
+  }
 
   .variant-label {
-    font-weight: 700;
-    color: var(--text);
     margin-bottom: 6px;
   }
 
@@ -224,6 +195,7 @@
     width: 100%;
     align-items: center;
   }
+
   .instructions-row {
     display: grid;
     grid-template-columns: repeat(2, minmax(320px, 1fr));
@@ -231,6 +203,7 @@
     width: 100%;
     margin-top: 8px;
   }
+
   .instructions-row textarea {
     width: 100%;
   }
@@ -249,11 +222,13 @@
     min-width: 200px;
     min-height: 200px;
     aspect-ratio: 1 / 1;
-    border-radius: 6px;
+    border-radius: 10px;
     overflow: hidden;
     display: flex;
     align-items: center;
     justify-content: center;
+    background: var(--color-accent-surface);
+    border: 1px solid var(--color-border);
   }
 
   .variant-preview.standalone {
@@ -266,7 +241,7 @@
     width: 100%;
     height: 100%;
     object-fit: cover;
-    border-radius: 6px;
+    border-radius: 8px;
     display: block;
   }
 
@@ -297,6 +272,7 @@
     .image-frame {
       width: 100%;
     }
+
     .instructions-row {
       grid-template-columns: 1fr;
     }
@@ -306,7 +282,7 @@
 {% macro render_variants(variants, label, target_field, joke_id, book_id, preview=None) -%}
   {% if variants %}
   <div class="variant-group">
-    <div class="variant-label">{{ label }}</div>
+    <div class="variant-label text-button">{{ label }}</div>
     <div class="variant-row">
       {% if preview %}
       <div class="variant-preview">
@@ -338,16 +314,16 @@
 
 {% block content %}
 <div class="page-actions">
-  <a class="back-link" href="{{ url_for('web.admin_joke_books') }}">← Back to joke books</a>
+  <a class="back-link site-footer__link text-button" href="{{ url_for('web.admin_joke_books') }}">← Back to joke books</a>
   {% if book.zip_url %}
-  <a class="back-link" href="{{ book.zip_url }}" target="_blank" rel="noopener noreferrer">Download all pages (ZIP)</a>
+  <a class="back-link site-footer__link text-button" href="{{ book.zip_url }}" target="_blank" rel="noopener noreferrer">Download all pages (ZIP)</a>
   {% endif %}
 </div>
 
-<h2>
+<h2 class="text-section-heading">
   {{ book.book_name }}
   {% if book_total_cost is not none %}
-  <span class="cost-pill">${{ '%.4f'|format(book_total_cost) }}</span>
+  <span class="cost-pill text-button">${{ '%.4f'|format(book_total_cost) }}</span>
   {% endif %}
 </h2>
 <p class="muted"><code>{{ book.id }}</code></p>
@@ -365,34 +341,34 @@
       action="{{ generate_book_page_url }}"
       target="_blank">
       <input type="hidden" name="joke_id" value="{{ joke.id }}">
-      <div class="joke-header">
-        <div class="joke-meta">
+      <div class="joke-header text-body">
+        <div class="joke-meta text-body">
           <strong>Joke {{ joke.sequence }}</strong>
           <code>{{ joke.id }}</code>
           {% if joke.total_cost is not none %}
-          <span class="cost-pill cost-pill-value">${{ '%.4f'|format(joke.total_cost) }}</span>
+          <span class="cost-pill cost-pill-value text-button">${{ '%.4f'|format(joke.total_cost) }}</span>
           {% else %}
-          <span class="cost-pill cost-pill-value muted">Cost unavailable</span>
+          <span class="cost-pill cost-pill-value text-button muted">Cost unavailable</span>
           {% endif %}
         </div>
-        <button class="cta-btn reveal-btn" type="button">Regenerate pages</button>
+        <button class="cta-btn nav-cta text-button reveal-btn" type="button">Regenerate pages</button>
       </div>
       <div class="instructions instructions-row hidden">
         <div>
-          <label for="setup-{{ joke.id }}">Setup instructions (optional)</label>
+          <label class="text-button" for="setup-{{ joke.id }}">Setup instructions (optional)</label>
           <textarea id="setup-{{ joke.id }}" name="setup_instructions" placeholder="Extra guidance for the setup image"></textarea>
         </div>
         <div>
-          <label for="punch-{{ joke.id }}">Punchline instructions (optional)</label>
+          <label class="text-button" for="punch-{{ joke.id }}">Punchline instructions (optional)</label>
           <textarea id="punch-{{ joke.id }}" name="punchline_instructions" placeholder="Extra guidance for the punchline image"></textarea>
         </div>
       </div>
       <div class="regenerate-footer">
         <div class="status-row hidden">
-          <span class="timer-chip timer-display">0:00</span>
-          <span class="inline-error"></span>
+          <span class="timer-chip timer-display text-button">0:00</span>
+          <span class="inline-error form-error text-button"></span>
         </div>
-        <button class="cta-btn submit-btn hidden" type="submit">Submit</button>
+        <button class="cta-btn nav-cta text-button submit-btn hidden" type="submit">Submit</button>
       </div>
     </form>
     <div class="joke-images">
@@ -401,7 +377,7 @@
         <div class="image-frame">
           <img class="joke-image setup-img {% if not joke.setup_image %}hidden{% endif %}"
             src="{{ joke.setup_image or '' }}" alt="Setup image for {{ joke.id }}" width="800" height="800" loading="lazy">
-          <div class="placeholder setup-placeholder {% if joke.setup_image %}hidden{% endif %}" role="img"
+          <div class="placeholder text-body text-button setup-placeholder {% if joke.setup_image %}hidden{% endif %}" role="img"
             aria-label="Setup image missing">No setup image</div>
         </div>
       </div>
@@ -411,7 +387,7 @@
           <img class="joke-image punchline-img {% if not joke.punchline_image %}hidden{% endif %}"
             src="{{ joke.punchline_image or '' }}" alt="Punchline image for {{ joke.id }}" width="800" height="800"
             loading="lazy">
-          <div class="placeholder punchline-placeholder {% if joke.punchline_image %}hidden{% endif %}" role="img"
+          <div class="placeholder text-body text-button punchline-placeholder {% if joke.punchline_image %}hidden{% endif %}" role="img"
             aria-label="No punchline image">No punchline image</div>
         </div>
       </div>
@@ -426,8 +402,9 @@
     const forms = Array.from(document.querySelectorAll('.regenerate-form'));
     const updateBookPageUrl = "{{ update_book_page_url }}";
     const accentColor = getComputedStyle(document.documentElement)
-      .getPropertyValue('--accent')
-      .trim() || '#E59C48';
+      .getPropertyValue('--color-primary')
+      .trim() || '#d4a017';
+    const inactiveVariantBorder = '2px solid rgba(74, 59, 50, 0.25)';
     const bustCache = (url) => {
       if (!url) return '';
       const sep = url.includes('?') ? '&' : '?';
@@ -445,8 +422,7 @@
     };
 
     const applyTileHighlight = (tile, isActive) => {
-      tile.style.border = isActive ? `2px solid ${accentColor}` :
-        '2px solid rgba(255, 255, 255, 0.2)';
+      tile.style.border = isActive ? `2px solid ${accentColor}` : inactiveVariantBorder;
     };
 
     const startTimer = (statusRow, timerDisplay) => {

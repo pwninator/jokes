@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ site_name }}{% endblock %}</title>
+  {% block head_meta %}{% endblock %}
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  {% if site_css %}
+  <style>{{ site_css|safe }}</style>
+  {% endif %}
+  <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png">
+  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+  {% block head_extra %}{% endblock %}
+</head>
+
+<body{% block body_attrs %}{% endblock %}>
+  {% block body %}{% endblock %}
+  <!-- Global analytics -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-D2B7E8PXJJ"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+    function gtag() { dataLayer.push(arguments); } // eslint-disable-line
+    gtag('js', new Date());
+    gtag('config', 'G-D2B7E8PXJJ');
+  </script>
+  <script>
+    (function () {
+      if (typeof document === 'undefined' || !document.addEventListener) {
+        return;
+      }
+      document.addEventListener('click', function (event) {
+        var target = event.target;
+        if (!target || typeof target.closest !== 'function') {
+          return;
+        }
+        var tracker = target.closest('[data-analytics-event]');
+        if (!tracker) {
+          return;
+        }
+        var eventName = tracker.dataset.analyticsEvent;
+        if (!eventName) {
+          return;
+        }
+        var params = {};
+        var label = tracker.dataset.analyticsLabel;
+        if (label) {
+          params.event_label = label;
+        }
+        var value = tracker.dataset.analyticsValue;
+        if (value) {
+          var numericValue = Number(value);
+          params.value = isNaN(numericValue) ? value : numericValue;
+        }
+        params.transport_type = 'beacon';
+        if (typeof window.gtag === 'function') {
+          window.gtag('event', eventName, params);
+        }
+      });
+    })();
+  </script>
+  {% block scripts %}{% endblock %}
+</body>
+
+</html>
+

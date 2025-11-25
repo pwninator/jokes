@@ -1,53 +1,76 @@
-<!DOCTYPE html>
-<html lang="en">
+{% extends "root.html" %}
 
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}Admin · {{ site_name }}{% endblock %}</title>
-  <meta name="twitter:description"
-    content="{% block twitter_description %}Discover funny, family-friendly jokes with images. Reveal the punchline when you're ready.{% endblock %}">
+{% block title %}{% block admin_title %}Admin · {{ site_name }}{% endblock %}{% endblock %}
 
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
-  <style>{{ admin_css|safe }}</style>>
-  {% block head_extra %}{% endblock %}
-</head>
-
-<body>
-  <header class="admin-header">
-    <h1>{% block header_title %}{{ site_name }} Admin{% endblock %}</h1>
-    <nav class="admin-nav">
-      <a href="{{ url_for('web.admin_dashboard') }}">Dashboard</a>
-      <a href="{{ url_for('web.admin_joke_books') }}">Joke Books</a>
-      <button id="logout-btn" class="logout-btn" type="button">Sign out</button>
-    </nav>
+{% block body %}
+{% set current_path = request.path %}
+{% set dashboard_url = url_for('web.admin_dashboard') %}
+{% set joke_books_url = url_for('web.admin_joke_books') %}
+{% set joke_books_prefix = joke_books_url.rstrip('/') %}
+<div class="site-shell admin-site-shell">
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="brand" href="{{ dashboard_url }}" aria-label="{{ site_name }} admin home">
+        <img class="brand-logo" alt="{{ site_name }} logo"
+          src="https://images.quillsstorybook.com/cdn-cgi/image/width=128,format=auto,quality=60/_joke_assets/icon_cookie_01_transparent_light_128.png" />
+        <span class="brand-text text-brand">{{ site_name }} Admin</span>
+      </a>
+      <nav class="primary-nav" aria-label="Admin navigation">
+        <a class="nav-link text-button{% if current_path == dashboard_url %} nav-link--active{% endif %}"
+          href="{{ dashboard_url }}">
+          Dashboard
+        </a>
+        <a class="nav-link text-button{% if current_path.startswith(joke_books_prefix) %} nav-link--active{% endif %}"
+          href="{{ joke_books_url }}">
+          Joke Books
+        </a>
+        <button id="logout-btn" class="nav-cta text-button" type="button">
+          Sign out
+        </button>
+      </nav>
+    </div>
   </header>
-  <main class="admin-main">
-    {% block content %}{% endblock %}
+  <main class="site-main">
+    <div class="main-container">
+      {% block content %}{% endblock %}
+    </div>
   </main>
-  <script>
-    (function () {
-      const logoutBtn = document.getElementById('logout-btn');
-      if (!logoutBtn) return;
-      logoutBtn.addEventListener('click', async () => {
-        try {
-          await fetch('/admin/logout', {
-            method: 'POST',
-            headers: { 'Accept': 'application/json' },
-            credentials: 'same-origin',
-          });
-        } catch (err) {
-          console.warn('Failed to logout:', err); // eslint-disable-line no-console
-        } finally {
-          window.location.href = '{{ url_for("web.admin_login") }}';
-        }
-      });
-    })();
-  </script>
-  {% block body_extra %}{% endblock %}
-</body>
+  <footer class="site-footer">
+    <div class="site-footer__inner text-footer">
+      <small>&copy; {{ site_name }} {{ now_year|default(2025) }}</small>
+      <a class="site-footer__link"
+        href="/privacy.html"
+        target="_blank"
+        rel="noopener noreferrer"
+        data-analytics-event="web_footer_privacy_click"
+        data-analytics-label="privacy_policy">
+        Privacy Policy
+      </a>
+    </div>
+  </footer>
+</div>
+{% endblock %}
 
-</html>
+{% block scripts %}
+{{ super() }}
+<script>
+  (function () {
+    const logoutBtn = document.getElementById('logout-btn');
+    if (!logoutBtn) return;
+    logoutBtn.addEventListener('click', async () => {
+      try {
+        await fetch('/admin/logout', {
+          method: 'POST',
+          headers: { 'Accept': 'application/json' },
+          credentials: 'same-origin',
+        });
+      } catch (err) {
+        console.warn('Failed to logout:', err); // eslint-disable-line no-console
+      } finally {
+        window.location.href = '{{ url_for("web.admin_login") }}';
+      }
+    });
+  })();
+</script>
+{% endblock %}
 

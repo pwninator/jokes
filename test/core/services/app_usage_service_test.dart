@@ -791,9 +791,9 @@ void main() {
       when(() => mocks.repo.countShared()).thenAnswer((_) async => 0);
 
       final mockJokeRepository = _MockJokeRepository();
-      when(() => mockJokeRepository.incrementJokeSaves(any())).thenAnswer(
-        (_) async {},
-      );
+      when(
+        () => mockJokeRepository.incrementJokeSaves(any()),
+      ).thenAnswer((_) async {});
 
       final service = AppUsageService(
         settingsService: settingsService,
@@ -824,12 +824,8 @@ void main() {
       verify(() => mocks.repo.setSaved('s2')).called(2);
       verify(() => mocks.repo.setUnsaved('s1')).called(1);
       verify(() => mocks.repo.setUnsaved('s2')).called(1);
-      verify(
-        () => mockJokeRepository.incrementJokeSaves('s1'),
-      ).called(1);
-      verify(
-        () => mockJokeRepository.incrementJokeSaves('s2'),
-      ).called(1);
+      verify(() => mockJokeRepository.incrementJokeSaves('s1')).called(1);
+      verify(() => mockJokeRepository.incrementJokeSaves('s2')).called(1);
       // Resaving after unsave should not re-increment
       verifyNoMoreInteractions(mockJokeRepository);
     });
@@ -1079,30 +1075,32 @@ void main() {
         ) async {
           final jokeIds = invocation.positionalArguments.first as List<String>;
           // Return interactions for all jokes (all viewed)
-          return jokeIds.map((id) {
-            DateTime viewedAt;
-            switch (id) {
-              case 'joke-1':
-                viewedAt = viewedAtOne;
-                break;
-              case 'joke-2':
-                viewedAt = viewedAtTwo;
-                break;
-              case 'joke-3':
-                viewedAt = viewedAtThree;
-                break;
-              default:
-                viewedAt = DateTime.now();
-            }
-            return JokeInteraction(
-              jokeId: id,
-              viewedTimestamp: viewedAt,
-              savedTimestamp: null,
-              sharedTimestamp: null,
-              lastUpdateTimestamp: viewedAt,
-              hasEverSaved: false,
-            );
-          }).toList(growable: false);
+          return jokeIds
+              .map((id) {
+                DateTime viewedAt;
+                switch (id) {
+                  case 'joke-1':
+                    viewedAt = viewedAtOne;
+                    break;
+                  case 'joke-2':
+                    viewedAt = viewedAtTwo;
+                    break;
+                  case 'joke-3':
+                    viewedAt = viewedAtThree;
+                    break;
+                  default:
+                    viewedAt = DateTime.now();
+                }
+                return JokeInteraction(
+                  jokeId: id,
+                  viewedTimestamp: viewedAt,
+                  savedTimestamp: null,
+                  sharedTimestamp: null,
+                  lastUpdateTimestamp: viewedAt,
+                  hasEverSaved: false,
+                );
+              })
+              .toList(growable: false);
         });
 
         final service = AppUsageService(

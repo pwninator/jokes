@@ -12,6 +12,7 @@
   --color-pill-bg: #efe1c5;
   --color-pill-text: #735a45;
   --layout-max-width: 1100px;
+  --admin-layout-max-width: 1600px;
   color-scheme: light;
 
   /* Typography System */
@@ -52,6 +53,10 @@
   font-weight: var(--font-weight-body);
   color: var(--color-text-muted);
   line-height: 1.6;
+}
+
+.muted {
+  color: var(--color-text-muted);
 }
 
 /* 5. Button/Label Text */
@@ -98,6 +103,10 @@ img {
   margin: 0 auto;
   background: var(--color-bg);
   box-shadow: 0 0 24px rgba(74, 59, 50, 0.08);
+}
+
+.admin-site-shell {
+  max-width: var(--admin-layout-max-width);
 }
 
 .site-header {
@@ -508,6 +517,65 @@ img {
   align-items: center;
   justify-content: center;
   color: var(--color-text-muted);
+}
+
+.centered-section {
+  min-height: 60vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 0 64px;
+}
+
+.centered-card {
+  width: min(420px, 100%);
+  margin: 0 auto;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.centered-card .nav-cta {
+  width: 100%;
+  justify-content: center;
+}
+
+.form-error {
+  display: none;
+  margin-top: 12px;
+  color: #b3494a;
+  font-weight: var(--font-weight-label);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 24px;
+  overflow: hidden;
+  box-shadow: 0 12px 30px rgba(196, 171, 140, 0.15);
+}
+
+th,
+td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+  color: var(--color-text);
+}
+
+th {
+  background: var(--color-accent-surface);
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+}
+
+tr:last-child td {
+  border-bottom: none;
 }
 
 .site-footer {

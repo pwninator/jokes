@@ -444,9 +444,9 @@ def test_pages_include_ga4_tag_and_parchment_background(monkeypatch):
   assert 'data-analytics-event="web_index_play_store_click"' in index_html
   assert 'data-analytics-label="header"' in index_html
 
-  # Background matches dark parchment color
-  assert 'background: #121212' in topic_html
-  assert 'background: #121212' in index_html
+  # Background palette variables present
+  assert '--color-bg-outer: #e4d0ae;' in topic_html
+  assert '--color-bg-outer: #e4d0ae;' in index_html
   assert 'web_footer_privacy_click' in topic_html
   assert 'web_footer_privacy_click' in index_html
   assert 'href="/privacy.html"' in topic_html

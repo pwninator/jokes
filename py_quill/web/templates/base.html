@@ -1,128 +1,71 @@
-<!DOCTYPE html>
-<html lang="en">
+{% extends "root.html" %}
 
-<head>
-  <meta charset="utf-8">
-  <meta http-equiv="X-UA-Compatible" content="IE=edge">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>{% block title %}{{ site_name }} jokes{% endblock %}</title>
-  <meta name="description"
-    content="{% block meta_description %}Discover funny, family-friendly jokes with images. Reveal the punchline when you're ready.{% endblock %}">
-  <link rel="canonical" href="{{ canonical_url }}">
-  {% if prev_url %}
-  <link rel="prev" href="{{ prev_url }}">{% endif %}
-  {% if next_url %}
-  <link rel="next" href="{{ next_url }}">{% endif %}
+{% block title %}{% block page_title %}{{ site_name }} jokes{% endblock %}{% endblock %}
 
-  <!-- Open Graph -->
-  <meta property="og:title" content="{% block og_title %}{{ site_name }} jokes{% endblock %}">
-  <meta property="og:description"
-    content="{% block og_description %}Discover funny, family-friendly jokes with images. Reveal the punchline when you're ready.{% endblock %}">
-  <meta property="og:type" content="website">
-  <meta property="og:url" content="{{ canonical_url }}">
+{% block head_meta %}
+<meta name="description"
+  content="{% block meta_description %}Discover funny, family-friendly jokes with images. Reveal the punchline when you're ready.{% endblock %}">
+<link rel="canonical" href="{{ canonical_url }}">
+{% if prev_url %}
+<link rel="prev" href="{{ prev_url }}">{% endif %}
+{% if next_url %}
+<link rel="next" href="{{ next_url }}">{% endif %}
 
-  <!-- Twitter -->
-  <meta name="twitter:card" content="summary_large_image">
-  <meta name="twitter:title" content="{% block twitter_title %}{{ site_name }} jokes{% endblock %}">
-  <meta name="twitter:description"
-    content="{% block twitter_description %}Discover funny, family-friendly jokes with images. Reveal the punchline when you're ready.{% endblock %}">
+<!-- Open Graph -->
+<meta property="og:title" content="{% block og_title %}{{ site_name }} jokes{% endblock %}">
+<meta property="og:description"
+  content="{% block og_description %}Discover funny, family-friendly jokes with images. Reveal the punchline when you're ready.{% endblock %}">
+<meta property="og:type" content="website">
+<meta property="og:url" content="{{ canonical_url }}">
 
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
-  {% if landing_css %}
-  <style>{{ landing_css|safe }}</style>
-  {% endif %}
-  <!-- legacy background: #121212 -->
-  {% block head_extra %}{% endblock %}
-  <!-- Favicon: inline SVG to avoid 404s in emulator and production rewrites -->
-  <link rel="icon" type="image/png" sizes="32x32" href="/favicon.png">
-  <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
-  <!-- Google tag (gtag.js) -->
-  <script async src="https://www.googletagmanager.com/gtag/js?id=G-D2B7E8PXJJ"></script>
-  <script>
-    window.dataLayer = window.dataLayer || [];
-    function gtag() { dataLayer.push(arguments); } // eslint-disable-line
-    gtag('js', new Date());
+<!-- Twitter -->
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="{% block twitter_title %}{{ site_name }} jokes{% endblock %}">
+<meta name="twitter:description"
+  content="{% block twitter_description %}Discover funny, family-friendly jokes with images. Reveal the punchline when you're ready.{% endblock %}">
+{% endblock %}
 
-    gtag('config', 'G-D2B7E8PXJJ');
-  </script>
-</head>
-
-<body>
-  {% set current_path = request.path %}
-  <div class="site-shell">
-    <header class="site-header">
-      <div class="header-inner">
-        <a class="brand" href="{{ url_for('web.index') }}" aria-label="{{ site_name }} home">
-          <img class="brand-logo" alt="{{ site_name }} logo"
-            src="https://images.quillsstorybook.com/cdn-cgi/image/width=128,format=auto,quality=60/_joke_assets/icon_cookie_01_transparent_light_128.png" />
-          <span class="brand-text text-brand">{{ site_name }}</span>
+{% block body %}
+{% set current_path = request.path %}
+<div class="site-shell">
+  <header class="site-header">
+    <div class="header-inner">
+      <a class="brand" href="{{ url_for('web.index') }}" aria-label="{{ site_name }} home">
+        <img class="brand-logo" alt="{{ site_name }} logo"
+          src="https://images.quillsstorybook.com/cdn-cgi/image/width=128,format=auto,quality=60/_joke_assets/icon_cookie_01_transparent_light_128.png" />
+        <span class="brand-text text-brand">{{ site_name }}</span>
+      </a>
+      <nav class="primary-nav" aria-label="Main navigation">
+        <a class="nav-cta text-button" href="https://play.google.com/store/apps/details?id=com.builtwithporpoise.jokes"
+          target="_blank" rel="noopener noreferrer" data-analytics-event="web_index_play_store_click"
+          data-analytics-label="header">
+          Get the App
         </a>
-        <nav class="primary-nav" aria-label="Main navigation">
-          <a class="nav-cta text-button" href="https://play.google.com/store/apps/details?id=com.builtwithporpoise.jokes"
-            target="_blank" rel="noopener noreferrer" data-analytics-event="web_index_play_store_click"
-            data-analytics-label="header">
-            Get the App
-          </a>
-        </nav>
-      </div>
-    </header>
-    <main class="site-main">
-      <div class="main-container">
-        {% block content %}{% endblock %}
-      </div>
-    </main>
-    <footer class="site-footer">
-      <div class="site-footer__inner text-footer">
-        <small>&copy; {{ site_name }} {{ now_year|default(2025) }}</small>
-        <a class="site-footer__link"
-           href="/privacy.html"
-           target="_blank"
-           rel="noopener noreferrer"
-           data-analytics-event="web_footer_privacy_click"
-           data-analytics-label="privacy_policy">
-          Privacy Policy
-        </a>
-      </div>
-    </footer>
+      </nav>
     </div>
-  <script>
-    (function () {
-      if (typeof document === 'undefined' || !document.addEventListener) {
-        return;
-      }
-      document.addEventListener('click', function (event) {
-        var target = event.target;
-        if (!target || typeof target.closest !== 'function') {
-          return;
-        }
-        var tracker = target.closest('[data-analytics-event]');
-        if (!tracker) {
-          return;
-        }
-        var eventName = tracker.dataset.analyticsEvent;
-        if (!eventName) {
-          return;
-        }
-        var params = {};
-        var label = tracker.dataset.analyticsLabel;
-        if (label) {
-          params.event_label = label;
-        }
-        var value = tracker.dataset.analyticsValue;
-        if (value) {
-          var numericValue = Number(value);
-          params.value = isNaN(numericValue) ? value : numericValue;
-        }
-        params.transport_type = 'beacon';
-        if (typeof window.gtag === 'function') {
-          window.gtag('event', eventName, params);
-        }
-      });
-    })();
-  </script>
-  {% block scripts %}{% endblock %}
-</body>
+  </header>
+  <main class="site-main">
+    <div class="main-container">
+      {% block content %}{% endblock %}
+    </div>
+  </main>
+  <footer class="site-footer">
+    <div class="site-footer__inner text-footer">
+      <small>&copy; {{ site_name }} {{ now_year|default(2025) }}</small>
+      <a class="site-footer__link"
+        href="/privacy.html"
+        target="_blank"
+        rel="noopener noreferrer"
+        data-analytics-event="web_footer_privacy_click"
+        data-analytics-label="privacy_policy">
+        Privacy Policy
+      </a>
+    </div>
+  </footer>
+</div>
+{% endblock %}
 
-</html>
+{% block scripts %}
+{% block extra_scripts %}{% endblock %}
+{% endblock %}
+ 

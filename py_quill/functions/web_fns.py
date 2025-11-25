@@ -33,15 +33,13 @@ def _load_css(filename: str) -> str:
 
 
 _BASE_CSS = _load_css('base.css')
-_LANDING_CSS = _BASE_CSS + _load_css('style.css')
-_ADMIN_CSS = _BASE_CSS + _load_css('admin.css')
+_SITE_CSS = _BASE_CSS + _load_css('style.css')
 
 
 @app.context_processor
 def _inject_css() -> dict[str, str]:
   return {
-    'landing_css': _LANDING_CSS,
-    'admin_css': _ADMIN_CSS,
+    'site_css': _SITE_CSS,
   }
 
 

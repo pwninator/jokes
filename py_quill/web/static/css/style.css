@@ -500,56 +500,30 @@ img {
 }
 
 .app-highlight__stat-card {
-  container-type: inline-size;
-  container-name: stat-card;
   background: var(--color-app-highlight-card);
   padding: 10px 12px;
   border-radius: 18px;
   box-shadow: inset 0 0 0 1px var(--color-border);
   flex: 1;
-}
-
-.app-highlight__stat-card-inner {
   display: flex;
-  gap: 12px;
+  flex-direction: column;
   align-items: center;
-  width: 100%;
-  height: 100%;
+  text-align: center;
+  gap: 6px;
 }
 
 .app-highlight__stat-icon {
   height: 32px;
   width: auto;
   flex-shrink: 0;
+  margin-bottom: 2px;
 }
 
 .app-highlight__stat-copy {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-}
-
-@container stat-card (max-width: 200px) {
-  .app-highlight__stat-card {
-    padding: 16px 8px;
-  }
-  
-  .app-highlight__stat-card-inner {
-    flex-direction: column;
-    text-align: center;
-    justify-content: center;
-    gap: 4px;
-  }
-
-  .app-highlight__stat-copy {
-    align-items: center;
-    text-align: center;
-    width: 100%;
-  }
-  
-  .app-highlight__stat-icon {
-    margin-bottom: 4px;
-  }
+  align-items: center;
+  text-align: center;
 }
 
 .app-highlight__stat-caption {

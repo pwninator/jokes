@@ -93,7 +93,7 @@ void main() {
 
           when(
             () => mockFunctions.httpsCallable(
-              'create_joke',
+              'joke_creation_process',
               options: any(named: 'options'),
             ),
           ).thenReturn(mockCallable);
@@ -111,7 +111,7 @@ void main() {
           expect(result, equals({'success': true, 'data': mockResponseData}));
           verify(
             () => mockFunctions.httpsCallable(
-              'create_joke',
+              'joke_creation_process',
               options: any(named: 'options'),
             ),
           ).called(1);

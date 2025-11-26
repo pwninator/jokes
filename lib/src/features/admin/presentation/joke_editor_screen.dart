@@ -9,6 +9,8 @@ import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
 
+/// Guided form for creating or editing a joke.
+/// 
 class JokeEditorScreen extends ConsumerStatefulWidget {
   const JokeEditorScreen({super.key, this.jokeId});
 
@@ -24,6 +26,8 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
   final _punchlineController = TextEditingController();
   final _setupImageDescriptionController = TextEditingController();
   final _punchlineImageDescriptionController = TextEditingController();
+  final _setupSceneIdeaController = TextEditingController();
+  final _punchlineSceneIdeaController = TextEditingController();
   bool _isLoading = false;
 
   // Track selected images for carousels
@@ -47,6 +51,8 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
     _punchlineController.dispose();
     _setupImageDescriptionController.dispose();
     _punchlineImageDescriptionController.dispose();
+    _setupSceneIdeaController.dispose();
+    _punchlineSceneIdeaController.dispose();
     super.dispose();
   }
 
@@ -121,6 +127,8 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
       _setupImageDescriptionController.text = joke.setupImageDescription ?? '';
       _punchlineImageDescriptionController.text =
           joke.punchlineImageDescription ?? '';
+      _setupSceneIdeaController.text = joke.setupSceneIdea ?? '';
+      _punchlineSceneIdeaController.text = joke.punchlineSceneIdea ?? '';
 
       // Set initial selected images
       _selectedSetupImageUrl = joke.setupImageUrl;
@@ -202,6 +210,23 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
                   ),
                   const SizedBox(height: 16),
 
+                  // Setup Scene Idea (Read-only)
+                  if (_setupSceneIdeaController.text.isNotEmpty) ...[
+                    TextFormField(
+                      key: const Key('setupSceneIdeaTextField'),
+                      controller: _setupSceneIdeaController,
+                      decoration: const InputDecoration(
+                        labelText: 'Setup Scene Idea (AI Generated)',
+                        border: OutlineInputBorder(),
+                        alignLabelWithHint: true,
+                        filled: true,
+                      ),
+                      readOnly: true,
+                      maxLines: 3,
+                    ),
+                    const SizedBox(height: 16),
+                  ],
+
                   // Setup Image Carousel (if available)
                   if (joke.allSetupImageUrls.isNotEmpty) ...[
                     ImageSelectorCarousel(
@@ -243,6 +268,23 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
                   ),
 
                   const SizedBox(height: 16),
+
+                  // Punchline Scene Idea (Read-only)
+                  if (_punchlineSceneIdeaController.text.isNotEmpty) ...[
+                    TextFormField(
+                      key: const Key('punchlineSceneIdeaTextField'),
+                      controller: _punchlineSceneIdeaController,
+                      decoration: const InputDecoration(
+                        labelText: 'Punchline Scene Idea (AI Generated)',
+                        border: OutlineInputBorder(),
+                        alignLabelWithHint: true,
+                        filled: true,
+                      ),
+                      readOnly: true,
+                      maxLines: 3,
+                    ),
+                    const SizedBox(height: 16),
+                  ],
 
                   // Punchline Image Carousel (if available)
                   if (joke.allPunchlineImageUrls.isNotEmpty) ...[
@@ -376,6 +418,7 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
           SnackBar(
             content: const Text('Joke saved successfully!'),
             backgroundColor: Theme.of(context).appColors.success,
+            duration: const Duration(seconds: 5),
             action: SnackBarAction(
               label: 'OK',
               textColor: Colors.white,
@@ -435,6 +478,7 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
         SnackBar(
           content: const Text('Joke updated successfully!'),
           backgroundColor: Theme.of(context).appColors.success,
+          duration: const Duration(seconds: 5),
           action: SnackBarAction(
             label: 'OK',
             textColor: Colors.white,

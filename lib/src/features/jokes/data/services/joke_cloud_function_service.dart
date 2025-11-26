@@ -100,9 +100,9 @@ class JokeCloudFunctionService {
   }) async {
     try {
       final result = await _traceCf(
-        functionName: 'create_joke',
+        functionName: 'joke_creation_process',
         action: () async {
-          final callable = _fns.httpsCallable('create_joke');
+          final callable = _fns.httpsCallable('joke_creation_process');
           return await callable.call({
             'admin_owned': adminOwned,
             'setup_text': setupText,

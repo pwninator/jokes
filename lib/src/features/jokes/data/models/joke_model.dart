@@ -14,6 +14,8 @@ class Joke {
   final String? punchlineImageUrlUpscaled;
   final String? setupImageDescription;
   final String? punchlineImageDescription;
+  final String? setupSceneIdea;
+  final String? punchlineSceneIdea;
   final List<String> allSetupImageUrls;
   final List<String> allPunchlineImageUrls;
   final Map<String, dynamic>? generationMetadata;
@@ -38,6 +40,8 @@ class Joke {
     this.punchlineImageUrlUpscaled,
     this.setupImageDescription,
     this.punchlineImageDescription,
+    this.setupSceneIdea,
+    this.punchlineSceneIdea,
     this.allSetupImageUrls = const [],
     this.allPunchlineImageUrls = const [],
     this.generationMetadata,
@@ -63,6 +67,8 @@ class Joke {
     String? punchlineImageUrlUpscaled,
     String? setupImageDescription,
     String? punchlineImageDescription,
+    String? setupSceneIdea,
+    String? punchlineSceneIdea,
     List<String>? allSetupImageUrls,
     List<String>? allPunchlineImageUrls,
     Map<String, dynamic>? generationMetadata,
@@ -91,6 +97,8 @@ class Joke {
           setupImageDescription ?? this.setupImageDescription,
       punchlineImageDescription:
           punchlineImageDescription ?? this.punchlineImageDescription,
+      setupSceneIdea: setupSceneIdea ?? this.setupSceneIdea,
+      punchlineSceneIdea: punchlineSceneIdea ?? this.punchlineSceneIdea,
       allSetupImageUrls: allSetupImageUrls ?? this.allSetupImageUrls,
       allPunchlineImageUrls:
           allPunchlineImageUrls ?? this.allPunchlineImageUrls,
@@ -119,6 +127,8 @@ class Joke {
       'punchline_image_url_upscaled': punchlineImageUrlUpscaled,
       'setup_image_description': setupImageDescription,
       'punchline_image_description': punchlineImageDescription,
+      'setup_scene_idea': setupSceneIdea,
+      'punchline_scene_idea': punchlineSceneIdea,
       'all_setup_image_urls': allSetupImageUrls,
       'all_punchline_image_urls': allPunchlineImageUrls,
       'generation_metadata': generationMetadata,
@@ -148,6 +158,8 @@ class Joke {
       punchlineImageUrlUpscaled: map['punchline_image_url_upscaled'],
       setupImageDescription: map['setup_image_description'],
       punchlineImageDescription: map['punchline_image_description'],
+      setupSceneIdea: map['setup_scene_idea'],
+      punchlineSceneIdea: map['punchline_scene_idea'],
       allSetupImageUrls: List<String>.from(map['all_setup_image_urls'] ?? []),
       allPunchlineImageUrls: List<String>.from(
         map['all_punchline_image_urls'] ?? [],
@@ -190,7 +202,7 @@ class Joke {
 
   @override
   String toString() =>
-      'Joke(id: $id, setupText: $setupText, punchlineText: $punchlineText, setupImageUrl: $setupImageUrl, punchlineImageUrl: $punchlineImageUrl, setupImageUrlUpscaled: $setupImageUrlUpscaled, punchlineImageUrlUpscaled: $punchlineImageUrlUpscaled, setupImageDescription: $setupImageDescription, punchlineImageDescription: $punchlineImageDescription, allSetupImageUrls: $allSetupImageUrls, allPunchlineImageUrls: $allPunchlineImageUrls, generationMetadata: $generationMetadata, numSaves: $numSaves, numShares: $numShares, numViews: $numViews, numSavedUsersFraction: $numSavedUsersFraction, popularityScore: $popularityScore, adminRating: $adminRating, state: $state, publicTimestamp: $publicTimestamp, tags: $tags, seasonal: $seasonal)';
+      'Joke(id: $id, setupText: $setupText, punchlineText: $punchlineText, setupImageUrl: $setupImageUrl, punchlineImageUrl: $punchlineImageUrl, setupImageUrlUpscaled: $setupImageUrlUpscaled, punchlineImageUrlUpscaled: $punchlineImageUrlUpscaled, setupImageDescription: $setupImageDescription, punchlineImageDescription: $punchlineImageDescription, setupSceneIdea: $setupSceneIdea, punchlineSceneIdea: $punchlineSceneIdea, allSetupImageUrls: $allSetupImageUrls, allPunchlineImageUrls: $allPunchlineImageUrls, generationMetadata: $generationMetadata, numSaves: $numSaves, numShares: $numShares, numViews: $numViews, numSavedUsersFraction: $numSavedUsersFraction, popularityScore: $popularityScore, adminRating: $adminRating, state: $state, publicTimestamp: $publicTimestamp, tags: $tags, seasonal: $seasonal)';
 
   @override
   bool operator ==(Object other) {
@@ -206,6 +218,8 @@ class Joke {
         other.punchlineImageUrlUpscaled == punchlineImageUrlUpscaled &&
         other.setupImageDescription == setupImageDescription &&
         other.punchlineImageDescription == punchlineImageDescription &&
+        other.setupSceneIdea == setupSceneIdea &&
+        other.punchlineSceneIdea == punchlineSceneIdea &&
         listEquals(other.allSetupImageUrls, allSetupImageUrls) &&
         listEquals(other.allPunchlineImageUrls, allPunchlineImageUrls) &&
         mapEquals(other.generationMetadata, generationMetadata) &&
@@ -232,6 +246,8 @@ class Joke {
       punchlineImageUrlUpscaled.hashCode ^
       setupImageDescription.hashCode ^
       punchlineImageDescription.hashCode ^
+      setupSceneIdea.hashCode ^
+      punchlineSceneIdea.hashCode ^
       allSetupImageUrls.hashCode ^
       allPunchlineImageUrls.hashCode ^
       generationMetadata.hashCode ^
@@ -245,4 +261,5 @@ class Joke {
       publicTimestamp.hashCode ^
       tags.hashCode ^
       seasonal.hashCode;
+
 }

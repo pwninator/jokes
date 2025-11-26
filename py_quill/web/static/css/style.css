@@ -7,11 +7,11 @@
   --color-text-muted: #7c675a;
   --color-border: rgba(74, 59, 50, 0.12);
   --color-shadow: rgba(196, 171, 140, 0.25);
-  --color-primary: #d4a017;
-  --color-primary-dark: #b07d0f;
+  --color-primary: rgba(243, 179, 51, 1.0);
+  --color-primary-dark: rgba(198, 109, 0, 1.0);
   --color-pill-bg: #efe1c5;
   --color-pill-text: #735a45;
-  --color-app-highlight-bg: #b07d0f;
+  --color-app-highlight-bg: var(--color-primary-dark);
   --color-app-highlight-card: rgba(255, 255, 255, 0.45);
   --layout-max-width: 1100px;
   --admin-layout-max-width: 1600px;
@@ -191,7 +191,6 @@ img {
   padding: 10px 16px;
   border-radius: 999px;
   background: var(--color-primary);
-  color: #ffffff;
   box-shadow: 0 6px 16px var(--color-shadow);
   transition: transform 120ms ease, box-shadow 120ms ease;
 }
@@ -379,7 +378,6 @@ img {
   padding: 10px 16px;
   border-radius: 999px;
   background: var(--color-primary);
-  color: #ffffff;
   border: none;
   cursor: pointer;
   box-shadow: 4px 4px 8px var(--color-shadow);
@@ -479,7 +477,7 @@ img {
   filter: drop-shadow(0 12px 32px rgba(0, 0, 0, 0.15));
 }
 
-/* Default mobile layout (Grid Areas) < 640px */
+/* Default mobile layout (Grid Areas) */
 
 .app-highlight {
   grid-template-areas:

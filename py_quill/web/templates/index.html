@@ -124,19 +124,60 @@
 </section>
 
 <section class="app-highlight" id="app-highlight" aria-labelledby="app-highlight-title">
+  <div class="app-highlight__media" aria-hidden="true">
+    <img src="https://images.quillsstorybook.com/cdn-cgi/image/width=600,format=auto,quality=70/_joke_assets/phone_discover.png"
+      alt="App preview" class="app-highlight__device-image" loading="lazy">
+  </div>
   <div class="app-highlight__copy">
     <h2 id="app-highlight-title" class="text-section-heading">Get your daily giggle delivered.</h2>
-    <p class="text-body">Snickerdoodle serves a delightful illustrated joke every morning. Save your favorites, share them with friends, and explore themed collections in the app.</p>
-    <div class="rating-chip text-button">★ 4.7 Stars · US Play Store</div>
-    <a href="https://play.google.com/store/apps/details?id=com.builtwithporpoise.jokes"
-      class="play-badge-link" target="_blank" rel="noopener noreferrer" aria-label="Get it on Google Play"
-      data-analytics-event="web_index_play_store_click" data-analytics-label="joke_end_card">
-      <img class="play-badge" alt="Get it on Google Play"
-        src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png" loading="lazy">
-    </a>
-  </div>
-  <div class="app-highlight__media" aria-hidden="true">
-    <div class="app-highlight__placeholder text-button">App preview baking…</div>
+    <p class="text-body text-body--inverse">Start your morning with our fresh-baked joke of the day. Still hungry for more? Dive into a personalized feed of funny illustrations tailored specifically to your taste.</p>
+    <div class="app-highlight__stats">
+      <div class="app-highlight__stat-card">
+        <div class="app-highlight__stat-card-inner">
+          <img src="https://images.quillsstorybook.com/cdn-cgi/image/height=64,format=auto,quality=70/_joke_assets/icon_stars.png"
+               class="app-highlight__stat-icon" alt="Stars" loading="lazy">
+          <div class="app-highlight__stat-copy">
+            <span class="app-highlight__stat-label text-button">4.7 Stars</span>
+            <span class="app-highlight__stat-caption">US Play Store</span>
+          </div>
+        </div>
+      </div>
+      <div class="app-highlight__stat-card">
+        <div class="app-highlight__stat-card-inner">
+          <img src="https://images.quillsstorybook.com/cdn-cgi/image/height=64,format=auto,quality=70/_joke_assets/icon_downloads.png"
+               class="app-highlight__stat-icon" alt="Downloads" loading="lazy">
+          <div class="app-highlight__stat-copy">
+            <span class="app-highlight__stat-label text-button">10k+</span>
+            <span class="app-highlight__stat-caption">Downloads</span>
+          </div>
+        </div>
+      </div>
+      <div class="app-highlight__stat-card">
+        <div class="app-highlight__stat-card-inner">
+          <img src="https://images.quillsstorybook.com/cdn-cgi/image/height=64,format=auto,quality=70/_joke_assets/icon_laughs.png"
+               class="app-highlight__stat-icon" alt="Laughs" loading="lazy">
+          <div class="app-highlight__stat-copy">
+            <span class="app-highlight__stat-label text-button">300k+</span>
+            <span class="app-highlight__stat-caption">Laughs Delivered</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="app-highlight__store-badges">
+      <a href="https://play.google.com/store/apps/details?id=com.builtwithporpoise.jokes"
+        class="store-badge-link" target="_blank" rel="noopener noreferrer" aria-label="Get it on Google Play"
+        data-analytics-event="web_index_play_store_click" data-analytics-label="joke_end_card">
+        <img class="store-badge" alt="Get it on Google Play"
+          src="https://images.quillsstorybook.com/cdn-cgi/image/height=60,format=auto,quality=80/_joke_assets/cta_play_store.png" loading="lazy">
+      </a>
+      <a href="https://apps.apple.com/" class="store-badge-link" target="_blank" rel="noopener noreferrer"
+        aria-label="Download on the App Store" data-analytics-event="web_index_app_store_click"
+        data-analytics-label="joke_end_card">
+        <img class="store-badge" alt="Download on the App Store"
+          src="https://images.quillsstorybook.com/cdn-cgi/image/height=60,format=auto,quality=80/_joke_assets/cta_app_store.png"
+          loading="lazy">
+      </a>
+    </div>
   </div>
 </section>
 {% endblock %}

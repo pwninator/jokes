@@ -54,7 +54,7 @@
         data-label-hide="Back to Setup"
         aria-controls="daily-joke-punchline"
         aria-expanded="false"
-        data-analytics-event="web_index_joke_scroll_click"
+        data-analytics-event="web_index_joke_reveal_click"
         data-analytics-label="{{ daily_joke.key or 'daily_joke' }}">
         Reveal Punchline
       </button>
@@ -70,7 +70,6 @@
 
 <section class="favorites-section" aria-labelledby="favorites-title">
   <header>
-    <span class="visually-hidden">Fan-Favorite Jokes</span>
     <h2 class="favorites-title text-section-heading" id="favorites-title">Fan Favorites from the Cookie Jar</h2>
     <p class="favorites-subtitle text-body">A handful of the most-loved jokes, straight from the Snickerdoodle community.</p>
   </header>
@@ -110,7 +109,7 @@
           data-label-hide="Back to Setup"
           aria-controls="favorite-{{ loop.index }}-punchline"
           aria-expanded="false"
-          data-analytics-event="web_index_joke_scroll_click"
+          data-analytics-event="web_index_joke_reveal_click"
           data-analytics-label="{{ joke.key or 'favorite_joke' }}">
           Reveal Punchline
         </button>

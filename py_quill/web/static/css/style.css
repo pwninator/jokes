@@ -23,6 +23,7 @@
   --font-weight-label: 800;
   /* Buttons, Pills */
   --font-weight-body: 600;
+  --font-weight-button: 700;
 }
 
 /* --- Typography Classes --- */
@@ -68,13 +69,13 @@
 
 /* 5. Button/Label Text */
 .text-button {
-  font-weight: var(--font-weight-label);
+  font-size: 1rem;
+  font-weight: var(--font-weight-button);
 }
 
 /* 6. Footer Text */
 .text-footer {
-  font-size: 0.9rem;
-  /* Slightly smaller than body */
+  font-size: 0.9rem; /* Slightly smaller than body */
   font-weight: var(--font-weight-body);
   color: var(--color-text-muted);
 }
@@ -424,11 +425,12 @@ img {
 /* --- App Highlight Section --- */
 .app-highlight {
   background: var(--color-app-highlight-bg);
-  border-radius: 24px;
+  border-radius: 0; /* Full-width horizontal strip, no rounded card */
   border: none;
-  box-shadow: 0 15px 40px var(--color-shadow);
-  padding: 24px 24px 0 24px;
-  /* Remove bottom padding for flush image */
+  box-shadow: none; /* Remove card-like shadow */
+  padding: 24px 24px 0 24px; /* Remove bottom padding for flush image */
+  margin-inline: -36px; /* Cancel .main-container horizontal padding for full-bleed strip */
+  width: calc(100% + 72px); /* Extend strip into the canceled padding */
   display: grid;
   gap: 12px;
 
@@ -543,7 +545,7 @@ img {
 
 .store-badge {
   width: auto;
-  height: 48px;
+  max-height: 48px;
 }
 
 /* Desktop / Wide Layout Override */

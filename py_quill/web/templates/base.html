@@ -36,8 +36,8 @@
         <span class="brand-text text-brand">{{ site_name }}</span>
       </a>
       <nav class="primary-nav" aria-label="Main navigation">
-        <a class="nav-cta text-button" href="https://play.google.com/store/apps/details?id=com.builtwithporpoise.jokes"
-          target="_blank" rel="noopener noreferrer" data-analytics-event="web_index_play_store_click"
+        <a class="nav-cta text-button" href="{{ url_for('web.index') }}#app-highlight"
+          data-analytics-event="web_header_app_scroll_click"
           data-analytics-label="header">
           Get the App
         </a>

@@ -11,7 +11,7 @@
   --color-primary-dark: rgba(198, 109, 0, 1.0);
   --color-pill-bg: #efe1c5;
   --color-pill-text: #735a45;
-  --color-app-highlight-bg: var(--color-primary-dark);
+  --color-app-highlight-bg: rgba(205, 157, 80, 1.0);
   --color-app-highlight-card: rgba(255, 255, 255, 0.45);
   --layout-max-width: 1100px;
   --admin-layout-max-width: 1600px;
@@ -221,7 +221,6 @@ img {
 
 .hero {
   display: grid;
-  gap: 28px;
 }
 
 .hero-pill {
@@ -428,19 +427,24 @@ img {
   border-radius: 24px;
   border: none;
   box-shadow: 0 15px 40px var(--color-shadow);
-  padding: 24px;
+  padding: 24px 24px 0 24px;
+  /* Remove bottom padding for flush image */
   display: grid;
   gap: 12px;
-  /* Default mobile layout (Grid Areas) < 640px */
+
+  /* Default Mobile / Narrow Layout */
+  grid-template-columns: 2fr 1fr;
   grid-template-areas:
-    "header"
-    "desc"
-    "middle"
-    "cta";
+    "header header"
+    "desc   desc"
+    "media  stats"
+    "media  cta";
+  align-items: start;
 }
 
 .app-highlight__copy {
-  display: contents; /* Allow children to participate in parent grid */
+  display: contents;
+  /* Allow children to participate in parent grid */
 }
 
 /* Assign Grid Areas */
@@ -457,42 +461,31 @@ img {
 }
 
 .app-highlight__media {
-  border-radius: 24px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  
-  /* Mobile Layout (< 640px) */
   grid-area: media;
-  justify-self: center;
-  margin-right: 10px;
-  padding: 8px;
+  /* Ensure container is tall enough for object-fit to work */
+  min-height: 400px;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  position: relative;
+  padding: 0;
+  /* Remove padding so image touches edges */
 }
 
 .app-highlight__device-image {
+  position: absolute;
   width: 100%;
-  height: auto;
+  height: 100%;
   display: block;
-  filter: drop-shadow(0 12px 32px rgba(0, 0, 0, 0.15));
-}
-
-/* Default mobile layout (Grid Areas) */
-
-.app-highlight {
-  grid-template-areas:
-    "header header"
-    "desc desc"
-    "media stats"
-    "cta cta";
-  grid-template-columns: 2fr 1fr;
-  align-items: start;
+  object-fit: cover;
+  object-position: top center;
 }
 
 .app-highlight__stats {
   grid-area: stats;
   display: flex;
-  flex-direction: column; /* Vertical stack */
+  flex-direction: column;
+  /* Vertical stack */
   gap: 8px;
   width: 100%;
 }
@@ -532,30 +525,49 @@ img {
 .app-highlight__store-badges {
   grid-area: cta;
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
+  /* Stack vertically on narrow */
   gap: 12px;
   margin-top: 12px;
-  justify-content: center;
+  padding-bottom: 24px;
+  /* Restore bottom margin for right column */
+  justify-content: flex-start;
   align-items: center;
 }
 
-/* Desktop / Tablet Override */
+.store-badge-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.store-badge {
+  width: auto;
+  height: 48px;
+}
+
+/* Desktop / Wide Layout Override */
 @media (min-width: 800px) {
   .app-highlight {
     display: grid;
     grid-template-columns: minmax(0, 300px) 1fr;
-    grid-template-areas: none; /* Reset areas */
-    align-items: stretch; /* Stretch items to fill container height */
-    padding: 24px 24px 0; /* Remove bottom padding to flush image */
-    overflow: hidden; /* Clip the overflow image */
+    grid-template-areas: none;
+    /* Reset areas */
+    align-items: stretch;
+    /* Stretch items to fill container height */
+    padding: 24px 24px 0;
+    /* Remove bottom padding to flush image */
+    overflow: hidden;
+    /* Clip the overflow image */
   }
 
   .app-highlight__copy {
-    display: flex; /* Restore flex container */
+    display: flex;
+    /* Restore flex container */
     flex-direction: column;
     gap: 16px;
-    padding-bottom: 24px; /* Restore bottom spacing for text column */
-    justify-content: center; /* Center text content vertically */
+    justify-content: center;
+    /* Center text content vertically */
   }
 
   .app-highlight__copy h2 {
@@ -569,49 +581,51 @@ img {
   }
 
   .app-highlight__media {
-    grid-area: auto; /* Reset */
-    aspect-ratio: auto; /* Reset mobile aspect ratio */
+    grid-area: auto;
+    /* Reset */
+    min-height: auto;
+    /* Reset min-height */
     max-width: 320px;
     margin-right: 0;
     height: 100%;
-    padding: 0; /* Remove padding to let it touch edges */
-    overflow: visible; /* Let image overflow container (caught by parent) */
-    position: relative; /* For absolute child */
+    padding: 0;
+    overflow: visible;
+    /* Let image overflow container (caught by parent) */
+    position: relative;
+    /* For absolute child */
   }
-  
+
   .app-highlight__device-image {
-    position: absolute;
     width: 100%;
     height: auto;
-    max-height: unset; /* Allow it to be taller than container */
+    max-height: unset;
+    /* Allow it to be taller than container */
     object-fit: cover;
     object-position: top center;
-    top: 0; /* Position at top of card */
+    top: 0;
+    /* Position at top of card */
     left: 50%;
     transform: translateX(-50%);
   }
 
   .app-highlight__stats {
-    grid-area: auto; /* Reset */
-    flex-direction: row; /* Horizontal stack */
+    grid-area: auto;
+    /* Reset */
+    flex-direction: row;
+    /* Horizontal stack */
     gap: 12px;
   }
 
   .app-highlight__store-badges {
-    grid-area: auto; /* Reset */
-    justify-content: flex-start;
+    grid-area: auto;
+    /* Reset */
+    flex-direction: row;
+    /* Restore horizontal row */
+    justify-content: center;
+    align-items: center;
+    /* Reset stretch */
     margin-top: 4px;
   }
-}
-
-.store-badge-link {
-  display: inline-flex;
-  align-items: center;
-}
-
-.store-badge {
-  height: 48px;
-  width: auto;
 }
 
 .centered-section {
@@ -701,6 +715,7 @@ tr:last-child td {
   .hero {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     align-items: center;
+    gap: 24px;
   }
 }
 

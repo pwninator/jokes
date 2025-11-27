@@ -163,13 +163,15 @@
         <img class="store-badge" alt="Get it on Google Play"
           src="https://images.quillsstorybook.com/cdn-cgi/image/height=60,format=auto,quality=80/_joke_assets/cta_play_store.png" loading="lazy">
       </a>
-      <a href="https://apps.apple.com/" class="store-badge-link" target="_blank" rel="noopener noreferrer"
-        aria-label="Download on the App Store" data-analytics-event="web_index_app_store_click"
-        data-analytics-label="joke_end_card">
-        <img class="store-badge" alt="Download on the App Store"
-          src="https://images.quillsstorybook.com/cdn-cgi/image/height=60,format=auto,quality=80/_joke_assets/cta_app_store.png"
-          loading="lazy">
-      </a>
+      <div class="store-badge-wrapper">
+        <button type="button" class="store-badge-btn" aria-label="Download on the App Store"
+          data-analytics-event="web_index_app_store_click" data-analytics-label="joke_end_card_coming_soon">
+          <img class="store-badge" alt="Download on the App Store"
+            src="https://images.quillsstorybook.com/cdn-cgi/image/height=60,format=auto,quality=80/_joke_assets/cta_app_store.png"
+            loading="lazy">
+        </button>
+        <div class="store-tooltip" role="tooltip" aria-hidden="true">iPhone app coming soon!</div>
+      </div>
     </div>
   </div>
 </section>
@@ -206,6 +208,51 @@
   }
 
   document.querySelectorAll('[data-joke-viewer]').forEach(initViewer);
+
+  // Tooltip logic for App Store button
+  document.querySelectorAll('.store-badge-wrapper').forEach(function (wrapper) {
+    const btn = wrapper.querySelector('.store-badge-btn');
+    const tooltip = wrapper.querySelector('.store-tooltip');
+
+    if (!btn || !tooltip) return;
+
+    function show() {
+      tooltip.classList.add('tooltip--visible');
+      tooltip.setAttribute('aria-hidden', 'false');
+      // Analytics are handled by global handler on the button
+    }
+
+    function hide() {
+      tooltip.classList.remove('tooltip--visible');
+      tooltip.setAttribute('aria-hidden', 'true');
+    }
+
+    function toggle(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (tooltip.classList.contains('tooltip--visible')) {
+        hide();
+      } else {
+        show();
+      }
+    }
+
+    btn.addEventListener('click', toggle);
+
+    // Close on click outside
+    document.addEventListener('click', function (e) {
+      if (!wrapper.contains(e.target)) {
+        hide();
+      }
+    });
+
+    // Close on Escape
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') {
+        hide();
+      }
+    });
+  });
 })();
 </script>
 {% endblock %}

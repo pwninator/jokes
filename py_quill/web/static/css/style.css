@@ -548,6 +548,62 @@ img {
   max-height: 48px;
 }
 
+.store-badge-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.store-badge-btn {
+  background: transparent;
+  border: none;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.store-tooltip {
+  position: absolute;
+  bottom: 100%; /* Above the button */
+  left: 50%;
+  transform: translateX(-50%);
+  margin-bottom: 12px; /* Space between tooltip and button */
+  background-color: #333;
+  color: #fff;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.2s ease, visibility 0.2s ease;
+  z-index: 100;
+  pointer-events: none; /* Allows clicking through if hidden, though visibility handles this */
+}
+
+.store-tooltip::after {
+  content: '';
+  position: absolute;
+  top: 100%; /* Bottom of tooltip */
+  left: 50%;
+  transform: translateX(-50%);
+  border-width: 6px;
+  border-style: solid;
+  border-color: #333 transparent transparent transparent;
+}
+
+.store-tooltip.tooltip--visible {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+}
+
 /* Desktop / Wide Layout Override */
 @media (min-width: 800px) {
   .app-highlight {

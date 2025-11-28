@@ -54,20 +54,14 @@ PUN_IMAGE_CLIENTS_BY_QUALITY = {
 }
 
 _MODIFY_IMAGE_CLIENT_LOW = image_client.get_client(
-  label="pun_agent_image_tool_gemini",
-  model=image_client.ImageModel.GEMINI_NANO_BANANA,
-  file_name_base=_IMAGE_FILE_NAME_BASE,
-)
-
-_MODIFY_IMAGE_CLIENT_MEDIUM = image_client.get_client(
-  label="pun_agent_image_tool_gemini",
+  label="pun_agent_image_tool_gemini_low",
   model=image_client.ImageModel.GEMINI_NANO_BANANA,
   file_name_base=_IMAGE_FILE_NAME_BASE,
 )
 
 _MODIFY_IMAGE_CLIENT_HIGH = image_client.get_client(
-  label="pun_agent_image_tool_gemini",
-  model=image_client.ImageModel.GEMINI_NANO_BANANA,
+  label="pun_agent_image_tool_gemini_high",
+  model=image_client.ImageModel.GEMINI_NANO_BANANA_PRO,
   file_name_base=_IMAGE_FILE_NAME_BASE,
 )
 
@@ -212,7 +206,7 @@ def _strip_prompt_preamble(
 def modify_image(
   image: models.Image,
   instruction: str,
-  client: image_client.ImageClient = _MODIFY_IMAGE_CLIENT_LOW,
+  client: image_client.ImageClient = _MODIFY_IMAGE_CLIENT_HIGH,
 ) -> models.Image:
   """Modify an image using an instruction.
   Args:

@@ -19,7 +19,7 @@ _AD_BACKGROUND_SQUARE_DRAWING_URI = "gs://images.quillsstorybook.com/joke_assets
 _AD_BACKGROUND_SQUARE_DESK_URI = "gs://images.quillsstorybook.com/joke_assets/background_desk_1280_1280.png"
 _AD_BACKGROUND_SQUARE_CORKBOARD_URI = "gs://images.quillsstorybook.com/joke_assets/background_corkboard_1280_1280.png"
 
-_BOOK_PAGE_STYLE_REFERENCE_IMAGE_URI = "https://storage.googleapis.com/images.quillsstorybook.com/_joke_assets/book_page_reference_image_1024.jpg"
+_BOOK_PAGE_STYLE_REFERENCE_IMAGE_URI = "https://storage.googleapis.com/images.quillsstorybook.com/_joke_assets/book_page_reference_image_1024_mewseum.jpg"
 
 _BOOK_PAGE_BASE_SIZE = 1800
 _BOOK_PAGE_BLEED_PX = 38
@@ -351,6 +351,17 @@ def create_ad_assets(
   return final_urls
 
 
+_BOOK_PAGE_SIMPLE_PROMPT_TEMPLATE = """
+You are given an image of a drawing. This image will be referred to as the CONTENT image.
+
+Seamlessly extend the CONTENT image through the black bleed margins.
+
+ Your new image must:
+  - Show the exact same words and contents as the CONTENT image, except the canvas/image are extended through the black bleed margins. Some/all of this area will be trimmed off during printing, so make sure content in these areas are not critical to the joke. The goal is to use this margin as bleed for printing.
+
+{additional_instructions}
+"""
+
 _BOOK_PAGE_PROMPT_TEMPLATE = """
 {intro}
 
@@ -361,13 +372,9 @@ Create a professional-quality children's book illustration in the style of soft-
 
  Your new image must:
   - Show the exact same words as the CONTENT image.
-  - Use the exact same scene, composition, and camera angle as the CONTENT image. The main characters, their poses and positioning, expressions, etc. MUST be identical. You may ONLY make the following changes:
-    - Fix mistakes/errors, such as anatomical errors on the characters, objects, etc.
-    - Fix inconsistencies in the font, e.g. if some or all of the text are in cursive, different fonts, different colors, etc., convert the text to match the text font/color/style of the reference image.
-    - Add details to the main characters/objects to make them more polished, complete, and visually appealing, but be sure to respect the artistic style of a child-like colored pencil drawing.
+  - Use the exact same scene, composition, and camera angle as the CONTENT image. The main characters, their poses and positioning, expressions, etc. MUST be identical (unless otherwise specified below). You may ONLY make the following changes:
     - Seamlessly extend the image (both canvas and drawing) into the black margins. Some/all of this area will be trimmed off during printing, so make sure these elements are not critical to the joke. The goal is to use this margin as bleed for printing.
-    - Add/remove/change the supporting foreground/background elements to make the image make sense and be more visually appealing.
-    - If the CONTENT image has a lot of empty space, add supporting foreground/background elements to fill it. Make sure these elements play a supporting role and do not conflict with the main subject.
+    - Adjust the artistic style of the image to be consistent with the art style described above and examplified by the STYLE reference image.
   - All text and major elements must be outside of the bleed area.
   - Be drawn on the same textured paper canvas as the reference image.
   - The final image must make sense. If there are any supporting elemments in the CONTENT image that get in the way of your bleed margin expansion, you may change them to make the image make sense.
@@ -378,17 +385,7 @@ Create a professional-quality children's book illustration in the style of soft-
 Here is the description for the CONTENT image. You must follow this description exactly:
 {{image_description}}
 
-First, think deeply about the following:
-  - What is the composition of the CONTENT image? What are the main subjects, supporting elements, and background elements? What is the camera angle and perspective? What effect and emotion is the artist trying to convey?
-  - What are the crucial elements of the CONTENT image that must be preserved in the final image?
-  - Does the CONTENT image already adhere to the art style described above? If not, what changes need to be made?
-  - Does the CONTENT image contain any mistakes or errors? If so, how can they be fixed in the final image?
-    - Example: Anatomical errors on the characters
-    - Example: Incorrectly or poorly drawn objects
-    - Example: Inconsistencies with the given image description
-{additional_thinking}
-
-Then, generate the final image, which should be high quality, professional-looking copy of the CONTENT image, suitable for a children's picture book, and print ready with appropriate bleed margins.
+Generate the final image, which should be high quality, professional-looking copy of the CONTENT image, suitable for a children's picture book, and print ready with appropriate bleed margins.
 """
 
 _BOOK_PAGE_SETUP_PROMPT_TEMPLATE = _BOOK_PAGE_PROMPT_TEMPLATE.format(
@@ -404,9 +401,7 @@ _BOOK_PAGE_SETUP_PROMPT_TEMPLATE = _BOOK_PAGE_PROMPT_TEMPLATE.format(
     - Overall aesthetic: Super cute and silly
 """,
   additional_requirements="",
-  additional_thinking="""
-  - Is the CONTENT image missing any supporting foreground/background elements, or does any existing ones need to be enhanced to make the image more visually appealing?
-""",
+  additional_thinking="",
 )
 
 _BOOK_PAGE_PUNCHLINE_PROMPT_TEMPLATE = _BOOK_PAGE_PROMPT_TEMPLATE.format(
@@ -425,10 +420,7 @@ _BOOK_PAGE_PUNCHLINE_PROMPT_TEMPLATE = _BOOK_PAGE_PROMPT_TEMPLATE.format(
   additional_requirements="""
   - Any recurring characters or elements from the SETUP image must be consistent with the SETUP image.
 """,
-  additional_thinking="""
-  - Does the CONTENT image take place in the same setting as the SETUP image? If it's not clear from the images, think about whether it should based on the joke and context. If so, are the view and perspective exactly the same or different?
-  - What elements of the SETUP image are (or should be) present in the CONTENT image? For each, are they viewed from exactly the same angle/perspective? Which parts should be visible in the CONTENT image?
-""",
+  additional_thinking="",
 )
 
 

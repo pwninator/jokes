@@ -229,6 +229,7 @@ class ImageModel(Enum):
     {
       "input_tokens": 0.30 / 1_000_000,
       "output_text_tokens": 2.50 / 1_000_000,
+      # $0.039 per image
       "output_image_tokens": 30.00 / 1_000_000,
     },
     ImageProvider.GEMINI,
@@ -242,6 +243,7 @@ class ImageModel(Enum):
     {
       "input_tokens": 2.00 / 1_000_000,
       "output_text_tokens": 12.00 / 1_000_000,
+      # $0.134 per image
       "output_image_tokens": 120.00 / 1_000_000,
     },
     ImageProvider.GEMINI,
@@ -347,7 +349,7 @@ class ImageClient(ABC, Generic[_T]):
     save_to_firestore: bool = True,
     user_uid: str | None = None,
     extra_log_data: dict[str, Any] | None = None,
-    auto_enhance: bool = True,
+    auto_enhance: bool = False,
   ) -> models.Image:
     """Generate an image from a prompt."""
     logger.info(

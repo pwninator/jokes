@@ -411,7 +411,8 @@ _BOOK_PAGE_PUNCHLINE_PROMPT_TEMPLATE = _BOOK_PAGE_PROMPT_TEMPLATE.format(
   - A SETUP reference image that visualizes the 1st panel: the setup line of the joke. Use this image as consistency reference for:
     - Any recurring characters, objects, and scenes.
     - Art style: Super cute colored pencil drawing, with a clear main subject, and supporting/background elements that extend to the edge of the canvas.
-    - Canvas/background: Off-white textured paper
+    - Canvas: Off-white textured paper
+    - Supporting elements: If you add supporting elements to the CONTENT image (e.g. sky, background, etc.), and the CONTENT image takes place in the same setting as the SETUP image, then the supporting elements must exactly match the supporting elements in the SETUP image.
     - Font: Clean "handwritten" style
     - Overall aesthetic: Super cute and silly
 

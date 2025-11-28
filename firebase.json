@@ -87,6 +87,14 @@
           "region": "us-central1",
           "codebase": "default"
         }
+      },
+      {
+        "source": "/get_joke_bundle",
+        "function": {
+          "functionId": "get_joke_bundle",
+          "region": "us-central1",
+          "codebase": "default"
+        }
       }
     ]
   },

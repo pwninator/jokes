@@ -1,5 +1,6 @@
 """Tests for the joke_fns module."""
 
+import json
 from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock
 
@@ -643,3 +644,83 @@ class TestUpscaleJoke:
     )
     assert "error" in resp["data"]
     assert "Failed to upscale joke: Joke not found" in resp["data"]["error"]
+
+
+def test_get_joke_bundle_requires_admin(monkeypatch):
+  """Should reject when not admin (non-emulator)."""
+  monkeypatch.setattr(joke_fns.utils, "is_emulator", lambda: False)
+  monkeypatch.setattr(joke_fns.auth_helpers, "verify_session",
+                      lambda req: None)
+
+  resp = joke_fns.get_joke_bundle(DummyReq(method='POST'))
+
+  assert resp.status_code == 403
+  payload = json.loads(resp.get_data(as_text=True))
+  assert "error" in payload["data"]
+
+
+def test_get_joke_bundle_success(monkeypatch):
+  """Builds bundle, uploads to storage, and returns the public URL."""
+  monkeypatch.setattr(joke_fns.utils, "is_emulator", lambda: True)
+
+  mock_db = Mock()
+  mock_feed_collection = Mock()
+  mock_categories_collection = Mock()
+  mock_jokes_collection = Mock()
+  mock_feed_query = Mock()
+  mock_categories_query = Mock()
+  mock_jokes_query = Mock()
+
+  mock_feed_collection.order_by.return_value = mock_feed_query
+  mock_categories_collection.order_by.return_value = mock_categories_query
+  mock_jokes_collection.where.return_value = mock_jokes_query
+
+  mock_db.collection.side_effect = lambda name: {
+    "joke_feed": mock_feed_collection,
+    "joke_categories": mock_categories_collection,
+    "jokes": mock_jokes_collection,
+  }[name]
+
+  mock_category_doc = Mock()
+  mock_cache_doc = Mock()
+  mock_cache_doc.exists = True
+  mock_category_doc.reference.collection.return_value.document.return_value.get.return_value = mock_cache_doc
+  mock_categories_query.stream.return_value = [mock_category_doc]
+
+  uploaded = {}
+
+  def fake_upload_bytes(data, gcs_uri, content_type):
+    uploaded["bytes"] = data
+    uploaded["gcs_uri"] = gcs_uri
+    uploaded["content_type"] = content_type
+
+  monkeypatch.setattr(joke_fns.firestore, "db", lambda: mock_db)
+  monkeypatch.setattr(joke_fns.cloud_storage, "get_gcs_uri",
+                      lambda bucket, base, ext: "gs://temp/bundle.txt")
+  monkeypatch.setattr(joke_fns.cloud_storage, "upload_bytes_to_gcs",
+                      fake_upload_bytes)
+  monkeypatch.setattr(joke_fns.cloud_storage, "get_public_url",
+                      lambda uri: uri.replace("gs://", "https://storage.googleapis.com/"))
+
+  mock_bundle = Mock()
+  mock_bundle.add_named_query.return_value = mock_bundle
+  mock_bundle.add_document.return_value = mock_bundle
+  mock_bundle.build.return_value = b"bundle-bytes"
+  monkeypatch.setattr(joke_fns, "FirestoreBundle",
+                      lambda name: mock_bundle)  # noqa: ARG005
+
+  resp = joke_fns.get_joke_bundle(DummyReq(method='POST'))
+
+  assert resp.status_code == 200
+  payload = json.loads(resp.get_data(as_text=True))
+  assert payload["data"]["bundle_url"] == "https://storage.googleapis.com/temp/bundle.txt"
+
+  mock_bundle.add_named_query.assert_any_call("joke-feed", mock_feed_query)
+  mock_bundle.add_named_query.assert_any_call("joke-categories",
+                                              mock_categories_query)
+  mock_bundle.add_named_query.assert_any_call("public-jokes",
+                                              mock_jokes_query)
+  mock_bundle.add_document.assert_called_with(mock_cache_doc)
+  assert uploaded["bytes"] == b"bundle-bytes"
+  assert uploaded["gcs_uri"] == "gs://temp/bundle.txt"
+  assert uploaded["content_type"] == "application/octet-stream"

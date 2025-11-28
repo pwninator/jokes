@@ -10,5 +10,46 @@
     <li><a href="{{ url_for('web.admin_joke_books') }}">Manage joke books</a></li>
   </ul>
 </section>
-{% endblock %}
+<section>
+  <h3>Firestore bundle</h3>
+  <p class="muted">Generate an offline bundle for the app. This runs a long job and stores the file in Cloud Storage.</p>
+  <button id="generate-bundle-button" class="text-button" type="button">Generate bundle</button>
+  <span id="bundle-status" class="muted" style="margin-left: 8px;"></span>
+  <div id="bundle-link-container" style="margin-top: 8px;"></div>
+</section>
 
+<script>
+  const bundleButton = document.getElementById('generate-bundle-button');
+  const bundleStatus = document.getElementById('bundle-status');
+  const bundleLinkContainer = document.getElementById('bundle-link-container');
+
+  async function generateBundle() {
+    bundleButton.disabled = true;
+    bundleStatus.textContent = 'Starting bundle generation...';
+    bundleLinkContainer.innerHTML = '';
+    try {
+      const resp = await fetch('/get_joke_bundle', { method: 'POST' });
+      if (!resp.ok) {
+        const text = await resp.text();
+        throw new Error(`Request failed (${resp.status}): ${text}`);
+      }
+      const data = await resp.json();
+      const bundleUrl = data?.data?.bundle_url;
+      if (!bundleUrl) {
+        throw new Error('Bundle URL missing from response');
+      }
+      bundleStatus.textContent = 'Bundle ready:';
+      bundleLinkContainer.innerHTML =
+        `<a href="${bundleUrl}" target="_blank" rel="noopener noreferrer">Download Firestore bundle</a>`;
+    } catch (error) {
+      console.error('Bundle generation failed', error);
+      bundleStatus.textContent = 'Error generating bundle';
+      bundleLinkContainer.textContent = error.message || 'Unknown error';
+    } finally {
+      bundleButton.disabled = false;
+    }
+  }
+
+  bundleButton.addEventListener('click', generateBundle);
+</script>
+{% endblock %}

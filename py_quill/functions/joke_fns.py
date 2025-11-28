@@ -8,9 +8,13 @@ from typing import Any
 from agents import agents_common, constants
 from agents.endpoints import all_agents
 from agents.puns import pun_postprocessor_agent
-from common import config, image_generation, joke_operations, models
+from common import config, image_generation, joke_operations, models, utils
 from common.joke_operations import JokePopulationError
 from firebase_functions import https_fn, logger, options
+from google.cloud.firestore import FieldFilter
+from google.cloud.firestore_v1.field_path import FieldPath
+from google.cloud.firestore_bundle import FirestoreBundle
+from functions import auth_helpers
 from functions.function_utils import (error_response, get_bool_param,
                                       get_float_param, get_int_param,
                                       get_param, get_user_id, success_response)
@@ -70,6 +74,83 @@ def create_joke(req: https_fn.Request) -> https_fn.Response:
     stacktrace = traceback.format_exc()
     print(f"Error creating joke: {e}\nStacktrace:\n{stacktrace}")
     return error_response(f'Failed to create joke: {str(e)}')
+
+
+@https_fn.on_request(
+  memory=options.MemoryOption.GB_4,
+  timeout_sec=1200,
+)
+def get_joke_bundle(req: https_fn.Request) -> https_fn.Response:
+  """Build a Firestore bundle and store it in Cloud Storage."""
+  # Health check
+  if req.path == "/__/health":
+    return https_fn.Response("OK", status=200)
+
+  if req.method != 'POST':
+    return https_fn.Response(
+      json.dumps(error_response(f'Method not allowed: {req.method}')),
+      status=405,
+      mimetype='application/json',
+    )
+
+  if not utils.is_emulator():
+    verification = auth_helpers.verify_session(req)
+    if not verification or verification[1].get('role') != 'admin':
+      return https_fn.Response(
+        json.dumps(error_response('Unauthorized')),
+        status=403,
+        mimetype='application/json',
+      )
+
+  try:
+    client = firestore.db()
+    bundle = FirestoreBundle('data-bundle')
+
+    feed_query = client.collection('joke_feed').order_by(
+      FieldPath.document_id())
+    bundle.add_named_query('joke-feed', feed_query)
+
+    categories_query = client.collection('joke_categories').order_by(
+      FieldPath.document_id())
+    bundle.add_named_query('joke-categories', categories_query)
+
+    for category in categories_query.stream():
+      cache_doc = category.reference.collection('category_jokes').document(
+        'cache').get()
+      if cache_doc.exists:
+        bundle.add_document(cache_doc)
+
+    jokes_query = client.collection('jokes').where(
+      filter=FieldFilter('is_public', '==', True))
+    bundle.add_named_query('public-jokes', jokes_query)
+
+    bundle_bytes = bundle.build()
+
+    gcs_uri = cloud_storage.get_gcs_uri(
+      'snickerdoodle_temp_files',
+      'firestore_bundle',
+      'txt',
+    )
+    cloud_storage.upload_bytes_to_gcs(
+      bundle_bytes,
+      gcs_uri,
+      'application/octet-stream',
+    )
+    bundle_url = cloud_storage.get_public_url(gcs_uri)
+
+    return https_fn.Response(
+      json.dumps(success_response({'bundle_url': bundle_url})),
+      status=200,
+      mimetype='application/json',
+    )
+  except Exception as exc:  # pylint: disable=broad-except
+    logger.error("Failed to build Firestore bundle: %s", exc)
+    logger.error(traceback.format_exc())
+    return https_fn.Response(
+      json.dumps(error_response(f'Failed to build bundle: {exc}')),
+      status=500,
+      mimetype='application/json',
+    )
 
 
 @https_fn.on_request(

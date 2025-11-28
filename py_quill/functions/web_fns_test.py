@@ -184,12 +184,12 @@ def test_index_page_renders_top_jokes(monkeypatch):
   assert resp.status_code == 200
   html = resp.get_data(as_text=True)
   # Header presence (accessible span) and section scaffolding instead of brittle copy.
-  assert '<span class="visually-hidden">Fan-Favorite Jokes</span>' in html
   assert '<section class="favorites-section"' in html
+  assert 'Fan Favorites from the Cookie Jar' in html
   assert 'class="favorites-grid"' in html
   assert "What do you call a fake noodle?" in html
   assert "An Impasta!" in html
-  assert 'data-analytics-event="web_index_joke_scroll_click"' in html
+  assert 'data-analytics-event="web_index_joke_reveal_click"' in html
   assert 'data-analytics-event="web_index_play_store_click"' in html
   assert 'data-analytics-label="joke_end_card"' in html
   # Badge alt text per template
@@ -439,7 +439,7 @@ def test_pages_include_ga4_tag_and_parchment_background(monkeypatch):
   assert "gtag('config', 'G-D2B7E8PXJJ')" in topic_html
   assert 'gtag/js?id=G-D2B7E8PXJJ' in index_html
   assert "gtag('config', 'G-D2B7E8PXJJ')" in index_html
-  assert 'data-analytics-event="web_index_play_store_click"' in topic_html
+  assert 'data-analytics-event="web_header_app_scroll_click"' in topic_html
   assert 'data-analytics-label="header"' in topic_html
   assert 'data-analytics-event="web_index_play_store_click"' in index_html
   assert 'data-analytics-label="header"' in index_html

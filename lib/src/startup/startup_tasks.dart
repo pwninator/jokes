@@ -20,6 +20,7 @@ import 'package:snickerdoodle/src/features/jokes/application/feed_sync_service.d
 import 'package:snickerdoodle/src/features/jokes/application/joke_list_data_sources.dart';
 import 'package:snickerdoodle/src/startup/startup_task.dart';
 import 'package:snickerdoodle/src/utils/device_utils.dart';
+import 'package:snickerdoodle/src/startup/offline_bundle_loader.dart';
 
 /// Timeout duration for best effort blocking tasks.
 ///
@@ -241,6 +242,8 @@ Future<List<Override>> _initializeAdMob(StartupReader read) async {
 /// Sync feed jokes to local database.
 Future<List<Override>> _syncFeedJokes(StartupReader read) async {
   try {
+    await _loadBundledFirestoreData(read);
+
     final syncService = read(feedSyncServiceProvider);
     final syncFuture = syncService.triggerSync(forceSync: true);
 
@@ -283,5 +286,21 @@ Future<void> _resetDoneFeedCursor(StartupReader read) async {
     );
 
     await prefs.setString(compositeJokeCursorPrefsKey, newCursor.encode());
+  }
+}
+
+Future<void> _loadBundledFirestoreData(StartupReader read) async {
+  final perf = read(performanceServiceProvider);
+  try {
+    perf.startNamedTrace(name: TraceName.startupTaskLoadBundledFirestoreData);
+    final loader = read(offlineBundleLoaderProvider);
+    await loader.loadLatestBundle();
+    perf.stopNamedTrace(name: TraceName.startupTaskLoadBundledFirestoreData);
+  } catch (e, stack) {
+    AppLogger.error(
+      'STARTUP_TASKS: Failed to load bundled Firestore data: $e',
+      stackTrace: stack,
+    );
+    perf.dropNamedTrace(name: TraceName.startupTaskLoadBundledFirestoreData);
   }
 }

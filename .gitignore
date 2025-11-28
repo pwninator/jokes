@@ -58,5 +58,8 @@ app.*.map.json
 # Firestore backup
 /firestore_backup
 
+# Local Firestore bundle exports
+assets/data_bundles/
+
 # Python build artifacts
 *.egg-info/

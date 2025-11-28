@@ -13,6 +13,8 @@ import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_reposito
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
 import 'package:snickerdoodle/src/features/jokes/application/feed_sync_service.dart';
 import 'package:snickerdoodle/src/startup/startup_tasks.dart';
+import 'package:snickerdoodle/src/startup/offline_bundle_loader.dart';
+import 'package:snickerdoodle/src/core/services/performance_service.dart';
 
 class MockJokeRepository extends Mock implements JokeRepository {}
 
@@ -23,6 +25,10 @@ class MockJokeInteraction extends Mock implements JokeInteraction {}
 
 class MockFeedSyncService extends Mock implements FeedSyncService {}
 
+class MockOfflineBundleLoader extends Mock implements OfflineBundleLoader {}
+
+class MockPerformanceService extends Mock implements PerformanceService {}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   setUpAll(() {
@@ -32,6 +38,8 @@ void main() {
   group('_syncFeedJokes startup task', () {
     late MockJokeRepository mockJokeRepository;
     late MockJokeInteractionsRepository mockJokeInteractionsRepository;
+    late MockOfflineBundleLoader mockOfflineBundleLoader;
+    late MockPerformanceService mockPerformanceService;
     late ProviderContainer container;
     late SharedPreferences sharedPreferences;
 
@@ -43,9 +51,13 @@ void main() {
     setUp(() async {
       mockJokeRepository = MockJokeRepository();
       mockJokeInteractionsRepository = MockJokeInteractionsRepository();
+      mockOfflineBundleLoader = MockOfflineBundleLoader();
+      mockPerformanceService = MockPerformanceService();
       when(
         () => mockJokeInteractionsRepository.countFeedJokes(),
       ).thenAnswer((_) async => 0);
+      when(() => mockOfflineBundleLoader.loadLatestBundle())
+          .thenAnswer((_) async => false);
 
       // Mock the full feed sync to do nothing and complete instantly
       when(
@@ -69,6 +81,8 @@ void main() {
       when(
         () => mockJokeInteractionsRepository.countFeedJokes(),
       ).thenAnswer((_) async => 0);
+      when(() => mockOfflineBundleLoader.loadLatestBundle())
+          .thenAnswer((_) async => true);
 
       SharedPreferences.setMockInitialValues({});
       sharedPreferences = await SharedPreferences.getInstance();
@@ -78,6 +92,12 @@ void main() {
           jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
           jokeInteractionsRepositoryProvider.overrideWithValue(
             mockJokeInteractionsRepository,
+          ),
+          offlineBundleLoaderProvider.overrideWithValue(
+            mockOfflineBundleLoader,
+          ),
+          performanceServiceProvider.overrideWithValue(
+            mockPerformanceService,
           ),
           sharedPreferencesProvider.overrideWithValue(sharedPreferences),
         ],
@@ -89,6 +109,7 @@ void main() {
       final after = container.read(compositeJokesResetTriggerProvider);
       // Assert
       expect(after, greaterThan(before));
+      verify(() => mockOfflineBundleLoader.loadLatestBundle()).called(1);
     });
 
     test(
@@ -103,14 +124,20 @@ void main() {
         sharedPreferences = await SharedPreferences.getInstance();
 
         container = ProviderContainer(
-          overrides: [
-            jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
-            jokeInteractionsRepositoryProvider.overrideWithValue(
-              mockJokeInteractionsRepository,
-            ),
-            sharedPreferencesProvider.overrideWithValue(sharedPreferences),
-          ],
-        );
+        overrides: [
+          jokeRepositoryProvider.overrideWithValue(mockJokeRepository),
+          jokeInteractionsRepositoryProvider.overrideWithValue(
+            mockJokeInteractionsRepository,
+          ),
+          offlineBundleLoaderProvider.overrideWithValue(
+            mockOfflineBundleLoader,
+          ),
+          performanceServiceProvider.overrideWithValue(
+            mockPerformanceService,
+          ),
+          sharedPreferencesProvider.overrideWithValue(sharedPreferences),
+        ],
+      );
 
         final before = container.read(compositeJokesResetTriggerProvider);
         // Act
@@ -143,6 +170,12 @@ void main() {
         overrides: [
           sharedPreferencesProvider.overrideWithValue(sharedPreferences),
           feedSyncServiceProvider.overrideWithValue(mockFeedSyncService),
+          offlineBundleLoaderProvider.overrideWithValue(
+            mockOfflineBundleLoader,
+          ),
+          performanceServiceProvider.overrideWithValue(
+            mockPerformanceService,
+          ),
         ],
       );
 
@@ -189,11 +222,17 @@ void main() {
         ).thenAnswer((_) async => true);
 
         container = ProviderContainer(
-          overrides: [
-            sharedPreferencesProvider.overrideWithValue(sharedPreferences),
-            feedSyncServiceProvider.overrideWithValue(mockFeedSyncService),
-          ],
-        );
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(sharedPreferences),
+          feedSyncServiceProvider.overrideWithValue(mockFeedSyncService),
+          offlineBundleLoaderProvider.overrideWithValue(
+            mockOfflineBundleLoader,
+          ),
+          performanceServiceProvider.overrideWithValue(
+            mockPerformanceService,
+          ),
+        ],
+      );
 
         await syncFeedJokesExecute(container.read);
 
@@ -212,6 +251,9 @@ void main() {
   test('startup sync task completes without error', () async {
     final mockRepo = MockJokeRepository();
     final mockInteractions = MockJokeInteractionsRepository();
+    final mockOfflineBundleLoader = MockOfflineBundleLoader();
+    when(() => mockOfflineBundleLoader.loadLatestBundle())
+        .thenAnswer((_) async => false);
 
     // Stub repository to return at least threshold jokes in one page
     when(() => mockRepo.readFeedJokes(cursor: any(named: 'cursor'))).thenAnswer(
@@ -240,6 +282,7 @@ void main() {
       overrides: [
         jokeRepositoryProvider.overrideWithValue(mockRepo),
         jokeInteractionsRepositoryProvider.overrideWithValue(mockInteractions),
+        offlineBundleLoaderProvider.overrideWithValue(mockOfflineBundleLoader),
         sharedPreferencesProvider.overrideWithValue(sharedPrefs),
       ],
     );

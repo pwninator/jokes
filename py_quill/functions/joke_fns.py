@@ -106,23 +106,29 @@ def get_joke_bundle(req: https_fn.Request) -> https_fn.Response:
     client = firestore.db()
     bundle = FirestoreBundle('data-bundle')
 
-    feed_query = client.collection('joke_feed').order_by(
-      FieldPath.document_id())
-    bundle.add_named_query('joke-feed', feed_query)
+    # Feed documents
+    feed_docs = client.collection('joke_feed')\
+      .order_by(FieldPath.document_id())\
+      .stream()
+    for doc in feed_docs:
+      bundle.add_document(doc)
 
-    categories_query = client.collection('joke_categories').order_by(
-      FieldPath.document_id())
-    bundle.add_named_query('joke-categories', categories_query)
-
-    for category in categories_query.stream():
+    # Categories and per-category cache docs
+    categories = client.collection('joke_categories')\
+      .order_by(FieldPath.document_id())\
+      .stream()
+    for category in categories:
+      bundle.add_document(category)
       cache_doc = category.reference.collection('category_jokes').document(
         'cache').get()
       if cache_doc.exists:
         bundle.add_document(cache_doc)
 
-    jokes_query = client.collection('jokes').where(
-      filter=FieldFilter('is_public', '==', True))
-    bundle.add_named_query('public-jokes', jokes_query)
+    # Public jokes
+    public_jokes = client.collection('jokes').where(
+      filter=FieldFilter('is_public', '==', True)).stream()
+    for joke_doc in public_jokes:
+      bundle.add_document(joke_doc)
 
     bundle_bytes = bundle.build()
 
@@ -144,7 +150,7 @@ def get_joke_bundle(req: https_fn.Request) -> https_fn.Response:
       mimetype='application/json',
     )
   except Exception as exc:  # pylint: disable=broad-except
-    logger.error("Failed to build Firestore bundle: %s", exc)
+    logger.error("Failed to build Firestore bundle: %s", str(exc))
     logger.error(traceback.format_exc())
     return https_fn.Response(
       json.dumps(error_response(f'Failed to build bundle: {exc}')),

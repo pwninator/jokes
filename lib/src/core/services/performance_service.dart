@@ -56,6 +56,7 @@ enum TraceName {
   startupTaskAdMob,
   startupTaskMigrateReactions,
   startupTaskSyncFeedJokes,
+  startupTaskLoadBundledFirestoreData,
 }
 
 extension TraceNameWire on TraceName {
@@ -125,6 +126,8 @@ extension TraceNameWire on TraceName {
         return 'startup_task_migrate_reactions';
       case TraceName.startupTaskSyncFeedJokes:
         return 'startup_task_sync_feed_jokes';
+      case TraceName.startupTaskLoadBundledFirestoreData:
+        return 'startup_task_load_bundled_firestore_data';
     }
   }
 }

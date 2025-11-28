@@ -667,25 +667,30 @@ def test_get_joke_bundle_success(monkeypatch):
   mock_feed_collection = Mock()
   mock_categories_collection = Mock()
   mock_jokes_collection = Mock()
-  mock_feed_query = Mock()
-  mock_categories_query = Mock()
-  mock_jokes_query = Mock()
 
-  mock_feed_collection.order_by.return_value = mock_feed_query
-  mock_categories_collection.order_by.return_value = mock_categories_query
-  mock_jokes_collection.where.return_value = mock_jokes_query
+  mock_feed_doc = Mock()
+  mock_category_doc = Mock()
+  mock_category_doc.exists = True
+  mock_cache_doc = Mock()
+  mock_cache_doc.exists = True
+  mock_category_doc.reference.collection.return_value.document.return_value.get.return_value = mock_cache_doc
+  mock_joke_doc = Mock()
+
+  mock_feed_collection.order_by.return_value.stream.return_value = [
+    mock_feed_doc,
+  ]
+  mock_categories_collection.order_by.return_value.stream.return_value = [
+    mock_category_doc,
+  ]
+  mock_jokes_collection.where.return_value.stream.return_value = [
+    mock_joke_doc,
+  ]
 
   mock_db.collection.side_effect = lambda name: {
     "joke_feed": mock_feed_collection,
     "joke_categories": mock_categories_collection,
     "jokes": mock_jokes_collection,
   }[name]
-
-  mock_category_doc = Mock()
-  mock_cache_doc = Mock()
-  mock_cache_doc.exists = True
-  mock_category_doc.reference.collection.return_value.document.return_value.get.return_value = mock_cache_doc
-  mock_categories_query.stream.return_value = [mock_category_doc]
 
   uploaded = {}
 
@@ -703,7 +708,6 @@ def test_get_joke_bundle_success(monkeypatch):
                       lambda uri: uri.replace("gs://", "https://storage.googleapis.com/"))
 
   mock_bundle = Mock()
-  mock_bundle.add_named_query.return_value = mock_bundle
   mock_bundle.add_document.return_value = mock_bundle
   mock_bundle.build.return_value = b"bundle-bytes"
   monkeypatch.setattr(joke_fns, "FirestoreBundle",
@@ -715,12 +719,10 @@ def test_get_joke_bundle_success(monkeypatch):
   payload = json.loads(resp.get_data(as_text=True))
   assert payload["data"]["bundle_url"] == "https://storage.googleapis.com/temp/bundle.txt"
 
-  mock_bundle.add_named_query.assert_any_call("joke-feed", mock_feed_query)
-  mock_bundle.add_named_query.assert_any_call("joke-categories",
-                                              mock_categories_query)
-  mock_bundle.add_named_query.assert_any_call("public-jokes",
-                                              mock_jokes_query)
-  mock_bundle.add_document.assert_called_with(mock_cache_doc)
+  mock_bundle.add_document.assert_any_call(mock_feed_doc)
+  mock_bundle.add_document.assert_any_call(mock_category_doc)
+  mock_bundle.add_document.assert_any_call(mock_cache_doc)
+  mock_bundle.add_document.assert_any_call(mock_joke_doc)
   assert uploaded["bytes"] == b"bundle-bytes"
   assert uploaded["gcs_uri"] == "gs://temp/bundle.txt"
   assert uploaded["content_type"] == "application/octet-stream"

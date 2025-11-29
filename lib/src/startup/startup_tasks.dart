@@ -18,6 +18,8 @@ import 'package:snickerdoodle/src/data/jokes/joke_reactions_migration_service.da
 import 'package:snickerdoodle/src/features/auth/application/auth_startup_manager.dart';
 import 'package:snickerdoodle/src/features/jokes/application/feed_sync_service.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_list_data_sources.dart';
+import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
+import 'package:snickerdoodle/src/core/providers/app_version_provider.dart';
 import 'package:snickerdoodle/src/startup/startup_task.dart';
 import 'package:snickerdoodle/src/utils/device_utils.dart';
 import 'package:snickerdoodle/src/startup/offline_bundle_loader.dart';
@@ -29,6 +31,7 @@ import 'package:snickerdoodle/src/startup/offline_bundle_loader.dart';
 const Duration bestEffortTimeout = Duration(seconds: 4);
 
 const useEmulatorInDebugMode = true;
+const String jokeBundleVersionKey = 'joke_bundle_version';
 
 /// Critical blocking tasks that must complete before rendering the first frame.
 ///
@@ -293,8 +296,20 @@ Future<void> _loadBundledFirestoreData(StartupReader read) async {
   final perf = read(performanceServiceProvider);
   try {
     perf.startNamedTrace(name: TraceName.startupTaskLoadBundledFirestoreData);
-    final loader = read(offlineBundleLoaderProvider);
-    await loader.loadLatestBundle();
+    final settingsService = read(settingsServiceProvider);
+    final appVersion = await read(appVersionProvider.future);
+    final bundleVersion = settingsService.getString(jokeBundleVersionKey);
+    if (bundleVersion != null && bundleVersion == appVersion) {
+      AppLogger.debug(
+        'STARTUP_TASKS: Skipping bundle load; version already loaded ($bundleVersion).',
+      );
+    } else {
+      final loader = read(offlineBundleLoaderProvider);
+      final loaded = await loader.loadLatestBundle();
+      if (loaded && appVersion.isNotEmpty) {
+        await settingsService.setString(jokeBundleVersionKey, appVersion);
+      }
+    }
     perf.stopNamedTrace(name: TraceName.startupTaskLoadBundledFirestoreData);
   } catch (e, stack) {
     AppLogger.error(

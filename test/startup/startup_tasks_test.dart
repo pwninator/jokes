@@ -15,6 +15,7 @@ import 'package:snickerdoodle/src/features/jokes/application/feed_sync_service.d
 import 'package:snickerdoodle/src/startup/startup_tasks.dart';
 import 'package:snickerdoodle/src/startup/offline_bundle_loader.dart';
 import 'package:snickerdoodle/src/core/services/performance_service.dart';
+import 'package:snickerdoodle/src/core/providers/app_version_provider.dart';
 
 class MockJokeRepository extends Mock implements JokeRepository {}
 
@@ -28,6 +29,8 @@ class MockFeedSyncService extends Mock implements FeedSyncService {}
 class MockOfflineBundleLoader extends Mock implements OfflineBundleLoader {}
 
 class MockPerformanceService extends Mock implements PerformanceService {}
+
+const appVersionString = 'app-version-1';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -99,6 +102,7 @@ void main() {
           performanceServiceProvider.overrideWithValue(
             mockPerformanceService,
           ),
+          appVersionProvider.overrideWith((_) async => appVersionString),
           sharedPreferencesProvider.overrideWithValue(sharedPreferences),
         ],
       );
@@ -135,6 +139,7 @@ void main() {
           performanceServiceProvider.overrideWithValue(
             mockPerformanceService,
           ),
+          appVersionProvider.overrideWith((_) async => appVersionString),
           sharedPreferencesProvider.overrideWithValue(sharedPreferences),
         ],
       );
@@ -176,6 +181,7 @@ void main() {
           performanceServiceProvider.overrideWithValue(
             mockPerformanceService,
           ),
+          appVersionProvider.overrideWith((_) async => appVersionString),
         ],
       );
 
@@ -231,6 +237,7 @@ void main() {
           performanceServiceProvider.overrideWithValue(
             mockPerformanceService,
           ),
+          appVersionProvider.overrideWith((_) async => appVersionString),
         ],
       );
 
@@ -254,6 +261,7 @@ void main() {
     final mockOfflineBundleLoader = MockOfflineBundleLoader();
     when(() => mockOfflineBundleLoader.loadLatestBundle())
         .thenAnswer((_) async => false);
+    final mockPerformanceService = MockPerformanceService();
 
     // Stub repository to return at least threshold jokes in one page
     when(() => mockRepo.readFeedJokes(cursor: any(named: 'cursor'))).thenAnswer(
@@ -283,6 +291,8 @@ void main() {
         jokeRepositoryProvider.overrideWithValue(mockRepo),
         jokeInteractionsRepositoryProvider.overrideWithValue(mockInteractions),
         offlineBundleLoaderProvider.overrideWithValue(mockOfflineBundleLoader),
+        performanceServiceProvider.overrideWithValue(mockPerformanceService),
+        appVersionProvider.overrideWith((_) async => appVersionString),
         sharedPreferencesProvider.overrideWithValue(sharedPrefs),
       ],
     );

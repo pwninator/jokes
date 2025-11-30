@@ -85,7 +85,7 @@ class _CachedJokeImageState extends ConsumerState<CachedJokeImage> {
       loading: () => widget.showLoadingIndicator
           ? _buildLoadingWidget(context)
           : const SizedBox.shrink(),
-      error: (_, __) =>
+      error: (_, _) =>
           _buildWithManifest(context, assetManifest: const <String>{}),
     );
   }

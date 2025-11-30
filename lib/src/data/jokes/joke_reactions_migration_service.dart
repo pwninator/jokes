@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:snickerdoodle/src/core/providers/settings_providers.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
-import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/data/jokes/joke_interactions_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_reaction_type.dart';
 
@@ -13,11 +12,9 @@ final jokeReactionsMigrationServiceProvider =
     Provider<JokeReactionsMigrationService>((ref) {
       final interactions = ref.read(jokeInteractionsRepositoryProvider);
       final prefs = ref.read(sharedPreferencesProvider);
-      final perf = ref.read(performanceServiceProvider);
       return JokeReactionsMigrationService(
         interactions: interactions,
         prefs: prefs,
-        performanceService: perf,
       );
     });
 
@@ -25,14 +22,11 @@ class JokeReactionsMigrationService {
   JokeReactionsMigrationService({
     required JokeInteractionsRepository interactions,
     required SharedPreferences prefs,
-    required PerformanceService performanceService,
   }) : _interactions = interactions,
-       _prefs = prefs,
-       _perf = performanceService;
+       _prefs = prefs;
 
   final JokeInteractionsRepository _interactions;
   final SharedPreferences _prefs;
-  final PerformanceService _perf;
 
   Future<void> migrateIfNeeded() async {
     try {

@@ -47,6 +47,29 @@ final activeCategoryProvider = StateProvider<JokeCategory?>((ref) => null);
 /// Only incremented once when feed is first populated.
 final compositeJokesResetTriggerProvider = StateProvider<int>((ref) => 0);
 
+/// Per-subsource retry backoff schedule.
+const List<Duration> _subSourceBackoffSchedule = <Duration>[
+  Duration(seconds: 3),
+  Duration(seconds: 10),
+  Duration(seconds: 30),
+  Duration(minutes: 2),
+  Duration(minutes: 5),
+];
+
+class _SubSourceRetryState {
+  const _SubSourceRetryState({
+    required this.nextRetryAt,
+    required this.attemptIndex,
+  });
+
+  final DateTime nextRetryAt;
+  final int attemptIndex;
+}
+
+/// Tracks retry state per subsource to avoid tight error loops.
+final _subSourceRetryStateProvider =
+    StateProvider<Map<String, _SubSourceRetryState>>((ref) => {});
+
 /// Data source for daily jokes loaded from monthly schedule batches
 class DailyJokesDataSource extends JokeListDataSource {
   DailyJokesDataSource(WidgetRef ref) : super(ref, _dailyJokesPagingProviders);
@@ -401,6 +424,53 @@ class CompositeCursor {
   }
 }
 
+bool _isSubSourceCoolingDown(Ref ref, String id) {
+  final state = ref.read(_subSourceRetryStateProvider);
+  final retryState = state[id];
+  if (retryState == null) return false;
+  final now = ref.read(clockProvider)();
+  final coolingDown = retryState.nextRetryAt.isAfter(now);
+  if (coolingDown) {
+    AppLogger.debug(
+      'PAGING_INTERNAL: Subsource $id cooling down until '
+      '${retryState.nextRetryAt.toIso8601String()}',
+    );
+  }
+  return coolingDown;
+}
+
+void _recordSubSourceFailure(Ref ref, String id) {
+  final notifier = ref.read(_subSourceRetryStateProvider.notifier);
+  final state = Map<String, _SubSourceRetryState>.from(notifier.state);
+  final currentIndex = state[id]?.attemptIndex ?? 0;
+  final backoffIndex =
+      currentIndex.clamp(0, _subSourceBackoffSchedule.length - 1);
+  final backoff = _subSourceBackoffSchedule[backoffIndex.toInt()];
+  final nextRetryAt = ref.read(clockProvider)().add(backoff);
+  final nextAttemptIndex = (backoffIndex + 1)
+      .clamp(0, _subSourceBackoffSchedule.length - 1)
+      .toInt();
+
+  state[id] = _SubSourceRetryState(
+    nextRetryAt: nextRetryAt,
+    attemptIndex: nextAttemptIndex,
+  );
+  notifier.state = state;
+
+  AppLogger.warn(
+    'PAGING_INTERNAL: Subsource $id entering cooldown for '
+    '${backoff.inSeconds}s (until ${nextRetryAt.toIso8601String()})',
+  );
+}
+
+void _clearSubSourceFailure(Ref ref, String id) {
+  final notifier = ref.read(_subSourceRetryStateProvider.notifier);
+  final state = Map<String, _SubSourceRetryState>.from(notifier.state);
+  if (state.remove(id) != null) {
+    notifier.state = state;
+  }
+}
+
 Future<PageResult> _loadCompositeJokePage(
   Ref ref,
   int limit,
@@ -415,23 +485,50 @@ Future<PageResult> _loadCompositeJokePage(
   // Check priority sources first
   final prioritySourceCursors = currentCursor?.prioritySourceCursors ?? {};
   final Map<String, PageResult> priorityPages = {};
+  bool subSourceAttempted = false;
+  bool subSourceFailedOrSkipped = false;
+  bool anyPageAdded = false;
   for (final prioritySource in _prioritySubSources) {
     final priorityCursor = prioritySourceCursors[prioritySource.id];
 
     // Check if this priority source is active
     if (prioritySource.isActive(ref, totalJokesLoaded, priorityCursor)) {
+      subSourceAttempted = true;
+      if (_isSubSourceCoolingDown(ref, prioritySource.id)) {
+        subSourceFailedOrSkipped = true;
+        continue;
+      }
+
       // Load from this priority source exclusively
       AppLogger.debug(
         'PAGING_INTERNAL: Loading from priority source: ${prioritySource.id}',
       );
 
-      final priorityPage = await prioritySource.load(
-        ref,
-        effectiveLimit,
-        priorityCursor,
-      );
-      priorityPages[prioritySource.id] = priorityPage;
-      break; // Current flow loads only the first active priority source
+      try {
+        final priorityPage = await prioritySource.load(
+          ref,
+          effectiveLimit,
+          priorityCursor,
+        );
+        // Record success (even if empty) and stop checking other priority sources.
+        _clearSubSourceFailure(ref, prioritySource.id);
+        priorityPages[prioritySource.id] = priorityPage;
+        if (priorityPage.jokes.isNotEmpty) {
+          anyPageAdded = true;
+        }
+        if (priorityPage.hasMore == false && priorityPage.jokes.isEmpty) {
+          AppLogger.debug(
+            'PAGING_INTERNAL: Priority source ${prioritySource.id} returned empty and is exhausted.',
+          );
+        }
+        break; // Current flow loads only the first active priority source
+      } catch (e) {
+        subSourceFailedOrSkipped = true;
+        AppLogger.warn(
+          'PAGING_INTERNAL: Error loading priority source ${prioritySource.id}: $e',
+        );
+        _recordSubSourceFailure(ref, prioritySource.id);
+      }
     }
   }
 
@@ -457,23 +554,48 @@ Future<PageResult> _loadCompositeJokePage(
     int remaining = effectiveLimit;
     final jokesPerSource = (effectiveLimit / activeSubsources.length).round();
 
-    // Load from all active subsources in parallel
-    final futuresBySubSourceId = <String, Future<PageResult>>{};
     final subSourceCursors = currentCursor?.subSourceCursors ?? {};
     for (final subsource in activeSubsources) {
+      subSourceAttempted = true;
+      if (_isSubSourceCoolingDown(ref, subsource.id)) {
+        subSourceFailedOrSkipped = true;
+        continue;
+      }
+
       final subsourceCursor = subSourceCursors[subsource.id];
       final subsourceLimit = math.min(remaining, jokesPerSource);
-      futuresBySubSourceId[subsource.id] = subsource.load(
-        ref,
-        subsourceLimit,
-        subsourceCursor,
-      );
+      if (subsourceLimit <= 0) continue;
+      try {
+        final page = await subsource.load(
+          ref,
+          subsourceLimit,
+          subsourceCursor,
+        );
+        _clearSubSourceFailure(ref, subsource.id);
+        compositePages[subsource.id] = page;
+        if (page.jokes.isNotEmpty) {
+          anyPageAdded = true;
+        }
+      } catch (e) {
+        subSourceFailedOrSkipped = true;
+        AppLogger.warn(
+          'PAGING_INTERNAL: Error loading composite source ${subsource.id}: $e',
+        );
+        _recordSubSourceFailure(ref, subsource.id);
+      }
       remaining -= subsourceLimit;
     }
+  }
 
-    for (final subsource in activeSubsources) {
-      compositePages[subsource.id] = await futuresBySubSourceId[subsource.id]!;
-    }
+  if (!anyPageAdded && subSourceAttempted && subSourceFailedOrSkipped) {
+    // At least one source failed or is cooling down; keep hasMore=true so we retry later.
+    return const PageResult(jokes: [], cursor: "", hasMore: true);
+  }
+
+  if (!anyPageAdded) {
+    // All sources reported no data without errors; mark as exhausted.
+    final encodedCursor = currentCursor?.encode();
+    return PageResult.empty(encodedCursor);
   }
 
   return await createNextPage(

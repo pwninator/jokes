@@ -111,16 +111,14 @@ flutter:
 
   # To add assets to your application, add an assets section, like this:
   assets:
-    - assets/icon/icon_cookie_01_preshrunk.webp
-    - assets/images/icon_cookie_01_transparent_dark2_300.png
-    - assets/images/icon_cookie_01_transparent_dark2_1200.png
-    - assets/images/icon_cookie_01_transparent_dark_preshrunk_android_loading_image2_1152.png
-    - assets/review_prompts/review_request_bunny_garden_600.webp
-    - assets/review_prompts/review_request_kitten2_600.webp
-    - assets/watermark/snickerdoodlejokes_watermark_01.png
     - assets/data_bundles/
     - assets/data_bundles/images/
     - assets/google_fonts/
+    - assets/icon/icon_cookie_01_preshrunk.webp
+    - assets/images/
+    - assets/review_prompts/review_request_bunny_garden_600.webp
+    - assets/review_prompts/review_request_kitten2_600.webp
+    - assets/watermark/snickerdoodlejokes_watermark_01.png
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

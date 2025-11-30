@@ -40,7 +40,7 @@ class JokeCategoryTile extends StatelessWidget {
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(8),
                   child: CachedJokeImage(
-                    imageUrl: category.imageUrl,
+                    imageUrlOrAssetPath: category.imageAssetPath ?? category.imageUrl,
                     fit: BoxFit.cover,
                     showLoadingIndicator: true,
                     showErrorIcon: true,

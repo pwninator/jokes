@@ -39,6 +39,7 @@ class JokeCategory {
   final String displayName;
   final String?
   jokeDescriptionQuery; // When type == firestore and not seasonal, this must be non-empty
+  final String? imageAssetPath;
   final String? imageUrl;
   final String? imageDescription;
   final JokeCategoryState state;
@@ -51,6 +52,7 @@ class JokeCategory {
     required this.id,
     required this.displayName,
     this.jokeDescriptionQuery,
+    this.imageAssetPath,
     this.imageUrl,
     this.imageDescription,
     this.state = JokeCategoryState.proposed,
@@ -75,6 +77,7 @@ class JokeCategory {
       id: '$firestorePrefix$id',
       displayName: displayName,
       jokeDescriptionQuery: isSeasonal ? null : searchQuery,
+      imageAssetPath: null,
       imageUrl: imageUrl,
       imageDescription: imageDescription,
       state: state,

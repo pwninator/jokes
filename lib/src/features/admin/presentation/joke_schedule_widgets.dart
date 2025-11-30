@@ -106,7 +106,7 @@ class CalendarCellPopup extends ConsumerWidget {
                           const SizedBox(height: 6),
                           Expanded(
                             child: CachedJokeImage(
-                              imageUrl: joke.setupImageUrl,
+                              imageUrlOrAssetPath: joke.setupImageUrl,
                               fit: BoxFit.cover,
                               borderRadius: BorderRadius.circular(8),
                             ),
@@ -128,7 +128,7 @@ class CalendarCellPopup extends ConsumerWidget {
                           const SizedBox(height: 6),
                           Expanded(
                             child: CachedJokeImage(
-                              imageUrl: joke.punchlineImageUrl,
+                              imageUrlOrAssetPath: joke.punchlineImageUrl,
                               fit: BoxFit.cover,
                               borderRadius: BorderRadius.circular(8),
                             ),

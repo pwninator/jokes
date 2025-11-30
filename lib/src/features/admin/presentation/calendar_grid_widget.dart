@@ -180,7 +180,7 @@ class _CalendarGridWidgetState extends ConsumerState<CalendarGridWidget> {
                   if (hasJoke && joke.setupImageUrl != null)
                     // Show thumbnail image
                     CachedJokeImage(
-                      imageUrl: joke.setupImageUrl,
+                      imageUrlOrAssetPath: joke.setupImageUrl,
                       width: double.infinity,
                       height: double.infinity,
                       fit: BoxFit.cover,

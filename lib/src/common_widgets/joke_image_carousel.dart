@@ -1239,7 +1239,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
 
   Widget _buildImagePage({required String? imageUrl}) {
     return CachedJokeImage(
-      imageUrl: imageUrl,
+      imageUrlOrAssetPath: imageUrl,
       fit: BoxFit.cover,
       showLoadingIndicator: true,
       showErrorIcon: true,

@@ -15,7 +15,7 @@ class CachedJokeImage extends ConsumerStatefulWidget {
   static const int _maxProcessedWidth = 1024;
   const CachedJokeImage({
     super.key,
-    required this.imageUrl,
+    required this.imageUrlOrAssetPath,
     this.width,
     this.height,
     this.fit = BoxFit.cover,
@@ -25,7 +25,7 @@ class CachedJokeImage extends ConsumerStatefulWidget {
     this.onFirstImagePaint,
   });
 
-  final String? imageUrl;
+  final String? imageUrlOrAssetPath;
   final double? width;
   final double? height;
   final BoxFit fit;
@@ -67,12 +67,12 @@ class _CachedJokeImageState extends ConsumerState<CachedJokeImage> {
   @override
   void didUpdateWidget(CachedJokeImage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.imageUrl != oldWidget.imageUrl) {
-        setState(() {
-          _hasError = false;
-          _assetLoadFailed = false;
-          _loggedAssetPath = null;
-        });
+    if (widget.imageUrlOrAssetPath != oldWidget.imageUrlOrAssetPath) {
+      setState(() {
+        _hasError = false;
+        _assetLoadFailed = false;
+        _loggedAssetPath = null;
+      });
     }
   }
 
@@ -102,11 +102,14 @@ class _CachedJokeImageState extends ConsumerState<CachedJokeImage> {
         final perf = ref.read(performanceServiceProvider);
 
         String? assetPath;
-        if (assetManifest.isNotEmpty && !_assetLoadFailed) {
-          assetPath = imageService.getAssetPathForUrl(
-            widget.imageUrl,
-            assetManifest,
-          );
+        if (!_assetLoadFailed) {
+          assetPath = _resolveDirectAssetPath(widget.imageUrlOrAssetPath);
+          if (assetPath == null && assetManifest.isNotEmpty) {
+            assetPath = imageService.getAssetPathForUrl(
+              widget.imageUrlOrAssetPath,
+              assetManifest,
+            );
+          }
           if (assetPath != null && _loggedAssetPath != assetPath) {
             AppLogger.info('IMAGE_ASSET: Asset path: $assetPath');
             _loggedAssetPath = assetPath;
@@ -122,7 +125,7 @@ class _CachedJokeImageState extends ConsumerState<CachedJokeImage> {
 
         // Use ImageService for URL processing
         final processedUrl = imageService.getProcessedJokeImageUrl(
-          widget.imageUrl,
+          widget.imageUrlOrAssetPath,
           width: effectiveWidth,
         );
         if (processedUrl == null) {
@@ -133,7 +136,7 @@ class _CachedJokeImageState extends ConsumerState<CachedJokeImage> {
 
         String? downloadTraceKey;
         Widget imageWidget = CachedNetworkImage(
-          key: ValueKey('${widget.imageUrl}-$_retryKey'),
+          key: ValueKey('${widget.imageUrlOrAssetPath}-$_retryKey'),
           imageUrl: processedUrl,
           width: widget.width,
           height: widget.height,
@@ -287,7 +290,10 @@ class _CachedJokeImageState extends ConsumerState<CachedJokeImage> {
       height: widget.height,
       fit: widget.fit,
       errorBuilder: (context, error, stackTrace) {
-        AppLogger.error('IMAGE_ASSET: Asset load failed: $assetPath: $error', stackTrace: stackTrace);
+        AppLogger.error(
+          'IMAGE_ASSET: Asset load failed: $assetPath: $error',
+          stackTrace: stackTrace,
+        );
         // If the asset fails to load, fall back to network on next build
         WidgetsBinding.instance.addPostFrameCallback((_) {
           if (mounted) {
@@ -314,6 +320,14 @@ class _CachedJokeImageState extends ConsumerState<CachedJokeImage> {
 
     AppLogger.info('IMAGE_ASSET: Built asset image: $assetPath');
     return imageWidget;
+  }
+
+  String? _resolveDirectAssetPath(String? imageUrl) {
+    if (imageUrl == null || imageUrl.isEmpty) return null;
+    if (!imageUrl.startsWith('assets/') && !imageUrl.startsWith('packages/')) {
+      return null;
+    }
+    return imageUrl;
   }
 
   int? _resolveEffectiveWidth(double constraintWidth) {
@@ -446,7 +460,7 @@ class CachedJokeThumbnail extends ConsumerWidget {
         : null;
 
     return CachedJokeImage(
-      imageUrl: thumbnailUrl,
+      imageUrlOrAssetPath: thumbnailUrl,
       width: size,
       height: size,
       fit: BoxFit.cover,
@@ -475,7 +489,7 @@ class CachedJokeHeroImage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final imageWidget = CachedJokeImage(
-      imageUrl: imageUrl,
+      imageUrlOrAssetPath: imageUrl,
       width: width,
       height: height,
       fit: BoxFit.contain,

@@ -63,14 +63,19 @@ bool hasUnviewedCategories(Ref ref) {
   );
 }
 
+const _categoryTileAssetBasePath = 'assets/images/';
+
 final popularTileImageNames = [
-  'category_tile_popular_bunny1.png',
-  'category_tile_popular_cat1.png',
-  'category_tile_popular_hedgehog1.png',
-  'category_tile_popular_lamb1.png',
-  'category_tile_popular_puppy1.png',
-  'category_tile_popular_panda1.png',
+  'category_tile_popular_bunny1.jpg',
+  'category_tile_popular_cat1.jpg',
+  'category_tile_popular_hedgehog1.jpg',
+  'category_tile_popular_lamb1.jpg',
+  'category_tile_popular_puppy1.jpg',
+  'category_tile_popular_panda1.jpg',
 ];
+
+String _categoryAsset(String fileName) =>
+    '$_categoryTileAssetBasePath$fileName';
 
 /// Merged provider for Discover: programmatic tiles first, then Firestore categories.
 final discoverCategoriesProvider = Provider<AsyncValue<List<JokeCategory>>>((
@@ -87,8 +92,7 @@ final discoverCategoriesProvider = Provider<AsyncValue<List<JokeCategory>>>((
     id: 'programmatic:daily',
     displayName: 'Daily Jokes',
     jokeDescriptionQuery: null,
-    imageUrl:
-        'https://images.quillsstorybook.com/cdn-cgi/image/width=1024,format=auto,quality=75/pun_agent_image_20251027_071950_137704.png',
+    imageAssetPath: _categoryAsset('category_tile_daily.jpg'),
     imageDescription: 'Daily jokes',
     state: JokeCategoryState.approved,
     type: CategoryType.daily,
@@ -101,8 +105,7 @@ final discoverCategoriesProvider = Provider<AsyncValue<List<JokeCategory>>>((
     id: 'programmatic:popular',
     displayName: 'Most Popular ❤️',
     jokeDescriptionQuery: null,
-    imageUrl:
-        'https://images.quillsstorybook.com/cdn-cgi/image/width=1024,format=auto,quality=75/joke_assets/$randomImageName',
+    imageAssetPath: _categoryAsset(randomImageName),
     imageDescription: 'Popular jokes',
     state: JokeCategoryState.approved,
     type: CategoryType.popular,

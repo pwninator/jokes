@@ -58,7 +58,7 @@ class _JokeCategoryEditImageCarouselState
         child: Stack(
           children: [
             CachedJokeImage(
-              imageUrl: imageUrl,
+              imageUrlOrAssetPath: imageUrl,
               width: 150,
               height: 150,
               fit: BoxFit.cover,

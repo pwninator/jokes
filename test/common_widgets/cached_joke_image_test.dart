@@ -26,8 +26,26 @@ class _FakeAssetBundle extends CachingAssetBundle {
 
   final Map<String, Uint8List> assets;
 
+  Map<String, List<Map<String, Object?>>> get _manifestMap => {
+    for (final key in assets.keys)
+      key: [
+        {'asset': key, 'dpr': 1.0},
+      ],
+  };
+
   @override
   Future<ByteData> load(String key) async {
+    if (key == 'AssetManifest.bin') {
+      final encoded = const StandardMessageCodec().encodeMessage(_manifestMap);
+      if (encoded != null) {
+        return encoded;
+      }
+    }
+    if (key == 'AssetManifest.json') {
+      final manifestJson = jsonEncode(_manifestMap);
+      final jsonBytes = Uint8List.fromList(utf8.encode(manifestJson));
+      return ByteData.view(jsonBytes.buffer);
+    }
     final bytes = assets[key];
     if (bytes == null) {
       throw FlutterError('Asset not found: $key');
@@ -135,7 +153,7 @@ void main() {
         ),
       ).thenReturn(null);
 
-      await tester.pumpWidget(wrap(const CachedJokeImage(imageUrl: null)));
+      await tester.pumpWidget(wrap(const CachedJokeImage(imageUrlOrAssetPath: null)));
       await tester.pump();
 
       expect(find.byIcon(Icons.image_not_supported_outlined), findsOneWidget);
@@ -151,11 +169,34 @@ void main() {
 
       await tester.pumpWidget(
         wrap(
-          const CachedJokeImage(imageUrl: url, width: 50, height: 50),
+          const CachedJokeImage(imageUrlOrAssetPath: url, width: 50, height: 50),
           manifestSet: {'local.png'},
           assetBundle: _FakeAssetBundle({
             'assets/data_bundles/images/local.png': assetBytes,
           }),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.byType(CachedNetworkImage), findsNothing);
+      expect(find.byType(Image), findsOneWidget);
+      verifyNever(
+        () => imageService.getProcessedJokeImageUrl(
+          any(),
+          width: any(named: 'width'),
+        ),
+      );
+    });
+
+    testWidgets('uses direct asset path when provided', (tester) async {
+      const assetPath = 'assets/images/local.png';
+      final assetBytes = base64Decode(_onePixelPngBase64);
+
+      await tester.pumpWidget(
+        wrap(
+          const CachedJokeImage(imageUrlOrAssetPath: assetPath, width: 50, height: 50),
+          assetBundle: _FakeAssetBundle({assetPath: assetBytes}),
         ),
       );
       await tester.pump();
@@ -182,7 +223,7 @@ void main() {
       ).thenReturn(_sampleImage);
 
       await tester.pumpWidget(
-        wrap(const CachedJokeImage(imageUrl: url, width: 175)),
+        wrap(const CachedJokeImage(imageUrlOrAssetPath: url, width: 175)),
       );
       await tester.pump();
 
@@ -214,7 +255,7 @@ void main() {
             alignment: Alignment.topLeft,
             child: SizedBox(
               width: 245,
-              child: const CachedJokeImage(imageUrl: url),
+              child: const CachedJokeImage(imageUrlOrAssetPath: url),
             ),
           ),
         ),
@@ -251,7 +292,7 @@ void main() {
               minWidth: 1600,
               maxWidth: 1600,
               alignment: Alignment.topLeft,
-              child: const CachedJokeImage(imageUrl: url),
+              child: const CachedJokeImage(imageUrlOrAssetPath: url),
             ),
           ),
         ),
@@ -284,7 +325,7 @@ void main() {
         wrap(
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
-            child: const CachedJokeImage(imageUrl: url, height: 120),
+            child: const CachedJokeImage(imageUrlOrAssetPath: url, height: 120),
           ),
         ),
       );
@@ -310,7 +351,7 @@ void main() {
       await tester.pumpWidget(
         wrap(
           const CachedJokeImage(
-            imageUrl: url,
+            imageUrlOrAssetPath: url,
             borderRadius: BorderRadius.all(Radius.circular(12)),
           ),
         ),
@@ -335,7 +376,7 @@ void main() {
 
       await tester.pumpWidget(
         wrap(
-          const CachedJokeImage(imageUrl: url),
+          const CachedJokeImage(imageUrlOrAssetPath: url),
           offlineStream: connectivity.stream,
         ),
       );

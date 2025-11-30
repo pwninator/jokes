@@ -131,7 +131,7 @@ class _ImageSelectorCarouselState extends ConsumerState<ImageSelectorCarousel> {
           children: [
             // Image
             CachedJokeImage(
-              imageUrl: imageUrl,
+              imageUrlOrAssetPath: imageUrl,
               fit: BoxFit.cover,
               showLoadingIndicator: true,
               showErrorIcon: true,

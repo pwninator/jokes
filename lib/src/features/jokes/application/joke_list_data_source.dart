@@ -159,7 +159,7 @@ class GenericPagingNotifier extends StateNotifier<PagingState> {
   void _checkAndLoadIfNeeded() {
     if (!mounted) return;
     if (state.isLoading || !state.hasMore) return;
-    if (_isInRetryBackoff() || !isOnlineNow(ref)) return;
+    if (_isInRetryBackoff()) return;
 
     final remaining = state.loadedJokes.length - 1 - _currentViewingIndex;
 
@@ -193,7 +193,7 @@ class GenericPagingNotifier extends StateNotifier<PagingState> {
       state = state.copyWith(isInitialized: true);
     }
     if (state.isLoading) return;
-    if (_isInRetryBackoff() || !isOnlineNow(ref)) return;
+    if (_isInRetryBackoff()) return;
     final String? startCursor = _initialCursorCache ??= initialCursorProvider
         ?.call(ref);
     state = state.copyWith(
@@ -211,7 +211,7 @@ class GenericPagingNotifier extends StateNotifier<PagingState> {
       state = state.copyWith(isInitialized: true);
     }
     if (state.isLoading || !state.hasMore) return;
-    if (_isInRetryBackoff() || !isOnlineNow(ref)) return;
+    if (_isInRetryBackoff()) return;
     state = state.copyWith(isLoading: true);
     await _loadInternal(limit: loadPageSize, cursor: state.cursor);
   }

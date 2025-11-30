@@ -269,7 +269,6 @@ class _CachedJokeImageState extends ConsumerState<CachedJokeImage> {
     required String assetPath,
     required int? effectiveWidth,
   }) {
-    AppLogger.info('IMAGE_ASSET: Building asset image: $assetPath');
     if (_hasError) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) {

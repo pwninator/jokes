@@ -277,10 +277,35 @@
       grid-template-columns: 1fr;
     }
   }
+
+  .upload-btn {
+    width: 100px;
+    height: 100px;
+    box-sizing: border-box;
+    border: 2px dashed rgba(212, 160, 23, 0.4);
+    background: rgba(212, 160, 23, 0.05);
+    border-radius: 10px;
+    cursor: pointer;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-primary);
+    font-size: 24px;
+    transition: all 0.2s ease;
+  }
+
+  .upload-btn:hover {
+    background: rgba(212, 160, 23, 0.15);
+    border-color: var(--color-primary);
+  }
+
+  .upload-input {
+    display: none;
+  }
 </style>
 {% endblock %}
 {% macro render_variants(variants, label, target_field, joke_id, book_id, preview=None) -%}
-  {% if variants %}
   <div class="variant-group">
     <div class="variant-label text-button">{{ label }}</div>
     <div class="variant-row">
@@ -290,26 +315,30 @@
       </div>
       {% endif %}
       <div class="variants" data-target-field="{{ target_field }}">
-        {% for variant in variants %}
-        <button class="variant-tile"
-          type="button"
-          data-joke-id="{{ joke_id }}"
-          data-book-id="{{ book_id }}"
-          data-target-field="{{ target_field }}"
-          data-image-url="{{ variant }}">
-          <img src="{{ variant }}" alt="{{ label }} option {{ loop.index }}">
-        </button>
-        {% endfor %}
+        {% if variants %}
+          {% for variant in variants %}
+          <button class="variant-tile"
+            type="button"
+            data-joke-id="{{ joke_id }}"
+            data-book-id="{{ book_id }}"
+            data-target-field="{{ target_field }}"
+            data-image-url="{{ variant }}">
+            <img src="{{ variant }}" alt="{{ label }} option {{ loop.index }}">
+          </button>
+          {% endfor %}
+        {% endif %}
+        <label class="upload-btn" title="Upload custom image">
+          +
+          <input type="file" 
+            class="upload-input" 
+            accept="image/*"
+            data-joke-id="{{ joke_id }}"
+            data-book-id="{{ book_id }}"
+            data-target-field="{{ target_field }}">
+        </label>
       </div>
     </div>
   </div>
-  {% elif preview %}
-  <div class="variant-row">
-    <div class="variant-preview standalone">
-      <img src="{{ preview }}" alt="{{ label }} preview">
-    </div>
-  </div>
-  {% endif %}
 {%- endmacro %}
 
 {% block content %}
@@ -488,6 +517,66 @@
       });
     }
 
+    function createUploadButton(bookId, jokeId, targetField) {
+      const label = document.createElement('label');
+      label.className = 'upload-btn';
+      label.title = 'Upload custom image';
+      label.textContent = '+';
+
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.className = 'upload-input';
+      input.accept = 'image/*';
+      input.dataset.jokeId = jokeId;
+      input.dataset.bookId = bookId;
+      input.dataset.targetField = targetField;
+      
+      input.addEventListener('change', handleUpload);
+      label.appendChild(input);
+      return label;
+    }
+
+    function handleUpload(evt) {
+      const input = evt.target;
+      const file = input.files[0];
+      if (!file) return;
+
+      const jokeId = input.dataset.jokeId;
+      const bookId = input.dataset.bookId;
+      const targetField = input.dataset.targetField;
+      const label = input.parentElement;
+      
+      // UI Loading state
+      const originalText = label.childNodes[0].textContent; // The text node '+'
+      label.childNodes[0].textContent = '...';
+      input.disabled = true;
+
+      const formData = new FormData();
+      formData.set('file', file);
+      formData.set('joke_id', jokeId);
+      formData.set('joke_book_id', bookId);
+      formData.set('target_field', targetField);
+
+      fetch('/admin/joke-books/upload-image', {
+        method: 'POST',
+        body: formData
+      })
+      .then(resp => {
+        if (!resp.ok) return resp.text().then(t => { throw new Error(t) });
+        return resp.json();
+      })
+      .then(() => updateRow(bookId, jokeId))
+      .catch(err => {
+        console.error('Upload failed:', err);
+        alert('Upload failed: ' + err.message);
+        label.childNodes[0].textContent = originalText; // Reset on error
+      })
+      .finally(() => {
+        input.disabled = false;
+        input.value = ''; // Reset input
+      });
+    }
+
     function rebuildVariantTiles(card, bookId, jokeId, targetField, variants, labelPrefix) {
       const container = card.querySelector(`.variants[data-target-field="${targetField}"]`);
       if (!container) return;
@@ -508,6 +597,8 @@
         attachTileListener(tile);
         container.appendChild(tile);
       });
+      // Append upload button
+      container.appendChild(createUploadButton(bookId, jokeId, targetField));
     }
 
     function updateRow(bookId, jokeId) {
@@ -648,6 +739,9 @@
 
     document.querySelectorAll('.variant-tile')
       .forEach((tile) => attachTileListener(tile));
+
+    document.querySelectorAll('.upload-input')
+      .forEach((input) => input.addEventListener('change', handleUpload));
 
     // Initial highlight on load
     document.querySelectorAll('.joke-card').forEach((card) => {

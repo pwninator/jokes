@@ -1,5 +1,6 @@
 """Tests for the web_fns module."""
 from unittest.mock import Mock
+from io import BytesIO
 
 from common import models
 from functions import web_fns
@@ -462,3 +463,126 @@ def test_pages_include_ga4_tag_and_parchment_background(monkeypatch):
   assert '<link rel="icon" type="image/png"' in index_html
   assert '<link rel="icon" type="image/png"' in topic_html
   assert '/jokes/dogs' not in index_html
+
+
+def test_admin_joke_book_upload_image_book_page(monkeypatch):
+  """Test uploading a book page image updates metadata and variants."""
+  _mock_admin_session(monkeypatch)
+  
+  mock_upload = Mock()
+  monkeypatch.setattr(web_fns.cloud_storage, "upload_bytes_to_gcs", mock_upload)
+  
+  mock_get_cdn = Mock(return_value="https://cdn/image.png")
+  monkeypatch.setattr(web_fns.cloud_storage, "get_public_image_cdn_url", mock_get_cdn)
+  
+  # Mock Firestore
+  mock_metadata_ref = Mock()
+  mock_metadata_ref.get.return_value = Mock(exists=True)
+  
+  mock_joke_ref = Mock()
+  mock_joke_ref.collection.return_value.document.return_value = mock_metadata_ref
+  
+  mock_db = Mock()
+  mock_db.collection.return_value.document.return_value = mock_joke_ref
+  monkeypatch.setattr(web_fns.firestore, "db", lambda: mock_db)
+
+  data = {
+    'joke_id': 'joke-123',
+    'joke_book_id': 'book-456',
+    'target_field': 'book_page_setup_image_url',
+    'file': (BytesIO(b"fake image content"), 'test.png'),
+  }
+
+  with web_fns.app.test_client() as client:
+    resp = client.post(
+      '/admin/joke-books/upload-image',
+      data=data,
+      content_type='multipart/form-data'
+    )
+
+  assert resp.status_code == 200
+  assert resp.json['url'] == "https://cdn/image.png"
+  
+  # Verify Upload
+  mock_upload.assert_called_once()
+  args = mock_upload.call_args[0]
+  assert args[0] == b"fake image content"
+  assert "joke_books/book-456/joke-123/custom_setup_" in args[1]
+  assert args[1].endswith(".png")
+  
+  # Verify Firestore Update
+  mock_metadata_ref.update.assert_called_once()
+  update_args = mock_metadata_ref.update.call_args[0][0]
+  assert update_args['book_page_setup_image_url'] == "https://cdn/image.png"
+  # Verify ArrayUnion was used (checking strictly might be hard with Mocks unless we check type)
+  assert 'all_book_page_setup_image_urls' in update_args
+
+
+def test_admin_joke_book_upload_image_main_joke(monkeypatch):
+  """Test uploading a main joke image updates the joke doc."""
+  _mock_admin_session(monkeypatch)
+  
+  mock_upload = Mock()
+  monkeypatch.setattr(web_fns.cloud_storage, "upload_bytes_to_gcs", mock_upload)
+  
+  mock_get_cdn = Mock(return_value="https://cdn/main-image.jpg")
+  monkeypatch.setattr(web_fns.cloud_storage, "get_public_image_cdn_url", mock_get_cdn)
+  
+  # Mock Firestore
+  mock_joke_ref = Mock()
+  mock_db = Mock()
+  mock_db.collection.return_value.document.return_value = mock_joke_ref
+  monkeypatch.setattr(web_fns.firestore, "db", lambda: mock_db)
+
+  data = {
+    'joke_id': 'joke-999',
+    'target_field': 'punchline_image_url',
+    'file': (BytesIO(b"content"), 'punch.jpg'),
+  }
+
+  with web_fns.app.test_client() as client:
+    resp = client.post(
+      '/admin/joke-books/upload-image',
+      data=data,
+      content_type='multipart/form-data'
+    )
+
+  assert resp.status_code == 200
+  
+  # Verify Upload
+  mock_upload.assert_called_once()
+  args = mock_upload.call_args[0]
+  assert "jokes/joke-999/custom_punchline_" in args[1]
+  
+  # Verify Firestore Update on Main Doc
+  mock_joke_ref.update.assert_called_once_with({
+    'punchline_image_url': "https://cdn/main-image.jpg"
+  })
+
+
+def test_admin_joke_book_upload_invalid_input(monkeypatch):
+  """Test invalid inputs return 400."""
+  _mock_admin_session(monkeypatch)
+  
+  with web_fns.app.test_client() as client:
+    # Missing file
+    resp = client.post(
+      '/admin/joke-books/upload-image',
+      data={'joke_id': '1', 'target_field': 'setup_image_url'},
+      content_type='multipart/form-data'
+    )
+    assert resp.status_code == 400
+    assert b"Missing required fields" in resp.data
+
+    # Invalid field
+    resp = client.post(
+      '/admin/joke-books/upload-image',
+      data={
+        'joke_id': '1', 
+        'target_field': 'hacker_field',
+        'file': (BytesIO(b""), 'test.png')
+      },
+      content_type='multipart/form-data'
+    )
+    assert resp.status_code == 400
+    assert b"Invalid target field" in resp.data

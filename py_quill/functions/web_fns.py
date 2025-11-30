@@ -10,8 +10,9 @@ from common import models
 from common import config
 from common import utils
 from firebase_functions import https_fn, logger, options
-from services import firestore, search
+from services import firestore, search, cloud_storage
 from functions import auth_helpers
+from google.cloud.firestore import ArrayUnion
 
 _TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), '..', 'web',
                               'templates')
@@ -541,6 +542,101 @@ def admin_joke_book_refresh(book_id: str, joke_id: str):
     [_format_book_page_thumb(url) for url in punchline_variants if url],
   }
   return flask.jsonify(resp_data)
+
+
+@web_bp.route('/admin/joke-books/upload-image', methods=['POST'])
+@auth_helpers.require_admin
+def admin_joke_book_upload_image():
+  """Upload a custom image for a joke setup/punchline or book page."""
+  logger.info(f"Admin joke book upload image request: {flask.request.form}")
+
+  joke_id = flask.request.form.get('joke_id')
+  book_id = flask.request.form.get('joke_book_id') or 'manual'
+  target_field = flask.request.form.get('target_field')
+  file = flask.request.files.get('file')
+  logger.info(
+    f"Joke ID: {joke_id}, Book ID: {book_id}, Target field: {target_field}, File: {file}"
+  )
+
+  if not joke_id or not target_field or not file:
+    return flask.Response('Missing required fields', 400)
+
+  allowed_fields = {
+    'book_page_setup_image_url',
+    'book_page_punchline_image_url',
+    'setup_image_url',
+    'punchline_image_url',
+  }
+
+  if target_field not in allowed_fields:
+    return flask.Response(f'Invalid target field: {target_field}', 400)
+
+  # Validate file type (basic check)
+  if not file.filename:
+    return flask.Response('No filename', 400)
+
+  ext = os.path.splitext(file.filename)[1].lower()
+  if ext not in ['.png', '.jpg', '.jpeg', '.webp']:
+    return flask.Response('Invalid file type', 400)
+
+  # Determine storage path
+  timestamp = datetime.datetime.now(
+    datetime.timezone.utc).strftime('%Y%m%d_%H%M%S')
+
+  # Use a clean path structure: joke_books/{book_id}/{joke_id}/{type}_{timestamp}.ext
+  # or jokes/{joke_id}/{type}_{timestamp}.ext for main images if preferred,
+  # but keeping them grouped by "upload source" (joke book admin) might be cleaner
+  # or just sticking to a standard "uploads" folder.
+  # Let's stick to the user's context: if it's for a book page, put it in joke_books.
+  # If it's for the main joke, maybe put it in jokes/custom?
+  # The prompt suggested "joke_books/{book_id}/{joke_id}/{type}_{timestamp}.png" for book pages.
+
+  if target_field.startswith('book_page'):
+    type_prefix = 'setup' if 'setup' in target_field else 'punchline'
+    gcs_path = f"joke_books/{book_id}/{joke_id}/custom_{type_prefix}_{timestamp}{ext}"
+  else:
+    # Main joke images
+    type_prefix = 'setup' if 'setup' in target_field else 'punchline'
+    gcs_path = f"jokes/{joke_id}/custom_{type_prefix}_{timestamp}{ext}"
+
+  gcs_uri = f"gs://{config.IMAGE_BUCKET_NAME}/{gcs_path}"
+
+  try:
+    content = file.read()
+    cloud_storage.upload_bytes_to_gcs(
+      content, gcs_uri, file.content_type or 'application/octet-stream')
+  except Exception as e:
+    logger.error('Failed to upload image', exc_info=e)
+    return flask.Response('Upload failed', 500)
+
+  # Update Firestore
+  public_url = cloud_storage.get_public_image_cdn_url(gcs_uri)
+  client = firestore.db()
+  joke_ref = client.collection('jokes').document(joke_id)
+
+  if target_field.startswith('book_page'):
+    # Update metadata doc
+    metadata_ref = joke_ref.collection('metadata').document('metadata')
+    # Determine variant field name
+    variant_field = f"all_{target_field}s"  # e.g. all_book_page_setup_image_urls
+
+    # Ensure doc exists
+    if not metadata_ref.get().exists:
+      metadata_ref.set({})
+
+    metadata_ref.update({
+      target_field: public_url,
+      variant_field: ArrayUnion([public_url])
+    })
+  else:
+    # Update main joke doc
+    joke_ref.update({target_field: public_url})
+
+    # Note: Main joke doc doesn't strictly track "all_setup_image_urls" in the same way
+    # as metadata, or if it does, it wasn't specified in the prompt requirements
+    # to update variants for main images. We'll stick to updating the main field.
+
+  return flask.jsonify({'url': public_url})
 
 
 @web_bp.route('/sitemap.xml')

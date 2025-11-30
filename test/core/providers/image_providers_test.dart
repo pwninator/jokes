@@ -73,5 +73,24 @@ void main() {
         expect(config1, equals(config2));
       });
     });
+
+    group('imageAssetManifestProvider', () {
+      test('should return overridden manifest set', () async {
+        final localContainer = ProviderContainer(
+          overrides: [
+            imageAssetManifestProvider.overrideWith(
+              (ref) async => {'one.png', 'two.png'},
+            ),
+          ],
+        );
+        addTearDown(localContainer.dispose);
+
+        final manifest = await localContainer.read(
+          imageAssetManifestProvider.future,
+        );
+
+        expect(manifest, containsAll(<String>{'one.png', 'two.png'}));
+      });
+    });
   });
 }

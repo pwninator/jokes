@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -39,12 +41,14 @@ void main() {
     late MockAppUsageService appUsageService;
     late MockRemoteConfigValues mockRemoteConfigValues;
     late BuildContext fakeContext;
+    late Future<Set<String>> Function() getAssetManifest;
 
     setUpAll(() {
       registerFallbackValue(FakeJoke());
       registerFallbackValue(FakeXFile());
       registerFallbackValue(JokeReactionType.share);
       registerFallbackValue(FakeBuildContext());
+      registerFallbackValue(Uint8List(0));
     });
 
     setUp(() async {
@@ -55,6 +59,7 @@ void main() {
       mockRemoteConfigValues = MockRemoteConfigValues();
       fakeContext = FakeBuildContext();
       appUsageService = MockAppUsageService();
+      getAssetManifest = () async => <String>{};
       service = JokeShareServiceImpl(
         imageService: mockImageService,
         analyticsService: mockAnalyticsService,
@@ -63,6 +68,7 @@ void main() {
         performanceService: mockPerformanceService,
         remoteConfigValues: mockRemoteConfigValues,
         getRevealModeEnabled: () => true,
+        getAssetManifest: getAssetManifest,
       );
 
       when(() => mockImageService.addWatermarkToFiles(any())).thenAnswer(
@@ -76,6 +82,19 @@ void main() {
       when(
         () => mockImageService.stackImages(any()),
       ).thenAnswer((invocation) async => XFile('stacked.jpg'));
+      when(
+        () => mockImageService.getAssetPathForUrl(any(), any()),
+      ).thenReturn(null);
+      when(
+        () => mockImageService.loadAssetBytes(any()),
+      ).thenAnswer((_) async => null);
+      when(
+        () => mockImageService.createTempXFileFromBytes(
+          any(),
+          fileName: any(named: 'fileName'),
+          prefix: any(named: 'prefix'),
+        ),
+      ).thenAnswer((_) async => XFile('temp.png'));
     });
 
     test(

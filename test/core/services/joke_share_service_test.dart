@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -39,12 +41,14 @@ void main() {
     late MockAppUsageService appUsageService;
     late MockRemoteConfigValues mockRemoteConfigValues;
     late BuildContext fakeContext;
+    late Future<Set<String>> Function() getAssetManifest;
 
     setUpAll(() {
       registerFallbackValue(FakeJoke());
       registerFallbackValue(JokeReactionType.share);
       registerFallbackValue(FakeXFile());
       registerFallbackValue(FakeBuildContext());
+      registerFallbackValue(Uint8List(0));
     });
 
     setUp(() async {
@@ -61,6 +65,8 @@ void main() {
         ),
       ).thenReturn(ShareImagesMode.separate);
 
+      getAssetManifest = () async => <String>{};
+
       service = JokeShareServiceImpl(
         imageService: mockImageService,
         analyticsService: mockAnalyticsService,
@@ -69,6 +75,7 @@ void main() {
         performanceService: mockPerformanceService,
         remoteConfigValues: mockRemoteConfigValues,
         getRevealModeEnabled: () => true,
+        getAssetManifest: getAssetManifest,
       );
 
       // Default watermark behavior: passthrough original files
@@ -77,6 +84,125 @@ void main() {
           invocation.positionalArguments.first as List<XFile>,
         ),
       );
+      when(
+        () => mockImageService.getAssetPathForUrl(any(), any()),
+      ).thenReturn(null);
+      when(
+        () => mockImageService.loadAssetBytes(any()),
+      ).thenAnswer((_) async => null);
+      when(
+        () => mockImageService.createTempXFileFromBytes(
+          any(),
+          fileName: any(named: 'fileName'),
+          prefix: any(named: 'prefix'),
+        ),
+      ).thenAnswer((_) async => XFile('temp.png'));
+    });
+
+    test('shareJoke uses bundled assets when manifest contains tails', () async {
+      const joke = Joke(
+        id: 'asset-joke-id',
+        setupText: 'Test setup',
+        punchlineText: 'Test punchline',
+        setupImageUrl:
+            'https://images.quillsstorybook.com/cdn-cgi/image/width=1024,format=auto,quality=75/pun_agent_image.png',
+        punchlineImageUrl:
+            'https://images.quillsstorybook.com/cdn-cgi/image/width=1024,format=auto,quality=75/some_dir/file_name.png',
+        adminRating: null,
+      );
+
+      final assetBytes = Uint8List.fromList([0, 1, 2, 3]);
+      when(
+        () => mockPlatformShareService.shareFiles(
+          any(),
+          subject: any(named: 'subject'),
+        ),
+      ).thenAnswer(
+        (_) async => const ShareResult('', ShareResultStatus.success),
+      );
+      when(
+        () => mockAnalyticsService.logJokeShareInitiated(
+          any(),
+          jokeContext: any(named: 'jokeContext'),
+        ),
+      ).thenAnswer((_) async {});
+      when(
+        () => mockAnalyticsService.logJokeShareSuccess(
+          any(),
+          jokeContext: any(named: 'jokeContext'),
+          shareDestination: any(named: 'shareDestination'),
+          totalJokesShared: any(named: 'totalJokesShared'),
+        ),
+      ).thenAnswer((_) async {});
+      when(
+        () => appUsageService.shareJoke(any(), context: any(named: 'context')),
+      ).thenAnswer((_) async {});
+      when(
+        () => appUsageService.getNumSharedJokes(),
+      ).thenAnswer((_) async => 1);
+
+      final manifestTails = <String>{
+        'pun_agent_image.png',
+        'some_dir/file_name.png',
+      };
+      final assetAwareService = JokeShareServiceImpl(
+        imageService: mockImageService,
+        analyticsService: mockAnalyticsService,
+        platformShareService: mockPlatformShareService,
+        appUsageService: appUsageService,
+        performanceService: mockPerformanceService,
+        remoteConfigValues: mockRemoteConfigValues,
+        getRevealModeEnabled: () => true,
+        getAssetManifest: () async => manifestTails,
+      );
+
+      when(
+        () => mockImageService.getAssetPathForUrl(
+          joke.setupImageUrl,
+          manifestTails,
+        ),
+      ).thenReturn('assets/data_bundles/images/pun_agent_image.png');
+      when(
+        () => mockImageService.getAssetPathForUrl(
+          joke.punchlineImageUrl,
+          manifestTails,
+        ),
+      ).thenReturn('assets/data_bundles/images/some_dir/file_name.png');
+      when(
+        () => mockImageService.loadAssetBytes(any()),
+      ).thenAnswer((_) async => assetBytes);
+      when(
+        () => mockImageService.createTempXFileFromBytes(
+          assetBytes,
+          fileName: any(named: 'fileName'),
+          prefix: any(named: 'prefix'),
+        ),
+      ).thenAnswer(
+        (invocation) async =>
+            XFile('temp_${invocation.namedArguments[#fileName] as String}'),
+      );
+
+      final result = await assetAwareService.shareJoke(
+        joke,
+        jokeContext: 'test-context',
+        context: fakeContext,
+      );
+
+      expect(result, isTrue);
+      verifyNever(() => mockImageService.getProcessedJokeImageUrl(any()));
+      verifyNever(() => mockImageService.getCachedFileFromUrl(any()));
+      verify(
+        () => mockImageService.getAssetPathForUrl(
+          joke.setupImageUrl,
+          manifestTails,
+        ),
+      ).called(1);
+      verify(
+        () => mockImageService.getAssetPathForUrl(
+          joke.punchlineImageUrl,
+          manifestTails,
+        ),
+      ).called(1);
     });
 
     test(

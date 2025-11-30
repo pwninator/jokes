@@ -67,6 +67,7 @@ class JokeShareServiceImpl implements JokeShareService {
   final PerformanceService _performanceService;
   final RemoteConfigValues _remoteConfigValues;
   final bool Function() _getRevealModeEnabled;
+  final Future<Set<String>> Function() _getAssetManifest;
 
   JokeShareServiceImpl({
     required ImageService imageService,
@@ -76,13 +77,15 @@ class JokeShareServiceImpl implements JokeShareService {
     required PerformanceService performanceService,
     required RemoteConfigValues remoteConfigValues,
     required bool Function() getRevealModeEnabled,
+    required Future<Set<String>> Function() getAssetManifest,
   }) : _imageService = imageService,
        _analyticsService = analyticsService,
        _platformShareService = platformShareService,
        _appUsageService = appUsageService,
        _performanceService = performanceService,
        _remoteConfigValues = remoteConfigValues,
-       _getRevealModeEnabled = getRevealModeEnabled;
+       _getRevealModeEnabled = getRevealModeEnabled,
+       _getAssetManifest = getAssetManifest;
 
   @override
   Future<bool> shareJoke(
@@ -159,28 +162,25 @@ class JokeShareServiceImpl implements JokeShareService {
 
       controller?.setProgress(1);
 
-      // Compute processed URLs directly and fetch both files in parallel
-      final setupProcessedUrl = _imageService.getProcessedJokeImageUrl(
-        joke.setupImageUrl,
-      );
-      final punchlineProcessedUrl = _imageService.getProcessedJokeImageUrl(
-        joke.punchlineImageUrl,
-      );
-
+      final assetManifest = await _getAssetManifest();
       final List<XFile> files = [];
-      if (setupProcessedUrl != null && punchlineProcessedUrl != null) {
-        final results = await Future.wait([
-          _imageService.getCachedFileFromUrl(setupProcessedUrl),
-          _imageService.getCachedFileFromUrl(punchlineProcessedUrl),
-        ]);
-        final setupFile = results[0];
-        final punchlineFile = results[1];
-        if (setupFile != null && punchlineFile != null) {
-          files.add(setupFile);
-          files.add(punchlineFile);
-        }
-        controller?.setProgress(4);
+      final results = await Future.wait([
+        _getImageFile(
+          imageUrl: joke.setupImageUrl,
+          assetManifest: assetManifest,
+        ),
+        _getImageFile(
+          imageUrl: joke.punchlineImageUrl,
+          assetManifest: assetManifest,
+        ),
+      ]);
+      final setupFile = results[0];
+      final punchlineFile = results[1];
+      if (setupFile != null && punchlineFile != null) {
+        files.add(setupFile);
+        files.add(punchlineFile);
       }
+      controller?.setProgress(4);
 
       // Cancellation after download
       if (controller?.isCanceled == true) {
@@ -277,6 +277,29 @@ class JokeShareServiceImpl implements JokeShareService {
     }
 
     return ShareOperationResult(shareSuccessful, shareStatus, shareDestination);
+  }
+
+  Future<XFile?> _getImageFile({
+    required String? imageUrl,
+    required Set<String> assetManifest,
+  }) async {
+    if (imageUrl == null || imageUrl.isEmpty) return null;
+
+    final assetPath = _imageService.getAssetPathForUrl(imageUrl, assetManifest);
+    if (assetPath != null) {
+      final bytes = await _imageService.loadAssetBytes(assetPath);
+      if (bytes != null) {
+        return _imageService.createTempXFileFromBytes(
+          bytes,
+          fileName: assetPath.split('/').last,
+          prefix: 'share_asset',
+        );
+      }
+    }
+
+    final processedUrl = _imageService.getProcessedJokeImageUrl(imageUrl);
+    if (processedUrl == null) return null;
+    return _imageService.getCachedFileFromUrl(processedUrl);
   }
 }
 

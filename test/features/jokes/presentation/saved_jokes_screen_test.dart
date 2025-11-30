@@ -133,6 +133,9 @@ void main() {
     when(
       () => mockAppUsageService.getSavedJokeIds(),
     ).thenAnswer((_) async => <String>[]);
+    when(
+      () => mockAppUsageService.logJokeNavigated(any()),
+    ).thenAnswer((_) async {});
   });
 
   ProviderContainer createContainer({List<Override> overrides = const []}) {

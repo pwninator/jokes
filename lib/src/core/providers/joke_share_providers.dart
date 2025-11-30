@@ -21,6 +21,8 @@ final jokeShareServiceProvider = Provider<JokeShareService>((ref) {
   final performanceService = ref.watch(performanceServiceProvider);
   final remoteConfigValues = ref.watch(remoteConfigValuesProvider);
   bool getRevealModeEnabled() => ref.read(jokeViewerRevealProvider);
+  Future<Set<String>> getAssetManifest() =>
+      ref.read(imageAssetManifestProvider.future);
 
   return JokeShareServiceImpl(
     imageService: imageService,
@@ -30,5 +32,6 @@ final jokeShareServiceProvider = Provider<JokeShareService>((ref) {
     performanceService: performanceService,
     remoteConfigValues: remoteConfigValues,
     getRevealModeEnabled: getRevealModeEnabled,
+    getAssetManifest: getAssetManifest,
   );
 });

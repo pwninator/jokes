@@ -261,5 +261,4 @@ class Joke {
       publicTimestamp.hashCode ^
       tags.hashCode ^
       seasonal.hashCode;
-
 }

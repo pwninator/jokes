@@ -179,6 +179,9 @@ List<Override> getCoreProviderOverrides() {
     () => mockImageService.getFullSizeUrl(any()),
   ).thenReturn('data:image/png;base64,test');
   when(() => mockImageService.clearCache()).thenAnswer((_) async {});
+  when(
+    () => mockImageService.getAssetPathForUrl(any(), any()),
+  ).thenReturn(null);
 
   when(() => mockNotificationService.initialize()).thenAnswer((_) async {});
   when(
@@ -243,6 +246,7 @@ List<Override> getCoreProviderOverrides() {
     performanceServiceProvider.overrideWithValue(_TestNoopPerformanceService()),
     appVersionProvider.overrideWith((_) async => 'Snickerdoodle v0.0.1+1'),
     appUsageServiceProvider.overrideWithValue(mockAppUsageService),
+    imageAssetManifestProvider.overrideWith((ref) async => <String>{}),
   ];
 }
 

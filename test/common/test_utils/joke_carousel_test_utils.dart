@@ -173,6 +173,7 @@ void stubImageServiceHappyPath(ImageService mock, {String? dataUrl}) {
   when(
     () => mock.precacheJokeImage(any(), width: any(named: 'width')),
   ).thenAnswer((_) async => url);
+  when(() => mock.getAssetPathForUrl(any(), any())).thenReturn(null);
   when(
     () => mock.precacheJokeImages(any(), width: any(named: 'width')),
   ).thenAnswer((_) async => (setupUrl: url, punchlineUrl: url));
@@ -250,6 +251,7 @@ Widget wrapWithCarouselOverrides(
       appUsageServiceProvider.overrideWithValue(appUsageService),
       analyticsServiceProvider.overrideWithValue(analyticsService),
       performanceServiceProvider.overrideWithValue(performanceService),
+      imageAssetManifestProvider.overrideWith((ref) async => <String>{}),
       subscriptionPromptProvider.overrideWith(
         (ref) => FakeSubscriptionPromptNotifier(),
       ),

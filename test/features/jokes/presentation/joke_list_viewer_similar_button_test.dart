@@ -118,6 +118,9 @@ void main() {
     when(
       () => mockSettingsService.setBool(any(), any()),
     ).thenAnswer((_) async {});
+    when(
+      () => mockAppUsageService.logJokeNavigated(any()),
+    ).thenAnswer((_) async {});
 
     // Setup remote config defaults
     when(() => mockRemoteConfigValues.getBool(any())).thenReturn(false);

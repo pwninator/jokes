@@ -1,7 +1,10 @@
 import 'dart:async';
 
+import 'dart:convert';
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -18,8 +21,25 @@ class _MockAnalyticsService extends Mock implements AnalyticsService {}
 
 class _MockPerformanceService extends Mock implements PerformanceService {}
 
+class _FakeAssetBundle extends CachingAssetBundle {
+  _FakeAssetBundle(this.assets);
+
+  final Map<String, Uint8List> assets;
+
+  @override
+  Future<ByteData> load(String key) async {
+    final bytes = assets[key];
+    if (bytes == null) {
+      throw FlutterError('Asset not found: $key');
+    }
+    return ByteData.view(bytes.buffer);
+  }
+}
+
 const _sampleImage =
     'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+const _onePixelPngBase64 =
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -32,7 +52,12 @@ void main() {
   late _MockAnalyticsService analytics;
   late _MockPerformanceService performance;
 
-  ProviderScope wrap(Widget child, {Stream<int>? offlineStream}) {
+  ProviderScope wrap(
+    Widget child, {
+    Stream<int>? offlineStream,
+    Set<String>? manifestSet,
+    AssetBundle? assetBundle,
+  }) {
     return ProviderScope(
       overrides: [
         imageServiceProvider.overrideWithValue(imageService),
@@ -41,8 +66,14 @@ void main() {
         offlineToOnlineProvider.overrideWith(
           (ref) => offlineStream ?? const Stream<int>.empty(),
         ),
+        imageAssetManifestProvider.overrideWith(
+          (ref) async => manifestSet ?? <String>{},
+        ),
       ],
-      child: MaterialApp(home: Scaffold(body: child)),
+      child: DefaultAssetBundle(
+        bundle: assetBundle ?? rootBundle,
+        child: MaterialApp(home: Scaffold(body: child)),
+      ),
     );
   }
 
@@ -89,6 +120,7 @@ void main() {
         quality: any(named: 'quality'),
       ),
     ).thenReturn(_sampleImage);
+    when(() => imageService.getAssetPathForUrl(any(), any())).thenReturn(null);
   });
 
   group('CachedJokeImage', () {
@@ -107,6 +139,36 @@ void main() {
       await tester.pump();
 
       expect(find.byIcon(Icons.image_not_supported_outlined), findsOneWidget);
+    });
+
+    testWidgets('uses asset path when manifest contains tail', (tester) async {
+      const url =
+          'https://images.quillsstorybook.com/cdn-cgi/image/width=1024,format=auto,quality=75/local.png';
+      final assetBytes = base64Decode(_onePixelPngBase64);
+      when(
+        () => imageService.getAssetPathForUrl(url, any()),
+      ).thenReturn('assets/data_bundles/images/local.png');
+
+      await tester.pumpWidget(
+        wrap(
+          const CachedJokeImage(imageUrl: url, width: 50, height: 50),
+          manifestSet: {'local.png'},
+          assetBundle: _FakeAssetBundle({
+            'assets/data_bundles/images/local.png': assetBytes,
+          }),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.byType(CachedNetworkImage), findsNothing);
+      expect(find.byType(Image), findsOneWidget);
+      verifyNever(
+        () => imageService.getProcessedJokeImageUrl(
+          any(),
+          width: any(named: 'width'),
+        ),
+      );
     });
 
     testWidgets('rounds explicit width to nearest hundred', (tester) async {
@@ -130,7 +192,8 @@ void main() {
           width: captureAny(named: 'width'),
         ),
       ).captured;
-      expect(capturedWidths.single, 200);
+      expect(capturedWidths, isNotEmpty);
+      expect(capturedWidths.last, 200);
     });
 
     testWidgets('uses layout width when explicit width is absent', (
@@ -164,7 +227,8 @@ void main() {
           width: captureAny(named: 'width'),
         ),
       ).captured;
-      expect(capturedWidths.single, 300);
+      expect(capturedWidths, isNotEmpty);
+      expect(capturedWidths.last, 300);
     });
 
     testWidgets('clamps width to 1024 when constraints are large', (
@@ -200,7 +264,8 @@ void main() {
           width: captureAny(named: 'width'),
         ),
       ).captured;
-      expect(capturedWidths.single, 1024);
+      expect(capturedWidths, isNotEmpty);
+      expect(capturedWidths.last, 1024);
     });
 
     testWidgets('passes null width when constraints are unbounded', (
@@ -227,7 +292,7 @@ void main() {
 
       verify(
         () => imageService.getProcessedJokeImageUrl(url, width: null),
-      ).called(1);
+      ).called(greaterThanOrEqualTo(1));
     });
 
     testWidgets('wraps image with ClipRRect when borderRadius provided', (

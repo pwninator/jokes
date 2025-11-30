@@ -15,8 +15,8 @@ class OfflineBundleLoader {
   OfflineBundleLoader({
     required FirebaseFirestore firestore,
     required AssetBundle assetBundle,
-  })  : _firestore = firestore,
-        _assetBundle = assetBundle;
+  }) : _firestore = firestore,
+       _assetBundle = assetBundle;
 
   final FirebaseFirestore _firestore;
   final AssetBundle _assetBundle;
@@ -31,7 +31,9 @@ class OfflineBundleLoader {
       final bytes = await _loadAssetBytes(_bundlePath);
       final task = _firestore.loadBundle(bytes);
       await task.stream.last;
-      AppLogger.info('OFFLINE_BUNDLE: Loaded Firestore bundle from $_bundlePath');
+      AppLogger.info(
+        'OFFLINE_BUNDLE: Loaded Firestore bundle from $_bundlePath',
+      );
       return true;
     } catch (e, stack) {
       AppLogger.error(

@@ -119,6 +119,7 @@ flutter:
     - assets/review_prompts/review_request_kitten2_600.webp
     - assets/watermark/snickerdoodlejokes_watermark_01.png
     - assets/data_bundles/
+    - assets/data_bundles/images/
     - assets/google_fonts/
 
   # An image asset can refer to one or more resolution-specific "variants", see

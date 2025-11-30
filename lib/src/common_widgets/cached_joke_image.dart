@@ -41,6 +41,8 @@ class CachedJokeImage extends ConsumerStatefulWidget {
 class _CachedJokeImageState extends ConsumerState<CachedJokeImage> {
   bool _hasError = false;
   int _retryKey = 0;
+  bool _assetLoadFailed = false;
+  String? _loggedAssetPath;
 
   @override
   void initState() {
@@ -66,18 +68,57 @@ class _CachedJokeImageState extends ConsumerState<CachedJokeImage> {
   void didUpdateWidget(CachedJokeImage oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.imageUrl != oldWidget.imageUrl) {
-      setState(() => _hasError = false);
+        setState(() {
+          _hasError = false;
+          _assetLoadFailed = false;
+          _loggedAssetPath = null;
+        });
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final assetManifestAsync = ref.watch(imageAssetManifestProvider);
+    return assetManifestAsync.when(
+      data: (assetManifest) =>
+          _buildWithManifest(context, assetManifest: assetManifest),
+      loading: () => widget.showLoadingIndicator
+          ? _buildLoadingWidget(context)
+          : const SizedBox.shrink(),
+      error: (_, __) =>
+          _buildWithManifest(context, assetManifest: const <String>{}),
+    );
+  }
+
+  Widget _buildWithManifest(
+    BuildContext context, {
+    required Set<String> assetManifest,
+  }) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final effectiveWidth = _resolveEffectiveWidth(constraints.maxWidth);
 
         final imageService = ref.read(imageServiceProvider);
         final perf = ref.read(performanceServiceProvider);
+
+        String? assetPath;
+        if (assetManifest.isNotEmpty && !_assetLoadFailed) {
+          assetPath = imageService.getAssetPathForUrl(
+            widget.imageUrl,
+            assetManifest,
+          );
+          if (assetPath != null && _loggedAssetPath != assetPath) {
+            AppLogger.info('IMAGE_ASSET: Asset path: $assetPath');
+            _loggedAssetPath = assetPath;
+          }
+        }
+        if (assetPath != null) {
+          return _buildAssetImage(
+            context,
+            assetPath: assetPath,
+            effectiveWidth: effectiveWidth,
+          );
+        }
 
         // Use ImageService for URL processing
         final processedUrl = imageService.getProcessedJokeImageUrl(
@@ -220,6 +261,61 @@ class _CachedJokeImageState extends ConsumerState<CachedJokeImage> {
     );
   }
 
+  Widget _buildAssetImage(
+    BuildContext context, {
+    required String assetPath,
+    required int? effectiveWidth,
+  }) {
+    AppLogger.info('IMAGE_ASSET: Building asset image: $assetPath');
+    if (_hasError) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          setState(() => _hasError = false);
+        }
+      });
+    }
+
+    if (widget.onFirstImagePaint != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        widget.onFirstImagePaint?.call(effectiveWidth);
+      });
+    }
+
+    Widget imageWidget = Image.asset(
+      assetPath,
+      width: widget.width,
+      height: widget.height,
+      fit: widget.fit,
+      errorBuilder: (context, error, stackTrace) {
+        AppLogger.error('IMAGE_ASSET: Asset load failed: $assetPath: $error', stackTrace: stackTrace);
+        // If the asset fails to load, fall back to network on next build
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            setState(() {
+              _assetLoadFailed = true;
+            });
+          }
+        });
+        if (widget.showErrorIcon) {
+          _setErrorState();
+          return _buildErrorWidget(context);
+        }
+        _setErrorState();
+        return const SizedBox.shrink();
+      },
+    );
+
+    if (widget.borderRadius != null) {
+      imageWidget = ClipRRect(
+        borderRadius: widget.borderRadius!,
+        child: imageWidget,
+      );
+    }
+
+    AppLogger.info('IMAGE_ASSET: Built asset image: $assetPath');
+    return imageWidget;
+  }
+
   int? _resolveEffectiveWidth(double constraintWidth) {
     int? targetWidth;
 
@@ -292,6 +388,15 @@ class _CachedJokeImageState extends ConsumerState<CachedJokeImage> {
         ),
       ),
     );
+  }
+
+  void _setErrorState() {
+    if (_hasError) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        setState(() => _hasError = true);
+      }
+    });
   }
 
   Widget _buildErrorWidget(BuildContext context) {

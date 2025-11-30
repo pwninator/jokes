@@ -35,7 +35,6 @@ class JokeReactionsMigrationService {
   final PerformanceService _perf;
 
   Future<void> migrateIfNeeded() async {
-    _perf.startNamedTrace(name: TraceName.startupTaskMigrateReactions);
     try {
       // Only migrate if legacy keys exist
       final legacySave = _prefs.getStringList(JokeReactionType.save.prefsKey);
@@ -87,8 +86,6 @@ class JokeReactionsMigrationService {
         'REACTION_MIGRATION: Migration failed: $e',
         stackTrace: stack,
       );
-    } finally {
-      _perf.stopNamedTrace(name: TraceName.startupTaskMigrateReactions);
     }
   }
 }

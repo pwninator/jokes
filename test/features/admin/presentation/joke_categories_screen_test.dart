@@ -51,6 +51,9 @@ void main() {
         width: any(named: 'width'),
       ),
     ).thenReturn(null);
+    when(
+      () => mockImageService.getAssetPathForUrl(any(), any()),
+    ).thenReturn(null);
     when(() => mockImageService.isValidImageUrl(any())).thenReturn(false);
     when(
       () => mockAnalyticsService.logErrorImageLoad(
@@ -122,6 +125,7 @@ void main() {
           imageServiceProvider.overrideWithValue(mockImageService),
           analyticsServiceProvider.overrideWithValue(mockAnalyticsService),
           performanceServiceProvider.overrideWithValue(mockPerformanceService),
+          imageAssetManifestProvider.overrideWith((ref) async => <String>{}),
         ],
         child: const MaterialApp(home: Scaffold(body: JokeCategoriesScreen())),
       ),
@@ -180,6 +184,7 @@ void main() {
           imageServiceProvider.overrideWithValue(mockImageService),
           analyticsServiceProvider.overrideWithValue(mockAnalyticsService),
           performanceServiceProvider.overrideWithValue(mockPerformanceService),
+          imageAssetManifestProvider.overrideWith((ref) async => <String>{}),
         ],
         child: MaterialApp(
           home: InheritedGoRouter(

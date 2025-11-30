@@ -21,6 +21,11 @@ class ImageService {
   static const String defaultImageFormat = 'webp';
   static const int defaultThumbnailQuality = 50;
   static const int defaultFullSizeQuality = 75;
+  static const String assetImageBasePath = 'assets/data_bundles/images/';
+  static const String assetImageManifestPath =
+      'assets/data_bundles/image_manifest.json';
+  static const String _cdnPrefix =
+      'https://images.quillsstorybook.com/cdn-cgi/image/';
 
   // Joke image specific constants
   static const int jokeImageQuality = 50;
@@ -196,6 +201,30 @@ class ImageService {
     );
   }
 
+  /// Returns the relative asset path if the given URL is backed by a bundled
+  /// asset present in [assetManifestTails]. Otherwise returns null.
+  String? getAssetPathForUrl(String? imageUrl, Set<String> assetManifestTails) {
+    final tail = _extractBundledTail(imageUrl);
+    if (tail == null) return null;
+    return assetManifestTails.contains(tail)
+        ? '$assetImageBasePath$tail'
+        : null;
+  }
+
+  /// Extracts the tail of a Cloudflare CDN URL (path after the params segment).
+  /// Returns null if the URL doesn't match the expected CDN prefix or is empty.
+  String? _extractBundledTail(String? imageUrl) {
+    if (imageUrl == null || imageUrl.isEmpty) return null;
+    if (!imageUrl.startsWith(_cdnPrefix)) return null;
+
+    final remainder = imageUrl.substring(_cdnPrefix.length);
+    final firstSlash = remainder.indexOf('/');
+    if (firstSlash == -1 || firstSlash == remainder.length - 1) {
+      return null;
+    }
+    return remainder.substring(firstSlash + 1);
+  }
+
   /// Precaches a single joke image with optimized configuration
   /// Uses disk caching for efficiency and works in both foreground and background
   /// Returns the processed URL if successful, null otherwise
@@ -241,6 +270,33 @@ class ImageService {
       AppLogger.debug('Error getting cached file from URL: $e');
       return null;
     }
+  }
+
+  /// Loads raw bytes for a bundled asset. Returns null on failure.
+  Future<Uint8List?> loadAssetBytes(String assetPath) async {
+    try {
+      final data = await rootBundle.load(assetPath);
+      return data.buffer.asUint8List();
+    } catch (e) {
+      AppLogger.debug('Error loading asset bytes for $assetPath: $e');
+      return null;
+    }
+  }
+
+  /// Writes bytes to a temp file and returns an XFile pointing to it.
+  Future<XFile> createTempXFileFromBytes(
+    Uint8List bytes, {
+    required String fileName,
+    String? prefix,
+  }) async {
+    final String tempDir = Directory.systemTemp.path;
+    final String outPath = p.join(
+      tempDir,
+      '${prefix ?? 'snickerdoodle_temp'}_${DateTime.now().millisecondsSinceEpoch}_${p.basename(fileName)}',
+    );
+    final outFile = File(outPath);
+    await outFile.writeAsBytes(bytes, flush: true);
+    return XFile(outFile.path);
   }
 
   /// Precaches images for multiple jokes

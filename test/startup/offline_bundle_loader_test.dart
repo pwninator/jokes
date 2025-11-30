@@ -49,8 +49,9 @@ void main() {
     });
 
     test('returns false when bundle asset is missing', () async {
-      when(() => mockAssetBundle.load(any()))
-          .thenThrow(FlutterError('missing bundle'));
+      when(
+        () => mockAssetBundle.load(any()),
+      ).thenThrow(FlutterError('missing bundle'));
 
       final loader = OfflineBundleLoader(
         firestore: mockFirestore,
@@ -63,16 +64,16 @@ void main() {
       verifyNever(() => mockFirestore.loadBundle(any()));
     });
 
-    test('loads the fixed bundle path and waits for completion',
-        () async {
+    test('loads the fixed bundle path and waits for completion', () async {
       final bundleBytes = Uint8List.fromList([1, 2, 3]);
-      when(() => mockAssetBundle.load(any()))
-          .thenAnswer((_) async => ByteData.sublistView(bundleBytes));
+      when(
+        () => mockAssetBundle.load(any()),
+      ).thenAnswer((_) async => ByteData.sublistView(bundleBytes));
 
       final fakeTask = FakeLoadBundleTask(
-        Stream<LoadBundleTaskSnapshot>.fromIterable(
-          [FakeLoadBundleTaskSnapshot()],
-        ),
+        Stream<LoadBundleTaskSnapshot>.fromIterable([
+          FakeLoadBundleTaskSnapshot(),
+        ]),
       );
       when(() => mockFirestore.loadBundle(bundleBytes)).thenReturn(fakeTask);
 

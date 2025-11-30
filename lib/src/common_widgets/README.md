@@ -87,6 +87,8 @@ CachedJokeHeroImage(
 - **Loading states**: Built-in loading indicators
 - **Memory management**: Efficient memory and disk usage
 - **Shared cache**: All widgets share the same cache automatically
+- **Bundled assets first**: If an image URL exists in `assets/data_bundles/image_manifest.json`,
+  the widget serves the local asset (`assets/data_bundles/images/...`) and skips network fetches
 
 ## Architecture
 

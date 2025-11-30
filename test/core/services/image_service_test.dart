@@ -439,5 +439,40 @@ void main() {
         expect(result, contains('format=webp'));
       });
     });
+
+    group('getAssetPathForUrl', () {
+      test('returns asset path when URL tail is in manifest', () {
+        const url =
+            'https://images.quillsstorybook.com/cdn-cgi/image/width=1024,format=auto,quality=75/path/to/file.png';
+
+        final result = imageService.getAssetPathForUrl(url, {
+          'path/to/file.png',
+        });
+
+        expect(
+          result,
+          equals('${ImageService.assetImageBasePath}path/to/file.png'),
+        );
+      });
+
+      test('returns null for URLs not using the expected CDN prefix', () {
+        const url = 'https://example.com/path/to/file.png';
+
+        final result = imageService.getAssetPathForUrl(url, {
+          'path/to/file.png',
+        });
+
+        expect(result, isNull);
+      });
+
+      test('returns null when tail is missing from manifest', () {
+        const url =
+            'https://images.quillsstorybook.com/cdn-cgi/image/width=1024,format=auto,quality=75/path/to/file.png';
+
+        final result = imageService.getAssetPathForUrl(url, {'other.png'});
+
+        expect(result, isNull);
+      });
+    });
   });
 }

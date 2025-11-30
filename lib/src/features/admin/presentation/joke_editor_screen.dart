@@ -10,7 +10,7 @@ import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_reposito
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
 
 /// Guided form for creating or editing a joke.
-/// 
+///
 class JokeEditorScreen extends ConsumerStatefulWidget {
   const JokeEditorScreen({super.key, this.jokeId});
 

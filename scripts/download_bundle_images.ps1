@@ -15,7 +15,7 @@ if (-not (Test-Path $BundlePath)) {
 }
 
 $cdnPrefix = "https://images.quillsstorybook.com/cdn-cgi/image/"
-$normalizedParams = "width=1024,format=jpg,quality=50"
+$normalizedParams = "width=512,format=jpg,quality=40"
 
 Write-Info "Parsing bundle: $BundlePath"
 $content = Get-Content -Raw -Path $BundlePath

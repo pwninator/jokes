@@ -492,13 +492,61 @@ def admin_joke_book_detail(book_id: str):
     book=book_info,
     jokes=joke_rows,
     generate_book_page_url=generate_book_page_url,
-    update_book_page_url=(
-      "http://127.0.0.1:5001/storyteller-450807/us-central1/update_joke_book"
-      if utils.is_emulator() else
-      "https://update-joke-book-uqdkqas7gq-uc.a.run.app"),
+    update_book_page_url=flask.url_for('web.admin_update_joke_book_page'),
     book_total_cost=total_book_cost if joke_rows else None,
     site_name='Snickerdoodle',
   )
+
+
+@web_bp.route('/admin/joke-books/update-page', methods=['POST'])
+@auth_helpers.require_admin
+def admin_update_joke_book_page():
+  """Update book page image selection for a single joke."""
+  book_id = flask.request.form.get('joke_book_id')
+  joke_id = flask.request.form.get('joke_id')
+  new_setup_url = flask.request.form.get('new_book_page_setup_image_url')
+  new_punchline_url = flask.request.form.get('new_book_page_punchline_image_url')
+
+  if not book_id or not joke_id:
+    return flask.Response('joke_book_id and joke_id are required', 400)
+
+  if not new_setup_url and not new_punchline_url:
+    return flask.Response(
+      ('Provide new_book_page_setup_image_url or '
+       'new_book_page_punchline_image_url'), 400)
+
+  client = firestore.db()
+  book_ref = client.collection('joke_books').document(book_id)
+  book_doc = book_ref.get()
+  if not getattr(book_doc, 'exists', False):
+    return flask.Response('Joke book not found', 404)
+
+  book_data = book_doc.to_dict() or {}
+  joke_ids = book_data.get('jokes') or []
+  if isinstance(joke_ids, list) and joke_ids and joke_id not in joke_ids:
+    return flask.Response('Joke does not belong to this book', 404)
+
+  joke_ref = client.collection('jokes').document(joke_id)
+  metadata_ref = joke_ref.collection('metadata').document('metadata')
+  metadata_doc = metadata_ref.get()
+  existing_metadata = metadata_doc.to_dict() if getattr(
+    metadata_doc, 'exists', False) else {}
+
+  current_setup = existing_metadata.get('book_page_setup_image_url')
+  current_punchline = existing_metadata.get('book_page_punchline_image_url')
+
+  updates = models.PunnyJoke.prepare_book_page_metadata_updates(
+    existing_metadata, new_setup_url or current_setup,
+    new_punchline_url or current_punchline)
+
+  metadata_ref.set(updates, merge=True)
+
+  return flask.jsonify({
+    'book_id': book_id,
+    'joke_id': joke_id,
+    'book_page_setup_image_url': updates.get('book_page_setup_image_url'),
+    'book_page_punchline_image_url': updates.get('book_page_punchline_image_url'),
+  })
 
 
 @web_bp.route('/admin/joke-books/<book_id>/jokes/<joke_id>/refresh')

@@ -338,6 +338,7 @@ def test_admin_joke_book_detail_renders_images_and_placeholders(monkeypatch):
   assert 'class="variant-tile"' in html
   assert "book_page_setup_image_url" in html
   assert "book_page_punchline_image_url" in html
+  assert "/admin/joke-books/update-page" in html
 
 
 def test_admin_joke_book_detail_uses_emulator_url_when_applicable(monkeypatch):
@@ -586,3 +587,84 @@ def test_admin_joke_book_upload_invalid_input(monkeypatch):
     )
     assert resp.status_code == 400
     assert b"Invalid target field" in resp.data
+
+
+def test_admin_update_joke_book_page_updates_metadata(monkeypatch):
+  """Selecting a variant updates metadata with normalized history."""
+  _mock_admin_session(monkeypatch)
+
+  existing_meta = {
+    'book_page_setup_image_url': 'https://old/setup.png',
+    'book_page_punchline_image_url': 'https://old/punch.png',
+  }
+  metadata_doc = Mock()
+  metadata_doc.exists = True
+  metadata_doc.to_dict.return_value = existing_meta
+  metadata_ref = Mock()
+  metadata_ref.get.return_value = metadata_doc
+
+  joke_ref = Mock()
+  joke_ref.collection.return_value.document.return_value = metadata_ref
+
+  book_doc = Mock()
+  book_doc.exists = True
+  book_doc.to_dict.return_value = {'jokes': ['joke-1']}
+  book_ref = Mock()
+  book_ref.get.return_value = book_doc
+
+  joke_books_collection = Mock()
+  joke_books_collection.document.return_value = book_ref
+  jokes_collection = Mock()
+  jokes_collection.document.return_value = joke_ref
+
+  mock_db = Mock()
+
+  def _collection(name):
+    if name == 'joke_books':
+      return joke_books_collection
+    if name == 'jokes':
+      return jokes_collection
+    return Mock()
+
+  mock_db.collection.side_effect = _collection
+  monkeypatch.setattr(web_fns.firestore, "db", lambda: mock_db)
+
+  updates = {
+    'book_page_setup_image_url': 'https://cdn/new.png',
+    'book_page_punchline_image_url': 'https://old/punch.png',
+    'all_book_page_setup_image_urls': ['https://cdn/new.png'],
+    'all_book_page_punchline_image_urls': ['https://old/punch.png'],
+  }
+  mock_prepare = Mock(return_value=updates)
+  monkeypatch.setattr(web_fns.models.PunnyJoke,
+                      "prepare_book_page_metadata_updates", mock_prepare)
+
+  with web_fns.app.test_client() as client:
+    resp = client.post(
+      '/admin/joke-books/update-page',
+      data={
+        'joke_book_id': 'book-1',
+        'joke_id': 'joke-1',
+        'new_book_page_setup_image_url': 'https://cdn/new.png',
+      })
+
+  assert resp.status_code == 200
+  mock_prepare.assert_called_once_with(existing_meta, 'https://cdn/new.png',
+                                       'https://old/punch.png')
+  metadata_ref.set.assert_called_once_with(updates, merge=True)
+  assert resp.json['book_page_setup_image_url'] == 'https://cdn/new.png'
+
+
+def test_admin_update_joke_book_page_requires_new_url(monkeypatch):
+  """Validation should fail when no new page URL is provided."""
+  _mock_admin_session(monkeypatch)
+
+  with web_fns.app.test_client() as client:
+    resp = client.post('/admin/joke-books/update-page',
+                       data={
+                         'joke_book_id': 'book-1',
+                         'joke_id': 'joke-1',
+                       })
+
+  assert resp.status_code == 400
+  assert b"Provide new_book_page_setup_image_url" in resp.data

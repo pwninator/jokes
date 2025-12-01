@@ -329,6 +329,8 @@ def test_admin_joke_book_detail_renders_images_and_placeholders(monkeypatch):
   assert "joke-1" in html and "joke-2" in html
   assert 'width="800"' in html and 'height="800"' in html
   assert "width=800" in html  # width parameter in formatted CDN URL
+  assert "format=png,quality=100/path/setup.png" in html
+  assert "format=png,quality=100/path/punchline.png" in html
   assert "No punchline image" in html
   assert "Download all pages" in html
   assert "https://generate-joke-book-page-uqdkqas7gq-uc.a.run.app" in html
@@ -339,6 +341,35 @@ def test_admin_joke_book_detail_renders_images_and_placeholders(monkeypatch):
   assert "book_page_setup_image_url" in html
   assert "book_page_punchline_image_url" in html
   assert "/admin/joke-books/update-page" in html
+
+
+def test_admin_joke_book_refresh_includes_download_urls(monkeypatch):
+  """Refresh endpoint returns download-ready CDN URLs."""
+  _mock_admin_session(monkeypatch)
+
+  setup_url = ("https://images.quillsstorybook.com/cdn-cgi/image/"
+               "format=auto,quality=80/path/setup.png")
+  metadata_doc = _FakeDocumentRef(
+    _FakeSnapshot("metadata", {
+      "book_page_setup_image_url": setup_url,
+    }))
+  joke = _FakeDocumentRef(
+    _FakeSnapshot("joke-5", {"generation_metadata": {
+      "total_cost": 0.2
+    }}), {"metadata": _FakeCollection({"metadata": metadata_doc})})
+
+  fake_db = _FakeFirestore(books={}, jokes={"joke-5": joke})
+  monkeypatch.setattr(web_fns.firestore, "db", lambda: fake_db)
+
+  with web_fns.app.test_client() as client:
+    resp = client.get('/admin/joke-books/book-abc/jokes/joke-5/refresh')
+
+  assert resp.status_code == 200
+  data = resp.get_json()
+  assert data["setup_image_download"].startswith(
+    "https://images.quillsstorybook.com/cdn-cgi/image/")
+  assert "format=png,quality=100/path/setup.png" in data["setup_image_download"]
+  assert data["punchline_image_download"] is None
 
 
 def test_admin_joke_book_detail_uses_emulator_url_when_applicable(monkeypatch):

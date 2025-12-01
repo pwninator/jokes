@@ -68,6 +68,20 @@
     border-radius: 12px;
   }
 
+  .image-actions {
+    align-self: flex-start;
+    margin-top: 4px;
+  }
+
+  .download-link {
+    color: var(--color-primary);
+    text-decoration: none;
+  }
+
+  .download-link:hover {
+    text-decoration: underline;
+  }
+
   .placeholder {
     background: repeating-linear-gradient(
       45deg,
@@ -409,6 +423,14 @@
           <div class="placeholder text-body text-button setup-placeholder {% if joke.setup_image %}hidden{% endif %}" role="img"
             aria-label="Setup image missing">No setup image</div>
         </div>
+        <div class="image-actions setup-download {% if not joke.setup_image_download %}hidden{% endif %}">
+          <a class="download-link text-button"
+            href="{{ joke.setup_image_download or '' }}"
+            target="_blank"
+            rel="noopener noreferrer">
+            Download
+          </a>
+        </div>
       </div>
       <div class="image-column">
         {{ render_variants(joke.punchline_variants, "Punchline options", "book_page_punchline_image_url", joke.id, book.id, preview=joke.punchline_preview) }}
@@ -418,6 +440,14 @@
             loading="lazy">
           <div class="placeholder text-body text-button punchline-placeholder {% if joke.punchline_image %}hidden{% endif %}" role="img"
             aria-label="No punchline image">No punchline image</div>
+        </div>
+        <div class="image-actions punchline-download {% if not joke.punchline_image_download %}hidden{% endif %}">
+          <a class="download-link text-button"
+            href="{{ joke.punchline_image_download or '' }}"
+            target="_blank"
+            rel="noopener noreferrer">
+            Download
+          </a>
         </div>
       </div>
     </div>
@@ -448,6 +478,19 @@
       const slashIndex = remainder.indexOf('/');
       if (slashIndex === -1) return noQuery;
       return remainder.slice(slashIndex + 1);
+    };
+
+    const updateDownloadLink = (card, selector, url) => {
+      const container = card.querySelector(selector);
+      const link = container?.querySelector('a');
+      if (!container || !link) return;
+      if (url) {
+        link.href = url;
+        container.classList.remove('hidden');
+      } else {
+        link.removeAttribute('href');
+        container.classList.add('hidden');
+      }
     };
 
     const applyTileHighlight = (tile, isActive) => {
@@ -636,6 +679,9 @@
             punchImg.removeAttribute('src');
             punchPh.classList.remove('hidden');
           }
+
+          updateDownloadLink(card, '.setup-download', data.setup_image_download);
+          updateDownloadLink(card, '.punchline-download', data.punchline_image_download);
 
           if (typeof data.total_cost === 'number') {
             costPill.textContent = `$${data.total_cost.toFixed(4)}`;

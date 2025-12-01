@@ -372,6 +372,20 @@ def _format_book_page_image(image_url: str | None) -> str | None:
     return image_url
 
 
+def _format_book_page_download(image_url: str | None) -> str | None:
+  """Create a full-quality download link for book page images."""
+  if not image_url:
+    return None
+  try:
+    return utils.format_image_url(
+      image_url,
+      image_format='png',
+      quality=100,
+    )
+  except ValueError:
+    return image_url
+
+
 def _format_book_page_thumb(image_url: str | None) -> str | None:
   """Create a small thumbnail URL for variant tiles."""
   if not image_url:
@@ -470,6 +484,10 @@ def admin_joke_book_detail(book_id: str):
       _format_book_page_image(setup_url),
       'punchline_image':
       _format_book_page_image(punchline_url),
+      'setup_image_download':
+      _format_book_page_download(setup_url),
+      'punchline_image_download':
+      _format_book_page_download(punchline_url),
       'total_cost':
       joke_cost,
       'setup_preview':
@@ -582,6 +600,10 @@ def admin_joke_book_refresh(book_id: str, joke_id: str):
     _format_book_page_image(setup_url),
     'punchline_image':
     _format_book_page_image(punchline_url),
+    'setup_image_download':
+    _format_book_page_download(setup_url),
+    'punchline_image_download':
+    _format_book_page_download(punchline_url),
     'total_cost':
     _extract_total_cost(joke_data),
     'setup_variants':

@@ -15,16 +15,16 @@ if (-not (Test-Path $BundlePath)) {
 }
 
 $cdnPrefix = "https://images.quillsstorybook.com/cdn-cgi/image/"
-$normalizedParams = "width=512,format=jpg,quality=40"
+$normalizedParams = "width=400,format=jpg,quality=40"
 
 Write-Info "Parsing bundle: $BundlePath"
 $content = Get-Content -Raw -Path $BundlePath
 # Only pull image URLs from specific fields: image_url, setup_image_url, punchline_image_url
 $pattern = '"(?:image_url|setup_image_url|punchline_image_url)"\s*:\s*\{"stringValue"\s*:\s*"(https://images\.quillsstorybook\.com/cdn-cgi/image/[^\"]+)"'
 $regex = [regex]$pattern
-$matches = $regex.Matches($content) | ForEach-Object { $_.Groups[1].Value } | Select-Object -Unique
+$urlMatches = $regex.Matches($content) | ForEach-Object { $_.Groups[1].Value } | Select-Object -Unique
 
-if ($matches.Count -eq 0) {
+if ($urlMatches.Count -eq 0) {
   throw "No matching image URLs found in bundle."
 }
 
@@ -35,7 +35,7 @@ if (-not (Test-Path $OutputDir)) {
 
 $tails = New-Object System.Collections.Generic.HashSet[string]
 
-foreach ($url in $matches) {
+foreach ($url in $urlMatches) {
   if (-not $url.StartsWith($cdnPrefix)) {
     throw "Invalid image URL (wrong prefix): $url"
   }
@@ -64,7 +64,7 @@ foreach ($url in $matches) {
   } else {
     Write-Info "Downloading $downloadUrl -> $destination"
     $response = Invoke-WebRequest -Uri $downloadUrl -OutFile $destination -ErrorAction Stop
-    if ($response.StatusCode -ne 200 -and $response.StatusCode -ne $null) {
+    if ($response.StatusCode -ne 200 -and $null -ne $response.StatusCode) {
       throw "Download failed for $downloadUrl with status $($response.StatusCode)"
     }
   }

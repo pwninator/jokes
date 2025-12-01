@@ -307,6 +307,7 @@ List<Override> buildJokeViewerOverrides({
     reviewPromptCoordinatorProvider.overrideWithValue(
       NoopReviewPromptCoordinator(),
     ),
+    imageAssetManifestProvider.overrideWith((ref) async => <String>{}),
     jokeRepositoryProvider.overrideWithValue(stubJokeRepository),
     isOnlineNowProvider.overrideWith((ref) => isOnline),
     jokeInteractionsRepositoryProvider.overrideWithValue(

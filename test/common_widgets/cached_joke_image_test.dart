@@ -75,6 +75,7 @@ void main() {
     Stream<int>? offlineStream,
     Set<String>? manifestSet,
     AssetBundle? assetBundle,
+    bool isOnline = true,
   }) {
     return ProviderScope(
       overrides: [
@@ -87,6 +88,7 @@ void main() {
         imageAssetManifestProvider.overrideWith(
           (ref) async => manifestSet ?? <String>{},
         ),
+        isOnlineNowProvider.overrideWith((ref) => isOnline),
       ],
       child: DefaultAssetBundle(
         bundle: assetBundle ?? rootBundle,
@@ -153,7 +155,9 @@ void main() {
         ),
       ).thenReturn(null);
 
-      await tester.pumpWidget(wrap(const CachedJokeImage(imageUrlOrAssetPath: null)));
+      await tester.pumpWidget(
+        wrap(const CachedJokeImage(imageUrlOrAssetPath: null)),
+      );
       await tester.pump();
 
       expect(find.byIcon(Icons.image_not_supported_outlined), findsOneWidget);
@@ -169,11 +173,16 @@ void main() {
 
       await tester.pumpWidget(
         wrap(
-          const CachedJokeImage(imageUrlOrAssetPath: url, width: 50, height: 50),
+          const CachedJokeImage(
+            imageUrlOrAssetPath: url,
+            width: 50,
+            height: 50,
+          ),
           manifestSet: {'local.png'},
           assetBundle: _FakeAssetBundle({
             'assets/data_bundles/images/local.png': assetBytes,
           }),
+          isOnline: false,
         ),
       );
       await tester.pump();
@@ -195,8 +204,13 @@ void main() {
 
       await tester.pumpWidget(
         wrap(
-          const CachedJokeImage(imageUrlOrAssetPath: assetPath, width: 50, height: 50),
+          const CachedJokeImage(
+            imageUrlOrAssetPath: assetPath,
+            width: 50,
+            height: 50,
+          ),
           assetBundle: _FakeAssetBundle({assetPath: assetBytes}),
+          isOnline: false,
         ),
       );
       await tester.pump();

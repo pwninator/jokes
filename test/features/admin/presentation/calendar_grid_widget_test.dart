@@ -667,6 +667,7 @@ void main() {
       final todayText = find.text(now.day.toString());
       expect(todayText, findsOneWidget);
 
+      await tester.ensureVisible(todayText);
       await tester.tap(todayText);
       await tester.pump();
 
@@ -717,6 +718,7 @@ void main() {
         final todayText = find.text(now.day.toString());
         expect(todayText, findsOneWidget);
 
+        await tester.ensureVisible(todayText);
         await tester.tap(todayText);
         await tester.pump();
 

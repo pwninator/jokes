@@ -4,8 +4,11 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:snickerdoodle/src/core/providers/app_version_provider.dart';
+import 'package:snickerdoodle/src/core/providers/image_providers.dart';
 import 'package:snickerdoodle/src/core/providers/settings_providers.dart';
 import 'package:snickerdoodle/src/core/services/admob_service.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
@@ -19,10 +22,9 @@ import 'package:snickerdoodle/src/features/auth/application/auth_startup_manager
 import 'package:snickerdoodle/src/features/jokes/application/feed_sync_service.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_list_data_sources.dart';
 import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
-import 'package:snickerdoodle/src/core/providers/app_version_provider.dart';
+import 'package:snickerdoodle/src/startup/offline_bundle_loader.dart';
 import 'package:snickerdoodle/src/startup/startup_task.dart';
 import 'package:snickerdoodle/src/utils/device_utils.dart';
-import 'package:snickerdoodle/src/startup/offline_bundle_loader.dart';
 
 /// Timeout duration for best effort blocking tasks.
 ///
@@ -54,6 +56,11 @@ const List<StartupTask> criticalBlockingTasks = [
     id: 'drift_db',
     execute: _initializeDrift,
     traceName: TraceName.startupTaskDrift,
+  ),
+  StartupTask(
+    id: 'image_manifest',
+    execute: _initializeImageManifest,
+    traceName: TraceName.startupTaskImageManifest,
   ),
 ];
 
@@ -162,6 +169,22 @@ Future<List<Override>> _initializeDrift(StartupReader read) async {
     );
     rethrow; // Critical task should fail fast
   }
+}
+
+/// Load bundled image manifest and override provider.
+Future<List<Override>> _initializeImageManifest(StartupReader read) async {
+  try {
+    final manifest = await loadImageAssetManifest(rootBundle);
+    return [imageAssetManifestProvider.overrideWith((ref) async => manifest)];
+  } catch (e, stack) {
+    AppLogger.fatal(
+      'Image manifest initialization failed: $e',
+      stackTrace: stack,
+    );
+  }
+  return [
+    imageAssetManifestProvider.overrideWith((ref) async => const <String>{}),
+  ];
 }
 
 /// Initialize Remote Config (fetch and activate).

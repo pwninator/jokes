@@ -285,8 +285,13 @@ class JokeShareServiceImpl implements JokeShareService {
   }) async {
     if (imageUrl == null || imageUrl.isEmpty) return null;
 
-    final assetPath = _imageService.getAssetPathForUrl(imageUrl, assetManifest);
-    if (assetPath != null) {
+    final bool isDirectAsset = imageUrl.startsWith('assets/');
+    final assetPath = isDirectAsset
+        ? imageUrl
+        : _imageService.getAssetPathForUrl(imageUrl, assetManifest);
+
+    // If caller passed an asset path explicitly, always load from asset.
+    if (isDirectAsset && assetPath != null) {
       final bytes = await _imageService.loadAssetBytes(assetPath);
       if (bytes != null) {
         return _imageService.createTempXFileFromBytes(
@@ -298,8 +303,27 @@ class JokeShareServiceImpl implements JokeShareService {
     }
 
     final processedUrl = _imageService.getProcessedJokeImageUrl(imageUrl);
-    if (processedUrl == null) return null;
-    return _imageService.getCachedFileFromUrl(processedUrl);
+    if (processedUrl != null) {
+      final fromNetwork = await _imageService.getCachedFileFromUrl(
+        processedUrl,
+      );
+      if (fromNetwork != null) {
+        return fromNetwork;
+      }
+    }
+
+    if (assetPath != null) {
+      final bytes = await _imageService.loadAssetBytes(assetPath);
+      if (bytes != null) {
+        return _imageService.createTempXFileFromBytes(
+          bytes,
+          fileName: assetPath.split('/').last,
+          prefix: 'share_asset',
+        );
+      }
+    }
+
+    return null;
   }
 }
 

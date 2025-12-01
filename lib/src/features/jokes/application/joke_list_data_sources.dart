@@ -443,8 +443,10 @@ void _recordSubSourceFailure(Ref ref, String id) {
   final notifier = ref.read(_subSourceRetryStateProvider.notifier);
   final state = Map<String, _SubSourceRetryState>.from(notifier.state);
   final currentIndex = state[id]?.attemptIndex ?? 0;
-  final backoffIndex =
-      currentIndex.clamp(0, _subSourceBackoffSchedule.length - 1);
+  final backoffIndex = currentIndex.clamp(
+    0,
+    _subSourceBackoffSchedule.length - 1,
+  );
   final backoff = _subSourceBackoffSchedule[backoffIndex.toInt()];
   final nextRetryAt = ref.read(clockProvider)().add(backoff);
   final nextAttemptIndex = (backoffIndex + 1)
@@ -566,11 +568,7 @@ Future<PageResult> _loadCompositeJokePage(
       final subsourceLimit = math.min(remaining, jokesPerSource);
       if (subsourceLimit <= 0) continue;
       try {
-        final page = await subsource.load(
-          ref,
-          subsourceLimit,
-          subsourceCursor,
-        );
+        final page = await subsource.load(ref, subsourceLimit, subsourceCursor);
         _clearSubSourceFailure(ref, subsource.id);
         compositePages[subsource.id] = page;
         if (page.jokes.isNotEmpty) {
@@ -588,8 +586,10 @@ Future<PageResult> _loadCompositeJokePage(
   }
 
   if (!anyPageAdded && subSourceAttempted && subSourceFailedOrSkipped) {
-    // At least one source failed or is cooling down; keep hasMore=true so we retry later.
-    return const PageResult(jokes: [], cursor: "", hasMore: true);
+    // Throw so GenericPagingNotifier applies backoff
+    throw Exception(
+      'All attempted composite sources failed or are in cooldown.',
+    );
   }
 
   if (!anyPageAdded) {

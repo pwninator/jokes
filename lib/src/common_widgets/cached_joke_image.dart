@@ -100,11 +100,18 @@ class _CachedJokeImageState extends ConsumerState<CachedJokeImage> {
 
         final imageService = ref.read(imageServiceProvider);
         final perf = ref.read(performanceServiceProvider);
+        final isOnline = ref.read(isOnlineNowProvider);
 
+        bool isDirectAssetPath = false;
         String? assetPath;
         if (!_assetLoadFailed) {
-          assetPath = _resolveDirectAssetPath(widget.imageUrlOrAssetPath);
-          if (assetPath == null && assetManifest.isNotEmpty) {
+          final directPath = _resolveDirectAssetPath(
+            widget.imageUrlOrAssetPath,
+          );
+          if (directPath != null) {
+            assetPath = directPath;
+            isDirectAssetPath = true;
+          } else if (assetManifest.isNotEmpty) {
             assetPath = imageService.getAssetPathForUrl(
               widget.imageUrlOrAssetPath,
               assetManifest,
@@ -115,13 +122,16 @@ class _CachedJokeImageState extends ConsumerState<CachedJokeImage> {
             _loggedAssetPath = assetPath;
           }
         }
-        if (assetPath != null) {
+
+        if ((isDirectAssetPath || !isOnline) && assetPath != null) {
           return _buildAssetImage(
             context,
             assetPath: assetPath,
             effectiveWidth: effectiveWidth,
           );
         }
+        
+        final fallbackAssetPath = assetPath;
 
         // Use ImageService for URL processing
         final processedUrl = imageService.getProcessedJokeImageUrl(
@@ -129,6 +139,13 @@ class _CachedJokeImageState extends ConsumerState<CachedJokeImage> {
           width: effectiveWidth,
         );
         if (processedUrl == null) {
+          if (fallbackAssetPath != null) {
+            return _buildAssetImage(
+              context,
+              assetPath: fallbackAssetPath,
+              effectiveWidth: effectiveWidth,
+            );
+          }
           return _buildErrorWidget(context);
         }
 
@@ -209,6 +226,13 @@ class _CachedJokeImageState extends ConsumerState<CachedJokeImage> {
                     );
                     downloadTraceKey = null;
                   }
+                  if (fallbackAssetPath != null) {
+                    return _buildAssetImage(
+                      context,
+                      assetPath: fallbackAssetPath,
+                      effectiveWidth: effectiveWidth,
+                    );
+                  }
                   // Set error state if not already in error
                   if (!_hasError) {
                     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -233,6 +257,13 @@ class _CachedJokeImageState extends ConsumerState<CachedJokeImage> {
                       key: downloadTraceKey!,
                     );
                     downloadTraceKey = null;
+                  }
+                  if (fallbackAssetPath != null) {
+                    return _buildAssetImage(
+                      context,
+                      assetPath: fallbackAssetPath,
+                      effectiveWidth: effectiveWidth,
+                    );
                   }
                   // Set error state if not already in error
                   if (!_hasError) {

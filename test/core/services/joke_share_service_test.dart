@@ -157,6 +157,17 @@ void main() {
       );
 
       when(
+        () => mockImageService.getProcessedJokeImageUrl(
+          any(),
+          width: any(named: 'width'),
+        ),
+      ).thenAnswer(
+        (invocation) => invocation.positionalArguments.first as String,
+      );
+      when(
+        () => mockImageService.getCachedFileFromUrl(any()),
+      ).thenAnswer((_) async => null);
+      when(
         () => mockImageService.getAssetPathForUrl(
           joke.setupImageUrl,
           manifestTails,
@@ -189,8 +200,24 @@ void main() {
       );
 
       expect(result, isTrue);
-      verifyNever(() => mockImageService.getProcessedJokeImageUrl(any()));
-      verifyNever(() => mockImageService.getCachedFileFromUrl(any()));
+      verify(
+        () => mockImageService.getProcessedJokeImageUrl(
+          joke.setupImageUrl,
+          width: any(named: 'width'),
+        ),
+      ).called(1);
+      verify(
+        () => mockImageService.getProcessedJokeImageUrl(
+          joke.punchlineImageUrl,
+          width: any(named: 'width'),
+        ),
+      ).called(1);
+      verify(
+        () => mockImageService.getCachedFileFromUrl(joke.setupImageUrl!),
+      ).called(1);
+      verify(
+        () => mockImageService.getCachedFileFromUrl(joke.punchlineImageUrl!),
+      ).called(1);
       verify(
         () => mockImageService.getAssetPathForUrl(
           joke.setupImageUrl,

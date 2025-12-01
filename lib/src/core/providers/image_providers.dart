@@ -1,7 +1,7 @@
 import 'dart:convert';
 
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/image_service.dart';
 
@@ -20,21 +20,25 @@ final imageCacheConfigProvider = Provider<Map<String, dynamic>>((ref) {
   };
 });
 
-/// Lazy-loads the bundled image manifest (list of asset tails).
-/// Returns an empty set if the manifest is missing or invalid.
-final imageAssetManifestProvider = FutureProvider<Set<String>>((ref) async {
-  try {
-    final jsonString = await rootBundle.loadString(
-      ImageService.assetImageManifestPath,
-    );
-    final decoded = jsonDecode(jsonString);
-    if (decoded is List) {
-      final manifest = decoded.whereType<String>().toSet();
-      AppLogger.info('Loaded image asset manifest: ${manifest.length} images');
-      return manifest;
-    }
-  } catch (_) {
-    // Swallow errors; fallback to empty set.
+/// Loads and parses the bundled image manifest using the provided asset bundle.
+Future<Set<String>> loadImageAssetManifest(AssetBundle bundle) async {
+  final jsonString = await bundle.loadString(
+    ImageService.assetImageManifestPath,
+  );
+  final decoded = jsonDecode(jsonString);
+  if (decoded is List) {
+    final manifest = decoded.whereType<String>().toSet();
+    AppLogger.info('Loaded image asset manifest: ${manifest.length} images');
+    return manifest;
   }
-  return <String>{};
+  throw StateError('Invalid image asset manifest format');
+}
+
+/// Lazy-loads the bundled image manifest (list of asset tails).
+/// MUST be overridden in production and tests.
+final imageAssetManifestProvider = FutureProvider<Set<String>>((ref) async {
+  throw StateError(
+    'imageAssetManifestProvider must be overridden. Override with a manifest loader '
+    'in production and provide test doubles in widget/unit tests.',
+  );
 });

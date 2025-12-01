@@ -30,6 +30,7 @@ import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_functi
 import 'package:snickerdoodle/src/features/jokes/domain/joke_search_result.dart';
 import 'package:snickerdoodle/src/features/search/presentation/search_screen.dart';
 import 'package:snickerdoodle/src/features/settings/application/settings_service.dart';
+import 'package:fake_cloud_firestore/fake_cloud_firestore.dart';
 
 class MockJokeRepository extends Mock implements JokeRepository {}
 
@@ -57,6 +58,8 @@ class MockJokeInteractionsRepository extends Mock
 
 class MockCategoryInteractionsRepository extends Mock
     implements CategoryInteractionsRepository {}
+
+class _FakeBuildContext extends Fake implements BuildContext {}
 
 // Test implementations
 class _TestRemoteConfigValues implements RemoteConfigValues {
@@ -140,6 +143,9 @@ void main() {
     registerFallbackValue(MatchMode.tight);
     registerFallbackValue(SearchScope.userJokeSearch);
     registerFallbackValue(SearchLabel.none);
+    registerFallbackValue('');
+    registerFallbackValue(<String>[]);
+    registerFallbackValue(_FakeBuildContext());
   });
 
   ProviderContainer createContainer({List<Override> overrides = const []}) {
@@ -154,6 +160,7 @@ void main() {
     final mockJokeInteractionsRepository = MockJokeInteractionsRepository();
     final mockCategoryInteractionsRepository =
         MockCategoryInteractionsRepository();
+    final fakeFirestore = FakeFirebaseFirestore();
     // Setup default behaviors for mocks
     when(() => mockSettingsService.getBool(any())).thenReturn(null);
     when(
@@ -257,6 +264,15 @@ void main() {
     when(
       () => mockAppUsageService.getNumJokesViewed(),
     ).thenAnswer((_) async => 0);
+    when(
+      () => mockAppUsageService.logJokeNavigated(any()),
+    ).thenAnswer((_) async {});
+    when(
+      () => mockAppUsageService.logJokeViewed(
+        any(),
+        context: any(named: 'context'),
+      ),
+    ).thenAnswer((_) async {});
     when(() => mockAppUsageService.getUnviewedJokeIds(any())).thenAnswer((
       invocation,
     ) async {
@@ -280,6 +296,8 @@ void main() {
         ),
         appVersionProvider.overrideWith((_) async => 'Snickerdoodle v0.0.1+1'),
         appUsageServiceProvider.overrideWithValue(mockAppUsageService),
+        imageAssetManifestProvider.overrideWith((ref) async => <String>{}),
+        firebaseFirestoreProvider.overrideWithValue(fakeFirestore),
 
         // Firebase mocks
         remoteConfigValuesProvider.overrideWithValue(_TestRemoteConfigValues()),

@@ -69,6 +69,7 @@ def format_image_url(
   image_format: str | None = None,
   quality: int | None = None,
   width: int | None = None,
+  remove_existing: bool = False,
 ) -> str:
   """Update CDN parameters in an image CDN URL.
 
@@ -77,6 +78,7 @@ def format_image_url(
     image_format: The new format parameter
     quality: The new quality parameter
     width: The new width parameter
+    remove_existing: If True, discard existing CDN params before applying overrides
 
   Returns:
     The updated CDN URL with new parameters
@@ -105,7 +107,7 @@ def format_image_url(
 
   params_str = remainder[:slash_index]
   params = {}
-  if params_str:
+  if params_str and not remove_existing:
     for part in params_str.split(','):
       key, value = part.split('=')
       params[key] = value

@@ -273,9 +273,9 @@ def test_admin_joke_book_detail_renders_images_and_placeholders(monkeypatch):
   monkeypatch.setattr(web_fns.utils, "is_emulator", lambda: False)
 
   setup_url = ("https://images.quillsstorybook.com/cdn-cgi/image/"
-               "format=auto,quality=75/path/setup.png")
+               "width=1024,format=auto,quality=75/path/setup.png")
   punchline_url = ("https://images.quillsstorybook.com/cdn-cgi/image/"
-                   "format=auto,quality=75/path/punchline.png")
+                   "width=1024,format=auto,quality=75/path/punchline.png")
 
   metadata_doc_one = _FakeDocumentRef(
     _FakeSnapshot(
@@ -331,6 +331,7 @@ def test_admin_joke_book_detail_renders_images_and_placeholders(monkeypatch):
   assert "width=800" in html  # width parameter in formatted CDN URL
   assert "format=png,quality=100/path/setup.png" in html
   assert "format=png,quality=100/path/punchline.png" in html
+  assert "width=1024" not in html
   assert "No punchline image" in html
   assert "Download all pages" in html
   assert "https://generate-joke-book-page-uqdkqas7gq-uc.a.run.app" in html
@@ -348,7 +349,7 @@ def test_admin_joke_book_refresh_includes_download_urls(monkeypatch):
   _mock_admin_session(monkeypatch)
 
   setup_url = ("https://images.quillsstorybook.com/cdn-cgi/image/"
-               "format=auto,quality=80/path/setup.png")
+               "width=900,format=auto,quality=80/path/setup.png")
   metadata_doc = _FakeDocumentRef(
     _FakeSnapshot("metadata", {
       "book_page_setup_image_url": setup_url,
@@ -369,6 +370,7 @@ def test_admin_joke_book_refresh_includes_download_urls(monkeypatch):
   assert data["setup_image_download"].startswith(
     "https://images.quillsstorybook.com/cdn-cgi/image/")
   assert "format=png,quality=100/path/setup.png" in data["setup_image_download"]
+  assert "width=" not in data["setup_image_download"]
   assert data["punchline_image_download"] is None
 
 

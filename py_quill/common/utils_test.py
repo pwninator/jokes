@@ -59,6 +59,25 @@ def test_format_image_url_ignores_zero_and_empty_overrides():
   assert "quality=0" not in result
 
 
+def test_format_image_url_remove_existing_replaces_params():
+  """remove_existing=True discards previous params before applying overrides."""
+  input_url = ("https://images.quillsstorybook.com/cdn-cgi/image/"
+               "width=900,format=auto,quality=80/path/to/img.png")
+
+  result = utils.format_image_url(
+    input_url,
+    image_format="png",
+    quality=100,
+    width=None,
+    remove_existing=True,
+  )
+
+  assert "width=900" not in result
+  assert "format=png" in result
+  assert "quality=100" in result
+  assert result.endswith("/path/to/img.png")
+
+
 def test_format_image_url_adds_missing_params():
   """Adds new params when they were not present in the original set."""
   input_url = ("https://images.quillsstorybook.com/cdn-cgi/image/"

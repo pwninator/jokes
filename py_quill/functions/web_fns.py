@@ -381,6 +381,7 @@ def _format_book_page_download(image_url: str | None) -> str | None:
       image_url,
       image_format='png',
       quality=100,
+      remove_existing=True,
     )
   except ValueError:
     return image_url

@@ -23,16 +23,98 @@
       <td><code><a href="{{ url_for('web.admin_joke_book_detail', book_id=book.id) }}">{{ book.id }}</a></code></td>
       <td>{{ book.joke_count }}</td>
       <td>
-        {% if book.zip_url %}
-        <a href="{{ book.zip_url }}" target="_blank" rel="noopener noreferrer">Download</a>
-        {% else %}
-        <span class="muted">Not generated</span>
-        {% endif %}
+        <div class="zip-actions" data-book-id="{{ book.id }}">
+          {% if book.zip_url %}
+          <a class="zip-link text-button"
+            href="{{ book.zip_url }}"
+            data-book-id="{{ book.id }}"
+            target="_blank"
+            rel="noopener noreferrer">Download</a>
+          {% else %}
+          <span class="muted zip-missing-label">Not generated</span>
+          {% endif %}
+          <button
+            type="button"
+            class="text-button regenerate-zip-button"
+            data-book-id="{{ book.id }}">
+            {% if book.zip_url %}Regenerate ZIP{% else %}Generate ZIP{% endif %}
+          </button>
+        </div>
       </td>
     </tr>
     {% endfor %}
   </tbody>
 </table>
 {% endif %}
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const buttons = document.querySelectorAll('.regenerate-zip-button');
+    buttons.forEach((button) => {
+      button.addEventListener('click', async () => {
+        const bookId = button.dataset.bookId;
+        if (!bookId) {
+          return;
+        }
+
+        const actions = button.closest('.zip-actions');
+        const linkSelector = `.zip-link[data-book-id="${bookId}"]`;
+        let link = actions?.querySelector(linkSelector);
+        const missingLabel = actions?.querySelector('.zip-missing-label');
+        const originalLabel = button.textContent;
+
+        button.disabled = true;
+        button.textContent = 'Regenerating…';
+
+        try {
+          const resp = await fetch('/update_joke_book_zip', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ data: { joke_book_id: bookId } }),
+          });
+
+          if (!resp.ok) {
+            const text = await resp.text();
+            throw new Error(`Request failed (${resp.status}): ${text}`);
+          }
+
+          const payload = await resp.json();
+          const newUrl = payload?.data?.zip_url;
+          if (!newUrl) {
+            throw new Error('zip_url missing from response');
+          }
+
+          if (!link && actions) {
+            link = document.createElement('a');
+            link.className = 'zip-link text-button';
+            link.dataset.bookId = bookId;
+            link.textContent = 'Download';
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+            actions.insertBefore(link, button);
+          }
+
+          if (link) {
+            link.href = newUrl;
+            link.removeAttribute('aria-disabled');
+          }
+
+          if (missingLabel) {
+            missingLabel.remove();
+          }
+
+          button.textContent = 'Regenerate ZIP';
+        } catch (error) {
+          console.error('Failed to regenerate ZIP', error);
+          alert(error?.message || 'Failed to regenerate ZIP');
+          button.textContent = originalLabel;
+        } finally {
+          button.disabled = false;
+        }
+      });
+    });
+  });
+</script>
 {% endblock %}
 

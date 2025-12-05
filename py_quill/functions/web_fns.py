@@ -491,6 +491,10 @@ def admin_joke_book_detail(book_id: str):
       _format_book_page_download(punchline_url),
       'total_cost':
       joke_cost,
+      'setup_original_image':
+      _format_book_page_image(joke_data.get('setup_image_url')),
+      'punchline_original_image':
+      _format_book_page_image(joke_data.get('punchline_image_url')),
       'setup_preview':
       _format_joke_preview(joke_data.get('setup_image_url')),
       'punchline_preview':
@@ -607,12 +611,20 @@ def admin_joke_book_refresh(book_id: str, joke_id: str):
     _format_book_page_image(setup_url),
     'punchline_image':
     _format_book_page_image(punchline_url),
+    'setup_original_image':
+    _format_book_page_image(joke_data.get('setup_image_url')),
+    'punchline_original_image':
+    _format_book_page_image(joke_data.get('punchline_image_url')),
     'setup_image_download':
     _format_book_page_download(setup_url),
     'punchline_image_download':
     _format_book_page_download(punchline_url),
     'total_cost':
     _extract_total_cost(joke_data),
+    'setup_original_preview':
+    _format_joke_preview(joke_data.get('setup_image_url')),
+    'punchline_original_preview':
+    _format_joke_preview(joke_data.get('punchline_image_url')),
     'setup_variants':
     [_format_book_page_thumb(url) for url in setup_variants if url],
     'punchline_variants':

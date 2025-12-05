@@ -11,6 +11,13 @@
     margin-bottom: 16px;
   }
 
+  .zip-action-group {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
   .joke-grid {
     display: flex;
     flex-direction: column;
@@ -169,17 +176,29 @@
     padding: 4px 10px;
   }
 
-  .variants {
-    display: flex;
-    flex-wrap: wrap;
+  .variant-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+    grid-auto-rows: auto;
+    grid-auto-flow: dense;
     gap: 8px;
+    width: 100%;
+    max-width: 800px;
+    align-self: stretch;
+    justify-content: start;
+  }
+
+  .variants {
+    display: contents;
     margin-bottom: 12px;
     flex: 1 1 0%;
   }
 
   .variant-tile {
-    width: 100px;
-    height: 100px;
+    width: 100%;
+    min-width: 100px;
+    min-height: 0;
+    aspect-ratio: 1 / 1;
     box-sizing: border-box;
     border: 2px solid rgba(212, 160, 23, 0.25);
     background: var(--color-accent-surface);
@@ -189,6 +208,11 @@
     display: flex;
     align-items: center;
     justify-content: center;
+  }
+
+  .variant-tile.original-variant {
+    grid-column: span 2;
+    grid-row: span 2;
   }
 
   .variant-tile img {
@@ -202,62 +226,6 @@
     margin-bottom: 6px;
   }
 
-  .image-column {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    width: 100%;
-    align-items: center;
-  }
-
-  .instructions-row {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(320px, 1fr));
-    gap: 12px;
-    width: 100%;
-    margin-top: 8px;
-  }
-
-  .instructions-row textarea {
-    width: 100%;
-  }
-
-  .variant-row {
-    display: flex;
-    align-items: stretch;
-    gap: 12px;
-    width: 100%;
-    max-width: 800px;
-    justify-content: flex-start;
-  }
-
-  .variant-preview {
-    flex: 0 1 20%;
-    min-width: 200px;
-    min-height: 200px;
-    aspect-ratio: 1 / 1;
-    border-radius: 10px;
-    overflow: hidden;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--color-accent-surface);
-    border: 1px solid var(--color-border);
-  }
-
-  .variant-preview.standalone {
-    flex: 0 0 200px;
-    min-height: 200px;
-    aspect-ratio: 1 / 1;
-  }
-
-  .variant-preview img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    border-radius: 8px;
-    display: block;
-  }
 
   .regenerate-form {
     display: flex;
@@ -293,8 +261,11 @@
   }
 
   .upload-btn {
-    width: 100px;
-    height: 100px;
+    width: 100%;
+    height: 100%;
+    min-width: 100px;
+    min-height: 0;
+    aspect-ratio: 1 / 1;
     box-sizing: border-box;
     border: 2px dashed rgba(212, 160, 23, 0.4);
     background: rgba(212, 160, 23, 0.05);
@@ -319,16 +290,23 @@
   }
 </style>
 {% endblock %}
-{% macro render_variants(variants, label, target_field, joke_id, book_id, preview=None) -%}
+{% macro render_variants(variants, label, target_field, joke_id, book_id, original_image=None, original_preview=None) -%}
   <div class="variant-group">
     <div class="variant-label text-button">{{ label }}</div>
     <div class="variant-row">
-      {% if preview %}
-      <div class="variant-preview">
-        <img src="{{ preview }}" alt="{{ label }} preview">
-      </div>
-      {% endif %}
       <div class="variants" data-target-field="{{ target_field }}">
+        {% set original_url = original_image or original_preview %}
+        {% set original_src = original_preview or original_image %}
+        {% if original_url and original_src %}
+        <button class="variant-tile original-variant"
+          type="button"
+          data-joke-id="{{ joke_id }}"
+          data-book-id="{{ book_id }}"
+          data-target-field="{{ target_field }}"
+          data-image-url="{{ original_url }}">
+          <img src="{{ original_src }}" alt="Original image option">
+        </button>
+        {% endif %}
         {% if variants %}
           {% for variant in variants %}
           <button class="variant-tile"
@@ -358,9 +336,19 @@
 {% block content %}
 <div class="page-actions">
   <a class="back-link site-footer__link text-button" href="{{ url_for('web.admin_joke_books') }}">← Back to joke books</a>
-  {% if book.zip_url %}
-  <a class="back-link site-footer__link text-button" href="{{ book.zip_url }}" target="_blank" rel="noopener noreferrer">Download all pages (ZIP)</a>
-  {% endif %}
+  <div class="zip-action-group">
+    {% if book.zip_url %}
+    <a class="back-link site-footer__link text-button download-zip-link" href="{{ book.zip_url }}" target="_blank" rel="noopener noreferrer">Download all pages (ZIP)</a>
+    {% else %}
+    <span class="muted download-zip-missing">ZIP not generated</span>
+    {% endif %}
+    <button
+      class="cta-btn nav-cta text-button book-zip-regenerate"
+      type="button"
+      data-book-id="{{ book.id }}">
+      {% if book.zip_url %}Regenerate ZIP{% else %}Generate ZIP{% endif %}
+    </button>
+  </div>
 </div>
 
 <h2 class="text-section-heading">
@@ -416,7 +404,14 @@
     </form>
     <div class="joke-images">
       <div class="image-column">
-        {{ render_variants(joke.setup_variants, "Setup options", "book_page_setup_image_url", joke.id, book.id, preview=joke.setup_preview) }}
+        {{ render_variants(
+            joke.setup_variants,
+            "Setup options",
+            "book_page_setup_image_url",
+            joke.id,
+            book.id,
+            original_image=joke.setup_original_image,
+            original_preview=joke.setup_preview) }}
         <div class="image-frame">
           <img class="joke-image setup-img {% if not joke.setup_image %}hidden{% endif %}"
             src="{{ joke.setup_image or '' }}" alt="Setup image for {{ joke.id }}" width="800" height="800" loading="lazy">
@@ -433,7 +428,14 @@
         </div>
       </div>
       <div class="image-column">
-        {{ render_variants(joke.punchline_variants, "Punchline options", "book_page_punchline_image_url", joke.id, book.id, preview=joke.punchline_preview) }}
+        {{ render_variants(
+            joke.punchline_variants,
+            "Punchline options",
+            "book_page_punchline_image_url",
+            joke.id,
+            book.id,
+            original_image=joke.punchline_original_image,
+            original_preview=joke.punchline_preview) }}
         <div class="image-frame">
           <img class="joke-image punchline-img {% if not joke.punchline_image %}hidden{% endif %}"
             src="{{ joke.punchline_image or '' }}" alt="Punchline image for {{ joke.id }}" width="800" height="800"
@@ -460,6 +462,7 @@
   (function () {
     const forms = Array.from(document.querySelectorAll('.regenerate-form'));
     const updateBookPageUrl = "{{ update_book_page_url }}";
+    const regenerateZipEndpoint = "/update_joke_book_zip";
     const accentColor = getComputedStyle(document.documentElement)
       .getPropertyValue('--color-primary')
       .trim() || '#d4a017';
@@ -495,6 +498,63 @@
 
     const applyTileHighlight = (tile, isActive) => {
       tile.style.border = isActive ? `2px solid ${accentColor}` : inactiveVariantBorder;
+    };
+
+    const setupZipRegenerator = () => {
+      const button = document.querySelector('.book-zip-regenerate');
+      const container = button?.closest('.zip-action-group');
+      if (!button || !container) return;
+      const bookId = button.dataset.bookId;
+      if (!bookId) return;
+
+      button.addEventListener('click', async () => {
+        const originalLabel = button.textContent;
+        button.disabled = true;
+        button.textContent = 'Regenerating...';
+        try {
+          const resp = await fetch(regenerateZipEndpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ data: { joke_book_id: bookId } }),
+          });
+
+          if (!resp.ok) {
+            const text = await resp.text();
+            throw new Error(`Request failed (${resp.status}): ${text}`);
+          }
+
+          const payload = await resp.json();
+          const newUrl = payload?.data?.zip_url;
+          if (!newUrl) {
+            throw new Error('zip_url missing from response');
+          }
+
+          let link = container.querySelector('.download-zip-link');
+          if (!link) {
+            link = document.createElement('a');
+            link.className =
+              'back-link site-footer__link text-button download-zip-link';
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+            link.textContent = 'Download all pages (ZIP)';
+            container.insertBefore(link, button);
+          }
+          link.href = newUrl;
+
+          const missingLabel = container.querySelector('.download-zip-missing');
+          if (missingLabel) {
+            missingLabel.remove();
+          }
+
+          button.textContent = 'Regenerate ZIP';
+        } catch (error) {
+          console.error('Failed to regenerate ZIP', error);
+          alert(error?.message || 'Failed to regenerate ZIP');
+          button.textContent = originalLabel;
+        } finally {
+          button.disabled = false;
+        }
+      });
     };
 
     const startTimer = (statusRow, timerDisplay) => {
@@ -620,10 +680,25 @@
       });
     }
 
-    function rebuildVariantTiles(card, bookId, jokeId, targetField, variants, labelPrefix) {
+    function rebuildVariantTiles(card, bookId, jokeId, targetField, variants, labelPrefix, originalTile) {
       const container = card.querySelector(`.variants[data-target-field="${targetField}"]`);
       if (!container) return;
       container.innerHTML = '';
+      if (originalTile && originalTile.imageUrl && originalTile.previewUrl) {
+        const originalButton = document.createElement('button');
+        originalButton.className = 'variant-tile original-variant';
+        originalButton.type = 'button';
+        originalButton.dataset.jokeId = jokeId;
+        originalButton.dataset.bookId = bookId;
+        originalButton.dataset.targetField = targetField;
+        originalButton.dataset.imageUrl = originalTile.imageUrl;
+        const img = document.createElement('img');
+        img.src = originalTile.previewUrl;
+        img.alt = `${labelPrefix} original image`;
+        originalButton.appendChild(img);
+        attachTileListener(originalButton);
+        container.appendChild(originalButton);
+      }
       (variants || []).forEach((imageUrl, index) => {
         if (!imageUrl) return;
         const tile = document.createElement('button');
@@ -698,6 +773,10 @@
             'book_page_setup_image_url',
             Array.isArray(data.setup_variants) ? data.setup_variants : [],
             'Setup options',
+            {
+              imageUrl: data.setup_original_image || '',
+              previewUrl: data.setup_original_preview || data.setup_original_image || '',
+            },
           );
           rebuildVariantTiles(
             card,
@@ -706,6 +785,10 @@
             'book_page_punchline_image_url',
             Array.isArray(data.punchline_variants) ? data.punchline_variants : [],
             'Punchline options',
+            {
+              imageUrl: data.punchline_original_image || '',
+              previewUrl: data.punchline_original_preview || data.punchline_original_image || '',
+            },
           );
 
           const tiles = card.querySelectorAll('.variant-tile');
@@ -721,6 +804,8 @@
           return data;
         });
     }
+
+    setupZipRegenerator();
 
     forms.forEach((form) => {
       const revealBtn = form.querySelector('.reveal-btn');

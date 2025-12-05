@@ -778,6 +778,8 @@ class PunnyJoke:
     existing_metadata: dict[str, Any] | None,
     new_setup_page_url: str,
     new_punchline_page_url: str,
+    setup_prompt: str | None = None,
+    punchline_prompt: str | None = None,
   ) -> dict[str, Any]:
     """Prepare metadata updates for book page URLs with history tracking."""
     metadata = existing_metadata or {}
@@ -835,12 +837,17 @@ class PunnyJoke:
       if url and url not in normalized_punchline_history:
         normalized_punchline_history.append(url)
 
-    return {
+    updates = {
       'book_page_setup_image_url': normalized_new_setup,
       'book_page_punchline_image_url': normalized_new_punchline,
       'all_book_page_setup_image_urls': normalized_setup_history,
       'all_book_page_punchline_image_urls': normalized_punchline_history,
     }
+    if setup_prompt:
+      updates['book_page_setup_image_prompt'] = setup_prompt
+    if punchline_prompt:
+      updates['book_page_punchline_image_prompt'] = punchline_prompt
+    return updates
 
   @property
   def unpopulated_fields(self) -> set[str]:

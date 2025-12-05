@@ -295,7 +295,12 @@ def test_prepare_book_page_metadata_updates_normalizes_cdn_urls():
     "all_book_page_punchline_image_urls": [punch_a_thumb, punch_b],
   }
   updates = models.PunnyJoke.prepare_book_page_metadata_updates(
-    existing, setup_b_thumb, punch_a_thumb)
+    existing,
+    setup_b_thumb,
+    punch_a_thumb,
+    setup_prompt="setup-final-prompt",
+    punchline_prompt="punch-final-prompt",
+  )
 
   assert updates['book_page_setup_image_url'] == setup_b_canonical
   assert updates['book_page_punchline_image_url'] == punch_a_thumb.replace(
@@ -306,3 +311,5 @@ def test_prepare_book_page_metadata_updates_normalizes_cdn_urls():
   assert set(updates['all_book_page_punchline_image_urls']) == {
     punch_b, punch_a_thumb.replace(thumb_prefix, prefix)
   }
+  assert updates['book_page_setup_image_prompt'] == "setup-final-prompt"
+  assert updates['book_page_punchline_image_prompt'] == "punch-final-prompt"

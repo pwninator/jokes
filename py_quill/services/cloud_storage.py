@@ -1,13 +1,12 @@
 """Cloud Storage service."""
 
 import datetime
-from io import BytesIO
 import re
+from io import BytesIO
 
-from PIL import Image
-
-from common import config, utils
+from common import config
 from google.cloud import storage as gcs
+from PIL import Image
 
 _client = None  # pylint: disable=invalid-name
 

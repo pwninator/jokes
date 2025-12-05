@@ -524,15 +524,15 @@ def admin_update_joke_book_page():
   book_id = flask.request.form.get('joke_book_id')
   joke_id = flask.request.form.get('joke_id')
   new_setup_url = flask.request.form.get('new_book_page_setup_image_url')
-  new_punchline_url = flask.request.form.get('new_book_page_punchline_image_url')
+  new_punchline_url = flask.request.form.get(
+    'new_book_page_punchline_image_url')
 
   if not book_id or not joke_id:
     return flask.Response('joke_book_id and joke_id are required', 400)
 
   if not new_setup_url and not new_punchline_url:
-    return flask.Response(
-      ('Provide new_book_page_setup_image_url or '
-       'new_book_page_punchline_image_url'), 400)
+    return flask.Response(('Provide new_book_page_setup_image_url or '
+                           'new_book_page_punchline_image_url'), 400)
 
   client = firestore.db()
   book_ref = client.collection('joke_books').document(book_id)
@@ -555,16 +555,22 @@ def admin_update_joke_book_page():
   current_punchline = existing_metadata.get('book_page_punchline_image_url')
 
   updates = models.PunnyJoke.prepare_book_page_metadata_updates(
-    existing_metadata, new_setup_url or current_setup,
-    new_punchline_url or current_punchline)
+    existing_metadata,
+    new_setup_url or current_setup,
+    new_punchline_url or current_punchline,
+  )
 
   metadata_ref.set(updates, merge=True)
 
   return flask.jsonify({
-    'book_id': book_id,
-    'joke_id': joke_id,
-    'book_page_setup_image_url': updates.get('book_page_setup_image_url'),
-    'book_page_punchline_image_url': updates.get('book_page_punchline_image_url'),
+    'book_id':
+    book_id,
+    'joke_id':
+    joke_id,
+    'book_page_setup_image_url':
+    updates.get('book_page_setup_image_url'),
+    'book_page_punchline_image_url':
+    updates.get('book_page_punchline_image_url'),
   })
 
 

@@ -19,8 +19,13 @@ _AD_BACKGROUND_SQUARE_DRAWING_URI = "gs://images.quillsstorybook.com/joke_assets
 _AD_BACKGROUND_SQUARE_DESK_URI = "gs://images.quillsstorybook.com/joke_assets/background_desk_1280_1280.png"
 _AD_BACKGROUND_SQUARE_CORKBOARD_URI = "gs://images.quillsstorybook.com/joke_assets/background_corkboard_1280_1280.png"
 
-_BOOK_PAGE_STYLE_REFERENCE_IMAGE_URI = "https://storage.googleapis.com/images.quillsstorybook.com/_joke_assets/book_page_reference_image_1024_mewseum.jpg"
-
+_BOOK_PAGE_STYLE_REFERENCE_IMAGE_URLS = [
+  "https://storage.googleapis.com/images.quillsstorybook.com/_joke_assets/reference_beakaboo_1.jpg",
+  "https://storage.googleapis.com/images.quillsstorybook.com/_joke_assets/reference_giraffe_1.jpg",
+  "https://storage.googleapis.com/images.quillsstorybook.com/_joke_assets/reference_honey_1.jpg",
+  "https://storage.googleapis.com/images.quillsstorybook.com/_joke_assets/reference_mewseum_1.jpg",
+  "https://storage.googleapis.com/images.quillsstorybook.com/_joke_assets/reference_mewseum_2.jpg",
+]
 _BOOK_PAGE_BASE_SIZE = 1800
 _BOOK_PAGE_BLEED_PX = 38
 _BOOK_PAGE_FINAL_WIDTH = _BOOK_PAGE_BASE_SIZE + _BOOK_PAGE_BLEED_PX
@@ -194,14 +199,14 @@ def generate_and_populate_book_pages(
   setup_image = cloud_storage.download_image_from_gcs(setup_gcs_uri)
   punchline_image = cloud_storage.download_image_from_gcs(punchline_gcs_uri)
 
-  style_reference_gcs_uri = cloud_storage.extract_gcs_uri_from_image_url(
-    _BOOK_PAGE_STYLE_REFERENCE_IMAGE_URI)
-  style_reference_image = cloud_storage.download_image_from_gcs(
-    style_reference_gcs_uri)
+  style_reference_images = [
+    cloud_storage.download_image_from_gcs(image_url)
+    for image_url in _BOOK_PAGE_STYLE_REFERENCE_IMAGE_URLS
+  ]
   generation_result = generate_book_pages_with_nano_banana_pro(
     setup_image=setup_image,
     punchline_image=punchline_image,
-    style_reference_image=style_reference_image,
+    style_reference_images=style_reference_images,
     setup_image_description=joke.setup_image_description,
     punchline_image_description=joke.punchline_image_description,
     output_file_name_base=f'{joke_id}_book_page',
@@ -210,9 +215,11 @@ def generate_and_populate_book_pages(
   )
 
   metadata_book_page_updates = models.PunnyJoke.prepare_book_page_metadata_updates(
-    metadata_data,
-    generation_result.generated_setup_image.url,
-    generation_result.generated_punchline_image.url,
+    existing_metadata=metadata_data,
+    new_setup_page_url=generation_result.generated_setup_image.url,
+    new_punchline_page_url=generation_result.generated_punchline_image.url,
+    setup_prompt=generation_result.setup_prompt,
+    punchline_prompt=generation_result.punchline_prompt,
   )
 
   metadata_updates = {
@@ -390,14 +397,14 @@ Generate the final image, which should be high quality, professional-looking cop
 
 _BOOK_PAGE_SETUP_PROMPT_TEMPLATE = _BOOK_PAGE_PROMPT_TEMPLATE.format(
   intro=
-  """You are given 2 images. The first is a an illustration of the setup line of a two-liner joke, and the second image is a style reference image:
+  """You are given several images. The first is a an illustration of the setup line of a two-liner joke, and the rest are style reference images:
 
   - A CONTENT image of a drawing with text with black margins all around it. The black margins represent the bleed area for printing. This image visualizes the setup of the joke.
 
-  - A STYLE reference image of a super cute drawing of a construction worker cat on textured paper. This is an example for you to visualize the desired art style described below. Use this image ONLY as reference for:
+  - STYLE reference images that help you visualize the desired art style described below. Use these images ONLY as reference for:
     - Art style: Super cute colored pencil drawing, with a clear main subject, and supporting/background elements that extend to the edge of the canvas.
     - Canvas/background: Off-white textured paper
-    - Font: Clean "handwritten" style
+    - Font: Clean, informal, and playful
     - Overall aesthetic: Super cute and silly
 """,
   additional_requirements="",
@@ -432,13 +439,15 @@ class _BookPageGenerationResult:
   simple_punchline_image: models.Image
   generated_setup_image: models.Image
   generated_punchline_image: models.Image
+  setup_prompt: str
+  punchline_prompt: str
 
 
 def generate_book_pages_with_nano_banana_pro(
   *,
   setup_image: Image.Image,
   punchline_image: Image.Image,
-  style_reference_image: Image.Image,
+  style_reference_images: list[Image.Image],
   setup_image_description: str,
   punchline_image_description: str,
   output_file_name_base: str,
@@ -462,23 +471,27 @@ def generate_book_pages_with_nano_banana_pro(
     setup_image,
     f"{output_file_name_base}_setup",
   )
+  setup_prompt = _BOOK_PAGE_SETUP_PROMPT_TEMPLATE.format(
+    image_description=setup_image_description,
+    additional_instructions=_format_additional_instructions(
+      additional_setup_instructions),
+  )
   generated_setup_image = generation_client.generate_image(
-    prompt=_BOOK_PAGE_SETUP_PROMPT_TEMPLATE.format(
-      image_description=setup_image_description,
-      additional_instructions=_format_additional_instructions(
-        additional_setup_instructions)),
-    reference_images=[simple_setup_image, style_reference_image],
+    prompt=setup_prompt,
+    reference_images=[simple_setup_image, *style_reference_images],
   )
 
   simple_punchline_image = _get_simple_book_page(
     punchline_image,
     f"{output_file_name_base}_punchline",
   )
+  punchline_prompt = _BOOK_PAGE_PUNCHLINE_PROMPT_TEMPLATE.format(
+    image_description=punchline_image_description,
+    additional_instructions=_format_additional_instructions(
+      additional_punchline_instructions),
+  )
   generated_punchline_image = generation_client.generate_image(
-    prompt=_BOOK_PAGE_PUNCHLINE_PROMPT_TEMPLATE.format(
-      image_description=punchline_image_description,
-      additional_instructions=_format_additional_instructions(
-        additional_punchline_instructions)),
+    prompt=punchline_prompt,
     reference_images=[generated_setup_image, simple_punchline_image],
   )
 
@@ -487,6 +500,8 @@ def generate_book_pages_with_nano_banana_pro(
     simple_punchline_image=simple_punchline_image,
     generated_setup_image=generated_setup_image,
     generated_punchline_image=generated_punchline_image,
+    setup_prompt=setup_prompt,
+    punchline_prompt=punchline_prompt,
   )
 
 

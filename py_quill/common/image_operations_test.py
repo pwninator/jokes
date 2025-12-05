@@ -30,6 +30,8 @@ def _make_fake_image_model(
   gcs_uri: str,
   url: str,
   model_thought: str | None = None,
+  final_prompt: str | None = None,
+  original_prompt: str | None = None,
 ) -> SimpleNamespace:
   """Create a minimal image-like object for tests."""
   return SimpleNamespace(
@@ -37,6 +39,8 @@ def _make_fake_image_model(
     url=url,
     model_thought=model_thought,
     generation_metadata=models.GenerationMetadata(),
+    final_prompt=final_prompt,
+    original_prompt=original_prompt,
   )
 
 
@@ -440,8 +444,6 @@ class CreateBookPagesTest(unittest.TestCase):
         return 'gs://bucket/setup.png'
       if uri == 'https://cdn.example.com/punchline.png':
         return 'gs://bucket/punchline.png'
-      if uri == image_operations._BOOK_PAGE_STYLE_REFERENCE_IMAGE_URI:
-        return 'gs://bucket/style.png'
       raise AssertionError(f'Unexpected URI: {uri}')
 
     mock_storage.extract_gcs_uri_from_image_url.side_effect = _extract
@@ -450,13 +452,27 @@ class CreateBookPagesTest(unittest.TestCase):
       color: str, size: tuple[int, int] = (1024, 1024)) -> Image.Image:
       return Image.open(BytesIO(_create_image_bytes(color, size)))
 
+    setup_image = _make_image('red')
+    punchline_image = _make_image('blue')
+    style_colors = ['green', 'yellow', 'orange', 'purple', 'pink']
+    style_images = [
+      _make_image(style_colors[idx % len(style_colors)])
+      for idx, _ in enumerate(
+        image_operations._BOOK_PAGE_STYLE_REFERENCE_IMAGE_URLS)
+    ]
+    style_image_map = {
+      url: style_images[idx]
+      for idx, url in enumerate(
+        image_operations._BOOK_PAGE_STYLE_REFERENCE_IMAGE_URLS)
+    }
+
     def _download_image_side_effect(gcs_uri: str):
       if gcs_uri == 'gs://bucket/setup.png':
-        return _make_image('red')
+        return setup_image
       if gcs_uri == 'gs://bucket/punchline.png':
-        return _make_image('blue')
-      if gcs_uri == 'gs://bucket/style.png':
-        return _make_image('green')
+        return punchline_image
+      if gcs_uri in style_image_map:
+        return style_image_map[gcs_uri]
       raise AssertionError(f'Unexpected GCS URI: {gcs_uri}')
 
     mock_storage.download_image_from_gcs.side_effect = _download_image_side_effect
@@ -472,6 +488,14 @@ class CreateBookPagesTest(unittest.TestCase):
 
     def _stub_generation(**kwargs):
       self.assertEqual(kwargs['output_file_name_base'], 'joke123_book_page')
+      self.assertIs(kwargs['setup_image'], setup_image)
+      self.assertIs(kwargs['punchline_image'], punchline_image)
+      self.assertEqual(
+        len(kwargs['style_reference_images']),
+        len(style_images),
+      )
+      for idx, style_img in enumerate(style_images):
+        self.assertIs(kwargs['style_reference_images'][idx], style_img)
       return SimpleNamespace(
         simple_setup_image=_make_fake_image_model(
           gcs_uri=simple_setup_uri,
@@ -485,12 +509,16 @@ class CreateBookPagesTest(unittest.TestCase):
           gcs_uri=generated_setup_uri,
           url=generated_setup_url,
           model_thought='setup-thought',
+          final_prompt='final-setup-prompt',
         ),
         generated_punchline_image=_make_fake_image_model(
           gcs_uri=generated_punch_uri,
           url=generated_punchline_url,
           model_thought='punchline-thought',
+          final_prompt='final-punchline-prompt',
         ),
+        setup_prompt='final-setup-prompt',
+        punchline_prompt='final-punchline-prompt',
       )
 
     mock_generate_pages.side_effect = _stub_generation
@@ -519,6 +547,10 @@ class CreateBookPagesTest(unittest.TestCase):
         'setup-thought',
         'book_page_punchline_image_model_thought':
         'punchline-thought',
+        'book_page_setup_image_prompt':
+        'final-setup-prompt',
+        'book_page_punchline_image_prompt':
+        'final-punchline-prompt',
         'book_page_setup_image_url':
         'https://cdn.example.com/book_page_setup.jpg',
         'book_page_punchline_image_url':
@@ -637,8 +669,6 @@ class CreateBookPagesTest(unittest.TestCase):
         return 'gs://bucket/setup.png'
       if uri == 'https://cdn.example.com/punchline.png':
         return 'gs://bucket/punchline.png'
-      if uri == image_operations._BOOK_PAGE_STYLE_REFERENCE_IMAGE_URI:
-        return 'gs://bucket/style.png'
       raise AssertionError(f'Unexpected URI: {uri}')
 
     mock_storage.extract_gcs_uri_from_image_url.side_effect = _extract
@@ -647,13 +677,27 @@ class CreateBookPagesTest(unittest.TestCase):
       color: str, size: tuple[int, int] = (1024, 1024)) -> Image.Image:
       return Image.open(BytesIO(_create_image_bytes(color, size)))
 
+    setup_image = _make_image('red')
+    punchline_image = _make_image('blue')
+    style_colors = ['green', 'yellow', 'orange', 'purple', 'pink']
+    style_images = [
+      _make_image(style_colors[idx % len(style_colors)])
+      for idx, _ in enumerate(
+        image_operations._BOOK_PAGE_STYLE_REFERENCE_IMAGE_URLS)
+    ]
+    style_image_map = {
+      url: style_images[idx]
+      for idx, url in enumerate(
+        image_operations._BOOK_PAGE_STYLE_REFERENCE_IMAGE_URLS)
+    }
+
     def _download_image_side_effect(gcs_uri: str):
       if gcs_uri == 'gs://bucket/setup.png':
-        return _make_image('red')
+        return setup_image
       if gcs_uri == 'gs://bucket/punchline.png':
-        return _make_image('blue')
-      if gcs_uri == 'gs://bucket/style.png':
-        return _make_image('green')
+        return punchline_image
+      if gcs_uri in style_image_map:
+        return style_image_map[gcs_uri]
       raise AssertionError(f'Unexpected GCS URI: {gcs_uri}')
 
     mock_storage.download_image_from_gcs.side_effect = _download_image_side_effect
@@ -669,6 +713,14 @@ class CreateBookPagesTest(unittest.TestCase):
 
     def _stub_generation(**kwargs):
       self.assertEqual(kwargs['output_file_name_base'], 'jokeXYZ_book_page')
+      self.assertIs(kwargs['setup_image'], setup_image)
+      self.assertIs(kwargs['punchline_image'], punchline_image)
+      self.assertEqual(
+        len(kwargs['style_reference_images']),
+        len(style_images),
+      )
+      for idx, style_img in enumerate(style_images):
+        self.assertIs(kwargs['style_reference_images'][idx], style_img)
       return SimpleNamespace(
         simple_setup_image=_make_fake_image_model(
           gcs_uri=simple_setup_uri,
@@ -682,12 +734,16 @@ class CreateBookPagesTest(unittest.TestCase):
           gcs_uri=generated_setup_uri,
           url=new_setup_url,
           model_thought='setup-thought',
+          final_prompt='new-setup-prompt',
         ),
         generated_punchline_image=_make_fake_image_model(
           gcs_uri=generated_punch_uri,
           url=new_punchline_url,
           model_thought='punchline-thought',
+          final_prompt='new-punchline-prompt',
         ),
+        setup_prompt='new-setup-prompt',
+        punchline_prompt='new-punchline-prompt',
       )
 
     mock_generate_pages.side_effect = _stub_generation
@@ -714,6 +770,10 @@ class CreateBookPagesTest(unittest.TestCase):
         'setup-thought',
         'book_page_punchline_image_model_thought':
         'punchline-thought',
+        'book_page_setup_image_prompt':
+        'new-setup-prompt',
+        'book_page_punchline_image_prompt':
+        'new-punchline-prompt',
         'book_page_setup_image_url':
         'https://cdn.example.com/new_setup.jpg',
         'book_page_punchline_image_url':

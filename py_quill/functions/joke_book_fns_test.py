@@ -305,11 +305,91 @@ def test_prepare_book_page_metadata_updates_normalizes_cdn_urls():
   assert updates['book_page_setup_image_url'] == setup_b_canonical
   assert updates['book_page_punchline_image_url'] == punch_a_thumb.replace(
     thumb_prefix, prefix)
-  assert set(updates['all_book_page_setup_image_urls']) == {
-    setup_a, setup_b_canonical
-  }
+  assert set(
+    updates['all_book_page_setup_image_urls']) == {setup_a, setup_b_canonical}
   assert set(updates['all_book_page_punchline_image_urls']) == {
     punch_b, punch_a_thumb.replace(thumb_prefix, prefix)
   }
   assert updates['book_page_setup_image_prompt'] == "setup-final-prompt"
   assert updates['book_page_punchline_image_prompt'] == "punch-final-prompt"
+
+
+@patch('functions.joke_book_fns.image_operations.zip_joke_page_images_for_kdp')
+@patch('functions.joke_book_fns.firestore')
+def test_update_joke_book_zip_regenerates_and_updates(mock_firestore,
+                                                      mock_zip_joke_pages):
+  """update_joke_book_zip should regenerate the zip and persist the URL."""
+  book_id = 'book123'
+  joke_ids = ['j1', 'j2']
+
+  mock_zip_joke_pages.return_value = 'https://cdn.example.com/new.zip'
+
+  mock_book_snapshot = MagicMock()
+  mock_book_snapshot.exists = True
+  mock_book_snapshot.to_dict.return_value = {'jokes': joke_ids}
+
+  mock_db = MagicMock()
+  joke_books_collection = MagicMock()
+  book_doc_ref = MagicMock()
+  book_doc_ref.get.return_value = mock_book_snapshot
+  joke_books_collection.document.return_value = book_doc_ref
+
+  def collection_side_effect(name):
+    if name == 'joke_books':
+      return joke_books_collection
+    return MagicMock()
+
+  mock_db.collection.side_effect = collection_side_effect
+  mock_firestore.db.return_value = mock_db
+
+  req = DummyReq(
+    path='/update_joke_book_zip',
+    args={'joke_book_id': book_id},
+    method='POST',
+  )
+
+  resp = joke_book_fns.update_joke_book_zip(req)
+
+  mock_zip_joke_pages.assert_called_once_with(joke_ids)
+  book_doc_ref.update.assert_called_once_with(
+    {'zip_url': 'https://cdn.example.com/new.zip'})
+  assert resp == {
+    'data': {
+      'book_id': book_id,
+      'zip_url': 'https://cdn.example.com/new.zip',
+    }
+  }
+
+
+@patch('functions.joke_book_fns.firestore')
+def test_update_joke_book_zip_errors_when_no_jokes(mock_firestore):
+  """update_joke_book_zip should error if jokes list is empty."""
+  book_id = 'book-empty'
+
+  mock_book_snapshot = MagicMock()
+  mock_book_snapshot.exists = True
+  mock_book_snapshot.to_dict.return_value = {'jokes': []}
+
+  mock_db = MagicMock()
+  joke_books_collection = MagicMock()
+  book_doc_ref = MagicMock()
+  book_doc_ref.get.return_value = mock_book_snapshot
+  joke_books_collection.document.return_value = book_doc_ref
+
+  def collection_side_effect(name):
+    if name == 'joke_books':
+      return joke_books_collection
+    return MagicMock()
+
+  mock_db.collection.side_effect = collection_side_effect
+  mock_firestore.db.return_value = mock_db
+
+  req = DummyReq(
+    path='/update_joke_book_zip',
+    args={'joke_book_id': book_id},
+    method='POST',
+  )
+
+  resp = joke_book_fns.update_joke_book_zip(req)
+
+  assert resp == {'data': {'error': 'Joke book has no jokes to zip'}}

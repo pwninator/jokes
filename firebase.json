@@ -95,6 +95,14 @@
           "region": "us-central1",
           "codebase": "default"
         }
+      },
+      {
+        "source": "/update_joke_book_zip",
+        "function": {
+          "functionId": "update_joke_book_zip",
+          "region": "us-central1",
+          "codebase": "default"
+        }
       }
     ]
   },

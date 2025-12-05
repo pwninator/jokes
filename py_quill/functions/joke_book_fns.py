@@ -2,10 +2,10 @@
 import json
 import traceback
 
-from common import image_operations, models, utils
+from common import image_operations, utils
 from firebase_functions import https_fn, logger, options
-from functions.function_utils import (error_response, get_bool_param, get_param,
-                                      get_user_id, success_response)
+from functions.function_utils import (error_response, get_param, get_user_id,
+                                      success_response)
 from services import firestore
 
 NUM_TOP_JOKES_FOR_BOOKS = 50
@@ -160,6 +160,48 @@ def create_joke_book(req: https_fn.Request) -> https_fn.Response:
     stacktrace = traceback.format_exc()
     print(f"Error creating joke book: {e}\nStacktrace:\n{stacktrace}")
     return error_response(f'Failed to create joke book: {str(e)}')
+
+
+@https_fn.on_request(
+  memory=options.MemoryOption.GB_4,
+  timeout_sec=1200,
+)
+def update_joke_book_zip(req: https_fn.Request) -> https_fn.Response:
+  """Regenerate the ZIP of KDP-ready pages for a joke book."""
+  try:
+    if req.path == "/__/health":
+      return https_fn.Response("OK", status=200)
+
+    if req.method not in ['POST']:
+      return error_response(f'Method not allowed: {req.method}')
+
+    joke_book_id = _get_joke_book_id_from_request(req)
+    if not joke_book_id:
+      return error_response('joke_book_id is required')
+
+    client = firestore.db()
+    book_ref = client.collection('joke_books').document(joke_book_id)
+    book_doc = book_ref.get()
+    if not getattr(book_doc, 'exists', False):
+      return error_response('Joke book not found')
+
+    book_data = book_doc.to_dict() or {}
+    joke_ids = book_data.get('jokes') or []
+    if not isinstance(joke_ids, list) or not joke_ids:
+      return error_response('Joke book has no jokes to zip')
+
+    zip_url = image_operations.zip_joke_page_images_for_kdp(joke_ids)
+    book_ref.update({'zip_url': zip_url})
+
+    return success_response({
+      'book_id': joke_book_id,
+      'zip_url': zip_url,
+    })
+  except Exception as e:
+    stacktrace = traceback.format_exc()
+    print(f"Error updating joke book ZIP: {e}\nStacktrace:\n{stacktrace}")
+    return error_response(f'Failed to update joke book ZIP: {str(e)}')
+
 
 def _get_joke_book_id_from_request(req: https_fn.Request) -> str | None:
   """Extract the joke_book_id from query params or path."""

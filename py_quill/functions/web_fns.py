@@ -38,9 +38,11 @@ _SITE_CSS = _BASE_CSS + _load_css('style.css')
 
 
 @app.context_processor
-def _inject_css() -> dict[str, str]:
+def _inject_template_globals() -> dict[str, str]:
+  """Inject shared template variables such as compiled CSS and CF origin."""
   return {
     'site_css': _SITE_CSS,
+    'functions_origin': utils.cloud_functions_base_url(),
   }
 
 

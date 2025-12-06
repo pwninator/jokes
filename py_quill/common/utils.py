@@ -7,6 +7,7 @@ import re
 from typing import Any
 
 import requests
+from common import config
 
 _NON_ALPHANUMERIC_RE = re.compile(r'[^a-zA-Z0-9]')
 
@@ -62,6 +63,24 @@ def create_timestamped_firestore_key(*args: str) -> str:
 def is_emulator() -> bool:
   """Returns True if the code is running in an emulator."""
   return os.environ.get('FUNCTIONS_EMULATOR')
+
+
+def cloud_functions_base_url() -> str:
+  """Return the base URL for invoking Cloud Functions HTTP endpoints."""
+  override = os.environ.get('CLOUD_FUNCTIONS_BASE_URL')
+  if override:
+    return override.rstrip('/')
+
+  if is_emulator():
+    emulator_host = os.environ.get('FUNCTIONS_EMULATOR_HOST',
+                                   'http://127.0.0.1:5001')
+    project_id = os.environ.get('GCLOUD_PROJECT', config.PROJECT_ID)
+    region = os.environ.get('FUNCTIONS_EMULATOR_REGION',
+                            config.PROJECT_LOCATION)
+    return f"{emulator_host.rstrip('/')}/{project_id}/{region}"
+
+  return (f"https://{config.PROJECT_LOCATION}-"
+          f"{config.PROJECT_ID}.cloudfunctions.net")
 
 
 def format_image_url(

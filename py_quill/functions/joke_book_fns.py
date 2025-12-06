@@ -37,6 +37,17 @@ def _cors_headers_for_origin(request_origin: str | None) -> dict[str, str]:
   return {}
 
 
+def _json_response(payload: dict[str, object],
+                   status: int,
+                   headers: dict[str, str] | None = None) -> https_fn.Response:
+  """Serialize payloads to JSON while attaching optional headers."""
+  return https_fn.Response(
+    json.dumps(payload),
+    status=status,
+    headers=headers,
+  )
+
+
 @https_fn.on_request(
   memory=options.MemoryOption.GB_4,
   timeout_sec=1200,
@@ -168,39 +179,67 @@ def create_joke_book(req: https_fn.Request) -> https_fn.Response:
 )
 def update_joke_book_zip(req: https_fn.Request) -> https_fn.Response:
   """Regenerate the ZIP of KDP-ready pages for a joke book."""
+  cors_headers: dict[str, str] = {}
   try:
+    cors_headers = _cors_headers_for_origin(req.headers.get("Origin"))
+
+    if req.method == "OPTIONS":
+      preflight_headers = cors_headers or _CORS_HEADERS
+      return https_fn.Response(
+        "",
+        status=204,
+        headers=preflight_headers,
+      )
+
     if req.path == "/__/health":
-      return https_fn.Response("OK", status=200)
+      return https_fn.Response("OK", status=200, headers=cors_headers)
 
     if req.method not in ['POST']:
-      return error_response(f'Method not allowed: {req.method}')
+      return _json_response(
+        error_response(f'Method not allowed: {req.method}'),
+        status=405,
+        headers=cors_headers)
 
     joke_book_id = _get_joke_book_id_from_request(req)
     if not joke_book_id:
-      return error_response('joke_book_id is required')
+      return _json_response(error_response('joke_book_id is required'),
+                            status=400,
+                            headers=cors_headers)
 
     client = firestore.db()
     book_ref = client.collection('joke_books').document(joke_book_id)
     book_doc = book_ref.get()
     if not getattr(book_doc, 'exists', False):
-      return error_response('Joke book not found')
+      return _json_response(error_response('Joke book not found'),
+                            status=404,
+                            headers=cors_headers)
 
     book_data = book_doc.to_dict() or {}
     joke_ids = book_data.get('jokes') or []
     if not isinstance(joke_ids, list) or not joke_ids:
-      return error_response('Joke book has no jokes to zip')
+      return _json_response(error_response('Joke book has no jokes to zip'),
+                            status=400,
+                            headers=cors_headers)
 
     zip_url = image_operations.zip_joke_page_images_for_kdp(joke_ids)
     book_ref.update({'zip_url': zip_url})
 
-    return success_response({
-      'book_id': joke_book_id,
-      'zip_url': zip_url,
-    })
+    return _json_response(
+      success_response({
+        'book_id': joke_book_id,
+        'zip_url': zip_url,
+      }),
+      status=200,
+      headers=cors_headers,
+    )
   except Exception as e:
     stacktrace = traceback.format_exc()
     print(f"Error updating joke book ZIP: {e}\nStacktrace:\n{stacktrace}")
-    return error_response(f'Failed to update joke book ZIP: {str(e)}')
+    return _json_response(
+      error_response(f'Failed to update joke book ZIP: {str(e)}'),
+      status=500,
+      headers=cors_headers,
+    )
 
 
 def _get_joke_book_id_from_request(req: https_fn.Request) -> str | None:

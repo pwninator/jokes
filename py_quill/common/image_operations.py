@@ -6,13 +6,14 @@ import datetime
 import math
 import zipfile
 from dataclasses import dataclass
-from functools import partial
+from functools import lru_cache, partial
 from io import BytesIO
 from typing import Callable
 
 from common import config, models
 from firebase_functions import logger
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
+import requests
 from services import cloud_storage, firestore, image_client, image_editor
 
 _AD_BACKGROUND_SQUARE_DRAWING_URI = "gs://images.quillsstorybook.com/joke_assets/background_drawing_1280_1280.png"
@@ -30,6 +31,15 @@ _BOOK_PAGE_BASE_SIZE = 1800
 _BOOK_PAGE_BLEED_PX = 38
 _BOOK_PAGE_FINAL_WIDTH = _BOOK_PAGE_BASE_SIZE + _BOOK_PAGE_BLEED_PX
 _BOOK_PAGE_FINAL_HEIGHT = _BOOK_PAGE_BASE_SIZE + (_BOOK_PAGE_BLEED_PX * 2)
+
+_PAGE_NUMBER_FONT_URLS = (
+  'https://github.com/googlefonts/nunito/raw/4be812cf4761b3ddc3b0ae894ef40ea21dcf6ff3/fonts/TTF/Nunito-Regular.ttf',
+  'https://github.com/googlefonts/nunito/raw/refs/heads/main/fonts/variable/Nunito%5Bwght%5D.ttf',
+)
+_PAGE_NUMBER_FONT_SIZE = 60
+_PAGE_NUMBER_STROKE_RATIO = 0.14
+_PAGE_NUMBER_TEXT_COLOR = (33, 33, 33)
+_PAGE_NUMBER_STROKE_COLOR = (255, 255, 255)
 
 
 def create_blank_book_cover() -> bytes:
@@ -75,6 +85,8 @@ def zip_joke_page_images_for_kdp(joke_ids: list[str]) -> str:
 
   files: list[tuple[str, bytes]] = []
   page_index = 3
+  total_pages = len(joke_ids) * 2
+  current_page_number = 1
 
   # Add a blank intro page as page 002 before any joke pages.
   intro_bytes = create_blank_book_cover()
@@ -100,9 +112,20 @@ def zip_joke_page_images_for_kdp(joke_ids: list[str]) -> str:
     setup_image = cloud_storage.download_image_from_gcs(setup_img_url)
     punchline_image = cloud_storage.download_image_from_gcs(punchline_img_url)
 
-    setup_bytes = _convert_for_print_kdp(setup_image, is_punchline=False)
-    punchline_bytes = _convert_for_print_kdp(punchline_image,
-                                             is_punchline=True)
+    setup_bytes = _convert_for_print_kdp(
+      setup_image,
+      is_punchline=False,
+      page_number=current_page_number,
+      total_pages=total_pages,
+    )
+    current_page_number += 1
+    punchline_bytes = _convert_for_print_kdp(
+      punchline_image,
+      is_punchline=True,
+      page_number=current_page_number,
+      total_pages=total_pages,
+    )
+    current_page_number += 1
 
     setup_file_name = f"{page_index:03d}_{joke_id}_setup.jpg"
     page_index += 1
@@ -547,7 +570,10 @@ def _get_simple_book_page(
 
 def _convert_for_print_kdp(
   image: Image.Image,
+  *,
   is_punchline: bool,
+  page_number: int,
+  total_pages: int,
   image_editor_instance: image_editor.ImageEditor | None = None,
 ) -> bytes:
   """Convert an image to be print-ready for Kindle Direct Publishing.
@@ -582,6 +608,17 @@ def _convert_for_print_kdp(
     right=trim_right,
   )
 
+  if page_number <= 0:
+    raise ValueError('page_number must be positive')
+  if total_pages <= 0:
+    raise ValueError('total_pages must be positive')
+  _add_page_number_to_image(
+    trimmed_image,
+    page_number=page_number,
+    total_pages=total_pages,
+    is_punchline=is_punchline,
+  )
+
   cmyk_image = trimmed_image.convert('CMYK')
 
   if abs(cmyk_image.width -
@@ -600,6 +637,87 @@ def _convert_for_print_kdp(
     dpi=(300, 300),
   )
   return buffer.getvalue()
+
+
+@lru_cache(maxsize=len(_PAGE_NUMBER_FONT_URLS))
+def _load_page_number_font_bytes(url: str) -> bytes | None:
+  """Download the Nunito font data from the given web font URL."""
+  try:
+    response = requests.get(url, timeout=10)
+    response.raise_for_status()
+    return response.content
+  except requests.RequestException as exc:
+    logger.error('Unable to download Nunito font from %s: %s', url, exc)
+    return None
+
+
+@lru_cache(maxsize=16)
+def _get_page_number_font(font_size: int) -> ImageFont.ImageFont:
+  """Return a cached Nunito font instance for the requested size."""
+  safe_size = max(1, font_size)
+  for url in _PAGE_NUMBER_FONT_URLS:
+    font_bytes = _load_page_number_font_bytes(url)
+    if not font_bytes:
+      continue
+    try:
+      font = ImageFont.truetype(BytesIO(font_bytes), safe_size)
+      logger.info('Loaded Nunito font from %s (size %s)', url, safe_size)
+      return font
+    except OSError as exc:  # pragma: no cover - unexpected font error
+      logger.error('Unable to construct Nunito font from %s (size %s): %s',
+                   url, safe_size, exc)
+  return ImageFont.load_default()
+
+
+def _add_page_number_to_image(
+  image: Image.Image,
+  *,
+  page_number: int,
+  total_pages: int,
+  is_punchline: bool,
+) -> Image.Image:
+  """Render the page number text near the page corner."""
+  if page_number <= 0 or total_pages <= 0:
+    return image
+
+  width, height = image.size
+  if width == 0 or height == 0:
+    return image
+
+  draw = ImageDraw.Draw(image)
+  font = _get_page_number_font(_PAGE_NUMBER_FONT_SIZE)
+  stroke_width = max(
+    1, int(round(_PAGE_NUMBER_FONT_SIZE * _PAGE_NUMBER_STROKE_RATIO)))
+  text = str(page_number)
+  text_bbox = draw.textbbox(
+    (0, 0),
+    text,
+    font=font,
+    stroke_width=stroke_width,
+  )
+  text_width = text_bbox[2] - text_bbox[0]
+  text_height = text_bbox[3] - text_bbox[1]
+
+  offset_from_edge = _BOOK_PAGE_BLEED_PX * 3
+  text_x: float
+  if is_punchline:
+    text_x = offset_from_edge
+  else:
+    text_x = width - offset_from_edge - text_width
+  text_y = height - offset_from_edge - text_height
+
+  text_x = max(0, text_x)
+  text_y = max(0, text_y)
+
+  draw.text(
+    (text_x, text_y),
+    text,
+    fill=_PAGE_NUMBER_TEXT_COLOR,
+    font=font,
+    stroke_width=stroke_width,
+    stroke_fill=_PAGE_NUMBER_STROKE_COLOR,
+  )
+  return image
 
 
 def _compose_landscape_ad_image(

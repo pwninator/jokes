@@ -10,7 +10,7 @@ from unittest.mock import MagicMock, Mock, patch
 import zipfile
 
 from common import image_operations, models
-from PIL import Image
+from PIL import Image, ImageFont
 from services import image_editor
 
 
@@ -456,9 +456,8 @@ class CreateBookPagesTest(unittest.TestCase):
     punchline_image = _make_image('blue')
     style_colors = ['green', 'yellow', 'orange', 'purple', 'pink']
     style_images = [
-      _make_image(style_colors[idx % len(style_colors)])
-      for idx, _ in enumerate(
-        image_operations._BOOK_PAGE_STYLE_REFERENCE_IMAGE_URLS)
+      _make_image(style_colors[idx % len(style_colors)]) for idx, _ in
+      enumerate(image_operations._BOOK_PAGE_STYLE_REFERENCE_IMAGE_URLS)
     ]
     style_image_map = {
       url: style_images[idx]
@@ -681,9 +680,8 @@ class CreateBookPagesTest(unittest.TestCase):
     punchline_image = _make_image('blue')
     style_colors = ['green', 'yellow', 'orange', 'purple', 'pink']
     style_images = [
-      _make_image(style_colors[idx % len(style_colors)])
-      for idx, _ in enumerate(
-        image_operations._BOOK_PAGE_STYLE_REFERENCE_IMAGE_URLS)
+      _make_image(style_colors[idx % len(style_colors)]) for idx, _ in
+      enumerate(image_operations._BOOK_PAGE_STYLE_REFERENCE_IMAGE_URLS)
     ]
     style_image_map = {
       url: style_images[idx]
@@ -787,6 +785,107 @@ class CreateBookPagesTest(unittest.TestCase):
           'https://cdn.example.com/new_punchline.jpg',
         ],
       })
+
+
+class AddPageNumberToImageTest(unittest.TestCase):
+  """Tests for rendering page numbers onto book pages."""
+
+  def test_setup_page_positions_and_stroke(self):
+    image = Image.new('RGB', (200, 200), color='grey')
+    draw_mock = MagicMock()
+    draw_mock.textbbox.return_value = (0, 0, 20, 30)
+    with patch('common.image_operations.ImageDraw.Draw',
+               return_value=draw_mock):
+      fake_font = ImageFont.load_default()
+      with patch('common.image_operations._get_page_number_font',
+                 return_value=fake_font) as mock_get_font:
+        image_operations._add_page_number_to_image(
+          image,
+          page_number=3,
+          total_pages=12,
+          is_punchline=False,
+        )
+
+    mock_get_font.assert_called_once_with(
+      image_operations._PAGE_NUMBER_FONT_SIZE)
+    offset = image_operations._BOOK_PAGE_BLEED_PX * 3
+    stroke_width = max(
+      1,
+      int(
+        round(image_operations._PAGE_NUMBER_FONT_SIZE *
+              image_operations._PAGE_NUMBER_STROKE_RATIO)))
+    draw_mock.textbbox.assert_called_once_with(
+      (0, 0),
+      '3',
+      font=fake_font,
+      stroke_width=stroke_width,
+    )
+    text_call = draw_mock.text.call_args
+    self.assertEqual(text_call[0][0], (200 - offset - 20, 200 - offset - 30))
+    self.assertEqual(text_call[0][1], '3')
+    self.assertEqual(text_call[1]['stroke_width'], stroke_width)
+    self.assertEqual(text_call[1]['stroke_fill'],
+                     image_operations._PAGE_NUMBER_STROKE_COLOR)
+
+  def test_punchline_page_positions_use_left_margin(self):
+    image = Image.new('RGB', (200, 200), color='grey')
+    draw_mock = MagicMock()
+    draw_mock.textbbox.return_value = (0, 0, 14, 20)
+    with patch('common.image_operations.ImageDraw.Draw',
+               return_value=draw_mock):
+      fake_font = ImageFont.load_default()
+      with patch('common.image_operations._get_page_number_font',
+                 return_value=fake_font) as mock_get_font:
+        image_operations._add_page_number_to_image(
+          image,
+          page_number=1,
+          total_pages=5,
+          is_punchline=True,
+        )
+
+    mock_get_font.assert_called_once_with(
+      image_operations._PAGE_NUMBER_FONT_SIZE)
+    offset = image_operations._BOOK_PAGE_BLEED_PX * 3
+    stroke_width = max(
+      1,
+      int(
+        round(image_operations._PAGE_NUMBER_FONT_SIZE *
+              image_operations._PAGE_NUMBER_STROKE_RATIO)))
+    text_call = draw_mock.text.call_args
+    self.assertEqual(text_call[0][0], (offset, 200 - offset - 20))
+    self.assertEqual(text_call[0][1], '1')
+    self.assertEqual(text_call[1]['stroke_width'], stroke_width)
+
+  def test_font_size_static_value(self):
+    image = Image.new('RGB', (200, 200), color='grey')
+    draw_mock = MagicMock()
+    draw_mock.textbbox.return_value = (0, 0, 10, 10)
+    with patch('common.image_operations.ImageDraw.Draw',
+               return_value=draw_mock):
+      fake_font = ImageFont.load_default()
+      with patch('common.image_operations._get_page_number_font',
+                 return_value=fake_font) as mock_get_font:
+        image_operations._add_page_number_to_image(
+          image,
+          page_number=1,
+          total_pages=99,
+          is_punchline=False,
+        )
+        image_operations._add_page_number_to_image(
+          image,
+          page_number=10,
+          total_pages=2,
+          is_punchline=False,
+        )
+
+    requested_sizes = [entry[0][0] for entry in mock_get_font.call_args_list]
+    self.assertEqual(
+      requested_sizes,
+      [
+        image_operations._PAGE_NUMBER_FONT_SIZE,
+        image_operations._PAGE_NUMBER_FONT_SIZE
+      ],
+    )
 
 
 class ZipJokePageImagesTest(unittest.TestCase):
@@ -903,6 +1002,18 @@ class ZipJokePageImagesTest(unittest.TestCase):
       self.assertEqual(zip_file.read('003_joke1_setup.jpg'), b'setup-kdp')
       self.assertEqual(zip_file.read('004_joke1_punchline.jpg'),
                        b'punchline-kdp')
+
+    convert_calls = mock_convert_for_print.call_args_list
+    self.assertEqual(len(convert_calls), 2)
+    setup_call = convert_calls[0]
+    self.assertEqual(setup_call.kwargs['page_number'], 1)
+    self.assertEqual(setup_call.kwargs['total_pages'], 2)
+    self.assertFalse(setup_call.kwargs['is_punchline'])
+
+    punchline_call = convert_calls[1]
+    self.assertEqual(punchline_call.kwargs['page_number'], 2)
+    self.assertEqual(punchline_call.kwargs['total_pages'], 2)
+    self.assertTrue(punchline_call.kwargs['is_punchline'])
 
 
 if __name__ == '__main__':

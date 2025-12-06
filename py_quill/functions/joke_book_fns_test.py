@@ -1,4 +1,5 @@
 """Tests for the joke_book_fns module."""
+import json
 import zipfile
 from io import BytesIO
 from unittest.mock import MagicMock, patch
@@ -17,13 +18,14 @@ class DummyReq:
                args=None,
                method='GET',
                is_json=False,
-               data=None):
+               data=None,
+               headers=None):
     self.path = path
     self.args = args or {}
     self.method = method
     self.is_json = is_json
     self.json = data or {}
-    self.headers = {}
+    self.headers = headers or {}
 
   def get_json(self, silent=False):
     """Dummy get_json method."""
@@ -353,7 +355,10 @@ def test_update_joke_book_zip_regenerates_and_updates(mock_firestore,
   mock_zip_joke_pages.assert_called_once_with(joke_ids)
   book_doc_ref.update.assert_called_once_with(
     {'zip_url': 'https://cdn.example.com/new.zip'})
-  assert resp == {
+  assert isinstance(resp, https_fn.Response)
+  assert resp.status_code == 200
+  payload = json.loads(resp.get_data(as_text=True))
+  assert payload == {
     'data': {
       'book_id': book_id,
       'zip_url': 'https://cdn.example.com/new.zip',
@@ -392,4 +397,7 @@ def test_update_joke_book_zip_errors_when_no_jokes(mock_firestore):
 
   resp = joke_book_fns.update_joke_book_zip(req)
 
-  assert resp == {'data': {'error': 'Joke book has no jokes to zip'}}
+  assert isinstance(resp, https_fn.Response)
+  assert resp.status_code == 400
+  payload = json.loads(resp.get_data(as_text=True))
+  assert payload == {'data': {'error': 'Joke book has no jokes to zip'}}

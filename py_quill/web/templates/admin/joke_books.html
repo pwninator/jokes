@@ -48,6 +48,10 @@
 {% endif %}
 <script>
   document.addEventListener('DOMContentLoaded', () => {
+    const functionsOrigin = {{ functions_origin | tojson }};
+    const regenerateZipEndpoint = functionsOrigin
+      ? `${functionsOrigin}/update_joke_book_zip`
+      : '/update_joke_book_zip';
     const buttons = document.querySelectorAll('.regenerate-zip-button');
     buttons.forEach((button) => {
       button.addEventListener('click', async () => {
@@ -66,7 +70,7 @@
         button.textContent = 'Regenerating…';
 
         try {
-          const resp = await fetch('/update_joke_book_zip', {
+          const resp = await fetch(regenerateZipEndpoint, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',

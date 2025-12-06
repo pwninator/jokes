@@ -462,7 +462,10 @@
   (function () {
     const forms = Array.from(document.querySelectorAll('.regenerate-form'));
     const updateBookPageUrl = "{{ update_book_page_url }}";
-    const regenerateZipEndpoint = "/update_joke_book_zip";
+    const functionsOrigin = {{ functions_origin | tojson }};
+    const regenerateZipEndpoint = functionsOrigin
+      ? `${functionsOrigin}/update_joke_book_zip`
+      : '/update_joke_book_zip';
     const accentColor = getComputedStyle(document.documentElement)
       .getPropertyValue('--color-primary')
       .trim() || '#d4a017';

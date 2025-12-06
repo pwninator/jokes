@@ -8,7 +8,7 @@ from firebase_functions.core import init
 from functions import (admin_fns, analytics_fns, dummy_fns, joke_auto_fns,
                        joke_book_fns, joke_creation_fns, joke_fns,
                        joke_image_fns, joke_notification_fns, joke_trigger_fns,
-                       util_fns, web_fns)
+                       stats_fns, util_fns, web_fns)
 
 # Configure basic logging for the application (primarily for emulator visibility)
 logging.basicConfig(level=logging.INFO)
@@ -86,3 +86,6 @@ web_search_page = web_fns.web_search_page
 
 # Export analytics functions
 usage = analytics_fns.usage
+
+# Export stats functions
+joke_stats_calculate = stats_fns.joke_stats_calculate

@@ -43,6 +43,17 @@
       "density": "SPARSE_ALL"
     },
     {
+      "collectionGroup": "joke_stats",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
+          "fieldPath": "__name__",
+          "order": "DESCENDING"
+        }
+      ],
+      "density": "SPARSE_ALL"
+    },
+    {
       "collectionGroup": "jokes",
       "queryScope": "COLLECTION",
       "fields": [

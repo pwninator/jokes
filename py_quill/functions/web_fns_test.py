@@ -1,6 +1,7 @@
 """Tests for the web_fns module."""
 from unittest.mock import Mock
 from io import BytesIO
+import pytest
 
 from common import models
 from functions import web_fns
@@ -369,7 +370,8 @@ def test_admin_joke_book_refresh_includes_download_urls(monkeypatch):
   data = resp.get_json()
   assert data["setup_image_download"].startswith(
     "https://images.quillsstorybook.com/cdn-cgi/image/")
-  assert "format=png,quality=100/path/setup.png" in data["setup_image_download"]
+  assert "format=png,quality=100/path/setup.png" in data[
+    "setup_image_download"]
   assert "width=" not in data["setup_image_download"]
   assert data["punchline_image_download"] is None
 
@@ -502,20 +504,22 @@ def test_pages_include_ga4_tag_and_parchment_background(monkeypatch):
 def test_admin_joke_book_upload_image_book_page(monkeypatch):
   """Test uploading a book page image updates metadata and variants."""
   _mock_admin_session(monkeypatch)
-  
+
   mock_upload = Mock()
-  monkeypatch.setattr(web_fns.cloud_storage, "upload_bytes_to_gcs", mock_upload)
-  
+  monkeypatch.setattr(web_fns.cloud_storage, "upload_bytes_to_gcs",
+                      mock_upload)
+
   mock_get_cdn = Mock(return_value="https://cdn/image.png")
-  monkeypatch.setattr(web_fns.cloud_storage, "get_public_image_cdn_url", mock_get_cdn)
-  
+  monkeypatch.setattr(web_fns.cloud_storage, "get_public_image_cdn_url",
+                      mock_get_cdn)
+
   # Mock Firestore
   mock_metadata_ref = Mock()
   mock_metadata_ref.get.return_value = Mock(exists=True)
-  
+
   mock_joke_ref = Mock()
   mock_joke_ref.collection.return_value.document.return_value = mock_metadata_ref
-  
+
   mock_db = Mock()
   mock_db.collection.return_value.document.return_value = mock_joke_ref
   monkeypatch.setattr(web_fns.firestore, "db", lambda: mock_db)
@@ -528,22 +532,20 @@ def test_admin_joke_book_upload_image_book_page(monkeypatch):
   }
 
   with web_fns.app.test_client() as client:
-    resp = client.post(
-      '/admin/joke-books/upload-image',
-      data=data,
-      content_type='multipart/form-data'
-    )
+    resp = client.post('/admin/joke-books/upload-image',
+                       data=data,
+                       content_type='multipart/form-data')
 
   assert resp.status_code == 200
   assert resp.json['url'] == "https://cdn/image.png"
-  
+
   # Verify Upload
   mock_upload.assert_called_once()
   args = mock_upload.call_args[0]
   assert args[0] == b"fake image content"
   assert "joke_books/book-456/joke-123/custom_setup_" in args[1]
   assert args[1].endswith(".png")
-  
+
   # Verify Firestore Update
   mock_metadata_ref.update.assert_called_once()
   update_args = mock_metadata_ref.update.call_args[0][0]
@@ -555,13 +557,15 @@ def test_admin_joke_book_upload_image_book_page(monkeypatch):
 def test_admin_joke_book_upload_image_main_joke(monkeypatch):
   """Test uploading a main joke image updates the joke doc."""
   _mock_admin_session(monkeypatch)
-  
+
   mock_upload = Mock()
-  monkeypatch.setattr(web_fns.cloud_storage, "upload_bytes_to_gcs", mock_upload)
-  
+  monkeypatch.setattr(web_fns.cloud_storage, "upload_bytes_to_gcs",
+                      mock_upload)
+
   mock_get_cdn = Mock(return_value="https://cdn/main-image.jpg")
-  monkeypatch.setattr(web_fns.cloud_storage, "get_public_image_cdn_url", mock_get_cdn)
-  
+  monkeypatch.setattr(web_fns.cloud_storage, "get_public_image_cdn_url",
+                      mock_get_cdn)
+
   # Mock Firestore
   mock_joke_ref = Mock()
   mock_db = Mock()
@@ -575,49 +579,45 @@ def test_admin_joke_book_upload_image_main_joke(monkeypatch):
   }
 
   with web_fns.app.test_client() as client:
-    resp = client.post(
-      '/admin/joke-books/upload-image',
-      data=data,
-      content_type='multipart/form-data'
-    )
+    resp = client.post('/admin/joke-books/upload-image',
+                       data=data,
+                       content_type='multipart/form-data')
 
   assert resp.status_code == 200
-  
+
   # Verify Upload
   mock_upload.assert_called_once()
   args = mock_upload.call_args[0]
   assert "jokes/joke-999/custom_punchline_" in args[1]
-  
+
   # Verify Firestore Update on Main Doc
-  mock_joke_ref.update.assert_called_once_with({
-    'punchline_image_url': "https://cdn/main-image.jpg"
-  })
+  mock_joke_ref.update.assert_called_once_with(
+    {'punchline_image_url': "https://cdn/main-image.jpg"})
 
 
 def test_admin_joke_book_upload_invalid_input(monkeypatch):
   """Test invalid inputs return 400."""
   _mock_admin_session(monkeypatch)
-  
+
   with web_fns.app.test_client() as client:
     # Missing file
-    resp = client.post(
-      '/admin/joke-books/upload-image',
-      data={'joke_id': '1', 'target_field': 'setup_image_url'},
-      content_type='multipart/form-data'
-    )
+    resp = client.post('/admin/joke-books/upload-image',
+                       data={
+                         'joke_id': '1',
+                         'target_field': 'setup_image_url'
+                       },
+                       content_type='multipart/form-data')
     assert resp.status_code == 400
     assert b"Missing required fields" in resp.data
 
     # Invalid field
-    resp = client.post(
-      '/admin/joke-books/upload-image',
-      data={
-        'joke_id': '1', 
-        'target_field': 'hacker_field',
-        'file': (BytesIO(b""), 'test.png')
-      },
-      content_type='multipart/form-data'
-    )
+    resp = client.post('/admin/joke-books/upload-image',
+                       data={
+                         'joke_id': '1',
+                         'target_field': 'hacker_field',
+                         'file': (BytesIO(b""), 'test.png')
+                       },
+                       content_type='multipart/form-data')
     assert resp.status_code == 400
     assert b"Invalid target field" in resp.data
 
@@ -673,13 +673,13 @@ def test_admin_update_joke_book_page_updates_metadata(monkeypatch):
                       "prepare_book_page_metadata_updates", mock_prepare)
 
   with web_fns.app.test_client() as client:
-    resp = client.post(
-      '/admin/joke-books/update-page',
-      data={
-        'joke_book_id': 'book-1',
-        'joke_id': 'joke-1',
-        'new_book_page_setup_image_url': 'https://cdn/new.png',
-      })
+    resp = client.post('/admin/joke-books/update-page',
+                       data={
+                         'joke_book_id': 'book-1',
+                         'joke_id': 'joke-1',
+                         'new_book_page_setup_image_url':
+                         'https://cdn/new.png',
+                       })
 
   assert resp.status_code == 200
   mock_prepare.assert_called_once_with(existing_meta, 'https://cdn/new.png',
@@ -701,3 +701,223 @@ def test_admin_update_joke_book_page_requires_new_url(monkeypatch):
 
   assert resp.status_code == 400
   assert b"Provide new_book_page_setup_image_url" in resp.data
+
+
+def test_admin_stats_page_loads(monkeypatch):
+  """Test the stats page loads and renders charts with data."""
+  _mock_admin_session(monkeypatch)
+  monkeypatch.setattr(web_fns.auth_helpers.utils, "is_emulator", lambda: True)
+
+  # Mock Firestore query
+  mock_db = Mock()
+  mock_collection = Mock()
+  mock_query = Mock()
+
+  # Setup mock stats docs
+  doc1 = Mock()
+  doc1.id = "20230101"
+  doc1.to_dict.return_value = {
+    "num_1d_users_by_jokes_viewed": {
+      "10": 5,
+      "20": 2
+    },
+    "num_7d_users_by_days_used_by_jokes_viewed": {
+      "5": {
+        "50": 3
+      }
+    }
+  }
+
+  doc2 = Mock()
+  doc2.id = "20230102"
+  doc2.to_dict.return_value = {
+    "num_1d_users_by_jokes_viewed": {
+      "10": 6,
+      "20": 3
+    },
+    "num_7d_users_by_days_used_by_jokes_viewed": {
+      "5": {
+        "50": 4
+      }
+    }
+  }
+
+  # Mock query returning doc2 then doc1 (Desc order)
+  mock_query.limit.return_value.stream.return_value = [doc2, doc1]
+  mock_collection.order_by.return_value = mock_query
+  mock_db.collection.return_value = mock_collection
+
+  monkeypatch.setattr(web_fns.firestore, "db", lambda: mock_db)
+
+  with web_fns.app.test_client() as client:
+    resp = client.get('/admin/stats')
+
+  assert resp.status_code == 200
+  html = resp.get_data(as_text=True)
+
+  # Check for canvas elements
+  assert '<canvas id="dauChart"></canvas>' in html
+  assert '<canvas id="retentionChart"></canvas>' in html
+
+  # Check for data injection (basic check)
+  assert 'dauData' in html
+  assert 'retentionData' in html
+  assert '20230101' in html
+  assert '20230102' in html
+
+  # Verify processing logic for Chart.js
+  # We expect buckets 10-19 and 20-29 for DAU after bucketing
+  assert '"label": "10-19 jokes"' in html
+  assert '"label": "20-29 jokes"' in html
+
+
+def test_bucket_jokes_viewed_ranges():
+  """Ensure bucket ranges match the defined spec."""
+  assert web_fns._bucket_jokes_viewed(0) == "0"
+  assert web_fns._bucket_jokes_viewed(1) == "1-9"
+  assert web_fns._bucket_jokes_viewed(9) == "1-9"
+  assert web_fns._bucket_jokes_viewed(10) == "10-19"
+  assert web_fns._bucket_jokes_viewed(99) == "90-99"
+  assert web_fns._bucket_jokes_viewed(100) == "100-149"
+  assert web_fns._bucket_jokes_viewed(149) == "100-149"
+  assert web_fns._bucket_jokes_viewed(150) == "150-199"
+
+
+def test_rebucket_counts_and_matrix():
+  """Rebucket merges numeric and string buckets into defined ranges."""
+  counts = {"1": 2, "5": 3, "10": 1, "101": 4, "bad": 9}
+  rebucketed = web_fns._rebucket_counts(counts)
+  assert rebucketed == {
+    "1-9": 5,
+    "10-19": 1,
+    "100-149": 4,
+  }
+
+  matrix = {"2": counts}
+  rebucketed_matrix = web_fns._rebucket_matrix(matrix)
+  assert rebucketed_matrix == {"2": rebucketed}
+
+
+def test_admin_stats_rebuckets_and_colors(monkeypatch):
+  """Admin stats view rebuckets raw data and assigns gradient colors."""
+  _mock_admin_session(monkeypatch)
+  monkeypatch.setattr(web_fns.auth_helpers.utils, "is_emulator", lambda: True)
+
+  captured: dict = {}
+
+  def _fake_render(template_name, **context):
+    captured["template"] = template_name
+    captured.update(context)
+    return "OK"
+
+  monkeypatch.setattr(web_fns.flask, "render_template", _fake_render)
+
+  # Mock Firestore query with raw (unbucketed) counts
+  mock_db = Mock()
+  mock_collection = Mock()
+  mock_query = Mock()
+
+  doc1 = Mock()
+  doc1.id = "20230101"
+  doc1.to_dict.return_value = {
+    "num_1d_users_by_jokes_viewed": {
+      "0": 1,
+      "1": 2,
+      "12": 3,
+      "100": 4
+    },
+    "num_7d_users_by_days_used_by_jokes_viewed": {
+      "2": {
+        "1": 1,
+        "12": 2,
+        "150": 3
+      },
+      "9": {
+        "1": 4
+      },
+      "15": {
+        "12": 2
+      },
+    }
+  }
+
+  doc2 = Mock()
+  doc2.id = "20230102"
+  doc2.to_dict.return_value = {
+    "num_1d_users_by_jokes_viewed": {
+      "0": 1,
+      "1": 2,
+      "12": 3,
+      "100": 4
+    },
+    "num_7d_users_by_days_used_by_jokes_viewed": {
+      "2": {
+        "1": 1,
+        "12": 2,
+        "150": 3
+      },
+      "9": {
+        "1": 4
+      },
+      "15": {
+        "12": 2
+      },
+    }
+  }
+
+  mock_query.limit.return_value.stream.return_value = [doc2, doc1]
+  mock_collection.order_by.return_value = mock_query
+  mock_db.collection.return_value = mock_collection
+  monkeypatch.setattr(web_fns.firestore, "db", lambda: mock_db)
+
+  with web_fns.app.test_client() as client:
+    resp = client.get('/admin/stats')
+
+  assert resp.status_code == 200
+  assert captured["template"] == 'admin/stats.html'
+
+  dau_data = captured["dau_data"]
+  assert dau_data["labels"] == ["20230101", "20230102"]
+  dau_labels = [ds["label"] for ds in dau_data["datasets"]]
+  assert dau_labels == [
+    "0 jokes", "1-9 jokes", "10-19 jokes", "100-149 jokes", "150-199 jokes"
+  ]
+  # Order places highest buckets at the bottom of the stack (most negative drawn first)
+  orders = [ds["order"] for ds in dau_data["datasets"]]
+  assert orders == [0, -1, -2, -3, -4]
+  # Buckets aggregated chronologically (doc1 then doc2)
+  assert dau_data["datasets"][0]["data"] == [1, 1]  # 0 bucket
+  assert dau_data["datasets"][1]["data"] == [2, 2]  # 1-9 bucket
+  assert dau_data["datasets"][2]["data"] == [3, 3]  # 10-19 bucket
+  assert dau_data["datasets"][3]["data"] == [4, 4]  # 100-149 bucket
+  assert dau_data["datasets"][4]["data"] == [0, 0]  # 150-199 bucket (not in DAU)
+  # Color map: zero bucket gray, others colored (not gray)
+  assert dau_data["datasets"][0]["backgroundColor"] == "#9e9e9e"
+  non_zero_colors = {
+    ds["backgroundColor"]
+    for ds in dau_data["datasets"][1:]
+  }
+  assert "#9e9e9e" not in non_zero_colors
+
+  retention_data = captured["retention_data"]
+  assert retention_data["labels"] == ["2", "8-14", "15-21"]
+  retention_labels = [ds["label"] for ds in retention_data["datasets"]]
+  assert retention_labels == [
+    "1-9 jokes", "10-19 jokes", "150-199 jokes"
+  ]
+  # Percentages: counts 1,2,3 => totals 6
+  def _dataset(label):
+    return next(d for d in retention_data["datasets"] if d["label"] == label)
+
+  # Day 2: totals = 6 (1,2,3)
+  assert _dataset("1-9 jokes")["data"][0] == pytest.approx(16.6666, rel=1e-3)
+  assert _dataset("10-19 jokes")["data"][0] == pytest.approx(33.3333, rel=1e-3)
+  assert _dataset("150-199 jokes")["data"][0] == pytest.approx(50.0, rel=1e-3)
+  # Day 8-14: totals = 4 (all in 1-9)
+  assert _dataset("1-9 jokes")["data"][1] == pytest.approx(100.0, rel=1e-3)
+  assert _dataset("10-19 jokes")["data"][1] == pytest.approx(0.0, rel=1e-3)
+  assert _dataset("150-199 jokes")["data"][1] == pytest.approx(0.0, rel=1e-3)
+  # Day 15-21: totals = 2 (all in 10-19)
+  assert _dataset("1-9 jokes")["data"][2] == pytest.approx(0.0, rel=1e-3)
+  assert _dataset("10-19 jokes")["data"][2] == pytest.approx(100.0, rel=1e-3)
+  assert _dataset("150-199 jokes")["data"][2] == pytest.approx(0.0, rel=1e-3)

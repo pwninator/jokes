@@ -1,0 +1,87 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Stats · {{ site_name }} Admin{% endblock %}
+
+{% block content %}
+<div class="dashboard-header">
+    <h2>Stats</h2>
+    <a href="{{ url_for('web.admin_dashboard') }}">← Back to Dashboard</a>
+</div>
+
+<section class="stats-charts">
+    <div class="chart-container" style="position: relative; height:400px; width:100%; margin-bottom: 40px;">
+        <h3>Daily Active Users</h3>
+        <canvas id="dauChart"></canvas>
+    </div>
+    
+    <div class="chart-container" style="position: relative; height:400px; width:100%;">
+        <h3>Retention vs Engagement (Last 7 Days)</h3>
+        <canvas id="retentionChart"></canvas>
+    </div>
+</section>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    // Data injected from Python
+    const dauData = {{ dau_data | tojson }};
+    const retentionData = {{ retention_data | tojson }};
+    
+    // --- Chart 1: Daily Active Users (Stacked) ---
+    const ctxDau = document.getElementById('dauChart').getContext('2d');
+    new Chart(ctxDau, {
+        type: 'bar',
+        data: {
+            labels: dauData.labels,
+            datasets: dauData.datasets
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: { stacked: true },
+                y: { stacked: true, beginAtZero: true }
+            },
+            plugins: {
+                tooltip: {
+                    callbacks: {
+                        afterBody: function(context) {
+                            // Calculate total for this day
+                            let sum = 0;
+                            context.forEach((item) => {
+                                sum += item.raw;
+                            });
+                            return 'Total Users: ' + sum;
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    // --- Chart 2: Retention vs Engagement (100% Stacked) ---
+    const ctxRet = document.getElementById('retentionChart').getContext('2d');
+    new Chart(ctxRet, {
+        type: 'bar',
+        data: {
+            labels: retentionData.labels,
+            datasets: retentionData.datasets
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                x: { 
+                    title: { display: true, text: 'Days Used' },
+                    stacked: true 
+                },
+                y: { 
+                    title: { display: true, text: '% of Users' },
+                    stacked: true, 
+                    max: 100,
+                    beginAtZero: true 
+                }
+            }
+        }
+    });
+</script>
+{% endblock %}

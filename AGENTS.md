@@ -92,9 +92,11 @@ test/
 ### 3.1. Making Changes
 
 - Make **correct, verifiable, minimal** changes
-- Tests are **mandatory** for changed behavior
+- Tests are **mandatory** for changed behavior, and you must **add or update tests** to cover the change.
+- **Always run the relevant test suites** (e.g., `flutter test`, `flutter analyze`, `pytest py_quill`) and ensure they **all pass** before delivery.
 - Target **near 100% coverage** for new code
 - Do **NOT** run `flutter run` for verification (use tests)
+- **Continuously check that your solution is the cleanest and simplest way** to achieve the desired behavior; refactor during the change if a simpler correct approach exists.
 
 ### 3.2. Code Style
 

@@ -56,7 +56,7 @@ def joke_creation_process(req: https_fn.Request) -> https_fn.Response:
 
     elif joke and (setup_suggestion or punchline_suggestion):
       # Scenario 2: apply image description suggestions for an existing joke.
-      saved_joke = joke_operations.modify_image_descriptions(
+      saved_joke = joke_operations.modify_image_scene_ideas(
         joke,
         setup_suggestion,
         punchline_suggestion,

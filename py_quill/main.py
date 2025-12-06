@@ -89,3 +89,4 @@ usage = analytics_fns.usage
 
 # Export stats functions
 joke_stats_calculate = stats_fns.joke_stats_calculate
+joke_stats_calculate_http = stats_fns.joke_stats_calculate_http

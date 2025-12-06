@@ -123,19 +123,19 @@ def _generate_scene_ideas(
   return setup_scene_idea, punchline_scene_idea, generation_metadata
 
 
-def modify_image_descriptions(
+def modify_image_scene_ideas(
   joke: models.PunnyJoke,
   setup_suggestion: str,
   punchline_suggestion: str,
 ) -> models.PunnyJoke:
-  """Update a joke's image descriptions using the provided suggestions.
+  """Update a joke's image scene ideas using the provided suggestions.
 
   This is a placeholder implementation that will be fleshed out later.
   """
   _ = (setup_suggestion, punchline_suggestion)
   saved_joke = firestore.upsert_punny_joke(joke)
   if not saved_joke:
-    raise ValueError('Failed to save joke while updating image descriptions')
+    raise ValueError('Failed to save joke while updating image scene ideas')
   return saved_joke
 
 

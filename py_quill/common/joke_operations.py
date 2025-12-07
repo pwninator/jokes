@@ -253,6 +253,9 @@ def generate_joke_images(joke: models.PunnyJoke,
   joke.setup_image_url_upscaled = None
   joke.punchline_image_url_upscaled = None
 
+  if joke.state == models.JokeState.DRAFT:
+    joke.state = models.JokeState.UNREVIEWED
+
   return joke
 
 

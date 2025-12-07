@@ -155,6 +155,26 @@ def test_generate_joke_images_updates_images(mock_image_generation):
   assert updated.punchline_image_url_upscaled is None
 
 
+def test_generate_joke_images_moves_draft_to_unreviewed(mock_image_generation):
+  """generate_joke_images should transition DRAFT jokes to UNREVIEWED."""
+  joke = models.PunnyJoke(
+    key="joke-1",
+    setup_text="Setup",
+    punchline_text="Punch",
+    setup_image_description="setup desc",
+    punchline_image_description="punch desc",
+    state=models.JokeState.DRAFT,
+  )
+  mock_image_generation.generate_pun_images.return_value = [
+    models.Image(url="setup-url"),
+    models.Image(url="punch-url"),
+  ]
+
+  updated = joke_operations.generate_joke_images(joke, "medium")
+
+  assert updated.state == models.JokeState.UNREVIEWED
+
+
 def test_generate_joke_images_generates_descriptions_when_missing(
     mock_scene_prompts, mock_image_generation):
   """generate_joke_images should backfill descriptions before rendering."""

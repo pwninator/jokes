@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_search_providers.dart';
+import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
 
 // Mock classes using mocktail
@@ -89,7 +90,13 @@ void main() {
         () async {
           const setupText = 'Test setup';
           const punchlineText = 'Test punchline';
-          final mockResponseData = {'jokeId': 'created-joke-id'};
+          final mockResponseData = {
+            'joke_data': {
+              'key': 'created-joke-id',
+              'setup_text': setupText,
+              'punchline_text': punchlineText,
+            },
+          };
 
           when(
             () => mockFunctions.httpsCallable(
@@ -108,7 +115,16 @@ void main() {
             adminOwned: true,
           );
 
-          expect(result, equals({'success': true, 'data': mockResponseData}));
+          expect(
+            result,
+            equals(
+              const Joke(
+                id: 'created-joke-id',
+                setupText: setupText,
+                punchlineText: punchlineText,
+              ),
+            ),
+          );
           verify(
             () => mockFunctions.httpsCallable(
               'joke_creation_process',

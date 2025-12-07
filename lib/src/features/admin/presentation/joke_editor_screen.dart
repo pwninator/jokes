@@ -464,11 +464,6 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
               : const Text('Generate Images'),
         ),
         const SizedBox(height: 16),
-        OutlinedButton(
-          key: const Key('saveImageSelectionButton'),
-          onPressed: _hasGeneratedImages ? _saveImageSelection : null,
-          child: const Text('Save Image Selection'),
-        ),
         if (_latestJoke?.allSetupImageUrls.isNotEmpty ?? false) ...[
           const SizedBox(height: 16),
           ImageSelectorCarousel(
@@ -499,6 +494,12 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
             },
           ),
         ],
+        const SizedBox(height: 16),
+        OutlinedButton(
+          key: const Key('saveImageSelectionButton'),
+          onPressed: _hasGeneratedImages ? _saveImageSelection : null,
+          child: const Text('Save Image Selection'),
+        ),
       ],
     );
   }

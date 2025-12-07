@@ -5,6 +5,7 @@ import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/performance_service.dart';
 import 'package:snickerdoodle/src/data/core/app/firebase_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_search_providers.dart';
+import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/domain/joke_search_result.dart';
 
 part 'joke_cloud_function_service.g.dart';
@@ -93,7 +94,7 @@ class JokeCloudFunctionService {
     }
   }
 
-  Future<Map<String, dynamic>?> createJokeWithResponse({
+  Future<Joke> createJokeWithResponse({
     required String setupText,
     required String punchlineText,
     required bool adminOwned,
@@ -111,18 +112,141 @@ class JokeCloudFunctionService {
         },
       );
 
+      final joke = _parseJokeFromResult(result);
       AppLogger.debug('Joke created successfully: ${result.data}');
-      return {'success': true, 'data': result.data};
+      return joke;
     } on FirebaseFunctionsException catch (e) {
       AppLogger.warn('Firebase Functions error: ${e.code} - ${e.message}');
-      return {
-        'success': false,
-        'error': 'Function error: ${e.message}',
-        'code': e.code,
-      };
+      throw Exception('Function error: ${e.message}');
     } catch (e) {
       AppLogger.warn('Error creating joke: $e');
-      return {'success': false, 'error': 'Unexpected error: $e'};
+      throw Exception('Unexpected error: $e');
+    }
+  }
+
+  Future<Joke> modifyJokeSceneIdeas({
+    required String jokeId,
+    String? setupSuggestion,
+    String? punchlineSuggestion,
+    String? setupSceneIdea,
+    String? punchlineSceneIdea,
+  }) async {
+    final trimmedSetup = setupSuggestion?.trim();
+    final trimmedPunchline = punchlineSuggestion?.trim();
+    if ((trimmedSetup == null || trimmedSetup.isEmpty) &&
+        (trimmedPunchline == null || trimmedPunchline.isEmpty)) {
+      throw ArgumentError('At least one suggestion is required');
+    }
+
+    try {
+      final result = await _traceCf(
+        functionName: 'joke_creation_process',
+        action: () async {
+          final callable = _fns.httpsCallable('joke_creation_process');
+          final payload = <String, dynamic>{
+            'joke_id': jokeId,
+            if (trimmedSetup != null && trimmedSetup.isNotEmpty)
+              'setup_suggestion': trimmedSetup,
+            if (trimmedPunchline != null && trimmedPunchline.isNotEmpty)
+              'punchline_suggestion': trimmedPunchline,
+            if (setupSceneIdea != null) 'setup_scene_idea': setupSceneIdea,
+            if (punchlineSceneIdea != null)
+              'punchline_scene_idea': punchlineSceneIdea,
+          };
+          return await callable.call(payload);
+        },
+      );
+
+      final joke = _parseJokeFromResult(result);
+      AppLogger.debug('Scene ideas updated: ${result.data}');
+      return joke;
+    } on FirebaseFunctionsException catch (e) {
+      AppLogger.warn(
+        'Firebase Functions error (modify scene ideas): '
+        '${e.code} - ${e.message}',
+      );
+      throw Exception('Function error: ${e.message}');
+    } catch (e) {
+      AppLogger.warn('Error modifying scene ideas: $e');
+      throw Exception('Unexpected error: $e');
+    }
+  }
+
+  Future<Joke> generateImageDescriptionsViaCreationProcess({
+    required String jokeId,
+    String? setupSceneIdea,
+    String? punchlineSceneIdea,
+  }) async {
+    try {
+      final result = await _traceCf(
+        functionName: 'joke_creation_process',
+        action: () async {
+          final callable = _fns.httpsCallable('joke_creation_process');
+          return await callable.call({
+            'joke_id': jokeId,
+            'generate_descriptions': true,
+            if (setupSceneIdea != null) 'setup_scene_idea': setupSceneIdea,
+            if (punchlineSceneIdea != null)
+              'punchline_scene_idea': punchlineSceneIdea,
+          });
+        },
+      );
+
+      final joke = _parseJokeFromResult(result);
+      AppLogger.debug('Image descriptions generated: ${result.data}');
+      return joke;
+    } on FirebaseFunctionsException catch (e) {
+      AppLogger.warn(
+        'Firebase Functions error (generate image descriptions): '
+        '${e.code} - ${e.message}',
+      );
+      throw Exception('Function error: ${e.message}');
+    } catch (e) {
+      AppLogger.warn('Error generating image descriptions: $e');
+      throw Exception('Unexpected error: $e');
+    }
+  }
+
+  Future<Joke> generateImagesViaCreationProcess({
+    required String jokeId,
+    required String imageQuality,
+    String? setupSceneIdea,
+    String? punchlineSceneIdea,
+  }) async {
+    try {
+      final result = await _traceCf(
+        functionName: 'joke_creation_process',
+        attributes: {'image_quality': imageQuality},
+        action: () async {
+          final callable = _fns.httpsCallable(
+            'joke_creation_process',
+            options: HttpsCallableOptions(
+              timeout: const Duration(minutes: 5),
+            ),
+          );
+          return await callable.call({
+            'joke_id': jokeId,
+            'populate_images': true,
+            'image_quality': imageQuality,
+            if (setupSceneIdea != null) 'setup_scene_idea': setupSceneIdea,
+            if (punchlineSceneIdea != null)
+              'punchline_scene_idea': punchlineSceneIdea,
+          });
+        },
+      );
+
+      final joke = _parseJokeFromResult(result);
+      AppLogger.debug('Images generated via creation process: ${result.data}');
+      return joke;
+    } on FirebaseFunctionsException catch (e) {
+      AppLogger.warn(
+        'Firebase Functions error (generate images via creation process): '
+        '${e.code} - ${e.message}',
+      );
+      throw Exception('Function error: ${e.message}');
+    } catch (e) {
+      AppLogger.warn('Error generating images via creation process: $e');
+      throw Exception('Unexpected error: $e');
     }
   }
 
@@ -209,6 +333,41 @@ class JokeCloudFunctionService {
     } catch (e) {
       AppLogger.warn('Error updating joke: $e');
       return {'success': false, 'error': 'Unexpected error: $e'};
+    }
+  }
+
+  Future<Joke> updateJokeTextViaCreationProcess({
+    required String jokeId,
+    required String setupText,
+    required String punchlineText,
+    required bool regenerateSceneIdeas,
+  }) async {
+    try {
+      final result = await _traceCf(
+        functionName: 'joke_creation_process',
+        action: () async {
+          final callable = _fns.httpsCallable('joke_creation_process');
+          return await callable.call({
+            'joke_id': jokeId,
+            'setup_text': setupText,
+            'punchline_text': punchlineText,
+            'regenerate_scene_ideas': regenerateSceneIdeas,
+          });
+        },
+      );
+
+      final joke = _parseJokeFromResult(result);
+      AppLogger.debug('Joke text updated via creation process: ${result.data}');
+      return joke;
+    } on FirebaseFunctionsException catch (e) {
+      AppLogger.warn(
+        'Firebase Functions error (update joke text): '
+        '${e.code} - ${e.message}',
+      );
+      throw Exception('Function error: ${e.message}');
+    } catch (e) {
+      AppLogger.warn('Error updating joke text via creation process: $e');
+      throw Exception('Unexpected error: $e');
     }
   }
 
@@ -440,5 +599,33 @@ class JokeCloudFunctionService {
       AppLogger.warn('Error creating book: $e');
       return {'success': false, 'error': 'Unexpected error: $e'};
     }
+  }
+
+  Joke _parseJokeFromResult(HttpsCallableResult result) {
+    final jokeData = _extractJokeData(result.data);
+    if (jokeData == null) {
+      AppLogger.warn('Malformed joke response: ${result.data}');
+      throw Exception('Malformed response: missing joke_data');
+    }
+    final jokeId = (jokeData['key'] ?? jokeData['id']) as String?;
+    if (jokeId == null || jokeId.isEmpty) {
+      throw Exception('Malformed response: missing joke id');
+    }
+    return Joke.fromMap(jokeData, jokeId);
+  }
+
+  Map<String, dynamic>? _extractJokeData(dynamic data) {
+    if (data is Map<String, dynamic>) {
+      final nested = data['joke_data'];
+      if (nested is Map<String, dynamic>) {
+        return nested;
+      }
+      final looksLikeJoke = data.containsKey('setup_text') &&
+          data.containsKey('punchline_text');
+      if (looksLikeJoke) {
+        return data;
+      }
+    }
+    return null;
   }
 }

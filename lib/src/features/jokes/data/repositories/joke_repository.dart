@@ -573,6 +573,8 @@ class JokeRepository {
     String? punchlineImageUrl,
     String? setupImageDescription,
     String? punchlineImageDescription,
+    String? setupSceneIdea,
+    String? punchlineSceneIdea,
   }) async {
     final updateData = <String, dynamic>{
       'setup_text': setupText,
@@ -590,6 +592,12 @@ class JokeRepository {
     }
     if (punchlineImageDescription != null) {
       updateData['punchline_image_description'] = punchlineImageDescription;
+    }
+    if (setupSceneIdea != null) {
+      updateData['setup_scene_idea'] = setupSceneIdea;
+    }
+    if (punchlineSceneIdea != null) {
+      updateData['punchline_scene_idea'] = punchlineSceneIdea;
     }
 
     await _traceFs(

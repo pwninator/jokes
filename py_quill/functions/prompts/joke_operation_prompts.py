@@ -1,5 +1,7 @@
 """Functions for generating joke scene descriptions."""
 
+from __future__ import annotations
+
 import re
 from typing import Any, Tuple
 
@@ -105,6 +107,58 @@ One or more lines describing the punchline scene concept, or "UNSAFE" if the inp
   ],
 )
 # pylint: enable-line-too-long
+
+_scene_editor_llm = llm_client.get_client(
+  label="Joke Scene Idea Editor",
+  model=LlmModel.GEMINI_2_5_FLASH,
+  thinking_tokens=1200,
+  output_tokens=800,
+  temperature=0.7,
+  system_instructions=[
+    """You help refine existing setup/punchline scene ideas for two-panel kids jokes.
+Take the latest setup and punchline text, the current scene ideas, and short user instructions.
+Rewrite each scene idea in simple language for kids (ages 4-10), keeping it wholesome and specific.
+
+Guidelines:
+- Incorporate the user instructions literally, but keep content safe for kids.
+- Preserve the core joke logic and avoid spoilers between panels.
+- Keep each idea to 2-3 sentences.
+- If no instruction is provided for a panel, return the original idea unchanged.
+- Never mention the instructions themselves.
+
+Respond EXACTLY in this format:
+SETUP_SCENE_IDEA:
+<updated setup idea>
+
+PUNCHLINE_SCENE_IDEA:
+<updated punchline idea>"""
+  ],
+)
+
+_image_description_llm = llm_client.get_client(
+  label="Joke Image Description Generator",
+  model=LlmModel.GEMINI_2_5_FLASH,
+  thinking_tokens=2500,
+  output_tokens=1200,
+  temperature=0.5,
+  system_instructions=[
+    """You convert concise scene ideas for two-panel kids jokes into richly detailed illustration descriptions suitable for modern text-to-image models.
+
+For each panel:
+- Describe the full composition, camera angle, main characters, props, background, lighting, palette, and mood.
+- Use lively but clear language a production artist can follow.
+- Keep it wholesome, colorful, and funny. Avoid violence, adult content, or sarcasm.
+- Mention the pun text briefly so lettering can be included tastefully.
+- Limit each description to 3-4 sentences.
+
+Respond EXACTLY in this format:
+SETUP_IMAGE_DESCRIPTION:
+<detailed description>
+
+PUNCHLINE_IMAGE_DESCRIPTION:
+<detailed description>"""
+  ],
+)
 
 _safety_llm = llm_client.get_client(
   label="Content Safety Check",
@@ -212,3 +266,96 @@ Content to review:
   is_safe = _is_verdict_safe(verdict_text)
   metadata = response.metadata or models.SingleGenerationMetadata()
   return is_safe, metadata
+
+
+def modify_scene_ideas_with_suggestions(
+  *,
+  setup_text: str,
+  punchline_text: str,
+  current_setup_scene_idea: str,
+  current_punchline_scene_idea: str,
+  setup_suggestion: str | None,
+  punchline_suggestion: str | None,
+) -> Tuple[str, str, models.SingleGenerationMetadata]:
+  """Apply user suggestions to refine existing scene ideas."""
+  if not setup_text or not punchline_text:
+    raise ValueError("Setup and punchline text are required")
+  if not current_setup_scene_idea or not current_punchline_scene_idea:
+    raise ValueError("Current scene ideas are required")
+  if not (setup_suggestion or punchline_suggestion):
+    raise ValueError("At least one suggestion must be provided")
+
+  setup_instructions = (setup_suggestion or "").strip()
+  punchline_instructions = (punchline_suggestion or "").strip()
+
+  prompt_parts = [
+    f"""
+Joke:
+Setup: {setup_text}
+Punchline: {punchline_text}
+
+Current Setup Scene Idea:
+{current_setup_scene_idea}
+
+Current Punchline Scene Idea:
+{current_punchline_scene_idea}
+
+Setup Instructions:
+{setup_instructions or "keep as-is"}
+
+Punchline Instructions:
+{punchline_instructions or "keep as-is"}
+
+Update the scene ideas following the exact response format.
+"""
+  ]
+
+  response = _scene_editor_llm.generate(prompt_parts)
+  parsed = prompt_utils.parse_llm_response_line_separated(
+    ["SETUP_SCENE_IDEA", "PUNCHLINE_SCENE_IDEA"],
+    response.text,
+  )
+  return (
+    parsed["SETUP_SCENE_IDEA"],
+    parsed["PUNCHLINE_SCENE_IDEA"],
+    response.metadata,
+  )
+
+
+def generate_detailed_image_descriptions(
+  *,
+  setup_text: str,
+  punchline_text: str,
+  setup_scene_idea: str,
+  punchline_scene_idea: str,
+) -> Tuple[str, str, models.SingleGenerationMetadata]:
+  """Convert scene ideas into image descriptions for illustration generation."""
+  if not setup_text or not punchline_text:
+    raise ValueError("Setup and punchline text are required")
+  if not setup_scene_idea or not punchline_scene_idea:
+    raise ValueError("Scene ideas are required")
+
+  prompt_parts = [
+    f"""
+Joke Text:
+Setup: {setup_text}
+Punchline: {punchline_text}
+
+Scene Ideas:
+Setup Scene: {setup_scene_idea}
+Punchline Scene: {punchline_scene_idea}
+
+Create richly detailed illustration descriptions using the required format.
+"""
+  ]
+
+  response = _image_description_llm.generate(prompt_parts)
+  parsed = prompt_utils.parse_llm_response_line_separated(
+    ["SETUP_IMAGE_DESCRIPTION", "PUNCHLINE_IMAGE_DESCRIPTION"],
+    response.text,
+  )
+  return (
+    parsed["SETUP_IMAGE_DESCRIPTION"],
+    parsed["PUNCHLINE_IMAGE_DESCRIPTION"],
+    response.metadata,
+  )

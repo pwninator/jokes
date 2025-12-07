@@ -130,7 +130,7 @@ class _CachedJokeImageState extends ConsumerState<CachedJokeImage> {
             effectiveWidth: effectiveWidth,
           );
         }
-        
+
         final fallbackAssetPath = assetPath;
 
         // Use ImageService for URL processing

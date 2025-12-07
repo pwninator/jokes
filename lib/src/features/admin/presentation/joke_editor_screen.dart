@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:snickerdoodle/src/common_widgets/app_bar_configured_screen.dart';
 import 'package:snickerdoodle/src/common_widgets/image_selector_carousel.dart';
 import 'package:snickerdoodle/src/config/router/router_providers.dart';
+import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
@@ -20,26 +21,54 @@ class JokeEditorScreen extends ConsumerStatefulWidget {
   ConsumerState<JokeEditorScreen> createState() => _JokeEditorScreenState();
 }
 
+enum _EditorStage { textEntry, sceneIdeas, imageGeneration }
+
 class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
   final _formKey = GlobalKey<FormState>();
   final _setupController = TextEditingController();
   final _punchlineController = TextEditingController();
-  final _setupImageDescriptionController = TextEditingController();
-  final _punchlineImageDescriptionController = TextEditingController();
   final _setupSceneIdeaController = TextEditingController();
   final _punchlineSceneIdeaController = TextEditingController();
-  bool _isLoading = false;
+  final _setupSceneSuggestionController = TextEditingController();
+  final _punchlineSceneSuggestionController = TextEditingController();
+  final _setupImageDescriptionController = TextEditingController();
+  final _punchlineImageDescriptionController = TextEditingController();
 
-  // Track selected images for carousels
+  bool _isStage1Submitting = false;
+  bool _isSetupSuggestionLoading = false;
+  bool _isPunchlineSuggestionLoading = false;
+  bool _isGenerateDescriptionsLoading = false;
+  bool _isGenerateImagesLoading = false;
+
+  bool _stage1Expanded = true;
+  bool _stage2Expanded = false;
+  bool _stage3Expanded = false;
+  bool _autoOpenedStage2 = false;
+  bool _autoOpenedStage3 = false;
+
+  String? _currentJokeId;
+  Joke? _latestJoke;
   String? _selectedSetupImageUrl;
   String? _selectedPunchlineImageUrl;
+  String _imageQuality = 'low';
+  bool _regenerateSceneIdeas = false;
 
-  bool get _isEditMode => widget.jokeId != null;
+  String? get _resolvedJokeId => _currentJokeId ?? widget.jokeId;
+  bool get _hasExistingJoke => _resolvedJokeId != null;
+  bool get _hasSceneIdeas =>
+      (_latestJoke?.setupSceneIdea?.isNotEmpty ?? false) &&
+      (_latestJoke?.punchlineSceneIdea?.isNotEmpty ?? false);
+  bool get _hasImageDescriptions =>
+      (_latestJoke?.setupImageDescription?.isNotEmpty ?? false) &&
+      (_latestJoke?.punchlineImageDescription?.isNotEmpty ?? false);
+  bool get _hasGeneratedImages =>
+      (_latestJoke?.allSetupImageUrls.isNotEmpty ?? false) ||
+      (_latestJoke?.allPunchlineImageUrls.isNotEmpty ?? false);
 
   @override
   void initState() {
     super.initState();
-    // Enable keyboard resizing for this screen
+    _currentJokeId = widget.jokeId;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(keyboardResizeProvider.notifier).state = true;
     });
@@ -49,448 +78,747 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
   void dispose() {
     _setupController.dispose();
     _punchlineController.dispose();
-    _setupImageDescriptionController.dispose();
-    _punchlineImageDescriptionController.dispose();
     _setupSceneIdeaController.dispose();
     _punchlineSceneIdeaController.dispose();
+    _setupSceneSuggestionController.dispose();
+    _punchlineSceneSuggestionController.dispose();
+    _setupImageDescriptionController.dispose();
+    _punchlineImageDescriptionController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    // Handle different ways of getting the joke
-    if (widget.jokeId != null) {
-      // Joke ID provided - fetch joke from provider
-      final jokeAsync = ref.watch(jokeStreamByIdProvider(widget.jokeId!));
-
+    final jokeId = _resolvedJokeId;
+    if (jokeId != null) {
+      final jokeAsync = ref.watch(jokeStreamByIdProvider(jokeId));
       return jokeAsync.when(
         data: (joke) {
           if (joke == null) {
-            return AppBarConfiguredScreen(
-              title: 'Edit Joke',
-              body: const Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.error_outline, size: 64),
-                    SizedBox(height: 16),
-                    Text('Joke not found'),
-                  ],
-                ),
-              ),
-            );
+            return _buildNotFoundScreen();
           }
-          return _buildEditorContent(joke);
+          _handleJokeLoaded(joke);
+          return _buildScreen();
         },
-        loading: () => AppBarConfiguredScreen(
-          title: 'Edit Joke',
-          body: const Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                CircularProgressIndicator(),
-                SizedBox(height: 16),
-                Text('Loading joke...'),
-              ],
-            ),
-          ),
-        ),
-        error: (error, stackTrace) => AppBarConfiguredScreen(
-          title: 'Edit Joke',
-          body: Center(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(Icons.error_outline, size: 64),
-                const SizedBox(height: 16),
-                Text('Error loading joke: $error'),
-              ],
-            ),
-          ),
-        ),
+        loading: _buildLoadingScreen,
+        error: (error, _) => _buildErrorScreen(error),
       );
-    } else {
-      // Creating new joke
-      return _buildEditorContent(null);
     }
+    return _buildScreen();
   }
 
-  Widget _buildEditorContent(Joke? joke) {
-    final isEditMode = joke != null;
-
-    // Initialize form fields if this is the first time loading a joke via ID
-    if (joke != null &&
-        widget.jokeId != null &&
-        _setupController.text.isEmpty) {
-      _setupController.text = joke.setupText;
-      _punchlineController.text = joke.punchlineText;
-      _setupImageDescriptionController.text = joke.setupImageDescription ?? '';
-      _punchlineImageDescriptionController.text =
-          joke.punchlineImageDescription ?? '';
-      _setupSceneIdeaController.text = joke.setupSceneIdea ?? '';
-      _punchlineSceneIdeaController.text = joke.punchlineSceneIdea ?? '';
-
-      // Set initial selected images
-      _selectedSetupImageUrl = joke.setupImageUrl;
-      _selectedPunchlineImageUrl = joke.punchlineImageUrl;
-    }
-
+  AppBarConfiguredScreen _buildNotFoundScreen() {
     return AppBarConfiguredScreen(
-      title: isEditMode ? 'Edit Joke' : 'Add New Joke',
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
-          child: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  isEditMode
-                      ? 'Edit the joke setup and punchline below:'
-                      : 'Create a new joke by filling out the setup and punchline below:',
-                  style: const TextStyle(fontSize: 16),
-                ),
-                const SizedBox(height: 24),
+      title: 'Edit Joke',
+      body: const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.error_outline, size: 64),
+            SizedBox(height: 16),
+            Text('Joke not found'),
+          ],
+        ),
+      ),
+    );
+  }
 
-                // Setup Text Field
-                TextFormField(
-                  key: const Key('setupTextField'),
-                  controller: _setupController,
-                  decoration: const InputDecoration(
-                    labelText: 'Setup',
-                    hintText: 'Enter the joke setup...',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.question_mark),
-                  ),
-                  maxLines: 3,
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Please enter a setup for the joke';
-                    }
-                    return null;
-                  },
-                ),
+  AppBarConfiguredScreen _buildLoadingScreen() {
+    return AppBarConfiguredScreen(
+      title: 'Edit Joke',
+      body: const Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text('Loading joke...'),
+          ],
+        ),
+      ),
+    );
+  }
 
-                const SizedBox(height: 16),
+  AppBarConfiguredScreen _buildErrorScreen(Object error) {
+    return AppBarConfiguredScreen(
+      title: 'Edit Joke',
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Icon(Icons.error_outline, size: 64),
+            const SizedBox(height: 16),
+            Text('Error loading joke: $error'),
+          ],
+        ),
+      ),
+    );
+  }
 
-                // Punchline Text Field
-                TextFormField(
-                  key: const Key('punchlineTextField'),
-                  controller: _punchlineController,
-                  decoration: const InputDecoration(
-                    labelText: 'Punchline',
-                    hintText: 'Enter the punchline...',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.mood),
-                  ),
-                  maxLines: 3,
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Please enter a punchline for the joke';
-                    }
-                    if (value.trim().isEmpty) {
-                      return 'Punchline cannot be empty';
-                    }
-                    return null;
-                  },
-                ),
-
-                // Image Description Fields (only show in edit mode)
-                if (isEditMode) ...[
-                  const SizedBox(height: 24),
-                  const Divider(),
-                  const SizedBox(height: 16),
-
-                  Text(
-                    'Image Descriptions',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-
-                  // Setup Scene Idea (Read-only)
-                  if (_setupSceneIdeaController.text.isNotEmpty) ...[
-                    TextFormField(
-                      key: const Key('setupSceneIdeaTextField'),
-                      controller: _setupSceneIdeaController,
-                      decoration: const InputDecoration(
-                        labelText: 'Setup Scene Idea (AI Generated)',
-                        border: OutlineInputBorder(),
-                        alignLabelWithHint: true,
-                        filled: true,
-                      ),
-                      readOnly: true,
-                      maxLines: 3,
-                    ),
-                    const SizedBox(height: 16),
-                  ],
-
-                  // Setup Image Carousel (if available)
-                  if (joke.allSetupImageUrls.isNotEmpty) ...[
-                    ImageSelectorCarousel(
-                      imageUrls: joke.allSetupImageUrls,
-                      selectedImageUrl: _selectedSetupImageUrl,
-                      title: 'Setup Images',
-                      onImageSelected: (imageUrl) {
-                        // Only update state if the selection actually changed
-                        if (_selectedSetupImageUrl != imageUrl) {
-                          setState(() {
-                            _selectedSetupImageUrl = imageUrl;
-                          });
-                        }
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                  ],
-
-                  // Setup Image Description Field
-                  TextFormField(
-                    key: const Key('setupImageDescriptionTextField'),
-                    controller: _setupImageDescriptionController,
-                    decoration: const InputDecoration(
-                      labelText: 'Setup Image Description',
-                      hintText: 'Describe the setup image...',
-                      border: OutlineInputBorder(),
-                      alignLabelWithHint: true,
-                    ),
-                    maxLines: 10,
-                    validator: (value) {
-                      // Allow empty descriptions; validate length only if not empty
-                      if (value != null &&
-                          value.trim().isNotEmpty &&
-                          value.trim().length < 10) {
-                        return 'Description must be at least 10 characters long';
-                      }
-                      return null;
-                    },
-                  ),
-
-                  const SizedBox(height: 16),
-
-                  // Punchline Scene Idea (Read-only)
-                  if (_punchlineSceneIdeaController.text.isNotEmpty) ...[
-                    TextFormField(
-                      key: const Key('punchlineSceneIdeaTextField'),
-                      controller: _punchlineSceneIdeaController,
-                      decoration: const InputDecoration(
-                        labelText: 'Punchline Scene Idea (AI Generated)',
-                        border: OutlineInputBorder(),
-                        alignLabelWithHint: true,
-                        filled: true,
-                      ),
-                      readOnly: true,
-                      maxLines: 3,
-                    ),
-                    const SizedBox(height: 16),
-                  ],
-
-                  // Punchline Image Carousel (if available)
-                  if (joke.allPunchlineImageUrls.isNotEmpty) ...[
-                    ImageSelectorCarousel(
-                      imageUrls: joke.allPunchlineImageUrls,
-                      selectedImageUrl: _selectedPunchlineImageUrl,
-                      title: 'Punchline Images',
-                      onImageSelected: (imageUrl) {
-                        // Only update state if the selection actually changed
-                        if (_selectedPunchlineImageUrl != imageUrl) {
-                          setState(() {
-                            _selectedPunchlineImageUrl = imageUrl;
-                          });
-                        }
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                  ],
-
-                  // Punchline Image Description Field
-                  TextFormField(
-                    key: const Key('punchlineImageDescriptionTextField'),
-                    controller: _punchlineImageDescriptionController,
-                    decoration: const InputDecoration(
-                      labelText: 'Punchline Image Description',
-                      hintText: 'Describe the punchline image...',
-                      border: OutlineInputBorder(),
-                      alignLabelWithHint: true,
-                    ),
-                    maxLines: 10,
-                    validator: (value) {
-                      // Allow empty descriptions; validate length only if not empty
-                      if (value != null &&
-                          value.trim().isNotEmpty &&
-                          value.trim().length < 10) {
-                        return 'Description must be at least 10 characters long';
-                      }
-                      return null;
-                    },
-                  ),
-                ],
-
-                const SizedBox(height: 24),
-
-                // Save Button
-                ElevatedButton(
-                  key: Key(_isEditMode ? 'updateJokeButton' : 'saveJokeButton'),
-                  onPressed: _isLoading ? null : _saveJoke,
-                  child: _isLoading
-                      ? const SizedBox(
-                          height: 20,
-                          width: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : Text(
-                          _isEditMode ? 'Update Joke' : 'Save Joke',
-                          style: const TextStyle(fontSize: 16),
-                        ),
-                ),
-              ],
-            ),
+  AppBarConfiguredScreen _buildScreen() {
+    final title = _hasExistingJoke ? 'Edit Joke' : 'Add New Joke';
+    return AppBarConfiguredScreen(
+      title: title,
+      body: Form(
+        key: _formKey,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            children: [
+              _buildStageCard(
+                stage: _EditorStage.textEntry,
+                stepNumber: 1,
+                title: 'Enter setup & punchline',
+                enabled: true,
+                isComplete: _hasExistingJoke,
+                isExpanded: _stage1Expanded,
+                child: _buildStageOneContent(),
+              ),
+              _buildStageCard(
+                stage: _EditorStage.sceneIdeas,
+                stepNumber: 2,
+                title: 'Refine scene ideas',
+                enabled: _hasExistingJoke,
+                isComplete: _hasImageDescriptions,
+                isExpanded: _stage2Expanded,
+                child: _buildStageTwoContent(),
+              ),
+              _buildStageCard(
+                stage: _EditorStage.imageGeneration,
+                stepNumber: 3,
+                title: 'Generate images',
+                enabled: _hasImageDescriptions,
+                isComplete: _hasGeneratedImages,
+                isExpanded: _stage3Expanded,
+                child: _buildStageThreeContent(),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 
-  Future<void> _saveJoke() async {
+  Widget _buildStageCard({
+    required _EditorStage stage,
+    required int stepNumber,
+    required String title,
+    required bool enabled,
+    required bool isComplete,
+    required bool isExpanded,
+    required Widget child,
+  }) {
+    final header = ListTile(
+      onTap: enabled ? () => _toggleStage(stage) : null,
+      title: Text('Step $stepNumber: $title'),
+      trailing: Icon(
+        isComplete
+            ? Icons.check_circle
+            : (isExpanded ? Icons.expand_less : Icons.expand_more),
+      ),
+    );
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 16),
+      child: Opacity(
+        opacity: enabled ? 1 : 0.5,
+        child: Column(
+          children: [
+            header,
+            if (enabled && isExpanded) const Divider(height: 1),
+            if (enabled && isExpanded)
+              Padding(padding: const EdgeInsets.all(16), child: child),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStageOneContent() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        TextFormField(
+          key: const Key('setupTextField'),
+          controller: _setupController,
+          decoration: const InputDecoration(
+            labelText: 'Setup',
+            hintText: 'Enter the joke setup...',
+            border: OutlineInputBorder(),
+            prefixIcon: Icon(Icons.question_mark),
+          ),
+          maxLines: 3,
+          validator: (value) {
+            if (value == null || value.trim().isEmpty) {
+              return 'Please enter a setup for the joke';
+            }
+            return null;
+          },
+        ),
+        const SizedBox(height: 16),
+        TextFormField(
+          key: const Key('punchlineTextField'),
+          controller: _punchlineController,
+          decoration: const InputDecoration(
+            labelText: 'Punchline',
+            hintText: 'Enter the punchline...',
+            border: OutlineInputBorder(),
+            prefixIcon: Icon(Icons.mood),
+          ),
+          maxLines: 3,
+          validator: (value) {
+            if (value == null || value.trim().isEmpty) {
+              return 'Please enter a punchline for the joke';
+            }
+            return null;
+          },
+        ),
+        if (_hasExistingJoke) ...[
+          const SizedBox(height: 12),
+          CheckboxListTile(
+            key: const Key('regenerateSceneIdeasCheckbox'),
+            value: _regenerateSceneIdeas,
+            onChanged: _isStage1Submitting
+                ? null
+                : (value) {
+                    setState(() {
+                      _regenerateSceneIdeas = value ?? false;
+                    });
+                  },
+            contentPadding: EdgeInsets.zero,
+            controlAffinity: ListTileControlAffinity.leading,
+            title: const Text('Regenerate scene ideas after updating text'),
+          ),
+        ],
+        const SizedBox(height: 16),
+        ElevatedButton(
+          key: Key(_hasExistingJoke ? 'updateJokeButton' : 'saveJokeButton'),
+          onPressed: _isStage1Submitting ? null : _submitStageOne,
+          child: _isStage1Submitting
+              ? const SizedBox(
+                  height: 20,
+                  width: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : Text(_hasExistingJoke ? 'Update Joke Text' : 'Create Joke'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStageTwoContent() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        TextFormField(
+          key: const Key('setupSceneIdeaTextField'),
+          controller: _setupSceneIdeaController,
+          maxLines: 6,
+          decoration: const InputDecoration(
+            labelText: 'Setup Scene Idea',
+            hintText: 'Describe the concept for the setup illustration',
+            border: OutlineInputBorder(),
+            alignLabelWithHint: true,
+          ),
+        ),
+        const SizedBox(height: 8),
+        _buildSuggestionRow(
+          controller: _setupSceneSuggestionController,
+          isLoading: _isSetupSuggestionLoading,
+          buttonKey: const Key('setupSceneSuggestionButton'),
+          textFieldKey: const Key('setupSceneSuggestionTextField'),
+          onPressed: () => _requestSceneModification(isSetup: true),
+        ),
+        const SizedBox(height: 16),
+        TextFormField(
+          key: const Key('punchlineSceneIdeaTextField'),
+          controller: _punchlineSceneIdeaController,
+          maxLines: 6,
+          decoration: const InputDecoration(
+            labelText: 'Punchline Scene Idea',
+            hintText: 'Describe the concept for the punchline illustration',
+            border: OutlineInputBorder(),
+            alignLabelWithHint: true,
+          ),
+        ),
+        const SizedBox(height: 8),
+        _buildSuggestionRow(
+          controller: _punchlineSceneSuggestionController,
+          isLoading: _isPunchlineSuggestionLoading,
+          buttonKey: const Key('punchlineSceneSuggestionButton'),
+          textFieldKey: const Key('punchlineSceneSuggestionTextField'),
+          onPressed: () => _requestSceneModification(isSetup: false),
+        ),
+        const SizedBox(height: 16),
+        FilledButton(
+          key: const Key('generateImageDescriptionsButton'),
+          onPressed: _isGenerateDescriptionsLoading
+              ? null
+              : _handleGenerateDescriptions,
+          child: _isGenerateDescriptionsLoading
+              ? const SizedBox(
+                  height: 20,
+                  width: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('Generate Image Descriptions'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSuggestionRow({
+    required TextEditingController controller,
+    required bool isLoading,
+    required Key buttonKey,
+    required Key textFieldKey,
+    required VoidCallback onPressed,
+  }) {
+    return Row(
+      children: [
+        Expanded(
+          child: TextField(
+            key: textFieldKey,
+            controller: controller,
+            decoration: const InputDecoration(
+              labelText: 'Suggestion',
+              hintText: 'e.g. “Make it sillier”',
+              border: OutlineInputBorder(),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        IconButton(
+          key: buttonKey,
+          onPressed: isLoading ? null : onPressed,
+          icon: isLoading
+              ? const SizedBox(
+                  height: 20,
+                  width: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.auto_awesome),
+          tooltip: 'Ask AI to update scene idea',
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStageThreeContent() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        TextFormField(
+          key: const Key('setupImageDescriptionTextField'),
+          controller: _setupImageDescriptionController,
+          maxLines: 6,
+          decoration: const InputDecoration(
+            labelText: 'Setup Image Description',
+            border: OutlineInputBorder(),
+            alignLabelWithHint: true,
+          ),
+        ),
+        const SizedBox(height: 16),
+        TextFormField(
+          key: const Key('punchlineImageDescriptionTextField'),
+          controller: _punchlineImageDescriptionController,
+          maxLines: 6,
+          decoration: const InputDecoration(
+            labelText: 'Punchline Image Description',
+            border: OutlineInputBorder(),
+            alignLabelWithHint: true,
+          ),
+        ),
+        const SizedBox(height: 16),
+        DropdownButtonFormField<String>(
+          initialValue: _imageQuality,
+          decoration: const InputDecoration(
+            labelText: 'Image Quality',
+            border: OutlineInputBorder(),
+          ),
+          items: const [
+            DropdownMenuItem(value: 'low', child: Text('Low (fast)')),
+            DropdownMenuItem(value: 'medium', child: Text('Medium')),
+            DropdownMenuItem(value: 'high', child: Text('High (slow)')),
+          ],
+          onChanged: (val) {
+            if (val != null) {
+              setState(() {
+                _imageQuality = val;
+              });
+            }
+          },
+        ),
+        const SizedBox(height: 16),
+        FilledButton(
+          key: const Key('generateImagesButton'),
+          onPressed: _isGenerateImagesLoading
+              ? null
+              : _generateImagesWithCreationProcess,
+          child: _isGenerateImagesLoading
+              ? const SizedBox(
+                  height: 20,
+                  width: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('Generate Images'),
+        ),
+        const SizedBox(height: 16),
+        OutlinedButton(
+          key: const Key('saveImageSelectionButton'),
+          onPressed: _hasGeneratedImages ? _saveImageSelection : null,
+          child: const Text('Save Image Selection'),
+        ),
+        if (_latestJoke?.allSetupImageUrls.isNotEmpty ?? false) ...[
+          const SizedBox(height: 16),
+          ImageSelectorCarousel(
+            imageUrls: _latestJoke!.allSetupImageUrls,
+            selectedImageUrl: _selectedSetupImageUrl,
+            title: 'Setup Images',
+            onImageSelected: (value) {
+              if (value != _selectedSetupImageUrl) {
+                setState(() {
+                  _selectedSetupImageUrl = value;
+                });
+              }
+            },
+          ),
+        ],
+        if (_latestJoke?.allPunchlineImageUrls.isNotEmpty ?? false) ...[
+          const SizedBox(height: 16),
+          ImageSelectorCarousel(
+            imageUrls: _latestJoke!.allPunchlineImageUrls,
+            selectedImageUrl: _selectedPunchlineImageUrl,
+            title: 'Punchline Images',
+            onImageSelected: (value) {
+              if (value != _selectedPunchlineImageUrl) {
+                setState(() {
+                  _selectedPunchlineImageUrl = value;
+                });
+              }
+            },
+          ),
+        ],
+      ],
+    );
+  }
+
+  void _toggleStage(_EditorStage stage) {
+    setState(() {
+      switch (stage) {
+        case _EditorStage.textEntry:
+          _stage1Expanded = !_stage1Expanded;
+          break;
+        case _EditorStage.sceneIdeas:
+          if (_hasExistingJoke) {
+            _stage2Expanded = !_stage2Expanded;
+          }
+          break;
+        case _EditorStage.imageGeneration:
+          if (_hasImageDescriptions) {
+            _stage3Expanded = !_stage3Expanded;
+          }
+          break;
+      }
+    });
+  }
+
+  Future<void> _submitStageOne() async {
     if (!_formKey.currentState!.validate()) {
       return;
     }
 
     setState(() {
-      _isLoading = true;
+      _isStage1Submitting = true;
     });
 
-    try {
-      final setup = _setupController.text.trim();
-      final punchline = _punchlineController.text.trim();
+    final setup = _setupController.text.trim();
+    final punchline = _punchlineController.text.trim();
 
-      if (_isEditMode) {
-        // Update existing joke
-        final setupImageDescription = _setupImageDescriptionController.text
-            .trim();
-        final punchlineImageDescription = _punchlineImageDescriptionController
-            .text
-            .trim();
-        await _updateJoke(
-          setup,
-          punchline,
-          setupImageDescription,
-          punchlineImageDescription,
-        );
+    try {
+      if (_hasExistingJoke) {
+        await _updateExistingJokeTextsViaCf(setup, punchline);
       } else {
-        // Create new joke
-        await _createJoke(setup, punchline);
+        await _createJokeInCloud(setup, punchline);
       }
-    } catch (e) {
-      // Keep admin screen silent on errors; analytics handles error logging elsewhere
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error saving joke: $e'),
-            backgroundColor: Theme.of(context).appColors.authError,
-            duration: const Duration(seconds: 5),
-          ),
-        );
-      }
+    } catch (e, st) {
+      _showSnack('Error saving joke', exception: e, stackTrace: st);
     } finally {
       if (mounted) {
         setState(() {
-          _isLoading = false;
+          _isStage1Submitting = false;
         });
       }
     }
   }
 
-  Future<void> _createJoke(String setup, String punchline) async {
-    // Call the Firebase Cloud Function using the service
+  Future<void> _createJokeInCloud(String setup, String punchline) async {
     final jokeService = ref.read(jokeCloudFunctionServiceProvider);
-    final result = await jokeService.createJokeWithResponse(
+    final joke = await jokeService.createJokeWithResponse(
       setupText: setup,
       punchlineText: punchline,
       adminOwned: true,
     );
+    setState(() {
+      _applyJoke(joke);
+      _stage1Expanded = false;
+      _stage2Expanded = true;
+    });
+    _showSnack('Joke created. Scene ideas ready for refinement.');
+  }
 
-    if (mounted) {
-      if (result != null && result['success'] == true) {
-        // Success - show message, clear form, stay on page
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Text('Joke saved successfully!'),
-            backgroundColor: Theme.of(context).appColors.success,
-            duration: const Duration(seconds: 5),
-            action: SnackBarAction(
-              label: 'OK',
-              textColor: Colors.white,
-              onPressed: () {
-                ScaffoldMessenger.of(context).hideCurrentSnackBar();
-              },
-            ),
-          ),
-        );
+  Future<void> _updateExistingJokeTextsViaCf(
+    String setup,
+    String punchline,
+  ) async {
+    final jokeId = _resolvedJokeId;
+    if (jokeId == null) return;
+    final jokeService = ref.read(jokeCloudFunctionServiceProvider);
+    final joke = await jokeService.updateJokeTextViaCreationProcess(
+      jokeId: jokeId,
+      setupText: setup,
+      punchlineText: punchline,
+      regenerateSceneIdeas: _regenerateSceneIdeas,
+    );
+    _applyJoke(joke);
+    if (_regenerateSceneIdeas) {
+      setState(() {
+        _stage1Expanded = false;
+        _stage2Expanded = true;
+        _stage3Expanded = false;
+      });
+      _showSnack('Joke updated and scene ideas regenerated');
+    } else {
+      _showSnack('Joke updated');
+    }
+  }
 
-        // Clear the form for next joke
-        _setupController.clear();
-        _punchlineController.clear();
+  Future<void> _requestSceneModification({required bool isSetup}) async {
+    final jokeId = _resolvedJokeId;
+    if (jokeId == null) {
+      _showSnack('Create the joke first');
+      return;
+    }
+    final suggestion = isSetup
+        ? _setupSceneSuggestionController.text.trim()
+        : _punchlineSceneSuggestionController.text.trim();
+    if (suggestion.isEmpty) {
+      _showSnack('Enter a suggestion first');
+      return;
+    }
 
-        // Reset form validation state after clearing controllers
-        if (mounted) {
-          setState(() {
-            // Force UI update after clearing
-          });
-        }
+    setState(() {
+      if (isSetup) {
+        _isSetupSuggestionLoading = true;
       } else {
-        // Error
-        final errorMessage = result?['error'] ?? 'Failed to save joke';
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: $errorMessage'),
-            backgroundColor: Theme.of(context).appColors.authError,
-            duration: const Duration(seconds: 5),
-          ),
-        );
+        _isPunchlineSuggestionLoading = true;
+      }
+    });
+
+    try {
+      final service = ref.read(jokeCloudFunctionServiceProvider);
+      final joke = await service.modifyJokeSceneIdeas(
+        jokeId: jokeId,
+        setupSuggestion: isSetup ? suggestion : null,
+        punchlineSuggestion: isSetup ? null : suggestion,
+        setupSceneIdea: _setupSceneIdeaController.text.trim(),
+        punchlineSceneIdea: _punchlineSceneIdeaController.text.trim(),
+      );
+      _applyJoke(joke);
+      if (isSetup) {
+        _setupSceneSuggestionController.clear();
+      } else {
+        _punchlineSceneSuggestionController.clear();
+      }
+      _showSnack('Scene idea updated');
+    } catch (e, st) {
+      _showSnack('Error updating scene idea', exception: e, stackTrace: st);
+    } finally {
+      if (mounted) {
+        setState(() {
+          if (isSetup) {
+            _isSetupSuggestionLoading = false;
+          } else {
+            _isPunchlineSuggestionLoading = false;
+          }
+        });
       }
     }
   }
 
-  Future<void> _updateJoke(
-    String setup,
-    String punchline,
-    String setupImageDescription,
-    String punchlineImageDescription,
-  ) async {
-    // Update the joke directly in Firestore using the repository
-    final jokeRepository = ref.read(jokeRepositoryProvider);
+  Future<void> _handleGenerateDescriptions() async {
+    final jokeId = _resolvedJokeId;
+    if (jokeId == null) {
+      _showSnack('Create the joke first');
+      return;
+    }
+    if (_setupSceneIdeaController.text.trim().isEmpty ||
+        _punchlineSceneIdeaController.text.trim().isEmpty) {
+      _showSnack('Provide both scene ideas before generating');
+      return;
+    }
 
-    await jokeRepository.updateJoke(
-      jokeId: widget.jokeId!,
-      setupText: setup,
-      punchlineText: punchline,
+    setState(() {
+      _isGenerateDescriptionsLoading = true;
+    });
+
+    try {
+      final service = ref.read(jokeCloudFunctionServiceProvider);
+      final joke = await service.generateImageDescriptionsViaCreationProcess(
+        jokeId: jokeId,
+        setupSceneIdea: _setupSceneIdeaController.text.trim(),
+        punchlineSceneIdea: _punchlineSceneIdeaController.text.trim(),
+      );
+      _applyJoke(joke);
+      setState(() {
+        _stage2Expanded = false;
+        _stage3Expanded = true;
+      });
+      _showSnack('Image descriptions generated');
+    } catch (e, st) {
+      _showSnack(
+        'Error generating descriptions',
+        exception: e,
+        stackTrace: st,
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isGenerateDescriptionsLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _generateImagesWithCreationProcess() async {
+    final jokeId = _resolvedJokeId;
+    if (jokeId == null) {
+      _showSnack('Create the joke first');
+      return;
+    }
+    setState(() {
+      _isGenerateImagesLoading = true;
+    });
+    try {
+      final service = ref.read(jokeCloudFunctionServiceProvider);
+      final joke = await service.generateImagesViaCreationProcess(
+        jokeId: jokeId,
+        imageQuality: _imageQuality,
+        setupSceneIdea: _setupSceneIdeaController.text.trim(),
+        punchlineSceneIdea: _punchlineSceneIdeaController.text.trim(),
+      );
+      _applyJoke(joke);
+      _showSnack('Images generated successfully');
+    } catch (e, st) {
+      _showSnack('Error generating images', exception: e, stackTrace: st);
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isGenerateImagesLoading = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _saveImageSelection() async {
+    final jokeId = _resolvedJokeId;
+    if (jokeId == null) {
+      _showSnack('Create the joke first');
+      return;
+    }
+    final repo = ref.read(jokeRepositoryProvider);
+    await repo.updateJoke(
+      jokeId: jokeId,
+      setupText: _setupController.text.trim(),
+      punchlineText: _punchlineController.text.trim(),
       setupImageUrl: _selectedSetupImageUrl,
       punchlineImageUrl: _selectedPunchlineImageUrl,
-      setupImageDescription: setupImageDescription,
-      punchlineImageDescription: punchlineImageDescription,
+      setupImageDescription: _setupImageDescriptionController.text.trim(),
+      punchlineImageDescription: _punchlineImageDescriptionController.text
+          .trim(),
     );
+    _showSnack('Selection saved');
+  }
 
-    if (mounted) {
-      // Success - show message and navigate back
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Text('Joke updated successfully!'),
-          backgroundColor: Theme.of(context).appColors.success,
-          duration: const Duration(seconds: 5),
-          action: SnackBarAction(
-            label: 'OK',
-            textColor: Colors.white,
-            onPressed: () {
-              ScaffoldMessenger.of(context).hideCurrentSnackBar();
-            },
-          ),
-        ),
-      );
+  void _applyJoke(Joke joke) {
+    _latestJoke = joke;
+    _currentJokeId ??= joke.id;
+    _setupSceneIdeaController.text = joke.setupSceneIdea ?? '';
+    _punchlineSceneIdeaController.text = joke.punchlineSceneIdea ?? '';
+    _setupImageDescriptionController.text =
+        joke.setupImageDescription ?? _setupImageDescriptionController.text;
+    _punchlineImageDescriptionController.text =
+        joke.punchlineImageDescription ??
+        _punchlineImageDescriptionController.text;
+    _selectedSetupImageUrl ??= joke.setupImageUrl;
+    _selectedPunchlineImageUrl ??= joke.punchlineImageUrl;
+  }
 
-      // Navigate back to previous screen
-      Navigator.of(context).pop();
+  void _handleJokeLoaded(Joke? joke) {
+    if (joke == null) return;
+    _latestJoke = joke;
+    _currentJokeId ??= joke.id;
+
+    if (_setupController.text.isEmpty) {
+      _setupController.text = joke.setupText;
     }
+    if (_punchlineController.text.isEmpty) {
+      _punchlineController.text = joke.punchlineText;
+    }
+    if (_setupSceneIdeaController.text.isEmpty &&
+        (joke.setupSceneIdea?.isNotEmpty ?? false)) {
+      _setupSceneIdeaController.text = joke.setupSceneIdea!;
+    }
+    if (_punchlineSceneIdeaController.text.isEmpty &&
+        (joke.punchlineSceneIdea?.isNotEmpty ?? false)) {
+      _punchlineSceneIdeaController.text = joke.punchlineSceneIdea!;
+    }
+    if (_setupImageDescriptionController.text.isEmpty &&
+        (joke.setupImageDescription?.isNotEmpty ?? false)) {
+      _setupImageDescriptionController.text = joke.setupImageDescription!;
+    }
+    if (_punchlineImageDescriptionController.text.isEmpty &&
+        (joke.punchlineImageDescription?.isNotEmpty ?? false)) {
+      _punchlineImageDescriptionController.text =
+          joke.punchlineImageDescription!;
+    }
+    _selectedSetupImageUrl ??= joke.setupImageUrl;
+    _selectedPunchlineImageUrl ??= joke.punchlineImageUrl;
+
+    if (_hasSceneIdeas && !_autoOpenedStage2) {
+      _autoOpenedStage2 = true;
+      _stage1Expanded = false;
+      _stage2Expanded = true;
+    }
+    if (_hasImageDescriptions && !_autoOpenedStage3) {
+      _autoOpenedStage3 = true;
+      _stage2Expanded = false;
+      _stage3Expanded = true;
+    }
+  }
+
+  void _showSnack(
+    String message, {
+    Object? exception,
+    StackTrace? stackTrace,
+  }) {
+    final isError = exception != null;
+    if (exception != null) {
+      AppLogger.error(
+        message,
+        stackTrace: stackTrace,
+        keys: {'exception': exception.toString()},
+      );
+    }
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError
+            ? Theme.of(context).appColors.authError
+            : Theme.of(context).appColors.success,
+        duration: const Duration(seconds: 4),
+      ),
+    );
   }
 }

@@ -53,25 +53,18 @@ def create_joke(
 
   owner_user_id = "ADMIN" if admin_owned else user_id
 
-  (
-    setup_scene_idea,
-    punchline_scene_idea,
-    generation_metadata,
-  ) = _generate_scene_ideas(setup_text, punchline_text)
-
   payload = {
     "setup_text": setup_text,
     "punchline_text": punchline_text,
-    "setup_scene_idea": setup_scene_idea,
-    "punchline_scene_idea": punchline_scene_idea,
     "owner_user_id": owner_user_id,
     "state": models.JokeState.DRAFT,
     "random_id": random.randint(0, 2**31 - 1),
-    "generation_metadata": generation_metadata,
   }
 
   logger.info("Creating joke for owner %s", owner_user_id)
   joke = models.PunnyJoke(**payload)
+
+  _regenerate_and_apply_scene_ideas(joke, setup_text, punchline_text)
 
   saved_joke = firestore.upsert_punny_joke(
     joke,
@@ -87,6 +80,28 @@ def create_joke(
     raise ValueError('Failed to save joke - may already exist')
 
   return saved_joke
+
+
+def update_text_and_maybe_regenerate_scenes(
+  *,
+  joke: models.PunnyJoke,
+  setup_text: str,
+  punchline_text: str,
+  regenerate_scene_ideas: bool,
+) -> models.PunnyJoke:
+  """Update joke text and optionally regenerate scene ideas.
+
+  Regeneration keeps the existing generation metadata and appends the new
+  generation if scene ideas are rebuilt.
+  """
+
+  joke.setup_text = setup_text
+  joke.punchline_text = punchline_text
+
+  if regenerate_scene_ideas:
+    _regenerate_and_apply_scene_ideas(joke, setup_text, punchline_text)
+
+  return joke
 
 
 def _generate_scene_ideas(
@@ -123,6 +138,23 @@ def _generate_scene_ideas(
   return setup_scene_idea, punchline_scene_idea, generation_metadata
 
 
+def _regenerate_and_apply_scene_ideas(
+  joke: models.PunnyJoke,
+  setup_text: str,
+  punchline_text: str,
+) -> None:
+  """Regenerate scene ideas from text and apply to the joke."""
+  (
+    setup_scene_idea,
+    punchline_scene_idea,
+    idea_generation_metadata,
+  ) = _generate_scene_ideas(setup_text, punchline_text)
+
+  joke.setup_scene_idea = setup_scene_idea
+  joke.punchline_scene_idea = punchline_scene_idea
+  joke.generation_metadata.add_generation(idea_generation_metadata)
+
+
 def modify_image_scene_ideas(
   joke: models.PunnyJoke,
   setup_suggestion: str,
@@ -132,11 +164,67 @@ def modify_image_scene_ideas(
 
   This is a placeholder implementation that will be fleshed out later.
   """
-  _ = (setup_suggestion, punchline_suggestion)
-  saved_joke = firestore.upsert_punny_joke(joke)
+  if not joke.setup_text or not joke.punchline_text:
+    raise ValueError('Joke is missing text required to edit scene ideas')
+  if not joke.setup_scene_idea or not joke.punchline_scene_idea:
+    raise ValueError('Joke must have existing scene ideas to edit')
+
+  setup_instruction = setup_suggestion.strip() if setup_suggestion else ''
+  punchline_instruction = (punchline_suggestion.strip()
+                           if punchline_suggestion else '')
+
+  if not (setup_instruction or punchline_instruction):
+    raise ValueError('At least one suggestion is required to modify scenes')
+
+  (
+    updated_setup_scene,
+    updated_punchline_scene,
+    metadata,
+  ) = joke_operation_prompts.modify_scene_ideas_with_suggestions(
+    setup_text=joke.setup_text,
+    punchline_text=joke.punchline_text,
+    current_setup_scene_idea=joke.setup_scene_idea,
+    current_punchline_scene_idea=joke.punchline_scene_idea,
+    setup_suggestion=setup_instruction,
+    punchline_suggestion=punchline_instruction,
+  )
+
+  joke.setup_scene_idea = updated_setup_scene
+  joke.punchline_scene_idea = updated_punchline_scene
+  joke.generation_metadata.add_generation(metadata)
+
+  saved_joke = firestore.upsert_punny_joke(
+    joke,
+    operation_log_entry={
+      OPERATION: "UPDATE_SCENE_IDEAS",
+      "setup_scene_idea": SAVED_VALUE,
+      "punchline_scene_idea": SAVED_VALUE,
+    },
+  )
   if not saved_joke:
     raise ValueError('Failed to save joke while updating image scene ideas')
   return saved_joke
+
+
+def generate_image_descriptions(joke: models.PunnyJoke, ) -> models.PunnyJoke:
+  """Ensure the joke has detailed image descriptions derived from scene ideas."""
+  if not joke.setup_text or not joke.punchline_text:
+    raise JokePopulationError('Joke is missing setup or punchline text')
+  if not joke.setup_scene_idea or not joke.punchline_scene_idea:
+    raise JokePopulationError('Joke is missing scene ideas')
+
+  setup_description, punchline_description, metadata = (
+    joke_operation_prompts.generate_detailed_image_descriptions(
+      setup_text=joke.setup_text,
+      punchline_text=joke.punchline_text,
+      setup_scene_idea=joke.setup_scene_idea,
+      punchline_scene_idea=joke.punchline_scene_idea,
+    ))
+
+  joke.setup_image_description = setup_description
+  joke.punchline_image_description = punchline_description
+  joke.generation_metadata.add_generation(metadata)
+  return joke
 
 
 def generate_joke_images(joke: models.PunnyJoke,
@@ -146,10 +234,8 @@ def generate_joke_images(joke: models.PunnyJoke,
     raise JokePopulationError('Joke is missing setup text')
   if not joke.punchline_text:
     raise JokePopulationError('Joke is missing punchline text')
-  if not joke.setup_image_description:
-    raise JokePopulationError('Joke is missing setup image description')
-  if not joke.punchline_image_description:
-    raise JokePopulationError('Joke is missing punchline image description')
+  if not joke.setup_image_description or not joke.punchline_image_description:
+    joke = generate_image_descriptions(joke)
 
   pun_data = [(joke.setup_text, joke.setup_image_description),
               (joke.punchline_text, joke.punchline_image_description)]

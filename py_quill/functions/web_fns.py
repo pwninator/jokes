@@ -322,7 +322,8 @@ def _hex_to_rgb(hex_color: str) -> tuple[int, int, int]:
 
 
 def _rgb_to_hex(rgb: tuple[int, int, int]) -> str:
-  return '#{:02x}{:02x}{:02x}'.format(*rgb)
+  r, g, b = rgb
+  return f'#{r:02x}{g:02x}{b:02x}'
 
 
 _ANCHOR_COLORS = [
@@ -391,7 +392,8 @@ def _bucket_days_used_label(day_value: str | int) -> str | None:
   return f"{start}-{end}"
 
 
-def _rebucket_days_used(matrix: dict[str, dict[str, int]]) -> dict[str, dict[str, int]]:
+def _rebucket_days_used(
+    matrix: dict[str, dict[str, int]]) -> dict[str, dict[str, int]]:
   """Aggregate retention matrix by day-used buckets (1..7 individual, then weekly)."""
   rebucketed: dict[str, dict[str, int]] = {}
   for day_label, buckets in (matrix or {}).items():
@@ -507,17 +509,17 @@ def admin_stats():
   client = firestore.db()
   # Fetch last 30 days of stats
   docs = client.collection('joke_stats').order_by(
-      '__name__', direction=firestore.Query.DESCENDING).limit(30).stream()
-  
+    '__name__', direction=firestore.Query.DESCENDING).limit(30).stream()
+
   stats_list = []
   for doc in docs:
-      data = doc.to_dict()
-      data['id'] = doc.id
-      stats_list.append(data)
-  
+    data = doc.to_dict()
+    data['id'] = doc.id
+    stats_list.append(data)
+
   # Sort chronological for DAU chart
   stats_list.reverse()
-  
+
   # Normalize buckets for charts
   for stats in stats_list:
     stats['num_1d_users_by_jokes_viewed'] = _rebucket_counts(
@@ -541,59 +543,69 @@ def admin_stats():
 
   # --- Prepare DAU Data ---
   dau_labels = [s['id'] for s in stats_list]
-  
+
   dau_datasets = []
   for idx, bucket in enumerate(sorted_buckets):
-      data_points = []
-      for s in stats_list:
-          val = s.get('num_1d_users_by_jokes_viewed', {}).get(bucket, 0)
-          data_points.append(val)
-      
-      dau_datasets.append({
-          'label': f'{bucket} jokes',
-          'data': data_points,
-          'backgroundColor': color_map.get(bucket, '#607d8b'),
-          'stack': 'Stack 0',
-          # Draw highest buckets first so they appear at the bottom of the stack.
-          'order': -idx,
-      })
+    data_points = []
+    for s in stats_list:
+      val = s.get('num_1d_users_by_jokes_viewed', {}).get(bucket, 0)
+      data_points.append(val)
+
+    dau_datasets.append({
+      'label': f'{bucket} jokes',
+      'data': data_points,
+      'backgroundColor': color_map.get(bucket, '#607d8b'),
+      'stack': 'Stack 0',
+      # Draw highest buckets first so they appear at the bottom of the stack.
+      'order': -idx,
+    })
 
   # --- Prepare Retention Data (from most recent stats doc only) ---
   latest_stats = stats_list[-1] if stats_list else {}
   retention_matrix_raw = latest_stats.get(
     'num_7d_users_by_days_used_by_jokes_viewed', {})
   retention_matrix = _rebucket_days_used(retention_matrix_raw)
-  
+
   # Sort days used (labels) numerically
   retention_labels = sorted(retention_matrix.keys(), key=_day_bucket_sort_key)
-  
+
   # Identify all unique joke buckets in the matrix
   retention_buckets = set()
   for day_data in retention_matrix.values():
-      retention_buckets.update(day_data.keys())
-  sorted_ret_buckets = sorted(list(retention_buckets), key=_bucket_label_sort_key)
-  
+    retention_buckets.update(day_data.keys())
+  sorted_ret_buckets = sorted(list(retention_buckets),
+                              key=_bucket_label_sort_key)
+
   retention_datasets = []
   for bucket in sorted_ret_buckets:
-      data_points = []
-      for day in retention_labels:
-          day_data = retention_matrix.get(day, {})
-          count = day_data.get(bucket, 0)
-          total = sum(day_data.values())
-          percentage = (count / total * 100) if total > 0 else 0
-          data_points.append(percentage)
-          
-      retention_datasets.append({
-          'label': f'{bucket} jokes',
-          'data': data_points,
-          'backgroundColor': color_map.get(bucket, '#607d8b'),
-      })
+    data_points = []
+    for day in retention_labels:
+      day_data = retention_matrix.get(day, {})
+      count = day_data.get(bucket, 0)
+      total = sum(day_data.values())
+      percentage = (count / total * 100) if total > 0 else 0
+      data_points.append(percentage)
+
+    retention_datasets.append({
+      'label':
+      f'{bucket} jokes',
+      'data':
+      data_points,
+      'backgroundColor':
+      color_map.get(bucket, '#607d8b'),
+    })
 
   return flask.render_template(
     'admin/stats.html',
     site_name='Snickerdoodle',
-    dau_data={'labels': dau_labels, 'datasets': dau_datasets},
-    retention_data={'labels': retention_labels, 'datasets': retention_datasets},
+    dau_data={
+      'labels': dau_labels,
+      'datasets': dau_datasets
+    },
+    retention_data={
+      'labels': retention_labels,
+      'datasets': retention_datasets
+    },
   )
 
 

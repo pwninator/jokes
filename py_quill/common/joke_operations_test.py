@@ -42,6 +42,32 @@ def mock_image_generation_fixture(monkeypatch):
   return mock_image_generation
 
 
+@pytest.fixture(name='mock_scene_prompts')
+def mock_scene_prompts_fixture(monkeypatch):
+  """Fixture that stubs scene prompt helpers."""
+
+  def fake_modify(**_kwargs):
+    return ("updated setup scene", "updated punchline scene",
+            models.SingleGenerationMetadata(model_name="editor"))
+
+  def fake_descriptions(**_kwargs):
+    return ("detailed setup image", "detailed punchline image",
+            models.SingleGenerationMetadata(model_name="describer"))
+
+  monkeypatch.setattr(
+    joke_operations.joke_operation_prompts,
+    'modify_scene_ideas_with_suggestions',
+    fake_modify,
+  )
+  monkeypatch.setattr(
+    joke_operations.joke_operation_prompts,
+    'generate_detailed_image_descriptions',
+    fake_descriptions,
+  )
+
+  return fake_modify, fake_descriptions
+
+
 @pytest.fixture(name='mock_scene_ideas')
 def mock_scene_ideas_fixture(monkeypatch):
   """Fixture that stubs scene idea and safety generation."""
@@ -129,19 +155,157 @@ def test_generate_joke_images_updates_images(mock_image_generation):
   assert updated.punchline_image_url_upscaled is None
 
 
-def test_generate_joke_images_missing_description_raises():
-  """generate_joke_images should raise when descriptions are missing."""
+def test_generate_joke_images_generates_descriptions_when_missing(
+    mock_scene_prompts, mock_image_generation):
+  """generate_joke_images should backfill descriptions before rendering."""
+  _ = mock_scene_prompts
   joke = models.PunnyJoke(
     key="joke-1",
     setup_text="Setup",
     punchline_text="Punch",
+    setup_scene_idea="scene setup",
+    punchline_scene_idea="scene punch",
     setup_image_description=None,
-    punchline_image_description="desc",
+    punchline_image_description=None,
+  )
+  mock_image_generation.generate_pun_images.return_value = [
+    models.Image(
+      url="setup-url",
+      original_prompt="detailed setup image",
+      final_prompt="setup prompt",
+    ),
+    models.Image(
+      url="punch-url",
+      original_prompt="detailed punchline image",
+      final_prompt="punch prompt",
+    ),
+  ]
+
+  updated = joke_operations.generate_joke_images(joke, "medium")
+
+  assert updated.setup_image_description == "detailed setup image"
+  assert updated.punchline_image_description == "detailed punchline image"
+  mock_image_generation.generate_pun_images.assert_called_once()
+
+
+def test_generate_joke_images_missing_scene_idea_raises():
+  """generate_joke_images should raise when scene ideas are missing."""
+  joke = models.PunnyJoke(
+    key="joke-1",
+    setup_text="Setup",
+    punchline_text="Punch",
+    setup_scene_idea=None,
+    punchline_scene_idea="idea",
+    setup_image_description=None,
+    punchline_image_description=None,
   )
 
   with pytest.raises(joke_operations.JokePopulationError,
-                     match='setup image description'):
+                     match='scene ideas'):
     joke_operations.generate_joke_images(joke, "medium")
+
+
+def test_modify_image_scene_ideas_updates_and_persists(mock_firestore,
+                                                      mock_scene_prompts):
+  """modify_image_scene_ideas should call prompt helper and save."""
+  _ = mock_scene_prompts
+  joke = models.PunnyJoke(
+    key="joke-1",
+    setup_text="setup",
+    punchline_text="punch",
+    setup_scene_idea="old setup scene",
+    punchline_scene_idea="old punch scene",
+    generation_metadata=models.GenerationMetadata(),
+  )
+  mock_firestore.upsert_punny_joke.side_effect = lambda joke, **kwargs: joke
+
+  updated = joke_operations.modify_image_scene_ideas(
+    joke=joke,
+    setup_suggestion="make it sillier",
+    punchline_suggestion="add confetti",
+  )
+
+  assert updated.setup_scene_idea == "updated setup scene"
+  assert updated.punchline_scene_idea == "updated punchline scene"
+  assert updated.generation_metadata.generations
+  mock_firestore.upsert_punny_joke.assert_called_once()
+
+
+def test_generate_image_descriptions_sets_fields(mock_scene_prompts):
+  """generate_image_descriptions should fill description fields."""
+  _ = mock_scene_prompts
+  joke = models.PunnyJoke(
+    key="joke-1",
+    setup_text="Setup",
+    punchline_text="Punch",
+    setup_scene_idea="scene setup",
+    punchline_scene_idea="scene punch",
+    generation_metadata=models.GenerationMetadata(),
+  )
+
+  result = joke_operations.generate_image_descriptions(joke)
+
+  assert result.setup_image_description == "detailed setup image"
+  assert result.punchline_image_description == "detailed punchline image"
+  assert result.generation_metadata.generations
+
+
+def test_update_text_without_regen_keeps_scene_ideas(mock_scene_prompts):
+  """Updating text without regen should preserve existing scene ideas."""
+  _ = mock_scene_prompts
+  joke = models.PunnyJoke(
+    key="joke-1",
+    setup_text="old setup",
+    punchline_text="old punch",
+    setup_scene_idea="scene setup",
+    punchline_scene_idea="scene punch",
+    generation_metadata=models.GenerationMetadata(),
+  )
+
+  updated = joke_operations.update_text_and_maybe_regenerate_scenes(
+    joke=joke,
+    setup_text="new setup",
+    punchline_text="new punch",
+    regenerate_scene_ideas=False,
+  )
+
+  assert updated.setup_text == "new setup"
+  assert updated.punchline_text == "new punch"
+  assert updated.setup_scene_idea == "scene setup"
+  assert updated.punchline_scene_idea == "scene punch"
+
+
+def test_update_text_with_regen_replaces_scene_ideas(monkeypatch):
+  """Updating text with regen should rebuild scene ideas and metadata."""
+
+  def fake_generate(setup_text, punchline_text):
+    _ = (setup_text, punchline_text)
+    return ("new scene setup", "new scene punch",
+            models.SingleGenerationMetadata(model_name="regen"))
+
+  monkeypatch.setattr(joke_operations, "_generate_scene_ideas", fake_generate)
+
+  joke = models.PunnyJoke(
+    key="joke-1",
+    setup_text="old setup",
+    punchline_text="old punch",
+    setup_scene_idea="scene setup",
+    punchline_scene_idea="scene punch",
+    generation_metadata=models.GenerationMetadata(),
+  )
+
+  updated = joke_operations.update_text_and_maybe_regenerate_scenes(
+    joke=joke,
+    setup_text="new setup",
+    punchline_text="new punch",
+    regenerate_scene_ideas=True,
+  )
+
+  assert updated.setup_text == "new setup"
+  assert updated.punchline_text == "new punch"
+  assert updated.setup_scene_idea == "new scene setup"
+  assert updated.punchline_scene_idea == "new scene punch"
+  assert updated.generation_metadata.generations
 
 
 def test_to_response_joke_strips_embedding():

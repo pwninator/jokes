@@ -33,16 +33,28 @@ def joke_creation_process(req: https_fn.Request) -> https_fn.Response:
     admin_owned = get_bool_param(req, 'admin_owned', False)
     setup_suggestion = get_param(req, 'setup_suggestion')
     punchline_suggestion = get_param(req, 'punchline_suggestion')
+    setup_scene_idea_override = get_param(req, 'setup_scene_idea')
+    punchline_scene_idea_override = get_param(req, 'punchline_scene_idea')
     populate_images = get_bool_param(req, 'populate_images', False)
+    generate_descriptions = get_bool_param(req, 'generate_descriptions', False)
+    regenerate_scene_ideas = get_bool_param(req, 'regenerate_scene_ideas',
+                                            False)
 
     if joke_id:
       joke = firestore.get_punny_joke(joke_id)
       if not joke:
         return error_response(f'Joke not found: {joke_id}')
+
+      # Apply overrides early so all scenarios see the latest ideas
+      if setup_scene_idea_override is not None:
+        joke.setup_scene_idea = setup_scene_idea_override
+      if punchline_scene_idea_override is not None:
+        joke.punchline_scene_idea = punchline_scene_idea_override
     else:
       joke = None
 
     saved_joke = None
+
     if not joke and setup_text and punchline_text:
       # Scenario 1: create a new joke from setup/punchline strings.
       saved_joke = joke_operations.create_joke(
@@ -54,6 +66,20 @@ def joke_creation_process(req: https_fn.Request) -> https_fn.Response:
       if not saved_joke:
         return error_response('Failed to save joke after creating')
 
+    elif joke and setup_text and punchline_text and not (
+        setup_suggestion or punchline_suggestion or populate_images
+        or generate_descriptions):
+      # Scenario 1.5: update text (optionally regenerating scene ideas).
+      updated_joke = joke_operations.update_text_and_maybe_regenerate_scenes(
+        joke=joke,
+        setup_text=setup_text,
+        punchline_text=punchline_text,
+        regenerate_scene_ideas=regenerate_scene_ideas,
+      )
+      saved_joke = firestore.upsert_punny_joke(updated_joke)
+      if not saved_joke:
+        return error_response('Failed to save joke after updating text')
+
     elif joke and (setup_suggestion or punchline_suggestion):
       # Scenario 2: apply image description suggestions for an existing joke.
       saved_joke = joke_operations.modify_image_scene_ideas(
@@ -63,6 +89,14 @@ def joke_creation_process(req: https_fn.Request) -> https_fn.Response:
       )
       if not saved_joke:
         return error_response('Failed to save joke after applying suggestions')
+
+    elif joke and generate_descriptions:
+      # Scenario 2.5: generate detailed image descriptions from scene ideas.
+      updated_joke = joke_operations.generate_image_descriptions(joke)
+      saved_joke = firestore.upsert_punny_joke(updated_joke)
+      if not saved_joke:
+        return error_response(
+          'Failed to save joke after generating image descriptions')
 
     elif joke and populate_images:
       # Scenario 3: regenerate joke images.

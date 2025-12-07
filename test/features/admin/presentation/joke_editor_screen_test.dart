@@ -14,7 +14,6 @@ import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_reposito
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
 import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
 
-// Mock classes using mocktail
 class MockJokeCloudFunctionService extends Mock
     implements JokeCloudFunctionService {}
 
@@ -35,7 +34,6 @@ void main() {
     late MockAnalyticsService mockAnalyticsService;
 
     setUpAll(() {
-      // Fallbacks for mocktail matchers
       registerFallbackValue(TraceName.fsRead);
       registerFallbackValue(<String, String>{});
     });
@@ -47,16 +45,8 @@ void main() {
       mockImageService = MockImageService();
       mockAnalyticsService = MockAnalyticsService();
 
-      // Stub performance methods to avoid MissingStub errors
       when(
         () => mockPerformanceService.startNamedTrace(
-          name: any(named: 'name'),
-          key: any(named: 'key'),
-          attributes: any(named: 'attributes'),
-        ),
-      ).thenReturn(null);
-      when(
-        () => mockPerformanceService.putNamedTraceAttributes(
           name: any(named: 'name'),
           key: any(named: 'key'),
           attributes: any(named: 'attributes'),
@@ -68,14 +58,6 @@ void main() {
           key: any(named: 'key'),
         ),
       ).thenReturn(null);
-      when(
-        () => mockPerformanceService.dropNamedTrace(
-          name: any(named: 'name'),
-          key: any(named: 'key'),
-        ),
-      ).thenReturn(null);
-
-      // Prevent real image/network behavior in CachedJokeImage
       when(
         () => mockImageService.getProcessedJokeImageUrl(
           any(),
@@ -93,7 +75,7 @@ void main() {
       ).thenAnswer((_) async {});
     });
 
-    Widget createTestWidget({Joke? joke}) {
+    Widget buildScreen({Joke? joke}) {
       return ProviderScope(
         overrides: [
           jokeCloudFunctionServiceProvider.overrideWithValue(mockJokeService),
@@ -113,531 +95,319 @@ void main() {
       );
     }
 
-    group('UI Rendering', () {
-      testWidgets('should display create mode UI when no joke is provided', (
-        tester,
-      ) async {
-        await tester.pumpWidget(createTestWidget());
+    testWidgets('renders three-stage layout for new jokes', (tester) async {
+      await tester.pumpWidget(buildScreen());
 
-        expect(
-          find.text(
-            'Create a new joke by filling out the setup and punchline below:',
-          ),
-          findsOneWidget,
-        );
-        expect(find.byKey(const Key('setupTextField')), findsOneWidget);
-        expect(find.byKey(const Key('punchlineTextField')), findsOneWidget);
-        expect(find.byKey(const Key('saveJokeButton')), findsOneWidget);
-        expect(find.text('Save Joke'), findsOneWidget);
+      expect(find.text('Step 1: Enter setup & punchline'), findsOneWidget);
+      expect(find.text('Step 2: Refine scene ideas'), findsOneWidget);
+      expect(find.text('Step 3: Generate images'), findsOneWidget);
 
-        // Image description fields should not be visible in create mode
-        expect(find.text('Image Descriptions'), findsNothing);
-        expect(
-          find.byKey(const Key('setupImageDescriptionTextField')),
-          findsNothing,
-        );
-        expect(
-          find.byKey(const Key('punchlineImageDescriptionTextField')),
-          findsNothing,
-        );
-      });
+      expect(find.byKey(const Key('setupTextField')), findsOneWidget);
+      expect(find.byKey(const Key('punchlineTextField')), findsOneWidget);
+      expect(find.byKey(const Key('saveJokeButton')), findsOneWidget);
+      expect(find.byKey(const Key('setupSceneIdeaTextField')), findsNothing);
+    });
 
-      testWidgets('should display edit mode UI when joke is provided', (
-        tester,
-      ) async {
-        const joke = Joke(
-          id: 'test-id',
-          setupText: 'Test setup',
-          punchlineText: 'Test punchline',
-          setupImageDescription: 'Test setup description',
-          punchlineImageDescription: 'Test punchline description',
-        );
+    testWidgets('tapping create button calls cloud function', (tester) async {
+      const setupText = 'Setup';
+      const punchlineText = 'Punchline';
 
-        await tester.pumpWidget(createTestWidget(joke: joke));
-        await tester.pumpAndSettle();
-
-        expect(find.byKey(const Key('setupTextField')), findsOneWidget);
-        expect(find.byKey(const Key('punchlineTextField')), findsOneWidget);
-        expect(find.byKey(const Key('updateJokeButton')), findsOneWidget);
-        expect(find.text('Update Joke'), findsOneWidget);
-
-        // Image description fields should be visible in edit mode
-        expect(find.text('Image Descriptions'), findsOneWidget);
-        expect(
-          find.byKey(const Key('setupImageDescriptionTextField')),
-          findsOneWidget,
-        );
-        expect(
-          find.byKey(const Key('punchlineImageDescriptionTextField')),
-          findsOneWidget,
-        );
-        expect(find.text('Test setup description'), findsOneWidget);
-        expect(find.text('Test punchline description'), findsOneWidget);
-      });
-
-      testWidgets('should display form validation errors for create mode', (
-        tester,
-      ) async {
-        await tester.pumpWidget(createTestWidget());
-
-        // Try to save without entering text
-        await tester.tap(find.byKey(const Key('saveJokeButton')));
-        await tester.pump();
-
-        expect(find.text('Please enter a setup for the joke'), findsOneWidget);
-        expect(
-          find.text('Please enter a punchline for the joke'),
-          findsOneWidget,
-        );
-      });
-
-      testWidgets(
-        'should display form validation errors for edit mode (allow empty descriptions)',
-        (tester) async {
-          const joke = Joke(
-            id: 'test-id',
-            setupText: 'Test setup',
-            punchlineText: 'Test punchline',
-            setupImageDescription: 'Test setup description',
-            punchlineImageDescription: 'Test punchline description',
-          );
-
-          await tester.pumpWidget(createTestWidget(joke: joke));
-          await tester.pumpAndSettle();
-
-          // Clear all fields
-          await tester.enterText(find.byKey(const Key('setupTextField')), '');
-          await tester.enterText(
-            find.byKey(const Key('punchlineTextField')),
-            '',
-          );
-          await tester.enterText(
-            find.byKey(const Key('setupImageDescriptionTextField')),
-            '',
-          );
-          await tester.enterText(
-            find.byKey(const Key('punchlineImageDescriptionTextField')),
-            '',
-          );
-
-          // Try to save - ensure button is visible first
-          await tester.ensureVisible(find.byKey(const Key('updateJokeButton')));
-          await tester.pumpAndSettle();
-          await tester.tap(
-            find.byKey(const Key('updateJokeButton')),
-            warnIfMissed: false,
-          );
-          await tester.pump();
-
-          expect(
-            find.text('Please enter a setup for the joke'),
-            findsOneWidget,
-          );
-          expect(
-            find.text('Please enter a punchline for the joke'),
-            findsOneWidget,
-          );
-          // Empty descriptions are allowed; no errors for empty descriptions
-          expect(
-            find.text('Please enter a description for the setup image'),
-            findsNothing,
-          );
-          expect(
-            find.text('Please enter a description for the punchline image'),
-            findsNothing,
-          );
-        },
+      when(
+        () => mockJokeService.createJokeWithResponse(
+          setupText: setupText,
+          punchlineText: punchlineText,
+          adminOwned: true,
+        ),
+      ).thenAnswer(
+        (_) async => const Joke(
+          id: 'joke-123',
+          setupText: setupText,
+          punchlineText: punchlineText,
+          setupSceneIdea: 'scene 1',
+          punchlineSceneIdea: 'scene 2',
+        ),
       );
+
+      await tester.pumpWidget(buildScreen());
+      await tester.enterText(
+        find.byKey(const Key('setupTextField')),
+        setupText,
+      );
+      await tester.enterText(
+        find.byKey(const Key('punchlineTextField')),
+        punchlineText,
+      );
+
+      await tester.tap(find.byKey(const Key('saveJokeButton')));
+      await tester.pumpAndSettle();
+
+      verify(
+        () => mockJokeService.createJokeWithResponse(
+          setupText: setupText,
+          punchlineText: punchlineText,
+          adminOwned: true,
+        ),
+      ).called(1);
     });
 
-    group('Create Joke', () {
-      testWidgets('should call createJokeWithResponse on save button tap', (
-        tester,
-      ) async {
-        const setupText = 'New setup text';
-        const punchlineText = 'New punchline text';
+    testWidgets('updating existing joke uses CF with optional regen flag', (
+      tester,
+    ) async {
+      const joke = Joke(
+        id: 'j-regen',
+        setupText: 'Old setup',
+        punchlineText: 'Old punchline',
+        setupSceneIdea: 'Old scene setup',
+        punchlineSceneIdea: 'Old scene punch',
+      );
 
-        when(
-          () => mockJokeService.createJokeWithResponse(
-            setupText: setupText,
-            punchlineText: punchlineText,
-            adminOwned: true,
-          ),
-        ).thenAnswer(
-          (_) async => {
-            'success': true,
-            'data': {'jokeId': 'new-joke-id'},
-          },
-        );
+      when(
+        () => mockJokeService.updateJokeTextViaCreationProcess(
+          jokeId: joke.id,
+          setupText: any(named: 'setupText'),
+          punchlineText: any(named: 'punchlineText'),
+          regenerateSceneIdeas: any(named: 'regenerateSceneIdeas'),
+        ),
+      ).thenAnswer(
+        (_) async => const Joke(
+          id: 'j-regen',
+          setupText: 'New setup',
+          punchlineText: 'New punch',
+          setupSceneIdea: 'Regenerated scene setup',
+          punchlineSceneIdea: 'Regenerated scene punch',
+        ),
+      );
 
-        await tester.pumpWidget(createTestWidget());
+      await tester.pumpWidget(buildScreen(joke: joke));
+      await tester.pumpAndSettle();
 
-        // Enter text in form fields
-        await tester.enterText(
-          find.byKey(const Key('setupTextField')),
-          setupText,
-        );
-        await tester.enterText(
-          find.byKey(const Key('punchlineTextField')),
-          punchlineText,
-        );
+      // Expand stage 1 if it was auto-collapsed
+      await tester.tap(find.text('Step 1: Enter setup & punchline'));
+      await tester.pumpAndSettle();
 
-        // Tap save
-        await tester.tap(find.byKey(const Key('saveJokeButton')));
-        await tester.pump();
+      await tester.enterText(
+        find.byKey(const Key('setupTextField')),
+        'New setup',
+      );
+      await tester.enterText(
+        find.byKey(const Key('punchlineTextField')),
+        'New punch',
+      );
 
-        verify(
-          () => mockJokeService.createJokeWithResponse(
-            setupText: setupText,
-            punchlineText: punchlineText,
-            adminOwned: true,
-          ),
-        ).called(1);
-      });
+      // Toggle regen checkbox
+      await tester.tap(find.byKey(const Key('regenerateSceneIdeasCheckbox')));
+      await tester.pumpAndSettle();
 
-      testWidgets('should show success message after creating joke', (
-        tester,
-      ) async {
-        const setupText = 'New setup text';
-        const punchlineText = 'New punchline text';
+      await tester.tap(find.byKey(const Key('updateJokeButton')));
+      await tester.pumpAndSettle();
 
-        when(
-          () => mockJokeService.createJokeWithResponse(
-            setupText: setupText,
-            punchlineText: punchlineText,
-            adminOwned: true,
-          ),
-        ).thenAnswer(
-          (_) async => {
-            'success': true,
-            'data': {'jokeId': 'new-joke-id'},
-          },
-        );
-
-        await tester.pumpWidget(createTestWidget());
-
-        await tester.enterText(
-          find.byKey(const Key('setupTextField')),
-          setupText,
-        );
-        await tester.enterText(
-          find.byKey(const Key('punchlineTextField')),
-          punchlineText,
-        );
-
-        await tester.tap(find.byKey(const Key('saveJokeButton')));
-        await tester.pumpAndSettle();
-
-        // Should show success snackbar
-        expect(find.text('Joke saved successfully!'), findsOneWidget);
-      });
+      verify(
+        () => mockJokeService.updateJokeTextViaCreationProcess(
+          jokeId: joke.id,
+          setupText: 'New setup',
+          punchlineText: 'New punch',
+          regenerateSceneIdeas: true,
+        ),
+      ).called(1);
     });
 
-    group('Update Joke', () {
-      testWidgets('should call repository updateJoke on save button tap', (
-        tester,
-      ) async {
-        const originalJoke = Joke(
-          id: 'test-id',
-          setupText: 'Original setup',
-          punchlineText: 'Original punchline',
-          setupImageUrl: 'https://example.com/setup.jpg',
-          punchlineImageUrl: 'https://example.com/punchline.jpg',
-          setupImageDescription: 'Original setup description',
-          punchlineImageDescription: 'Original punchline description',
-        );
+    testWidgets('scene idea suggestion triggers modify call', (tester) async {
+      const joke = Joke(
+        id: 'j1',
+        setupText: 'Setup',
+        punchlineText: 'Punchline',
+        setupSceneIdea: 'Old setup idea',
+        punchlineSceneIdea: 'Old punchline idea',
+      );
 
-        const updatedSetupText = 'Updated setup text';
-        const updatedPunchlineText = 'Updated punchline text';
-        const updatedSetupDescription = 'Updated setup description';
-        const updatedPunchlineDescription = 'Updated punchline description';
+      when(
+        () => mockJokeService.modifyJokeSceneIdeas(
+          jokeId: joke.id,
+          setupSuggestion: any(named: 'setupSuggestion'),
+          punchlineSuggestion: any(named: 'punchlineSuggestion'),
+          setupSceneIdea: any(named: 'setupSceneIdea'),
+          punchlineSceneIdea: any(named: 'punchlineSceneIdea'),
+        ),
+      ).thenAnswer(
+        (_) async => Joke(
+          id: joke.id,
+          setupText: joke.setupText,
+          punchlineText: joke.punchlineText,
+          setupSceneIdea: 'New setup idea',
+          punchlineSceneIdea: 'Old punchline idea',
+        ),
+      );
 
-        when(
-          () => mockJokeRepository.updateJoke(
-            jokeId: originalJoke.id,
-            setupText: updatedSetupText,
-            punchlineText: updatedPunchlineText,
-            setupImageUrl: originalJoke.setupImageUrl,
-            punchlineImageUrl: originalJoke.punchlineImageUrl,
-            setupImageDescription: updatedSetupDescription,
-            punchlineImageDescription: updatedPunchlineDescription,
-          ),
-        ).thenAnswer((_) async => {});
+      await tester.pumpWidget(buildScreen(joke: joke));
+      await tester.pumpAndSettle();
 
-        await tester.pumpWidget(createTestWidget(joke: originalJoke));
-        await tester.pumpAndSettle();
+      await tester.enterText(
+        find.byKey(const Key('setupSceneSuggestionTextField')),
+        'make sillier',
+      );
+      await tester.tap(find.byKey(const Key('setupSceneSuggestionButton')));
+      await tester.pumpAndSettle();
 
-        // Update all text fields
-        await tester.enterText(
-          find.byKey(const Key('setupTextField')),
-          updatedSetupText,
-        );
-        await tester.enterText(
-          find.byKey(const Key('punchlineTextField')),
-          updatedPunchlineText,
-        );
-        await tester.enterText(
-          find.byKey(const Key('setupImageDescriptionTextField')),
-          updatedSetupDescription,
-        );
-        await tester.enterText(
-          find.byKey(const Key('punchlineImageDescriptionTextField')),
-          updatedPunchlineDescription,
-        );
-
-        // Ensure button is visible first
-        await tester.ensureVisible(find.byKey(const Key('updateJokeButton')));
-        await tester.pumpAndSettle();
-        await tester.tap(
-          find.byKey(const Key('updateJokeButton')),
-          warnIfMissed: false,
-        );
-        await tester.pump();
-
-        verify(
-          () => mockJokeRepository.updateJoke(
-            jokeId: originalJoke.id,
-            setupText: updatedSetupText,
-            punchlineText: updatedPunchlineText,
-            setupImageUrl: originalJoke.setupImageUrl,
-            punchlineImageUrl: originalJoke.punchlineImageUrl,
-            setupImageDescription: updatedSetupDescription,
-            punchlineImageDescription: updatedPunchlineDescription,
-          ),
-        ).called(1);
-      });
-
-      testWidgets('should show success message after updating joke', (
-        tester,
-      ) async {
-        const originalJoke = Joke(
-          id: 'test-id',
-          setupText: 'Original setup',
-          punchlineText: 'Original punchline',
-          setupImageDescription: 'Original setup description',
-          punchlineImageDescription: 'Original punchline description',
-        );
-
-        when(
-          () => mockJokeRepository.updateJoke(
-            jokeId: any(named: 'jokeId'),
-            setupText: any(named: 'setupText'),
-            punchlineText: any(named: 'punchlineText'),
-            setupImageUrl: any(named: 'setupImageUrl'),
-            punchlineImageUrl: any(named: 'punchlineImageUrl'),
-            setupImageDescription: any(named: 'setupImageDescription'),
-            punchlineImageDescription: any(named: 'punchlineImageDescription'),
-          ),
-        ).thenAnswer((_) async => {});
-
-        await tester.pumpWidget(createTestWidget(joke: originalJoke));
-        await tester.pumpAndSettle();
-
-        // Make some changes and save
-        await tester.enterText(
-          find.byKey(const Key('setupTextField')),
-          'Updated setup text',
-        );
-
-        // Ensure button is visible first
-        await tester.ensureVisible(find.byKey(const Key('updateJokeButton')));
-        await tester.pumpAndSettle();
-        await tester.tap(
-          find.byKey(const Key('updateJokeButton')),
-          warnIfMissed: false,
-        );
-        await tester.pumpAndSettle();
-
-        // After successful update, the screen should navigate back
-        // Since we're in a test environment, we'll verify the repository was called
-        // The navigation would happen in a real app but not in the test widget tree
-      });
-
-      testWidgets('should handle joke with null image descriptions', (
-        tester,
-      ) async {
-        const originalJoke = Joke(
-          id: 'test-id',
-          setupText: 'Original setup',
-          punchlineText: 'Original punchline',
-          // setupImageDescription and punchlineImageDescription are null
-        );
-
-        when(
-          () => mockJokeRepository.updateJoke(
-            jokeId: any(named: 'jokeId'),
-            setupText: any(named: 'setupText'),
-            punchlineText: any(named: 'punchlineText'),
-            setupImageUrl: any(named: 'setupImageUrl'),
-            punchlineImageUrl: any(named: 'punchlineImageUrl'),
-            setupImageDescription: any(named: 'setupImageDescription'),
-            punchlineImageDescription: any(named: 'punchlineImageDescription'),
-          ),
-        ).thenAnswer((_) async => {});
-
-        await tester.pumpWidget(createTestWidget(joke: originalJoke));
-        await tester.pumpAndSettle();
-
-        // Image description fields should be empty but present
-        expect(
-          find.byKey(const Key('setupImageDescriptionTextField')),
-          findsOneWidget,
-        );
-        expect(
-          find.byKey(const Key('punchlineImageDescriptionTextField')),
-          findsOneWidget,
-        );
-
-        // Enter descriptions and save
-        await tester.enterText(
-          find.byKey(const Key('setupImageDescriptionTextField')),
-          'New setup description',
-        );
-        await tester.enterText(
-          find.byKey(const Key('punchlineImageDescriptionTextField')),
-          'New punchline description',
-        );
-
-        // Ensure button is visible first
-        await tester.ensureVisible(find.byKey(const Key('updateJokeButton')));
-        await tester.pumpAndSettle();
-        await tester.tap(
-          find.byKey(const Key('updateJokeButton')),
-          warnIfMissed: false,
-        );
-        await tester.pump();
-
-        verify(
-          () => mockJokeRepository.updateJoke(
-            jokeId: originalJoke.id,
-            setupText: originalJoke.setupText,
-            punchlineText: originalJoke.punchlineText,
-            setupImageUrl: null,
-            punchlineImageUrl: null,
-            setupImageDescription: 'New setup description',
-            punchlineImageDescription: 'New punchline description',
-          ),
-        ).called(1);
-      });
+      verify(
+        () => mockJokeService.modifyJokeSceneIdeas(
+          jokeId: joke.id,
+          setupSuggestion: 'make sillier',
+          punchlineSuggestion: null,
+          setupSceneIdea: 'Old setup idea',
+          punchlineSceneIdea: 'Old punchline idea',
+        ),
+      ).called(1);
     });
 
-    group('Error Handling', () {
-      testWidgets('should show error message when create fails', (
-        tester,
-      ) async {
-        const setupText = 'New setup text';
-        const punchlineText = 'New punchline text';
+    testWidgets('generate descriptions button calls cloud function', (
+      tester,
+    ) async {
+      const joke = Joke(
+        id: 'j1',
+        setupText: 'Setup',
+        punchlineText: 'Punchline',
+        setupSceneIdea: 'scene 1',
+        punchlineSceneIdea: 'scene 2',
+      );
 
-        when(
-          () => mockJokeService.createJokeWithResponse(
-            setupText: setupText,
-            punchlineText: punchlineText,
-            adminOwned: true,
-          ),
-        ).thenAnswer(
-          (_) async => {'success': false, 'error': 'Failed to create joke'},
-        );
+      when(
+        () => mockJokeService.generateImageDescriptionsViaCreationProcess(
+          jokeId: joke.id,
+          setupSceneIdea: any(named: 'setupSceneIdea'),
+          punchlineSceneIdea: any(named: 'punchlineSceneIdea'),
+        ),
+      ).thenAnswer(
+        (_) async => const Joke(
+          id: 'j1',
+          setupText: 'Setup',
+          punchlineText: 'Punchline',
+          setupSceneIdea: 'scene 1',
+          punchlineSceneIdea: 'scene 2',
+          setupImageDescription: 'desc 1',
+          punchlineImageDescription: 'desc 2',
+        ),
+      );
 
-        await tester.pumpWidget(createTestWidget());
+      await tester.pumpWidget(buildScreen(joke: joke));
+      await tester.pumpAndSettle();
 
-        await tester.enterText(
-          find.byKey(const Key('setupTextField')),
-          setupText,
-        );
-        await tester.enterText(
-          find.byKey(const Key('punchlineTextField')),
-          punchlineText,
-        );
+      final descriptionsButton = find.byKey(
+        const Key('generateImageDescriptionsButton'),
+      );
+      await tester.ensureVisible(descriptionsButton);
+      await tester.pumpAndSettle();
+      await tester.tap(descriptionsButton);
+      await tester.pumpAndSettle();
 
-        await tester.tap(find.byKey(const Key('saveJokeButton')));
-        await tester.pumpAndSettle();
-
-        // Should show error snackbar
-        expect(find.text('Error: Failed to create joke'), findsOneWidget);
-      });
-
-      testWidgets('should show error message when update fails', (
-        tester,
-      ) async {
-        const originalJoke = Joke(
-          id: 'test-id',
-          setupText: 'Original setup',
-          punchlineText: 'Original punchline',
-          setupImageDescription: 'Original setup description',
-          punchlineImageDescription: 'Original punchline description',
-        );
-
-        when(
-          () => mockJokeRepository.updateJoke(
-            jokeId: any(named: 'jokeId'),
-            setupText: any(named: 'setupText'),
-            punchlineText: any(named: 'punchlineText'),
-            setupImageUrl: any(named: 'setupImageUrl'),
-            punchlineImageUrl: any(named: 'punchlineImageUrl'),
-            setupImageDescription: any(named: 'setupImageDescription'),
-            punchlineImageDescription: any(named: 'punchlineImageDescription'),
-          ),
-        ).thenThrow(Exception('Update failed'));
-
-        await tester.pumpWidget(createTestWidget(joke: originalJoke));
-        await tester.pumpAndSettle();
-
-        // Ensure button is visible first
-        await tester.ensureVisible(find.byKey(const Key('updateJokeButton')));
-        await tester.pumpAndSettle();
-        await tester.tap(
-          find.byKey(const Key('updateJokeButton')),
-          warnIfMissed: false,
-        );
-        await tester.pumpAndSettle();
-
-        // Should show error snackbar
-        expect(
-          find.text('Error saving joke: Exception: Update failed'),
-          findsOneWidget,
-        );
-      });
+      verify(
+        () => mockJokeService.generateImageDescriptionsViaCreationProcess(
+          jokeId: joke.id,
+          setupSceneIdea: 'scene 1',
+          punchlineSceneIdea: 'scene 2',
+        ),
+      ).called(1);
     });
 
-    group('Form Validation', () {
-      testWidgets('should validate minimum length for image descriptions', (
-        tester,
-      ) async {
-        const joke = Joke(
-          id: 'test-id',
-          setupText: 'Test setup',
-          punchlineText: 'Test punchline',
-          setupImageDescription: 'Valid description',
-          punchlineImageDescription: 'Valid description',
-        );
+    testWidgets('generate images button calls creation process', (
+      tester,
+    ) async {
+      const joke = Joke(
+        id: 'j1',
+        setupText: 'Setup',
+        punchlineText: 'Punchline',
+        setupSceneIdea: 'scene 1',
+        punchlineSceneIdea: 'scene 2',
+        setupImageDescription: 'desc 1',
+        punchlineImageDescription: 'desc 2',
+      );
 
-        await tester.pumpWidget(createTestWidget(joke: joke));
-        await tester.pumpAndSettle();
+      when(
+        () => mockJokeService.generateImagesViaCreationProcess(
+          jokeId: joke.id,
+          imageQuality: any(named: 'imageQuality'),
+          setupSceneIdea: any(named: 'setupSceneIdea'),
+          punchlineSceneIdea: any(named: 'punchlineSceneIdea'),
+        ),
+      ).thenAnswer(
+        (_) async => const Joke(
+          id: 'j1',
+          setupText: 'Setup',
+          punchlineText: 'Punchline',
+          setupSceneIdea: 'scene 1',
+          punchlineSceneIdea: 'scene 2',
+          setupImageDescription: 'desc 1',
+          punchlineImageDescription: 'desc 2',
+          allSetupImageUrls: ['a.png'],
+          allPunchlineImageUrls: ['b.png'],
+        ),
+      );
 
-        // Enter too short descriptions
-        await tester.enterText(
-          find.byKey(const Key('setupImageDescriptionTextField')),
-          'short',
-        ); // < 10 chars
-        await tester.enterText(
-          find.byKey(const Key('punchlineImageDescriptionTextField')),
-          'tiny',
-        ); // < 10 chars
+      await tester.pumpWidget(buildScreen(joke: joke));
+      await tester.pumpAndSettle();
 
-        // Ensure button is visible first
-        await tester.ensureVisible(find.byKey(const Key('updateJokeButton')));
-        await tester.pumpAndSettle();
-        await tester.tap(
-          find.byKey(const Key('updateJokeButton')),
-          warnIfMissed: false,
-        );
-        await tester.pump();
+      final imagesButton = find.byKey(const Key('generateImagesButton'));
+      await tester.ensureVisible(imagesButton);
+      await tester.pumpAndSettle();
+      await tester.tap(imagesButton);
+      await tester.pumpAndSettle();
 
-        expect(
-          find.text('Description must be at least 10 characters long'),
-          findsNWidgets(2),
-        );
-      });
+      verify(
+        () => mockJokeService.generateImagesViaCreationProcess(
+          jokeId: joke.id,
+          imageQuality: any(named: 'imageQuality'),
+          setupSceneIdea: 'scene 1',
+          punchlineSceneIdea: 'scene 2',
+        ),
+      ).called(1);
+    });
+
+    testWidgets('save selection button updates repository', (tester) async {
+      const joke = Joke(
+        id: 'j1',
+        setupText: 'Setup',
+        punchlineText: 'Punchline',
+        setupImageDescription: 'desc 1',
+        punchlineImageDescription: 'desc 2',
+        setupSceneIdea: 'scene 1',
+        punchlineSceneIdea: 'scene 2',
+        setupImageUrl: 'setup.png',
+        punchlineImageUrl: 'punch.png',
+        allSetupImageUrls: ['setup.png', 'setup2.png'],
+        allPunchlineImageUrls: ['punch.png', 'punch2.png'],
+      );
+
+      when(
+        () => mockJokeRepository.updateJoke(
+          jokeId: joke.id,
+          setupText: joke.setupText,
+          punchlineText: joke.punchlineText,
+          setupImageUrl: any(named: 'setupImageUrl'),
+          punchlineImageUrl: any(named: 'punchlineImageUrl'),
+          setupImageDescription: any(named: 'setupImageDescription'),
+          punchlineImageDescription: any(named: 'punchlineImageDescription'),
+        ),
+      ).thenAnswer((_) async {});
+
+      await tester.pumpWidget(buildScreen(joke: joke));
+      await tester.pumpAndSettle();
+
+      final saveButton = find.byKey(const Key('saveImageSelectionButton'));
+      await tester.ensureVisible(saveButton);
+      await tester.pumpAndSettle();
+      await tester.tap(saveButton);
+      await tester.pumpAndSettle();
+
+      verify(
+        () => mockJokeRepository.updateJoke(
+          jokeId: joke.id,
+          setupText: joke.setupText,
+          punchlineText: joke.punchlineText,
+          setupImageUrl: joke.setupImageUrl,
+          punchlineImageUrl: joke.punchlineImageUrl,
+          setupImageDescription: joke.setupImageDescription,
+          punchlineImageDescription: joke.punchlineImageDescription,
+        ),
+      ).called(1);
     });
   });
 }

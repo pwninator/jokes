@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import random
-from concurrent.futures import ThreadPoolExecutor
 from io import BytesIO
 from typing import Any, Literal, Tuple
 
@@ -32,8 +31,7 @@ class JokePopulationError(JokeOperationsError):
   """Exception raised for errors in joke population."""
 
 
-class SafetyCheckError(JokeOperationsError):
-  """Raised when content safety checks fail."""
+SafetyCheckError = joke_operation_prompts.SafetyCheckError
 
 
 def create_joke(
@@ -108,34 +106,14 @@ def _generate_scene_ideas(
   setup_text: str,
   punchline_text: str,
 ) -> Tuple[str, str, models.GenerationMetadata]:
-  """Generate scene ideas and run content safety in parallel."""
-  with ThreadPoolExecutor(max_workers=2) as executor:
-    scene_future = executor.submit(
-      joke_operation_prompts.generate_joke_scene_ideas,
-      setup_text,
-      punchline_text,
-    )
-    safety_future = executor.submit(
-      joke_operation_prompts.run_safety_check,
-      f"Setup: {setup_text}\nPunchline: {punchline_text}",
-    )
+  """Generate scene ideas with integrated safety handling."""
+  setup_scene_idea, punchline_scene_idea, metadata = (
+    joke_operation_prompts.generate_joke_scene_ideas(
+      setup_text=setup_text,
+      punchline_text=punchline_text,
+    ))
 
-    (
-      setup_scene_idea,
-      punchline_scene_idea,
-      ideas_is_safe,
-      idea_generation_metadata,
-    ) = scene_future.result()
-    safety_is_safe, safety_generation_metadata = safety_future.result()
-
-  if not safety_is_safe or not ideas_is_safe:
-    raise SafetyCheckError('Joke content failed safety review')
-
-  generation_metadata = models.GenerationMetadata()
-  generation_metadata.add_generation(idea_generation_metadata)
-  generation_metadata.add_generation(safety_generation_metadata)
-
-  return setup_scene_idea, punchline_scene_idea, generation_metadata
+  return setup_scene_idea, punchline_scene_idea, metadata
 
 
 def _regenerate_and_apply_scene_ideas(

@@ -213,7 +213,13 @@ void main() {
         punchlineText: any(named: 'punchlineText'),
         adminOwned: any(named: 'adminOwned'),
       ),
-    ).thenAnswer((_) async => {'success': true, 'joke_id': 'test-id'});
+    ).thenAnswer(
+      (_) async => const Joke(
+        id: 'test-id',
+        setupText: 'setup',
+        punchlineText: 'punchline',
+      ),
+    );
 
     when(
       () => mockCloudFunctionService.populateJoke(

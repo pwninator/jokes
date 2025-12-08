@@ -10,7 +10,16 @@ from firebase_functions import logger
 from common import models
 from functions.prompts import prompt_utils
 from services import llm_client
-from services.llm_client import LlmModel
+from services.llm_client import LlmClient, LlmModel
+
+
+class JokeOperationPromptError(Exception):
+  """Base exception for joke operation prompt failures."""
+
+
+class SafetyCheckError(JokeOperationPromptError):
+  """Raised when content safety checks fail."""
+
 
 _UNSAFE_CRITERIA = """
 Content that matches any of the following criteria are considered unsafe:
@@ -25,8 +34,7 @@ Content that matches any of the following criteria are considered unsafe:
 - Anything frightening, disturbing, or otherwise inappropriate for young kids.
 """
 
-# pylint: disable=line-too-long
-_llm = llm_client.get_client(
+_scene_generator_llm = llm_client.get_client(
   label="Joke Scene Ideas",
   model=LlmModel.GEMINI_2_5_FLASH,
   thinking_tokens=2000,
@@ -108,7 +116,6 @@ One or more lines describing the punchline scene concept, or "UNSAFE" if the inp
 """
   ],
 )
-# pylint: enable-line-too-long
 
 _scene_editor_llm = llm_client.get_client(
   label="Joke Scene Idea Editor",
@@ -207,35 +214,168 @@ SAFE or UNSAFE"""
 )
 
 
+def _generate_with_safety_check(
+  *,
+  label: str,
+  llm: LlmClient[Any],
+  prompt_chunks: list[str | Tuple[str, Any]],
+  response_keys: list[str],
+  safety_check_str: str | None = None,
+) -> tuple[dict[str, str], models.GenerationMetadata]:
+  """Generate with in-prompt + parallel safety; return parsed fields and metadata."""
+
+  with ThreadPoolExecutor(max_workers=2) as executor:
+    generation_future = executor.submit(
+      llm.generate,
+      prompt_chunks,
+      label=label,
+    )
+    safety_future = executor.submit(
+      _run_safety_check,
+      content=safety_check_str or "\n".join(prompt_chunks),
+      label=f"{label} - Safety Check",
+    )
+
+    response = generation_future.result()
+    separate_safety_ok, safety_generation_metadata = safety_future.result()
+
+  response_parsed = prompt_utils.parse_llm_response_line_separated(
+    response_keys + ["SAFETY_VERDICT"],
+    response.text,
+  )
+  in_prompt_safety_ok = _is_verdict_safe(
+    response_parsed.get("SAFETY_VERDICT", ""))
+
+  if not separate_safety_ok or not in_prompt_safety_ok:
+    raise SafetyCheckError(
+      f"Safety check failed for {label}: {safety_check_str}")
+
+  generation_metadata = models.GenerationMetadata()
+  generation_metadata.add_generation(response.metadata)
+  generation_metadata.add_generation(safety_generation_metadata)
+
+  response_parsed.pop("SAFETY_VERDICT", None)
+  return response_parsed, generation_metadata
+
+
 def generate_joke_scene_ideas(
   setup_text: str,
   punchline_text: str,
-) -> Tuple[str, str, bool, models.SingleGenerationMetadata]:
+) -> Tuple[str, str, models.GenerationMetadata]:
   """Generate setup and punchline scene descriptions."""
   if not setup_text:
     raise ValueError("Setup text is required")
   if not punchline_text:
     raise ValueError("Punchline text is required")
 
-  prompt = [
-    f"""Joke:
+  prompt = f"""Joke:
+Setup: {setup_text}
+Punchline: {punchline_text}
+"""
+
+  response, metadata = _generate_with_safety_check(
+    label="Joke Scene Ideas",
+    llm=_scene_generator_llm,
+    prompt_chunks=[prompt],
+    response_keys=["SETUP_SCENE_IDEA", "PUNCHLINE_SCENE_IDEA"],
+    safety_check_str=prompt,
+  )
+  return (
+    response["SETUP_SCENE_IDEA"],
+    response["PUNCHLINE_SCENE_IDEA"],
+    metadata,
+  )
+
+
+def modify_scene_ideas_with_suggestions(
+  *,
+  setup_text: str,
+  punchline_text: str,
+  current_setup_scene_idea: str,
+  current_punchline_scene_idea: str,
+  setup_suggestion: str | None,
+  punchline_suggestion: str | None,
+) -> Tuple[str, str, models.GenerationMetadata]:
+  """Apply user suggestions to refine existing scene ideas."""
+  if not setup_text or not punchline_text:
+    raise ValueError("Setup and punchline text are required")
+  if not current_setup_scene_idea or not current_punchline_scene_idea:
+    raise ValueError("Current scene ideas are required")
+  if not (setup_suggestion or punchline_suggestion):
+    raise ValueError("At least one suggestion must be provided")
+
+  setup_instructions = (setup_suggestion or "").strip()
+  punchline_instructions = (punchline_suggestion or "").strip()
+
+  prompt = f"""
+Joke:
 Setup: {setup_text}
 Punchline: {punchline_text}
 
-Remember to respond exactly with SETUP_SCENE_IDEA and PUNCHLINE_SCENE_IDEA sections."""
-  ]
+Current Setup Scene Idea:
+{current_setup_scene_idea}
 
-  response = _llm.generate(prompt)
-  result = prompt_utils.parse_llm_response_line_separated(
-    ["SAFETY_VERDICT", "SETUP_SCENE_IDEA", "PUNCHLINE_SCENE_IDEA"],
-    response.text,
+Current Punchline Scene Idea:
+{current_punchline_scene_idea}
+
+Setup Instructions:
+{setup_instructions or "keep as-is"}
+
+Punchline Instructions:
+{punchline_instructions or "keep as-is"}
+"""
+
+  response, gen_metadata = _generate_with_safety_check(
+    label="Joke Scene Idea Editor",
+    llm=_scene_editor_llm,
+    prompt_chunks=[prompt],
+    response_keys=["SETUP_SCENE_IDEA", "PUNCHLINE_SCENE_IDEA"],
+    safety_check_str=prompt,
   )
-  is_safe = _is_verdict_safe(result["SAFETY_VERDICT"])
   return (
-    result["SETUP_SCENE_IDEA"],
-    result["PUNCHLINE_SCENE_IDEA"],
-    is_safe,
-    response.metadata,
+    response["SETUP_SCENE_IDEA"],
+    response["PUNCHLINE_SCENE_IDEA"],
+    gen_metadata,
+  )
+
+
+def generate_detailed_image_descriptions(
+  *,
+  setup_text: str,
+  punchline_text: str,
+  setup_scene_idea: str,
+  punchline_scene_idea: str,
+) -> Tuple[str, str, models.GenerationMetadata]:
+  """Convert scene ideas into image descriptions for illustration generation."""
+  if not setup_text or not punchline_text:
+    raise ValueError("Setup and punchline text are required")
+  if not setup_scene_idea or not punchline_scene_idea:
+    raise ValueError("Scene ideas are required")
+
+  prompt = f"""
+Joke Text:
+Setup: {setup_text}
+Punchline: {punchline_text}
+
+Scene Ideas:
+Setup Scene: {setup_scene_idea}
+Punchline Scene: {punchline_scene_idea}
+"""
+
+  parsed, gen_metadata = _generate_with_safety_check(
+    label="Joke Image Description Generator",
+    llm=_image_description_llm,
+    prompt_chunks=[prompt],
+    response_keys=[
+      "SETUP_IMAGE_DESCRIPTION",
+      "PUNCHLINE_IMAGE_DESCRIPTION",
+    ],
+    safety_check_str=prompt,
+  )
+  return (
+    parsed["SETUP_IMAGE_DESCRIPTION"],
+    parsed["PUNCHLINE_IMAGE_DESCRIPTION"],
+    gen_metadata,
   )
 
 
@@ -272,8 +412,10 @@ def _is_verdict_safe(verdict_text: str) -> bool:
   ))
 
 
-def run_safety_check(
-    content: Any) -> Tuple[bool, models.SingleGenerationMetadata]:
+def _run_safety_check(
+  content: Any,
+  label: str | None = None,
+) -> Tuple[bool, models.SingleGenerationMetadata]:
   """Check if the given content is appropriate for a kids jokes app."""
   prompt = [
     f"""Review the following content and determine if it is SAFE or UNSAFE for kids (ages 4-12) using the provided safety rules.
@@ -289,146 +431,9 @@ Content to review:
   reason_text = parsed.get("REASONS", "")
   is_safe = _is_verdict_safe(verdict_text)
 
+  label_str = f" [label: {label}]" if label else ""
   if not is_safe:
-    logger.warn(f"Unsafe content ({reason_text}): {content}")
+    logger.warn(f"Unsafe content{label_str} ({reason_text}): {content}")
 
   metadata = response.metadata or models.SingleGenerationMetadata()
   return is_safe, metadata
-
-
-def modify_scene_ideas_with_suggestions(
-  *,
-  setup_text: str,
-  punchline_text: str,
-  current_setup_scene_idea: str,
-  current_punchline_scene_idea: str,
-  setup_suggestion: str | None,
-  punchline_suggestion: str | None,
-) -> Tuple[str, str, models.SingleGenerationMetadata]:
-  """Apply user suggestions to refine existing scene ideas."""
-  if not setup_text or not punchline_text:
-    raise ValueError("Setup and punchline text are required")
-  if not current_setup_scene_idea or not current_punchline_scene_idea:
-    raise ValueError("Current scene ideas are required")
-  if not (setup_suggestion or punchline_suggestion):
-    raise ValueError("At least one suggestion must be provided")
-
-  setup_instructions = (setup_suggestion or "").strip()
-  punchline_instructions = (punchline_suggestion or "").strip()
-
-  prompt_parts = [
-    f"""
-Joke:
-Setup: {setup_text}
-Punchline: {punchline_text}
-
-Current Setup Scene Idea:
-{current_setup_scene_idea}
-
-Current Punchline Scene Idea:
-{current_punchline_scene_idea}
-
-Setup Instructions:
-{setup_instructions or "keep as-is"}
-
-Punchline Instructions:
-{punchline_instructions or "keep as-is"}
-
-Update the scene ideas following the exact response format.
-"""
-  ]
-
-  with ThreadPoolExecutor(max_workers=2) as executor:
-    editor_future = executor.submit(_scene_editor_llm.generate, prompt_parts)
-    safety_future = executor.submit(
-      run_safety_check,
-      "\n".join([
-        f"Setup: {setup_text}",
-        f"Punchline: {punchline_text}",
-        f"Setup Instructions: {setup_instructions}",
-        f"Punchline Instructions: {punchline_instructions}",
-      ]),
-    )
-
-    response = editor_future.result()
-    safety_ok, _ = safety_future.result()
-
-  parsed = prompt_utils.parse_llm_response_line_separated(
-    ["SAFETY_VERDICT", "SETUP_SCENE_IDEA", "PUNCHLINE_SCENE_IDEA"],
-    response.text,
-  )
-  ideas_safe = _is_verdict_safe(parsed.get("SAFETY_VERDICT", ""))
-  is_safe = ideas_safe and safety_ok
-
-  setup_result = parsed["SETUP_SCENE_IDEA"] if is_safe else "UNSAFE"
-  punchline_result = parsed["PUNCHLINE_SCENE_IDEA"] if is_safe else "UNSAFE"
-
-  return (
-    setup_result,
-    punchline_result,
-    response.metadata,
-  )
-
-
-def generate_detailed_image_descriptions(
-  *,
-  setup_text: str,
-  punchline_text: str,
-  setup_scene_idea: str,
-  punchline_scene_idea: str,
-) -> Tuple[str, str, models.SingleGenerationMetadata]:
-  """Convert scene ideas into image descriptions for illustration generation."""
-  if not setup_text or not punchline_text:
-    raise ValueError("Setup and punchline text are required")
-  if not setup_scene_idea or not punchline_scene_idea:
-    raise ValueError("Scene ideas are required")
-
-  prompt_parts = [
-    f"""
-Joke Text:
-Setup: {setup_text}
-Punchline: {punchline_text}
-
-Scene Ideas:
-Setup Scene: {setup_scene_idea}
-Punchline Scene: {punchline_scene_idea}
-
-Create richly detailed illustration descriptions using the required format.
-"""
-  ]
-
-  with ThreadPoolExecutor(max_workers=2) as executor:
-    desc_future = executor.submit(_image_description_llm.generate,
-                                  prompt_parts)
-    safety_future = executor.submit(
-      run_safety_check,
-      "\n".join([
-        f"Setup: {setup_text}",
-        f"Punchline: {punchline_text}",
-        f"Setup Scene Idea: {setup_scene_idea}",
-        f"Punchline Scene Idea: {punchline_scene_idea}",
-      ]),
-    )
-
-    response = desc_future.result()
-    safety_ok, _ = safety_future.result()
-
-  parsed = prompt_utils.parse_llm_response_line_separated(
-    [
-      "SAFETY_VERDICT", "SETUP_IMAGE_DESCRIPTION",
-      "PUNCHLINE_IMAGE_DESCRIPTION"
-    ],
-    response.text,
-  )
-  ideas_safe = _is_verdict_safe(parsed.get("SAFETY_VERDICT", ""))
-  is_safe = ideas_safe and safety_ok
-
-  setup_desc = parsed["SETUP_IMAGE_DESCRIPTION"] if is_safe else "UNSAFE"
-  punchline_desc = parsed[
-    "PUNCHLINE_IMAGE_DESCRIPTION"] if is_safe else "UNSAFE"
-
-  return (
-    setup_desc,
-    punchline_desc,
-    response.metadata,
-  )

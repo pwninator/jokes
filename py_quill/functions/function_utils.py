@@ -34,10 +34,17 @@ def success_response(data: dict[str, Any]) -> https_fn.Response:
   return {"data": data}
 
 
-def error_response(message: str) -> https_fn.Response:
-  """Return an error response."""
-  logger.error(f"Error response: {message}")
-  return {"data": {"error": message}}
+def error_response(
+  message: str,
+  *,
+  error_type: str | None = None,
+) -> https_fn.Response:
+  """Return an error response with optional typed error code."""
+  logger.error(f"Error response: {message} ({error_type})")
+  payload: dict[str, Any] = {"error": message}
+  if error_type:
+    payload["error_type"] = error_type
+  return {"data": payload}
 
 
 def get_param(

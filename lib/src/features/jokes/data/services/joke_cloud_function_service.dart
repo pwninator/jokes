@@ -20,6 +20,14 @@ JokeCloudFunctionService jokeCloudFunctionService(Ref ref) {
   return JokeCloudFunctionService(functions: functions, perf: perf);
 }
 
+class SafetyCheckException implements Exception {
+  final String message;
+  SafetyCheckException(this.message);
+
+  @override
+  String toString() => 'SafetyCheckException: $message';
+}
+
 class JokeCloudFunctionService {
   JokeCloudFunctionService({
     required FirebaseFunctions functions,
@@ -117,6 +125,7 @@ class JokeCloudFunctionService {
       return joke;
     } on FirebaseFunctionsException catch (e) {
       AppLogger.warn('Firebase Functions error: ${e.code} - ${e.message}');
+      _maybeThrowSafety(e);
       throw Exception('Function error: ${e.message}');
     } catch (e) {
       AppLogger.warn('Error creating joke: $e');
@@ -165,6 +174,7 @@ class JokeCloudFunctionService {
         'Firebase Functions error (modify scene ideas): '
         '${e.code} - ${e.message}',
       );
+      _maybeThrowSafety(e);
       throw Exception('Function error: ${e.message}');
     } catch (e) {
       AppLogger.warn('Error modifying scene ideas: $e');
@@ -200,6 +210,7 @@ class JokeCloudFunctionService {
         'Firebase Functions error (generate image descriptions): '
         '${e.code} - ${e.message}',
       );
+      _maybeThrowSafety(e);
       throw Exception('Function error: ${e.message}');
     } catch (e) {
       AppLogger.warn('Error generating image descriptions: $e');
@@ -243,6 +254,7 @@ class JokeCloudFunctionService {
         'Firebase Functions error (generate images via creation process): '
         '${e.code} - ${e.message}',
       );
+      _maybeThrowSafety(e);
       throw Exception('Function error: ${e.message}');
     } catch (e) {
       AppLogger.warn('Error generating images via creation process: $e');
@@ -286,6 +298,7 @@ class JokeCloudFunctionService {
       return {'success': true, 'data': result.data};
     } on FirebaseFunctionsException catch (e) {
       AppLogger.warn('Firebase Functions error: ${e.code} - ${e.message}');
+      _maybeThrowSafety(e);
       return {
         'success': false,
         'error': 'Function error: ${e.message}',
@@ -325,6 +338,7 @@ class JokeCloudFunctionService {
       return {'success': true, 'data': result.data};
     } on FirebaseFunctionsException catch (e) {
       AppLogger.warn('Firebase Functions error: ${e.code} - ${e.message}');
+      _maybeThrowSafety(e);
       return {
         'success': false,
         'error': 'Function error: ${e.message}',
@@ -364,6 +378,7 @@ class JokeCloudFunctionService {
         'Firebase Functions error (update joke text): '
         '${e.code} - ${e.message}',
       );
+      _maybeThrowSafety(e);
       throw Exception('Function error: ${e.message}');
     } catch (e) {
       AppLogger.warn('Error updating joke text via creation process: $e');
@@ -627,5 +642,12 @@ class JokeCloudFunctionService {
       }
     }
     return null;
+  }
+
+  void _maybeThrowSafety(FirebaseFunctionsException e) {
+    final errorType = e.details is Map ? (e.details as Map)['error_type'] : null;
+    if (errorType == 'safety_failed') {
+      throw SafetyCheckException(e.message ?? 'Content failed safety check');
+    }
   }
 }

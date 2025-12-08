@@ -23,9 +23,10 @@ class _DummyClient:
     self._text = text
     self.last_prompt = None
 
-  def generate(self, prompt_parts, extra_log_data=None):
+  def generate(self, prompt_parts, label=None, extra_log_data=None):
     self.last_prompt = prompt_parts
     _ = extra_log_data
+    _ = label
     return _DummyResponse(self._text)
 
 
@@ -62,8 +63,11 @@ New punchline idea""")
   )
   monkeypatch.setattr(
     joke_operation_prompts,
-    "run_safety_check",
-    lambda content: (True, models.SingleGenerationMetadata(model_name="safety")),
+    "_run_safety_check",
+    lambda content, label=None: (
+      True,
+      models.SingleGenerationMetadata(model_name="safety"),
+    ),
   )
 
   setup, punchline, metadata = (
@@ -78,7 +82,8 @@ New punchline idea""")
 
   assert setup == "New setup idea"
   assert punchline == "New punchline idea"
-  assert metadata.model_name == "dummy"
+  assert len(metadata.generations) == 2
+  assert {g.model_name for g in metadata.generations} == {"dummy", "safety"}
   assert dummy_client.last_prompt is not None
   assert "Setup: setup" in dummy_client.last_prompt[0]
   assert "Punchline: punch" in dummy_client.last_prompt[0]
@@ -116,8 +121,11 @@ Detailed punchline description""")
   )
   monkeypatch.setattr(
     joke_operation_prompts,
-    "run_safety_check",
-    lambda content: (True, models.SingleGenerationMetadata(model_name="safety")),
+    "_run_safety_check",
+    lambda content, label=None: (
+      True,
+      models.SingleGenerationMetadata(model_name="safety"),
+    ),
   )
 
   setup_desc, punch_desc, metadata = (
@@ -130,7 +138,8 @@ Detailed punchline description""")
 
   assert setup_desc == "Detailed setup description"
   assert punch_desc == "Detailed punchline description"
-  assert metadata.model_name == "dummy"
+  assert len(metadata.generations) == 2
+  assert {g.model_name for g in metadata.generations} == {"dummy", "safety"}
   assert dummy_client.last_prompt is not None
   assert "scene setup" in dummy_client.last_prompt[0]
   assert "scene punch" in dummy_client.last_prompt[0]

@@ -117,7 +117,8 @@ def joke_creation_process(req: https_fn.Request) -> https_fn.Response:
 
     else:
       return error_response(
-        'Unsupported parameter combination for joke_creation_process')
+        'Unsupported parameter combination for joke_creation_process',
+        error_type='unsupported_parameters')
 
     if saved_joke:
       return success_response(
@@ -125,7 +126,12 @@ def joke_creation_process(req: https_fn.Request) -> https_fn.Response:
     else:
       return error_response('Failed to save joke')
 
-  except Exception as exc:  # pylint: disable=broad-except
-    error_string = f"Error handling joke_creation_process: {str(exc)}\n{traceback.format_exc()}"
+  except joke_operations.SafetyCheckError as exc:
+    error_string = f"Safety check failed: {str(exc)}"
     logger.error(error_string)
-    return error_response(error_string)
+    return error_response(error_string, error_type='safety_failed')
+  except Exception as exc:  # pylint: disable=broad-except
+    error_string = (f"Error handling joke_creation_process: {str(exc)}\n"
+                    f"{traceback.format_exc()}")
+    logger.error(error_string)
+    return error_response(error_string, error_type='internal_error')

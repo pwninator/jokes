@@ -15,6 +15,8 @@ class MockHttpsCallableResult extends Mock implements HttpsCallableResult {}
 
 class MockPerformanceService extends Mock implements PerformanceService {}
 
+class FakeFunctionsException extends Fake implements FirebaseFunctionsException {}
+
 void main() {
   group('JokeCloudFunctionService', () {
     late JokeCloudFunctionService service;
@@ -28,6 +30,7 @@ void main() {
       mockCallable = MockHttpsCallable();
       mockResult = MockHttpsCallableResult();
       mockPerf = MockPerformanceService();
+      registerFallbackValue(FakeFunctionsException());
       service = JokeCloudFunctionService(
         functions: mockFunctions,
         perf: mockPerf,
@@ -81,6 +84,28 @@ void main() {
 
         expect(result!['success'], isFalse);
         expect(result['error'], contains('Function error: Internal error'));
+      });
+
+      test('should throw SafetyCheckException when safety fails', () async {
+        const jokeId = 'test-joke-id';
+        final exception = FirebaseFunctionsException(
+          code: 'failed-precondition',
+          message: 'Safety failed',
+          details: {'error_type': 'safety_failed'},
+        );
+
+        when(
+          () => mockFunctions.httpsCallable(
+            'populate_joke',
+            options: any(named: 'options'),
+          ),
+        ).thenReturn(mockCallable);
+        when(() => mockCallable.call(any())).thenThrow(exception);
+
+        expect(
+          () => service.populateJoke(jokeId),
+          throwsA(isA<SafetyCheckException>()),
+        );
       });
     });
 

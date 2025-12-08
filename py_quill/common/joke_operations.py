@@ -215,18 +215,16 @@ def generate_joke_images(joke: models.PunnyJoke,
   if not joke.setup_image_description or not joke.punchline_image_description:
     joke = generate_image_descriptions(joke)
 
-  pun_data = [(joke.setup_text, joke.setup_image_description),
-              (joke.punchline_text, joke.punchline_image_description)]
+  setup_image, punchline_image = image_generation.generate_pun_images(
+    setup_text=joke.setup_text,
+    setup_image_description=joke.setup_image_description,
+    punchline_text=joke.punchline_text,
+    punchline_image_description=joke.punchline_image_description,
+    image_quality=image_quality,
+  )
 
-  images = image_generation.generate_pun_images(pun_data, image_quality)
-
-  if len(images) == 2:
-    joke.set_setup_image(images[0])
-    joke.set_punchline_image(images[1])
-  else:
-    raise JokePopulationError(
-      f'Image generation returned insufficient images: expected 2, got {len(images)}'
-    )
+  joke.set_setup_image(setup_image)
+  joke.set_punchline_image(punchline_image)
 
   joke.setup_image_url_upscaled = None
   joke.punchline_image_url_upscaled = None

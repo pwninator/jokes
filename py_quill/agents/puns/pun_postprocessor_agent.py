@@ -242,12 +242,21 @@ def _generate_image_callback(
                     f"Input: {pun_model_dict}")
     return
 
-  # Generate images for each pun line
-  pun_data = [(pun_line.text, pun_line.image_description)
-              for pun_line in pun_model.pun_lines]
+  if len(pun_model.pun_lines) < 2:
+    logging.warning(
+      "Pun postprocessor expected at least 2 lines for setup/punchline images")
+    return
 
-  # On initial generation, always use low quality
-  images = image_generation.generate_pun_images(pun_data, "low_mini")
+  setup_line = pun_model.pun_lines[0]
+  punchline_line = pun_model.pun_lines[1]
+
+  images = image_generation.generate_pun_images(
+    setup_text=setup_line.text,
+    setup_image_description=setup_line.image_description,
+    punchline_text=punchline_line.text,
+    punchline_image_description=punchline_line.image_description,
+    image_quality="low_mini",
+  )
 
   # Update pun lines with generated images and collect LLM costs
   all_llm_costs = []

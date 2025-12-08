@@ -57,6 +57,10 @@ First, think about the joke and its humor. What's the humor and why is it funny?
 * The scenes should specific to the joke so that they are visually distinct from images of other jokes. Prefer to describe a very specific or narrow scene that fits this particular joke over a generic scene.
 * Both scenes must be wholesome, cute, funny, and appropriate for all ages.
 * Each idea should be 2-3 sentences in simple, clear English that a 7 year old would understand.
+* Keep scenes simple and focused: only the minimal subjects/objects needed to set up and sell the joke (ideally 2-3), with uncluttered backgrounds.
+* Stay relevant to the joke's topic/theme (and any creative brief, if provided); avoid giving away the punchline in the setup.
+* Maintain consistency of recurring characters/props across panels (colors, size, clothing, etc.).
+* If helpful, mention briefly where line text could be placed so lettering can be included tastefully.
 
 ### Setup Scene
 * Build intrigue without revealing the twist.
@@ -69,6 +73,7 @@ First, think about the joke and its humor. What's the humor and why is it funny?
 * Emphasize heightened expressions, motion, and comedic payoff.
 * Maximize the comedic impact of any unexpected twist or subversion of expectations.
 * Make the humor unmistakable while staying delightful for all ages.
+* Be more energetic and dramatic than the setup; reveal the surprise cleanly.
 
 ## Example:
 
@@ -168,8 +173,12 @@ For each panel:
 - Describe the full composition, camera angle, main characters, props, background, lighting, palette, and mood.
 - Use lively but clear language a production artist can follow.
 - Keep it wholesome, colorful, and funny. Avoid violence, adult content, or sarcasm.
-- Mention the pun text briefly so lettering can be included tastefully.
-- Limit each description to 3-4 sentences.
+- Keep the scene focused: only the minimal subjects/objects needed to set up and sell the joke (ideally 2-3), with uncluttered backgrounds.
+- Maintain consistency for any recurring characters/props across panels (colors, size, clothing, style).
+- Stay relevant to the scene ideas, joke topic/theme, and any provided creative brief; do not introduce new subjects that change the joke or reveal the punchline early.
+- If the setup relies on misdirection, do not spoil the twist; the punchline image should clearly deliver the surprise.
+- Mention briefly where the line text could be placed so lettering can be included tastefully without covering key art.
+- Limit each description to 1 paragraph.
 
 Safety:
 - All content must be SAFE for kids. If unsafe, respond with UNSAFE.

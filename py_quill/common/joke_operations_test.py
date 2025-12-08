@@ -143,9 +143,8 @@ def test_generate_joke_images_updates_images(mock_image_generation):
   )
   setup_image = models.Image(url="setup-url")
   punch_image = models.Image(url="punch-url")
-  mock_image_generation.generate_pun_images.return_value = [
-    setup_image, punch_image
-  ]
+  mock_image_generation.generate_pun_images.return_value = (
+    setup_image, punch_image)
 
   updated = joke_operations.generate_joke_images(joke, "medium")
 
@@ -165,10 +164,10 @@ def test_generate_joke_images_moves_draft_to_unreviewed(mock_image_generation):
     punchline_image_description="punch desc",
     state=models.JokeState.DRAFT,
   )
-  mock_image_generation.generate_pun_images.return_value = [
+  mock_image_generation.generate_pun_images.return_value = (
     models.Image(url="setup-url"),
     models.Image(url="punch-url"),
-  ]
+  )
 
   updated = joke_operations.generate_joke_images(joke, "medium")
 
@@ -188,7 +187,7 @@ def test_generate_joke_images_generates_descriptions_when_missing(
     setup_image_description=None,
     punchline_image_description=None,
   )
-  mock_image_generation.generate_pun_images.return_value = [
+  mock_image_generation.generate_pun_images.return_value = (
     models.Image(
       url="setup-url",
       original_prompt="detailed setup image",
@@ -199,7 +198,7 @@ def test_generate_joke_images_generates_descriptions_when_missing(
       original_prompt="detailed punchline image",
       final_prompt="punch prompt",
     ),
-  ]
+  )
 
   updated = joke_operations.generate_joke_images(joke, "medium")
 

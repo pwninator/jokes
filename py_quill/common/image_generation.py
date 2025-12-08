@@ -1,8 +1,8 @@
 """Library for generating images."""
 
-import logging
 from typing import Any
 
+from agents import constants
 from common import models, utils
 from services import cloud_storage, image_client
 
@@ -30,19 +30,19 @@ PUN_IMAGE_CLIENTS_BY_QUALITY = {
   "low":
   image_client.get_client(
     label="pun_agent_image_tool_low",
-    model=image_client.ImageModel.OPENAI_RESPONSES_API_LOW,
+    model=image_client.ImageModel.OPENAI_GPT_IMAGE_1_LOW,
     file_name_base=_IMAGE_FILE_NAME_BASE,
   ),
   "medium":
   image_client.get_client(
     label="pun_agent_image_tool_medium",
-    model=image_client.ImageModel.OPENAI_RESPONSES_API_MEDIUM,
+    model=image_client.ImageModel.OPENAI_GPT_IMAGE_1_MEDIUM,
     file_name_base=_IMAGE_FILE_NAME_BASE,
   ),
   "high":
   image_client.get_client(
     label="pun_agent_image_tool_high",
-    model=image_client.ImageModel.OPENAI_RESPONSES_API_HIGH,
+    model=image_client.ImageModel.OPENAI_GPT_IMAGE_1_HIGH,
     file_name_base=_IMAGE_FILE_NAME_BASE,
   ),
   "gemini":
@@ -66,73 +66,96 @@ _MODIFY_IMAGE_CLIENT_HIGH = image_client.get_client(
 )
 
 # Image prompt constants
-_IMAGE_GENERATION_PROMPT_PREAMBLE = "A whimsical and silly sketch, appearing as if drawn with colored pencils on lightly textured paper to create a naive charm. The artwork is unbearably cute, with soft, sketchy lines and a vibrant, gentle, but bright color palette where colors sometimes stray playfully outside the lines."
+_IMAGE_GENERATION_PROMPT_PREAMBLE = (
+  "Create an unbearably cute, professional-quality children's illustration in soft colored pencil on lightly textured paper. "
+  "Use organic, sketch-like outlines in darker saturated shades of the subject colors (avoid heavy black ink), with visible directional strokes and tight cross-hatching to build rich, vibrant color. "
+  "Keep the palette bright, gentle, and harmonious; backgrounds fully rendered (not blank or vignette). "
+  "Leave a safe margin around all edges so no important text or main content is near or crossing the edge; keep all text and focal elements comfortably inside the frame. "
+  "Subjects should be chibi/cute (big heads, large expressive eyes with highlights, small bodies), tactile and hand-crafted yet polished for print."
+)
 
-_IMAGE_GENERATION_WITH_REFERENCE_PROMPT_POSTAMBLE = "Generate another image using the same artistic style, color palette, background texture, and overall aesthetic as the reference images. Make sure the characters, objects, fonts, color palette, etc. are consistent."
+_STYLE_REFERENCE_GUIDANCE = (
+  "You are given {num_style_refs} style reference images to help you visualize the desired art style described above. Use them to match the artistic style, color palette, background texture, and overall aesthetic."
+)
+
+_PRIOR_PANEL_GUIDANCE = (
+  "You are given 1 prior panel image (the setup panel). Create the punchline panel to complete the two-panel joke. "
+  "Use the exact same art style as the setup panel. Keep characters, props, fonts, colors, proportions, outfits, camera angle, and environment consistent with the setup panel. "
+  "Do not alter or obscure any text already present in the setup panel. Generate the new punchline content while preserving all visual continuity."
+)
 
 _IMAGE_MODIFICATION_PROMPT_POSTAMBLE = "Make sure to the exact same artistic style, color palette, background texture, and overall aesthetic as the original image. Make sure the characters, objects, fonts, color palette, etc. are consistent."
 
 
 def generate_pun_images(
-  pun_data: list[tuple[str, str]],
+  *,
+  setup_text: str,
+  setup_image_description: str,
+  punchline_text: str,
+  punchline_image_description: str,
   image_quality: str,
-) -> list[models.Image]:
-  """Generate images for a list of pun lines.
+) -> tuple[models.Image, models.Image]:
+  """Generate setup and punchline images for a two-panel pun.
   
   Args:
-    pun_data: List of tuples containing (pun_text, image_description)
-    image_quality: The quality of the image to generate.
+    setup_text: Text for the setup panel.
+    setup_image_description: Detailed description for the setup panel image.
+    punchline_text: Text for the punchline panel.
+    punchline_image_description: Detailed description for the punchline panel image.
+    image_quality: Desired image quality preset.
 
   Returns:
-    List of generated Image objects
+    A tuple of two Image objects (setup first, then punchline).
   """
-  images: list[models.Image | None] = []
-  previous_image_references: list[Any] = []
 
-  for i, (pun_text, image_description) in enumerate(pun_data):
-    # try:
-    image = generate_pun_image(
-      pun_text=pun_text,
-      image_description=image_description,
-      image_quality=image_quality,
-      reference_images=previous_image_references,
-    )
+  # Panel 1 (setup) uses style references.
+  setup_image = generate_pun_image(
+    pun_text=setup_text,
+    image_description=setup_image_description,
+    image_quality=image_quality,
+    style_reference_images=constants.STYLE_REFERENCE_IMAGE_URLS,
+  )
 
-    if not image.url:
-      logging.warning(
-        f"Generated pun image for pun line {i} has no URL: {image}")
-      images.append(None)
-      continue
+  if not setup_image.url:
+    raise ValueError(f"Generated setup image has no URL: {setup_image}")
 
-    if prev_id := image.custom_temp_data.get("image_generation_call_id"):
-      previous_image_references.append(prev_id)
-    elif image.gcs_uri:
-      previous_image_references.append(image.gcs_uri)
+  previous_image_reference: Any | None = None
+  if setup_image.custom_temp_data.get("image_generation_call_id"):
+    previous_image_reference = setup_image.custom_temp_data[
+      "image_generation_call_id"]
+  elif setup_image.gcs_uri:
+    previous_image_reference = setup_image.gcs_uri
 
-    images.append(image)
+  # Panel 2 (punchline) uses only the prior setup panel for continuity.
+  punchline_image = generate_pun_image(
+    pun_text=punchline_text,
+    image_description=punchline_image_description,
+    image_quality=image_quality,
+    previous_image=previous_image_reference,
+  )
 
-  # except Exception as e:
-  #   stack_trace = traceback.format_exc()
-  #   logging.warning(
-  #     f"Failed to generate image for pun line {i}: {pun_text}\n{e}\n{stack_trace}"
-  #   )
-  #   images.append(None)
+  if not punchline_image.url:
+    raise ValueError(
+      f"Generated punchline image has no URL: {punchline_image}")
 
-  return images
+  return (setup_image, punchline_image)
 
 
 def generate_pun_image(
   pun_text: str | None,
   image_description: str,
   image_quality: str,
-  reference_images: list[Any] | None = None,
+  *,
+  previous_image: Any | None = None,
+  style_reference_images: list[Any] | None = None,
   image_client_override: image_client.ImageClient | None = None,
 ) -> models.Image:
   """Generate a pun image.
   Args:
     pun_text: The full text of the pun to display on the image. If None, the image will be generated without the pun text.
     image_description: Detailed description of all aspects of the image. This should include the full text of the pun (again), the style/font/color/position/etc. of the pun text, as well as the image's subject(s), foreground, background, color palette, artistic style, and all other details needed to render an accurate image.
-    reference_images: Data about reference images. Format depends on the image provider.
+    previous_image: The setup/prior panel image for continuity. Must not be combined with style_reference_images.
+    style_reference_images: Style reference images to anchor the art style. Must not be combined with previous_image.
     image_quality: The quality of the image to generate.
       - "low": Low quality, fast generation.
       - "medium": Medium quality, medium speed generation.
@@ -142,20 +165,32 @@ def generate_pun_image(
     The generated image.
   """
 
-  if reference_images:
-    prompt_preamble = _IMAGE_GENERATION_WITH_REFERENCE_PROMPT_POSTAMBLE
-  else:
-    prompt_preamble = _IMAGE_GENERATION_PROMPT_PREAMBLE
+  if previous_image and style_reference_images:
+    raise ValueError(
+      "previous_image and style_reference_images cannot be used together")
+
+  prompt_parts: list[str] = [_IMAGE_GENERATION_PROMPT_PREAMBLE]
+  all_reference_images: list[Any] = []
+
+  if style_reference_images:
+    prompt_parts.append(
+      _STYLE_REFERENCE_GUIDANCE.format(
+        num_style_refs=len(style_reference_images)))
+    all_reference_images.extend(style_reference_images)
+
+  if previous_image:
+    prompt_parts.append(_PRIOR_PANEL_GUIDANCE)
+    all_reference_images.append(previous_image)
+
+  image_description = image_description.strip()
+  prompt_parts.append(image_description)
 
   if pun_text:
-    prompt_postamble = f'The phrase "{pun_text}" is prominently displayed in a casual, whimsical hand-written script, resembling a silly pencil sketch.'
-  else:
-    prompt_postamble = ''
+    prompt_parts.append(
+      f'The phrase "{pun_text}" is prominently displayed in a casual, whimsical hand-written script, resembling a silly pencil sketch.'
+    )
 
-  image_description = _strip_prompt_preamble(image_description,
-                                             prompt_preamble, prompt_postamble)
-
-  prompt = f"{prompt_preamble} {image_description} {prompt_postamble}"
+  prompt = " ".join(prompt_parts)
 
   if image_client_override:
     client = image_client_override
@@ -169,7 +204,7 @@ def generate_pun_image(
 
   image = client.generate_image(
     prompt,
-    reference_images,
+    all_reference_images if all_reference_images else None,
     save_to_firestore=False,
   )
   image.original_prompt = image_description
@@ -181,26 +216,6 @@ def generate_pun_image(
     )
 
   return image
-
-
-def _strip_prompt_preamble(
-  image_description: str,
-  prompt_preamble: str,
-  prompt_postamble: str,
-) -> str:
-  """Strip the prompt preamble and postamble from the image description."""
-
-  image_description = image_description.strip()
-
-  if prompt_preamble:
-    while image_description.startswith(prompt_preamble):
-      image_description = image_description[len(prompt_preamble):].strip()
-
-  if prompt_postamble:
-    while image_description.endswith(prompt_postamble):
-      image_description = image_description[:-len(prompt_postamble)].strip()
-
-  return image_description
 
 
 def modify_image(

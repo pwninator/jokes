@@ -10,6 +10,7 @@ from functools import lru_cache, partial
 from io import BytesIO
 from typing import Callable
 
+from agents import constants
 from common import config, models
 from firebase_functions import logger
 from PIL import Image, ImageDraw, ImageFont
@@ -20,13 +21,7 @@ _AD_BACKGROUND_SQUARE_DRAWING_URI = "gs://images.quillsstorybook.com/joke_assets
 _AD_BACKGROUND_SQUARE_DESK_URI = "gs://images.quillsstorybook.com/joke_assets/background_desk_1280_1280.png"
 _AD_BACKGROUND_SQUARE_CORKBOARD_URI = "gs://images.quillsstorybook.com/joke_assets/background_corkboard_1280_1280.png"
 
-_BOOK_PAGE_STYLE_REFERENCE_IMAGE_URLS = [
-  "https://storage.googleapis.com/images.quillsstorybook.com/_joke_assets/reference_beakaboo_1.jpg",
-  "https://storage.googleapis.com/images.quillsstorybook.com/_joke_assets/reference_giraffe_1.jpg",
-  "https://storage.googleapis.com/images.quillsstorybook.com/_joke_assets/reference_honey_1.jpg",
-  "https://storage.googleapis.com/images.quillsstorybook.com/_joke_assets/reference_mewseum_1.jpg",
-  "https://storage.googleapis.com/images.quillsstorybook.com/_joke_assets/reference_mewseum_2.jpg",
-]
+_BOOK_PAGE_STYLE_REFERENCE_IMAGE_URLS = constants.STYLE_REFERENCE_IMAGE_URLS
 _BOOK_PAGE_BASE_SIZE = 1800
 _BOOK_PAGE_BLEED_PX = 38
 _BOOK_PAGE_FINAL_WIDTH = _BOOK_PAGE_BASE_SIZE + _BOOK_PAGE_BLEED_PX
@@ -415,7 +410,7 @@ Create a professional-quality children's book illustration in the style of soft-
 Here is the description for the CONTENT image. You must follow this description exactly:
 {{image_description}}
 
-Generate the final image, which should be high quality, professional-looking copy of the CONTENT image, suitable for a children's picture book, and print ready with appropriate bleed margins.
+Generate the final image, which should be high quality, professional-looking copy of the CONTENT image, suitable for a children's picture book, and print ready with appropriate bleed marg
 """
 
 _BOOK_PAGE_SETUP_PROMPT_TEMPLATE = _BOOK_PAGE_PROMPT_TEMPLATE.format(

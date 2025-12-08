@@ -46,3 +46,12 @@ AGENT_DEPLOYMENT_EXTRA_PACKAGES = [
 ]
 AGENT_DEPLOYMENT_ENV_VARS = None
 AGENT_DEPLOYMENT_GCS_DIR_NAME = None
+
+# Shared style reference images for illustration generation
+STYLE_REFERENCE_IMAGE_URLS = [
+  "https://storage.googleapis.com/images.quillsstorybook.com/_joke_assets/reference_beakaboo_1.jpg",
+  "https://storage.googleapis.com/images.quillsstorybook.com/_joke_assets/reference_giraffe_1.jpg",
+  "https://storage.googleapis.com/images.quillsstorybook.com/_joke_assets/reference_honey_1.jpg",
+  "https://storage.googleapis.com/images.quillsstorybook.com/_joke_assets/reference_mewseum_1.jpg",
+  "https://storage.googleapis.com/images.quillsstorybook.com/_joke_assets/reference_mewseum_2.jpg",
+]

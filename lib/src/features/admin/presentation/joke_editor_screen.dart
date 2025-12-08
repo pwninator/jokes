@@ -8,7 +8,8 @@ import 'package:snickerdoodle/src/core/theme/app_theme.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
-import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart';
+import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_function_service.dart'
+    show SafetyCheckException, jokeCloudFunctionServiceProvider;
 
 /// Guided form for creating or editing a joke.
 ///
@@ -632,6 +633,12 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
         _punchlineSceneSuggestionController.clear();
       }
       _showSnack('Scene idea updated');
+    } on SafetyCheckException catch (e, st) {
+      _showSnack(
+        'Safety check failed. Please keep instructions kid-friendly.',
+        exception: e,
+        stackTrace: st,
+      );
     } catch (e, st) {
       _showSnack('Error updating scene idea', exception: e, stackTrace: st);
     } finally {
@@ -676,12 +683,15 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
         _stage3Expanded = true;
       });
       _showSnack('Image descriptions generated');
-    } catch (e, st) {
+    } on SafetyCheckException catch (e, st) {
       _showSnack(
-        'Error generating descriptions',
+        'Safety check failed. Please adjust the scene ideas.',
         exception: e,
         stackTrace: st,
       );
+    } catch (e, st) {
+      _showSnack('Error generating descriptions',
+          exception: e, stackTrace: st);
     } finally {
       if (mounted) {
         setState(() {
@@ -710,6 +720,12 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
       );
       _applyJoke(joke);
       _showSnack('Images generated successfully');
+    } on SafetyCheckException catch (e, st) {
+      _showSnack(
+        'Safety check failed. Please adjust the scene ideas.',
+        exception: e,
+        stackTrace: st,
+      );
     } catch (e, st) {
       _showSnack('Error generating images', exception: e, stackTrace: st);
     } finally {

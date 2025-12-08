@@ -176,6 +176,8 @@ class JokeCloudFunctionService {
       );
       _maybeThrowSafety(e);
       throw Exception('Function error: ${e.message}');
+    } on SafetyCheckException {
+      rethrow;
     } catch (e) {
       AppLogger.warn('Error modifying scene ideas: $e');
       throw Exception('Unexpected error: $e');
@@ -212,6 +214,8 @@ class JokeCloudFunctionService {
       );
       _maybeThrowSafety(e);
       throw Exception('Function error: ${e.message}');
+    } on SafetyCheckException {
+      rethrow;
     } catch (e) {
       AppLogger.warn('Error generating image descriptions: $e');
       throw Exception('Unexpected error: $e');
@@ -256,6 +260,8 @@ class JokeCloudFunctionService {
       );
       _maybeThrowSafety(e);
       throw Exception('Function error: ${e.message}');
+    } on SafetyCheckException {
+      rethrow;
     } catch (e) {
       AppLogger.warn('Error generating images via creation process: $e');
       throw Exception('Unexpected error: $e');
@@ -294,8 +300,11 @@ class JokeCloudFunctionService {
         },
       );
 
+      final data = _normalizeResponse(result.data);
       AppLogger.debug('Joke populated successfully: ${result.data}');
-      return {'success': true, 'data': result.data};
+      return {'success': true, 'data': data};
+    } on SafetyCheckException {
+      rethrow;
     } on FirebaseFunctionsException catch (e) {
       AppLogger.warn('Firebase Functions error: ${e.code} - ${e.message}');
       _maybeThrowSafety(e);
@@ -334,8 +343,9 @@ class JokeCloudFunctionService {
         },
       );
 
+      final data = _normalizeResponse(result.data);
       AppLogger.debug('Joke updated successfully: ${result.data}');
-      return {'success': true, 'data': result.data};
+      return {'success': true, 'data': data};
     } on FirebaseFunctionsException catch (e) {
       AppLogger.warn('Firebase Functions error: ${e.code} - ${e.message}');
       _maybeThrowSafety(e);
@@ -380,6 +390,8 @@ class JokeCloudFunctionService {
       );
       _maybeThrowSafety(e);
       throw Exception('Function error: ${e.message}');
+    } on SafetyCheckException {
+      rethrow;
     } catch (e) {
       AppLogger.warn('Error updating joke text via creation process: $e');
       throw Exception('Unexpected error: $e');
@@ -617,11 +629,10 @@ class JokeCloudFunctionService {
   }
 
   Joke _parseJokeFromResult(HttpsCallableResult result) {
-    final jokeData = _extractJokeData(result.data);
-    if (jokeData == null) {
-      AppLogger.warn('Malformed joke response: ${result.data}');
-      throw Exception('Malformed response: missing joke_data');
-    }
+    final normalized = _normalizeResponse(result.data);
+    final jokeData = normalized['joke_data'] is Map<String, dynamic>
+        ? normalized['joke_data'] as Map<String, dynamic>
+        : normalized;
     final jokeId = (jokeData['key'] ?? jokeData['id']) as String?;
     if (jokeId == null || jokeId.isEmpty) {
       throw Exception('Malformed response: missing joke id');
@@ -629,25 +640,30 @@ class JokeCloudFunctionService {
     return Joke.fromMap(jokeData, jokeId);
   }
 
-  Map<String, dynamic>? _extractJokeData(dynamic data) {
-    if (data is Map<String, dynamic>) {
-      final nested = data['joke_data'];
-      if (nested is Map<String, dynamic>) {
-        return nested;
-      }
-      final looksLikeJoke = data.containsKey('setup_text') &&
-          data.containsKey('punchline_text');
-      if (looksLikeJoke) {
-        return data;
-      }
-    }
-    return null;
-  }
-
   void _maybeThrowSafety(FirebaseFunctionsException e) {
     final errorType = e.details is Map ? (e.details as Map)['error_type'] : null;
     if (errorType == 'safety_failed') {
       throw SafetyCheckException(e.message ?? 'Content failed safety check');
     }
+  }
+
+  /// Normalize callable result, throwing typed safety errors as needed.
+  Map<String, dynamic> _normalizeResponse(dynamic raw) {
+    final top = raw is Map ? raw : null;
+    final data = top?['data'] is Map ? top!['data'] as Map : top;
+
+    if (data is Map) {
+      final errorType = data['error_type'];
+      final errorMsg = data['error']?.toString();
+      if (errorType == 'safety_failed') {
+        throw SafetyCheckException(errorMsg ?? 'Content failed safety check');
+      }
+      if (errorMsg != null) {
+        throw Exception('Function error: $errorMsg');
+      }
+      return Map<String, dynamic>.from(data);
+    }
+
+    throw Exception('Malformed response: missing data');
   }
 }

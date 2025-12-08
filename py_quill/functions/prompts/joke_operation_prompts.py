@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import re
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any, Tuple
 
+from firebase_functions import logger
 from common import models
 from functions.prompts import prompt_utils
 from services import llm_client
@@ -26,7 +28,7 @@ Content that matches any of the following criteria are considered unsafe:
 # pylint: disable=line-too-long
 _llm = llm_client.get_client(
   label="Joke Scene Ideas",
-  model=LlmModel.GEMINI_2_5_FLASH_LITE,
+  model=LlmModel.GEMINI_2_5_FLASH,
   thinking_tokens=2000,
   output_tokens=1000,
   temperature=0.9,
@@ -115,7 +117,7 @@ _scene_editor_llm = llm_client.get_client(
   output_tokens=800,
   temperature=0.7,
   system_instructions=[
-    """You help refine existing setup/punchline scene ideas for two-panel kids jokes.
+    f"""You help refine existing setup/punchline scene ideas for two-panel kids jokes.
 Take the latest setup and punchline text, the current scene ideas, and short user instructions.
 Rewrite each scene idea in simple language for kids (ages 4-10), keeping it wholesome and specific.
 
@@ -126,12 +128,23 @@ Guidelines:
 - If no instruction is provided for a panel, return the original idea unchanged.
 - Never mention the instructions themselves.
 
+Safety:
+- The setup text, punchline text, instructions, and resulting scene ideas must be SAFE for kids.
+- Use the safety criteria below. If unsafe, return UNSAFE for the scene ideas.
+{_UNSAFE_CRITERIA}
+
 Respond EXACTLY in this format:
+SAFETY_REASONS:
+Short explanation (1-3 lines) of why the content is SAFE or UNSAFE
+
+SAFETY_VERDICT:
+SAFE or UNSAFE
+
 SETUP_SCENE_IDEA:
-<updated setup idea>
+<updated setup idea or UNSAFE>
 
 PUNCHLINE_SCENE_IDEA:
-<updated punchline idea>"""
+<updated punchline idea or UNSAFE>"""
   ],
 )
 
@@ -142,7 +155,7 @@ _image_description_llm = llm_client.get_client(
   output_tokens=1200,
   temperature=0.5,
   system_instructions=[
-    """You convert concise scene ideas for two-panel kids jokes into richly detailed illustration descriptions suitable for modern text-to-image models.
+    f"""You convert concise scene ideas for two-panel kids jokes into richly detailed illustration descriptions suitable for modern text-to-image models.
 
 For each panel:
 - Describe the full composition, camera angle, main characters, props, background, lighting, palette, and mood.
@@ -151,12 +164,22 @@ For each panel:
 - Mention the pun text briefly so lettering can be included tastefully.
 - Limit each description to 3-4 sentences.
 
+Safety:
+- All content must be SAFE for kids. If unsafe, respond with UNSAFE.
+{_UNSAFE_CRITERIA}
+
 Respond EXACTLY in this format:
+SAFETY_REASONS:
+Short explanation (1-3 lines) of why the content is SAFE or UNSAFE
+
+SAFETY_VERDICT:
+SAFE or UNSAFE
+
 SETUP_IMAGE_DESCRIPTION:
-<detailed description>
+<detailed description or UNSAFE>
 
 PUNCHLINE_IMAGE_DESCRIPTION:
-<detailed description>"""
+<detailed description or UNSAFE>"""
   ],
 )
 
@@ -263,7 +286,12 @@ Content to review:
   parsed = prompt_utils.parse_llm_response_line_separated(
     ["VERDICT", "REASONS"], response.text)
   verdict_text = parsed.get("VERDICT", "")
+  reason_text = parsed.get("REASONS", "")
   is_safe = _is_verdict_safe(verdict_text)
+
+  if not is_safe:
+    logger.warn(f"Unsafe content ({reason_text}): {content}")
+
   metadata = response.metadata or models.SingleGenerationMetadata()
   return is_safe, metadata
 
@@ -310,14 +338,34 @@ Update the scene ideas following the exact response format.
 """
   ]
 
-  response = _scene_editor_llm.generate(prompt_parts)
+  with ThreadPoolExecutor(max_workers=2) as executor:
+    editor_future = executor.submit(_scene_editor_llm.generate, prompt_parts)
+    safety_future = executor.submit(
+      run_safety_check,
+      "\n".join([
+        f"Setup: {setup_text}",
+        f"Punchline: {punchline_text}",
+        f"Setup Instructions: {setup_instructions}",
+        f"Punchline Instructions: {punchline_instructions}",
+      ]),
+    )
+
+    response = editor_future.result()
+    safety_ok, _ = safety_future.result()
+
   parsed = prompt_utils.parse_llm_response_line_separated(
-    ["SETUP_SCENE_IDEA", "PUNCHLINE_SCENE_IDEA"],
+    ["SAFETY_VERDICT", "SETUP_SCENE_IDEA", "PUNCHLINE_SCENE_IDEA"],
     response.text,
   )
+  ideas_safe = _is_verdict_safe(parsed.get("SAFETY_VERDICT", ""))
+  is_safe = ideas_safe and safety_ok
+
+  setup_result = parsed["SETUP_SCENE_IDEA"] if is_safe else "UNSAFE"
+  punchline_result = parsed["PUNCHLINE_SCENE_IDEA"] if is_safe else "UNSAFE"
+
   return (
-    parsed["SETUP_SCENE_IDEA"],
-    parsed["PUNCHLINE_SCENE_IDEA"],
+    setup_result,
+    punchline_result,
     response.metadata,
   )
 
@@ -349,13 +397,38 @@ Create richly detailed illustration descriptions using the required format.
 """
   ]
 
-  response = _image_description_llm.generate(prompt_parts)
+  with ThreadPoolExecutor(max_workers=2) as executor:
+    desc_future = executor.submit(_image_description_llm.generate,
+                                  prompt_parts)
+    safety_future = executor.submit(
+      run_safety_check,
+      "\n".join([
+        f"Setup: {setup_text}",
+        f"Punchline: {punchline_text}",
+        f"Setup Scene Idea: {setup_scene_idea}",
+        f"Punchline Scene Idea: {punchline_scene_idea}",
+      ]),
+    )
+
+    response = desc_future.result()
+    safety_ok, _ = safety_future.result()
+
   parsed = prompt_utils.parse_llm_response_line_separated(
-    ["SETUP_IMAGE_DESCRIPTION", "PUNCHLINE_IMAGE_DESCRIPTION"],
+    [
+      "SAFETY_VERDICT", "SETUP_IMAGE_DESCRIPTION",
+      "PUNCHLINE_IMAGE_DESCRIPTION"
+    ],
     response.text,
   )
+  ideas_safe = _is_verdict_safe(parsed.get("SAFETY_VERDICT", ""))
+  is_safe = ideas_safe and safety_ok
+
+  setup_desc = parsed["SETUP_IMAGE_DESCRIPTION"] if is_safe else "UNSAFE"
+  punchline_desc = parsed[
+    "PUNCHLINE_IMAGE_DESCRIPTION"] if is_safe else "UNSAFE"
+
   return (
-    parsed["SETUP_IMAGE_DESCRIPTION"],
-    parsed["PUNCHLINE_IMAGE_DESCRIPTION"],
+    setup_desc,
+    punchline_desc,
     response.metadata,
   )

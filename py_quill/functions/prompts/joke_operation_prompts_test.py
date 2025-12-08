@@ -44,7 +44,13 @@ def test_modify_scene_ideas_with_suggestions_requires_instruction():
 
 def test_modify_scene_ideas_with_suggestions_parses_llm_response(monkeypatch):
   """Scene idea helper should return parsed values from the LLM."""
-  dummy_client = _DummyClient("""SETUP_SCENE_IDEA:
+  dummy_client = _DummyClient("""SAFETY_REASONS:
+ok
+
+SAFETY_VERDICT:
+SAFE
+
+SETUP_SCENE_IDEA:
 New setup idea
 
 PUNCHLINE_SCENE_IDEA:
@@ -53,6 +59,11 @@ New punchline idea""")
     joke_operation_prompts,
     "_scene_editor_llm",
     dummy_client,
+  )
+  monkeypatch.setattr(
+    joke_operation_prompts,
+    "run_safety_check",
+    lambda content: (True, models.SingleGenerationMetadata(model_name="safety")),
   )
 
   setup, punchline, metadata = (
@@ -87,7 +98,13 @@ def test_generate_detailed_image_descriptions_requires_scene_ideas():
 def test_generate_detailed_image_descriptions_parses_llm_response(
   monkeypatch, ):
   """Detailed description helper should return parsed values from the LLM."""
-  dummy_client = _DummyClient("""SETUP_IMAGE_DESCRIPTION:
+  dummy_client = _DummyClient("""SAFETY_REASONS:
+ok
+
+SAFETY_VERDICT:
+SAFE
+
+SETUP_IMAGE_DESCRIPTION:
 Detailed setup description
 
 PUNCHLINE_IMAGE_DESCRIPTION:
@@ -96,6 +113,11 @@ Detailed punchline description""")
     joke_operation_prompts,
     "_image_description_llm",
     dummy_client,
+  )
+  monkeypatch.setattr(
+    joke_operation_prompts,
+    "run_safety_check",
+    lambda content: (True, models.SingleGenerationMetadata(model_name="safety")),
   )
 
   setup_desc, punch_desc, metadata = (

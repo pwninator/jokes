@@ -196,6 +196,53 @@ def test_joke_creation_process_generates_images(monkeypatch):
   assert joke.setup_scene_idea == "override setup idea"
 
 
+def test_joke_creation_process_uses_description_overrides(monkeypatch):
+  """Image generation should use latest descriptions provided in the request."""
+  monkeypatch.setattr(joke_creation_fns,
+                      'get_user_id',
+                      lambda req, allow_unauthenticated=False: "user-42")
+  joke = models.PunnyJoke(
+    key="j-3b",
+    setup_text="Setup",
+    punchline_text="Punch",
+    setup_image_description="old setup desc",
+    punchline_image_description="old punch desc",
+  )
+  monkeypatch.setattr(joke_creation_fns.firestore, 'get_punny_joke',
+                      lambda _: joke)
+
+  generate_called = {}
+
+  def fake_generate(target_joke, quality):
+    generate_called["setup_desc"] = target_joke.setup_image_description
+    generate_called["punch_desc"] = target_joke.punchline_image_description
+    generate_called["quality"] = quality
+    return target_joke
+
+  monkeypatch.setattr(joke_creation_fns.joke_operations,
+                      'generate_joke_images', fake_generate)
+  monkeypatch.setattr(joke_creation_fns.firestore, 'upsert_punny_joke',
+                      lambda updated: updated)
+  monkeypatch.setattr(joke_creation_fns.joke_operations, 'to_response_joke',
+                      lambda _: {"key": "j-3b"})
+
+  req = DummyReq(
+    data={
+      "joke_id": "j-3b",
+      "populate_images": True,
+      "image_quality": "low",
+      "setup_image_description": "new setup desc",
+      "punchline_image_description": "new punch desc",
+    })
+
+  resp = joke_creation_fns.joke_creation_process(req)
+
+  assert resp["data"]["joke_data"]["key"] == "j-3b"
+  assert generate_called["setup_desc"] == "new setup desc"
+  assert generate_called["punch_desc"] == "new punch desc"
+  assert generate_called["quality"] == "low"
+
+
 def test_joke_creation_process_updates_text_no_regen(monkeypatch):
   """Scenario 1.5 should update text without regenerating ideas when flag false."""
   monkeypatch.setattr(joke_creation_fns,

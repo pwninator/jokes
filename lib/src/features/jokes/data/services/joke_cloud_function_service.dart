@@ -236,6 +236,8 @@ class JokeCloudFunctionService {
     required String imageQuality,
     String? setupSceneIdea,
     String? punchlineSceneIdea,
+    String? setupImageDescription,
+    String? punchlineImageDescription,
   }) async {
     try {
       final result = await _traceCf(
@@ -253,6 +255,10 @@ class JokeCloudFunctionService {
             if (setupSceneIdea != null) 'setup_scene_idea': setupSceneIdea,
             if (punchlineSceneIdea != null)
               'punchline_scene_idea': punchlineSceneIdea,
+            if (setupImageDescription != null)
+              'setup_image_description': setupImageDescription,
+            if (punchlineImageDescription != null)
+              'punchline_image_description': punchlineImageDescription,
           });
         },
       );

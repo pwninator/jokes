@@ -716,6 +716,9 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
         imageQuality: _imageQuality,
         setupSceneIdea: _setupSceneIdeaController.text.trim(),
         punchlineSceneIdea: _punchlineSceneIdeaController.text.trim(),
+        setupImageDescription: _setupImageDescriptionController.text.trim(),
+        punchlineImageDescription: _punchlineImageDescriptionController.text
+            .trim(),
       );
       _applyJoke(joke);
       _showSnack('Images generated successfully');

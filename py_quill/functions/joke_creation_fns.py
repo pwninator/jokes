@@ -35,6 +35,10 @@ def joke_creation_process(req: https_fn.Request) -> https_fn.Response:
     punchline_suggestion = get_param(req, 'punchline_suggestion')
     setup_scene_idea_override = get_param(req, 'setup_scene_idea')
     punchline_scene_idea_override = get_param(req, 'punchline_scene_idea')
+    setup_image_description_override = get_param(req,
+                                                 'setup_image_description')
+    punchline_image_description_override = get_param(
+      req, 'punchline_image_description')
     populate_images = get_bool_param(req, 'populate_images', False)
     generate_descriptions = get_bool_param(req, 'generate_descriptions', False)
     regenerate_scene_ideas = get_bool_param(req, 'regenerate_scene_ideas',
@@ -50,6 +54,11 @@ def joke_creation_process(req: https_fn.Request) -> https_fn.Response:
         joke.setup_scene_idea = setup_scene_idea_override
       if punchline_scene_idea_override is not None:
         joke.punchline_scene_idea = punchline_scene_idea_override
+      if setup_image_description_override is not None:
+        joke.setup_image_description = setup_image_description_override
+      if punchline_image_description_override is not None:
+        joke.punchline_image_description = (
+          punchline_image_description_override)
     else:
       joke = None
 

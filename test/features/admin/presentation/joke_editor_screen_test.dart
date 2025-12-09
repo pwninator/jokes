@@ -327,6 +327,8 @@ void main() {
           imageQuality: any(named: 'imageQuality'),
           setupSceneIdea: any(named: 'setupSceneIdea'),
           punchlineSceneIdea: any(named: 'punchlineSceneIdea'),
+          setupImageDescription: any(named: 'setupImageDescription'),
+          punchlineImageDescription: any(named: 'punchlineImageDescription'),
         ),
       ).thenAnswer(
         (_) async => const Joke(
@@ -357,6 +359,8 @@ void main() {
           imageQuality: any(named: 'imageQuality'),
           setupSceneIdea: 'scene 1',
           punchlineSceneIdea: 'scene 2',
+          setupImageDescription: 'desc 1',
+          punchlineImageDescription: 'desc 2',
         ),
       ).called(1);
     });

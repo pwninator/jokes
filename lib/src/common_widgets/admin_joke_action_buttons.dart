@@ -172,10 +172,9 @@ class AdminRegenerateImagesButton extends ConsumerWidget {
                   onTap: () async {
                     Navigator.of(context).pop();
                     final notifier = ref.read(jokePopulationProvider.notifier);
-                    await notifier.populateJoke(
+                    await notifier.regenerateImagesViaCreationProcess(
                       jokeId,
-                      imagesOnly: true,
-                      additionalParams: {"image_quality": quality},
+                      imageQuality: quality,
                     );
                   },
                 );

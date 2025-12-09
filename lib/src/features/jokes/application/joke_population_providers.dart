@@ -34,6 +34,39 @@ class JokePopulationNotifier extends StateNotifier<JokePopulationState> {
 
   final JokeCloudFunctionService _cloudFunctionService;
 
+  Future<bool> regenerateImagesViaCreationProcess(
+    String jokeId, {
+    required String imageQuality,
+    String? setupSceneIdea,
+    String? punchlineSceneIdea,
+  }) async {
+    state = state.copyWith(
+      populatingJokes: {...state.populatingJokes, jokeId},
+      error: null,
+    );
+
+    try {
+      await _cloudFunctionService.generateImagesViaCreationProcess(
+        jokeId: jokeId,
+        imageQuality: imageQuality,
+        setupSceneIdea: setupSceneIdea,
+        punchlineSceneIdea: punchlineSceneIdea,
+      );
+      final updatedSet = Set<String>.from(state.populatingJokes)
+        ..remove(jokeId);
+      state = state.copyWith(populatingJokes: updatedSet, error: null);
+      return true;
+    } catch (e) {
+      final updatedSet = Set<String>.from(state.populatingJokes)
+        ..remove(jokeId);
+      state = state.copyWith(
+        populatingJokes: updatedSet,
+        error: 'Failed to regenerate images: $e',
+      );
+      return false;
+    }
+  }
+
   Future<bool> populateJoke(
     String jokeId, {
     bool imagesOnly = false,

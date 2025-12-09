@@ -70,6 +70,16 @@ class MockJokePopulationNotifier extends StateNotifier<JokePopulationState>
   bool isJokePopulating(String jokeId) {
     return false;
   }
+
+  @override
+  Future<bool> regenerateImagesViaCreationProcess(
+    String jokeId, {
+    required String imageQuality,
+    String? setupSceneIdea,
+    String? punchlineSceneIdea,
+  }) async {
+    return true;
+  }
 }
 
 class MockJokeInteractionsRepository extends Mock

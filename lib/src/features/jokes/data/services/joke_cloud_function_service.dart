@@ -111,7 +111,10 @@ class JokeCloudFunctionService {
       final result = await _traceCf(
         functionName: 'joke_creation_process',
         action: () async {
-          final callable = _fns.httpsCallable('joke_creation_process');
+          final callable = _fns.httpsCallable(
+            'joke_creation_process',
+            options: HttpsCallableOptions(timeout: const Duration(minutes: 5)),
+          );
           return await callable.call({
             'admin_owned': adminOwned,
             'setup_text': setupText,
@@ -151,7 +154,10 @@ class JokeCloudFunctionService {
       final result = await _traceCf(
         functionName: 'joke_creation_process',
         action: () async {
-          final callable = _fns.httpsCallable('joke_creation_process');
+          final callable = _fns.httpsCallable(
+            'joke_creation_process',
+            options: HttpsCallableOptions(timeout: const Duration(minutes: 5)),
+          );
           final payload = <String, dynamic>{
             'joke_id': jokeId,
             if (trimmedSetup != null && trimmedSetup.isNotEmpty)
@@ -193,7 +199,10 @@ class JokeCloudFunctionService {
       final result = await _traceCf(
         functionName: 'joke_creation_process',
         action: () async {
-          final callable = _fns.httpsCallable('joke_creation_process');
+          final callable = _fns.httpsCallable(
+            'joke_creation_process',
+            options: HttpsCallableOptions(timeout: const Duration(minutes: 5)),
+          );
           return await callable.call({
             'joke_id': jokeId,
             'generate_descriptions': true,
@@ -235,9 +244,7 @@ class JokeCloudFunctionService {
         action: () async {
           final callable = _fns.httpsCallable(
             'joke_creation_process',
-            options: HttpsCallableOptions(
-              timeout: const Duration(minutes: 5),
-            ),
+            options: HttpsCallableOptions(timeout: const Duration(minutes: 5)),
           );
           return await callable.call({
             'joke_id': jokeId,
@@ -262,9 +269,12 @@ class JokeCloudFunctionService {
       throw Exception('Function error: ${e.message}');
     } on SafetyCheckException {
       rethrow;
-    } catch (e) {
-      AppLogger.warn('Error generating images via creation process: $e');
-      throw Exception('Unexpected error: $e');
+    } catch (e, st) {
+      AppLogger.error(
+        'Error generating images via creation process: $e',
+        stackTrace: st,
+      );
+      rethrow;
     }
   }
 
@@ -370,7 +380,10 @@ class JokeCloudFunctionService {
       final result = await _traceCf(
         functionName: 'joke_creation_process',
         action: () async {
-          final callable = _fns.httpsCallable('joke_creation_process');
+          final callable = _fns.httpsCallable(
+            'joke_creation_process',
+            options: HttpsCallableOptions(timeout: const Duration(minutes: 5)),
+          );
           return await callable.call({
             'joke_id': jokeId,
             'setup_text': setupText,
@@ -630,18 +643,25 @@ class JokeCloudFunctionService {
 
   Joke _parseJokeFromResult(HttpsCallableResult result) {
     final normalized = _normalizeResponse(result.data);
-    final jokeData = normalized['joke_data'] is Map<String, dynamic>
-        ? normalized['joke_data'] as Map<String, dynamic>
-        : normalized;
-    final jokeId = (jokeData['key'] ?? jokeData['id']) as String?;
+    if (normalized['joke_data'] is! Map) {
+      throw Exception('Malformed response: missing joke data: $normalized');
+    }
+
+    final Map<String, dynamic> jokeData = _asStringKeyedMap(
+      normalized['joke_data'],
+    );
+
+    final jokeId = jokeData['key'] as String?;
     if (jokeId == null || jokeId.isEmpty) {
-      throw Exception('Malformed response: missing joke id');
+      throw Exception('Malformed response: missing joke key: $jokeData');
     }
     return Joke.fromMap(jokeData, jokeId);
   }
 
   void _maybeThrowSafety(FirebaseFunctionsException e) {
-    final errorType = e.details is Map ? (e.details as Map)['error_type'] : null;
+    final errorType = e.details is Map
+        ? (e.details as Map)['error_type']
+        : null;
     if (errorType == 'safety_failed') {
       throw SafetyCheckException(e.message ?? 'Content failed safety check');
     }
@@ -649,21 +669,46 @@ class JokeCloudFunctionService {
 
   /// Normalize callable result, throwing typed safety errors as needed.
   Map<String, dynamic> _normalizeResponse(dynamic raw) {
-    final top = raw is Map ? raw : null;
-    final data = top?['data'] is Map ? top!['data'] as Map : top;
-
-    if (data is Map) {
-      final errorType = data['error_type'];
-      final errorMsg = data['error']?.toString();
-      if (errorType == 'safety_failed') {
-        throw SafetyCheckException(errorMsg ?? 'Content failed safety check');
-      }
-      if (errorMsg != null) {
-        throw Exception('Function error: $errorMsg');
-      }
-      return Map<String, dynamic>.from(data);
+    if (raw is! Map) {
+      throw Exception('Expected map response but got: $raw');
     }
 
-    throw Exception('Malformed response: missing data');
+    final Map<String, dynamic> top = _asStringKeyedMap(raw);
+    Map<String, dynamic>? data = top['data'] is Map
+        ? _asStringKeyedMap(top['data'])
+        : top;
+
+    // Check for errors
+    final errorType = data['error_type'];
+    final errorMsg = data['error']?.toString();
+    if (errorType == 'safety_failed') {
+      throw SafetyCheckException(errorMsg ?? 'Content failed safety check');
+    }
+    if (errorMsg != null) {
+      throw Exception('Function error: $errorMsg');
+    }
+
+    return data;
+  }
+
+  Map<String, dynamic> _asStringKeyedMap(dynamic input) {
+    if (input is Map) {
+      final normalized = <String, dynamic>{};
+      input.forEach((key, value) {
+        normalized[key.toString()] = _deepNormalize(value);
+      });
+      return normalized;
+    }
+    throw Exception('Expected map response but got: $input');
+  }
+
+  dynamic _deepNormalize(dynamic value) {
+    if (value is Map) {
+      return _asStringKeyedMap(value);
+    }
+    if (value is List) {
+      return value.map(_deepNormalize).toList();
+    }
+    return value;
   }
 }

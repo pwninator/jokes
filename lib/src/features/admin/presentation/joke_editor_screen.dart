@@ -690,8 +690,7 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
         stackTrace: st,
       );
     } catch (e, st) {
-      _showSnack('Error generating descriptions',
-          exception: e, stackTrace: st);
+      _showSnack('Error generating descriptions', exception: e, stackTrace: st);
     } finally {
       if (mounted) {
         setState(() {
@@ -726,8 +725,8 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
         exception: e,
         stackTrace: st,
       );
-    } catch (e, st) {
-      _showSnack('Error generating images', exception: e, stackTrace: st);
+      // } catch (e, st) {
+      // _showSnack('Error generating images', exception: e, stackTrace: st);
     } finally {
       if (mounted) {
         setState(() {
@@ -814,11 +813,7 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
     }
   }
 
-  void _showSnack(
-    String message, {
-    Object? exception,
-    StackTrace? stackTrace,
-  }) {
+  void _showSnack(String message, {Object? exception, StackTrace? stackTrace}) {
     final isError = exception != null;
     if (exception != null) {
       AppLogger.error(

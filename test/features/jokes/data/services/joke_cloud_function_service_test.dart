@@ -15,7 +15,8 @@ class MockHttpsCallableResult extends Mock implements HttpsCallableResult {}
 
 class MockPerformanceService extends Mock implements PerformanceService {}
 
-class FakeFunctionsException extends Fake implements FirebaseFunctionsException {}
+class FakeFunctionsException extends Fake
+    implements FirebaseFunctionsException {}
 
 void main() {
   group('JokeCloudFunctionService', () {
@@ -86,30 +87,32 @@ void main() {
         expect(result['error'], contains('Function error: Internal error'));
       });
 
-      test('should throw SafetyCheckException when response has safety error',
-          () async {
-        const jokeId = 'test-joke-id';
-        final mockResponseData = {
-          'error': 'Safety failed',
-          'error_type': 'safety_failed',
-        };
+      test(
+        'should throw SafetyCheckException when response has safety error',
+        () async {
+          const jokeId = 'test-joke-id';
+          final mockResponseData = {
+            'error': 'Safety failed',
+            'error_type': 'safety_failed',
+          };
 
-        when(
-          () => mockFunctions.httpsCallable(
-            'populate_joke',
-            options: any(named: 'options'),
-          ),
-        ).thenReturn(mockCallable);
-        when(() => mockResult.data).thenReturn(mockResponseData);
-        when(
-          () => mockCallable.call(any()),
-        ).thenAnswer((_) async => mockResult);
+          when(
+            () => mockFunctions.httpsCallable(
+              'populate_joke',
+              options: any(named: 'options'),
+            ),
+          ).thenReturn(mockCallable);
+          when(() => mockResult.data).thenReturn(mockResponseData);
+          when(
+            () => mockCallable.call(any()),
+          ).thenAnswer((_) async => mockResult);
 
-        expect(
-          () => service.populateJoke(jokeId),
-          throwsA(isA<SafetyCheckException>()),
-        );
-      });
+          expect(
+            () => service.populateJoke(jokeId),
+            throwsA(isA<SafetyCheckException>()),
+          );
+        },
+      );
 
       test('should throw SafetyCheckException when safety fails', () async {
         const jokeId = 'test-joke-id';

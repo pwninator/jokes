@@ -401,3 +401,52 @@ def test_update_joke_book_zip_errors_when_no_jokes(mock_firestore):
   assert resp.status_code == 400
   payload = json.loads(resp.get_data(as_text=True))
   assert payload == {'data': {'error': 'Joke book has no jokes to zip'}}
+
+
+@patch(
+  'functions.joke_book_fns.image_operations.generate_and_populate_book_pages')
+def test_generate_joke_book_page_allows_base_image_source(mock_generate_pages):
+  mock_generate_pages.return_value = (MagicMock(url='setup'), MagicMock(
+    url='punch'))
+  req = DummyReq(
+    path='/generate_joke_book_page',
+    args={
+      'joke_id': 'j123',
+      'base_image_source': 'book_page',
+    },
+    method='POST',
+  )
+
+  resp = joke_book_fns.generate_joke_book_page(req)
+
+  mock_generate_pages.assert_called_once_with(
+    'j123',
+    overwrite=True,
+    additional_setup_instructions=None,
+    additional_punchline_instructions=None,
+    base_image_source='book_page',
+  )
+  assert isinstance(resp, https_fn.Response)
+  assert resp.status_code == 200
+
+
+def test_generate_joke_book_page_rejects_invalid_base_image_source():
+  req = DummyReq(
+    path='/generate_joke_book_page',
+    args={
+      'joke_id': 'j123',
+      'base_image_source': 'invalid',
+    },
+    method='POST',
+  )
+
+  resp = joke_book_fns.generate_joke_book_page(req)
+
+  assert isinstance(resp, https_fn.Response)
+  assert resp.status_code == 400
+  payload = json.loads(resp.get_data(as_text=True))
+  assert payload == {
+    'data': {
+      'error': 'Invalid base_image_source: invalid'
+    }
+  }

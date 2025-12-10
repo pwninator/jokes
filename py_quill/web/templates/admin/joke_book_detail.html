@@ -385,6 +385,17 @@
         <button class="cta-btn nav-cta text-button reveal-btn" type="button">Regenerate pages</button>
       </div>
       <div class="instructions instructions-row hidden">
+        <div class="text-body source-toggle">
+          <div class="text-button">Regenerate from</div>
+          <label class="text-body">
+            <input type="radio" name="base_image_source" value="original" checked>
+            Original joke images
+          </label>
+          <label class="text-body">
+            <input type="radio" name="base_image_source" value="book_page">
+            Current book page images
+          </label>
+        </div>
         <div>
           <label class="text-button" for="setup-{{ joke.id }}">Setup instructions (optional)</label>
           <textarea id="setup-{{ joke.id }}" name="setup_instructions" placeholder="Extra guidance for the setup image"></textarea>

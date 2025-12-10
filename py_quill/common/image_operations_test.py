@@ -787,6 +787,274 @@ class CreateBookPagesTest(unittest.TestCase):
       })
 
 
+  @patch('common.image_operations.generate_book_pages_with_nano_banana_pro')
+  @patch('common.image_operations.firestore')
+  @patch('common.image_operations.cloud_storage')
+  @patch('common.image_operations.config.IMAGE_BUCKET_NAME', 'test-bucket')
+  def test_create_book_pages_uses_book_page_base_when_requested(
+      self, mock_storage, mock_firestore, mock_generate_pages):
+    mock_joke = SimpleNamespace(
+      key='jokeXYZ',
+      setup_image_url='https://cdn.example.com/original_setup.png',
+      punchline_image_url='https://cdn.example.com/original_punch.png',
+      setup_image_description='setup desc',
+      punchline_image_description='punchline desc',
+    )
+    mock_joke.generation_metadata = models.GenerationMetadata()
+    mock_firestore.get_punny_joke.return_value = mock_joke
+    mock_firestore.update_punny_joke = MagicMock()
+
+    mock_firestore_db = MagicMock()
+    mock_metadata_doc = MagicMock()
+    (mock_firestore_db.collection.return_value.document.return_value.
+     collection.return_value.document.return_value) = mock_metadata_doc
+    mock_firestore.db.return_value = mock_firestore_db
+
+    metadata_snapshot = MagicMock()
+    metadata_snapshot.exists = True
+    metadata_snapshot.to_dict.return_value = {
+      'book_page_setup_image_url':
+      'https://cdn.example.com/book_setup.jpg',
+      'book_page_punchline_image_url':
+      'https://cdn.example.com/book_punch.jpg',
+    }
+    mock_metadata_doc.get.return_value = metadata_snapshot
+
+    def _extract(uri):
+      mapping = {
+        'https://cdn.example.com/book_setup.jpg': 'gs://bucket/book_setup.jpg',
+        'https://cdn.example.com/book_punch.jpg': 'gs://bucket/book_punch.jpg',
+      }
+      if uri in mapping:
+        return mapping[uri]
+      raise AssertionError(f'Unexpected URI: {uri}')
+
+    mock_storage.extract_gcs_uri_from_image_url.side_effect = _extract
+
+    def _make_image(color: str) -> Image.Image:
+      return Image.open(BytesIO(_create_image_bytes(color)))
+
+    setup_image = _make_image('red')
+    punchline_image = _make_image('blue')
+    style_palette = ['#224466', '#336699', '#4477aa', '#5588bb', '#6699cc']
+    style_images = {
+      url: _make_image(style_palette[idx % len(style_palette)])
+      for idx, url in enumerate(
+        image_operations._BOOK_PAGE_STYLE_REFERENCE_IMAGE_URLS)
+    }
+
+    def _download_image_side_effect(gcs_uri: str):
+      if gcs_uri == 'gs://bucket/book_setup.jpg':
+        return setup_image
+      if gcs_uri == 'gs://bucket/book_punch.jpg':
+        return punchline_image
+      if gcs_uri in style_images:
+        return style_images[gcs_uri]
+      raise AssertionError(f'Unexpected GCS URI: {gcs_uri}')
+
+    mock_storage.download_image_from_gcs.side_effect = _download_image_side_effect
+
+    generated_setup_uri = 'gs://generated/book_setup.png'
+    generated_punch_uri = 'gs://generated/book_punch.png'
+    simple_setup_uri = 'gs://generated/simple_setup.png'
+    simple_punch_uri = 'gs://generated/simple_punch.png'
+    new_setup_url = 'https://cdn.example.com/new_setup.jpg'
+    new_punchline_url = 'https://cdn.example.com/new_punchline.jpg'
+    simple_setup_url = 'https://cdn.example.com/simple_setup.png'
+    simple_punchline_url = 'https://cdn.example.com/simple_punchline.png'
+
+    def _stub_generation(**kwargs):
+      self.assertIs(kwargs['setup_image'], setup_image)
+      self.assertIs(kwargs['punchline_image'], punchline_image)
+      return SimpleNamespace(
+        simple_setup_image=_make_fake_image_model(
+          gcs_uri=simple_setup_uri,
+          url=simple_setup_url,
+        ),
+        simple_punchline_image=_make_fake_image_model(
+          gcs_uri=simple_punch_uri,
+          url=simple_punchline_url,
+        ),
+        generated_setup_image=_make_fake_image_model(
+          gcs_uri=generated_setup_uri,
+          url=new_setup_url,
+          model_thought='setup-thought',
+          final_prompt='new-setup-prompt',
+        ),
+        generated_punchline_image=_make_fake_image_model(
+          gcs_uri=generated_punch_uri,
+          url=new_punchline_url,
+          model_thought='punchline-thought',
+          final_prompt='new-punchline-prompt',
+        ),
+        setup_prompt='new-setup-prompt',
+        punchline_prompt='new-punchline-prompt',
+      )
+
+    mock_generate_pages.side_effect = _stub_generation
+
+    setup_image_result, punchline_image_result = (
+      image_operations.generate_and_populate_book_pages(
+        'jokeXYZ',
+        overwrite=True,
+        base_image_source='book_page',
+      ))
+
+    self.assertEqual(setup_image_result.url, new_setup_url)
+    self.assertEqual(punchline_image_result.url, new_punchline_url)
+    mock_generate_pages.assert_called_once()
+    mock_storage.extract_gcs_uri_from_image_url.assert_any_call(
+      'https://cdn.example.com/book_setup.jpg')
+    mock_storage.extract_gcs_uri_from_image_url.assert_any_call(
+      'https://cdn.example.com/book_punch.jpg')
+    update_call = mock_firestore.update_punny_joke.call_args
+    self.assertEqual(update_call.args[0], 'jokeXYZ')
+
+  @patch('common.image_operations.cloud_storage.extract_gcs_uri_from_image_url')
+  @patch('common.image_operations.firestore')
+  def test_create_book_pages_invalid_base_image_source_raises(
+      self, mock_firestore, mock_extract):
+    mock_joke = SimpleNamespace(
+      key='jokeXYZ',
+      setup_image_url='https://cdn.example.com/original_setup.png',
+      punchline_image_url='https://cdn.example.com/original_punch.png',
+    )
+    mock_firestore.get_punny_joke.return_value = mock_joke
+
+    mock_firestore_db = MagicMock()
+    mock_metadata_doc = MagicMock()
+    (mock_firestore_db.collection.return_value.document.return_value.
+     collection.return_value.document.return_value) = mock_metadata_doc
+    mock_firestore.db.return_value = mock_firestore_db
+
+    metadata_snapshot = MagicMock()
+    metadata_snapshot.exists = True
+    metadata_snapshot.to_dict.return_value = {}
+    mock_metadata_doc.get.return_value = metadata_snapshot
+
+    mock_extract.side_effect = lambda uri: f'gs://bucket/{uri.split('/')[-1]}'
+
+    with self.assertRaisesRegex(ValueError, 'Invalid base_image_source'):
+      image_operations.generate_and_populate_book_pages(
+        'jokeXYZ', overwrite=True, base_image_source='not-valid')
+
+  @patch('common.image_operations.generate_book_pages_with_nano_banana_pro')
+  @patch('common.image_operations.cloud_storage')
+  @patch('common.image_operations.firestore')
+  def test_create_book_pages_falls_back_to_original_when_book_pages_missing(
+      self, mock_firestore, mock_storage, mock_generate_pages):
+    mock_joke = SimpleNamespace(
+      key='jokeFallback',
+      setup_image_url='https://cdn.example.com/original_setup.png',
+      punchline_image_url='https://cdn.example.com/original_punch.png',
+      setup_image_description='desc',
+      punchline_image_description='desc',
+    )
+    mock_joke.generation_metadata = models.GenerationMetadata()
+    mock_firestore.get_punny_joke.return_value = mock_joke
+    mock_firestore.update_punny_joke = MagicMock()
+
+    mock_firestore_db = MagicMock()
+    mock_metadata_doc = MagicMock()
+    (mock_firestore_db.collection.return_value.document.return_value.
+     collection.return_value.document.return_value) = mock_metadata_doc
+    mock_firestore.db.return_value = mock_firestore_db
+
+    metadata_snapshot = MagicMock()
+    metadata_snapshot.exists = True
+    metadata_snapshot.to_dict.return_value = {}
+    mock_metadata_doc.get.return_value = metadata_snapshot
+
+    def _extract(uri):
+      mapping = {
+        'https://cdn.example.com/original_setup.png':
+        'gs://bucket/original_setup.png',
+        'https://cdn.example.com/original_punch.png':
+        'gs://bucket/original_punch.png',
+      }
+      if uri in mapping:
+        return mapping[uri]
+      raise AssertionError(f'Unexpected URI: {uri}')
+
+    mock_storage.extract_gcs_uri_from_image_url.side_effect = _extract
+
+    def _make_image(color: str) -> Image.Image:
+      return Image.open(BytesIO(_create_image_bytes(color)))
+
+    setup_image = _make_image('red')
+    punchline_image = _make_image('blue')
+    style_palette = ['#224466', '#336699', '#4477aa', '#5588bb', '#6699cc']
+    style_images = {
+      url: _make_image(style_palette[idx % len(style_palette)])
+      for idx, url in enumerate(
+        image_operations._BOOK_PAGE_STYLE_REFERENCE_IMAGE_URLS)
+    }
+
+    def _download_image_side_effect(gcs_uri: str):
+      if gcs_uri == 'gs://bucket/original_setup.png':
+        return setup_image
+      if gcs_uri == 'gs://bucket/original_punch.png':
+        return punchline_image
+      if gcs_uri in style_images:
+        return style_images[gcs_uri]
+      raise AssertionError(f'Unexpected GCS URI: {gcs_uri}')
+
+    mock_storage.download_image_from_gcs.side_effect = _download_image_side_effect
+
+    generated_setup_uri = 'gs://generated/book_setup.png'
+    generated_punch_uri = 'gs://generated/book_punch.png'
+    simple_setup_uri = 'gs://generated/simple_setup.png'
+    simple_punch_uri = 'gs://generated/simple_punch.png'
+    new_setup_url = 'https://cdn.example.com/new_setup.jpg'
+    new_punchline_url = 'https://cdn.example.com/new_punchline.jpg'
+    simple_setup_url = 'https://cdn.example.com/simple_setup.png'
+    simple_punchline_url = 'https://cdn.example.com/simple_punchline.png'
+
+    def _stub_generation(**kwargs):
+      self.assertIs(kwargs['setup_image'], setup_image)
+      self.assertIs(kwargs['punchline_image'], punchline_image)
+      return SimpleNamespace(
+        simple_setup_image=_make_fake_image_model(
+          gcs_uri=simple_setup_uri,
+          url=simple_setup_url,
+        ),
+        simple_punchline_image=_make_fake_image_model(
+          gcs_uri=simple_punch_uri,
+          url=simple_punchline_url,
+        ),
+        generated_setup_image=_make_fake_image_model(
+          gcs_uri=generated_setup_uri,
+          url=new_setup_url,
+          model_thought='setup-thought',
+          final_prompt='new-setup-prompt',
+        ),
+        generated_punchline_image=_make_fake_image_model(
+          gcs_uri=generated_punch_uri,
+          url=new_punchline_url,
+          model_thought='punchline-thought',
+          final_prompt='new-punchline-prompt',
+        ),
+        setup_prompt='new-setup-prompt',
+        punchline_prompt='new-punchline-prompt',
+      )
+
+    mock_generate_pages.side_effect = _stub_generation
+
+    setup_image_result, punchline_image_result = (
+      image_operations.generate_and_populate_book_pages(
+        'jokeFallback',
+        overwrite=True,
+        base_image_source='book_page',
+      ))
+
+    self.assertEqual(setup_image_result.url, new_setup_url)
+    self.assertEqual(punchline_image_result.url, new_punchline_url)
+    mock_storage.extract_gcs_uri_from_image_url.assert_any_call(
+      'https://cdn.example.com/original_setup.png')
+    mock_storage.extract_gcs_uri_from_image_url.assert_any_call(
+      'https://cdn.example.com/original_punch.png')
+
+
 class AddPageNumberToImageTest(unittest.TestCase):
   """Tests for rendering page numbers onto book pages."""
 

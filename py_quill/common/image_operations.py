@@ -161,6 +161,7 @@ def generate_and_populate_book_pages(
   overwrite: bool = False,
   additional_setup_instructions: str = "",
   additional_punchline_instructions: str = "",
+  base_image_source: str = "original",
 ) -> tuple[models.Image, models.Image]:
   """Create book page images for a joke and store their URLs.
 
@@ -187,6 +188,11 @@ def generate_and_populate_book_pages(
   """
   logger.info(f'Creating book pages for joke {joke_id}')
 
+  if base_image_source not in ('original', 'book_page'):
+    raise ValueError(
+      f'Invalid base_image_source: {base_image_source} (expected original or book_page)'
+    )
+
   joke = firestore.get_punny_joke(joke_id)
   if not joke:
     raise ValueError(f'Joke not found: {joke_id}')
@@ -200,6 +206,19 @@ def generate_and_populate_book_pages(
   if metadata_snapshot.exists:
     metadata_data = metadata_snapshot.to_dict() or {}
 
+  base_setup_url = joke.setup_image_url
+  base_punchline_url = joke.punchline_image_url
+  if base_image_source == 'book_page':
+    meta_setup = metadata_data.get('book_page_setup_image_url')
+    meta_punchline = metadata_data.get('book_page_punchline_image_url')
+    base_setup_url = meta_setup or base_setup_url
+    base_punchline_url = meta_punchline or base_punchline_url
+
+  if not base_setup_url or not base_punchline_url:
+    raise ValueError(
+      f'Joke {joke_id} does not have image URLs for base_image_source {base_image_source}'
+    )
+
   if not overwrite:
     existing_setup = metadata_data.get('book_page_setup_image_url')
     existing_punchline = metadata_data.get('book_page_punchline_image_url')
@@ -208,11 +227,12 @@ def generate_and_populate_book_pages(
       return existing_setup, existing_punchline
 
   setup_gcs_uri = cloud_storage.extract_gcs_uri_from_image_url(
-    joke.setup_image_url)
+    base_setup_url)
   punchline_gcs_uri = cloud_storage.extract_gcs_uri_from_image_url(
-    joke.punchline_image_url)
+    base_punchline_url)
   logger.info(
-    f"Processing original images: {setup_gcs_uri} and {punchline_gcs_uri}")
+    f"Processing base images ({base_image_source}): {setup_gcs_uri} and {punchline_gcs_uri}"
+  )
 
   setup_image = cloud_storage.download_image_from_gcs(setup_gcs_uri)
   punchline_image = cloud_storage.download_image_from_gcs(punchline_gcs_uri)

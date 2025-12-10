@@ -76,6 +76,15 @@ def generate_joke_book_page(req: https_fn.Request) -> https_fn.Response:
     punchline_instructions = get_param(req,
                                        'punchline_instructions',
                                        required=False)
+    base_image_source = get_param(req, 'base_image_source',
+                                  required=False) or 'original'
+    if base_image_source not in ('original', 'book_page'):
+      return https_fn.Response(
+        json.dumps(
+          error_response(f'Invalid base_image_source: {base_image_source}')),
+        status=400,
+        headers=cors_headers,
+      )
 
     logger.info(f'Generating book page images for joke {joke_id}')
 
@@ -87,6 +96,7 @@ def generate_joke_book_page(req: https_fn.Request) -> https_fn.Response:
       overwrite=True,
       additional_setup_instructions=setup_instructions,
       additional_punchline_instructions=punchline_instructions,
+      base_image_source=base_image_source,
     )
 
     return_val = f"""

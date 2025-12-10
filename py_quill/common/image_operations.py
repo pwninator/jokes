@@ -22,6 +22,11 @@ _AD_BACKGROUND_SQUARE_DESK_URI = "gs://images.quillsstorybook.com/joke_assets/ba
 _AD_BACKGROUND_SQUARE_CORKBOARD_URI = "gs://images.quillsstorybook.com/joke_assets/background_corkboard_1280_1280.png"
 
 _BOOK_PAGE_STYLE_REFERENCE_IMAGE_URLS = constants.STYLE_REFERENCE_IMAGE_URLS
+_STYLE_UPDATE_CANVAS_URL = "https://storage.googleapis.com/images.quillsstorybook.com/_joke_assets/blank_paper.png"
+_STYLE_UPDATE_REFERENCE_URLS = (
+  "https://storage.googleapis.com/images.quillsstorybook.com/_joke_assets/reference_simple_fastfood2.png",
+  "https://storage.googleapis.com/images.quillsstorybook.com/_joke_assets/reference_simple_schoolfish1.png",
+)
 _BOOK_PAGE_BASE_SIZE = 1800
 _BOOK_PAGE_BLEED_PX = 38
 _BOOK_PAGE_FINAL_WIDTH = _BOOK_PAGE_BASE_SIZE + _BOOK_PAGE_BLEED_PX
@@ -162,6 +167,7 @@ def generate_and_populate_book_pages(
   additional_setup_instructions: str = "",
   additional_punchline_instructions: str = "",
   base_image_source: str = "original",
+  style_update: bool = False,
 ) -> tuple[models.Image, models.Image]:
   """Create book page images for a joke and store their URLs.
 
@@ -179,6 +185,7 @@ def generate_and_populate_book_pages(
   Args:
       joke_id: Firestore joke document ID
       overwrite: Whether to overwrite existing assets
+      style_update: Whether to use the simplified style-update flow
 
   Returns:
       The setup and punchline book page images.
@@ -226,8 +233,7 @@ def generate_and_populate_book_pages(
         and isinstance(existing_punchline, str) and existing_punchline):
       return existing_setup, existing_punchline
 
-  setup_gcs_uri = cloud_storage.extract_gcs_uri_from_image_url(
-    base_setup_url)
+  setup_gcs_uri = cloud_storage.extract_gcs_uri_from_image_url(base_setup_url)
   punchline_gcs_uri = cloud_storage.extract_gcs_uri_from_image_url(
     base_punchline_url)
   logger.info(
@@ -241,16 +247,27 @@ def generate_and_populate_book_pages(
     cloud_storage.download_image_from_gcs(image_url)
     for image_url in _BOOK_PAGE_STYLE_REFERENCE_IMAGE_URLS
   ]
-  generation_result = generate_book_pages_with_nano_banana_pro(
-    setup_image=setup_image,
-    punchline_image=punchline_image,
-    style_reference_images=style_reference_images,
-    setup_image_description=joke.setup_image_description,
-    punchline_image_description=joke.punchline_image_description,
-    output_file_name_base=f'{joke_id}_book_page',
-    additional_setup_instructions=additional_setup_instructions,
-    additional_punchline_instructions=additional_punchline_instructions,
-  )
+  if style_update:
+    generation_result = generate_book_pages_style_update(
+      setup_image=setup_image,
+      punchline_image=punchline_image,
+      setup_text=(joke.setup_text or "").strip(),
+      punchline_text=(joke.punchline_text or "").strip(),
+      output_file_name_base=f'{joke_id}_book_page',
+      additional_setup_instructions=additional_setup_instructions,
+      additional_punchline_instructions=additional_punchline_instructions,
+    )
+  else:
+    generation_result = generate_book_pages_with_nano_banana_pro(
+      setup_image=setup_image,
+      punchline_image=punchline_image,
+      style_reference_images=style_reference_images,
+      setup_image_description=joke.setup_image_description,
+      punchline_image_description=joke.punchline_image_description,
+      output_file_name_base=f'{joke_id}_book_page',
+      additional_setup_instructions=additional_setup_instructions,
+      additional_punchline_instructions=additional_punchline_instructions,
+    )
 
   metadata_book_page_updates = models.PunnyJoke.prepare_book_page_metadata_updates(
     existing_metadata=metadata_data,
@@ -469,6 +486,18 @@ _BOOK_PAGE_PUNCHLINE_PROMPT_TEMPLATE = _BOOK_PAGE_PROMPT_TEMPLATE.format(
   additional_thinking="",
 )
 
+_STYLE_UPDATE_PROMPT_TEMPLATE = """
+You are given the following reference images:
+{references_block}
+
+Generate a new image of CONTENT, converting it to the style of the listed reference images, drawn on the CANVAS paper. Specifically:
+
+- Drastically simplify the background, reducing it to just a very light shading where you can barely make out the bare minimum of background scene, and possibly with a few simple foreground elements if needed.
+- Simplify the art style of the main subject to match the simple, casual, doodle-like style of the REFERENCE1 and REFERENCE2 images. However, the character design, pose, and appearance must exactly match the CONTENT image.
+- Change the font to match the casual and slightly uneven handwriting style of the text in REFERENCE1 and REFERENCE2.
+{additional_instructions}
+"""
+
 
 @dataclass(frozen=True)
 class _BookPageGenerationResult:
@@ -552,6 +581,119 @@ def _format_additional_instructions(
 In addition, here are crucial instructions from the editor that you must follow:
 {additional_instructions}
 """
+
+
+def _build_style_update_prompt(
+  joke_text: str,
+  *,
+  additional_instructions: str | None,
+  include_setup_reference: bool,
+) -> str:
+  references: list[str] = [
+    f'- CONTENT: An image that says "{joke_text}" with colorful foreground/background',
+    "- CANVAS: A blank piece of textured paper",
+    ('- REFERENCE1: Image that says "Because they can\'t catch it", showing a '
+     'stylized lion chasing a hamburger, with a super simple, light background '
+     'where you can barely make out the abstract shape of trees and grass.'),
+    ('- REFERENCE2: Image that "Why are fish so smart" showing a blue fish in a '
+     'thinking pose. There a few minimal foreground elements like the bubbles '
+     'and a few strands of seaweed. The background is a very simple, loose '
+     'shading of light green colored pencils.'),
+  ]
+  if include_setup_reference:
+    references.append(
+      "- PREVIOUS_PANEL: The previously generated panel in this 2-panel set; the new image must exactly match its characters, pose, expressions, and overall style."
+    )
+
+  instruction_chunks: list[str] = []
+  if additional_instructions:
+    instruction_chunks.append("Additional editor instructions:\n" +
+                              additional_instructions)
+  formatted_instructions = (
+    "\n" + "\n".join(instruction_chunks)) if instruction_chunks else ""
+
+  return _STYLE_UPDATE_PROMPT_TEMPLATE.format(
+    references_block="\n".join(references),
+    additional_instructions=formatted_instructions,
+  )
+
+
+@lru_cache(maxsize=1)
+def _get_style_update_reference_images(
+) -> tuple[Image.Image, Image.Image, Image.Image]:
+  canvas = cloud_storage.download_image_from_gcs(_STYLE_UPDATE_CANVAS_URL)
+  ref1 = cloud_storage.download_image_from_gcs(_STYLE_UPDATE_REFERENCE_URLS[0])
+  ref2 = cloud_storage.download_image_from_gcs(_STYLE_UPDATE_REFERENCE_URLS[1])
+  return canvas, ref1, ref2
+
+
+def generate_book_pages_style_update(
+  *,
+  setup_image: Image.Image,
+  punchline_image: Image.Image,
+  setup_text: str,
+  punchline_text: str,
+  output_file_name_base: str,
+  additional_setup_instructions: str,
+  additional_punchline_instructions: str,
+) -> _BookPageGenerationResult:
+  """Generate book pages using simplified style-update flow."""
+  generation_client = image_client.get_client(
+    label='book_page_generation',
+    model=image_client.ImageModel.GEMINI_NANO_BANANA_PRO,
+    file_name_base=output_file_name_base,
+  )
+
+  canvas_image, style_ref1, style_ref2 = _get_style_update_reference_images()
+
+  simple_setup_image = _get_simple_book_page(
+    setup_image,
+    f"{output_file_name_base}_setup",
+  )
+  simple_punchline_image = _get_simple_book_page(
+    punchline_image,
+    f"{output_file_name_base}_punchline",
+  )
+
+  setup_prompt = _build_style_update_prompt(
+    joke_text=setup_text,
+    additional_instructions=additional_setup_instructions,
+    include_setup_reference=False,
+  )
+  generated_setup_image = generation_client.generate_image(
+    prompt=setup_prompt,
+    reference_images=[
+      setup_image,
+      canvas_image,
+      style_ref1,
+      style_ref2,
+    ],
+  )
+
+  punchline_prompt = _build_style_update_prompt(
+    joke_text=punchline_text,
+    additional_instructions=additional_punchline_instructions,
+    include_setup_reference=True,
+  )
+  generated_punchline_image = generation_client.generate_image(
+    prompt=punchline_prompt,
+    reference_images=[
+      generated_setup_image,
+      punchline_image,
+      canvas_image,
+      style_ref1,
+      style_ref2,
+    ],
+  )
+
+  return _BookPageGenerationResult(
+    simple_setup_image=simple_setup_image,
+    simple_punchline_image=simple_punchline_image,
+    generated_setup_image=generated_setup_image,
+    generated_punchline_image=generated_punchline_image,
+    setup_prompt=setup_prompt,
+    punchline_prompt=punchline_prompt,
+  )
 
 
 def _get_simple_book_page(

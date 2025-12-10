@@ -786,6 +786,163 @@ class CreateBookPagesTest(unittest.TestCase):
         ],
       })
 
+  @patch('common.image_operations.generate_book_pages_style_update')
+  @patch('common.image_operations.firestore')
+  @patch('common.image_operations.cloud_storage')
+  def test_create_book_pages_style_update_branch(self, mock_storage,
+                                                 mock_firestore,
+                                                 mock_style_generate):
+    mock_joke = SimpleNamespace(
+      key='jokeSTYLE',
+      setup_text='Why did the burger run',
+      punchline_text='Because it saw the fryer',
+      setup_image_url='https://cdn.example.com/setup.png',
+      punchline_image_url='https://cdn.example.com/punchline.png',
+    )
+    mock_joke.generation_metadata = models.GenerationMetadata()
+    mock_firestore.get_punny_joke.return_value = mock_joke
+    mock_firestore.update_punny_joke = MagicMock()
+
+    mock_firestore_db = MagicMock()
+    mock_metadata_doc = MagicMock()
+    (mock_firestore_db.collection.return_value.document.return_value.
+     collection.return_value.document.return_value) = mock_metadata_doc
+    mock_firestore.db.return_value = mock_firestore_db
+
+    metadata_snapshot = MagicMock()
+    metadata_snapshot.exists = False
+    mock_metadata_doc.get.return_value = metadata_snapshot
+
+    def _extract(uri):
+      return f"gs://bucket/{uri.split('/')[-1]}"
+
+    mock_storage.extract_gcs_uri_from_image_url.side_effect = _extract
+
+    def _make_image(
+      color: str, size: tuple[int, int] = (1024, 1024)) -> Image.Image:
+      return Image.open(BytesIO(_create_image_bytes(color, size)))
+
+    def _download_image_side_effect(gcs_uri: str):
+      if gcs_uri.endswith('setup.png'):
+        return _make_image('red')
+      if gcs_uri.endswith('punchline.png'):
+        return _make_image('blue')
+      return _make_image('white')
+
+    mock_storage.download_image_from_gcs.side_effect = _download_image_side_effect
+
+    generated_setup_url = 'https://cdn.example.com/style_setup.png'
+    generated_punchline_url = 'https://cdn.example.com/style_punchline.png'
+    simple_setup_url = 'https://cdn.example.com/simple_setup.png'
+    simple_punchline_url = 'https://cdn.example.com/simple_punchline.png'
+
+    style_result = image_operations._BookPageGenerationResult(
+      simple_setup_image=_make_fake_image_model(
+        gcs_uri='gs://bucket/simple_setup.png', url=simple_setup_url),
+      simple_punchline_image=_make_fake_image_model(
+        gcs_uri='gs://bucket/simple_punchline.png', url=simple_punchline_url),
+      generated_setup_image=_make_fake_image_model(
+        gcs_uri='gs://bucket/style_setup.png',
+        url=generated_setup_url,
+        model_thought='style-setup',
+        final_prompt='style-prompt',
+      ),
+      generated_punchline_image=_make_fake_image_model(
+        gcs_uri='gs://bucket/style_punchline.png',
+        url=generated_punchline_url,
+        model_thought='style-punchline',
+        final_prompt='style-prompt',
+      ),
+      setup_prompt='style-prompt',
+      punchline_prompt='style-prompt',
+    )
+
+    mock_style_generate.return_value = style_result
+
+    setup_image, punchline_image = (
+      image_operations.generate_and_populate_book_pages('jokeSTYLE',
+                                                        style_update=True))
+
+    self.assertEqual(setup_image.url, generated_setup_url)
+    self.assertEqual(punchline_image.url, generated_punchline_url)
+    mock_style_generate.assert_called_once()
+    _, kwargs = mock_style_generate.call_args
+    self.assertIn('setup_text', kwargs)
+    self.assertIn('punchline_text', kwargs)
+    self.assertEqual(kwargs['setup_text'], 'Why did the burger run')
+    self.assertEqual(kwargs['punchline_text'], 'Because it saw the fryer')
+    mock_firestore.update_punny_joke.assert_called_once()
+
+  @patch('common.image_operations.image_client')
+  @patch('common.image_operations.cloud_storage')
+  def test_style_update_punchline_uses_generated_setup_ref_and_prompt_hint(
+      self, mock_storage, mock_image_client):
+    image_operations._get_style_update_reference_images.cache_clear()
+
+    setup_image = Image.open(BytesIO(_create_image_bytes('red')))
+    punchline_image = Image.open(BytesIO(_create_image_bytes('blue')))
+
+    canvas_img = Image.open(BytesIO(_create_image_bytes('white')))
+    ref1_img = Image.open(BytesIO(_create_image_bytes('green')))
+    ref2_img = Image.open(BytesIO(_create_image_bytes('yellow')))
+
+    def _download_side_effect(uri: str):
+      mapping = {
+        image_operations._STYLE_UPDATE_CANVAS_URL: canvas_img,
+        image_operations._STYLE_UPDATE_REFERENCE_URLS[0]: ref1_img,
+        image_operations._STYLE_UPDATE_REFERENCE_URLS[1]: ref2_img,
+      }
+      return mapping[uri]
+
+    mock_storage.download_image_from_gcs.side_effect = _download_side_effect
+
+    generated_calls = []
+
+    class FakeClient:
+
+      def generate_image(self, prompt, reference_images):
+        generated_calls.append((prompt, reference_images))
+        return _make_fake_image_model(
+          gcs_uri=f'gs://generated/{len(generated_calls)}',
+          url=f'https://cdn.example.com/generated/{len(generated_calls)}',
+          final_prompt=prompt,
+        )
+
+      def outpaint_image(self, **kwargs):
+        return _make_fake_image_model(
+          gcs_uri='gs://generated/simple',
+          url='https://cdn.example.com/simple.png',
+        )
+
+    mock_image_client.get_client.return_value = FakeClient()
+
+    result = image_operations.generate_book_pages_style_update(
+      setup_image=setup_image,
+      punchline_image=punchline_image,
+      setup_text='Setup text here',
+      punchline_text='Punchline text here',
+      output_file_name_base='joke123_book_page',
+      additional_setup_instructions='setup extra',
+      additional_punchline_instructions='punch extra',
+    )
+
+    self.assertEqual(len(generated_calls), 2)
+
+    setup_prompt, setup_refs = generated_calls[0]
+    punch_prompt, punch_refs = generated_calls[1]
+
+    self.assertIn('Setup text here', setup_prompt)
+    self.assertIn('setup extra', setup_prompt)
+    self.assertIn('Punchline text here', punch_prompt)
+    self.assertIn('punch extra', punch_prompt)
+    self.assertIn('PREVIOUS_PANEL', punch_prompt)
+    self.assertIn('must exactly match its characters', punch_prompt)
+
+    self.assertIs(setup_refs[0], setup_image)
+    self.assertIs(punch_refs[0], result.generated_setup_image)
+    self.assertIn(canvas_img, punch_refs)
+    self.assertIn(ref1_img, punch_refs)
+    self.assertIn(ref2_img, punch_refs)
 
   @patch('common.image_operations.generate_book_pages_with_nano_banana_pro')
   @patch('common.image_operations.firestore')
@@ -813,8 +970,7 @@ class CreateBookPagesTest(unittest.TestCase):
     metadata_snapshot = MagicMock()
     metadata_snapshot.exists = True
     metadata_snapshot.to_dict.return_value = {
-      'book_page_setup_image_url':
-      'https://cdn.example.com/book_setup.jpg',
+      'book_page_setup_image_url': 'https://cdn.example.com/book_setup.jpg',
       'book_page_punchline_image_url':
       'https://cdn.example.com/book_punch.jpg',
     }
@@ -910,7 +1066,8 @@ class CreateBookPagesTest(unittest.TestCase):
     update_call = mock_firestore.update_punny_joke.call_args
     self.assertEqual(update_call.args[0], 'jokeXYZ')
 
-  @patch('common.image_operations.cloud_storage.extract_gcs_uri_from_image_url')
+  @patch(
+    'common.image_operations.cloud_storage.extract_gcs_uri_from_image_url')
   @patch('common.image_operations.firestore')
   def test_create_book_pages_invalid_base_image_source_raises(
       self, mock_firestore, mock_extract):
@@ -932,7 +1089,7 @@ class CreateBookPagesTest(unittest.TestCase):
     metadata_snapshot.to_dict.return_value = {}
     mock_metadata_doc.get.return_value = metadata_snapshot
 
-    mock_extract.side_effect = lambda uri: f'gs://bucket/{uri.split('/')[-1]}'
+    mock_extract.side_effect = lambda uri: f'gs://bucket/{uri.split(' / ')[-1]}'
 
     with self.assertRaisesRegex(ValueError, 'Invalid base_image_source'):
       image_operations.generate_and_populate_book_pages(

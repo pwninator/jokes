@@ -425,6 +425,7 @@ def test_generate_joke_book_page_allows_base_image_source(mock_generate_pages):
     additional_setup_instructions=None,
     additional_punchline_instructions=None,
     base_image_source='book_page',
+    style_update=False,
   )
   assert isinstance(resp, https_fn.Response)
   assert resp.status_code == 200

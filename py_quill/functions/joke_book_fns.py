@@ -4,8 +4,8 @@ import traceback
 
 from common import image_operations, utils
 from firebase_functions import https_fn, logger, options
-from functions.function_utils import (error_response, get_param, get_user_id,
-                                      success_response)
+from functions.function_utils import (error_response, get_bool_param,
+                                      get_param, get_user_id, success_response)
 from services import firestore
 
 NUM_TOP_JOKES_FOR_BOOKS = 50
@@ -76,8 +76,13 @@ def generate_joke_book_page(req: https_fn.Request) -> https_fn.Response:
     punchline_instructions = get_param(req,
                                        'punchline_instructions',
                                        required=False)
-    base_image_source = get_param(req, 'base_image_source',
-                                  required=False) or 'original'
+    style_update = get_bool_param(req, 'style_update', required=False)
+    base_image_source = get_param(
+      req,
+      'base_image_source',
+      required=False,
+      default='original',
+    )
     if base_image_source not in ('original', 'book_page'):
       return https_fn.Response(
         json.dumps(
@@ -97,6 +102,7 @@ def generate_joke_book_page(req: https_fn.Request) -> https_fn.Response:
       additional_setup_instructions=setup_instructions,
       additional_punchline_instructions=punchline_instructions,
       base_image_source=base_image_source,
+      style_update=style_update,
     )
 
     return_val = f"""

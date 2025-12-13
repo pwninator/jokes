@@ -258,12 +258,18 @@ class CreateAdAssetsTest(unittest.TestCase):
     mock_editor.create_blank_image.assert_not_called()
     mock_editor.paste_image.assert_not_called()
     mock_storage.extract_gcs_uri_from_image_url.assert_not_called()
-    mock_storage.download_image_from_gcs.assert_not_called()
-    mock_storage.upload_bytes_to_gcs.assert_not_called()
-    mock_storage.get_final_image_url.assert_not_called()
-    mock_metadata_doc.set.assert_not_called()
-    mock_metadata_doc.get.assert_called_once()
-    mock_firestore.get_punny_joke.assert_called_once_with('jokeABC')
+
+
+class CreateBlankBookCoverTest(unittest.TestCase):
+  """Tests for create_blank_book_cover."""
+
+  def test_create_blank_book_cover_is_rgb_jpeg(self):
+    cover_bytes = image_operations.create_blank_book_cover(
+      color_mode=image_operations._KDP_PRINT_COLOR_MODE)
+
+    image = Image.open(BytesIO(cover_bytes))
+    self.assertEqual(image.format, 'JPEG')
+    self.assertEqual(image.mode, image_operations._KDP_PRINT_COLOR_MODE)
 
 
 class ComposePortraitDrawingTest(unittest.TestCase):

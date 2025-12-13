@@ -413,7 +413,6 @@ Generation cost: ${metadata.cost:.6f}
     # Log combined if under limit, otherwise log parts separately
     if len(combined_log) <= 65_000:
       logger.info(combined_log, extra={"json_fields": log_extra_data})
-      print(combined_log)
     else:
       # Log each part separately, prepending the header to each.
       # Attach the structured data only to the last part's log entry.
@@ -600,8 +599,6 @@ final answer...
     in_thinking = False
     overlap = ""  # Text carried over from previous part
     for response in responses:
-
-      print(response)
 
       if not response.candidates:
         continue

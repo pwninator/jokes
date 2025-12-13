@@ -32,6 +32,9 @@ _BOOK_PAGE_BLEED_PX = 38
 _BOOK_PAGE_FINAL_WIDTH = _BOOK_PAGE_BASE_SIZE + _BOOK_PAGE_BLEED_PX
 _BOOK_PAGE_FINAL_HEIGHT = _BOOK_PAGE_BASE_SIZE + (_BOOK_PAGE_BLEED_PX * 2)
 
+# KDP seems to print better in RGB mode than CMYK.
+_KDP_PRINT_COLOR_MODE = 'RGB'
+
 _PAGE_NUMBER_FONT_URLS = (
   'https://github.com/googlefonts/nunito/raw/4be812cf4761b3ddc3b0ae894ef40ea21dcf6ff3/fonts/TTF/Nunito-Regular.ttf',
   'https://github.com/googlefonts/nunito/raw/refs/heads/main/fonts/variable/Nunito%5Bwght%5D.ttf',
@@ -42,8 +45,8 @@ _PAGE_NUMBER_TEXT_COLOR = (33, 33, 33)
 _PAGE_NUMBER_STROKE_COLOR = (255, 255, 255)
 
 
-def create_blank_book_cover() -> bytes:
-  """Create a blank CMYK JPEG cover image matching book page dimensions.
+def create_blank_book_cover(*, color_mode: str) -> bytes:
+  """Create a blank JPEG cover image matching book page dimensions.
 
   The final book page images are _BOOK_PAGE_FINAL_WIDTH
   by _BOOK_PAGE_FINAL_HEIGHT pixels (after bleed cropping on the inner edge),
@@ -51,8 +54,16 @@ def create_blank_book_cover() -> bytes:
   """
   width = _BOOK_PAGE_FINAL_WIDTH
   height = _BOOK_PAGE_FINAL_HEIGHT
-  # CMYK white is (0, 0, 0, 0)
-  cover = Image.new('CMYK', (width, height), (0, 0, 0, 0))
+  if color_mode == 'RGB':
+    cover_color = (255, 255, 255)
+  elif color_mode == 'CMYK':
+    # CMYK white is (0, 0, 0, 0)
+    cover_color = (0, 0, 0, 0)
+  else:
+    raise ValueError(
+      f'Unsupported color_mode for create_blank_book_cover: {color_mode}')
+
+  cover = Image.new(color_mode, (width, height), cover_color)
 
   buffer = BytesIO()
   cover.save(
@@ -89,7 +100,7 @@ def zip_joke_page_images_for_kdp(joke_ids: list[str]) -> str:
   current_page_number = 1
 
   # Add a blank intro page as page 002 before any joke pages.
-  intro_bytes = create_blank_book_cover()
+  intro_bytes = create_blank_book_cover(color_mode=_KDP_PRINT_COLOR_MODE)
   files.append(("002_intro.jpg", intro_bytes))
 
   for joke_id in joke_ids:
@@ -117,6 +128,7 @@ def zip_joke_page_images_for_kdp(joke_ids: list[str]) -> str:
       is_punchline=False,
       page_number=current_page_number,
       total_pages=total_pages,
+      color_mode=_KDP_PRINT_COLOR_MODE,
     )
     current_page_number += 1
     punchline_bytes = _convert_for_print_kdp(
@@ -124,6 +136,7 @@ def zip_joke_page_images_for_kdp(joke_ids: list[str]) -> str:
       is_punchline=True,
       page_number=current_page_number,
       total_pages=total_pages,
+      color_mode=_KDP_PRINT_COLOR_MODE,
     )
     current_page_number += 1
 
@@ -492,9 +505,10 @@ You are given the following reference images:
 
 Generate a new image of CONTENT, converting it to the style of the listed reference images, drawn on the CANVAS paper. Specifically:
 
-- Drastically simplify the background, reducing it to just a very light shading where you can barely make out the bare minimum of background scene, and possibly with a few simple foreground elements if needed.
+- Drastically simplify the background, reducing it to just a very light, faintly colored shading where you can barely make out the bare minimum of background scene, and possibly with a few simple colored foreground elements if needed.
 - Simplify the art style of the main subject to match the simple, casual, doodle-like style of the REFERENCE1 and REFERENCE2 images. However, the character design, pose, and appearance must exactly match the CONTENT image.
 - Change the font to match the casual and slightly uneven handwriting style of the text in REFERENCE1 and REFERENCE2.
+{references_instructions}
 {additional_instructions}
 """
 
@@ -600,10 +614,14 @@ def _build_style_update_prompt(
      'and a few strands of seaweed. The background is a very simple, loose '
      'shading of light green colored pencils.'),
   ]
+  references_instructions = ""
   if include_setup_reference:
     references.append(
       "- PREVIOUS_PANEL: The previously generated panel in this 2-panel set; the new image must exactly match its characters, pose, expressions, and overall style."
     )
+    references_instructions = """
+    - Any recurring characters, objects, or backgrounds from the PREVIOUS_PANEL image must be consistent with the PREVIOUS_PANEL image in character design and art style. Critically, the art style and level of detail of the background should exactly match the PREVIOUS_PANEL image.
+    """
 
   instruction_chunks: list[str] = []
   if additional_instructions:
@@ -615,6 +633,7 @@ def _build_style_update_prompt(
   return _STYLE_UPDATE_PROMPT_TEMPLATE.format(
     references_block="\n".join(references),
     additional_instructions=formatted_instructions,
+    references_instructions=references_instructions,
   )
 
 
@@ -731,6 +750,7 @@ def _convert_for_print_kdp(
   is_punchline: bool,
   page_number: int,
   total_pages: int,
+  color_mode: str,
   image_editor_instance: image_editor.ImageEditor | None = None,
 ) -> bytes:
   """Convert an image to be print-ready for Kindle Direct Publishing.
@@ -738,7 +758,7 @@ def _convert_for_print_kdp(
   Conversion includes:
     1. Scale image to correct size at desired DPI.
     2. Trim the bleed area off of the inner edge.
-    3. Convert to CMYK.
+    3. Convert to the target print color mode.
     4. Convert to JPEG.
   """
   editor = image_editor_instance or image_editor.ImageEditor()
@@ -776,17 +796,17 @@ def _convert_for_print_kdp(
     is_punchline=is_punchline,
   )
 
-  cmyk_image = trimmed_image.convert('CMYK')
+  converted_image = trimmed_image.convert(color_mode)
 
-  if abs(cmyk_image.width -
-         _BOOK_PAGE_FINAL_WIDTH) > 2 or abs(cmyk_image.height -
+  if abs(converted_image.width -
+         _BOOK_PAGE_FINAL_WIDTH) > 2 or abs(converted_image.height -
                                             _BOOK_PAGE_FINAL_HEIGHT) > 2:
     raise ValueError(
-      f"Expected image size {_BOOK_PAGE_FINAL_WIDTH}x{_BOOK_PAGE_FINAL_HEIGHT}, got {cmyk_image.width}x{cmyk_image.height}"
+      f"Expected image size {_BOOK_PAGE_FINAL_WIDTH}x{_BOOK_PAGE_FINAL_HEIGHT}, got {converted_image.width}x{converted_image.height}"
     )
 
   buffer = BytesIO()
-  cmyk_image.save(
+  converted_image.save(
     buffer,
     format='JPEG',
     quality=100,

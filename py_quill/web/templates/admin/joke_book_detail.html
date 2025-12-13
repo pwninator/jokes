@@ -481,10 +481,14 @@
     const regenerateZipEndpoint = functionsOrigin
       ? `${functionsOrigin}/update_joke_book_zip`
       : '/update_joke_book_zip';
-    const accentColor = getComputedStyle(document.documentElement)
-      .getPropertyValue('--color-primary')
-      .trim() || '#d4a017';
-    const inactiveVariantBorder = '2px solid rgba(74, 59, 50, 0.25)';
+    const activeColor = getComputedStyle(document.documentElement)
+      .getPropertyValue('--color-primary-dark')
+      .trim() || '#ff0000';
+    const inactiveColor = getComputedStyle(document.documentElement)
+      .getPropertyValue('--color-surface')
+      .trim() || '#ffffff';
+    const activeVariantBorder = `3px solid ${activeColor}`;
+    const inactiveVariantBorder = `3px solid ${inactiveColor}`;
     const bustCache = (url) => {
       if (!url) return '';
       const sep = url.includes('?') ? '&' : '?';
@@ -515,7 +519,7 @@
     };
 
     const applyTileHighlight = (tile, isActive) => {
-      tile.style.border = isActive ? `2px solid ${accentColor}` : inactiveVariantBorder;
+      tile.style.border = isActive ? activeVariantBorder : inactiveVariantBorder;
     };
 
     const setupZipRegenerator = () => {

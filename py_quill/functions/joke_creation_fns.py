@@ -27,18 +27,21 @@ def joke_creation_process(req: https_fn.Request) -> https_fn.Response:
 
     user_id = get_user_id(req, allow_unauthenticated=False)
 
+    # Joke input data
     joke_id = get_param(req, 'joke_id')
     setup_text = get_param(req, 'setup_text')
     punchline_text = get_param(req, 'punchline_text')
+    setup_scene_idea = get_param(req, 'setup_scene_idea')
+    punchline_scene_idea = get_param(req, 'punchline_scene_idea')
+    setup_image_description = get_param(req, 'setup_image_description')
+    punchline_image_description = get_param(req, 'punchline_image_description')
     admin_owned = get_bool_param(req, 'admin_owned', False)
+
+    # Suggestions
     setup_suggestion = get_param(req, 'setup_suggestion')
     punchline_suggestion = get_param(req, 'punchline_suggestion')
-    setup_scene_idea_override = get_param(req, 'setup_scene_idea')
-    punchline_scene_idea_override = get_param(req, 'punchline_scene_idea')
-    setup_image_description_override = get_param(req,
-                                                 'setup_image_description')
-    punchline_image_description_override = get_param(
-      req, 'punchline_image_description')
+
+    # Action flags
     populate_images = get_bool_param(req, 'populate_images', False)
     generate_descriptions = get_bool_param(req, 'generate_descriptions', False)
     regenerate_scene_ideas = get_bool_param(req, 'regenerate_scene_ideas',
@@ -50,15 +53,14 @@ def joke_creation_process(req: https_fn.Request) -> https_fn.Response:
         return error_response(f'Joke not found: {joke_id}')
 
       # Apply overrides early so all scenarios see the latest ideas
-      if setup_scene_idea_override is not None:
-        joke.setup_scene_idea = setup_scene_idea_override
-      if punchline_scene_idea_override is not None:
-        joke.punchline_scene_idea = punchline_scene_idea_override
-      if setup_image_description_override is not None:
-        joke.setup_image_description = setup_image_description_override
-      if punchline_image_description_override is not None:
-        joke.punchline_image_description = (
-          punchline_image_description_override)
+      if setup_scene_idea is not None:
+        joke.setup_scene_idea = setup_scene_idea
+      if punchline_scene_idea is not None:
+        joke.punchline_scene_idea = punchline_scene_idea
+      if setup_image_description is not None:
+        joke.setup_image_description = setup_image_description
+      if punchline_image_description is not None:
+        joke.punchline_image_description = punchline_image_description
     else:
       joke = None
 

@@ -220,8 +220,11 @@ def test_create_joke_sets_admin_owner_and_draft(monkeypatch):
                       "get_user_id",
                       lambda req, allow_unauthenticated=True: None)
   monkeypatch.setattr(
-    joke_fns.joke_operations, "_generate_scene_ideas",
-    lambda _s, _p: ("idea-setup", "idea-punch", models.GenerationMetadata()))
+    joke_fns.joke_operations.joke_operation_prompts,
+    "generate_joke_scene_ideas",
+    lambda *_args, **_kwargs:
+    ("idea-setup", "idea-punch", models.GenerationMetadata()),
+  )
 
   saved = None
 
@@ -258,8 +261,11 @@ def test_create_joke_sets_user_owner_when_not_admin(monkeypatch):
                       "get_user_id",
                       lambda req, allow_unauthenticated=True: "user1")
   monkeypatch.setattr(
-    joke_fns.joke_operations, "_generate_scene_ideas",
-    lambda _s, _p: ("idea-setup", "idea-punch", models.GenerationMetadata()))
+    joke_fns.joke_operations.joke_operation_prompts,
+    "generate_joke_scene_ideas",
+    lambda *_args, **_kwargs:
+    ("idea-setup", "idea-punch", models.GenerationMetadata()),
+  )
 
   saved = None
 
@@ -704,8 +710,9 @@ def test_get_joke_bundle_success(monkeypatch):
                       lambda bucket, base, ext: "gs://temp/bundle.txt")
   monkeypatch.setattr(joke_fns.cloud_storage, "upload_bytes_to_gcs",
                       fake_upload_bytes)
-  monkeypatch.setattr(joke_fns.cloud_storage, "get_public_url",
-                      lambda uri: uri.replace("gs://", "https://storage.googleapis.com/"))
+  monkeypatch.setattr(
+    joke_fns.cloud_storage, "get_public_url",
+    lambda uri: uri.replace("gs://", "https://storage.googleapis.com/"))
 
   mock_bundle = Mock()
   mock_bundle.add_document.return_value = mock_bundle
@@ -717,7 +724,8 @@ def test_get_joke_bundle_success(monkeypatch):
 
   assert resp.status_code == 200
   payload = json.loads(resp.get_data(as_text=True))
-  assert payload["data"]["bundle_url"] == "https://storage.googleapis.com/temp/bundle.txt"
+  assert payload["data"][
+    "bundle_url"] == "https://storage.googleapis.com/temp/bundle.txt"
 
   mock_bundle.add_document.assert_any_call(mock_feed_doc)
   mock_bundle.add_document.assert_any_call(mock_category_doc)

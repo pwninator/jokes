@@ -30,6 +30,21 @@ def reset_image_quality(monkeypatch):
                       })
 
 
+@pytest.fixture(autouse=True)
+def stub_scene_idea_generation(monkeypatch):
+  """Prevent real prompt calls by stubbing scene idea generation."""
+
+  def fake_generate(*_args, **_kwargs):
+    return ("idea-setup", "idea-punch",
+            models.SingleGenerationMetadata(model_name="test"))
+
+  monkeypatch.setattr(
+    joke_creation_fns.joke_operations.joke_operation_prompts,
+    "generate_joke_scene_ideas",
+    fake_generate,
+  )
+
+
 def test_joke_creation_process_creates_joke_from_text(monkeypatch):
   """Scenario 1 should call joke_operations.create_joke."""
   monkeypatch.setattr(joke_creation_fns,
@@ -364,6 +379,13 @@ def test_joke_creation_process_generates_descriptions(monkeypatch):
 
   monkeypatch.setattr(joke_creation_fns.joke_operations,
                       'generate_image_descriptions', fake_generate)
+
+  def fake_generate_images(target_joke, quality):
+    called["image_quality"] = quality
+    return target_joke
+
+  monkeypatch.setattr(joke_creation_fns.joke_operations,
+                      'generate_joke_images', fake_generate_images)
   monkeypatch.setattr(joke_creation_fns.firestore, 'upsert_punny_joke',
                       lambda updated: updated)
   monkeypatch.setattr(joke_creation_fns.joke_operations, 'to_response_joke',

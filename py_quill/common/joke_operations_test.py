@@ -4,9 +4,9 @@ from io import BytesIO
 from unittest.mock import MagicMock, Mock
 
 import pytest
-from PIL import Image
 from common import joke_operations, models
 from google.cloud.firestore_v1.vector import Vector
+from PIL import Image
 
 
 @pytest.fixture(name='mock_firestore')
@@ -72,11 +72,14 @@ def mock_scene_prompts_fixture(monkeypatch):
 def mock_scene_ideas_fixture(monkeypatch):
   """Fixture that stubs scene idea and safety generation."""
 
-  def fake_generate(scene_setup: str, scene_punch: str):
-    _ = (scene_setup, scene_punch)
+  def fake_generate(*_args, **_kwargs):
     return "idea-setup", "idea-punch", models.GenerationMetadata()
 
-  monkeypatch.setattr(joke_operations, "_generate_scene_ideas", fake_generate)
+  monkeypatch.setattr(
+    joke_operations.joke_operation_prompts,
+    "generate_joke_scene_ideas",
+    fake_generate,
+  )
   return fake_generate
 
 
@@ -143,8 +146,8 @@ def test_generate_joke_images_updates_images(mock_image_generation):
   )
   setup_image = models.Image(url="setup-url")
   punch_image = models.Image(url="punch-url")
-  mock_image_generation.generate_pun_images.return_value = (
-    setup_image, punch_image)
+  mock_image_generation.generate_pun_images.return_value = (setup_image,
+                                                            punch_image)
 
   updated = joke_operations.generate_joke_images(joke, "medium")
 
@@ -219,13 +222,12 @@ def test_generate_joke_images_missing_scene_idea_raises():
     punchline_image_description=None,
   )
 
-  with pytest.raises(joke_operations.JokePopulationError,
-                     match='scene ideas'):
+  with pytest.raises(joke_operations.JokePopulationError, match='scene ideas'):
     joke_operations.generate_joke_images(joke, "medium")
 
 
 def test_modify_image_scene_ideas_updates_and_persists(mock_firestore,
-                                                      mock_scene_prompts):
+                                                       mock_scene_prompts):
   """modify_image_scene_ideas should call prompt helper and save."""
   _ = mock_scene_prompts
   joke = models.PunnyJoke(
@@ -297,12 +299,15 @@ def test_update_text_without_regen_keeps_scene_ideas(mock_scene_prompts):
 def test_update_text_with_regen_replaces_scene_ideas(monkeypatch):
   """Updating text with regen should rebuild scene ideas and metadata."""
 
-  def fake_generate(setup_text, punchline_text):
-    _ = (setup_text, punchline_text)
+  def fake_generate(*_args, **_kwargs):
     return ("new scene setup", "new scene punch",
             models.SingleGenerationMetadata(model_name="regen"))
 
-  monkeypatch.setattr(joke_operations, "_generate_scene_ideas", fake_generate)
+  monkeypatch.setattr(
+    joke_operations.joke_operation_prompts,
+    "generate_joke_scene_ideas",
+    fake_generate,
+  )
 
   joke = models.PunnyJoke(
     key="joke-1",

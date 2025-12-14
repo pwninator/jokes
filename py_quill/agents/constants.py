@@ -48,10 +48,18 @@ AGENT_DEPLOYMENT_ENV_VARS = None
 AGENT_DEPLOYMENT_GCS_DIR_NAME = None
 
 # Shared style reference images for illustration generation
-STYLE_REFERENCE_IMAGE_URLS = [
+STYLE_REFERENCE_CANVAS_IMAGE_URL = "https://storage.googleapis.com/images.quillsstorybook.com/_joke_assets/blank_paper.png"
+
+STYLE_REFERENCE_RICH_IMAGE_URLS = [
   "https://storage.googleapis.com/images.quillsstorybook.com/_joke_assets/reference_beakaboo_1.jpg",
   "https://storage.googleapis.com/images.quillsstorybook.com/_joke_assets/reference_giraffe_1.jpg",
   "https://storage.googleapis.com/images.quillsstorybook.com/_joke_assets/reference_honey_1.jpg",
   "https://storage.googleapis.com/images.quillsstorybook.com/_joke_assets/reference_mewseum_1.jpg",
   "https://storage.googleapis.com/images.quillsstorybook.com/_joke_assets/reference_mewseum_2.jpg",
+]
+STYLE_REFERENCE_SIMPLE_IMAGE_URLS = [
+  "https://storage.googleapis.com/images.quillsstorybook.com/_joke_assets/reference_simple_fastfood2_2.png",
+  "https://storage.googleapis.com/images.quillsstorybook.com/_joke_assets/reference_simple_gummybear1.png",
+  "https://storage.googleapis.com/images.quillsstorybook.com/_joke_assets/reference_simple_honey2.png",
+  "https://storage.googleapis.com/images.quillsstorybook.com/_joke_assets/reference_simple_porkchop2.png",
 ]

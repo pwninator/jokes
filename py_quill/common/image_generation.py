@@ -113,7 +113,7 @@ def generate_pun_images(
     pun_text=setup_text,
     image_description=setup_image_description,
     image_quality=image_quality,
-    style_reference_images=constants.STYLE_REFERENCE_IMAGE_URLS,
+    style_reference_images=constants.STYLE_REFERENCE_RICH_IMAGE_URLS,
   )
 
   if not setup_image.url:

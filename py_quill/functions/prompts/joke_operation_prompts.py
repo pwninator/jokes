@@ -203,8 +203,8 @@ _safety_llm = llm_client.get_client(
   label="Content Safety Check",
   model=LlmModel.GEMINI_2_5_FLASH,
   temperature=0,
-  thinking_tokens=0,
-  output_tokens=400,
+  thinking_tokens=500,
+  output_tokens=500,
   system_instructions=[
     f"""You are a strict safety reviewer for a kid-focused jokes app (ages 4-12).
 Decide if the provided content is SAFE for that context. When in doubt, mark it UNSAFE.
@@ -214,11 +214,12 @@ If the given content is found to be unsafe, it must be rejected (UNSAFE).
 
 If SAFE, it should clearly be wholesome, playful, and age-appropriate.
 
-Respond ONLY in this exact format:
+Your response must include your VERDICT (either "SAFE" or "UNSAFE") and REASONS. Respond ONLY in this exact format:
 REASONS:
 Short explanation (1-3 lines) of why the content is SAFE or UNSAFE.
 VERDICT:
-SAFE or UNSAFE"""
+SAFE or UNSAFE
+"""
   ],
 )
 

@@ -204,6 +204,15 @@ def test_index_page_renders_top_jokes(monkeypatch):
   assert 'Cache-Control' in resp.headers
 
 
+def test_book_route_redirects_to_home():
+  """Book landing redirects to the homepage."""
+  with web_fns.app.test_client() as client:
+    resp = client.get('/book', follow_redirects=False)
+
+  assert resp.status_code == 302
+  assert resp.headers['Location'] == '/'
+
+
 def test_fetch_topic_jokes_sorts_by_popularity_then_distance(monkeypatch):
   """_fetch_topic_jokes orders by popularity desc, then vector distance asc."""
   # Arrange

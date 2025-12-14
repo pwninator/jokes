@@ -10,23 +10,19 @@ from functools import lru_cache, partial
 from io import BytesIO
 from typing import Callable
 
+import requests
 from agents import constants
 from common import config, models
 from firebase_functions import logger
 from PIL import Image, ImageDraw, ImageFont
-import requests
 from services import cloud_storage, firestore, image_client, image_editor
 
 _AD_BACKGROUND_SQUARE_DRAWING_URI = "gs://images.quillsstorybook.com/joke_assets/background_drawing_1280_1280.png"
 _AD_BACKGROUND_SQUARE_DESK_URI = "gs://images.quillsstorybook.com/joke_assets/background_desk_1280_1280.png"
 _AD_BACKGROUND_SQUARE_CORKBOARD_URI = "gs://images.quillsstorybook.com/joke_assets/background_corkboard_1280_1280.png"
 
-_BOOK_PAGE_STYLE_REFERENCE_IMAGE_URLS = constants.STYLE_REFERENCE_IMAGE_URLS
-_STYLE_UPDATE_CANVAS_URL = "https://storage.googleapis.com/images.quillsstorybook.com/_joke_assets/blank_paper.png"
-_STYLE_UPDATE_REFERENCE_URLS = (
-  "https://storage.googleapis.com/images.quillsstorybook.com/_joke_assets/reference_simple_fastfood2.png",
-  "https://storage.googleapis.com/images.quillsstorybook.com/_joke_assets/reference_simple_schoolfish1.png",
-)
+_STYLE_UPDATE_CANVAS_URL = constants.STYLE_REFERENCE_CANVAS_IMAGE_URL
+_STYLE_REFERENCE_IMAGE_URLS = constants.STYLE_REFERENCE_SIMPLE_IMAGE_URLS
 _BOOK_PAGE_BASE_SIZE = 1800
 _BOOK_PAGE_BLEED_PX = 38
 _BOOK_PAGE_FINAL_WIDTH = _BOOK_PAGE_BASE_SIZE + _BOOK_PAGE_BLEED_PX
@@ -258,7 +254,7 @@ def generate_and_populate_book_pages(
 
   style_reference_images = [
     cloud_storage.download_image_from_gcs(image_url)
-    for image_url in _BOOK_PAGE_STYLE_REFERENCE_IMAGE_URLS
+    for image_url in _STYLE_REFERENCE_IMAGE_URLS
   ]
   if style_update:
     generation_result = generate_book_pages_style_update(
@@ -606,13 +602,8 @@ def _build_style_update_prompt(
   references: list[str] = [
     f'- CONTENT: An image that says "{joke_text}" with colorful foreground/background',
     "- CANVAS: A blank piece of textured paper",
-    ('- REFERENCE1: Image that says "Because they can\'t catch it", showing a '
-     'stylized lion chasing a hamburger, with a super simple, light background '
-     'where you can barely make out the abstract shape of trees and grass.'),
-    ('- REFERENCE2: Image that "Why are fish so smart" showing a blue fish in a '
-     'thinking pose. There a few minimal foreground elements like the bubbles '
-     'and a few strands of seaweed. The background is a very simple, loose '
-     'shading of light green colored pencils.'),
+    '- REFERENCE1: Image that says "Because they can\'t catch it", showing a stylized lion chasing a hamburger, with a simple, low-contrast pastel background.',
+    '- REFERENCE2: Image that says "What do you call a bear with no teeth" showing a bear sitting in front of a light, low contrast forest background with loose shading of light green colored pencils.',
   ]
   references_instructions = ""
   if include_setup_reference:
@@ -641,8 +632,8 @@ def _build_style_update_prompt(
 def _get_style_update_reference_images(
 ) -> tuple[Image.Image, Image.Image, Image.Image]:
   canvas = cloud_storage.download_image_from_gcs(_STYLE_UPDATE_CANVAS_URL)
-  ref1 = cloud_storage.download_image_from_gcs(_STYLE_UPDATE_REFERENCE_URLS[0])
-  ref2 = cloud_storage.download_image_from_gcs(_STYLE_UPDATE_REFERENCE_URLS[1])
+  ref1 = cloud_storage.download_image_from_gcs(_STYLE_REFERENCE_IMAGE_URLS[0])
+  ref2 = cloud_storage.download_image_from_gcs(_STYLE_REFERENCE_IMAGE_URLS[1])
   return canvas, ref1, ref2
 
 
@@ -679,7 +670,7 @@ def generate_book_pages_style_update(
     additional_instructions=additional_setup_instructions,
     include_setup_reference=False,
   )
-  generated_setup_image = generation_client.generate_image(
+  updated_setup_image = generation_client.generate_image(
     prompt=setup_prompt,
     reference_images=[
       setup_image,
@@ -694,10 +685,10 @@ def generate_book_pages_style_update(
     additional_instructions=additional_punchline_instructions,
     include_setup_reference=True,
   )
-  generated_punchline_image = generation_client.generate_image(
+  updated_punchline_image = generation_client.generate_image(
     prompt=punchline_prompt,
     reference_images=[
-      generated_setup_image,
+      updated_setup_image,
       punchline_image,
       canvas_image,
       style_ref1,
@@ -708,8 +699,8 @@ def generate_book_pages_style_update(
   return _BookPageGenerationResult(
     simple_setup_image=simple_setup_image,
     simple_punchline_image=simple_punchline_image,
-    generated_setup_image=generated_setup_image,
-    generated_punchline_image=generated_punchline_image,
+    generated_setup_image=updated_setup_image,
+    generated_punchline_image=updated_punchline_image,
     setup_prompt=setup_prompt,
     punchline_prompt=punchline_prompt,
   )

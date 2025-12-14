@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import base64
-import re
+import pprint
 import time
 import traceback
 from abc import ABC, abstractmethod
@@ -477,24 +477,6 @@ class VertexClient(LlmClient[GenerativeModel]):
     },
   }
 
-  _THINKING_TO_ANSWER_PATTERN = re.compile(
-    r'</thinking>(?:.*<answer>)?|<answer>', re.DOTALL)
-  _PARTIAL_TAG_PATTERN = re.compile(r'</?[a-z]{0,10}$')
-
-  # pylint: disable=line-too-long
-  _THINKING_INSTRUCTIONS = """Respond with your thought process between <thinking> and </thinking> tags,
-and your final answer between <answer> and </answer> tags, like this:
-
-<thinking>
-thought process...
-</thinking>
-<answer>
-final answer...
-</answer>
-"""
-
-  # pylint: enable=line-too-long
-
   def __init__(
     self,
     label: str,
@@ -507,8 +489,6 @@ final answer...
     max_retries: int,
   ):
     system_instructions = system_instructions or []
-    if thinking_tokens:
-      system_instructions.append(self._THINKING_INSTRUCTIONS)
 
     super().__init__(
       label=label,
@@ -556,8 +536,6 @@ final answer...
       vertex_chunks,
       generation_config=GenerationConfig(
         temperature=self.temperature,
-        # Gemini doesn't support separate counts for thinking and output
-        # tokens yet, so just add them up.
         max_output_tokens=self.thinking_tokens + self.output_tokens,
         response_mime_type="application/json"
         if self.response_schema else None,
@@ -589,95 +567,45 @@ final answer...
       stream=True,
     )
 
-    accumulated_raw_text = []
-    accumulated_thinking = []
-    thinking_delta = []
-    accumulated_answer = []
-    answer_delta = []
-
+    accumulated_answer: list[str] = []
+    prompt_feedback = []
     final_usage_metadata = None
-    in_thinking = False
-    overlap = ""  # Text carried over from previous part
+
+    responses = list(responses)
+    logger.info(pprint.pformat([r.to_dict() for r in responses], width=120))
     for response in responses:
+
+      if response.usage_metadata:
+        final_usage_metadata = response.usage_metadata
+
+      if response.prompt_feedback:
+        logger.info(f"Prompt feedback: {response.prompt_feedback}")
+        prompt_feedback.append(response.prompt_feedback)
 
       if not response.candidates:
         continue
 
-      response_content = response.candidates[0].content
-      for part in response_content.parts:
+      response_parts = response.candidates[0].content.parts
 
-        accumulated_raw_text.append(part.text)
-        # Combine overlap from previous part with current text
-        text = overlap + part.text
+      if response_parts:
+        for part in response_parts:
+          answer_delta = None
+          try:
+            answer_delta = part.text
+          except AttributeError:
+            logger.warn(f"Part has no text: {part}")
 
-        # Check for partial tag at the end. If found, save it for the next part.
-        if match := self._PARTIAL_TAG_PATTERN.search(text):
-          overlap = match.group()
-          text = text[:match.start()]
-        else:
-          overlap = ""
-
-        if not text:
-          continue
-
-        # Only enter thinking mode if it's enabled
-        if "<thinking>" in text and self.thinking_enabled:
-          in_thinking = True
-          text = text.split("<thinking>", 1)[1]
-
-        # Check for transition to answer (via either tag)
-        if "</thinking>" in text or "<answer>" in text:
-          in_thinking = False
-          # Split on either </thinking> or <answer>, handling the case where both appear
-          text_split = self._THINKING_TO_ANSWER_PATTERN.split(text, 1)
-          # Add remaining thinking text
-          if len(text_split) > 0 and text_split[0]:
-            thinking_delta.append(text_split[0])
-          text = text_split[1] if len(text_split) > 1 else ""
-
-        if not text:
-          continue
-
-        # Accumulate text based on current section
-        if in_thinking:
-          thinking_delta.append(text)
-        else:
-          # Remove </answer> tag if present
-          if "</answer>" in text:
-            text = text.split("</answer>", 1)[0]
-          if text:  # Only append non-empty text
-            answer_delta.append(text)
-
-      if answer_delta or thinking_delta:
-        accumulated_thinking.extend(thinking_delta)
-        accumulated_answer.extend(answer_delta)
-        yield LlmResponse(
-          text="".join(accumulated_answer).strip(),
-          text_delta="".join(answer_delta),
-          thinking_text="".join(accumulated_thinking).strip(),
-          thinking_text_delta="".join(thinking_delta),
-          is_final=False,
-        )
-        thinking_delta = []
-        answer_delta = []
-
-      if response.usage_metadata:
-        if final_usage_metadata:
-          raise ValueError(
-            f"Received multiple usage metadata from Vertex AI:\n{accumulated_raw_text}"
-          )
-        final_usage_metadata = response.usage_metadata
-
-    accumulated_thinking.extend(thinking_delta)
-    accumulated_answer.extend(answer_delta)
-
-    if not accumulated_answer:
-      if self.thinking_enabled and accumulated_thinking:
-        raise ValueError(
-          f"Got thinking output but no answer from Vertex AI:\n{accumulated_raw_text}"
-        )
-      raise ValueError(
-        f"Got no output from Vertex AI:\n{accumulated_raw_text}")
+          if answer_delta:
+            accumulated_answer.append(answer_delta)
+            yield LlmResponse(
+              text="".join(accumulated_answer).strip(),
+              text_delta=answer_delta,
+              thinking_text="",
+              thinking_text_delta="",
+              is_final=False,
+            )
+      else:
+        logger.warn(f"No parts in response: {response}")
 
     if final_usage_metadata is None:
       raise ValueError("No usage metadata received from Vertex AI")
@@ -694,10 +622,10 @@ final answer...
     # Yield final chunk with metadata
     yield LlmResponse(
       text="".join(accumulated_answer).strip(),
-      text_delta="".join(answer_delta),
-      thinking_text="".join(accumulated_thinking).strip(),
-      thinking_text_delta="".join(thinking_delta),
-      metadata=models.SingleGenerationMetadata(token_counts=token_counts, ),
+      text_delta="",
+      thinking_text="",
+      thinking_text_delta="",
+      metadata=models.SingleGenerationMetadata(token_counts=token_counts),
       is_final=True,
     )
 

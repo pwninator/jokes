@@ -212,17 +212,8 @@ def topic_page(topic: str):
 
 @web_bp.route('/book')
 def book():
-  """Render placeholder page for the Snickerdoodle joke book."""
-  now_year = datetime.datetime.now(datetime.timezone.utc).year
-  html = flask.render_template(
-    'book.html',
-    canonical_url=flask.url_for('web.book', _external=True),
-    site_name='Snickerdoodle',
-    now_year=now_year,
-    prev_url=None,
-    next_url=None,
-  )
-  return _html_response(html, cache_seconds=600, cdn_seconds=3600)
+  """Redirect book landing to the homepage."""
+  return flask.redirect(flask.url_for('web.index'), code=302)
 
 
 @web_bp.route('/about')

@@ -463,12 +463,12 @@ class CreateBookPagesTest(unittest.TestCase):
     style_colors = ['green', 'yellow', 'orange', 'purple', 'pink']
     style_images = [
       _make_image(style_colors[idx % len(style_colors)]) for idx, _ in
-      enumerate(image_operations._BOOK_PAGE_STYLE_REFERENCE_IMAGE_URLS)
+      enumerate(image_operations._STYLE_REFERENCE_IMAGE_URLS)
     ]
     style_image_map = {
       url: style_images[idx]
       for idx, url in enumerate(
-        image_operations._BOOK_PAGE_STYLE_REFERENCE_IMAGE_URLS)
+        image_operations._STYLE_REFERENCE_IMAGE_URLS)
     }
 
     def _download_image_side_effect(gcs_uri: str):
@@ -687,12 +687,12 @@ class CreateBookPagesTest(unittest.TestCase):
     style_colors = ['green', 'yellow', 'orange', 'purple', 'pink']
     style_images = [
       _make_image(style_colors[idx % len(style_colors)]) for idx, _ in
-      enumerate(image_operations._BOOK_PAGE_STYLE_REFERENCE_IMAGE_URLS)
+      enumerate(image_operations._STYLE_REFERENCE_IMAGE_URLS)
     ]
     style_image_map = {
       url: style_images[idx]
       for idx, url in enumerate(
-        image_operations._BOOK_PAGE_STYLE_REFERENCE_IMAGE_URLS)
+        image_operations._STYLE_REFERENCE_IMAGE_URLS)
     }
 
     def _download_image_side_effect(gcs_uri: str):
@@ -895,8 +895,8 @@ class CreateBookPagesTest(unittest.TestCase):
     def _download_side_effect(uri: str):
       mapping = {
         image_operations._STYLE_UPDATE_CANVAS_URL: canvas_img,
-        image_operations._STYLE_UPDATE_REFERENCE_URLS[0]: ref1_img,
-        image_operations._STYLE_UPDATE_REFERENCE_URLS[1]: ref2_img,
+        image_operations._STYLE_REFERENCE_IMAGE_URLS[0]: ref1_img,
+        image_operations._STYLE_REFERENCE_IMAGE_URLS[1]: ref2_img,
       }
       return mapping[uri]
 
@@ -1002,7 +1002,7 @@ class CreateBookPagesTest(unittest.TestCase):
     style_images = {
       url: _make_image(style_palette[idx % len(style_palette)])
       for idx, url in enumerate(
-        image_operations._BOOK_PAGE_STYLE_REFERENCE_IMAGE_URLS)
+        image_operations._STYLE_REFERENCE_IMAGE_URLS)
     }
 
     def _download_image_side_effect(gcs_uri: str):
@@ -1150,7 +1150,7 @@ class CreateBookPagesTest(unittest.TestCase):
     style_images = {
       url: _make_image(style_palette[idx % len(style_palette)])
       for idx, url in enumerate(
-        image_operations._BOOK_PAGE_STYLE_REFERENCE_IMAGE_URLS)
+        image_operations._STYLE_REFERENCE_IMAGE_URLS)
     }
 
     def _download_image_side_effect(gcs_uri: str):

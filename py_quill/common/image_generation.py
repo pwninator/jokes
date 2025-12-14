@@ -29,8 +29,8 @@ PUN_IMAGE_CLIENTS_BY_QUALITY = {
   ),
   "low":
   image_client.get_client(
-    label="pun_agent_image_tool_low",
-    model=image_client.ImageModel.OPENAI_GPT_IMAGE_1_LOW,
+    label="pun_agent_image_tool_medium_mini",
+    model=image_client.ImageModel.OPENAI_GPT_IMAGE_1_MINI_MEDIUM,
     file_name_base=_IMAGE_FILE_NAME_BASE,
   ),
   "medium":
@@ -69,7 +69,9 @@ _MODIFY_IMAGE_CLIENT_HIGH = image_client.get_client(
 _IMAGE_GENERATION_PROMPT_PREAMBLE = (
   "Create an unbearably cute, professional-quality children's illustration in soft colored pencil on lightly textured paper. "
   "Use organic, sketch-like outlines in darker saturated shades of the subject colors (avoid heavy black ink), with visible directional strokes and tight cross-hatching to build rich, vibrant color. "
-  "Keep the palette bright, gentle, and harmonious; backgrounds fully rendered (not blank or vignette). "
+  "Keep the palette bright, gentle, and harmonious. "
+  # "Backgrounds should be fully rendered (not blank or vignette). "
+  "Backgrounds should be simple, low contrast, and low detail, with loose sketch-like shading, to allow the main subject to stand out. "
   "Leave a safe margin around all edges so no important text or main content is near or crossing the edge; keep all text and focal elements comfortably inside the frame. "
   "Subjects should be chibi/cute (big heads, large expressive eyes with highlights, small bodies), tactile and hand-crafted yet polished for print."
 )
@@ -113,7 +115,7 @@ def generate_pun_images(
     pun_text=setup_text,
     image_description=setup_image_description,
     image_quality=image_quality,
-    style_reference_images=constants.STYLE_REFERENCE_RICH_IMAGE_URLS,
+    style_reference_images=constants.STYLE_REFERENCE_SIMPLE_IMAGE_URLS,
   )
 
   if not setup_image.url:

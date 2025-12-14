@@ -90,7 +90,7 @@ def joke_creation_process(req: https_fn.Request) -> https_fn.Response:
         return error_response('Failed to save joke after updating text')
 
     elif joke and (setup_suggestion or punchline_suggestion):
-      # Scenario 2: apply image description suggestions for an existing joke.
+      # Scenario 2: apply scene idea suggestions for an existing joke.
       saved_joke = joke_operations.modify_image_scene_ideas(
         joke,
         setup_suggestion,
@@ -102,6 +102,7 @@ def joke_creation_process(req: https_fn.Request) -> https_fn.Response:
     elif joke and generate_descriptions:
       # Scenario 2.5: generate detailed image descriptions from scene ideas.
       updated_joke = joke_operations.generate_image_descriptions(joke)
+      updated_joke = joke_operations.generate_joke_images(updated_joke, "low")
       saved_joke = firestore.upsert_punny_joke(updated_joke)
       if not saved_joke:
         return error_response(
@@ -115,10 +116,7 @@ def joke_creation_process(req: https_fn.Request) -> https_fn.Response:
           f'Invalid image_quality: {image_quality}. Must be one of: '
           f'{", ".join(image_generation.PUN_IMAGE_CLIENTS_BY_QUALITY.keys())}')
 
-      updated_joke = joke_operations.generate_joke_images(
-        joke,
-        image_quality,
-      )
+      updated_joke = joke_operations.generate_joke_images(joke, image_quality)
 
       saved_joke = firestore.upsert_punny_joke(updated_joke)
       if not saved_joke:

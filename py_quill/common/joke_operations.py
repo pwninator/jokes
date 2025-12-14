@@ -102,20 +102,6 @@ def update_text_and_maybe_regenerate_scenes(
   return joke
 
 
-def _generate_scene_ideas(
-  setup_text: str,
-  punchline_text: str,
-) -> Tuple[str, str, models.GenerationMetadata]:
-  """Generate scene ideas with integrated safety handling."""
-  setup_scene_idea, punchline_scene_idea, metadata = (
-    joke_operation_prompts.generate_joke_scene_ideas(
-      setup_text=setup_text,
-      punchline_text=punchline_text,
-    ))
-
-  return setup_scene_idea, punchline_scene_idea, metadata
-
-
 def _regenerate_and_apply_scene_ideas(
   joke: models.PunnyJoke,
   setup_text: str,
@@ -126,7 +112,10 @@ def _regenerate_and_apply_scene_ideas(
     setup_scene_idea,
     punchline_scene_idea,
     idea_generation_metadata,
-  ) = _generate_scene_ideas(setup_text, punchline_text)
+  ) = joke_operation_prompts.generate_joke_scene_ideas(
+    setup_text=setup_text,
+    punchline_text=punchline_text,
+  )
 
   joke.setup_scene_idea = setup_scene_idea
   joke.punchline_scene_idea = punchline_scene_idea

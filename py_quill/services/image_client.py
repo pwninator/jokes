@@ -352,9 +352,18 @@ class ImageClient(ABC, Generic[_T]):
     auto_enhance: bool = False,
   ) -> models.Image:
     """Generate an image from a prompt."""
+    reference_images_str = "\n".join([f"{img}" for img in reference_images])
     logger.info(
-      f"Generating image with {self.__class__.__name__} ({self.model.model_name})"
-    )
+      f"""Generating image with {self.__class__.__name__} ({self.model.model_name})
+Prompt:
+{prompt}
+
+Reference images:
+{reference_images_str}
+
+Auto enhance: {auto_enhance}
+User UID: {user_uid}
+""")
 
     start_time = time.perf_counter()
 
@@ -373,7 +382,7 @@ class ImageClient(ABC, Generic[_T]):
       image = image_editor.ImageEditor().enhance_image(generation_result.image)
 
     # Upload image bytes to GCS
-    print("Uploading image to GCS")
+    logger.info(f"Uploading image to GCS: {output_gcs_uri}")
     image_bytes_io = BytesIO()
     image.save(image_bytes_io, format="PNG")
     image_bytes = image_bytes_io.getvalue()

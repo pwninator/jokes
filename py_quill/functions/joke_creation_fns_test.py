@@ -46,21 +46,47 @@ def stub_scene_idea_generation(monkeypatch):
 
 
 def test_joke_creation_process_creates_joke_from_text(monkeypatch):
-  """Scenario 1 should call joke_operations.create_joke."""
+  """Scenario 1 should initialize, regenerate, and save a new joke."""
   monkeypatch.setattr(joke_creation_fns,
                       'get_user_id',
                       lambda req, allow_unauthenticated=False: "user-42")
 
-  created_kwargs = {}
+  init_kwargs = {}
 
-  def fake_create_joke(**kwargs):
-    created_kwargs.update(kwargs)
-    return models.PunnyJoke(key="j-1",
-                            setup_text="Setup",
-                            punchline_text="Punch")
+  def fake_initialize(**kwargs):
+    init_kwargs.update(kwargs)
+    return models.PunnyJoke(setup_text=kwargs["setup_text"],
+                            punchline_text=kwargs["punchline_text"])
 
-  monkeypatch.setattr(joke_creation_fns.joke_operations, 'create_joke',
-                      fake_create_joke)
+  regen_called = {"count": 0}
+
+  def fake_regenerate(joke):
+    regen_called["count"] += 1
+    return joke
+
+  monkeypatch.setattr(joke_creation_fns.joke_operations, 'initialize_joke',
+                      fake_initialize)
+  monkeypatch.setattr(joke_creation_fns.joke_operations,
+                      'regenerate_scene_ideas', fake_regenerate)
+
+  def fake_create_log_entry():
+    return {"op": "CREATE"}
+
+  monkeypatch.setattr(
+    joke_creation_fns.joke_operations,
+    'create_operation_log_entry',
+    fake_create_log_entry,
+  )
+
+  upsert_calls = {}
+
+  def fake_upsert(joke, *, operation_log_entry=None):
+    upsert_calls["operation_log_entry"] = operation_log_entry
+    joke.key = "j-1"
+    return joke
+
+  monkeypatch.setattr(joke_creation_fns.firestore, 'upsert_punny_joke',
+                      fake_upsert)
   monkeypatch.setattr(
     joke_creation_fns.joke_operations, 'to_response_joke', lambda joke: {
       "key": joke.key,
@@ -76,8 +102,10 @@ def test_joke_creation_process_creates_joke_from_text(monkeypatch):
   resp = joke_creation_fns.joke_creation_process(req)
 
   assert resp["data"]["joke_data"]["key"] == "j-1"
-  assert created_kwargs["admin_owned"] is True
-  assert created_kwargs["user_id"] == "user-42"
+  assert init_kwargs["admin_owned"] is True
+  assert init_kwargs["user_id"] == "user-42"
+  assert regen_called["count"] == 1
+  assert upsert_calls["operation_log_entry"] == {"op": "CREATE"}
 
 
 def test_joke_creation_process_applies_suggestions(monkeypatch):
@@ -92,8 +120,6 @@ def test_joke_creation_process_applies_suggestions(monkeypatch):
     setup_scene_idea="old setup",
     punchline_scene_idea="old punch",
   )
-  monkeypatch.setattr(joke_creation_fns.firestore, 'get_punny_joke',
-                      lambda joke_id: joke if joke_id == "j-2" else None)
   monkeypatch.setattr(joke_creation_fns.firestore, 'upsert_punny_joke',
                       lambda updated: updated)  # Return the joke as saved
 
@@ -104,10 +130,34 @@ def test_joke_creation_process_applies_suggestions(monkeypatch):
     suggestions["punchline"] = punchline_suggestion
     return j  # Return the joke (modified)
 
+  def fake_initialize(**kwargs):
+    assert kwargs["joke_id"] == "j-2"
+    if kwargs["setup_scene_idea"] is not None:
+      joke.setup_scene_idea = kwargs["setup_scene_idea"]
+    if kwargs["punchline_scene_idea"] is not None:
+      joke.punchline_scene_idea = kwargs["punchline_scene_idea"]
+    return joke
+
+  monkeypatch.setattr(joke_creation_fns.joke_operations, 'initialize_joke',
+                      fake_initialize)
   monkeypatch.setattr(joke_creation_fns.joke_operations,
                       'modify_image_scene_ideas', fake_modify)
+  monkeypatch.setattr(
+    joke_creation_fns.joke_operations,
+    'update_scene_ideas_operation_log_entry',
+    lambda: {"op": "UPDATE_SCENE_IDEAS"},
+  )
   monkeypatch.setattr(joke_creation_fns.joke_operations, 'to_response_joke',
                       lambda _: {"key": "j-2"})
+
+  upsert_calls = {}
+
+  def fake_upsert(joke_to_save, *, operation_log_entry=None):
+    upsert_calls["operation_log_entry"] = operation_log_entry
+    return joke_to_save
+
+  monkeypatch.setattr(joke_creation_fns.firestore, 'upsert_punny_joke',
+                      fake_upsert)
 
   req = DummyReq(
     data={
@@ -127,6 +177,7 @@ def test_joke_creation_process_applies_suggestions(monkeypatch):
   }
   assert joke.setup_scene_idea == "override setup"
   assert joke.punchline_scene_idea == "override punch"
+  assert upsert_calls["operation_log_entry"] == {"op": "UPDATE_SCENE_IDEAS"}
 
 
 def test_joke_creation_process_applies_partial_suggestions(monkeypatch):
@@ -135,8 +186,6 @@ def test_joke_creation_process_applies_partial_suggestions(monkeypatch):
                       'get_user_id',
                       lambda req, allow_unauthenticated=False: "user-42")
   joke = models.PunnyJoke(key="j-2", setup_text="S", punchline_text="P")
-  monkeypatch.setattr(joke_creation_fns.firestore, 'get_punny_joke',
-                      lambda joke_id: joke if joke_id == "j-2" else None)
   monkeypatch.setattr(joke_creation_fns.firestore, 'upsert_punny_joke',
                       lambda updated: updated)
 
@@ -147,10 +196,24 @@ def test_joke_creation_process_applies_partial_suggestions(monkeypatch):
     suggestions["punchline"] = punchline_suggestion
     return j
 
+  def fake_initialize(**kwargs):
+    assert kwargs["joke_id"] == "j-2"
+    return joke
+
+  monkeypatch.setattr(joke_creation_fns.joke_operations, 'initialize_joke',
+                      fake_initialize)
   monkeypatch.setattr(joke_creation_fns.joke_operations,
                       'modify_image_scene_ideas', fake_modify)
+  monkeypatch.setattr(
+    joke_creation_fns.joke_operations,
+    'update_scene_ideas_operation_log_entry',
+    lambda: {"op": "UPDATE_SCENE_IDEAS"},
+  )
   monkeypatch.setattr(joke_creation_fns.joke_operations, 'to_response_joke',
                       lambda _: {"key": "j-2"})
+
+  monkeypatch.setattr(joke_creation_fns.firestore, 'upsert_punny_joke',
+                      lambda updated, **_kwargs: updated)
 
   req = DummyReq(data={
     "joke_id": "j-2",
@@ -178,9 +241,6 @@ def test_joke_creation_process_generates_images(monkeypatch):
     setup_image_description="desc",
     punchline_image_description="desc",
   )
-  monkeypatch.setattr(joke_creation_fns.firestore, 'get_punny_joke',
-                      lambda _: joke)
-
   generate_called = {}
 
   def fake_generate(target_joke, quality):
@@ -188,10 +248,21 @@ def test_joke_creation_process_generates_images(monkeypatch):
     generate_called["quality"] = quality
     return target_joke
 
+  def fake_initialize(**kwargs):
+    if kwargs["setup_scene_idea"] is not None:
+      joke.setup_scene_idea = kwargs["setup_scene_idea"]
+    if kwargs["setup_image_description"] is not None:
+      joke.setup_image_description = kwargs["setup_image_description"]
+    if kwargs["punchline_image_description"] is not None:
+      joke.punchline_image_description = kwargs["punchline_image_description"]
+    return joke
+
+  monkeypatch.setattr(joke_creation_fns.joke_operations, 'initialize_joke',
+                      fake_initialize)
   monkeypatch.setattr(joke_creation_fns.joke_operations,
                       'generate_joke_images', fake_generate)
   monkeypatch.setattr(joke_creation_fns.firestore, 'upsert_punny_joke',
-                      lambda updated: updated)
+                      lambda updated, **_kwargs: updated)
   monkeypatch.setattr(joke_creation_fns.joke_operations, 'to_response_joke',
                       lambda _: {"key": "j-3"})
 
@@ -223,9 +294,6 @@ def test_joke_creation_process_uses_description_overrides(monkeypatch):
     setup_image_description="old setup desc",
     punchline_image_description="old punch desc",
   )
-  monkeypatch.setattr(joke_creation_fns.firestore, 'get_punny_joke',
-                      lambda _: joke)
-
   generate_called = {}
 
   def fake_generate(target_joke, quality):
@@ -234,10 +302,19 @@ def test_joke_creation_process_uses_description_overrides(monkeypatch):
     generate_called["quality"] = quality
     return target_joke
 
+  def fake_initialize(**kwargs):
+    if kwargs["setup_image_description"] is not None:
+      joke.setup_image_description = kwargs["setup_image_description"]
+    if kwargs["punchline_image_description"] is not None:
+      joke.punchline_image_description = kwargs["punchline_image_description"]
+    return joke
+
+  monkeypatch.setattr(joke_creation_fns.joke_operations, 'initialize_joke',
+                      fake_initialize)
   monkeypatch.setattr(joke_creation_fns.joke_operations,
                       'generate_joke_images', fake_generate)
   monkeypatch.setattr(joke_creation_fns.firestore, 'upsert_punny_joke',
-                      lambda updated: updated)
+                      lambda updated, **_kwargs: updated)
   monkeypatch.setattr(joke_creation_fns.joke_operations, 'to_response_joke',
                       lambda _: {"key": "j-3b"})
 
@@ -272,22 +349,28 @@ def test_joke_creation_process_updates_text_no_regen(monkeypatch):
     punchline_scene_idea="scene punch",
     generation_metadata=models.GenerationMetadata(),
   )
-  monkeypatch.setattr(joke_creation_fns.firestore, 'get_punny_joke',
-                      lambda _: joke)
+  regen_calls = {"count": 0}
 
-  updated_fields = {}
+  def fake_regenerate(target_joke):
+    regen_calls["count"] += 1
+    return target_joke
 
-  def fake_update_text(**kwargs):
-    updated_fields.update(kwargs)
+  def fake_initialize(**kwargs):
+    if kwargs["setup_text"] is not None:
+      joke.setup_text = kwargs["setup_text"]
+    if kwargs["punchline_text"] is not None:
+      joke.punchline_text = kwargs["punchline_text"]
     return joke
 
+  monkeypatch.setattr(joke_creation_fns.joke_operations, 'initialize_joke',
+                      fake_initialize)
   monkeypatch.setattr(
     joke_creation_fns.joke_operations,
-    'update_text_and_maybe_regenerate_scenes',
-    fake_update_text,
+    'regenerate_scene_ideas',
+    fake_regenerate,
   )
   monkeypatch.setattr(joke_creation_fns.firestore, 'upsert_punny_joke',
-                      lambda updated: updated)
+                      lambda updated, **_kwargs: updated)
   monkeypatch.setattr(joke_creation_fns.joke_operations, 'to_response_joke',
                       lambda _: {"key": "j-5"})
 
@@ -302,9 +385,9 @@ def test_joke_creation_process_updates_text_no_regen(monkeypatch):
   resp = joke_creation_fns.joke_creation_process(req)
 
   assert resp["data"]["joke_data"]["key"] == "j-5"
-  assert updated_fields["setup_text"] == "new setup"
-  assert updated_fields["punchline_text"] == "new punch"
-  assert updated_fields["regenerate_scene_ideas"] is False
+  assert joke.setup_text == "new setup"
+  assert joke.punchline_text == "new punch"
+  assert regen_calls["count"] == 0
 
 
 def test_joke_creation_process_updates_text_with_regen(monkeypatch):
@@ -321,22 +404,28 @@ def test_joke_creation_process_updates_text_with_regen(monkeypatch):
     punchline_scene_idea="scene punch",
     generation_metadata=models.GenerationMetadata(),
   )
-  monkeypatch.setattr(joke_creation_fns.firestore, 'get_punny_joke',
-                      lambda _: joke)
+  regen_calls = {"count": 0}
 
-  updated_fields = {}
+  def fake_regenerate(target_joke):
+    regen_calls["count"] += 1
+    return target_joke
 
-  def fake_update_text(**kwargs):
-    updated_fields.update(kwargs)
+  def fake_initialize(**kwargs):
+    if kwargs["setup_text"] is not None:
+      joke.setup_text = kwargs["setup_text"]
+    if kwargs["punchline_text"] is not None:
+      joke.punchline_text = kwargs["punchline_text"]
     return joke
 
+  monkeypatch.setattr(joke_creation_fns.joke_operations, 'initialize_joke',
+                      fake_initialize)
   monkeypatch.setattr(
     joke_creation_fns.joke_operations,
-    'update_text_and_maybe_regenerate_scenes',
-    fake_update_text,
+    'regenerate_scene_ideas',
+    fake_regenerate,
   )
   monkeypatch.setattr(joke_creation_fns.firestore, 'upsert_punny_joke',
-                      lambda updated: updated)
+                      lambda updated, **_kwargs: updated)
   monkeypatch.setattr(joke_creation_fns.joke_operations, 'to_response_joke',
                       lambda _: {"key": "j-6"})
 
@@ -351,7 +440,7 @@ def test_joke_creation_process_updates_text_with_regen(monkeypatch):
   resp = joke_creation_fns.joke_creation_process(req)
 
   assert resp["data"]["joke_data"]["key"] == "j-6"
-  assert updated_fields["regenerate_scene_ideas"] is True
+  assert regen_calls["count"] == 1
 
 
 def test_joke_creation_process_generates_descriptions(monkeypatch):
@@ -387,7 +476,7 @@ def test_joke_creation_process_generates_descriptions(monkeypatch):
   monkeypatch.setattr(joke_creation_fns.joke_operations,
                       'generate_joke_images', fake_generate_images)
   monkeypatch.setattr(joke_creation_fns.firestore, 'upsert_punny_joke',
-                      lambda updated: updated)
+                      lambda updated, **_kwargs: updated)
   monkeypatch.setattr(joke_creation_fns.joke_operations, 'to_response_joke',
                       lambda _: {"key": "j-4"})
 

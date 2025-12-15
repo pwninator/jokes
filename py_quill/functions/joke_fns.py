@@ -22,61 +22,6 @@ from services import cloud_storage, firestore, search
 
 
 @https_fn.on_request(
-  memory=options.MemoryOption.GB_1,
-  min_instances=1,
-  max_instances=1,
-  timeout_sec=600,
-)
-def create_joke(req: https_fn.Request) -> https_fn.Response:
-  """Create a new punny joke document in Firestore."""
-  try:
-    # Skip processing for health check requests
-    if req.path == "/__/health":
-      return https_fn.Response("OK", status=200)
-
-    if req.method not in ['GET', 'POST']:
-      return error_response(f'Method not allowed: {req.method}')
-
-    should_populate = get_bool_param(req, 'populate_joke', False)
-    admin_owned = get_bool_param(req, 'admin_owned', False)
-    punchline_text = get_param(req, 'punchline_text')
-    setup_text = get_param(req, 'setup_text')
-
-    user_id = get_user_id(req)
-
-    try:
-      saved_joke = joke_operations.create_joke(
-        setup_text=setup_text,
-        punchline_text=punchline_text,
-        admin_owned=admin_owned,
-        user_id=user_id,
-      )
-    except ValueError as creation_error:
-      return error_response(str(creation_error))
-
-    # Populate joke if requested
-    if should_populate:
-      try:
-        saved_joke = _populate_joke_internal(
-          user_id=user_id,
-          joke_id=saved_joke.key,
-          image_quality='medium',
-          images_only=False,
-          overwrite=True,
-        )
-      except Exception as populate_error:
-        print(f"Error populating joke: {populate_error}")
-        # Continue without populating if it fails
-
-    return success_response(
-      {"joke_data": joke_operations.to_response_joke(saved_joke)})
-  except Exception as e:
-    stacktrace = traceback.format_exc()
-    print(f"Error creating joke: {e}\nStacktrace:\n{stacktrace}")
-    return error_response(f'Failed to create joke: {str(e)}')
-
-
-@https_fn.on_request(
   memory=options.MemoryOption.GB_4,
   timeout_sec=1200,
 )

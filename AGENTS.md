@@ -347,7 +347,6 @@ from ..common import models
 ### 7.3. Joke Functions (`joke_fns.py`)
 
 **HTTP Endpoints**:
-- `create_joke`: Create new joke document
 - `search_jokes`: Vector similarity search
 - `populate_joke`: Generate AI images/metadata for joke
 - `modify_joke_image`: Edit joke images via text instructions

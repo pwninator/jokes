@@ -44,7 +44,6 @@ dummy_endpoint = dummy_fns.dummy_endpoint
 # on_page_created = book_fns.on_page_created
 
 # Export the joke functions
-create_joke = joke_fns.create_joke
 critique_jokes = joke_fns.critique_jokes
 populate_joke = joke_fns.populate_joke
 modify_joke_image = joke_fns.modify_joke_image

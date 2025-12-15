@@ -83,34 +83,9 @@ def mock_scene_ideas_fixture(monkeypatch):
   return fake_generate
 
 
-def test_create_joke_sets_defaults_and_owner(monkeypatch, mock_firestore,
-                                             mock_scene_ideas):
-  """create_joke should set defaults and persist via firestore."""
-  monkeypatch.setattr(joke_operations.random, 'randint', lambda _a, _b: 12345)
-
-  def fake_upsert(joke, *, operation_log_entry=None):
-    _ = operation_log_entry
-    joke.key = "joke-key"
-    return joke
-
-  mock_firestore.upsert_punny_joke.side_effect = fake_upsert
-
-  saved = joke_operations.create_joke(
-    setup_text="Setup text",
-    punchline_text="Punchline text",
-    admin_owned=False,
-    user_id="user-1",
-  )
-
-  assert saved.key == "joke-key"
-  mock_firestore.upsert_punny_joke.assert_called_once()
-  persisted = mock_firestore.upsert_punny_joke.call_args.args[0]
-  assert persisted.owner_user_id == "user-1"
-  assert persisted.state == models.JokeState.DRAFT
-  assert persisted.random_id == 12345
-  log_entry = mock_firestore.upsert_punny_joke.call_args.kwargs[
-    'operation_log_entry']
-  assert log_entry == {
+def test_create_operation_log_entry_shape():
+  """create_operation_log_entry should return the expected log keys."""
+  assert joke_operations.create_operation_log_entry() == {
     joke_operations.OPERATION: "CREATE",
     "setup_text": joke_operations.SAVED_VALUE,
     "punchline_text": joke_operations.SAVED_VALUE,
@@ -119,18 +94,85 @@ def test_create_joke_sets_defaults_and_owner(monkeypatch, mock_firestore,
   }
 
 
-def test_create_joke_requires_text(monkeypatch, mock_firestore,
-                                   mock_scene_ideas):
-  """create_joke should raise when setup/punchline are missing."""
-  with pytest.raises(ValueError, match='Setup text is required'):
-    joke_operations.create_joke(
-      setup_text="",
-      punchline_text="",
-      admin_owned=False,
-      user_id="user-1",
-    )
+def test_update_scene_ideas_operation_log_entry_shape():
+  """update_scene_ideas_operation_log_entry should return expected log keys."""
+  assert joke_operations.update_scene_ideas_operation_log_entry() == {
+    joke_operations.OPERATION: "UPDATE_SCENE_IDEAS",
+    "setup_scene_idea": joke_operations.SAVED_VALUE,
+    "punchline_scene_idea": joke_operations.SAVED_VALUE,
+  }
 
-  mock_firestore.upsert_punny_joke.assert_not_called()
+
+def test_initialize_joke_creates_new_with_overrides(monkeypatch,
+                                                    mock_firestore):
+  """initialize_joke should build a new joke and apply field overrides."""
+  monkeypatch.setattr(joke_operations.random, 'randint', lambda _a, _b: 999)
+
+  joke = joke_operations.initialize_joke(
+    joke_id=None,
+    user_id="user-42",
+    admin_owned=False,
+    setup_text="  Setup ",
+    punchline_text="Punchline ",
+    setup_scene_idea="scene setup",
+    punchline_scene_idea="scene punch",
+    setup_image_description="setup desc",
+    punchline_image_description="punch desc",
+  )
+
+  assert joke.owner_user_id == "user-42"
+  assert joke.state == models.JokeState.DRAFT
+  assert joke.random_id == 999
+  assert joke.setup_text == "Setup"
+  assert joke.punchline_text == "Punchline"
+  assert joke.setup_scene_idea == "scene setup"
+  assert joke.punchline_scene_idea == "scene punch"
+  assert joke.setup_image_description == "setup desc"
+  assert joke.punchline_image_description == "punch desc"
+  mock_firestore.get_punny_joke.assert_not_called()
+
+
+def test_initialize_joke_updates_existing_fields(mock_firestore):
+  """initialize_joke should patch provided fields on an existing joke."""
+  joke = models.PunnyJoke(
+    key="j-1",
+    setup_text="old setup",
+    punchline_text="old punch",
+    setup_scene_idea="old scene",
+    punchline_scene_idea="old punch scene",
+  )
+  mock_firestore.get_punny_joke.return_value = joke
+
+  updated = joke_operations.initialize_joke(
+    joke_id="j-1",
+    user_id=None,
+    admin_owned=False,
+    setup_text="new setup",
+    punchline_text="new punch",
+    setup_scene_idea="new scene",
+    setup_image_description="desc",
+  )
+
+  assert updated is joke
+  assert updated.setup_text == "new setup"
+  assert updated.punchline_text == "new punch"
+  assert updated.setup_scene_idea == "new scene"
+  assert updated.punchline_scene_idea == "old punch scene"
+  assert updated.setup_image_description == "desc"
+  mock_firestore.get_punny_joke.assert_called_once_with("j-1")
+
+
+def test_initialize_joke_raises_for_missing_joke(mock_firestore):
+  """initialize_joke should raise when the joke_id cannot be found."""
+  mock_firestore.get_punny_joke.return_value = None
+
+  with pytest.raises(joke_operations.JokeNotFoundError,
+                     match='Joke not found: missing'):
+    joke_operations.initialize_joke(
+      joke_id="missing",
+      user_id=None,
+      admin_owned=False,
+    )
 
 
 def test_generate_joke_images_updates_images(mock_image_generation):
@@ -226,9 +268,9 @@ def test_generate_joke_images_missing_scene_idea_raises():
     joke_operations.generate_joke_images(joke, "medium")
 
 
-def test_modify_image_scene_ideas_updates_and_persists(mock_firestore,
-                                                       mock_scene_prompts):
-  """modify_image_scene_ideas should call prompt helper and save."""
+def test_modify_image_scene_ideas_updates_in_memory(mock_firestore,
+                                                    mock_scene_prompts):
+  """modify_image_scene_ideas should call prompt helper and update in memory."""
   _ = mock_scene_prompts
   joke = models.PunnyJoke(
     key="joke-1",
@@ -238,7 +280,6 @@ def test_modify_image_scene_ideas_updates_and_persists(mock_firestore,
     punchline_scene_idea="old punch scene",
     generation_metadata=models.GenerationMetadata(),
   )
-  mock_firestore.upsert_punny_joke.side_effect = lambda joke, **kwargs: joke
 
   updated = joke_operations.modify_image_scene_ideas(
     joke=joke,
@@ -249,7 +290,7 @@ def test_modify_image_scene_ideas_updates_and_persists(mock_firestore,
   assert updated.setup_scene_idea == "updated setup scene"
   assert updated.punchline_scene_idea == "updated punchline scene"
   assert updated.generation_metadata.generations
-  mock_firestore.upsert_punny_joke.assert_called_once()
+  mock_firestore.upsert_punny_joke.assert_not_called()
 
 
 def test_generate_image_descriptions_sets_fields(mock_scene_prompts):
@@ -271,33 +312,8 @@ def test_generate_image_descriptions_sets_fields(mock_scene_prompts):
   assert result.generation_metadata.generations
 
 
-def test_update_text_without_regen_keeps_scene_ideas(mock_scene_prompts):
-  """Updating text without regen should preserve existing scene ideas."""
-  _ = mock_scene_prompts
-  joke = models.PunnyJoke(
-    key="joke-1",
-    setup_text="old setup",
-    punchline_text="old punch",
-    setup_scene_idea="scene setup",
-    punchline_scene_idea="scene punch",
-    generation_metadata=models.GenerationMetadata(),
-  )
-
-  updated = joke_operations.update_text_and_maybe_regenerate_scenes(
-    joke=joke,
-    setup_text="new setup",
-    punchline_text="new punch",
-    regenerate_scene_ideas=False,
-  )
-
-  assert updated.setup_text == "new setup"
-  assert updated.punchline_text == "new punch"
-  assert updated.setup_scene_idea == "scene setup"
-  assert updated.punchline_scene_idea == "scene punch"
-
-
-def test_update_text_with_regen_replaces_scene_ideas(monkeypatch):
-  """Updating text with regen should rebuild scene ideas and metadata."""
+def test_regenerate_scene_ideas_replaces_scene_ideas(monkeypatch):
+  """regenerate_scene_ideas should rebuild scene ideas and append metadata."""
 
   def fake_generate(*_args, **_kwargs):
     return ("new scene setup", "new scene punch",
@@ -318,15 +334,8 @@ def test_update_text_with_regen_replaces_scene_ideas(monkeypatch):
     generation_metadata=models.GenerationMetadata(),
   )
 
-  updated = joke_operations.update_text_and_maybe_regenerate_scenes(
-    joke=joke,
-    setup_text="new setup",
-    punchline_text="new punch",
-    regenerate_scene_ideas=True,
-  )
+  updated = joke_operations.regenerate_scene_ideas(joke)
 
-  assert updated.setup_text == "new setup"
-  assert updated.punchline_text == "new punch"
   assert updated.setup_scene_idea == "new scene setup"
   assert updated.punchline_scene_idea == "new scene punch"
   assert updated.generation_metadata.generations

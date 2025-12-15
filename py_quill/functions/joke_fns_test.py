@@ -212,85 +212,9 @@ def test_run_manual_season_tag_handles_no_results(monkeypatch):
   assert "No jokes were skipped." in html_response
 
 
-def test_create_joke_sets_admin_owner_and_draft(monkeypatch):
-  """Test that the create_joke function sets the admin owner and draft state."""
-  # Arrange
-  # Force unauthenticated
-  monkeypatch.setattr(joke_fns,
-                      "get_user_id",
-                      lambda req, allow_unauthenticated=True: None)
-  monkeypatch.setattr(
-    joke_fns.joke_operations.joke_operation_prompts,
-    "generate_joke_scene_ideas",
-    lambda *_args, **_kwargs:
-    ("idea-setup", "idea-punch", models.GenerationMetadata()),
-  )
-
-  saved = None
-
-  def fake_upsert(joke, *, operation_log_entry=None):
-    nonlocal saved
-    _ = operation_log_entry
-    saved = joke
-    joke.key = "key123"
-    return joke
-
-  monkeypatch.setattr(joke_fns.firestore, "upsert_punny_joke", fake_upsert)
-
-  req = DummyReq(data={
-    "setup_text": "s",
-    "punchline_text": "p",
-    "admin_owned": True,
-  })
-
-  # Act
-  resp = joke_fns.create_joke(req)
-
-  # Assert
-  assert saved is not None
-  assert saved.owner_user_id == "ADMIN"
-  assert saved.state == models.JokeState.DRAFT
-  assert resp["data"]["joke_data"]["state"] == "DRAFT"
-  assert resp["data"]["joke_data"]["key"] == "key123"
-
-
-def test_create_joke_sets_user_owner_when_not_admin(monkeypatch):
-  """Test that the create_joke function sets the user owner when not admin."""
-  # Arrange
-  monkeypatch.setattr(joke_fns,
-                      "get_user_id",
-                      lambda req, allow_unauthenticated=True: "user1")
-  monkeypatch.setattr(
-    joke_fns.joke_operations.joke_operation_prompts,
-    "generate_joke_scene_ideas",
-    lambda *_args, **_kwargs:
-    ("idea-setup", "idea-punch", models.GenerationMetadata()),
-  )
-
-  saved = None
-
-  def fake_upsert(joke, *, operation_log_entry=None):
-    nonlocal saved
-    _ = operation_log_entry
-    saved = joke
-    joke.key = "key123"
-    return joke
-
-  monkeypatch.setattr(joke_fns.firestore, "upsert_punny_joke", fake_upsert)
-
-  req = DummyReq(data={
-    "setup_text": "s",
-    "punchline_text": "p",
-    "admin_owned": False,
-  })
-
-  # Act
-  joke_fns.create_joke(req)
-
-  # Assert
-  assert saved is not None
-  assert saved.owner_user_id == "user1"
-  assert saved.state == models.JokeState.DRAFT
+def test_create_joke_deprecated_endpoint_removed():
+  """Legacy create_joke endpoint was removed; joke_creation_process is used."""
+  assert not hasattr(joke_fns, "create_joke")
 
 
 def test_populate_joke_sets_state_unreviewed_and_persists(monkeypatch):

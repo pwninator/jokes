@@ -83,26 +83,6 @@ def mock_scene_ideas_fixture(monkeypatch):
   return fake_generate
 
 
-def test_create_operation_log_entry_shape():
-  """create_operation_log_entry should return the expected log keys."""
-  assert joke_operations.create_operation_log_entry() == {
-    joke_operations.OPERATION: "CREATE",
-    "setup_text": joke_operations.SAVED_VALUE,
-    "punchline_text": joke_operations.SAVED_VALUE,
-    "setup_scene_idea": joke_operations.SAVED_VALUE,
-    "punchline_scene_idea": joke_operations.SAVED_VALUE,
-  }
-
-
-def test_update_scene_ideas_operation_log_entry_shape():
-  """update_scene_ideas_operation_log_entry should return expected log keys."""
-  assert joke_operations.update_scene_ideas_operation_log_entry() == {
-    joke_operations.OPERATION: "UPDATE_SCENE_IDEAS",
-    "setup_scene_idea": joke_operations.SAVED_VALUE,
-    "punchline_scene_idea": joke_operations.SAVED_VALUE,
-  }
-
-
 def test_initialize_joke_creates_new_with_overrides(monkeypatch,
                                                     mock_firestore):
   """initialize_joke should build a new joke and apply field overrides."""
@@ -154,6 +134,7 @@ def test_initialize_joke_updates_existing_fields(mock_firestore):
   )
 
   assert updated is joke
+  assert updated.key == "j-1"
   assert updated.setup_text == "new setup"
   assert updated.punchline_text == "new punch"
   assert updated.setup_scene_idea == "new scene"

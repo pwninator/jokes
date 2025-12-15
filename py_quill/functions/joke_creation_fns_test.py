@@ -55,8 +55,10 @@ def test_joke_creation_process_creates_joke_from_text(monkeypatch):
 
   def fake_initialize(**kwargs):
     init_kwargs.update(kwargs)
-    return models.PunnyJoke(setup_text=kwargs["setup_text"],
-                            punchline_text=kwargs["punchline_text"])
+    return models.PunnyJoke(
+      setup_text=kwargs["setup_text"],
+      punchline_text=kwargs["punchline_text"],
+    )
 
   regen_called = {"count": 0}
 
@@ -69,19 +71,10 @@ def test_joke_creation_process_creates_joke_from_text(monkeypatch):
   monkeypatch.setattr(joke_creation_fns.joke_operations,
                       'regenerate_scene_ideas', fake_regenerate)
 
-  def fake_create_log_entry():
-    return {"op": "CREATE"}
-
-  monkeypatch.setattr(
-    joke_creation_fns.joke_operations,
-    'create_operation_log_entry',
-    fake_create_log_entry,
-  )
-
   upsert_calls = {}
 
-  def fake_upsert(joke, *, operation_log_entry=None):
-    upsert_calls["operation_log_entry"] = operation_log_entry
+  def fake_upsert(joke, *, operation=None):
+    upsert_calls["operation"] = operation
     joke.key = "j-1"
     return joke
 
@@ -105,7 +98,7 @@ def test_joke_creation_process_creates_joke_from_text(monkeypatch):
   assert init_kwargs["admin_owned"] is True
   assert init_kwargs["user_id"] == "user-42"
   assert regen_called["count"] == 1
-  assert upsert_calls["operation_log_entry"] == {"op": "CREATE"}
+  assert upsert_calls["operation"] == "CREATE"
 
 
 def test_joke_creation_process_applies_suggestions(monkeypatch):
@@ -142,18 +135,13 @@ def test_joke_creation_process_applies_suggestions(monkeypatch):
                       fake_initialize)
   monkeypatch.setattr(joke_creation_fns.joke_operations,
                       'modify_image_scene_ideas', fake_modify)
-  monkeypatch.setattr(
-    joke_creation_fns.joke_operations,
-    'update_scene_ideas_operation_log_entry',
-    lambda: {"op": "UPDATE_SCENE_IDEAS"},
-  )
   monkeypatch.setattr(joke_creation_fns.joke_operations, 'to_response_joke',
                       lambda _: {"key": "j-2"})
 
   upsert_calls = {}
 
-  def fake_upsert(joke_to_save, *, operation_log_entry=None):
-    upsert_calls["operation_log_entry"] = operation_log_entry
+  def fake_upsert(joke_to_save, *, operation=None):
+    upsert_calls["operation"] = operation
     return joke_to_save
 
   monkeypatch.setattr(joke_creation_fns.firestore, 'upsert_punny_joke',
@@ -177,7 +165,7 @@ def test_joke_creation_process_applies_suggestions(monkeypatch):
   }
   assert joke.setup_scene_idea == "override setup"
   assert joke.punchline_scene_idea == "override punch"
-  assert upsert_calls["operation_log_entry"] == {"op": "UPDATE_SCENE_IDEAS"}
+  assert upsert_calls["operation"] == "UPDATE_SCENE_IDEAS"
 
 
 def test_joke_creation_process_applies_partial_suggestions(monkeypatch):
@@ -204,11 +192,6 @@ def test_joke_creation_process_applies_partial_suggestions(monkeypatch):
                       fake_initialize)
   monkeypatch.setattr(joke_creation_fns.joke_operations,
                       'modify_image_scene_ideas', fake_modify)
-  monkeypatch.setattr(
-    joke_creation_fns.joke_operations,
-    'update_scene_ideas_operation_log_entry',
-    lambda: {"op": "UPDATE_SCENE_IDEAS"},
-  )
   monkeypatch.setattr(joke_creation_fns.joke_operations, 'to_response_joke',
                       lambda _: {"key": "j-2"})
 

@@ -685,7 +685,6 @@ class PunnyJoke:
   for_kids: bool = False
   for_adults: bool = False
   seasonal: str | None = None
-
   pun_word: str | None = None
   punned_word: str | None = None
 

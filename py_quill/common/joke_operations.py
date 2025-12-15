@@ -12,7 +12,6 @@ from functions.prompts import joke_operation_prompts
 from google.cloud.firestore_v1.vector import Vector
 from PIL import Image
 from services import cloud_storage, firestore, image_client, image_editor
-from services.firestore import OPERATION, SAVED_VALUE
 
 _IMAGE_UPSCALE_FACTOR = "x2"
 _HIGH_QUALITY_UPSCALE_FACTOR = "x2"
@@ -88,26 +87,6 @@ def initialize_joke(
     joke.punchline_image_description = punchline_image_description
 
   return joke
-
-
-def create_operation_log_entry() -> dict[str, Any]:
-  """Operation log entry for creating a joke."""
-  return {
-    OPERATION: "CREATE",
-    "setup_text": SAVED_VALUE,
-    "punchline_text": SAVED_VALUE,
-    "setup_scene_idea": SAVED_VALUE,
-    "punchline_scene_idea": SAVED_VALUE,
-  }
-
-
-def update_scene_ideas_operation_log_entry() -> dict[str, Any]:
-  """Operation log entry for updating scene ideas."""
-  return {
-    OPERATION: "UPDATE_SCENE_IDEAS",
-    "setup_scene_idea": SAVED_VALUE,
-    "punchline_scene_idea": SAVED_VALUE,
-  }
 
 
 def regenerate_scene_ideas(joke: models.PunnyJoke) -> models.PunnyJoke:

@@ -15,7 +15,37 @@ _db = None  # pylint: disable=invalid-name
 _async_db = None  # pylint: disable=invalid-name
 
 OPERATION = "_operation"
-SAVED_VALUE = "__SAVED_VALUE__"
+OPERATION_TIMESTAMP = "_operation_timestamp"
+JOKE_FIELDS_TO_LOG = {
+  # Main text fields
+  "setup_text",
+  "punchline_text",
+  "setup_scene_idea",
+  "punchline_scene_idea",
+  "setup_image_description",
+  "punchline_image_description",
+
+  # Image fields
+  "setup_image_url",
+  "punchline_image_url",
+  "setup_image_url_upscaled",
+  "punchline_image_url_upscaled",
+
+  # Metadata
+  "pun_theme",
+  "phrase_topic",
+  "tags",
+  "for_kids",
+  "for_adults",
+  "seasonal",
+  "pun_word",
+  "punned_word",
+
+  # State fields
+  "state",
+  "admin_rating",
+  "is_public",
+}
 
 
 def get_async_db() -> firestore_async.client:
@@ -288,14 +318,20 @@ def get_daily_joke(
 
 def upsert_punny_joke(
   punny_joke: models.PunnyJoke,
-  operation_log_entry: dict[str, str] | None = None,
+  operation: str | None = None,
 ) -> models.PunnyJoke | None:
   """Create or update a punny joke."""
+
+  if not operation:
+    operation = "CREATE" if not punny_joke.key else "UPDATE"
 
   # If joke has a key, try to update existing, otherwise create new
   saved_joke: models.PunnyJoke | None
   if punny_joke.key:
-    update_punny_joke(punny_joke.key, punny_joke.to_dict(include_key=False))
+    updated_fields = update_punny_joke(
+      punny_joke.key,
+      punny_joke.to_dict(include_key=False),
+    )
     saved_joke = punny_joke
   else:
     # Create new joke with custom ID
@@ -310,6 +346,7 @@ def upsert_punny_joke(
       return None
 
     joke_data = punny_joke.to_dict(include_key=False)
+    updated_fields = joke_data.copy()
     joke_data['creation_time'] = SERVER_TIMESTAMP
     joke_data['last_modification_time'] = SERVER_TIMESTAMP
 
@@ -318,30 +355,32 @@ def upsert_punny_joke(
     punny_joke.key = custom_id
     saved_joke = punny_joke
 
-  if saved_joke and operation_log_entry:
-    joke_id = saved_joke.key
-    if joke_id:
-      resolved_entry: dict[str, str] = {}
-      for field, value in operation_log_entry.items():
-        if value == SAVED_VALUE:
-          attr_value = getattr(saved_joke, field, "")
-          resolved_entry[field] = str(attr_value)
-        else:
-          resolved_entry[field] = value
+  if saved_joke and saved_joke.key:
+    log_fields = {
+      OPERATION: operation,
+      OPERATION_TIMESTAMP: SERVER_TIMESTAMP,
+    }
+    for key, value in updated_fields.items():
+      if value == SERVER_TIMESTAMP:
+        # Replace SERVER_TIMESTAMP with a string literal. Readers can derive
+        # the timestamp from the operation timestamp field.
+        value = "OPERATION_TIMESTAMP"
+      log_fields[key] = value
 
-      operations_ref = (db().collection('jokes').document(joke_id).collection(
-        'metadata').document('operations'))
-      operations_doc = operations_ref.get()
-      log_entries: list[dict[str, str]] = []
-      if operations_doc.exists:
-        existing_data = operations_doc.to_dict() or {}
-        existing_log = existing_data.get('log')
-        if isinstance(existing_log, list):
-          log_entries.extend(entry for entry in existing_log
-                             if isinstance(entry, dict))
+    # Get the existing log entries
+    operations_ref = (db().collection('jokes').document(
+      saved_joke.key).collection('metadata').document('operations'))
+    operations_doc = operations_ref.get()
+    log_entries: list[dict[str, Any]] = []
+    if operations_doc.exists:
+      existing_data = operations_doc.to_dict() or {}
+      existing_log = existing_data.get('log')
+      if isinstance(existing_log, list):
+        log_entries.extend(entry for entry in existing_log
+                           if isinstance(entry, dict))
 
-      log_entries.append(resolved_entry)
-      operations_ref.set({'log': log_entries}, merge=True)
+    log_entries.append(log_fields)
+    operations_ref.set({'log': log_entries}, merge=True)
 
   return saved_joke
 
@@ -351,35 +390,55 @@ def update_punny_joke(
   update_data: dict[str, Any],
   *,
   update_metadata: dict[str, Any] | None = None,
-) -> None:
+) -> dict[str, Any]:
   """Update a punny joke document and optionally its metadata sub-document.
 
   Args:
     joke_id: Firestore document ID for the joke.
     update_data: Fields to update on the primary joke document.
     update_metadata: Optional fields to merge into `metadata/metadata`.
+
+  Returns:
+    A dict containing only the keys in `update_data` whose values differ from
+    the existing Firestore document.
   """
   joke_ref = db().collection('jokes').document(joke_id)
   joke_snapshot = joke_ref.get()
   if not joke_snapshot.exists:
     raise ValueError(f"Joke {joke_id} not found in Firestore")
-  state_value = update_data.get('state')
+
+  existing_data = joke_snapshot.to_dict() or {}
+
+  # Avoid mutating caller-provided dict.
+  update_payload = dict(update_data)
+
+  # Resolve state enum values to string values
+  state_value = update_payload.get('state')
   resolved_state: models.JokeState | None = None
   if isinstance(state_value, models.JokeState):
     resolved_state = state_value
-    update_data['state'] = state_value.value
+    update_payload['state'] = state_value.value
   elif isinstance(state_value, str):
     try:
       resolved_state = models.JokeState(state_value)
     except ValueError:
       resolved_state = None
   if resolved_state is not None:
-    update_data['is_public'] = resolved_state == models.JokeState.PUBLISHED
-  update_data['last_modification_time'] = SERVER_TIMESTAMP
-  joke_ref.update(update_data)
+    update_payload['is_public'] = resolved_state == models.JokeState.PUBLISHED
+  update_payload['last_modification_time'] = SERVER_TIMESTAMP
+
+  changed_fields: dict[str, Any] = {}
+  for key, value in update_payload.items():
+    if key in JOKE_FIELDS_TO_LOG and (key not in existing_data
+                                      or existing_data.get(key) != value):
+      changed_fields[key] = value
+
+  joke_ref.update(update_payload)
   if update_metadata:
     metadata_ref = joke_ref.collection('metadata').document('metadata')
     metadata_ref.set(update_metadata, merge=True)
+
+  return changed_fields
 
 
 def update_joke_feed(jokes: list[dict[str, Any]]) -> None:

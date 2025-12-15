@@ -19,6 +19,7 @@ def test_upsert_punny_joke_serializes_state_string(monkeypatch):
 
     def __init__(self):
       self._exists = False
+      self._operations_doc = self._DummyOperationsDoc()
 
     def get(self):
       """Dummy document class for testing."""
@@ -34,6 +35,39 @@ def test_upsert_punny_joke_serializes_state_string(monkeypatch):
     def set(self, data):
       """Dummy document class for testing."""
       captured.update(data)
+
+    class _DummyOperationsDoc:
+
+      def __init__(self):
+        self.exists = False
+
+      class _Snapshot:
+
+        def __init__(self, exists):
+          self.exists = exists
+
+        def to_dict(self):
+          return {}
+
+      def get(self):
+        return self._Snapshot(self.exists)
+
+      def set(self, *_args, **_kwargs):
+        self.exists = True
+
+    def collection(self, name):
+      assert name == 'metadata'
+
+      class DummyMetadataCol:
+
+        def __init__(self, operations_doc):
+          self._operations_doc = operations_doc
+
+        def document(self, doc_name):
+          assert doc_name == 'operations'
+          return self._operations_doc
+
+      return DummyMetadataCol(self._operations_doc)
 
   class DummyCol:
     """Dummy collection class for testing."""
@@ -147,46 +181,45 @@ def test_upsert_punny_joke_logs_operation(monkeypatch):
   monkeypatch.setattr(firestore.utils, "create_firestore_key",
                       lambda *args, **kwargs: "joke-key")
 
-  res = firestore.upsert_punny_joke(joke,
-                                    operation_log_entry={
-                                      firestore.OPERATION: "CREATE",
-                                      "setup_text": firestore.SAVED_VALUE,
-                                      "punchline_text": firestore.SAVED_VALUE,
-                                      "setup_scene_idea": firestore.SAVED_VALUE,
-                                      "punchline_scene_idea":
-                                      firestore.SAVED_VALUE,
-                                    })
+  res = firestore.upsert_punny_joke(joke, operation="CREATE")
 
   assert res is not None
   assert captured_main["creation_time"] == "TS"
   assert captured_main["last_modification_time"] == "TS"
-  assert captured_operations == [({
-    'log': [{
-      firestore.OPERATION: "CREATE",
-      "setup_text": "s",
-      "punchline_text": "p",
-      "setup_scene_idea": "scene setup",
-      "punchline_scene_idea": "scene punch",
-    }]
-  }, True)]
+  assert captured_operations[0][1] is True
+  assert "log" in captured_operations[0][0]
+  log_entry = captured_operations[0][0]["log"][0]
+  assert log_entry[firestore.OPERATION] == "CREATE"
+  assert log_entry[firestore.OPERATION_TIMESTAMP] == "TS"
+  assert log_entry["setup_text"] == "s"
+  assert log_entry["punchline_text"] == "p"
+  assert log_entry["setup_scene_idea"] == "scene setup"
+  assert log_entry["punchline_scene_idea"] == "scene punch"
 
 
 def test_update_punny_joke_sets_is_public_when_published(monkeypatch):
   captured = {}
 
   class DummyDoc:
+    def __init__(self):
+      self._data = {"setup_text": "s", "punchline_text": "p"}
 
     def get(self):
 
       class Snapshot:
 
-        def __init__(self):
+        def __init__(self, data):
           self.exists = True
+          self._data = data
 
-      return Snapshot()
+        def to_dict(self):
+          return self._data
+
+      return Snapshot(dict(self._data))
 
     def update(self, data):
       captured.update(data)
+      self._data.update(data)
 
   class DummyCol:
 
@@ -201,30 +234,43 @@ def test_update_punny_joke_sets_is_public_when_published(monkeypatch):
   monkeypatch.setattr(firestore, "db", DummyDB)
   monkeypatch.setattr(firestore, "SERVER_TIMESTAMP", "TS")
 
-  firestore.update_punny_joke("joke1",
-                              {"state": models.JokeState.PUBLISHED.value})
+  diff = firestore.update_punny_joke(
+    "joke1",
+    {"state": models.JokeState.PUBLISHED.value},
+  )
 
   assert captured["state"] == "PUBLISHED"
   assert captured["is_public"] is True
   assert captured["last_modification_time"] == "TS"
+  assert diff == {
+    "state": "PUBLISHED",
+    "is_public": True,
+  }
 
 
 def test_update_punny_joke_sets_is_public_false_for_non_public(monkeypatch):
   captured = {}
 
   class DummyDoc:
+    def __init__(self):
+      self._data = {"setup_text": "s", "punchline_text": "p"}
 
     def get(self):
 
       class Snapshot:
 
-        def __init__(self):
+        def __init__(self, data):
           self.exists = True
+          self._data = data
 
-      return Snapshot()
+        def to_dict(self):
+          return self._data
+
+      return Snapshot(dict(self._data))
 
     def update(self, data):
       captured.update(data)
+      self._data.update(data)
 
   class DummyCol:
 
@@ -239,14 +285,21 @@ def test_update_punny_joke_sets_is_public_false_for_non_public(monkeypatch):
   monkeypatch.setattr(firestore, "db", DummyDB)
   monkeypatch.setattr(firestore, "SERVER_TIMESTAMP", "TS")
 
-  firestore.update_punny_joke("joke1", {
-    "state": models.JokeState.DAILY,
-    "is_public": True,
-  })
+  diff = firestore.update_punny_joke(
+    "joke1",
+    {
+      "state": models.JokeState.DAILY,
+      "is_public": True,
+    },
+  )
 
   assert captured["state"] == "DAILY"
   assert captured["is_public"] is False
   assert captured["last_modification_time"] == "TS"
+  assert diff == {
+    "state": "DAILY",
+    "is_public": False,
+  }
 
 
 import pytest

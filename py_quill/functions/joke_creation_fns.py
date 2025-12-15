@@ -37,15 +37,21 @@ def joke_creation_process(req: https_fn.Request) -> https_fn.Response:
     punchline_image_description = get_param(req, 'punchline_image_description')
     admin_owned = get_bool_param(req, 'admin_owned', False)
 
-    # Suggestions
+    # Modifiers
     setup_suggestion = get_param(req, 'setup_suggestion')
     punchline_suggestion = get_param(req, 'punchline_suggestion')
+    image_quality = get_param(req, 'image_quality', 'low')
 
     # Action flags
-    populate_images = get_bool_param(req, 'populate_images', False)
-    generate_descriptions = get_bool_param(req, 'generate_descriptions', False)
     regenerate_scene_ideas = get_bool_param(req, 'regenerate_scene_ideas',
                                             False)
+    generate_descriptions = get_bool_param(req, 'generate_descriptions', False)
+    populate_images = get_bool_param(req, 'populate_images', False)
+
+    if image_quality not in image_generation.PUN_IMAGE_CLIENTS_BY_QUALITY:
+      return error_response(
+        f'Invalid image_quality: {image_quality}. Must be one of: '
+        f'{", ".join(image_generation.PUN_IMAGE_CLIENTS_BY_QUALITY.keys())}')
 
     # Joke initialization and patching
     try:
@@ -68,42 +74,34 @@ def joke_creation_process(req: https_fn.Request) -> https_fn.Response:
         error_type='unsupported_parameters')
 
     saved_joke = None
-    operation_log_entry = None
+    operation = None
     has_suggestions = bool(setup_suggestion or punchline_suggestion)
 
     # Generate scene ideas for new jokes or when requested
     if (not joke_id) or regenerate_scene_ideas:
+      operation = "CREATE"
       joke = joke_operations.regenerate_scene_ideas(joke)
-      operation_log_entry = joke_operations.create_operation_log_entry()
 
     # Apply scene idea suggestions
     if has_suggestions:
+      operation = "UPDATE_SCENE_IDEAS"
       joke = joke_operations.modify_image_scene_ideas(
         joke,
         setup_suggestion,
         punchline_suggestion,
       )
-      operation_log_entry = joke_operations.update_scene_ideas_operation_log_entry(
-      )
 
     # Generate image descriptions if requested
     if generate_descriptions:
+      operation = "GENERATE_IMAGE_DESCRIPTIONS"
       joke = joke_operations.generate_image_descriptions(joke)
 
     # Generate images if descriptions changed or requested
     if generate_descriptions or populate_images:
-      image_quality = get_param(req, 'image_quality', 'low')
-      if image_quality not in image_generation.PUN_IMAGE_CLIENTS_BY_QUALITY:
-        return error_response(
-          f'Invalid image_quality: {image_quality}. Must be one of: '
-          f'{", ".join(image_generation.PUN_IMAGE_CLIENTS_BY_QUALITY.keys())}')
-
+      operation = "GENERATE_IMAGES"
       joke = joke_operations.generate_joke_images(joke, image_quality)
 
-    saved_joke = firestore.upsert_punny_joke(
-      joke,
-      operation_log_entry=operation_log_entry,
-    )
+    saved_joke = firestore.upsert_punny_joke(joke, operation=operation)
 
     if saved_joke:
       return success_response(

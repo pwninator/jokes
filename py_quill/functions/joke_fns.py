@@ -7,17 +7,15 @@ from typing import Any
 
 from agents import agents_common, constants
 from agents.endpoints import all_agents
-from agents.puns import pun_postprocessor_agent
 from common import config, image_generation, joke_operations, models, utils
-from common.joke_operations import JokePopulationError
 from firebase_functions import https_fn, logger, options
-from google.cloud.firestore import FieldFilter
-from google.cloud.firestore_v1.field_path import FieldPath
-from google.cloud.firestore_bundle import FirestoreBundle
 from functions import auth_helpers
 from functions.function_utils import (error_response, get_bool_param,
                                       get_float_param, get_int_param,
                                       get_param, get_user_id, success_response)
+from google.cloud.firestore import FieldFilter
+from google.cloud.firestore_bundle import FirestoreBundle
+from google.cloud.firestore_v1.field_path import FieldPath
 from services import cloud_storage, firestore, search
 
 
@@ -325,61 +323,6 @@ def search_jokes(req: https_fn.Request) -> https_fn.Response:
   memory=options.MemoryOption.GB_1,
   timeout_sec=600,
 )
-def populate_joke(req: https_fn.Request) -> https_fn.Response:
-  """Populate a joke with images and enhanced data using the joke populator agent."""
-
-  try:
-    # Skip processing for health check requests
-    if req.path == "/__/health":
-      return https_fn.Response("OK", status=200)
-
-    if req.method not in ['GET', 'POST']:
-      return error_response(f'Method not allowed: {req.method}')
-
-    user_id = get_user_id(req, allow_unauthenticated=True)
-    if not user_id:
-      user_id = "ANONYMOUS"
-
-    # Get the joke ID, images_only, and image_quality params from request body or args
-    joke_id = get_param(req, 'joke_id')
-    image_quality = get_param(req, 'image_quality', 'low')
-    images_only = get_bool_param(req, 'images_only', False)
-    overwrite = get_bool_param(req, 'overwrite', False)
-
-    if not joke_id:
-      return error_response('Joke ID is required')
-
-    # Validate image_quality parameter
-    if image_quality not in image_generation.PUN_IMAGE_CLIENTS_BY_QUALITY:
-      return error_response(
-        f'Invalid image_quality: {image_quality}. Must be one of: {", ".join(image_generation.PUN_IMAGE_CLIENTS_BY_QUALITY.keys())}'
-      )
-
-    logger.info(
-      f"CLOUD_FUNCTION populate_joke: {joke_id} with params: joke_id={joke_id}, image_quality={image_quality}, images_only={images_only}, overwrite={overwrite}"
-    )
-
-    saved_joke = _populate_joke_internal(
-      user_id=user_id,
-      joke_id=joke_id,
-      image_quality=image_quality,
-      images_only=images_only,
-      overwrite=overwrite,
-    )
-
-    return success_response(
-      {"joke_data": joke_operations.to_response_joke(saved_joke)})
-
-  except Exception as e:
-    stacktrace = traceback.format_exc()
-    print(f"Error populating joke: {e}\nStacktrace:\n{stacktrace}")
-    return error_response(f'Failed to populate joke: {str(e)}')
-
-
-@https_fn.on_request(
-  memory=options.MemoryOption.GB_1,
-  timeout_sec=600,
-)
 def modify_joke_image(req: https_fn.Request) -> https_fn.Response:
   """Modify a joke's images using instructions."""
 
@@ -461,135 +404,6 @@ def _modify_and_set_image(
 
   image_setter(new_image)
   return None
-
-
-def _populate_joke_internal(
-  user_id: str,
-  joke_id: str,
-  image_quality: str,
-  images_only: bool,
-  overwrite: bool,
-) -> models.PunnyJoke:
-  """Populate a joke with images and enhanced data using the joke populator agent."""
-  print(f"Populating joke: {joke_id}")
-
-  if not joke_id or not user_id:
-    raise JokePopulationError('Joke ID and user ID are required')
-
-  # Load the joke from firestore
-  joke = firestore.get_punny_joke(joke_id)
-  if not joke:
-    raise JokePopulationError(f'Joke not found: {joke_id}')
-
-  if images_only:
-    joke = joke_operations.generate_joke_images(joke, image_quality)
-  else:
-    joke = _populate_entire_joke_internal(joke, user_id, overwrite)
-
-  if joke.state == models.JokeState.DRAFT:
-    joke.state = models.JokeState.UNREVIEWED
-
-  # Save the updated joke back to firestore
-  saved_joke = firestore.upsert_punny_joke(joke)
-  if not saved_joke:
-    raise JokePopulationError('Failed to save populated joke')
-
-  return saved_joke
-
-
-def _populate_entire_joke_internal(
-  joke: models.PunnyJoke,
-  user_id: str,
-  overwrite: bool,
-) -> models.PunnyJoke:
-  """Populate a joke with images and enhanced data using the joke populator agent."""
-  if not joke.setup_text or not joke.punchline_text:
-    raise JokePopulationError('Joke is missing setup or punchline text')
-
-  # Convert joke to pun format for the agent
-  joke_lines = [joke.setup_text, joke.punchline_text]
-
-  generation_metadata = models.GenerationMetadata()
-
-  populator_agent_fields = {
-    "pun_word",
-    "punned_word",
-    "setup_image_description",
-    "punchline_image_description",
-    "setup_image_prompt",
-    "punchline_image_prompt",
-    "setup_image_url",
-    "punchline_image_url",
-  }
-
-  if overwrite or joke.unpopulated_fields.intersection(populator_agent_fields):
-    # Set up inputs for the populator agent
-    inputs = {
-      constants.STATE_USER_INPUT: "Create funny pun-based joke images",
-      constants.STATE_ITEMS_NEW: [str(joke_lines)],
-    }
-
-    # Run the populator agent
-    joke_populator_agent = all_agents.get_joke_populator_agent_adk_app()
-    _, final_state, agent_generation_metadata = agents_common.run_agent(
-      adk_app=joke_populator_agent,
-      inputs=inputs,
-      user_id=user_id,
-    )
-    generation_metadata.add_generation(agent_generation_metadata)
-
-    # Extract the populated pun data
-    finalized_puns = final_state.get(constants.STATE_FINALIZED_PUNS, [])
-    if not finalized_puns:
-      raise JokePopulationError(
-        'Failed to populate joke - no results from agent')
-
-    # Get the first (and should be only) populated pun
-    populated_pun_data = finalized_puns[0]
-    populated_pun = pun_postprocessor_agent.Pun.model_validate(
-      populated_pun_data)
-
-    # Update the joke with the populated data
-    if len(populated_pun.pun_lines) >= 2:
-      setup_line = populated_pun.pun_lines[0]
-      punchline_line = populated_pun.pun_lines[1]
-
-      joke.set_setup_image(
-        models.Image(
-          url=setup_line.image_url,
-          original_prompt=setup_line.image_description,
-          final_prompt=setup_line.image_prompt,
-        ))
-      joke.set_punchline_image(
-        models.Image(
-          url=punchline_line.image_url,
-          original_prompt=punchline_line.image_description,
-          final_prompt=punchline_line.image_prompt,
-        ))
-    else:
-      raise JokePopulationError(
-        f'Populator agent returned insufficient pun lines: expected 2, got {len(populated_pun.pun_lines)}'
-      )
-
-    # Update metadata from the pun
-    if not joke.pun_word and populated_pun.pun_word:
-      joke.pun_word = populated_pun.pun_word
-    if not joke.punned_word and populated_pun.punned_word:
-      joke.punned_word = populated_pun.punned_word
-    joke.pun_theme = populated_pun.pun_theme
-    joke.phrase_topic = populated_pun.phrase_topic
-    joke.tags = [t.lower() for t in populated_pun.tags]
-    joke.for_kids = populated_pun.for_kids
-    joke.for_adults = populated_pun.for_adults
-    joke.seasonal = populated_pun.seasonal
-
-  # Add generation metadata
-  if joke.generation_metadata:
-    joke.generation_metadata.add_generation(generation_metadata)
-  else:
-    joke.generation_metadata = generation_metadata
-
-  return joke
 
 
 @https_fn.on_request(

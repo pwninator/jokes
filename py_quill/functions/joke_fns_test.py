@@ -217,51 +217,6 @@ def test_create_joke_deprecated_endpoint_removed():
   assert not hasattr(joke_fns, "create_joke")
 
 
-def test_populate_joke_sets_state_unreviewed_and_persists(monkeypatch):
-  """Test that populate_joke sets state to UNREVIEWED and saves it."""
-  # Arrange
-  monkeypatch.setattr(joke_fns,
-                      "get_user_id",
-                      lambda req, allow_unauthenticated=True: "user1")
-
-  # Return a basic joke from internal populate and simulate internal save to UNREVIEWED
-  def fake_populate_internal(**kwargs):
-    joke_id = kwargs.get("joke_id", "jk123")
-    j = models.PunnyJoke(key=joke_id, setup_text="s", punchline_text="p")
-    # Simulate internal logic that sets to UNREVIEWED and persists
-    j.state = models.JokeState.UNREVIEWED
-    joke_fns.firestore.upsert_punny_joke(j)
-    return j
-
-  monkeypatch.setattr(joke_fns, "_populate_joke_internal",
-                      fake_populate_internal)
-
-  captured = {"saved": None}
-
-  def fake_upsert(joke):
-    captured["saved"] = joke
-    return joke
-
-  monkeypatch.setattr(joke_fns.firestore, "upsert_punny_joke", fake_upsert)
-
-  req = DummyReq(
-    data={
-      "joke_id": "jk123",
-      "image_quality": "medium",
-      "images_only": False,
-      "overwrite": True,
-    })
-
-  # Act
-  resp = joke_fns.populate_joke(req)
-
-  # Assert - state should be UNREVIEWED and persisted
-  assert captured["saved"] is not None
-  assert captured["saved"].state == models.JokeState.UNREVIEWED
-  assert resp["data"]["joke_data"]["state"] == "UNREVIEWED"
-  assert resp["data"]["joke_data"]["key"] == "jk123"
-
-
 def test_search_jokes_applies_public_only_filter_by_default(monkeypatch):
   """Test that search_jokes applies the public_only filter by default."""
   captured = {}

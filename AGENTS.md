@@ -348,7 +348,6 @@ from ..common import models
 
 **HTTP Endpoints**:
 - `search_jokes`: Vector similarity search
-- `populate_joke`: Generate AI images/metadata for joke
 - `modify_joke_image`: Edit joke images via text instructions
 - `critique_jokes`: AI critique of jokes
 - `upscale_joke`: Upscale joke images

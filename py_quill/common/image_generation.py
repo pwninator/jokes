@@ -11,56 +11,56 @@ _IMAGE_FILE_NAME_BASE = "pun_agent_image"
 PUN_IMAGE_CLIENTS_BY_QUALITY = {
   "low_mini":
   image_client.get_client(
-    label="pun_agent_image_tool_low_mini",
+    label="pun_image_low_mini",
     model=image_client.ImageModel.OPENAI_GPT_IMAGE_1_MINI_LOW,
     file_name_base=_IMAGE_FILE_NAME_BASE,
   ),
   "medium_mini":
   image_client.get_client(
-    label="pun_agent_image_tool_medium_mini",
+    label="pun_image_medium_mini",
     model=image_client.ImageModel.OPENAI_GPT_IMAGE_1_MINI_MEDIUM,
     file_name_base=_IMAGE_FILE_NAME_BASE,
   ),
   "high_mini":
   image_client.get_client(
-    label="pun_agent_image_tool_high_mini",
+    label="pun_image_high_mini",
     model=image_client.ImageModel.OPENAI_GPT_IMAGE_1_MINI_HIGH,
     file_name_base=_IMAGE_FILE_NAME_BASE,
   ),
   "low":
   image_client.get_client(
-    label="pun_agent_image_tool_medium_mini",
-    model=image_client.ImageModel.OPENAI_GPT_IMAGE_1_MINI_MEDIUM,
+    label="pun_image_low",
+    model=image_client.ImageModel.OPENAI_GPT_IMAGE_1_MINI_LOW,
     file_name_base=_IMAGE_FILE_NAME_BASE,
   ),
   "medium":
   image_client.get_client(
-    label="pun_agent_image_tool_medium",
+    label="pun_image_medium",
     model=image_client.ImageModel.OPENAI_GPT_IMAGE_1_MEDIUM,
     file_name_base=_IMAGE_FILE_NAME_BASE,
   ),
   "high":
   image_client.get_client(
-    label="pun_agent_image_tool_high",
+    label="pun_image_high",
     model=image_client.ImageModel.OPENAI_GPT_IMAGE_1_HIGH,
     file_name_base=_IMAGE_FILE_NAME_BASE,
   ),
   "gemini":
   image_client.get_client(
-    label="pun_agent_image_tool_gemini",
+    label="pun_image_gemini",
     model=image_client.ImageModel.GEMINI_NANO_BANANA,
     file_name_base=_IMAGE_FILE_NAME_BASE,
   ),
 }
 
 _MODIFY_IMAGE_CLIENT_LOW = image_client.get_client(
-  label="pun_agent_image_tool_gemini_low",
+  label="pun_image_gemini_low",
   model=image_client.ImageModel.GEMINI_NANO_BANANA,
   file_name_base=_IMAGE_FILE_NAME_BASE,
 )
 
 _MODIFY_IMAGE_CLIENT_HIGH = image_client.get_client(
-  label="pun_agent_image_tool_gemini_high",
+  label="pun_image_gemini_high",
   model=image_client.ImageModel.GEMINI_NANO_BANANA_PRO,
   file_name_base=_IMAGE_FILE_NAME_BASE,
 )

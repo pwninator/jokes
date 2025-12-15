@@ -45,7 +45,6 @@ dummy_endpoint = dummy_fns.dummy_endpoint
 
 # Export the joke functions
 critique_jokes = joke_fns.critique_jokes
-populate_joke = joke_fns.populate_joke
 modify_joke_image = joke_fns.modify_joke_image
 upscale_joke = joke_fns.upscale_joke
 search_jokes = joke_fns.search_jokes

@@ -177,7 +177,7 @@ For each panel:
 - Maintain consistency for any recurring characters/props across panels (colors, size, clothing, style).
 - Stay relevant to the scene ideas, joke topic/theme, and any provided creative brief; do not introduce new subjects that change the joke or reveal the punchline early.
 - If the setup relies on misdirection, do not spoil the twist; the punchline image should clearly deliver the surprise.
-- Mention briefly where the line text could be placed so lettering can be included tastefully without covering key art.
+- DO NOT mention the line text. That will be added in a later stage.
 - Limit each description to 1 paragraph.
 
 Safety:

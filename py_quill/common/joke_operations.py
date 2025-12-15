@@ -114,10 +114,7 @@ def modify_image_scene_ideas(
   setup_suggestion: str,
   punchline_suggestion: str,
 ) -> models.PunnyJoke:
-  """Update a joke's image scene ideas using the provided suggestions.
-
-  This is a placeholder implementation that will be fleshed out later.
-  """
+  """Update a joke's image scene ideas using the provided suggestions."""
   if not joke.setup_text or not joke.punchline_text:
     raise ValueError('Joke is missing text required to edit scene ideas')
   if not joke.setup_scene_idea or not joke.punchline_scene_idea:

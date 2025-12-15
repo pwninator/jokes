@@ -12,7 +12,7 @@ from services import firestore
 
 
 @https_fn.on_request(
-  memory=options.MemoryOption.GB_1,
+  memory=options.MemoryOption.GB_2,
   min_instances=1,
   timeout_sec=600,
 )

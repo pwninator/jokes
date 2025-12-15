@@ -190,7 +190,8 @@ def test_upsert_punny_joke_logs_operation(monkeypatch):
   assert "log" in captured_operations[0][0]
   log_entry = captured_operations[0][0]["log"][0]
   assert log_entry[firestore.OPERATION] == "CREATE"
-  assert log_entry[firestore.OPERATION_TIMESTAMP] == "TS"
+  assert isinstance(log_entry[firestore.OPERATION_TIMESTAMP], datetime.datetime)
+  assert str(log_entry[firestore.OPERATION_TIMESTAMP].tzinfo) == "America/Los_Angeles"
   assert log_entry["setup_text"] == "s"
   assert log_entry["punchline_text"] == "p"
   assert log_entry["setup_scene_idea"] == "scene setup"

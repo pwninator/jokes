@@ -3,6 +3,7 @@
 import datetime
 import pprint
 from typing import Any, Collection
+from zoneinfo import ZoneInfo
 
 from common import models, utils
 from firebase_admin import firestore, firestore_async
@@ -356,9 +357,10 @@ def upsert_punny_joke(
     saved_joke = punny_joke
 
   if saved_joke and saved_joke.key:
+    current_time = datetime.datetime.now(ZoneInfo("America/Los_Angeles"))
     log_fields = {
       OPERATION: operation,
-      OPERATION_TIMESTAMP: SERVER_TIMESTAMP,
+      OPERATION_TIMESTAMP: current_time,
     }
     for key, value in updated_fields.items():
       if value == SERVER_TIMESTAMP:

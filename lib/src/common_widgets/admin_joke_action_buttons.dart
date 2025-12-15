@@ -29,11 +29,11 @@ class AdminPopulateJokeButton extends ConsumerWidget {
       holdCompleteIcon: Icons.refresh,
       onTap: () async {
         final notifier = ref.read(jokePopulationProvider.notifier);
-        await notifier.populateJoke(jokeId, imagesOnly: false);
+        await notifier.populateJoke(jokeId, imageQuality: 'low');
       },
       onHoldComplete: () async {
         final notifier = ref.read(jokePopulationProvider.notifier);
-        await notifier.populateJoke(jokeId, imagesOnly: false);
+        await notifier.populateJoke(jokeId, imageQuality: 'medium');
       },
       isLoading: isLoading,
       theme: theme,
@@ -103,7 +103,7 @@ class AdminEditJokeButton extends ConsumerWidget {
       },
       onHoldComplete: () async {
         final notifier = ref.read(jokePopulationProvider.notifier);
-        await notifier.populateJoke(jokeId, imagesOnly: false);
+        await notifier.populateJoke(jokeId, imageQuality: 'medium');
       },
       isLoading: isLoading,
       theme: theme,

@@ -242,6 +242,7 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
         TextFormField(
           key: const Key('setupTextField'),
           controller: _setupController,
+          textCapitalization: TextCapitalization.sentences,
           decoration: const InputDecoration(
             labelText: 'Setup',
             hintText: 'Enter the joke setup...',
@@ -260,6 +261,7 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
         TextFormField(
           key: const Key('punchlineTextField'),
           controller: _punchlineController,
+          textCapitalization: TextCapitalization.sentences,
           decoration: const InputDecoration(
             labelText: 'Punchline',
             hintText: 'Enter the punchline...',
@@ -315,6 +317,7 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
           key: const Key('setupSceneIdeaTextField'),
           controller: _setupSceneIdeaController,
           maxLines: 6,
+          textCapitalization: TextCapitalization.sentences,
           decoration: const InputDecoration(
             labelText: 'Setup Scene Idea',
             hintText: 'Describe the concept for the setup illustration',
@@ -335,6 +338,7 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
           key: const Key('punchlineSceneIdeaTextField'),
           controller: _punchlineSceneIdeaController,
           maxLines: 6,
+          textCapitalization: TextCapitalization.sentences,
           decoration: const InputDecoration(
             labelText: 'Punchline Scene Idea',
             hintText: 'Describe the concept for the punchline illustration',
@@ -381,6 +385,7 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
           child: TextField(
             key: textFieldKey,
             controller: controller,
+            textCapitalization: TextCapitalization.sentences,
             decoration: const InputDecoration(
               labelText: 'Suggestion',
               hintText: 'e.g. “Make it sillier”',
@@ -413,6 +418,7 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
           key: const Key('setupImageDescriptionTextField'),
           controller: _setupImageDescriptionController,
           maxLines: 6,
+          textCapitalization: TextCapitalization.sentences,
           decoration: const InputDecoration(
             labelText: 'Setup Image Description',
             border: OutlineInputBorder(),
@@ -424,6 +430,7 @@ class _JokeEditorScreenState extends ConsumerState<JokeEditorScreen> {
           key: const Key('punchlineImageDescriptionTextField'),
           controller: _punchlineImageDescriptionController,
           maxLines: 6,
+          textCapitalization: TextCapitalization.sentences,
           decoration: const InputDecoration(
             labelText: 'Punchline Image Description',
             border: OutlineInputBorder(),

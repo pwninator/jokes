@@ -125,8 +125,8 @@ class TestJokePopulationNotifier extends JokePopulationNotifier {
   @override
   Future<bool> populateJoke(
     String jokeId, {
-    bool imagesOnly = false,
     Map<String, dynamic>? additionalParams,
+    String imageQuality = 'low',
   }) async => true;
   @override
   void clearError() {

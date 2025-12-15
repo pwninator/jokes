@@ -69,8 +69,8 @@ class JokePopulationNotifier extends StateNotifier<JokePopulationState> {
 
   Future<bool> populateJoke(
     String jokeId, {
-    bool imagesOnly = false,
     Map<String, dynamic>? additionalParams,
+    String imageQuality = 'low',
   }) async {
     // Add joke to populating set
     state = state.copyWith(
@@ -81,8 +81,8 @@ class JokePopulationNotifier extends StateNotifier<JokePopulationState> {
     try {
       final result = await _cloudFunctionService.populateJoke(
         jokeId,
-        imagesOnly: imagesOnly,
         additionalParams: additionalParams,
+        imageQuality: imageQuality,
       );
 
       if (result != null && result['success'] == true) {

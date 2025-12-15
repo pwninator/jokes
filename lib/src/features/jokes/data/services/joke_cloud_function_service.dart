@@ -286,31 +286,30 @@ class JokeCloudFunctionService {
 
   Future<Map<String, dynamic>?> populateJoke(
     String jokeId, {
-    bool imagesOnly = false,
     Map<String, dynamic>? additionalParams,
+    String imageQuality = 'low',
   }) async {
     try {
       final result = await _traceCf(
-        functionName: 'populate_joke',
-        attributes: {'images_only': imagesOnly.toString()},
+        functionName: 'joke_creation_process',
+        attributes: {
+          'image_quality': imageQuality,
+        },
         action: () async {
           final callable = _fns.httpsCallable(
-            'populate_joke',
+            'joke_creation_process',
             options: HttpsCallableOptions(
-              timeout: const Duration(seconds: 300),
+              timeout: const Duration(minutes: 5),
             ),
           );
 
           final requestData = <String, dynamic>{
             'joke_id': jokeId,
-            'overwrite': true,
+            'generate_descriptions': true,
+            'populate_images': true,
+            'image_quality': imageQuality,
           };
-          if (imagesOnly) {
-            requestData['images_only'] = true;
-          }
-          if (additionalParams != null) {
-            requestData.addAll(additionalParams);
-          }
+          if (additionalParams != null) requestData.addAll(additionalParams);
 
           return await callable.call(requestData);
         },

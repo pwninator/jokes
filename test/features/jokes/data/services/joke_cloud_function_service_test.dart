@@ -45,7 +45,7 @@ void main() {
 
         when(
           () => mockFunctions.httpsCallable(
-            'populate_joke',
+            'joke_creation_process',
             options: any(named: 'options'),
           ),
         ).thenReturn(mockCallable);
@@ -59,11 +59,43 @@ void main() {
         expect(result, equals({'success': true, 'data': mockResponseData}));
         verify(
           () => mockFunctions.httpsCallable(
-            'populate_joke',
+            'joke_creation_process',
             options: any(named: 'options'),
           ),
         ).called(1);
-        verify(() => mockCallable.call(any())).called(1);
+        final captured =
+            verify(() => mockCallable.call(captureAny())).captured.single
+                as Map<String, dynamic>;
+        expect(captured['joke_id'], jokeId);
+        expect(captured['generate_descriptions'], isTrue);
+        expect(captured['populate_images'], isTrue);
+        expect(captured['image_quality'], 'low');
+      });
+
+      test('should send provided image quality to creation process', () async {
+        const jokeId = 'test-joke-id';
+        const quality = 'medium';
+        final mockResponseData = {'updated_joke': 'data'};
+
+        when(
+          () => mockFunctions.httpsCallable(
+            'joke_creation_process',
+            options: any(named: 'options'),
+          ),
+        ).thenReturn(mockCallable);
+        when(() => mockResult.data).thenReturn(mockResponseData);
+        when(
+          () => mockCallable.call(any()),
+        ).thenAnswer((_) async => mockResult);
+
+        await service.populateJoke(jokeId, imageQuality: quality);
+
+        final captured =
+            verify(() => mockCallable.call(captureAny())).captured.single
+                as Map<String, dynamic>;
+        expect(captured['image_quality'], quality);
+        expect(captured['generate_descriptions'], isTrue);
+        expect(captured['populate_images'], isTrue);
       });
 
       test('should return error when cloud function fails', () async {
@@ -75,7 +107,7 @@ void main() {
 
         when(
           () => mockFunctions.httpsCallable(
-            'populate_joke',
+            'joke_creation_process',
             options: any(named: 'options'),
           ),
         ).thenReturn(mockCallable);
@@ -93,17 +125,17 @@ void main() {
           const jokeId = 'test-joke-id';
           final mockResponseData = {
             'error': 'Safety failed',
-            'error_type': 'safety_failed',
-          };
+          'error_type': 'safety_failed',
+        };
 
-          when(
-            () => mockFunctions.httpsCallable(
-              'populate_joke',
-              options: any(named: 'options'),
-            ),
-          ).thenReturn(mockCallable);
-          when(() => mockResult.data).thenReturn(mockResponseData);
-          when(
+        when(
+          () => mockFunctions.httpsCallable(
+            'joke_creation_process',
+            options: any(named: 'options'),
+          ),
+        ).thenReturn(mockCallable);
+        when(() => mockResult.data).thenReturn(mockResponseData);
+        when(
             () => mockCallable.call(any()),
           ).thenAnswer((_) async => mockResult);
 
@@ -124,7 +156,7 @@ void main() {
 
         when(
           () => mockFunctions.httpsCallable(
-            'populate_joke',
+            'joke_creation_process',
             options: any(named: 'options'),
           ),
         ).thenReturn(mockCallable);

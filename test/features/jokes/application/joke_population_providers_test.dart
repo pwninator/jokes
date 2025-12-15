@@ -34,7 +34,8 @@ void main() {
       when(
         () => mockCloudFunctionService.populateJoke(
           jokeId,
-          imagesOnly: any(named: 'imagesOnly'),
+          imageQuality: any(named: 'imageQuality'),
+          additionalParams: any(named: 'additionalParams'),
         ),
       ).thenAnswer((_) async => successResponse);
 
@@ -60,7 +61,8 @@ void main() {
       verify(
         () => mockCloudFunctionService.populateJoke(
           jokeId,
-          imagesOnly: any(named: 'imagesOnly'),
+          imageQuality: 'low',
+          additionalParams: any(named: 'additionalParams'),
         ),
       ).called(1);
 
@@ -75,7 +77,8 @@ void main() {
       when(
         () => mockCloudFunctionService.populateJoke(
           jokeId,
-          imagesOnly: any(named: 'imagesOnly'),
+          imageQuality: any(named: 'imageQuality'),
+          additionalParams: any(named: 'additionalParams'),
         ),
       ).thenAnswer((_) async => failureResponse);
 
@@ -101,7 +104,8 @@ void main() {
       verify(
         () => mockCloudFunctionService.populateJoke(
           jokeId,
-          imagesOnly: any(named: 'imagesOnly'),
+          imageQuality: any(named: 'imageQuality'),
+          additionalParams: any(named: 'additionalParams'),
         ),
       ).called(1);
 
@@ -115,7 +119,8 @@ void main() {
       when(
         () => mockCloudFunctionService.populateJoke(
           jokeId,
-          imagesOnly: any(named: 'imagesOnly'),
+          imageQuality: any(named: 'imageQuality'),
+          additionalParams: any(named: 'additionalParams'),
         ),
       ).thenThrow(Exception('Network error'));
 
@@ -153,7 +158,8 @@ void main() {
       when(
         () => mockCloudFunctionService.populateJoke(
           any(),
-          imagesOnly: any(named: 'imagesOnly'),
+          imageQuality: any(named: 'imageQuality'),
+          additionalParams: any(named: 'additionalParams'),
         ),
       ).thenAnswer((_) async => successResponse);
 
@@ -196,7 +202,8 @@ void main() {
       when(
         () => mockCloudFunctionService.populateJoke(
           jokeId,
-          imagesOnly: any(named: 'imagesOnly'),
+          imageQuality: any(named: 'imageQuality'),
+          additionalParams: any(named: 'additionalParams'),
         ),
       ).thenAnswer((_) async => failureResponse);
 
@@ -242,8 +249,8 @@ void main() {
       when(
         () => mockCloudFunctionService.populateJoke(
           jokeId,
-          imagesOnly: false,
           additionalParams: additionalParams,
+          imageQuality: any(named: 'imageQuality'),
         ),
       ).thenAnswer((_) async => successResponse);
 
@@ -261,7 +268,6 @@ void main() {
       // Call populateJoke with additional parameters
       await notifier.populateJoke(
         jokeId,
-        imagesOnly: false,
         additionalParams: additionalParams,
       );
 
@@ -269,8 +275,8 @@ void main() {
       verify(
         () => mockCloudFunctionService.populateJoke(
           jokeId,
-          imagesOnly: false,
           additionalParams: additionalParams,
+          imageQuality: 'low',
         ),
       ).called(1);
 

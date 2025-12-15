@@ -55,8 +55,8 @@ class MockJokePopulationNotifier extends StateNotifier<JokePopulationState>
   @override
   Future<bool> populateJoke(
     String jokeId, {
-    bool imagesOnly = false,
     Map<String, dynamic>? additionalParams,
+    String imageQuality = 'low',
   }) async {
     return true;
   }
@@ -234,8 +234,8 @@ void main() {
     when(
       () => mockCloudFunctionService.populateJoke(
         any(),
-        imagesOnly: any(named: 'imagesOnly'),
         additionalParams: any(named: 'additionalParams'),
+        imageQuality: any(named: 'imageQuality'),
       ),
     ).thenAnswer((_) async => {'success': true, 'data': 'populated'});
 

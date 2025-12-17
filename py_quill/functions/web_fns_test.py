@@ -204,19 +204,6 @@ def test_index_page_renders_top_jokes(monkeypatch):
   assert 'Cache-Control' in resp.headers
 
 
-def test_book_route_redirects_to_home():
-  """Book landing redirects to the homepage."""
-  with web_fns.app.test_client() as client:
-    resp = client.get('/book', follow_redirects=False)
-
-  assert resp.status_code == 301
-  location = resp.headers['Location']
-  assert location.startswith('/?')
-  assert 'utm_source=book' in location
-  assert 'utm_medium=offline' in location
-  assert 'utm_campaign=book_animaljokes' in location
-
-
 def test_fetch_topic_jokes_sorts_by_popularity_then_distance(monkeypatch):
   """_fetch_topic_jokes orders by popularity desc, then vector distance asc."""
   # Arrange
@@ -903,21 +890,18 @@ def test_admin_stats_rebuckets_and_colors(monkeypatch):
   assert dau_data["datasets"][1]["data"] == [2, 2]  # 1-9 bucket
   assert dau_data["datasets"][2]["data"] == [3, 3]  # 10-19 bucket
   assert dau_data["datasets"][3]["data"] == [4, 4]  # 100-149 bucket
-  assert dau_data["datasets"][4]["data"] == [0, 0]  # 150-199 bucket (not in DAU)
+  assert dau_data["datasets"][4]["data"] == [0,
+                                             0]  # 150-199 bucket (not in DAU)
   # Color map: zero bucket gray, others colored (not gray)
   assert dau_data["datasets"][0]["backgroundColor"] == "#9e9e9e"
-  non_zero_colors = {
-    ds["backgroundColor"]
-    for ds in dau_data["datasets"][1:]
-  }
+  non_zero_colors = {ds["backgroundColor"] for ds in dau_data["datasets"][1:]}
   assert "#9e9e9e" not in non_zero_colors
 
   retention_data = captured["retention_data"]
   assert retention_data["labels"] == ["2", "8-14", "15-21"]
   retention_labels = [ds["label"] for ds in retention_data["datasets"]]
-  assert retention_labels == [
-    "1-9 jokes", "10-19 jokes", "150-199 jokes"
-  ]
+  assert retention_labels == ["1-9 jokes", "10-19 jokes", "150-199 jokes"]
+
   # Percentages: counts 1,2,3 => totals 6
   def _dataset(label):
     return next(d for d in retention_data["datasets"] if d["label"] == label)

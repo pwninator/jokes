@@ -150,6 +150,42 @@ class ImageModel(Enum):
       "quality": "high"
     },
   )
+
+  # https://platform.openai.com/docs/models/gpt-image-1.5
+  OPENAI_GPT_IMAGE_1_5_LOW = (
+    "gpt-image-1.5",
+    {
+      "input_tokens": 8.00 / 1_000_000,
+      "output_tokens": 32.00 / 1_000_000,
+    },
+    ImageProvider.OPENAI_IMAGES,
+    {
+      "quality": "low"
+    },
+  )
+  OPENAI_GPT_IMAGE_1_5_MEDIUM = (
+    "gpt-image-1.5",
+    {
+      "input_tokens": 8.00 / 1_000_000,
+      "output_tokens": 32.00 / 1_000_000,
+    },
+    ImageProvider.OPENAI_IMAGES,
+    {
+      "quality": "medium"
+    },
+  )
+  OPENAI_GPT_IMAGE_1_5_HIGH = (
+    "gpt-image-1.5",
+    {
+      "input_tokens": 8.00 / 1_000_000,
+      "output_tokens": 32.00 / 1_000_000,
+    },
+    ImageProvider.OPENAI_IMAGES,
+    {
+      "quality": "high"
+    },
+  )
+
   # https://platform.openai.com/docs/models/gpt-image-1-mini
   OPENAI_GPT_IMAGE_1_MINI_LOW = (
     "gpt-image-1-mini",

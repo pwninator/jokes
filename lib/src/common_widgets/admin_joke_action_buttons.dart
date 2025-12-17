@@ -152,6 +152,9 @@ class AdminRegenerateImagesButton extends ConsumerWidget {
       'low',
       'medium',
       'high',
+      'low_15',
+      'medium_15',
+      'high_15',
     ];
 
     showDialog(

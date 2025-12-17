@@ -29,7 +29,7 @@ PUN_IMAGE_CLIENTS_BY_QUALITY = {
   ),
   "low":
   image_client.get_client(
-    label="pun_image_low",
+    label="pun_image_low_mini",
     model=image_client.ImageModel.OPENAI_GPT_IMAGE_1_MINI_LOW,
     file_name_base=_IMAGE_FILE_NAME_BASE,
   ),
@@ -43,6 +43,24 @@ PUN_IMAGE_CLIENTS_BY_QUALITY = {
   image_client.get_client(
     label="pun_image_high",
     model=image_client.ImageModel.OPENAI_GPT_IMAGE_1_HIGH,
+    file_name_base=_IMAGE_FILE_NAME_BASE,
+  ),
+  "low_15":
+  image_client.get_client(
+    label="pun_image_low_15",
+    model=image_client.ImageModel.OPENAI_GPT_IMAGE_1_5_LOW,
+    file_name_base=_IMAGE_FILE_NAME_BASE,
+  ),
+  "medium_15":
+  image_client.get_client(
+    label="pun_image_medium_15",
+    model=image_client.ImageModel.OPENAI_GPT_IMAGE_1_5_MEDIUM,
+    file_name_base=_IMAGE_FILE_NAME_BASE,
+  ),
+  "high_15":
+  image_client.get_client(
+    label="pun_image_high_15",
+    model=image_client.ImageModel.OPENAI_GPT_IMAGE_1_5_HIGH,
     file_name_base=_IMAGE_FILE_NAME_BASE,
   ),
   "gemini":

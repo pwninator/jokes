@@ -151,7 +151,7 @@ class ImageModel(Enum):
     },
   )
 
-  # https://platform.openai.com/docs/models/gpt-image-1-5
+  # https://platform.openai.com/docs/models/gpt-image-1.5
   OPENAI_GPT_IMAGE_1_5_LOW = (
     "gpt-image-1.5",
     {

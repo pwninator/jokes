@@ -209,7 +209,7 @@ def test_book_route_redirects_to_home():
   with web_fns.app.test_client() as client:
     resp = client.get('/book', follow_redirects=False)
 
-  assert resp.status_code == 302
+  assert resp.status_code == 301
   location = resp.headers['Location']
   assert location.startswith('/?')
   assert 'utm_source=book' in location

@@ -218,7 +218,7 @@ def book():
                   utm_source='book',
                   utm_medium='offline',
                   utm_campaign='book_animaljokes'),
-    code=302)
+    code=301)
 
 
 @web_bp.route('/about')

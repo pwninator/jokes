@@ -443,7 +443,9 @@ Content to review:
 
   label_str = f" [label: {label}]" if label else ""
   if not is_safe:
-    logger.warn(f"Unsafe content{label_str} ({reason_text}): {content}")
+    logger.warn(
+      f"Unsafe content{label_str} (verdict: {verdict_text}, reason: {reason_text}): {content}"
+    )
 
   metadata = response.metadata or models.SingleGenerationMetadata()
   return is_safe, metadata

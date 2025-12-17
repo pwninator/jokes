@@ -210,7 +210,11 @@ def test_book_route_redirects_to_home():
     resp = client.get('/book', follow_redirects=False)
 
   assert resp.status_code == 302
-  assert resp.headers['Location'] == '/'
+  location = resp.headers['Location']
+  assert location.startswith('/?')
+  assert 'utm_source=book' in location
+  assert 'utm_medium=offline' in location
+  assert 'utm_campaign=book_animaljokes' in location
 
 
 def test_fetch_topic_jokes_sorts_by_popularity_then_distance(monkeypatch):

@@ -213,7 +213,12 @@ def topic_page(topic: str):
 @web_bp.route('/book')
 def book():
   """Redirect book landing to the homepage."""
-  return flask.redirect(flask.url_for('web.index'), code=302)
+  return flask.redirect(
+    flask.url_for('web.index',
+                  utm_source='book',
+                  utm_medium='offline',
+                  utm_campaign='book_animaljokes'),
+    code=302)
 
 
 @web_bp.route('/about')

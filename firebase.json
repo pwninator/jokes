@@ -47,6 +47,13 @@
       "**/.*",
       "**/node_modules/**"
     ],
+    "redirects": [
+      {
+        "source": "/book",
+        "destination": "/?utm_source=book&utm_medium=offline&utm_campaign=book_animaljokes",
+        "type": 301
+      }
+    ],
     "rewrites": [
       {
         "source": "/",

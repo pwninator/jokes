@@ -210,12 +210,6 @@ def topic_page(topic: str):
   return _html_response(html, cache_seconds=300, cdn_seconds=1800)
 
 
-@web_bp.route('/book')
-def book():
-  """Redirect book landing to the homepage."""
-  return flask.redirect(flask.url_for('web.index'), code=302)
-
-
 @web_bp.route('/about')
 def about():
   """Render placeholder page for information about Snickerdoodle."""

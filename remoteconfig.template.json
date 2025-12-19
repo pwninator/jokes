@@ -98,14 +98,14 @@
       "parameters": {
         "ad_display_mode": {
           "defaultValue": {
-            "value": "none"
+            "value": "banner"
           },
           "description": "Controls in-app ads: none|banner",
           "valueType": "STRING"
         },
         "banner_ad_position": {
           "defaultValue": {
-            "value": "top"
+            "value": "bottom"
           },
           "description": "Controls banner ad placement: top|bottom",
           "valueType": "STRING"

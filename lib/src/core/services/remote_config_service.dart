@@ -93,12 +93,12 @@ const Map<RemoteParam, RemoteParamDescriptor> remoteParams = {
   RemoteParam.adDisplayMode: EnumRemoteParamDescriptor(
     key: 'ad_display_mode',
     enumValues: AdDisplayMode.values,
-    enumDefault: AdDisplayMode.none,
+    enumDefault: AdDisplayMode.banner,
   ),
   RemoteParam.bannerAdPosition: EnumRemoteParamDescriptor(
     key: 'banner_ad_position',
     enumValues: BannerAdPosition.values,
-    enumDefault: BannerAdPosition.top,
+    enumDefault: BannerAdPosition.bottom,
   ),
   //////////////////
   // Onboarding   //

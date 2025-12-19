@@ -892,6 +892,13 @@ def admin_joke_book_detail(book_id: str):
     if isinstance(joke_cost, (int, float)):
       total_book_cost += float(joke_cost)
 
+    num_views = int(joke_data.get('num_viewed_users') or 0)
+    num_saves = int(joke_data.get('num_saved_users') or 0)
+    num_shares = int(joke_data.get('num_shared_users') or 0)
+    popularity_score = float(joke_data.get('popularity_score') or 0.0)
+    num_saved_users_fraction = float(
+      joke_data.get('num_saved_users_fraction') or 0.0)
+
     joke_rows.append({
       'sequence':
       sequence,
@@ -919,6 +926,16 @@ def admin_joke_book_detail(book_id: str):
       [_format_book_page_thumb(url) for url in setup_variants if url],
       'punchline_variants':
       [_format_book_page_thumb(url) for url in punchline_variants if url],
+      'num_views':
+      num_views,
+      'num_saves':
+      num_saves,
+      'num_shares':
+      num_shares,
+      'popularity_score':
+      popularity_score,
+      'num_saved_users_fraction':
+      num_saved_users_fraction,
     })
 
   if utils.is_emulator():
@@ -1103,6 +1120,16 @@ def admin_joke_book_refresh(book_id: str, joke_id: str):
     [_format_book_page_thumb(url) for url in setup_variants if url],
     'punchline_variants':
     [_format_book_page_thumb(url) for url in punchline_variants if url],
+    'num_views':
+    int(joke_data.get('num_viewed_users') or 0),
+    'num_saves':
+    int(joke_data.get('num_saved_users') or 0),
+    'num_shares':
+    int(joke_data.get('num_shared_users') or 0),
+    'popularity_score':
+    float(joke_data.get('popularity_score') or 0.0),
+    'num_saved_users_fraction':
+    float(joke_data.get('num_saved_users_fraction') or 0.0),
   }
   return flask.jsonify(resp_data)
 

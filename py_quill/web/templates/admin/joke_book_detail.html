@@ -47,6 +47,34 @@
     flex-wrap: wrap;
   }
 
+  .joke-metrics {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+  }
+
+  .metric-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    border-radius: 999px;
+    background: var(--color-pill-bg);
+    border: 1px solid var(--color-border);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .metric-label {
+    color: var(--color-muted);
+    font-size: 12px;
+  }
+
+  .metric-value {
+    font-weight: 600;
+  }
+
   .joke-images {
     display: grid;
     grid-template-columns: repeat(2, minmax(400px, 1fr));
@@ -387,6 +415,28 @@
           {% endif %}
         </div>
         <button class="cta-btn nav-cta text-button reveal-btn" type="button">Regenerate pages</button>
+      </div>
+      <div class="joke-metrics text-button">
+        <div class="metric-pill">
+          <span class="metric-label">Views</span>
+          <span class="metric-value" data-metric="num_views">{{ joke.num_views }}</span>
+        </div>
+        <div class="metric-pill">
+          <span class="metric-label">Saves</span>
+          <span class="metric-value" data-metric="num_saves">{{ joke.num_saves }}</span>
+        </div>
+        <div class="metric-pill">
+          <span class="metric-label">Shares</span>
+          <span class="metric-value" data-metric="num_shares">{{ joke.num_shares }}</span>
+        </div>
+        <div class="metric-pill">
+          <span class="metric-label">Popularity</span>
+          <span class="metric-value" data-metric="popularity_score">{{ '%.3f'|format(joke.popularity_score or 0) }}</span>
+        </div>
+        <div class="metric-pill">
+          <span class="metric-label">Save %</span>
+          <span class="metric-value" data-metric="num_saved_users_fraction">{{ '%.2f'|format(joke.num_saved_users_fraction or 0) }}</span>
+        </div>
       </div>
       <div class="instructions instructions-row hidden">
         <div class="text-body source-toggle">
@@ -905,6 +955,27 @@
               tile,
               current && url && normalizeUrl(current) === normalizeUrl(url),
             );
+          });
+
+          const metricDefaults = {
+            num_views: 0,
+            num_saves: 0,
+            num_shares: 0,
+            popularity_score: 0,
+            num_saved_users_fraction: 0,
+          };
+          Object.entries(metricDefaults).forEach(([key, defaultValue]) => {
+            const el = card.querySelector(`[data-metric="${key}"]`);
+            if (!el) return;
+            const raw = data[key];
+            const value = typeof raw === 'number' ? raw : defaultValue;
+            if (key === 'popularity_score') {
+              el.textContent = value.toFixed(3);
+            } else if (key === 'num_saved_users_fraction') {
+              el.textContent = value.toFixed(2);
+            } else {
+              el.textContent = Math.trunc(value);
+            }
           });
           return data;
         });

@@ -815,7 +815,7 @@ def _load_page_number_font_bytes(url: str) -> bytes | None:
     response.raise_for_status()
     return response.content
   except requests.RequestException as exc:
-    logger.error('Unable to download Nunito font from %s: %s', url, exc)
+    logger.error(f'Unable to download Nunito font from {url}: {exc}')
     return None
 
 
@@ -829,11 +829,11 @@ def _get_page_number_font(font_size: int) -> ImageFont.ImageFont:
       continue
     try:
       font = ImageFont.truetype(BytesIO(font_bytes), safe_size)
-      logger.info('Loaded Nunito font from %s (size %s)', url, safe_size)
+      logger.info(f'Loaded Nunito font from {url} (size {safe_size})')
       return font
     except OSError as exc:  # pragma: no cover - unexpected font error
-      logger.error('Unable to construct Nunito font from %s (size %s): %s',
-                   url, safe_size, exc)
+      logger.error(
+        f'Unable to construct Nunito font from {url} (size {safe_size}): {exc}')
   return ImageFont.load_default()
 
 

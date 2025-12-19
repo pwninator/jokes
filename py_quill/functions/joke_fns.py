@@ -93,7 +93,7 @@ def get_joke_bundle(req: https_fn.Request) -> https_fn.Response:
       mimetype='application/json',
     )
   except Exception as exc:  # pylint: disable=broad-except
-    logger.error("Failed to build Firestore bundle: %s", str(exc))
+    logger.error(f"Failed to build Firestore bundle: {str(exc)}")
     logger.error(traceback.format_exc())
     return https_fn.Response(
       json.dumps(error_response(f'Failed to build bundle: {exc}')),

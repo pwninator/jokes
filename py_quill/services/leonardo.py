@@ -257,7 +257,7 @@ Format your final answer as a JSON object with keys as "Image 0", "Image 1", etc
   try:
     response = llm.generate(prompt_chunks, extra_log_data=extra_log_data)
   except llm_client.LlmError as e:
-    logger.error("Error evaluating images: %s", e)
+    logger.error(f"Error evaluating images: {e}")
     return image_urls[0], None, None
 
   # Extract JSON dict using regex
@@ -401,9 +401,9 @@ Generation ID: {generation_id}""")
     for i, part in enumerate(log_parts):
       is_last_part = i == (num_parts - 1)
       if is_last_part:
-        logger.info("%s\n%s", header, part, extra={"json_fields": log_data})
+        logger.info(f"{header}\n{part}", extra={"json_fields": log_data})
       else:
-        logger.info("%s\n%s", header, part)
+        logger.info(f"{header}\n{part}")
 
 
 def _send_generation_request(

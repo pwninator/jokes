@@ -96,6 +96,22 @@
         }
       },
       {
+        "source": "/review-*",
+        "function": {
+          "functionId": "web_search_page",
+          "region": "us-central1",
+          "codebase": "default"
+        }
+      },
+      {
+        "source": "/book-*",
+        "function": {
+          "functionId": "web_search_page",
+          "region": "us-central1",
+          "codebase": "default"
+        }
+      },
+      {
         "source": "/get_joke_bundle",
         "function": {
           "functionId": "get_joke_bundle",

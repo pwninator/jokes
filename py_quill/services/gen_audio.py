@@ -382,12 +382,9 @@ Generation cost: ${metadata.cost:.6f}
     for i, part in enumerate(log_parts):
       is_last_part = i == (num_parts - 1)
       if is_last_part:
-        logger.info("%s\n%s",
-                    header,
-                    part,
-                    extra={"json_fields": log_extra_data})
+        logger.info(f"{header}\n{part}", extra={"json_fields": log_extra_data})
       else:
-        logger.info("%s\n%s", header, part)
+        logger.info(f"{header}\n{part}")
 
 
 def _sanitize_text_for_tts(text: str) -> str:

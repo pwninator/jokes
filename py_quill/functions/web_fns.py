@@ -6,6 +6,7 @@ import os
 import zoneinfo
 
 import flask
+from common import amazon_redirect
 from common import models
 from common import config
 from common import utils
@@ -29,7 +30,7 @@ def _load_css(filename: str) -> str:
     with open(css_path, 'r', encoding='utf-8') as css_file:
       return css_file.read()
   except FileNotFoundError:
-    logger.error('Stylesheet missing at %s', css_path)
+    logger.error(f'Stylesheet missing at {css_path}')
     return ''
 
 
@@ -90,6 +91,92 @@ def _html_response(html: str,
   return resp
 
 
+def _resolve_country_code(req: flask.Request) -> str:
+  """Determine the ISO country code for the current request."""
+  override = amazon_redirect.normalize_country_code(
+    req.args.get('country_override'))
+  if override:
+    return override
+
+  header_code = amazon_redirect.normalize_country_code(
+    req.headers.get('X-Appengine-Country'))
+  if header_code:
+    return header_code
+
+  return amazon_redirect.DEFAULT_COUNTRY_CODE
+
+
+def _log_amazon_redirect(redirect_key: str, requested_country: str,
+                         resolved_country: str, target_url: str) -> None:
+  """Log redirect metadata for analytics/debugging."""
+  user_agent = flask.request.headers.get('User-Agent', '')[:500]
+  logger.info(
+    f'amazon_redirect {redirect_key} -> {target_url} ({requested_country} → {resolved_country})',
+    extra={
+      "json_fields": {
+        "event": "amazon_redirect",
+        "redirect_key": redirect_key,
+        "requested_country_code": requested_country,
+        "resolved_country_code": resolved_country,
+        "target_url": target_url,
+        "user_agent": user_agent,
+      }
+    },
+  )
+
+
+def _handle_amazon_redirect(redirect_key: str) -> flask.Response:
+  """Shared handler for public Amazon redirect endpoints."""
+  config_entry = amazon_redirect.AMAZON_REDIRECTS.get(redirect_key)
+  if not config_entry:
+    return flask.Response('Redirect not found', status=404)
+
+  requested_country = _resolve_country_code(flask.request)
+  resolved_country = config_entry.resolve_country_code(requested_country)
+  target_url = amazon_redirect.transform_amazon_url(
+    config_entry.base_url(),
+    resolved_country,
+  )
+  _log_amazon_redirect(redirect_key, requested_country, resolved_country,
+                       target_url)
+  return flask.redirect(target_url, code=302)
+
+
+def _redirect_endpoint_for_key(
+    redirect_key: str) -> tuple[str | None, str | None]:
+  """Return endpoint name and slug for a redirect key."""
+  if redirect_key.startswith('review-'):
+    slug = redirect_key.removeprefix('review-')
+    return 'web.amazon_review_redirect', slug
+  if redirect_key.startswith('book-'):
+    slug = redirect_key.removeprefix('book-')
+    return 'web.amazon_book_redirect', slug
+  return None, None
+
+
+def _amazon_redirect_view_models() -> list[dict[str, str]]:
+  """Return metadata for all configured Amazon redirects."""
+  items: list[dict[str, str]] = []
+  for key, config_entry in amazon_redirect.AMAZON_REDIRECTS.items():
+    endpoint, slug = _redirect_endpoint_for_key(key)
+    if not endpoint or slug is None:
+      continue
+    path = flask.url_for(endpoint, slug=slug)
+    supported_countries = config_entry.supported_country_list()
+    items.append({
+      'key': key,
+      'label': config_entry.label,
+      'description': config_entry.description,
+      'asin': config_entry.asin,
+      'page_type': config_entry.page_type.value,
+      'url': path,
+      'supported_countries': supported_countries,
+      'supports_all_countries': supported_countries is None,
+    })
+  items.sort(key=lambda item: item['label'])
+  return items
+
+
 def _fetch_topic_jokes(topic: str, limit: int) -> list[models.PunnyJoke]:
   """Fetch jokes for a given topic using vector search constrained by tags."""
   now_la = datetime.datetime.now(zoneinfo.ZoneInfo("America/Los_Angeles"))
@@ -112,6 +199,18 @@ def _fetch_topic_jokes(topic: str, limit: int) -> list[models.PunnyJoke]:
     id_to_distance.get(j.key, float('inf')),
   ))
   return jokes
+
+
+@web_bp.route('/review-<path:slug>')
+def amazon_review_redirect(slug: str):
+  """Redirect to an Amazon review page for supported slugs."""
+  return _handle_amazon_redirect(f'review-{slug}')
+
+
+@web_bp.route('/book-<path:slug>')
+def amazon_book_redirect(slug: str):
+  """Redirect to an Amazon product page for supported slugs."""
+  return _handle_amazon_redirect(f'book-{slug}')
 
 
 @web_bp.route('/')
@@ -151,8 +250,8 @@ def index():
             break
           seen_keys.add(joke.key or '')
   except Exception as exc:  # pylint: disable=broad-except
-    logger.error('Failed to fetch daily joke for %s: %s', today_la.isoformat(),
-                 str(exc))
+    logger.error(
+      f'Failed to fetch daily joke for {today_la.isoformat()}: {str(exc)}')
 
   # Ensure we never show more than 3 favorites, even if logic above slipped
   favorites = favorites[:3]
@@ -483,6 +582,23 @@ def admin_dashboard():
   """Admin landing page."""
   return flask.render_template(
     'admin/dashboard.html',
+    site_name='Snickerdoodle',
+  )
+
+
+@web_bp.route('/admin/redirect-tester')
+@auth_helpers.require_admin
+def admin_redirect_tester():
+  """Render the Amazon redirect testing interface."""
+  redirect_items = _amazon_redirect_view_models()
+  country_options = sorted(
+    amazon_redirect.COUNTRY_TO_DOMAIN.items(),
+    key=lambda item: item[0],
+  )
+  return flask.render_template(
+    'admin/redirect_tester.html',
+    redirect_items=redirect_items,
+    country_options=country_options,
     site_name='Snickerdoodle',
   )
 
@@ -885,10 +1001,10 @@ def admin_set_main_joke_image_from_book_page():
     return flask.Response('Book page image not found', 400)
 
   main_field = 'setup_image_url' if target == 'setup' else 'punchline_image_url'
-  history_field = ('all_setup_image_urls' if target == 'setup' else
-                   'all_punchline_image_urls')
-  upscaled_field = ('setup_image_url_upscaled' if target == 'setup' else
-                    'punchline_image_url_upscaled')
+  history_field = ('all_setup_image_urls'
+                   if target == 'setup' else 'all_punchline_image_urls')
+  upscaled_field = ('setup_image_url_upscaled'
+                    if target == 'setup' else 'punchline_image_url_upscaled')
 
   joke_ref.update({
     main_field: page_url,
@@ -907,7 +1023,7 @@ def admin_set_main_joke_image_from_book_page():
 @auth_helpers.require_admin
 def admin_joke_book_refresh(book_id: str, joke_id: str):
   """Return latest images and cost for a single joke in a book."""
-  logger.info('Refreshing joke %s for book %s', joke_id, book_id)
+  logger.info(f'Refreshing joke {joke_id} for book {book_id}')
   client = firestore.db()
   joke_ref = client.collection('jokes').document(joke_id)
   joke_doc = joke_ref.get()

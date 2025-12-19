@@ -1,0 +1,77 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Amazon Redirect Tester · {{ site_name }} Admin{% endblock %}
+
+{% block content %}
+<h2>Amazon Redirect Tester</h2>
+<p class="muted">
+  Use this tool to verify the universal Amazon redirect paths and preview the country override behavior.
+</p>
+
+<section class="card">
+  <label for="country-selector">Country override</label>
+  <select id="country-selector" class="input">
+    <option value="">Automatic (Firebase header)</option>
+    {% for code, domain in country_options %}
+    <option value="{{ code }}">{{ code }} · {{ domain }}</option>
+    {% endfor %}
+  </select>
+</section>
+
+<section>
+  <h3>Available redirect paths</h3>
+  <ul class="redirect-list">
+    {% for redirect in redirect_items %}
+    <li class="redirect-item">
+      <div>
+        <strong>{{ redirect.label }}</strong>
+        <span class="muted">({{ redirect.page_type }} · ASIN {{ redirect.asin }})</span>
+      </div>
+      <p class="muted">{{ redirect.description }}</p>
+      <p class="muted small">
+        Supported countries:
+        {% if redirect.supported_countries %}
+          {{ redirect.supported_countries | join(', ') }}
+        {% else %}
+          All countries
+        {% endif %}
+      </p>
+      <a
+        class="redirect-link"
+        href="{{ redirect.url }}"
+        data-base-url="{{ redirect.url }}"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        {{ redirect.url }}
+      </a>
+    </li>
+    {% endfor %}
+  </ul>
+</section>
+
+<script>
+  const countrySelector = document.getElementById('country-selector');
+  const redirectLinks = document.querySelectorAll('.redirect-link');
+
+  function updateRedirectLinks() {
+    const country = countrySelector.value;
+    redirectLinks.forEach((link) => {
+      const baseUrl = link.dataset.baseUrl;
+      if (!country) {
+        link.href = baseUrl;
+        link.textContent = baseUrl;
+        return;
+      }
+      const url = new URL(baseUrl, window.location.origin);
+      url.searchParams.set('country_override', country);
+      link.href = url.toString();
+      link.textContent = url.toString();
+    });
+  }
+
+  countrySelector.addEventListener('change', updateRedirectLinks);
+  updateRedirectLinks();
+</script>
+{% endblock %}
+

@@ -421,15 +421,10 @@ Generation cost: ${metadata.cost:.6f}
         is_last_part = i == (num_parts - 1)
         if is_last_part:
           # Use lazy formatting for the final log call with extra data
-          logger.info("%s\n%s",
-                      header,
-                      part,
-                      extra={"json_fields": log_extra_data})
+          logger.info(f"{header}\n{part}", extra={"json_fields": log_extra_data})
         else:
           # Use lazy formatting for intermediate parts
-          logger.info("%s\n%s",
-                      header,
-                      part,
+          logger.info(f"{header}\n{part}",
                       extra={"json_fields": merged_extra_log_data})
 
   def _get_merged_extra_log_data(

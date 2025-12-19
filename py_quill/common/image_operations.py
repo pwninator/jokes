@@ -21,6 +21,10 @@ _AD_BACKGROUND_SQUARE_DRAWING_URI = "gs://images.quillsstorybook.com/joke_assets
 _AD_BACKGROUND_SQUARE_DESK_URI = "gs://images.quillsstorybook.com/joke_assets/background_desk_1280_1280.png"
 _AD_BACKGROUND_SQUARE_CORKBOARD_URI = "gs://images.quillsstorybook.com/joke_assets/background_corkboard_1280_1280.png"
 
+_AD_LANDSCAPE_CANVAS_WIDTH = 2048
+_AD_LANDSCAPE_CANVAS_HEIGHT = 1024
+_AD_SQUARE_JOKE_IMAGE_SIZE_PX = 584
+
 _STYLE_UPDATE_CANVAS_URL = constants.STYLE_REFERENCE_CANVAS_IMAGE_URL
 _STYLE_REFERENCE_IMAGE_URLS = constants.STYLE_REFERENCE_SIMPLE_IMAGE_URLS
 _BOOK_PAGE_BASE_SIZE = 1800
@@ -833,7 +837,8 @@ def _get_page_number_font(font_size: int) -> ImageFont.ImageFont:
       return font
     except OSError as exc:  # pragma: no cover - unexpected font error
       logger.error(
-        f'Unable to construct Nunito font from {url} (size {safe_size}): {exc}')
+        f'Unable to construct Nunito font from {url} (size {safe_size}): {exc}'
+      )
   return ImageFont.load_default()
 
 
@@ -894,9 +899,22 @@ def _compose_landscape_ad_image(
   punchline_image: Image.Image,
 ) -> tuple[bytes, int]:
   """Create a 2048x1024 landscape PNG of the setup/punchline images."""
-  base = editor.create_blank_image(2048, 1024)
-  base = editor.paste_image(base, setup_image, 0, 0)
-  base = editor.paste_image(base, punchline_image, 1024, 0)
+  base = editor.create_blank_image(_AD_LANDSCAPE_CANVAS_WIDTH,
+                                   _AD_LANDSCAPE_CANVAS_HEIGHT)
+  half_width = _AD_LANDSCAPE_CANVAS_WIDTH // 2
+  setup_scaled = editor.scale_image(
+    setup_image,
+    new_width=half_width,
+    new_height=_AD_LANDSCAPE_CANVAS_HEIGHT,
+  )
+  punchline_scaled = editor.scale_image(
+    punchline_image,
+    new_width=half_width,
+    new_height=_AD_LANDSCAPE_CANVAS_HEIGHT,
+  )
+
+  base = editor.paste_image(base, setup_scaled, 0, 0)
+  base = editor.paste_image(base, punchline_scaled, half_width, 0)
 
   buffer = BytesIO()
   base.save(buffer, format='PNG')
@@ -915,13 +933,21 @@ def _compose_square_drawing_ad_image(
 
   # Paste punchline image first so it's below the setup image
   # Transform punchline image
-  punchline_scaled = editor.scale_image(punchline_image, 0.57)
+  punchline_scaled = editor.scale_image(
+    punchline_image,
+    new_width=_AD_SQUARE_JOKE_IMAGE_SIZE_PX,
+    new_height=_AD_SQUARE_JOKE_IMAGE_SIZE_PX,
+  )
   punchline_rotated = editor.rotate_image(punchline_scaled, -2)
   # Paste roughly bottom-right (diagonally opposed)
   base = editor.paste_image(base, punchline_rotated, 470, 635, add_shadow=True)
 
   # Transform setup image
-  setup_scaled = editor.scale_image(setup_image, 0.57)
+  setup_scaled = editor.scale_image(
+    setup_image,
+    new_width=_AD_SQUARE_JOKE_IMAGE_SIZE_PX,
+    new_height=_AD_SQUARE_JOKE_IMAGE_SIZE_PX,
+  )
   setup_rotated = editor.rotate_image(setup_scaled, 5)
   # Paste near top-left
   base = editor.paste_image(base, setup_rotated, 190, 35, add_shadow=True)

@@ -13,6 +13,9 @@ from common import image_operations, models
 from PIL import Image, ImageFont
 from services import image_editor
 
+_TEST_LANDSCAPE_PANEL_WIDTH = image_operations._AD_LANDSCAPE_CANVAS_WIDTH // 2
+_TEST_LANDSCAPE_PANEL_HEIGHT = image_operations._AD_LANDSCAPE_CANVAS_HEIGHT
+
 
 def _create_image_bytes(
     color: str,
@@ -51,10 +54,27 @@ class RecordingImageEditor(image_editor.ImageEditor):
     super().__init__()
     self.create_calls: list[tuple[int, int]] = []
     self.paste_calls: list[tuple[int, int]] = []
+    self.scale_calls: list[tuple[int, int]] = []
 
   def create_blank_image(self, width: int, height: int, color=(255, 255, 255)):
     self.create_calls.append((width, height))
     return super().create_blank_image(width, height, color)
+
+  def scale_image(
+    self,
+    image: Image.Image,
+    scale_factor: float | None = None,
+    new_width: int | None = None,
+    new_height: int | None = None,
+  ) -> Image.Image:
+    if new_width is not None and new_height is not None:
+      self.scale_calls.append((new_width, new_height))
+    return super().scale_image(
+      image,
+      scale_factor=scale_factor,
+      new_width=new_width,
+      new_height=new_height,
+    )
 
   def paste_image(self,
                   base_image,
@@ -149,16 +169,43 @@ class CreateAdAssetsTest(unittest.TestCase):
     ])
     mock_firestore.get_punny_joke.assert_called_once_with('joke123')
     # Landscape created via blank canvas; portrait uses background image
-    self.assertEqual(editor.create_calls, [(2048, 1024)])
+    self.assertEqual(editor.create_calls, [(
+      image_operations._AD_LANDSCAPE_CANVAS_WIDTH,
+      image_operations._AD_LANDSCAPE_CANVAS_HEIGHT,
+    )])
     # Verify landscape paste operations: setup and punchline side-by-side
     landscape_pastes = editor.paste_calls[:2]
     self.assertEqual(len(landscape_pastes), 2)
-    self.assertEqual(landscape_pastes[0][2], (1024, 1024))  # setup image size
-    self.assertEqual(landscape_pastes[1][2],
-                     (1024, 1024))  # punchline image size
+    self.assertEqual(landscape_pastes[0][2], (
+      _TEST_LANDSCAPE_PANEL_WIDTH,
+      _TEST_LANDSCAPE_PANEL_HEIGHT,
+    ))  # setup image size
+    self.assertEqual(landscape_pastes[1][2], (
+      _TEST_LANDSCAPE_PANEL_WIDTH,
+      _TEST_LANDSCAPE_PANEL_HEIGHT,
+    ))  # punchline image size
     # Portrait pastes: should have 3 portrait variations * 2 images each (setup + punchline)
     # Total pastes: 2 (landscape) + 6 (portrait) = 8
     self.assertEqual(len(editor.paste_calls), 8)
+
+    # Scale calls include 2 landscape panel resizes + 6 square resizes
+    expected_scale_calls = [
+      (_TEST_LANDSCAPE_PANEL_WIDTH, _TEST_LANDSCAPE_PANEL_HEIGHT),
+      (_TEST_LANDSCAPE_PANEL_WIDTH, _TEST_LANDSCAPE_PANEL_HEIGHT),
+      (image_operations._AD_SQUARE_JOKE_IMAGE_SIZE_PX,
+       image_operations._AD_SQUARE_JOKE_IMAGE_SIZE_PX),
+      (image_operations._AD_SQUARE_JOKE_IMAGE_SIZE_PX,
+       image_operations._AD_SQUARE_JOKE_IMAGE_SIZE_PX),
+      (image_operations._AD_SQUARE_JOKE_IMAGE_SIZE_PX,
+       image_operations._AD_SQUARE_JOKE_IMAGE_SIZE_PX),
+      (image_operations._AD_SQUARE_JOKE_IMAGE_SIZE_PX,
+       image_operations._AD_SQUARE_JOKE_IMAGE_SIZE_PX),
+      (image_operations._AD_SQUARE_JOKE_IMAGE_SIZE_PX,
+       image_operations._AD_SQUARE_JOKE_IMAGE_SIZE_PX),
+      (image_operations._AD_SQUARE_JOKE_IMAGE_SIZE_PX,
+       image_operations._AD_SQUARE_JOKE_IMAGE_SIZE_PX),
+    ]
+    self.assertCountEqual(editor.scale_calls, expected_scale_calls)
 
     self.assertEqual(mock_storage.upload_bytes_to_gcs.call_count, 4)
     upload_calls = mock_storage.upload_bytes_to_gcs.call_args_list
@@ -171,8 +218,10 @@ class CreateAdAssetsTest(unittest.TestCase):
       self.assertEqual(call.args[2], "image/png")
       self.assertEqual(call.kwargs, {})
 
-    mock_storage.get_final_image_url.assert_any_call(landscape_gcs_uri,
-                                                     width=2048)
+    mock_storage.get_final_image_url.assert_any_call(
+      landscape_gcs_uri,
+      width=image_operations._AD_LANDSCAPE_CANVAS_WIDTH,
+    )
     mock_storage.get_final_image_url.assert_any_call(portrait_drawing_gcs_uri,
                                                      width=1024)
     mock_storage.get_final_image_url.assert_any_call(portrait_desk_gcs_uri,
@@ -297,6 +346,16 @@ class ComposePortraitDrawingTest(unittest.TestCase):
 
     self.assertIsInstance(bytes_out, (bytes, bytearray))
     self.assertEqual(width, 1024)
+    self.assertEqual(editor.scale_calls, [
+      (
+        image_operations._AD_SQUARE_JOKE_IMAGE_SIZE_PX,
+        image_operations._AD_SQUARE_JOKE_IMAGE_SIZE_PX,
+      ),
+      (
+        image_operations._AD_SQUARE_JOKE_IMAGE_SIZE_PX,
+        image_operations._AD_SQUARE_JOKE_IMAGE_SIZE_PX,
+      ),
+    ])
     # Verify both setup and punchline images are pasted
     self.assertEqual(len(editor.paste_calls), 2)
     # Both should be rotated/scaled versions (smaller than original 1024x1024)
@@ -404,8 +463,10 @@ class ComposePortraitDrawingTest(unittest.TestCase):
     self.assertEqual(upload_calls[3].args[1], portrait_corkboard_gcs_uri)
 
     # Metadata updated with new URLs
-    mock_storage.get_final_image_url.assert_any_call(landscape_gcs_uri,
-                                                     width=2048)
+    mock_storage.get_final_image_url.assert_any_call(
+      landscape_gcs_uri,
+      width=image_operations._AD_LANDSCAPE_CANVAS_WIDTH,
+    )
     mock_storage.get_final_image_url.assert_any_call(portrait_drawing_gcs_uri,
                                                      width=1024)
     mock_storage.get_final_image_url.assert_any_call(portrait_desk_gcs_uri,
@@ -462,13 +523,12 @@ class CreateBookPagesTest(unittest.TestCase):
     punchline_image = _make_image('blue')
     style_colors = ['green', 'yellow', 'orange', 'purple', 'pink']
     style_images = [
-      _make_image(style_colors[idx % len(style_colors)]) for idx, _ in
-      enumerate(image_operations._STYLE_REFERENCE_IMAGE_URLS)
+      _make_image(style_colors[idx % len(style_colors)])
+      for idx, _ in enumerate(image_operations._STYLE_REFERENCE_IMAGE_URLS)
     ]
     style_image_map = {
       url: style_images[idx]
-      for idx, url in enumerate(
-        image_operations._STYLE_REFERENCE_IMAGE_URLS)
+      for idx, url in enumerate(image_operations._STYLE_REFERENCE_IMAGE_URLS)
     }
 
     def _download_image_side_effect(gcs_uri: str):
@@ -686,13 +746,12 @@ class CreateBookPagesTest(unittest.TestCase):
     punchline_image = _make_image('blue')
     style_colors = ['green', 'yellow', 'orange', 'purple', 'pink']
     style_images = [
-      _make_image(style_colors[idx % len(style_colors)]) for idx, _ in
-      enumerate(image_operations._STYLE_REFERENCE_IMAGE_URLS)
+      _make_image(style_colors[idx % len(style_colors)])
+      for idx, _ in enumerate(image_operations._STYLE_REFERENCE_IMAGE_URLS)
     ]
     style_image_map = {
       url: style_images[idx]
-      for idx, url in enumerate(
-        image_operations._STYLE_REFERENCE_IMAGE_URLS)
+      for idx, url in enumerate(image_operations._STYLE_REFERENCE_IMAGE_URLS)
     }
 
     def _download_image_side_effect(gcs_uri: str):
@@ -1001,8 +1060,7 @@ class CreateBookPagesTest(unittest.TestCase):
     style_palette = ['#224466', '#336699', '#4477aa', '#5588bb', '#6699cc']
     style_images = {
       url: _make_image(style_palette[idx % len(style_palette)])
-      for idx, url in enumerate(
-        image_operations._STYLE_REFERENCE_IMAGE_URLS)
+      for idx, url in enumerate(image_operations._STYLE_REFERENCE_IMAGE_URLS)
     }
 
     def _download_image_side_effect(gcs_uri: str):
@@ -1149,8 +1207,7 @@ class CreateBookPagesTest(unittest.TestCase):
     style_palette = ['#224466', '#336699', '#4477aa', '#5588bb', '#6699cc']
     style_images = {
       url: _make_image(style_palette[idx % len(style_palette)])
-      for idx, url in enumerate(
-        image_operations._STYLE_REFERENCE_IMAGE_URLS)
+      for idx, url in enumerate(image_operations._STYLE_REFERENCE_IMAGE_URLS)
     }
 
     def _download_image_side_effect(gcs_uri: str):

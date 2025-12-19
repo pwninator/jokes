@@ -1,0 +1,69 @@
+{% extends "base.html" %}
+
+{% block page_title %}{{ page_title }}{% endblock %}
+
+{% block head_extra %}
+<meta name="robots" content="noindex,nofollow">
+{% endblock %}
+
+{% block content %}
+<section class="card" style="max-width: 640px; margin: 0 auto;">
+  <h1 style="margin-top: 0;">{{ heading }}</h1>
+  {% if message %}
+  <p class="muted">{{ message }}</p>
+  {% endif %}
+
+  <p>
+    <a class="text-button"
+       href="{{ target_url }}"
+       rel="noopener noreferrer"
+       data-analytics-event="{{ click_event_name }}"
+       data-analytics-label="{{ click_event_label }}"
+    >
+      {{ link_text }}
+    </a>
+  </p>
+
+  <p class="muted" style="margin-bottom: 0;">
+    If you aren't redirected automatically, use the link above.
+  </p>
+</section>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  (function () {
+    var targetUrl = {{ target_url | tojson }};
+    var maxWaitMs = {{ delay_ms | default(250) }};
+    var eventName = {{ event_name | tojson }};
+    var eventParams = {{ event_params | tojson }};
+
+    var hasNavigated = false;
+    function navigate() {
+      if (hasNavigated) {
+        return;
+      }
+      hasNavigated = true;
+      window.location.replace(targetUrl);
+    }
+
+    try {
+      if (eventName && typeof window.gtag === 'function') {
+        var params = eventParams || {};
+        params.transport_type = 'beacon';
+        params.event_callback = navigate;
+        params.event_timeout = maxWaitMs;
+        window.gtag('event', eventName, params);
+        window.setTimeout(navigate, maxWaitMs);
+        return;
+      }
+    } catch (e) {
+      // Best-effort only; still navigate.
+    }
+
+    window.setTimeout(navigate, maxWaitMs);
+  })();
+</script>
+{% endblock %}
+
+

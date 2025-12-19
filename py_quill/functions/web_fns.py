@@ -91,6 +91,14 @@ def _html_response(html: str,
   return resp
 
 
+def _html_no_store_response(html: str, status: int = 200) -> flask.Response:
+  """Create an HTML response that should never be cached."""
+  resp = flask.make_response(html, status)
+  resp.headers['Content-Type'] = 'text/html; charset=utf-8'
+  resp.headers['Cache-Control'] = 'no-store'
+  return resp
+
+
 def _resolve_country_code(req: flask.Request) -> str:
   """Determine the ISO country code for the current request."""
   override = amazon_redirect.normalize_country_code(
@@ -139,7 +147,32 @@ def _handle_amazon_redirect(redirect_key: str) -> flask.Response:
   )
   _log_amazon_redirect(redirect_key, requested_country, resolved_country,
                        target_url)
-  return flask.redirect(target_url, code=302)
+
+  html = flask.render_template(
+    'redirect.html',
+    page_title=config_entry.label,
+    heading='Redirecting to Amazon…',
+    message='Taking you to Amazon now.',
+    target_url=target_url,
+    link_text='Continue to Amazon',
+    delay_ms=250,
+    event_name='amazon_redirect',
+    event_params={
+      'redirect_key': redirect_key,
+      'requested_country_code': requested_country,
+      'resolved_country_code': resolved_country,
+      'asin': config_entry.asin,
+      'page_type': config_entry.page_type.value,
+    },
+    click_event_name='amazon_redirect_click',
+    click_event_label=redirect_key,
+    canonical_url=flask.request.url,
+    prev_url=None,
+    next_url=None,
+    site_name='Snickerdoodle',
+    now_year=datetime.datetime.now(datetime.timezone.utc).year,
+  )
+  return _html_no_store_response(html, status=200)
 
 
 def _redirect_endpoint_for_key(

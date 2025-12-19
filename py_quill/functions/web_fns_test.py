@@ -503,6 +503,20 @@ def test_pages_include_ga4_tag_and_parchment_background(monkeypatch):
   assert '/jokes/dogs' not in index_html
 
 
+def test_amazon_redirect_renders_intermediate_page(monkeypatch):
+  """Amazon redirects should render an intermediate redirect page (not a 302)."""
+  with web_fns.app.test_client() as client:
+    resp = client.get('/book-animal-jokes?country_override=DE')
+
+  assert resp.status_code == 200
+  html = resp.get_data(as_text=True)
+  assert '<meta name="robots" content="noindex,nofollow">' in html
+  assert "amazon_redirect" in html
+  assert "location.replace" in html
+  assert "www.amazon.de" in html
+  assert "B0G7F82P65" in html
+
+
 def test_admin_joke_book_upload_image_book_page(monkeypatch):
   """Test uploading a book page image updates metadata and variants."""
   _mock_admin_session(monkeypatch)
@@ -942,21 +956,18 @@ def test_admin_stats_rebuckets_and_colors(monkeypatch):
   assert dau_data["datasets"][1]["data"] == [2, 2]  # 1-9 bucket
   assert dau_data["datasets"][2]["data"] == [3, 3]  # 10-19 bucket
   assert dau_data["datasets"][3]["data"] == [4, 4]  # 100-149 bucket
-  assert dau_data["datasets"][4]["data"] == [0, 0]  # 150-199 bucket (not in DAU)
+  assert dau_data["datasets"][4]["data"] == [0,
+                                             0]  # 150-199 bucket (not in DAU)
   # Color map: zero bucket gray, others colored (not gray)
   assert dau_data["datasets"][0]["backgroundColor"] == "#9e9e9e"
-  non_zero_colors = {
-    ds["backgroundColor"]
-    for ds in dau_data["datasets"][1:]
-  }
+  non_zero_colors = {ds["backgroundColor"] for ds in dau_data["datasets"][1:]}
   assert "#9e9e9e" not in non_zero_colors
 
   retention_data = captured["retention_data"]
   assert retention_data["labels"] == ["2", "8-14", "15-21"]
   retention_labels = [ds["label"] for ds in retention_data["datasets"]]
-  assert retention_labels == [
-    "1-9 jokes", "10-19 jokes", "150-199 jokes"
-  ]
+  assert retention_labels == ["1-9 jokes", "10-19 jokes", "150-199 jokes"]
+
   # Percentages: counts 1,2,3 => totals 6
   def _dataset(label):
     return next(d for d in retention_data["datasets"] if d["label"] == label)

@@ -783,6 +783,8 @@ def admin_joke_book_detail(book_id: str):
     jokes=joke_rows,
     generate_book_page_url=generate_book_page_url,
     update_book_page_url=flask.url_for('web.admin_update_joke_book_page'),
+    set_main_image_url=flask.url_for(
+      'web.admin_set_main_joke_image_from_book_page'),
     book_total_cost=total_book_cost if joke_rows else None,
     site_name='Snickerdoodle',
   )
@@ -842,6 +844,62 @@ def admin_update_joke_book_page():
     updates.get('book_page_setup_image_url'),
     'book_page_punchline_image_url':
     updates.get('book_page_punchline_image_url'),
+  })
+
+
+@web_bp.route('/admin/joke-books/set-main-image', methods=['POST'])
+@auth_helpers.require_admin
+def admin_set_main_joke_image_from_book_page():
+  """Promote the selected book page image to the main joke image."""
+  book_id = flask.request.form.get('joke_book_id')
+  joke_id = flask.request.form.get('joke_id')
+  target = flask.request.form.get('target')
+
+  if not book_id or not joke_id:
+    return flask.Response('joke_book_id and joke_id are required', 400)
+
+  if target not in {'setup', 'punchline'}:
+    return flask.Response('target must be setup or punchline', 400)
+
+  client = firestore.db()
+  book_ref = client.collection('joke_books').document(book_id)
+  book_doc = book_ref.get()
+  if not getattr(book_doc, 'exists', False):
+    return flask.Response('Joke book not found', 404)
+
+  book_data = book_doc.to_dict() or {}
+  joke_ids = book_data.get('jokes') or []
+  if isinstance(joke_ids, list) and joke_ids and joke_id not in joke_ids:
+    return flask.Response('Joke does not belong to this book', 404)
+
+  joke_ref = client.collection('jokes').document(joke_id)
+  metadata_ref = joke_ref.collection('metadata').document('metadata')
+  metadata_doc = metadata_ref.get()
+  metadata = metadata_doc.to_dict() if getattr(metadata_doc, 'exists',
+                                               False) else {}
+
+  page_field = ('book_page_setup_image_url'
+                if target == 'setup' else 'book_page_punchline_image_url')
+  page_url = metadata.get(page_field)
+  if not page_url:
+    return flask.Response('Book page image not found', 400)
+
+  main_field = 'setup_image_url' if target == 'setup' else 'punchline_image_url'
+  history_field = ('all_setup_image_urls' if target == 'setup' else
+                   'all_punchline_image_urls')
+  upscaled_field = ('setup_image_url_upscaled' if target == 'setup' else
+                    'punchline_image_url_upscaled')
+
+  joke_ref.update({
+    main_field: page_url,
+    history_field: ArrayUnion([page_url]),
+    upscaled_field: None,
+  })
+
+  return flask.jsonify({
+    'book_id': book_id,
+    'joke_id': joke_id,
+    main_field: page_url,
   })
 
 

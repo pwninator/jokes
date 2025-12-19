@@ -78,6 +78,10 @@
   .image-actions {
     align-self: flex-start;
     margin-top: 4px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
   }
 
   .download-link {
@@ -440,6 +444,12 @@
             rel="noopener noreferrer">
             Download
           </a>
+          <a class="download-link text-button set-main-link"
+            href="#"
+            data-target="setup"
+            data-joke-id="{{ joke.id }}">
+            Set as main joke image
+          </a>
         </div>
       </div>
       <div class="image-column">
@@ -465,6 +475,12 @@
             rel="noopener noreferrer">
             Download
           </a>
+          <a class="download-link text-button set-main-link"
+            href="#"
+            data-target="punchline"
+            data-joke-id="{{ joke.id }}">
+            Set as main joke image
+          </a>
         </div>
       </div>
     </div>
@@ -475,8 +491,10 @@
 
 <script>
   (function () {
+    const bookId = {{ book.id | tojson }};
     const forms = Array.from(document.querySelectorAll('.regenerate-form'));
     const updateBookPageUrl = "{{ update_book_page_url }}";
+    const setMainImageUrl = {{ set_main_image_url | tojson }};
     const functionsOrigin = {{ functions_origin | tojson }};
     const regenerateZipEndpoint = functionsOrigin
       ? `${functionsOrigin}/update_joke_book_zip`
@@ -592,6 +610,71 @@
       const id = window.setInterval(renderTime, 1000);
       return () => window.clearInterval(id);
     };
+
+    const setLinkLoadingState = (link, isLoading) => {
+      if (!link) return;
+      if (isLoading) {
+        link.dataset.originalText = link.textContent;
+        link.textContent = 'Setting...';
+        link.dataset.loading = 'true';
+        link.style.pointerEvents = 'none';
+      } else {
+        const original = link.dataset.originalText;
+        if (original) {
+          link.textContent = original;
+        }
+        link.dataset.loading = 'false';
+        link.style.pointerEvents = '';
+      }
+    };
+
+    function attachSetMainListener(link) {
+      if (!link) return;
+      link.addEventListener('click', (evt) => {
+        evt.preventDefault();
+        if (link.dataset.loading === 'true') return;
+        const jokeId = link.dataset.jokeId;
+        const target = link.dataset.target;
+        const card = link.closest('.joke-card');
+        const statusRow = card?.querySelector('.status-row');
+        const timerDisplay = card?.querySelector('.timer-display');
+        const errorBox = card?.querySelector('.inline-error');
+        if (!jokeId || !target || !card || !statusRow || !timerDisplay || !errorBox) {
+          return;
+        }
+        errorBox.textContent = '';
+        const stopper = startTimer(statusRow, timerDisplay);
+        setLinkLoadingState(link, true);
+
+        const formData = new FormData();
+        formData.set('joke_book_id', bookId);
+        formData.set('joke_id', jokeId);
+        formData.set('target', target);
+
+        fetch(setMainImageUrl, {
+          method: 'POST',
+          body: formData,
+          mode: 'cors',
+        })
+          .then((resp) => {
+            if (!resp.ok) {
+              return resp.text().then((txt) => {
+                throw new Error(txt || 'Failed to set main image');
+              });
+            }
+            return resp.json();
+          })
+          .then(() => updateRow(bookId, jokeId))
+          .catch((err) => {
+            console.error(err);
+            errorBox.textContent = err?.message || 'Failed to set main image.';
+          })
+          .finally(() => {
+            if (stopper) stopper();
+            setLinkLoadingState(link, false);
+          });
+      });
+    }
 
     function attachTileListener(tile) {
       tile.addEventListener('click', () => {
@@ -889,6 +972,9 @@
           });
       });
     });
+
+    document.querySelectorAll('.set-main-link')
+      .forEach((link) => attachSetMainListener(link));
 
     document.querySelectorAll('.variant-tile')
       .forEach((tile) => attachTileListener(tile));

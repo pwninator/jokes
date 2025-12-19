@@ -335,6 +335,7 @@ def test_admin_joke_book_detail_renders_images_and_placeholders(monkeypatch):
   assert "width=1024" not in html
   assert "No punchline image" in html
   assert "Download all pages" in html
+  assert "Set as main joke image" in html
   assert "https://generate-joke-book-page-uqdkqas7gq-uc.a.run.app" in html
   assert "$0.1234" in html
   assert "$0.0500" in html
@@ -343,6 +344,7 @@ def test_admin_joke_book_detail_renders_images_and_placeholders(monkeypatch):
   assert "book_page_setup_image_url" in html
   assert "book_page_punchline_image_url" in html
   assert "/admin/joke-books/update-page" in html
+  assert "/admin/joke-books/set-main-image" in html
 
 
 def test_admin_joke_book_refresh_includes_download_urls(monkeypatch):
@@ -701,6 +703,56 @@ def test_admin_update_joke_book_page_requires_new_url(monkeypatch):
 
   assert resp.status_code == 400
   assert b"Provide new_book_page_setup_image_url" in resp.data
+
+
+def test_admin_set_main_image_from_book_page(monkeypatch):
+  """Promoting a book page image updates the main joke document."""
+  _mock_admin_session(monkeypatch)
+
+  metadata_doc = Mock()
+  metadata_doc.exists = True
+  metadata_doc.to_dict.return_value = {
+    'book_page_setup_image_url': 'https://cdn/book-setup.png',
+    'book_page_punchline_image_url': 'https://cdn/book-punch.png',
+  }
+  metadata_ref = Mock()
+  metadata_ref.get.return_value = metadata_doc
+
+  joke_ref = Mock()
+  joke_ref.collection.return_value.document.return_value = metadata_ref
+
+  book_doc = Mock()
+  book_doc.exists = True
+  book_doc.to_dict.return_value = {'jokes': ['joke-77']}
+  book_ref = Mock()
+  book_ref.get.return_value = book_doc
+
+  def _collection(name):
+    collection = Mock()
+    if name == 'joke_books':
+      collection.document.return_value = book_ref
+    elif name == 'jokes':
+      collection.document.return_value = joke_ref
+    return collection
+
+  mock_db = Mock()
+  mock_db.collection.side_effect = _collection
+  monkeypatch.setattr(web_fns.firestore, "db", lambda: mock_db)
+
+  with web_fns.app.test_client() as client:
+    resp = client.post('/admin/joke-books/set-main-image',
+                       data={
+                         'joke_book_id': 'book-abc',
+                         'joke_id': 'joke-77',
+                         'target': 'setup',
+                       })
+
+  assert resp.status_code == 200
+  update_args = joke_ref.update.call_args[0][0]
+  assert update_args['setup_image_url'] == "https://cdn/book-setup.png"
+  assert isinstance(update_args['all_setup_image_urls'], web_fns.ArrayUnion)
+  assert update_args['setup_image_url_upscaled'] is None
+  assert resp.get_json()['setup_image_url'] == "https://cdn/book-setup.png"
 
 
 def test_admin_stats_page_loads(monkeypatch):

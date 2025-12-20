@@ -23,6 +23,7 @@ class JokeCard extends ConsumerWidget {
   final String? topRightBadgeText;
   final bool showSimilarSearchButton;
   final String? dataSource;
+  final bool skipJokeTracking;
 
   const JokeCard({
     super.key,
@@ -42,6 +43,7 @@ class JokeCard extends ConsumerWidget {
     this.topRightBadgeText,
     this.showSimilarSearchButton = false,
     this.dataSource,
+    this.skipJokeTracking = false,
   });
 
   @override
@@ -76,6 +78,7 @@ class JokeCard extends ConsumerWidget {
         showSimilarSearchButton: showSimilarSearchButton,
         mode: mode,
         dataSource: dataSource,
+        skipJokeTracking: skipJokeTracking,
       );
     } else {
       // No images or incomplete images - show text with populate button

@@ -62,6 +62,7 @@ class _FakeRemoteValues implements RemoteConfigValues {
       case RemoteParam.bookPromoCardMinJokesViewed:
       case RemoteParam.bookPromoCardInsertAfter:
       case RemoteParam.bookPromoCardCooldownDays:
+      case RemoteParam.bookPromoCardVariant:
         return false;
     }
   }
@@ -105,6 +106,8 @@ class _FakeRemoteValues implements RemoteConfigValues {
       case RemoteParam.bookPromoCardInsertAfter:
         return 0;
       case RemoteParam.bookPromoCardCooldownDays:
+        return 0;
+      case RemoteParam.bookPromoCardVariant:
         return 0;
     }
   }

@@ -100,7 +100,10 @@ abstract class AnalyticsService {
   void logJokeFeedEndEmptyViewed({required String jokeContext});
 
   /// Log when the Book Promo Card is rendered.
-  void logBookPromoCardViewed({required String jokeContext});
+  void logBookPromoCardViewed({
+    required String jokeContext,
+    String? bookPromoVariant,
+  });
 
   // Ads: banner lifecycle
   void logAdBannerStatus({required String eligibilityStatus});
@@ -604,9 +607,14 @@ class FirebaseAnalyticsService implements AnalyticsService {
   }
 
   @override
-  void logBookPromoCardViewed({required String jokeContext}) {
+  void logBookPromoCardViewed({
+    required String jokeContext,
+    String? bookPromoVariant,
+  }) {
     _logEvent(AnalyticsEvent.bookPromoCardViewed, {
       AnalyticsParameters.jokeContext: jokeContext,
+      if (bookPromoVariant != null)
+        AnalyticsParameters.bookPromoVariant: bookPromoVariant,
     });
   }
 

@@ -6,6 +6,7 @@ import 'package:snickerdoodle/src/core/providers/connectivity_providers.dart';
 import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
+import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
 import 'package:snickerdoodle/src/data/jokes/joke_interactions_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/data/core/app/app_providers.dart';
@@ -64,6 +65,42 @@ class JokeEntryViewConfig {
   final String? dataSource;
   final bool showUserRatingButtons;
 }
+
+class BookPromoFakeJokeVariant {
+  const BookPromoFakeJokeVariant({
+    required this.variantId,
+    required this.setupImageUrl,
+    required this.punchlineImageUrl,
+  });
+
+  final String variantId;
+  final String setupImageUrl;
+  final String punchlineImageUrl;
+}
+
+const Map<String, BookPromoFakeJokeVariant> fakeJokeVariants = {
+  'fake_joke_1': BookPromoFakeJokeVariant(
+    variantId: 'fake_joke_1',
+    setupImageUrl:
+        "https://images.quillsstorybook.com/cdn-cgi/image/width=1024,format=auto,quality=75/pun_agent_image_20251220_063100_488567.png",
+    punchlineImageUrl:
+        "https://images.quillsstorybook.com/cdn-cgi/image/width=1024,format=auto,quality=75/_joke_assets/pun_agent_image_20251220_063154_684068_2.png",
+  ),
+  'fake_joke_2': BookPromoFakeJokeVariant(
+    variantId: 'fake_joke_2',
+    setupImageUrl:
+        "https://images.quillsstorybook.com/cdn-cgi/image/width=1024,format=auto,quality=75/pun_agent_image_20251220_082928_515313.png",
+    punchlineImageUrl:
+        "https://images.quillsstorybook.com/cdn-cgi/image/width=1024,format=auto,quality=75/_joke_assets/pun_agent_image_20251220_072939_329947_2.png",
+  ),
+  'fake_joke_3': BookPromoFakeJokeVariant(
+    variantId: 'fake_joke_3',
+    setupImageUrl:
+        "https://images.quillsstorybook.com/cdn-cgi/image/width=1024,format=auto,quality=75/pun_agent_image_20251220_063842_639194.png",
+    punchlineImageUrl:
+        "https://images.quillsstorybook.com/cdn-cgi/image/width=1024,format=auto,quality=75/_joke_assets/pun_agent_image_20251220_073731_191925_2.png",
+  ),
+};
 
 class JokeSlotEntryRenderer extends SlotEntryRenderer {
   const JokeSlotEntryRenderer();
@@ -257,20 +294,40 @@ class BookPromoSlotEntryRenderer extends SlotEntryRenderer {
     required SlotEntryViewConfig config,
   }) {
     entry as BookPromoSlotEntry;
-    return _BookPromoCard(jokeContext: config.jokeContext);
+    final remoteValues = config.ref.read(remoteConfigValuesProvider);
+    final requestedVariantId = remoteValues
+        .getString(RemoteParam.bookPromoCardVariant)
+        .trim()
+        .toLowerCase();
+    final fallbackVariant =
+        fakeJokeVariants['fake_joke_1'] ?? fakeJokeVariants.values.first;
+    final variant = fakeJokeVariants[requestedVariantId] ?? fallbackVariant;
+    final resolvedVariantId = variant.variantId;
+
+    return _FakeJokePromoCard(
+      jokeContext: config.jokeContext,
+      variant: variant,
+      variantString: resolvedVariantId,
+    );
   }
 }
 
-class _BookPromoCard extends ConsumerStatefulWidget {
-  const _BookPromoCard({required this.jokeContext});
+class _FakeJokePromoCard extends ConsumerStatefulWidget {
+  const _FakeJokePromoCard({
+    required this.jokeContext,
+    required this.variant,
+    required this.variantString,
+  });
 
   final String jokeContext;
+  final BookPromoFakeJokeVariant variant;
+  final String variantString;
 
   @override
-  ConsumerState<_BookPromoCard> createState() => _BookPromoCardState();
+  ConsumerState<_FakeJokePromoCard> createState() => _FakeJokePromoCardState();
 }
 
-class _BookPromoCardState extends ConsumerState<_BookPromoCard> {
+class _FakeJokePromoCardState extends ConsumerState<_FakeJokePromoCard> {
   bool _logged = false;
 
   @override
@@ -283,92 +340,43 @@ class _BookPromoCardState extends ConsumerState<_BookPromoCard> {
     if (_logged) return;
     try {
       final analytics = ref.read(analyticsServiceProvider);
-      analytics.logBookPromoCardViewed(jokeContext: widget.jokeContext);
+      analytics.logBookPromoCardViewed(
+        jokeContext: widget.jokeContext,
+        bookPromoVariant: widget.variantString,
+      );
       final appUsage = ref.read(appUsageServiceProvider);
       final now = ref.read(clockProvider)();
       await appUsage.setBookPromoCardLastShown(now);
       _logged = true;
     } catch (e, stack) {
-      AppLogger.error('BOOK_PROMO_CARD analytics error: $e', stackTrace: stack);
+      AppLogger.error('FAKE_BOOK_PROMO analytics error: $e', stackTrace: stack);
     }
+  }
+
+  Joke _buildFakeJoke() {
+    return Joke(
+      id: widget.variant.variantId,
+      setupText: 'Fake joke setup (${widget.variant.variantId})',
+      punchlineText: 'Fake joke punchline (${widget.variant.variantId})',
+      setupImageUrl: widget.variant.setupImageUrl,
+      punchlineImageUrl: widget.variant.punchlineImageUrl,
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final surfaceColor = theme.colorScheme.surfaceContainerHighest;
-    final accentColor = theme.colorScheme.primary;
-    final textColor = theme.textTheme.titleMedium?.color;
-    final subtleTextColor = textColor?.withAlpha((0.7 * 255).round());
-    final artworkBackground = theme.colorScheme.surfaceContainerHigh;
-
-    return Card(
-      color: surfaceColor,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      elevation: 2,
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            AspectRatio(
-              aspectRatio: 16 / 9,
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: artworkBackground,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Center(
-                  child: Icon(Icons.menu_book_outlined, size: 48),
-                ),
-              ),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'Create your own illustrated joke book',
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w600,
-                color: textColor,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Soon you will be able to bundle your favorites into a custom book '
-              'built from the jokes you love most.',
-              style: theme.textTheme.bodyMedium?.copyWith(
-                color: subtleTextColor,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Keep an eye out for this Book Promo Card. A full image and CTA '
-              'will land here once assets are ready.',
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: subtleTextColor,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(999),
-                border: Border.all(color: accentColor.withAlpha(120)),
-              ),
-              child: Text(
-                'Book Promo Card',
-                style: theme.textTheme.labelLarge?.copyWith(
-                  color: accentColor,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
+    final fakeJoke = _buildFakeJoke();
+    return JokeCard(
+      key: Key('fake-joke-card-${widget.variant.variantId}'),
+      joke: fakeJoke,
+      jokeContext: widget.jokeContext,
+      showSaveButton: false,
+      showShareButton: false,
+      showAdminRatingButtons: false,
+      showUserRatingButtons: false,
+      showSimilarSearchButton: false,
+      showUsageStats: false,
+      skipJokeTracking: true,
     );
   }
 }

@@ -145,6 +145,13 @@
           },
           "description": "Minimum days before showing the Book Promo Card again",
           "valueType": "NUMBER"
+        },
+        "book_promo_card_variant": {
+          "defaultValue": {
+            "value": "fake_joke_1"
+          },
+          "description": "Which Book Promo card variant to show: test|fake_joke_1|fake_joke_2|fake_joke_3",
+          "valueType": "STRING"
         }
       }
     },

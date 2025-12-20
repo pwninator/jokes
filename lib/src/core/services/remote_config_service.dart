@@ -86,6 +86,10 @@ const Map<RemoteParam, RemoteParamDescriptor> remoteParams = {
     defaultInt: 5,
     isValid: validateNonNegativeInt,
   ),
+  RemoteParam.bookPromoCardVariant: StringRemoteParamDescriptor(
+    key: 'book_promo_card_variant',
+    defaultString: 'fake_joke_2',
+  ),
 
   /////////////////
   // Joke Viewer //
@@ -146,6 +150,7 @@ enum RemoteParam {
   bookPromoCardMinJokesViewed,
   bookPromoCardInsertAfter,
   bookPromoCardCooldownDays,
+  bookPromoCardVariant,
 }
 
 // Enum used by share images mode configuration

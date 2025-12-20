@@ -65,6 +65,7 @@ class JokeImageCarousel extends ConsumerStatefulWidget {
   final bool showSimilarSearchButton;
   final JokeViewerMode mode;
   final String? dataSource;
+  final bool skipJokeTracking;
 
   const JokeImageCarousel({
     super.key,
@@ -85,6 +86,7 @@ class JokeImageCarousel extends ConsumerStatefulWidget {
     this.showSimilarSearchButton = false,
     this.mode = JokeViewerMode.reveal,
     this.dataSource,
+    this.skipJokeTracking = false,
   });
 
   @override
@@ -124,7 +126,12 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
 
   void _startViewTimerForIndex(int index) {
     _viewTimer?.cancel();
-    if (!_hasBothImages || _jokeViewedLogged || widget.isAdminMode) return;
+    if (!_hasBothImages ||
+        _jokeViewedLogged ||
+        widget.isAdminMode ||
+        widget.skipJokeTracking) {
+      return;
+    }
     _viewTimer = Timer(_jokeImageViewThreshold, () async {
       if (!mounted || _jokeViewedLogged) return;
       final analyticsService = ref.read(analyticsServiceProvider);
@@ -132,7 +139,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
         _setupThresholdMet = true;
         if (!_setupEventLogged) {
           _setupEventLogged = true;
-          if (!widget.isAdminMode) {
+          if (!widget.isAdminMode && !widget.skipJokeTracking) {
             analyticsService.logJokeSetupViewed(
               widget.joke.id,
               navigationMethod:
@@ -163,7 +170,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
             _punchlineThresholdMet = true;
             if (!_punchlineEventLogged) {
               _punchlineEventLogged = true;
-              if (!widget.isAdminMode) {
+              if (!widget.isAdminMode && !widget.skipJokeTracking) {
                 final analyticsServiceInner = ref.read(
                   analyticsServiceProvider,
                 );
@@ -185,7 +192,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
         _punchlineThresholdMet = true;
         if (!_punchlineEventLogged) {
           _punchlineEventLogged = true;
-          if (!widget.isAdminMode) {
+          if (!widget.isAdminMode && !widget.skipJokeTracking) {
             analyticsService.logJokePunchlineViewed(
               widget.joke.id,
               navigationMethod:
@@ -209,7 +216,12 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
   }
 
   void _logNavigationIfNeeded() {
-    if (_navigationLogged || widget.isAdminMode || !mounted) return;
+    if (_navigationLogged ||
+        widget.isAdminMode ||
+        widget.skipJokeTracking ||
+        !mounted) {
+      return;
+    }
     try {
       final appUsageService = ref.read(appUsageServiceProvider);
       _navigationLogged = true;
@@ -229,7 +241,12 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
 
   Future<void> _maybeLogJokeFullyViewed() async {
     // Guard against running after disposal or when conditions aren't met
-    if (!mounted || _jokeViewedLogged || !_hasBothImages) return;
+    if (!mounted ||
+        _jokeViewedLogged ||
+        !_hasBothImages ||
+        widget.skipJokeTracking) {
+      return;
+    }
     if (_setupThresholdMet && _punchlineThresholdMet) {
       _jokeViewedLogged = true;
       final appUsageService = ref.read(appUsageServiceProvider);
@@ -272,7 +289,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
       _startViewTimerForIndex(0);
 
       // Start a carousel_to_visible trace once per carousel instance (per joke) - skip in admin mode
-      if (!widget.isAdminMode) {
+      if (!widget.isAdminMode && !widget.skipJokeTracking) {
         _perf.startNamedTrace(
           name: TraceName.carouselToVisible,
           key: widget.joke.id,
@@ -1244,18 +1261,20 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
       showLoadingIndicator: true,
       showErrorIcon: true,
       onFirstImagePaint: (widthHint) {
-        // Stop app create to first joke trace
-        _perf.stopNamedTrace(name: TraceName.appCreateToFirstJoke);
-        _perf.stopNamedTrace(name: TraceName.startupToFirstJoke);
+        if (!widget.skipJokeTracking) {
+          // Stop app create to first joke trace
+          _perf.stopNamedTrace(name: TraceName.appCreateToFirstJoke);
+          _perf.stopNamedTrace(name: TraceName.startupToFirstJoke);
 
-        // Stop any active search traces
-        _perf.stopNamedTrace(name: TraceName.searchToFirstImage);
+          // Stop any active search traces
+          _perf.stopNamedTrace(name: TraceName.searchToFirstImage);
 
-        // Also stop the carousel_to_visible trace for this carousel (stop on first pixel of any image)
-        _perf.stopNamedTrace(
-          name: TraceName.carouselToVisible,
-          key: widget.joke.id,
-        );
+          // Also stop the carousel_to_visible trace for this carousel (stop on first pixel of any image)
+          _perf.stopNamedTrace(
+            name: TraceName.carouselToVisible,
+            key: widget.joke.id,
+          );
+        }
 
         // After the first image is actually visible, defer preloading of next jokes
         if (!_nextPrecacheScheduled && widthHint != null) {

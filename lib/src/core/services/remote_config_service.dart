@@ -88,7 +88,7 @@ const Map<RemoteParam, RemoteParamDescriptor> remoteParams = {
   ),
   RemoteParam.bookPromoCardVariant: StringRemoteParamDescriptor(
     key: 'book_promo_card_variant',
-    defaultString: 'fake_joke_2',
+    defaultString: 'fake_joke_bunny',
   ),
 
   /////////////////

@@ -148,9 +148,9 @@
         },
         "book_promo_card_variant": {
           "defaultValue": {
-            "value": "fake_joke_1"
+            "value": "fake_joke_zoo"
           },
-          "description": "Which Book Promo card variant to show: test|fake_joke_1|fake_joke_2|fake_joke_3",
+          "description": "Which Book Promo card variant to show: fake_joke_zoo|fake_joke_bunny|fake_joke_read",
           "valueType": "STRING"
         }
       }

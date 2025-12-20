@@ -79,22 +79,22 @@ class BookPromoFakeJokeVariant {
 }
 
 const Map<String, BookPromoFakeJokeVariant> fakeJokeVariants = {
-  'fake_joke_1': BookPromoFakeJokeVariant(
-    variantId: 'fake_joke_1',
+  'fake_joke_zoo': BookPromoFakeJokeVariant(
+    variantId: 'fake_joke_zoo',
     setupImageUrl:
         "https://images.quillsstorybook.com/cdn-cgi/image/width=1024,format=auto,quality=75/pun_agent_image_20251220_063100_488567.png",
     punchlineImageUrl:
         "https://images.quillsstorybook.com/cdn-cgi/image/width=1024,format=auto,quality=75/_joke_assets/pun_agent_image_20251220_063154_684068_2.png",
   ),
-  'fake_joke_2': BookPromoFakeJokeVariant(
-    variantId: 'fake_joke_2',
+  'fake_joke_bunny': BookPromoFakeJokeVariant(
+    variantId: 'fake_joke_bunny',
     setupImageUrl:
         "https://images.quillsstorybook.com/cdn-cgi/image/width=1024,format=auto,quality=75/pun_agent_image_20251220_082928_515313.png",
     punchlineImageUrl:
         "https://images.quillsstorybook.com/cdn-cgi/image/width=1024,format=auto,quality=75/_joke_assets/pun_agent_image_20251220_072939_329947_2.png",
   ),
-  'fake_joke_3': BookPromoFakeJokeVariant(
-    variantId: 'fake_joke_3',
+  'fake_joke_read': BookPromoFakeJokeVariant(
+    variantId: 'fake_joke_read',
     setupImageUrl:
         "https://images.quillsstorybook.com/cdn-cgi/image/width=1024,format=auto,quality=75/pun_agent_image_20251220_063842_639194.png",
     punchlineImageUrl:
@@ -299,8 +299,7 @@ class BookPromoSlotEntryRenderer extends SlotEntryRenderer {
         .getString(RemoteParam.bookPromoCardVariant)
         .trim()
         .toLowerCase();
-    final fallbackVariant =
-        fakeJokeVariants['fake_joke_1'] ?? fakeJokeVariants.values.first;
+    final fallbackVariant = fakeJokeVariants.values.first;
     final variant = fakeJokeVariants[requestedVariantId] ?? fallbackVariant;
     final resolvedVariantId = variant.variantId;
 

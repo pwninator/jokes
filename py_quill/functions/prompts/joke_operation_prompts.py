@@ -32,6 +32,11 @@ Content that matches any of the following criteria are considered unsafe:
 - Discrimination, stereotypes, or anything demeaning toward people or groups.
 - Personal data leakage (names/addresses/contacts/IDs) or doxxing.
 - Anything frightening, disturbing, or otherwise inappropriate for young kids.
+
+You must strike a balance between allowing reasonable content and rejecting truly unsafe content:
+- Mild cartoon violence is allowed such as those found in Paw Patrol or other children's shows are allowed, but scenes involving blood, gore, serious injury, etc. are not allowed.
+- Potty humor like fart jokes are allowed, but overly gross scenes, such as throwing poop or detailed descriptions of bodily functions, are not allowed.
+When in doubt, think whether such a scene would be allowed in a children's show or movie, such as Paw Patrol, Peppa Pig, Disney/Pixar movies, etc.
 """
 
 _scene_generator_llm = llm_client.get_client(
@@ -206,7 +211,7 @@ _safety_llm = llm_client.get_client(
   thinking_tokens=500,
   output_tokens=500,
   system_instructions=[
-    f"""You are a strict safety reviewer for a kid-focused jokes app (ages 4-12).
+    f"""You are a strict safety reviewer for a kid-focused jokes app (ages 5-12).
 Decide if the provided content is SAFE for that context. When in doubt, mark it UNSAFE.
 
 {_UNSAFE_CRITERIA}

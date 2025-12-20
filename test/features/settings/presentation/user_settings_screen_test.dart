@@ -1216,6 +1216,7 @@ void _setupAppUsageServiceDefaults(MockAppUsageService mock) {
   when(() => mock.getNumJokesViewed()).thenAnswer((_) async => 2);
   when(() => mock.getNumSavedJokes()).thenAnswer((_) async => 2);
   when(() => mock.getNumSharedJokes()).thenAnswer((_) async => 3);
+  when(() => mock.getBookPromoCardLastShown()).thenAnswer((_) async => null);
   when(
     () => mock.getNavigatedJokeIds(),
   ).thenAnswer((_) async => const ['joke-nav-1', 'joke-nav-2']);
@@ -1231,6 +1232,9 @@ void _setupAppUsageServiceDefaults(MockAppUsageService mock) {
   when(() => mock.setFirstUsedDate(any<String?>())).thenAnswer((_) async {});
   when(() => mock.setLastUsedDate(any<String?>())).thenAnswer((_) async {});
   when(() => mock.setNumDaysUsed(any<int>())).thenAnswer((_) async {});
+  when(
+    () => mock.setBookPromoCardLastShown(any<DateTime?>()),
+  ).thenAnswer((_) async {});
 }
 
 void _setupAppReviewServiceDefaults(MockAppReviewService mock) {

@@ -201,11 +201,17 @@ class AppUsageService {
   }
 
   /// Persists the last shown timestamp for the Book Promo Card.
-  Future<void> setBookPromoCardLastShown(DateTime timestamp) async {
+  Future<void> setBookPromoCardLastShown(DateTime? timestamp) async {
+    if (timestamp == null) {
+      await _settings.remove(_bookPromoCardLastShownKey);
+      _notifyUsageChanged();
+      return;
+    }
     await _settings.setString(
       _bookPromoCardLastShownKey,
       timestamp.toIso8601String(),
     );
+    _notifyUsageChanged();
   }
 
   // ===============================

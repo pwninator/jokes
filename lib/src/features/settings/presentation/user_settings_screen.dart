@@ -457,6 +457,58 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
                                             },
                                           ),
                                     ),
+                                    _buildInfoRowButton(
+                                      label: 'Book Promo Viewed',
+                                      buttonLabel:
+                                          (metrics.bookPromoLastShown ?? '')
+                                              .trim()
+                                              .isEmpty
+                                          ? '—'
+                                          : metrics.bookPromoLastShown!,
+                                      buttonKey: const Key(
+                                        'user_settings_screen-book-promo-last-shown-button',
+                                      ),
+                                      onPressed: () =>
+                                          _showEditableUsageValueDialog(
+                                            context: context,
+                                            ref: ref,
+                                            keyPrefix: 'book-promo-last-shown',
+                                            title: 'Book Promo Last Viewed',
+                                            initialValue:
+                                                metrics.bookPromoLastShown ??
+                                                '',
+                                            validator: (value) {
+                                              final trimmed = value.trim();
+                                              if (trimmed.isEmpty) {
+                                                return null; // allow clearing
+                                              }
+                                              final parsed = DateTime.tryParse(
+                                                trimmed,
+                                              );
+                                              if (parsed == null) {
+                                                return 'Enter an ISO-8601 timestamp (or clear it).';
+                                              }
+                                              return null;
+                                            },
+                                            onSubmit: (usage, value) async {
+                                              final trimmed = value.trim();
+                                              if (trimmed.isEmpty) {
+                                                await usage
+                                                    .setBookPromoCardLastShown(
+                                                      null,
+                                                    );
+                                                return;
+                                              }
+                                              final parsed = DateTime.parse(
+                                                trimmed,
+                                              );
+                                              await usage
+                                                  .setBookPromoCardLastShown(
+                                                    parsed,
+                                                  );
+                                            },
+                                          ),
+                                    ),
                                     const SizedBox(height: 8),
                                     Wrap(
                                       spacing: 8,
@@ -1453,6 +1505,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
     final jokesNavigated = await usage.getNumJokesNavigated();
     final jokesSaved = await usage.getNumSavedJokes();
     final jokesShared = await usage.getNumSharedJokes();
+    final bookPromoLastShown = await usage.getBookPromoCardLastShown();
     final reviewRequested = reviewStore.hasRequested();
     final feedbackViewed = await feedbackStore.hasViewed();
 
@@ -1464,6 +1517,7 @@ class _UserSettingsScreenState extends ConsumerState<UserSettingsScreen> {
       numJokesViewed: jokesViewed,
       numJokesSaved: jokesSaved,
       numJokesShared: jokesShared,
+      bookPromoLastShown: bookPromoLastShown?.toIso8601String(),
       reviewPromptRequested: reviewRequested,
       feedbackDialogViewed: feedbackViewed,
       subscriptionChoiceMade: subscriptionPrompt.hasUserMadeChoice,
@@ -1764,6 +1818,7 @@ class _UsageMetrics {
   final int numJokesViewed;
   final int numJokesSaved;
   final int numJokesShared;
+  final String? bookPromoLastShown;
   final bool reviewPromptRequested;
   final bool feedbackDialogViewed;
   final bool subscriptionChoiceMade;
@@ -1776,6 +1831,7 @@ class _UsageMetrics {
     required this.numJokesViewed,
     required this.numJokesSaved,
     required this.numJokesShared,
+    required this.bookPromoLastShown,
     required this.reviewPromptRequested,
     required this.feedbackDialogViewed,
     required this.subscriptionChoiceMade,

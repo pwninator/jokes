@@ -186,7 +186,7 @@ class NoopAppUsageService implements AppUsageService {
   Future<DateTime?> getBookPromoCardLastShown() async => null;
 
   @override
-  Future<void> setBookPromoCardLastShown(DateTime timestamp) async {}
+  Future<void> setBookPromoCardLastShown(DateTime? timestamp) async {}
 
   @override
   Future<void> logAppUsage() async {}

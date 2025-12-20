@@ -266,10 +266,7 @@ void main() {
       final notifier = container.read(jokePopulationProvider.notifier);
 
       // Call populateJoke with additional parameters
-      await notifier.populateJoke(
-        jokeId,
-        additionalParams: additionalParams,
-      );
+      await notifier.populateJoke(jokeId, additionalParams: additionalParams);
 
       // assert
       verify(

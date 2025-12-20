@@ -50,22 +50,29 @@ class SlotEntriesNotifier extends StateNotifier<AsyncValue<List<SlotEntry>>> {
   }
 
   void _enqueueUpdate(AsyncValue<List<JokeWithDate>> value) {
-    Future.microtask(() => _handleJokes(value));
+    Future.microtask(() async {
+      await _handleJokes(value);
+    });
   }
 
-  void _handleJokes(AsyncValue<List<JokeWithDate>> value) {
+  Future<void> _handleJokes(AsyncValue<List<JokeWithDate>> value) async {
     if (_isDisposed) return;
-    value.when(
-      data: (jokes) {
-        _updateEntries(jokes);
+    await value.when<Future<void>>(
+      data: (jokes) async {
+        await _updateEntries(jokes);
+        if (_isDisposed) return;
         state = AsyncValue.data(List<SlotEntry>.unmodifiable(_entries));
       },
-      loading: () => state = const AsyncValue.loading(),
-      error: (error, stack) => state = AsyncValue.error(error, stack),
+      loading: () async {
+        state = const AsyncValue.loading();
+      },
+      error: (error, stack) async {
+        state = AsyncValue.error(error, stack);
+      },
     );
   }
 
-  void _updateEntries(List<JokeWithDate> jokes) {
+  Future<void> _updateEntries(List<JokeWithDate> jokes) async {
     // If more data became available again, remove any trailing EndOfFeed entry.
     if (_entries.isNotEmpty &&
         _entries.last is EndOfFeedSlotEntry &&
@@ -82,14 +89,17 @@ class SlotEntriesNotifier extends StateNotifier<AsyncValue<List<SlotEntry>>> {
       newJokes.add(JokeSlotEntry(joke: jokes[i]));
     }
     final existingEntries = List<SlotEntry>.unmodifiable(_entries);
-    final injected = strategies.fold<List<SlotEntry>>(
-      newJokes,
-      (current, strategy) => strategy.apply(
-        existingEntries: existingEntries,
-        newEntries: current,
-        hasMore: _ref.read(hasMoreProvider),
-      ),
-    );
+    List<SlotEntry> injected = newJokes;
+    for (final strategy in strategies) {
+      injected = await Future.value(
+        strategy.apply(
+          ref: _ref,
+          existingEntries: existingEntries,
+          newEntries: injected,
+          hasMore: _ref.read(hasMoreProvider),
+        ),
+      );
+    }
     _entries.addAll(injected);
     _jokeIds = jokes.map((j) => j.joke.id).toList(growable: false);
   }

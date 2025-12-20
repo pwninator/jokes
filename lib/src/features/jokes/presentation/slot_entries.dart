@@ -26,3 +26,8 @@ class EndOfFeedSlotEntry extends SlotEntry {
   /// Total real jokes displayed once this entry is appended.
   final int totalJokes;
 }
+
+/// Promotional card entry inserted into the feed.
+class BookPromoSlotEntry extends SlotEntry {
+  const BookPromoSlotEntry();
+}

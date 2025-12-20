@@ -1,3 +1,10 @@
+import 'dart:async';
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
+import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
+import 'package:snickerdoodle/src/data/core/app/app_providers.dart';
+
 import 'slot_entries.dart';
 
 /// Base contract for slot-injection strategies.
@@ -10,7 +17,8 @@ import 'slot_entries.dart';
 abstract class SlotInjectionStrategy {
   const SlotInjectionStrategy();
 
-  List<SlotEntry> apply({
+  FutureOr<List<SlotEntry>> apply({
+    required Ref ref,
     required List<SlotEntry> existingEntries,
     required List<SlotEntry> newEntries,
     required bool hasMore,
@@ -25,6 +33,7 @@ class EndOfFeedSlotInjectionStrategy extends SlotInjectionStrategy {
 
   @override
   List<SlotEntry> apply({
+    required Ref ref,
     required List<SlotEntry> existingEntries,
     required List<SlotEntry> newEntries,
     required bool hasMore,
@@ -56,4 +65,109 @@ class EndOfFeedSlotInjectionStrategy extends SlotInjectionStrategy {
 
   bool _isEndOfFeedEntry(SlotEntry? entry) =>
       entry is EndOfFeedSlotEntry && entry.jokeContext == jokeContext;
+}
+
+/// Injection strategy that inserts a promotional card after a configured
+/// number of jokes when engagement criteria are met.
+class BookPromoCardInjectionStrategy extends SlotInjectionStrategy {
+  const BookPromoCardInjectionStrategy({required this.jokeContext});
+
+  final String jokeContext;
+
+  @override
+  Future<List<SlotEntry>> apply({
+    required Ref ref,
+    required List<SlotEntry> existingEntries,
+    required List<SlotEntry> newEntries,
+    required bool hasMore,
+  }) async {
+    if (_hasExistingPromo(existingEntries) ||
+        _hasExistingPromo(newEntries) ||
+        newEntries.isEmpty) {
+      return newEntries;
+    }
+
+    final remoteValues = ref.read(remoteConfigValuesProvider);
+    final insertAfter = remoteValues.getInt(
+      RemoteParam.bookPromoCardInsertAfter,
+    );
+    if (insertAfter < 0) {
+      return newEntries;
+    }
+
+    final existingJokeCount = _countJokeEntries(existingEntries);
+    final totalJokeCount = existingJokeCount + _countJokeEntries(newEntries);
+
+    if (totalJokeCount < insertAfter) {
+      return newEntries;
+    }
+
+    final minJokesViewed = remoteValues.getInt(
+      RemoteParam.bookPromoCardMinJokesViewed,
+    );
+    final cooldownDays = remoteValues.getInt(
+      RemoteParam.bookPromoCardCooldownDays,
+    );
+
+    final appUsage = ref.read(appUsageServiceProvider);
+    final jokesViewed = await appUsage.getNumJokesViewed();
+    if (jokesViewed < minJokesViewed) {
+      return newEntries;
+    }
+
+    final lastShown = await appUsage.getBookPromoCardLastShown();
+    final now = ref.read(clockProvider)();
+    if (lastShown != null) {
+      final daysSince = now.difference(lastShown).inDays;
+      if (daysSince < cooldownDays) {
+        return newEntries;
+      }
+    }
+
+    // Insert promo card before the joke that exceeds the threshold.
+    return _injectPromoCard(
+      newEntries: newEntries,
+      existingJokeCount: existingJokeCount,
+      insertAfter: insertAfter,
+    );
+  }
+
+  List<SlotEntry> _injectPromoCard({
+    required List<SlotEntry> newEntries,
+    required int existingJokeCount,
+    required int insertAfter,
+  }) {
+    if (insertAfter == 0 && existingJokeCount == 0) {
+      return [const BookPromoSlotEntry(), ...newEntries];
+    }
+
+    final List<SlotEntry> injected = [];
+    int jokeCount = existingJokeCount;
+    bool promoInserted = false;
+
+    for (final entry in newEntries) {
+      if (!promoInserted && jokeCount >= insertAfter) {
+        injected.add(const BookPromoSlotEntry());
+        promoInserted = true;
+      }
+
+      injected.add(entry);
+
+      if (entry is JokeSlotEntry) {
+        jokeCount++;
+      }
+    }
+
+    if (!promoInserted && jokeCount >= insertAfter) {
+      injected.add(const BookPromoSlotEntry());
+    }
+
+    return injected;
+  }
+
+  bool _hasExistingPromo(List<SlotEntry> entries) =>
+      entries.any((entry) => entry is BookPromoSlotEntry);
+
+  int _countJokeEntries(List<SlotEntry> entries) =>
+      entries.whereType<JokeSlotEntry>().length;
 }

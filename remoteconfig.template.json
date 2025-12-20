@@ -123,6 +123,31 @@
         }
       }
     },
+    "Book Promo Card": {
+      "parameters": {
+        "book_promo_card_min_jokes_viewed": {
+          "defaultValue": {
+            "value": "20"
+          },
+          "description": "Minimum jokes viewed before showing the Book Promo Card",
+          "valueType": "NUMBER"
+        },
+        "book_promo_card_insert_after": {
+          "defaultValue": {
+            "value": "5"
+          },
+          "description": "Insert the Book Promo Card after this many jokes",
+          "valueType": "NUMBER"
+        },
+        "book_promo_card_cooldown_days": {
+          "defaultValue": {
+            "value": "5"
+          },
+          "description": "Minimum days before showing the Book Promo Card again",
+          "valueType": "NUMBER"
+        }
+      }
+    },
     "Onboarding": {
       "parameters": {
         "show_tour": {

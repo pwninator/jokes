@@ -50,6 +50,7 @@ class JokeListViewer extends ConsumerStatefulWidget {
 class _JokeListViewerState extends ConsumerState<JokeListViewer> {
   static const List<SlotEntryRenderer> _slotEntryRenderers = [
     JokeSlotEntryRenderer(),
+    BookPromoSlotEntryRenderer(),
     EndOfFeedSlotEntryRenderer(),
   ];
 

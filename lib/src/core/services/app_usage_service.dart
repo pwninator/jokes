@@ -116,6 +116,7 @@ class AppUsageService {
   static const String _numDaysUsedKey = 'num_days_used';
   static const String _compositeCursorKey =
       JokeConstants.compositeJokeCursorPrefsKey;
+  static const String _bookPromoCardLastShownKey = 'book_promo_card_last_shown';
 
   // ==============================
   // APP USAGE TRACKING
@@ -185,6 +186,27 @@ class AppUsageService {
 
   /// Get the number of days the app has been used (useful for UI and tests)
   Future<int> getNumDaysUsed() async => _settings.getInt(_numDaysUsedKey) ?? 0;
+
+  // ===============================
+  // BOOK PROMO CARD TRACKING
+  // ===============================
+
+  /// Returns the last time (in device local time) the Book Promo Card was shown.
+  Future<DateTime?> getBookPromoCardLastShown() async {
+    final storedValue = _settings.getString(_bookPromoCardLastShownKey);
+    if (storedValue == null || storedValue.isEmpty) {
+      return null;
+    }
+    return DateTime.tryParse(storedValue);
+  }
+
+  /// Persists the last shown timestamp for the Book Promo Card.
+  Future<void> setBookPromoCardLastShown(DateTime timestamp) async {
+    await _settings.setString(
+      _bookPromoCardLastShownKey,
+      timestamp.toIso8601String(),
+    );
+  }
 
   // ===============================
   // JOKE INTERACTIONS

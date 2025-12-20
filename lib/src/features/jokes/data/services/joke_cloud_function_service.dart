@@ -292,15 +292,11 @@ class JokeCloudFunctionService {
     try {
       final result = await _traceCf(
         functionName: 'joke_creation_process',
-        attributes: {
-          'image_quality': imageQuality,
-        },
+        attributes: {'image_quality': imageQuality},
         action: () async {
           final callable = _fns.httpsCallable(
             'joke_creation_process',
-            options: HttpsCallableOptions(
-              timeout: const Duration(minutes: 5),
-            ),
+            options: HttpsCallableOptions(timeout: const Duration(minutes: 5)),
           );
 
           final requestData = <String, dynamic>{

@@ -125,17 +125,17 @@ void main() {
           const jokeId = 'test-joke-id';
           final mockResponseData = {
             'error': 'Safety failed',
-          'error_type': 'safety_failed',
-        };
+            'error_type': 'safety_failed',
+          };
 
-        when(
-          () => mockFunctions.httpsCallable(
-            'joke_creation_process',
-            options: any(named: 'options'),
-          ),
-        ).thenReturn(mockCallable);
-        when(() => mockResult.data).thenReturn(mockResponseData);
-        when(
+          when(
+            () => mockFunctions.httpsCallable(
+              'joke_creation_process',
+              options: any(named: 'options'),
+            ),
+          ).thenReturn(mockCallable);
+          when(() => mockResult.data).thenReturn(mockResponseData);
+          when(
             () => mockCallable.call(any()),
           ).thenAnswer((_) async => mockResult);
 

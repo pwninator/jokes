@@ -183,6 +183,10 @@ class _NoopAppUsageService implements AppUsageService {
   @override
   Future<int> getNumSharedJokes() async => 0;
   @override
+  Future<DateTime?> getBookPromoCardLastShown() async => null;
+  @override
+  Future<void> setBookPromoCardLastShown(DateTime timestamp) async {}
+  @override
   Future<void> logAppUsage() async {}
   @override
   Future<void> logCategoryViewed(String categoryId) async {}

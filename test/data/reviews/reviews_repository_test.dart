@@ -87,4 +87,10 @@ class _FakeUsageService implements AppUsageService {
 
   @override
   Future<List<String>> getSavedJokeIds() async => const [];
+
+  @override
+  Future<DateTime?> getBookPromoCardLastShown() async => null;
+
+  @override
+  Future<void> setBookPromoCardLastShown(DateTime timestamp) async {}
 }

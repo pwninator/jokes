@@ -68,6 +68,25 @@ const Map<RemoteParam, RemoteParamDescriptor> remoteParams = {
     enumDefault: ReviewPromptVariant.kitten,
   ),
 
+  //////////////////////
+  // Book Promo Card  //
+  //////////////////////
+  RemoteParam.bookPromoCardMinJokesViewed: IntRemoteParamDescriptor(
+    key: 'book_promo_card_min_jokes_viewed',
+    defaultInt: 20,
+    isValid: validateNonNegativeInt,
+  ),
+  RemoteParam.bookPromoCardInsertAfter: IntRemoteParamDescriptor(
+    key: 'book_promo_card_insert_after',
+    defaultInt: 5,
+    isValid: validateNonNegativeInt,
+  ),
+  RemoteParam.bookPromoCardCooldownDays: IntRemoteParamDescriptor(
+    key: 'book_promo_card_cooldown_days',
+    defaultInt: 5,
+    isValid: validateNonNegativeInt,
+  ),
+
   /////////////////
   // Joke Viewer //
   /////////////////
@@ -124,6 +143,9 @@ enum RemoteParam {
   adDisplayMode,
   bannerAdPosition,
   onboardingShowTour,
+  bookPromoCardMinJokesViewed,
+  bookPromoCardInsertAfter,
+  bookPromoCardCooldownDays,
 }
 
 // Enum used by share images mode configuration

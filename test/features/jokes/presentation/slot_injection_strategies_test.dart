@@ -1,10 +1,25 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/presentation/slot_entries.dart';
 import 'package:snickerdoodle/src/features/jokes/presentation/slot_injection_strategies.dart';
 
+final _refProvider = Provider<Ref>((ref) => ref);
+
 void main() {
+  late ProviderContainer container;
+  late Ref ref;
+
+  setUp(() {
+    container = ProviderContainer();
+    ref = container.read(_refProvider);
+  });
+
+  tearDown(() {
+    container.dispose();
+  });
+
   group('EndOfFeedSlotInjectionStrategy', () {
     const strategy = EndOfFeedSlotInjectionStrategy(jokeContext: 'feed');
 
@@ -12,6 +27,7 @@ void main() {
       final newEntries = [_jokeEntry('a'), _jokeEntry('b')];
 
       final result = strategy.apply(
+        ref: ref,
         existingEntries: const [],
         newEntries: newEntries,
         hasMore: true,
@@ -25,6 +41,7 @@ void main() {
       final newEntries = [_jokeEntry('b')];
 
       final result = strategy.apply(
+        ref: ref,
         existingEntries: existingEntries,
         newEntries: newEntries,
         hasMore: false,
@@ -45,6 +62,7 @@ void main() {
         ];
 
         final result = strategy.apply(
+          ref: ref,
           existingEntries: existingEntries,
           newEntries: const [],
           hasMore: false,
@@ -60,6 +78,7 @@ void main() {
         final existingEntries = [_jokeEntry('a')];
 
         final result = strategy.apply(
+          ref: ref,
           existingEntries: existingEntries,
           newEntries: const [],
           hasMore: false,
@@ -82,6 +101,7 @@ void main() {
         final newEntries = [_jokeEntry('b')];
 
         final result = strategy.apply(
+          ref: ref,
           existingEntries: existingEntries,
           newEntries: newEntries,
           hasMore: false,

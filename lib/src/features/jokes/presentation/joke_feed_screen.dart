@@ -28,6 +28,9 @@ class _JokeFeedScreenState extends ConsumerState<JokeFeedScreen> {
     _slotSource = SlotSource.fromDataSource(
       CompositeJokeDataSource(ref),
       strategiesBuilder: (_) => const [
+        BookPromoCardInjectionStrategy(
+          jokeContext: AnalyticsJokeContext.jokeFeed,
+        ),
         EndOfFeedSlotInjectionStrategy(
           jokeContext: AnalyticsJokeContext.jokeFeed,
         ),

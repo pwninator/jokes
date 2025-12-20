@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:snickerdoodle/src/common_widgets/bouncing_button.dart';
 import 'package:snickerdoodle/src/common_widgets/joke_card.dart';
 import 'package:snickerdoodle/src/common_widgets/joke_image_carousel.dart';
 import 'package:snickerdoodle/src/core/providers/connectivity_providers.dart';
@@ -7,6 +8,7 @@ import 'package:snickerdoodle/src/core/services/analytics_service.dart';
 import 'package:snickerdoodle/src/core/services/app_logger.dart';
 import 'package:snickerdoodle/src/core/services/app_usage_service.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
+import 'package:snickerdoodle/src/core/services/url_launcher_service.dart';
 import 'package:snickerdoodle/src/data/jokes/joke_interactions_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/data/core/app/app_providers.dart';
@@ -303,11 +305,129 @@ class BookPromoSlotEntryRenderer extends SlotEntryRenderer {
     final variant = fakeJokeVariants[requestedVariantId] ?? fallbackVariant;
     final resolvedVariantId = variant.variantId;
 
-    return _FakeJokePromoCard(
+    return _BookPromoWithCta(
       jokeContext: config.jokeContext,
       variant: variant,
       variantString: resolvedVariantId,
+      isLandscape: config.isLandscape,
     );
+  }
+}
+
+class _BookPromoWithCta extends ConsumerWidget {
+  const _BookPromoWithCta({
+    required this.jokeContext,
+    required this.variant,
+    required this.variantString,
+    required this.isLandscape,
+  });
+
+  static final Uri _bookUrl = Uri.parse(
+    'http://snickerdoodlejokes.com/book-animal-jokes',
+  );
+
+  final String jokeContext;
+  final BookPromoFakeJokeVariant variant;
+  final String variantString;
+  final bool isLandscape;
+
+  Future<void> _onTapAmazon(BuildContext context, WidgetRef ref) async {
+    try {
+      final analytics = ref.read(analyticsServiceProvider);
+      analytics.logBookPromoAmazonButtonTapped(
+        jokeContext: jokeContext,
+        bookPromoVariant: variantString,
+      );
+
+      final launcher = ref.read(urlLauncherServiceProvider);
+      final didLaunch = await launcher.launchUrl(_bookUrl);
+      if (!didLaunch) {
+        AppLogger.error(
+          'BOOK_PROMO: launchUrl returned false (variant=$variantString, url=$_bookUrl)',
+        );
+      }
+    } catch (e, stack) {
+      AppLogger.error(
+        'BOOK_PROMO: failed to open Amazon link: $e',
+        stackTrace: stack,
+      );
+    }
+  }
+
+  Widget _buildCta(BuildContext context, WidgetRef ref) {
+    final theme = Theme.of(context);
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          "We just launched a Snickerdoodle Jokes book!",
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w600,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 12),
+        SizedBox(
+          width: double.infinity,
+          child: BouncingButton(
+            buttonKey: Key(
+              'slot_entry_renderers-book-promo-amazon-button-$variantString',
+            ),
+            isPositive: true,
+            style: ButtonStyle(
+              backgroundColor: WidgetStateProperty.resolveWith((states) {
+                return theme.colorScheme.tertiaryContainer;
+              }),
+            ),
+            onPressed: () => _onTapAmazon(context, ref),
+            child: const Text(
+              'See it on Amazon!',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w900,
+                letterSpacing: 0.5,
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final card = _FakeJokePromoCard(
+      jokeContext: jokeContext,
+      variant: variant,
+      variantString: variantString,
+    );
+
+    if (isLandscape) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(flex: 2, child: card),
+            Expanded(
+              flex: 1,
+              child: Padding(
+                padding: const EdgeInsets.only(top: 8, right: 8),
+                child: _buildCta(context, ref),
+              ),
+            ),
+          ],
+        ),
+      );
+    } else {
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [card, _buildCta(context, ref)],
+      );
+    }
   }
 }
 

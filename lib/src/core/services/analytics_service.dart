@@ -105,6 +105,12 @@ abstract class AnalyticsService {
     String? bookPromoVariant,
   });
 
+  /// Log when the Book Promo Amazon button is tapped.
+  void logBookPromoAmazonButtonTapped({
+    required String jokeContext,
+    required String bookPromoVariant,
+  });
+
   // Ads: banner lifecycle
   void logAdBannerStatus({required String eligibilityStatus});
 
@@ -615,6 +621,17 @@ class FirebaseAnalyticsService implements AnalyticsService {
       AnalyticsParameters.jokeContext: jokeContext,
       if (bookPromoVariant != null)
         AnalyticsParameters.bookPromoVariant: bookPromoVariant,
+    });
+  }
+
+  @override
+  void logBookPromoAmazonButtonTapped({
+    required String jokeContext,
+    required String bookPromoVariant,
+  }) {
+    _logEvent(AnalyticsEvent.bookPromoAmazonButtonTapped, {
+      AnalyticsParameters.jokeContext: jokeContext,
+      AnalyticsParameters.bookPromoVariant: bookPromoVariant,
     });
   }
 

@@ -12,12 +12,15 @@ import 'package:snickerdoodle/src/data/core/app/app_providers.dart';
 import 'package:snickerdoodle/src/data/core/app/firebase_providers.dart';
 import 'package:snickerdoodle/src/core/providers/settings_providers.dart';
 import 'package:snickerdoodle/src/core/services/remote_config_service.dart';
+import 'package:snickerdoodle/src/core/services/url_launcher_service.dart';
 import 'package:snickerdoodle/src/features/jokes/presentation/slot_entries.dart';
 import 'package:snickerdoodle/src/features/jokes/presentation/slot_entry_renderers.dart';
 
 class MockAnalyticsService extends Mock implements AnalyticsService {}
 
 class MockAppUsageService extends Mock implements AppUsageService {}
+
+class MockUrlLauncherService extends Mock implements UrlLauncherService {}
 
 class _FakeRemoteConfigValues implements RemoteConfigValues {
   _FakeRemoteConfigValues(this.variant);
@@ -75,8 +78,13 @@ class _NoopPerformanceService implements PerformanceService {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  setUpAll(() {
+    registerFallbackValue(Uri.parse('http://example.com'));
+  });
+
   late MockAnalyticsService mockAnalyticsService;
   late MockAppUsageService mockAppUsageService;
+  late MockUrlLauncherService mockUrlLauncherService;
   late SharedPreferences sharedPreferences;
   late PerformanceService performanceService;
   late MockFirebaseFunctions mockFirebaseFunctions;
@@ -87,6 +95,7 @@ void main() {
     sharedPreferences = await SharedPreferences.getInstance();
     mockAnalyticsService = MockAnalyticsService();
     mockAppUsageService = MockAppUsageService();
+    mockUrlLauncherService = MockUrlLauncherService();
     performanceService = _NoopPerformanceService();
     mockFirebaseFunctions = MockFirebaseFunctions();
   });
@@ -110,6 +119,7 @@ void main() {
         overrides: [
           analyticsServiceProvider.overrideWithValue(mockAnalyticsService),
           appUsageServiceProvider.overrideWithValue(mockAppUsageService),
+          urlLauncherServiceProvider.overrideWithValue(mockUrlLauncherService),
           clockProvider.overrideWithValue(() => fixedNow),
           sharedPreferencesProvider.overrideWithValue(sharedPreferences),
           performanceServiceProvider.overrideWithValue(performanceService),
@@ -118,22 +128,24 @@ void main() {
         ],
         child: MaterialApp(
           home: Scaffold(
-            body: Consumer(
-              builder: (context, ref, _) {
-                final renderer = const BookPromoSlotEntryRenderer();
-                final config = SlotEntryViewConfig(
-                  context: context,
-                  ref: ref,
-                  index: 0,
-                  isLandscape: false,
-                  jokeContext: 'joke_feed',
-                  showSimilarSearchButton: false,
-                );
-                return renderer.build(
-                  entry: const BookPromoSlotEntry(),
-                  config: config,
-                );
-              },
+            body: SingleChildScrollView(
+              child: Consumer(
+                builder: (context, ref, _) {
+                  final renderer = const BookPromoSlotEntryRenderer();
+                  final config = SlotEntryViewConfig(
+                    context: context,
+                    ref: ref,
+                    index: 0,
+                    isLandscape: false,
+                    jokeContext: 'joke_feed',
+                    showSimilarSearchButton: false,
+                  );
+                  return renderer.build(
+                    entry: const BookPromoSlotEntry(),
+                    config: config,
+                  );
+                },
+              ),
             ),
           ),
         ),
@@ -143,7 +155,19 @@ void main() {
     await tester.pump();
     await tester.pump();
 
-    expect(find.byKey(const Key('fake-joke-card-fake_joke_1')), findsOneWidget);
+    expect(
+      find.byKey(const Key('fake-joke-card-fake_joke_zoo')),
+      findsOneWidget,
+    );
+    expect(find.text('See it on Amazon!'), findsOneWidget);
+    expect(
+      find.byKey(
+        const Key(
+          'slot_entry_renderers-book-promo-amazon-button-fake_joke_zoo',
+        ),
+      ),
+      findsOneWidget,
+    );
     final capturedTestVariant = verify(
       () => mockAnalyticsService.logBookPromoCardViewed(
         jokeContext: captureAny(named: 'jokeContext'),
@@ -151,7 +175,7 @@ void main() {
       ),
     ).captured;
     expect(capturedTestVariant[0], 'joke_feed');
-    expect(capturedTestVariant[1], 'fake_joke_1');
+    expect(capturedTestVariant[1], 'fake_joke_zoo');
     verify(
       () => mockAppUsageService.setBookPromoCardLastShown(fixedNow),
     ).called(1);
@@ -160,7 +184,7 @@ void main() {
   testWidgets(
     'renders configured fake joke variant with analytics + usage logging',
     (tester) async {
-      final remoteValues = _FakeRemoteConfigValues('fake_joke_2');
+      final remoteValues = _FakeRemoteConfigValues('fake_joke_bunny');
       when(
         () => mockAnalyticsService.logBookPromoCardViewed(
           jokeContext: any(named: 'jokeContext'),
@@ -176,6 +200,9 @@ void main() {
           overrides: [
             analyticsServiceProvider.overrideWithValue(mockAnalyticsService),
             appUsageServiceProvider.overrideWithValue(mockAppUsageService),
+            urlLauncherServiceProvider.overrideWithValue(
+              mockUrlLauncherService,
+            ),
             clockProvider.overrideWithValue(() => fixedNow),
             sharedPreferencesProvider.overrideWithValue(sharedPreferences),
             performanceServiceProvider.overrideWithValue(performanceService),
@@ -184,15 +211,102 @@ void main() {
           ],
           child: MaterialApp(
             home: Scaffold(
-              body: Consumer(
+              body: SingleChildScrollView(
+                child: Consumer(
+                  builder: (context, ref, _) {
+                    final renderer = const BookPromoSlotEntryRenderer();
+                    final config = SlotEntryViewConfig(
+                      context: context,
+                      ref: ref,
+                      index: 0,
+                      isLandscape: false,
+                      jokeContext: 'discover',
+                      showSimilarSearchButton: false,
+                    );
+                    return renderer.build(
+                      entry: const BookPromoSlotEntry(),
+                      config: config,
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pump();
+      await tester.pump();
+
+      expect(
+        find.byKey(const Key('fake-joke-card-fake_joke_bunny')),
+        findsOneWidget,
+      );
+      final cardFinder = find.byType(JokeCard);
+      expect(cardFinder, findsOneWidget);
+      final JokeCard renderedCard = tester.widget(cardFinder);
+      expect(renderedCard.skipJokeTracking, isTrue);
+      expect(renderedCard.showSaveButton, isFalse);
+      expect(renderedCard.showShareButton, isFalse);
+      expect(find.text('See it on Amazon!'), findsOneWidget);
+      expect(
+        find.byKey(
+          const Key(
+            'slot_entry_renderers-book-promo-amazon-button-fake_joke_bunny',
+          ),
+        ),
+        findsOneWidget,
+      );
+      final capturedFakeVariant = verify(
+        () => mockAnalyticsService.logBookPromoCardViewed(
+          jokeContext: captureAny(named: 'jokeContext'),
+          bookPromoVariant: captureAny(named: 'bookPromoVariant'),
+        ),
+      ).captured;
+      expect(capturedFakeVariant[0], 'discover');
+      expect(capturedFakeVariant[1], 'fake_joke_bunny');
+      verify(
+        () => mockAppUsageService.setBookPromoCardLastShown(fixedNow),
+      ).called(1);
+    },
+  );
+
+  testWidgets('renders CTA to the right in landscape mode', (tester) async {
+    final remoteValues = _FakeRemoteConfigValues('fake_joke_read');
+    when(
+      () => mockAnalyticsService.logBookPromoCardViewed(
+        jokeContext: any(named: 'jokeContext'),
+        bookPromoVariant: any(named: 'bookPromoVariant'),
+      ),
+    ).thenAnswer((_) {});
+    when(
+      () => mockAppUsageService.setBookPromoCardLastShown(any()),
+    ).thenAnswer((_) async {});
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          analyticsServiceProvider.overrideWithValue(mockAnalyticsService),
+          appUsageServiceProvider.overrideWithValue(mockAppUsageService),
+          urlLauncherServiceProvider.overrideWithValue(mockUrlLauncherService),
+          clockProvider.overrideWithValue(() => fixedNow),
+          sharedPreferencesProvider.overrideWithValue(sharedPreferences),
+          performanceServiceProvider.overrideWithValue(performanceService),
+          remoteConfigValuesProvider.overrideWithValue(remoteValues),
+          firebaseFunctionsProvider.overrideWithValue(mockFirebaseFunctions),
+        ],
+        child: MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: Consumer(
                 builder: (context, ref, _) {
                   final renderer = const BookPromoSlotEntryRenderer();
                   final config = SlotEntryViewConfig(
                     context: context,
                     ref: ref,
                     index: 0,
-                    isLandscape: false,
-                    jokeContext: 'discover',
+                    isLandscape: true,
+                    jokeContext: 'joke_feed',
                     showSimilarSearchButton: false,
                   );
                   return renderer.build(
@@ -204,31 +318,214 @@ void main() {
             ),
           ),
         ),
-      );
+      ),
+    );
 
-      await tester.pump();
-      await tester.pump();
+    await tester.pump();
+    await tester.pump();
 
-      expect(
-        find.byKey(const Key('fake-joke-card-fake_joke_2')),
-        findsOneWidget,
-      );
-      final cardFinder = find.byType(JokeCard);
-      expect(cardFinder, findsOneWidget);
-      final JokeCard renderedCard = tester.widget(cardFinder);
-      expect(renderedCard.skipJokeTracking, isTrue);
-      expect(renderedCard.showSaveButton, isFalse);
-      expect(renderedCard.showShareButton, isFalse);
-      final capturedFakeVariant = verify(
+    final buttonFinder = find.byKey(
+      const Key('slot_entry_renderers-book-promo-amazon-button-fake_joke_read'),
+    );
+    expect(buttonFinder, findsOneWidget);
+
+    final rowAncestors = find.ancestor(
+      of: buttonFinder,
+      matching: find.byType(Row),
+    );
+    expect(
+      find.descendant(
+        of: rowAncestors,
+        matching: find.byKey(const Key('fake-joke-card-fake_joke_read')),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets(
+    'tapping Amazon button logs analytics with variant and opens URL',
+    (tester) async {
+      final remoteValues = _FakeRemoteConfigValues('fake_joke_read');
+      when(
         () => mockAnalyticsService.logBookPromoCardViewed(
-          jokeContext: captureAny(named: 'jokeContext'),
-          bookPromoVariant: captureAny(named: 'bookPromoVariant'),
+          jokeContext: any(named: 'jokeContext'),
+          bookPromoVariant: any(named: 'bookPromoVariant'),
         ),
-      ).captured;
-      expect(capturedFakeVariant[0], 'discover');
-      expect(capturedFakeVariant[1], 'fake_joke_2');
+      ).thenAnswer((_) {});
+      when(
+        () => mockAnalyticsService.logBookPromoAmazonButtonTapped(
+          jokeContext: any(named: 'jokeContext'),
+          bookPromoVariant: any(named: 'bookPromoVariant'),
+        ),
+      ).thenAnswer((_) {});
+      when(
+        () => mockAppUsageService.setBookPromoCardLastShown(any()),
+      ).thenAnswer((_) async {});
+      when(
+        () => mockUrlLauncherService.launchUrl(any()),
+      ).thenAnswer((_) async => true);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            analyticsServiceProvider.overrideWithValue(mockAnalyticsService),
+            appUsageServiceProvider.overrideWithValue(mockAppUsageService),
+            urlLauncherServiceProvider.overrideWithValue(
+              mockUrlLauncherService,
+            ),
+            clockProvider.overrideWithValue(() => fixedNow),
+            sharedPreferencesProvider.overrideWithValue(sharedPreferences),
+            performanceServiceProvider.overrideWithValue(performanceService),
+            remoteConfigValuesProvider.overrideWithValue(remoteValues),
+            firebaseFunctionsProvider.overrideWithValue(mockFirebaseFunctions),
+          ],
+          child: MaterialApp(
+            home: Scaffold(
+              body: SingleChildScrollView(
+                child: Consumer(
+                  builder: (context, ref, _) {
+                    final renderer = const BookPromoSlotEntryRenderer();
+                    final config = SlotEntryViewConfig(
+                      context: context,
+                      ref: ref,
+                      index: 0,
+                      isLandscape: false,
+                      jokeContext: 'discover',
+                      showSimilarSearchButton: false,
+                    );
+                    return renderer.build(
+                      entry: const BookPromoSlotEntry(),
+                      config: config,
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pump();
+      await tester.pump();
+
+      final buttonFinder = find.byKey(
+        const Key(
+          'slot_entry_renderers-book-promo-amazon-button-fake_joke_read',
+        ),
+      );
+      expect(buttonFinder, findsOneWidget);
+
+      await tester.ensureVisible(buttonFinder);
+      await tester.pump();
+
+      await tester.tap(buttonFinder);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 1));
+
       verify(
-        () => mockAppUsageService.setBookPromoCardLastShown(fixedNow),
+        () => mockAnalyticsService.logBookPromoAmazonButtonTapped(
+          jokeContext: 'discover',
+          bookPromoVariant: 'fake_joke_read',
+        ),
+      ).called(1);
+      verify(
+        () => mockUrlLauncherService.launchUrl(
+          Uri.parse('http://snickerdoodlejokes.com/book-animal-jokes'),
+        ),
+      ).called(1);
+    },
+  );
+
+  testWidgets(
+    'tapping Amazon button does not throw when launchUrl returns false',
+    (tester) async {
+      final remoteValues = _FakeRemoteConfigValues('fake_joke_read');
+      when(
+        () => mockAnalyticsService.logBookPromoCardViewed(
+          jokeContext: any(named: 'jokeContext'),
+          bookPromoVariant: any(named: 'bookPromoVariant'),
+        ),
+      ).thenAnswer((_) {});
+      when(
+        () => mockAnalyticsService.logBookPromoAmazonButtonTapped(
+          jokeContext: any(named: 'jokeContext'),
+          bookPromoVariant: any(named: 'bookPromoVariant'),
+        ),
+      ).thenAnswer((_) {});
+      when(
+        () => mockAppUsageService.setBookPromoCardLastShown(any()),
+      ).thenAnswer((_) async {});
+      when(
+        () => mockUrlLauncherService.launchUrl(any()),
+      ).thenAnswer((_) async => false);
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            analyticsServiceProvider.overrideWithValue(mockAnalyticsService),
+            appUsageServiceProvider.overrideWithValue(mockAppUsageService),
+            urlLauncherServiceProvider.overrideWithValue(
+              mockUrlLauncherService,
+            ),
+            clockProvider.overrideWithValue(() => fixedNow),
+            sharedPreferencesProvider.overrideWithValue(sharedPreferences),
+            performanceServiceProvider.overrideWithValue(performanceService),
+            remoteConfigValuesProvider.overrideWithValue(remoteValues),
+            firebaseFunctionsProvider.overrideWithValue(mockFirebaseFunctions),
+          ],
+          child: MaterialApp(
+            home: Scaffold(
+              body: SingleChildScrollView(
+                child: Consumer(
+                  builder: (context, ref, _) {
+                    final renderer = const BookPromoSlotEntryRenderer();
+                    final config = SlotEntryViewConfig(
+                      context: context,
+                      ref: ref,
+                      index: 0,
+                      isLandscape: false,
+                      jokeContext: 'joke_feed',
+                      showSimilarSearchButton: false,
+                    );
+                    return renderer.build(
+                      entry: const BookPromoSlotEntry(),
+                      config: config,
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pump();
+      await tester.pump();
+
+      final buttonFinder = find.byKey(
+        const Key(
+          'slot_entry_renderers-book-promo-amazon-button-fake_joke_read',
+        ),
+      );
+      expect(buttonFinder, findsOneWidget);
+
+      await tester.ensureVisible(buttonFinder);
+      await tester.pump();
+
+      await tester.tap(buttonFinder);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 1));
+
+      verify(
+        () => mockAnalyticsService.logBookPromoAmazonButtonTapped(
+          jokeContext: 'joke_feed',
+          bookPromoVariant: 'fake_joke_read',
+        ),
+      ).called(1);
+      verify(
+        () => mockUrlLauncherService.launchUrl(
+          Uri.parse('http://snickerdoodlejokes.com/book-animal-jokes'),
+        ),
       ).called(1);
     },
   );

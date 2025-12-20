@@ -16,6 +16,7 @@ enum AnalyticsEvent {
   jokeFeedEndViewed('joke_feed_end_viewed'),
   jokeFeedEndEmptyViewed('joke_feed_end_empty_viewed'),
   bookPromoCardViewed('book_promo_card_viewed'),
+  bookPromoAmazonButtonTapped('book_promo_amazon_button_tapped'),
   // Joke search event
   jokeSearch('joke_search'),
   // Similar search CTA event

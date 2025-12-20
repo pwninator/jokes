@@ -97,6 +97,8 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
     });
   }
 
+  String _bookPromoCarouselId(int index) => 'book_promo_$index';
+
   JokeImageCarouselController _controllerForJoke(String jokeId) {
     return _carouselControllers.putIfAbsent(
       jokeId,
@@ -177,16 +179,23 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
         currentEntryIsJoke = true;
         currentJoke = jokeWithDate.joke;
         currentJokeId = currentJoke.id;
+      } else if (currentEntry is BookPromoSlotEntry) {
+        currentEntryIsJoke = true;
+        currentJokeId = _bookPromoCarouselId(currentJokeIndex);
       }
     }
     final bool isLastEntry =
         entries.isEmpty || _currentPage >= entries.length - 1;
 
-    final bool hasPunchlineImage =
-        currentEntryIsJoke &&
-        currentJoke != null &&
-        currentJoke.punchlineImageUrl != null &&
-        currentJoke.punchlineImageUrl!.trim().isNotEmpty;
+    final currentEntry = !isEmpty
+        ? entries[_currentPage.clamp(0, entries.length - 1)]
+        : null;
+
+    final bool hasPunchlineImage = _entryHasPunchline(
+      currentEntry,
+      currentJoke,
+      currentEntryIsJoke,
+    );
     final int currentImageIndex = currentJokeId != null
         ? _currentImageStates[currentJokeId] ?? 0
         : 0;
@@ -235,6 +244,21 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
         ),
       ),
     );
+  }
+
+  bool _entryHasPunchline(
+    SlotEntry? entry,
+    Joke? joke,
+    bool currentEntryIsJoke,
+  ) {
+    if (!currentEntryIsJoke) return false;
+    if (entry is BookPromoSlotEntry) return true;
+    if (entry is JokeSlotEntry) {
+      return joke != null &&
+          joke.punchlineImageUrl != null &&
+          joke.punchlineImageUrl!.trim().isNotEmpty;
+    }
+    return false;
   }
 
   void _maybeLogFeedEmptyState({
@@ -470,15 +494,28 @@ class _JokeListViewerState extends ConsumerState<JokeListViewer> {
                       isLandscape: isLandscape,
                       jokeContext: widget.jokeContext,
                       showSimilarSearchButton: widget.showSimilarSearchButton,
+                      carouselController: _controllerForJoke(joke.id),
+                      onImageStateChanged: (imageIndex) =>
+                          _onImageStateChanged(joke.id, imageIndex),
                       jokeConfig: JokeEntryViewConfig(
                         formattedDate: formattedDate,
                         jokesToPreload: _jokesToPreload(entries, index),
-                        carouselController: _controllerForJoke(joke.id),
-                        onImageStateChanged: (imageIndex) =>
-                            _onImageStateChanged(joke.id, imageIndex),
                         dataSource: jokeWithDate.dataSource,
                         showUserRatingButtons: widget.showUserRatingButtons,
                       ),
+                    );
+                  } else if (entry is BookPromoSlotEntry) {
+                    final promoId = _bookPromoCarouselId(index);
+                    viewConfig = SlotEntryViewConfig(
+                      context: context,
+                      ref: ref,
+                      index: index,
+                      isLandscape: isLandscape,
+                      jokeContext: widget.jokeContext,
+                      showSimilarSearchButton: widget.showSimilarSearchButton,
+                      carouselController: _controllerForJoke(promoId),
+                      onImageStateChanged: (imageIndex) =>
+                          _onImageStateChanged(promoId, imageIndex),
                     );
                   } else {
                     viewConfig = SlotEntryViewConfig(

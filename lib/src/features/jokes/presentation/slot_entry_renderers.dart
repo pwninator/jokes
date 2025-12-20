@@ -37,6 +37,8 @@ class SlotEntryViewConfig {
     required this.isLandscape,
     required this.jokeContext,
     required this.showSimilarSearchButton,
+    this.carouselController,
+    this.onImageStateChanged,
     this.jokeConfig,
   });
 
@@ -46,6 +48,8 @@ class SlotEntryViewConfig {
   final bool isLandscape;
   final String jokeContext;
   final bool showSimilarSearchButton;
+  final JokeImageCarouselController? carouselController;
+  final void Function(int imageIndex)? onImageStateChanged;
   final JokeEntryViewConfig? jokeConfig;
 }
 
@@ -54,16 +58,12 @@ class JokeEntryViewConfig {
   const JokeEntryViewConfig({
     required this.formattedDate,
     required this.jokesToPreload,
-    required this.carouselController,
-    required this.onImageStateChanged,
     required this.dataSource,
     this.showUserRatingButtons = false,
   });
 
   final String? formattedDate;
   final List<Joke> jokesToPreload;
-  final JokeImageCarouselController carouselController;
-  final void Function(int imageIndex) onImageStateChanged;
   final String? dataSource;
   final bool showUserRatingButtons;
 }
@@ -135,7 +135,7 @@ class JokeSlotEntryRenderer extends SlotEntryRenderer {
       index: config.index,
       title: jokeConfig.formattedDate,
       dataSource: jokeConfig.dataSource,
-      onImageStateChanged: jokeConfig.onImageStateChanged,
+      onImageStateChanged: config.onImageStateChanged,
       isAdminMode: false,
       jokesToPreload: jokeConfig.jokesToPreload,
       showSaveButton: true,
@@ -143,7 +143,7 @@ class JokeSlotEntryRenderer extends SlotEntryRenderer {
       showAdminRatingButtons: false,
       showUserRatingButtons: jokeConfig.showUserRatingButtons,
       jokeContext: config.jokeContext,
-      controller: jokeConfig.carouselController,
+      controller: config.carouselController,
       showSimilarSearchButton: config.showSimilarSearchButton,
     );
   }
@@ -310,6 +310,8 @@ class BookPromoSlotEntryRenderer extends SlotEntryRenderer {
       variant: variant,
       variantString: resolvedVariantId,
       isLandscape: config.isLandscape,
+      carouselController: config.carouselController,
+      onImageStateChanged: config.onImageStateChanged,
     );
   }
 }
@@ -320,6 +322,8 @@ class _BookPromoWithCta extends ConsumerWidget {
     required this.variant,
     required this.variantString,
     required this.isLandscape,
+    required this.carouselController,
+    required this.onImageStateChanged,
   });
 
   static final Uri _bookUrl = Uri.parse(
@@ -330,6 +334,8 @@ class _BookPromoWithCta extends ConsumerWidget {
   final BookPromoFakeJokeVariant variant;
   final String variantString;
   final bool isLandscape;
+  final JokeImageCarouselController? carouselController;
+  final void Function(int imageIndex)? onImageStateChanged;
 
   Future<void> _onTapAmazon(BuildContext context, WidgetRef ref) async {
     try {
@@ -403,6 +409,8 @@ class _BookPromoWithCta extends ConsumerWidget {
       jokeContext: jokeContext,
       variant: variant,
       variantString: variantString,
+      carouselController: carouselController,
+      onImageStateChanged: onImageStateChanged,
     );
 
     if (isLandscape) {
@@ -436,11 +444,15 @@ class _FakeJokePromoCard extends ConsumerStatefulWidget {
     required this.jokeContext,
     required this.variant,
     required this.variantString,
+    this.carouselController,
+    this.onImageStateChanged,
   });
 
   final String jokeContext;
   final BookPromoFakeJokeVariant variant;
   final String variantString;
+  final JokeImageCarouselController? carouselController;
+  final void Function(int imageIndex)? onImageStateChanged;
 
   @override
   ConsumerState<_FakeJokePromoCard> createState() => _FakeJokePromoCardState();
@@ -489,6 +501,8 @@ class _FakeJokePromoCardState extends ConsumerState<_FakeJokePromoCard> {
       key: Key('fake-joke-card-${widget.variant.variantId}'),
       joke: fakeJoke,
       jokeContext: widget.jokeContext,
+      controller: widget.carouselController,
+      onImageStateChanged: widget.onImageStateChanged,
       showSaveButton: false,
       showShareButton: false,
       showAdminRatingButtons: false,

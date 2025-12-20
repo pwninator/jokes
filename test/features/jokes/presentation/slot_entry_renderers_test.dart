@@ -38,11 +38,11 @@ void main() {
                   isLandscape: false,
                   jokeContext: 'feed',
                   showSimilarSearchButton: true,
+                  carouselController: JokeImageCarouselController(),
+                  onImageStateChanged: (_) {},
                   jokeConfig: JokeEntryViewConfig(
                     formattedDate: '1/1/2024',
                     jokesToPreload: const [],
-                    carouselController: JokeImageCarouselController(),
-                    onImageStateChanged: (_) {},
                     dataSource: 'local',
                   ),
                 );

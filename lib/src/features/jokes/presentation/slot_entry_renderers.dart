@@ -366,13 +366,20 @@ class _BookPromoWithCta extends ConsumerWidget {
 
   Widget _buildCta(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
+    final remoteValues = ref.read(remoteConfigValuesProvider);
+    final configuredHeadline = remoteValues
+        .getString(RemoteParam.bookPromoCardHeadlineText)
+        .trim();
+    final headlineText = configuredHeadline.isEmpty
+        ? defaultBookPromoCardHeadlineText
+        : configuredHeadline;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Text(
-          "We just launched a Snickerdoodle Jokes book!",
+          headlineText,
           style: theme.textTheme.titleLarge?.copyWith(
             fontWeight: FontWeight.w600,
           ),

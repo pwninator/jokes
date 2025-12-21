@@ -152,6 +152,13 @@
           },
           "description": "Which Book Promo card variant to show: fake_joke_zoo|fake_joke_bunny|fake_joke_read",
           "valueType": "STRING"
+        },
+        "book_promo_card_headline_text": {
+          "defaultValue": {
+            "value": "We just launched a Snickerdoodle Jokes book!"
+          },
+          "description": "Headline shown above the Book Promo Card Amazon CTA button",
+          "valueType": "STRING"
         }
       }
     },

@@ -59,6 +59,7 @@ class _FakeRemoteValues implements RemoteConfigValues {
       case RemoteParam.reviewMinSavedJokes:
       case RemoteParam.reviewMinSharedJokes:
       case RemoteParam.reviewMinViewedJokes:
+      case RemoteParam.bookPromoCardHeadlineText:
       case RemoteParam.bookPromoCardMinJokesViewed:
       case RemoteParam.bookPromoCardInsertAfter:
       case RemoteParam.bookPromoCardCooldownDays:
@@ -100,6 +101,8 @@ class _FakeRemoteValues implements RemoteConfigValues {
       case RemoteParam.bannerAdPosition:
         return 0;
       case RemoteParam.onboardingShowTour:
+        return 0;
+      case RemoteParam.bookPromoCardHeadlineText:
         return 0;
       case RemoteParam.bookPromoCardMinJokesViewed:
         return 0;

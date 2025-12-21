@@ -71,6 +71,10 @@ const Map<RemoteParam, RemoteParamDescriptor> remoteParams = {
   //////////////////////
   // Book Promo Card  //
   //////////////////////
+  RemoteParam.bookPromoCardHeadlineText: StringRemoteParamDescriptor(
+    key: 'book_promo_card_headline_text',
+    defaultString: defaultBookPromoCardHeadlineText,
+  ),
   RemoteParam.bookPromoCardMinJokesViewed: IntRemoteParamDescriptor(
     key: 'book_promo_card_min_jokes_viewed',
     defaultInt: 20,
@@ -88,7 +92,7 @@ const Map<RemoteParam, RemoteParamDescriptor> remoteParams = {
   ),
   RemoteParam.bookPromoCardVariant: StringRemoteParamDescriptor(
     key: 'book_promo_card_variant',
-    defaultString: 'fake_joke_bunny',
+    defaultString: 'fake_joke_zoo',
   ),
 
   /////////////////
@@ -147,11 +151,16 @@ enum RemoteParam {
   adDisplayMode,
   bannerAdPosition,
   onboardingShowTour,
+  bookPromoCardHeadlineText,
   bookPromoCardMinJokesViewed,
   bookPromoCardInsertAfter,
   bookPromoCardCooldownDays,
   bookPromoCardVariant,
 }
+
+/// Default headline shown above the Book Promo Amazon CTA button.
+const String defaultBookPromoCardHeadlineText =
+    'We just launched a Snickerdoodle Jokes book!';
 
 // Enum used by share images mode configuration
 enum ShareImagesMode { auto, separate, stacked }

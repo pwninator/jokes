@@ -23,9 +23,10 @@ class MockAppUsageService extends Mock implements AppUsageService {}
 class MockUrlLauncherService extends Mock implements UrlLauncherService {}
 
 class _FakeRemoteConfigValues implements RemoteConfigValues {
-  _FakeRemoteConfigValues(this.variant);
+  _FakeRemoteConfigValues(this.variant, {this.headlineText});
 
   final String variant;
+  final String? headlineText;
 
   @override
   bool getBool(RemoteParam param) => false;
@@ -40,6 +41,9 @@ class _FakeRemoteConfigValues implements RemoteConfigValues {
   String getString(RemoteParam param) {
     if (param == RemoteParam.bookPromoCardVariant) {
       return variant;
+    }
+    if (param == RemoteParam.bookPromoCardHeadlineText) {
+      return headlineText ?? '';
     }
     return '';
   }
@@ -186,6 +190,75 @@ void main() {
     verify(
       () => mockAppUsageService.setBookPromoCardLastShown(fixedNow),
     ).called(1);
+  });
+
+  testWidgets('uses remote-configured headline text above Amazon CTA', (
+    tester,
+  ) async {
+    final originalSize = tester.view.physicalSize;
+    final originalDpr = tester.view.devicePixelRatio;
+    addTearDown(() {
+      tester.view.physicalSize = originalSize;
+      tester.view.devicePixelRatio = originalDpr;
+    });
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = const Size(400, 800); // portrait
+
+    const customHeadline = 'Custom promo headline';
+    final remoteValues = _FakeRemoteConfigValues(
+      'fake_joke_read',
+      headlineText: customHeadline,
+    );
+    when(
+      () => mockAnalyticsService.logBookPromoCardViewed(
+        jokeContext: any(named: 'jokeContext'),
+        bookPromoVariant: any(named: 'bookPromoVariant'),
+      ),
+    ).thenAnswer((_) {});
+    when(
+      () => mockAppUsageService.setBookPromoCardLastShown(any()),
+    ).thenAnswer((_) async {});
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          analyticsServiceProvider.overrideWithValue(mockAnalyticsService),
+          appUsageServiceProvider.overrideWithValue(mockAppUsageService),
+          urlLauncherServiceProvider.overrideWithValue(mockUrlLauncherService),
+          clockProvider.overrideWithValue(() => fixedNow),
+          sharedPreferencesProvider.overrideWithValue(sharedPreferences),
+          performanceServiceProvider.overrideWithValue(performanceService),
+          remoteConfigValuesProvider.overrideWithValue(remoteValues),
+          firebaseFunctionsProvider.overrideWithValue(mockFirebaseFunctions),
+        ],
+        child: MaterialApp(
+          home: Scaffold(
+            body: Consumer(
+              builder: (context, ref, _) {
+                final renderer = const BookPromoSlotEntryRenderer();
+                final config = SlotEntryViewConfig(
+                  context: context,
+                  ref: ref,
+                  index: 0,
+                  isLandscape: false,
+                  jokeContext: 'joke_feed',
+                  showSimilarSearchButton: false,
+                );
+                return renderer.build(
+                  entry: const BookPromoSlotEntry(),
+                  config: config,
+                );
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.pump();
+    await tester.pump();
+
+    expect(find.text(customHeadline), findsOneWidget);
   });
 
   testWidgets(

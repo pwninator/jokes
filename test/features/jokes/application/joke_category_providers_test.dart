@@ -4,9 +4,63 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_category_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_category.dart';
+import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_category_repository.dart';
 import 'package:snickerdoodle/src/features/settings/application/admin_settings_service.dart';
 
 void main() {
+  group('jokeCategoriesProvider', () {
+    test(
+      'sorts seasonal categories first, then sorts alphabetically by displayName',
+      () async {
+        final repo = _FakeJokeCategoryRepository(
+          categoriesStream: Stream.value([
+            JokeCategory(
+              id: '${JokeCategory.firestorePrefix}cats',
+              displayName: 'Cats',
+              type: CategoryType.firestore,
+              jokeDescriptionQuery: 'cats',
+              state: JokeCategoryState.approved,
+            ),
+            JokeCategory(
+              id: '${JokeCategory.firestorePrefix}zombies',
+              displayName: 'Zombies',
+              type: CategoryType.firestore,
+              seasonalValue: 'Halloween',
+              state: JokeCategoryState.approved,
+            ),
+            JokeCategory(
+              id: '${JokeCategory.firestorePrefix}bananas',
+              displayName: 'Bananas',
+              type: CategoryType.firestore,
+              jokeDescriptionQuery: 'bananas',
+              state: JokeCategoryState.approved,
+            ),
+            JokeCategory(
+              id: '${JokeCategory.firestorePrefix}apples',
+              displayName: 'Apples',
+              type: CategoryType.firestore,
+              seasonalValue: 'Spring',
+              state: JokeCategoryState.approved,
+            ),
+          ]),
+        );
+
+        final container = ProviderContainer(
+          overrides: [jokeCategoryRepositoryProvider.overrideWithValue(repo)],
+        );
+        addTearDown(container.dispose);
+
+        final value = await container.read(jokeCategoriesProvider.future);
+        expect(value.map((c) => c.displayName).toList(), [
+          'Apples',
+          'Zombies',
+          'Bananas',
+          'Cats',
+        ]);
+      },
+    );
+  });
+
   group('discoverCategoriesProvider', () {
     test(
       'includes popular, Halloween seasonal, and approved categories',
@@ -223,4 +277,42 @@ class _FakeAdminSettingsService implements AdminSettingsService {
   Future<void> setAdminShowProposedCategories(bool value) async {
     showProposedCategories = value;
   }
+}
+
+class _FakeJokeCategoryRepository implements JokeCategoryRepository {
+  _FakeJokeCategoryRepository({
+    required Stream<List<JokeCategory>> categoriesStream,
+  }) : _categoriesStream = categoriesStream;
+
+  final Stream<List<JokeCategory>> _categoriesStream;
+
+  @override
+  Stream<List<JokeCategory>> watchCategories() => _categoriesStream;
+
+  @override
+  Stream<JokeCategory?> watchCategory(String categoryId) =>
+      throw UnimplementedError();
+
+  @override
+  Future<void> upsertCategory(JokeCategory category) =>
+      throw UnimplementedError();
+
+  @override
+  Future<void> deleteCategory(String categoryId) => throw UnimplementedError();
+
+  @override
+  Stream<List<String>> watchCategoryImages(String categoryId) =>
+      throw UnimplementedError();
+
+  @override
+  Future<void> addImageToCategory(String categoryId, String imageUrl) =>
+      throw UnimplementedError();
+
+  @override
+  Future<void> deleteImageFromCategory(String categoryId, String imageUrl) =>
+      throw UnimplementedError();
+
+  @override
+  Future<List<CategoryCachedJoke>> getCachedCategoryJokes(String categoryId) =>
+      throw UnimplementedError();
 }

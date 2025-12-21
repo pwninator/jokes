@@ -22,8 +22,28 @@ JokeCategoryRepository jokeCategoryRepository(Ref ref) {
 
 // Stream of categories
 final jokeCategoriesProvider = StreamProvider<List<JokeCategory>>((ref) {
-  return ref.read(jokeCategoryRepositoryProvider).watchCategories();
+  return ref.read(jokeCategoryRepositoryProvider).watchCategories().map((list) {
+    final categories = [...list];
+    categories.sort(_compareDiscoverCategories);
+    return categories;
+  });
 });
+
+int _compareDiscoverCategories(JokeCategory a, JokeCategory b) {
+  final aIsSeasonal = a.seasonalValue != null;
+  final bIsSeasonal = b.seasonalValue != null;
+  if (aIsSeasonal != bIsSeasonal) {
+    // Seasonal categories first
+    return aIsSeasonal ? -1 : 1;
+  }
+
+  final byName = a.displayName.toLowerCase().compareTo(
+    b.displayName.toLowerCase(),
+  );
+  if (byName != 0) return byName;
+
+  return a.id.compareTo(b.id);
+}
 
 // Stream of images for a category
 final jokeCategoryImagesProvider = StreamProvider.autoDispose

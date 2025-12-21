@@ -528,6 +528,76 @@ def test_amazon_redirect_falls_back_to_ebook_for_unsupported_country():
   assert "B0G9765J19" in html
 
 
+def test_amazon_redirect_adds_attribution_tag_for_source(monkeypatch):
+  """Product redirects should include affiliate tags when configured."""
+  monkeypatch.setattr(web_fns.amazon_redirect, "AMAZON_ATTRIBUTION_TAGS",
+                      {("B0G7F82P65", "aae"): "ref_=aa&tag=tag-20"})
+
+  with web_fns.app.test_client() as client:
+    resp = client.get('/book-animal-jokes?country_override=US&source=aae')
+
+  assert resp.status_code == 200
+  html = resp.get_data(as_text=True)
+  assert "tag=tag-20" in html
+  assert "ref_=aa" in html
+
+
+def test_amazon_redirect_defaults_source_to_aa(monkeypatch):
+  """Product redirects should default source=aa when missing."""
+  monkeypatch.setattr(web_fns.amazon_redirect, "AMAZON_ATTRIBUTION_TAGS",
+                      {("B0G7F82P65", "aa"): "ref_=aa&tag=tag-20"})
+
+  with web_fns.app.test_client() as client:
+    resp = client.get('/book-animal-jokes?country_override=US')
+
+  assert resp.status_code == 200
+  html = resp.get_data(as_text=True)
+  assert "tag=tag-20" in html
+  assert "ref_=aa" in html
+
+
+def test_amazon_redirect_uses_resolved_asin_for_attribution(monkeypatch):
+  """Attribution tags should use the resolved ASIN (fallback included)."""
+  monkeypatch.setattr(web_fns.amazon_redirect, "AMAZON_ATTRIBUTION_TAGS",
+                      {("B0G9765J19", "aae"): "ref_=aa&tag=tag-ebook"})
+
+  with web_fns.app.test_client() as client:
+    resp = client.get('/book-animal-jokes?country_override=BR&source=aae')
+
+  assert resp.status_code == 200
+  html = resp.get_data(as_text=True)
+  assert "B0G9765J19" in html
+  assert "tag=tag-ebook" in html
+  assert "ref_=aa" in html
+
+
+def test_amazon_review_redirect_ignores_attribution_tags(monkeypatch):
+  """Review redirects should never apply affiliate tags."""
+  monkeypatch.setattr(web_fns.amazon_redirect, "AMAZON_ATTRIBUTION_TAGS",
+                      {("B0G7F82P65", "aae"): "ref_=aa&tag=tag-20"})
+
+  with web_fns.app.test_client() as client:
+    resp = client.get('/review-animal-jokes?country_override=US&source=aae')
+
+  assert resp.status_code == 200
+  html = resp.get_data(as_text=True)
+  assert "tag=tag-20" not in html
+
+
+def test_amazon_redirect_logs_warning_for_unknown_source(monkeypatch):
+  """Unknown source codes should log a warning and skip tagging."""
+  mock_logger = Mock()
+  monkeypatch.setattr(web_fns.amazon_redirect, "logger", mock_logger)
+  monkeypatch.setattr(web_fns.amazon_redirect, "AMAZON_ATTRIBUTION_TAGS",
+                      {})
+
+  with web_fns.app.test_client() as client:
+    resp = client.get('/book-animal-jokes?country_override=US&source=unknown')
+
+  assert resp.status_code == 200
+  mock_logger.warn.assert_called_once()
+
+
 def test_admin_joke_book_upload_image_book_page(monkeypatch):
   """Test uploading a book page image updates metadata and variants."""
   _mock_admin_session(monkeypatch)

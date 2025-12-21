@@ -6,14 +6,11 @@ import os
 import zoneinfo
 
 import flask
-from common import amazon_redirect
-from common import models
-from common import config
-from common import utils
+from common import amazon_redirect, config, models, utils
 from firebase_functions import https_fn, logger, options
-from services import firestore, search, cloud_storage
 from functions import auth_helpers
 from google.cloud.firestore import ArrayUnion
+from services import cloud_storage, firestore, search
 
 _TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), '..', 'web',
                               'templates')
@@ -114,16 +111,20 @@ def _resolve_request_country_code(req: flask.Request) -> str:
   return amazon_redirect.DEFAULT_COUNTRY_CODE
 
 
-def _log_amazon_redirect(redirect_key: str, requested_country: str,
-                         resolved_country: str, target_url: str) -> None:
+def _log_amazon_redirect(redirect_key: str,
+                         requested_country: str,
+                         resolved_country: str,
+                         target_url: str,
+                         source: str | None = None) -> None:
   """Log redirect metadata for analytics/debugging."""
   user_agent = flask.request.headers.get('User-Agent', '')[:500]
   logger.info(
-    f'amazon_redirect {redirect_key} -> {target_url} ({requested_country} -> {resolved_country})',
+    f'amazon_redirect {redirect_key}/{source} -> {target_url} ({requested_country} -> {resolved_country})',
     extra={
       "json_fields": {
         "event": "amazon_redirect",
         "redirect_key": redirect_key,
+        "source": source,
         "requested_country_code": requested_country,
         "resolved_country_code": resolved_country,
         "target_url": target_url,
@@ -140,10 +141,19 @@ def _handle_amazon_redirect(redirect_key: str) -> flask.Response:
     return flask.Response('Redirect not found', status=404)
 
   requested_country = _resolve_request_country_code(flask.request)
+  source = flask.request.args.get('source')
+  # TODO: Remove this default source once the Flutter app applies "aa" on its own
+  if not source:
+    source = "aa"
   target_url, resolved_country, resolved_asin = config_entry.resolve_target_url(
-    requested_country)
-  _log_amazon_redirect(redirect_key, requested_country, resolved_country,
-                       target_url)
+    requested_country, source)
+  _log_amazon_redirect(
+    redirect_key,
+    requested_country,
+    resolved_country,
+    target_url,
+    source,
+  )
 
   event_params = {
     'redirect_key': redirect_key,

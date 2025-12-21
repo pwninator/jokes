@@ -6,6 +6,8 @@ import dataclasses
 import enum
 import urllib.parse
 
+from firebase_functions import logger
+
 # Default domain if a country code is missing or unsupported.
 DEFAULT_DOMAIN = "amazon.com"
 DEFAULT_COUNTRY_CODE = "US"
@@ -58,21 +60,27 @@ class AmazonRedirectConfig:
   description: str
   supported_countries: frozenset[str] = ALL_COUNTRIES
 
+  apply_attribution: bool = True
+  """Whether to apply affiliate attribution tags for this redirect."""
+
   fallback_asin: str | None = None
   """If provided, keep the requested counttry and fall back to this ASIN. Otherwise, fall back to the default country with the main ASIN."""
 
   def resolve_target_url(
     self,
     requested_country_code: str | None,
+    source: str | None = None,
   ) -> tuple[str, str, str]:
     """Return the target URL, resolved country, and product variant.
     
     If the requested country code is supported, return the target URL for the country's domain using the main ASIN.
     If the requested country code is not supported, and a fallback ASIN is provided, return the target URL using the requested country (as long as it's in the all countries set) for the fallback ASIN.
     If the requested country code is not supported, and no fallback ASIN is provided, return the target URL using the default country and the main ASIN.
+    If attribution is enabled and a source maps to an attribution query, apply it to the target URL.
 
     Args:
       requested_country_code: ISO 3166-1 alpha-2 country code (case-insensitive).
+      source: Source identifier used for attribution tag lookup.
     
     Returns:
       target_url: The target URL for the redirect.
@@ -82,6 +90,10 @@ class AmazonRedirectConfig:
     resolved_country, resolved_asin = self._resolve_country_and_asin(
       requested_country_code)
     target_url = self._construct_url(resolved_asin, resolved_country)
+
+    attribution_tag = _get_attribution_tag(resolved_asin, source)
+    if self.apply_attribution and attribution_tag:
+      target_url = _apply_attribution_tag(target_url, attribution_tag)
 
     return target_url, resolved_country, resolved_asin
 
@@ -144,6 +156,7 @@ AMAZON_REDIRECTS: dict[str, AmazonRedirectConfig] = {
     description=
     'Redirects to the customer review page for the animal joke book.',
     supported_countries=BOOK_PRINT_COUNTRIES,
+    apply_attribution=False,
   ),
   'review-animal-jokes-ebook':
   AmazonRedirectConfig(
@@ -152,8 +165,21 @@ AMAZON_REDIRECTS: dict[str, AmazonRedirectConfig] = {
     label='Cute & Silly Animal Jokes - Ebook Reviews',
     description=
     'Redirects to the customer review page for the animal joke book.',
+    apply_attribution=False,
   ),
 }
+
+AMAZON_ATTRIBUTION_TAGS: dict[tuple[str, str], str] = {
+  # Cute & Silly Animal Jokes - Ebook
+  ("B0G9765J19", "aa"):
+  ("maas=maas_adg_88E95258EF6D9D50F8DBAADDFA5F7DE4_afap_abs&ref_=aa_maas&tag=maas"
+   ),
+  # Cute & Silly Animal Jokes - Paperback
+  ("B0G7F82P65", "aa"):
+  ("maas=maas_adg_283BD8DDB074184DB7B5EBB2ED3EC3E7_afap_abs&ref_=aa_maas&tag=maas"
+   ),
+}
+"""Attribution query strings keyed by (ASIN, source) pairs."""
 
 
 def normalize_country_code(country_code: str | None) -> str | None:
@@ -172,49 +198,43 @@ def get_amazon_domain(country_code: str | None) -> str:
   return COUNTRY_TO_DOMAIN.get(normalized, DEFAULT_DOMAIN)
 
 
-def _apply_affiliate_tag(query: str, affiliate_tag: str | None) -> str:
-  """Return a query string with the affiliate tag injected or replaced."""
-  if not affiliate_tag:
-    return query
-  params = urllib.parse.parse_qsl(query, keep_blank_values=True)
-  updated = False
-  for idx, (key, _) in enumerate(params):
-    if key == "tag":
-      params[idx] = ("tag", affiliate_tag)
-      updated = True
-      break
-  if not updated:
-    params.append(("tag", affiliate_tag))
-  return urllib.parse.urlencode(params)
+def _normalize_source(source: str | None) -> str | None:
+  """Normalize a source parameter by trimming whitespace only."""
+  if source is None:
+    return None
+  stripped = source.strip()
+  return stripped or None
 
 
-def transform_amazon_url(
-  base_url: str,
-  country_code: str | None,
-  *,
-  affiliate_tag: str | None = None,
-) -> str:
-  """Return `base_url` rewritten to the domain for `country_code`.
+def _get_attribution_tag(asin: str, source: str | None) -> str | None:
+  """Return the attribution query for a given ASIN/source pair."""
+  normalized_source = _normalize_source(source)
+  if not normalized_source:
+    return None
+  tag = AMAZON_ATTRIBUTION_TAGS.get((asin, normalized_source))
+  if not tag:
+    logger.warn(
+      f"Unknown Amazon attribution source '{normalized_source}' for ASIN {asin}"
+    )
+  return tag
 
-  Args:
-    base_url: The original Amazon URL (product page, review page, etc.).
-    country_code: ISO 3166-1 alpha-2 country code (case-insensitive).
-    affiliate_tag: Optional Amazon Associates tag.
 
-  Raises:
-    ValueError: If `base_url` is empty or malformed.
-  """
-  if not base_url:
-    raise ValueError("base_url is required")
-
+def _apply_attribution_tag(base_url: str,
+                           attribution_query: str | None) -> str:
+  """Return `base_url` with attribution params merged into its query."""
+  if not attribution_query:
+    return base_url
+  query = attribution_query.lstrip("?")
   parsed = urllib.parse.urlparse(base_url)
   if not parsed.netloc and parsed.path:
     parsed = urllib.parse.urlparse(f"https://{base_url.lstrip('/')}")
-
-  scheme = parsed.scheme or "https"
-  domain = get_amazon_domain(country_code)
-  netloc = f"www.{domain}"
-  query = _apply_affiliate_tag(parsed.query, affiliate_tag)
-
-  rebuilt = parsed._replace(scheme=scheme, netloc=netloc, query=query)
+  existing_params = urllib.parse.parse_qsl(parsed.query,
+                                           keep_blank_values=True)
+  attribution_params = urllib.parse.parse_qsl(query, keep_blank_values=True)
+  attribution_keys = {key for key, _ in attribution_params}
+  merged_params = [(key, value) for key, value in existing_params
+                   if key not in attribution_keys]
+  merged_params.extend(attribution_params)
+  merged_query = urllib.parse.urlencode(merged_params)
+  rebuilt = parsed._replace(query=merged_query)
   return urllib.parse.urlunparse(rebuilt)

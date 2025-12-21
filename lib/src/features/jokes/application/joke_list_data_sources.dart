@@ -203,8 +203,8 @@ class CompositeJokeSourceBoundaries {
 }
 
 enum SeasonalCategoryFeed {
-    // TODO: Remove seasonal subsource cursor from composite cursor when
-    // today is outside of the date range.
+  // TODO: Remove seasonal subsource cursor from composite cursor when
+  // today is outside of the date range.
   halloween(
     value: 'Halloween',
     startMonth: 10,
@@ -287,7 +287,7 @@ CompositeJokeSubSource _seasonalSubSource(
   SeasonalCategoryFeed category,
 ) {
   final jokeCategory = JokeCategory(
-    id: 'firestore:${category.value.toLowerCase()}',
+    id: category.value.toLowerCase(),
     displayName: category.value,
     type: CategoryType.firestore,
   );

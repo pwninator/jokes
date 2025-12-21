@@ -88,6 +88,7 @@ def refresh_single_category_cache(
 
   if not raw_query and not seasonal_name:
     if state != "PROPOSED":
+      # This category will break when displayed, so force state to PROPOSED
       client.collection("joke_categories").document(category_id).set(
         {"state": "PROPOSED"}, merge=True)
     return None

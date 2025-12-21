@@ -209,6 +209,13 @@ enum SeasonalCategoryFeed {
     startDay: 25,
     endMonth: 11,
     endDay: 1,
+  ),
+  christmas(
+    value: 'Christmas',
+    startMonth: 12,
+    startDay: 19,
+    endMonth: 1,
+    endDay: 1,
   );
 
   const SeasonalCategoryFeed({
@@ -298,11 +305,6 @@ CompositeJokeSubSource _seasonalSubSource(
 /// When a priority source exhausts (hasMore=false), its cursor is marked "__DONE__"
 /// and it will never be loaded again.
 final List<CompositeJokeSubSource> _prioritySubSources = [
-  // Halloween priority source takes precedence when active
-  _seasonalSubSource(
-    'priority_halloween_jokes',
-    SeasonalCategoryFeed.halloween,
-  ),
   // Today's daily joke appears once per day starting at index 5
   CompositeJokeSubSource(
     id: 'priority_today_joke',
@@ -310,6 +312,15 @@ final List<CompositeJokeSubSource> _prioritySubSources = [
     maxIndex: CompositeJokeSourceBoundaries.todayJokeMaxIndex,
     condition: _shouldShowTodayJoke,
     load: (Ref ref, int limit, String? cursor) => _loadTodayJoke(ref),
+  ),
+  // Seasonal priority sources
+  _seasonalSubSource(
+    'priority_halloween_jokes',
+    SeasonalCategoryFeed.halloween,
+  ),
+  _seasonalSubSource(
+    'priority_christmas_jokes',
+    SeasonalCategoryFeed.christmas,
   ),
 ];
 
@@ -559,15 +570,15 @@ Future<PageResult> _loadCompositeJokePage(
         // Record success (even if empty) and stop checking other priority sources.
         _clearSubSourceFailure(ref, prioritySource.id);
         priorityPages[prioritySource.id] = priorityPage;
-        if (priorityPage.jokes.isNotEmpty) {
-          anyPageAdded = true;
-        }
         if (priorityPage.hasMore == false && priorityPage.jokes.isEmpty) {
           AppLogger.debug(
             'PAGING_INTERNAL: Priority source ${prioritySource.id} returned empty and is exhausted.',
           );
         }
-        break; // Current flow loads only the first active priority source
+        if (priorityPage.jokes.isNotEmpty) {
+          anyPageAdded = true;
+          break; // Current flow loads only the first active priority source
+        }
       } catch (e) {
         subSourceFailedOrSkipped = true;
         AppLogger.warn(
@@ -580,7 +591,7 @@ Future<PageResult> _loadCompositeJokePage(
 
   // Load composite sources if needed
   final compositePages = <String, PageResult>{};
-  if (priorityPages.isEmpty) {
+  if (!anyPageAdded) {
     // Determine active subsources based on current totalJokesLoaded and conditions
     final activeSubsources = _compositeSubSources.where((subsource) {
       final subsourceCursor = currentCursor?.subSourceCursors[subsource.id];

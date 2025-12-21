@@ -15,6 +15,14 @@ import 'package:snickerdoodle/src/data/core/app/app_providers.dart';
 
 import 'slot_entries.dart';
 
+/// Destination for the Book Promo "See it on Amazon!" CTA.
+///
+/// Kept as a shared constant so tests can assert on the launched URL without
+/// hard-coding it in multiple places.
+const String bookPromoAmazonUrl =
+    'http://snickerdoodlejokes.com/book-animal-jokes?s=aa';
+final Uri bookPromoAmazonUri = Uri.parse(bookPromoAmazonUrl);
+
 /// Base contract for rendering a [SlotEntry] into a widget.
 abstract class SlotEntryRenderer {
   const SlotEntryRenderer();
@@ -326,10 +334,6 @@ class _BookPromoWithCta extends ConsumerWidget {
     required this.onImageStateChanged,
   });
 
-  static final Uri _bookUrl = Uri.parse(
-    'http://snickerdoodlejokes.com/book-animal-jokes',
-  );
-
   final String jokeContext;
   final BookPromoFakeJokeVariant variant;
   final String variantString;
@@ -346,10 +350,10 @@ class _BookPromoWithCta extends ConsumerWidget {
       );
 
       final launcher = ref.read(urlLauncherServiceProvider);
-      final didLaunch = await launcher.launchUrl(_bookUrl);
+      final didLaunch = await launcher.launchUrl(bookPromoAmazonUri);
       if (!didLaunch) {
         AppLogger.error(
-          'BOOK_PROMO: launchUrl returned false (variant=$variantString, url=$_bookUrl)',
+          'BOOK_PROMO: launchUrl returned false (variant=$variantString, url=$bookPromoAmazonUri)',
         );
       }
     } catch (e, stack) {

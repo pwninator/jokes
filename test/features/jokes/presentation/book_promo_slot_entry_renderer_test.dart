@@ -457,9 +457,7 @@ void main() {
         ),
       ).called(1);
       verify(
-        () => mockUrlLauncherService.launchUrl(
-          Uri.parse('http://snickerdoodlejokes.com/book-animal-jokes'),
-        ),
+        () => mockUrlLauncherService.launchUrl(bookPromoAmazonUri),
       ).called(1);
     },
   );
@@ -558,9 +556,7 @@ void main() {
         ),
       ).called(1);
       verify(
-        () => mockUrlLauncherService.launchUrl(
-          Uri.parse('http://snickerdoodlejokes.com/book-animal-jokes'),
-        ),
+        () => mockUrlLauncherService.launchUrl(bookPromoAmazonUri),
       ).called(1);
     },
   );

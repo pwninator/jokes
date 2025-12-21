@@ -6,7 +6,7 @@ import random
 from io import BytesIO
 from typing import Any, Literal, Tuple
 
-from common import image_generation, models
+from common import image_generation, image_operations, models
 from firebase_functions import logger
 from functions.prompts import joke_operation_prompts
 from google.cloud.firestore_v1.vector import Vector
@@ -195,6 +195,39 @@ def generate_joke_images(joke: models.PunnyJoke,
   if joke.state == models.JokeState.DRAFT:
     joke.state = models.JokeState.UNREVIEWED
 
+  return joke
+
+
+def populate_share_images(joke: models.PunnyJoke) -> models.PunnyJoke:
+  """Populate the joke with a vertical stacked share image."""
+  if not joke.setup_image_url or not joke.punchline_image_url:
+    raise JokePopulationError('Joke is missing setup or punchline images')
+
+  setup_gcs_uri = cloud_storage.extract_gcs_uri_from_image_url(
+    joke.setup_image_url)
+  punchline_gcs_uri = cloud_storage.extract_gcs_uri_from_image_url(
+    joke.punchline_image_url)
+
+  setup_image = cloud_storage.download_image_from_gcs(setup_gcs_uri)
+  punchline_image = cloud_storage.download_image_from_gcs(punchline_gcs_uri)
+
+  editor = image_editor.ImageEditor()
+  image_bytes, width = image_operations.create_vertical_share_image(
+    editor,
+    setup_image,
+    punchline_image,
+  )
+
+  file_base = f"{joke.key}_share_image"
+  gcs_uri = cloud_storage.get_image_gcs_uri(file_base, "png")
+  cloud_storage.upload_bytes_to_gcs(
+    content_bytes=image_bytes,
+    gcs_uri=gcs_uri,
+    content_type="image/png",
+  )
+  share_image_url = cloud_storage.get_final_image_url(gcs_uri, width=width)
+
+  joke.share_image_url = share_image_url
   return joke
 
 

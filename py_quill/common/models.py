@@ -703,6 +703,8 @@ class PunnyJoke:
   setup_image_url: str | None = None
   punchline_image_url: str | None = None
 
+  share_image_url: str | None = None
+
   setup_image_url_upscaled: str | None = None
   punchline_image_url_upscaled: str | None = None
 
@@ -938,6 +940,7 @@ class PunnyJoke:
       "punchline_text": self.punchline_text,
       "setup_image_url": self.setup_image_url,
       "punchline_image_url": self.punchline_image_url,
+      "share_image_url": self.share_image_url,
     }
 
 

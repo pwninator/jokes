@@ -47,6 +47,7 @@ def joke_creation_process(req: https_fn.Request) -> https_fn.Response:
                                             False)
     generate_descriptions = get_bool_param(req, 'generate_descriptions', False)
     populate_images = get_bool_param(req, 'populate_images', False)
+    create_share_image = get_bool_param(req, 'create_share_image', False)
 
     if image_quality not in image_generation.PUN_IMAGE_CLIENTS_BY_QUALITY:
       return error_response(
@@ -100,6 +101,10 @@ def joke_creation_process(req: https_fn.Request) -> https_fn.Response:
     if generate_descriptions or populate_images:
       operation = "GENERATE_IMAGES"
       joke = joke_operations.generate_joke_images(joke, image_quality)
+
+    if create_share_image:
+      operation = "CREATE_SHARE_IMAGE"
+      joke = joke_operations.populate_share_images(joke)
 
     saved_joke = firestore.upsert_punny_joke(joke, operation=operation)
 

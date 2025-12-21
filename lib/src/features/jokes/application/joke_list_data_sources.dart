@@ -181,8 +181,8 @@ class CompositeJokeSourceBoundaries {
 
   // Priority sources
 
-  static const int? halloweenMinIndex = null;
-  static const int? halloweenMaxIndex = null;
+  static const int? seasonalMinIndex = null;
+  static const int? seasonalMaxIndex = null;
 
   static const int todayJokeMinIndex = 5;
   static const int? todayJokeMaxIndex = null;
@@ -202,15 +202,49 @@ class CompositeJokeSourceBoundaries {
   static const int? publicMaxIndex = null;
 }
 
-/// Date ranges for seasonal priority sources.
-class SeasonalDateRanges {
-  SeasonalDateRanges._();
+enum SeasonalCategoryFeed {
+  halloween(
+    value: 'Halloween',
+    startMonth: 10,
+    startDay: 25,
+    endMonth: 11,
+    endDay: 1,
+  );
 
-  /// Start date for Halloween priority source (exclusive).
-  static DateTime get halloweenStart => DateTime(2025, 10, 30);
+  const SeasonalCategoryFeed({
+    required this.value,
+    required this.startMonth,
+    required this.startDay,
+    required this.endMonth,
+    required this.endDay,
+  });
 
-  /// End date for Halloween priority source (exclusive).
-  static DateTime get halloweenEnd => DateTime(2025, 11, 4);
+  final String value;
+  final int startMonth;
+  final int startDay;
+  final int endMonth;
+  final int endDay;
+
+  /// Returns true when [currentDate] falls within this category's start/end
+  /// (month/day) window, inclusive on both ends.
+  ///
+  /// Comparisons are date-only (midnight-normalized).
+  bool isActiveOn(DateTime currentDate) {
+    final today = DateTime(
+      currentDate.year,
+      currentDate.month,
+      currentDate.day,
+    );
+    final startDate = DateTime(today.year, startMonth, startDay);
+    final endDate = DateTime(today.year, endMonth, endDay);
+
+    if (endDate.isAfter(startDate)) {
+      return today.compareTo(startDate) >= 0 && today.compareTo(endDate) <= 0;
+    }
+
+    // Range spans year boundary (e.g., Dec -> Jan)
+    return today.compareTo(startDate) >= 0 || today.compareTo(endDate) <= 0;
+  }
 }
 
 final compositeJokePagingProviders = createPagingProviders(
@@ -239,26 +273,33 @@ final compositeJokePagingProviders = createPagingProviders(
   unviewedOnly: true,
 );
 
+CompositeJokeSubSource _seasonalSubSource(
+  String id,
+  SeasonalCategoryFeed category,
+) {
+  return CompositeJokeSubSource(
+    id: id,
+    minIndex: CompositeJokeSourceBoundaries.seasonalMinIndex,
+    maxIndex: CompositeJokeSourceBoundaries.seasonalMaxIndex,
+    condition: (ref) => category.isActiveOn(getCurrentDate(ref)),
+    load: (Ref ref, int limit, String? cursor) => _loadSeasonalCategoryPage(
+      ref,
+      limit,
+      cursor,
+      seasonalValueOverride: category.value,
+      orderByFieldOverride: JokeField.savedFraction,
+      orderDirectionOverride: OrderDirection.descending,
+    ),
+  );
+}
+
 /// Priority data sources that take precedence over composite sources.
 /// Priority sources are checked first; only the first active one is loaded exclusively.
 /// When a priority source exhausts (hasMore=false), its cursor is marked "__DONE__"
 /// and it will never be loaded again.
 final List<CompositeJokeSubSource> _prioritySubSources = [
   // Halloween priority source takes precedence when active
-  CompositeJokeSubSource(
-    id: 'priority_halloween_jokes',
-    minIndex: CompositeJokeSourceBoundaries.halloweenMinIndex,
-    maxIndex: CompositeJokeSourceBoundaries.halloweenMaxIndex,
-    condition: _shouldShowHalloweenJokes,
-    load: (Ref ref, int limit, String? cursor) => _loadSeasonalCategoryPage(
-      ref,
-      limit,
-      cursor,
-      seasonalValueOverride: 'Halloween',
-      orderByFieldOverride: JokeField.savedFraction,
-      orderDirectionOverride: OrderDirection.descending,
-    ),
-  ),
+  _seasonalSubSource('priority_halloween_jokes', SeasonalCategoryFeed.halloween),
   // Today's daily joke appears once per day starting at index 5
   CompositeJokeSubSource(
     id: 'priority_today_joke',
@@ -1031,12 +1072,6 @@ bool _shouldShowTodayJoke(Ref ref) {
     );
     return true; // parse failure -> show
   }
-}
-
-bool _shouldShowHalloweenJokes(Ref ref) {
-  final now = ref.read(clockProvider)();
-  return now.isAfter(SeasonalDateRanges.halloweenStart) &&
-      now.isBefore(SeasonalDateRanges.halloweenEnd);
 }
 
 /// Factory that returns a page loader bound to a specific SearchScope

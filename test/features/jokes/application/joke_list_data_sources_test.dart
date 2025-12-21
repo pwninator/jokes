@@ -512,8 +512,8 @@ void main() {
 
     test('verifies null boundaries exist for unlimited sources', () {
       // Priority sources with no limits
-      expect(CompositeJokeSourceBoundaries.halloweenMinIndex, isNull);
-      expect(CompositeJokeSourceBoundaries.halloweenMaxIndex, isNull);
+      expect(CompositeJokeSourceBoundaries.seasonalMinIndex, isNull);
+      expect(CompositeJokeSourceBoundaries.seasonalMaxIndex, isNull);
       expect(CompositeJokeSourceBoundaries.todayJokeMaxIndex, isNull);
 
       // Composite sources with no max limit
@@ -527,9 +527,7 @@ void main() {
         'loads Halloween jokes when condition is true and source is active',
         () async {
           // Halloween active: Oct 31, 2025
-          final halloweenTime = SeasonalDateRanges.halloweenStart.add(
-            const Duration(days: 1),
-          );
+          final halloweenTime = DateTime(2025, 10, 31);
 
           testHelpers.stubHalloweenQuery(
             ids: ['h1', 'h2', 'h3', 'h4', 'h5'],
@@ -577,9 +575,7 @@ void main() {
       });
 
       test('marks Halloween as done when hasMore is false', () async {
-        final halloweenTime = SeasonalDateRanges.halloweenStart.add(
-          const Duration(days: 1),
-        );
+        final halloweenTime = DateTime(2025, 10, 31);
 
         testHelpers.stubHalloweenQuery(ids: [], hasMore: false);
 

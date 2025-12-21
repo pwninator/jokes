@@ -1,7 +1,7 @@
 """Tests for the joke_operations module."""
 import datetime
 from io import BytesIO
-from unittest.mock import MagicMock, Mock
+from unittest.mock import MagicMock, Mock, create_autospec
 
 import pytest
 from common import joke_operations, models
@@ -36,7 +36,7 @@ def mock_cloud_storage_fixture(monkeypatch):
 @pytest.fixture(name='mock_image_generation')
 def mock_image_generation_fixture(monkeypatch):
   """Fixture that mocks the image_generation service."""
-  mock_image_generation = Mock()
+  mock_image_generation = create_autospec(joke_operations.image_generation)
   monkeypatch.setattr(joke_operations, 'image_generation',
                       mock_image_generation)
   return mock_image_generation

@@ -52,7 +52,7 @@ def on_joke_category_write(
         pun_text=None,
         image_description=image_description,
         image_quality="high",
-        reference_images=None,
+        style_reference_images=None,
       )
 
       if not generated_image or not generated_image.url:

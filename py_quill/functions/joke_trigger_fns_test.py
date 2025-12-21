@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import datetime
-from unittest.mock import MagicMock, Mock
+from unittest.mock import MagicMock, Mock, create_autospec
 
 import pytest
 from common import joke_operations, models
@@ -422,7 +422,8 @@ class TestOnJokeWriteSubcollectionDeletion:
     def mock_operations_collections():
       return iter([mock_nested_collection])
 
-    mock_operations_doc_ref.collections.return_value = mock_operations_collections()
+    mock_operations_doc_ref.collections.return_value = mock_operations_collections(
+    )
 
     # Set up nested collection documents
     mock_nested_collection.id = "nested"
@@ -552,9 +553,7 @@ class TestOnJokeWriteSubcollectionDeletion:
     mock_joke_doc_ref.collections.return_value = mock_joke_collections()
 
     # Create 150 documents (more than batch size of 100)
-    mock_docs = [
-      MagicMock(reference=MagicMock()) for _ in range(150)
-    ]
+    mock_docs = [MagicMock(reference=MagicMock()) for _ in range(150)]
     for doc in mock_docs:
       doc.reference.collections.return_value = iter([])
 
@@ -626,7 +625,10 @@ class TestOnJokeCategoryWrite:
     # Arrange
     mock_image = MagicMock()
     mock_image.url = "http://example.com/image.png"
-    mock_generate = MagicMock(return_value=mock_image)
+    # Use autospec to enforce function signature
+    mock_generate = create_autospec(
+      joke_trigger_fns.image_generation.generate_pun_image,
+      return_value=mock_image)
     monkeypatch.setattr(joke_trigger_fns.image_generation,
                         "generate_pun_image", mock_generate)
 
@@ -661,7 +663,9 @@ class TestOnJokeCategoryWrite:
     # Arrange
     mock_image = MagicMock()
     mock_image.url = "http://example.com/new_image.png"
-    mock_generate = MagicMock(return_value=mock_image)
+    mock_generate = create_autospec(
+      joke_trigger_fns.image_generation.generate_pun_image,
+      return_value=mock_image)
     monkeypatch.setattr(joke_trigger_fns.image_generation,
                         "generate_pun_image", mock_generate)
 
@@ -703,7 +707,9 @@ class TestOnJokeCategoryWrite:
     # Arrange
     mock_image = MagicMock()
     mock_image.url = "http://example.com/new_image.png"
-    mock_generate = MagicMock(return_value=mock_image)
+    mock_generate = create_autospec(
+      joke_trigger_fns.image_generation.generate_pun_image,
+      return_value=mock_image)
     monkeypatch.setattr(joke_trigger_fns.image_generation,
                         "generate_pun_image", mock_generate)
 
@@ -740,7 +746,8 @@ class TestOnJokeCategoryWrite:
 
   def test_description_unchanged_does_nothing(self, monkeypatch):
     # Arrange
-    mock_generate = MagicMock()
+    mock_generate = create_autospec(
+      joke_trigger_fns.image_generation.generate_pun_image)
     monkeypatch.setattr(joke_trigger_fns.image_generation,
                         "generate_pun_image", mock_generate)
     mock_db = MagicMock()
@@ -759,7 +766,8 @@ class TestOnJokeCategoryWrite:
 
   def test_missing_image_description_skips(self, monkeypatch):
     # Arrange
-    mock_generate = MagicMock()
+    mock_generate = create_autospec(
+      joke_trigger_fns.image_generation.generate_pun_image)
     monkeypatch.setattr(joke_trigger_fns.image_generation,
                         "generate_pun_image", mock_generate)
     mock_db = MagicMock()
@@ -811,7 +819,8 @@ class TestOnJokeCategoryWrite:
                                   should_refresh):
     """Test that cache is refreshed when query/seasonal changes, not otherwise."""
     # Arrange
-    mock_image_gen = MagicMock()
+    mock_image_gen = create_autospec(
+      joke_trigger_fns.image_generation.generate_pun_image)
     monkeypatch.setattr(joke_trigger_fns.image_generation,
                         "generate_pun_image", mock_image_gen)
 

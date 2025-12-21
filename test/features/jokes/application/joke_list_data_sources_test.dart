@@ -14,11 +14,13 @@ import 'package:snickerdoodle/src/data/core/app/firebase_providers.dart';
 import 'package:snickerdoodle/src/data/jokes/joke_interactions_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/application/feed_sync_service.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_data_providers.dart';
+import 'package:snickerdoodle/src/features/jokes/application/joke_category_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_list_data_source.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_list_data_sources.dart';
 import 'package:snickerdoodle/src/features/jokes/application/joke_schedule_providers.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_model.dart';
 import 'package:snickerdoodle/src/features/jokes/data/models/joke_schedule_batch.dart';
+import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_category_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_repository_provider.dart';
 import 'package:snickerdoodle/src/features/jokes/data/repositories/joke_schedule_repository.dart';
@@ -41,6 +43,9 @@ class MockJokeInteractionsRepository extends Mock
     implements JokeInteractionsRepository {}
 
 class MockFeedSyncService extends Mock implements FeedSyncService {}
+
+class MockJokeCategoryRepository extends Mock
+    implements JokeCategoryRepository {}
 
 class MockTrace extends Mock implements Trace {
   @override
@@ -295,6 +300,7 @@ void main() {
   late MockJokeInteractionsRepository mockInteractionsRepository;
   late MockFirebasePerformanceWithTrace mockFirebasePerformance;
   late MockFeedSyncService mockFeedSyncService;
+  late MockJokeCategoryRepository mockJokeCategoryRepository;
   late SharedPreferences prefs;
   late CompositeTestHelpers testHelpers;
   ProviderContainer? container;
@@ -329,6 +335,9 @@ void main() {
       sharedPreferencesProvider.overrideWithValue(prefs),
       settingsServiceProvider.overrideWithValue(SettingsService(prefs)),
       jokeRepositoryProvider.overrideWithValue(mockRepository),
+      jokeCategoryRepositoryProvider.overrideWithValue(
+        mockJokeCategoryRepository,
+      ),
       appUsageServiceProvider.overrideWithValue(mockUsageService),
       firebaseAnalyticsProvider.overrideWithValue(mockFirebaseAnalytics),
       firebasePerformanceProvider.overrideWithValue(mockFirebasePerformance),
@@ -356,7 +365,12 @@ void main() {
     mockInteractionsRepository = MockJokeInteractionsRepository();
     mockFirebasePerformance = MockFirebasePerformanceWithTrace();
     mockFeedSyncService = MockFeedSyncService();
+    mockJokeCategoryRepository = MockJokeCategoryRepository();
     testHelpers = CompositeTestHelpers(mockRepository);
+
+    when(
+      () => mockJokeCategoryRepository.getCachedCategoryJokes(any()),
+    ).thenAnswer((_) async => const <CategoryCachedJoke>[]);
 
     // Default: all jokes are unviewed
     when(() => mockAppUsageService.getUnviewedJokeIds(any())).thenAnswer((
@@ -532,6 +546,49 @@ void main() {
           testHelpers.stubHalloweenQuery(
             ids: ['h1', 'h2', 'h3', 'h4', 'h5'],
             hasMore: false,
+          );
+
+          when(
+            () =>
+                mockJokeCategoryRepository.getCachedCategoryJokes('halloween'),
+          ).thenAnswer(
+            (_) async => const [
+              CategoryCachedJoke(
+                jokeId: 'h1',
+                setupText: 'setup h1',
+                punchlineText: 'punchline h1',
+                setupImageUrl: 'setup_h1.png',
+                punchlineImageUrl: 'punch_h1.png',
+              ),
+              CategoryCachedJoke(
+                jokeId: 'h2',
+                setupText: 'setup h2',
+                punchlineText: 'punchline h2',
+                setupImageUrl: 'setup_h2.png',
+                punchlineImageUrl: 'punch_h2.png',
+              ),
+              CategoryCachedJoke(
+                jokeId: 'h3',
+                setupText: 'setup h3',
+                punchlineText: 'punchline h3',
+                setupImageUrl: 'setup_h3.png',
+                punchlineImageUrl: 'punch_h3.png',
+              ),
+              CategoryCachedJoke(
+                jokeId: 'h4',
+                setupText: 'setup h4',
+                punchlineText: 'punchline h4',
+                setupImageUrl: 'setup_h4.png',
+                punchlineImageUrl: 'punch_h4.png',
+              ),
+              CategoryCachedJoke(
+                jokeId: 'h5',
+                setupText: 'setup h5',
+                punchlineText: 'punchline h5',
+                setupImageUrl: 'setup_h5.png',
+                punchlineImageUrl: 'punch_h5.png',
+              ),
+            ],
           );
 
           final scope = createContainer(clock: () => halloweenTime);
@@ -1251,7 +1308,19 @@ void main() {
 
         final halloweenTime = DateTime(2025, 10, 31);
 
-        testHelpers.stubHalloweenQuery(ids: ['h1'], hasMore: false);
+        when(
+          () => mockJokeCategoryRepository.getCachedCategoryJokes('halloween'),
+        ).thenAnswer(
+          (_) async => const [
+            CategoryCachedJoke(
+              jokeId: 'h1',
+              setupText: 'setup h1',
+              punchlineText: 'punchline h1',
+              setupImageUrl: 'setup_h1.png',
+              punchlineImageUrl: 'punch_h1.png',
+            ),
+          ],
+        );
 
         final scope = createContainer(clock: () => halloweenTime);
 

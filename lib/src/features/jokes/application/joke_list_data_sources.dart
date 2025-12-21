@@ -203,6 +203,8 @@ class CompositeJokeSourceBoundaries {
 }
 
 enum SeasonalCategoryFeed {
+    // TODO: Remove seasonal subsource cursor from composite cursor when
+    // today is outside of the date range.
   halloween(
     value: 'Halloween',
     startMonth: 10,
@@ -284,19 +286,18 @@ CompositeJokeSubSource _seasonalSubSource(
   String id,
   SeasonalCategoryFeed category,
 ) {
+  final jokeCategory = JokeCategory(
+    id: 'firestore:${category.value.toLowerCase()}',
+    displayName: category.value,
+    type: CategoryType.firestore,
+  );
   return CompositeJokeSubSource(
     id: id,
     minIndex: CompositeJokeSourceBoundaries.seasonalMinIndex,
     maxIndex: CompositeJokeSourceBoundaries.seasonalMaxIndex,
     condition: (ref) => category.isActiveOn(getCurrentDate(ref)),
-    load: (Ref ref, int limit, String? cursor) => _loadSeasonalCategoryPage(
-      ref,
-      limit,
-      cursor,
-      seasonalValueOverride: category.value,
-      orderByFieldOverride: JokeField.savedFraction,
-      orderDirectionOverride: OrderDirection.descending,
-    ),
+    load: (Ref ref, int limit, String? cursor) =>
+        _loadCategoryPageFromCache(ref, jokeCategory, limit, cursor),
   );
 }
 
@@ -790,9 +791,10 @@ Future<PageResult> _loadFirestoreJokes(
   String? dataSource,
 }) async {
   final repository = ref.read(jokeRepositoryProvider);
-  final pageCursor = cursor != null
-      ? JokeListPageCursor.deserialize(cursor)
-      : null;
+  final pageCursor = _tryDeserializeJokeListPageCursor(
+    cursor,
+    context: 'firestore:${dataSource ?? 'unknown'}',
+  );
 
   final filters = JokeFilter.basePublicFilters();
   final page = await repository.getFilteredJokePage(
@@ -930,7 +932,7 @@ Future<PageResult> _loadCategoryPageFromCache(
   }
 
   // Offset-based pagination
-  final offset = cursor != null ? int.parse(cursor) : 0;
+  final offset = _tryParseOffsetCursor(cursor, context: 'category-cache') ?? 0;
   final pageCachedJokes = cachedJokes.skip(offset).take(limit).toList();
 
   // Construct Joke objects directly from cache data
@@ -967,67 +969,6 @@ Future<PageResult> _loadCategoryPageFromCache(
     cursor: hasMore ? nextOffset.toString() : null,
     hasMore: hasMore,
     totalCount: cachedJokes.length,
-  );
-}
-
-Future<PageResult> _loadSeasonalCategoryPage(
-  Ref ref,
-  int limit,
-  String? cursor, {
-  String? seasonalValueOverride,
-  JokeField? orderByFieldOverride,
-  OrderDirection? orderDirectionOverride,
-}) async {
-  AppLogger.debug(
-    'PAGING_INTERNAL: Loading seasonal category page with limit: $limit, cursor: $cursor',
-  );
-
-  final category = ref.read(activeCategoryProvider);
-  final seasonalValue = (seasonalValueOverride ?? category?.seasonalValue)
-      ?.trim();
-  if (seasonalValue == null || seasonalValue.isEmpty) {
-    return const PageResult(jokes: [], cursor: null, hasMore: false);
-  }
-
-  final repository = ref.read(jokeRepositoryProvider);
-
-  final pageCursor = cursor != null
-      ? JokeListPageCursor.deserialize(cursor)
-      : null;
-
-  final page = await repository.getFilteredJokePage(
-    filters: [
-      ...JokeFilter.basePublicFilters(),
-      JokeFilter.equals(JokeField.seasonal, seasonalValue),
-    ],
-    orderByField: orderByFieldOverride ?? JokeField.publicTimestamp,
-    orderDirection: orderDirectionOverride ?? OrderDirection.descending,
-    limit: limit,
-    cursor: pageCursor,
-  );
-
-  if (page.ids.isEmpty) {
-    return const PageResult(jokes: [], cursor: null, hasMore: false);
-  }
-
-  // Fetch full joke documents for the page
-  final jokes = await repository.getJokesByIds(page.ids);
-
-  final jokesWithDate = jokes
-      .map(
-        (j) => JokeWithDate(
-          joke: j,
-          dataSource: 'category:seasonal:$seasonalValue',
-        ),
-      )
-      .toList();
-
-  final nextCursor = page.cursor?.serialize();
-
-  return PageResult(
-    jokes: jokesWithDate,
-    cursor: nextCursor,
-    hasMore: page.hasMore,
   );
 }
 
@@ -1109,7 +1050,8 @@ _makeLoadSearchPage(SearchScope scope) {
     }
 
     // Parse cursor as offset (0-based index into the full result set)
-    final offset = cursor != null ? int.parse(cursor) : 0;
+    final offset =
+        _tryParseOffsetCursor(cursor, context: 'search:${scope.name}') ?? 0;
 
     // Slice the IDs for this page
     final pageResults = allResults.skip(offset).take(limit).toList();
@@ -1158,10 +1100,15 @@ Future<PageResult> loadDailyJokesPage(
   if (cursor == null) {
     targetMonth = DateTime(now.year, now.month);
   } else {
-    final parts = cursor.split('_');
-    final int year = int.parse(parts[0]);
-    final int month = int.parse(parts[1]);
-    targetMonth = DateTime(year, month);
+    final parsed = _tryParseYearMonthCursor(cursor);
+    if (parsed == null) {
+      AppLogger.debug(
+        'PAGING_INTERNAL: Invalid daily jokes cursor "$cursor", defaulting to null',
+      );
+      targetMonth = DateTime(now.year, now.month);
+    } else {
+      targetMonth = DateTime(parsed.year, parsed.month);
+    }
   }
 
   // Fetch the batch for the target month
@@ -1275,7 +1222,7 @@ Future<PageResult> _loadSavedJokesPage(
   }
 
   // Offset-based pagination (like search)
-  final offset = cursor != null ? int.parse(cursor) : 0;
+  final offset = _tryParseOffsetCursor(cursor, context: 'saved') ?? 0;
   final pageIds = savedJokeIds.skip(offset).take(limit).toList();
 
   // Fetch jokes for this page
@@ -1478,6 +1425,42 @@ int? _parseFeedCursor(String? cursor) {
     );
     return null;
   }
+}
+
+int? _tryParseOffsetCursor(String? cursor, {required String context}) {
+  if (cursor == null || cursor.isEmpty) return null;
+  final parsed = int.tryParse(cursor);
+  if (parsed == null) {
+    AppLogger.debug(
+      'PAGING_INTERNAL: Invalid $context cursor "$cursor", defaulting to null',
+    );
+  }
+  return parsed;
+}
+
+JokeListPageCursor? _tryDeserializeJokeListPageCursor(
+  String? cursor, {
+  required String context,
+}) {
+  if (cursor == null || cursor.isEmpty) return null;
+  try {
+    return JokeListPageCursor.deserialize(cursor);
+  } catch (_) {
+    AppLogger.debug(
+      'PAGING_INTERNAL: Invalid $context cursor "$cursor", defaulting to null',
+    );
+    return null;
+  }
+}
+
+({int year, int month})? _tryParseYearMonthCursor(String? cursor) {
+  if (cursor == null || cursor.isEmpty) return null;
+  final parts = cursor.split('_');
+  if (parts.length != 2) return null;
+  final year = int.tryParse(parts[0]);
+  final month = int.tryParse(parts[1]);
+  if (year == null || month == null) return null;
+  return (year: year, month: month);
 }
 
 /// Get current date (midnight-normalized) for comparison

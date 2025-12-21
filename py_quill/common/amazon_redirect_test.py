@@ -71,14 +71,13 @@ def test_amazon_redirect_config_base_urls():
     description="Test review",
   )
 
-  assert (product.base_url() ==
-          "https://www.amazon.com/Cute-Silly-Animal-Jokes-Snickerdoodle/dp/B0PROD"
-         )
-  assert (review.base_url() ==
+  assert (product._construct_url("B0PROD", "US") ==
+          "https://www.amazon.com/dp/B0PROD")
+  assert (review._construct_url("B0REV", "US") ==
           "https://www.amazon.com/review/create-review/?ie=UTF8&asin=B0REV")
 
 
-def test_resolve_country_code_with_supported_list():
+def test_resolve_country_and_asin_with_supported_list():
   config = amazon_redirect.AmazonRedirectConfig(
     asin="B0ANY",
     page_type=amazon_redirect.AmazonRedirectPageType.PRODUCT,
@@ -87,25 +86,46 @@ def test_resolve_country_code_with_supported_list():
     supported_countries=frozenset({"US", "DE"}),
   )
 
-  assert config.resolve_country_code("de") == "DE"
-  assert config.resolve_country_code("BR") == "US"
-  assert config.resolve_country_code(None) == "US"
+  assert config._resolve_country_and_asin("de") == ("DE", "B0ANY")
+  assert config._resolve_country_and_asin("BR") == ("US", "B0ANY")
+  assert config._resolve_country_and_asin(None) == ("US", "B0ANY")
 
 
-def test_supported_country_list_sorted_and_none_when_global():
-  limited = amazon_redirect.AmazonRedirectConfig(
-    asin="B0ANY",
-    page_type=amazon_redirect.AmazonRedirectPageType.PRODUCT,
-    label="Limited",
-    description="Limited countries",
-    supported_countries=frozenset({"DE", "US"}),
-  )
-  global_config = amazon_redirect.AmazonRedirectConfig(
+def test_default_supported_countries_is_all():
+  config = amazon_redirect.AmazonRedirectConfig(
     asin="B0GLOBAL",
     page_type=amazon_redirect.AmazonRedirectPageType.PRODUCT,
     label="Global",
     description="All countries",
   )
 
-  assert limited.supported_country_list() == ["DE", "US"]
-  assert global_config.supported_country_list() is None
+  assert config.supported_countries == amazon_redirect.ALL_COUNTRIES
+
+
+def test_resolve_target_url_falls_back_to_ebook_for_unsupported_country():
+  config = amazon_redirect.AmazonRedirectConfig(
+    asin="B0PRINT",
+    fallback_asin="B0EBOOK",
+    page_type=amazon_redirect.AmazonRedirectPageType.PRODUCT,
+    label="Product",
+    description="Test product",
+    supported_countries=frozenset({"US", "DE"}),
+  )
+
+  target_url, resolved_country, resolved_asin = config.resolve_target_url("DE")
+  assert resolved_country == "DE"
+  assert resolved_asin == "B0PRINT"
+  assert "amazon.de" in target_url
+  assert "B0PRINT" in target_url
+
+  fallback_url, fallback_country, fallback_asin = config.resolve_target_url(
+    "BR")
+  assert fallback_country == "BR"
+  assert fallback_asin == "B0EBOOK"
+  assert "amazon.com.br" in fallback_url
+  assert "B0EBOOK" in fallback_url
+
+  unknown_url, unknown_country, unknown_asin = config.resolve_target_url("ZZ")
+  assert unknown_country == "US"
+  assert unknown_asin == "B0EBOOK"
+  assert "amazon.com/dp/B0EBOOK" in unknown_url

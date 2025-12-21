@@ -517,6 +517,17 @@ def test_amazon_redirect_renders_intermediate_page(monkeypatch):
   assert "B0G7F82P65" in html
 
 
+def test_amazon_redirect_falls_back_to_ebook_for_unsupported_country():
+  """Product redirects should fall back to ebook ASIN for unsupported countries."""
+  with web_fns.app.test_client() as client:
+    resp = client.get('/book-animal-jokes?country_override=BR')
+
+  assert resp.status_code == 200
+  html = resp.get_data(as_text=True)
+  assert "www.amazon.com.br" in html
+  assert "B0G9765J19" in html
+
+
 def test_admin_joke_book_upload_image_book_page(monkeypatch):
   """Test uploading a book page image updates metadata and variants."""
   _mock_admin_session(monkeypatch)

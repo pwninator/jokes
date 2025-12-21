@@ -35,6 +35,7 @@ COUNTRY_TO_DOMAIN = {
   "US": "amazon.com",
 }
 
+ALL_COUNTRIES = frozenset(COUNTRY_TO_DOMAIN.keys())
 BOOK_PRINT_COUNTRIES = frozenset({
   "AU", "BE", "CA", "DE", "ES", "FR", "GB", "IE", "IT", "JP", "NL", "PL", "SE",
   "UK", "US"
@@ -55,36 +56,86 @@ class AmazonRedirectConfig:
   page_type: AmazonRedirectPageType
   label: str
   description: str
-  supported_countries: frozenset[str] | None = None
+  supported_countries: frozenset[str] = ALL_COUNTRIES
 
-  def base_url(self) -> str:
-    """Return the canonical US Amazon URL for this config."""
+  fallback_asin: str | None = None
+  """If provided, keep the requested counttry and fall back to this ASIN. Otherwise, fall back to the default country with the main ASIN."""
+
+  def resolve_target_url(
+    self,
+    requested_country_code: str | None,
+  ) -> tuple[str, str, str]:
+    """Return the target URL, resolved country, and product variant.
+    
+    If the requested country code is supported, return the target URL for the country's domain using the main ASIN.
+    If the requested country code is not supported, and a fallback ASIN is provided, return the target URL using the requested country (as long as it's in the all countries set) for the fallback ASIN.
+    If the requested country code is not supported, and no fallback ASIN is provided, return the target URL using the default country and the main ASIN.
+
+    Args:
+      requested_country_code: ISO 3166-1 alpha-2 country code (case-insensitive).
+    
+    Returns:
+      target_url: The target URL for the redirect.
+      resolved_country: The resolved country code.
+      resolved_asin: The resolved ASIN.
+    """
+    resolved_country, resolved_asin = self._resolve_country_and_asin(
+      requested_country_code)
+    target_url = self._construct_url(resolved_asin, resolved_country)
+
+    return target_url, resolved_country, resolved_asin
+
+  def _product_base_url(self, asin: str, domain: str) -> str:
+    return f"https://www.{domain}/dp/{asin}"
+
+  def _review_base_url(self, asin: str, domain: str) -> str:
+    return f"https://www.{domain}/review/create-review/?ie=UTF8&asin={asin}"
+
+  def _construct_url(self, asin: str, country_code: str) -> str:
+    """Return the Amazon URL for this redirect."""
+    domain = get_amazon_domain(country_code)
     match self.page_type:
       case AmazonRedirectPageType.PRODUCT:
-        return (f"https://www.{DEFAULT_DOMAIN}/"
-                f"Cute-Silly-Animal-Jokes-Snickerdoodle/dp/{self.asin}")
+        return self._product_base_url(asin, domain)
       case AmazonRedirectPageType.REVIEW:
-        return (f"https://www.{DEFAULT_DOMAIN}/review/create-review/"
-                f"?ie=UTF8&asin={self.asin}")
+        return self._review_base_url(asin, domain)
 
-  def resolve_country_code(self, requested_code: str | None) -> str:
-    """Return a supported country code for this redirect."""
-    normalized = normalize_country_code(requested_code) or DEFAULT_COUNTRY_CODE
-    if not self.supported_countries:
-      return normalized
-    if normalized in self.supported_countries:
-      return normalized
-    return DEFAULT_COUNTRY_CODE
+  def _resolve_country_and_asin(
+    self,
+    requested_country_code: str | None,
+  ) -> tuple[str, str]:
+    """Return a supported country code and ASIN for this redirect."""
+    requested_country_code = normalize_country_code(
+      requested_country_code) or DEFAULT_COUNTRY_CODE
 
-  def supported_country_list(self) -> list[str] | None:
-    """Return sorted supported country codes or None if global."""
-    if not self.supported_countries:
-      return None
-    return sorted(self.supported_countries)
+    if requested_country_code in self.supported_countries:
+      # The requested country is supported, so use it and the main ASIN
+      resolved_country = requested_country_code
+      resolved_asin = self.asin
+    elif self.fallback_asin:
+      # Country is not supported, but a fallback ASIN is provided, so use it and the requested country if it's in the all countries set.
+      resolved_country = requested_country_code if requested_country_code in ALL_COUNTRIES else DEFAULT_COUNTRY_CODE
+      resolved_asin = self.fallback_asin
+    else:
+      # Country is not supported, and no fallback ASIN is provided, so use the default country and the main ASIN.
+      resolved_country = DEFAULT_COUNTRY_CODE
+      resolved_asin = self.asin
+    return resolved_country, resolved_asin
 
 
 AMAZON_REDIRECTS: dict[str, AmazonRedirectConfig] = {
-  # Cute & Silly Animal Jokes - Paperback
+  # Cute & Silly Animal Jokes - Product Page
+  'book-animal-jokes':
+  AmazonRedirectConfig(
+    asin='B0G7F82P65',
+    fallback_asin='B0G9765J19',
+    page_type=AmazonRedirectPageType.PRODUCT,
+    label='Cute & Silly Animal Jokes - Paperback',
+    description='Redirects to the product page for the animal joke book.',
+    supported_countries=BOOK_PRINT_COUNTRIES,
+  ),
+
+  # Cute & Silly Animal Jokes - Review Pages
   'review-animal-jokes':
   AmazonRedirectConfig(
     asin='B0G7F82P65',
@@ -94,16 +145,6 @@ AMAZON_REDIRECTS: dict[str, AmazonRedirectConfig] = {
     'Redirects to the customer review page for the animal joke book.',
     supported_countries=BOOK_PRINT_COUNTRIES,
   ),
-  'book-animal-jokes':
-  AmazonRedirectConfig(
-    asin='B0G7F82P65',
-    page_type=AmazonRedirectPageType.PRODUCT,
-    label='Cute & Silly Animal Jokes - Paperback',
-    description='Redirects to the product page for the animal joke book.',
-    supported_countries=BOOK_PRINT_COUNTRIES,
-  ),
-
-  # Cute & Silly Animal Jokes - Ebook
   'review-animal-jokes-ebook':
   AmazonRedirectConfig(
     asin='B0G9765J19',
@@ -111,13 +152,6 @@ AMAZON_REDIRECTS: dict[str, AmazonRedirectConfig] = {
     label='Cute & Silly Animal Jokes - Ebook Reviews',
     description=
     'Redirects to the customer review page for the animal joke book.',
-  ),
-  'book-animal-jokes-ebook':
-  AmazonRedirectConfig(
-    asin='B0G9765J19',
-    page_type=AmazonRedirectPageType.PRODUCT,
-    label='Cute & Silly Animal Jokes - Ebook',
-    description='Redirects to the product page for the animal joke book.',
   ),
 }
 

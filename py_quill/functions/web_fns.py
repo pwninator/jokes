@@ -99,7 +99,7 @@ def _html_no_store_response(html: str, status: int = 200) -> flask.Response:
   return resp
 
 
-def _resolve_country_code(req: flask.Request) -> str:
+def _resolve_request_country_code(req: flask.Request) -> str:
   """Determine the ISO country code for the current request."""
   override = amazon_redirect.normalize_country_code(
     req.args.get('country_override'))
@@ -119,7 +119,7 @@ def _log_amazon_redirect(redirect_key: str, requested_country: str,
   """Log redirect metadata for analytics/debugging."""
   user_agent = flask.request.headers.get('User-Agent', '')[:500]
   logger.info(
-    f'amazon_redirect {redirect_key} -> {target_url} ({requested_country} → {resolved_country})',
+    f'amazon_redirect {redirect_key} -> {target_url} ({requested_country} -> {resolved_country})',
     extra={
       "json_fields": {
         "event": "amazon_redirect",
@@ -139,14 +139,19 @@ def _handle_amazon_redirect(redirect_key: str) -> flask.Response:
   if not config_entry:
     return flask.Response('Redirect not found', status=404)
 
-  requested_country = _resolve_country_code(flask.request)
-  resolved_country = config_entry.resolve_country_code(requested_country)
-  target_url = amazon_redirect.transform_amazon_url(
-    config_entry.base_url(),
-    resolved_country,
-  )
+  requested_country = _resolve_request_country_code(flask.request)
+  target_url, resolved_country, resolved_asin = config_entry.resolve_target_url(
+    requested_country)
   _log_amazon_redirect(redirect_key, requested_country, resolved_country,
                        target_url)
+
+  event_params = {
+    'redirect_key': redirect_key,
+    'requested_country_code': requested_country,
+    'resolved_country_code': resolved_country,
+    'resolved_asin': resolved_asin,
+    'page_type': config_entry.page_type.value,
+  }
 
   html = flask.render_template(
     'redirect.html',
@@ -157,13 +162,7 @@ def _handle_amazon_redirect(redirect_key: str) -> flask.Response:
     link_text='Continue to Amazon',
     delay_ms=250,
     event_name='amazon_redirect',
-    event_params={
-      'redirect_key': redirect_key,
-      'requested_country_code': requested_country,
-      'resolved_country_code': resolved_country,
-      'asin': config_entry.asin,
-      'page_type': config_entry.page_type.value,
-    },
+    event_params=event_params,
     click_event_name='amazon_redirect_click',
     click_event_label=redirect_key,
     canonical_url=flask.request.url,
@@ -195,7 +194,7 @@ def _amazon_redirect_view_models() -> list[dict[str, str]]:
     if not endpoint or slug is None:
       continue
     path = flask.url_for(endpoint, slug=slug)
-    supported_countries = config_entry.supported_country_list()
+    supported_countries = sorted(list(config_entry.supported_countries))
     items.append({
       'key': key,
       'label': config_entry.label,
@@ -204,7 +203,6 @@ def _amazon_redirect_view_models() -> list[dict[str, str]]:
       'page_type': config_entry.page_type.value,
       'url': path,
       'supported_countries': supported_countries,
-      'supports_all_countries': supported_countries is None,
     })
   items.sort(key=lambda item: item['label'])
   return items

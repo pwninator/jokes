@@ -388,7 +388,8 @@ class ImageClient(ABC, Generic[_T]):
     auto_enhance: bool = False,
   ) -> models.Image:
     """Generate an image from a prompt."""
-    reference_images_str = "\n".join([f"{img}" for img in reference_images])
+    reference_images_str = "\n".join([f"{img}" for img in reference_images
+                                      ]) if reference_images else "None"
     logger.info(
       f"""Generating image with {self.__class__.__name__} ({self.model.model_name})
 Prompt:

@@ -107,7 +107,7 @@ def get_joke_bundle(req: https_fn.Request) -> https_fn.Response:
   timeout_sec=1800,
 )
 def joke_manual_tag(req: https_fn.Request) -> https_fn.Response:
-  """Search for jokes and update their seasonal tag to Halloween."""
+  """Search for jokes and update their seasonal tag."""
   # Health check
   if req.path == "/__/health":
     return https_fn.Response("OK", status=200)
@@ -124,7 +124,7 @@ def joke_manual_tag(req: https_fn.Request) -> https_fn.Response:
 
   try:
     dry_run = get_bool_param(req, 'dry_run', True)
-    max_jokes = get_int_param(req, 'max_jokes', 0)
+    max_jokes = get_int_param(req, 'max_jokes', 50)
     query = get_param(req, 'query')
     if not query:
       return https_fn.Response(
@@ -135,10 +135,22 @@ def joke_manual_tag(req: https_fn.Request) -> https_fn.Response:
         status=400,
         mimetype='application/json',
       )
-    threshold = get_float_param(req, 'threshold', 0.3)
+    seasonal = get_param(req, 'seasonal')
+    if not seasonal or not isinstance(seasonal, str) or not seasonal.strip():
+      return https_fn.Response(
+        json.dumps({
+          "error": "seasonal parameter is required",
+          "success": False
+        }),
+        status=400,
+        mimetype='application/json',
+      )
+    seasonal = seasonal.strip()
+    threshold = get_float_param(req, 'threshold', 0.4)
 
     html_response = _run_manual_season_tag(
       query=query,
+      seasonal=seasonal,
       threshold=threshold,
       dry_run=dry_run,
       max_jokes=max_jokes,
@@ -161,15 +173,17 @@ def joke_manual_tag(req: https_fn.Request) -> https_fn.Response:
 
 def _run_manual_season_tag(
   query: str,
+  seasonal: str,
   threshold: float,
   dry_run: bool,
   max_jokes: int,
 ) -> str:
   """
-    Sets the 'seasonal' field to 'Halloween' for jokes matching a search query.
+    Sets the 'seasonal' field for jokes matching a search query.
 
     Args:
         query: The search query for jokes.
+        seasonal: The seasonal value to set on matching jokes.
         threshold: The search distance threshold.
         dry_run: If True, only log the changes that would be made.
         max_jokes: The maximum number of jokes to modify. If 0, all jokes will be processed.
@@ -205,7 +219,7 @@ def _run_manual_season_tag(
       logger.warn(f"Could not retrieve joke with id: {joke_id}")
       continue
 
-    if joke.seasonal != "Halloween":
+    if joke.seasonal != seasonal:
       updated_jokes.append({
         "id": joke_id,
         "setup": joke.setup_text,
@@ -214,7 +228,7 @@ def _run_manual_season_tag(
         "distance": result.vector_distance,
       })
       if not dry_run:
-        firestore.update_punny_joke(joke_id, {"seasonal": "Halloween"})
+        firestore.update_punny_joke(joke_id, {"seasonal": seasonal})
       updated_count += 1
     else:
       skipped_jokes.append({
@@ -236,7 +250,7 @@ def _run_manual_season_tag(
   else:
     html += "<p>No jokes were updated.</p>"
 
-  html += f"<h2>Skipped Jokes (already Halloween) ({len(skipped_jokes)})</h2>"
+  html += f"<h2>Skipped Jokes (already {seasonal}) ({len(skipped_jokes)})</h2>"
   if skipped_jokes:
     html += "<ul>"
     for joke in skipped_jokes:

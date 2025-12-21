@@ -55,8 +55,9 @@ def _manual_tag_result(
 
 
 def test_run_manual_season_tag_updates_joke(monkeypatch):
-  """Manual seasonal tagging should update jokes that are not Halloween yet."""
+  """Manual seasonal tagging should update jokes that are not already seasonal."""
   captured_kwargs = {}
+  target_seasonal = "Christmas"
 
   def fake_search(**kwargs):
     captured_kwargs.update(kwargs)
@@ -81,6 +82,7 @@ def test_run_manual_season_tag_updates_joke(monkeypatch):
 
   html_response = joke_fns._run_manual_season_tag(
     query="scarecrow",
+    seasonal=target_seasonal,
     threshold=0.5,
     dry_run=False,
     max_jokes=0,
@@ -93,13 +95,14 @@ def test_run_manual_season_tag_updates_joke(monkeypatch):
     "field_filters": [],
     "distance_threshold": 0.5,
   }
-  assert updates == [("j1", {"seasonal": "Halloween"})]
+  assert updates == [("j1", {"seasonal": target_seasonal})]
   assert "Updated Jokes (1)" in html_response
   assert "Dry Run: False" in html_response
 
 
 def test_run_manual_season_tag_respects_dry_run(monkeypatch):
   """Dry run should list changes without performing updates."""
+  target_seasonal = "Christmas"
 
   def fake_search(**kwargs):  # pylint: disable=unused-argument
     return [_manual_tag_result(_manual_tag_joke("j1", "Setup", "Punch", None))]
@@ -116,6 +119,7 @@ def test_run_manual_season_tag_respects_dry_run(monkeypatch):
 
   html_response = joke_fns._run_manual_season_tag(
     query="pumpkin",
+    seasonal=target_seasonal,
     threshold=0.4,
     dry_run=True,
     max_jokes=0,
@@ -126,19 +130,20 @@ def test_run_manual_season_tag_respects_dry_run(monkeypatch):
   assert "Updated Jokes (1)" in html_response
 
 
-def test_run_manual_season_tag_skips_already_halloween(monkeypatch):
-  """Jokes that already have seasonal Halloween should be skipped."""
+def test_run_manual_season_tag_skips_already_seasonal(monkeypatch):
+  """Jokes that already have the seasonal value should be skipped."""
+  target_seasonal = "Christmas"
 
   def fake_search(**kwargs):  # pylint: disable=unused-argument
     return [
       _manual_tag_result(
-        _manual_tag_joke("j1", "Ghost joke", "Boo!", "Halloween"))
+        _manual_tag_joke("j1", "Ghost joke", "Boo!", target_seasonal))
     ]
 
   monkeypatch.setattr(joke_fns.search, "search_jokes", fake_search)
   monkeypatch.setattr(
     joke_fns.firestore, "get_punny_joke", lambda joke_id: _manual_tag_joke(
-      joke_id, "Ghost joke", "Boo!", "Halloween"))
+      joke_id, "Ghost joke", "Boo!", target_seasonal))
 
   updates = []
   monkeypatch.setattr(
@@ -147,18 +152,20 @@ def test_run_manual_season_tag_skips_already_halloween(monkeypatch):
 
   html_response = joke_fns._run_manual_season_tag(
     query="ghost",
+    seasonal=target_seasonal,
     threshold=0.5,
     dry_run=False,
     max_jokes=0,
   )
 
   assert not updates
-  assert "Skipped Jokes (already Halloween) (1)" in html_response
+  assert f"Skipped Jokes (already {target_seasonal}) (1)" in html_response
   assert "Updated Jokes (0)" in html_response
 
 
 def test_run_manual_season_tag_respects_max_jokes(monkeypatch):
   """The manual tagging operation should stop after reaching max_jokes."""
+  target_seasonal = "Christmas"
   jokes = [
     _manual_tag_joke("j1", "Setup 1", "Punch 1", None),
     _manual_tag_joke("j2", "Setup 2", "Punch 2", "Fall"),
@@ -182,18 +189,20 @@ def test_run_manual_season_tag_respects_max_jokes(monkeypatch):
 
   html_response = joke_fns._run_manual_season_tag(
     query="any",
+    seasonal=target_seasonal,
     threshold=0.5,
     dry_run=False,
     max_jokes=1,
   )
 
-  assert updates == [("j1", {"seasonal": "Halloween"})]
+  assert updates == [("j1", {"seasonal": target_seasonal})]
   assert "Updated Jokes (1)" in html_response
 
 
 def test_run_manual_season_tag_handles_no_results(monkeypatch):
   """Manual tagging should handle empty search results gracefully."""
   monkeypatch.setattr(joke_fns.search, "search_jokes", lambda **kwargs: [])  # pylint: disable=unused-argument
+  target_seasonal = "Christmas"
 
   updates = []
   monkeypatch.setattr(
@@ -202,6 +211,7 @@ def test_run_manual_season_tag_handles_no_results(monkeypatch):
 
   html_response = joke_fns._run_manual_season_tag(
     query="nonexistent",
+    seasonal=target_seasonal,
     threshold=0.5,
     dry_run=False,
     max_jokes=0,
@@ -210,6 +220,16 @@ def test_run_manual_season_tag_handles_no_results(monkeypatch):
   assert not updates
   assert "No jokes were updated." in html_response
   assert "No jokes were skipped." in html_response
+
+
+def test_joke_manual_tag_requires_seasonal_param():
+  """joke_manual_tag should require a seasonal param."""
+  req = DummyReq(is_json=False, args={"query": "santa"}, method="GET")
+  resp = joke_fns.joke_manual_tag(req)
+  assert resp.status_code == 400
+  payload = json.loads(resp.get_data(as_text=True))
+  assert payload["success"] is False
+  assert "seasonal parameter is required" in payload["error"]
 
 
 def test_create_joke_deprecated_endpoint_removed():

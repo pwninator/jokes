@@ -36,6 +36,8 @@ def _manual_tag_joke(
   setup_text: str,
   punchline_text: str,
   seasonal: str | None,
+  setup_image_url: str | None = None,
+  punchline_image_url: str | None = None,
 ) -> models.PunnyJoke:
   """Create a PunnyJoke tailored for manual tagging tests."""
   return models.PunnyJoke(
@@ -43,6 +45,8 @@ def _manual_tag_joke(
     setup_text=setup_text,
     punchline_text=punchline_text,
     seasonal=seasonal,
+    setup_image_url=setup_image_url,
+    punchline_image_url=punchline_image_url,
   )
 
 
@@ -70,6 +74,10 @@ def test_run_manual_season_tag_updates_joke(monkeypatch):
     "Why did the scarecrow win an award?",
     "Because he was outstanding in his field.",
     None,
+    setup_image_url=("https://images.quillsstorybook.com/cdn-cgi/image/"
+                     "width=1024,format=auto,quality=75/setup.png"),
+    punchline_image_url=("https://images.quillsstorybook.com/cdn-cgi/image/"
+                         "width=1024,format=auto,quality=75/punch.png"),
   )
   monkeypatch.setattr(
     joke_fns.firestore, "get_punny_joke", lambda joke_id: fetched_joke
@@ -98,6 +106,9 @@ def test_run_manual_season_tag_updates_joke(monkeypatch):
   assert updates == [("j1", {"seasonal": target_seasonal})]
   assert "Updated Jokes (1)" in html_response
   assert "Dry Run: False" in html_response
+  assert "<table" in html_response
+  assert "<img" in html_response
+  assert "width=100" in html_response
 
 
 def test_run_manual_season_tag_respects_dry_run(monkeypatch):

@@ -205,6 +205,50 @@ def _run_manual_season_tag(
   skipped_jokes = []
   updated_count = 0
 
+  def _img_cell(image_url: str | None) -> str:
+    """Render a 100x100 image cell, scaling via CDN width param when possible."""
+    if not image_url:
+      return ""
+    formatted = utils.format_image_url(image_url, width=100)
+    # Force a compact thumbnail size in the HTML output regardless of aspect ratio.
+    return (f'<img src="{formatted}" width="100" height="100" loading="lazy" '
+            f'style="object-fit: cover;" alt="joke image" />')
+
+  def _render_table(rows: list[dict[str, object]], *,
+                    include_old_seasonal: bool):
+    """Render a simple HTML table for result rows."""
+    if not rows:
+      return ""
+
+    header_cols = [
+      ("distance", "Distance"),
+      ("id", "Joke ID"),
+      ("setup_image_html", "Setup Image"),
+      ("punchline_image_html", "Punchline Image"),
+      ("setup", "Setup"),
+      ("punchline", "Punchline"),
+    ]
+    if include_old_seasonal:
+      header_cols.append(("old_seasonal", "Old Seasonal"))
+
+    html_table = '<table border="1" cellpadding="6" cellspacing="0">'
+    html_table += "<thead><tr>"
+    for _, header in header_cols:
+      html_table += f"<th>{header}</th>"
+    html_table += "</tr></thead><tbody>"
+
+    for row in rows:
+      html_table += "<tr>"
+      for key, _ in header_cols:
+        value = row.get(key, "")
+        if value is None:
+          value = ""
+        html_table += f"<td>{value}</td>"
+      html_table += "</tr>"
+
+    html_table += "</tbody></table>"
+    return html_table
+
   for result in search_results:
     if max_jokes and updated_count >= max_jokes:
       logger.info(f"Reached max_jokes limit of {max_jokes}.")
@@ -221,20 +265,36 @@ def _run_manual_season_tag(
 
     if joke.seasonal != seasonal:
       updated_jokes.append({
-        "id": joke_id,
-        "setup": joke.setup_text,
-        "punchline": joke.punchline_text,
-        "old_seasonal": joke.seasonal,
-        "distance": result.vector_distance,
+        "id":
+        joke_id,
+        "setup_image_html":
+        _img_cell(getattr(joke, "setup_image_url", None)),
+        "punchline_image_html":
+        _img_cell(getattr(joke, "punchline_image_url", None)),
+        "setup":
+        joke.setup_text,
+        "punchline":
+        joke.punchline_text,
+        "old_seasonal":
+        joke.seasonal,
+        "distance":
+        result.vector_distance,
       })
       if not dry_run:
         firestore.update_punny_joke(joke_id, {"seasonal": seasonal})
       updated_count += 1
     else:
       skipped_jokes.append({
-        "id": joke_id,
-        "setup": joke.setup_text,
-        "punchline": joke.punchline_text,
+        "id":
+        joke_id,
+        "setup_image_html":
+        _img_cell(getattr(joke, "setup_image_url", None)),
+        "punchline_image_html":
+        _img_cell(getattr(joke, "punchline_image_url", None)),
+        "setup":
+        joke.setup_text,
+        "punchline":
+        joke.punchline_text,
       })
 
   # Generate HTML response
@@ -243,19 +303,17 @@ def _run_manual_season_tag(
   html += f"<h2>Dry Run: {dry_run}</h2>"
   html += f"<h2>Updated Jokes ({len(updated_jokes)})</h2>"
   if updated_jokes:
-    html += "<ul>"
+    # Round distances for display.
     for joke in updated_jokes:
-      html += f"<li>{round(joke['distance'], 4)}: <b>{joke['id']}</b>: {joke['setup']} / {joke['punchline']} (Old seasonal: {joke['old_seasonal']})</li>"
-    html += "</ul>"
+      if "distance" in joke and joke["distance"] is not None:
+        joke["distance"] = round(float(joke["distance"]), 4)
+    html += _render_table(updated_jokes, include_old_seasonal=True)
   else:
     html += "<p>No jokes were updated.</p>"
 
   html += f"<h2>Skipped Jokes (already {seasonal}) ({len(skipped_jokes)})</h2>"
   if skipped_jokes:
-    html += "<ul>"
-    for joke in skipped_jokes:
-      html += f"<li><b>{joke['id']}</b>: {joke['setup']} / {joke['punchline']}</li>"
-    html += "</ul>"
+    html += _render_table(skipped_jokes, include_old_seasonal=False)
   else:
     html += "<p>No jokes were skipped.</p>"
 

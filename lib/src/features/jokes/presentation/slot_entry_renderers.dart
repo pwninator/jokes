@@ -419,11 +419,14 @@ class _BookPromoWithCta extends ConsumerWidget {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(flex: 2, child: card),
+            Expanded(
+              flex: 2,
+              child: SizedBox.expand(child: Center(child: card)),
+            ),
             Expanded(
               flex: 1,
               child: Padding(
-                padding: const EdgeInsets.only(top: 8, right: 8),
+                padding: const EdgeInsets.all(8),
                 child: _buildCta(context, ref),
               ),
             ),
@@ -431,9 +434,17 @@ class _BookPromoWithCta extends ConsumerWidget {
         ),
       );
     } else {
-      return Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [card, _buildCta(context, ref)],
+      // In portrait, this promo must fit alongside the global viewer CTA
+      // (e.g. "Next joke") which lives outside of the PageView.
+      // Make this promo page own the available height so BOTH_ADAPTIVE mode can
+      // shrink the images to fit *with* the promo CTA visible.
+      return SizedBox.expand(
+        child: Column(
+          children: [
+            Expanded(child: Center(child: card)),
+            _buildCta(context, ref),
+          ],
+        ),
       );
     }
   }
@@ -480,7 +491,10 @@ class _FakeJokePromoCardState extends ConsumerState<_FakeJokePromoCard> {
       await appUsage.setBookPromoCardLastShown(now);
       _logged = true;
     } catch (e, stack) {
-      AppLogger.error('FAKE_BOOK_PROMO analytics error: $e', stackTrace: stack);
+      AppLogger.error(
+        'FAKE_JOKE_BOOK_PROMO analytics error: $e',
+        stackTrace: stack,
+      );
     }
   }
 

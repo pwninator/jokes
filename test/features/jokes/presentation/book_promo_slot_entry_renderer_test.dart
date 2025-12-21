@@ -103,6 +103,15 @@ void main() {
   testWidgets('falls back to default fake variant when remote value unknown', (
     tester,
   ) async {
+    final originalSize = tester.view.physicalSize;
+    final originalDpr = tester.view.devicePixelRatio;
+    addTearDown(() {
+      tester.view.physicalSize = originalSize;
+      tester.view.devicePixelRatio = originalDpr;
+    });
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = const Size(400, 800); // portrait
+
     final remoteValues = _FakeRemoteConfigValues('unknown_variant');
     when(
       () => mockAnalyticsService.logBookPromoCardViewed(
@@ -128,24 +137,22 @@ void main() {
         ],
         child: MaterialApp(
           home: Scaffold(
-            body: SingleChildScrollView(
-              child: Consumer(
-                builder: (context, ref, _) {
-                  final renderer = const BookPromoSlotEntryRenderer();
-                  final config = SlotEntryViewConfig(
-                    context: context,
-                    ref: ref,
-                    index: 0,
-                    isLandscape: false,
-                    jokeContext: 'joke_feed',
-                    showSimilarSearchButton: false,
-                  );
-                  return renderer.build(
-                    entry: const BookPromoSlotEntry(),
-                    config: config,
-                  );
-                },
-              ),
+            body: Consumer(
+              builder: (context, ref, _) {
+                final renderer = const BookPromoSlotEntryRenderer();
+                final config = SlotEntryViewConfig(
+                  context: context,
+                  ref: ref,
+                  index: 0,
+                  isLandscape: false,
+                  jokeContext: 'joke_feed',
+                  showSimilarSearchButton: false,
+                );
+                return renderer.build(
+                  entry: const BookPromoSlotEntry(),
+                  config: config,
+                );
+              },
             ),
           ),
         ),
@@ -184,6 +191,15 @@ void main() {
   testWidgets(
     'renders configured fake joke variant with analytics + usage logging',
     (tester) async {
+      final originalSize = tester.view.physicalSize;
+      final originalDpr = tester.view.devicePixelRatio;
+      addTearDown(() {
+        tester.view.physicalSize = originalSize;
+        tester.view.devicePixelRatio = originalDpr;
+      });
+      tester.view.devicePixelRatio = 1.0;
+      tester.view.physicalSize = const Size(400, 800); // portrait
+
       final remoteValues = _FakeRemoteConfigValues('fake_joke_bunny');
       when(
         () => mockAnalyticsService.logBookPromoCardViewed(
@@ -211,24 +227,22 @@ void main() {
           ],
           child: MaterialApp(
             home: Scaffold(
-              body: SingleChildScrollView(
-                child: Consumer(
-                  builder: (context, ref, _) {
-                    final renderer = const BookPromoSlotEntryRenderer();
-                    final config = SlotEntryViewConfig(
-                      context: context,
-                      ref: ref,
-                      index: 0,
-                      isLandscape: false,
-                      jokeContext: 'discover',
-                      showSimilarSearchButton: false,
-                    );
-                    return renderer.build(
-                      entry: const BookPromoSlotEntry(),
-                      config: config,
-                    );
-                  },
-                ),
+              body: Consumer(
+                builder: (context, ref, _) {
+                  final renderer = const BookPromoSlotEntryRenderer();
+                  final config = SlotEntryViewConfig(
+                    context: context,
+                    ref: ref,
+                    index: 0,
+                    isLandscape: false,
+                    jokeContext: 'discover',
+                    showSimilarSearchButton: false,
+                  );
+                  return renderer.build(
+                    entry: const BookPromoSlotEntry(),
+                    config: config,
+                  );
+                },
               ),
             ),
           ),
@@ -272,6 +286,15 @@ void main() {
   );
 
   testWidgets('renders CTA to the right in landscape mode', (tester) async {
+    final originalSize = tester.view.physicalSize;
+    final originalDpr = tester.view.devicePixelRatio;
+    addTearDown(() {
+      tester.view.physicalSize = originalSize;
+      tester.view.devicePixelRatio = originalDpr;
+    });
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = const Size(800, 400); // landscape
+
     final remoteValues = _FakeRemoteConfigValues('fake_joke_read');
     when(
       () => mockAnalyticsService.logBookPromoCardViewed(
@@ -297,24 +320,22 @@ void main() {
         ],
         child: MaterialApp(
           home: Scaffold(
-            body: SingleChildScrollView(
-              child: Consumer(
-                builder: (context, ref, _) {
-                  final renderer = const BookPromoSlotEntryRenderer();
-                  final config = SlotEntryViewConfig(
-                    context: context,
-                    ref: ref,
-                    index: 0,
-                    isLandscape: true,
-                    jokeContext: 'joke_feed',
-                    showSimilarSearchButton: false,
-                  );
-                  return renderer.build(
-                    entry: const BookPromoSlotEntry(),
-                    config: config,
-                  );
-                },
-              ),
+            body: Consumer(
+              builder: (context, ref, _) {
+                final renderer = const BookPromoSlotEntryRenderer();
+                final config = SlotEntryViewConfig(
+                  context: context,
+                  ref: ref,
+                  index: 0,
+                  isLandscape: true,
+                  jokeContext: 'joke_feed',
+                  showSimilarSearchButton: false,
+                );
+                return renderer.build(
+                  entry: const BookPromoSlotEntry(),
+                  config: config,
+                );
+              },
             ),
           ),
         ),
@@ -345,6 +366,15 @@ void main() {
   testWidgets(
     'tapping Amazon button logs analytics with variant and opens URL',
     (tester) async {
+      final originalSize = tester.view.physicalSize;
+      final originalDpr = tester.view.devicePixelRatio;
+      addTearDown(() {
+        tester.view.physicalSize = originalSize;
+        tester.view.devicePixelRatio = originalDpr;
+      });
+      tester.view.devicePixelRatio = 1.0;
+      tester.view.physicalSize = const Size(400, 800); // portrait
+
       final remoteValues = _FakeRemoteConfigValues('fake_joke_read');
       when(
         () => mockAnalyticsService.logBookPromoCardViewed(
@@ -381,24 +411,22 @@ void main() {
           ],
           child: MaterialApp(
             home: Scaffold(
-              body: SingleChildScrollView(
-                child: Consumer(
-                  builder: (context, ref, _) {
-                    final renderer = const BookPromoSlotEntryRenderer();
-                    final config = SlotEntryViewConfig(
-                      context: context,
-                      ref: ref,
-                      index: 0,
-                      isLandscape: false,
-                      jokeContext: 'discover',
-                      showSimilarSearchButton: false,
-                    );
-                    return renderer.build(
-                      entry: const BookPromoSlotEntry(),
-                      config: config,
-                    );
-                  },
-                ),
+              body: Consumer(
+                builder: (context, ref, _) {
+                  final renderer = const BookPromoSlotEntryRenderer();
+                  final config = SlotEntryViewConfig(
+                    context: context,
+                    ref: ref,
+                    index: 0,
+                    isLandscape: false,
+                    jokeContext: 'discover',
+                    showSimilarSearchButton: false,
+                  );
+                  return renderer.build(
+                    entry: const BookPromoSlotEntry(),
+                    config: config,
+                  );
+                },
               ),
             ),
           ),
@@ -439,6 +467,15 @@ void main() {
   testWidgets(
     'tapping Amazon button does not throw when launchUrl returns false',
     (tester) async {
+      final originalSize = tester.view.physicalSize;
+      final originalDpr = tester.view.devicePixelRatio;
+      addTearDown(() {
+        tester.view.physicalSize = originalSize;
+        tester.view.devicePixelRatio = originalDpr;
+      });
+      tester.view.devicePixelRatio = 1.0;
+      tester.view.physicalSize = const Size(400, 800); // portrait
+
       final remoteValues = _FakeRemoteConfigValues('fake_joke_read');
       when(
         () => mockAnalyticsService.logBookPromoCardViewed(
@@ -475,24 +512,22 @@ void main() {
           ],
           child: MaterialApp(
             home: Scaffold(
-              body: SingleChildScrollView(
-                child: Consumer(
-                  builder: (context, ref, _) {
-                    final renderer = const BookPromoSlotEntryRenderer();
-                    final config = SlotEntryViewConfig(
-                      context: context,
-                      ref: ref,
-                      index: 0,
-                      isLandscape: false,
-                      jokeContext: 'joke_feed',
-                      showSimilarSearchButton: false,
-                    );
-                    return renderer.build(
-                      entry: const BookPromoSlotEntry(),
-                      config: config,
-                    );
-                  },
-                ),
+              body: Consumer(
+                builder: (context, ref, _) {
+                  final renderer = const BookPromoSlotEntryRenderer();
+                  final config = SlotEntryViewConfig(
+                    context: context,
+                    ref: ref,
+                    index: 0,
+                    isLandscape: false,
+                    jokeContext: 'joke_feed',
+                    showSimilarSearchButton: false,
+                  );
+                  return renderer.build(
+                    entry: const BookPromoSlotEntry(),
+                    config: config,
+                  );
+                },
               ),
             ),
           ),

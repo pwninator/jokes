@@ -299,7 +299,10 @@ CompositeJokeSubSource _seasonalSubSource(
 /// and it will never be loaded again.
 final List<CompositeJokeSubSource> _prioritySubSources = [
   // Halloween priority source takes precedence when active
-  _seasonalSubSource('priority_halloween_jokes', SeasonalCategoryFeed.halloween),
+  _seasonalSubSource(
+    'priority_halloween_jokes',
+    SeasonalCategoryFeed.halloween,
+  ),
   // Today's daily joke appears once per day starting at index 5
   CompositeJokeSubSource(
     id: 'priority_today_joke',

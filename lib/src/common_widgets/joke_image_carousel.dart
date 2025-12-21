@@ -900,8 +900,27 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
     );
     final shouldShowDataSource = _shouldShowDataSource();
 
+    final leftControls = _buildLeftControls();
+    final rightControls = _buildRightControls();
+    final centerControls = widget.mode == JokeViewerMode.reveal
+        ? SmoothPageIndicator(
+            controller: _pageController,
+            count: 2,
+            effect: WormEffect(
+              dotHeight: 12,
+              dotWidth: 12,
+              spacing: 6,
+              radius: 6,
+              dotColor: theme.colorScheme.onSurface.withValues(alpha: 0.3),
+              activeDotColor: theme.colorScheme.primary,
+            ),
+          )
+        : null;
+    final hasControls =
+        leftControls != null || rightControls != null || centerControls != null;
+
     return Padding(
-      padding: const EdgeInsets.only(bottom: 24.0),
+      padding: const EdgeInsets.only(bottom: 4.0),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -1042,35 +1061,22 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
           ),
 
           // Controls row - always show, but conditionally show page indicators
-          SizedBox(
-            height: 36,
-            child: Row(
-              children: [
-                // Left spacer
-                Expanded(child: _buildLeftControls()),
+          if (hasControls)
+            SizedBox(
+              height: 36,
+              child: Row(
+                children: [
+                  // Left spacer
+                  Expanded(child: leftControls ?? const SizedBox()),
 
-                // Page indicators (centered) - only show in REVEAL mode
-                if (widget.mode == JokeViewerMode.reveal)
-                  SmoothPageIndicator(
-                    controller: _pageController,
-                    count: 2,
-                    effect: WormEffect(
-                      dotHeight: 12,
-                      dotWidth: 12,
-                      spacing: 6,
-                      radius: 6,
-                      dotColor: theme.colorScheme.onSurface.withValues(
-                        alpha: 0.3,
-                      ),
-                      activeDotColor: theme.colorScheme.primary,
-                    ),
-                  ),
+                  // Page indicators (centered) - only show in REVEAL mode
+                  if (centerControls != null) centerControls,
 
-                // Right buttons (save, share, admin rating) or spacer
-                Expanded(child: _buildRightControls()),
-              ],
+                  // Right buttons (save, share, admin rating) or spacer
+                  Expanded(child: rightControls ?? const SizedBox()),
+                ],
+              ),
             ),
-          ),
 
           // Admin buttons (only shown in admin mode)
           if (widget.isAdminMode)
@@ -1293,138 +1299,6 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
     );
   }
 
-  Widget _buildRightControls() {
-    // Build popularity score and save fraction (left-aligned in right section)
-    Widget? statsWidget;
-    if (widget.showUsageStats) {
-      final Color popularityColor = widget.joke.popularityScore > 0
-          ? Colors.purple.withValues(alpha: 0.9)
-          : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4);
-      final Color saveFractionColor = widget.joke.numSavedUsersFraction > 0
-          ? Colors.red.withValues(alpha: 0.9)
-          : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4);
-      statsWidget = Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.trending_up, size: 20, color: popularityColor),
-              const SizedBox(width: 4),
-              Text(
-                widget.joke.popularityScore.toStringAsPrecision(3),
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(width: 12),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(Icons.favorite_outline, size: 20, color: saveFractionColor),
-              const SizedBox(width: 4),
-              Text(
-                widget.joke.numSavedUsersFraction.toStringAsPrecision(2),
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
-        ],
-      );
-    }
-
-    // Build buttons (right-aligned in right section)
-    final List<Widget> buttons = [];
-    if (widget.showUserRatingButtons) {
-      final reactionAsync = ref.watch(
-        jokeThumbsReactionProvider(widget.joke.id),
-      );
-      final reactionWidget = reactionAsync.when(
-        data: (reaction) => _buildReactionButtons(reaction),
-        loading: () => SizedBox(
-          width: 72,
-          height: 32,
-          child: Center(
-            child: SizedBox(
-              width: 18,
-              height: 18,
-              child: CircularProgressIndicator(
-                strokeWidth: 2,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-            ),
-          ),
-        ),
-        error: (error, stack) => _buildReactionButtons(JokeThumbsReaction.none),
-      );
-      buttons.add(reactionWidget);
-    }
-
-    // Add admin rating buttons if enabled
-    if (widget.showAdminRatingButtons) {
-      if (buttons.isNotEmpty) {
-        buttons.add(const SizedBox(width: 8));
-      }
-      buttons.add(AdminApprovalControls(jokeId: widget.joke.id));
-    }
-
-    // Add share button if enabled
-    if (widget.showShareButton) {
-      if (buttons.isNotEmpty) {
-        buttons.add(const SizedBox(width: 8));
-      }
-      buttons.add(
-        ShareJokeButton(joke: widget.joke, jokeContext: widget.jokeContext),
-      );
-    }
-
-    // Add save button if enabled
-    if (widget.showSaveButton) {
-      if (buttons.isNotEmpty) {
-        buttons.add(const SizedBox(width: 8));
-      }
-      buttons.add(
-        SaveJokeButton(jokeId: widget.joke.id, jokeContext: widget.jokeContext),
-      );
-    }
-
-    // If nothing to show, return empty space
-    if (statsWidget == null && buttons.isEmpty) {
-      return const SizedBox();
-    }
-
-    // Return row with stats on left and buttons on right
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        // Left side: popularity score and save fraction
-        if (statsWidget != null)
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: statsWidget,
-          )
-        else
-          const SizedBox(),
-        // Right side: buttons
-        if (buttons.isNotEmpty)
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerRight,
-            child: Row(mainAxisSize: MainAxisSize.min, children: buttons),
-          )
-        else
-          const SizedBox(),
-      ],
-    );
-  }
-
   Widget _buildReactionButtons(JokeThumbsReaction reaction) {
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -1632,7 +1506,139 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
     );
   }
 
-  Widget _buildLeftControls() {
+  Widget? _buildRightControls() {
+    // Build popularity score and save fraction (left-aligned in right section)
+    Widget? statsWidget;
+    if (widget.showUsageStats) {
+      final Color popularityColor = widget.joke.popularityScore > 0
+          ? Colors.purple.withValues(alpha: 0.9)
+          : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4);
+      final Color saveFractionColor = widget.joke.numSavedUsersFraction > 0
+          ? Colors.red.withValues(alpha: 0.9)
+          : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.4);
+      statsWidget = Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.trending_up, size: 20, color: popularityColor),
+              const SizedBox(width: 4),
+              Text(
+                widget.joke.popularityScore.toStringAsPrecision(3),
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(width: 12),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.favorite_outline, size: 20, color: saveFractionColor),
+              const SizedBox(width: 4),
+              Text(
+                widget.joke.numSavedUsersFraction.toStringAsPrecision(2),
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ],
+      );
+    }
+
+    // Build buttons (right-aligned in right section)
+    final List<Widget> buttons = [];
+    if (widget.showUserRatingButtons) {
+      final reactionAsync = ref.watch(
+        jokeThumbsReactionProvider(widget.joke.id),
+      );
+      final reactionWidget = reactionAsync.when(
+        data: (reaction) => _buildReactionButtons(reaction),
+        loading: () => SizedBox(
+          width: 72,
+          height: 32,
+          child: Center(
+            child: SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: Theme.of(context).colorScheme.primary,
+              ),
+            ),
+          ),
+        ),
+        error: (error, stack) => _buildReactionButtons(JokeThumbsReaction.none),
+      );
+      buttons.add(reactionWidget);
+    }
+
+    // Add admin rating buttons if enabled
+    if (widget.showAdminRatingButtons) {
+      if (buttons.isNotEmpty) {
+        buttons.add(const SizedBox(width: 8));
+      }
+      buttons.add(AdminApprovalControls(jokeId: widget.joke.id));
+    }
+
+    // Add share button if enabled
+    if (widget.showShareButton) {
+      if (buttons.isNotEmpty) {
+        buttons.add(const SizedBox(width: 8));
+      }
+      buttons.add(
+        ShareJokeButton(joke: widget.joke, jokeContext: widget.jokeContext),
+      );
+    }
+
+    // Add save button if enabled
+    if (widget.showSaveButton) {
+      if (buttons.isNotEmpty) {
+        buttons.add(const SizedBox(width: 8));
+      }
+      buttons.add(
+        SaveJokeButton(jokeId: widget.joke.id, jokeContext: widget.jokeContext),
+      );
+    }
+
+    // If nothing to show, return empty space
+    if (statsWidget == null && buttons.isEmpty) {
+      return null;
+    }
+
+    // Return row with stats on left and buttons on right
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        // Left side: popularity score and save fraction
+        if (statsWidget != null)
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: statsWidget,
+          )
+        else
+          const SizedBox(),
+        // Right side: buttons
+        if (buttons.isNotEmpty)
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerRight,
+            child: Row(mainAxisSize: MainAxisSize.min, children: buttons),
+          )
+        else
+          const SizedBox(),
+      ],
+    );
+  }
+
+  Widget? _buildLeftControls() {
     final List<Widget> items = [];
 
     // Similar button (icon + text), shown only when flag enabled and not admin
@@ -1699,7 +1705,7 @@ class _JokeImageCarouselState extends ConsumerState<JokeImageCarousel> {
     }
 
     if (items.isEmpty) {
-      return const SizedBox();
+      return null;
     }
 
     return Align(

@@ -23,6 +23,8 @@ _AD_BACKGROUND_SQUARE_CORKBOARD_URI = "gs://images.quillsstorybook.com/joke_asse
 
 _AD_LANDSCAPE_CANVAS_WIDTH = 2048
 _AD_LANDSCAPE_CANVAS_HEIGHT = 1024
+_SHARE_VERTICAL_CANVAS_WIDTH = 1024
+_SHARE_VERTICAL_CANVAS_HEIGHT = 2048
 _AD_SQUARE_JOKE_IMAGE_SIZE_PX = 584
 
 _STYLE_UPDATE_CANVAS_URL = constants.STYLE_REFERENCE_CANVAS_IMAGE_URL
@@ -915,6 +917,34 @@ def _compose_landscape_ad_image(
 
   base = editor.paste_image(base, setup_scaled, 0, 0)
   base = editor.paste_image(base, punchline_scaled, half_width, 0)
+
+  buffer = BytesIO()
+  base.save(buffer, format='PNG')
+  return buffer.getvalue(), base.width
+
+
+def create_vertical_share_image(
+  editor: image_editor.ImageEditor,
+  setup_image: Image.Image,
+  punchline_image: Image.Image,
+) -> tuple[bytes, int]:
+  """Create a 1024x2048 vertical PNG of the setup/punchline images."""
+  base = editor.create_blank_image(_SHARE_VERTICAL_CANVAS_WIDTH,
+                                   _SHARE_VERTICAL_CANVAS_HEIGHT)
+  half_height = _SHARE_VERTICAL_CANVAS_HEIGHT // 2
+  setup_scaled = editor.scale_image(
+    setup_image,
+    new_width=_SHARE_VERTICAL_CANVAS_WIDTH,
+    new_height=half_height,
+  )
+  punchline_scaled = editor.scale_image(
+    punchline_image,
+    new_width=_SHARE_VERTICAL_CANVAS_WIDTH,
+    new_height=half_height,
+  )
+
+  base = editor.paste_image(base, setup_scaled, 0, 0)
+  base = editor.paste_image(base, punchline_scaled, 0, half_height)
 
   buffer = BytesIO()
   base.save(buffer, format='PNG')

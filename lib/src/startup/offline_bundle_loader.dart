@@ -21,18 +21,18 @@ class OfflineBundleLoader {
   final FirebaseFirestore _firestore;
   final AssetBundle _assetBundle;
 
-  static const String _bundlePath = 'assets/data_bundles/firestore_bundle.txt';
+  static const String bundlePath = 'assets/data_bundles/firestore_bundle.txt';
 
   /// Load the most recent Firestore bundle from assets (if any).
   ///
   /// Returns true when a bundle was found and fully loaded, false otherwise.
   Future<bool> loadLatestBundle() async {
     try {
-      final bytes = await _loadAssetBytes(_bundlePath);
+      final bytes = await _loadAssetBytes(bundlePath);
       final task = _firestore.loadBundle(bytes);
       await task.stream.last;
       AppLogger.info(
-        'OFFLINE_BUNDLE: Loaded Firestore bundle from $_bundlePath',
+        'OFFLINE_BUNDLE: Loaded Firestore bundle from $bundlePath',
       );
       return true;
     } catch (e, stack) {

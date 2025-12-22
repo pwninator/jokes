@@ -9,12 +9,12 @@ import zoneinfo
 from concurrent.futures import ThreadPoolExecutor
 
 import flask
+import requests
 from common import amazon_redirect, config, models, utils
 from firebase_functions import https_fn, logger, options
 from functions import auth_helpers
 from google.cloud.firestore import ArrayUnion
 from services import cloud_storage, firestore, search
-import requests
 
 _GA4_MEASUREMENT_ID = "G-D2B7E8PXJJ"
 _GA4_TIMEOUT_SECONDS = 1.0
@@ -264,6 +264,9 @@ def _submit_ga4_event_fire_and_forget(
         headers["User-Agent"] = user_agent
       if user_ip:
         headers["X-Forwarded-For"] = user_ip
+      logger.info(
+        f"Sending GA4 MP event '{event_name}' with params: {params}, payload: {payload}, headers: {headers}"
+      )
       requests.post(url,
                     params=params,
                     json=payload,

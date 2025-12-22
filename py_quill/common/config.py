@@ -36,28 +36,29 @@ FIREBASE_WEB_CONFIG = {
 }
 
 
-def get_openai_api_key() -> str:
-  """Gets the OpenAI API key from the secret manager."""
-  secret_id = "OPENAI_API_KEY"
+def _get_secret(secret_id: str) -> str:
+  """Return the latest version of a Secret Manager secret as a UTF-8 string."""
   client = secretmanager.SecretManagerServiceClient()
   name = f"projects/{PROJECT_ID}/secrets/{secret_id}/versions/latest"
   response = client.access_secret_version(name=name)
   return response.payload.data.decode("UTF-8")
+
+
+def get_openai_api_key() -> str:
+  """Gets the OpenAI API key from the secret manager."""
+  return _get_secret("OPENAI_API_KEY")
 
 
 def get_anthropic_api_key() -> str:
-  """Gets the OpenAI API key from the secret manager."""
-  secret_id = "ANTHROPIC_API_KEY"
-  client = secretmanager.SecretManagerServiceClient()
-  name = f"projects/{PROJECT_ID}/secrets/{secret_id}/versions/latest"
-  response = client.access_secret_version(name=name)
-  return response.payload.data.decode("UTF-8")
+  """Gets the Anthropic API key from the secret manager."""
+  return _get_secret("ANTHROPIC_API_KEY")
 
 
 def get_gemini_api_key() -> str:
   """Gets the Gemini API key from the secret manager."""
-  secret_id = "GEMINI_API_KEY"
-  client = secretmanager.SecretManagerServiceClient()
-  name = f"projects/{PROJECT_ID}/secrets/{secret_id}/versions/latest"
-  response = client.access_secret_version(name=name)
-  return response.payload.data.decode("UTF-8")
+  return _get_secret("GEMINI_API_KEY")
+
+
+def get_google_analytics_api_key() -> str:
+  """Gets the GA4 Measurement Protocol API secret from the secret manager."""
+  return _get_secret("GOOGLE_ANALYTICS_API_KEY")

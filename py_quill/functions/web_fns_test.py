@@ -505,7 +505,16 @@ def test_pages_include_ga4_tag_and_parchment_background(monkeypatch):
 
 def test_amazon_redirect_renders_intermediate_page(monkeypatch):
   """Amazon redirects should render an intermediate redirect page (not a 302)."""
+  calls = []
+
+  def _mock_submit(**kwargs):
+    calls.append(kwargs)
+
+  monkeypatch.setattr(web_fns, "_submit_ga4_event_fire_and_forget", _mock_submit)
+  monkeypatch.setattr(web_fns.config, "get_google_analytics_api_key",
+                      lambda: "test-secret")
   with web_fns.app.test_client() as client:
+    client.set_cookie("_ga", "GA1.1.1111111111.2222222222")
     resp = client.get('/book-animal-jokes?country_override=DE')
 
   assert resp.status_code == 200
@@ -515,6 +524,11 @@ def test_amazon_redirect_renders_intermediate_page(monkeypatch):
   assert "location.replace" in html
   assert "www.amazon.de" in html
   assert "B0G7F82P65" in html
+  assert len(calls) == 1
+  assert calls[0]["measurement_id"] == "G-D2B7E8PXJJ"
+  assert calls[0]["client_id"] == "1111111111.2222222222"
+  assert calls[0]["event_name"] == "amazon_redirect_server"
+  assert calls[0]["event_params"]["redirect_key"] == "book-animal-jokes"
 
 
 def test_amazon_redirect_falls_back_to_ebook_for_unsupported_country():

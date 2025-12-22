@@ -3,7 +3,10 @@
 import datetime
 import hashlib
 import os
+import re
+import uuid
 import zoneinfo
+from concurrent.futures import ThreadPoolExecutor
 
 import flask
 from common import amazon_redirect, config, models, utils
@@ -11,6 +14,12 @@ from firebase_functions import https_fn, logger, options
 from functions import auth_helpers
 from google.cloud.firestore import ArrayUnion
 from services import cloud_storage, firestore, search
+import requests
+
+_GA4_MEASUREMENT_ID = "G-D2B7E8PXJJ"
+_GA4_TIMEOUT_SECONDS = 1.0
+_GA4_EXECUTOR = ThreadPoolExecutor(max_workers=2)
+_GA_COOKIE_CLIENT_ID_RE = re.compile(r"^\d+\.\d+$")
 
 _TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), '..', 'web',
                               'templates')
@@ -163,6 +172,22 @@ def _handle_amazon_redirect(redirect_key: str) -> flask.Response:
     'page_type': config_entry.page_type.value,
   }
 
+  client_id = _ga4_client_id_for_request(flask.request)
+  _submit_ga4_event_fire_and_forget(
+    measurement_id=_GA4_MEASUREMENT_ID,
+    api_secret=config.get_google_analytics_api_key(),
+    client_id=client_id,
+    event_name='amazon_redirect_server',
+    event_params={
+      **event_params,
+      'source': source,
+      'page_location': flask.request.url,
+    },
+    user_agent=flask.request.headers.get('User-Agent'),
+    user_ip=flask.request.headers.get('X-Forwarded-For')
+    or flask.request.remote_addr,
+  )
+
   html = flask.render_template(
     'redirect.html',
     page_title=config_entry.label,
@@ -182,6 +207,80 @@ def _handle_amazon_redirect(redirect_key: str) -> flask.Response:
     now_year=datetime.datetime.now(datetime.timezone.utc).year,
   )
   return _html_no_store_response(html, status=200)
+
+
+def _ga4_client_id_for_request(req: flask.Request) -> str:
+  """Return client_id for GA4 Measurement Protocol.
+
+  Prefers the existing GA cookie `_ga` (stable across web analytics), otherwise
+  falls back to a random per-request ID (no cookie set by redirects).
+  """
+  ga_cookie = req.cookies.get('_ga')
+  if ga_cookie:
+    # Typical format: GA1.1.1234567890.1234567890
+    parts = ga_cookie.split('.')
+    if len(parts) >= 2:
+      candidate = f"{parts[-2]}.{parts[-1]}"
+      if _GA_COOKIE_CLIENT_ID_RE.match(candidate):
+        return candidate
+
+  return str(uuid.uuid4())
+
+
+def _submit_ga4_event_fire_and_forget(
+  *,
+  measurement_id: str,
+  api_secret: str,
+  client_id: str,
+  event_name: str,
+  event_params: dict,
+  user_agent: str | None,
+  user_ip: str | None,
+) -> None:
+  """Send a GA4 Measurement Protocol event without blocking the request."""
+
+  def _send() -> None:
+    try:
+      url = "https://www.google-analytics.com/mp/collect"
+      params = {
+        "measurement_id": measurement_id,
+        "api_secret": api_secret,
+      }
+      payload = {
+        "client_id":
+        client_id,
+        "events": [{
+          "name": event_name,
+          "params": {
+            **(event_params or {}),
+            # Minimal engagement time so GA accepts it as an event.
+            "engagement_time_msec":
+            1,
+          },
+        }],
+      }
+      headers = {"Content-Type": "application/json"}
+      if user_agent:
+        headers["User-Agent"] = user_agent
+      if user_ip:
+        headers["X-Forwarded-For"] = user_ip
+      requests.post(url,
+                    params=params,
+                    json=payload,
+                    headers=headers,
+                    timeout=_GA4_TIMEOUT_SECONDS)
+    except Exception as exc:  # pylint: disable=broad-except
+      logger.warn(f"Failed to send GA4 MP event '{event_name}': {exc}")
+
+  future = _GA4_EXECUTOR.submit(_send)
+
+  def _log_unexpected_error(fut) -> None:  # pragma: no cover
+    try:
+      fut.result()
+    except Exception as exc:  # pylint: disable=broad-except
+      logger.warn(f"Unexpected GA4 MP failure: {exc}")
+
+  future.add_done_callback(_log_unexpected_error)
 
 
 def _redirect_endpoint_for_key(

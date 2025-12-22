@@ -18,8 +18,8 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 # of the product and file versions while build-number is used as the build suffix.
 # The convention for the build name is based on the version number:
 # A.BB.CC+ABBCCN where N starts at 0 for each new version and increments for each build of the same version.
-version: 2.0.7+200071
-# Book promo
+version: 2.0.7+200072
+# Update Christmas jokes data bundle
 
 environment:
   # Flutter 3.38.1 has Dart version 3.10.0

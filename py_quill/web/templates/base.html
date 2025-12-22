@@ -3,8 +3,9 @@
 {% block title %}{% block page_title %}{{ site_name }} jokes{% endblock %}{% endblock %}
 
 {% block head_meta %}
+{% set default_meta_description = "Don't just read jokes, see them! Snickerdoodle Jokes pairs hilarious puns with adorable art. Grab the illustrated Book or download the App today." %}
 <meta name="description"
-  content="{% block meta_description %}Discover funny, family-friendly jokes with images. Reveal the punchline when you're ready.{% endblock %}">
+  content="{% block meta_description %}{{ default_meta_description }}{% endblock %}">
 <link rel="canonical" href="{{ canonical_url }}">
 {% if prev_url %}
 <link rel="prev" href="{{ prev_url }}">{% endif %}
@@ -14,7 +15,7 @@
 <!-- Open Graph -->
 <meta property="og:title" content="{% block og_title %}{{ site_name }} jokes{% endblock %}">
 <meta property="og:description"
-  content="{% block og_description %}Discover funny, family-friendly jokes with images. Reveal the punchline when you're ready.{% endblock %}">
+  content="{% block og_description %}{{ default_meta_description }}{% endblock %}">
 <meta property="og:type" content="website">
 <meta property="og:url" content="{{ canonical_url }}">
 
@@ -22,7 +23,7 @@
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="{% block twitter_title %}{{ site_name }} jokes{% endblock %}">
 <meta name="twitter:description"
-  content="{% block twitter_description %}Discover funny, family-friendly jokes with images. Reveal the punchline when you're ready.{% endblock %}">
+  content="{% block twitter_description %}{{ default_meta_description }}{% endblock %}">
 {% endblock %}
 
 {% block body %}

@@ -10,6 +10,7 @@ PROJECT_LOCATION = "us-central1"
 AUDIO_BUCKET_NAME = "gen_audio"
 IMAGE_BUCKET_NAME = "images.quillsstorybook.com"
 ADMIN_HOST = "snickerdoodlejokes.com"
+JOKE_BUNDLE_SECRET_ID = "JOKE_BUNDLE_SECRET"
 
 # Admin session
 SESSION_COOKIE_NAME = '__session'
@@ -62,3 +63,8 @@ def get_gemini_api_key() -> str:
 def get_google_analytics_api_key() -> str:
   """Gets the GA4 Measurement Protocol API secret from the secret manager."""
   return _get_secret("GOOGLE_ANALYTICS_API_KEY")
+
+
+def get_joke_bundle_secret() -> str:
+  """Gets the secret that can authorize bundle generation requests."""
+  return _get_secret(JOKE_BUNDLE_SECRET_ID)

@@ -18,6 +18,8 @@ from google.cloud.firestore_bundle import FirestoreBundle
 from google.cloud.firestore_v1.field_path import FieldPath
 from services import cloud_storage, firestore, search
 
+BUNDLE_SECRET_HEADER = "X-Bundle-Secret"
+
 
 @https_fn.on_request(
   memory=options.MemoryOption.GB_4,
@@ -36,7 +38,25 @@ def get_joke_bundle(req: https_fn.Request) -> https_fn.Response:
       mimetype='application/json',
     )
 
-  if not utils.is_emulator():
+  bundle_secret = req.headers.get(BUNDLE_SECRET_HEADER)
+  if bundle_secret:
+    try:
+      expected_secret = config.get_joke_bundle_secret()
+    except Exception as exc:  # pylint: disable=broad-except
+      logger.error(f"Failed to load joke bundle secret: {str(exc)}")
+      logger.error(traceback.format_exc())
+      return https_fn.Response(
+        json.dumps(error_response('Failed to verify bundle secret')),
+        status=500,
+        mimetype='application/json',
+      )
+    if bundle_secret != expected_secret:
+      return https_fn.Response(
+        json.dumps(error_response('Unauthorized')),
+        status=403,
+        mimetype='application/json',
+      )
+  elif not utils.is_emulator():
     verification = auth_helpers.verify_session(req)
     if not verification or verification[1].get('role') != 'admin':
       return https_fn.Response(

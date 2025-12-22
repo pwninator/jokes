@@ -60,6 +60,8 @@ app.*.map.json
 
 # Local Firestore bundle exports
 assets/data_bundles/
+scripts/data_bundle_backups/
+scripts/.bundle_secret.local
 
 # Python build artifacts
 *.egg-info/

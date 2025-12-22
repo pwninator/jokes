@@ -575,10 +575,7 @@ def test_get_joke_bundle_requires_admin(monkeypatch):
   assert "error" in payload["data"]
 
 
-def test_get_joke_bundle_success(monkeypatch):
-  """Builds bundle, uploads to storage, and returns the public URL."""
-  monkeypatch.setattr(joke_fns.utils, "is_emulator", lambda: True)
-
+def _setup_bundle_success(monkeypatch):
   mock_db = Mock()
   mock_feed_collection = Mock()
   mock_categories_collection = Mock()
@@ -589,7 +586,8 @@ def test_get_joke_bundle_success(monkeypatch):
   mock_category_doc.exists = True
   mock_cache_doc = Mock()
   mock_cache_doc.exists = True
-  mock_category_doc.reference.collection.return_value.document.return_value.get.return_value = mock_cache_doc
+  mock_category_doc.reference.collection.return_value.document.return_value.get.return_value = (
+    mock_cache_doc)
   mock_joke_doc = Mock()
 
   mock_feed_collection.order_by.return_value.stream.return_value = [
@@ -630,6 +628,28 @@ def test_get_joke_bundle_success(monkeypatch):
   monkeypatch.setattr(joke_fns, "FirestoreBundle",
                       lambda name: mock_bundle)  # noqa: ARG005
 
+  return (
+    mock_bundle,
+    uploaded,
+    mock_feed_doc,
+    mock_category_doc,
+    mock_cache_doc,
+    mock_joke_doc,
+  )
+
+
+def test_get_joke_bundle_success(monkeypatch):
+  """Builds bundle, uploads to storage, and returns the public URL."""
+  monkeypatch.setattr(joke_fns.utils, "is_emulator", lambda: True)
+  (
+    mock_bundle,
+    uploaded,
+    mock_feed_doc,
+    mock_category_doc,
+    mock_cache_doc,
+    mock_joke_doc,
+  ) = _setup_bundle_success(monkeypatch)
+
   resp = joke_fns.get_joke_bundle(DummyReq(method='POST'))
 
   assert resp.status_code == 200
@@ -644,3 +664,42 @@ def test_get_joke_bundle_success(monkeypatch):
   assert uploaded["bytes"] == b"bundle-bytes"
   assert uploaded["gcs_uri"] == "gs://temp/bundle.txt"
   assert uploaded["content_type"] == "application/octet-stream"
+
+
+def test_get_joke_bundle_secret_bypasses_admin(monkeypatch):
+  """Allows bundle generation when a valid secret is provided."""
+  monkeypatch.setattr(joke_fns.utils, "is_emulator", lambda: False)
+  monkeypatch.setattr(joke_fns.config, "get_joke_bundle_secret",
+                      lambda: "secret123")
+  verify_session = Mock()
+  monkeypatch.setattr(joke_fns.auth_helpers, "verify_session", verify_session)
+
+  mock_bundle, uploaded, _, _, _, _ = _setup_bundle_success(monkeypatch)
+
+  resp = joke_fns.get_joke_bundle(
+    DummyReq(method='POST', headers={"X-Bundle-Secret": "secret123"}))
+
+  assert resp.status_code == 200
+  payload = json.loads(resp.get_data(as_text=True))
+  assert payload["data"][
+    "bundle_url"] == "https://storage.googleapis.com/temp/bundle.txt"
+  verify_session.assert_not_called()
+  assert uploaded["bytes"] == b"bundle-bytes"
+  assert uploaded["content_type"] == "application/octet-stream"
+
+
+def test_get_joke_bundle_secret_mismatch_rejected(monkeypatch):
+  """Rejects bundle generation when the secret does not match."""
+  monkeypatch.setattr(joke_fns.utils, "is_emulator", lambda: False)
+  monkeypatch.setattr(joke_fns.config, "get_joke_bundle_secret",
+                      lambda: "secret123")
+  verify_session = Mock()
+  monkeypatch.setattr(joke_fns.auth_helpers, "verify_session", verify_session)
+
+  resp = joke_fns.get_joke_bundle(
+    DummyReq(method='POST', headers={"X-Bundle-Secret": "wrong"}))
+
+  assert resp.status_code == 403
+  payload = json.loads(resp.get_data(as_text=True))
+  assert "error" in payload["data"]
+  verify_session.assert_not_called()

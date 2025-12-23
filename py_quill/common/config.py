@@ -68,3 +68,8 @@ def get_google_analytics_api_key() -> str:
 def get_joke_bundle_secret() -> str:
   """Gets the secret that can authorize bundle generation requests."""
   return _get_secret(JOKE_BUNDLE_SECRET_ID)
+
+
+def get_mailerlite_api_key() -> str:
+  """Gets the MailerLite API key from the secret manager."""
+  return _get_secret("MAILERLITE_API_KEY")

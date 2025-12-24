@@ -1,4 +1,5 @@
 """Tests for the web_fns module."""
+import datetime
 from unittest.mock import Mock
 from io import BytesIO
 import pytest
@@ -68,6 +69,70 @@ class _FakeFirestore:
     if name == "jokes":
       return _FakeCollection(self._jokes)
     return _FakeCollection({})
+
+
+def test_lunchbox_get_renders_form():
+  with web_fns.app.test_client() as client:
+    resp = client.get('/lunchbox')
+
+  assert resp.status_code == 200
+  html = resp.get_data(as_text=True)
+  assert 'Make Lunch the Best Part of Their Day.' in html
+  assert 'name="email"' in html
+  assert 'name="opt_in"' in html
+  assert 'Send Me The Free Kit' in html
+
+
+def test_lunchbox_post_stores_lead_and_redirects(monkeypatch):
+  captured: dict[str, object] = {}
+
+  def _fake_set(data):
+    captured["data"] = data
+
+  fake_doc = Mock()
+  fake_doc.set.side_effect = _fake_set
+  fake_collection = Mock()
+  fake_collection.document.return_value = fake_doc
+  fake_db = Mock()
+  fake_db.collection.return_value = fake_collection
+  monkeypatch.setattr(web_fns.firestore, "db", lambda: fake_db)
+
+  with web_fns.app.test_client() as client:
+    resp = client.post('/lunchbox?country_override=DE',
+                       data={
+                         'email': 'Test@Example.com',
+                       })
+
+  assert resp.status_code == 302
+  assert resp.headers["Location"].endswith('/lunchbox-thank-you')
+  fake_db.collection.assert_called_once_with('joke_leads')
+  fake_collection.document.assert_called_once_with('test@example.com')
+  assert captured["data"]["email"] == 'test@example.com'
+  assert isinstance(captured["data"]["timestamp"], datetime.datetime)
+  assert captured["data"]["opt_in"] is False
+  assert captured["data"]["country_code"] == 'DE'
+
+
+def test_lunchbox_post_invalid_email_renders_error(monkeypatch):
+  fake_db = Mock()
+  monkeypatch.setattr(web_fns.firestore, "db", lambda: fake_db)
+
+  with web_fns.app.test_client() as client:
+    resp = client.post('/lunchbox', data={'email': 'not-an-email'})
+
+  assert resp.status_code == 400
+  html = resp.get_data(as_text=True)
+  assert 'Please enter a valid email address.' in html
+  fake_db.collection.assert_not_called()
+
+
+def test_lunchbox_thank_you_renders():
+  with web_fns.app.test_client() as client:
+    resp = client.get('/lunchbox-thank-you')
+
+  assert resp.status_code == 200
+  html = resp.get_data(as_text=True)
+  assert 'Your Free Joke Cards Are On The Way!' in html
 
 
 def test_topic_page_uses_batch_fetch(monkeypatch):
@@ -510,7 +575,8 @@ def test_amazon_redirect_renders_intermediate_page(monkeypatch):
   def _mock_submit(**kwargs):
     calls.append(kwargs)
 
-  monkeypatch.setattr(web_fns, "_submit_ga4_event_fire_and_forget", _mock_submit)
+  monkeypatch.setattr(web_fns, "_submit_ga4_event_fire_and_forget",
+                      _mock_submit)
   monkeypatch.setattr(web_fns.config, "get_google_analytics_api_key",
                       lambda: "test-secret")
   with web_fns.app.test_client() as client:
@@ -602,8 +668,7 @@ def test_amazon_redirect_logs_warning_for_unknown_source(monkeypatch):
   """Unknown source codes should log a warning and skip tagging."""
   mock_logger = Mock()
   monkeypatch.setattr(web_fns.amazon_redirect, "logger", mock_logger)
-  monkeypatch.setattr(web_fns.amazon_redirect, "AMAZON_ATTRIBUTION_TAGS",
-                      {})
+  monkeypatch.setattr(web_fns.amazon_redirect, "AMAZON_ATTRIBUTION_TAGS", {})
 
   with web_fns.app.test_client() as client:
     resp = client.get('/book-animal-jokes?country_override=US&source=unknown')

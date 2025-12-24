@@ -9,6 +9,9 @@
   --color-shadow: rgba(196, 171, 140, 0.25);
   --color-primary: rgba(243, 179, 51, 1.0);
   --color-primary-dark: rgba(198, 109, 0, 1.0);
+  --color-form-border-strong: rgba(74, 59, 50, 0.25);
+  --color-form-surface: rgba(255, 255, 255, 0.95);
+  --color-focus-ring: rgba(243, 179, 51, 0.45);
   --color-pill-bg: #efe1c5;
   --color-pill-text: #735a45;
   --color-app-highlight-bg: rgba(205, 157, 80, 1.0);
@@ -24,6 +27,20 @@
   /* Buttons, Pills */
   --font-weight-body: 600;
   --font-weight-button: 700;
+}
+
+/* --- Utilities --- */
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 /* --- Typography Classes --- */
@@ -75,7 +92,8 @@
 
 /* 6. Footer Text */
 .text-footer {
-  font-size: 0.9rem; /* Slightly smaller than body */
+  font-size: 0.9rem;
+  /* Slightly smaller than body */
   font-weight: var(--font-weight-body);
   color: var(--color-text-muted);
 }
@@ -192,6 +210,7 @@ img {
   padding: 10px 16px;
   border-radius: 999px;
   background: var(--color-primary);
+  border: none;
   box-shadow: 0 6px 16px var(--color-shadow);
   transition: transform 120ms ease, box-shadow 120ms ease;
 }
@@ -266,6 +285,138 @@ img {
   width: 100%;
   height: 100%;
   object-fit: cover;
+}
+
+/* --- Lunchbox Landing Page --- */
+
+.lunchbox-lead {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.lunchbox-section-title {
+  width: 100%;
+  text-align: center;
+  margin: 0;
+}
+
+.lunchbox-lead-card {
+  width: 100%;
+  max-width: 600px;
+  margin: 0 auto;
+  background: var(--color-surface);
+  border-radius: 22px;
+  border: 1px solid var(--color-border);
+  box-shadow: 0 14px 30px var(--color-shadow);
+  padding: 18px;
+}
+
+.lunchbox-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.lunchbox-field {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.lunchbox-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid var(--color-text-muted);
+  /* Fallback/Specific contrast */
+  border-color: var(--color-form-border-strong);
+  background: var(--color-form-surface);
+  font-size: 1rem;
+  font-weight: var(--font-weight-body);
+  color: var(--color-text);
+  transition: border-color 0.2s, outline 0.2s;
+}
+
+.lunchbox-input::placeholder {
+  color: var(--color-text-muted);
+  opacity: 0.7;
+}
+
+.lunchbox-input:focus-visible {
+  outline: 3px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+.lunchbox-checkbox {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.lunchbox-checkbox input[type="checkbox"] {
+  margin-top: 3px;
+  accent-color: var(--color-primary);
+  width: 1.1em;
+  height: 1.1em;
+}
+
+.lunchbox-submit {
+  width: 100%;
+  justify-content: center;
+}
+
+.lunchbox-privacy {
+  text-align: center;
+  margin: 0;
+}
+
+.lunchbox-details {
+  display: grid;
+  gap: 18px;
+  align-items: start;
+  grid-template-columns: 1fr;
+}
+
+.lunchbox-details-card {
+  width: 100%;
+  justify-self: stretch;
+}
+
+.lunchbox-details-card .hero-card__image {
+  /* Match lunchbox_product.png original aspect ratio: 2336 / 1824 = 73 / 57 */
+  aspect-ratio: 73 / 57;
+}
+
+.lunchbox-benefits {
+  margin: 16px 0 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.lunchbox-benefits li strong {
+  color: var(--color-text);
+  font-weight: var(--font-weight-button);
+}
+
+@media (min-width: 860px) {
+  .lunchbox-details {
+    grid-template-columns: 1.2fr 1fr;
+  }
+}
+
+@media (max-width: 859px) {
+  .lunchbox-details {
+    grid-template-columns: 1fr;
+  }
+
+  .lunchbox-details-card {
+    grid-column: 1 / -1;
+  }
 }
 
 .joke-viewer {
@@ -425,12 +576,17 @@ img {
 /* --- App Highlight Section --- */
 .app-highlight {
   background: var(--color-app-highlight-bg);
-  border-radius: 0; /* Full-width horizontal strip, no rounded card */
+  border-radius: 0;
+  /* Full-width horizontal strip, no rounded card */
   border: none;
-  box-shadow: none; /* Remove card-like shadow */
-  padding: 24px 24px 0 24px; /* Remove bottom padding for flush image */
-  margin-inline: -36px; /* Cancel .main-container horizontal padding for full-bleed strip */
-  width: calc(100% + 72px); /* Extend strip into the canceled padding */
+  box-shadow: none;
+  /* Remove card-like shadow */
+  padding: 24px 24px 0 24px;
+  /* Remove bottom padding for flush image */
+  margin-inline: -36px;
+  /* Cancel .main-container horizontal padding for full-bleed strip */
+  width: calc(100% + 72px);
+  /* Extend strip into the canceled padding */
   display: grid;
   gap: 12px;
 
@@ -568,10 +724,12 @@ img {
 
 .store-tooltip {
   position: absolute;
-  bottom: 100%; /* Above the button */
+  bottom: 100%;
+  /* Above the button */
   left: 50%;
   transform: translateX(-50%);
-  margin-bottom: 12px; /* Space between tooltip and button */
+  margin-bottom: 12px;
+  /* Space between tooltip and button */
   background-color: #333;
   color: #fff;
   padding: 8px 12px;
@@ -584,13 +742,15 @@ img {
   visibility: hidden;
   transition: opacity 0.2s ease, visibility 0.2s ease;
   z-index: 100;
-  pointer-events: none; /* Allows clicking through if hidden, though visibility handles this */
+  pointer-events: none;
+  /* Allows clicking through if hidden, though visibility handles this */
 }
 
 .store-tooltip::after {
   content: '';
   position: absolute;
-  top: 100%; /* Bottom of tooltip */
+  top: 100%;
+  /* Bottom of tooltip */
   left: 50%;
   transform: translateX(-50%);
   border-width: 6px;

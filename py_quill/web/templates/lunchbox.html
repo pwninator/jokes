@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+
+{% block title %}Free Lunchbox Joke Cards · {{ site_name }}{% endblock %}
+{% block meta_description %}Get 5 free fold-and-tape joke cards to make lunch the best part of their day.{% endblock %}
+{% block og_title %}Free Lunchbox Joke Cards{% endblock %}
+{% block og_description %}Print, cut, giggle. Download 5 wholesome joke cards for lunchboxes.{% endblock %}
+{% block twitter_title %}Free Lunchbox Joke Cards{% endblock %}
+{% block twitter_description %}Print, cut, giggle. Download 5 wholesome joke cards for lunchboxes.{% endblock %}
+
+{% block content %}
+<section class="hero" aria-labelledby="lunchbox-hero-title">
+  <div>
+    <h1 class="hero-title text-display" id="lunchbox-hero-title">Make Lunch the Best Part of Their Day!</h1>
+    <p class="hero-subtitle text-body">Get 5 free folding joke cards to surprise them next week.</p>
+  </div>
+
+  <article class="hero-card" aria-label="Lunchbox hero image">
+    <div class="hero-card__image">
+      <img
+        src="https://images.quillsstorybook.com/cdn-cgi/image/width=480,format=auto,quality=75/_joke_assets/lunchbox_hero.png"
+        alt="Lunchbox hero image"
+        width="480"
+        height="480"
+        loading="lazy" />
+    </div>
+  </article>
+</section>
+
+<section class="lunchbox-lead" aria-labelledby="lunchbox-form-title">
+  <h2 class="text-section-heading lunchbox-section-title" id="lunchbox-form-title">Get the Free Kit</h2>
+
+  {% if error_message %}
+  <p class="text-body" role="alert">{{ error_message }}</p>
+  {% endif %}
+
+  <div class="lunchbox-lead-card">
+    <form class="lunchbox-form" method="post" action="{{ url_for('web.lunchbox') }}">
+      <div class="lunchbox-field">
+        <label class="sr-only" for="lunchbox-email">Email address</label>
+        <input class="lunchbox-input"
+          id="lunchbox-email"
+          name="email"
+          type="email"
+          autocomplete="email"
+          placeholder="Your Email Address"
+          required
+          value="{{ email_value or '' }}"
+          aria-label="Your Email Address"
+          aria-describedby="lunchbox-privacy" />
+      </div>
+
+      <label class="lunchbox-checkbox text-body" for="lunchbox-opt-in">
+        <input id="lunchbox-opt-in"
+          name="opt_in"
+          type="checkbox"
+          {% if opt_in_value %}checked{% endif %} />
+        <span>Join the Snickerdoodle Club for occasional treats &amp; updates.</span>
+      </label>
+
+      <button class="nav-cta text-button lunchbox-submit"
+        type="submit"
+        data-analytics-event="web_lunchbox_submit_click"
+        data-analytics-label="lunchbox">
+        Send Me The Free Kit
+      </button>
+
+      <p class="text-footer lunchbox-privacy" id="lunchbox-privacy">We respect your inbox. Unsubscribe at any time.</p>
+    </form>
+  </div>
+</section>
+
+<section class="lunchbox-lead" aria-label="Lunchbox kit details">
+  <h2 class="text-section-heading lunchbox-section-title">Print, Cut, Giggle</h2>
+  <div class="lunchbox-details">
+    <article class="hero-card lunchbox-details-card" aria-label="Lunchbox kit preview image">
+      <div class="hero-card__image">
+        <img
+          src="https://images.quillsstorybook.com/cdn-cgi/image/width=768,format=auto,quality=75/_joke_assets/lunchbox_product.png"
+          alt="Lunchbox joke cards preview"
+          width="768"
+          height="600"
+          loading="lazy" />
+      </div>
+    </article>
+    <div>
+      <p class="text-body">One standard sheet. Five days of smiles. Fits any printer.</p>
+      <ul class="lunchbox-benefits">
+        <li class="text-body"><strong>Ready in 2 minutes:</strong> Just print and cut along the dotted lines.</li>
+        <li class="text-body"><strong>Wholesome & Cute:</strong> Safe, clean fun.</li>
+        <li class="text-body"><strong>Instant PDF Download:</strong> No shipping, no waiting.</li>
+      </ul>
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+

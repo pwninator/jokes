@@ -20,6 +20,7 @@ _GA4_MEASUREMENT_ID = "G-D2B7E8PXJJ"
 _GA4_TIMEOUT_SECONDS = 1.0
 _GA4_EXECUTOR = ThreadPoolExecutor(max_workers=2)
 _GA_COOKIE_CLIENT_ID_RE = re.compile(r"^\d+\.\d+$")
+_EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 _TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), '..', 'web',
                               'templates')
@@ -465,6 +466,77 @@ def about():
     next_url=None,
   )
   return _html_response(html, cache_seconds=600, cdn_seconds=3600)
+
+
+@web_bp.route('/lunchbox', methods=['GET', 'POST'])
+def lunchbox():
+  """Render / handle the lunchbox lead capture page."""
+  now_year = datetime.datetime.now(datetime.timezone.utc).year
+  canonical_url = flask.url_for('web.lunchbox', _external=True)
+
+  error_message = None
+  email_value = ''
+  opt_in_value = False
+
+  if flask.request.method == 'POST':
+    email_value = (flask.request.form.get('email') or '').strip().lower()
+    opt_in_value = bool(flask.request.form.get('opt_in'))
+
+    if not email_value or not _EMAIL_RE.match(email_value):
+      error_message = 'Please enter a valid email address.'
+    else:
+      country_code = _resolve_request_country_code(flask.request)
+      timestamp = datetime.datetime.now(datetime.timezone.utc)
+      lead_doc = {
+        'email': email_value,
+        'timestamp': timestamp,
+        'opt_in': opt_in_value,
+        'country_code': country_code,
+      }
+      firestore.db().collection('joke_leads').document(email_value).set(
+        lead_doc)
+      logger.info(
+        'Stored lunchbox lead',
+        extra={
+          'json_fields': {
+            'event': 'lunchbox_lead_stored',
+            'email': email_value,
+            'opt_in': opt_in_value,
+            'country_code': country_code,
+          }
+        },
+      )
+      return flask.redirect(flask.url_for('web.lunchbox_thank_you'))
+
+  html = flask.render_template(
+    'lunchbox.html',
+    canonical_url=canonical_url,
+    site_name='Snickerdoodle',
+    now_year=now_year,
+    prev_url=None,
+    next_url=None,
+    error_message=error_message,
+    email_value=email_value,
+    opt_in_value=opt_in_value,
+  )
+  if error_message:
+    return _html_no_store_response(html, status=400)
+  return _html_response(html, cache_seconds=300, cdn_seconds=1200)
+
+
+@web_bp.route('/lunchbox-thank-you')
+def lunchbox_thank_you():
+  """Thank you page after lead submission."""
+  now_year = datetime.datetime.now(datetime.timezone.utc).year
+  html = flask.render_template(
+    'lunchbox_thank_you.html',
+    canonical_url=flask.url_for('web.lunchbox_thank_you', _external=True),
+    site_name='Snickerdoodle',
+    now_year=now_year,
+    prev_url=None,
+    next_url=None,
+  )
+  return _html_response(html, cache_seconds=300, cdn_seconds=1200)
 
 
 def _redirect_to_admin_dashboard() -> flask.Response:

@@ -52,65 +52,14 @@
         "source": "/book",
         "destination": "/?utm_source=book&utm_medium=offline&utm_campaign=book_animaljokes",
         "type": 301
+      },
+      {
+        "source": "/books",
+        "destination": "/?utm_source=book&utm_medium=offline&utm_campaign=book_animaljokes",
+        "type": 301
       }
     ],
     "rewrites": [
-      {
-        "source": "/",
-        "function": {
-          "functionId": "web_search_page",
-          "region": "us-central1",
-          "codebase": "default"
-        }
-      },
-      {
-        "source": "/jokes/**",
-        "function": {
-          "functionId": "web_search_page",
-          "region": "us-central1",
-          "codebase": "default"
-        }
-      },
-      {
-        "source": "/sitemap.xml",
-        "function": {
-          "functionId": "web_search_page",
-          "region": "us-central1",
-          "codebase": "default"
-        }
-      },
-      {
-        "source": "/admin",
-        "function": {
-          "functionId": "web_search_page",
-          "region": "us-central1",
-          "codebase": "default"
-        }
-      },
-      {
-        "source": "/admin/**",
-        "function": {
-          "functionId": "web_search_page",
-          "region": "us-central1",
-          "codebase": "default"
-        }
-      },
-      {
-        "source": "/review-*",
-        "function": {
-          "functionId": "web_search_page",
-          "region": "us-central1",
-          "codebase": "default"
-        }
-      },
-      {
-        "source": "/book-*",
-        "function": {
-          "functionId": "web_search_page",
-          "region": "us-central1",
-          "codebase": "default"
-        }
-      },
       {
         "source": "/get_joke_bundle",
         "function": {
@@ -123,6 +72,14 @@
         "source": "/update_joke_book_zip",
         "function": {
           "functionId": "update_joke_book_zip",
+          "region": "us-central1",
+          "codebase": "default"
+        }
+      },
+      {
+        "source": "**",
+        "function": {
+          "functionId": "web_search_page",
           "region": "us-central1",
           "codebase": "default"
         }

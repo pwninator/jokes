@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+
+{% block title %}Lunchbox Kit · Thank You · {{ site_name }}{% endblock %}
+{% block meta_description %}Thanks! Your free lunchbox joke cards are on the way.{% endblock %}
+{% block og_title %}Thanks for grabbing the free kit!{% endblock %}
+{% block og_description %}Your lunchbox joke cards are on the way. Check your inbox in a few minutes.{% endblock %}
+{% block twitter_title %}Thanks for grabbing the free kit!{% endblock %}
+{% block twitter_description %}Your lunchbox joke cards are on the way. Check your inbox in a few minutes.{% endblock %}
+
+{% block content %}
+<section aria-labelledby="thank-you-title">
+  <h1 id="thank-you-title">Your Free Joke Cards Are On The Way!</h1>
+  <p class="text-body">Check your inbox in the next few minutes.</p>
+  <p class="text-body">Want more wholesome laughs? Grab the app from the home page.</p>
+  <a class="nav-cta text-button"
+    href="{{ url_for('web.index') }}#app-highlight"
+    data-analytics-event="web_lunchbox_thank_you_home_click"
+    data-analytics-label="thank_you">
+    Get the App
+  </a>
+</section>
+{% endblock %}
+
+

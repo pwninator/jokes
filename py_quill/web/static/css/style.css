@@ -4,7 +4,9 @@
   --color-accent-surface: #fffbf2;
   --color-surface: #ffffff;
   --color-text: #4a3b32;
+  --color-text-inverse: #ffffff;
   --color-text-muted: #7c675a;
+  --color-text-muted-inverse: #d7c9c2;
   --color-border: rgba(74, 59, 50, 0.12);
   --color-shadow: rgba(196, 171, 140, 0.25);
   --color-primary: rgba(243, 179, 51, 1.0);
@@ -14,8 +16,12 @@
   --color-focus-ring: rgba(243, 179, 51, 0.45);
   --color-pill-bg: #efe1c5;
   --color-pill-text: #735a45;
-  --color-app-highlight-bg: rgba(205, 157, 80, 1.0);
-  --color-app-highlight-card: rgba(255, 255, 255, 0.45);
+  --color-app-highlight-card: rgb(240, 213, 159);
+  --color-cta-card-bg: linear-gradient(
+    to bottom right,
+    rgb(130, 71, 0) 0%,
+    rgb(80, 44, 0) 100%
+  );
   --layout-max-width: 1100px;
   --admin-layout-max-width: 1600px;
   color-scheme: light;
@@ -77,11 +83,7 @@
 }
 
 .text-body--inverse {
-  color: rgba(255, 255, 255, 0.88);
-}
-
-.muted {
-  color: var(--color-text-muted);
+  color: var(--color-text-inverse);
 }
 
 /* 5. Button/Label Text */
@@ -96,6 +98,18 @@
   /* Slightly smaller than body */
   font-weight: var(--font-weight-body);
   color: var(--color-text-muted);
+}
+
+.muted {
+  color: var(--color-text-muted);
+}
+
+.inverse {
+  color: var(--color-text-inverse);
+}
+
+.muted-inverse {
+  color: var(--color-text-muted-inverse);
 }
 
 
@@ -304,18 +318,21 @@ img {
 
 .lunchbox-lead-card {
   width: 100%;
-  max-width: 600px;
+  max-width: 720px;
   margin: 0 auto;
-  background: var(--color-surface);
+  background: var(--color-cta-card-bg);
   border-radius: 22px;
   border: 1px solid var(--color-border);
   box-shadow: 0 14px 30px var(--color-shadow);
-  padding: 18px;
+  padding: 18px 36px;
 }
 
 .lunchbox-form {
   display: flex;
   flex-direction: column;
+  width: 100%;
+  max-width: 600px;
+  margin-inline: auto;
   gap: 14px;
 }
 
@@ -575,7 +592,7 @@ img {
 
 /* --- App Highlight Section --- */
 .app-highlight {
-  background: var(--color-app-highlight-bg);
+  background: var(--color-cta-card-bg);
   border-radius: 0;
   /* Full-width horizontal strip, no rounded card */
   border: none;

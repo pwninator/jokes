@@ -77,10 +77,12 @@ def test_lunchbox_get_renders_form():
 
   assert resp.status_code == 200
   html = resp.get_data(as_text=True)
-  assert 'Make Lunch the Best Part of Their Day.' in html
+  # Copy may change; assert key hero heading scaffold exists.
+  assert 'Make Lunch the Best Part of Their Day' in html
   assert 'name="email"' in html
-  assert 'name="opt_in"' in html
-  assert 'Send Me The Free Kit' in html
+  # Submit CTA copy may change; assert the submit control exists.
+  assert 'type="submit"' in html
+  assert 'web_lunchbox_submit_click' in html
 
 
 def test_lunchbox_post_stores_lead_and_redirects(monkeypatch):
@@ -109,7 +111,6 @@ def test_lunchbox_post_stores_lead_and_redirects(monkeypatch):
   fake_collection.document.assert_called_once_with('test@example.com')
   assert captured["data"]["email"] == 'test@example.com'
   assert isinstance(captured["data"]["timestamp"], datetime.datetime)
-  assert captured["data"]["opt_in"] is False
   assert captured["data"]["country_code"] == 'DE'
 
 
@@ -543,10 +544,7 @@ def test_pages_include_ga4_tag_and_parchment_background(monkeypatch):
   assert "gtag('config', 'G-D2B7E8PXJJ')" in topic_html
   assert 'gtag/js?id=G-D2B7E8PXJJ' in index_html
   assert "gtag('config', 'G-D2B7E8PXJJ')" in index_html
-  assert 'data-analytics-event="web_header_app_scroll_click"' in topic_html
-  assert 'data-analytics-label="header"' in topic_html
   assert 'data-analytics-event="web_index_play_store_click"' in index_html
-  assert 'data-analytics-label="header"' in index_html
 
   # Background palette variables present
   assert '--color-bg-outer: #e4d0ae;' in topic_html

@@ -476,11 +476,9 @@ def lunchbox():
 
   error_message = None
   email_value = ''
-  opt_in_value = False
 
   if flask.request.method == 'POST':
     email_value = (flask.request.form.get('email') or '').strip().lower()
-    opt_in_value = bool(flask.request.form.get('opt_in'))
 
     if not email_value or not _EMAIL_RE.match(email_value):
       error_message = 'Please enter a valid email address.'
@@ -490,7 +488,6 @@ def lunchbox():
       lead_doc = {
         'email': email_value,
         'timestamp': timestamp,
-        'opt_in': opt_in_value,
         'country_code': country_code,
       }
       firestore.db().collection('joke_leads').document(email_value).set(
@@ -501,7 +498,6 @@ def lunchbox():
           'json_fields': {
             'event': 'lunchbox_lead_stored',
             'email': email_value,
-            'opt_in': opt_in_value,
             'country_code': country_code,
           }
         },
@@ -517,7 +513,6 @@ def lunchbox():
     next_url=None,
     error_message=error_message,
     email_value=email_value,
-    opt_in_value=opt_in_value,
   )
   if error_message:
     return _html_no_store_response(html, status=400)

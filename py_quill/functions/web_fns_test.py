@@ -77,6 +77,9 @@ def test_lunchbox_get_renders_form():
 
   assert resp.status_code == 200
   html = resp.get_data(as_text=True)
+  # Header brand should not be clickable on lunchbox page.
+  assert '<a class="brand"' not in html
+  assert '<div class="brand">' in html
   # Copy may change; assert key hero heading scaffold exists.
   assert 'Make Lunch the Best Part of Their Day' in html
   assert 'name="email"' in html
@@ -163,6 +166,8 @@ def test_topic_page_uses_batch_fetch(monkeypatch):
 
   assert resp.status_code == 200
   html = resp.get_data(as_text=True)
+  # Default header brand should be clickable on standard pages.
+  assert '<a class="brand" href="' in html
   assert 'application/ld+json' in html
   assert "Why did the scarecrow win an award?" in html
   assert "Because he was outstanding in his field." in html

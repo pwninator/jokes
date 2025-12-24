@@ -28,14 +28,23 @@
 
 {% block body %}
 {% set current_path = request.path %}
+{% set brand_is_clickable = brand_is_clickable|default(true) %}
 <div class="site-shell">
   <header class="site-header">
     <div class="header-inner">
+      {% if brand_is_clickable %}
       <a class="brand" href="{{ url_for('web.index') }}" aria-label="{{ site_name }} home">
         <img class="brand-logo" alt="{{ site_name }} logo"
           src="https://images.quillsstorybook.com/cdn-cgi/image/width=128,format=auto,quality=60/_joke_assets/icon_cookie_01_transparent_light_128.png" />
         <span class="brand-text text-brand">{{ site_name }}</span>
       </a>
+      {% else %}
+      <div class="brand">
+        <img class="brand-logo" alt="{{ site_name }} logo"
+          src="https://images.quillsstorybook.com/cdn-cgi/image/width=128,format=auto,quality=60/_joke_assets/icon_cookie_01_transparent_light_128.png" />
+        <span class="brand-text text-brand">{{ site_name }}</span>
+      </div>
+      {% endif %}
     </div>
   </header>
   <main class="site-main">

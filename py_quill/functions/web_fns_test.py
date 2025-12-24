@@ -81,7 +81,7 @@ def test_lunchbox_get_renders_form():
   assert '<a class="brand"' not in html
   assert '<div class="brand">' in html
   # Copy may change; assert key hero heading scaffold exists.
-  assert 'Make Lunch the Best Part of Their Day' in html
+  assert 'id="lunchbox-hero-title"' in html
   assert 'name="email"' in html
   # Submit CTA copy may change; assert the submit control exists.
   assert 'type="submit"' in html
@@ -136,7 +136,9 @@ def test_lunchbox_thank_you_renders():
 
   assert resp.status_code == 200
   html = resp.get_data(as_text=True)
-  assert 'Your Free Joke Cards Are On The Way!' in html
+  assert 'High Five!' in html
+  assert 'Wait! You only have enough jokes for one week' in html
+  assert 'Get the Book on Amazon' in html
 
 
 def test_topic_page_uses_batch_fetch(monkeypatch):

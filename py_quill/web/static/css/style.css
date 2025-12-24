@@ -90,6 +90,7 @@
 .text-button {
   font-size: 1rem;
   font-weight: var(--font-weight-button);
+  color: var(--color-text);
 }
 
 /* 6. Footer Text */
@@ -433,6 +434,176 @@ img {
 
   .lunchbox-details-card {
     grid-column: 1 / -1;
+  }
+}
+
+/* --- Lunchbox Thank You Page --- */
+
+.thankyou-banner {
+  margin-inline: -36px;
+  margin-top: -36px;
+  padding: 22px 36px;
+  background: rgba(152, 214, 166, 0.6);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.thankyou-banner__inner {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.thankyou-banner__icon {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+}
+
+.thankyou-banner__text {
+  color: var(--color-text);
+  font-weight: var(--font-weight-body);
+  margin: 0;
+  line-height: 1.5;
+}
+
+.thankyou-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+  text-align: center;
+}
+
+.thankyou-hero h1 {
+  margin: 0;
+  max-width: 720px;
+}
+
+.thankyou-hero p {
+  margin: 0;
+  max-width: 720px;
+}
+
+.thankyou-product {
+  display: grid;
+  gap: 18px;
+  align-items: center;
+  grid-template-columns: 1fr;
+  width: 100%;
+  max-width: 860px;
+  margin: 0 auto;
+}
+
+.thankyou-product__media {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.thankyou-product__image {
+  width: 100%;
+  max-width: 420px;
+  height: auto;
+}
+
+.thankyou-product__cta {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+  text-align: center;
+}
+
+.thankyou-amazon-cta {
+  width: min(520px, 100%);
+  justify-content: center;
+}
+
+.thankyou-prime {
+  margin: 0;
+  width: min(520px, 100%);
+  text-align: center;
+  align-self: center;
+}
+
+.thankyou-features {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(560px, 100%);
+  text-align: left;
+}
+
+.thankyou-feature {
+  display: grid;
+  grid-template-columns: 24px 1fr;
+  gap: 10px;
+  align-items: start;
+}
+
+.thankyou-feature__icon {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.thankyou-creators {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+  max-width: 860px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.thankyou-creators__content {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 18px;
+  align-items: center;
+}
+
+.thankyou-creators__media {
+  display: flex;
+  justify-content: center;
+}
+
+.thankyou-creators__image {
+  width: 100%;
+  max-width: 400px;
+  height: auto;
+}
+
+.thankyou-creators__copy {
+  margin: 0;
+}
+
+@media (min-width: 860px) {
+  .thankyou-product {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .thankyou-product__cta {
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .thankyou-creators {
+    text-align: left;
+  }
+
+  .thankyou-creators__content {
+    grid-template-columns: 1fr 1fr;
   }
 }
 

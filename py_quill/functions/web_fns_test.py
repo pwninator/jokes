@@ -141,15 +141,31 @@ def test_lunchbox_thank_you_renders():
   assert 'Get the Book on Amazon' in html
 
 
-def test_lunchbox_download_pdf_renders():
+def test_lunchbox_download_pdf_renders(monkeypatch):
+  calls = []
+
+  def _mock_submit(**kwargs):
+    calls.append(kwargs)
+
+  monkeypatch.setattr(web_fns, "_submit_ga4_event_fire_and_forget",
+                      _mock_submit)
+  monkeypatch.setattr(web_fns.config, "get_google_analytics_api_key",
+                      lambda: "test-secret")
   with web_fns.app.test_client() as client:
-    resp = client.get('/lunchbox_download_pdf')
+    client.set_cookie("_ga", "GA1.1.3333333333.4444444444")
+    resp = client.get('/lunchbox-download-pdf')
 
   assert resp.status_code == 200
   html = resp.get_data(as_text=True)
-  assert 'Your Download is Starting' in html
+  assert '<meta name="robots" content="noindex,nofollow">' in html
+  assert "location.replace" in html
   assert 'lunchbox_notes_animal_jokes.pdf' in html
-  assert 'lunchbox-download-link' in html
+  assert 'web_lunchbox_download_client' in html
+  assert len(calls) == 1
+  assert calls[0]["measurement_id"] == "G-D2B7E8PXJJ"
+  assert calls[0]["client_id"] == "3333333333.4444444444"
+  assert calls[0]["event_name"] == "web_lunchbox_download_server"
+  assert calls[0]["event_params"]["asset"] == "lunchbox_notes_animal_jokes.pdf"
 
 
 def test_topic_page_uses_batch_fetch(monkeypatch):

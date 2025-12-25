@@ -47,6 +47,21 @@
           return;
         }
         var params = {};
+        var rawParams = tracker.dataset.analyticsParams;
+        if (rawParams) {
+          try {
+            var parsedParams = JSON.parse(rawParams);
+            if (parsedParams && typeof parsedParams === 'object') {
+              for (var key in parsedParams) {
+                if (Object.prototype.hasOwnProperty.call(parsedParams, key)) {
+                  params[key] = parsedParams[key];
+                }
+              }
+            }
+          } catch (e) {
+            // Ignore invalid JSON.
+          }
+        }
         var label = tracker.dataset.analyticsLabel;
         if (label) {
           params.event_label = label;

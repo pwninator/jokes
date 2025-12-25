@@ -18,7 +18,7 @@
        href="{{ target_url }}"
        rel="noopener noreferrer"
        data-analytics-event="{{ click_event_name }}"
-       data-analytics-label="{{ click_event_label }}"
+       data-analytics-params="{{ event_params | tojson }}"
     >
       {{ link_text }}
     </a>
@@ -34,7 +34,7 @@
 <script>
   (function () {
     var targetUrl = {{ target_url | tojson }};
-    var maxWaitMs = {{ delay_ms | default(250) }};
+    var maxWaitMs = {{ delay_ms | default(1000) }};
     var eventName = {{ event_name | tojson }};
     var eventParams = {{ event_params | tojson }};
 

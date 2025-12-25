@@ -144,6 +144,64 @@ def _log_amazon_redirect(redirect_key: str,
   )
 
 
+def _render_ga4_redirect_page(
+  *,
+  target_url: str,
+  canonical_url: str,
+  page_title: str,
+  heading: str,
+  message: str | None,
+  link_text: str,
+  ga4_event_base_name: str,
+  ga4_event_params: dict,
+  site_name: str = 'Snickerdoodle',
+) -> flask.Response:
+  """Render a no-store redirect page and log GA4 events server + client side.
+
+  Server-side uses GA4 Measurement Protocol (best-effort, async).
+  Client-side uses `redirect.html` to emit a `gtag('event', ...)` before
+  `location.replace(...)` (best-effort).
+  """
+  base_name = (ga4_event_base_name or '').strip()
+  client_event_name = f'{base_name}_client'
+  click_event_name = f'{base_name}_click'
+  server_event_name = f'{base_name}_server'
+  event_params = ga4_event_params or {}
+
+  client_id = _ga4_client_id_for_request(flask.request)
+  _submit_ga4_event_fire_and_forget(
+    measurement_id=_GA4_MEASUREMENT_ID,
+    api_secret=config.get_google_analytics_api_key(),
+    client_id=client_id,
+    event_name=server_event_name,
+    event_params={
+      **event_params,
+      'page_location': flask.request.url,
+    },
+    user_agent=flask.request.headers.get('User-Agent'),
+    user_ip=flask.request.headers.get('X-Forwarded-For')
+    or flask.request.remote_addr,
+  )
+
+  html = flask.render_template(
+    'redirect.html',
+    page_title=page_title,
+    heading=heading,
+    message=message,
+    target_url=target_url,
+    link_text=link_text,
+    event_name=client_event_name,
+    event_params=event_params,
+    click_event_name=click_event_name,
+    canonical_url=canonical_url,
+    prev_url=None,
+    next_url=None,
+    site_name=site_name,
+    now_year=datetime.datetime.now(datetime.timezone.utc).year,
+  )
+  return _html_no_store_response(html, status=200)
+
+
 def _handle_amazon_redirect(redirect_key: str) -> flask.Response:
   """Shared handler for public Amazon redirect endpoints."""
   config_entry = amazon_redirect.AMAZON_REDIRECTS.get(redirect_key)
@@ -171,43 +229,18 @@ def _handle_amazon_redirect(redirect_key: str) -> flask.Response:
     'resolved_country_code': resolved_country,
     'resolved_asin': resolved_asin,
     'page_type': config_entry.page_type.value,
+    'source': source,
   }
-
-  client_id = _ga4_client_id_for_request(flask.request)
-  _submit_ga4_event_fire_and_forget(
-    measurement_id=_GA4_MEASUREMENT_ID,
-    api_secret=config.get_google_analytics_api_key(),
-    client_id=client_id,
-    event_name='amazon_redirect_server',
-    event_params={
-      **event_params,
-      'source': source,
-      'page_location': flask.request.url,
-    },
-    user_agent=flask.request.headers.get('User-Agent'),
-    user_ip=flask.request.headers.get('X-Forwarded-For')
-    or flask.request.remote_addr,
-  )
-
-  html = flask.render_template(
-    'redirect.html',
+  return _render_ga4_redirect_page(
+    target_url=target_url,
+    canonical_url=flask.request.url,
     page_title=config_entry.label,
     heading='Redirecting to Amazon…',
     message='Taking you to Amazon now.',
-    target_url=target_url,
     link_text='Continue to Amazon',
-    delay_ms=250,
-    event_name='amazon_redirect',
-    event_params=event_params,
-    click_event_name='amazon_redirect_click',
-    click_event_label=redirect_key,
-    canonical_url=flask.request.url,
-    prev_url=None,
-    next_url=None,
-    site_name='Snickerdoodle',
-    now_year=datetime.datetime.now(datetime.timezone.utc).year,
+    ga4_event_base_name='amazon_redirect',
+    ga4_event_params=event_params,
   )
-  return _html_no_store_response(html, status=200)
 
 
 def _ga4_client_id_for_request(req: flask.Request) -> str:
@@ -534,19 +567,23 @@ def lunchbox_thank_you():
   return _html_response(html, cache_seconds=300, cdn_seconds=1200)
 
 
-@web_bp.route('/lunchbox_download_pdf')
+@web_bp.route('/lunchbox-download-pdf')
 def lunchbox_download_pdf():
-  """Download helper page for the lunchbox PDF."""
-  now_year = datetime.datetime.now(datetime.timezone.utc).year
-  html = flask.render_template(
-    'lunchbox_download_pdf.html',
+  """Redirect helper that sends users to the lunchbox PDF download."""
+  download_url = "https://storage.googleapis.com/snickerdoodle_public/lunchbox/lunchbox_notes_animal_jokes.pdf"
+  event_params = {
+    'asset': 'lunchbox_notes_animal_jokes.pdf',
+  }
+  return _render_ga4_redirect_page(
+    target_url=download_url,
     canonical_url=flask.url_for('web.lunchbox_download_pdf', _external=True),
-    site_name='Snickerdoodle',
-    now_year=now_year,
-    prev_url=None,
-    next_url=None,
+    page_title='Lunchbox Notes Download',
+    heading='Starting your download…',
+    message='If it doesn’t start automatically, use the button below.',
+    link_text='Download the PDF',
+    ga4_event_base_name='web_lunchbox_download',
+    ga4_event_params=event_params,
   )
-  return _html_response(html, cache_seconds=300, cdn_seconds=1200)
 
 
 def _redirect_to_admin_dashboard() -> flask.Response:

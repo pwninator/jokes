@@ -1,0 +1,147 @@
+{% extends "base.html" %}
+
+{% block title %}Lunchbox Notes · Download · {{ site_name }}{% endblock %}
+{% block meta_description %}Your lunchbox joke cards are downloading now. If it doesn't start, click the download link.{% endblock %}
+{% block og_title %}Lunchbox Notes Download{% endblock %}
+{% block og_description %}Your lunchbox joke cards are downloading now. If it doesn't start, click the download link.{% endblock %}
+{% block twitter_title %}Lunchbox Notes Download{% endblock %}
+{% block twitter_description %}Your lunchbox joke cards are downloading now. If it doesn't start, click the download link.{% endblock %}
+
+{% set download_url = "https://storage.googleapis.com/snickerdoodle_public/lunchbox/lunchbox_notes_animal_jokes.pdf" %}
+
+{% block content %}
+<section class="lunchbox-download" aria-labelledby="lunchbox-download-title">
+  <h1 class="text-display lunchbox-download__title" id="lunchbox-download-title">Your Download is Starting...</h1>
+
+  <p class="text-body lunchbox-download__subtitle">
+    If it doesn't start automatically, click
+    <a class="lunchbox-download__link"
+      id="lunchbox-download-link"
+      href="{{ download_url }}"
+      data-analytics-event="web_lunchbox_download_click"
+      data-analytics-label="download">
+      here
+    </a>.
+  </p>
+
+  <h2 class="text-section-heading lunchbox-download__howto">How to Use Your Lunchbox Jokes:</h2>
+
+  <ol class="lunchbox-download__steps" aria-label="How to use your lunchbox jokes">
+    <li class="lunchbox-download__step">
+      <div class="lunchbox-download__step-icon" aria-hidden="true">
+        <img
+          src="https://images.quillsstorybook.com/cdn-cgi/image/width=56,format=auto,quality=75/_joke_assets/lunchbox/lunchbox_instructions_print.png"
+          alt=""
+          width="56"
+          height="52"
+          loading="lazy" />
+      </div>
+      <p class="text-body"><strong>Print</strong> on cardstock paper for best results.</p>
+    </li>
+    <li class="lunchbox-download__step">
+      <div class="lunchbox-download__step-icon" aria-hidden="true">
+        <img
+          src="https://images.quillsstorybook.com/cdn-cgi/image/width=56,format=auto,quality=75/_joke_assets/lunchbox/lunchbox_instructions_cut.png"
+          alt=""
+          width="56"
+          height="34"
+          loading="lazy" />
+      </div>
+      <p class="text-body"><strong>Cut</strong> along the dotted lines.</p>
+    </li>
+    <li class="lunchbox-download__step">
+      <div class="lunchbox-download__step-icon" aria-hidden="true">
+        <img
+          src="https://images.quillsstorybook.com/cdn-cgi/image/width=56,format=auto,quality=75/_joke_assets/lunchbox/lunchbox_instructions_lunchbox.png"
+          alt=""
+          width="56"
+          height="58"
+          loading="lazy" />
+      </div>
+      <p class="text-body"><strong>Slip one</strong> into a lunchbox (or hide under a pillow!).</p>
+    </li>
+  </ol>
+
+  <div class="lunchbox-download__phone-note" aria-label="Phone note">
+    <div class="lunchbox-download__phone-icon" aria-hidden="true">
+      <img
+        src="https://images.quillsstorybook.com/cdn-cgi/image/width=56,format=auto,quality=75/_joke_assets/lunchbox/lunchbox_instructions_phone.png"
+        alt=""
+        width="56"
+        height="95"
+        loading="lazy" />
+    </div>
+    <p class="text-body">
+      <strong>On your phone?</strong> No problem. The link is safely in your email. Open it on your computer later to
+      print!
+    </p>
+  </div>
+
+  <div class="lunchbox-download__upsell" aria-label="Book upsell">
+    <div class="lunchbox-download__kid" aria-label="Kid illustration placeholder">
+      <svg viewBox="0 0 420 240" role="img" aria-label="Kid holding book placeholder">
+        <rect x="0" y="0" width="420" height="240" rx="22" fill="rgba(255, 255, 255, 0.7)"
+          stroke="rgba(74, 59, 50, 0.14)" />
+        <text x="210" y="126" text-anchor="middle" font-family="Nunito, Arial, sans-serif" font-weight="800"
+          font-size="18" fill="rgba(74, 59, 50, 0.65)">Illustration placeholder</text>
+      </svg>
+    </div>
+
+    <div class="lunchbox-download__upsell-copy">
+      <p class="text-body">
+        Need more than 5 days of jokes? Our members love the full collection.
+      </p>
+      <p class="text-body">
+        Grab the <span class="lunchbox-download__book-title">‘Cute &amp; Silly Animal Jokes’</span> book on Amazon
+        <a class="lunchbox-download__link"
+          href="https://www.amazon.com/dp/PLACEHOLDER"
+          target="_blank"
+          rel="nofollow noopener noreferrer"
+          data-analytics-event="web_lunchbox_download_amazon_click"
+          data-analytics-label="download">
+          here
+        </a>.
+      </p>
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  (function () {
+    var DOWNLOAD_URL = {{ download_url|tojson }};
+    var started = false;
+
+    function startDownload() {
+      if (started) {
+        return;
+      }
+      started = true;
+      var iframe = document.createElement('iframe');
+      iframe.style.display = 'none';
+      iframe.setAttribute('aria-hidden', 'true');
+      iframe.src = DOWNLOAD_URL;
+      document.body.appendChild(iframe);
+    }
+
+    function attach() {
+      startDownload();
+      var link = document.getElementById('lunchbox-download-link');
+      if (link) {
+        link.addEventListener('click', function () {
+          startDownload();
+        });
+      }
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', attach);
+    } else {
+      attach();
+    }
+  })();
+</script>
+{% endblock %}
+
+

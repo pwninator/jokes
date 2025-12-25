@@ -137,8 +137,19 @@ def test_lunchbox_thank_you_renders():
   assert resp.status_code == 200
   html = resp.get_data(as_text=True)
   assert 'High Five!' in html
-  assert 'Wait! You only have enough jokes for one week' in html
+  assert 'id="thankyou-title"' in html
   assert 'Get the Book on Amazon' in html
+
+
+def test_lunchbox_download_pdf_renders():
+  with web_fns.app.test_client() as client:
+    resp = client.get('/lunchbox_download_pdf')
+
+  assert resp.status_code == 200
+  html = resp.get_data(as_text=True)
+  assert 'Your Download is Starting' in html
+  assert 'lunchbox_notes_animal_jokes.pdf' in html
+  assert 'lunchbox-download-link' in html
 
 
 def test_topic_page_uses_batch_fetch(monkeypatch):

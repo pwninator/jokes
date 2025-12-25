@@ -10,10 +10,13 @@
 {% block content %}
 <section class="thankyou-banner" aria-label="Success">
   <div class="thankyou-banner__inner">
-    <svg class="thankyou-banner__icon" viewBox="0 0 24 24" role="img" aria-label="Success checkmark">
-      <path fill="#2b6b3a"
-        d="M12 2c5.523 0 10 4.477 10 10s-4.477 10-10 10S2 17.523 2 12 6.477 2 12 2zm4.707 7.293a1 1 0 0 0-1.414 0L11 13.586 8.707 11.293a1 1 0 1 0-1.414 1.414l3 3a1 1 0 0 0 1.414 0l5-5a1 1 0 0 0 0-1.414z" />
-    </svg>
+    <img
+      class="thankyou-banner__icon"
+      src="https://images.quillsstorybook.com/cdn-cgi/image/width=100,format=auto,quality=75/_joke_assets/green_checkmark.png"
+      alt="Success"
+      width="100"
+      height="87"
+      loading="lazy" />
     <p class="thankyou-banner__text text-section-heading">
       <strong>High Five!</strong> Your Lunchbox Notes are on their way to your inbox.<br>
       <span class="muted">(Check your spam folder!)</span>
@@ -22,8 +25,8 @@
 </section>
 
 <section class="thankyou-hero" aria-labelledby="thankyou-title">
-  <h1 class="text-display" id="thankyou-title">Love the notes? There's a whole lot more where those came from!</h1>
-  <p class="text-body">Get a lifetime of giggles with the full collection.</p>
+  <h1 class="text-section-heading" id="thankyou-title">Love the notes? There's a whole lot more where those came from!</h1>
+  <p class="text-body">The notes you just downloaded are hand-picked favorites from our paperback book. Get the full collection of 36 illustrated jokes today.</p>
 </section>
 
 <section class="thankyou-product" aria-label="Book promotion">
@@ -40,15 +43,15 @@
   <div class="thankyou-product__cta">
     <ul class="thankyou-features" aria-label="Book highlights">
       <li class="thankyou-feature">
-        <span class="thankyou-feature__icon" aria-hidden="true">✏️</span>
+        <span class="thankyou-feature__icon" aria-hidden="true">⭐</span>
         <span class="text-body">Screen-free fun for bedtime or car rides.</span>
       </li>
       <li class="thankyou-feature">
-        <span class="thankyou-feature__icon" aria-hidden="true">⭐</span>
-        <span class="text-body">Large text for early readers.</span>
+        <span class="thankyou-feature__icon" aria-hidden="true">🎨</span>
+        <span class="text-body">Full-page, color illustrations.</span>
       </li>
       <li class="thankyou-feature">
-        <span class="thankyou-feature__icon" aria-hidden="true">❤️</span>
+        <span class="thankyou-feature__icon" aria-hidden="true">🎁</span>
         <span class="text-body">The perfect gift for kids who love silly jokes.</span>
       </li>
     </ul>
@@ -59,29 +62,26 @@
       rel="nofollow noopener noreferrer"
       data-analytics-event="web_lunchbox_thank_you_amazon_click"
       data-analytics-label="thank_you">
-      Get the Book on Amazon - $11.99
+      Get the Book on Amazon
     </a>
     <p class="text-footer thankyou-prime">Eligible for Prime Shipping</p>
   </div>
 </section>
 
 <section class="thankyou-creators" aria-labelledby="thankyou-creators-title">
-  <h2 class="text-section-heading" id="thankyou-creators-title">Hand-Drawn &amp; Kid-Approved</h2>
+  <h2 class="text-section-heading thankyou-creators__title" id="thankyou-creators-title">Made with Love (and Giggles)</h2>
   <div class="thankyou-creators__content">
     <div class="thankyou-creators__media" aria-label="Creators illustration">
       <img
         class="thankyou-creators__image"
-        src="https://images.quillsstorybook.com/cdn-cgi/image/width=787,format=auto,quality=75/_joke_assets/family_kneel_transparent.png"
+        src="https://images.quillsstorybook.com/cdn-cgi/image/width=400,format=auto,quality=75/_joke_assets/family_kneel_transparent.png"
         alt="A family kneeling together, smiling"
-        width="611"
-        height="770"
+        width="400"
+        height="504"
         loading="lazy" />
     </div>
     <p class="text-body thankyou-creators__copy">
-      We’re a tiny family team: a Developer Dad who builds the silly stuff, an Editor Mom who keeps it warm and kid-safe,
-      and our 7-year-old “Supreme Boss of Jokes” who test-drives every punchline. Snickerdoodle started at our kitchen
-      table with doodles, giggles, and one simple goal—make it easier to share a little joy with kids, one laugh at a
-      time.
+      Created by a Developer Dad and Editor Mom, but the real boss is our 7-year-old daughter. If she didn't giggle, the joke didn't make the cut!
     </p>
   </div>
 </section>

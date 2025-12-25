@@ -449,16 +449,17 @@ img {
 
 .thankyou-banner__inner {
   display: flex;
-  gap: 12px;
+  gap: 24px;
   align-items: center;
   justify-content: center;
   text-align: center;
 }
 
 .thankyou-banner__icon {
-  width: 34px;
-  height: 34px;
+  width: min(100px, 20%);
+  height: auto;
   flex: 0 0 auto;
+  object-fit: contain;
 }
 
 .thankyou-banner__text {
@@ -488,7 +489,7 @@ img {
 
 .thankyou-product {
   display: grid;
-  gap: 18px;
+  gap: 0;
   align-items: center;
   grid-template-columns: 1fr;
   width: 100%;
@@ -500,11 +501,12 @@ img {
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 0px 48px 0px 0px;
 }
 
 .thankyou-product__image {
   width: 100%;
-  max-width: 420px;
+  max-width: 520px;
   height: auto;
 }
 
@@ -566,6 +568,10 @@ img {
   text-align: center;
 }
 
+.thankyou-creators__title {
+  text-align: center;
+}
+
 .thankyou-creators__content {
   display: grid;
   grid-template-columns: 1fr;
@@ -580,7 +586,7 @@ img {
 
 .thankyou-creators__image {
   width: 100%;
-  max-width: 400px;
+  max-width: 320px;
   height: auto;
 }
 
@@ -590,12 +596,16 @@ img {
 
 @media (min-width: 860px) {
   .thankyou-product {
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 2fr 1fr;
   }
 
   .thankyou-product__cta {
     align-items: flex-start;
     text-align: left;
+  }
+
+  .thankyou-product__image {
+    max-width: 100%;
   }
 
   .thankyou-creators {
@@ -604,6 +614,147 @@ img {
 
   .thankyou-creators__content {
     grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* --- Lunchbox Download PDF Page --- */
+
+.lunchbox-download {
+  width: 100%;
+  max-width: 860px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  text-align: center;
+}
+
+.lunchbox-download__title {
+  margin: 0;
+}
+
+.lunchbox-download__subtitle {
+  margin: 0;
+}
+
+.lunchbox-download__link {
+  text-decoration: underline;
+  color: var(--color-primary-dark);
+}
+
+.lunchbox-download__howto {
+  margin: 10px 0 0;
+}
+
+.lunchbox-download__steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  text-align: left;
+}
+
+.lunchbox-download__step {
+  display: grid;
+  grid-template-columns: 80px 1fr;
+  gap: 14px;
+  align-items: center;
+}
+
+.lunchbox-download__step p {
+  margin: 0;
+}
+
+.lunchbox-download__step-icon {
+  width: 72px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto;
+}
+
+.lunchbox-download__step-icon svg,
+.lunchbox-download__step-icon img {
+  width: auto;
+  height: 48px;
+  max-width: 72px;
+  display: block;
+}
+
+.lunchbox-download__phone-note {
+  display: grid;
+  grid-template-columns: 80px 1fr;
+  gap: 14px;
+  align-items: center;
+  text-align: left;
+  margin-top: 6px;
+}
+
+.lunchbox-download__phone-note p {
+  margin: 0;
+}
+
+.lunchbox-download__phone-icon {
+  width: 72px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto;
+}
+
+.lunchbox-download__phone-icon svg,
+.lunchbox-download__phone-icon img {
+  width: auto;
+  height: 48px;
+  max-width: 72px;
+  display: block;
+}
+
+.lunchbox-download__upsell {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  align-items: center;
+  text-align: left;
+}
+
+.lunchbox-download__kid svg {
+  width: 100%;
+  max-width: 420px;
+  height: auto;
+  margin: 0 auto;
+}
+
+.lunchbox-download__upsell-copy p {
+  margin: 0;
+}
+
+.lunchbox-download__upsell-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.lunchbox-download__book-title {
+  color: var(--color-text);
+  font-weight: var(--font-weight-button);
+}
+
+@media (min-width: 860px) {
+  .lunchbox-download__upsell {
+    grid-template-columns: 1fr 1fr;
+    text-align: left;
+  }
+
+  .lunchbox-download__title,
+  .lunchbox-download__subtitle,
+  .lunchbox-download__howto {
+    text-align: center;
   }
 }
 

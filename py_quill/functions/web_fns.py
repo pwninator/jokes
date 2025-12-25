@@ -534,6 +534,21 @@ def lunchbox_thank_you():
   return _html_response(html, cache_seconds=300, cdn_seconds=1200)
 
 
+@web_bp.route('/lunchbox_download_pdf')
+def lunchbox_download_pdf():
+  """Download helper page for the lunchbox PDF."""
+  now_year = datetime.datetime.now(datetime.timezone.utc).year
+  html = flask.render_template(
+    'lunchbox_download_pdf.html',
+    canonical_url=flask.url_for('web.lunchbox_download_pdf', _external=True),
+    site_name='Snickerdoodle',
+    now_year=now_year,
+    prev_url=None,
+    next_url=None,
+  )
+  return _html_response(html, cache_seconds=300, cdn_seconds=1200)
+
+
 def _redirect_to_admin_dashboard() -> flask.Response:
   """Redirect helper that always points to the admin dashboard."""
   dashboard_path = flask.url_for('web.admin_dashboard')

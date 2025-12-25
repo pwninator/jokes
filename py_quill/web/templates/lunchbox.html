@@ -20,7 +20,7 @@
   <article class="hero-card" aria-label="Lunchbox hero image">
     <div class="hero-card__image">
       <img
-        src="https://images.quillsstorybook.com/cdn-cgi/image/width=480,format=auto,quality=75/_joke_assets/lunchbox_hero.png"
+        src="https://images.quillsstorybook.com/cdn-cgi/image/width=480,format=auto,quality=75/_joke_assets/lunchbox/lunchbox_hero.png"
         alt="Lunchbox hero image" width="480" height="480" loading="lazy" />
     </div>
   </article>
@@ -32,7 +32,7 @@
     <article class="hero-card lunchbox-details-card" aria-label="Lunchbox joke set preview image">
       <div class="hero-card__image">
         <img
-          src="https://images.quillsstorybook.com/cdn-cgi/image/width=768,format=auto,quality=75/_joke_assets/lunchbox_product.png"
+          src="https://images.quillsstorybook.com/cdn-cgi/image/width=768,format=auto,quality=75/_joke_assets/lunchbox/lunchbox_product.png"
           alt="Lunchbox joke cards preview" width="768" height="600" loading="lazy" />
       </div>
     </article>
@@ -60,13 +60,13 @@
       <div class="lunchbox-field">
         <label class="sr-only" for="lunchbox-email">Email address</label>
         <input class="lunchbox-input" id="lunchbox-email" name="email" type="email" autocomplete="email"
-          placeholder="Where should we sent your joke set?" required value="{{ email_value or '' }}"
-          aria-label="Where should we sent your joke set" aria-describedby="lunchbox-privacy" />
+          placeholder="Your email" required value="{{ email_value or '' }}"
+          aria-label="Your email" aria-describedby="lunchbox-privacy" />
       </div>
 
       <button class="nav-cta text-button lunchbox-submit" type="submit" data-analytics-event="web_lunchbox_submit_click"
         data-analytics-label="lunchbox">
-        Join the Club & Send My Joke Set
+        Join the Club &<br>Send Me My Joke Set
       </button>
 
       {% if error_message %}
@@ -74,7 +74,7 @@
       {% endif %}
 
       <p class="text-footer inverse lunchbox-text" id="lunchbox-privacy">You'll receive occasional free printables, book
-        updates, and other Snickerdoodle news. No spam, just wholesome fun. Unsubscribe at any time.</p>
+        updates, and other Snickerdoodle news.<br>No spam, just wholesome fun.<br>Unsubscribe at any time.</p>
     </form>
   </div>
 </section>

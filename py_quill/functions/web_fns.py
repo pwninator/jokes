@@ -577,7 +577,7 @@ def lunchbox_thank_you():
 @web_bp.route('/lunchbox-download-pdf')
 def lunchbox_download_pdf():
   """Redirect helper that sends users to the lunchbox PDF download."""
-  download_url = "https://storage.googleapis.com/snickerdoodle_public/lunchbox/lunchbox_notes_animal_jokes.pdf"
+  download_url = "/lunchbox/lunchbox_notes_animal_jokes.pdf"
   event_params = {
     'asset': 'lunchbox_notes_animal_jokes.pdf',
   }

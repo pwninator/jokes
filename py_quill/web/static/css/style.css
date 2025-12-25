@@ -714,43 +714,7 @@ img {
   display: block;
 }
 
-.lunchbox-download__upsell {
-  margin-top: 12px;
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 16px;
-  align-items: center;
-  text-align: left;
-}
-
-.lunchbox-download__kid svg {
-  width: 100%;
-  max-width: 420px;
-  height: auto;
-  margin: 0 auto;
-}
-
-.lunchbox-download__upsell-copy p {
-  margin: 0;
-}
-
-.lunchbox-download__upsell-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.lunchbox-download__book-title {
-  color: var(--color-text);
-  font-weight: var(--font-weight-button);
-}
-
 @media (min-width: 860px) {
-  .lunchbox-download__upsell {
-    grid-template-columns: 1fr 1fr;
-    text-align: left;
-  }
-
   .lunchbox-download__title,
   .lunchbox-download__subtitle,
   .lunchbox-download__howto {

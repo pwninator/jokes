@@ -177,6 +177,8 @@ def test_lunchbox_download_pdf_renders(monkeypatch):
   assert "location.replace" in html
   assert 'lunchbox_notes_animal_jokes.pdf' in html
   assert 'web_lunchbox_download_client' in html
+  assert 'CompleteRegistration' in html
+  assert 'fbq' in html
   assert len(calls) == 1
   assert calls[0]["measurement_id"] == "G-D2B7E8PXJJ"
   assert calls[0]["client_id"] == "3333333333.4444444444"

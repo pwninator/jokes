@@ -35,8 +35,9 @@
   (function () {
     var targetUrl = {{ target_url | tojson }};
     var maxWaitMs = {{ delay_ms | default(1000) }};
-    var eventName = {{ event_name | tojson }};
+    var ga4EventName = {{ event_name | tojson }};
     var eventParams = {{ event_params | tojson }};
+    var metaPixelEventName = {{ meta_pixel_event_name | tojson }};
 
     var hasNavigated = false;
     function navigate() {
@@ -47,20 +48,60 @@
       window.location.replace(targetUrl);
     }
 
-    try {
-      if (eventName && typeof window.gtag === 'function') {
-        var params = eventParams || {};
-        params.transport_type = 'beacon';
-        params.event_callback = navigate;
-        params.event_timeout = maxWaitMs;
-        window.gtag('event', eventName, params);
-        window.setTimeout(navigate, maxWaitMs);
-        return;
-      }
-    } catch (e) {
-      // Best-effort only; still navigate.
+    // Count how many trackers need to complete
+    var totalTrackers = 0;
+    var completedTrackers = 0;
+    
+    if (ga4EventName && typeof window.gtag === 'function') {
+      totalTrackers++;
+    }
+    if (metaPixelEventName && typeof window.fbq === 'function') {
+      totalTrackers++;
     }
 
+    // If no trackers, redirect immediately
+    if (totalTrackers === 0) {
+      window.setTimeout(navigate, maxWaitMs);
+      return;
+    }
+
+    function onTrackerComplete() {
+      completedTrackers++;
+      if (completedTrackers >= totalTrackers) {
+        navigate();
+      }
+    }
+
+    // Fire Meta Pixel event
+    try {
+      if (metaPixelEventName && typeof window.fbq === 'function') {
+        window.fbq('track', metaPixelEventName, {}, {
+          eventID: 'redirect_' + Date.now(),
+        });
+        // Meta Pixel doesn't have a reliable callback, so mark complete immediately
+        // The event will still be sent via beacon/keepalive
+        onTrackerComplete();
+      }
+    } catch (e) {
+      // Best-effort only; mark as complete to not block redirect.
+      onTrackerComplete();
+    }
+
+    // Fire GA4 event
+    try {
+      if (ga4EventName && typeof window.gtag === 'function') {
+        var params = eventParams || {};
+        params.transport_type = 'beacon';
+        params.event_callback = onTrackerComplete;
+        params.event_timeout = maxWaitMs;
+        window.gtag('event', ga4EventName, params);
+      }
+    } catch (e) {
+      // Best-effort only; mark as complete to not block redirect.
+      onTrackerComplete();
+    }
+
+    // Failsafe: redirect after timeout regardless
     window.setTimeout(navigate, maxWaitMs);
   })();
 </script>

@@ -154,6 +154,7 @@ def _render_ga4_redirect_page(
   link_text: str,
   ga4_event_base_name: str,
   ga4_event_params: dict,
+  meta_pixel_event_name: str | None = None,
   site_name: str = 'Snickerdoodle',
 ) -> flask.Response:
   """Render a no-store redirect page and log GA4 events server + client side.
@@ -161,6 +162,9 @@ def _render_ga4_redirect_page(
   Server-side uses GA4 Measurement Protocol (best-effort, async).
   Client-side uses `redirect.html` to emit a `gtag('event', ...)` before
   `location.replace(...)` (best-effort).
+  
+  Optionally tracks Meta Pixel event if `meta_pixel_event_name` is provided.
+  Both trackers run in parallel with coordinated completion before redirect.
   """
   base_name = (ga4_event_base_name or '').strip()
   client_event_name = f'{base_name}_client'
@@ -193,6 +197,7 @@ def _render_ga4_redirect_page(
     event_name=client_event_name,
     event_params=event_params,
     click_event_name=click_event_name,
+    meta_pixel_event_name=meta_pixel_event_name,
     canonical_url=canonical_url,
     prev_url=None,
     next_url=None,
@@ -581,10 +586,11 @@ def lunchbox_download_pdf():
     canonical_url=flask.url_for('web.lunchbox_download_pdf', _external=True),
     page_title='Lunchbox Notes Download',
     heading='Starting your download…',
-    message='If it doesn’t start automatically, use the button below.',
+    message="If it doesn't start automatically, use the button below.",
     link_text='Download the PDF',
     ga4_event_base_name='web_lunchbox_download',
     ga4_event_params=event_params,
+    meta_pixel_event_name='CompleteRegistration',
   )
 
 

@@ -91,16 +91,14 @@ def test_lunchbox_get_renders_form():
 def test_lunchbox_post_stores_lead_and_redirects(monkeypatch):
   captured: dict[str, object] = {}
 
-  def _fake_set(data):
-    captured["data"] = data
+  def _fake_create_lead(**kwargs):
+    captured["kwargs"] = kwargs
+    return {
+      "email": kwargs["email"],
+    }
 
-  fake_doc = Mock()
-  fake_doc.set.side_effect = _fake_set
-  fake_collection = Mock()
-  fake_collection.document.return_value = fake_doc
-  fake_db = Mock()
-  fake_db.collection.return_value = fake_collection
-  monkeypatch.setattr(web_fns.firestore, "db", lambda: fake_db)
+  monkeypatch.setattr(web_fns.joke_lead_operations, "create_lead",
+                      _fake_create_lead)
 
   with web_fns.app.test_client() as client:
     resp = client.post('/lunchbox?country_override=DE',
@@ -110,16 +108,16 @@ def test_lunchbox_post_stores_lead_and_redirects(monkeypatch):
 
   assert resp.status_code == 302
   assert resp.headers["Location"].endswith('/lunchbox-thank-you')
-  fake_db.collection.assert_called_once_with('joke_leads')
-  fake_collection.document.assert_called_once_with('test@example.com')
-  assert captured["data"]["email"] == 'test@example.com'
-  assert isinstance(captured["data"]["timestamp"], datetime.datetime)
-  assert captured["data"]["country_code"] == 'DE'
+  assert captured["kwargs"]["email"] == 'test@example.com'
+  assert captured["kwargs"]["country_code"] == 'DE'
+  assert captured["kwargs"]["signup_source"] == 'lunchbox'
+  assert captured["kwargs"][
+    "group_id"] == web_fns.joke_lead_operations.GROUP_SNICKERDOODLE_CLUB
 
 
 def test_lunchbox_post_invalid_email_renders_error(monkeypatch):
-  fake_db = Mock()
-  monkeypatch.setattr(web_fns.firestore, "db", lambda: fake_db)
+  create_lead = Mock()
+  monkeypatch.setattr(web_fns.joke_lead_operations, "create_lead", create_lead)
 
   with web_fns.app.test_client() as client:
     resp = client.post('/lunchbox', data={'email': 'not-an-email'})
@@ -127,7 +125,25 @@ def test_lunchbox_post_invalid_email_renders_error(monkeypatch):
   assert resp.status_code == 400
   html = resp.get_data(as_text=True)
   assert 'Please enter a valid email address.' in html
-  fake_db.collection.assert_not_called()
+  create_lead.assert_not_called()
+
+
+def test_lunchbox_post_mailerlite_failure_renders_error(monkeypatch):
+
+  def _fail(**_kwargs):
+    raise RuntimeError("MailerLite down")
+
+  monkeypatch.setattr(web_fns.joke_lead_operations, "create_lead", _fail)
+
+  with web_fns.app.test_client() as client:
+    resp = client.post('/lunchbox?country_override=DE',
+                       data={
+                         'email': 'test@example.com',
+                       })
+
+  assert resp.status_code == 500
+  html = resp.get_data(as_text=True)
+  assert 'Unable to process your request. Please try again.' in html
 
 
 def test_lunchbox_thank_you_renders():

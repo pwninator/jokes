@@ -17,6 +17,7 @@ google-cloud-texttospeech
 google-cloud-vision
 google-genai>=1.51.0
 more_itertools
+mailerlite
 numpy
 opencv-python-headless
 openai

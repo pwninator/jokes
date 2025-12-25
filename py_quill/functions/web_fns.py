@@ -10,7 +10,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 import flask
 import requests
-from common import amazon_redirect, config, models, utils
+from common import amazon_redirect, config, joke_lead_operations, models, utils
 from firebase_functions import https_fn, logger, options
 from functions import auth_helpers
 from google.cloud.firestore import ArrayUnion
@@ -210,7 +210,6 @@ def _handle_amazon_redirect(redirect_key: str) -> flask.Response:
 
   requested_country = _resolve_request_country_code(flask.request)
   source = flask.request.args.get('source')
-  # TODO: Remove this default source once the Flutter app applies "aa" on its own
   if not source:
     source = "aa"
   target_url, resolved_country, resolved_asin = config_entry.resolve_target_url(
@@ -509,33 +508,36 @@ def lunchbox():
 
   error_message = None
   email_value = ''
+  status_override: int | None = None
 
   if flask.request.method == 'POST':
     email_value = (flask.request.form.get('email') or '').strip().lower()
 
     if not email_value or not _EMAIL_RE.match(email_value):
       error_message = 'Please enter a valid email address.'
+      status_override = 400
     else:
-      country_code = _resolve_request_country_code(flask.request)
-      timestamp = datetime.datetime.now(datetime.timezone.utc)
-      lead_doc = {
-        'email': email_value,
-        'timestamp': timestamp,
-        'country_code': country_code,
-      }
-      firestore.db().collection('joke_leads').document(email_value).set(
-        lead_doc)
-      logger.info(
-        'Stored lunchbox lead',
-        extra={
-          'json_fields': {
-            'event': 'lunchbox_lead_stored',
-            'email': email_value,
-            'country_code': country_code,
-          }
-        },
-      )
-      return flask.redirect(flask.url_for('web.lunchbox_thank_you'))
+      try:
+        country_code = _resolve_request_country_code(flask.request)
+        joke_lead_operations.create_lead(
+          email=email_value,
+          country_code=country_code,
+          signup_source='lunchbox',
+          group_id=joke_lead_operations.GROUP_SNICKERDOODLE_CLUB,
+        )
+        return flask.redirect(flask.url_for('web.lunchbox_thank_you'))
+      except Exception as exc:  # pylint: disable=broad-except
+        logger.error(
+          f'Failed to create lunchbox lead: {exc}',
+          extra={
+            'json_fields': {
+              'event': 'lunchbox_lead_failed',
+              'email': email_value,
+            }
+          },
+        )
+        error_message = 'Unable to process your request. Please try again.'
+        status_override = 500
 
   html = flask.render_template(
     'lunchbox.html',
@@ -548,7 +550,7 @@ def lunchbox():
     email_value=email_value,
   )
   if error_message:
-    return _html_no_store_response(html, status=400)
+    return _html_no_store_response(html, status=status_override or 400)
   return _html_response(html, cache_seconds=300, cdn_seconds=1200)
 
 

@@ -156,7 +156,7 @@ def test_lunchbox_thank_you_renders():
   assert 'High Five!' in html
   assert 'id="thankyou-title"' in html
   assert 'Get the Book on Amazon' in html
-  assert 'web_lunchbox_thank_you_page_load' in html
+  assert 'web_lunchbox_thank_you' in html
   # Should contain an amazon.com URL (default US)
   assert 'href="https://www.amazon.com/dp/B0G7F82P65' in html
 
@@ -362,6 +362,56 @@ def test_index_page_renders_top_jokes(monkeypatch):
   assert 'web_footer_privacy_click' in html
   assert 'Privacy Policy' in html
   assert 'Cache-Control' in resp.headers
+
+
+def test_index_page_includes_nonempty_unique_meta_tags(monkeypatch):
+  """Index page should render a single, non-empty set of SEO meta tags."""
+  mock_get_top_jokes = Mock()
+  monkeypatch.setattr(web_fns.firestore, "get_top_jokes", mock_get_top_jokes)
+  mock_get_daily_joke = Mock()
+  monkeypatch.setattr(web_fns.firestore, "get_daily_joke", mock_get_daily_joke)
+
+  mock_get_top_jokes.return_value = [
+    models.PunnyJoke(
+      key="joke123",
+      setup_text="What do you call a fake noodle?",
+      punchline_text="An Impasta!",
+      setup_image_url="http://example.com/setup.jpg",
+      punchline_image_url="http://example.com/punchline.jpg",
+    )
+  ]
+  mock_get_daily_joke.return_value = models.PunnyJoke(
+    key="daily-1",
+    setup_text="What is every parent's favorite Christmas song?",
+    punchline_text="Silent Night.",
+  )
+
+  with web_fns.app.test_client() as client:
+    resp = client.get('/')
+
+  assert resp.status_code == 200
+  html = resp.get_data(as_text=True)
+
+  assert html.count('<meta name="description"') == 1
+  assert html.count('<meta property="og:description"') == 1
+  assert html.count('<meta name="twitter:description"') == 1
+
+  # We don't assert exact copy; just that it's non-empty and consistent across meta/OG/Twitter.
+  assert 'content=""' not in html
+
+  assert '<meta name="description"\n  content="' in html
+  start = html.index('<meta name="description"\n  content="') + len(
+    '<meta name="description"\n  content="')
+  end = html.index('">', start)
+  description = html[start:end]
+  assert description.strip() != ''
+
+  assert f'<meta property="og:description"\n  content="{description}">' in html
+  assert f'<meta name="twitter:description"\n  content="{description}">' in html
+
+  assert html.count('property="og:image"') == 1
+  assert html.count('name="twitter:image"') == 1
+  assert html.count('name="twitter:card"') == 1
 
 
 def test_fetch_topic_jokes_sorts_by_popularity_then_distance(monkeypatch):

@@ -1,16 +1,13 @@
 {% extends "base.html" %}
 {% block title %}Snickerdoodle Jokes | Daily Fun for Everyone{% endblock %}
 
+{% block meta_description %}Don't just read jokes, see them! Snickerdoodle Jokes pairs hilarious puns with adorable art. Grab the illustrated Book or download the App today.{% endblock %}
+
 {% block head_extra %}
-<meta name="description"
-  content="Fresh from the oven: a daily illustrated joke waiting to brighten your morning.">
-<meta property="og:title" content="Snickerdoodle Jokes | Daily Fun for Everyone">
-<meta property="og:description"
-  content="Today's joke: {% if daily_joke %}{{ daily_joke.setup_text }}{% else %}A delightful laugh awaits{% endif %}">
 <meta property="og:image"
   content="https://images.quillsstorybook.com/cdn-cgi/image/width=1024,format=auto,quality=75/banner001.png">
-<meta property="og:url" content="{{ canonical_url }}">
-<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image"
+  content="https://images.quillsstorybook.com/cdn-cgi/image/width=1024,format=auto,quality=75/banner001.png">
 {% endblock %}
 
 {% block content %}

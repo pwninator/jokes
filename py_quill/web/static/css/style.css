@@ -9,7 +9,7 @@
   --color-text-muted-inverse: #d7c9c2;
   --color-border: rgba(74, 59, 50, 0.12);
   --color-shadow: rgba(196, 171, 140, 0.25);
-  --color-primary: rgba(243, 179, 51, 1.0);
+  --color-primary: rgba(243, 179, 51, 1.0);  /* #f3b333 */
   --color-primary-dark: rgba(198, 109, 0, 1.0);
   --color-form-border-strong: rgba(74, 59, 50, 0.25);
   --color-form-surface: rgba(255, 255, 255, 0.95);

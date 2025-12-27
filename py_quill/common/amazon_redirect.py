@@ -174,9 +174,15 @@ AMAZON_ATTRIBUTION_TAGS: dict[tuple[str, str], str] = {
   ("B0G9765J19", "aa"):
   ("maas=maas_adg_88E95258EF6D9D50F8DBAADDFA5F7DE4_afap_abs&ref_=aa_maas&tag=maas"
    ),
+  ("B0G9765J19", "lunchbox_thank_you"):
+  ("maas=maas_adg_74E52113CF106F9D73EF19BC150AC09F_afap_abs&ref_=aa_maas&tag=maas"
+   ),
   # Cute & Silly Animal Jokes - Paperback
   ("B0G7F82P65", "aa"):
   ("maas=maas_adg_283BD8DDB074184DB7B5EBB2ED3EC3E7_afap_abs&ref_=aa_maas&tag=maas"
+   ),
+  ("B0G7F82P65", "lunchbox_thank_you"):
+  ("maas=maas_adg_92547F51E50DB214BCBCD9D297E81344_afap_abs&ref_=aa_maas&tag=maas"
    ),
 }
 """Attribution query strings keyed by (ASIN, source) pairs."""

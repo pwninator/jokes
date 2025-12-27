@@ -563,6 +563,15 @@ def lunchbox():
 def lunchbox_thank_you():
   """Thank you page after lead submission."""
   now_year = datetime.datetime.now(datetime.timezone.utc).year
+
+  # Resolve Amazon URL based on user's country
+  country_code = _resolve_request_country_code(flask.request)
+  redirect_config = amazon_redirect.AMAZON_REDIRECTS['book-animal-jokes']
+  amazon_url, _, _ = redirect_config.resolve_target_url(
+    requested_country_code=country_code,
+    source='lunchbox_thank_you',
+  )
+
   html = flask.render_template(
     'lunchbox_thank_you.html',
     canonical_url=flask.url_for('web.lunchbox_thank_you', _external=True),
@@ -570,6 +579,7 @@ def lunchbox_thank_you():
     now_year=now_year,
     prev_url=None,
     next_url=None,
+    amazon_url=amazon_url,
   )
   return _html_response(html, cache_seconds=300, cdn_seconds=1200)
 

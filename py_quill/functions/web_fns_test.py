@@ -147,6 +147,7 @@ def test_lunchbox_post_mailerlite_failure_renders_error(monkeypatch):
 
 
 def test_lunchbox_thank_you_renders():
+  """Thank you page should render with correct Amazon URL."""
   with web_fns.app.test_client() as client:
     resp = client.get('/lunchbox-thank-you')
 
@@ -155,6 +156,47 @@ def test_lunchbox_thank_you_renders():
   assert 'High Five!' in html
   assert 'id="thankyou-title"' in html
   assert 'Get the Book on Amazon' in html
+  assert 'web_lunchbox_thank_you_page_load' in html
+  # Should contain an amazon.com URL (default US)
+  assert 'href="https://www.amazon.com/dp/B0G7F82P65' in html
+
+
+def test_lunchbox_thank_you_uses_country_specific_domain():
+  """Thank you page should use country-specific Amazon domain."""
+  with web_fns.app.test_client() as client:
+    resp = client.get('/lunchbox-thank-you',
+                      headers={'X-Appengine-Country': 'GB'})
+
+  assert resp.status_code == 200
+  html = resp.get_data(as_text=True)
+  assert 'www.amazon.co.uk' in html
+  assert 'B0G7F82P65' in html  # Paperback ASIN
+
+
+def test_lunchbox_thank_you_falls_back_to_ebook_for_unsupported_country():
+  """Thank you page should use ebook for countries without paperback."""
+  with web_fns.app.test_client() as client:
+    resp = client.get('/lunchbox-thank-you',
+                      headers={'X-Appengine-Country': 'BR'})
+
+  assert resp.status_code == 200
+  html = resp.get_data(as_text=True)
+  assert 'www.amazon.com.br' in html
+  assert 'B0G9765J19' in html  # Ebook ASIN (fallback)
+
+
+def test_lunchbox_thank_you_includes_attribution_tag():
+  """Thank you page should include attribution for lunchbox_thank_you source."""
+  with web_fns.app.test_client() as client:
+    resp = client.get('/lunchbox-thank-you',
+                      headers={'X-Appengine-Country': 'US'})
+
+  assert resp.status_code == 200
+  html = resp.get_data(as_text=True)
+  # Should contain the attribution tag configured for (B0G7F82P65, lunchbox_thank_you)
+  assert 'maas=maas_adg_92547F51E50DB214BCBCD9D297E81344_afap_abs' in html
+  assert 'ref_=aa_maas' in html
+  assert 'tag=maas' in html
 
 
 def test_lunchbox_download_pdf_renders(monkeypatch):

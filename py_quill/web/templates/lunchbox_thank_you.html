@@ -50,7 +50,7 @@
       </li>
     </ul>
 
-    <a class="nav-cta text-button thankyou-amazon-cta" href="https://www.amazon.com/dp/PLACEHOLDER" target="_blank"
+    <a class="nav-cta text-button thankyou-amazon-cta" href="{{ amazon_url }}" target="_blank"
       rel="nofollow noopener noreferrer" data-analytics-event="web_lunchbox_thank_you_amazon_click"
       data-analytics-label="thank_you">
       Get the Book on Amazon
@@ -76,4 +76,19 @@
     </p>
   </div>
 </section>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  (function () {
+    // Fire GA4 event on page load (best-effort).
+    // gtag() is defined in root.html; if GA4 is blocked, this is a no-op.
+    if (typeof window.gtag === 'function') {
+      window.gtag('event', 'web_lunchbox_thank_you', {
+        event_label: 'thank_you',
+        transport_type: 'beacon',
+      });
+    }
+  })();
+</script>
 {% endblock %}

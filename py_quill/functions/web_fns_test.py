@@ -268,6 +268,7 @@ def test_sitemap_returns_hardcoded_topics():
     resp = client.get('/sitemap.xml')
   assert resp.status_code == 200
   xml = resp.get_data(as_text=True)
+  assert 'https://snickerdoodlejokes.com/lunchbox' in xml
   assert 'https://snickerdoodlejokes.com/jokes/dogs' in xml
 
 

@@ -1488,6 +1488,13 @@ def sitemap():
   ]
   now = datetime.datetime.now(
     datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+  # Include key non-topic landing pages.
+  urlset_parts.append('<url>')
+  urlset_parts.append(f'<loc>{base_url}/lunchbox</loc>')
+  urlset_parts.append(f'<lastmod>{now}</lastmod>')
+  urlset_parts.append('<changefreq>weekly</changefreq>')
+  urlset_parts.append('<priority>0.7</priority>')
+  urlset_parts.append('</url>')
   for topic in topics:
     urlset_parts.append('<url>')
     urlset_parts.append(f'<loc>{base_url}/jokes/{topic}</loc>')

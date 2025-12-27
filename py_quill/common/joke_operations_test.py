@@ -329,8 +329,6 @@ def test_to_response_joke_strips_embedding():
     setup_text="Setup",
     punchline_text="Punch",
   )
-  joke.zzz_joke_text_embedding = [1.0, 2.0]
-
   response = joke_operations.to_response_joke(joke)
 
   assert response["key"] == "joke-1"
@@ -853,25 +851,23 @@ class TestSyncJokeToSearchCollection:
 
   def test_uses_existing_embedding_from_joke_when_no_new_embedding(
       self, mock_search_collection, mock_firestore):
-    """Test that existing embedding from joke is used when no new embedding provided and search doc lacks it."""
+    """Jokes no longer store embeddings; do not write embedding without new_embedding."""
     _, search_doc_state = mock_search_collection
 
     # Search doc has no embedding
     search_doc_state["doc"] = {}
 
-    joke_embedding = Vector([5.0, 6.0, 7.0])
     joke = models.PunnyJoke(
       key="joke1",
       setup_text="Test setup",
       punchline_text="Test punchline",
       state=models.JokeState.PUBLISHED,
-      zzz_joke_text_embedding=joke_embedding,
     )
 
     joke_operations.sync_joke_to_search_collection(joke, None)
 
     synced = search_doc_state["doc"]
-    assert synced["text_embedding"] == joke_embedding
+    assert "text_embedding" not in synced
 
   def test_does_not_overwrite_existing_embedding_when_no_new_embedding(
       self, mock_search_collection, mock_firestore):
@@ -883,13 +879,11 @@ class TestSyncJokeToSearchCollection:
       "text_embedding": existing_embedding,
     }
 
-    joke_embedding = Vector([5.0, 6.0, 7.0])
     joke = models.PunnyJoke(
       key="joke1",
       setup_text="Test setup",
       punchline_text="Test punchline",
       state=models.JokeState.PUBLISHED,
-      zzz_joke_text_embedding=joke_embedding,
     )
 
     joke_operations.sync_joke_to_search_collection(joke, None)

@@ -2,8 +2,6 @@
 
 from unittest.mock import MagicMock, patch
 
-from google.cloud.firestore_v1.vector import Vector
-
 from functions import util_fns
 
 
@@ -26,271 +24,60 @@ def _build_jokes_query(docs: list[MagicMock]):
   return query
 
 
-def test_run_joke_search_backfill_dry_run_does_not_write():
+def test_cleanup_dry_run_does_not_write_but_reports_stats():
   jokes_query = _build_jokes_query(
     _build_docs([
-      (
-        "j1",
-        {
-          "state": "PUBLISHED",
-          "is_public": True,
-          "zzz_joke_text_embedding": Vector([1.0, 2.0]),
-        },
-      ),
+      ("j1", {"zzz_joke_text_embedding": "anything"}),
+      ("j2", {}),
     ]))
 
   db_mock = MagicMock()
   jokes_collection = MagicMock()
   jokes_collection.order_by.return_value = jokes_query
-  search_collection = MagicMock()
-  search_snapshot = MagicMock()
-  # Existing has same metadata + no embedding, so we would only write embedding.
-  search_snapshot.exists = True
-  search_snapshot.to_dict.return_value = {
-    "state": "PUBLISHED",
-    "is_public": True,
-  }
-  search_doc = MagicMock()
-  search_doc.get.return_value = search_snapshot
-  search_collection.document.return_value = search_doc
-  db_mock.collection.side_effect = (lambda name: jokes_collection
-                                    if name == 'jokes' else search_collection)
+
+  joke_doc = MagicMock()
+  jokes_collection.document.return_value = joke_doc
+
+  db_mock.collection.return_value = jokes_collection
 
   with patch('functions.util_fns.db', return_value=db_mock):
-    html = util_fns.run_joke_search_backfill(
+    html = util_fns.run_jokes_embedding_cleanup(
       dry_run=True,
       limit=0,
       start_after="",
     )
 
-  # Dry run should not write, but does check joke_search for existing embedding.
-  search_collection.document.assert_called_once_with("j1")
-  search_doc.set.assert_not_called()
+  joke_doc.update.assert_not_called()
   assert "Dry Run: True" in html
   assert "Processed" in html
-  assert "Written" in html
-  assert "Skipped (embedding already existed)" in html
+  assert "Would delete" in html
+  assert "Deleted" in html
+  assert "Skipped (field not present)" in html
 
 
-def test_run_joke_search_backfill_writes_expected_payload():
+def test_cleanup_writes_only_when_field_present():
   jokes_query = _build_jokes_query(
     _build_docs([
-      (
-        "j1",
-        {
-          "state": "PUBLISHED",
-          "is_public": True,
-          "public_timestamp": "ts",
-          "num_saved_users_fraction": 0.5,
-          "num_shared_users_fraction": 0.25,
-          "popularity_score": 12.0,
-          "zzz_joke_text_embedding": Vector([1.0, 2.0]),
-        },
-      ),
+      ("j1", {"zzz_joke_text_embedding": None}),
+      ("j2", {}),
     ]))
 
   db_mock = MagicMock()
   jokes_collection = MagicMock()
   jokes_collection.order_by.return_value = jokes_query
 
-  search_doc = MagicMock()
-  search_snapshot = MagicMock()
-  search_snapshot.exists = False
-  search_snapshot.to_dict.return_value = {}
-  search_doc.get.return_value = search_snapshot
-  search_collection = MagicMock()
-  search_collection.document.return_value = search_doc
+  joke_doc = MagicMock()
+  jokes_collection.document.return_value = joke_doc
 
-  db_mock.collection.side_effect = (lambda name: jokes_collection
-                                    if name == 'jokes' else search_collection)
+  db_mock.collection.return_value = jokes_collection
 
   with patch('functions.util_fns.db', return_value=db_mock):
-    html = util_fns.run_joke_search_backfill(
+    html = util_fns.run_jokes_embedding_cleanup(
       dry_run=False,
       limit=0,
       start_after="",
     )
 
-  assert search_collection.document.call_count == 2
-  search_collection.document.assert_called_with("j1")
-  search_doc.set.assert_called_once()
-  payload = search_doc.set.call_args.args[0]
-  assert isinstance(payload["text_embedding"], Vector)
-  assert payload["state"] == "PUBLISHED"
-  assert payload["is_public"] is True
-  assert payload["public_timestamp"] == "ts"
-  assert payload["num_saved_users_fraction"] == 0.5
-  assert payload["num_shared_users_fraction"] == 0.25
-  assert payload["popularity_score"] == 12.0
+  jokes_collection.document.assert_called_once_with("j1")
+  joke_doc.update.assert_called_once()
   assert "Status: Success" in html
-
-
-def test_run_joke_search_backfill_does_not_overwrite_existing_embedding():
-  jokes_query = _build_jokes_query(
-    _build_docs([
-      (
-        "j1",
-        {
-          "state": "PUBLISHED",
-          "is_public": True,
-          "zzz_joke_text_embedding": Vector([1.0, 2.0]),
-        },
-      ),
-    ]))
-
-  db_mock = MagicMock()
-  jokes_collection = MagicMock()
-  jokes_collection.order_by.return_value = jokes_query
-
-  search_doc = MagicMock()
-  search_snapshot = MagicMock()
-  search_snapshot.exists = True
-  search_snapshot.to_dict.return_value = {"text_embedding": Vector([9.0])}
-  search_doc.get.return_value = search_snapshot
-  search_collection = MagicMock()
-  search_collection.document.return_value = search_doc
-
-  db_mock.collection.side_effect = (lambda name: jokes_collection
-                                    if name == 'jokes' else search_collection)
-
-  with patch('functions.util_fns.db', return_value=db_mock):
-    _ = util_fns.run_joke_search_backfill(
-      dry_run=False,
-      limit=0,
-      start_after="",
-    )
-
-  payload = search_doc.set.call_args.args[0]
-  assert "text_embedding" not in payload
-
-
-def test_run_joke_search_backfill_skips_write_when_metadata_identical_and_embedding_exists(
-):
-  jokes_query = _build_jokes_query(
-    _build_docs([
-      (
-        "j1",
-        {
-          "state": "PUBLISHED",
-          "is_public": True,
-          "public_timestamp": "ts",
-          "num_saved_users_fraction": 0.5,
-          "num_shared_users_fraction": 0.25,
-          "popularity_score": 12.0,
-          "zzz_joke_text_embedding": Vector([1.0, 2.0]),
-        },
-      ),
-    ]))
-
-  db_mock = MagicMock()
-  jokes_collection = MagicMock()
-  jokes_collection.order_by.return_value = jokes_query
-
-  search_doc = MagicMock()
-  search_snapshot = MagicMock()
-  search_snapshot.exists = True
-  search_snapshot.to_dict.return_value = {
-    "text_embedding": Vector([9.0]),
-    "state": "PUBLISHED",
-    "is_public": True,
-    "public_timestamp": "ts",
-    "num_saved_users_fraction": 0.5,
-    "num_shared_users_fraction": 0.25,
-    "popularity_score": 12.0,
-  }
-  search_doc.get.return_value = search_snapshot
-  search_collection = MagicMock()
-  search_collection.document.return_value = search_doc
-
-  db_mock.collection.side_effect = (lambda name: jokes_collection
-                                    if name == 'jokes' else search_collection)
-
-  with patch('functions.util_fns.db', return_value=db_mock):
-    html = util_fns.run_joke_search_backfill(
-      dry_run=False,
-      limit=0,
-      start_after="",
-    )
-
-  search_doc.set.assert_not_called()
-  assert "Skipped (no-op: metadata already matched)" in html
-
-
-def test_run_joke_search_backfill_skips_missing_embedding():
-  jokes_query = _build_jokes_query(
-    _build_docs([
-      ("j_missing", {
-        "state": "PUBLISHED",
-        "is_public": True,
-      }),
-      ("j_good", {
-        "state": "PUBLISHED",
-        "is_public": True,
-        "zzz_joke_text_embedding": Vector([1.0, 2.0]),
-      }),
-    ]))
-
-  db_mock = MagicMock()
-  jokes_collection = MagicMock()
-  jokes_collection.order_by.return_value = jokes_query
-
-  search_doc = MagicMock()
-  search_snapshot = MagicMock()
-  search_snapshot.exists = False
-  search_snapshot.to_dict.return_value = {}
-  search_doc.get.return_value = search_snapshot
-  search_collection = MagicMock()
-  search_collection.document.return_value = search_doc
-
-  db_mock.collection.side_effect = (lambda name: jokes_collection
-                                    if name == 'jokes' else search_collection)
-
-  with patch('functions.util_fns.db', return_value=db_mock):
-    html = util_fns.run_joke_search_backfill(
-      dry_run=False,
-      limit=0,
-      start_after="",
-    )
-
-  assert search_collection.document.call_count == 2
-  search_collection.document.assert_called_with("j_good")
-  assert "Skipped (missing embedding)" in html
-
-
-def test_run_joke_search_backfill_reports_no_source_metadata_noop():
-  jokes_query = _build_jokes_query(
-    _build_docs([
-      (
-        "j1",
-        {
-          # No metadata candidates at all on source (only embedding)
-          "zzz_joke_text_embedding": Vector([1.0, 2.0]),
-        }),
-    ]))
-
-  db_mock = MagicMock()
-  jokes_collection = MagicMock()
-  jokes_collection.order_by.return_value = jokes_query
-
-  search_doc = MagicMock()
-  search_snapshot = MagicMock()
-  search_snapshot.exists = True
-  search_snapshot.to_dict.return_value = {
-    "text_embedding": Vector([9.0]),
-  }
-  search_doc.get.return_value = search_snapshot
-  search_collection = MagicMock()
-  search_collection.document.return_value = search_doc
-
-  db_mock.collection.side_effect = (lambda name: jokes_collection
-                                    if name == 'jokes' else search_collection)
-
-  with patch('functions.util_fns.db', return_value=db_mock):
-    html = util_fns.run_joke_search_backfill(
-      dry_run=False,
-      limit=0,
-      start_after="",
-    )
-
-  search_doc.set.assert_not_called()
-  assert "Skipped (no-op: no source metadata)" in html

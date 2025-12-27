@@ -104,7 +104,6 @@ def _create_mock_joke_doc(joke_id: str,
     "all_setup_image_urls": [],
     "all_punchline_image_urls": [],
     "admin_rating": models.JokeAdminRating.UNREVIEWED.value,
-    "zzz_joke_text_embedding": None,
     "owner_user_id": None,
     "generation_metadata": {
       "generations": []

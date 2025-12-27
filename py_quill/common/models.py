@@ -9,8 +9,6 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
 
-from google.cloud.firestore_v1.vector import Vector
-
 
 class ReadingLevel(Enum):
   """Reading level enum matching the Flutter app's levels."""
@@ -720,8 +718,6 @@ class PunnyJoke:
 
   state: JokeState = JokeState.UNKNOWN
   admin_rating: JokeAdminRating = JokeAdminRating.UNREVIEWED
-
-  zzz_joke_text_embedding: Vector | None = None
 
   owner_user_id: str | None = None
   public_timestamp: datetime.datetime | None = None

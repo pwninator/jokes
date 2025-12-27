@@ -83,7 +83,7 @@ class TestOnJokeWrite:
     assert update_data["num_saved_users_recent"] == pytest.approx(4.0)
     assert update_data["num_shared_users_recent"] == pytest.approx(1.0)
     assert update_data["popularity_score_recent"] == pytest.approx(25.0 / 5.0)
-    assert "zzz_joke_text_embedding" in update_data
+    assert "zzz_joke_text_embedding" not in update_data
 
   def test_existing_recent_counters_coerced_to_float(self,
                                                      mock_get_joke_embedding,

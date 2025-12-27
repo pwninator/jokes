@@ -432,8 +432,6 @@ def sync_joke_to_search_collection(
   # 1. Sync embedding
   if new_embedding:
     update_payload["text_embedding"] = new_embedding
-  elif "text_embedding" not in search_data and joke.zzz_joke_text_embedding:
-    update_payload["text_embedding"] = joke.zzz_joke_text_embedding
 
   # 2. Sync state
   if search_data.get("state") != joke.state.value:
@@ -472,5 +470,4 @@ def sync_joke_to_search_collection(
 def to_response_joke(joke: models.PunnyJoke) -> dict[str, Any]:
   """Convert a PunnyJoke to a dictionary suitable for API responses."""
   joke_dict = joke.to_dict(include_key=True)
-  joke_dict.pop('zzz_joke_text_embedding', None)
   return joke_dict

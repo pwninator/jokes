@@ -152,16 +152,16 @@ def on_joke_write(event: firestore_fn.Event[firestore_fn.Change]) -> None:
     should_update_embedding = True
     logger.info(
       f"New joke created, calculating embedding for: {after_joke.key}")
-  elif (after_joke.zzz_joke_text_embedding is None
-        or isinstance(after_joke.zzz_joke_text_embedding, list)):
-    should_update_embedding = True
-    logger.info(
-      f"Joke missing embedding, calculating embedding for: {after_joke.key}")
   elif (before_joke.setup_text != after_joke.setup_text
         or before_joke.punchline_text != after_joke.punchline_text):
     should_update_embedding = True
     logger.info(
       f"Joke text changed, recalculating embedding for: {after_joke.key}")
+  elif after_joke.key and not _joke_search_has_embedding(after_joke.key):
+    should_update_embedding = True
+    logger.info(
+      f"joke_search missing embedding, calculating embedding for: {after_joke.key}"
+    )
   else:
     logger.info(
       f"Joke updated without text change, skipping embedding update for: {after_joke.key}"
@@ -206,7 +206,6 @@ def on_joke_write(event: firestore_fn.Event[firestore_fn.Change]) -> None:
     current_metadata.add_generation(metadata)
 
     update_data.update({
-      "zzz_joke_text_embedding": embedding,
       "generation_metadata": current_metadata.as_dict,
     })
 
@@ -312,6 +311,22 @@ def _get_joke_embedding(
     text=f"{joke.setup_text} {joke.punchline_text}",
     task_type=search.TaskType.RETRIEVAL_DOCUMENT,
   )
+
+
+def _joke_search_has_embedding(joke_id: str) -> bool:
+  """Return True if joke_search/{joke_id} has a valid `text_embedding`."""
+  if not joke_id:
+    return False
+  try:
+    doc = firestore.db().collection("joke_search").document(joke_id).get()
+    if not getattr(doc, "exists", False):
+      return False
+    data = doc.to_dict() or {}
+    embedding = data.get("text_embedding")
+    return isinstance(embedding, Vector)
+  except Exception as exc:  # pylint: disable=broad-except
+    logger.warn(f"Failed reading joke_search embedding for {joke_id}: {exc}")
+    return False
 
 
 def _sync_joke_deletion_to_search_collection(joke_id: str) -> None:

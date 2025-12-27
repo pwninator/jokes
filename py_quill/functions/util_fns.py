@@ -7,7 +7,7 @@ from typing import Any
 from firebase_admin import firestore
 from firebase_functions import https_fn, logger, options
 from functions.function_utils import get_bool_param, get_int_param, get_param
-from google.cloud.firestore_v1.vector import Vector
+from google.cloud.firestore import DELETE_FIELD
 
 _db = None  # pylint: disable=invalid-name
 
@@ -28,7 +28,7 @@ def run_firestore_migration(req: https_fn.Request) -> https_fn.Response:
   """Run Firestore migrations.
 
   Currently supported:
-  - Backfill `joke_search` docs from `jokes.zzz_joke_text_embedding`
+  - Cleanup: delete `zzz_joke_text_embedding` field from `jokes` docs
   """
   # Health check
   if req.path == "/__/health":
@@ -49,7 +49,7 @@ def run_firestore_migration(req: https_fn.Request) -> https_fn.Response:
     limit = get_int_param(req, 'limit', 0)
     start_after = get_param(req, 'start_after', "")
 
-    html_response = run_joke_search_backfill(
+    html_response = run_jokes_embedding_cleanup(
       dry_run=dry_run,
       limit=limit,
       start_after=str(start_after or ""),
@@ -70,20 +70,13 @@ def run_firestore_migration(req: https_fn.Request) -> https_fn.Response:
     )
 
 
-def run_joke_search_backfill(*, dry_run: bool, limit: int,
-                             start_after: str) -> str:
-  """Backfill `joke_search` docs from `jokes` docs.
+def run_jokes_embedding_cleanup(*, dry_run: bool, limit: int,
+                                start_after: str) -> str:
+  """Delete `zzz_joke_text_embedding` from all `jokes` documents.
 
-  This is Phase 1-only: it does NOT change how the app searches; it only
-  prepares the `joke_search` collection so Phase 2 can safely switch reads.
-
-  Reads:
-    - jokes/{joke_id}.zzz_joke_text_embedding
-    - plus filter/sort fields used by search (state/is_public/public_timestamp/etc.)
-
-  Writes:
-    - joke_search/{joke_id}.text_embedding (Vector)
-    - joke_search/{joke_id}.{state,is_public,public_timestamp,num_*_fraction,popularity_score}
+  Idempotent:
+  - If a doc does not contain the field, no write is performed.
+  - If a doc contains the field (even if None), we issue an update that removes it.
 
   Args:
     dry_run: If True, do not write anything.
@@ -91,7 +84,7 @@ def run_joke_search_backfill(*, dry_run: bool, limit: int,
     start_after: If non-empty, start after this joke_id (lexicographic).
   """
   logger.info(
-    "Starting joke_search backfill",
+    "Starting jokes embedding cleanup",
     extra={
       "json_fields": {
         "dry_run": dry_run,
@@ -108,105 +101,30 @@ def run_joke_search_backfill(*, dry_run: bool, limit: int,
     query = query.limit(int(limit))
 
   processed = 0
-  written = 0
-  skipped_missing_embedding = 0
-  skipped_existing_embedding = 0
-  skipped_noop_metadata_matched = 0
-  skipped_noop_no_source_metadata = 0
-  written_embedding = 0
-  written_metadata_only = 0
+  deleted = 0
+  would_delete = 0
+  skipped_no_field = 0
   failed: list[dict[str, str]] = []
   last_id: str | None = None
-
-  def _maybe_add(payload: dict[str, Any], data: dict[str, Any],
-                 key: str) -> None:
-    value = data.get(key)
-    if value is not None:
-      payload[key] = value
-
-  def _maybe_add_if_changed(
-    payload: dict[str, Any],
-    *,
-    existing: dict[str, Any],
-    source: dict[str, Any],
-    key: str,
-  ) -> None:
-    """Add a field only when the source has a value and it differs from existing."""
-    if key not in source:
-      return
-    value = source.get(key)
-    if value is None:
-      return
-    if existing.get(key) != value:
-      payload[key] = value
 
   for doc in query.stream():
     processed += 1
     last_id = doc.id
     data = doc.to_dict() or {}
 
-    zzz_embedding = data.get('zzz_joke_text_embedding')
-    if zzz_embedding is None or isinstance(zzz_embedding, list):
-      skipped_missing_embedding += 1
+    if 'zzz_joke_text_embedding' not in data:
+      skipped_no_field += 1
       continue
 
-    embedding = zzz_embedding
-    if not isinstance(embedding, Vector):
-      try:
-        embedding = Vector(list(embedding))
-      except Exception as err:  # pylint: disable=broad-except
-        failed.append({"joke_id": doc.id, "error": str(err)})
-        continue
-
-    # Build payload. Do NOT overwrite existing embeddings in joke_search.
-    payload: dict[str, Any] = {}
-    try:
-      existing_doc = db().collection('joke_search').document(doc.id).get()
-      existing_data = (existing_doc.to_dict() or {}) if getattr(
-        existing_doc, 'exists', False) else {}
-    except Exception as err:  # pylint: disable=broad-except
-      failed.append({"joke_id": doc.id, "error": str(err)})
-      continue
-
-    if 'text_embedding' not in existing_data:
-      payload['text_embedding'] = embedding
-    else:
-      skipped_existing_embedding += 1
-
-    # Fields required for Phase 2 filtering. Only write when changed.
-    candidate_keys = (
-      'state',
-      'is_public',
-      'public_timestamp',
-      'num_saved_users_fraction',
-      'num_shared_users_fraction',
-      'popularity_score',
-    )
-    source_had_any_candidate = False
-    for key in candidate_keys:
-      if key in data and data.get(key) is not None:
-        source_had_any_candidate = True
-      _maybe_add_if_changed(payload,
-                            existing=existing_data,
-                            source=data,
-                            key=key)
+    would_delete += 1
 
     try:
-      if payload:
-        if not dry_run:
-          db().collection('joke_search').document(doc.id).set(payload,
-                                                              merge=True)
-        written += 1
-        if 'text_embedding' in payload:
-          written_embedding += 1
-        else:
-          written_metadata_only += 1
-      else:
-        # No write needed. Distinguish "matched" vs "no source metadata".
-        if source_had_any_candidate:
-          skipped_noop_metadata_matched += 1
-        else:
-          skipped_noop_no_source_metadata += 1
+      if not dry_run:
+        db().collection('jokes').document(doc.id).update({
+          'zzz_joke_text_embedding':
+          DELETE_FIELD,
+        })
+        deleted += 1
     except Exception as err:  # pylint: disable=broad-except
       failed.append({"joke_id": doc.id, "error": str(err)})
 
@@ -214,13 +132,9 @@ def run_joke_search_backfill(*, dry_run: bool, limit: int,
     dry_run=dry_run,
     success=(len(failed) == 0),
     processed=processed,
-    written=written,
-    written_embedding=written_embedding,
-    written_metadata_only=written_metadata_only,
-    skipped_missing_embedding=skipped_missing_embedding,
-    skipped_existing_embedding=skipped_existing_embedding,
-    skipped_noop_metadata_matched=skipped_noop_metadata_matched,
-    skipped_noop_no_source_metadata=skipped_noop_no_source_metadata,
+    deleted=deleted,
+    would_delete=would_delete,
+    skipped_no_field=skipped_no_field,
     failed_items=failed,
     last_id=last_id,
   )
@@ -231,13 +145,9 @@ def _build_html_report(
   dry_run: bool,
   success: bool,
   processed: int | None = None,
-  written: int | None = None,
-  written_embedding: int | None = None,
-  written_metadata_only: int | None = None,
-  skipped_missing_embedding: int | None = None,
-  skipped_existing_embedding: int | None = None,
-  skipped_noop_metadata_matched: int | None = None,
-  skipped_noop_no_source_metadata: int | None = None,
+  deleted: int | None = None,
+  would_delete: int | None = None,
+  skipped_no_field: int | None = None,
   failed_items: list[dict[str, str]] | None = None,
   last_id: str | None = None,
   error: str | None = None,
@@ -253,25 +163,12 @@ def _build_html_report(
 
   if processed is not None:
     html += f"<h2>Processed</h2><p>{processed}</p>"
-  if written is not None:
-    html += f"<h2>Written</h2><p>{written}</p>"
-  if written_embedding is not None:
-    html += f"<h2>Written (embedding)</h2><p>{written_embedding}</p>"
-  if written_metadata_only is not None:
-    html += (f"<h2>Written (metadata only)</h2>"
-             f"<p>{written_metadata_only}</p>")
-  if skipped_missing_embedding is not None:
-    html += (f"<h2>Skipped (missing embedding)</h2>"
-             f"<p>{skipped_missing_embedding}</p>")
-  if skipped_existing_embedding is not None:
-    html += (f"<h2>Skipped (embedding already existed)</h2>"
-             f"<p>{skipped_existing_embedding}</p>")
-  if skipped_noop_metadata_matched is not None:
-    html += (f"<h2>Skipped (no-op: metadata already matched)</h2>"
-             f"<p>{skipped_noop_metadata_matched}</p>")
-  if skipped_noop_no_source_metadata is not None:
-    html += (f"<h2>Skipped (no-op: no source metadata)</h2>"
-             f"<p>{skipped_noop_no_source_metadata}</p>")
+  if would_delete is not None:
+    html += f"<h2>Would delete</h2><p>{would_delete}</p>"
+  if deleted is not None:
+    html += f"<h2>Deleted</h2><p>{deleted}</p>"
+  if skipped_no_field is not None:
+    html += f"<h2>Skipped (field not present)</h2><p>{skipped_no_field}</p>"
   if last_id:
     html += f"<h2>Last processed joke id</h2><p>{last_id}</p>"
 

@@ -108,7 +108,7 @@ def search_jokes(
   """Search for jokes in Firestore."""
   try:
     client = get_firestore_client()
-    collection = client.collection("jokes")
+    collection = client.collection("joke_search")
 
     for field, op, value in field_filters:
       collection = collection.where(field, op, value)
@@ -117,7 +117,7 @@ def search_jokes(
     query_embedding, _ = get_embedding(final_query, TaskType.RETRIEVAL_QUERY)
 
     vector_query = collection.find_nearest(
-      vector_field="zzz_joke_text_embedding",
+      vector_field="text_embedding",
       query_vector=Vector(query_embedding),
       distance_measure=distance_measure,
       limit=limit,

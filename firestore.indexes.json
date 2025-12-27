@@ -54,24 +54,6 @@
       "density": "SPARSE_ALL"
     },
     {
-      "collectionGroup": "jokes",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "__name__",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "zzz_joke_text_embedding",
-          "vectorConfig": {
-            "dimension": 2048,
-            "flat": {}
-          }
-        }
-      ],
-      "density": "SPARSE_ALL"
-    },
-    {
       "collectionGroup": "joke_search",
       "queryScope": "COLLECTION",
       "fields": [
@@ -177,32 +159,6 @@
         {
           "fieldPath": "__name__",
           "order": "DESCENDING"
-        }
-      ],
-      "density": "SPARSE_ALL"
-    },
-    {
-      "collectionGroup": "jokes",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "is_public",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "state",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "__name__",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "zzz_joke_text_embedding",
-          "vectorConfig": {
-            "dimension": 2048,
-            "flat": {}
-          }
         }
       ],
       "density": "SPARSE_ALL"
@@ -344,28 +300,6 @@
         {
           "fieldPath": "__name__",
           "order": "DESCENDING"
-        }
-      ],
-      "density": "SPARSE_ALL"
-    },
-    {
-      "collectionGroup": "jokes",
-      "queryScope": "COLLECTION",
-      "fields": [
-        {
-          "fieldPath": "public_timestamp",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "__name__",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "zzz_joke_text_embedding",
-          "vectorConfig": {
-            "dimension": 2048,
-            "flat": {}
-          }
         }
       ],
       "density": "SPARSE_ALL"

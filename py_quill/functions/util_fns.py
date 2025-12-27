@@ -1,13 +1,13 @@
 """Utility cloud functions for Firestore migrations."""
 
 import json
-import random
 import traceback
+from typing import Any
 
 from firebase_admin import firestore
 from firebase_functions import https_fn, logger, options
-from functions.function_utils import get_bool_param
-from google.cloud.firestore import DELETE_FIELD
+from functions.function_utils import get_bool_param, get_int_param, get_param
+from google.cloud.firestore_v1.vector import Vector
 
 _db = None  # pylint: disable=invalid-name
 
@@ -25,7 +25,11 @@ def db() -> firestore.client:
   timeout_sec=1800,
 )
 def run_firestore_migration(req: https_fn.Request) -> https_fn.Response:
-  """Run the joke book migration."""
+  """Run Firestore migrations.
+
+  Currently supported:
+  - Backfill `joke_search` docs from `jokes.zzz_joke_text_embedding`
+  """
   # Health check
   if req.path == "/__/health":
     return https_fn.Response("OK", status=200)
@@ -42,8 +46,14 @@ def run_firestore_migration(req: https_fn.Request) -> https_fn.Response:
 
   try:
     dry_run = get_bool_param(req, 'dry_run', True)
+    limit = get_int_param(req, 'limit', 0)
+    start_after = get_param(req, 'start_after', "")
 
-    html_response = run_joke_book_migration(dry_run=dry_run)
+    html_response = run_joke_search_backfill(
+      dry_run=dry_run,
+      limit=limit,
+      start_after=str(start_after or ""),
+    )
     return https_fn.Response(html_response, status=200, mimetype='text/html')
 
   except Exception as e:  # pylint: disable=broad-except
@@ -60,191 +70,137 @@ def run_firestore_migration(req: https_fn.Request) -> https_fn.Response:
     )
 
 
-def run_joke_book_migration(dry_run: bool) -> str:
+def run_joke_search_backfill(*, dry_run: bool, limit: int,
+                             start_after: str) -> str:
+  """Backfill `joke_search` docs from `jokes` docs.
+
+  This is Phase 1-only: it does NOT change how the app searches; it only
+  prepares the `joke_search` collection so Phase 2 can safely switch reads.
+
+  Reads:
+    - jokes/{joke_id}.zzz_joke_text_embedding
+    - plus filter/sort fields used by search (state/is_public/public_timestamp/etc.)
+
+  Writes:
+    - joke_search/{joke_id}.text_embedding (Vector)
+    - joke_search/{joke_id}.{state,is_public,public_timestamp,num_*_fraction,popularity_score}
+
+  Args:
+    dry_run: If True, do not write anything.
+    limit: If > 0, process at most this many jokes.
+    start_after: If non-empty, start after this joke_id (lexicographic).
   """
-    Update a specific joke book's jokes array.
+  logger.info(
+    "Starting joke_search backfill",
+    extra={
+      "json_fields": {
+        "dry_run": dry_run,
+        "limit": limit,
+        "start_after": start_after,
+      }
+    },
+  )
 
-    Args:
-        dry_run: If True, the migration will only log the changes that would be made.
+  query = db().collection('jokes').order_by('__name__')
+  if start_after:
+    query = query.start_after({'__name__': start_after})
+  if limit and limit > 0:
+    query = query.limit(int(limit))
 
-    Returns:
-        An HTML page listing the migration results.
-    """
-  logger.info("Starting joke book migration...")
+  processed = 0
+  written = 0
+  skipped_missing_embedding = 0
+  failed: list[dict[str, str]] = []
+  last_id: str | None = None
 
-  book_id = "20251115_064522__bbcourirwogb9x6wuqwa"
-  book_ref = db().collection('joke_books').document(book_id)
-  book_doc = book_ref.get()
+  def _maybe_add(payload: dict[str, Any], data: dict[str, Any],
+                 key: str) -> None:
+    value = data.get(key)
+    if value is not None:
+      payload[key] = value
 
-  if not book_doc.exists:
-    return _build_html_report(
-      dry_run=dry_run,
-      success=False,
-      error=f"Joke book {book_id} not found",
-    )
+  for doc in query.stream():
+    processed += 1
+    last_id = doc.id
+    data = doc.to_dict() or {}
 
-  book_data = book_doc.to_dict() or {}
-  original_jokes = book_data.get('jokes', [])
+    zzz_embedding = data.get('zzz_joke_text_embedding')
+    if zzz_embedding is None or isinstance(zzz_embedding, list):
+      skipped_missing_embedding += 1
+      continue
 
-  if not isinstance(original_jokes, list):
-    return _build_html_report(
-      dry_run=dry_run,
-      success=False,
-      error=f"Jokes field is not a list: {type(original_jokes)}",
-    )
-
-  # Step 1: Convert to set (removes duplicates)
-  jokes_set = set(original_jokes)
-
-  # Step 2: Add jokes
-  jokes_to_add = [
-    "hip_hop__what_is_a_rabbit_s_favourite_s",
-    "shell_fies__what_kind_of_photos_do_turtles",
-  ]
-  for joke_id in jokes_to_add:
-    jokes_set.add(joke_id)
-
-  # Step 3: Remove joke
-  joke_to_remove = "you_might_step_in_a_poodle__why_should_you_be_careful_when"
-  jokes_set.discard(joke_to_remove)
-
-  # Step 4 & 5: Convert back to list, put monkey joke first, randomize rest
-  jokes_list = list(jokes_set)
-  monkey_joke = "a_monkey__what_kind_of_key_opens_a_banan"
-
-  # Remove monkey joke from list if present
-  if monkey_joke in jokes_list:
-    jokes_list.remove(monkey_joke)
-
-  # Randomize remaining jokes
-  random.shuffle(jokes_list)
-
-  # Put monkey joke first
-  updated_jokes = [monkey_joke] + jokes_list
-
-  if dry_run:
-    # In dry run, simulate clearing metadata for all jokes
-    cleared_jokes = updated_jokes.copy()
-    return _build_html_report(
-      dry_run=dry_run,
-      success=True,
-      book_id=book_id,
-      original_jokes=original_jokes,
-      updated_jokes=updated_jokes,
-      added_jokes=jokes_to_add,
-      removed_joke=joke_to_remove,
-      cleared_jokes=cleared_jokes,
-    )
-
-  # Update Firestore
-  try:
-    book_ref.update({'jokes': updated_jokes})
-    logger.info(f"Successfully updated joke book {book_id}")
-
-    # Clear book page image URLs for all jokes in the updated list
-    cleared_jokes: list[str] = []
-    failed_jokes: list[dict[str, str]] = []
-
-    for joke_id in updated_jokes:
+    embedding = zzz_embedding
+    if not isinstance(embedding, Vector):
       try:
-        metadata_ref = (db().collection('jokes').document(joke_id).collection(
-          'metadata').document('metadata'))
-        metadata_ref.update({
-          'book_page_setup_image_url': DELETE_FIELD,
-          'book_page_punchline_image_url': DELETE_FIELD,
-        })
-        cleared_jokes.append(joke_id)
-        logger.info(f"Cleared book page URLs for joke {joke_id}")
+        embedding = Vector(list(embedding))
       except Exception as err:  # pylint: disable=broad-except
-        logger.error(
-          f"Failed to clear book page URLs for joke {joke_id}: {err}")
-        failed_jokes.append({
-          "joke_id": joke_id,
-          "error": str(err),
-        })
+        failed.append({"joke_id": doc.id, "error": str(err)})
+        continue
 
-    return _build_html_report(
-      dry_run=dry_run,
-      success=True,
-      book_id=book_id,
-      original_jokes=original_jokes,
-      updated_jokes=updated_jokes,
-      added_jokes=jokes_to_add,
-      removed_joke=joke_to_remove,
-      cleared_jokes=cleared_jokes,
-      failed_jokes=failed_jokes,
-    )
-  except Exception as err:  # pylint: disable=broad-except
-    logger.error(f"Failed to update joke book {book_id}: {err}")
-    return _build_html_report(
-      dry_run=dry_run,
-      success=False,
-      error=f"Failed to update Firestore: {err}",
-    )
+    payload: dict[str, Any] = {
+      'text_embedding': embedding,
+    }
+    # Fields required for Phase 2 filtering
+    _maybe_add(payload, data, 'state')
+    _maybe_add(payload, data, 'is_public')
+    _maybe_add(payload, data, 'public_timestamp')
+    _maybe_add(payload, data, 'num_saved_users_fraction')
+    _maybe_add(payload, data, 'num_shared_users_fraction')
+    _maybe_add(payload, data, 'popularity_score')
+
+    try:
+      if not dry_run:
+        db().collection('joke_search').document(doc.id).set(payload,
+                                                            merge=True)
+      written += 1
+    except Exception as err:  # pylint: disable=broad-except
+      failed.append({"joke_id": doc.id, "error": str(err)})
+
+  return _build_html_report(
+    dry_run=dry_run,
+    success=(len(failed) == 0),
+    processed=processed,
+    written=written,
+    skipped_missing_embedding=skipped_missing_embedding,
+    failed_items=failed,
+    last_id=last_id,
+  )
 
 
 def _build_html_report(
   *,
   dry_run: bool,
   success: bool,
-  book_id: str | None = None,
-  original_jokes: list[str] | None = None,
-  updated_jokes: list[str] | None = None,
-  added_jokes: list[str] | None = None,
-  removed_joke: str | None = None,
-  cleared_jokes: list[str] | None = None,
-  failed_jokes: list[dict[str, str]] | None = None,
+  processed: int | None = None,
+  written: int | None = None,
+  skipped_missing_embedding: int | None = None,
+  failed_items: list[dict[str, str]] | None = None,
+  last_id: str | None = None,
   error: str | None = None,
 ) -> str:
   """Build a simple HTML report of migration results."""
   html = "<html><body>"
-  html += "<h1>Joke Book Migration Results</h1>"
+  html += "<h1>Firestore Migration Results</h1>"
   html += f"<h2>Dry Run: {dry_run}</h2>"
   html += f"<h2>Status: {'Success' if success else 'Failed'}</h2>"
 
   if error:
     html += f"<p style='color: red;'><b>Error:</b> {error}</p>"
 
-  if book_id:
-    html += f"<h2>Book ID: {book_id}</h2>"
+  if processed is not None:
+    html += f"<h2>Processed</h2><p>{processed}</p>"
+  if written is not None:
+    html += f"<h2>Written</h2><p>{written}</p>"
+  if skipped_missing_embedding is not None:
+    html += (f"<h2>Skipped (missing embedding)</h2>"
+             f"<p>{skipped_missing_embedding}</p>")
+  if last_id:
+    html += f"<h2>Last processed joke id</h2><p>{last_id}</p>"
 
-  if original_jokes is not None:
-    html += f"<h2>Original Jokes ({len(original_jokes)})</h2>"
+  if failed_items:
+    html += f"<h2>Failures ({len(failed_items)})</h2>"
     html += "<ul>"
-    for joke in original_jokes:
-      html += f"<li>{joke}</li>"
-    html += "</ul>"
-
-  if updated_jokes is not None:
-    html += f"<h2>Updated Jokes ({len(updated_jokes)})</h2>"
-    html += "<ul>"
-    for joke in updated_jokes:
-      html += f"<li>{joke}</li>"
-    html += "</ul>"
-
-  if added_jokes:
-    html += f"<h2>Added Jokes ({len(added_jokes)})</h2>"
-    html += "<ul>"
-    for joke in added_jokes:
-      html += f"<li>{joke}</li>"
-    html += "</ul>"
-
-  if removed_joke:
-    html += "<h2>Removed Joke</h2>"
-    html += f"<p>{removed_joke}</p>"
-
-  if cleared_jokes is not None:
-    html += f"<h2>Cleared Book Page URLs ({len(cleared_jokes)})</h2>"
-    html += "<p>Book page image URLs cleared for the following jokes:</p>"
-    html += "<ul>"
-    for joke in cleared_jokes:
-      html += f"<li>{joke}</li>"
-    html += "</ul>"
-
-  if failed_jokes:
-    html += f"<h2>Failed to Clear URLs ({len(failed_jokes)})</h2>"
-    html += "<ul>"
-    for failed in failed_jokes:
+    for failed in failed_items:
       html += (f"<li><b>{failed.get('joke_id')}</b>: "
                f"{failed.get('error')}</li>")
     html += "</ul>"

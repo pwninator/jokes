@@ -2,155 +2,142 @@
 
 from unittest.mock import MagicMock, patch
 
-from google.cloud.firestore import DELETE_FIELD
+from google.cloud.firestore_v1.vector import Vector
 
 from functions import util_fns
 
-BOOK_ID = "20251115_064522__bbcourirwogb9x6wuqwa"
-MONKEY_JOKE_ID = "a_monkey__what_kind_of_key_opens_a_banan"
-HIP_HOP_JOKE_ID = "hip_hop__what_is_a_rabbit_s_favourite_s"
-SHELLFIES_JOKE_ID = "shell_fies__what_kind_of_photos_do_turtles"
-REMOVED_JOKE_ID = (
-  "you_might_step_in_a_poodle__why_should_you_be_careful_when"
-)
+
+def _build_docs(doc_pairs: list[tuple[str, dict]]):
+  docs = []
+  for doc_id, data in doc_pairs:
+    doc = MagicMock()
+    doc.id = doc_id
+    doc.to_dict.return_value = data
+    docs.append(doc)
+  return docs
 
 
-def _build_book_ref(*, exists: bool, jokes_data):
-  book_ref = MagicMock()
-  book_doc = MagicMock()
-  book_doc.exists = exists
-  if exists:
-    book_doc.to_dict.return_value = {'jokes': jokes_data}
-  book_ref.get.return_value = book_doc
-  return book_ref
+def _build_jokes_query(docs: list[MagicMock]):
+  query = MagicMock()
+  query.order_by.return_value = query
+  query.start_after.return_value = query
+  query.limit.return_value = query
+  query.stream.return_value = docs
+  return query
 
 
-def test_run_joke_book_migration_returns_error_when_book_missing():
+def test_run_joke_search_backfill_dry_run_does_not_write():
+  jokes_query = _build_jokes_query(
+    _build_docs([
+      (
+        "j1",
+        {
+          "state": "PUBLISHED",
+          "is_public": True,
+          "zzz_joke_text_embedding": Vector([1.0, 2.0]),
+        },
+      ),
+    ]))
+
   db_mock = MagicMock()
-  book_collection = MagicMock()
-  book_ref = _build_book_ref(exists=False, jokes_data=[])
-  book_collection.document.return_value = book_ref
-
-  db_mock.collection.side_effect = lambda name: book_collection if name == 'joke_books' else MagicMock()
-
-  with patch('functions.util_fns.db', return_value=db_mock):
-    html = util_fns.run_joke_book_migration(dry_run=False)
-
-  assert "Status: Failed" in html
-  assert f"Joke book {BOOK_ID} not found" in html
-  book_ref.update.assert_not_called()
-
-
-def test_run_joke_book_migration_fails_when_jokes_field_not_list():
-  db_mock = MagicMock()
-  book_collection = MagicMock()
-  book_ref = _build_book_ref(exists=True, jokes_data='not-a-list')
-  book_collection.document.return_value = book_ref
-
-  db_mock.collection.side_effect = lambda name: book_collection if name == 'joke_books' else MagicMock()
-
-  with patch('functions.util_fns.db', return_value=db_mock):
-    html = util_fns.run_joke_book_migration(dry_run=False)
-
-  assert "Status: Failed" in html
-  assert "Jokes field is not a list" in html
-  book_ref.update.assert_not_called()
-
-
-def test_run_joke_book_migration_dry_run_skips_firestore_updates():
-  db_mock = MagicMock()
-  book_collection = MagicMock()
-  original_jokes = [
-      MONKEY_JOKE_ID,
-      "duplicate_joke",
-      "duplicate_joke",
-      REMOVED_JOKE_ID,
-  ]
-  book_ref = _build_book_ref(exists=True, jokes_data=original_jokes)
-  book_collection.document.return_value = book_ref
-
-  def _collection_side_effect(name):
-    if name == 'joke_books':
-      return book_collection
-    raise AssertionError(f"Unexpected collection requested: {name}")
-
-  db_mock.collection.side_effect = _collection_side_effect
-
-  with patch('functions.util_fns.db', return_value=db_mock):
-    html = util_fns.run_joke_book_migration(dry_run=True)
-
-  book_ref.update.assert_not_called()
-  assert "Dry Run: True" in html
-  assert "Cleared Book Page URLs" in html
-
-
-def test_run_joke_book_migration_updates_book_and_clears_metadata():
-  db_mock = MagicMock()
-  book_collection = MagicMock()
   jokes_collection = MagicMock()
-
-  original_jokes = [
-      "existing_joke",
-      "duplicate_joke",
-      "another_joke",
-      REMOVED_JOKE_ID,
-      "duplicate_joke",
-  ]
-  book_ref = _build_book_ref(exists=True, jokes_data=original_jokes)
-  book_collection.document.return_value = book_ref
-
-  metadata_refs: dict[str, MagicMock] = {}
-
-  def _build_metadata_chain(joke_id: str):
-    metadata_doc = metadata_refs.get(joke_id)
-    if metadata_doc is None:
-      metadata_doc = MagicMock()
-      metadata_refs[joke_id] = metadata_doc
-
-    metadata_collection = MagicMock()
-    metadata_collection.document.return_value = metadata_doc
-
-    joke_doc = MagicMock()
-    joke_doc.collection.return_value = metadata_collection
-    return joke_doc
-
-  jokes_collection.document.side_effect = _build_metadata_chain
-
-  def _collection_side_effect(name):
-    if name == 'joke_books':
-      return book_collection
-    if name == 'jokes':
-      return jokes_collection
-    raise AssertionError(f"Unexpected collection requested: {name}")
-
-  db_mock.collection.side_effect = _collection_side_effect
+  jokes_collection.order_by.return_value = jokes_query
+  search_collection = MagicMock()
+  db_mock.collection.side_effect = (lambda name: jokes_collection
+                                    if name == 'jokes' else search_collection)
 
   with patch('functions.util_fns.db', return_value=db_mock):
-    html = util_fns.run_joke_book_migration(dry_run=False)
+    html = util_fns.run_joke_search_backfill(
+      dry_run=True,
+      limit=0,
+      start_after="",
+    )
 
-  book_ref.update.assert_called_once()
-  update_payload = book_ref.update.call_args.args[0]
-  updated_jokes = update_payload['jokes']
+  search_collection.document.assert_not_called()
+  assert "Dry Run: True" in html
+  assert "Processed" in html
+  assert "Written" in html
 
-  expected_ids = {
-      MONKEY_JOKE_ID,
-      "existing_joke",
-      "duplicate_joke",
-      "another_joke",
-      HIP_HOP_JOKE_ID,
-      SHELLFIES_JOKE_ID,
-  }
 
-  assert updated_jokes[0] == MONKEY_JOKE_ID
-  assert set(updated_jokes) == expected_ids
-  assert REMOVED_JOKE_ID not in updated_jokes
+def test_run_joke_search_backfill_writes_expected_payload():
+  jokes_query = _build_jokes_query(
+    _build_docs([
+      (
+        "j1",
+        {
+          "state": "PUBLISHED",
+          "is_public": True,
+          "public_timestamp": "ts",
+          "num_saved_users_fraction": 0.5,
+          "num_shared_users_fraction": 0.25,
+          "popularity_score": 12.0,
+          "zzz_joke_text_embedding": Vector([1.0, 2.0]),
+        },
+      ),
+    ]))
 
-  assert set(metadata_refs) == set(updated_jokes)
-  for metadata_doc in metadata_refs.values():
-    metadata_doc.update.assert_called_once_with({
-        'book_page_setup_image_url': DELETE_FIELD,
-        'book_page_punchline_image_url': DELETE_FIELD,
-    })
+  db_mock = MagicMock()
+  jokes_collection = MagicMock()
+  jokes_collection.order_by.return_value = jokes_query
 
+  search_doc = MagicMock()
+  search_collection = MagicMock()
+  search_collection.document.return_value = search_doc
+
+  db_mock.collection.side_effect = (lambda name: jokes_collection
+                                    if name == 'jokes' else search_collection)
+
+  with patch('functions.util_fns.db', return_value=db_mock):
+    html = util_fns.run_joke_search_backfill(
+      dry_run=False,
+      limit=0,
+      start_after="",
+    )
+
+  search_collection.document.assert_called_once_with("j1")
+  search_doc.set.assert_called_once()
+  payload = search_doc.set.call_args.args[0]
+  assert isinstance(payload["text_embedding"], Vector)
+  assert payload["state"] == "PUBLISHED"
+  assert payload["is_public"] is True
+  assert payload["public_timestamp"] == "ts"
+  assert payload["num_saved_users_fraction"] == 0.5
+  assert payload["num_shared_users_fraction"] == 0.25
+  assert payload["popularity_score"] == 12.0
   assert "Status: Success" in html
-  assert "Cleared Book Page URLs (" in html
+
+
+def test_run_joke_search_backfill_skips_missing_embedding():
+  jokes_query = _build_jokes_query(
+    _build_docs([
+      ("j_missing", {
+        "state": "PUBLISHED",
+        "is_public": True,
+      }),
+      ("j_good", {
+        "state": "PUBLISHED",
+        "is_public": True,
+        "zzz_joke_text_embedding": Vector([1.0, 2.0]),
+      }),
+    ]))
+
+  db_mock = MagicMock()
+  jokes_collection = MagicMock()
+  jokes_collection.order_by.return_value = jokes_query
+
+  search_doc = MagicMock()
+  search_collection = MagicMock()
+  search_collection.document.return_value = search_doc
+
+  db_mock.collection.side_effect = (lambda name: jokes_collection
+                                    if name == 'jokes' else search_collection)
+
+  with patch('functions.util_fns.db', return_value=db_mock):
+    html = util_fns.run_joke_search_backfill(
+      dry_run=False,
+      limit=0,
+      start_after="",
+    )
+
+  search_collection.document.assert_called_once_with("j_good")
+  assert "Skipped (missing embedding)" in html

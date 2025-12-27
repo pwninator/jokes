@@ -77,9 +77,12 @@ def test_lunchbox_get_renders_form():
 
   assert resp.status_code == 200
   html = resp.get_data(as_text=True)
-  # Header brand should not be clickable on lunchbox page.
-  assert '<a class="brand"' not in html
-  assert '<div class="brand">' in html
+  # Header brand should be clickable.
+  assert '<a class="brand"' in html
+  # Nav should mark lunchbox link active.
+  assert 'href="/lunchbox"' in html
+  assert 'Printable Joke Notes' in html
+  assert 'nav-link--active' in html
   # Copy may change; assert key hero heading scaffold exists.
   assert 'id="lunchbox-hero-title"' in html
   assert 'name="email"' in html
@@ -346,6 +349,12 @@ def test_index_page_renders_top_jokes(monkeypatch):
   # Assert
   assert resp.status_code == 200
   html = resp.get_data(as_text=True)
+  assert 'href="/"' in html
+  assert 'Home' in html
+  assert 'href="/lunchbox"' in html
+  assert 'Printable Joke Notes' in html
+  # Nav should mark home link active.
+  assert 'nav-link--active' in html
   # Header presence (accessible span) and section scaffolding instead of brittle copy.
   assert '<section class="favorites-section"' in html
   assert 'Fan Favorites from the Cookie Jar' in html

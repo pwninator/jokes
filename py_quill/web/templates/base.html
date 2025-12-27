@@ -50,6 +50,26 @@
         <span class="brand-text text-brand">{{ site_name }}</span>
       </div>
       {% endif %}
+      <nav class="primary-nav" aria-label="Primary">
+        <ul class="nav-list">
+          <li>
+            <a class="nav-link text-button{% if current_path == '/' %} nav-link--active{% endif %}"
+              href="{{ url_for('web.index') }}"
+              data-analytics-event="web_nav_home_click"
+              data-analytics-label="home">
+              Home
+            </a>
+          </li>
+          <li>
+            <a class="nav-link text-button{% if current_path == '/lunchbox' or current_path == '/lunchbox-thank-you' %} nav-link--active{% endif %}"
+              href="{{ url_for('web.lunchbox') }}"
+              data-analytics-event="web_nav_lunchbox_click"
+              data-analytics-label="printable_joke_notes">
+              Printable Joke Notes
+            </a>
+          </li>
+        </ul>
+      </nav>
     </div>
   </header>
   <main class="site-main">

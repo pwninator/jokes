@@ -110,6 +110,11 @@ def run_joke_search_backfill(*, dry_run: bool, limit: int,
   processed = 0
   written = 0
   skipped_missing_embedding = 0
+  skipped_existing_embedding = 0
+  skipped_noop_metadata_matched = 0
+  skipped_noop_no_source_metadata = 0
+  written_embedding = 0
+  written_metadata_only = 0
   failed: list[dict[str, str]] = []
   last_id: str | None = None
 
@@ -117,6 +122,22 @@ def run_joke_search_backfill(*, dry_run: bool, limit: int,
                  key: str) -> None:
     value = data.get(key)
     if value is not None:
+      payload[key] = value
+
+  def _maybe_add_if_changed(
+    payload: dict[str, Any],
+    *,
+    existing: dict[str, Any],
+    source: dict[str, Any],
+    key: str,
+  ) -> None:
+    """Add a field only when the source has a value and it differs from existing."""
+    if key not in source:
+      return
+    value = source.get(key)
+    if value is None:
+      return
+    if existing.get(key) != value:
       payload[key] = value
 
   for doc in query.stream():
@@ -137,22 +158,55 @@ def run_joke_search_backfill(*, dry_run: bool, limit: int,
         failed.append({"joke_id": doc.id, "error": str(err)})
         continue
 
-    payload: dict[str, Any] = {
-      'text_embedding': embedding,
-    }
-    # Fields required for Phase 2 filtering
-    _maybe_add(payload, data, 'state')
-    _maybe_add(payload, data, 'is_public')
-    _maybe_add(payload, data, 'public_timestamp')
-    _maybe_add(payload, data, 'num_saved_users_fraction')
-    _maybe_add(payload, data, 'num_shared_users_fraction')
-    _maybe_add(payload, data, 'popularity_score')
+    # Build payload. Do NOT overwrite existing embeddings in joke_search.
+    payload: dict[str, Any] = {}
+    try:
+      existing_doc = db().collection('joke_search').document(doc.id).get()
+      existing_data = (existing_doc.to_dict() or {}) if getattr(
+        existing_doc, 'exists', False) else {}
+    except Exception as err:  # pylint: disable=broad-except
+      failed.append({"joke_id": doc.id, "error": str(err)})
+      continue
+
+    if 'text_embedding' not in existing_data:
+      payload['text_embedding'] = embedding
+    else:
+      skipped_existing_embedding += 1
+
+    # Fields required for Phase 2 filtering. Only write when changed.
+    candidate_keys = (
+      'state',
+      'is_public',
+      'public_timestamp',
+      'num_saved_users_fraction',
+      'num_shared_users_fraction',
+      'popularity_score',
+    )
+    source_had_any_candidate = False
+    for key in candidate_keys:
+      if key in data and data.get(key) is not None:
+        source_had_any_candidate = True
+      _maybe_add_if_changed(payload,
+                            existing=existing_data,
+                            source=data,
+                            key=key)
 
     try:
-      if not dry_run:
-        db().collection('joke_search').document(doc.id).set(payload,
-                                                            merge=True)
-      written += 1
+      if payload:
+        if not dry_run:
+          db().collection('joke_search').document(doc.id).set(payload,
+                                                              merge=True)
+        written += 1
+        if 'text_embedding' in payload:
+          written_embedding += 1
+        else:
+          written_metadata_only += 1
+      else:
+        # No write needed. Distinguish "matched" vs "no source metadata".
+        if source_had_any_candidate:
+          skipped_noop_metadata_matched += 1
+        else:
+          skipped_noop_no_source_metadata += 1
     except Exception as err:  # pylint: disable=broad-except
       failed.append({"joke_id": doc.id, "error": str(err)})
 
@@ -161,7 +215,12 @@ def run_joke_search_backfill(*, dry_run: bool, limit: int,
     success=(len(failed) == 0),
     processed=processed,
     written=written,
+    written_embedding=written_embedding,
+    written_metadata_only=written_metadata_only,
     skipped_missing_embedding=skipped_missing_embedding,
+    skipped_existing_embedding=skipped_existing_embedding,
+    skipped_noop_metadata_matched=skipped_noop_metadata_matched,
+    skipped_noop_no_source_metadata=skipped_noop_no_source_metadata,
     failed_items=failed,
     last_id=last_id,
   )
@@ -173,7 +232,12 @@ def _build_html_report(
   success: bool,
   processed: int | None = None,
   written: int | None = None,
+  written_embedding: int | None = None,
+  written_metadata_only: int | None = None,
   skipped_missing_embedding: int | None = None,
+  skipped_existing_embedding: int | None = None,
+  skipped_noop_metadata_matched: int | None = None,
+  skipped_noop_no_source_metadata: int | None = None,
   failed_items: list[dict[str, str]] | None = None,
   last_id: str | None = None,
   error: str | None = None,
@@ -191,9 +255,23 @@ def _build_html_report(
     html += f"<h2>Processed</h2><p>{processed}</p>"
   if written is not None:
     html += f"<h2>Written</h2><p>{written}</p>"
+  if written_embedding is not None:
+    html += f"<h2>Written (embedding)</h2><p>{written_embedding}</p>"
+  if written_metadata_only is not None:
+    html += (f"<h2>Written (metadata only)</h2>"
+             f"<p>{written_metadata_only}</p>")
   if skipped_missing_embedding is not None:
     html += (f"<h2>Skipped (missing embedding)</h2>"
              f"<p>{skipped_missing_embedding}</p>")
+  if skipped_existing_embedding is not None:
+    html += (f"<h2>Skipped (embedding already existed)</h2>"
+             f"<p>{skipped_existing_embedding}</p>")
+  if skipped_noop_metadata_matched is not None:
+    html += (f"<h2>Skipped (no-op: metadata already matched)</h2>"
+             f"<p>{skipped_noop_metadata_matched}</p>")
+  if skipped_noop_no_source_metadata is not None:
+    html += (f"<h2>Skipped (no-op: no source metadata)</h2>"
+             f"<p>{skipped_noop_no_source_metadata}</p>")
   if last_id:
     html += f"<h2>Last processed joke id</h2><p>{last_id}</p>"
 

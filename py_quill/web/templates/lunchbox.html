@@ -25,9 +25,9 @@ the best part of their day.{% endblock %}
 
   <div class="lunchbox-lead-card">
     <form class="lunchbox-form" method="post" action="{{ url_for('web.lunchbox') }}">
-      <h2 class="text-section-heading inverse lunchbox-section-title" id="lunchbox-form-title">Get Your Free Lunchbox
+      <h2 class="text-section-heading lunchbox-section-title" id="lunchbox-form-title">Get Your Free Lunchbox
         Joke Set!</h2>
-      <p class="text-body inverse lunchbox-text">Where should we send your free joke cards?</p>
+      <p class="text-body lunchbox-text">Where should we send your free joke cards?</p>
       <div class="lunchbox-field">
         <label class="sr-only" for="lunchbox-email">Email address</label>
         <input class="lunchbox-input" id="lunchbox-email" name="email" type="email" autocomplete="email"
@@ -41,10 +41,10 @@ the best part of their day.{% endblock %}
       </button>
 
       {% if error_message %}
-      <p class="text-body inverse lunchbox-text" role="alert">{{ error_message }}</p>
+      <p class="text-body lunchbox-text" role="alert">{{ error_message }}</p>
       {% endif %}
 
-      <p class="text-footer inverse lunchbox-text" id="lunchbox-privacy">You'll receive occasional free printables like this one, book
+      <p class="text-footer lunchbox-text" id="lunchbox-privacy">You'll receive occasional free printables like this one, book
         updates, and other Snickerdoodle news.<br>No spam, just wholesome fun.<br>Unsubscribe at any time.</p>
     </form>
   </div>

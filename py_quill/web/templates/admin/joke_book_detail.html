@@ -559,6 +559,10 @@
             <input type="checkbox" name="style_update" value="true">
             Style Update
           </label>
+          <label class="text-body">
+            <input type="checkbox" name="include_text" value="true" checked>
+            Include Text
+          </label>
         </div>
         <div>
           <label class="text-button" for="setup-{{ joke.id }}">Setup instructions (optional)</label>
@@ -1106,11 +1110,32 @@
       if (firstField) firstField.focus();
     });
 
+      // Attach style_update logic to toggle include_text
+      const styleUpdateCb = form.querySelector('input[name="style_update"]');
+      const includeTextCb = form.querySelector('input[name="include_text"]');
+      if (styleUpdateCb && includeTextCb) {
+        styleUpdateCb.addEventListener('change', () => {
+          if (styleUpdateCb.checked) {
+            includeTextCb.checked = false;
+            includeTextCb.disabled = true;
+          } else {
+            includeTextCb.checked = true;
+            includeTextCb.disabled = false;
+          }
+        });
+      }
+
       form.addEventListener('submit', (evt) => {
         evt.preventDefault();
         const jokeId = form.dataset.jokeId;
         const bookId = form.dataset.bookId;
         const formData = new FormData(form);
+
+        // Explicitly set include_text because unchecked checkboxes are not sent
+        if (includeTextCb) {
+          formData.set('include_text', includeTextCb.checked ? 'true' : 'false');
+        }
+
         formData.set('joke_id', jokeId);
         const original = submitBtn.textContent;
         submitBtn.disabled = true;

@@ -5,47 +5,12 @@ import traceback
 from common import image_operations, utils
 from firebase_functions import https_fn, logger, options
 from functions.function_utils import (error_response, get_bool_param,
-                                      get_param, get_user_id, success_response)
+                                      get_param, get_user_id, success_response,
+                                      handle_cors_preflight, handle_health_check,
+                                      html_response)
 from services import firestore
 
 NUM_TOP_JOKES_FOR_BOOKS = 50
-_CORS_HEADERS = {
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type",
-}
-
-
-def _allowed_origins() -> set[str]:
-  """Return allowed origins based on environment (emulator vs prod)."""
-  if utils.is_emulator():
-    return {
-      "http://127.0.0.1:5000",
-      "http://localhost:5000",
-      "http://127.0.0.1",
-      "http://localhost",
-    }
-  else:
-    return {
-      "https://snickerdoodlejokes.com",
-    }
-
-
-def _cors_headers_for_origin(request_origin: str | None) -> dict[str, str]:
-  """Return CORS headers only for allowed origins."""
-  if request_origin and request_origin.rstrip("/") in _allowed_origins():
-    return {**_CORS_HEADERS, "Access-Control-Allow-Origin": request_origin}
-  return {}
-
-
-def _json_response(payload: dict[str, object],
-                   status: int,
-                   headers: dict[str, str] | None = None) -> https_fn.Response:
-  """Serialize payloads to JSON while attaching optional headers."""
-  return https_fn.Response(
-    json.dumps(payload),
-    status=status,
-    headers=headers,
-  )
 
 
 @https_fn.on_request(
@@ -55,21 +20,14 @@ def _json_response(payload: dict[str, object],
 def generate_joke_book_page(req: https_fn.Request) -> https_fn.Response:
   """Generate book page images for a joke."""
   try:
-    cors_headers = _cors_headers_for_origin(req.headers.get("Origin"))
+    if response := handle_cors_preflight(req):
+      return response
 
-    if req.method == "OPTIONS":
-      return https_fn.Response("", status=204, headers=cors_headers)
-
-    # Skip processing for health check requests
-    if req.path == "/__/health":
-      return https_fn.Response("OK", status=200, headers=cors_headers)
+    if response := handle_health_check(req):
+      return response
 
     if req.method not in ['GET', 'POST']:
-      return https_fn.Response(
-        json.dumps(error_response(f'Method not allowed: {req.method}')),
-        status=405,
-        headers=cors_headers,
-      )
+      return error_response(f'Method not allowed: {req.method}', req=req, status=405)
 
     joke_id = get_param(req, 'joke_id', required=True)
     setup_instructions = get_param(req, 'setup_instructions', required=False)
@@ -84,12 +42,8 @@ def generate_joke_book_page(req: https_fn.Request) -> https_fn.Response:
       default='original',
     )
     if base_image_source not in ('original', 'book_page'):
-      return https_fn.Response(
-        json.dumps(
-          error_response(f'Invalid base_image_source: {base_image_source}')),
-        status=400,
-        headers=cors_headers,
-      )
+      return error_response(
+          f'Invalid base_image_source: {base_image_source}', req=req, status=400)
 
     logger.info(f'Generating book page images for joke {joke_id}')
 
@@ -117,15 +71,11 @@ def generate_joke_book_page(req: https_fn.Request) -> https_fn.Response:
   </body>
   </html>
   """
-    return https_fn.Response(return_val, status=200, headers=cors_headers)
+    return html_response(return_val, req=req, status=200)
   except Exception as e:
     stacktrace = traceback.format_exc()
     print(f"Error creating joke book: {e}\nStacktrace:\n{stacktrace}")
-    return https_fn.Response(
-      json.dumps(error_response(f'Failed to create joke book: {str(e)}')),
-      status=500,
-      headers=cors_headers,
-    )
+    return error_response(f'Failed to create joke book: {str(e)}', req=req, status=500)
 
 
 @https_fn.on_request(
@@ -135,22 +85,24 @@ def generate_joke_book_page(req: https_fn.Request) -> https_fn.Response:
 def create_joke_book(req: https_fn.Request) -> https_fn.Response:
   """Create a new joke book from a list of jokes."""
   try:
-    # Skip processing for health check requests
-    if req.path == "/__/health":
-      return https_fn.Response("OK", status=200)
+    if response := handle_cors_preflight(req):
+      return response
+
+    if response := handle_health_check(req):
+      return response
 
     if req.method not in ['GET', 'POST']:
-      return error_response(f'Method not allowed: {req.method}')
+      return error_response(f'Method not allowed: {req.method}', req=req, status=405)
 
     user_id = get_user_id(req)
     if not user_id:
-      return error_response('User not authenticated')
+      return error_response('User not authenticated', req=req, status=401)
 
     raw_joke_ids = get_param(req, 'joke_ids')
     book_name = get_param(req, 'book_name')
 
     if not book_name:
-      return error_response('book_name is required')
+      return error_response('book_name is required', req=req, status=400)
 
     if raw_joke_ids is None:
       top_jokes = firestore.get_top_jokes(
@@ -159,7 +111,7 @@ def create_joke_book(req: https_fn.Request) -> https_fn.Response:
       )
       joke_ids = [joke.key for joke in top_jokes if getattr(joke, 'key', None)]
       if not joke_ids:
-        return error_response('No jokes available to create joke book')
+        return error_response('No jokes available to create joke book', req=req, status=400)
     else:
       joke_ids = raw_joke_ids
 
@@ -182,11 +134,11 @@ def create_joke_book(req: https_fn.Request) -> https_fn.Response:
       zip_url,
     })
 
-    return success_response({'book_id': doc_id})
+    return success_response({'book_id': doc_id}, req=req)
   except Exception as e:
     stacktrace = traceback.format_exc()
     print(f"Error creating joke book: {e}\nStacktrace:\n{stacktrace}")
-    return error_response(f'Failed to create joke book: {str(e)}')
+    return error_response(f'Failed to create joke book: {str(e)}', req=req, status=500)
 
 
 @https_fn.on_request(
@@ -195,67 +147,43 @@ def create_joke_book(req: https_fn.Request) -> https_fn.Response:
 )
 def update_joke_book_zip(req: https_fn.Request) -> https_fn.Response:
   """Regenerate the ZIP of KDP-ready pages for a joke book."""
-  cors_headers: dict[str, str] = {}
   try:
-    cors_headers = _cors_headers_for_origin(req.headers.get("Origin"))
+    if response := handle_cors_preflight(req):
+      return response
 
-    if req.method == "OPTIONS":
-      preflight_headers = cors_headers or _CORS_HEADERS
-      return https_fn.Response(
-        "",
-        status=204,
-        headers=preflight_headers,
-      )
-
-    if req.path == "/__/health":
-      return https_fn.Response("OK", status=200, headers=cors_headers)
+    if response := handle_health_check(req):
+      return response
 
     if req.method not in ['POST']:
-      return _json_response(
-        error_response(f'Method not allowed: {req.method}'),
-        status=405,
-        headers=cors_headers)
+      return error_response(f'Method not allowed: {req.method}', req=req, status=405)
 
     joke_book_id = _get_joke_book_id_from_request(req)
     if not joke_book_id:
-      return _json_response(error_response('joke_book_id is required'),
-                            status=400,
-                            headers=cors_headers)
+      return error_response('joke_book_id is required', req=req, status=400)
 
     client = firestore.db()
     book_ref = client.collection('joke_books').document(joke_book_id)
     book_doc = book_ref.get()
     if not getattr(book_doc, 'exists', False):
-      return _json_response(error_response('Joke book not found'),
-                            status=404,
-                            headers=cors_headers)
+      return error_response('Joke book not found', req=req, status=404)
 
     book_data = book_doc.to_dict() or {}
     joke_ids = book_data.get('jokes') or []
     if not isinstance(joke_ids, list) or not joke_ids:
-      return _json_response(error_response('Joke book has no jokes to zip'),
-                            status=400,
-                            headers=cors_headers)
+      return error_response('Joke book has no jokes to zip', req=req, status=400)
 
     zip_url = image_operations.zip_joke_page_images_for_kdp(joke_ids)
     book_ref.update({'zip_url': zip_url})
 
-    return _json_response(
-      success_response({
+    return success_response({
         'book_id': joke_book_id,
         'zip_url': zip_url,
-      }),
-      status=200,
-      headers=cors_headers,
-    )
+      }, req=req)
+
   except Exception as e:
     stacktrace = traceback.format_exc()
     print(f"Error updating joke book ZIP: {e}\nStacktrace:\n{stacktrace}")
-    return _json_response(
-      error_response(f'Failed to update joke book ZIP: {str(e)}'),
-      status=500,
-      headers=cors_headers,
-    )
+    return error_response(f'Failed to update joke book ZIP: {str(e)}', req=req, status=500)
 
 
 def _get_joke_book_id_from_request(req: https_fn.Request) -> str | None:
@@ -276,20 +204,22 @@ def _get_joke_book_id_from_request(req: https_fn.Request) -> str | None:
 def get_joke_book(req: https_fn.Request) -> https_fn.Response:
   """Gets a joke book and returns it as an HTML page."""
   try:
-    # Skip processing for health check requests
-    if req.path == "/__/health":
-      return https_fn.Response("OK", status=200)
+    if response := handle_cors_preflight(req):
+      return response
+
+    if response := handle_health_check(req):
+      return response
 
     joke_book_id = _get_joke_book_id_from_request(req)
 
     if not joke_book_id:
-      return error_response('joke_book_id is required')
+      return error_response('joke_book_id is required', req=req, status=400)
 
     book_ref = firestore.db().collection('joke_books').document(joke_book_id)
     book_doc = book_ref.get()
 
     if not book_doc.exists:
-      return https_fn.Response("Book not found", status=404)
+      return html_response("Book not found", req=req, status=404)
 
     book_data = book_doc.to_dict()
     book_title = book_data.get('book_name', 'My Joke Book')
@@ -316,7 +246,7 @@ def get_joke_book(req: https_fn.Request) -> https_fn.Response:
         punchline_img = metadata.get('book_page_punchline_image_url')
 
       if not setup_img or not punchline_img:
-        return error_response(f'Joke {joke_id} does not have book page images')
+        return error_response(f'Joke {joke_id} does not have book page images', req=req, status=400)
 
       setup_pages.append(str(setup_img))
       punchline_pages.append(str(punchline_img))
@@ -427,11 +357,9 @@ def get_joke_book(req: https_fn.Request) -> https_fn.Response:
     </html>
     """
 
-    return https_fn.Response(html_content,
-                             status=200,
-                             headers={'Content-Type': 'text/html'})
+    return html_response(html_content, req=req, status=200)
 
   except Exception as e:
     stacktrace = traceback.format_exc()
     print(f"Error getting joke book: {e}\nStacktrace:\n{stacktrace}")
-    return error_response(f'Failed to get joke book: {str(e)}')
+    return error_response(f'Failed to get joke book: {str(e)}', req=req, status=500)

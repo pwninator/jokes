@@ -239,8 +239,8 @@ def test_joke_manual_tag_requires_seasonal_param():
   resp = joke_fns.joke_manual_tag(req)
   assert resp.status_code == 400
   payload = json.loads(resp.get_data(as_text=True))
-  assert payload["success"] is False
-  assert "seasonal parameter is required" in payload["error"]
+  assert "error" in payload["data"]
+  assert "seasonal parameter is required" in payload["data"]["error"]
 
 
 def test_create_joke_deprecated_endpoint_removed():
@@ -397,7 +397,8 @@ class TestSearchJokes:
     assert op == '=='
     assert value == True
 
-    assert resp["data"]["jokes"] == [
+    data = json.loads(resp.get_data(as_text=True))["data"]
+    assert data["jokes"] == [
       {
         "joke_id": "joke1",
         "vector_distance": 0.1
@@ -422,7 +423,8 @@ class TestSearchJokes:
 
     # Assert
     mock_search.assert_not_called()
-    assert "Search query is required" in resp["data"]["error"]
+    data = json.loads(resp.get_data(as_text=True))["data"]
+    assert "Search query is required" in data["error"]
 
 
 class TestModifyJokeImage:
@@ -470,7 +472,8 @@ class TestModifyJokeImage:
     mock_firestore_service.get_punny_joke.assert_called_once_with("joke1")
     mock_image_generation.modify_image.assert_called_once()
     mock_firestore_service.upsert_punny_joke.assert_called_once()
-    assert "data" in resp
+    data = json.loads(resp.get_data(as_text=True))["data"]
+    assert "joke_data" in data
 
   def test_modify_joke_image_no_instruction_error(self, mock_image_generation,
                                                   mock_firestore_service):
@@ -482,8 +485,9 @@ class TestModifyJokeImage:
     resp = joke_fns.modify_joke_image(req)
 
     # Assert
-    assert "error" in resp["data"]
-    assert "At least one instruction" in resp["data"]["error"]
+    data = json.loads(resp.get_data(as_text=True))["data"]
+    assert "error" in data
+    assert "At least one instruction" in data["error"]
     mock_image_generation.modify_image.assert_not_called()
     mock_firestore_service.upsert_punny_joke.assert_not_called()
 
@@ -523,11 +527,12 @@ class TestUpscaleJoke:
       mime_type="image/png",
       compression_quality=None,
     )
-    assert "data" in resp
-    assert resp["data"]["joke_data"]["key"] == "joke1"
-    assert resp["data"]["joke_data"][
+    data = json.loads(resp.get_data(as_text=True))["data"]
+    assert "joke_data" in data
+    assert data["joke_data"]["key"] == "joke1"
+    assert data["joke_data"][
       "setup_image_url_upscaled"] == "http://example.com/new_setup.png"
-    assert resp["data"]["joke_data"][
+    assert data["joke_data"][
       "punchline_image_url_upscaled"] == "http://example.com/new_punchline.png"
 
   def test_upscale_joke_missing_joke_id(self, mock_joke_operations):
@@ -540,8 +545,9 @@ class TestUpscaleJoke:
 
     # Assert
     mock_joke_operations.upscale_joke.assert_not_called()
-    assert "error" in resp["data"]
-    assert "joke_id is required" in resp["data"]["error"]
+    data = json.loads(resp.get_data(as_text=True))["data"]
+    assert "error" in data
+    assert "joke_id is required" in data["error"]
 
   def test_upscale_joke_operation_fails(self, mock_joke_operations):
     """Test that upscale_joke returns error when joke_operations.upscale_joke fails."""
@@ -558,8 +564,9 @@ class TestUpscaleJoke:
       mime_type="image/png",
       compression_quality=None,
     )
-    assert "error" in resp["data"]
-    assert "Failed to upscale joke: Joke not found" in resp["data"]["error"]
+    data = json.loads(resp.get_data(as_text=True))["data"]
+    assert "error" in data
+    assert "Failed to upscale joke: Joke not found" in data["error"]
 
 
 def test_get_joke_bundle_requires_admin(monkeypatch):

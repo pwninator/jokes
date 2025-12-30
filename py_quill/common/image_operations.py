@@ -181,6 +181,7 @@ def generate_and_populate_book_pages(
   additional_punchline_instructions: str = "",
   base_image_source: str = "original",
   style_update: bool = False,
+  include_image_description: bool = True,
 ) -> tuple[models.Image, models.Image]:
   """Create book page images for a joke and store their URLs.
 
@@ -269,6 +270,7 @@ def generate_and_populate_book_pages(
       output_file_name_base=f'{joke_id}_book_page',
       additional_setup_instructions=additional_setup_instructions,
       additional_punchline_instructions=additional_punchline_instructions,
+      include_image_description=include_image_description,
     )
   else:
     generation_result = generate_book_pages_with_nano_banana_pro(
@@ -457,8 +459,7 @@ Create a professional-quality children's book illustration in the style of soft-
 
 {{additional_instructions}}
 
-Here is the description for the CONTENT image. You must follow this description exactly:
-{{image_description}}
+{{image_description_block}}
 
 Generate the final image, which should be high quality, professional-looking copy of the CONTENT image, suitable for a children's picture book, and print ready with appropriate bleed marg
 """
@@ -534,6 +535,7 @@ def generate_book_pages_with_nano_banana_pro(
   output_file_name_base: str,
   additional_setup_instructions: str,
   additional_punchline_instructions: str,
+  include_image_description: bool = True,
 ) -> _BookPageGenerationResult:
   """Generate a book page image using Gemini Nano Banana Pro.
 
@@ -548,12 +550,19 @@ def generate_book_pages_with_nano_banana_pro(
     file_name_base=output_file_name_base,
   )
 
+  def _format_description(description: str) -> str:
+    if include_image_description and description:
+      return (
+        "Here is the description for the CONTENT image. You must follow this description exactly:\n"
+        f"{description}")
+    return ""
+
   simple_setup_image = _get_simple_book_page(
     setup_image,
     f"{output_file_name_base}_setup",
   )
   setup_prompt = _BOOK_PAGE_SETUP_PROMPT_TEMPLATE.format(
-    image_description=setup_image_description,
+    image_description_block=_format_description(setup_image_description),
     additional_instructions=_format_additional_instructions(
       additional_setup_instructions),
   )
@@ -567,7 +576,7 @@ def generate_book_pages_with_nano_banana_pro(
     f"{output_file_name_base}_punchline",
   )
   punchline_prompt = _BOOK_PAGE_PUNCHLINE_PROMPT_TEMPLATE.format(
-    image_description=punchline_image_description,
+    image_description_block=_format_description(punchline_image_description),
     additional_instructions=_format_additional_instructions(
       additional_punchline_instructions),
   )

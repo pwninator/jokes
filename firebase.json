@@ -102,7 +102,6 @@
   },
   "functions": [
     {
-      "source": "py_quill",
       "codebase": "default",
       "ignore": [
         "venv",
@@ -111,6 +110,7 @@
         "firebase-debug.*.log",
         "*.local"
       ],
+      "source": "py_quill",
       "runtime": "python313"
     }
   ],

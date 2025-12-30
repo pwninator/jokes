@@ -4,6 +4,65 @@
 
 {% block head_extra %}
 <style>
+  .search-section {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 20px;
+    padding: 16px;
+    margin-bottom: 24px;
+    box-shadow: 0 4px 12px rgba(196, 171, 140, 0.1);
+  }
+
+  .search-controls {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .search-input {
+    flex: 1;
+    padding: 8px 16px;
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    font-size: 16px;
+    font-family: inherit;
+  }
+
+  .search-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 16px;
+  }
+
+  .search-result-card {
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    overflow: hidden;
+    cursor: pointer;
+    transition: transform 0.2s, box-shadow 0.2s;
+    background: var(--color-surface);
+  }
+
+  .search-result-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    border-color: var(--color-primary);
+  }
+
+  .search-result-img {
+    width: 100%;
+    aspect-ratio: 1;
+    object-fit: cover;
+    display: block;
+  }
+
+  .search-result-meta {
+    padding: 8px;
+    font-size: 12px;
+    color: var(--color-muted);
+    text-align: center;
+  }
+
   .page-actions {
     display: flex;
     align-items: center;
@@ -45,6 +104,32 @@
     align-items: center;
     gap: 10px;
     flex-wrap: wrap;
+  }
+
+  .position-select {
+    padding: 4px 8px;
+    border-radius: 6px;
+    border: 1px solid var(--color-border);
+    background: var(--color-surface);
+    font-family: inherit;
+    font-size: 14px;
+    cursor: pointer;
+  }
+
+  .remove-joke-btn {
+    background: transparent;
+    border: 1px solid var(--color-border);
+    color: #ef5350;
+    padding: 6px 12px;
+    border-radius: 999px;
+    cursor: pointer;
+    font-size: 13px;
+    margin-left: 8px;
+  }
+
+  .remove-joke-btn:hover {
+    background: #ffebee;
+    border-color: #ef5350;
   }
 
   .joke-metrics {
@@ -391,6 +476,14 @@
 </h2>
 <p class="muted"><code>{{ book.id }}</code></p>
 
+<section class="search-section">
+  <div class="search-controls">
+    <input type="text" class="search-input" placeholder="Search for jokes to add..." id="joke-search-input">
+    <button class="cta-btn text-button" type="button" id="joke-search-btn">Search</button>
+  </div>
+  <div class="search-grid" id="search-results"></div>
+</section>
+
 {% if not jokes %}
 <p class="muted">No jokes found for this book.</p>
 {% else %}
@@ -406,6 +499,11 @@
       <input type="hidden" name="joke_id" value="{{ joke.id }}">
       <div class="joke-header text-body">
         <div class="joke-meta text-body">
+          <select class="position-select" data-joke-id="{{ joke.id }}" aria-label="Joke position">
+            {% for i in range(1, jokes|length + 1) %}
+            <option value="{{ i }}" {% if i == joke.sequence %}selected{% endif %}>{{ i }}</option>
+            {% endfor %}
+          </select>
           <strong>Joke {{ joke.sequence }}</strong>
           <code>{{ joke.id }}</code>
           {% if joke.total_cost is not none %}
@@ -413,6 +511,7 @@
           {% else %}
           <span class="cost-pill cost-pill-value text-button muted">Cost unavailable</span>
           {% endif %}
+          <button class="remove-joke-btn text-button" type="button" data-joke-id="{{ joke.id }}">Remove</button>
         </div>
         <button class="cta-btn nav-cta text-button reveal-btn" type="button">Regenerate pages</button>
       </div>
@@ -1068,6 +1167,157 @@
         );
       });
     });
+
+    // --- New Functionality: Search, Add, Remove, Reorder ---
+
+    const searchInput = document.getElementById('joke-search-input');
+    const searchBtn = document.getElementById('joke-search-btn');
+    const searchResults = document.getElementById('search-results');
+
+    if (searchBtn && searchInput) {
+      const performSearch = async () => {
+        const query = searchInput.value.trim();
+        if (!query) return;
+
+        searchBtn.disabled = true;
+        searchBtn.textContent = 'Searching...';
+        searchResults.innerHTML = '';
+
+        // Collect existing joke IDs from the DOM
+        const existingJokeIds = new Set();
+        document.querySelectorAll('[data-joke-id]').forEach(el => {
+          if(el.dataset.jokeId) existingJokeIds.add(el.dataset.jokeId);
+        });
+
+        try {
+          const searchUrl = functionsOrigin
+            ? `${functionsOrigin}/search_jokes`
+            : '/search_jokes';
+
+          // Construct URL with query params
+          const url = new URL(searchUrl);
+          url.searchParams.append('search_query', query);
+          url.searchParams.append('max_results', '50');
+          url.searchParams.append('return_jokes', 'true');
+          url.searchParams.append('public_only', 'false'); // Allow searching non-public if needed, or keep default? Let's say false to find any joke.
+
+          const resp = await fetch(url.toString());
+
+          if (!resp.ok) throw new Error('Search failed');
+          const payload = await resp.json();
+          const data = payload.data || {};
+          const jokes = data.jokes || [];
+
+          // Filter client-side
+          const candidates = jokes.filter(j => !existingJokeIds.has(j.joke_id));
+
+          if (candidates.length === 0) {
+            searchResults.innerHTML = '<p class="text-body muted" style="grid-column: 1/-1; text-align: center;">No matching jokes found (or all already in book).</p>';
+            return;
+          }
+
+          candidates.slice(0, 10).forEach(item => { // Show top 10 new candidates
+            const card = document.createElement('div');
+            card.className = 'search-result-card';
+            // Use format_image_url logic? Or raw URL? Raw URL might be large.
+            // Client-side resizing logic is complex, assume backend URL is fine or utilize image CDN if possible.
+            // item.setup_image_url might be high-res.
+            // We can try to inject resizing params if it matches our CDN pattern.
+            let thumbUrl = item.setup_image_url || '';
+            if (thumbUrl && thumbUrl.includes('images.quillsstorybook.com')) {
+               thumbUrl = normalizeUrl(thumbUrl); // remove existing params
+               thumbUrl = `https://images.quillsstorybook.com/cdn-cgi/image/width=200,quality=70,format=auto/${thumbUrl}`;
+            }
+
+            card.innerHTML = `
+              <img src="${thumbUrl}" class="search-result-img" alt="Joke Setup" loading="lazy">
+              <div class="search-result-meta text-body">
+                <code>${item.joke_id}</code>
+              </div>
+            `;
+            card.onclick = () => addJoke(item.joke_id);
+            searchResults.appendChild(card);
+          });
+
+        } catch (err) {
+          console.error(err);
+          alert('Failed to search jokes');
+        } finally {
+          searchBtn.disabled = false;
+          searchBtn.textContent = 'Search';
+        }
+      };
+
+      searchBtn.addEventListener('click', performSearch);
+      searchInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') performSearch();
+      });
+    }
+
+    async function addJoke(jokeId) {
+      try {
+        const resp = await fetch(`/admin/joke-books/${encodeURIComponent(bookId)}/jokes/add`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ joke_id: jokeId }),
+        });
+        if (!resp.ok) throw new Error('Add failed');
+        window.location.reload();
+      } catch (err) {
+        console.error(err);
+        alert('Failed to add joke: ' + err.message);
+      }
+    }
+
+    document.querySelectorAll('.remove-joke-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        if (!confirm('Are you sure you want to remove this joke?')) return;
+
+        const jokeId = btn.dataset.jokeId;
+        const originalText = btn.textContent;
+        btn.textContent = '...';
+        btn.disabled = true;
+
+        try {
+          const resp = await fetch(`/admin/joke-books/${encodeURIComponent(bookId)}/jokes/${encodeURIComponent(jokeId)}/remove`, {
+            method: 'POST',
+          });
+          if (!resp.ok) throw new Error('Remove failed');
+          window.location.reload();
+        } catch (err) {
+          console.error(err);
+          alert('Failed to remove joke');
+          btn.textContent = originalText;
+          btn.disabled = false;
+        }
+      });
+    });
+
+    document.querySelectorAll('.position-select').forEach(select => {
+      select.addEventListener('change', async (e) => {
+        const jokeId = select.dataset.jokeId;
+        const newPosition = select.value;
+        const originalValue = select.dataset.originalValue || select.value; // Simplistic fallback
+
+        select.disabled = true;
+
+        try {
+          const resp = await fetch(`/admin/joke-books/${encodeURIComponent(bookId)}/jokes/${encodeURIComponent(jokeId)}/reorder`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ new_position: parseInt(newPosition) }),
+          });
+          if (!resp.ok) throw new Error('Reorder failed');
+          window.location.reload();
+        } catch (err) {
+          console.error(err);
+          alert('Failed to reorder joke');
+          select.disabled = false;
+          select.value = originalValue; // Reset attempt
+        }
+      });
+    });
+
   })();
 </script>
 {% endblock %}

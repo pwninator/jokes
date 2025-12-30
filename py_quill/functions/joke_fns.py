@@ -389,6 +389,8 @@ def search_jokes(req: https_fn.Request) -> https_fn.Response:
         ("is_public", "==", True),
       ])
 
+    return_jokes = get_bool_param(req, 'return_jokes', False)
+
     # Search for jokes
     search_results = search.search_jokes(
       query=search_query,
@@ -396,13 +398,23 @@ def search_jokes(req: https_fn.Request) -> https_fn.Response:
       limit=max_results,
       field_filters=field_filters,
       distance_threshold=distance_threshold,
+      return_jokes=return_jokes,
     )
 
     # Return jokes with id and vector distance
-    jokes = [{
-      "joke_id": result.joke_id,
-      "vector_distance": result.vector_distance
-    } for result in search_results]
+    jokes = []
+    for result in search_results:
+      item = {
+        "joke_id": result.joke_id,
+        "vector_distance": result.vector_distance
+      }
+      if return_jokes:
+        item["setup_text"] = result.setup_text
+        item["punchline_text"] = result.punchline_text
+        item["setup_image_url"] = result.setup_image_url
+        item["punchline_image_url"] = result.punchline_image_url
+      jokes.append(item)
+
     return success_response({"jokes": jokes})
 
   except Exception as e:

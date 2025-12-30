@@ -1,9 +1,68 @@
 """Utility functions for Cloud Functions."""
 
+import json
 from typing import Any
 
+from common import utils
 from firebase_admin import auth
 from firebase_functions import https_fn, logger
+
+
+# CORS constants
+_CORS_HEADERS = {
+  "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Bundle-Secret",
+}
+
+
+def _allowed_origins() -> set[str]:
+  """Return allowed origins based on environment (emulator vs prod)."""
+  if utils.is_emulator():
+    return {
+      "http://127.0.0.1:5000",
+      "http://localhost:5000",
+      "http://127.0.0.1",
+      "http://localhost",
+      "http://localhost:5173", # Vite
+    }
+  else:
+    return {
+      "https://snickerdoodlejokes.com",
+    }
+
+
+def get_cors_headers(req: https_fn.Request | None) -> dict[str, str]:
+  """Return CORS headers only for allowed origins."""
+  if not req:
+    return {}
+
+  origin = req.headers.get("Origin")
+  if origin and origin.rstrip("/") in _allowed_origins():
+    return {**_CORS_HEADERS, "Access-Control-Allow-Origin": origin}
+
+  # If origin is not in allowed origins, we might still want to allow specific cases
+  # or just return empty. For now, strict checking as per previous implementation.
+  return {}
+
+
+def handle_cors_preflight(req: https_fn.Request) -> https_fn.Response | None:
+  """Handle OPTIONS requests for CORS preflight."""
+  if req.method == "OPTIONS":
+    cors_headers = get_cors_headers(req) or _CORS_HEADERS
+    return https_fn.Response(
+      "",
+      status=204,
+      headers=cors_headers,
+    )
+  return None
+
+
+def handle_health_check(req: https_fn.Request) -> https_fn.Response | None:
+  """Handle health check requests."""
+  if req.path == "/__/health":
+    cors_headers = get_cors_headers(req)
+    return https_fn.Response("OK", status=200, headers=cors_headers)
+  return None
 
 
 def get_user_id(
@@ -28,23 +87,56 @@ def get_user_id(
     return None
 
 
-def success_response(data: dict[str, Any]) -> https_fn.Response:
-  """Return a success response."""
+def success_response(
+  data: dict[str, Any],
+  req: https_fn.Request | None = None,
+  status: int = 200,
+) -> https_fn.Response:
+  """Return a success response with CORS headers."""
   logger.info(f"Success response: {data}")
-  return {"data": data}
+  cors_headers = get_cors_headers(req)
+  return https_fn.Response(
+    json.dumps({"data": data}),
+    status=status,
+    headers=cors_headers,
+    mimetype='application/json',
+  )
 
 
 def error_response(
   message: str,
   *,
   error_type: str | None = None,
+  req: https_fn.Request | None = None,
+  status: int = 500,
 ) -> https_fn.Response:
-  """Return an error response with optional typed error code."""
+  """Return an error response with optional typed error code and CORS headers."""
   logger.error(f"Error response: {message} ({error_type})")
   payload: dict[str, Any] = {"error": message}
   if error_type:
     payload["error_type"] = error_type
-  return {"data": payload}
+
+  cors_headers = get_cors_headers(req)
+  return https_fn.Response(
+    json.dumps({"data": payload}),
+    status=status,
+    headers=cors_headers,
+    mimetype='application/json',
+  )
+
+
+def html_response(
+  html_content: str,
+  req: https_fn.Request | None = None,
+  status: int = 200,
+) -> https_fn.Response:
+  """Return an HTML response with CORS headers."""
+  cors_headers = get_cors_headers(req)
+  return https_fn.Response(
+    html_content,
+    status=status,
+    headers={'Content-Type': 'text/html', **cors_headers},
+  )
 
 
 def get_param(

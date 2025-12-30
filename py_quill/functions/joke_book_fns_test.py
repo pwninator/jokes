@@ -221,7 +221,10 @@ def test_get_joke_book_errors_when_book_pages_missing(mock_firestore):
 
   resp = joke_book_fns.get_joke_book(req)
 
-  assert resp == {
+  assert isinstance(resp, https_fn.Response)
+  assert resp.status_code == 400
+  data = json.loads(resp.get_data(as_text=True))
+  assert data == {
     "data": {
       "error": "Joke joke1 does not have book page images",
     },
@@ -276,7 +279,10 @@ def test_create_book_uses_top_jokes_when_joke_ids_missing(
   })
   mock_generate_pages.assert_any_call('j1', overwrite=True)
   mock_generate_pages.assert_any_call('j2', overwrite=True)
-  assert resp == {"data": {"book_id": "book123"}}
+  assert isinstance(resp, https_fn.Response)
+  assert resp.status_code == 200
+  data = json.loads(resp.get_data(as_text=True))
+  assert data == {"data": {"book_id": "book123"}}
 
 
 def test_prepare_book_page_metadata_updates_normalizes_cdn_urls():

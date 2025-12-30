@@ -642,6 +642,7 @@ class JokeCategory:
   display_name: str
   joke_description_query: str
   image_description: str | None = None
+  jokes: list[PunnyJoke] = field(default_factory=list)
 
   @property
   def key(self) -> str:

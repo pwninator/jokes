@@ -479,6 +479,10 @@
 <section class="search-section">
   <div class="search-controls">
     <input type="text" class="search-input" placeholder="Search for jokes to add..." id="joke-search-input">
+    <div style="display: flex; align-items: center; gap: 8px;">
+      <input type="checkbox" id="joke-search-category-checkbox" style="width: 20px; height: 20px;">
+      <label for="joke-search-category-checkbox" class="text-body">Category</label>
+    </div>
     <button class="cta-btn text-button" type="button" id="joke-search-btn">Search</button>
   </div>
   <div class="search-grid" id="search-results"></div>
@@ -1174,12 +1178,21 @@
     // --- New Functionality: Search, Add, Remove, Reorder ---
 
     const searchInput = document.getElementById('joke-search-input');
+    const searchCategoryCheckbox = document.getElementById('joke-search-category-checkbox');
     const searchBtn = document.getElementById('joke-search-btn');
     const searchResults = document.getElementById('search-results');
     const addSelectedBtn = document.getElementById('add-selected-btn');
     let selectedJokeIds = new Set();
 
     if (searchBtn && searchInput) {
+      if (searchCategoryCheckbox) {
+        searchCategoryCheckbox.addEventListener('change', () => {
+          searchInput.placeholder = searchCategoryCheckbox.checked
+            ? 'Enter category ID...'
+            : 'Search for jokes to add...';
+        });
+      }
+
       const performSearch = async () => {
         const query = searchInput.value.trim();
         if (!query) return;
@@ -1203,7 +1216,11 @@
 
           // Construct URL with query params
           const url = new URL(searchUrl, window.location.origin);
-          url.searchParams.append('search_query', query);
+          if (searchCategoryCheckbox && searchCategoryCheckbox.checked) {
+            url.searchParams.append('category', query);
+          } else {
+            url.searchParams.append('search_query', query);
+          }
           url.searchParams.append('max_results', '50');
           url.searchParams.append('return_jokes', 'true');
           url.searchParams.append('public_only', 'false');

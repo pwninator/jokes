@@ -315,60 +315,82 @@ def search_jokes(req: https_fn.Request) -> https_fn.Response:
 
     # Get the search query and max results from request body or args
     search_query = get_param(req, 'search_query')
-    if not search_query:
-      return error_response('Search query is required', req=req, status=400)
+    category_id = get_param(req, 'category')
 
-    label = get_param(req, 'label', "unknown")
-    max_results = get_param(req, 'max_results', 10)
-    if not isinstance(max_results, int):
-      try:
-        max_results = int(max_results)
-      except (ValueError, TypeError):
-        return error_response(f'Max results must be an integer: {max_results}', req=req, status=400)
-
-    match_mode = get_param(req, 'match_mode', "TIGHT")
-    if match_mode == "TIGHT":
-      distance_threshold = config.JOKE_SEARCH_TIGHT_THRESHOLD
-    elif match_mode == "LOOSE":
-      distance_threshold = config.JOKE_SEARCH_LOOSE_THRESHOLD
-    else:
-      return error_response(f'Invalid match_mode: {match_mode}', req=req, status=400)
-
-    # Filter: public_only (default True) => public_timestamp <= now in LA
-    public_only = get_bool_param(req, 'public_only', True)
-    field_filters = []
-    if public_only:
-      field_filters.extend([
-        ("state", "in",
-         [models.JokeState.PUBLISHED.value, models.JokeState.DAILY.value]),
-        ("is_public", "==", True),
-      ])
+    if bool(search_query) == bool(category_id):
+      return error_response(
+        'Exactly one of search_query or category is required',
+        req=req,
+        status=400)
 
     return_jokes = get_bool_param(req, 'return_jokes', False)
-
-    # Search for jokes
-    search_results = search.search_jokes(
-      query=search_query,
-      label=label,
-      limit=max_results,
-      field_filters=field_filters,
-      distance_threshold=distance_threshold,
-      return_jokes=return_jokes,
-    )
-
-    # Return jokes with id and vector distance
     jokes = []
-    for result in search_results:
-      item = {
-        "joke_id": result.joke_id,
-        "vector_distance": result.vector_distance
-      }
-      if return_jokes:
-        item["setup_text"] = result.setup_text
-        item["punchline_text"] = result.punchline_text
-        item["setup_image_url"] = result.setup_image_url
-        item["punchline_image_url"] = result.punchline_image_url
-      jokes.append(item)
+
+    if category_id:
+      category = firestore.get_joke_category(category_id)
+      if not category:
+        return error_response(f'Category not found: {category_id}', req=req, status=404)
+
+      for joke in category.jokes:
+        item = {
+          "joke_id": joke.key,
+          "vector_distance": 0.0,
+        }
+        if return_jokes:
+          item["setup_text"] = joke.setup_text
+          item["punchline_text"] = joke.punchline_text
+          item["setup_image_url"] = joke.setup_image_url
+          item["punchline_image_url"] = joke.punchline_image_url
+        jokes.append(item)
+    else:
+      label = get_param(req, 'label', "unknown")
+      max_results = get_param(req, 'max_results', 10)
+      if not isinstance(max_results, int):
+        try:
+          max_results = int(max_results)
+        except (ValueError, TypeError):
+          return error_response(f'Max results must be an integer: {max_results}', req=req, status=400)
+
+      match_mode = get_param(req, 'match_mode', "TIGHT")
+      if match_mode == "TIGHT":
+        distance_threshold = config.JOKE_SEARCH_TIGHT_THRESHOLD
+      elif match_mode == "LOOSE":
+        distance_threshold = config.JOKE_SEARCH_LOOSE_THRESHOLD
+      else:
+        return error_response(f'Invalid match_mode: {match_mode}', req=req, status=400)
+
+      # Filter: public_only (default True) => public_timestamp <= now in LA
+      public_only = get_bool_param(req, 'public_only', True)
+      field_filters = []
+      if public_only:
+        field_filters.extend([
+          ("state", "in",
+           [models.JokeState.PUBLISHED.value, models.JokeState.DAILY.value]),
+          ("is_public", "==", True),
+        ])
+
+      # Search for jokes
+      search_results = search.search_jokes(
+        query=search_query,
+        label=label,
+        limit=max_results,
+        field_filters=field_filters,
+        distance_threshold=distance_threshold,
+        return_jokes=return_jokes,
+      )
+
+      # Return jokes with id and vector distance
+      for result in search_results:
+        item = {
+          "joke_id": result.joke_id,
+          "vector_distance": result.vector_distance
+        }
+        if return_jokes:
+          item["setup_text"] = result.setup_text
+          item["punchline_text"] = result.punchline_text
+          item["setup_image_url"] = result.setup_image_url
+          item["punchline_image_url"] = result.punchline_image_url
+        jokes.append(item)
 
     return success_response({"jokes": jokes}, req=req)
 

@@ -165,6 +165,49 @@ def get_all_joke_categories() -> list[models.JokeCategory]:
   return categories
 
 
+def get_joke_category(category_id: str) -> models.JokeCategory | None:
+  """Get a joke category by ID, populating its cached jokes."""
+  if not category_id:
+    return None
+
+  category_ref = db().collection('joke_categories').document(category_id)
+  category_doc = category_ref.get()
+
+  if not category_doc.exists:
+    return None
+
+  data = category_doc.to_dict() or {}
+  display_name = data.get('display_name', '')
+  joke_description_query = data.get('joke_description_query', '')
+  image_description = data.get('image_description')
+
+  category = models.JokeCategory(
+    display_name=display_name,
+    joke_description_query=joke_description_query,
+    image_description=image_description,
+  )
+
+  # Fetch cached jokes
+  cache_doc = category_ref.collection('category_jokes').document('cache').get()
+  if cache_doc.exists:
+    cache_data = cache_doc.to_dict() or {}
+    jokes_data = cache_data.get('jokes', [])
+    if isinstance(jokes_data, list):
+      for joke_data in jokes_data:
+        if not isinstance(joke_data, dict):
+          continue
+        joke = models.PunnyJoke(
+          key=joke_data.get('joke_id'),
+          setup_text=joke_data.get('setup', ''),
+          punchline_text=joke_data.get('punchline', ''),
+          setup_image_url=joke_data.get('setup_image_url'),
+          punchline_image_url=joke_data.get('punchline_image_url'),
+        )
+        category.jokes.append(joke)
+
+  return category
+
+
 async def upsert_joke_categories(
     categories: list[models.JokeCategory]) -> None:
   """Upsert joke categories into the 'joke_categories' collection.

@@ -29,13 +29,14 @@ class BookRepository {
   final JokeRepository _jokeRepository;
   final JokeCloudFunctionService _jokeCloudFunctionService;
 
-  Future<List<Joke>> searchJokes(String query) async {
+  Future<List<Joke>> searchJokes(String query, {bool isCategory = false}) async {
     if (query.isEmpty) {
       return [];
     }
     try {
       final searchResults = await _jokeCloudFunctionService.searchJokes(
         searchQuery: query,
+        category: isCategory ? query : null,
         maxResults: 20,
         publicOnly: false,
         matchMode: MatchMode.loose,

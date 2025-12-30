@@ -59,16 +59,31 @@ final jokeSearchQueryProvider = StateNotifierProvider<JokeSearchQuery, String>(
   (ref) => JokeSearchQuery(),
 );
 
+// Category search flag
+class JokeSearchIsCategory extends StateNotifier<bool> {
+  JokeSearchIsCategory() : super(false);
+
+  void setCategory(bool isCategory) {
+    state = isCategory;
+  }
+}
+
+final jokeSearchIsCategoryProvider =
+    StateNotifierProvider<JokeSearchIsCategory, bool>(
+      (ref) => JokeSearchIsCategory(),
+    );
+
 // Search results provider
 final searchedJokesProvider = FutureProvider.autoDispose<List<Joke>>((
   ref,
 ) async {
   final query = ref.watch(jokeSearchQueryProvider);
+  final isCategory = ref.watch(jokeSearchIsCategoryProvider);
   if (query.isEmpty) {
     return [];
   }
   final bookRepository = ref.watch(bookRepositoryProvider);
-  return bookRepository.searchJokes(query);
+  return bookRepository.searchJokes(query, isCategory: isCategory);
 });
 
 // Controller for creating a book

@@ -9,6 +9,7 @@ class JokeSelectorScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final searchResult = ref.watch(searchedJokesProvider);
     final selectedJokes = ref.watch(selectedJokesProvider);
+    final isCategory = ref.watch(jokeSearchIsCategoryProvider);
 
     return Scaffold(
       appBar: AppBar(title: const Text('Select Jokes')),
@@ -16,16 +17,39 @@ class JokeSelectorScreen extends ConsumerWidget {
         children: [
           Padding(
             padding: const EdgeInsets.all(16.0),
-            child: TextField(
-              key: const Key('joke_selector_screen-search-field'),
-              decoration: const InputDecoration(
-                border: OutlineInputBorder(),
-                labelText: 'Search Jokes',
-                prefixIcon: Icon(Icons.search),
-              ),
-              onSubmitted: (query) {
-                ref.read(jokeSearchQueryProvider.notifier).setQuery(query);
-              },
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    key: const Key('joke_selector_screen-search-field'),
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                      labelText: 'Search Jokes',
+                      prefixIcon: Icon(Icons.search),
+                    ),
+                    onSubmitted: (query) {
+                      ref
+                          .read(jokeSearchQueryProvider.notifier)
+                          .setQuery(query);
+                    },
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Row(
+                  children: [
+                    Checkbox(
+                      key: const Key('joke_selector_screen-category-checkbox'),
+                      value: isCategory,
+                      onChanged: (value) {
+                        ref
+                            .read(jokeSearchIsCategoryProvider.notifier)
+                            .setCategory(value ?? false);
+                      },
+                    ),
+                    const Text('Category'),
+                  ],
+                ),
+              ],
             ),
           ),
           Expanded(

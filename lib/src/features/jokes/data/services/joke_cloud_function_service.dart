@@ -503,6 +503,7 @@ class JokeCloudFunctionService {
   /// Response: List of objects: [{ joke_id, vector_distance }, ...]
   Future<List<JokeSearchResult>> searchJokes({
     required String searchQuery,
+    String? category,
     required int maxResults,
     required bool publicOnly,
     required MatchMode matchMode,
@@ -517,7 +518,10 @@ class JokeCloudFunctionService {
           : '${scope.name}:${label.name}';
 
       final payload = <String, dynamic>{
-        'search_query': searchQuery,
+        if (category != null && category.isNotEmpty)
+          'category': category
+        else
+          'search_query': searchQuery,
         // Workaround: send as string to avoid protobuf Int64 wrapper on the server
         'max_results': maxResults.toString(),
         'public_only': publicOnly,
@@ -534,6 +538,7 @@ class JokeCloudFunctionService {
           'match_mode': matchMode == MatchMode.tight ? 'TIGHT' : 'LOOSE',
           'query_len': searchQuery.length.toString(),
           'exclude_count': excludeJokeIds.length.toString(),
+          if (category != null) 'category': category,
         },
         action: () async {
           final callable = _fns.httpsCallable('search_jokes');

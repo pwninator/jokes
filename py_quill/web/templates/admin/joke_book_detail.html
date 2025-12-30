@@ -482,6 +482,9 @@
     <button class="cta-btn text-button" type="button" id="joke-search-btn">Search</button>
   </div>
   <div class="search-grid" id="search-results"></div>
+  <div style="display: flex; justify-content: flex-end; margin-top: 16px;">
+    <button class="cta-btn text-button" type="button" id="add-selected-btn" disabled>Add Selected</button>
+  </div>
 </section>
 
 {% if not jokes %}
@@ -1173,6 +1176,8 @@
     const searchInput = document.getElementById('joke-search-input');
     const searchBtn = document.getElementById('joke-search-btn');
     const searchResults = document.getElementById('search-results');
+    const addSelectedBtn = document.getElementById('add-selected-btn');
+    let selectedJokeIds = new Set();
 
     if (searchBtn && searchInput) {
       const performSearch = async () => {
@@ -1182,6 +1187,8 @@
         searchBtn.disabled = true;
         searchBtn.textContent = 'Searching...';
         searchResults.innerHTML = '';
+        selectedJokeIds.clear();
+        updateAddButton();
 
         // Collect existing joke IDs from the DOM
         const existingJokeIds = new Set();
@@ -1195,11 +1202,11 @@
             : '/search_jokes';
 
           // Construct URL with query params
-          const url = new URL(searchUrl);
+          const url = new URL(searchUrl, window.location.origin);
           url.searchParams.append('search_query', query);
           url.searchParams.append('max_results', '50');
           url.searchParams.append('return_jokes', 'true');
-          url.searchParams.append('public_only', 'false'); // Allow searching non-public if needed, or keep default? Let's say false to find any joke.
+          url.searchParams.append('public_only', 'false');
 
           const resp = await fetch(url.toString());
 
@@ -1219,10 +1226,7 @@
           candidates.slice(0, 10).forEach(item => { // Show top 10 new candidates
             const card = document.createElement('div');
             card.className = 'search-result-card';
-            // Use format_image_url logic? Or raw URL? Raw URL might be large.
-            // Client-side resizing logic is complex, assume backend URL is fine or utilize image CDN if possible.
-            // item.setup_image_url might be high-res.
-            // We can try to inject resizing params if it matches our CDN pattern.
+
             let thumbUrl = item.setup_image_url || '';
             if (thumbUrl && thumbUrl.includes('images.quillsstorybook.com')) {
                thumbUrl = normalizeUrl(thumbUrl); // remove existing params
@@ -1235,7 +1239,8 @@
                 <code>${item.joke_id}</code>
               </div>
             `;
-            card.onclick = () => addJoke(item.joke_id);
+
+            card.onclick = () => toggleSelection(card, item.joke_id);
             searchResults.appendChild(card);
           });
 
@@ -1254,19 +1259,78 @@
       });
     }
 
-    async function addJoke(jokeId) {
-      try {
-        const resp = await fetch(`/admin/joke-books/${encodeURIComponent(bookId)}/jokes/add`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ joke_id: jokeId }),
-        });
-        if (!resp.ok) throw new Error('Add failed');
-        window.location.reload();
-      } catch (err) {
-        console.error(err);
-        alert('Failed to add joke: ' + err.message);
+    function toggleSelection(card, jokeId) {
+      if (selectedJokeIds.has(jokeId)) {
+        selectedJokeIds.delete(jokeId);
+        // Revert to CSS default
+        card.style.border = '';
+      } else {
+        selectedJokeIds.add(jokeId);
+        // Use the active border style defined globally
+        card.style.border = activeVariantBorder;
       }
+      updateAddButton();
+    }
+
+    function updateAddButton() {
+      if (addSelectedBtn) {
+        addSelectedBtn.disabled = selectedJokeIds.size === 0;
+        addSelectedBtn.textContent = selectedJokeIds.size > 0
+          ? `Add ${selectedJokeIds.size} Selected`
+          : 'Add Selected';
+      }
+    }
+
+    if (addSelectedBtn) {
+      addSelectedBtn.addEventListener('click', async () => {
+        if (selectedJokeIds.size === 0) return;
+
+        const originalText = addSelectedBtn.textContent;
+        addSelectedBtn.textContent = 'Adding...';
+        addSelectedBtn.disabled = true;
+
+        try {
+          const resp = await fetch(`/admin/joke-books/${encodeURIComponent(bookId)}/jokes/add`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ joke_ids: Array.from(selectedJokeIds) }),
+          });
+          if (!resp.ok) throw new Error('Add failed');
+          window.location.reload();
+        } catch (err) {
+          console.error(err);
+          alert('Failed to add jokes: ' + err.message);
+          addSelectedBtn.textContent = originalText;
+          addSelectedBtn.disabled = false;
+        }
+      });
+    }
+
+    function reindexJokes() {
+      const cards = document.querySelectorAll('.joke-card');
+      const total = cards.length;
+
+      cards.forEach((card, index) => {
+        const sequence = index + 1;
+
+        // Update header label
+        const headerStrong = card.querySelector('.joke-header strong');
+        if (headerStrong) headerStrong.textContent = `Joke ${sequence}`;
+
+        // Update dropdown
+        const select = card.querySelector('.position-select');
+        if (select) {
+          // Clear and rebuild options
+          select.innerHTML = '';
+          for (let i = 1; i <= total; i++) {
+            const option = document.createElement('option');
+            option.value = i;
+            option.textContent = i;
+            if (i === sequence) option.selected = true;
+            select.appendChild(option);
+          }
+        }
+      });
     }
 
     document.querySelectorAll('.remove-joke-btn').forEach(btn => {
@@ -1275,6 +1339,8 @@
 
         const jokeId = btn.dataset.jokeId;
         const originalText = btn.textContent;
+        const card = btn.closest('.joke-card');
+
         btn.textContent = '...';
         btn.disabled = true;
 
@@ -1283,7 +1349,15 @@
             method: 'POST',
           });
           if (!resp.ok) throw new Error('Remove failed');
-          window.location.reload();
+
+          // Remove from DOM and reindex
+          if (card) {
+            card.remove();
+            reindexJokes();
+          } else {
+             window.location.reload(); // Fallback
+          }
+
         } catch (err) {
           console.error(err);
           alert('Failed to remove joke');
@@ -1296,8 +1370,9 @@
     document.querySelectorAll('.position-select').forEach(select => {
       select.addEventListener('change', async (e) => {
         const jokeId = select.dataset.jokeId;
-        const newPosition = select.value;
-        const originalValue = select.dataset.originalValue || select.value; // Simplistic fallback
+        const newPosition = parseInt(select.value);
+        const card = select.closest('.joke-card');
+        const container = document.querySelector('.joke-grid');
 
         select.disabled = true;
 
@@ -1305,15 +1380,63 @@
           const resp = await fetch(`/admin/joke-books/${encodeURIComponent(bookId)}/jokes/${encodeURIComponent(jokeId)}/reorder`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ new_position: parseInt(newPosition) }),
+            body: JSON.stringify({ new_position: newPosition }),
           });
           if (!resp.ok) throw new Error('Reorder failed');
-          window.location.reload();
+
+          // Move in DOM
+          if (card && container) {
+            const currentPosition = Array.from(container.children).indexOf(card) + 1;
+
+            if (newPosition !== currentPosition) {
+              // If moving down (e.g. 1 -> 3), we insertBefore the element *after* the target index
+              // If moving up (e.g. 3 -> 1), we insertBefore the target index
+              // Actually, simplified: newPosition is 1-based target.
+              // DOM index is newPosition - 1.
+
+              const targetIndex = newPosition - 1;
+              const allCards = Array.from(container.children);
+
+              // Remove first to avoid index confusion? Or just move?
+              // `insertBefore` moves if node is already in tree.
+
+              if (targetIndex >= allCards.length) {
+                container.appendChild(card);
+              } else {
+                // If moving down, we need to account for the fact that removing it shifts indices.
+                // But insertBefore handles this reference node logic.
+                // If we want it to BE at targetIndex, we insert before the node currently at targetIndex,
+                // UNLESS we are moving down past it?
+                // Actually, if we move item from 0 to 2.
+                // List: [A, B, C, D]. Move A to pos 3 (index 2, which is C).
+                // insertBefore(A, D). Result: [B, C, A, D]. Correct.
+                // So we want to insert before the item at `targetIndex` if moving up?
+                // If moving down, we want it to be at `targetIndex`.
+                // Let's use `insertBefore` relative to the current state of list (excluding self potentially?)
+
+                // Simpler: get list of other cards. Insert into that list. Re-append all.
+                // Or:
+                const otherCards = Array.from(container.querySelectorAll('.joke-card')).filter(c => c !== card);
+                // Insert card into otherCards at proper index
+                // Clamp index
+                const safeIndex = Math.max(0, Math.min(targetIndex, otherCards.length));
+
+                if (safeIndex === otherCards.length) {
+                   container.appendChild(card);
+                } else {
+                   container.insertBefore(card, otherCards[safeIndex]);
+                }
+              }
+              reindexJokes();
+            }
+          }
+
         } catch (err) {
           console.error(err);
           alert('Failed to reorder joke');
+          // Revert selection?
+        } finally {
           select.disabled = false;
-          select.value = originalValue; // Reset attempt
         }
       });
     });

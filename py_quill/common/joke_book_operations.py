@@ -13,16 +13,13 @@ def _get_book_data(book_id: str) -> dict:
         raise ValueError(f"Joke book {book_id} not found")
     return doc.to_dict() or {}
 
-def add_joke_to_book(book_id: str, joke_id: str) -> None:
-    """Adds a joke to the end of the book if not already present."""
+def add_jokes_to_book(book_id: str, joke_ids: list[str]) -> None:
+    """Adds multiple jokes to the end of the book if not already present."""
+    if not joke_ids:
+        return
     book_ref = _get_book_ref(book_id)
-
-    # Use a transaction or simpler array_union if we don't care about strict ordering races
-    # but for consistent lists, array_union is fine for appending.
-    # However, to be safe about duplicates and potential future ordering logic,
-    # let's read-modify-write or use array_union.
     # Firestore array_union adds only if unique.
-    book_ref.update({'jokes': google_firestore.ArrayUnion([joke_id])})
+    book_ref.update({'jokes': google_firestore.ArrayUnion(joke_ids)})
 
 def remove_joke_from_book(book_id: str, joke_id: str) -> None:
     """Removes a joke from the book."""

@@ -1384,17 +1384,18 @@ def admin_joke_book_refresh(book_id: str, joke_id: str):
 @web_bp.route('/admin/joke-books/<book_id>/jokes/add', methods=['POST'])
 @auth_helpers.require_admin
 def admin_joke_book_add_joke(book_id: str):
-  """Add a joke to the book."""
+  """Add a joke or multiple jokes to the book."""
   payload = flask.request.get_json(silent=True) or {}
-  joke_id = payload.get('joke_id')
-  if not joke_id:
-    return flask.jsonify({'error': 'joke_id is required'}), 400
+  joke_ids = payload.get('joke_ids')
+
+  if not joke_ids:
+    return flask.jsonify({'error': 'joke_ids is required'}), 400
 
   try:
-    joke_book_operations.add_joke_to_book(book_id, joke_id)
+    joke_book_operations.add_jokes_to_book(book_id, joke_ids)
     return flask.jsonify({'status': 'ok'})
   except Exception as e:
-    logger.error('Failed to add joke', exc_info=e)
+    logger.error('Failed to add jokes', exc_info=e)
     return flask.jsonify({'error': str(e)}), 500
 
 

@@ -1381,30 +1381,6 @@ def admin_joke_book_refresh(book_id: str, joke_id: str):
   return flask.jsonify(resp_data)
 
 
-@web_bp.route('/admin/joke-books/<book_id>/jokes/search', methods=['POST'])
-@auth_helpers.require_admin
-def admin_joke_book_search_jokes(book_id: str):
-  """Search for candidate jokes to add to the book."""
-  payload = flask.request.get_json(silent=True) or {}
-  query = payload.get('query')
-  if not query:
-    return flask.jsonify({'error': 'query is required'}), 400
-
-  try:
-    results = joke_book_operations.search_candidate_jokes(book_id, query)
-    items = []
-    for joke in results:
-      items.append({
-        'id': joke.key,
-        'setup_image': _format_book_page_thumb(joke.setup_image_url) or '',
-        'setup_text': joke.setup_text or '',
-      })
-    return flask.jsonify({'items': items})
-  except Exception as e:
-    logger.error('Failed to search jokes', exc_info=e)
-    return flask.jsonify({'error': str(e)}), 500
-
-
 @web_bp.route('/admin/joke-books/<book_id>/jokes/add', methods=['POST'])
 @auth_helpers.require_admin
 def admin_joke_book_add_joke(book_id: str):

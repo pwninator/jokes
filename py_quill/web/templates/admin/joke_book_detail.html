@@ -1183,31 +1183,59 @@
         searchBtn.textContent = 'Searching...';
         searchResults.innerHTML = '';
 
+        // Collect existing joke IDs from the DOM
+        const existingJokeIds = new Set();
+        document.querySelectorAll('[data-joke-id]').forEach(el => {
+          if(el.dataset.jokeId) existingJokeIds.add(el.dataset.jokeId);
+        });
+
         try {
-          const resp = await fetch(`/admin/joke-books/${encodeURIComponent(bookId)}/jokes/search`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ query }),
-          });
+          const searchUrl = functionsOrigin
+            ? `${functionsOrigin}/search_jokes`
+            : '/search_jokes';
+
+          // Construct URL with query params
+          const url = new URL(searchUrl);
+          url.searchParams.append('search_query', query);
+          url.searchParams.append('max_results', '50');
+          url.searchParams.append('return_jokes', 'true');
+          url.searchParams.append('public_only', 'false'); // Allow searching non-public if needed, or keep default? Let's say false to find any joke.
+
+          const resp = await fetch(url.toString());
 
           if (!resp.ok) throw new Error('Search failed');
-          const data = await resp.json();
+          const payload = await resp.json();
+          const data = payload.data || {};
+          const jokes = data.jokes || [];
 
-          if (!data.items || data.items.length === 0) {
-            searchResults.innerHTML = '<p class="text-body muted" style="grid-column: 1/-1; text-align: center;">No jokes found.</p>';
+          // Filter client-side
+          const candidates = jokes.filter(j => !existingJokeIds.has(j.joke_id));
+
+          if (candidates.length === 0) {
+            searchResults.innerHTML = '<p class="text-body muted" style="grid-column: 1/-1; text-align: center;">No matching jokes found (or all already in book).</p>';
             return;
           }
 
-          data.items.forEach(item => {
+          candidates.slice(0, 10).forEach(item => { // Show top 10 new candidates
             const card = document.createElement('div');
             card.className = 'search-result-card';
+            // Use format_image_url logic? Or raw URL? Raw URL might be large.
+            // Client-side resizing logic is complex, assume backend URL is fine or utilize image CDN if possible.
+            // item.setup_image_url might be high-res.
+            // We can try to inject resizing params if it matches our CDN pattern.
+            let thumbUrl = item.setup_image_url || '';
+            if (thumbUrl && thumbUrl.includes('images.quillsstorybook.com')) {
+               thumbUrl = normalizeUrl(thumbUrl); // remove existing params
+               thumbUrl = `https://images.quillsstorybook.com/cdn-cgi/image/width=200,quality=70,format=auto/${thumbUrl}`;
+            }
+
             card.innerHTML = `
-              <img src="${item.setup_image || ''}" class="search-result-img" alt="Joke Setup">
+              <img src="${thumbUrl}" class="search-result-img" alt="Joke Setup" loading="lazy">
               <div class="search-result-meta text-body">
-                <code>${item.id}</code>
+                <code>${item.joke_id}</code>
               </div>
             `;
-            card.onclick = () => addJoke(item.id);
+            card.onclick = () => addJoke(item.joke_id);
             searchResults.appendChild(card);
           });
 

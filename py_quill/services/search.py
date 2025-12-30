@@ -95,6 +95,10 @@ class JokeSearchResult:
   """A search result for a punny joke."""
   joke_id: str
   vector_distance: float
+  setup_text: str | None = None
+  punchline_text: str | None = None
+  setup_image_url: str | None = None
+  punchline_image_url: str | None = None
 
 
 def search_jokes(
@@ -104,6 +108,7 @@ def search_jokes(
   limit: int = 10,
   distance_measure=DistanceMeasure.COSINE,
   distance_threshold: float | None = None,
+  return_jokes: bool = False,
 ) -> list[JokeSearchResult]:
   """Search for jokes in Firestore."""
   try:
@@ -134,6 +139,20 @@ def search_jokes(
           joke_id=doc.id,
           vector_distance=distance,
         ))
+
+    if return_jokes and results:
+      from services import firestore as firestore_service
+      joke_ids = [r.joke_id for r in results]
+      full_jokes = firestore_service.get_punny_jokes(joke_ids)
+      jokes_map = {j.key: j for j in full_jokes if j.key}
+
+      for result in results:
+        joke = jokes_map.get(result.joke_id)
+        if joke:
+          result.setup_text = joke.setup_text
+          result.punchline_text = joke.punchline_text
+          result.setup_image_url = joke.setup_image_url
+          result.punchline_image_url = joke.punchline_image_url
 
     # Sort by vector distance
     results.sort(key=lambda x: x.vector_distance)

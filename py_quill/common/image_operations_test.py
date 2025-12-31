@@ -555,6 +555,11 @@ class CreateBookPagesTest(unittest.TestCase):
       self.assertEqual(kwargs['output_file_name_base'], 'joke123_book_page')
       self.assertIs(kwargs['setup_image'], setup_image)
       self.assertIs(kwargs['punchline_image'], punchline_image)
+      # New args
+      self.assertTrue(kwargs['add_margins'])
+      self.assertEqual(kwargs['setup_source'].url, 'https://cdn.example.com/setup.png')
+      self.assertEqual(kwargs['punchline_source'].url, 'https://cdn.example.com/punchline.png')
+
       self.assertEqual(
         len(kwargs['style_reference_images']),
         len(style_images),
@@ -778,6 +783,11 @@ class CreateBookPagesTest(unittest.TestCase):
       self.assertEqual(kwargs['output_file_name_base'], 'jokeXYZ_book_page')
       self.assertIs(kwargs['setup_image'], setup_image)
       self.assertIs(kwargs['punchline_image'], punchline_image)
+      # New args
+      self.assertTrue(kwargs['add_margins'])
+      self.assertEqual(kwargs['setup_source'].url, 'https://cdn.example.com/setup.png')
+      self.assertEqual(kwargs['punchline_source'].url, 'https://cdn.example.com/punchline.png')
+
       self.assertEqual(
         len(kwargs['style_reference_images']),
         len(style_images),
@@ -984,6 +994,13 @@ class CreateBookPagesTest(unittest.TestCase):
     result = image_operations.generate_book_pages_style_update(
       setup_image=setup_image,
       punchline_image=punchline_image,
+      setup_source=models.Image(
+        url='https://cdn.example.com/setup.png',
+        gcs_uri='gs://bucket/setup.png'),
+      punchline_source=models.Image(
+        url='https://cdn.example.com/punchline.png',
+        gcs_uri='gs://bucket/punchline.png'),
+      add_margins=True,
       setup_text='Setup text here',
       punchline_text='Punchline text here',
       output_file_name_base='joke123_book_page',
@@ -1086,6 +1103,11 @@ class CreateBookPagesTest(unittest.TestCase):
     def _stub_generation(**kwargs):
       self.assertIs(kwargs['setup_image'], setup_image)
       self.assertIs(kwargs['punchline_image'], punchline_image)
+      # New args
+      self.assertFalse(kwargs['add_margins'])
+      self.assertEqual(kwargs['setup_source'].url, 'https://cdn.example.com/book_setup.jpg')
+      self.assertEqual(kwargs['punchline_source'].url, 'https://cdn.example.com/book_punch.jpg')
+
       return SimpleNamespace(
         simple_setup_image=_make_fake_image_model(
           gcs_uri=simple_setup_uri,
@@ -1233,6 +1255,11 @@ class CreateBookPagesTest(unittest.TestCase):
     def _stub_generation(**kwargs):
       self.assertIs(kwargs['setup_image'], setup_image)
       self.assertIs(kwargs['punchline_image'], punchline_image)
+      # New args (fallback case -> add_margins=True)
+      self.assertTrue(kwargs['add_margins'])
+      self.assertEqual(kwargs['setup_source'].url, 'https://cdn.example.com/original_setup.png')
+      self.assertEqual(kwargs['punchline_source'].url, 'https://cdn.example.com/original_punch.png')
+
       return SimpleNamespace(
         simple_setup_image=_make_fake_image_model(
           gcs_uri=simple_setup_uri,

@@ -81,6 +81,8 @@ class LlmModel(str, Enum):
   GEMINI_2_5_FLASH_LITE = "gemini-2.5-flash-lite"
   GEMINI_2_5_FLASH = "gemini-2.5-flash"
   GEMINI_2_5_PRO = "gemini-2.5-pro"
+  GEMINI_3_0_FLASH_PREVIEW = "gemini-3.0-flash-preview"
+  GEMINI_3_0_PRO_PREVIEW = "gemini-3.0-pro-preview"
 
   # Anthropic models
   CLAUDE_3_5_HAIKU = "claude-3-5-haiku-20241022"
@@ -469,6 +471,17 @@ class VertexClient(LlmClient[GenerativeModel]):
       "prompt_tokens": 1.25 / 1_000_000,
       "cached_prompt_tokens": 0.31 / 1_000_000,
       "output_tokens": 10.0 / 1_000_000,
+    },
+    # Gemini 3.0
+    LlmModel.GEMINI_3_0_FLASH_PREVIEW: {
+      "prompt_tokens": 0.5 / 1_000_000,
+      "cached_prompt_tokens": 0.05 / 1_000_000,
+      "output_tokens": 3.0 / 1_000_000,
+    },
+    LlmModel.GEMINI_3_0_PRO_PREVIEW: {
+      "prompt_tokens": 2.0 / 1_000_000,
+      "cached_prompt_tokens": 0.2 / 1_000_000,
+      "output_tokens": 12.0 / 1_000_000,
     },
   }
 

@@ -229,11 +229,15 @@ def generate_and_populate_book_pages(
 
   base_setup_url = joke.setup_image_url
   base_punchline_url = joke.punchline_image_url
+  add_margins = True
+
   if base_image_source == 'book_page':
     meta_setup = metadata_data.get('book_page_setup_image_url')
     meta_punchline = metadata_data.get('book_page_punchline_image_url')
-    base_setup_url = meta_setup or base_setup_url
-    base_punchline_url = meta_punchline or base_punchline_url
+    if meta_setup and meta_punchline:
+      base_setup_url = meta_setup
+      base_punchline_url = meta_punchline
+      add_margins = False
 
   if not base_setup_url or not base_punchline_url:
     raise ValueError(
@@ -254,8 +258,9 @@ def generate_and_populate_book_pages(
     f"Processing base images ({base_image_source}): {setup_gcs_uri} and {punchline_gcs_uri}"
   )
 
-  setup_image = cloud_storage.download_image_from_gcs(setup_gcs_uri)
-  punchline_image = cloud_storage.download_image_from_gcs(punchline_gcs_uri)
+  setup_source = models.Image(url=base_setup_url, gcs_uri=setup_gcs_uri)
+  punchline_source = models.Image(url=base_punchline_url,
+                                  gcs_uri=punchline_gcs_uri)
 
   style_reference_images = [
     cloud_storage.download_image_from_gcs(image_url)
@@ -263,8 +268,9 @@ def generate_and_populate_book_pages(
   ]
   if style_update:
     generation_result = generate_book_pages_style_update(
-      setup_image=setup_image,
-      punchline_image=punchline_image,
+      setup_source=setup_source,
+      punchline_source=punchline_source,
+      add_margins=add_margins,
       setup_text=(joke.setup_text or "").strip(),
       punchline_text=(joke.punchline_text or "").strip(),
       output_file_name_base=f'{joke_id}_book_page',
@@ -274,8 +280,9 @@ def generate_and_populate_book_pages(
     )
   else:
     generation_result = generate_book_pages_with_nano_banana_pro(
-      setup_image=setup_image,
-      punchline_image=punchline_image,
+      setup_source=setup_source,
+      punchline_source=punchline_source,
+      add_margins=add_margins,
       style_reference_images=style_reference_images,
       setup_image_description=joke.setup_image_description,
       punchline_image_description=joke.punchline_image_description,
@@ -527,8 +534,9 @@ class _BookPageGenerationResult:
 
 def generate_book_pages_with_nano_banana_pro(
   *,
-  setup_image: Image.Image,
-  punchline_image: Image.Image,
+  setup_source: models.Image,
+  punchline_source: models.Image,
+  add_margins: bool,
   style_reference_images: list[Image.Image],
   setup_image_description: str,
   punchline_image_description: str,
@@ -557,10 +565,14 @@ def generate_book_pages_with_nano_banana_pro(
         f"{description}")
     return ""
 
-  simple_setup_image = _get_simple_book_page(
-    setup_image,
-    f"{output_file_name_base}_setup",
-  )
+  if add_margins:
+    simple_setup_image = _get_simple_book_page(
+      setup_source,
+      f"{output_file_name_base}_setup",
+    )
+  else:
+    simple_setup_image = setup_source
+
   setup_prompt = _BOOK_PAGE_SETUP_PROMPT_TEMPLATE.format(
     image_description_block=_format_description(setup_image_description),
     additional_instructions=_format_additional_instructions(
@@ -571,10 +583,14 @@ def generate_book_pages_with_nano_banana_pro(
     reference_images=[simple_setup_image, *style_reference_images],
   )
 
-  simple_punchline_image = _get_simple_book_page(
-    punchline_image,
-    f"{output_file_name_base}_punchline",
-  )
+  if add_margins:
+    simple_punchline_image = _get_simple_book_page(
+      punchline_source,
+      f"{output_file_name_base}_punchline",
+    )
+  else:
+    simple_punchline_image = punchline_source
+
   punchline_prompt = _BOOK_PAGE_PUNCHLINE_PROMPT_TEMPLATE.format(
     image_description_block=_format_description(punchline_image_description),
     additional_instructions=_format_additional_instructions(
@@ -652,8 +668,9 @@ def _get_style_update_reference_images(
 
 def generate_book_pages_style_update(
   *,
-  setup_image: Image.Image,
-  punchline_image: Image.Image,
+  setup_source: models.Image,
+  punchline_source: models.Image,
+  add_margins: bool,
   setup_text: str,
   punchline_text: str,
   output_file_name_base: str,
@@ -669,14 +686,34 @@ def generate_book_pages_style_update(
 
   canvas_image, style_ref1, style_ref2 = _get_style_update_reference_images()
 
-  simple_setup_image = _get_simple_book_page(
-    setup_image,
-    f"{output_file_name_base}_setup",
-  )
-  simple_punchline_image = _get_simple_book_page(
-    punchline_image,
-    f"{output_file_name_base}_punchline",
-  )
+  if add_margins:
+    simple_setup_image = _get_simple_book_page(
+      setup_source,
+      f"{output_file_name_base}_setup",
+    )
+    simple_punchline_image = _get_simple_book_page(
+      punchline_source,
+      f"{output_file_name_base}_punchline",
+    )
+  else:
+    simple_setup_image = setup_source
+    simple_punchline_image = punchline_source
+
+  # For generation reference, we need the original image bytes.
+  # If we just outpainted, we should have that (the result of _get_simple_book_page is the outpainted one).
+  # However, for style update, the prompt logic implies using the source content as reference.
+  # We should download the image from the source URL.
+  if setup_source.gcs_uri:
+    setup_image_pil = cloud_storage.download_image_from_gcs(
+      setup_source.gcs_uri)
+  else:
+    raise ValueError("Setup source missing GCS URI")
+
+  if punchline_source.gcs_uri:
+    punchline_image_pil = cloud_storage.download_image_from_gcs(
+      punchline_source.gcs_uri)
+  else:
+    raise ValueError("Punchline source missing GCS URI")
 
   setup_prompt = _build_style_update_prompt(
     joke_text=setup_text,
@@ -686,7 +723,7 @@ def generate_book_pages_style_update(
   updated_setup_image = generation_client.generate_image(
     prompt=setup_prompt,
     reference_images=[
-      setup_image,
+      setup_image_pil,
       canvas_image,
       style_ref1,
       style_ref2,
@@ -702,7 +739,7 @@ def generate_book_pages_style_update(
     prompt=punchline_prompt,
     reference_images=[
       updated_setup_image,
-      punchline_image,
+      punchline_image_pil,
       canvas_image,
       style_ref1,
       style_ref2,
@@ -720,7 +757,7 @@ def generate_book_pages_style_update(
 
 
 def _get_simple_book_page(
-  image: Image.Image,
+  source_image: models.Image,
   output_file_name_base: str,
 ) -> models.Image:
   """Generates a naively upscaled book page image with black margins."""
@@ -729,6 +766,12 @@ def _get_simple_book_page(
     model=image_client.ImageModel.DUMMY_OUTPAINTER,
     file_name_base=output_file_name_base,
   )
+
+  if not source_image.gcs_uri:
+    raise ValueError("Source image missing GCS URI")
+
+  image = cloud_storage.download_image_from_gcs(source_image.gcs_uri)
+
   margin_pixels = math.ceil(image.width * 0.1)
   target_size = 2048 - margin_pixels
   upscaled_image = image.resize(

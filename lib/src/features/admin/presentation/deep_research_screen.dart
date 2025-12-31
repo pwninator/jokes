@@ -13,6 +13,8 @@ import 'package:snickerdoodle/src/features/jokes/data/services/joke_cloud_functi
 const String kDeepResearchPromptTemplate = """\
 Search the internet to compile the best, funniest, most clever and witty punny jokes for this topic: "{topic}". Each joke should be a 2 liner with a setup and punchline, and must contain at least one pun.
 
+Prioritize sources that have signals about joke quality, such as Reddit where you can see upvotes, forums that show reader discussion and engagement, etc.
+
 Criteria for high quality punny jokes:
   * The punchline is grammatically correct AND makes sense in the context of the joke for BOTH meanings of the pun word.
     * Positive example: "What do you call an aquarium event with only one animal on display? A single porpoise exhibit!" This joke is excellent because "a single purpose exhibit" (its sole purpose is to show the porpoise) and "a single porpoise exhibit" (it only has one porpoise) both make sense within the context of the joke. 

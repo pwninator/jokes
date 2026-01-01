@@ -254,22 +254,6 @@ def generate_and_populate_book_pages(
     f"Processing base images ({base_image_source}): {setup_gcs_uri} and {punchline_gcs_uri}"
   )
 
-  setup_source = models.Image(url=base_setup_url, gcs_uri=setup_gcs_uri)
-  punchline_source = models.Image(url=base_punchline_url,
-                                  gcs_uri=punchline_gcs_uri)
-
-  using_existing_book_page = False
-  if base_image_source == 'book_page':
-    # Only claim we are using existing book page if we actually found them in metadata
-    # If we fell back to original URLs (because metadata was missing), then we are effectively
-    # using original images which need margins.
-    meta_setup = metadata_data.get('book_page_setup_image_url')
-    meta_punchline = metadata_data.get('book_page_punchline_image_url')
-    if meta_setup and meta_punchline:
-      using_existing_book_page = True
-
-  add_margins = not using_existing_book_page
-
   setup_image = cloud_storage.download_image_from_gcs(setup_gcs_uri)
   punchline_image = cloud_storage.download_image_from_gcs(punchline_gcs_uri)
 
@@ -281,9 +265,6 @@ def generate_and_populate_book_pages(
     generation_result = generate_book_pages_style_update(
       setup_image=setup_image,
       punchline_image=punchline_image,
-      setup_source=setup_source,
-      punchline_source=punchline_source,
-      add_margins=add_margins,
       setup_text=(joke.setup_text or "").strip(),
       punchline_text=(joke.punchline_text or "").strip(),
       output_file_name_base=f'{joke_id}_book_page',
@@ -295,9 +276,6 @@ def generate_and_populate_book_pages(
     generation_result = generate_book_pages_with_nano_banana_pro(
       setup_image=setup_image,
       punchline_image=punchline_image,
-      setup_source=setup_source,
-      punchline_source=punchline_source,
-      add_margins=add_margins,
       style_reference_images=style_reference_images,
       setup_image_description=joke.setup_image_description,
       punchline_image_description=joke.punchline_image_description,
@@ -551,9 +529,6 @@ def generate_book_pages_with_nano_banana_pro(
   *,
   setup_image: Image.Image,
   punchline_image: Image.Image,
-  setup_source: models.Image,
-  punchline_source: models.Image,
-  add_margins: bool,
   style_reference_images: list[Image.Image],
   setup_image_description: str,
   punchline_image_description: str,
@@ -582,14 +557,10 @@ def generate_book_pages_with_nano_banana_pro(
         f"{description}")
     return ""
 
-  if add_margins:
-    simple_setup_image = _get_simple_book_page(
-      setup_image,
-      f"{output_file_name_base}_setup",
-    )
-  else:
-    simple_setup_image = setup_source
-
+  simple_setup_image = _get_simple_book_page(
+    setup_image,
+    f"{output_file_name_base}_setup",
+  )
   setup_prompt = _BOOK_PAGE_SETUP_PROMPT_TEMPLATE.format(
     image_description_block=_format_description(setup_image_description),
     additional_instructions=_format_additional_instructions(
@@ -600,14 +571,10 @@ def generate_book_pages_with_nano_banana_pro(
     reference_images=[simple_setup_image, *style_reference_images],
   )
 
-  if add_margins:
-    simple_punchline_image = _get_simple_book_page(
-      punchline_image,
-      f"{output_file_name_base}_punchline",
-    )
-  else:
-    simple_punchline_image = punchline_source
-
+  simple_punchline_image = _get_simple_book_page(
+    punchline_image,
+    f"{output_file_name_base}_punchline",
+  )
   punchline_prompt = _BOOK_PAGE_PUNCHLINE_PROMPT_TEMPLATE.format(
     image_description_block=_format_description(punchline_image_description),
     additional_instructions=_format_additional_instructions(
@@ -687,9 +654,6 @@ def generate_book_pages_style_update(
   *,
   setup_image: Image.Image,
   punchline_image: Image.Image,
-  setup_source: models.Image,
-  punchline_source: models.Image,
-  add_margins: bool,
   setup_text: str,
   punchline_text: str,
   output_file_name_base: str,
@@ -705,18 +669,14 @@ def generate_book_pages_style_update(
 
   canvas_image, style_ref1, style_ref2 = _get_style_update_reference_images()
 
-  if add_margins:
-    simple_setup_image = _get_simple_book_page(
-      setup_image,
-      f"{output_file_name_base}_setup",
-    )
-    simple_punchline_image = _get_simple_book_page(
-      punchline_image,
-      f"{output_file_name_base}_punchline",
-    )
-  else:
-    simple_setup_image = setup_source
-    simple_punchline_image = punchline_source
+  simple_setup_image = _get_simple_book_page(
+    setup_image,
+    f"{output_file_name_base}_setup",
+  )
+  simple_punchline_image = _get_simple_book_page(
+    punchline_image,
+    f"{output_file_name_base}_punchline",
+  )
 
   setup_prompt = _build_style_update_prompt(
     joke_text=setup_text,

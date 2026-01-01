@@ -424,7 +424,7 @@ class TestSearchJokes:
     # Assert
     mock_search.assert_not_called()
     data = json.loads(resp.get_data(as_text=True))["data"]
-    assert "Search query is required" in data["error"]
+    assert "Exactly one of search_query or category is required" in data["error"]
 
 
 class TestModifyJokeImage:

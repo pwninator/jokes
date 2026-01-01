@@ -432,9 +432,13 @@ def test_generate_joke_book_page_allows_base_image_source(mock_generate_pages):
     additional_punchline_instructions=None,
     base_image_source='book_page',
     style_update=False,
+    include_image_description=True,
   )
   assert isinstance(resp, https_fn.Response)
   assert resp.status_code == 200
+  # Check for HTML content
+  html_content = resp.get_data(as_text=True)
+  assert "Joke Book Page - j123" in html_content
 
 
 def test_generate_joke_book_page_rejects_invalid_base_image_source():

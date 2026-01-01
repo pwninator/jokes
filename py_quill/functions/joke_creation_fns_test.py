@@ -94,7 +94,8 @@ def test_joke_creation_process_creates_joke_from_text(monkeypatch):
 
   resp = joke_creation_fns.joke_creation_process(req)
 
-  assert resp["data"]["joke_data"]["key"] == "j-1"
+  data = resp.get_json()["data"]
+  assert data["joke_data"]["key"] == "j-1"
   assert init_kwargs["admin_owned"] is True
   assert init_kwargs["user_id"] == "user-42"
   assert regen_called["count"] == 1
@@ -158,7 +159,8 @@ def test_joke_creation_process_applies_suggestions(monkeypatch):
 
   resp = joke_creation_fns.joke_creation_process(req)
 
-  assert resp["data"]["joke_data"]["key"] == "j-2"
+  data = resp.get_json()["data"]
+  assert data["joke_data"]["key"] == "j-2"
   assert suggestions == {
     "setup": "new setup",
     "punchline": "new punchline",
@@ -205,7 +207,8 @@ def test_joke_creation_process_applies_partial_suggestions(monkeypatch):
 
   resp = joke_creation_fns.joke_creation_process(req)
 
-  assert resp["data"]["joke_data"]["key"] == "j-2"
+  data = resp.get_json()["data"]
+  assert data["joke_data"]["key"] == "j-2"
   assert suggestions == {
     "setup": "new setup",
     "punchline": None,  # Only setup_suggestion provided
@@ -259,7 +262,8 @@ def test_joke_creation_process_generates_images(monkeypatch):
 
   resp = joke_creation_fns.joke_creation_process(req)
 
-  assert resp["data"]["joke_data"]["key"] == "j-3"
+  data = resp.get_json()["data"]
+  assert data["joke_data"]["key"] == "j-3"
   assert generate_called["joke"] == joke
   assert generate_called["quality"] == "medium"
   assert joke.setup_scene_idea == "override setup idea"
@@ -312,7 +316,8 @@ def test_joke_creation_process_uses_description_overrides(monkeypatch):
 
   resp = joke_creation_fns.joke_creation_process(req)
 
-  assert resp["data"]["joke_data"]["key"] == "j-3b"
+  data = resp.get_json()["data"]
+  assert data["joke_data"]["key"] == "j-3b"
   assert generate_called["setup_desc"] == "new setup desc"
   assert generate_called["punch_desc"] == "new punch desc"
   assert generate_called["quality"] == "low"
@@ -367,7 +372,8 @@ def test_joke_creation_process_updates_text_no_regen(monkeypatch):
 
   resp = joke_creation_fns.joke_creation_process(req)
 
-  assert resp["data"]["joke_data"]["key"] == "j-5"
+  data = resp.get_json()["data"]
+  assert data["joke_data"]["key"] == "j-5"
   assert joke.setup_text == "new setup"
   assert joke.punchline_text == "new punch"
   assert regen_calls["count"] == 0
@@ -422,7 +428,8 @@ def test_joke_creation_process_updates_text_with_regen(monkeypatch):
 
   resp = joke_creation_fns.joke_creation_process(req)
 
-  assert resp["data"]["joke_data"]["key"] == "j-6"
+  data = resp.get_json()["data"]
+  assert data["joke_data"]["key"] == "j-6"
   assert regen_calls["count"] == 1
 
 
@@ -472,7 +479,8 @@ def test_joke_creation_process_generates_descriptions(monkeypatch):
 
   resp = joke_creation_fns.joke_creation_process(req)
 
-  assert resp["data"]["joke_data"]["key"] == "j-4"
+  data = resp.get_json()["data"]
+  assert data["joke_data"]["key"] == "j-4"
   assert called["joke"].setup_image_description == "desc 1"
   assert called["joke"].punchline_image_description == "desc 2"
   # Override should have been applied before generation
@@ -489,4 +497,7 @@ def test_joke_creation_process_requires_valid_params(monkeypatch):
 
   resp = joke_creation_fns.joke_creation_process(req)
 
-  assert "error" in resp["data"]
+  # For error cases, the function likely returns a response with status code != 200
+  # We should check the response data
+  data = resp.get_json()["data"]
+  assert "error" in data

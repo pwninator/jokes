@@ -341,10 +341,11 @@ class TestDecayRecentJokeStats:
     response = joke_auto_fns.joke_daily_maintenance_http(Mock())
 
     mock_decay.assert_called_once()
-    assert response["data"][
+    data = response.get_json()["data"]
+    assert data[
       "message"] == "Daily maintenance completed successfully"
-    assert "stats" in response["data"]
-    assert response["data"]["stats"]["jokes_decayed"] == 5
+    assert "stats" in data
+    assert data["stats"]["jokes_decayed"] == 5
 
   def test_http_endpoint_failure(self, monkeypatch):
 
@@ -356,7 +357,8 @@ class TestDecayRecentJokeStats:
 
     response = joke_auto_fns.joke_daily_maintenance_http(Mock())
 
-    assert "boom" in response["data"]["error"]
+    data = response.get_json()["data"]
+    assert "boom" in data["error"]
 
   @pytest.mark.parametrize(
     "joke_docs,expected_joke_ids,should_be_called",

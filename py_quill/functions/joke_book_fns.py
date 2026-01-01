@@ -35,9 +35,7 @@ def generate_joke_book_page(req: https_fn.Request) -> https_fn.Response:
                                        'punchline_instructions',
                                        required=False)
     style_update = get_bool_param(req, 'style_update', required=False)
-    include_text = get_bool_param(req, 'include_text', required=False)
-    if include_text is None:
-      include_text = True
+    include_text = get_bool_param(req, 'include_text', required=False, default=True)
 
     base_image_source = get_param(
       req,

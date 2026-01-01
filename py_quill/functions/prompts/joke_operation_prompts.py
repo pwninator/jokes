@@ -523,7 +523,4 @@ Punchline: {punchline_text}
   tags_raw = parsed.get("TAGS", "").strip()
   tags = [t.strip() for t in tags_raw.split(",") if t.strip()]
 
-  metadata = models.GenerationMetadata()
-  metadata.add_generation(response.metadata)
-
-  return seasonal, tags, metadata
+  return seasonal, tags, response.metadata

@@ -254,17 +254,14 @@ def generate_and_populate_book_pages(
     f"Processing base images ({base_image_source}): {setup_gcs_uri} and {punchline_gcs_uri}"
   )
 
-  setup_image = cloud_storage.download_image_from_gcs(setup_gcs_uri)
-  punchline_image = cloud_storage.download_image_from_gcs(punchline_gcs_uri)
+  setup_image_model = models.Image(url=base_setup_url, gcs_uri=setup_gcs_uri)
+  punchline_image_model = models.Image(url=base_punchline_url,
+                                       gcs_uri=punchline_gcs_uri)
 
-  style_reference_images = [
-    cloud_storage.download_image_from_gcs(image_url)
-    for image_url in _STYLE_REFERENCE_IMAGE_URLS
-  ]
   if style_update:
     generation_result = generate_book_pages_style_update(
-      setup_image=setup_image,
-      punchline_image=punchline_image,
+      setup_image=setup_image_model,
+      punchline_image=punchline_image_model,
       setup_text=(joke.setup_text or "").strip(),
       punchline_text=(joke.punchline_text or "").strip(),
       output_file_name_base=f'{joke_id}_book_page',
@@ -273,9 +270,16 @@ def generate_and_populate_book_pages(
       include_image_description=include_image_description,
     )
   else:
+    style_reference_images = [
+      models.Image(
+        url=image_url,
+        gcs_uri=cloud_storage.extract_gcs_uri_from_image_url(image_url))
+      for image_url in _STYLE_REFERENCE_IMAGE_URLS
+    ]
+
     generation_result = generate_book_pages_with_nano_banana_pro(
-      setup_image=setup_image,
-      punchline_image=punchline_image,
+      setup_image=setup_image_model,
+      punchline_image=punchline_image_model,
       style_reference_images=style_reference_images,
       setup_image_description=joke.setup_image_description,
       punchline_image_description=joke.punchline_image_description,
@@ -527,9 +531,9 @@ class _BookPageGenerationResult:
 
 def generate_book_pages_with_nano_banana_pro(
   *,
-  setup_image: Image.Image,
-  punchline_image: Image.Image,
-  style_reference_images: list[Image.Image],
+  setup_image: models.Image,
+  punchline_image: models.Image,
+  style_reference_images: list[models.Image],
   setup_image_description: str,
   punchline_image_description: str,
   output_file_name_base: str,
@@ -643,22 +647,35 @@ def _build_style_update_prompt(
 
 @lru_cache(maxsize=1)
 def _get_style_update_reference_images(
-) -> tuple[Image.Image, Image.Image, Image.Image]:
-  canvas = cloud_storage.download_image_from_gcs(_STYLE_UPDATE_CANVAS_URL)
-  ref1 = cloud_storage.download_image_from_gcs(_STYLE_REFERENCE_IMAGE_URLS[0])
-  ref2 = cloud_storage.download_image_from_gcs(_STYLE_REFERENCE_IMAGE_URLS[1])
+) -> tuple[models.Image, models.Image, models.Image]:
+  canvas = models.Image(
+    url=_STYLE_UPDATE_CANVAS_URL,
+    gcs_uri=cloud_storage.extract_gcs_uri_from_image_url(
+      _STYLE_UPDATE_CANVAS_URL),
+  )
+  ref1 = models.Image(
+    url=_STYLE_REFERENCE_IMAGE_URLS[0],
+    gcs_uri=cloud_storage.extract_gcs_uri_from_image_url(
+      _STYLE_REFERENCE_IMAGE_URLS[0]),
+  )
+  ref2 = models.Image(
+    url=_STYLE_REFERENCE_IMAGE_URLS[1],
+    gcs_uri=cloud_storage.extract_gcs_uri_from_image_url(
+      _STYLE_REFERENCE_IMAGE_URLS[1]),
+  )
   return canvas, ref1, ref2
 
 
 def generate_book_pages_style_update(
   *,
-  setup_image: Image.Image,
-  punchline_image: Image.Image,
+  setup_image: models.Image,
+  punchline_image: models.Image,
   setup_text: str,
   punchline_text: str,
   output_file_name_base: str,
   additional_setup_instructions: str,
   additional_punchline_instructions: str,
+  include_image_description: bool = True,
 ) -> _BookPageGenerationResult:
   """Generate book pages using simplified style-update flow."""
   generation_client = image_client.get_client(
@@ -720,10 +737,15 @@ def generate_book_pages_style_update(
 
 
 def _get_simple_book_page(
-  image: Image.Image,
+  image_model: models.Image,
   output_file_name_base: str,
 ) -> models.Image:
   """Generates a naively upscaled book page image with black margins."""
+  if not image_model.gcs_uri:
+    raise ValueError(f"Image model {image_model} must have a GCS URI")
+
+  image = cloud_storage.download_image_from_gcs(image_model.gcs_uri)
+
   outpaint_client = image_client.get_client(
     label='book_page_generation',
     model=image_client.ImageModel.DUMMY_OUTPAINTER,

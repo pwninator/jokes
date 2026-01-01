@@ -271,6 +271,9 @@ dart format .
 # Install dependencies
 pip install -r py_quill/requirements.txt
 
+# Install package in editable mode (required for imports to work)
+pip install -e py_quill
+
 # Run tests
 pytest py_quill
 

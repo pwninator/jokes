@@ -462,7 +462,7 @@ _joke_metadata_llm = llm_client.get_client(
   output_tokens=500,
   temperature=0.4,
   system_instructions=[
-    f"""You are an expert taxonomist for a kids' joke app.
+    """You are an expert taxonomist for a kids' joke app.
 Your job is to analyze a joke (setup and punchline) and generate metadata to help organize and search for it.
 
 ## Metadata Fields
@@ -472,8 +472,8 @@ Your job is to analyze a joke (setup and punchline) and generate metadata to hel
    - This field is used to group jokes for seasonal joke books.
    - If the joke is NOT related to any seasonal event, return "None".
    - Examples:
-     - Ghosts, monsters, pumpkins -> 'Halloween'
-     - Santa, reindeer, snowmen -> 'Christmas'
+     - Joke about ghosts, monsters, pumpkins -> 'Halloween'
+     - Joke about Santa, reindeer, snowmen -> 'Christmas'
 
 2. **Tags**:
    - A comma-separated list of 1-2 word tags.
@@ -481,20 +481,11 @@ Your job is to analyze a joke (setup and punchline) and generate metadata to hel
    - Include themes, topics, and key objects mentioned or implied.
    - Use singular nouns where possible.
    - Examples:
-     - "Why are giraffes slow?" -> 'giraffe', 'animals'
-     - "Panda ghost" -> 'panda', 'bamboo', 'ghost', 'Halloween', 'dad joke'
-
-## Safety Criteria
-{_UNSAFE_CRITERIA}
+     - Joke: "Why are giraffes slow to apologize?" / "Because it takes them a long time to swallow their pride." -> 'giraffe', 'animals', 'apology', 'pride'
+     - Joke: "What do panda ghosts eat?" / "Bam-boo!" -> 'panda', 'bamboo', 'ghost', 'Halloween', 'dad joke'
 
 ## Output Format
 Respond EXACTLY in this format:
-
-SAFETY_REASONS:
-Short explanation (1-3 lines) of why the content is SAFE or UNSAFE
-
-SAFETY_VERDICT:
-SAFE or UNSAFE
 
 SEASONAL:
 <Event Name or None>
@@ -520,12 +511,10 @@ Setup: {setup_text}
 Punchline: {punchline_text}
 """
 
-  parsed, gen_metadata = _generate_with_safety_check(
-    label="Joke Metadata Generator",
-    llm=_joke_metadata_llm,
-    prompt_chunks=[prompt],
-    response_keys=["SEASONAL", "TAGS"],
-    safety_check_str=prompt,
+  response = _joke_metadata_llm.generate([prompt])
+  parsed = prompt_utils.parse_llm_response_line_separated(
+    ["SEASONAL", "TAGS"],
+    response.text,
   )
 
   seasonal_raw = parsed.get("SEASONAL", "None").strip()
@@ -534,4 +523,7 @@ Punchline: {punchline_text}
   tags_raw = parsed.get("TAGS", "").strip()
   tags = [t.strip() for t in tags_raw.split(",") if t.strip()]
 
-  return seasonal, tags, gen_metadata
+  metadata = models.GenerationMetadata()
+  metadata.add_generation(response.metadata)
+
+  return seasonal, tags, metadata

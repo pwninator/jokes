@@ -501,3 +501,15 @@ def test_joke_creation_process_requires_valid_params(monkeypatch):
   # We should check the response data
   data = resp.get_json()["data"]
   assert "error" in data
+
+@pytest.fixture(autouse=True)
+def stub_metadata_generation(monkeypatch):
+  """Prevent real prompt calls by stubbing metadata generation."""
+  def fake_generate_metadata(joke):
+    return joke
+
+  monkeypatch.setattr(
+    joke_creation_fns.joke_operations,
+    "generate_joke_metadata",
+    fake_generate_metadata,
+  )

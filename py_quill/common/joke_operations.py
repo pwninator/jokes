@@ -471,3 +471,19 @@ def to_response_joke(joke: models.PunnyJoke) -> dict[str, Any]:
   """Convert a PunnyJoke to a dictionary suitable for API responses."""
   joke_dict = joke.to_dict(include_key=True)
   return joke_dict
+
+def generate_joke_metadata(joke: models.PunnyJoke) -> models.PunnyJoke:
+  """Generate seasonal info and tags for a joke."""
+  if not joke.setup_text or not joke.punchline_text:
+    # Skip metadata generation if text is incomplete (e.g. drafts)
+    return joke
+
+  seasonal, tags, metadata = joke_operation_prompts.generate_joke_metadata(
+    setup_text=joke.setup_text,
+    punchline_text=joke.punchline_text,
+  )
+
+  joke.seasonal = seasonal
+  joke.tags = tags
+  joke.generation_metadata.add_generation(metadata)
+  return joke

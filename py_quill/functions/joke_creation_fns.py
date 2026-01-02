@@ -77,6 +77,10 @@ def joke_creation_process(req: https_fn.Request) -> https_fn.Response:
     operation = None
     has_suggestions = bool(setup_suggestion or punchline_suggestion)
 
+    # Generate metadata if text is provided
+    if setup_text or punchline_text:
+      joke = joke_operations.generate_joke_metadata(joke)
+
     # Generate scene ideas for new jokes or when requested
     if (not joke_id) or regenerate_scene_ideas:
       operation = "CREATE"

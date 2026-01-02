@@ -454,3 +454,73 @@ Content to review:
 
   metadata = response.metadata or models.SingleGenerationMetadata()
   return is_safe, metadata
+
+_joke_metadata_llm = llm_client.get_client(
+  label="Joke Metadata Generator",
+  model=LlmModel.GEMINI_2_5_FLASH,
+  thinking_tokens=1000,
+  output_tokens=500,
+  temperature=0.4,
+  system_instructions=[
+    """You are an expert taxonomist for a kids' joke app.
+Your job is to analyze a joke (setup and punchline) and generate metadata to help organize and search for it.
+
+## Metadata Fields
+
+1. **Seasonal**:
+   - If the joke is related to a seasonal event, provide the name of that event (e.g., 'Halloween', 'Christmas', 'Thanksgiving', 'Super Bowl', etc.).
+   - This field is used to group jokes for seasonal joke books.
+   - If the joke is NOT related to any seasonal event, return "None".
+   - Examples:
+     - Joke about ghosts, monsters, pumpkins -> 'Halloween'
+     - Joke about Santa, reindeer, snowmen -> 'Christmas'
+
+2. **Tags**:
+   - A comma-separated list of 1-2 word tags.
+   - Include both broad categories (e.g., "dog") and specific subjects (e.g., "Dalmatian").
+   - Include themes, topics, and key objects mentioned or implied.
+   - Use singular nouns where possible.
+   - Examples:
+     - Joke: "Why are giraffes slow to apologize?" / "Because it takes them a long time to swallow their pride." -> 'giraffe', 'animals', 'apology', 'pride'
+     - Joke: "What do panda ghosts eat?" / "Bam-boo!" -> 'panda', 'bamboo', 'ghost', 'Halloween', 'dad joke'
+
+## Output Format
+Respond EXACTLY in this format:
+
+SEASONAL:
+<Event Name or None>
+
+TAGS:
+<comma-separated list of tags>
+"""
+  ],
+)
+
+
+def generate_joke_metadata(
+  setup_text: str,
+  punchline_text: str,
+) -> Tuple[str | None, list[str], models.GenerationMetadata]:
+  """Generate seasonal info and tags for a joke."""
+  if not setup_text or not punchline_text:
+    raise ValueError("Setup and punchline text are required")
+
+  prompt = f"""
+Joke to Analyze:
+Setup: {setup_text}
+Punchline: {punchline_text}
+"""
+
+  response = _joke_metadata_llm.generate([prompt])
+  parsed = prompt_utils.parse_llm_response_line_separated(
+    ["SEASONAL", "TAGS"],
+    response.text,
+  )
+
+  seasonal_raw = parsed.get("SEASONAL", "None").strip()
+  seasonal = None if seasonal_raw.lower() == "none" else seasonal_raw
+
+  tags_raw = parsed.get("TAGS", "").strip()
+  tags = [t.strip() for t in tags_raw.split(",") if t.strip()]
+
+  return seasonal, tags, response.metadata

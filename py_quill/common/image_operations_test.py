@@ -1415,3 +1415,38 @@ class ZipJokePageImagesTest(unittest.TestCase):
 
 if __name__ == '__main__':
   unittest.main()
+
+class CreateJokeNotesSheetTest(unittest.TestCase):
+  """Tests for create_joke_notes_sheet function."""
+
+  @patch('common.image_operations.firestore')
+  @patch('common.image_operations.cloud_storage')
+  def test_create_joke_notes_sheet(self, mock_storage, mock_firestore):
+    # Mock joke data
+    mock_joke = Mock(spec=models.PunnyJoke)
+    mock_joke.setup_image_url = 'http://test/setup.jpg'
+    mock_joke.punchline_image_url = 'http://test/punchline.jpg'
+    mock_firestore.get_punny_joke.return_value = mock_joke
+
+    # Mock image downloads
+    mock_img = Image.new('RGB', (100, 100), 'blue')
+    mock_storage.download_image_from_gcs.return_value = mock_img
+    mock_storage.extract_gcs_uri_from_image_url.return_value = 'gs://test/img.jpg'
+
+    # Run function
+    ids = ['joke1', 'joke2']
+    result = image_operations.create_joke_notes_sheet(ids)
+
+    # Verify result is bytes (JPEG)
+    self.assertIsInstance(result, bytes)
+    self.assertGreater(len(result), 0)
+
+    # Verify image dimensions by opening the bytes
+    out_img = Image.open(BytesIO(result))
+    self.assertEqual(out_img.size, (3300, 2550))
+    self.assertEqual(out_img.format, 'JPEG')
+
+    # Verify calls
+    self.assertEqual(mock_firestore.get_punny_joke.call_count, 2)
+    # 2 jokes * 2 images = 4 downloads
+    self.assertEqual(mock_storage.download_image_from_gcs.call_count, 4)

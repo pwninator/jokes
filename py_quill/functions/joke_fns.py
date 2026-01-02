@@ -324,6 +324,7 @@ def search_jokes(req: https_fn.Request) -> https_fn.Response:
         status=400)
 
     return_jokes = get_bool_param(req, 'return_jokes', False)
+    exclude_in_book = get_bool_param(req, 'exclude_in_book', False)
     jokes = []
 
     if category_id:
@@ -331,7 +332,24 @@ def search_jokes(req: https_fn.Request) -> https_fn.Response:
       if not category:
         return error_response(f'Category not found: {category_id}', req=req, status=404)
 
+      # If filtering by book, we need the full joke documents to check book_id
+      if exclude_in_book:
+        joke_ids = [joke.key for joke in category.jokes if joke.key]
+        full_jokes = firestore.get_punny_jokes(joke_ids)
+        # Re-map full jokes by ID for easy lookup
+        full_jokes_map = {j.key: j for j in full_jokes if j.key}
+      else:
+        full_jokes_map = {}
+
       for joke in category.jokes:
+        if exclude_in_book:
+          # Check the full joke document for book_id
+          full_joke = full_jokes_map.get(joke.key)
+          if full_joke and full_joke.book_id:
+            continue
+          # If full joke is missing but it's in cache, we assume it's valid/safe or just include it.
+          # If full_joke is None, it might have been deleted.
+
         item = {
           "joke_id": joke.key,
           "vector_distance": 0.0,
@@ -368,6 +386,9 @@ def search_jokes(req: https_fn.Request) -> https_fn.Response:
            [models.JokeState.PUBLISHED.value, models.JokeState.DAILY.value]),
           ("is_public", "==", True),
         ])
+
+      if exclude_in_book:
+        field_filters.append(("book_id", "==", None))
 
       # Search for jokes
       search_results = search.search_jokes(

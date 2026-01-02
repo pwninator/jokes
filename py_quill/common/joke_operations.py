@@ -460,6 +460,10 @@ def sync_joke_to_search_collection(
   if search_data.get("popularity_score") != joke.popularity_score:
     update_payload["popularity_score"] = joke.popularity_score
 
+  # 8. Sync book_id
+  if search_data.get("book_id") != joke.book_id:
+    update_payload["book_id"] = joke.book_id
+
   if update_payload:
     logger.info(
       f"Syncing joke to joke_search collection: {joke_id} with payload keys {update_payload.keys()}"

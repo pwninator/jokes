@@ -41,7 +41,7 @@ When in doubt, think whether such a scene would be allowed in a children's show 
 
 _scene_generator_llm = llm_client.get_client(
   label="Joke Scene Ideas",
-  model=LlmModel.GEMINI_2_5_FLASH,
+  model=LlmModel.GEMINI_3_0_FLASH_PREVIEW,
   thinking_tokens=2000,
   output_tokens=1000,
   temperature=0.9,
@@ -129,7 +129,7 @@ One or more lines describing the punchline scene concept, or "UNSAFE" if the inp
 
 _scene_editor_llm = llm_client.get_client(
   label="Joke Scene Idea Editor",
-  model=LlmModel.GEMINI_2_5_FLASH,
+  model=LlmModel.GEMINI_3_0_FLASH_PREVIEW,
   thinking_tokens=1200,
   output_tokens=800,
   temperature=0.7,
@@ -167,7 +167,7 @@ PUNCHLINE_SCENE_IDEA:
 
 _image_description_llm = llm_client.get_client(
   label="Joke Image Description Generator",
-  model=LlmModel.GEMINI_2_5_FLASH,
+  model=LlmModel.GEMINI_3_0_FLASH_PREVIEW,
   thinking_tokens=2500,
   output_tokens=1200,
   temperature=0.5,
@@ -206,7 +206,7 @@ PUNCHLINE_IMAGE_DESCRIPTION:
 
 _safety_llm = llm_client.get_client(
   label="Content Safety Check",
-  model=LlmModel.GEMINI_2_5_FLASH,
+  model=LlmModel.GEMINI_3_0_FLASH_PREVIEW,
   temperature=0,
   thinking_tokens=500,
   output_tokens=500,
@@ -457,7 +457,7 @@ Content to review:
 
 _joke_metadata_llm = llm_client.get_client(
   label="Joke Metadata Generator",
-  model=LlmModel.GEMINI_2_5_FLASH,
+  model=LlmModel.GEMINI_3_0_FLASH_PREVIEW,
   thinking_tokens=1000,
   output_tokens=500,
   temperature=0.4,

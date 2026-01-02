@@ -1249,6 +1249,7 @@
           url.searchParams.append('max_results', '50');
           url.searchParams.append('return_jokes', 'true');
           url.searchParams.append('public_only', 'false');
+          url.searchParams.append('exclude_in_book', 'true');
 
           const resp = await fetch(url.toString());
 
@@ -1257,15 +1258,12 @@
           const data = payload.data || {};
           const jokes = data.jokes || [];
 
-          // Filter client-side
-          const candidates = jokes.filter(j => !existingJokeIds.has(j.joke_id));
-
-          if (candidates.length === 0) {
+          if (jokes.length === 0) {
             searchResults.innerHTML = '<p class="text-body muted" style="grid-column: 1/-1; text-align: center;">No matching jokes found (or all already in book).</p>';
             return;
           }
 
-          candidates.forEach(item => { // Show top 10 new candidates
+          jokes.forEach(item => { // Show top 10 new candidates
             const card = document.createElement('div');
             card.className = 'search-result-card';
 

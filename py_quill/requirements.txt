@@ -31,3 +31,4 @@ tabulate
 tqdm
 urllib3
 vertexai
+img2pdf

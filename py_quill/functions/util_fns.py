@@ -28,7 +28,7 @@ def run_firestore_migration(req: https_fn.Request) -> https_fn.Response:
   """Run Firestore migrations.
 
   Currently supported:
-  - Cleanup: delete `zzz_joke_text_embedding` field from `jokes` docs
+  - Joke Book ID Sync: Syncs book_id on joke documents based on joke_books.
   """
   # Health check
   if req.path == "/__/health":
@@ -49,7 +49,7 @@ def run_firestore_migration(req: https_fn.Request) -> https_fn.Response:
     limit = get_int_param(req, 'limit', 0)
     start_after = get_param(req, 'start_after', "")
 
-    html_response = run_jokes_embedding_cleanup(
+    html_response = run_joke_book_id_sync(
       dry_run=dry_run,
       limit=limit,
       start_after=str(start_after or ""),
@@ -70,21 +70,18 @@ def run_firestore_migration(req: https_fn.Request) -> https_fn.Response:
     )
 
 
-def run_jokes_embedding_cleanup(*, dry_run: bool, limit: int,
-                                start_after: str) -> str:
-  """Delete `zzz_joke_text_embedding` from all `jokes` documents.
+def run_joke_book_id_sync(*, dry_run: bool, limit: int,
+                          start_after: str) -> str:
+  """Sync `book_id` on joke documents based on `joke_books` collection.
 
-  Idempotent:
-  - If a doc does not contain the field, no write is performed.
-  - If a doc contains the field (even if None), we issue an update that removes it.
+  Iterates through all joke books. For each joke in a book, ensures the
+  joke document has the correct `book_id`.
 
-  Args:
-    dry_run: If True, do not write anything.
-    limit: If > 0, process at most this many jokes.
-    start_after: If non-empty, start after this joke_id (lexicographic).
+  If a joke is found in multiple books, it will be updated to the last book processed,
+  and logged as a discrepancy.
   """
   logger.info(
-    "Starting jokes embedding cleanup",
+    "Starting joke book ID sync",
     extra={
       "json_fields": {
         "dry_run": dry_run,
@@ -94,90 +91,115 @@ def run_jokes_embedding_cleanup(*, dry_run: bool, limit: int,
     },
   )
 
-  query = db().collection('jokes').order_by('__name__')
+  # Query all joke books
+  query = db().collection('joke_books').order_by('__name__')
   if start_after:
     query = query.start_after({'__name__': start_after})
   if limit and limit > 0:
     query = query.limit(int(limit))
 
-  processed = 0
-  deleted = 0
-  would_delete = 0
-  skipped_no_field = 0
-  failed: list[dict[str, str]] = []
-  last_id: str | None = None
+  stats = {
+    'books_processed': 0,
+    'jokes_processed': 0,
+    'jokes_updated': 0,
+    'jokes_skipped_correct': 0,
+    'jokes_missing': 0,
+    'discrepancies': [], # List of strings describing issues
+    'errors': [],
+    'last_book_id': None
+  }
 
-  for doc in query.stream():
-    processed += 1
-    last_id = doc.id
-    data = doc.to_dict() or {}
+  client = db()
 
-    if 'zzz_joke_text_embedding' not in data:
-      skipped_no_field += 1
+  for book_doc in query.stream():
+    stats['books_processed'] += 1
+    stats['last_book_id'] = book_doc.id
+
+    book_data = book_doc.to_dict() or {}
+    joke_ids = book_data.get('jokes', [])
+
+    if not joke_ids:
       continue
 
-    would_delete += 1
+    # Process jokes in batches (chunks of 30)
+    chunk_size = 30
+    for i in range(0, len(joke_ids), chunk_size):
+      chunk = joke_ids[i:i + chunk_size]
 
-    try:
-      if not dry_run:
-        db().collection('jokes').document(doc.id).update({
-          'zzz_joke_text_embedding':
-          DELETE_FIELD,
-        })
-        deleted += 1
-    except Exception as err:  # pylint: disable=broad-except
-      failed.append({"joke_id": doc.id, "error": str(err)})
+      try:
+        joke_refs = [client.collection('jokes').document(jid) for jid in chunk]
+        snapshots = client.get_all(joke_refs)
 
-  return _build_html_report(
-    dry_run=dry_run,
-    success=(len(failed) == 0),
-    processed=processed,
-    deleted=deleted,
-    would_delete=would_delete,
-    skipped_no_field=skipped_no_field,
-    failed_items=failed,
-    last_id=last_id,
-  )
+        batch = client.batch()
+        batch_has_writes = False
+
+        for joke_snap in snapshots:
+          stats['jokes_processed'] += 1
+
+          if not joke_snap.exists:
+             stats['jokes_missing'] += 1
+             stats['discrepancies'].append(f"Book {book_doc.id} references missing joke {joke_snap.id}")
+             continue
+
+          joke_data = joke_snap.to_dict() or {}
+          current_book_id = joke_data.get('book_id')
+
+          if current_book_id == book_doc.id:
+             stats['jokes_skipped_correct'] += 1
+             continue
+
+          if current_book_id and current_book_id != book_doc.id:
+             stats['discrepancies'].append(f"Joke {joke_snap.id} has book_id={current_book_id}, but is in book {book_doc.id}. Overwriting.")
+
+          if not dry_run:
+             batch.update(joke_snap.reference, {'book_id': book_doc.id})
+             batch_has_writes = True
+             stats['jokes_updated'] += 1
+          else:
+             stats['jokes_updated'] += 1 # Count as updated for dry run stats (would update)
+
+        if batch_has_writes and not dry_run:
+            batch.commit()
+
+      except Exception as e:
+        stats['errors'].append(f"Error processing chunk in book {book_doc.id}: {str(e)}")
+
+  return _build_html_report(dry_run=dry_run, stats=stats)
 
 
 def _build_html_report(
   *,
   dry_run: bool,
-  success: bool,
-  processed: int | None = None,
-  deleted: int | None = None,
-  would_delete: int | None = None,
-  skipped_no_field: int | None = None,
-  failed_items: list[dict[str, str]] | None = None,
-  last_id: str | None = None,
-  error: str | None = None,
+  stats: dict,
 ) -> str:
   """Build a simple HTML report of migration results."""
   html = "<html><body>"
-  html += "<h1>Firestore Migration Results</h1>"
+  html += "<h1>Joke Book ID Sync Results</h1>"
   html += f"<h2>Dry Run: {dry_run}</h2>"
-  html += f"<h2>Status: {'Success' if success else 'Failed'}</h2>"
 
-  if error:
-    html += f"<p style='color: red;'><b>Error:</b> {error}</p>"
+  html += "<h3>Stats</h3>"
+  html += "<ul>"
+  html += f"<li>Books Processed: {stats['books_processed']}</li>"
+  html += f"<li>Jokes Processed: {stats['jokes_processed']}</li>"
+  html += f"<li>Jokes Updated (or would update): {stats['jokes_updated']}</li>"
+  html += f"<li>Jokes Already Correct: {stats['jokes_skipped_correct']}</li>"
+  html += f"<li>Missing Joke Docs: {stats['jokes_missing']}</li>"
+  if stats['last_book_id']:
+      html += f"<li>Last Book ID: {stats['last_book_id']}</li>"
+  html += "</ul>"
 
-  if processed is not None:
-    html += f"<h2>Processed</h2><p>{processed}</p>"
-  if would_delete is not None:
-    html += f"<h2>Would delete</h2><p>{would_delete}</p>"
-  if deleted is not None:
-    html += f"<h2>Deleted</h2><p>{deleted}</p>"
-  if skipped_no_field is not None:
-    html += f"<h2>Skipped (field not present)</h2><p>{skipped_no_field}</p>"
-  if last_id:
-    html += f"<h2>Last processed joke id</h2><p>{last_id}</p>"
-
-  if failed_items:
-    html += f"<h2>Failures ({len(failed_items)})</h2>"
+  if stats['discrepancies']:
+    html += f"<h3>Discrepancies ({len(stats['discrepancies'])})</h3>"
     html += "<ul>"
-    for failed in failed_items:
-      html += (f"<li><b>{failed.get('joke_id')}</b>: "
-               f"{failed.get('error')}</li>")
+    for d in stats['discrepancies']:
+      html += f"<li>{d}</li>"
+    html += "</ul>"
+
+  if stats['errors']:
+    html += f"<h3 style='color:red'>Errors ({len(stats['errors'])})</h3>"
+    html += "<ul>"
+    for e in stats['errors']:
+      html += f"<li>{e}</li>"
     html += "</ul>"
 
   html += "</body></html>"

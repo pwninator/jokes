@@ -720,6 +720,7 @@ class PunnyJoke:
   state: JokeState = JokeState.UNKNOWN
   admin_rating: JokeAdminRating = JokeAdminRating.UNREVIEWED
 
+  book_id: str | None = None
   owner_user_id: str | None = None
   public_timestamp: datetime.datetime | None = None
   is_public: bool = False

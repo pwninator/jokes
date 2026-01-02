@@ -14,17 +14,77 @@ def _get_book_data(book_id: str) -> dict:
     return doc.to_dict() or {}
 
 def add_jokes_to_book(book_id: str, joke_ids: list[str]) -> None:
-    """Adds multiple jokes to the end of the book if not already present."""
+    """Adds multiple jokes to the end of the book if not already present.
+
+    Verifies that jokes do not already belong to another book.
+    Updates each joke's book_id field.
+    """
     if not joke_ids:
         return
+
+    client = firestore.db()
+
+    # 1. Verify all jokes
+    # We can fetch them in a batch or one by one. Batch is better but has limits (usually 10-30 in this context is fine).
+    # Since we need to read and then update, and we want to ensure consistency, we should ideally verify first.
+
+    joke_refs = [client.collection('jokes').document(jid) for jid in joke_ids]
+    snapshots = client.get_all(joke_refs)
+
+    valid_joke_ids = []
+
+    for snap in snapshots:
+        if not snap.exists:
+            # Skip missing jokes or raise error?
+            # Assuming we skip or fail. Let's just skip for now, but usually UI sends valid IDs.
+            continue
+
+        data = snap.to_dict() or {}
+        current_book_id = data.get('book_id')
+
+        if current_book_id and current_book_id != book_id:
+            raise ValueError(f"Joke {snap.id} already belongs to book {current_book_id}")
+
+        valid_joke_ids.append(snap.id)
+
+    if not valid_joke_ids:
+        return
+
+    # 2. Add to book doc
     book_ref = _get_book_ref(book_id)
-    # Firestore array_union adds only if unique.
-    book_ref.update({'jokes': google_firestore.ArrayUnion(joke_ids)})
+    book_ref.update({'jokes': google_firestore.ArrayUnion(valid_joke_ids)})
+
+    # 3. Update individual joke docs
+    batch = client.batch()
+    for jid in valid_joke_ids:
+        joke_ref = client.collection('jokes').document(jid)
+        batch.update(joke_ref, {'book_id': book_id})
+
+    batch.commit()
 
 def remove_joke_from_book(book_id: str, joke_id: str) -> None:
-    """Removes a joke from the book."""
+    """Removes a joke from the book.
+
+    Verifies that the joke belongs to this book (or no book).
+    Updates the joke's book_id field to delete it.
+    """
+    client = firestore.db()
+    joke_ref = client.collection('jokes').document(joke_id)
+    joke_snap = joke_ref.get()
+
+    if joke_snap.exists:
+        data = joke_snap.to_dict() or {}
+        current_book_id = data.get('book_id')
+        if current_book_id and current_book_id != book_id:
+             raise ValueError(f"Joke {joke_id} belongs to book {current_book_id}, cannot remove from {book_id}")
+
+    # Remove from book doc
     book_ref = _get_book_ref(book_id)
     book_ref.update({'jokes': google_firestore.ArrayRemove([joke_id])})
+
+    # Update joke doc
+    if joke_snap.exists:
+        joke_ref.update({'book_id': google_firestore.DELETE_FIELD})
 
 def reorder_joke_in_book(book_id: str, joke_id: str, new_index: int) -> None:
     """Moves a joke to a new 0-based index."""

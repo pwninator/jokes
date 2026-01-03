@@ -40,7 +40,7 @@ def joke_creation_process(req: https_fn.Request) -> https_fn.Response:
     # Modifiers
     setup_suggestion = get_param(req, 'setup_suggestion')
     punchline_suggestion = get_param(req, 'punchline_suggestion')
-    image_quality = get_param(req, 'image_quality', 'low')
+    image_quality = get_param(req, 'image_quality', 'medium_mini')
 
     # Action flags
     regenerate_scene_ideas = get_bool_param(req, 'regenerate_scene_ideas',

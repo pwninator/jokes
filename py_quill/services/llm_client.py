@@ -15,7 +15,10 @@ import anthropic
 import httpx
 from common import config, models
 from firebase_functions import logger
+from google import genai
 from google.api_core.exceptions import ResourceExhausted
+from google.genai import errors as genai_errors
+from google.genai import types as genai_types
 from typing_extensions import override
 from vertexai.generative_models import (GenerationConfig, GenerativeModel,
                                         HarmBlockThreshold, HarmCategory, Part,
@@ -99,7 +102,19 @@ def get_client(label: str,
                max_retries: int = 5,
                **kwargs: Any) -> LlmClient[Any]:
   """Get the appropriate LLM client for the given model name."""
-  if model in VertexClient.GENERATION_COSTS:
+  if model in GeminiClient.GENERATION_COSTS:
+    return GeminiClient(
+      label=label,
+      model=model,
+      temperature=temperature,
+      system_instructions=system_instructions,
+      response_schema=response_schema,
+      thinking_tokens=thinking_tokens,
+      output_tokens=output_tokens,
+      max_retries=max_retries,
+      **kwargs,
+    )
+  elif model in VertexClient.GENERATION_COSTS:
     return VertexClient(
       label=label,
       model=model,
@@ -423,7 +438,8 @@ Generation cost: ${metadata.cost:.6f}
         is_last_part = i == (num_parts - 1)
         if is_last_part:
           # Use lazy formatting for the final log call with extra data
-          logger.info(f"{header}\n{part}", extra={"json_fields": log_extra_data})
+          logger.info(f"{header}\n{part}",
+                      extra={"json_fields": log_extra_data})
         else:
           # Use lazy formatting for intermediate parts
           logger.info(f"{header}\n{part}",
@@ -471,17 +487,6 @@ class VertexClient(LlmClient[GenerativeModel]):
       "prompt_tokens": 1.25 / 1_000_000,
       "cached_prompt_tokens": 0.31 / 1_000_000,
       "output_tokens": 10.0 / 1_000_000,
-    },
-    # Gemini 3.0
-    LlmModel.GEMINI_3_0_FLASH_PREVIEW: {
-      "prompt_tokens": 0.5 / 1_000_000,
-      "cached_prompt_tokens": 0.05 / 1_000_000,
-      "output_tokens": 3.0 / 1_000_000,
-    },
-    LlmModel.GEMINI_3_0_PRO_PREVIEW: {
-      "prompt_tokens": 2.0 / 1_000_000,
-      "cached_prompt_tokens": 0.2 / 1_000_000,
-      "output_tokens": 12.0 / 1_000_000,
     },
   }
 
@@ -641,6 +646,196 @@ class VertexClient(LlmClient[GenerativeModel]):
   def _is_retryable_error(self, error: Exception) -> bool:
     """Whether the error is retryable."""
     return isinstance(error, ResourceExhausted)
+
+
+class GeminiClient(LlmClient[genai.Client]):
+  """Gemini API client implementation (Google GenAI SDK, API-key auth)."""
+
+  # Gemini Developer API pricing (keep aligned with LlmClient token naming)
+  GENERATION_COSTS = {
+    # Gemini 3.0
+    LlmModel.GEMINI_3_0_FLASH_PREVIEW: {
+      "prompt_tokens": 0.5 / 1_000_000,
+      "cached_prompt_tokens": 0.05 / 1_000_000,
+      "output_tokens": 3.0 / 1_000_000,
+    },
+    LlmModel.GEMINI_3_0_PRO_PREVIEW: {
+      "prompt_tokens": 2.0 / 1_000_000,
+      "cached_prompt_tokens": 0.2 / 1_000_000,
+      "output_tokens": 12.0 / 1_000_000,
+    },
+  }
+
+  def __init__(
+    self,
+    label: str,
+    model: LlmModel,
+    temperature: float,
+    system_instructions: list[str] | None,
+    response_schema: Optional[dict],
+    thinking_tokens: int,
+    output_tokens: int,
+    max_retries: int,
+  ):
+    system_instructions = system_instructions or []
+
+    super().__init__(
+      label=label,
+      model=model,
+      temperature=temperature,
+      system_instructions=system_instructions,
+      response_schema=response_schema,
+      thinking_tokens=thinking_tokens,
+      output_tokens=output_tokens,
+      max_retries=max_retries,
+    )
+
+  @override
+  def _create_model_client(self) -> genai.Client:
+    return genai.Client(api_key=config.get_gemini_api_key())
+
+  @override
+  def _get_generation_costs(self) -> dict[str, float]:
+    """Get the generation costs in USD per token by token type."""
+    if costs := self.GENERATION_COSTS.get(self.model):
+      return costs
+    raise ValueError(f"Unknown Gemini model {self.model}")
+
+  @override
+  def _stream_internal(
+    self,
+    prompt_chunks: list[Union[str, Tuple[str, bytes]]],
+  ) -> Generator[LlmResponse, None, None]:
+
+    contents: list[genai_types.Part | str] = []
+    for chunk in prompt_chunks:
+      if isinstance(chunk, str):
+        # Gemini API accepts raw strings in the contents list.
+        contents.append(chunk)
+      elif isinstance(chunk, tuple) and len(chunk) == 2:
+        mime_type, data = chunk
+        contents.append(
+          genai_types.Part.from_bytes(data=data, mime_type=mime_type))
+      else:
+        raise ValueError(f"Invalid prompt chunk: {chunk}")
+
+    thinking_config = genai_types.ThinkingConfig(
+      include_thoughts=True,
+      thinking_budget=self.thinking_tokens,
+    ) if self.thinking_enabled else genai_types.ThinkingConfig(
+      thinking_budget=0, )
+
+    generation_config = genai_types.GenerateContentConfig(
+      system_instruction=self.system_instructions,
+      temperature=self.temperature,
+      max_output_tokens=self.thinking_tokens + self.output_tokens,
+      thinking_config=thinking_config,
+      response_mime_type="application/json" if self.response_schema else None,
+      response_schema=self.response_schema,
+      safety_settings=[
+        genai_types.SafetySetting(
+          category=genai_types.HarmCategory.HARM_CATEGORY_CIVIC_INTEGRITY,
+          threshold=genai_types.HarmBlockThreshold.BLOCK_NONE,
+        ),
+        genai_types.SafetySetting(
+          category=genai_types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+          threshold=genai_types.HarmBlockThreshold.BLOCK_NONE,
+        ),
+        genai_types.SafetySetting(
+          category=genai_types.HarmCategory.HARM_CATEGORY_HARASSMENT,
+          threshold=genai_types.HarmBlockThreshold.BLOCK_NONE,
+        ),
+        genai_types.SafetySetting(
+          category=genai_types.HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+          threshold=genai_types.HarmBlockThreshold.BLOCK_NONE,
+        ),
+        genai_types.SafetySetting(
+          category=genai_types.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+          threshold=genai_types.HarmBlockThreshold.BLOCK_NONE,
+        ),
+      ],
+    )
+
+    responses = self.model_client.models.generate_content_stream(
+      model=self.model.value,
+      contents=contents,
+      config=generation_config,
+    )
+
+    accumulated_answer = ""
+    accumulated_thinking = ""
+    final_usage_metadata = None
+
+    for response in responses:
+      if response.usage_metadata:
+        final_usage_metadata = response.usage_metadata
+
+      # Answer text excludes thought parts by design in GenAI SDK.
+      answer_text = response.text or ""
+      if answer_text.startswith(accumulated_answer):
+        answer_delta = answer_text[len(accumulated_answer):]
+        accumulated_answer = answer_text
+      else:
+        answer_delta = answer_text
+        accumulated_answer += answer_delta
+
+      # Extract thinking text from thought parts, if any.
+      thought_text = ""
+      if response.parts:
+        thought_text = "".join((p.text or "") for p in response.parts
+                               if isinstance(p.thought, bool) and p.thought
+                               and isinstance(p.text, str))
+
+      if thought_text.startswith(accumulated_thinking):
+        thinking_delta = thought_text[len(accumulated_thinking):]
+        accumulated_thinking = thought_text
+      else:
+        thinking_delta = thought_text
+        accumulated_thinking += thinking_delta
+
+      if answer_delta or thinking_delta:
+        yield LlmResponse(
+          text=accumulated_answer.strip(),
+          text_delta=answer_delta,
+          thinking_text=accumulated_thinking,
+          thinking_text_delta=thinking_delta,
+          is_final=False,
+        )
+
+    if final_usage_metadata is None:
+      raise ValueError("No usage metadata received from Gemini API")
+
+    cached_prompt_tokens = final_usage_metadata.cached_content_token_count or 0
+    prompt_token_count = final_usage_metadata.prompt_token_count or 0
+    output_tokens = final_usage_metadata.candidates_token_count or 0
+    prompt_tokens = prompt_token_count - cached_prompt_tokens
+
+    token_counts = {
+      "prompt_tokens": prompt_tokens,
+      "cached_prompt_tokens": cached_prompt_tokens,
+      "output_tokens": output_tokens,
+    }
+
+    yield LlmResponse(
+      text=accumulated_answer.strip(),
+      text_delta="",
+      thinking_text=accumulated_thinking,
+      thinking_text_delta="",
+      metadata=models.SingleGenerationMetadata(token_counts=token_counts),
+      is_final=True,
+    )
+
+  @override
+  def _is_retryable_error(self, error: Exception) -> bool:
+    """Whether the error is retryable."""
+    if isinstance(error, ResourceExhausted):
+      return True
+    if isinstance(error, genai_errors.ServerError):
+      return True
+    if isinstance(error,
+                  genai_errors.ClientError) and error.code in (408, 429):
+      return True
+    return False
 
 
 class AnthropicClient(LlmClient[anthropic.Anthropic]):

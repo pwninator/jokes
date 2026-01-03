@@ -2,22 +2,11 @@
 
 import json
 import traceback
-from typing import Any
 
-from firebase_admin import firestore
+from common import joke_operations, models
 from firebase_functions import https_fn, logger, options
 from functions.function_utils import get_bool_param, get_int_param, get_param
-from google.cloud.firestore import DELETE_FIELD
-
-_db = None  # pylint: disable=invalid-name
-
-
-def db() -> firestore.client:
-  """Get the firestore client."""
-  global _db  # pylint: disable=global-statement
-  if _db is None:
-    _db = firestore.client()
-  return _db
+from services import firestore
 
 
 @https_fn.on_request(
@@ -28,7 +17,7 @@ def run_firestore_migration(req: https_fn.Request) -> https_fn.Response:
   """Run Firestore migrations.
 
   Currently supported:
-  - Joke Book ID Sync: Syncs book_id on joke documents based on joke_books.
+  - Joke metadata backfill: Generate tags/seasonal metadata for jokes missing tags.
   """
   # Health check
   if req.path == "/__/health":
@@ -49,7 +38,7 @@ def run_firestore_migration(req: https_fn.Request) -> https_fn.Response:
     limit = get_int_param(req, 'limit', 0)
     start_after = get_param(req, 'start_after', "")
 
-    html_response = run_joke_book_id_sync(
+    html_response = run_joke_metadata_backfill(
       dry_run=dry_run,
       limit=limit,
       start_after=str(start_after or ""),
@@ -70,18 +59,11 @@ def run_firestore_migration(req: https_fn.Request) -> https_fn.Response:
     )
 
 
-def run_joke_book_id_sync(*, dry_run: bool, limit: int,
-                          start_after: str) -> str:
-  """Sync `book_id` on joke documents based on `joke_books` collection.
-
-  Iterates through all joke books. For each joke in a book, ensures the
-  joke document has the correct `book_id`.
-
-  If a joke is found in multiple books, it will be updated to the last book processed,
-  and logged as a discrepancy.
-  """
+def run_joke_metadata_backfill(*, dry_run: bool, limit: int,
+                               start_after: str) -> str:
+  """Generate metadata for jokes missing tags."""
   logger.info(
-    "Starting joke book ID sync",
+    "Starting joke metadata backfill",
     extra={
       "json_fields": {
         "dry_run": dry_run,
@@ -91,78 +73,54 @@ def run_joke_book_id_sync(*, dry_run: bool, limit: int,
     },
   )
 
-  # Query all joke books
-  query = db().collection('joke_books').order_by('__name__')
+  query = firestore.db().collection('jokes').order_by('__name__')
   if start_after:
     query = query.start_after({'__name__': start_after})
   if limit and limit > 0:
     query = query.limit(int(limit))
 
   stats = {
-    'books_processed': 0,
     'jokes_processed': 0,
+    'jokes_missing_tags': 0,
     'jokes_updated': 0,
-    'jokes_skipped_correct': 0,
-    'jokes_missing': 0,
-    'discrepancies': [], # List of strings describing issues
+    'jokes_skipped_has_tags': 0,
     'errors': [],
-    'last_book_id': None
+    'last_joke_id': None
   }
 
-  client = db()
+  for joke_doc in query.stream():
+    stats['jokes_processed'] += 1
+    stats['last_joke_id'] = joke_doc.id
 
-  for book_doc in query.stream():
-    stats['books_processed'] += 1
-    stats['last_book_id'] = book_doc.id
-
-    book_data = book_doc.to_dict() or {}
-    joke_ids = book_data.get('jokes', [])
-
-    if not joke_ids:
+    if not joke_doc.exists:
       continue
 
-    # Process jokes in batches (chunks of 30)
-    chunk_size = 30
-    for i in range(0, len(joke_ids), chunk_size):
-      chunk = joke_ids[i:i + chunk_size]
+    joke_data = joke_doc.to_dict() or {}
+    joke = models.PunnyJoke.from_firestore_dict(joke_data, key=joke_doc.id)
 
-      try:
-        joke_refs = [client.collection('jokes').document(jid) for jid in chunk]
-        snapshots = client.get_all(joke_refs)
+    if joke.tags:
+      stats['jokes_skipped_has_tags'] += 1
+      continue
 
-        batch = client.batch()
-        batch_has_writes = False
+    stats['jokes_missing_tags'] += 1
 
-        for joke_snap in snapshots:
-          stats['jokes_processed'] += 1
+    if dry_run:
+      stats['jokes_updated'] += 1
+      continue
 
-          if not joke_snap.exists:
-             stats['jokes_missing'] += 1
-             stats['discrepancies'].append(f"Book {book_doc.id} references missing joke {joke_snap.id}")
-             continue
-
-          joke_data = joke_snap.to_dict() or {}
-          current_book_id = joke_data.get('book_id')
-
-          if current_book_id == book_doc.id:
-             stats['jokes_skipped_correct'] += 1
-             continue
-
-          if current_book_id and current_book_id != book_doc.id:
-             stats['discrepancies'].append(f"Joke {joke_snap.id} has book_id={current_book_id}, but is in book {book_doc.id}. Overwriting.")
-
-          if not dry_run:
-             batch.update(joke_snap.reference, {'book_id': book_doc.id})
-             batch_has_writes = True
-             stats['jokes_updated'] += 1
-          else:
-             stats['jokes_updated'] += 1 # Count as updated for dry run stats (would update)
-
-        if batch_has_writes and not dry_run:
-            batch.commit()
-
-      except Exception as e:
-        stats['errors'].append(f"Error processing chunk in book {book_doc.id}: {str(e)}")
+    try:
+      joke = joke_operations.generate_joke_metadata(joke)
+      firestore.upsert_punny_joke(joke, operation="BACKFILL_METADATA")
+      stats['jokes_updated'] += 1
+    except Exception as exc:  # pylint: disable=broad-except
+      logger.error(
+        "Failed to backfill joke metadata",
+        extra={"json_fields": {
+          "joke_id": joke_doc.id,
+          "error": str(exc),
+        }},
+      )
+      stats['errors'].append(f"Joke {joke_doc.id}: {str(exc)}")
 
   return _build_html_report(dry_run=dry_run, stats=stats)
 
@@ -174,26 +132,18 @@ def _build_html_report(
 ) -> str:
   """Build a simple HTML report of migration results."""
   html = "<html><body>"
-  html += "<h1>Joke Book ID Sync Results</h1>"
+  html += "<h1>Joke Metadata Backfill Results</h1>"
   html += f"<h2>Dry Run: {dry_run}</h2>"
 
   html += "<h3>Stats</h3>"
   html += "<ul>"
-  html += f"<li>Books Processed: {stats['books_processed']}</li>"
   html += f"<li>Jokes Processed: {stats['jokes_processed']}</li>"
+  html += f"<li>Jokes Missing Tags: {stats['jokes_missing_tags']}</li>"
   html += f"<li>Jokes Updated (or would update): {stats['jokes_updated']}</li>"
-  html += f"<li>Jokes Already Correct: {stats['jokes_skipped_correct']}</li>"
-  html += f"<li>Missing Joke Docs: {stats['jokes_missing']}</li>"
-  if stats['last_book_id']:
-      html += f"<li>Last Book ID: {stats['last_book_id']}</li>"
+  html += f"<li>Jokes Skipped (already tagged): {stats['jokes_skipped_has_tags']}</li>"
+  if stats['last_joke_id']:
+    html += f"<li>Last Joke ID: {stats['last_joke_id']}</li>"
   html += "</ul>"
-
-  if stats['discrepancies']:
-    html += f"<h3>Discrepancies ({len(stats['discrepancies'])})</h3>"
-    html += "<ul>"
-    for d in stats['discrepancies']:
-      html += f"<li>{d}</li>"
-    html += "</ul>"
 
   if stats['errors']:
     html += f"<h3 style='color:red'>Errors ({len(stats['errors'])})</h3>"

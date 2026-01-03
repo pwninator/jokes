@@ -1001,3 +1001,120 @@ def upsert_joke_user_usage(
     feed_cursor=feed_cursor,
     local_feed_count=local_feed_count,
   )
+
+
+def get_joke_stats_docs(limit: int = 30) -> list[dict[str, Any]]:
+  """Fetch recent joke stats docs for the admin dashboard.
+
+  Returns docs in chronological order (oldest -> newest) with 'id' populated.
+  """
+  safe_limit = max(0, int(limit or 0))
+  if safe_limit <= 0:
+    return []
+
+  docs = (db().collection('joke_stats').order_by(
+    '__name__', direction=Query.DESCENDING).limit(safe_limit).stream())
+
+  stats_list: list[dict[str, Any]] = []
+  for doc in docs:
+    data = doc.to_dict() or {}
+    data['id'] = doc.id
+    stats_list.append(data)
+
+  stats_list.reverse()
+  return stats_list
+
+
+def get_all_joke_books() -> list[dict[str, Any]]:
+  """Fetch all joke books with basic metadata for the admin table view."""
+  docs = db().collection('joke_books').stream()
+  books: list[dict[str, Any]] = []
+  for doc in docs:
+    if not getattr(doc, 'exists', False):
+      continue
+    data = doc.to_dict() or {}
+    jokes = data.get('jokes') or []
+    joke_count = len(jokes) if isinstance(jokes, list) else 0
+    books.append({
+      'id': doc.id,
+      'book_name': data.get('book_name', ''),
+      'joke_count': joke_count,
+      'zip_url': data.get('zip_url'),
+    })
+
+  books.sort(key=lambda book: str(book.get('book_name') or book.get('id')))
+  return books
+
+
+def get_joke_book(book_id: str) -> dict[str, Any] | None:
+  """Fetch a single joke book doc by id (or None if missing)."""
+  if not book_id:
+    return None
+  doc = db().collection('joke_books').document(book_id).get()
+  if not getattr(doc, 'exists', False):
+    return None
+  data = doc.to_dict() or {}
+  data['id'] = book_id
+  return data
+
+
+def get_joke_metadata(joke_id: str) -> dict[str, Any]:
+  """Fetch `jokes/{joke_id}/metadata/metadata` (or {})."""
+  if not joke_id:
+    return {}
+  doc = (db().collection('jokes').document(joke_id).collection(
+    'metadata').document('metadata').get())
+  return doc.to_dict() or {} if getattr(doc, 'exists', False) else {}
+
+
+def get_joke_with_metadata(
+  joke_id: str, ) -> tuple[dict[str, Any] | None, dict[str, Any]]:
+  """Fetch a joke document and its metadata sub-document."""
+  if not joke_id:
+    return None, {}
+  joke_doc = db().collection('jokes').document(joke_id).get()
+  if not getattr(joke_doc, 'exists', False):
+    return None, {}
+  joke_data = joke_doc.to_dict() or {}
+  metadata = get_joke_metadata(joke_id)
+  return joke_data, metadata
+
+
+def get_joke_book_detail_raw(
+  book_id: str, ) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
+  """Fetch a joke book and per-joke data/metadata for admin rendering.
+
+  Returns:
+    (book_data, joke_entries) where joke_entries preserves the book order and
+    each entry contains: { 'id': joke_id, 'joke': <dict>, 'metadata': <dict> }.
+  """
+  book = get_joke_book(book_id)
+  if not book:
+    return None, []
+
+  joke_ids = book.get('jokes') or []
+  if not isinstance(joke_ids, list):
+    joke_ids = []
+  joke_ids = [str(jid) for jid in joke_ids if jid]
+
+  if not joke_ids:
+    return book, []
+
+  client = db()
+  refs = [client.collection('jokes').document(jid) for jid in joke_ids]
+  docs = client.get_all(refs)
+  id_to_joke: dict[str, dict[str, Any]] = {}
+  for doc in docs:
+    if not getattr(doc, 'exists', False):
+      continue
+    id_to_joke[doc.id] = doc.to_dict() or {}
+
+  entries: list[dict[str, Any]] = []
+  for jid in joke_ids:
+    entries.append({
+      'id': jid,
+      'joke': id_to_joke.get(jid, {}),
+      'metadata': get_joke_metadata(jid),
+    })
+
+  return book, entries

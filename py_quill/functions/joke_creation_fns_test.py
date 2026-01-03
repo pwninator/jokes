@@ -27,6 +27,7 @@ def reset_image_quality(monkeypatch):
                       'PUN_IMAGE_CLIENTS_BY_QUALITY', {
                         "low": object(),
                         "medium": object(),
+                        "medium_mini": object(),
                       })
 
 

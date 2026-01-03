@@ -16,6 +16,7 @@ google-cloud-storage
 google-cloud-texttospeech
 google-cloud-vision
 google-genai>=1.51.0
+img2pdf
 more_itertools
 mailerlite
 numpy
@@ -31,4 +32,3 @@ tabulate
 tqdm
 urllib3
 vertexai
-img2pdf

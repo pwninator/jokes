@@ -1,12 +1,12 @@
-"""Tests for pdf_operations."""
+"""Tests for pdf_client."""
 
 from io import BytesIO
 from unittest import mock
 
 import pytest
+from common import models
 from PIL import Image
-
-from common import models, pdf_operations
+from services import pdf_client
 
 
 @pytest.fixture
@@ -46,7 +46,8 @@ def test_create_pdf_mixed_inputs(mock_download_image):
   mock_download_image.side_effect = side_effect
 
   # Run
-  pdf_bytes = pdf_operations.create_pdf([img1, img2_bytes_val, img3_uri, img4_model])
+  pdf_bytes = pdf_client.create_pdf(
+    [img1, img2_bytes_val, img3_uri, img4_model])
 
   # Assert
   assert pdf_bytes.startswith(b'%PDF')
@@ -80,28 +81,27 @@ def test_create_pdf_resizing(mock_download_image):
 
     # So if we mock the resize method on the instance we pass:
     with mock.patch.object(img, 'resize', wraps=img.resize) as mock_resize:
-      pdf_bytes = pdf_operations.create_pdf(
-          [img],
-          page_width=target_w,
-          page_height=target_h
-      )
+      pdf_bytes = pdf_client.create_pdf([img],
+                                        page_width=target_w,
+                                        page_height=target_h)
 
       assert pdf_bytes.startswith(b'%PDF')
-      mock_resize.assert_called_once_with((target_w, target_h), Image.Resampling.LANCZOS)
+      mock_resize.assert_called_once_with((target_w, target_h),
+                                          Image.Resampling.LANCZOS)
 
 
 def test_create_pdf_invalid_input():
   with pytest.raises(ValueError, match="Unsupported image type"):
-    pdf_operations.create_pdf([123])
+    pdf_client.create_pdf([123])
 
 
 def test_create_pdf_model_no_uri():
   img_model = models.Image(gcs_uri=None)
   with pytest.raises(ValueError, match="Image model has no GCS URI"):
-    pdf_operations.create_pdf([img_model])
+    pdf_client.create_pdf([img_model])
 
 
 def test_create_pdf_download_failure(mock_download_image):
   mock_download_image.side_effect = Exception("Download failed")
   with pytest.raises(Exception, match="Download failed"):
-    pdf_operations.create_pdf(['gs://bucket/fail.png'])
+    pdf_client.create_pdf(['gs://bucket/fail.png'])

@@ -392,22 +392,22 @@
 {%- endmacro %}
 
 <section class="category-section">
-  <h3>Approved</h3>
+  <h3>Approved <span class="pill text-button">{{ approved_unique_joke_count }} unique jokes</span></h3>
   {{ render_category_list(approved_categories) }}
 </section>
 
 <section class="category-section">
-  <h3>Proposed</h3>
+  <h3>Proposed <span class="pill text-button">{{ proposed_unique_joke_count }} unique jokes</span></h3>
   {{ render_category_list(proposed_categories) }}
 </section>
 
 <section class="category-section">
-  <h3>Rejected</h3>
+  <h3>Rejected <span class="pill text-button">{{ rejected_unique_joke_count }} unique jokes</span></h3>
   {{ render_category_list(rejected_categories) }}
 </section>
 
 <section class="category-section">
-  <h3>Uncategorized</h3>
+  <h3>Uncategorized <span class="pill text-button">{{ uncategorized_unique_joke_count }} unique jokes</span></h3>
   <details class="category-details" data-lazy-scope="uncategorized">
     <summary class="text-body">
       <div class="category-meta">

@@ -245,6 +245,13 @@ def test_admin_joke_categories_renders_multiline_tooltip(monkeypatch):
   assert resp.status_code == 200
   html = resp.data.decode("utf-8")
 
+  assert "Approved" in html
+  assert "1 unique jokes" in html
+  assert "Proposed" in html
+  assert "0 unique jokes" in html
+  assert "Rejected" in html
+  assert "Uncategorized" in html
+
   def _decoded_title_for(joke_id: str) -> str:
     match = re.search(r'title="([^"]*' + re.escape(joke_id) + r'[^"]*)"', html)
     assert match, f"Missing title attribute for {joke_id}"

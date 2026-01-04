@@ -23,6 +23,15 @@ def admin_joke_categories():
     state = (getattr(category, "state", None) or "").upper()
     return state
 
+  def _unique_joke_count(categories_in_section: list) -> int:
+    seen: set[str] = set()
+    for category in categories_in_section or []:
+      for joke in getattr(category, "jokes", []) or []:
+        joke_id = getattr(joke, "key", None)
+        if isinstance(joke_id, str) and joke_id:
+          seen.add(joke_id)
+    return len(seen)
+
   approved: list = []
   proposed: list = []
   rejected: list = []
@@ -36,11 +45,20 @@ def admin_joke_categories():
       rejected.append(category)
 
   uncategorized = firestore.get_uncategorized_public_jokes(categories)
+  uncategorized_unique_count = len({
+    j.key
+    for j in (uncategorized or [])
+    if isinstance(getattr(j, "key", None), str) and j.key
+  })
 
   return flask.render_template(
     'admin/joke_categories.html',
     site_name='Snickerdoodle',
     joke_search_default_threshold=config.JOKE_SEARCH_TIGHT_THRESHOLD,
+    approved_unique_joke_count=_unique_joke_count(approved),
+    proposed_unique_joke_count=_unique_joke_count(proposed),
+    rejected_unique_joke_count=_unique_joke_count(rejected),
+    uncategorized_unique_joke_count=uncategorized_unique_count,
     approved_categories=approved,
     proposed_categories=proposed,
     rejected_categories=rejected,

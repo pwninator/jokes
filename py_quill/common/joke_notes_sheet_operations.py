@@ -7,15 +7,15 @@ from io import BytesIO
 import requests
 from firebase_functions import logger
 from PIL import Image
-from services import cloud_storage, firestore
+from services import cloud_storage, firestore, pdf_client
 
 _JOKE_NOTES_OVERLAY_URL = "https://images.quillsstorybook.com/cdn-cgi/image/format=png,quality=100/_joke_assets/lunchbox/lunchbox_notes_template.png"
 
 
-def create_joke_notes_sheet_image(joke_ids: list[str]) -> bytes:
+def create_joke_notes_sheet_image(joke_ids: list[str]) -> Image.Image:
   """Creates a printable sheet of joke notes with setup and punchline images.
 
-  The output is a 3300x2550 JPEG image (quality 30) containing up to 6 jokes
+  The output is a 3300x2550 image containing up to 6 jokes
   arranged in a 2x3 grid. Each joke consists of the punchline image on the
   left and the setup image on the right.
 
@@ -23,7 +23,7 @@ def create_joke_notes_sheet_image(joke_ids: list[str]) -> bytes:
     joke_ids: List of joke IDs to include (max 6).
 
   Returns:
-    JPEG image bytes.
+    PIL Image for the composed notes sheet.
   """
   if len(joke_ids) > 5:
     joke_ids = joke_ids[:5]
@@ -99,6 +99,14 @@ def create_joke_notes_sheet_image(joke_ids: list[str]) -> bytes:
   except (requests.RequestException, OSError) as exc:
     logger.error(f"Error loading joke notes template: {exc}")
 
-  buffer = BytesIO()
-  canvas.save(buffer, format='JPEG', quality=30)
-  return buffer.getvalue()
+  return canvas
+
+
+def create_joke_notes_sheet(
+  joke_ids: list[str],
+  *,
+  quality: int = 80,
+) -> bytes:
+  """Creates a PDF with the joke notes sheet image."""
+  notes_image = create_joke_notes_sheet_image(joke_ids)
+  return pdf_client.create_pdf([notes_image], quality=quality)

@@ -1468,14 +1468,10 @@ class CreateJokeNotesSheetImageTest(unittest.TestCase):
     ids = ['joke1', 'joke2']
     result = joke_notes_sheet_operations.create_joke_notes_sheet_image(ids)
 
-    # Verify result is bytes (JPEG)
-    self.assertIsInstance(result, bytes)
-    self.assertGreater(len(result), 0)
-
-    # Verify image dimensions by opening the bytes
-    out_img = Image.open(BytesIO(result))
-    self.assertEqual(out_img.size, (3300, 2550))
-    self.assertEqual(out_img.format, 'JPEG')
+    # Verify result is a PIL image
+    self.assertIsInstance(result, Image.Image)
+    self.assertEqual(result.size, (3300, 2550))
+    self.assertEqual(result.mode, 'RGB')
 
     # Verify calls
     self.assertEqual(mock_firestore.get_punny_joke.call_count, 2)
@@ -1485,3 +1481,21 @@ class CreateJokeNotesSheetImageTest(unittest.TestCase):
       joke_notes_sheet_operations._JOKE_NOTES_OVERLAY_URL,
       timeout=10,
     )
+
+
+class CreateJokeNotesSheetTest(unittest.TestCase):
+  """Tests for create_joke_notes_sheet function."""
+
+  @patch('common.joke_notes_sheet_operations.pdf_client.create_pdf')
+  @patch('common.joke_notes_sheet_operations.create_joke_notes_sheet_image')
+  def test_create_joke_notes_sheet(self, mock_create_image, mock_create_pdf):
+    notes_image = Image.new('RGB', (100, 100), 'white')
+    mock_create_image.return_value = notes_image
+    mock_create_pdf.return_value = b'pdf-bytes'
+
+    result = joke_notes_sheet_operations.create_joke_notes_sheet(['joke1'],
+                                                                 quality=42)
+
+    self.assertEqual(result, b'pdf-bytes')
+    mock_create_image.assert_called_once_with(['joke1'])
+    mock_create_pdf.assert_called_once_with([notes_image], quality=42)

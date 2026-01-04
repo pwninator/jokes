@@ -245,6 +245,17 @@
   }
 </style>
 
+{%- macro joke_tooltip_text(joke) -%}
+  {%- set seasonal_value = joke.seasonal if joke.seasonal else "None" -%}
+  {%- set tags_text = (joke.tags or []) | join('\n') -%}
+  {{- (joke.key or '') ~ '\n\nseasonal: ' ~ seasonal_value ~ '\n\ntags:\n' ~ tags_text -}}
+{%- endmacro -%}
+
+{%- macro joke_tooltip_title_attr(joke) -%}
+  {%- set newline = '&#10;' | safe -%}
+  {{- joke_tooltip_text(joke) | e | replace('\n', newline) -}}
+{%- endmacro -%}
+
 {% macro render_category_list(categories) -%}
   {% if not categories %}
   <p class="muted">None.</p>
@@ -359,7 +370,7 @@
       </div>
       <div class="joke-grid" aria-label="Category joke thumbnails">
         {% for joke in category.jokes %}
-        <div class="joke-tile" title="{{ joke.key }}">
+        <div class="joke-tile" title="{{ joke_tooltip_title_attr(joke) | safe }}">
           {% if joke.setup_image_url %}
           <img
             class="joke-thumb"
@@ -408,7 +419,7 @@
     </summary>
     <div class="joke-grid" aria-label="Uncategorized joke thumbnails">
       {% for joke in uncategorized_jokes %}
-      <div class="joke-tile" title="{{ joke.key }}">
+      <div class="joke-tile" title="{{ joke_tooltip_title_attr(joke) | safe }}">
         {% if joke.setup_image_url %}
         <img
           class="joke-thumb"

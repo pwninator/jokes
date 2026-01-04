@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import html as html_lib
+import re
 from unittest.mock import Mock
 
 from functions import auth_helpers
+from common import models
 from web.app import app
 from web.routes.admin import categories as categories_routes
 
@@ -156,3 +159,57 @@ def test_admin_update_category_sets_fields_and_refreshes_cache(monkeypatch):
   assert args[1]['state'] == 'APPROVED'
   assert args[1]['joke_description_query'] == 'animals'
   assert args[1]['seasonal_name'] == ''
+
+
+def test_admin_joke_categories_renders_multiline_tooltip(monkeypatch):
+  """The category page should render the joke hover tooltip with exact formatting."""
+  _mock_admin_session(monkeypatch)
+
+  approved_joke = models.PunnyJoke(
+    key="joke-approved-1",
+    setup_text="setup",
+    punchline_text="punchline",
+    seasonal=None,
+    tags=["tag_a", "tag_b"],
+  )
+  approved_category = models.JokeCategory(
+    id="animals",
+    display_name="Animals",
+    joke_description_query="animals",
+    seasonal_name=None,
+    state="APPROVED",
+    jokes=[approved_joke],
+  )
+
+  uncategorized_joke = models.PunnyJoke(
+    key="joke-uncat-1",
+    setup_text="setup",
+    punchline_text="punchline",
+    seasonal="Winter",
+    tags=["first_tag", "second_tag"],
+  )
+
+  monkeypatch.setattr(categories_routes.firestore, "get_all_joke_categories",
+                      lambda fetch_cached_jokes: [approved_category])
+  monkeypatch.setattr(categories_routes.firestore,
+                      "get_uncategorized_public_jokes",
+                      lambda _cats: [uncategorized_joke])
+
+  with app.test_client() as client:
+    resp = client.get('/admin/joke-categories')
+
+  assert resp.status_code == 200
+  html = resp.data.decode("utf-8")
+
+  def _decoded_title_for(joke_id: str) -> str:
+    match = re.search(r'title="([^"]*' + re.escape(joke_id) + r'[^"]*)"', html)
+    assert match, f"Missing title attribute for {joke_id}"
+    raw = match.group(1)
+    decoded = html_lib.unescape(raw)
+    decoded = decoded.replace("&#13;", "\r").replace("&#10;", "\n")
+    return decoded.replace("\r\n", "\n").replace("\r", "\n")
+
+  assert _decoded_title_for("joke-approved-1") == (
+    "joke-approved-1\n\nseasonal: None\n\ntags:\ntag_a\ntag_b")
+  assert _decoded_title_for("joke-uncat-1") == (
+    "joke-uncat-1\n\nseasonal: Winter\n\ntags:\nfirst_tag\nsecond_tag")

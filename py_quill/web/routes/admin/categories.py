@@ -6,6 +6,7 @@ import flask
 from firebase_functions import logger
 from google.cloud.firestore import DELETE_FIELD
 
+from common import config
 from common import joke_category_operations
 from functions import auth_helpers
 import services.firestore as firestore
@@ -39,6 +40,7 @@ def admin_joke_categories():
   return flask.render_template(
     'admin/joke_categories.html',
     site_name='Snickerdoodle',
+    joke_search_default_threshold=config.JOKE_SEARCH_TIGHT_THRESHOLD,
     approved_categories=approved,
     proposed_categories=proposed,
     rejected_categories=rejected,

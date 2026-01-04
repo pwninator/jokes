@@ -23,7 +23,7 @@
               style="flex: 1 1 auto; min-width: 0; padding: 8px 12px; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-surface); font-family: inherit;">
             <input name="search_distance" type="text"
               inputmode="decimal"
-              placeholder="0.20"
+              placeholder="{{ joke_search_tight_threshold }}"
               title="Optional search distance threshold"
               style="width: 90px; padding: 8px 10px; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-surface); font-family: inherit;">
           </div>
@@ -330,7 +330,7 @@
                     style="flex: 1 1 auto; min-width: 0;">
                   <input name="search_distance" type="text"
                     inputmode="decimal"
-                    placeholder="0.20"
+                    placeholder="{{ joke_search_default_threshold }}"
                     title="Optional search distance threshold"
                     value="{{ category.search_distance if category.search_distance is not none else '' }}"
                     style="width: 90px;">

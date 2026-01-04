@@ -86,21 +86,53 @@ def refresh_single_category_cache(
 
   raw_query = (category.joke_description_query or "").strip()
   seasonal_name = (category.seasonal_name or "").strip()
+  tags = [t for t in (category.tags or []) if isinstance(t, str) and t.strip()]
 
   client = firestore.db()
 
-  if not raw_query and not seasonal_name:
+  if not raw_query and not seasonal_name and not tags:
     if state != "PROPOSED":
       # This category will break when displayed, so force state to PROPOSED
       client.collection("joke_categories").document(category_id).set(
         {"state": "PROPOSED"}, merge=True)
     return None
 
-  if seasonal_name:
-    jokes_payload = query_seasonal_category_jokes(client, seasonal_name)
-  else:
+  jokes_by_id: dict[str, dict[str, object]] = {}
+
+  if raw_query:
     search_query = f"jokes about {raw_query}"
-    jokes_payload = search_category_jokes(search_query, category_id)
+    for item in search_category_jokes(search_query, category_id):
+      joke_id = item.get("joke_id")
+      if isinstance(joke_id, str) and joke_id:
+        jokes_by_id[joke_id] = item
+
+  if seasonal_name:
+    for item in query_seasonal_category_jokes(client, seasonal_name):
+      joke_id = item.get("joke_id")
+      if isinstance(joke_id, str) and joke_id:
+        jokes_by_id[joke_id] = item
+
+  if tags:
+    for item in query_tags_category_jokes(client, tags):
+      joke_id = item.get("joke_id")
+      if isinstance(joke_id, str) and joke_id:
+        jokes_by_id[joke_id] = item
+
+  # Re-sort the union by num_saved_users_fraction using full joke docs.
+  joke_ids = list(jokes_by_id.keys())
+  jokes = firestore.get_punny_jokes(joke_ids)
+  jokes.sort(key=lambda j: j.num_saved_users_fraction or 0.0, reverse=True)
+
+  # Cap cache size to 100, even if union exceeds it.
+  jokes = jokes[:100]
+
+  jokes_payload = [{
+    "joke_id": j.key,
+    "setup": j.setup_text,
+    "punchline": j.punchline_text,
+    "setup_image_url": j.setup_image_url,
+    "punchline_image_url": j.punchline_image_url,
+  } for j in jokes if j.key]
 
   # Write cache document with a sole 'jokes' field
   cache_ref = client.collection("joke_categories").document(
@@ -188,6 +220,69 @@ def query_seasonal_category_jokes(
   query = query.where(filter=FieldFilter("state", "in", states))
   query = query.where(filter=FieldFilter("is_public", "==", True))
   query = query.where(filter=FieldFilter("seasonal", "==", seasonal_name))
+  query = query.limit(100)
+
+  docs = query.stream()
+  docs_list = [(doc.id, doc.to_dict() or {}) for doc in docs]
+  sorted_docs_list = sorted(
+    docs_list,
+    key=lambda item: item[1].get("num_saved_users_fraction", 0.0),
+    reverse=True)
+
+  payload = []
+  for doc_id, data in sorted_docs_list:
+    payload.append({
+      "joke_id": doc_id,
+      "setup": data.get("setup_text", ""),
+      "punchline": data.get("punchline_text", ""),
+      "setup_image_url": data.get("setup_image_url"),
+      "punchline_image_url": data.get("punchline_image_url"),
+    })
+  return payload
+
+
+def query_tags_category_jokes(
+  client,
+  tags: list[str],
+) -> list[dict[str, object]]:
+  """Query jokes that match any of the given tags.
+
+  Args:
+    client: Firestore client instance
+    tags: List of tags; jokes are included if they contain at least one tag.
+
+  Returns:
+    List of joke dictionaries with keys: joke_id, setup, punchline,
+    setup_image_url, punchline_image_url, sorted by num_saved_users_fraction
+    in descending order.
+  """
+  normalized_tags: list[str] = []
+  seen = set()
+  for t in tags or []:
+    if not isinstance(t, str):
+      continue
+    tag = t.strip()
+    if not tag or tag in seen:
+      continue
+    seen.add(tag)
+    normalized_tags.append(tag)
+
+  if not normalized_tags:
+    return []
+
+  # Firestore array-contains-any supports up to 10 values.
+  if len(normalized_tags) > 10:
+    logger.warning(
+      "Category tags list exceeded Firestore array-contains-any limit; truncating",
+    )
+    normalized_tags = normalized_tags[:10]
+
+  states = [models.JokeState.PUBLISHED.value, models.JokeState.DAILY.value]
+  query = client.collection("jokes")
+  query = query.where(filter=FieldFilter("state", "in", states))
+  query = query.where(filter=FieldFilter("is_public", "==", True))
+  query = query.where(
+    filter=FieldFilter("tags", "array_contains_any", normalized_tags))
   query = query.limit(100)
 
   docs = query.stream()

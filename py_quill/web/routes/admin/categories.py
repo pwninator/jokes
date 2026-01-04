@@ -8,7 +8,7 @@ from google.cloud.firestore import DELETE_FIELD
 
 from common import joke_category_operations
 from functions import auth_helpers
-from services import firestore
+import services.firestore as firestore
 from web.routes import web_bp
 
 
@@ -54,27 +54,29 @@ def admin_joke_categories():
 def admin_create_joke_category():
   """Create a joke category and initialize its cache."""
   form = flask.request.form or {}
-  category_type = (form.get('category_type') or '').strip().lower()
   display_name = (form.get('display_name') or '').strip()
   image_description = (form.get('image_description') or '').strip()
 
   joke_description_query = (form.get('joke_description_query') or '').strip()
   seasonal_name = (form.get('seasonal_name') or '').strip()
+  tags_raw = (form.get('tags') or '').strip()
+
+  tags: list[str] = []
+  if tags_raw:
+    seen = set()
+    for part in tags_raw.split(','):
+      tag = (part or '').strip()
+      if not tag or tag in seen:
+        continue
+      seen.add(tag)
+      tags.append(tag)
 
   if not display_name:
     return flask.redirect('/admin/joke-categories?error=display_name_required')
 
-  if category_type == 'seasonal':
-    if not seasonal_name:
-      return flask.redirect(
-        '/admin/joke-categories?error=seasonal_name_required')
-    joke_description_query = ''
-  else:
-    # Default to search type.
-    if not joke_description_query:
-      return flask.redirect(
-        '/admin/joke-categories?error=joke_description_query_required')
-    seasonal_name = ''
+  if not joke_description_query and not seasonal_name and not tags:
+    return flask.redirect(
+      '/admin/joke-categories?error=category_source_required')
 
   try:
     category_id = firestore.create_joke_category(
@@ -82,6 +84,7 @@ def admin_create_joke_category():
       state='PROPOSED',
       joke_description_query=joke_description_query or None,
       seasonal_name=seasonal_name or None,
+      tags=tags or None,
       image_description=image_description or None,
     )
 
@@ -89,6 +92,7 @@ def admin_create_joke_category():
       'state': 'PROPOSED',
       'joke_description_query': joke_description_query,
       'seasonal_name': seasonal_name,
+      'tags': tags,
     }
     if image_description:
       category_data['image_description'] = image_description
@@ -112,9 +116,19 @@ def admin_update_joke_category(category_id: str):
   display_name = (form.get('display_name') or '').strip()
   state = (form.get('state') or 'PROPOSED').strip().upper()
 
-  category_type = (form.get('category_type') or '').strip().lower()
   joke_description_query = (form.get('joke_description_query') or '').strip()
   seasonal_name = (form.get('seasonal_name') or '').strip()
+  tags_raw = (form.get('tags') or '').strip()
+
+  tags: list[str] = []
+  if tags_raw:
+    seen = set()
+    for part in tags_raw.split(','):
+      tag = (part or '').strip()
+      if not tag or tag in seen:
+        continue
+      seen.add(tag)
+      tags.append(tag)
 
   image_url = (form.get('image_url') or '').strip()
   image_description = (form.get('image_description') or '').strip()
@@ -136,17 +150,9 @@ def admin_update_joke_category(category_id: str):
   if not display_name:
     return flask.redirect('/admin/joke-categories?error=display_name_required')
 
-  is_seasonal = category_type == 'seasonal' or bool(seasonal_name)
-  if is_seasonal:
-    if not seasonal_name:
-      return flask.redirect(
-        '/admin/joke-categories?error=seasonal_name_required')
-    joke_description_query = ''
-  else:
-    if not joke_description_query:
-      return flask.redirect(
-        '/admin/joke-categories?error=joke_description_query_required')
-    seasonal_name = ''
+  if not joke_description_query and not seasonal_name and not tags:
+    return flask.redirect(
+      '/admin/joke-categories?error=category_source_required')
 
   payload: dict[str, object] = {
     'display_name':
@@ -157,6 +163,8 @@ def admin_update_joke_category(category_id: str):
     seasonal_name if seasonal_name else DELETE_FIELD,
     'joke_description_query':
     joke_description_query if joke_description_query else DELETE_FIELD,
+    'tags':
+    tags if tags else DELETE_FIELD,
     'image_description':
     image_description if image_description else DELETE_FIELD,
   }
@@ -179,6 +187,7 @@ def admin_update_joke_category(category_id: str):
         'state': state,
         'seasonal_name': seasonal_name,
         'joke_description_query': joke_description_query,
+        'tags': tags,
       },
     )
   except Exception as exc:  # pylint: disable=broad-except

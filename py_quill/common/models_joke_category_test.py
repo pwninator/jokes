@@ -56,6 +56,6 @@ def test_joke_category_from_firestore_dict_sets_id_and_defaults():
   assert cat.display_name == 'Cats'
   assert cat.state == 'APPROVED'
   assert cat.seasonal_name == 'Christmas'
-  # seasonal_name implies search query is unset
-  assert cat.joke_description_query is None
+  # seasonal_name can coexist with search query
+  assert cat.joke_description_query == 'should_be_ignored'
   assert cat.all_image_urls == ['https://a.png']

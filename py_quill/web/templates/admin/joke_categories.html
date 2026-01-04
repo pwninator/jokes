@@ -8,18 +8,6 @@
   <details class="create-category-panel">
     <summary class="text-button">Create category</summary>
     <form method="post" action="{{ url_for('web.admin_create_joke_category') }}" style="margin-top: 12px;">
-      <fieldset style="border: 0; padding: 0; margin: 0;">
-        <legend class="text-button" style="margin-bottom: 8px;">Type</legend>
-        <label class="text-body" style="margin-right: 12px;">
-          <input type="radio" name="category_type" value="search" checked>
-          Search
-        </label>
-        <label class="text-body">
-          <input type="radio" name="category_type" value="seasonal">
-          Seasonal
-        </label>
-      </fieldset>
-
       <div style="display: grid; gap: 10px; margin-top: 12px; max-width: 560px;">
         <label class="text-body">
           <div class="text-button">Display name</div>
@@ -27,17 +15,21 @@
             style="width: 100%; padding: 8px 12px; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-surface); font-family: inherit;">
         </label>
 
-        <label class="text-body" data-field="search_query">
+        <label class="text-body">
           <div class="text-button">Search query</div>
           <input name="joke_description_query" type="text"
-            placeholder="cats"
             style="width: 100%; padding: 8px 12px; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-surface); font-family: inherit;">
         </label>
 
-        <label class="text-body" data-field="seasonal_name" hidden>
+        <label class="text-body">
           <div class="text-button">Seasonal name</div>
           <input name="seasonal_name" type="text"
-            placeholder="Christmas"
+            style="width: 100%; padding: 8px 12px; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-surface); font-family: inherit;">
+        </label>
+
+        <label class="text-body">
+          <div class="text-button">Tags (comma-separated)</div>
+          <input name="tags" type="text"
             style="width: 100%; padding: 8px 12px; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-surface); font-family: inherit;">
         </label>
 
@@ -283,11 +275,12 @@
               {% endif %}
             </div>
             <div class="category-subline text-body">
-              {% if category.seasonal_name %}
-              <span>seasonal: </span>
-              {% else %}
-              <span>search: </span>
-              {% endif %}
+              {% set has_query = (category.joke_description_query or '').strip() %}
+              {% set has_seasonal = (category.seasonal_name or '').strip() %}
+              {% set tags_count = (category.tags | length) if category.tags else 0 %}
+              {% if has_query %}<span class="pill text-button">search</span>{% endif %}
+              {% if has_seasonal %}<span class="pill text-button">seasonal</span>{% endif %}
+              {% if tags_count %}<span class="pill text-button">{{ tags_count }} tags</span>{% endif %}
               <span class="muted">{{ joke_count }} jokes</span>
             </div>
           </div>
@@ -322,33 +315,22 @@
 
             <div class="edit-row row-3">
               <label class="text-body">
-                <div class="text-button">Type</div>
-                <div class="type-choice">
-                  <label class="text-body">
-                    <input type="radio" name="category_type" value="search"
-                      {% if not category.seasonal_name %}checked{% endif %}>
-                    Search
-                  </label>
-                  <label class="text-body">
-                    <input type="radio" name="category_type" value="seasonal"
-                      {% if category.seasonal_name %}checked{% endif %}>
-                    Seasonal
-                  </label>
-                </div>
+                <div class="text-button">Search query</div>
+                <input name="joke_description_query" type="text"
+                  value="{{ category.joke_description_query or '' }}">
               </label>
 
-              <div>
-                <label class="text-body" data-edit-field="search_query">
-                  <div class="text-button">Search query</div>
-                  <input name="joke_description_query" type="text"
-                    value="{{ category.joke_description_query or '' }}">
-                </label>
-                <label class="text-body" data-edit-field="seasonal_name">
-                  <div class="text-button">Seasonal name</div>
-                  <input name="seasonal_name" type="text"
-                    value="{{ category.seasonal_name or '' }}">
-                </label>
-              </div>
+              <label class="text-body">
+                <div class="text-button">Seasonal name</div>
+                <input name="seasonal_name" type="text"
+                  value="{{ category.seasonal_name or '' }}">
+              </label>
+
+              <label class="text-body">
+                <div class="text-button">Tags (comma-separated)</div>
+                <input name="tags" type="text"
+                  value="{{ (category.tags or []) | join(', ') }}">
+              </label>
 
               <label class="text-body">
                 <div class="text-button">Image URL</div>
@@ -481,41 +463,6 @@
       });
     });
 
-    document.querySelectorAll('details.category-details').forEach((details) => {
-      const typeInputs = details.querySelectorAll('input[name="category_type"]');
-      const searchField = details.querySelector('[data-edit-field="search_query"]');
-      const seasonalField = details.querySelector('[data-edit-field="seasonal_name"]');
-      const updateType = () => {
-        const selected = details.querySelector('input[name="category_type"]:checked');
-        const type = selected ? selected.value : 'search';
-        if (type === 'seasonal') {
-          if (searchField) searchField.hidden = true;
-          if (seasonalField) seasonalField.hidden = false;
-        } else {
-          if (searchField) searchField.hidden = false;
-          if (seasonalField) seasonalField.hidden = true;
-        }
-      };
-      typeInputs.forEach((input) => input.addEventListener('change', updateType));
-      updateType();
-    });
-
-    const searchField = document.querySelector('[data-field="search_query"]');
-    const seasonalField = document.querySelector('[data-field="seasonal_name"]');
-    const typeInputs = document.querySelectorAll('input[name="category_type"]');
-    const updateType = () => {
-      const selected = document.querySelector('input[name="category_type"]:checked');
-      const type = selected ? selected.value : 'search';
-      if (type === 'seasonal') {
-        if (searchField) searchField.hidden = true;
-        if (seasonalField) seasonalField.hidden = false;
-      } else {
-        if (searchField) searchField.hidden = false;
-        if (seasonalField) seasonalField.hidden = true;
-      }
-    };
-    typeInputs.forEach((input) => input.addEventListener('change', updateType));
-    updateType();
   })();
 </script>
 {% endblock %}

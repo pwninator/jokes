@@ -651,6 +651,9 @@ class JokeCategory:
   seasonal_name: str | None = None
   """If set, this category is seasonal and jokes are selected by `seasonal`."""
 
+  tags: list[str] = field(default_factory=list)
+  """If set, this category also includes jokes that match any of these tags."""
+
   state: str = "PROPOSED"
   """Category lifecycle: APPROVED, PROPOSED, or REJECTED."""
 
@@ -699,11 +702,6 @@ class JokeCategory:
     if 'display_name' not in data or data.get('display_name') is None:
       data['display_name'] = ''
 
-    # Normalize seasonal vs search: seasonal categories do not carry a search query.
-    seasonal_name = data.get('seasonal_name')
-    if isinstance(seasonal_name, str) and seasonal_name.strip():
-      data['joke_description_query'] = None
-
     # Ensure list fields have the right types.
     all_image_urls = data.get('all_image_urls')
     if isinstance(all_image_urls, list):
@@ -712,6 +710,22 @@ class JokeCategory:
       ]
     else:
       data['all_image_urls'] = []
+
+    tags = data.get('tags')
+    if isinstance(tags, list):
+      normalized_tags: list[str] = []
+      seen = set()
+      for t in tags:
+        if not isinstance(t, str):
+          continue
+        tag = t.strip()
+        if not tag or tag in seen:
+          continue
+        seen.add(tag)
+        normalized_tags.append(tag)
+      data['tags'] = normalized_tags
+    else:
+      data['tags'] = []
 
     # Default state if missing/empty.
     state_val = data.get('state')

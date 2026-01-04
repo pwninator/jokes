@@ -161,7 +161,7 @@ def get_all_joke_categories(
     data = doc.to_dict() or {}
     category = models.JokeCategory.from_firestore_dict(data, key=doc.id)
     if (not category.display_name and not category.joke_description_query
-        and not category.seasonal_name):
+        and not category.seasonal_name and not category.tags):
       continue
 
     if fetch_cached_jokes:
@@ -222,6 +222,7 @@ def create_joke_category(
   state: str = "PROPOSED",
   joke_description_query: str | None = None,
   seasonal_name: str | None = None,
+  tags: list[str] | None = None,
   image_description: str | None = None,
 ) -> str:
   """Create a new joke category and return its document ID.
@@ -232,19 +233,30 @@ def create_joke_category(
   display_name = (display_name or '').strip()
   joke_description_query = (joke_description_query or '').strip()
   seasonal_name = (seasonal_name or '').strip()
+  tags = list(tags) if isinstance(tags, list) else []
   image_description = (image_description or '').strip()
   state = (state or 'PROPOSED').strip()
 
   if not display_name:
     raise ValueError("display_name is required")
-  if not joke_description_query and not seasonal_name:
-    raise ValueError("Provide joke_description_query or seasonal_name")
+
+  normalized_tags: list[str] = []
+  seen = set()
+  for t in tags:
+    if not isinstance(t, str):
+      continue
+    tag = t.strip()
+    if not tag or tag in seen:
+      continue
+    seen.add(tag)
+    normalized_tags.append(tag)
+
+  if not joke_description_query and not seasonal_name and not normalized_tags:
+    raise ValueError(
+      "Provide at least one of joke_description_query, seasonal_name, or tags")
 
   # Use the same key semantics as the app (display_name-derived).
-  category_id = models.JokeCategory(
-    display_name=display_name,
-    joke_description_query=joke_description_query,
-  ).key
+  category_id = models.JokeCategory(display_name=display_name).key
 
   ref = db().collection('joke_categories').document(category_id)
   if ref.get().exists:
@@ -255,6 +267,7 @@ def create_joke_category(
     display_name=display_name,
     joke_description_query=joke_description_query or None,
     seasonal_name=seasonal_name or None,
+    tags=normalized_tags,
     state=state,
     image_description=image_description or None,
   )
@@ -304,9 +317,10 @@ async def upsert_joke_categories(
   prepared: list[tuple[str, dict[str, Any]]] = []
   for category in categories:
     if not category.display_name or (not category.joke_description_query
-                                     and not category.seasonal_name):
+                                     and not category.seasonal_name
+                                     and not category.tags):
       raise ValueError(
-        "JokeCategory must have non-empty display_name and either joke_description_query or seasonal_name"
+        "JokeCategory must have non-empty display_name and at least one of joke_description_query, seasonal_name, or tags"
       )
 
     # Serialize directly from the model. (JokeCategory.to_dict already drops

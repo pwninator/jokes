@@ -36,7 +36,6 @@ def test_admin_create_category_calls_refresh(monkeypatch):
     resp = client.post(
       '/admin/joke-categories/create',
       data={
-        'category_type': 'search',
         'display_name': 'Animals',
         'joke_description_query': 'animals',
       },
@@ -51,6 +50,7 @@ def test_admin_create_category_calls_refresh(monkeypatch):
   assert kwargs["state"] == "PROPOSED"
   assert kwargs["joke_description_query"] == "animals"
   assert kwargs["seasonal_name"] is None
+  assert kwargs["tags"] is None
 
   mock_refresh.assert_called_once()
   args, _ = mock_refresh.call_args
@@ -58,6 +58,7 @@ def test_admin_create_category_calls_refresh(monkeypatch):
   assert args[1]["state"] == "PROPOSED"
   assert args[1]["joke_description_query"] == "animals"
   assert args[1]["seasonal_name"] == ""
+  assert args[1]["tags"] == []
 
 
 def test_admin_create_seasonal_category(monkeypatch):
@@ -75,7 +76,6 @@ def test_admin_create_seasonal_category(monkeypatch):
     resp = client.post(
       '/admin/joke-categories/create',
       data={
-        'category_type': 'seasonal',
         'display_name': 'Christmas',
         'seasonal_name': 'Christmas',
       },
@@ -88,11 +88,13 @@ def test_admin_create_seasonal_category(monkeypatch):
   assert kwargs["display_name"] == "Christmas"
   assert kwargs["joke_description_query"] is None
   assert kwargs["seasonal_name"] == "Christmas"
+  assert kwargs["tags"] is None
 
   args, _ = mock_refresh.call_args
   assert args[0] == "christmas"
   assert args[1]["joke_description_query"] == ""
   assert args[1]["seasonal_name"] == "Christmas"
+  assert args[1]["tags"] == []
 
 
 def test_admin_create_category_validates_required_fields(monkeypatch):
@@ -103,7 +105,6 @@ def test_admin_create_category_validates_required_fields(monkeypatch):
     resp = client.post(
       '/admin/joke-categories/create',
       data={
-        'category_type': 'search',
         'display_name': '',
         'joke_description_query': 'dogs',
       },
@@ -112,6 +113,41 @@ def test_admin_create_category_validates_required_fields(monkeypatch):
   assert resp.status_code == 302
   assert resp.headers["Location"].endswith(
     '/admin/joke-categories?error=display_name_required')
+
+
+def test_admin_create_category_allows_tags_only(monkeypatch):
+  """Tags-only category creation should be allowed and initialize the cache."""
+  _mock_admin_session(monkeypatch)
+
+  mock_create = Mock(return_value="food")
+  monkeypatch.setattr(categories_routes.firestore, "create_joke_category",
+                      mock_create)
+
+  mock_refresh = Mock()
+  monkeypatch.setattr(categories_routes.joke_category_operations,
+                      "refresh_single_category_cache", mock_refresh)
+
+  with app.test_client() as client:
+    resp = client.post(
+      '/admin/joke-categories/create',
+      data={
+        'display_name': 'Food',
+        'tags': 'food, snacks, food',
+      },
+    )
+
+  assert resp.status_code == 302
+  assert resp.headers["Location"].endswith('/admin/joke-categories?created=1')
+
+  _, kwargs = mock_create.call_args
+  assert kwargs["display_name"] == "Food"
+  assert kwargs["joke_description_query"] is None
+  assert kwargs["seasonal_name"] is None
+  assert kwargs["tags"] == ["food", "snacks"]
+
+  args, _ = mock_refresh.call_args
+  assert args[0] == "food"
+  assert args[1]["tags"] == ["food", "snacks"]
 
 
 def test_admin_update_category_sets_fields_and_refreshes_cache(monkeypatch):
@@ -135,9 +171,9 @@ def test_admin_update_category_sets_fields_and_refreshes_cache(monkeypatch):
       data={
         'display_name': 'Animals',
         'state': 'APPROVED',
-        'category_type': 'search',
         'joke_description_query': 'animals',
         'seasonal_name': '',
+        'tags': 'cats, dogs',
         'image_url': 'https://cdn/cat.png',
         'image_description': 'Cute animals',
         'all_image_urls': 'https://a.png\nhttps://b.png\n',
@@ -159,6 +195,7 @@ def test_admin_update_category_sets_fields_and_refreshes_cache(monkeypatch):
   assert args[1]['state'] == 'APPROVED'
   assert args[1]['joke_description_query'] == 'animals'
   assert args[1]['seasonal_name'] == ''
+  assert args[1]['tags'] == ['cats', 'dogs']
 
 
 def test_admin_joke_categories_renders_multiline_tooltip(monkeypatch):

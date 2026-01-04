@@ -149,6 +149,20 @@ def fake_env_fixture(monkeypatch):
 
 def _run_refresh(monkeypatch, fake_db):
   monkeypatch.setattr("services.firestore.db", lambda: fake_db)
+  # Avoid depending on Firestore 'jokes' collection in these unit tests.
+  def fake_get_punny_jokes(joke_ids):
+    results = []
+    for jid in joke_ids:
+      results.append(
+        models.PunnyJoke(
+          key=jid,
+          setup_text="S",
+          punchline_text="P",
+          num_saved_users_fraction=0.0,
+        ))
+    return results
+
+  monkeypatch.setattr("services.firestore.get_punny_jokes", fake_get_punny_jokes)
   # Execute
   joke_category_operations.refresh_category_caches()
 

@@ -222,6 +222,7 @@ def create_joke_category(
   state: str = "PROPOSED",
   joke_description_query: str | None = None,
   seasonal_name: str | None = None,
+  search_distance: float | None = None,
   tags: list[str] | None = None,
   image_description: str | None = None,
 ) -> str:
@@ -236,6 +237,8 @@ def create_joke_category(
   tags = list(tags) if isinstance(tags, list) else []
   image_description = (image_description or '').strip()
   state = (state or 'PROPOSED').strip()
+  search_distance = float(
+    search_distance) if search_distance is not None else None
 
   if not display_name:
     raise ValueError("display_name is required")
@@ -267,6 +270,7 @@ def create_joke_category(
     display_name=display_name,
     joke_description_query=joke_description_query or None,
     seasonal_name=seasonal_name or None,
+    search_distance=search_distance,
     tags=normalized_tags,
     state=state,
     image_description=image_description or None,

@@ -651,6 +651,9 @@ class JokeCategory:
   seasonal_name: str | None = None
   """If set, this category is seasonal and jokes are selected by `seasonal`."""
 
+  search_distance: float | None = None
+  """Optional search distance threshold override for this category's search query."""
+
   tags: list[str] = field(default_factory=list)
   """If set, this category also includes jokes that match any of these tags."""
 
@@ -726,6 +729,20 @@ class JokeCategory:
       data['tags'] = normalized_tags
     else:
       data['tags'] = []
+
+    search_distance = data.get('search_distance')
+    if isinstance(search_distance, (int, float)):
+      data['search_distance'] = float(search_distance)
+    elif isinstance(search_distance, str):
+      if value := search_distance.strip():
+        try:
+          data['search_distance'] = float(value)
+        except ValueError:
+          data['search_distance'] = None
+      else:
+        data['search_distance'] = None
+    else:
+      data['search_distance'] = None
 
     # Default state if missing/empty.
     state_val = data.get('state')

@@ -87,6 +87,7 @@ def refresh_single_category_cache(
   raw_query = (category.joke_description_query or "").strip()
   seasonal_name = (category.seasonal_name or "").strip()
   tags = [t for t in (category.tags or []) if isinstance(t, str) and t.strip()]
+  search_distance = category.search_distance
 
   client = firestore.db()
 
@@ -101,7 +102,11 @@ def refresh_single_category_cache(
 
   if raw_query:
     search_query = f"jokes about {raw_query}"
-    for item in search_category_jokes(search_query, category_id):
+    for item in search_category_jokes(
+        search_query,
+        category_id,
+        distance_threshold=search_distance,
+    ):
       joke_id = item.get("joke_id")
       if isinstance(joke_id, str) and joke_id:
         jokes_by_id[joke_id] = item
@@ -153,8 +158,12 @@ def refresh_single_category_cache(
   return "updated"
 
 
-def search_category_jokes(search_query: str,
-                          category_id: str) -> list[dict[str, object]]:
+def search_category_jokes(
+  search_query: str,
+  category_id: str,
+  *,
+  distance_threshold: float | None = None,
+) -> list[dict[str, object]]:
   """Search for jokes matching a category query.
 
   Args:
@@ -177,7 +186,8 @@ def search_category_jokes(search_query: str,
     label=f"daily_cache:category:{category_id}",
     field_filters=field_filters,  # type: ignore[arg-type]
     limit=100,
-    distance_threshold=config.JOKE_SEARCH_TIGHT_THRESHOLD,
+    distance_threshold=distance_threshold
+    if distance_threshold else config.JOKE_SEARCH_TIGHT_THRESHOLD,
   )
 
   # Extract joke IDs

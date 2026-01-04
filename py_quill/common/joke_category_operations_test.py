@@ -92,7 +92,12 @@ def fake_env_fixture(monkeypatch):
   search_calls: list[dict] = []
   seasonal_calls: list[str] = []
 
-  def fake_search_category_jokes(query, category_id):
+  def fake_search_category_jokes(
+    query,
+    category_id,
+    *,
+    distance_threshold=None,  # pylint: disable=unused-argument
+  ):
     search_calls.append({
       "query": query,
       "category": category_id,
@@ -336,7 +341,8 @@ class TestSearchCategoryJokesSorting:
       JokeSearchResult(joke_id="j4", vector_distance=0.1),
     ]
 
-    def fake_search_jokes(**kwargs):  # pylint: disable=unused-argument
+    def fake_search_jokes(**kwargs):
+      assert kwargs["distance_threshold"] == 0.123
       return results
 
     # Mock full jokes returned by firestore.get_punny_jokes
@@ -386,7 +392,11 @@ class TestSearchCategoryJokesSorting:
       "services.firestore.get_punny_jokes", fake_get_punny_jokes)
 
     # Act
-    jokes = joke_category_operations.search_category_jokes("test query", "cat1")
+    jokes = joke_category_operations.search_category_jokes(
+      "test query",
+      "cat1",
+      distance_threshold=0.123,
+    )
 
     # Assert
     assert len(jokes) == 4

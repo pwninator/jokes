@@ -48,6 +48,7 @@ def test_joke_category_from_firestore_dict_sets_id_and_defaults():
       'state': 'APPROVED',
       'seasonal_name': 'Christmas',
       'joke_description_query': 'should_be_ignored',
+      'search_distance': 0.33,
       'all_image_urls': ['https://a.png', 123, None],
     },
     key='cats',
@@ -58,4 +59,5 @@ def test_joke_category_from_firestore_dict_sets_id_and_defaults():
   assert cat.seasonal_name == 'Christmas'
   # seasonal_name can coexist with search query
   assert cat.joke_description_query == 'should_be_ignored'
+  assert cat.search_distance == 0.33
   assert cat.all_image_urls == ['https://a.png']

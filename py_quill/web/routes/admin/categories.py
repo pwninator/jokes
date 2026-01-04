@@ -58,8 +58,17 @@ def admin_create_joke_category():
   image_description = (form.get('image_description') or '').strip()
 
   joke_description_query = (form.get('joke_description_query') or '').strip()
+  search_distance_raw = (form.get('search_distance') or '').strip()
   seasonal_name = (form.get('seasonal_name') or '').strip()
   tags_raw = (form.get('tags') or '').strip()
+
+  search_distance = None
+  if search_distance_raw:
+    try:
+      search_distance = float(search_distance_raw)
+    except ValueError:
+      return flask.redirect(
+        '/admin/joke-categories?error=search_distance_invalid')
 
   tags: list[str] = []
   if tags_raw:
@@ -79,19 +88,24 @@ def admin_create_joke_category():
       '/admin/joke-categories?error=category_source_required')
 
   try:
-    category_id = firestore.create_joke_category(
-      display_name=display_name,
-      state='PROPOSED',
-      joke_description_query=joke_description_query or None,
-      seasonal_name=seasonal_name or None,
-      tags=tags or None,
-      image_description=image_description or None,
-    )
+    create_kwargs: dict[str, object] = {
+      "display_name": display_name,
+      "state": "PROPOSED",
+      "joke_description_query": joke_description_query or None,
+      "seasonal_name": seasonal_name or None,
+      "tags": tags or None,
+      "image_description": image_description or None,
+    }
+    if search_distance is not None:
+      create_kwargs["search_distance"] = search_distance
+
+    category_id = firestore.create_joke_category(**create_kwargs)
 
     category_data = {
       'state': 'PROPOSED',
       'joke_description_query': joke_description_query,
       'seasonal_name': seasonal_name,
+      'search_distance': search_distance,
       'tags': tags,
     }
     if image_description:
@@ -117,8 +131,17 @@ def admin_update_joke_category(category_id: str):
   state = (form.get('state') or 'PROPOSED').strip().upper()
 
   joke_description_query = (form.get('joke_description_query') or '').strip()
+  search_distance_raw = (form.get('search_distance') or '').strip()
   seasonal_name = (form.get('seasonal_name') or '').strip()
   tags_raw = (form.get('tags') or '').strip()
+
+  search_distance = None
+  if search_distance_raw:
+    try:
+      search_distance = float(search_distance_raw)
+    except ValueError:
+      return flask.redirect(
+        '/admin/joke-categories?error=search_distance_invalid')
 
   tags: list[str] = []
   if tags_raw:
@@ -163,6 +186,8 @@ def admin_update_joke_category(category_id: str):
     seasonal_name if seasonal_name else DELETE_FIELD,
     'joke_description_query':
     joke_description_query if joke_description_query else DELETE_FIELD,
+    'search_distance':
+    search_distance if search_distance is not None else DELETE_FIELD,
     'tags':
     tags if tags else DELETE_FIELD,
     'image_description':
@@ -187,6 +212,7 @@ def admin_update_joke_category(category_id: str):
         'state': state,
         'seasonal_name': seasonal_name,
         'joke_description_query': joke_description_query,
+        'search_distance': search_distance,
         'tags': tags,
       },
     )

@@ -38,6 +38,7 @@ def test_admin_create_category_calls_refresh(monkeypatch):
       data={
         'display_name': 'Animals',
         'joke_description_query': 'animals',
+        'search_distance': '0.25',
       },
     )
 
@@ -51,6 +52,7 @@ def test_admin_create_category_calls_refresh(monkeypatch):
   assert kwargs["joke_description_query"] == "animals"
   assert kwargs["seasonal_name"] is None
   assert kwargs["tags"] is None
+  assert kwargs["search_distance"] == 0.25
 
   mock_refresh.assert_called_once()
   args, _ = mock_refresh.call_args
@@ -59,6 +61,7 @@ def test_admin_create_category_calls_refresh(monkeypatch):
   assert args[1]["joke_description_query"] == "animals"
   assert args[1]["seasonal_name"] == ""
   assert args[1]["tags"] == []
+  assert args[1]["search_distance"] == 0.25
 
 
 def test_admin_create_seasonal_category(monkeypatch):
@@ -89,6 +92,7 @@ def test_admin_create_seasonal_category(monkeypatch):
   assert kwargs["joke_description_query"] is None
   assert kwargs["seasonal_name"] == "Christmas"
   assert kwargs["tags"] is None
+  assert kwargs.get("search_distance") is None
 
   args, _ = mock_refresh.call_args
   assert args[0] == "christmas"
@@ -144,6 +148,7 @@ def test_admin_create_category_allows_tags_only(monkeypatch):
   assert kwargs["joke_description_query"] is None
   assert kwargs["seasonal_name"] is None
   assert kwargs["tags"] == ["food", "snacks"]
+  assert kwargs.get("search_distance") is None
 
   args, _ = mock_refresh.call_args
   assert args[0] == "food"
@@ -172,6 +177,7 @@ def test_admin_update_category_sets_fields_and_refreshes_cache(monkeypatch):
         'display_name': 'Animals',
         'state': 'APPROVED',
         'joke_description_query': 'animals',
+        'search_distance': '0.30',
         'seasonal_name': '',
         'tags': 'cats, dogs',
         'image_url': 'https://cdn/cat.png',
@@ -195,6 +201,7 @@ def test_admin_update_category_sets_fields_and_refreshes_cache(monkeypatch):
   assert args[1]['state'] == 'APPROVED'
   assert args[1]['joke_description_query'] == 'animals'
   assert args[1]['seasonal_name'] == ''
+  assert args[1]['search_distance'] == 0.30
   assert args[1]['tags'] == ['cats', 'dogs']
 
 

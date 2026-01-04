@@ -16,9 +16,17 @@
         </label>
 
         <label class="text-body">
-          <div class="text-button">Search query</div>
-          <input name="joke_description_query" type="text"
-            style="width: 100%; padding: 8px 12px; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-surface); font-family: inherit;">
+          <div class="text-button">Search</div>
+          <div style="display: flex; gap: 10px; align-items: center;">
+            <input name="joke_description_query" type="text"
+              placeholder="cats"
+              style="flex: 1 1 auto; min-width: 0; padding: 8px 12px; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-surface); font-family: inherit;">
+            <input name="search_distance" type="text"
+              inputmode="decimal"
+              placeholder="0.20"
+              title="Optional search distance threshold"
+              style="width: 90px; padding: 8px 10px; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-surface); font-family: inherit;">
+          </div>
         </label>
 
         <label class="text-body">
@@ -315,9 +323,18 @@
 
             <div class="edit-row row-3">
               <label class="text-body">
-                <div class="text-button">Search query</div>
-                <input name="joke_description_query" type="text"
-                  value="{{ category.joke_description_query or '' }}">
+                <div class="text-button">Search</div>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                  <input name="joke_description_query" type="text"
+                    value="{{ category.joke_description_query or '' }}"
+                    style="flex: 1 1 auto; min-width: 0;">
+                  <input name="search_distance" type="text"
+                    inputmode="decimal"
+                    placeholder="0.20"
+                    title="Optional search distance threshold"
+                    value="{{ category.search_distance if category.search_distance is not none else '' }}"
+                    style="width: 90px;">
+                </div>
               </label>
 
               <label class="text-body">

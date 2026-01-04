@@ -20,7 +20,7 @@ from services import cloud_storage, firestore, image_client, image_editor
 _AD_BACKGROUND_SQUARE_DRAWING_URI = "gs://images.quillsstorybook.com/joke_assets/background_drawing_1280_1280.png"
 _AD_BACKGROUND_SQUARE_DESK_URI = "gs://images.quillsstorybook.com/joke_assets/background_desk_1280_1280.png"
 _AD_BACKGROUND_SQUARE_CORKBOARD_URI = "gs://images.quillsstorybook.com/joke_assets/background_corkboard_1280_1280.png"
-_JOKE_NOTES_TEMPLATE_URL = "https://images.quillsstorybook.com/cdn-cgi/image/format=png,quality=100/_joke_assets/lunchbox/lunchbox_notes_template.png"
+_JOKE_NOTES_OVERLAY_URL = "https://images.quillsstorybook.com/cdn-cgi/image/format=png,quality=100/_joke_assets/lunchbox/lunchbox_notes_template.png"
 
 _AD_LANDSCAPE_CANVAS_WIDTH = 2048
 _AD_LANDSCAPE_CANVAS_HEIGHT = 1024
@@ -1024,7 +1024,7 @@ def create_joke_notes_sheet(joke_ids: list[str]) -> bytes:
       continue
 
   try:
-    response = requests.get(_JOKE_NOTES_TEMPLATE_URL, timeout=10)
+    response = requests.get(_JOKE_NOTES_OVERLAY_URL, timeout=10)
     response.raise_for_status()
     template_image = Image.open(BytesIO(response.content)).convert('RGBA')
     if template_image.size != (canvas_width, canvas_height):

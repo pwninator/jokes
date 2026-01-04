@@ -530,15 +530,19 @@ class CreateBookPagesTest(unittest.TestCase):
     def _stub_generation(**kwargs):
       self.assertEqual(kwargs['output_file_name_base'], 'joke123_book_page')
       self.assertIsInstance(kwargs['setup_image'], models.Image)
-      self.assertEqual(kwargs['setup_image'].url, 'https://cdn.example.com/setup.png')
+      self.assertEqual(kwargs['setup_image'].url,
+                       'https://cdn.example.com/setup.png')
       self.assertIsInstance(kwargs['punchline_image'], models.Image)
-      self.assertEqual(kwargs['punchline_image'].url, 'https://cdn.example.com/punchline.png')
+      self.assertEqual(kwargs['punchline_image'].url,
+                       'https://cdn.example.com/punchline.png')
 
       style_refs = kwargs['style_reference_images']
-      self.assertEqual(len(style_refs), len(image_operations._STYLE_REFERENCE_IMAGE_URLS))
+      self.assertEqual(len(style_refs),
+                       len(image_operations._STYLE_REFERENCE_IMAGE_URLS))
       for idx, img in enumerate(style_refs):
         self.assertIsInstance(img, models.Image)
-        self.assertEqual(img.url, image_operations._STYLE_REFERENCE_IMAGE_URLS[idx])
+        self.assertEqual(img.url,
+                         image_operations._STYLE_REFERENCE_IMAGE_URLS[idx])
 
       return SimpleNamespace(
         simple_setup_image=_make_fake_image_model(
@@ -737,7 +741,8 @@ class CreateBookPagesTest(unittest.TestCase):
       self.assertIsInstance(kwargs['punchline_image'], models.Image)
 
       style_refs = kwargs['style_reference_images']
-      self.assertEqual(len(style_refs), len(image_operations._STYLE_REFERENCE_IMAGE_URLS))
+      self.assertEqual(len(style_refs),
+                       len(image_operations._STYLE_REFERENCE_IMAGE_URLS))
 
       return SimpleNamespace(
         simple_setup_image=_make_fake_image_model(
@@ -881,9 +886,11 @@ class CreateBookPagesTest(unittest.TestCase):
     self.assertEqual(kwargs['punchline_text'], 'Because it saw the fryer')
 
     self.assertIsInstance(kwargs['setup_image'], models.Image)
-    self.assertEqual(kwargs['setup_image'].url, 'https://cdn.example.com/setup.png')
+    self.assertEqual(kwargs['setup_image'].url,
+                     'https://cdn.example.com/setup.png')
     self.assertIsInstance(kwargs['punchline_image'], models.Image)
-    self.assertEqual(kwargs['punchline_image'].url, 'https://cdn.example.com/punchline.png')
+    self.assertEqual(kwargs['punchline_image'].url,
+                     'https://cdn.example.com/punchline.png')
 
     mock_firestore.update_punny_joke.assert_called_once()
     mock_storage.download_image_from_gcs.assert_not_called()
@@ -895,23 +902,25 @@ class CreateBookPagesTest(unittest.TestCase):
     image_operations._get_style_update_reference_images.cache_clear()
 
     setup_image_model = _make_fake_image_model(
-        gcs_uri='gs://bucket/setup.png', url='https://cdn.example.com/setup.png')
+      gcs_uri='gs://bucket/setup.png', url='https://cdn.example.com/setup.png')
     punchline_image_model = _make_fake_image_model(
-        gcs_uri='gs://bucket/punchline.png', url='https://cdn.example.com/punchline.png')
+      gcs_uri='gs://bucket/punchline.png',
+      url='https://cdn.example.com/punchline.png')
 
     # PIL images to return when downloading in _get_simple_book_page
     setup_pil = Image.open(BytesIO(_create_image_bytes('red')))
     punchline_pil = Image.open(BytesIO(_create_image_bytes('blue')))
 
     def _extract(uri):
-        return f'gs://bucket/{uri.split("/")[-1]}'
+      return f'gs://bucket/{uri.split("/")[-1]}'
+
     mock_storage.extract_gcs_uri_from_image_url.side_effect = _extract
 
     def _download_side_effect(uri: str):
       if uri == 'gs://bucket/setup.png':
-          return setup_pil
+        return setup_pil
       if uri == 'gs://bucket/punchline.png':
-          return punchline_pil
+        return punchline_pil
       # Default empty image for style refs if needed, but they are mocked via models.Image
       return Image.open(BytesIO(_create_image_bytes('white')))
 
@@ -963,14 +972,21 @@ class CreateBookPagesTest(unittest.TestCase):
     self.assertIs(punch_refs[0], result.generated_setup_image)
 
     # Check that style refs are passed as models.Image
-    canvas_ref = [r for r in punch_refs if isinstance(r, models.Image) and 'canvas' in r.url]
-    ref1_ref = [r for r in punch_refs if isinstance(r, models.Image) and 'lion' in r.url] # wait, url is constant
+    canvas_ref = [
+      r for r in punch_refs
+      if isinstance(r, models.Image) and 'canvas' in r.url
+    ]
+    ref1_ref = [
+      r for r in punch_refs if isinstance(r, models.Image) and 'lion' in r.url
+    ]  # wait, url is constant
 
     # We can check URLs of style refs
     style_ref_urls = [r.url for r in punch_refs if isinstance(r, models.Image)]
     self.assertIn(image_operations._STYLE_UPDATE_CANVAS_URL, style_ref_urls)
-    self.assertIn(image_operations._STYLE_REFERENCE_IMAGE_URLS[0], style_ref_urls)
-    self.assertIn(image_operations._STYLE_REFERENCE_IMAGE_URLS[1], style_ref_urls)
+    self.assertIn(image_operations._STYLE_REFERENCE_IMAGE_URLS[0],
+                  style_ref_urls)
+    self.assertIn(image_operations._STYLE_REFERENCE_IMAGE_URLS[1],
+                  style_ref_urls)
 
   @patch('common.image_operations.generate_book_pages_with_nano_banana_pro')
   @patch('common.image_operations.firestore')
@@ -1020,9 +1036,11 @@ class CreateBookPagesTest(unittest.TestCase):
 
     def _stub_generation(**kwargs):
       self.assertIsInstance(kwargs['setup_image'], models.Image)
-      self.assertEqual(kwargs['setup_image'].url, 'https://cdn.example.com/book_setup.jpg')
+      self.assertEqual(kwargs['setup_image'].url,
+                       'https://cdn.example.com/book_setup.jpg')
       self.assertIsInstance(kwargs['punchline_image'], models.Image)
-      self.assertEqual(kwargs['punchline_image'].url, 'https://cdn.example.com/book_punch.jpg')
+      self.assertEqual(kwargs['punchline_image'].url,
+                       'https://cdn.example.com/book_punch.jpg')
       return SimpleNamespace(
         simple_setup_image=_make_fake_image_model(
           gcs_uri=simple_setup_uri,
@@ -1139,9 +1157,11 @@ class CreateBookPagesTest(unittest.TestCase):
 
     def _stub_generation(**kwargs):
       self.assertIsInstance(kwargs['setup_image'], models.Image)
-      self.assertEqual(kwargs['setup_image'].url, 'https://cdn.example.com/original_setup.png')
+      self.assertEqual(kwargs['setup_image'].url,
+                       'https://cdn.example.com/original_setup.png')
       self.assertIsInstance(kwargs['punchline_image'], models.Image)
-      self.assertEqual(kwargs['punchline_image'].url, 'https://cdn.example.com/original_punch.png')
+      self.assertEqual(kwargs['punchline_image'].url,
+                       'https://cdn.example.com/original_punch.png')
       return SimpleNamespace(
         simple_setup_image=_make_fake_image_model(
           gcs_uri=simple_setup_uri,
@@ -1416,6 +1436,7 @@ class ZipJokePageImagesTest(unittest.TestCase):
 if __name__ == '__main__':
   unittest.main()
 
+
 class CreateJokeNotesSheetTest(unittest.TestCase):
   """Tests for create_joke_notes_sheet function."""
 
@@ -1461,6 +1482,6 @@ class CreateJokeNotesSheetTest(unittest.TestCase):
     # 2 jokes * 2 images = 4 downloads
     self.assertEqual(mock_storage.download_image_from_gcs.call_count, 4)
     mock_requests_get.assert_called_once_with(
-      image_operations._JOKE_NOTES_TEMPLATE_URL,
+      image_operations._JOKE_NOTES_OVERLAY_URL,
       timeout=10,
     )

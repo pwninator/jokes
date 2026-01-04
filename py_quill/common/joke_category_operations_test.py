@@ -477,6 +477,123 @@ class TestQuerySeasonalCategoryJokesSorting:
     assert jokes[2]["joke_id"] == "j1"
     assert jokes[3]["joke_id"] == "j3"
 
+
+class TestQueryTagsCategoryJokesBatching:
+  """Tests for tag query batching and union semantics."""
+
+  def test_batches_tags_over_firestore_limit_and_unions_results(self):
+    """Tags > 10 should be partitioned into multiple queries and unioned."""
+
+    class _FakeDoc:
+
+      def __init__(self, doc_id: str, data: dict):
+        self.id = doc_id
+        self._data = dict(data)
+
+      def to_dict(self):
+        return dict(self._data)
+
+    class _FakeQuery:
+
+      def __init__(self, tag_to_docs: dict[str, list[_FakeDoc]],
+                   seen_tag_chunks: list[list[str]]):
+        self._tag_to_docs = tag_to_docs
+        self._seen_tag_chunks = seen_tag_chunks
+        self._tag_chunk: list[str] = []
+
+      def where(self, *, filter):  # pylint: disable=redefined-builtin
+        # We only care about the array_contains_any filter on "tags".
+        field_path = getattr(filter, "field_path", None)
+        op_string = getattr(filter, "op_string", None)
+        value = getattr(filter, "value", None)
+        if field_path == "tags" and op_string == "array_contains_any":
+          assert isinstance(value, list)
+          self._tag_chunk = list(value)
+          self._seen_tag_chunks.append(list(value))
+        return self
+
+      def limit(self, _n: int):
+        return self
+
+      def stream(self):
+        docs: list[_FakeDoc] = []
+        for tag in self._tag_chunk:
+          docs.extend(self._tag_to_docs.get(tag, []))
+        return docs
+
+    class _FakeClient:
+
+      def __init__(self, tag_to_docs: dict[str, list[_FakeDoc]]):
+        self._tag_to_docs = tag_to_docs
+        self.seen_tag_chunks: list[list[str]] = []
+
+      def collection(self, name: str):
+        assert name == "jokes"
+        return _FakeQuery(self._tag_to_docs, self.seen_tag_chunks)
+
+    # Arrange: 12 tags forces 2 chunks (10 + 2). Include overlap to prove union.
+    tags = [f"t{i}" for i in range(12)]
+    tag_to_docs = {
+      "t0": [
+        _FakeDoc(
+          "j1",
+          {
+            "setup_text": "S1",
+            "punchline_text": "P1",
+            "setup_image_url": "u1",
+            "punchline_image_url": "v1",
+            "num_saved_users_fraction": 0.2,
+          },
+        ),
+      ],
+      "t1": [
+        _FakeDoc(
+          "j2",
+          {
+            "setup_text": "S2",
+            "punchline_text": "P2",
+            "setup_image_url": "u2",
+            "punchline_image_url": "v2",
+            "num_saved_users_fraction": 0.9,
+          },
+        ),
+      ],
+      # Overlap: j2 appears again in the second chunk as well.
+      "t11": [
+        _FakeDoc(
+          "j2",
+          {
+            "setup_text": "S2b",
+            "punchline_text": "P2b",
+            "setup_image_url": "u2b",
+            "punchline_image_url": "v2b",
+            "num_saved_users_fraction": 0.9,
+          },
+        ),
+        _FakeDoc(
+          "j3",
+          {
+            "setup_text": "S3",
+            "punchline_text": "P3",
+            "setup_image_url": "u3",
+            "punchline_image_url": "v3",
+            "num_saved_users_fraction": 0.4,
+          },
+        ),
+      ],
+    }
+    client = _FakeClient(tag_to_docs)
+
+    # Act
+    payload = joke_category_operations.query_tags_category_jokes(client, tags)
+
+    # Assert: two array_contains_any chunks observed: first 10, then remaining 2.
+    assert client.seen_tag_chunks[0] == tags[:10]
+    assert client.seen_tag_chunks[1] == tags[10:]
+
+    # Union + dedupe: j2 should appear once. Sorted by num_saved_users_fraction.
+    assert [p["joke_id"] for p in payload] == ["j2", "j3", "j1"]
+
   def test_handles_missing_fraction_field(self, monkeypatch):
     """Test that docs without num_saved_users_fraction are sorted last."""
 

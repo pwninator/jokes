@@ -266,43 +266,53 @@ def query_tags_category_jokes(
     setup_image_url, punchline_image_url, sorted by num_saved_users_fraction
     in descending order.
   """
-  normalized_tags: list[str] = []
-  seen = set()
-  for t in tags or []:
-    if not isinstance(t, str):
-      continue
-    tag = t.strip()
-    if not tag or tag in seen:
-      continue
-    seen.add(tag)
-    normalized_tags.append(tag)
+
+  def _normalize_tags(raw_tags: list[str]) -> list[str]:
+    normalized: list[str] = []
+    seen = set()
+    for t in raw_tags or []:
+      if not isinstance(t, str):
+        continue
+      tag = t.strip()
+      if not tag or tag in seen:
+        continue
+      seen.add(tag)
+      normalized.append(tag)
+    return normalized
+
+  def _chunks(items: list[str], size: int) -> list[list[str]]:
+    if size <= 0:
+      raise ValueError("chunk size must be positive")
+    return [items[i:i + size] for i in range(0, len(items), size)]
+
+  normalized_tags = _normalize_tags(tags)
 
   if not normalized_tags:
     return []
 
-  # Firestore array-contains-any supports up to 10 values.
-  if len(normalized_tags) > 10:
-    logger.warning(
-      "Category tags list exceeded Firestore array-contains-any limit; truncating",
-    )
-    normalized_tags = normalized_tags[:10]
-
   states = [models.JokeState.PUBLISHED.value, models.JokeState.DAILY.value]
-  query = client.collection("jokes")
-  query = query.where(filter=FieldFilter("state", "in", states))
-  query = query.where(filter=FieldFilter("is_public", "==", True))
-  query = query.where(
-    filter=FieldFilter("tags", "array_contains_any", normalized_tags))
-  query = query.limit(100)
+  docs_by_id: dict[str, dict] = {}
 
-  docs = query.stream()
-  docs_list = [(doc.id, doc.to_dict() or {}) for doc in docs]
+  # Firestore array-contains-any supports up to 10 values; partition and union.
+  for chunk in _chunks(normalized_tags, 10):
+    query = client.collection("jokes")
+    query = query.where(filter=FieldFilter("state", "in", states))
+    query = query.where(filter=FieldFilter("is_public", "==", True))
+    query = query.where(
+      filter=FieldFilter("tags", "array_contains_any", chunk))
+    query = query.limit(100)
+
+    for doc in query.stream():
+      data = doc.to_dict() or {}
+      docs_by_id[doc.id] = data
+
   sorted_docs_list = sorted(
-    docs_list,
+    docs_by_id.items(),
     key=lambda item: item[1].get("num_saved_users_fraction", 0.0),
-    reverse=True)
+    reverse=True,
+  )[:100]
 
-  payload = []
+  payload: list[dict[str, object]] = []
   for doc_id, data in sorted_docs_list:
     payload.append({
       "joke_id": doc_id,

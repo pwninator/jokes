@@ -21,7 +21,8 @@ class OfflineBundleLoader {
   final FirebaseFirestore _firestore;
   final AssetBundle _assetBundle;
 
-  static const String bundlePath = 'assets/data_bundles/firestore_bundle_20251227_094720_556960.txt';
+  static const String bundlePath =
+      'assets/data_bundles/firestore_bundle_20251227_094720_556960.txt';
 
   /// Load the most recent Firestore bundle from assets (if any).
   ///

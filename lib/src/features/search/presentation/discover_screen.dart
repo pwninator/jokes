@@ -314,6 +314,7 @@ class _CategoryGrid extends ConsumerWidget {
             .where(
               (c) =>
                   c.state == JokeCategoryState.approved ||
+                  // NOTE: `SEASONAL` categories are intentionally hidden from Discover.
                   c.state == JokeCategoryState.proposed,
             )
             .toList();

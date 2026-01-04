@@ -92,6 +92,8 @@ Color _getBorderColorForState(JokeCategoryState state) {
       return Colors.orange;
     case JokeCategoryState.approved:
       return Colors.green;
+    case JokeCategoryState.seasonal:
+      return Colors.purple;
     case JokeCategoryState.rejected:
       return Colors.red;
   }

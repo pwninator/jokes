@@ -46,17 +46,15 @@ void main() {
       expect(analysis.imageTails, isNotEmpty);
 
       final manifestJson = await rootBundle.loadString(_imageManifestPath);
-      final manifestList =
-          (jsonDecode(manifestJson) as List<dynamic>).cast<String>();
+      final manifestList = (jsonDecode(manifestJson) as List<dynamic>)
+          .cast<String>();
       final manifestSet = manifestList.toSet();
       expect(manifestSet.length, manifestList.length);
 
       final missingInManifest = analysis.imageTails.difference(manifestSet);
       final extraInManifest = manifestSet.difference(analysis.imageTails);
       final missingAssets = manifestSet
-          .where(
-            (tail) => !File('$_imageAssetBasePath$tail').existsSync(),
-          )
+          .where((tail) => !File('$_imageAssetBasePath$tail').existsSync())
           .toList();
 
       expect(
@@ -102,9 +100,7 @@ _BundleAnalysis _analyzeLengthDelimited(Uint8List bytes) {
 
     final lengthEnd = _findLengthEnd(bytes, index);
     if (lengthEnd == -1) {
-      throw FormatException(
-        'Bundle length prefix not found at offset $index.',
-      );
+      throw FormatException('Bundle length prefix not found at offset $index.');
     }
 
     final lengthStr = ascii.decode(bytes.sublist(index, lengthEnd)).trim();
@@ -116,9 +112,7 @@ _BundleAnalysis _analyzeLengthDelimited(Uint8List bytes) {
     final jsonStart = _skipLineBreak(bytes, lengthEnd);
     final jsonEnd = jsonStart + length;
     if (jsonEnd > bytes.length) {
-      throw FormatException(
-        'Bundle entry exceeds file size at offset $index.',
-      );
+      throw FormatException('Bundle entry exceeds file size at offset $index.');
     }
 
     final jsonBytes = Uint8List.sublistView(bytes, jsonStart, jsonEnd);

@@ -658,7 +658,7 @@ class JokeCategory:
   """If set, this category also includes jokes that match any of these tags."""
 
   state: str = "PROPOSED"
-  """Category lifecycle: APPROVED, PROPOSED, or REJECTED."""
+  """Category lifecycle: APPROVED, SEASONAL, PROPOSED, or REJECTED."""
 
   image_url: str | None = None
   """Primary image URL for the category tile."""

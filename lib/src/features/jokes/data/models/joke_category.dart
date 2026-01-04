@@ -16,6 +16,7 @@ enum CategoryType {
 enum JokeCategoryState {
   proposed('PROPOSED'),
   approved('APPROVED'),
+  seasonal('SEASONAL'),
   rejected('REJECTED');
 
   const JokeCategoryState(this.value);

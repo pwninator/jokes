@@ -710,6 +710,32 @@ void main() {
       expect(find.text(animalCategory.displayName), findsOneWidget);
       expect(find.text(proposedCategory.displayName), findsOneWidget);
     });
+
+    testWidgets('hides seasonal categories from discover grid', (tester) async {
+      final seasonalCategory = JokeCategory(
+        id: '${JokeCategory.firestorePrefix}seasonal',
+        displayName: 'Halloween',
+        type: CategoryType.firestore,
+        jokeDescriptionQuery: 'halloween',
+        state: JokeCategoryState.seasonal,
+      );
+
+      final container = ProviderContainer(
+        overrides: [
+          ...getFirebaseProviderOverrides(),
+          ...getCoreProviderOverrides(),
+          jokeCategoriesProvider.overrideWith(
+            (ref) => Stream.value([animalCategory, seasonalCategory]),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      await pumpDiscover(tester, container);
+
+      expect(find.text(animalCategory.displayName), findsOneWidget);
+      expect(find.text(seasonalCategory.displayName), findsNothing);
+    });
   });
 
   group('Discover tab unviewed indicator', () {

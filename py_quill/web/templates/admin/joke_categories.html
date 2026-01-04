@@ -316,6 +316,7 @@
                   {% set st = (category.state or 'PROPOSED') | upper %}
                   <option value="PROPOSED" {% if st == 'PROPOSED' %}selected{% endif %}>PROPOSED</option>
                   <option value="APPROVED" {% if st == 'APPROVED' %}selected{% endif %}>APPROVED</option>
+                  <option value="SEASONAL" {% if st == 'SEASONAL' %}selected{% endif %}>SEASONAL</option>
                   <option value="REJECTED" {% if st == 'REJECTED' %}selected{% endif %}>REJECTED</option>
                 </select>
               </label>
@@ -394,6 +395,11 @@
 <section class="category-section">
   <h3>Approved <span class="pill text-button">{{ approved_unique_joke_count }} unique jokes</span></h3>
   {{ render_category_list(approved_categories) }}
+</section>
+
+<section class="category-section">
+  <h3>Seasonal <span class="pill text-button">{{ seasonal_unique_joke_count }} unique jokes</span></h3>
+  {{ render_category_list(seasonal_categories) }}
 </section>
 
 <section class="category-section">

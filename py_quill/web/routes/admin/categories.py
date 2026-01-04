@@ -33,12 +33,15 @@ def admin_joke_categories():
     return len(seen)
 
   approved: list = []
+  seasonal: list = []
   proposed: list = []
   rejected: list = []
   for category in categories:
     state = _state_key(category)
     if state == "APPROVED":
       approved.append(category)
+    elif state == "SEASONAL":
+      seasonal.append(category)
     elif state == "PROPOSED":
       proposed.append(category)
     else:
@@ -56,10 +59,12 @@ def admin_joke_categories():
     site_name='Snickerdoodle',
     joke_search_default_threshold=config.JOKE_SEARCH_TIGHT_THRESHOLD,
     approved_unique_joke_count=_unique_joke_count(approved),
+    seasonal_unique_joke_count=_unique_joke_count(seasonal),
     proposed_unique_joke_count=_unique_joke_count(proposed),
     rejected_unique_joke_count=_unique_joke_count(rejected),
     uncategorized_unique_joke_count=uncategorized_unique_count,
     approved_categories=approved,
+    seasonal_categories=seasonal,
     proposed_categories=proposed,
     rejected_categories=rejected,
     uncategorized_jokes=uncategorized,

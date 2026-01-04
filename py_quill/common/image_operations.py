@@ -20,6 +20,7 @@ from services import cloud_storage, firestore, image_client, image_editor
 _AD_BACKGROUND_SQUARE_DRAWING_URI = "gs://images.quillsstorybook.com/joke_assets/background_drawing_1280_1280.png"
 _AD_BACKGROUND_SQUARE_DESK_URI = "gs://images.quillsstorybook.com/joke_assets/background_desk_1280_1280.png"
 _AD_BACKGROUND_SQUARE_CORKBOARD_URI = "gs://images.quillsstorybook.com/joke_assets/background_corkboard_1280_1280.png"
+_JOKE_NOTES_TEMPLATE_URL = "https://images.quillsstorybook.com/cdn-cgi/image/format=png,quality=100/_joke_assets/lunchbox/lunchbox_notes_template.png"
 
 _AD_LANDSCAPE_CANVAS_WIDTH = 2048
 _AD_LANDSCAPE_CANVAS_HEIGHT = 1024
@@ -965,8 +966,8 @@ def create_joke_notes_sheet(joke_ids: list[str]) -> bytes:
   Returns:
     JPEG image bytes.
   """
-  if len(joke_ids) > 6:
-    joke_ids = joke_ids[:6]
+  if len(joke_ids) > 5:
+    joke_ids = joke_ids[:5]
 
   # Canvas dimensions
   canvas_width = 3300
@@ -991,14 +992,14 @@ def create_joke_notes_sheet(joke_ids: list[str]) -> bytes:
     # Fetch joke
     joke = firestore.get_punny_joke(joke_id)
     if not joke:
-      logger.warning(f"Joke {joke_id} not found, skipping in notes sheet.")
+      logger.warn(f"Joke {joke_id} not found, skipping in notes sheet.")
       continue
 
     setup_url = joke.setup_image_url
     punchline_url = joke.punchline_image_url
 
     if not setup_url or not punchline_url:
-      logger.warning(f"Joke {joke_id} missing images, skipping in notes sheet.")
+      logger.warn(f"Joke {joke_id} missing images, skipping in notes sheet.")
       continue
 
     try:
@@ -1021,6 +1022,23 @@ def create_joke_notes_sheet(joke_ids: list[str]) -> bytes:
     except Exception as e:
       logger.error(f"Error processing joke {joke_id} for notes sheet: {e}")
       continue
+
+  try:
+    response = requests.get(_JOKE_NOTES_TEMPLATE_URL, timeout=10)
+    response.raise_for_status()
+    template_image = Image.open(BytesIO(response.content)).convert('RGBA')
+    if template_image.size != (canvas_width, canvas_height):
+      logger.warn("Joke notes template size mismatch: "
+                  f"{template_image.size} vs {(canvas_width, canvas_height)}")
+      template_image = template_image.resize(
+        (canvas_width, canvas_height),
+        resample=Image.Resampling.LANCZOS,
+      )
+    canvas = canvas.convert('RGBA')
+    canvas = Image.alpha_composite(canvas, template_image)
+    canvas = canvas.convert('RGB')
+  except (requests.RequestException, OSError) as exc:
+    logger.error(f"Error loading joke notes template: {exc}")
 
   buffer = BytesIO()
   canvas.save(buffer, format='JPEG', quality=30)

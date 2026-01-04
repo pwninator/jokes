@@ -1419,9 +1419,19 @@ if __name__ == '__main__':
 class CreateJokeNotesSheetTest(unittest.TestCase):
   """Tests for create_joke_notes_sheet function."""
 
+  @patch('common.image_operations.requests.get')
   @patch('common.image_operations.firestore')
   @patch('common.image_operations.cloud_storage')
-  def test_create_joke_notes_sheet(self, mock_storage, mock_firestore):
+  def test_create_joke_notes_sheet(self, mock_storage, mock_firestore,
+                                   mock_requests_get):
+    template_image = Image.new('RGBA', (3300, 2550), (255, 0, 0, 128))
+    template_buffer = BytesIO()
+    template_image.save(template_buffer, format='PNG')
+    mock_response = Mock()
+    mock_response.content = template_buffer.getvalue()
+    mock_response.raise_for_status = Mock()
+    mock_requests_get.return_value = mock_response
+
     # Mock joke data
     mock_joke = Mock(spec=models.PunnyJoke)
     mock_joke.setup_image_url = 'http://test/setup.jpg'
@@ -1450,3 +1460,7 @@ class CreateJokeNotesSheetTest(unittest.TestCase):
     self.assertEqual(mock_firestore.get_punny_joke.call_count, 2)
     # 2 jokes * 2 images = 4 downloads
     self.assertEqual(mock_storage.download_image_from_gcs.call_count, 4)
+    mock_requests_get.assert_called_once_with(
+      image_operations._JOKE_NOTES_TEMPLATE_URL,
+      timeout=10,
+    )

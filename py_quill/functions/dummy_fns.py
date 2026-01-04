@@ -25,7 +25,8 @@ def dummy_endpoint(req: https_fn.Request) -> https_fn.Response:
 
   # Fetch jokes that have a setup image
   jokes_ref = firestore.db().collection('jokes')
-  query = jokes_ref.where(filter=FieldFilter("setup_image_url", ">", "")).limit(20)
+  query = jokes_ref.where(
+    filter=FieldFilter("setup_image_url", ">", "")).limit(20)
   docs = query.stream()
 
   joke_ids = []

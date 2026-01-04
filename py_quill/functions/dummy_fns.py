@@ -6,7 +6,7 @@ import random
 
 import base64
 from firebase_functions import https_fn, options
-from common import image_operations
+from common import joke_notes_sheet_operations
 from services import firestore
 from google.cloud.firestore import FieldFilter
 
@@ -42,7 +42,8 @@ def dummy_endpoint(req: https_fn.Request) -> https_fn.Response:
     return https_fn.Response("No valid jokes found", status=404)
 
   # Generate image
-  image_bytes = image_operations.create_joke_notes_sheet(joke_ids)
+  image_bytes = joke_notes_sheet_operations.create_joke_notes_sheet_image(
+    joke_ids)
   b64_image = base64.b64encode(image_bytes).decode('utf-8')
 
   html = f"""<html>

@@ -9,7 +9,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock, patch
 import zipfile
 
-from common import image_operations, models
+from common import image_operations, joke_notes_sheet_operations, models
 from PIL import Image, ImageFont
 from services import image_editor
 
@@ -1437,14 +1437,14 @@ if __name__ == '__main__':
   unittest.main()
 
 
-class CreateJokeNotesSheetTest(unittest.TestCase):
-  """Tests for create_joke_notes_sheet function."""
+class CreateJokeNotesSheetImageTest(unittest.TestCase):
+  """Tests for create_joke_notes_sheet_image function."""
 
-  @patch('common.image_operations.requests.get')
-  @patch('common.image_operations.firestore')
-  @patch('common.image_operations.cloud_storage')
-  def test_create_joke_notes_sheet(self, mock_storage, mock_firestore,
-                                   mock_requests_get):
+  @patch('common.joke_notes_sheet_operations.requests.get')
+  @patch('common.joke_notes_sheet_operations.firestore')
+  @patch('common.joke_notes_sheet_operations.cloud_storage')
+  def test_create_joke_notes_sheet_image(self, mock_storage, mock_firestore,
+                                         mock_requests_get):
     template_image = Image.new('RGBA', (3300, 2550), (255, 0, 0, 128))
     template_buffer = BytesIO()
     template_image.save(template_buffer, format='PNG')
@@ -1466,7 +1466,7 @@ class CreateJokeNotesSheetTest(unittest.TestCase):
 
     # Run function
     ids = ['joke1', 'joke2']
-    result = image_operations.create_joke_notes_sheet(ids)
+    result = joke_notes_sheet_operations.create_joke_notes_sheet_image(ids)
 
     # Verify result is bytes (JPEG)
     self.assertIsInstance(result, bytes)
@@ -1482,6 +1482,6 @@ class CreateJokeNotesSheetTest(unittest.TestCase):
     # 2 jokes * 2 images = 4 downloads
     self.assertEqual(mock_storage.download_image_from_gcs.call_count, 4)
     mock_requests_get.assert_called_once_with(
-      image_operations._JOKE_NOTES_OVERLAY_URL,
+      joke_notes_sheet_operations._JOKE_NOTES_OVERLAY_URL,
       timeout=10,
     )

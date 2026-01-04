@@ -1,0 +1,271 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Joke Categories · {{ site_name }} Admin{% endblock %}
+
+{% block content %}
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;">
+  <h2 style="margin: 0;">Joke Categories</h2>
+  <details class="create-category-panel">
+    <summary class="text-button">Create category</summary>
+    <form method="post" action="{{ url_for('web.admin_create_joke_category') }}" style="margin-top: 12px;">
+      <fieldset style="border: 0; padding: 0; margin: 0;">
+        <legend class="text-button" style="margin-bottom: 8px;">Type</legend>
+        <label class="text-body" style="margin-right: 12px;">
+          <input type="radio" name="category_type" value="search" checked>
+          Search
+        </label>
+        <label class="text-body">
+          <input type="radio" name="category_type" value="seasonal">
+          Seasonal
+        </label>
+      </fieldset>
+
+      <div style="display: grid; gap: 10px; margin-top: 12px; max-width: 560px;">
+        <label class="text-body">
+          <div class="text-button">Display name</div>
+          <input name="display_name" type="text" required
+            style="width: 100%; padding: 8px 12px; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-surface); font-family: inherit;">
+        </label>
+
+        <label class="text-body" data-field="search_query">
+          <div class="text-button">Search query</div>
+          <input name="joke_description_query" type="text"
+            placeholder="cats"
+            style="width: 100%; padding: 8px 12px; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-surface); font-family: inherit;">
+        </label>
+
+        <label class="text-body" data-field="seasonal_name" hidden>
+          <div class="text-button">Seasonal name</div>
+          <input name="seasonal_name" type="text"
+            placeholder="Christmas"
+            style="width: 100%; padding: 8px 12px; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-surface); font-family: inherit;">
+        </label>
+
+        <label class="text-body">
+          <div class="text-button">Image description (optional)</div>
+          <input name="image_description" type="text"
+            style="width: 100%; padding: 8px 12px; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-surface); font-family: inherit;">
+        </label>
+
+        <div style="display: flex; justify-content: flex-end;">
+          <button class="text-button" type="submit">Create (PROPOSED)</button>
+        </div>
+      </div>
+    </form>
+  </details>
+</div>
+
+{% if created %}
+<p class="muted">Category created.</p>
+{% endif %}
+{% if error %}
+<p class="muted">Error: <code>{{ error }}</code></p>
+{% endif %}
+
+<style>
+  .category-section {
+    margin-top: 18px;
+  }
+  .category-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 10px;
+  }
+  details.category-details {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 14px;
+    padding: 10px 12px;
+  }
+  details.category-details > summary {
+    cursor: pointer;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    justify-content: space-between;
+  }
+  details.category-details > summary::-webkit-details-marker {
+    display: none;
+  }
+  .category-meta {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--color-border);
+    background: var(--color-pill-bg);
+    font-variant-numeric: tabular-nums;
+  }
+  .joke-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 10px;
+    margin-top: 10px;
+  }
+  .joke-tile {
+    border: 1px solid var(--color-border);
+    border-radius: 12px;
+    overflow: hidden;
+    background: var(--color-surface);
+  }
+  .joke-tile img,
+  .joke-tile .placeholder {
+    width: 100%;
+    aspect-ratio: 1 / 1;
+    object-fit: cover;
+    display: block;
+  }
+  .joke-tile .placeholder {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    background: repeating-linear-gradient(
+      45deg,
+      rgba(212, 160, 23, 0.08),
+      rgba(212, 160, 23, 0.08) 12px,
+      rgba(212, 160, 23, 0.15) 12px,
+      rgba(212, 160, 23, 0.15) 24px
+    );
+  }
+</style>
+
+{% macro render_category_list(categories) -%}
+  {% if not categories %}
+  <p class="muted">None.</p>
+  {% else %}
+  <div class="category-list">
+    {% for category in categories %}
+    {% set joke_count = (category.jokes | length) %}
+    <details class="category-details" data-lazy-scope="category">
+      <summary class="text-body">
+        <div class="category-meta">
+          <strong>{{ category.display_name or category.id or 'Untitled' }}</strong>
+          {% if category.id %}<code>{{ category.id }}</code>{% endif %}
+          <span class="pill text-button">{{ (category.state or 'PROPOSED') | upper }}</span>
+          <span class="pill text-button">{{ joke_count }} jokes</span>
+          {% if category.seasonal_name %}
+          <span class="pill text-button">seasonal: {{ category.seasonal_name }}</span>
+          {% else %}
+          <span class="pill text-button">search: {{ category.joke_description_query }}</span>
+          {% endif %}
+        </div>
+        <span class="muted text-button">Expand</span>
+      </summary>
+      <div class="joke-grid" aria-label="Category joke thumbnails">
+        {% for joke in category.jokes %}
+        <div class="joke-tile" title="{{ joke.key }}">
+          {% if joke.setup_image_url %}
+          <img
+            class="joke-thumb"
+            width="200"
+            height="200"
+            loading="lazy"
+            data-src="{{ joke.setup_image_url }}"
+            alt="Setup image for {{ joke.key }}">
+          {% else %}
+          <div class="placeholder text-body muted" role="img"
+            aria-label="Setup image missing">No image</div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </details>
+    {% endfor %}
+  </div>
+  {% endif %}
+{%- endmacro %}
+
+<section class="category-section">
+  <h3>Approved</h3>
+  {{ render_category_list(approved_categories) }}
+</section>
+
+<section class="category-section">
+  <h3>Proposed</h3>
+  {{ render_category_list(proposed_categories) }}
+</section>
+
+<section class="category-section">
+  <h3>Rejected</h3>
+  {{ render_category_list(rejected_categories) }}
+</section>
+
+<section class="category-section">
+  <h3>Uncategorized</h3>
+  <details class="category-details" data-lazy-scope="uncategorized">
+    <summary class="text-body">
+      <div class="category-meta">
+        <strong>Uncategorized</strong>
+        <span class="pill text-button">{{ (uncategorized_jokes | length) }} jokes</span>
+      </div>
+      <span class="muted text-button">Expand</span>
+    </summary>
+    <div class="joke-grid" aria-label="Uncategorized joke thumbnails">
+      {% for joke in uncategorized_jokes %}
+      <div class="joke-tile" title="{{ joke.key }}">
+        {% if joke.setup_image_url %}
+        <img
+          class="joke-thumb"
+          width="200"
+          height="200"
+          loading="lazy"
+          data-src="{{ joke.setup_image_url }}"
+          alt="Setup image for {{ joke.key }}">
+        {% else %}
+        <div class="placeholder text-body muted" role="img"
+          aria-label="Setup image missing">No image</div>
+        {% endif %}
+      </div>
+      {% endfor %}
+    </div>
+  </details>
+</section>
+
+<script>
+  (function () {
+    function hydrateImages(scope) {
+      if (!scope) return;
+      scope.querySelectorAll('img[data-src]').forEach((img) => {
+        img.src = img.dataset.src;
+        img.removeAttribute('data-src');
+      });
+    }
+
+    document.querySelectorAll('details.category-details').forEach((details) => {
+      details.addEventListener('toggle', () => {
+        if (!details.open) return;
+        hydrateImages(details);
+      });
+    });
+
+    const searchField = document.querySelector('[data-field="search_query"]');
+    const seasonalField = document.querySelector('[data-field="seasonal_name"]');
+    const typeInputs = document.querySelectorAll('input[name="category_type"]');
+    const updateType = () => {
+      const selected = document.querySelector('input[name="category_type"]:checked');
+      const type = selected ? selected.value : 'search';
+      if (type === 'seasonal') {
+        if (searchField) searchField.hidden = true;
+        if (seasonalField) seasonalField.hidden = false;
+      } else {
+        if (searchField) searchField.hidden = false;
+        if (seasonalField) seasonalField.hidden = true;
+      }
+    };
+    typeInputs.forEach((input) => input.addEventListener('change', updateType));
+    updateType();
+  })();
+</script>
+{% endblock %}
+
+
+

@@ -119,13 +119,7 @@ async def test_upsert_joke_categories_validation(monkeypatch):
 
   monkeypatch.setattr(fs, "get_async_db", lambda: DummyDB())
 
-  # Missing/blank fields after stripping should raise ValueError
   with pytest.raises(ValueError):
     await fs.upsert_joke_categories([
-      models.JokeCategory(display_name="   ", joke_description_query="ok"),
-    ])
-
-  with pytest.raises(ValueError):
-    await fs.upsert_joke_categories([
-      models.JokeCategory(display_name="Name", joke_description_query="   "),
+      models.JokeCategory(display_name="Name"),
     ])

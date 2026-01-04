@@ -30,6 +30,7 @@ def test_joke_category_to_dict_contains_computed_key():
     'key': 'animal_jokes',
     'display_name': 'Animal Jokes',
     'joke_description_query': 'animals',
+    'state': 'PROPOSED',
   }
 
 
@@ -42,5 +43,6 @@ def test_joke_category_to_dict_includes_image_description_when_present():
     'key': 'animal_jokes',
     'display_name': 'Animal Jokes',
     'joke_description_query': 'animals',
+    'state': 'PROPOSED',
     'image_description': 'A cute animal collage',
   }

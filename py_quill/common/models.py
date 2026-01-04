@@ -635,12 +635,25 @@ class StoryData:
     return updated_keys
 
 
-@dataclass
+@dataclass(kw_only=True)
 class JokeCategory:
   """Represents a joke category used for grouping jokes."""
 
+  id: str | None = None
+  """Firestore document ID for this category."""
+
   display_name: str
-  joke_description_query: str
+  """Display name of the category."""
+
+  joke_description_query: str | None = None
+  """If set, this category is a search category and jokes are selected by searching for this query."""
+
+  seasonal_name: str | None = None
+  """If set, this category is seasonal and jokes are selected by `seasonal`."""
+
+  state: str = "PROPOSED"
+  """Category lifecycle: APPROVED, PROPOSED, or REJECTED."""
+
   image_description: str | None = None
   jokes: list[PunnyJoke] = field(default_factory=list)
 
@@ -660,11 +673,14 @@ class JokeCategory:
     """Serialize the category to a dictionary including computed key."""
     data = {
       'key': self.key,
-      'display_name': self.display_name,
-      'joke_description_query': self.joke_description_query,
+      'display_name': self.display_name.strip(),
+      'joke_description_query': self.joke_description_query.strip(),
+      'state': self.state,
     }
+    if self.seasonal_name:
+      data['seasonal_name'] = self.seasonal_name.strip()
     if self.image_description:
-      data['image_description'] = self.image_description
+      data['image_description'] = self.image_description.strip()
     return data
 
 

@@ -5,6 +5,7 @@
 {% block body %}
 {% set current_path = request.path %}
 {% set dashboard_url = url_for('web.admin_dashboard') %}
+{% set joke_categories_url = url_for('web.admin_joke_categories') %}
 {% set joke_books_url = url_for('web.admin_joke_books') %}
 {% set joke_books_prefix = joke_books_url.rstrip('/') %}
 <div class="site-shell admin-site-shell">
@@ -19,6 +20,10 @@
         <a class="nav-link text-button{% if current_path == dashboard_url %} nav-link--active{% endif %}"
           href="{{ dashboard_url }}">
           Dashboard
+        </a>
+        <a class="nav-link text-button{% if current_path == joke_categories_url %} nav-link--active{% endif %}"
+          href="{{ joke_categories_url }}">
+          Categories
         </a>
         <a class="nav-link text-button{% if current_path.startswith(joke_books_prefix) %} nav-link--active{% endif %}"
           href="{{ joke_books_url }}">

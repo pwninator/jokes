@@ -109,3 +109,50 @@ def test_admin_create_category_validates_required_fields(monkeypatch):
   assert resp.status_code == 302
   assert resp.headers["Location"].endswith(
     '/admin/joke-categories?error=display_name_required')
+
+
+def test_admin_update_category_sets_fields_and_refreshes_cache(monkeypatch):
+  """Updating a category writes fields and refreshes the cached jokes."""
+  _mock_admin_session(monkeypatch)
+
+  mock_db = Mock()
+  mock_doc = Mock()
+  mock_collection = Mock()
+  mock_collection.document.return_value = mock_doc
+  mock_db.collection.return_value = mock_collection
+  monkeypatch.setattr(categories_routes.firestore, "db", lambda: mock_db)
+
+  mock_refresh = Mock()
+  monkeypatch.setattr(categories_routes.joke_category_operations,
+                      "refresh_single_category_cache", mock_refresh)
+
+  with app.test_client() as client:
+    resp = client.post(
+      '/admin/joke-categories/animals/update',
+      data={
+        'display_name': 'Animals',
+        'state': 'APPROVED',
+        'category_type': 'search',
+        'joke_description_query': 'animals',
+        'seasonal_name': '',
+        'image_url': 'https://cdn/cat.png',
+        'image_description': 'Cute animals',
+        'all_image_urls': 'https://a.png\nhttps://b.png\n',
+      },
+    )
+
+  assert resp.status_code == 302
+  assert resp.headers["Location"].endswith(
+    '/admin/joke-categories?updated=animals')
+
+  mock_db.collection.assert_called_with('joke_categories')
+  mock_collection.document.assert_called_with('animals')
+  mock_doc.set.assert_called_once()
+  _, kwargs = mock_doc.set.call_args
+  assert kwargs["merge"] is True
+
+  args, _ = mock_refresh.call_args
+  assert args[0] == 'animals'
+  assert args[1]['state'] == 'APPROVED'
+  assert args[1]['joke_description_query'] == 'animals'
+  assert args[1]['seasonal_name'] == ''

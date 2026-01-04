@@ -26,12 +26,11 @@ def test_joke_category_to_dict_contains_computed_key():
   cat = models.JokeCategory(display_name="Animal Jokes",
                             joke_description_query="animals")
   d = cat.to_dict()
-  assert d == {
-    'key': 'animal_jokes',
-    'display_name': 'Animal Jokes',
-    'joke_description_query': 'animals',
-    'state': 'PROPOSED',
-  }
+  assert 'id' not in d
+  assert 'jokes' not in d
+  assert d['display_name'] == 'Animal Jokes'
+  assert d['joke_description_query'] == 'animals'
+  assert d['state'] == 'PROPOSED'
 
 
 def test_joke_category_to_dict_includes_image_description_when_present():
@@ -39,10 +38,24 @@ def test_joke_category_to_dict_includes_image_description_when_present():
                             joke_description_query="animals",
                             image_description="A cute animal collage")
   d = cat.to_dict()
-  assert d == {
-    'key': 'animal_jokes',
-    'display_name': 'Animal Jokes',
-    'joke_description_query': 'animals',
-    'state': 'PROPOSED',
-    'image_description': 'A cute animal collage',
-  }
+  assert d['image_description'] == 'A cute animal collage'
+
+
+def test_joke_category_from_firestore_dict_sets_id_and_defaults():
+  cat = models.JokeCategory.from_firestore_dict(
+    {
+      'display_name': 'Cats',
+      'state': 'APPROVED',
+      'seasonal_name': 'Christmas',
+      'joke_description_query': 'should_be_ignored',
+      'all_image_urls': ['https://a.png', 123, None],
+    },
+    key='cats',
+  )
+  assert cat.id == 'cats'
+  assert cat.display_name == 'Cats'
+  assert cat.state == 'APPROVED'
+  assert cat.seasonal_name == 'Christmas'
+  # seasonal_name implies search query is unset
+  assert cat.joke_description_query is None
+  assert cat.all_image_urls == ['https://a.png']

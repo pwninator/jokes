@@ -76,13 +76,16 @@ def refresh_single_category_cache(
   Raises:
     Exception if cache refresh fails (caller should handle)
   """
+  category = models.JokeCategory.from_firestore_dict(category_data,
+                                                     key=category_id)
+
   # Filter to categories with valid state and query
-  state = str(category_data.get("state") or "").upper()
+  state = (category.state or "").upper()
   if state not in ("APPROVED", "PROPOSED"):
     return None
 
-  raw_query = (category_data.get("joke_description_query") or "").strip()
-  seasonal_name = (category_data.get("seasonal_name") or "").strip()
+  raw_query = (category.joke_description_query or "").strip()
+  seasonal_name = (category.seasonal_name or "").strip()
 
   client = firestore.db()
 

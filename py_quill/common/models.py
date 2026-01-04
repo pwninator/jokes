@@ -654,6 +654,12 @@ class JokeCategory:
   state: str = "PROPOSED"
   """Category lifecycle: APPROVED, PROPOSED, or REJECTED."""
 
+  image_url: str | None = None
+  """Primary image URL for the category tile."""
+
+  all_image_urls: list[str] = field(default_factory=list)
+  """All known image URLs for the category (used by the app image carousel)."""
+
   image_description: str | None = None
   jokes: list[PunnyJoke] = field(default_factory=list)
 
@@ -670,18 +676,52 @@ class JokeCategory:
     return snake.strip("_")
 
   def to_dict(self) -> dict:
-    """Serialize the category to a dictionary including computed key."""
-    data = {
-      'key': self.key,
-      'display_name': self.display_name.strip(),
-      'joke_description_query': self.joke_description_query.strip(),
-      'state': self.state,
-    }
-    if self.seasonal_name:
-      data['seasonal_name'] = self.seasonal_name.strip()
-    if self.image_description:
-      data['image_description'] = self.image_description.strip()
+    """Serialize category fields for Firestore writes."""
+    data = dataclasses.asdict(self)
+    # `id` is the Firestore document id, not stored as a field.
+    data.pop('id', None)
+    # `jokes` is the cached joke list loaded from a subcollection.
+    data.pop('jokes', None)
     return data
+
+  @classmethod
+  def from_firestore_dict(cls, data: dict, key: str) -> 'JokeCategory':
+    """Create a JokeCategory from a Firestore dictionary."""
+    if not data:
+      data = {}
+    else:
+      data = dict(data)
+
+    # Populate document id.
+    data['id'] = key
+
+    # Ensure required fields exist.
+    if 'display_name' not in data or data.get('display_name') is None:
+      data['display_name'] = ''
+
+    # Normalize seasonal vs search: seasonal categories do not carry a search query.
+    seasonal_name = data.get('seasonal_name')
+    if isinstance(seasonal_name, str) and seasonal_name.strip():
+      data['joke_description_query'] = None
+
+    # Ensure list fields have the right types.
+    all_image_urls = data.get('all_image_urls')
+    if isinstance(all_image_urls, list):
+      data['all_image_urls'] = [
+        u for u in all_image_urls if isinstance(u, str)
+      ]
+    else:
+      data['all_image_urls'] = []
+
+    # Default state if missing/empty.
+    state_val = data.get('state')
+    if not isinstance(state_val, str) or not state_val:
+      data['state'] = "PROPOSED"
+
+    # Filter to dataclass fields to avoid unexpected keys.
+    allowed = {f.name for f in dataclasses.fields(cls)}
+    filtered = {k: v for k, v in data.items() if k in allowed}
+    return cls(**filtered)
 
 
 @dataclass(kw_only=True)

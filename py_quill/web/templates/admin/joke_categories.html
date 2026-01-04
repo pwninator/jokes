@@ -58,11 +58,17 @@
 {% if created %}
 <p class="muted">Category created.</p>
 {% endif %}
+{% if updated %}
+<p class="muted">Category updated: <code>{{ updated }}</code></p>
+{% endif %}
 {% if error %}
 <p class="muted">Error: <code>{{ error }}</code></p>
 {% endif %}
 
 <style>
+  .hidden {
+    display: none !important;
+  }
   .category-section {
     margin-top: 18px;
   }
@@ -91,9 +97,110 @@
   }
   .category-meta {
     display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+  }
+  .category-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+  }
+  .category-thumb {
+    width: 100px;
+    height: 100px;
+    border-radius: 14px;
+    border: 1px solid var(--color-border);
+    overflow: hidden;
+    background: var(--color-accent-surface);
+    flex: 0 0 auto;
+  }
+  .category-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .category-name {
+    display: inline-flex;
     align-items: baseline;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .category-subline {
+    display: inline-flex;
     gap: 10px;
     flex-wrap: wrap;
+  }
+  .category-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    flex: 0 0 auto;
+  }
+  .category-actions .link-button {
+    background: transparent;
+    border: none;
+    padding: 0;
+    margin: 0;
+    font: inherit;
+    cursor: pointer;
+    color: inherit;
+  }
+  .category-actions .link-button:focus-visible {
+    outline: 2px solid var(--color-focus-ring);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+  .edit-panel {
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px dashed var(--color-border);
+  }
+  .edit-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .edit-row {
+    display: grid;
+    gap: 10px;
+    align-items: start;
+  }
+  .edit-row.row-2 {
+    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  }
+  .edit-row.row-3 {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .edit-row.row-1 {
+    grid-template-columns: 1fr;
+  }
+  .edit-grid input,
+  .edit-grid select,
+  .edit-grid textarea {
+    width: 100%;
+    min-width: 0;
+    padding: 8px 12px;
+    border: 1px solid var(--color-border);
+    border-radius: 10px;
+    background: var(--color-surface);
+    font-family: inherit;
+  }
+  .edit-grid textarea {
+    min-height: 90px;
+    resize: vertical;
+  }
+  .edit-grid label {
+    min-width: 0;
+  }
+  .edit-grid .type-choice {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    align-items: center;
+    padding-top: 8px;
   }
   .pill {
     display: inline-flex;
@@ -145,21 +252,111 @@
   <div class="category-list">
     {% for category in categories %}
     {% set joke_count = (category.jokes | length) %}
+    {% set thumb_url = category.image_url %}
+    {% if not thumb_url and category.all_image_urls %}
+      {% set thumb_url = category.all_image_urls[0] %}
+    {% endif %}
     <details class="category-details" data-lazy-scope="category">
       <summary class="text-body">
-        <div class="category-meta">
-          <strong>{{ category.display_name or category.id or 'Untitled' }}</strong>
-          {% if category.id %}<code>{{ category.id }}</code>{% endif %}
-          <span class="pill text-button">{{ (category.state or 'PROPOSED') | upper }}</span>
-          <span class="pill text-button">{{ joke_count }} jokes</span>
-          {% if category.seasonal_name %}
-          <span class="pill text-button">seasonal: {{ category.seasonal_name }}</span>
-          {% else %}
-          <span class="pill text-button">search: {{ category.joke_description_query }}</span>
-          {% endif %}
+        <div class="category-left">
+          <div class="category-thumb">
+            {% if thumb_url %}
+            <img src="{{ thumb_url }}" alt="Category image" width="100" height="100" loading="lazy">
+            {% endif %}
+          </div>
+          <div class="category-meta">
+            <div class="category-name">
+              <strong>{{ category.display_name or 'Untitled' }}</strong>
+              {% if category.id %}
+              <span class="muted">({{ category.id }})</span>
+              {% endif %}
+            </div>
+            <div class="category-subline text-body">
+              {% if category.seasonal_name %}
+              <span>seasonal: </span>
+              {% else %}
+              <span>search: </span>
+              {% endif %}
+              <span class="muted">{{ joke_count }} jokes</span>
+            </div>
+          </div>
         </div>
-        <span class="muted text-button">Expand</span>
+        <div class="category-actions">
+          <button class="link-button muted text-button" type="button"
+            data-edit-button="true"
+            data-category-id="{{ category.id }}">
+            Edit
+          </button>
+          <span class="muted text-button">Expand</span>
+        </div>
       </summary>
+      <div class="edit-panel hidden" data-edit-panel="true" data-category-id="{{ category.id }}">
+        <form method="post" action="{{ url_for('web.admin_update_joke_category', category_id=category.id) }}">
+          <div class="edit-grid">
+            <div class="edit-row row-2">
+              <label class="text-body">
+                <div class="text-button">Display name</div>
+                <input name="display_name" type="text" value="{{ category.display_name }}" required>
+              </label>
+              <label class="text-body">
+                <div class="text-button">State</div>
+                <select name="state">
+                  {% set st = (category.state or 'PROPOSED') | upper %}
+                  <option value="PROPOSED" {% if st == 'PROPOSED' %}selected{% endif %}>PROPOSED</option>
+                  <option value="APPROVED" {% if st == 'APPROVED' %}selected{% endif %}>APPROVED</option>
+                  <option value="REJECTED" {% if st == 'REJECTED' %}selected{% endif %}>REJECTED</option>
+                </select>
+              </label>
+            </div>
+
+            <div class="edit-row row-3">
+              <label class="text-body">
+                <div class="text-button">Type</div>
+                <div class="type-choice">
+                  <label class="text-body">
+                    <input type="radio" name="category_type" value="search"
+                      {% if not category.seasonal_name %}checked{% endif %}>
+                    Search
+                  </label>
+                  <label class="text-body">
+                    <input type="radio" name="category_type" value="seasonal"
+                      {% if category.seasonal_name %}checked{% endif %}>
+                    Seasonal
+                  </label>
+                </div>
+              </label>
+
+              <div>
+                <label class="text-body" data-edit-field="search_query">
+                  <div class="text-button">Search query</div>
+                  <input name="joke_description_query" type="text"
+                    value="{{ category.joke_description_query or '' }}">
+                </label>
+                <label class="text-body" data-edit-field="seasonal_name">
+                  <div class="text-button">Seasonal name</div>
+                  <input name="seasonal_name" type="text"
+                    value="{{ category.seasonal_name or '' }}">
+                </label>
+              </div>
+
+              <label class="text-body">
+                <div class="text-button">Image URL</div>
+                <input name="image_url" type="text" value="{{ category.image_url or '' }}">
+              </label>
+            </div>
+
+            <div class="edit-row row-1">
+              <label class="text-body">
+                <div class="text-button">Image description</div>
+                <textarea name="image_description">{{ category.image_description or '' }}</textarea>
+              </label>
+            </div>
+          </div>
+          <div style="display: flex; justify-content: flex-end; margin-top: 10px; gap: 10px;">
+            <button class="text-button" type="submit">Save</button>
+          </div>
+        </form>
+      </div>
       <div class="joke-grid" aria-label="Category joke thumbnails">
         {% for joke in category.jokes %}
         <div class="joke-tile" title="{{ joke.key }}">
@@ -244,7 +441,52 @@
       details.addEventListener('toggle', () => {
         if (!details.open) return;
         hydrateImages(details);
+        // Expanding via summary should never show the edit form.
+        details.dataset.editMode = 'false';
+        const panel = details.querySelector('[data-edit-panel="true"]');
+        if (panel) panel.classList.add('hidden');
       });
+    });
+
+    const toggleEditPanel = (details, show) => {
+      const panel = details.querySelector('[data-edit-panel="true"]');
+      if (!panel) return;
+      panel.classList.toggle('hidden', !show);
+    };
+
+    document.querySelectorAll('button[data-edit-button="true"]').forEach((btn) => {
+      btn.addEventListener('click', (evt) => {
+        evt.preventDefault();
+        evt.stopPropagation();
+        const details = btn.closest('details.category-details');
+        if (!details) return;
+        details.open = true;
+        hydrateImages(details);
+        const panel = details.querySelector('[data-edit-panel="true"]');
+        const isHidden = panel?.classList.contains('hidden');
+        const nextShow = Boolean(isHidden);
+        details.dataset.editMode = nextShow ? 'true' : 'false';
+        toggleEditPanel(details, nextShow);
+      });
+    });
+
+    document.querySelectorAll('details.category-details').forEach((details) => {
+      const typeInputs = details.querySelectorAll('input[name="category_type"]');
+      const searchField = details.querySelector('[data-edit-field="search_query"]');
+      const seasonalField = details.querySelector('[data-edit-field="seasonal_name"]');
+      const updateType = () => {
+        const selected = details.querySelector('input[name="category_type"]:checked');
+        const type = selected ? selected.value : 'search';
+        if (type === 'seasonal') {
+          if (searchField) searchField.hidden = true;
+          if (seasonalField) seasonalField.hidden = false;
+        } else {
+          if (searchField) searchField.hidden = false;
+          if (seasonalField) seasonalField.hidden = true;
+        }
+      };
+      typeInputs.forEach((input) => input.addEventListener('change', updateType));
+      updateType();
     });
 
     const searchField = document.querySelector('[data-field="search_query"]');

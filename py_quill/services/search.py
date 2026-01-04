@@ -12,6 +12,7 @@ from google.cloud import firestore
 from google.cloud.firestore_v1.base_vector_query import DistanceMeasure
 from google.cloud.firestore_v1.vector import Vector
 from google.genai.types import EmbedContentConfig
+from services import firestore as firestore_service
 
 _genai_client = None  # pylint: disable=invalid-name
 _firestore_client = None  # pylint: disable=invalid-name
@@ -141,7 +142,6 @@ def search_jokes(
         ))
 
     if return_jokes and results:
-      from services import firestore as firestore_service
       joke_ids = [r.joke_id for r in results]
       full_jokes = firestore_service.get_punny_jokes(joke_ids)
       jokes_map = {j.key: j for j in full_jokes if j.key}

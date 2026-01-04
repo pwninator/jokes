@@ -159,22 +159,10 @@ def get_all_joke_categories(
     if not doc.exists:
       continue
     data = doc.to_dict() or {}
-    display_name = data.get('display_name', '')
-    joke_description_query = data.get('joke_description_query', '')
-    seasonal_name = data.get('seasonal_name')
-    state = data.get('state') or 'PROPOSED'
-    image_description = data.get('image_description')
-    if not display_name and not joke_description_query and not seasonal_name:
+    category = models.JokeCategory.from_firestore_dict(data, key=doc.id)
+    if (not category.display_name and not category.joke_description_query
+        and not category.seasonal_name):
       continue
-
-    category = models.JokeCategory(
-      display_name=display_name,
-      joke_description_query=joke_description_query,
-      id=doc.id,
-      seasonal_name=seasonal_name,
-      state=state,
-      image_description=image_description,
-    )
 
     if fetch_cached_jokes:
       category_ref = db().collection('joke_categories').document(doc.id)
@@ -196,20 +184,7 @@ def get_joke_category(category_id: str) -> models.JokeCategory | None:
     return None
 
   data = category_doc.to_dict() or {}
-  display_name = data.get('display_name', '')
-  joke_description_query = data.get('joke_description_query', '')
-  seasonal_name = data.get('seasonal_name')
-  state = data.get('state') or 'PROPOSED'
-  image_description = data.get('image_description')
-
-  category = models.JokeCategory(
-    display_name=display_name,
-    joke_description_query=joke_description_query,
-    id=category_id,
-    seasonal_name=seasonal_name,
-    state=state,
-    image_description=image_description,
-  )
+  category = models.JokeCategory.from_firestore_dict(data, key=category_id)
 
   _populate_category_cached_jokes(category, category_ref)
 
@@ -275,16 +250,15 @@ def create_joke_category(
   if ref.get().exists:
     raise ValueError(f"Category {category_id} already exists")
 
-  payload: dict[str, Any] = {
-    'display_name': display_name,
-    'state': state,
-  }
-  if joke_description_query:
-    payload['joke_description_query'] = joke_description_query
-  if seasonal_name:
-    payload['seasonal_name'] = seasonal_name
-  if image_description:
-    payload['image_description'] = image_description
+  category = models.JokeCategory(
+    id=None,
+    display_name=display_name,
+    joke_description_query=joke_description_query or None,
+    seasonal_name=seasonal_name or None,
+    state=state,
+    image_description=image_description or None,
+  )
+  payload: dict[str, Any] = category.to_dict()
 
   ref.set(payload, merge=True)
   return category_id
@@ -327,7 +301,7 @@ async def upsert_joke_categories(
     return
 
   # Validate and prepare payloads first to avoid partial writes
-  prepared: list[tuple[str, dict[str, str]]] = []
+  prepared: list[tuple[str, dict[str, Any]]] = []
   for category in categories:
     if not category.display_name or (not category.joke_description_query
                                      and not category.seasonal_name):
@@ -335,12 +309,10 @@ async def upsert_joke_categories(
         "JokeCategory must have non-empty display_name and either joke_description_query or seasonal_name"
       )
 
-    # Use the model serializer as the single source of truth, but remove fields
-    # that should not be written directly to the category document.
-    payload_raw = dict(category.to_dict())
-    payload_raw.pop('key', None)
+    # Serialize directly from the model. (JokeCategory.to_dict already drops
+    # `id` and cached `jokes`.)
+    payload = dict(category.to_dict())
 
-    payload: dict[str, str] = {k: str(v) for k, v in payload_raw.items()}
     prepared.append((category.key, payload))
 
   client = get_async_db()

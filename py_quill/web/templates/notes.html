@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+
+{% block title %}Printable Joke Notes | {{ site_name }}{% endblock %}
+{% block meta_description %}Turn Lunchtime into Giggle Time! Download free printable joke notes for kids.{% endblock %}
+
+{% block content %}
+<section class="hero" aria-labelledby="notes-hero-title">
+  <div>
+    <h1 class="hero-title text-display" id="notes-hero-title">Turn Lunchtime into Giggle Time!</h1>
+    <p class="hero-subtitle text-body">Surprise them with 5 silly joke cards in their lunchbox! It's 100% free, 100%
+      wholesome, and easy to print and cut at home.</p>
+  </div>
+
+  <article class="hero-card" aria-label="Lunchbox hero image">
+    <div class="hero-card__image lunchbox-hero-image">
+      <img
+        src="https://images.quillsstorybook.com/cdn-cgi/image/width=480,format=auto,quality=75/_joke_assets/lunchbox/lunchbox_hero.png"
+        alt="Lunchbox hero image" width="480" height="480" loading="lazy" />
+    </div>
+  </article>
+</section>
+
+<section class="notes-downloads" aria-labelledby="notes-downloads-title">
+  <header class="notes-downloads__header">
+    <h2 class="text-section-heading" id="notes-downloads-title">Download your printable joke notes</h2>
+    <p class="text-body">Pick a sheet, print at home, and add a smile to every lunch.</p>
+  </header>
+
+  {% if download_cards %}
+  <div class="notes-downloads-grid">
+    {% for card in download_cards %}
+    <article class="notes-download-card" aria-label="{{ card.category_label }} joke notes">
+      <div class="notes-download-card__image">
+        <img
+          src="{{ card.image_url }}"
+          alt="{{ card.category_label }} joke notes sheet"
+          width="{{ notes_image_width }}"
+          height="{{ notes_image_height }}"
+          loading="lazy" />
+      </div>
+      <a class="nav-cta text-button notes-download-card__cta"
+        href="{{ card.pdf_url }}"
+        target="_blank"
+        rel="noopener noreferrer">
+        Download PDF
+      </a>
+    </article>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="text-body notes-downloads-empty">New printable joke notes are on the way. Check back soon.</p>
+  {% endif %}
+</section>
+{% endblock %}

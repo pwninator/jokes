@@ -101,6 +101,14 @@ def upload_file_to_gcs(
   return gcs_uri
 
 
+def gcs_file_exists(gcs_uri: str) -> bool:
+  """Return True if the blob at the given gcs_uri exists."""
+  bucket_name, blob_name = parse_gcs_uri(gcs_uri)
+  bucket = client().bucket(bucket_name)
+  blob = bucket.blob(blob_name)
+  return blob.exists()
+
+
 def download_bytes_from_gcs(gcs_uri: str) -> bytes:
   """Download bytes from Google Cloud Storage.
 
@@ -213,6 +221,18 @@ def get_public_url(gcs_uri: str) -> str:
   bucket = client().bucket(bucket_name)
   blob = bucket.blob(blob_name)
   return blob.public_url
+
+
+def get_storage_googleapis_public_url(gcs_uri: str) -> str:
+  """Get a public URL for a GCS URI using storage.googleapis.com.
+
+  This is a deterministic formatting helper (no API call).
+
+  Example:
+    gs://bucket_name/path/to/file.pdf -> http://storage.googleapis.com/bucket_name/path/to/file.pdf
+  """
+  bucket_name, blob_name = parse_gcs_uri(gcs_uri)
+  return f"http://storage.googleapis.com/{bucket_name}/{blob_name}"
 
 
 def get_emulator_accessible_url(gcs_uri: str) -> str:

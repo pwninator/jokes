@@ -151,7 +151,8 @@ def test_set_cdn_url_params_multiple_changes(monkeypatch):
   assert 'quality=90' in result
 
 
-def _make_png_bytes(color: str = "red", size: tuple[int, int] = (4, 4)) -> bytes:
+def _make_png_bytes(color: str = "red",
+                    size: tuple[int, int] = (4, 4)) -> bytes:
   """Helper to construct in-memory PNG bytes for image download tests."""
   buffer = BytesIO()
   Image.new('RGB', size, color=color).save(buffer, format='PNG')
@@ -201,3 +202,46 @@ def test_download_image_from_gcs_accepts_http_url(monkeypatch):
   assert captured_url["url"] == http_url
   assert image.size == (4, 4)
   assert image.mode == "RGB"
+
+
+def test_get_storage_googleapis_public_url_formats_url():
+  gcs_uri = "gs://test-bucket/path/to/file.pdf"
+  result = cloud_storage.get_storage_googleapis_public_url(gcs_uri)
+  assert result == "http://storage.googleapis.com/test-bucket/path/to/file.pdf"
+
+
+def test_gcs_file_exists_delegates_to_gcs_blob(monkeypatch):
+
+  class FakeBlob:
+
+    def __init__(self, exists_value: bool):
+      self._exists_value = exists_value
+
+    def exists(self) -> bool:
+      return self._exists_value
+
+  class FakeBucket:
+
+    def __init__(self, exists_value: bool):
+      self._exists_value = exists_value
+
+    def blob(self, blob_name: str) -> FakeBlob:
+      assert blob_name == "path/to/file.pdf"
+      return FakeBlob(self._exists_value)
+
+  class FakeClient:
+
+    def __init__(self, exists_value: bool):
+      self._exists_value = exists_value
+
+    def bucket(self, bucket_name: str) -> FakeBucket:
+      assert bucket_name == "test-bucket"
+      return FakeBucket(self._exists_value)
+
+  monkeypatch.setattr(cloud_storage, "client", lambda: FakeClient(True))
+  assert cloud_storage.gcs_file_exists(
+    "gs://test-bucket/path/to/file.pdf") is True
+
+  monkeypatch.setattr(cloud_storage, "client", lambda: FakeClient(False))
+  assert cloud_storage.gcs_file_exists(
+    "gs://test-bucket/path/to/file.pdf") is False

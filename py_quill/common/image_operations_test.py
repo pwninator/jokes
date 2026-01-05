@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as std_datetime
+import hashlib
 import unittest
 from io import BytesIO
 from types import SimpleNamespace
@@ -1466,7 +1467,7 @@ class CreateJokeNotesSheetImageTest(unittest.TestCase):
 
     # Run function
     ids = ['joke1', 'joke2']
-    result = joke_notes_sheet_operations.create_joke_notes_sheet_image(ids)
+    result = joke_notes_sheet_operations._create_joke_notes_sheet_image(ids)
 
     # Verify result is a PIL image
     self.assertIsInstance(result, Image.Image)
@@ -1486,16 +1487,66 @@ class CreateJokeNotesSheetImageTest(unittest.TestCase):
 class CreateJokeNotesSheetTest(unittest.TestCase):
   """Tests for create_joke_notes_sheet function."""
 
+  @patch(
+    'common.joke_notes_sheet_operations.cloud_storage.upload_bytes_to_gcs')
   @patch('common.joke_notes_sheet_operations.pdf_client.create_pdf')
-  @patch('common.joke_notes_sheet_operations.create_joke_notes_sheet_image')
-  def test_create_joke_notes_sheet(self, mock_create_image, mock_create_pdf):
+  @patch('common.joke_notes_sheet_operations._create_joke_notes_sheet_image')
+  @patch('common.joke_notes_sheet_operations.cloud_storage.gcs_file_exists')
+  def test_get_joke_notes_sheet_uploads_when_missing(
+    self,
+    mock_blob_exists,
+    mock_create_image,
+    mock_create_pdf,
+    mock_upload_bytes,
+  ):
     notes_image = Image.new('RGB', (100, 100), 'white')
     mock_create_image.return_value = notes_image
     mock_create_pdf.return_value = b'pdf-bytes'
+    mock_blob_exists.return_value = False
 
-    result = joke_notes_sheet_operations.create_joke_notes_sheet(['joke1'],
-                                                                 quality=42)
+    joke_ids = ['joke1']
+    result = joke_notes_sheet_operations.get_joke_notes_sheet(
+      joke_ids,
+      quality=42,
+    )
 
-    self.assertEqual(result, b'pdf-bytes')
-    mock_create_image.assert_called_once_with(['joke1'])
+    expected_filename = (
+      f"{hashlib.sha256('joke1'.encode('utf-8')).hexdigest()}.pdf")
+    expected_gcs_uri = (
+      f"{joke_notes_sheet_operations._PDF_DIR_GCS_URI}/{expected_filename}")
+
+    self.assertEqual(result, expected_gcs_uri)
+    mock_create_image.assert_called_once_with(joke_ids)
     mock_create_pdf.assert_called_once_with([notes_image], quality=42)
+    mock_upload_bytes.assert_called_once_with(
+      content_bytes=b'pdf-bytes',
+      gcs_uri=expected_gcs_uri,
+      content_type='application/pdf',
+    )
+
+  @patch(
+    'common.joke_notes_sheet_operations.cloud_storage.upload_bytes_to_gcs')
+  @patch('common.joke_notes_sheet_operations.pdf_client.create_pdf')
+  @patch('common.joke_notes_sheet_operations._create_joke_notes_sheet_image')
+  @patch('common.joke_notes_sheet_operations.cloud_storage.gcs_file_exists')
+  def test_get_joke_notes_sheet_returns_cached_uri_when_exists(
+    self,
+    mock_blob_exists,
+    mock_create_image,
+    mock_create_pdf,
+    mock_upload_bytes,
+  ):
+    mock_blob_exists.return_value = True
+
+    result = joke_notes_sheet_operations.get_joke_notes_sheet(
+      ['b', 'a'],
+      quality=42,
+    )
+
+    expected_hash = hashlib.sha256('a,b'.encode('utf-8')).hexdigest()
+    expected_gcs_uri = (
+      f"{joke_notes_sheet_operations._PDF_DIR_GCS_URI}/{expected_hash}.pdf")
+    self.assertEqual(result, expected_gcs_uri)
+    mock_create_image.assert_not_called()
+    mock_create_pdf.assert_not_called()
+    mock_upload_bytes.assert_not_called()

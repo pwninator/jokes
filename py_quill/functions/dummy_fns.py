@@ -3,7 +3,7 @@
 from __future__ import annotations
 from firebase_functions import https_fn, options
 from common import joke_notes_sheet_operations
-from services import firestore
+from services import cloud_storage, firestore
 from google.cloud.firestore import FieldFilter
 
 
@@ -37,9 +37,21 @@ def dummy_endpoint(req: https_fn.Request) -> https_fn.Response:
   if not joke_ids:
     return https_fn.Response("No valid jokes found", status=404)
 
-  # Generate PDF
-  pdf_bytes = joke_notes_sheet_operations.create_joke_notes_sheet(
+  gcs_uri = joke_notes_sheet_operations.get_joke_notes_sheet(
     joke_ids,
     quality=30,
   )
-  return https_fn.Response(pdf_bytes, status=200, mimetype='application/pdf')
+
+  public_url = cloud_storage.get_storage_googleapis_public_url(gcs_uri)
+  html = f"""<!DOCTYPE html>
+<html>
+<head>
+  <title>Joke Notes Sheet</title>
+</head>
+<body>
+  <h1>Joke Notes Sheet Generated</h1>
+  <p><a href="{public_url}" target="_blank">Download PDF</a></p>
+</body>
+</html>
+"""
+  return https_fn.Response(html, status=200, mimetype="text/html")

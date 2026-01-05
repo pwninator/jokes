@@ -20,9 +20,10 @@ def get_joke_notes_sheet(
   joke_ids: list[str],
   *,
   quality: int = 80,
+  category_id: str | None = None,
 ) -> str:
   """Creates a PDF with the joke notes sheet image, uploads to GCS, and returns the GCS URI."""
-  firestore.upsert_joke_sheet(joke_ids)
+  firestore.upsert_joke_sheet(joke_ids, category_id=category_id)
 
   filename = _generate_pdf_filename(joke_ids, quality=quality)
   gcs_uri = f"{_PDF_DIR_GCS_URI}/{filename}"

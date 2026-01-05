@@ -93,10 +93,10 @@ def fake_env_fixture(monkeypatch):
   seasonal_calls: list[str] = []
 
   def fake_search_category_jokes(
-    query,
-    category_id,
-    *,
-    distance_threshold=None,  # pylint: disable=unused-argument
+      query,
+      category_id,
+      *,
+      distance_threshold=None,  # pylint: disable=unused-argument
   ):
     search_calls.append({
       "query": query,
@@ -154,6 +154,7 @@ def fake_env_fixture(monkeypatch):
 
 def _run_refresh(monkeypatch, fake_db):
   monkeypatch.setattr("services.firestore.db", lambda: fake_db)
+
   # Avoid depending on Firestore 'jokes' collection in these unit tests.
   def fake_get_punny_jokes(joke_ids):
     results = []
@@ -167,7 +168,11 @@ def _run_refresh(monkeypatch, fake_db):
         ))
     return results
 
-  monkeypatch.setattr("services.firestore.get_punny_jokes", fake_get_punny_jokes)
+  monkeypatch.setattr("services.firestore.get_punny_jokes",
+                      fake_get_punny_jokes)
+  # Prevent sheet generation from touching Firestore in these cache refresh tests.
+  monkeypatch.setattr("services.firestore.get_joke_sheets_by_category",
+                      lambda _category_id: [])
   # Execute
   joke_category_operations.refresh_category_caches()
 
@@ -189,7 +194,7 @@ def test_refresh_updates_cache_for_approved_category(monkeypatch, fake_env):
   call = fake_env.search_calls[0]
   assert call["query"] == "jokes about cats"
   assert call["category"] == "animals"
-  
+
   # Cache write
   cache = fake_env.cache_refs.get("animals")
   assert cache is not None
@@ -205,9 +210,8 @@ def test_refresh_updates_cache_for_approved_category(monkeypatch, fake_env):
 
 def test_refresh_forces_proposed_when_empty_results(monkeypatch, fake_env):
   # Arrange: search returns empty for this test
-  monkeypatch.setattr(
-    "common.joke_category_operations.search_category_jokes",
-    lambda *args, **kwargs: [])
+  monkeypatch.setattr("common.joke_category_operations.search_category_jokes",
+                      lambda *args, **kwargs: [])
 
   categories = [("sports", {
     "display_name": "Sports",
@@ -242,7 +246,8 @@ def test_refresh_uses_seasonal_name_when_present(monkeypatch, fake_env):
   assert cache.set_calls[0]["jokes"][0]["joke_id"] == "Halloween-1"
 
 
-def test_refresh_sets_proposed_when_no_query_or_seasonal(monkeypatch, fake_env):
+def test_refresh_sets_proposed_when_no_query_or_seasonal(
+    monkeypatch, fake_env):
   categories = [("misc", {
     "display_name": "Misc",
     "state": "APPROVED",
@@ -388,8 +393,8 @@ class TestSearchCategoryJokesSorting:
       return [id_to_joke[jid] for jid in joke_ids if jid in id_to_joke]
 
     monkeypatch.setattr("services.search.search_jokes", fake_search_jokes)
-    monkeypatch.setattr(
-      "services.firestore.get_punny_jokes", fake_get_punny_jokes)
+    monkeypatch.setattr("services.firestore.get_punny_jokes",
+                        fake_get_punny_jokes)
 
     # Act
     jokes = joke_category_operations.search_category_jokes(
@@ -653,3 +658,93 @@ class TestQueryTagsCategoryJokesBatching:
     assert jokes[0]["joke_id"] == "j2"
     assert jokes[1]["joke_id"] == "j1"
 
+
+def _make_jokes(n: int) -> list[models.PunnyJoke]:
+  jokes: list[models.PunnyJoke] = []
+  for i in range(n):
+    jokes.append(
+      models.PunnyJoke(
+        key=f"j{i + 1}",
+        setup_text="S",
+        punchline_text="P",
+        num_saved_users_fraction=0.0,
+      ))
+  return jokes
+
+
+def test_ensure_category_joke_sheets_skips_when_under_5(monkeypatch):
+  calls: list[dict] = []
+
+  monkeypatch.setattr("services.firestore.get_joke_sheets_by_category",
+                      lambda _category_id: [])
+
+  def fake_get_sheet(joke_ids, *, category_id=None, quality=80):  # pylint: disable=unused-argument
+    calls.append({"joke_ids": list(joke_ids), "category_id": category_id})
+    return "gs://bucket/file.pdf"
+
+  monkeypatch.setattr(
+    "common.joke_notes_sheet_operations.get_joke_notes_sheet", fake_get_sheet)
+
+  joke_category_operations._ensure_category_joke_sheets(  # pylint: disable=protected-access
+    "cats",
+    _make_jokes(4),
+  )
+  assert calls == []
+
+
+def test_ensure_category_joke_sheets_creates_full_batches_only(monkeypatch):
+  calls: list[dict] = []
+
+  monkeypatch.setattr("services.firestore.get_joke_sheets_by_category",
+                      lambda _category_id: [])
+
+  def fake_get_sheet(joke_ids, *, category_id=None, quality=80):  # pylint: disable=unused-argument
+    calls.append({"joke_ids": list(joke_ids), "category_id": category_id})
+    return "gs://bucket/file.pdf"
+
+  monkeypatch.setattr(
+    "common.joke_notes_sheet_operations.get_joke_notes_sheet", fake_get_sheet)
+
+  joke_category_operations._ensure_category_joke_sheets(  # pylint: disable=protected-access
+    "cats",
+    _make_jokes(9),
+  )
+
+  # 9 uncovered -> one full sheet of 5, last 4 ignored
+  assert calls == [{
+    "joke_ids": ["j1", "j2", "j3", "j4", "j5"],
+    "category_id": "cats",
+  }]
+
+
+def test_ensure_category_joke_sheets_respects_existing_coverage(monkeypatch):
+  calls: list[dict] = []
+
+  existing = [
+    models.JokeSheet(
+      key="s1",
+      joke_str="j1,j2,j3,j4,j5",
+      joke_ids=["j1", "j2", "j3", "j4", "j5"],
+      category_id="cats",
+    )
+  ]
+  monkeypatch.setattr("services.firestore.get_joke_sheets_by_category",
+                      lambda _category_id: existing)
+
+  def fake_get_sheet(joke_ids, *, category_id=None, quality=80):  # pylint: disable=unused-argument
+    calls.append({"joke_ids": list(joke_ids), "category_id": category_id})
+    return "gs://bucket/file.pdf"
+
+  monkeypatch.setattr(
+    "common.joke_notes_sheet_operations.get_joke_notes_sheet", fake_get_sheet)
+
+  joke_category_operations._ensure_category_joke_sheets(  # pylint: disable=protected-access
+    "cats",
+    _make_jokes(10),
+  )
+
+  # First 5 covered by existing sheet, next 5 should be generated.
+  assert calls == [{
+    "joke_ids": ["j6", "j7", "j8", "j9", "j10"],
+    "category_id": "cats",
+  }]

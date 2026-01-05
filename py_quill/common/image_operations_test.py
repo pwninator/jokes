@@ -1520,7 +1520,7 @@ class CreateJokeNotesSheetTest(unittest.TestCase):
       f"{joke_notes_sheet_operations._PDF_DIR_GCS_URI}/{expected_filename}")
 
     self.assertEqual(result, expected_gcs_uri)
-    mock_upsert_joke_sheet.assert_called_once_with(joke_ids)
+    mock_upsert_joke_sheet.assert_called_once_with(joke_ids, category_id=None)
     mock_create_image.assert_called_once_with(joke_ids)
     mock_create_pdf.assert_called_once_with([notes_image], quality=42)
     mock_upload_bytes.assert_called_once_with(
@@ -1555,7 +1555,8 @@ class CreateJokeNotesSheetTest(unittest.TestCase):
     expected_gcs_uri = (
       f"{joke_notes_sheet_operations._PDF_DIR_GCS_URI}/{expected_hash}.pdf")
     self.assertEqual(result, expected_gcs_uri)
-    mock_upsert_joke_sheet.assert_called_once_with(['b', 'a'])
+    mock_upsert_joke_sheet.assert_called_once_with(['b', 'a'],
+                                                   category_id=None)
     mock_create_image.assert_not_called()
     mock_create_pdf.assert_not_called()
     mock_upload_bytes.assert_not_called()

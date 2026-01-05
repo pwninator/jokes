@@ -570,6 +570,65 @@ def test_upsert_joke_sheet_creates_when_missing(monkeypatch):
   assert captured["data"] == {"joke_str": "a,b", "joke_ids": ["a", "b"]}
 
 
+def test_upsert_joke_sheet_writes_category_id(monkeypatch):
+  from services import firestore as fs
+
+  captured: dict[str, object] = {}
+
+  class DummyDocRef:
+
+    def set(self, data, merge=False):  # pylint: disable=unused-argument
+      captured["data"] = data
+      captured["merge"] = merge
+
+  class DummyDoc:
+
+    def __init__(self, doc_id: str):
+      self.id = doc_id
+      self.reference = DummyDocRef()
+
+    @property
+    def exists(self):
+      return True
+
+    def to_dict(self):
+      # Missing category_id so upsert should backfill.
+      return {"joke_str": "a,b", "joke_ids": ["a", "b"]}
+
+  class DummyQuery:
+
+    def limit(self, _n: int):
+      return self
+
+    def get(self):
+      return [DummyDoc("existing-id")]
+
+  class DummyCol:
+
+    def where(self, filter=None):  # pylint: disable=unused-argument
+      return DummyQuery()
+
+    def add(self, _data):
+      raise AssertionError("Should not create when existing doc found")
+
+  class DummyDB:
+
+    def collection(self, name: str):
+      assert name == "joke_sheets"
+      return DummyCol()
+
+  monkeypatch.setattr(fs, "db", DummyDB)
+
+  doc_id = fs.upsert_joke_sheet(["b", "a"], category_id="cats")
+  assert doc_id == "existing-id"
+  assert captured["merge"] is True
+  assert captured["data"] == {
+    "joke_str": "a,b",
+    "joke_ids": ["a", "b"],
+    "category_id": "cats",
+  }
+
+
 def test_upsert_joke_user_usage_insert(monkeypatch):
   """Inserts a new joke user doc with count=1 and timestamps."""
   from services import firestore as fs

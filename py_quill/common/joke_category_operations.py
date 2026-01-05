@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from common import config, models
+from common import config, joke_notes_sheet_operations, models
 from firebase_functions import logger
 from google.cloud.firestore import FieldFilter
 from services import firestore, search
@@ -155,7 +155,53 @@ def refresh_single_category_cache(
       f"Category cache emptied for {category_id}, forcing state to PROPOSED")
     return "emptied"
 
+  _ensure_category_joke_sheets(category_id, jokes)
   return "updated"
+
+
+def _ensure_category_joke_sheets(
+  category_id: str,
+  jokes: list[models.PunnyJoke],
+) -> None:
+  """Create joke sheets for all jokes in the category (in batches of 5).
+
+  For jokes not already in a sheet for this category, creates sheets containing
+  exactly 5 jokes at a time. If there are 4 or fewer uncovered jokes, does
+  nothing.
+  """
+  category_id = (category_id or "").strip()
+  if not category_id:
+    return
+
+  existing_sheets = firestore.get_joke_sheets_by_category(category_id)
+  covered_ids = {
+    jid
+    for sheet in existing_sheets
+    for jid in sheet.joke_ids if jid
+  }
+
+  uncovered = [j for j in jokes if j.key and j.key not in covered_ids]
+  batch_size = 5
+  num_complete_batches = len(uncovered) // batch_size
+  if num_complete_batches <= 0:
+    return
+
+  for i in range(num_complete_batches):
+    batch = uncovered[i * batch_size:(i + 1) * batch_size]
+    batch_ids = [j.key for j in batch if j.key]
+    if len(batch_ids) != batch_size:
+      continue
+    try:
+      joke_notes_sheet_operations.get_joke_notes_sheet(
+        batch_ids,
+        category_id=category_id,
+      )
+      logger.info(
+        f"Created joke sheet for category {category_id} with {len(batch_ids)} jokes"
+      )
+    except Exception as exc:  # pylint: disable=broad-except
+      logger.error(
+        f"Failed to create joke sheet for category {category_id}: {exc}")
 
 
 def search_category_jokes(

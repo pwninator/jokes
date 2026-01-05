@@ -206,7 +206,7 @@ def test_download_image_from_gcs_accepts_http_url(monkeypatch):
 
 def test_get_storage_googleapis_public_url_formats_url():
   gcs_uri = "gs://test-bucket/path/to/file.pdf"
-  result = cloud_storage.get_storage_googleapis_public_url(gcs_uri)
+  result = cloud_storage.get_public_cdn_url(gcs_uri)
   assert result == "http://storage.googleapis.com/test-bucket/path/to/file.pdf"
 
 

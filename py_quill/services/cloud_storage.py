@@ -223,16 +223,16 @@ def get_public_url(gcs_uri: str) -> str:
   return blob.public_url
 
 
-def get_storage_googleapis_public_url(gcs_uri: str) -> str:
-  """Get a public URL for a GCS URI using storage.googleapis.com.
+def get_public_cdn_url(gcs_uri: str) -> str:
+  """Get a public CDN URL for a GCS URI.
 
-  This is a deterministic formatting helper (no API call).
+  This is a deterministic formatting helper (no API call). Assumes that the bucket name is the same as the domain name, and that CNAME has been set up to point to the bucket.
 
   Example:
-    gs://bucket_name/path/to/file.pdf -> http://storage.googleapis.com/bucket_name/path/to/file.pdf
+    gs://bucket_name/path/to/file.pdf -> http://bucket_name/path/to/file.pdf
   """
   bucket_name, blob_name = parse_gcs_uri(gcs_uri)
-  return f"http://storage.googleapis.com/{bucket_name}/{blob_name}"
+  return f"http://{bucket_name}/{blob_name}"
 
 
 def get_emulator_accessible_url(gcs_uri: str) -> str:

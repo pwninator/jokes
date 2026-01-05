@@ -42,7 +42,7 @@ def dummy_endpoint(req: https_fn.Request) -> https_fn.Response:
     quality=80,
   )
 
-  public_url = cloud_storage.get_storage_googleapis_public_url(gcs_uri)
+  public_url = cloud_storage.get_public_cdn_url(gcs_uri)
   html = f"""<!DOCTYPE html>
 <html>
 <head>

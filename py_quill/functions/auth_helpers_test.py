@@ -99,7 +99,7 @@ def test_verify_session_handles_invalid_cookie(monkeypatch, flask_app):
 def test_require_admin_redirects_when_unauthenticated(monkeypatch, flask_app):
   monkeypatch.setattr(auth_helpers, 'verify_session', lambda request: None)
   monkeypatch.setattr(flask, 'url_for',
-                      lambda *args, **kwargs: '/admin/login')  # noqa: ARG005
+                      lambda *args, **kwargs: '/login')  # noqa: ARG005
 
   @auth_helpers.require_admin
   def protected():
@@ -114,8 +114,7 @@ def test_require_admin_redirects_when_unauthenticated(monkeypatch, flask_app):
     response = protected()
 
   assert response.status_code == 302
-  assert response.headers[
-    'Location'] == 'https://snickerdoodlejokes.com/admin/login'
+  assert response.headers['Location'] == 'https://snickerdoodlejokes.com/login'
 
 
 def test_require_admin_forbids_non_admin(monkeypatch, flask_app):

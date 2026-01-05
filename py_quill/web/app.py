@@ -8,7 +8,7 @@ import flask
 # Import route modules for side-effects (route registration on `web_bp`).
 # These are intentionally unused imports, but must remain at module scope so
 # all routes exist when Cloud Functions dispatches the request.
-import web.routes.admin.auth as _admin_auth  # noqa: E402,F401
+import web.routes.auth as _auth  # noqa: E402,F401
 import web.routes.admin.books as _admin_books  # noqa: E402,F401
 import web.routes.admin.categories as _admin_categories  # noqa: E402,F401
 import web.routes.admin.dashboard as _admin_dashboard  # noqa: E402,F401

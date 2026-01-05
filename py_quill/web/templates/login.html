@@ -1,6 +1,28 @@
+{% extends "base.html" %}
 
-  const firebaseConfig = {"apiKey": "test", "authDomain": "example.firebaseapp.com", "projectId": "example"};
-  const nextUrl = "/admin";
+{% block title %}Sign In - {{ site_name }}{% endblock %}
+{% block meta_description %}Sign in to Snickerdoodle.{% endblock %}
+
+{% block head_meta %}
+{{ super() }}
+<meta name="robots" content="noindex, nofollow">
+{% endblock %}
+
+{% block content %}
+<section class="centered-section" aria-label="Login">
+  <article class="hero-card centered-card">
+    <h1 class="text-section-heading">Sign In</h1>
+    <p class="text-body">Sign in with Google to continue.</p>
+    <button id="google-signin" class="nav-cta text-button" type="button">Continue with Google</button>
+    <div id="login-error" class="form-error" role="alert"></div>
+  </article>
+</section>
+{% endblock %}
+
+{% block extra_scripts %}
+<script type="module">
+  const firebaseConfig = {{ firebase_config | tojson }};
+  const nextUrl = {{ login_next_url | tojson }};
   const errorEl = document.getElementById('login-error');
   const button = document.getElementById('google-signin');
 
@@ -60,3 +82,5 @@
   } else {
     console.error('Google sign-in button missing'); // eslint-disable-line no-console
   }
+</script>
+{% endblock %}

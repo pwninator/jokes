@@ -145,9 +145,9 @@ def require_admin(view_func: Callable) -> Callable:
         flask.request.scheme,
         flask.request.headers.get('Cookie'),
       )
-      login_path = flask.url_for('web.admin_login', next=flask.request.path)
+      login_path = flask.url_for('web.login', next=flask.request.path)
       login_url = resolve_admin_redirect(flask.request, login_path,
-                                         flask.url_for('web.admin_login'))
+                                         flask.url_for('web.login'))
       return flask.redirect(login_url)
 
     _, claims = verification

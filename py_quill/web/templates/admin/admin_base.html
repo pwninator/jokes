@@ -29,9 +29,7 @@
           href="{{ joke_books_url }}">
           Joke Books
         </a>
-        <button id="logout-btn" class="nav-cta text-button" type="button">
-          Sign out
-        </button>
+        {% include "partials/user_nav_menu.html" %}
       </nav>
     </div>
   </header>
@@ -58,24 +56,4 @@
 
 {% block scripts %}
 {{ super() }}
-<script>
-  (function () {
-    const logoutBtn = document.getElementById('logout-btn');
-    if (!logoutBtn) return;
-    logoutBtn.addEventListener('click', async () => {
-      try {
-        await fetch('/admin/logout', {
-          method: 'POST',
-          headers: { 'Accept': 'application/json' },
-          credentials: 'same-origin',
-        });
-      } catch (err) {
-        console.warn('Failed to logout:', err); // eslint-disable-line no-console
-      } finally {
-        window.location.href = '{{ url_for("web.admin_login") }}';
-      }
-    });
-  })();
-</script>
 {% endblock %}
-

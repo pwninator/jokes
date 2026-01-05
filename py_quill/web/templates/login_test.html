@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block title %}Login Test - {{ site_name }}{% endblock %}
+{% block meta_description %}Login state check for Snickerdoodle.{% endblock %}
+
+{% block head_meta %}
+{{ super() }}
+<meta name="robots" content="noindex, nofollow">
+{% endblock %}
+
+{% block content %}
+<section class="centered-section" aria-label="Login test">
+  <article class="hero-card centered-card">
+    <h1 class="text-section-heading">Login Test</h1>
+    {% if user_email %}
+      <p class="text-body">Logged in as {{ user_email }}.</p>
+      <button id="logout-btn" class="nav-cta text-button" type="button">Sign out</button>
+    {% else %}
+      <p class="text-body">Please log in.</p>
+      <a class="nav-cta text-button" href="{{ login_url }}">Go to login</a>
+    {% endif %}
+  </article>
+</section>
+{% endblock %}
+
+{% block extra_scripts %}
+{% if user_email %}
+<script>
+  (function () {
+    const logoutBtn = document.getElementById('logout-btn');
+    if (!logoutBtn) return;
+    logoutBtn.addEventListener('click', async () => {
+      try {
+        await fetch('{{ logout_url }}', {
+          method: 'POST',
+          headers: { 'Accept': 'application/json' },
+          credentials: 'same-origin',
+        });
+      } catch (err) {
+        console.warn('Failed to logout:', err); // eslint-disable-line no-console
+      } finally {
+        window.location.href = '/login-test';
+      }
+    });
+  })();
+</script>
+{% endif %}
+{% endblock %}

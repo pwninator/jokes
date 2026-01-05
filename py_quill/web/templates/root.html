@@ -95,6 +95,120 @@
       });
     })();
   </script>
+  <script>
+    (function () {
+      if (typeof document === 'undefined' || !document.querySelectorAll) {
+        return;
+      }
+      var menus = Array.prototype.slice.call(
+        document.querySelectorAll('[data-user-menu]')
+      );
+      if (!menus.length) {
+        return;
+      }
+
+      var sessionInfoUrl = menus[0].dataset.sessionInfoUrl || '/session-info';
+      var logoutUrl = menus[0].dataset.logoutUrl || '/logout';
+
+      function setMenuVisible(menu, label) {
+        menu.classList.add('user-menu--visible');
+        var labelEl = menu.querySelector('[data-user-menu-label]');
+        if (labelEl) {
+          labelEl.textContent = label;
+        }
+      }
+
+      function closeMenu(menu) {
+        if (!menu.classList.contains('user-menu--open')) {
+          return;
+        }
+        menu.classList.remove('user-menu--open');
+        var trigger = menu.querySelector('[data-user-menu-trigger]');
+        if (trigger) {
+          trigger.setAttribute('aria-expanded', 'false');
+        }
+      }
+
+      function openMenu(menu) {
+        menu.classList.add('user-menu--open');
+        var trigger = menu.querySelector('[data-user-menu-trigger]');
+        if (trigger) {
+          trigger.setAttribute('aria-expanded', 'true');
+        }
+      }
+
+      function attachMenu(menu, label) {
+        setMenuVisible(menu, label);
+        var trigger = menu.querySelector('[data-user-menu-trigger]');
+        var logoutButton = menu.querySelector('[data-user-menu-action="logout"]');
+        if (!trigger) {
+          return;
+        }
+
+        trigger.addEventListener('click', function (event) {
+          event.stopPropagation();
+          if (menu.classList.contains('user-menu--open')) {
+            closeMenu(menu);
+          } else {
+            openMenu(menu);
+          }
+        });
+
+        document.addEventListener('click', function (event) {
+          if (!menu.contains(event.target)) {
+            closeMenu(menu);
+          }
+        });
+
+        document.addEventListener('keydown', function (event) {
+          if (event.key === 'Escape') {
+            closeMenu(menu);
+          }
+        });
+
+        if (logoutButton) {
+          logoutButton.addEventListener('click', function () {
+            fetch(logoutUrl, {
+              method: 'POST',
+              headers: { 'Accept': 'application/json' },
+              credentials: 'same-origin',
+            })
+              .catch(function () {})
+              .finally(function () {
+                window.location.reload();
+              });
+          });
+        }
+      }
+
+      function handleSession(data) {
+        if (!data || !data.authenticated) {
+          return;
+        }
+        var label = data.email || data.uid || 'Account';
+        menus.forEach(function (menu) {
+          attachMenu(menu, label);
+        });
+      }
+
+      fetch(sessionInfoUrl, {
+        headers: { 'Accept': 'application/json' },
+        credentials: 'same-origin',
+      })
+        .then(function (response) {
+          if (!response.ok) {
+            return null;
+          }
+          var contentType = response.headers.get('Content-Type') || '';
+          if (contentType.indexOf('application/json') === -1) {
+            return null;
+          }
+          return response.json();
+        })
+        .then(handleSession)
+        .catch(function () {});
+    })();
+  </script>
   {% block scripts %}{% endblock %}
 </body>
 

@@ -1,0 +1,21 @@
+<div class="user-menu"
+  data-user-menu
+  data-session-info-url="{{ url_for('web.session_info') }}"
+  data-logout-url="{{ url_for('web.logout') }}">
+  <button class="user-menu__trigger text-button"
+    type="button"
+    aria-haspopup="menu"
+    aria-expanded="false"
+    data-user-menu-trigger>
+    <span class="user-menu__label" data-user-menu-label></span>
+    <span class="user-menu__chevron" aria-hidden="true">v</span>
+  </button>
+  <div class="user-menu__panel" role="menu" data-user-menu-panel>
+    <button class="user-menu__item text-button"
+      type="button"
+      role="menuitem"
+      data-user-menu-action="logout">
+      Sign out
+    </button>
+  </div>
+</div>

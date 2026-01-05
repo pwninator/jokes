@@ -1,4 +1,4 @@
-"""Tests for the admin login template JavaScript."""
+"""Tests for the login template JavaScript."""
 
 import subprocess
 import sys
@@ -17,6 +17,18 @@ def flask_app():
 
   @web_bp.route('/')
   def index():
+    return ''
+
+  @web_bp.route('/lunchbox')
+  def lunchbox():
+    return ''
+
+  @web_bp.route('/session-info')
+  def session_info():
+    return ''
+
+  @web_bp.route('/logout', methods=['POST'])
+  def logout():
     return ''
 
   app.register_blueprint(web_bp)
@@ -58,19 +70,22 @@ def _run_node_syntax_check(js_source: str) -> subprocess.CompletedProcess:
     text=True)
 
 
-def test_admin_login_inline_script_is_valid_js(flask_app):
+def test_login_inline_script_is_valid_js(flask_app):
   _ensure_node_installed()
 
   with flask_app.test_request_context('/'):
     rendered = render_template(
-      'admin/login.html',
+      'login.html',
       firebase_config={
         'apiKey': 'test',
         'authDomain': 'example.firebaseapp.com',
         'projectId': 'example'
       },
       site_name='Snickerdoodle',
-      next_url='/admin',
+      login_next_url='/admin',
+      canonical_url='https://snickerdoodlejokes.com/login',
+      prev_url=None,
+      next_url=None,
     )
 
   inline_js = _extract_inline_script(rendered)

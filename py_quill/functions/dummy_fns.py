@@ -39,7 +39,7 @@ def dummy_endpoint(req: https_fn.Request) -> https_fn.Response:
 
   gcs_uri = joke_notes_sheet_operations.get_joke_notes_sheet(
     joke_ids,
-    quality=30,
+    quality=80,
   )
 
   public_url = cloud_storage.get_storage_googleapis_public_url(gcs_uri)

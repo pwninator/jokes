@@ -22,7 +22,9 @@ def get_joke_notes_sheet(
   quality: int = 80,
 ) -> str:
   """Creates a PDF with the joke notes sheet image, uploads to GCS, and returns the GCS URI."""
-  filename = _generate_pdf_filename(joke_ids)
+  firestore.upsert_joke_sheet(joke_ids)
+
+  filename = _generate_pdf_filename(joke_ids, quality=quality)
   gcs_uri = f"{_PDF_DIR_GCS_URI}/{filename}"
 
   if cloud_storage.gcs_file_exists(gcs_uri):
@@ -38,14 +40,15 @@ def get_joke_notes_sheet(
   return gcs_uri
 
 
-def _generate_pdf_filename(joke_ids: list[str]) -> str:
+def _generate_pdf_filename(joke_ids: list[str], *, quality: int) -> str:
   """Generate a deterministic filename from joke IDs using SHA-256.
 
   Joke IDs are sorted before hashing so different orderings produce the same
   filename.
   """
   joke_ids_str = ",".join(sorted(joke_ids))
-  hash_digest = hashlib.sha256(joke_ids_str.encode("utf-8")).hexdigest()
+  hash_source = f"{joke_ids_str}|quality={int(quality)}"
+  hash_digest = hashlib.sha256(hash_source.encode("utf-8")).hexdigest()
   return f"{hash_digest}.pdf"
 
 

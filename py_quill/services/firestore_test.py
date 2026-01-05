@@ -138,6 +138,7 @@ def test_upsert_punny_joke_logs_operation(monkeypatch):
       self._operations_doc = DummyOperationsDoc()
 
     def get(self):
+
       class Snapshot:
 
         def __init__(self, exists):
@@ -190,8 +191,10 @@ def test_upsert_punny_joke_logs_operation(monkeypatch):
   assert "log" in captured_operations[0][0]
   log_entry = captured_operations[0][0]["log"][0]
   assert log_entry[firestore.OPERATION] == "CREATE"
-  assert isinstance(log_entry[firestore.OPERATION_TIMESTAMP], datetime.datetime)
-  assert str(log_entry[firestore.OPERATION_TIMESTAMP].tzinfo) == "America/Los_Angeles"
+  assert isinstance(log_entry[firestore.OPERATION_TIMESTAMP],
+                    datetime.datetime)
+  assert str(
+    log_entry[firestore.OPERATION_TIMESTAMP].tzinfo) == "America/Los_Angeles"
   assert log_entry["setup_text"] == "s"
   assert log_entry["punchline_text"] == "p"
   assert log_entry["setup_scene_idea"] == "scene setup"
@@ -202,6 +205,7 @@ def test_update_punny_joke_sets_is_public_when_published(monkeypatch):
   captured = {}
 
   class DummyDoc:
+
     def __init__(self):
       self._data = {"setup_text": "s", "punchline_text": "p"}
 
@@ -253,6 +257,7 @@ def test_update_punny_joke_sets_is_public_false_for_non_public(monkeypatch):
   captured = {}
 
   class DummyDoc:
+
     def __init__(self):
       self._data = {"setup_text": "s", "punchline_text": "p"}
 
@@ -471,6 +476,98 @@ def test_get_punny_jokes_batch(monkeypatch):
   jokes = fs.get_punny_jokes(joke_ids)
   assert len(jokes) == 3
   assert all(j.key in joke_ids for j in jokes)
+
+
+def test_upsert_joke_sheet_returns_existing_doc_id(monkeypatch):
+  from services import firestore as fs
+
+  captured: dict[str, object] = {}
+
+  class DummyDocRef:
+
+    def set(self, data, merge: bool = False):
+      captured["data"] = data
+      captured["merge"] = merge
+
+  class DummyDoc:
+
+    def __init__(self, doc_id: str):
+      self.id = doc_id
+      self.exists = True
+      self.reference = DummyDocRef()
+
+    def to_dict(self):
+      # Simulate older doc missing joke_ids so upsert backfills.
+      return {"joke_str": "a,b"}
+
+  class DummyQuery:
+
+    def limit(self, _n: int):
+      return self
+
+    def get(self):
+      return [DummyDoc("existing-id")]
+
+  class DummyCol:
+
+    def where(self, filter=None):  # pylint: disable=unused-argument
+      return DummyQuery()
+
+    def add(self, _data):
+      raise AssertionError("Should not create when existing doc found")
+
+  class DummyDB:
+
+    def collection(self, name: str):
+      assert name == "joke_sheets"
+      return DummyCol()
+
+  monkeypatch.setattr(fs, "db", DummyDB)
+
+  doc_id = fs.upsert_joke_sheet(["b", "a"])
+  assert doc_id == "existing-id"
+  assert captured["merge"] is True
+  assert captured["data"] == {"joke_str": "a,b", "joke_ids": ["a", "b"]}
+
+
+def test_upsert_joke_sheet_creates_when_missing(monkeypatch):
+  from services import firestore as fs
+
+  captured: dict[str, object] = {}
+
+  class DummyQuery:
+
+    def limit(self, _n: int):
+      return self
+
+    def get(self):
+      return []
+
+  class DummyDocRef:
+
+    def __init__(self, doc_id: str):
+      self.id = doc_id
+
+  class DummyCol:
+
+    def where(self, filter=None):  # pylint: disable=unused-argument
+      return DummyQuery()
+
+    def add(self, data):
+      captured["data"] = data
+      return None, DummyDocRef("created-id")
+
+  class DummyDB:
+
+    def collection(self, name: str):
+      assert name == "joke_sheets"
+      return DummyCol()
+
+  monkeypatch.setattr(fs, "db", DummyDB)
+
+  doc_id = fs.upsert_joke_sheet(["b", "a"])
+  assert doc_id == "created-id"
+  assert captured["data"] == {"joke_str": "a,b", "joke_ids": ["a", "b"]}
 
 
 def test_upsert_joke_user_usage_insert(monkeypatch):
@@ -1094,16 +1191,15 @@ def test_get_top_jokes(monkeypatch):
       # Simulate filtering
       filtered_docs = [
         doc for doc in self._docs
-        if all(
-          (f.field_path == 'is_public' and doc.to_dict().get('is_public') == f.value)
-          for f in self._filters)
+        if all((f.field_path == 'is_public'
+                and doc.to_dict().get('is_public') == f.value)
+               for f in self._filters)
       ]
       # Simulate sorting
       if self._order_by:
         field, direction = self._order_by
-        filtered_docs.sort(
-          key=lambda doc: doc.to_dict().get(field, 0),
-          reverse=(direction == Query.DESCENDING))
+        filtered_docs.sort(key=lambda doc: doc.to_dict().get(field, 0),
+                           reverse=(direction == Query.DESCENDING))
 
       # Simulate limiting
       if self._limit is not None:
@@ -1132,10 +1228,34 @@ def test_get_top_jokes(monkeypatch):
       return DummyCol(self._docs)
 
   # Prepare dummy data
-  joke1 = DummyDoc("joke1", data={"setup_text": "s1", "punchline_text": "p1", "is_public": True, "popularity_score_recent": 100})
-  joke2 = DummyDoc("joke2", data={"setup_text": "s2", "punchline_text": "p2", "is_public": True, "popularity_score_recent": 200})
-  joke3 = DummyDoc("joke3", data={"setup_text": "s3", "punchline_text": "p3", "is_public": False, "popularity_score_recent": 300}) # Not public
-  joke4 = DummyDoc("joke4", data={"setup_text": "s4", "punchline_text": "p4", "is_public": True, "popularity_score_recent": 150})
+  joke1 = DummyDoc("joke1",
+                   data={
+                     "setup_text": "s1",
+                     "punchline_text": "p1",
+                     "is_public": True,
+                     "popularity_score_recent": 100
+                   })
+  joke2 = DummyDoc("joke2",
+                   data={
+                     "setup_text": "s2",
+                     "punchline_text": "p2",
+                     "is_public": True,
+                     "popularity_score_recent": 200
+                   })
+  joke3 = DummyDoc("joke3",
+                   data={
+                     "setup_text": "s3",
+                     "punchline_text": "p3",
+                     "is_public": False,
+                     "popularity_score_recent": 300
+                   })  # Not public
+  joke4 = DummyDoc("joke4",
+                   data={
+                     "setup_text": "s4",
+                     "punchline_text": "p4",
+                     "is_public": True,
+                     "popularity_score_recent": 150
+                   })
 
   all_jokes = [joke1, joke2, joke3, joke4]
 
@@ -1144,8 +1264,8 @@ def test_get_top_jokes(monkeypatch):
   # Test case 1: Get top 2 public jokes by popularity
   top_jokes = fs.get_top_jokes('popularity_score_recent', 2)
   assert len(top_jokes) == 2
-  assert top_jokes[0].key == "joke2" # popularity 200
-  assert top_jokes[1].key == "joke4" # popularity 150
+  assert top_jokes[0].key == "joke2"  # popularity 200
+  assert top_jokes[1].key == "joke4"  # popularity 150
 
   # Test case 2: Get top 1 public joke
   top_jokes = fs.get_top_jokes('popularity_score_recent', 1)
@@ -1153,7 +1273,8 @@ def test_get_top_jokes(monkeypatch):
   assert top_jokes[0].key == "joke2"
 
   # Test case 3: No public jokes
-  monkeypatch.setattr(fs, "db", lambda: DummyDB([joke3])) # Only non-public joke
+  monkeypatch.setattr(fs, "db",
+                      lambda: DummyDB([joke3]))  # Only non-public joke
   top_jokes = fs.get_top_jokes('popularity_score_recent', 5)
   assert len(top_jokes) == 0
 

@@ -133,6 +133,51 @@ def get_punny_jokes(joke_ids: Collection[str]) -> list[models.PunnyJoke]:
   return jokes
 
 
+def upsert_joke_sheet(joke_ids: list[str]) -> str:
+  """Ensure a joke_sheets document exists for the given joke IDs.
+
+  Creates a new document in the 'joke_sheets' collection with an auto-generated
+  ID if one does not already exist for the given `joke_str`.
+
+  The document contains fields:
+    - joke_str: comma-separated list of joke IDs (sorted).
+    - joke_ids: list of joke IDs (sorted).
+
+  Returns:
+    The Firestore document ID for the joke_sheets document.
+  """
+  if not joke_ids:
+    raise ValueError("joke_ids is required")
+
+  normalized_ids = [str(jid).strip() for jid in joke_ids if str(jid).strip()]
+  if not normalized_ids:
+    raise ValueError("joke_ids is required")
+
+  sorted_ids = sorted(normalized_ids)
+  joke_str = ",".join(sorted_ids)
+  payload = {
+    'joke_str': joke_str,
+    'joke_ids': sorted_ids,
+  }
+
+  collection_ref = db().collection('joke_sheets')
+  existing = (collection_ref.where(
+    filter=FieldFilter('joke_str', '==', joke_str)).limit(1).get())
+  for doc in existing:
+    if getattr(doc, 'exists', False):
+      # Backfill new fields for older docs.
+      doc_dict = doc.to_dict() if hasattr(doc, 'to_dict') else None
+      if not isinstance(doc_dict,
+                        dict) or doc_dict.get('joke_ids') != sorted_ids:
+        doc_ref = getattr(doc, 'reference', None)
+        if doc_ref is not None:
+          doc_ref.set(payload, merge=True)
+      return doc.id
+
+  _, doc_ref = collection_ref.add(payload)
+  return doc_ref.id
+
+
 def get_all_punny_jokes() -> list[models.PunnyJoke]:
   """Get all punny jokes from the 'jokes' collection."""
   docs = db().collection('jokes').stream()

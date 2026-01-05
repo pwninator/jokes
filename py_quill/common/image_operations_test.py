@@ -1492,9 +1492,11 @@ class CreateJokeNotesSheetTest(unittest.TestCase):
   @patch('common.joke_notes_sheet_operations.pdf_client.create_pdf')
   @patch('common.joke_notes_sheet_operations._create_joke_notes_sheet_image')
   @patch('common.joke_notes_sheet_operations.cloud_storage.gcs_file_exists')
+  @patch('common.joke_notes_sheet_operations.firestore.upsert_joke_sheet')
   def test_get_joke_notes_sheet_uploads_when_missing(
     self,
-    mock_blob_exists,
+    mock_upsert_joke_sheet,
+    mock_gcs_file_exists,
     mock_create_image,
     mock_create_pdf,
     mock_upload_bytes,
@@ -1502,7 +1504,7 @@ class CreateJokeNotesSheetTest(unittest.TestCase):
     notes_image = Image.new('RGB', (100, 100), 'white')
     mock_create_image.return_value = notes_image
     mock_create_pdf.return_value = b'pdf-bytes'
-    mock_blob_exists.return_value = False
+    mock_gcs_file_exists.return_value = False
 
     joke_ids = ['joke1']
     result = joke_notes_sheet_operations.get_joke_notes_sheet(
@@ -1510,12 +1512,15 @@ class CreateJokeNotesSheetTest(unittest.TestCase):
       quality=42,
     )
 
+    expected_hash_source = 'joke1|quality=42'
     expected_filename = (
-      f"{hashlib.sha256('joke1'.encode('utf-8')).hexdigest()}.pdf")
+      f"{hashlib.sha256(expected_hash_source.encode('utf-8')).hexdigest()}.pdf"
+    )
     expected_gcs_uri = (
       f"{joke_notes_sheet_operations._PDF_DIR_GCS_URI}/{expected_filename}")
 
     self.assertEqual(result, expected_gcs_uri)
+    mock_upsert_joke_sheet.assert_called_once_with(joke_ids)
     mock_create_image.assert_called_once_with(joke_ids)
     mock_create_pdf.assert_called_once_with([notes_image], quality=42)
     mock_upload_bytes.assert_called_once_with(
@@ -1529,24 +1534,28 @@ class CreateJokeNotesSheetTest(unittest.TestCase):
   @patch('common.joke_notes_sheet_operations.pdf_client.create_pdf')
   @patch('common.joke_notes_sheet_operations._create_joke_notes_sheet_image')
   @patch('common.joke_notes_sheet_operations.cloud_storage.gcs_file_exists')
+  @patch('common.joke_notes_sheet_operations.firestore.upsert_joke_sheet')
   def test_get_joke_notes_sheet_returns_cached_uri_when_exists(
     self,
-    mock_blob_exists,
+    mock_upsert_joke_sheet,
+    mock_gcs_file_exists,
     mock_create_image,
     mock_create_pdf,
     mock_upload_bytes,
   ):
-    mock_blob_exists.return_value = True
+    mock_gcs_file_exists.return_value = True
 
     result = joke_notes_sheet_operations.get_joke_notes_sheet(
       ['b', 'a'],
       quality=42,
     )
 
-    expected_hash = hashlib.sha256('a,b'.encode('utf-8')).hexdigest()
+    expected_hash = hashlib.sha256(
+      'a,b|quality=42'.encode('utf-8')).hexdigest()
     expected_gcs_uri = (
       f"{joke_notes_sheet_operations._PDF_DIR_GCS_URI}/{expected_hash}.pdf")
     self.assertEqual(result, expected_gcs_uri)
+    mock_upsert_joke_sheet.assert_called_once_with(['b', 'a'])
     mock_create_image.assert_not_called()
     mock_create_pdf.assert_not_called()
     mock_upload_bytes.assert_not_called()

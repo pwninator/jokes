@@ -1507,27 +1507,53 @@ class CreateJokeNotesSheetTest(unittest.TestCase):
     mock_gcs_file_exists.return_value = False
 
     joke_ids = ['joke1']
+
+    def _echo_sheet(sheet):
+      sheet.key = "sheet-1"
+      return sheet
+
+    mock_upsert_joke_sheet.side_effect = _echo_sheet
     result = joke_notes_sheet_operations.get_joke_notes_sheet(
       joke_ids,
       quality=42,
     )
 
     expected_hash_source = 'joke1|quality=42'
-    expected_filename = (
-      f"{hashlib.sha256(expected_hash_source.encode('utf-8')).hexdigest()}.pdf"
-    )
-    expected_gcs_uri = (
-      f"{joke_notes_sheet_operations._PDF_DIR_GCS_URI}/{expected_filename}")
+    expected_stem = hashlib.sha256(
+      expected_hash_source.encode('utf-8')).hexdigest()
+    expected_pdf_gcs_uri = (
+      f"{joke_notes_sheet_operations._PDF_DIR_GCS_URI}/{expected_stem}.pdf")
+    expected_image_gcs_uri = (
+      f"{joke_notes_sheet_operations._IMAGE_DIR_GCS_URI}/{expected_stem}.png")
 
-    self.assertEqual(result, expected_gcs_uri)
-    mock_upsert_joke_sheet.assert_called_once_with(joke_ids, category_id=None)
+    self.assertEqual(result.pdf_gcs_uri, expected_pdf_gcs_uri)
+    self.assertEqual(result.image_gcs_uri, expected_image_gcs_uri)
+    self.assertEqual(result.key, "sheet-1")
+
+    # Two existence checks: PDF then PNG.
+    self.assertEqual(mock_gcs_file_exists.call_count, 2)
+    mock_gcs_file_exists.assert_any_call(expected_pdf_gcs_uri)
+    mock_gcs_file_exists.assert_any_call(expected_image_gcs_uri)
+
+    # Firestore upsert receives the sheet object.
+    self.assertEqual(mock_upsert_joke_sheet.call_count, 1)
+    upserted_sheet = mock_upsert_joke_sheet.call_args[0][0]
+    self.assertEqual(upserted_sheet.joke_ids, joke_ids)
+    self.assertIsNone(upserted_sheet.category_id)
+    self.assertEqual(upserted_sheet.pdf_gcs_uri, expected_pdf_gcs_uri)
+    self.assertEqual(upserted_sheet.image_gcs_uri, expected_image_gcs_uri)
+
     mock_create_image.assert_called_once_with(joke_ids)
     mock_create_pdf.assert_called_once_with([notes_image], quality=42)
-    mock_upload_bytes.assert_called_once_with(
-      content_bytes=b'pdf-bytes',
-      gcs_uri=expected_gcs_uri,
-      content_type='application/pdf',
-    )
+    # Two uploads: PNG and PDF.
+    self.assertEqual(mock_upload_bytes.call_count, 2)
+    calls = mock_upload_bytes.call_args_list
+    self.assertEqual(calls[0].kwargs["gcs_uri"], expected_image_gcs_uri)
+    self.assertEqual(calls[0].kwargs["content_type"], "image/png")
+    self.assertIsInstance(calls[0].kwargs["content_bytes"], (bytes, bytearray))
+    self.assertEqual(calls[1].kwargs["gcs_uri"], expected_pdf_gcs_uri)
+    self.assertEqual(calls[1].kwargs["content_type"], "application/pdf")
+    self.assertEqual(calls[1].kwargs["content_bytes"], b"pdf-bytes")
 
   @patch(
     'common.joke_notes_sheet_operations.cloud_storage.upload_bytes_to_gcs')
@@ -1545,6 +1571,12 @@ class CreateJokeNotesSheetTest(unittest.TestCase):
   ):
     mock_gcs_file_exists.return_value = True
 
+    def _echo_sheet(sheet):
+      sheet.key = "sheet-1"
+      return sheet
+
+    mock_upsert_joke_sheet.side_effect = _echo_sheet
+
     result = joke_notes_sheet_operations.get_joke_notes_sheet(
       ['b', 'a'],
       quality=42,
@@ -1552,11 +1584,19 @@ class CreateJokeNotesSheetTest(unittest.TestCase):
 
     expected_hash = hashlib.sha256(
       'a,b|quality=42'.encode('utf-8')).hexdigest()
-    expected_gcs_uri = (
+    expected_pdf_gcs_uri = (
       f"{joke_notes_sheet_operations._PDF_DIR_GCS_URI}/{expected_hash}.pdf")
-    self.assertEqual(result, expected_gcs_uri)
-    mock_upsert_joke_sheet.assert_called_once_with(['b', 'a'],
-                                                   category_id=None)
+    expected_image_gcs_uri = (
+      f"{joke_notes_sheet_operations._IMAGE_DIR_GCS_URI}/{expected_hash}.png")
+    self.assertEqual(result.pdf_gcs_uri, expected_pdf_gcs_uri)
+    self.assertEqual(result.image_gcs_uri, expected_image_gcs_uri)
+    self.assertEqual(result.key, "sheet-1")
+
+    self.assertEqual(mock_gcs_file_exists.call_count, 2)
+    mock_gcs_file_exists.assert_any_call(expected_pdf_gcs_uri)
+    mock_gcs_file_exists.assert_any_call(expected_image_gcs_uri)
+
+    self.assertEqual(mock_upsert_joke_sheet.call_count, 1)
     mock_create_image.assert_not_called()
     mock_create_pdf.assert_not_called()
     mock_upload_bytes.assert_not_called()

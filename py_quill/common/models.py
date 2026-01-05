@@ -643,15 +643,15 @@ class JokeSheet:
   joke_str: str = ""
   joke_ids: list[str] = field(default_factory=list)
   category_id: str | None = None
+  image_gcs_uri: str | None = None
+  pdf_gcs_uri: str | None = None
 
   def to_dict(self) -> dict:
     """Serialize sheet fields for Firestore writes."""
     data = dataclasses.asdict(self)
     # `key` is the Firestore document id, not stored as a field.
     data.pop("key", None)
-    # Omit optional fields when unset to avoid writing explicit nulls.
-    if data.get("category_id") is None:
-      data.pop("category_id", None)
+
     return data
 
   @classmethod
@@ -664,21 +664,6 @@ class JokeSheet:
 
     # Populate document id.
     data["key"] = key
-
-    # Ensure list fields have the right types.
-    joke_ids_raw = data.get("joke_ids")
-    if isinstance(joke_ids_raw, list):
-      data["joke_ids"] = [str(jid) for jid in joke_ids_raw if jid]
-    else:
-      data["joke_ids"] = []
-
-    # Ensure strings are strings.
-    joke_str_val = data.get("joke_str")
-    data["joke_str"] = joke_str_val if isinstance(joke_str_val, str) else ""
-
-    category_id_val = data.get("category_id")
-    data["category_id"] = category_id_val if isinstance(category_id_val,
-                                                        str) else None
 
     # Filter to dataclass fields to avoid unexpected keys.
     allowed = {f.name for f in dataclasses.fields(cls)}

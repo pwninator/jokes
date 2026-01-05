@@ -480,6 +480,7 @@ def test_get_punny_jokes_batch(monkeypatch):
 
 def test_upsert_joke_sheet_returns_existing_doc_id(monkeypatch):
   from services import firestore as fs
+  from common import models
 
   captured: dict[str, object] = {}
 
@@ -524,14 +525,24 @@ def test_upsert_joke_sheet_returns_existing_doc_id(monkeypatch):
 
   monkeypatch.setattr(fs, "db", DummyDB)
 
-  doc_id = fs.upsert_joke_sheet(["b", "a"])
-  assert doc_id == "existing-id"
+  sheet = models.JokeSheet(joke_ids=["a", "b"])
+  saved = fs.upsert_joke_sheet(sheet)
+  assert saved.key == "existing-id"
+  assert saved.joke_str == "a,b"
+  assert saved.joke_ids == ["a", "b"]
   assert captured["merge"] is True
-  assert captured["data"] == {"joke_str": "a,b", "joke_ids": ["a", "b"]}
+  assert captured["data"] == {
+    "joke_str": "a,b",
+    "joke_ids": ["a", "b"],
+    "category_id": None,
+    "image_gcs_uri": None,
+    "pdf_gcs_uri": None,
+  }
 
 
 def test_upsert_joke_sheet_creates_when_missing(monkeypatch):
   from services import firestore as fs
+  from common import models
 
   captured: dict[str, object] = {}
 
@@ -565,13 +576,85 @@ def test_upsert_joke_sheet_creates_when_missing(monkeypatch):
 
   monkeypatch.setattr(fs, "db", DummyDB)
 
-  doc_id = fs.upsert_joke_sheet(["b", "a"])
-  assert doc_id == "created-id"
-  assert captured["data"] == {"joke_str": "a,b", "joke_ids": ["a", "b"]}
+  sheet = models.JokeSheet(joke_ids=["a", "b"])
+  saved = fs.upsert_joke_sheet(sheet)
+  assert saved.key == "created-id"
+  assert saved.joke_str == "a,b"
+  assert saved.joke_ids == ["a", "b"]
+  assert captured["data"] == {
+    "joke_str": "a,b",
+    "joke_ids": ["a", "b"],
+    "category_id": None,
+    "image_gcs_uri": None,
+    "pdf_gcs_uri": None,
+  }
+
+
+def test_upsert_joke_sheet_skips_when_unchanged(monkeypatch):
+  from services import firestore as fs
+  from common import models
+
+  captured = {"set_called": False}
+
+  class DummyDocRef:
+
+    def set(self, data, merge: bool = False):
+      captured["set_called"] = True
+
+  class DummyDoc:
+
+    def __init__(self, doc_id: str):
+      self.id = doc_id
+      self.reference = DummyDocRef()
+
+    @property
+    def exists(self):
+      return True
+
+    def to_dict(self):
+      return {
+        "joke_str": "a,b",
+        "joke_ids": ["a", "b"],
+        "category_id": None,
+        "image_gcs_uri": None,
+        "pdf_gcs_uri": None,
+      }
+
+  class DummyQuery:
+
+    def limit(self, _n: int):
+      return self
+
+    def get(self):
+      return [DummyDoc("existing-id")]
+
+  class DummyCol:
+
+    def where(self, filter=None):  # pylint: disable=unused-argument
+      return DummyQuery()
+
+    def add(self, _data):
+      raise AssertionError("Should not create when existing doc found")
+
+  class DummyDB:
+
+    def collection(self, name: str):
+      assert name == "joke_sheets"
+      return DummyCol()
+
+  monkeypatch.setattr(fs, "db", DummyDB)
+
+  sheet = models.JokeSheet(joke_ids=["a", "b"])
+  saved = fs.upsert_joke_sheet(sheet)
+  assert saved.key == "existing-id"
+  assert saved.joke_str == "a,b"
+  assert saved.joke_ids == ["a", "b"]
+  assert captured["set_called"] is False
 
 
 def test_upsert_joke_sheet_writes_category_id(monkeypatch):
   from services import firestore as fs
+  from common import models
 
   captured: dict[str, object] = {}
 
@@ -619,13 +702,26 @@ def test_upsert_joke_sheet_writes_category_id(monkeypatch):
 
   monkeypatch.setattr(fs, "db", DummyDB)
 
-  doc_id = fs.upsert_joke_sheet(["b", "a"], category_id="cats")
-  assert doc_id == "existing-id"
+  sheet = models.JokeSheet(
+    joke_ids=["a", "b"],
+    category_id="cats",
+    image_gcs_uri="gs://tmp/joke_notes_sheets/abc.png",
+    pdf_gcs_uri="gs://tmp/joke_notes_sheets/abc.pdf",
+  )
+  saved = fs.upsert_joke_sheet(sheet)
+  assert saved.key == "existing-id"
+  assert saved.joke_str == "a,b"
+  assert saved.joke_ids == ["a", "b"]
+  assert saved.category_id == "cats"
+  assert saved.image_gcs_uri == "gs://tmp/joke_notes_sheets/abc.png"
+  assert saved.pdf_gcs_uri == "gs://tmp/joke_notes_sheets/abc.pdf"
   assert captured["merge"] is True
   assert captured["data"] == {
     "joke_str": "a,b",
     "joke_ids": ["a", "b"],
     "category_id": "cats",
+    "image_gcs_uri": "gs://tmp/joke_notes_sheets/abc.png",
+    "pdf_gcs_uri": "gs://tmp/joke_notes_sheets/abc.pdf",
   }
 
 

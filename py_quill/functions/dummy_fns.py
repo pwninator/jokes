@@ -37,12 +37,19 @@ def dummy_endpoint(req: https_fn.Request) -> https_fn.Response:
   if not joke_ids:
     return https_fn.Response("No valid jokes found", status=404)
 
-  gcs_uri = joke_notes_sheet_operations.get_joke_notes_sheet(
-    joke_ids,
-    quality=80,
-  )
+  sheet = joke_notes_sheet_operations.get_joke_notes_sheet(joke_ids)
 
-  public_url = cloud_storage.get_public_cdn_url(gcs_uri)
+  if not sheet.pdf_gcs_uri:
+    return https_fn.Response("Sheet PDF URI missing", status=500)
+  if not sheet.image_gcs_uri:
+    return https_fn.Response("Sheet image URI missing", status=500)
+
+  public_url = cloud_storage.get_public_cdn_url(sheet.pdf_gcs_uri)
+  image_url = cloud_storage.get_public_image_cdn_url(
+    sheet.image_gcs_uri,
+    width=1024,
+    quality=70,
+  )
   html = f"""<!DOCTYPE html>
 <html>
 <head>
@@ -51,6 +58,7 @@ def dummy_endpoint(req: https_fn.Request) -> https_fn.Response:
 <body>
   <h1>Joke Notes Sheet Generated</h1>
   <p><a href="{public_url}" target="_blank">Download PDF</a></p>
+  <img src="{image_url}" alt="Joke notes sheet preview" />
 </body>
 </html>
 """

@@ -680,7 +680,12 @@ def test_ensure_category_joke_sheets_skips_when_under_5(monkeypatch):
 
   def fake_get_sheet(joke_ids, *, category_id=None, quality=80):  # pylint: disable=unused-argument
     calls.append({"joke_ids": list(joke_ids), "category_id": category_id})
-    return "gs://bucket/file.pdf"
+    return models.JokeSheet(
+      joke_ids=list(joke_ids),
+      category_id=category_id,
+      image_gcs_uri="gs://bucket/file.png",
+      pdf_gcs_uri="gs://bucket/file.pdf",
+    )
 
   monkeypatch.setattr(
     "common.joke_notes_sheet_operations.get_joke_notes_sheet", fake_get_sheet)
@@ -700,7 +705,12 @@ def test_ensure_category_joke_sheets_creates_full_batches_only(monkeypatch):
 
   def fake_get_sheet(joke_ids, *, category_id=None, quality=80):  # pylint: disable=unused-argument
     calls.append({"joke_ids": list(joke_ids), "category_id": category_id})
-    return "gs://bucket/file.pdf"
+    return models.JokeSheet(
+      joke_ids=list(joke_ids),
+      category_id=category_id,
+      image_gcs_uri="gs://bucket/file.png",
+      pdf_gcs_uri="gs://bucket/file.pdf",
+    )
 
   monkeypatch.setattr(
     "common.joke_notes_sheet_operations.get_joke_notes_sheet", fake_get_sheet)
@@ -733,7 +743,12 @@ def test_ensure_category_joke_sheets_respects_existing_coverage(monkeypatch):
 
   def fake_get_sheet(joke_ids, *, category_id=None, quality=80):  # pylint: disable=unused-argument
     calls.append({"joke_ids": list(joke_ids), "category_id": category_id})
-    return "gs://bucket/file.pdf"
+    return models.JokeSheet(
+      joke_ids=list(joke_ids),
+      category_id=category_id,
+      image_gcs_uri="gs://bucket/file.png",
+      pdf_gcs_uri="gs://bucket/file.pdf",
+    )
 
   monkeypatch.setattr(
     "common.joke_notes_sheet_operations.get_joke_notes_sheet", fake_get_sheet)
@@ -743,8 +758,14 @@ def test_ensure_category_joke_sheets_respects_existing_coverage(monkeypatch):
     _make_jokes(10),
   )
 
-  # First 5 covered by existing sheet, next 5 should be generated.
-  assert calls == [{
-    "joke_ids": ["j6", "j7", "j8", "j9", "j10"],
-    "category_id": "cats",
-  }]
+  # Ensure existing sheet and create the next full batch.
+  assert calls == [
+    {
+      "joke_ids": ["j1", "j2", "j3", "j4", "j5"],
+      "category_id": "cats",
+    },
+    {
+      "joke_ids": ["j6", "j7", "j8", "j9", "j10"],
+      "category_id": "cats",
+    },
+  ]

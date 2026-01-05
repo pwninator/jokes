@@ -6,7 +6,7 @@ import hashlib
 from io import BytesIO
 
 import requests
-from common import config
+from common import config, models
 from firebase_functions import logger
 from PIL import Image
 from services import cloud_storage, firestore, pdf_client
@@ -14,6 +14,7 @@ from services import cloud_storage, firestore, pdf_client
 _JOKE_NOTES_OVERLAY_URL = "https://images.quillsstorybook.com/cdn-cgi/image/format=png,quality=100/_joke_assets/lunchbox/lunchbox_notes_template.png"
 
 _PDF_DIR_GCS_URI = f"gs://{config.TEMP_FILE_BUCKET_NAME}/joke_notes_sheets"
+_IMAGE_DIR_GCS_URI = f"gs://{config.IMAGE_BUCKET_NAME}/joke_notes_sheets"
 
 
 def get_joke_notes_sheet(
@@ -21,36 +22,65 @@ def get_joke_notes_sheet(
   *,
   quality: int = 80,
   category_id: str | None = None,
-) -> str:
-  """Creates a PDF with the joke notes sheet image, uploads to GCS, and returns the GCS URI."""
-  firestore.upsert_joke_sheet(joke_ids, category_id=category_id)
+) -> models.JokeSheet:
+  """Create a joke notes sheet (PNG + PDF), upload to GCS, upsert Firestore, and return the sheet.
 
-  filename = _generate_pdf_filename(joke_ids, quality=quality)
-  gcs_uri = f"{_PDF_DIR_GCS_URI}/{filename}"
+  Notes:
+  - The Firestore doc is unique by joke IDs only (sorted `joke_str`).
+  - The asset filenames include `quality`, so subsequent calls with different
+    quality will overwrite the stored URIs on the same Firestore doc.
+  """
+  filename_base = _generate_file_stem(joke_ids, quality=quality)
+  pdf_gcs_uri = f"{_PDF_DIR_GCS_URI}/{filename_base}.pdf"
+  image_gcs_uri = f"{_IMAGE_DIR_GCS_URI}/{filename_base}.png"
 
-  if cloud_storage.gcs_file_exists(gcs_uri):
-    return gcs_uri
+  pdf_exists = cloud_storage.gcs_file_exists(pdf_gcs_uri)
+  image_exists = cloud_storage.gcs_file_exists(image_gcs_uri)
 
-  notes_image = _create_joke_notes_sheet_image(joke_ids)
-  pdf_bytes = pdf_client.create_pdf([notes_image], quality=quality)
-  cloud_storage.upload_bytes_to_gcs(
-    content_bytes=pdf_bytes,
-    gcs_uri=gcs_uri,
-    content_type="application/pdf",
+  if not (pdf_exists and image_exists):
+    notes_image = _create_joke_notes_sheet_image(joke_ids)
+
+    if not image_exists:
+      image_bytes = _encode_png(notes_image)
+      cloud_storage.upload_bytes_to_gcs(
+        content_bytes=image_bytes,
+        gcs_uri=image_gcs_uri,
+        content_type="image/png",
+      )
+
+    if not pdf_exists:
+      pdf_bytes = pdf_client.create_pdf([notes_image], quality=quality)
+      cloud_storage.upload_bytes_to_gcs(
+        content_bytes=pdf_bytes,
+        gcs_uri=pdf_gcs_uri,
+        content_type="application/pdf",
+      )
+
+  sheet = models.JokeSheet(
+    joke_ids=list(joke_ids),
+    category_id=category_id,
+    image_gcs_uri=image_gcs_uri,
+    pdf_gcs_uri=pdf_gcs_uri,
   )
-  return gcs_uri
+  return firestore.upsert_joke_sheet(sheet)
 
 
-def _generate_pdf_filename(joke_ids: list[str], *, quality: int) -> str:
-  """Generate a deterministic filename from joke IDs using SHA-256.
+def _generate_file_stem(joke_ids: list[str], *, quality: int) -> str:
+  """Generate a deterministic file stem from joke IDs using SHA-256.
 
   Joke IDs are sorted before hashing so different orderings produce the same
-  filename.
+  stem.
   """
   joke_ids_str = ",".join(sorted(joke_ids))
   hash_source = f"{joke_ids_str}|quality={int(quality)}"
-  hash_digest = hashlib.sha256(hash_source.encode("utf-8")).hexdigest()
-  return f"{hash_digest}.pdf"
+  return hashlib.sha256(hash_source.encode("utf-8")).hexdigest()
+
+
+def _encode_png(image: Image.Image) -> bytes:
+  """Encode a PIL image as PNG bytes."""
+  buf = BytesIO()
+  image.save(buf, format="PNG")
+  return buf.getvalue()
 
 
 def _create_joke_notes_sheet_image(joke_ids: list[str]) -> Image.Image:

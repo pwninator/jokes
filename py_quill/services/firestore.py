@@ -133,61 +133,39 @@ def get_punny_jokes(joke_ids: Collection[str]) -> list[models.PunnyJoke]:
   return jokes
 
 
-def upsert_joke_sheet(
-  joke_ids: list[str],
-  *,
-  category_id: str | None = None,
-) -> str:
-  """Ensure a joke_sheets document exists for the given joke IDs.
+def upsert_joke_sheet(sheet: models.JokeSheet) -> models.JokeSheet:
+  """Ensure a joke_sheets document exists for the given joke sheet.
 
-  Creates a new document in the 'joke_sheets' collection with an auto-generated
-  ID if one does not already exist for the given `joke_str`.
-
-  The document contains fields:
-    - joke_str: comma-separated list of joke IDs (sorted).
-    - joke_ids: list of joke IDs (sorted).
-    - category_id: optional category document id for the sheet.
+  Identity semantics:
+  - Sheets are unique by `joke_str`.
+  - Other fields (including category_id, pdf_gcs_uri, image_gcs_uri) may be
+    overwritten by later calls for the same joke set.
 
   Returns:
-    The Firestore document ID for the joke_sheets document.
+    A JokeSheet with `key` populated to the Firestore document id.
   """
-  if not joke_ids:
-    raise ValueError("joke_ids is required")
+  if not sheet.joke_str:
+    sheet.joke_str = ",".join(sheet.joke_ids or [])
 
-  if category_id is not None:
-    category_id = str(category_id).strip() or None
-
-  normalized_ids = [str(jid).strip() for jid in joke_ids if str(jid).strip()]
-  if not normalized_ids:
-    raise ValueError("joke_ids is required")
-
-  sorted_ids = sorted(normalized_ids)
-  joke_str = ",".join(sorted_ids)
-  payload = {
-    'joke_str': joke_str,
-    'joke_ids': sorted_ids,
-  }
-  if category_id is not None:
-    payload["category_id"] = category_id
+  payload = sheet.to_dict()
 
   collection_ref = db().collection('joke_sheets')
   existing = (collection_ref.where(
-    filter=FieldFilter('joke_str', '==', joke_str)).limit(1).get())
+    filter=FieldFilter('joke_str', '==', sheet.joke_str)).limit(1).get())
   for doc in existing:
     if getattr(doc, 'exists', False):
-      # Backfill new fields for older docs.
       doc_dict = doc.to_dict() if hasattr(doc, 'to_dict') else None
-      if (not isinstance(doc_dict, dict)
-          or doc_dict.get('joke_ids') != sorted_ids
-          or (category_id is not None
-              and doc_dict.get("category_id") != category_id)):
+      needs_update = not isinstance(doc_dict, dict) or doc_dict != payload
+      if needs_update:
         doc_ref = getattr(doc, 'reference', None)
         if doc_ref is not None:
           doc_ref.set(payload, merge=True)
-      return doc.id
+      sheet.key = doc.id
+      return sheet
 
   _, doc_ref = collection_ref.add(payload)
-  return doc_ref.id
+  sheet.key = doc_ref.id
+  return sheet
 
 
 def get_joke_sheets_by_category(category_id: str) -> list[models.JokeSheet]:

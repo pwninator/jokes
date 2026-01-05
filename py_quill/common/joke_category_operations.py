@@ -163,33 +163,39 @@ def _ensure_category_joke_sheets(
   category_id: str,
   jokes: list[models.PunnyJoke],
 ) -> None:
-  """Create joke sheets for all jokes in the category (in batches of 5).
+  """Ensure joke sheets exist for the category (in batches of 5).
 
-  For jokes not already in a sheet for this category, creates sheets containing
-  exactly 5 jokes at a time. If there are 4 or fewer uncovered jokes, does
-  nothing.
+  Uses existing sheets as the initial batch list (even if fewer than 5 jokes).
+  If there are more than 4 uncovered jokes, adds new batches of 5. Then calls
+  get_joke_notes_sheet for every batch to ensure assets exist and sheets are
+  backfilled.
   """
   category_id = (category_id or "").strip()
   if not category_id:
     return
 
   existing_sheets = firestore.get_joke_sheets_by_category(category_id)
+  batches: list[list[str]] = [
+    list(sheet.joke_ids) for sheet in existing_sheets if sheet.joke_ids
+  ]
   covered_ids = {
     jid
     for sheet in existing_sheets
     for jid in sheet.joke_ids if jid
   }
 
-  uncovered = [j for j in jokes if j.key and j.key not in covered_ids]
   batch_size = 5
-  num_complete_batches = len(uncovered) // batch_size
-  if num_complete_batches <= 0:
-    return
+  uncovered = [j for j in jokes if j.key and j.key not in covered_ids]
+  if len(uncovered) >= batch_size:
+    num_complete_batches = len(uncovered) // batch_size
+    for i in range(num_complete_batches):
+      batch = uncovered[i * batch_size:(i + 1) * batch_size]
+      batch_ids = [j.key for j in batch if j.key]
+      if len(batch_ids) == batch_size:
+        batches.append(batch_ids)
 
-  for i in range(num_complete_batches):
-    batch = uncovered[i * batch_size:(i + 1) * batch_size]
-    batch_ids = [j.key for j in batch if j.key]
-    if len(batch_ids) != batch_size:
+  for batch_ids in batches:
+    if not batch_ids:
       continue
     try:
       joke_notes_sheet_operations.get_joke_notes_sheet(
@@ -197,11 +203,11 @@ def _ensure_category_joke_sheets(
         category_id=category_id,
       )
       logger.info(
-        f"Created joke sheet for category {category_id} with {len(batch_ids)} jokes"
+        f"Ensured joke sheet for category {category_id} with {len(batch_ids)} jokes"
       )
     except Exception as exc:  # pylint: disable=broad-except
       logger.error(
-        f"Failed to create joke sheet for category {category_id}: {exc}")
+        f"Failed to ensure joke sheet for category {category_id}: {exc}")
 
 
 def search_category_jokes(

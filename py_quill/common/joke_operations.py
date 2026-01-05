@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime
 import random
 from io import BytesIO
 from typing import Any, Literal, Tuple
@@ -474,7 +475,14 @@ def sync_joke_to_search_collection(
 def to_response_joke(joke: models.PunnyJoke) -> dict[str, Any]:
   """Convert a PunnyJoke to a dictionary suitable for API responses."""
   joke_dict = joke.to_dict(include_key=True)
+
+  # Convert datetime objects to strings (e.g. DatetimeWithNanoseconds from Firestore is not serializable)
+  for key, value in joke_dict.items():
+    if isinstance(value, datetime.datetime):
+      joke_dict[key] = value.isoformat()
+
   return joke_dict
+
 
 def generate_joke_metadata(joke: models.PunnyJoke) -> models.PunnyJoke:
   """Generate seasonal info and tags for a joke."""

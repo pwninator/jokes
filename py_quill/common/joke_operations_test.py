@@ -5,6 +5,7 @@ from unittest.mock import MagicMock, Mock, create_autospec
 
 import pytest
 from common import joke_operations, models
+from google.api_core import datetime_helpers
 from google.cloud.firestore_v1.vector import Vector
 from PIL import Image
 
@@ -1083,3 +1084,38 @@ class TestSyncJokeToSearchCollection:
     assert synced["num_saved_users_fraction"] is None
     assert synced["num_shared_users_fraction"] is None
     assert synced["popularity_score"] is None
+
+
+def test_to_response_joke_serializes_datetime():
+  """to_response_joke should convert datetime objects to ISO strings."""
+  now = datetime.datetime.now(datetime.timezone.utc)
+  joke = models.PunnyJoke(
+    key="joke-1",
+    setup_text="Setup",
+    punchline_text="Punch",
+    public_timestamp=now,
+  )
+
+  response = joke_operations.to_response_joke(joke)
+
+  assert response["key"] == "joke-1"
+  assert response["public_timestamp"] == now.isoformat()
+  assert isinstance(response["public_timestamp"], str)
+
+
+def test_to_response_joke_serializes_datetime_with_nanoseconds():
+  """to_response_joke should convert DatetimeWithNanoseconds to strings."""
+  # Simulate DatetimeWithNanoseconds from Firestore
+  now = datetime_helpers.DatetimeWithNanoseconds.now(datetime.timezone.utc)
+
+  joke = models.PunnyJoke(
+    key="joke-2",
+    setup_text="Setup",
+    punchline_text="Punch",
+    public_timestamp=now,
+  )
+
+  response = joke_operations.to_response_joke(joke)
+
+  assert response["public_timestamp"] == now.isoformat()
+  assert isinstance(response["public_timestamp"], str)

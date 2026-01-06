@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "components/notes_signin.html" import notes_signin_card with context %}
+{% from "components/notes_sheet_grid.html" import notes_sheet_grid with context %}
 
 {% block title %}Printable Joke Notes | {{ site_name }}{% endblock %}
 {% block meta_description %}Turn Lunchtime into Giggle Time! Download free printable joke notes for kids.{% endblock %}
@@ -28,28 +29,9 @@
   </header>
 
   {% if download_cards %}
-  <div class="notes-sampler-grid">
-    {% for card in download_cards %}
-    <article class="notes-sampler-card" aria-label="{{ card.category_label }} joke notes">
-      <h3 class="notes-sampler-card__title text-button">{{ card.category_label }} Pack</h3>
-      <div class="notes-sampler-card__image">
-        <img src="{{ card.image_url }}" alt="{{ card.category_label }} joke notes sheet" width="{{ notes_image_width }}"
-          height="{{ notes_image_height }}" loading="lazy" />
-      </div>
-      <a class="nav-cta text-button notes-sampler-card__cta" href="{{ card.detail_url }}"
-        data-analytics-event="web_notes_download_click"
-        data-analytics-label="{{ card.category_id }}" data-analytics-params="{{ {
-          'category_id': card.category_id,
-          'category_label': card.category_label,
-          'access': 'available'
-        } | tojson }}">
-        View Pack
-      </a>
-    </article>
-    {% endfor %}
-  </div>
+  {{ notes_sheet_grid(download_cards) }}
   {% else %}
-  <p class="text-body notes-sampler-empty">New printable joke notes are on the way. Check back soon.</p>
+  <p class="text-body notes-grid-empty">New printable joke notes are on the way. Check back soon.</p>
   {% endif %}
 </section>
 

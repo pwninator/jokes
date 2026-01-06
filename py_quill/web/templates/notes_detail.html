@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "components/notes_signin.html" import notes_signin_card with context %}
+{% from "components/notes_sheet_grid.html" import notes_sheet_grid with context %}
 
 {% block title %}{{ page_title }} | {{ site_name }}{% endblock %}
 {% block meta_description %}Download the {{ category_label }} Joke Pack {{ sheet_index }} printable PDF for free.{% endblock %}
@@ -24,5 +25,31 @@
   </a>
 </section>
 
+<section class="notes-related-section" aria-labelledby="notes-related-title">
+  <header class="notes-related-header">
+    <h2 class="text-section-heading" id="notes-related-title">You Might Also Like</h2>
+  </header>
+
+  {% if related_cards %}
+  {{ notes_sheet_grid(related_cards) }}
+  {% else %}
+  <p class="text-body notes-grid-empty">More printable joke packs are on the way.</p>
+  {% endif %}
+</section>
+
+{% if is_signed_in %}
+<section class="notes-related-section notes-related-section--category" aria-labelledby="notes-category-title">
+  <header class="notes-related-header">
+    <h2 class="text-section-heading" id="notes-category-title">Other {{ category_label }} Joke Packs</h2>
+  </header>
+
+  {% if category_cards %}
+  {{ notes_sheet_grid(category_cards) }}
+  {% else %}
+  <p class="text-body notes-grid-empty">More {{ category_label }} joke packs are on the way.</p>
+  {% endif %}
+</section>
+{% else %}
 {{ notes_signin_card(hook_text=notes_hook_text, continue_url=email_link_url) }}
+{% endif %}
 {% endblock %}

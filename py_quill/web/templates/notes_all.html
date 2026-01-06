@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "components/notes_sheet_grid.html" import notes_sheet_grid with context %}
 
 {% block title %}All Printable Joke Notes | {{ site_name }}{% endblock %}
 {% block meta_description %}Download every printable joke notes pack by category.{% endblock %}
@@ -29,26 +30,7 @@
   </header>
 
   {% if category.sheets %}
-  <div class="notes-download-grid">
-    {% for sheet in category.sheets %}
-    <article class="notes-download-card" aria-label="{{ category.label }} joke notes pack {{ loop.index }}">
-      <h3 class="notes-download-card__title text-button">{{ sheet.title }}</h3>
-      <div class="notes-download-card__image">
-        <img src="{{ sheet.image_url }}" alt="{{ category.label }} joke notes pack {{ loop.index }} sheet"
-          width="{{ notes_image_width }}" height="{{ notes_image_height }}" loading="lazy" />
-      </div>
-      <a class="nav-cta text-button notes-download-card__cta" href="{{ sheet.detail_url }}"
-        data-analytics-event="web_notes_all_download_click"
-        data-analytics-label="{{ category.category_id }}" data-analytics-params="{{ {
-          'category_id': category.category_id,
-          'sheet_key': sheet.sheet_key,
-          'access': 'unlocked'
-        } | tojson }}">
-        View Pack
-      </a>
-    </article>
-    {% endfor %}
-  </div>
+  {{ notes_sheet_grid(category.sheets) }}
   {% else %}
   <p class="text-body">No printable joke notes yet.</p>
   {% endif %}

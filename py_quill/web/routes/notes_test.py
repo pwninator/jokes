@@ -60,16 +60,16 @@ def test_notes_page_renders_download_cards(monkeypatch):
   expected_count = (total_sheets // 10) * 10
   assert f"{expected_count}+" in html
   assert html.count(
-    '<a class="nav-cta text-button notes-sampler-card__cta"') == len(
+    '<a class="nav-cta text-button notes-card__cta"') == len(
       active_category_ids)
   assert html.count(
-    'data-analytics-event="web_notes_download_click"') == len(
+    'data-analytics-event="web_notes_view_pack_click"') == len(
       active_category_ids)
   assert html.count('View Pack') == len(active_category_ids)
   assert html.count(
-    '<article class="notes-sampler-card"') == len(active_category_ids)
+    '<article class="notes-card"') == len(active_category_ids)
   assert html.count(
-    '<h3 class="notes-sampler-card__title') == len(active_category_ids)
+    '<h3 class="notes-card__title') == len(active_category_ids)
   assert 'web_notes_unlock_download_click' not in html
   assert 'extra-notes-download-title' not in html
   assert 'target="_blank"' in html
@@ -112,7 +112,7 @@ def test_notes_page_skips_sheet_without_slug(monkeypatch):
   assert resp.status_code == 200
   html = resp.get_data(as_text=True)
   assert "New printable joke notes are on the way. Check back soon." in html
-  assert '<article class="notes-sampler-card"' not in html
+  assert '<article class="notes-card"' not in html
 
 
 def test_notes_detail_renders_sheet(monkeypatch):
@@ -135,9 +135,42 @@ def test_notes_detail_renders_sheet(monkeypatch):
   category = models.JokeCategory(display_name="Animals",
                                  id=category_id,
                                  state="APPROVED")
+  cats = models.JokeCategory(display_name="Cats", id="cats", state="APPROVED")
+  dogs = models.JokeCategory(display_name="Dogs", id="dogs", state="APPROVED")
+  space = models.JokeCategory(display_name="Space",
+                              id="space",
+                              state="APPROVED")
+  cats_sheet = models.JokeSheet(
+    key="cats-sheet",
+    category_id="cats",
+    index=0,
+    image_gcs_uri="gs://image-bucket/joke_notes_sheets/cats-a.png",
+    pdf_gcs_uri="gs://pdf-bucket/joke_notes_sheets/cats-a.pdf",
+  )
+  dogs_sheet = models.JokeSheet(
+    key="dogs-sheet",
+    category_id="dogs",
+    index=0,
+    image_gcs_uri="gs://image-bucket/joke_notes_sheets/dogs-a.png",
+    pdf_gcs_uri="gs://pdf-bucket/joke_notes_sheets/dogs-a.pdf",
+  )
+  space_sheet = models.JokeSheet(
+    key="space-sheet",
+    category_id="space",
+    index=0,
+    image_gcs_uri="gs://image-bucket/joke_notes_sheets/space-a.png",
+    pdf_gcs_uri="gs://pdf-bucket/joke_notes_sheets/space-a.pdf",
+  )
 
   monkeypatch.setattr(notes_routes.firestore, "get_joke_sheets_cache",
-                      lambda: [(category, [sheet_a, sheet_b])])
+                      lambda: [
+                        (category, [sheet_a, sheet_b]),
+                        (cats, [cats_sheet]),
+                        (dogs, [dogs_sheet]),
+                        (space, [space_sheet]),
+                      ])
+  monkeypatch.setattr(notes_routes.random, "sample",
+                      lambda population, k: population[:k])
 
   with app.test_client() as client:
     resp = client.get(f"/notes/{slug}")
@@ -150,7 +183,10 @@ def test_notes_detail_renders_sheet(monkeypatch):
   assert urls.canonical_url("/notes") in html
   assert "Download Free PDF" in html
   assert "Want More Animals Joke Packs?" in html
+  assert "You Might Also Like" in html
   assert "sendSignInLinkToEmail" in html
+  assert html.count(
+    'data-analytics-event="web_notes_view_pack_click"') == 3
   image_url = cloud_storage.get_public_image_cdn_url(
     sheet_a.image_gcs_uri,
     width=notes_routes._NOTES_DETAIL_IMAGE_MAX_WIDTH,
@@ -159,6 +195,9 @@ def test_notes_detail_renders_sheet(monkeypatch):
   pdf_url = cloud_storage.get_public_cdn_url(sheet_a.pdf_gcs_uri)
   assert pdf_url in html
   assert cloud_storage.get_public_cdn_url(sheet_b.pdf_gcs_uri) not in html
+  assert "/notes/free-cats-jokes-1" in html
+  assert "/notes/free-dogs-jokes-1" in html
+  assert "/notes/free-space-jokes-1" in html
 
 
 def test_notes_detail_redirects_locked_pack_when_logged_out(monkeypatch):
@@ -230,6 +269,10 @@ def test_notes_detail_allows_locked_pack_when_logged_in(monkeypatch):
   html = resp.get_data(as_text=True)
   assert "Animals Joke Pack 2" in html
   assert "Download Free PDF" in html
+  assert "You Might Also Like" in html
+  assert "Other Animals Joke Packs" in html
+  assert "/notes/free-animals-jokes-1" in html
+  assert "sendSignInLinkToEmail" not in html
 
 
 def test_notes_detail_redirects_on_invalid_slug():
@@ -345,3 +388,5 @@ def test_notes_all_renders_categories_and_sheets(monkeypatch):
   zany_high_detail = "/notes/free-zany-jokes-2"
   assert html.find(zany_low_detail) < html.find(zany_high_detail)
   assert html.count("View Pack") == 5
+  assert html.count(
+    'data-analytics-event="web_notes_view_pack_click"') == 5

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime
+import random
 
 import flask
 from firebase_functions import logger
@@ -34,7 +35,7 @@ def notes():
   cache_entries = _get_joke_sheets_cache()
   total_sheet_count = _total_sheet_count(cache_entries)
 
-  download_cards: list[dict[str, str]] = []
+  download_cards: list[dict[str, object]] = []
   for category, sheets in cache_entries:
     category_id = category.id
     category_label = category.display_name
@@ -50,29 +51,21 @@ def notes():
       slug=_cache_sheet_slug(category_id, sheet.index),
     )
 
-    try:
-      image_url = cloud_storage.get_public_image_cdn_url(
-        sheet.image_gcs_uri or "",
-        width=_NOTES_IMAGE_MAX_WIDTH,
-      )
-    except ValueError as exc:
-      logger.error(
-        f"Failed to build URLs for {category_id} sheet: {exc}",
-        extra={
-          "json_fields": {
-            "event": "notes_sheet_url_failed",
-            "category_id": category_id,
-          }
-        },
-      )
-      continue
-
-    download_cards.append({
-      "category_id": category_id,
-      "category_label": category_label,
-      "image_url": image_url,
-      "detail_url": detail_url,
-    })
+    card = _build_notes_sheet_card(
+      category_id=category_id,
+      title=f"{category_label} Pack",
+      aria_label=f"{category_label} joke notes",
+      image_alt=f"{category_label} joke notes sheet",
+      image_gcs_uri=sheet.image_gcs_uri,
+      detail_url=detail_url,
+      analytics_params={
+        "category_id": category_id,
+        "category_label": category_label,
+        "access": "available",
+      },
+    )
+    if card:
+      download_cards.append(card)
   html = flask.render_template(
     'notes.html',
     canonical_url=canonical_url,
@@ -135,10 +128,75 @@ def notes_detail(slug: str):
 
   category_label = category.display_name
   display_index = sheet.display_index or (index + 1)
-  if display_index > 1:
-    verification = auth_helpers.verify_session(flask.request)
-    if not verification:
-      return flask.redirect(flask.url_for('web.notes'))
+  verification = auth_helpers.verify_session(flask.request)
+  is_signed_in = bool(verification)
+  if display_index > 1 and not is_signed_in:
+    return flask.redirect(flask.url_for('web.notes'))
+
+  related_candidates: list[dict[str, object]] = []
+  for entry_category, entry_sheets in cache_entries:
+    entry_category_id = entry_category.id
+    if not entry_category_id:
+      continue
+    if entry_category_id == category_id:
+      continue
+    if not entry_sheets:
+      continue
+    related_sheet = entry_sheets[0]
+    if related_sheet.index is None:
+      continue
+    related_detail_url = flask.url_for(
+      'web.notes_detail',
+      slug=_cache_sheet_slug(entry_category_id, related_sheet.index),
+    )
+    related_card = _build_notes_sheet_card(
+      category_id=entry_category_id,
+      title=f"{entry_category.display_name} Pack",
+      aria_label=f"{entry_category.display_name} joke notes",
+      image_alt=f"{entry_category.display_name} joke notes sheet",
+      image_gcs_uri=related_sheet.image_gcs_uri,
+      detail_url=related_detail_url,
+      analytics_params={
+        "category_id": entry_category_id,
+        "category_label": entry_category.display_name,
+        "access": "available",
+      },
+    )
+    if related_card:
+      related_candidates.append(related_card)
+
+  related_cards = random.sample(
+    related_candidates,
+    k=min(3, len(related_candidates)),
+  )
+
+  category_cards: list[dict[str, object]] = []
+  if is_signed_in:
+    for fallback_index, other_sheet in enumerate(sheets, start=1):
+      sheet_index = (other_sheet.index
+                     if other_sheet.index is not None else fallback_index - 1)
+      if sheet_index == index:
+        continue
+      detail_url = flask.url_for(
+        'web.notes_detail',
+        slug=_cache_sheet_slug(category_id, sheet_index),
+      )
+      display_sheet_index = other_sheet.display_index or (sheet_index + 1)
+      card = _build_notes_sheet_card(
+        category_id=category_id,
+        title=f"Pack {display_sheet_index}",
+        aria_label=f"{category_label} joke notes pack {display_sheet_index}",
+        image_alt=f"{category_label} joke notes pack {display_sheet_index} sheet",
+        image_gcs_uri=other_sheet.image_gcs_uri,
+        detail_url=detail_url,
+        analytics_params={
+          "category_id": category_id,
+          "sheet_key": other_sheet.key or "",
+          "access": "unlocked",
+        },
+      )
+      if card:
+        category_cards.append(card)
   display_title = f"{category_label} Joke Pack {display_index}"
   page_title = f"{display_title} (Free PDF)"
   canonical_slug = _cache_sheet_slug(category_id, index)
@@ -165,10 +223,15 @@ def notes_detail(slug: str):
     pdf_url=pdf_url,
     notes_detail_image_width=_NOTES_DETAIL_IMAGE_MAX_WIDTH,
     notes_detail_image_height=_NOTES_DETAIL_IMAGE_HEIGHT,
+    notes_image_width=_NOTES_IMAGE_MAX_WIDTH,
+    notes_image_height=_NOTES_IMAGE_HEIGHT,
     email_link_url=notes_continue_url,
     notes_hook_text=f"Want More {category_label} Joke Packs?",
     email_value='',
     error_message=None,
+    is_signed_in=is_signed_in,
+    related_cards=related_cards,
+    category_cards=category_cards,
     total_sheet_count=total_sheet_count,
     firebase_config=config.FIREBASE_WEB_CONFIG,
   )
@@ -194,35 +257,27 @@ def notes_all():
     label = category.display_name
     if not category_id:
       continue
-    sheet_cards = []
+    sheet_cards: list[dict[str, object]] = []
     for index, sheet in enumerate(sorted_sheets, start=1):
-      try:
-        image_url = cloud_storage.get_public_image_cdn_url(
-          sheet.image_gcs_uri or "",
-          width=_NOTES_IMAGE_MAX_WIDTH,
-        )
-      except ValueError as exc:
-        logger.error(
-          f"Failed to build URLs for {category_id} sheet: {exc}",
-          extra={
-            "json_fields": {
-              "event": "notes_sheet_url_failed",
-              "category_id": category_id,
-            }
-          },
-        )
-        continue
-
       detail_url = flask.url_for(
         'web.notes_detail',
         slug=_cache_sheet_slug(category_id, sheet.index or index - 1),
       )
-      sheet_cards.append({
-        "title": f"Pack {index}",
-        "image_url": image_url,
-        "detail_url": detail_url,
-        "sheet_key": sheet.key or "",
-      })
+      card = _build_notes_sheet_card(
+        category_id=category_id,
+        title=f"Pack {index}",
+        aria_label=f"{label} joke notes pack {index}",
+        image_alt=f"{label} joke notes pack {index} sheet",
+        image_gcs_uri=sheet.image_gcs_uri,
+        detail_url=detail_url,
+        analytics_params={
+          "category_id": category_id,
+          "sheet_key": sheet.key or "",
+          "access": "unlocked",
+        },
+      )
+      if card:
+        sheet_cards.append(card)
 
     categories.append({
       "category_id": category_id,
@@ -248,6 +303,44 @@ def notes_all():
 def _cache_sheet_slug(category_id: str, index: int) -> str:
   category_slug = category_id.replace("_", "-")
   return f"free-{category_slug}-jokes-{index + 1}"
+
+
+def _build_notes_sheet_card(
+  *,
+  category_id: str,
+  title: str,
+  aria_label: str,
+  image_alt: str,
+  image_gcs_uri: str | None,
+  detail_url: str,
+  analytics_params: dict[str, object],
+) -> dict[str, object] | None:
+  try:
+    image_url = cloud_storage.get_public_image_cdn_url(
+      image_gcs_uri or "",
+      width=_NOTES_IMAGE_MAX_WIDTH,
+    )
+  except ValueError as exc:
+    logger.error(
+      f"Failed to build URLs for {category_id} sheet: {exc}",
+      extra={
+        "json_fields": {
+          "event": "notes_sheet_url_failed",
+          "category_id": category_id,
+        }
+      },
+    )
+    return None
+
+  return {
+    "title": title,
+    "aria_label": aria_label,
+    "image_alt": image_alt,
+    "image_url": image_url,
+    "detail_url": detail_url,
+    "category_id": category_id,
+    "analytics_params": analytics_params,
+  }
 
 
 def _get_joke_sheets_cache(

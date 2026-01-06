@@ -521,7 +521,8 @@ img {
 /* --- Notes Download Page --- */
 
 .notes-sampler-section,
-.notes-download-section {
+.notes-download-section,
+.notes-related-section {
   display: flex;
   flex-direction: column;
   gap: 24px;
@@ -531,6 +532,7 @@ img {
 
 .notes-sampler-header,
 .notes-download-header,
+.notes-related-header,
 .notes-signin-header {
   display: flex;
   flex-direction: column;
@@ -542,13 +544,14 @@ img {
 .notes-sampler-header p,
 .notes-download-header h2,
 .notes-download-header p,
+.notes-related-header h2,
+.notes-related-header p,
 .notes-signin-header h2,
 .notes-signin-header p {
   margin: 0;
 }
 
-.notes-sampler-grid,
-.notes-download-grid {
+.notes-card-grid {
   width: 100%;
   display: grid;
   gap: 20px;
@@ -556,8 +559,7 @@ img {
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
 }
 
-.notes-sampler-card,
-.notes-download-card {
+.notes-card {
   /* The sheet images have print margins, so no need for gap here. */
   width: 100%;
   max-width: 420px;
@@ -572,14 +574,12 @@ img {
   box-shadow: 0 10px 28px var(--color-shadow);
 }
 
-.notes-sampler-card__title,
-.notes-download-card__title {
+.notes-card__title {
   margin: 0;
   text-align: center;
 }
 
-.notes-sampler-card__image,
-.notes-download-card__image {
+.notes-card__image {
   width: 100%;
   aspect-ratio: 3300 / 2550;
   border-radius: 20px;
@@ -587,20 +587,18 @@ img {
   background: rgba(255, 255, 255, 0.7);
 }
 
-.notes-sampler-card__image img,
-.notes-download-card__image img {
+.notes-card__image img {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
 
-.notes-sampler-card__cta,
-.notes-download-card__cta {
+.notes-card__cta {
   width: 100%;
   justify-content: center;
 }
 
-.notes-sampler-empty {
+.notes-grid-empty {
   margin: 0;
 }
 

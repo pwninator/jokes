@@ -20,7 +20,7 @@ import 'slot_entries.dart';
 /// Kept as a shared constant so tests can assert on the launched URL without
 /// hard-coding it in multiple places.
 const String bookPromoAmazonUrl =
-    'http://snickerdoodlejokes.com/book-animal-jokes?s=aa';
+    'https://snickerdoodlejokes.com/book-animal-jokes?s=aa';
 final Uri bookPromoAmazonUri = Uri.parse(bookPromoAmazonUrl);
 
 /// Base contract for rendering a [SlotEntry] into a widget.

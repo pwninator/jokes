@@ -71,6 +71,12 @@ def test_notes_page_renders_download_cards(monkeypatch):
   assert html.count(
     '<a class="nav-cta text-button notes-download-card__cta"') == len(
       base_category_ids + extra_category_ids)
+  assert html.count(
+    'data-analytics-event="web_notes_download_click"') == len(
+      base_category_ids)
+  assert html.count(
+    'data-analytics-event="web_notes_unlock_download_click"') == len(
+      extra_category_ids)
   assert 'href="#lunchbox-form-title"' in html
   assert html.count(
     '<article class="notes-download-card"') == len(base_category_ids +
@@ -89,6 +95,7 @@ def test_notes_page_renders_download_cards(monkeypatch):
     assert f"{display_name} (2 Packs)" in html
 
   for category_id in base_category_ids + extra_category_ids:
+    assert f'data-analytics-label="{category_id}"' in html
     image_gcs_uri = (
       f"gs://image-bucket/joke_notes_sheets/{category_id}-high.png")
     pdf_gcs_uri = f"gs://pdf-bucket/joke_notes_sheets/{category_id}-high.pdf"

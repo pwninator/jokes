@@ -20,89 +20,6 @@ _NOTES_DETAIL_IMAGE_HEIGHT = int(
   round(_NOTES_DETAIL_IMAGE_MAX_WIDTH * (2550 / 3300)))
 
 
-def _select_best_sheet(sheets):
-  sorted_sheets = _sorted_sheets(sheets)
-  return sorted_sheets[0] if sorted_sheets else None
-
-
-def _sorted_sheets(sheets):
-  """Return valid sheets ordered by index (if set), then by quality signals.
-
-  Ordering rules:
-  - Only sheets with both image and PDF URIs are included.
-  - Sheets with an integer index sort first, ascending by index.
-  - Unindexed sheets sort after indexed ones, by avg_saved_users_fraction
-    descending.
-  - Ties fall back to sheet key and joke_str for deterministic ordering.
-  """
-  valid_sheets = [
-    sheet for sheet in sheets if sheet.image_gcs_uri and sheet.pdf_gcs_uri
-  ]
-  valid_sheets.sort(key=lambda sheet: (
-    0 if isinstance(sheet.index, int) else 1,
-    sheet.index if isinstance(sheet.index, int) else 0,
-    -(sheet.avg_saved_users_fraction or 0.0),
-    sheet.key or "",
-    sheet.joke_str or "",
-  ))
-  return valid_sheets
-
-
-def _category_id(category):
-  return category.id or getattr(category, "key", None)
-
-
-def _category_label(category, category_id):
-  display_name = (category.display_name or "").strip()
-  if display_name:
-    return display_name
-  return category_id or ""
-
-
-def _min_id_sheet(sheets):
-  return min(sheets, key=lambda sheet: (sheet.key is None, sheet.key or ""))
-
-
-def _total_sheet_count():
-  total_sheet_count = 0
-  counted_categories: set[str] = set()
-  try:
-    all_categories = firestore.get_all_joke_categories()
-  except Exception as exc:  # pylint: disable=broad-except
-    logger.error(
-      f"Failed to fetch joke categories: {exc}",
-      extra={"json_fields": {
-        "event": "notes_categories_fetch_failed",
-      }},
-    )
-    return 0
-
-  active_categories = [
-    c for c in all_categories if c.state in ["APPROVED", "SEASONAL"]
-  ]
-  for category in active_categories:
-    category_id = _category_id(category)
-    if not category_id or category_id in counted_categories:
-      continue
-    try:
-      sheets = firestore.get_joke_sheets_by_category(category_id)
-    except Exception as exc:  # pylint: disable=broad-except
-      logger.error(
-        f"Failed to fetch joke sheets for {category_id}: {exc}",
-        extra={
-          "json_fields": {
-            "event": "notes_sheet_fetch_failed",
-            "category_id": category_id,
-          }
-        },
-      )
-      continue
-    total_sheet_count += len(sheets)
-    counted_categories.add(category_id)
-
-  return (total_sheet_count // 10) * 10
-
-
 @web_bp.route('/notes')
 def notes():
   """Render the notes download page."""
@@ -114,62 +31,24 @@ def notes():
   canonical_url = urls.canonical_url(flask.url_for('web.notes'))
   error_message = None
   email_value = ''
-  total_sheet_count = 0
-  counted_categories: set[str] = set()
-  try:
-    all_categories = firestore.get_all_joke_categories()
-  except Exception as exc:  # pylint: disable=broad-except
-    logger.error(
-      f"Failed to fetch joke categories: {exc}",
-      extra={"json_fields": {
-        "event": "notes_categories_fetch_failed",
-      }},
-    )
-    all_categories = []
-
-  active_categories = [
-    c for c in all_categories if c.state in ["APPROVED", "SEASONAL"]
-  ]
-  category_entries = []
-  for category in active_categories:
-    category_id = _category_id(category)
-    if not category_id:
-      continue
-    label = _category_label(category, category_id)
-    if not label:
-      continue
-    category_entries.append({
-      "category_id": category_id,
-      "label": label,
-    })
+  cache_entries = _get_joke_sheets_cache()
+  total_sheet_count = _total_sheet_count(cache_entries)
 
   download_cards: list[dict[str, str]] = []
-  for entry in category_entries:
-    category_id = entry["category_id"]
-    category_label = entry["label"]
-    try:
-      sheets = firestore.get_joke_sheets_by_category(category_id)
-    except Exception as exc:  # pylint: disable=broad-except
-      logger.error(
-        f"Failed to fetch joke sheets for {category_id}: {exc}",
-        extra={
-          "json_fields": {
-            "event": "notes_sheet_fetch_failed",
-            "category_id": category_id,
-          }
-        },
-      )
+  for category, sheets in cache_entries:
+    category_id = category.id
+    category_label = category.display_name
+    if not category_id:
       continue
-
-    sheets_with_slugs = [sheet for sheet in sheets if sheet.slug]
-    if category_id not in counted_categories:
-      total_sheet_count += len(sheets)
-      counted_categories.add(category_id)
-    sheet = _select_best_sheet(sheets_with_slugs)
-    if not sheet:
+    if not sheets:
       continue
-
-    detail_url = flask.url_for('web.notes_detail', slug=sheet.slug)
+    sheet = sheets[0]
+    if sheet.index is None:
+      continue
+    detail_url = flask.url_for(
+      'web.notes_detail',
+      slug=_cache_sheet_slug(category_id, sheet.index),
+    )
 
     try:
       image_url = cloud_storage.get_public_image_cdn_url(
@@ -194,8 +73,6 @@ def notes():
       "image_url": image_url,
       "detail_url": detail_url,
     })
-
-  total_sheet_count = (total_sheet_count // 10) * 10
   html = flask.render_template(
     'notes.html',
     canonical_url=canonical_url,
@@ -222,32 +99,21 @@ def notes_detail(slug: str):
   if not category_id or index is None:
     return flask.redirect(flask.url_for('web.notes'))
 
-  canonical_slug = slug
-  try:
-    sheets = firestore.get_joke_sheets_by_category(category_id, index=index)
-  except Exception as exc:  # pylint: disable=broad-except
-    logger.error(
-      f"Failed to fetch joke sheet for {category_id} index {index}: {exc}",
-      extra={
-        "json_fields": {
-          "event": "notes_detail_sheet_fetch_failed",
-          "category_id": category_id,
-          "index": index,
-        }
-      },
-    )
+  cache_entries = _get_joke_sheets_cache()
+  category = None
+  sheets: list[models.JokeSheet] = []
+  for entry_category, entry_sheets in cache_entries:
+    if entry_category.id == category_id:
+      category = entry_category
+      sheets = entry_sheets
+      break
+  if not category:
     return flask.redirect(flask.url_for('web.notes'))
 
-  valid_sheets = [
-    sheet for sheet in sheets if sheet.image_gcs_uri and sheet.pdf_gcs_uri
-  ]
-  if not valid_sheets:
+  if index < 0 or index >= len(sheets):
     return flask.redirect(flask.url_for('web.notes'))
 
-  sheet = _min_id_sheet(valid_sheets)
-  if sheet.slug:
-    canonical_slug = sheet.slug
-
+  sheet = sheets[index]
   try:
     pdf_url = cloud_storage.get_public_cdn_url(sheet.pdf_gcs_uri or "")
     image_url = cloud_storage.get_public_image_cdn_url(
@@ -267,22 +133,7 @@ def notes_detail(slug: str):
     )
     return flask.redirect(flask.url_for('web.notes'))
 
-  category = None
-  try:
-    category = firestore.get_joke_category(category_id)
-  except Exception as exc:  # pylint: disable=broad-except
-    logger.error(
-      f"Failed to fetch category for {category_id}: {exc}",
-      extra={
-        "json_fields": {
-          "event": "notes_detail_category_fetch_failed",
-          "category_id": category_id,
-        }
-      },
-    )
-
-  category_label = _category_label(category, category_id) if category else (
-    category_id or "")
+  category_label = category.display_name
   display_index = sheet.display_index or (index + 1)
   if display_index > 1:
     verification = auth_helpers.verify_session(flask.request)
@@ -290,11 +141,12 @@ def notes_detail(slug: str):
       return flask.redirect(flask.url_for('web.notes'))
   display_title = f"{category_label} Joke Pack {display_index}"
   page_title = f"{display_title} (Free PDF)"
+  canonical_slug = _cache_sheet_slug(category_id, index)
   canonical_url = urls.canonical_url(
     flask.url_for('web.notes_detail', slug=canonical_slug))
   notes_continue_url = urls.canonical_url(flask.url_for('web.notes'))
   now_year = datetime.datetime.now(datetime.timezone.utc).year
-  total_sheet_count = _total_sheet_count()
+  total_sheet_count = _total_sheet_count(cache_entries)
   html = flask.render_template(
     'notes_detail.html',
     canonical_url=canonical_url,
@@ -333,59 +185,17 @@ def notes_all():
   now_year = datetime.datetime.now(datetime.timezone.utc).year
   canonical_url = urls.canonical_url(flask.url_for('web.notes_all'))
 
-  try:
-    all_categories = firestore.get_all_joke_categories()
-  except Exception as exc:  # pylint: disable=broad-except
-    logger.error(
-      f"Failed to fetch joke categories: {exc}",
-      extra={"json_fields": {
-        "event": "notes_all_categories_fetch_failed",
-      }},
-    )
-    all_categories = []
-
-  active_categories = [
-    c for c in all_categories if c.state in ["APPROVED", "SEASONAL"]
-  ]
-  category_entries = []
-  for category in active_categories:
-    category_id = _category_id(category)
-    if not category_id:
-      continue
-    label = _category_label(category, category_id)
-    if not label:
-      continue
-    category_entries.append({
-      "category_id": category_id,
-      "label": label,
-    })
-
-  category_entries.sort(key=lambda entry: entry["label"].casefold())
+  cache_entries = _get_joke_sheets_cache()
+  cache_entries.sort(key=lambda entry: entry[0].display_name.casefold())
 
   categories = []
-  for entry in category_entries:
-    category_id = entry["category_id"]
-    label = entry["label"]
-    try:
-      sheets = firestore.get_joke_sheets_by_category(category_id)
-    except Exception as exc:  # pylint: disable=broad-except
-      logger.error(
-        f"Failed to fetch joke sheets for {category_id}: {exc}",
-        extra={
-          "json_fields": {
-            "event": "notes_sheet_fetch_failed",
-            "category_id": category_id,
-          }
-        },
-      )
+  for category, sorted_sheets in cache_entries:
+    category_id = category.id
+    label = category.display_name
+    if not category_id:
       continue
-
-    sorted_sheets = _sorted_sheets(sheets)
     sheet_cards = []
     for index, sheet in enumerate(sorted_sheets, start=1):
-      sheet_slug = sheet.slug
-      if not sheet_slug:
-        continue
       try:
         image_url = cloud_storage.get_public_image_cdn_url(
           sheet.image_gcs_uri or "",
@@ -403,7 +213,10 @@ def notes_all():
         )
         continue
 
-      detail_url = flask.url_for('web.notes_detail', slug=sheet_slug)
+      detail_url = flask.url_for(
+        'web.notes_detail',
+        slug=_cache_sheet_slug(category_id, sheet.index or index - 1),
+      )
       sheet_cards.append({
         "title": f"Pack {index}",
         "image_url": image_url,
@@ -430,3 +243,29 @@ def notes_all():
     notes_image_height=_NOTES_IMAGE_HEIGHT,
   )
   return html_no_store_response(html)
+
+
+def _cache_sheet_slug(category_id: str, index: int) -> str:
+  category_slug = category_id.replace("_", "-")
+  return f"free-{category_slug}-jokes-{index + 1}"
+
+
+def _get_joke_sheets_cache(
+) -> list[tuple[models.JokeCategory, list[models.JokeSheet]]]:
+  try:
+    return firestore.get_joke_sheets_cache()
+  except Exception as exc:  # pylint: disable=broad-except
+    logger.error(
+      f"Failed to fetch joke sheets cache: {exc}",
+      extra={"json_fields": {
+        "event": "notes_cache_fetch_failed",
+      }},
+    )
+    return []
+
+
+def _total_sheet_count(
+  cache_entries: list[tuple[models.JokeCategory, list[models.JokeSheet]]],
+) -> int:
+  total_sheet_count = sum(len(sheets) for _, sheets in cache_entries)
+  return (total_sheet_count // 10) * 10

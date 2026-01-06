@@ -53,7 +53,10 @@ def refresh_category_caches() -> dict[str, int]:
     f"Category caches refreshed: processed={total}, updated={updated}, emptied={emptied}, failed={failed}"
   )
 
-  _refresh_joke_sheets_cache()
+  try:
+    _refresh_joke_sheets_cache()
+  except Exception as exc:  # pylint: disable=broad-except
+    logger.error(f"Failed refreshing joke sheets cache: {exc}")
 
   return {
     "categories_processed": total,

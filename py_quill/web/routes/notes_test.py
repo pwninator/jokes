@@ -13,7 +13,6 @@ from web.utils import urls
 
 
 def test_notes_page_renders_download_cards(monkeypatch):
-  called_categories: list[str] = []
   active_category_entries = [
     ("dogs", "Dogs"),
     ("cats", "Cats"),
@@ -24,51 +23,33 @@ def test_notes_page_renders_download_cards(monkeypatch):
   active_category_ids = [
     category_id for category_id, _ in active_category_entries
   ]
-
-  def _fake_get_joke_sheets_by_category(category_id: str):
-    called_categories.append(category_id)
-    return [
+  cache_entries = []
+  for category_id, display_name in active_category_entries:
+    category = models.JokeCategory(id=category_id,
+                                   display_name=display_name,
+                                   state="APPROVED")
+    sheets = [
       models.JokeSheet(
         key=f"{category_id}-low",
-        joke_ids=["j1"],
         category_id=category_id,
         index=0,
         image_gcs_uri=
         f"gs://image-bucket/joke_notes_sheets/{category_id}-low.png",
         pdf_gcs_uri=f"gs://pdf-bucket/joke_notes_sheets/{category_id}-low.pdf",
-        avg_saved_users_fraction=0.1,
       ),
       models.JokeSheet(
         key=f"{category_id}-high",
-        joke_ids=["j2"],
         category_id=category_id,
         index=1,
         image_gcs_uri=
         f"gs://image-bucket/joke_notes_sheets/{category_id}-high.png",
         pdf_gcs_uri=f"gs://pdf-bucket/joke_notes_sheets/{category_id}-high.pdf",
-        avg_saved_users_fraction=0.9,
-      )
-    ]
-
-  monkeypatch.setattr(notes_routes.firestore, "get_joke_sheets_by_category",
-                      _fake_get_joke_sheets_by_category)
-  monkeypatch.setattr(
-    notes_routes.firestore,
-    "get_all_joke_categories",
-    lambda: [
-      models.JokeCategory(
-        display_name=display_name,
-        id=category_id,
-        state="APPROVED",
-      ) for category_id, display_name in active_category_entries
-    ] + [
-      models.JokeCategory(
-        display_name="Hidden",
-        id="hidden",
-        state="DRAFT",
       ),
-    ],
-  )
+    ]
+    cache_entries.append((category, sheets))
+
+  monkeypatch.setattr(notes_routes.firestore, "get_joke_sheets_cache",
+                      lambda: cache_entries)
 
   with app.test_client() as client:
     resp = client.get('/notes')
@@ -120,38 +101,10 @@ def test_notes_page_renders_download_cards(monkeypatch):
     )
     assert high_image_url not in html
 
-  assert called_categories == active_category_ids
-
 
 def test_notes_page_skips_sheet_without_slug(monkeypatch):
-  monkeypatch.setattr(
-    notes_routes.firestore,
-    "get_all_joke_categories",
-    lambda: [
-      models.JokeCategory(
-        display_name="Cats",
-        id="cats",
-        state="APPROVED",
-      ),
-    ],
-  )
-
-  def _fake_get_joke_sheets_by_category(category_id: str):
-    assert category_id == "cats"
-    return [
-      models.JokeSheet(
-        key="cats-missing-index",
-        joke_ids=["j1"],
-        category_id=category_id,
-        index=None,
-        image_gcs_uri="gs://image-bucket/joke_notes_sheets/cats-low.png",
-        pdf_gcs_uri="gs://pdf-bucket/joke_notes_sheets/cats-low.pdf",
-        avg_saved_users_fraction=0.1,
-      )
-    ]
-
-  monkeypatch.setattr(notes_routes.firestore, "get_joke_sheets_by_category",
-                      _fake_get_joke_sheets_by_category)
+  monkeypatch.setattr(notes_routes.firestore, "get_joke_sheets_cache",
+                      lambda: [])
 
   with app.test_client() as client:
     resp = client.get('/notes')
@@ -167,48 +120,24 @@ def test_notes_detail_renders_sheet(monkeypatch):
   slug = "free-animals-jokes-1"
   sheet_a = models.JokeSheet(
     key="a-sheet",
-    joke_ids=["j1"],
     category_id=category_id,
     index=0,
     image_gcs_uri="gs://image-bucket/joke_notes_sheets/animals-a.png",
     pdf_gcs_uri="gs://pdf-bucket/joke_notes_sheets/animals-a.pdf",
-    avg_saved_users_fraction=0.1,
   )
   sheet_b = models.JokeSheet(
     key="b-sheet",
-    joke_ids=["j2"],
     category_id=category_id,
-    index=0,
+    index=1,
     image_gcs_uri="gs://image-bucket/joke_notes_sheets/animals-b.png",
     pdf_gcs_uri="gs://pdf-bucket/joke_notes_sheets/animals-b.pdf",
-    avg_saved_users_fraction=0.9,
   )
+  category = models.JokeCategory(display_name="Animals",
+                                 id=category_id,
+                                 state="APPROVED")
 
-  def _fake_get_joke_sheets_by_category(category_id: str, index=None):
-    if category_id != "animals":
-      return []
-    if index is not None:
-      return [sheet_b, sheet_a]
-    return [sheet_a, sheet_b]
-
-  monkeypatch.setattr(notes_routes.firestore, "get_joke_sheets_by_category",
-                      _fake_get_joke_sheets_by_category)
-  monkeypatch.setattr(
-    notes_routes.firestore,
-    "get_all_joke_categories",
-    lambda: [
-      models.JokeCategory(display_name="Animals",
-                          id=category_id,
-                          state="APPROVED"),
-    ],
-  )
-  monkeypatch.setattr(
-    notes_routes.firestore,
-    "get_joke_category",
-    lambda category_id: models.JokeCategory(display_name="Animals",
-                                            id=category_id,
-                                            state="APPROVED"),
-  )
+  monkeypatch.setattr(notes_routes.firestore, "get_joke_sheets_cache",
+                      lambda: [(category, [sheet_a, sheet_b])])
 
   with app.test_client() as client:
     resp = client.get(f"/notes/{slug}")
@@ -235,28 +164,27 @@ def test_notes_detail_renders_sheet(monkeypatch):
 def test_notes_detail_redirects_locked_pack_when_logged_out(monkeypatch):
   category_id = "animals"
   slug = "free-animals-jokes-2"
-  sheet = models.JokeSheet(
-    key="a-sheet",
-    joke_ids=["j1"],
-    category_id=category_id,
-    index=1,
-    image_gcs_uri="gs://image-bucket/joke_notes_sheets/animals-a.png",
-    pdf_gcs_uri="gs://pdf-bucket/joke_notes_sheets/animals-a.pdf",
-    avg_saved_users_fraction=0.1,
-  )
-
-  monkeypatch.setattr(
-    notes_routes.firestore,
-    "get_joke_sheets_by_category",
-    lambda category_id, index=None: [sheet],
-  )
-  monkeypatch.setattr(
-    notes_routes.firestore,
-    "get_joke_category",
-    lambda category_id: models.JokeCategory(display_name="Animals",
-                                            id=category_id,
-                                            state="APPROVED"),
-  )
+  category = models.JokeCategory(display_name="Animals",
+                                 id=category_id,
+                                 state="APPROVED")
+  sheets = [
+    models.JokeSheet(
+      key="a-sheet",
+      category_id=category_id,
+      index=0,
+      image_gcs_uri="gs://image-bucket/joke_notes_sheets/animals-a.png",
+      pdf_gcs_uri="gs://pdf-bucket/joke_notes_sheets/animals-a.pdf",
+    ),
+    models.JokeSheet(
+      key="b-sheet",
+      category_id=category_id,
+      index=1,
+      image_gcs_uri="gs://image-bucket/joke_notes_sheets/animals-b.png",
+      pdf_gcs_uri="gs://pdf-bucket/joke_notes_sheets/animals-b.pdf",
+    ),
+  ]
+  monkeypatch.setattr(notes_routes.firestore, "get_joke_sheets_cache",
+                      lambda: [(category, sheets)])
   monkeypatch.setattr(auth_helpers, "verify_session", lambda _req: None)
 
   with app.test_client() as client:
@@ -269,37 +197,27 @@ def test_notes_detail_redirects_locked_pack_when_logged_out(monkeypatch):
 def test_notes_detail_allows_locked_pack_when_logged_in(monkeypatch):
   category_id = "animals"
   slug = "free-animals-jokes-2"
-  sheet = models.JokeSheet(
-    key="a-sheet",
-    joke_ids=["j1"],
-    category_id=category_id,
-    index=1,
-    image_gcs_uri="gs://image-bucket/joke_notes_sheets/animals-a.png",
-    pdf_gcs_uri="gs://pdf-bucket/joke_notes_sheets/animals-a.pdf",
-    avg_saved_users_fraction=0.1,
-  )
-
-  monkeypatch.setattr(
-    notes_routes.firestore,
-    "get_joke_sheets_by_category",
-    lambda category_id, index=None: [sheet],
-  )
-  monkeypatch.setattr(
-    notes_routes.firestore,
-    "get_all_joke_categories",
-    lambda: [
-      models.JokeCategory(display_name="Animals",
-                          id=category_id,
-                          state="APPROVED"),
-    ],
-  )
-  monkeypatch.setattr(
-    notes_routes.firestore,
-    "get_joke_category",
-    lambda category_id: models.JokeCategory(display_name="Animals",
-                                            id=category_id,
-                                            state="APPROVED"),
-  )
+  category = models.JokeCategory(display_name="Animals",
+                                 id=category_id,
+                                 state="APPROVED")
+  sheets = [
+    models.JokeSheet(
+      key="a-sheet",
+      category_id=category_id,
+      index=0,
+      image_gcs_uri="gs://image-bucket/joke_notes_sheets/animals-a.png",
+      pdf_gcs_uri="gs://pdf-bucket/joke_notes_sheets/animals-a.pdf",
+    ),
+    models.JokeSheet(
+      key="b-sheet",
+      category_id=category_id,
+      index=1,
+      image_gcs_uri="gs://image-bucket/joke_notes_sheets/animals-b.png",
+      pdf_gcs_uri="gs://pdf-bucket/joke_notes_sheets/animals-b.pdf",
+    ),
+  ]
+  monkeypatch.setattr(notes_routes.firestore, "get_joke_sheets_cache",
+                      lambda: [(category, sheets)])
   monkeypatch.setattr(auth_helpers, "verify_session",
                       lambda _req: ("user-123", {
                         "uid": "user-123"
@@ -351,74 +269,58 @@ def test_notes_all_renders_categories_and_sheets(monkeypatch):
                         "uid": "user-123"
                       }))
 
-  categories = [
-    models.JokeCategory(display_name="Zany", id="zany", state="APPROVED"),
-    models.JokeCategory(display_name="Animals", id="animals", state="APPROVED"),
-    models.JokeCategory(display_name="Breezy", id="breezy", state="SEASONAL"),
-  ]
-  monkeypatch.setattr(notes_routes.firestore, "get_all_joke_categories",
-                      lambda: categories)
-
-  sheets_by_category = {
-    "animals": [
-      models.JokeSheet(
-        key="animals-low",
-        joke_ids=["j1"],
-        category_id="animals",
-        index=0,
-        image_gcs_uri=
-        "gs://image-bucket/joke_notes_sheets/animals-low.png",
-        pdf_gcs_uri="gs://pdf-bucket/joke_notes_sheets/animals-low.pdf",
-        avg_saved_users_fraction=0.2,
-      ),
-      models.JokeSheet(
-        key="animals-high",
-        joke_ids=["j2"],
-        category_id="animals",
-        index=1,
-        image_gcs_uri=
-        "gs://image-bucket/joke_notes_sheets/animals-high.png",
-        pdf_gcs_uri="gs://pdf-bucket/joke_notes_sheets/animals-high.pdf",
-        avg_saved_users_fraction=0.9,
-      ),
-      models.JokeSheet(
-        key="animals-invalid",
-        joke_ids=["j3"],
-        category_id="animals",
-        index=2,
-        image_gcs_uri=None,
-        pdf_gcs_uri="gs://pdf-bucket/joke_notes_sheets/animals-invalid.pdf",
-        avg_saved_users_fraction=0.95,
-      ),
-    ],
-    "breezy": [],
-    "zany": [
+  animals = models.JokeCategory(display_name="Animals",
+                                id="animals",
+                                state="APPROVED")
+  breezy = models.JokeCategory(display_name="Breezy",
+                               id="breezy",
+                               state="SEASONAL")
+  zany = models.JokeCategory(display_name="Zany", id="zany", state="APPROVED")
+  cache_entries = [
+    (zany, [
       models.JokeSheet(
         key="zany-low",
-        joke_ids=["j4"],
         category_id="zany",
         index=0,
         image_gcs_uri="gs://image-bucket/joke_notes_sheets/zany-low.png",
         pdf_gcs_uri="gs://pdf-bucket/joke_notes_sheets/zany-low.pdf",
-        avg_saved_users_fraction=0.1,
       ),
       models.JokeSheet(
         key="zany-high",
-        joke_ids=["j5"],
         category_id="zany",
         index=1,
         image_gcs_uri="gs://image-bucket/joke_notes_sheets/zany-high.png",
         pdf_gcs_uri="gs://pdf-bucket/joke_notes_sheets/zany-high.pdf",
-        avg_saved_users_fraction=0.8,
       ),
-    ],
-  }
-
-  def _fake_get_joke_sheets_by_category(category_id: str):
-    return sheets_by_category.get(category_id, [])
-
-  monkeypatch.setattr(notes_routes.firestore, "get_joke_sheets_by_category",
-                      _fake_get_joke_sheets_by_category)
+    ]),
+    (animals, [
+      models.JokeSheet(
+        key="animals-low",
+        category_id="animals",
+        index=0,
+        image_gcs_uri="gs://image-bucket/joke_notes_sheets/animals-low.png",
+        pdf_gcs_uri="gs://pdf-bucket/joke_notes_sheets/animals-low.pdf",
+      ),
+      models.JokeSheet(
+        key="animals-high",
+        category_id="animals",
+        index=1,
+        image_gcs_uri="gs://image-bucket/joke_notes_sheets/animals-high.png",
+        pdf_gcs_uri="gs://pdf-bucket/joke_notes_sheets/animals-high.pdf",
+      ),
+    ]),
+    (breezy, [
+      models.JokeSheet(
+        key="breezy-low",
+        category_id="breezy",
+        index=0,
+        image_gcs_uri="gs://image-bucket/joke_notes_sheets/breezy-low.png",
+        pdf_gcs_uri="gs://pdf-bucket/joke_notes_sheets/breezy-low.pdf",
+      ),
+    ]),
+  ]
+  monkeypatch.setattr(notes_routes.firestore, "get_joke_sheets_cache",
+                      lambda: cache_entries)
 
   with app.test_client() as client:
     resp = client.get('/notes-all')
@@ -442,4 +344,4 @@ def test_notes_all_renders_categories_and_sheets(monkeypatch):
   zany_low_detail = "/notes/free-zany-jokes-1"
   zany_high_detail = "/notes/free-zany-jokes-2"
   assert html.find(zany_low_detail) < html.find(zany_high_detail)
-  assert html.count("View Pack") == 4
+  assert html.count("View Pack") == 5

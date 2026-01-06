@@ -209,6 +209,58 @@ def delete_joke_sheet(sheet_id: str) -> bool:
   return True
 
 
+def get_joke_sheets_cache(
+) -> list[tuple[models.JokeCategory, list[models.JokeSheet]]]:
+  """Get the joke sheets cache as category and sheet objects."""
+  doc = db().collection("joke_sheets_cache").document("cache_doc").get()
+  if not getattr(doc, "exists", False):
+    return []
+
+  payload = doc.to_dict() or {}
+  categories = payload.get("categories")
+  if not isinstance(categories, dict):
+    return []
+
+  results: list[tuple[models.JokeCategory, list[models.JokeSheet]]] = []
+  for category_id, data in categories.items():
+    if not isinstance(category_id, str):
+      continue
+    if not isinstance(data, dict):
+      continue
+    display_name = (data.get("category_display_name") or "").strip()
+    if not display_name:
+      continue
+    raw_sheets = data.get("sheets")
+    if not isinstance(raw_sheets, list):
+      continue
+
+    sheets: list[models.JokeSheet] = []
+    for index, sheet_data in enumerate(raw_sheets):
+      if not isinstance(sheet_data, dict):
+        continue
+      image_gcs_uri = sheet_data.get("image_gcs_uri")
+      pdf_gcs_uri = sheet_data.get("pdf_gcs_uri")
+      sheet_key = sheet_data.get("sheet_key")
+      if not image_gcs_uri or not pdf_gcs_uri or not sheet_key:
+        continue
+      sheets.append(
+        models.JokeSheet(
+          key=sheet_key,
+          category_id=category_id,
+          index=index,
+          image_gcs_uri=image_gcs_uri,
+          pdf_gcs_uri=pdf_gcs_uri,
+        ))
+
+    if not sheets:
+      continue
+
+    results.append(
+      (models.JokeCategory(id=category_id, display_name=display_name), sheets))
+
+  return results
+
+
 def update_joke_sheets_cache(
   categories: list[models.JokeCategory],
   sheets: list[models.JokeSheet],

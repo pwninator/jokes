@@ -866,6 +866,66 @@ def test_update_joke_sheets_cache_writes_payload(monkeypatch):
   assert cat_sheets[1]["pdf_gcs_uri"] == "gs://pdf2"
 
 
+def test_get_joke_sheets_cache_returns_doc(monkeypatch):
+  from services import firestore as fs
+
+  class DummyDoc:
+
+    def __init__(self, exists, data):
+      self.exists = exists
+      self._data = data
+
+    def to_dict(self):
+      return self._data
+
+  class DummyCol:
+
+    def document(self, doc_id):
+      assert doc_id == "cache_doc"
+      return self
+
+    def get(self):
+      return DummyDoc(True, {
+        "categories": {
+          "cats": {
+            "category_display_name":
+            "Cats",
+            "sheets": [
+              {
+                "image_gcs_uri": "gs://img1",
+                "pdf_gcs_uri": "gs://pdf1",
+                "sheet_key": "sheet-1",
+              },
+              {
+                "image_gcs_uri": None,
+                "pdf_gcs_uri": "gs://pdf2",
+                "sheet_key": "sheet-2",
+              },
+            ],
+          },
+        }
+      })
+
+  class DummyDB:
+
+    def collection(self, name):
+      assert name == "joke_sheets_cache"
+      return DummyCol()
+
+  monkeypatch.setattr(fs, "db", DummyDB)
+
+  result = fs.get_joke_sheets_cache()
+  assert len(result) == 1
+  category, sheets = result[0]
+  assert category.id == "cats"
+  assert category.display_name == "Cats"
+  assert len(sheets) == 1
+  assert sheets[0].key == "sheet-1"
+  assert sheets[0].index == 0
+  assert sheets[0].image_gcs_uri == "gs://img1"
+  assert sheets[0].pdf_gcs_uri == "gs://pdf1"
+
+
 def test_delete_joke_sheet_deletes_when_exists(monkeypatch):
   from services import firestore as fs
 

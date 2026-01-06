@@ -20,22 +20,22 @@
   </article>
 </section>
 
-<section class="notes-downloads" aria-labelledby="notes-downloads-title">
-  <header class="notes-downloads__header">
-    <h2 class="text-section-heading" id="notes-downloads-title">Download your printable joke notes</h2>
+<section class="notes-sampler-section" aria-labelledby="notes-sampler-title">
+  <header class="notes-sampler-header">
+    <h2 class="text-section-heading" id="notes-sampler-title">Download your printable joke notes</h2>
     <p class="text-body">Pick a pack, print at home, and add a smile to every lunch.</p>
   </header>
 
   {% if download_cards %}
-  <div class="notes-downloads-grid">
+  <div class="notes-sampler-grid">
     {% for card in download_cards %}
-    <article class="notes-download-card" aria-label="{{ card.category_label }} joke notes">
-      <h3 class="notes-download-card__title text-button">{{ card.category_label }}</h3>
-      <div class="notes-download-card__image">
+    <article class="notes-sampler-card" aria-label="{{ card.category_label }} joke notes">
+      <h3 class="notes-sampler-card__title text-button">{{ card.category_label }}</h3>
+      <div class="notes-sampler-card__image">
         <img src="{{ card.image_url }}" alt="{{ card.category_label }} joke notes sheet" width="{{ notes_image_width }}"
           height="{{ notes_image_height }}" loading="lazy" />
       </div>
-      <a class="nav-cta text-button notes-download-card__cta" href="{{ card.pdf_url }}" target="_blank"
+      <a class="nav-cta text-button notes-sampler-card__cta" href="{{ card.pdf_url }}" target="_blank"
         rel="noopener noreferrer" data-analytics-event="web_notes_download_click"
         data-analytics-label="{{ card.category_id }}" data-analytics-params="{{ {
           'category_id': card.category_id,
@@ -48,46 +48,50 @@
     {% endfor %}
   </div>
   {% else %}
-  <p class="text-body notes-downloads-empty">New printable joke notes are on the way. Check back soon.</p>
+  <p class="text-body notes-sampler-empty">New printable joke notes are on the way. Check back soon.</p>
   {% endif %}
 </section>
 
-<section class="lunchbox-lead" aria-labelledby="lunchbox-form-title">
-  <header class="notes-downloads__header" data-notes-lead-header>
-    <h2 class="text-section-heading" id="lunchbox-lead-title">Want even more jokes?</h2>
+<section class="notes-signin-section" aria-labelledby="notes-signin-form-title">
+  <header class="notes-signin-header" data-notes-signin-lead-header>
+    <h2 class="text-section-heading" id="notes-signin-lead-title">Want even more jokes?</h2>
   </header>
-  <div class="lunchbox-lead-card" data-notes-form-card>
-    <form class="lunchbox-form" method="post" action="{{ url_for('web.lunchbox') }}" data-notes-auth-form>
-      <h2 class="text-section-heading lunchbox-section-title" id="lunchbox-form-title">Unlock the Full Snickerdoodle
+  <div class="notes-signin-card" data-notes-signin-form-card>
+    <form class="notes-signin-form" method="post" action="{{ url_for('web.lunchbox') }}"
+      data-notes-signin-auth-form>
+      <h2 class="text-section-heading notes-signin-section-title" id="notes-signin-form-title">Unlock the Full
+        Snickerdoodle
         Collection
       </h2>
-      <p class="text-body lunchbox-text">Access {{ total_sheet_count }}+ themed sheets totally free! Enter your email
+      <p class="text-body notes-signin-text">Access {{ total_sheet_count }}+ themed sheets totally free! Enter your email
         below and we'll send a
         magic access link straight to your inbox.</p>
-      <div class="lunchbox-field">
-        <label class="sr-only" for="lunchbox-email">Email address</label>
-        <input class="lunchbox-input" id="lunchbox-email" name="email" type="email" autocomplete="email"
+      <div class="notes-signin-field">
+        <label class="sr-only" for="notes-signin-email">Email address</label>
+        <input class="notes-signin-input" id="notes-signin-email" name="email" type="email" autocomplete="email"
           placeholder="Your email" required value="{{ email_value or '' }}" aria-label="Your email"
-          aria-describedby="lunchbox-privacy" />
+          aria-describedby="notes-signin-privacy" />
       </div>
 
-      <button class="nav-cta text-button lunchbox-submit" id="lunchbox-submit" type="submit"
+      <button class="nav-cta text-button notes-signin-submit" id="notes-signin-submit" type="submit"
         data-analytics-event="web_lunchbox_submit_click" data-analytics-label="lunchbox">
         Send Me My Access Link!
       </button>
 
-      <div id="lunchbox-error" class="form-error" role="alert"></div>
-      <p id="lunchbox-status" class="text-body lunchbox-text" role="status" aria-live="polite" style="display:none"></p>
+      <div id="notes-signin-error" class="form-error" role="alert"></div>
+      <p id="notes-signin-status" class="text-body notes-signin-text" role="status" aria-live="polite"
+        style="display:none"></p>
 
       {% if error_message %}
-      <p class="text-body lunchbox-text" role="alert">{{ error_message }}</p>
+      <p class="text-body notes-signin-text" role="alert">{{ error_message }}</p>
       {% endif %}
 
-      <p class="text-footer lunchbox-text" id="lunchbox-privacy">You'll receive occasional free printables, book
+      <p class="text-footer notes-signin-text" id="notes-signin-privacy">You'll receive occasional free printables, book
         updates, and other Snickerdoodle news.<br>No spam, just wholesome fun. Unsubscribe at any time.</p>
     </form>
   </div>
-  <section class="notes-success-card" aria-label="Success" data-notes-success-banner style="display: none;">
+  <section class="notes-signin-success-card" aria-label="Success" data-notes-signin-success-banner
+    style="display: none;">
     <div class="thankyou-banner__inner">
       <img class="thankyou-banner__icon"
         src="https://images.quillsstorybook.com/cdn-cgi/image/width=100,format=auto,quality=75/_joke_assets/green_checkmark.png"
@@ -95,26 +99,27 @@
       <p class="thankyou-banner__text text-section-heading">
         <strong>High Five!</strong> Your Lunchbox Notes are on their way to your inbox.<br>
         <span class="muted">(Check your spam folder!)</span><br>
-        <span class="text-footer">Wrong email? <a class="notes-success-link" href="#" data-notes-retry>Try again</a></span>
+        <span class="text-footer">Wrong email? <a class="notes-signin-success-link" href="#"
+            data-notes-signin-retry>Try again</a></span>
       </p>
     </div>
   </section>
 </section>
 
 {% if extra_download_cards %}
-<section class="notes-downloads" aria-labelledby="extra-notes-downloads-title">
-  <header class="notes-downloads__header">
-    <h2 class="text-section-heading" id="extra-notes-downloads-title">All Joke Packs</h2>
+<section class="notes-sampler-section" aria-labelledby="extra-notes-sampler-title">
+  <header class="notes-sampler-header">
+    <h2 class="text-section-heading" id="extra-notes-sampler-title">All Joke Packs</h2>
   </header>
-  <div class="notes-downloads-grid">
+  <div class="notes-sampler-grid">
     {% for card in extra_download_cards %}
-    <article class="notes-download-card" aria-label="{{ card.display_name }} joke notes">
-      <h3 class="notes-download-card__title text-button">{{ card.display_name }} ({{ card.sheet_count }} Packs)</h3>
-      <div class="notes-download-card__image">
+    <article class="notes-sampler-card" aria-label="{{ card.display_name }} joke notes">
+      <h3 class="notes-sampler-card__title text-button">{{ card.display_name }} ({{ card.sheet_count }} Packs)</h3>
+      <div class="notes-sampler-card__image">
         <img src="{{ card.image_url }}" alt="{{ card.display_name }} joke notes sheet" width="{{ notes_image_width }}"
           height="{{ notes_image_height }}" loading="lazy" />
       </div>
-      <a class="nav-cta text-button notes-download-card__cta" href="#lunchbox-form-title"
+      <a class="nav-cta text-button notes-sampler-card__cta" href="#notes-signin-form-title"
         data-analytics-event="web_notes_unlock_download_click" data-analytics-label="{{ card.category_id }}"
         data-analytics-params="{{ {
           'category_id': card.category_id,
@@ -134,15 +139,15 @@
 <script type="module">
   const firebaseConfig = {{ firebase_config | tojson }};
   const emailLinkUrl = {{ email_link_url | tojson }};
-  const form = document.querySelector('[data-notes-auth-form]');
-  const formCard = document.querySelector('[data-notes-form-card]');
-  const successBanner = document.querySelector('[data-notes-success-banner]');
-  const leadHeader = document.querySelector('[data-notes-lead-header]');
-  const emailInput = document.getElementById('lunchbox-email');
-  const submitButton = document.getElementById('lunchbox-submit');
-  const errorEl = document.getElementById('lunchbox-error');
-  const statusEl = document.getElementById('lunchbox-status');
-  const retryLink = document.querySelector('[data-notes-retry]');
+  const form = document.querySelector('[data-notes-signin-auth-form]');
+  const formCard = document.querySelector('[data-notes-signin-form-card]');
+  const successBanner = document.querySelector('[data-notes-signin-success-banner]');
+  const leadHeader = document.querySelector('[data-notes-signin-lead-header]');
+  const emailInput = document.getElementById('notes-signin-email');
+  const submitButton = document.getElementById('notes-signin-submit');
+  const errorEl = document.getElementById('notes-signin-error');
+  const statusEl = document.getElementById('notes-signin-status');
+  const retryLink = document.querySelector('[data-notes-signin-retry]');
   const storageKey = 'snickerdoodle_notes_email';
   const submitLabel = submitButton ? submitButton.textContent : '';
   let firebasePromise = null;

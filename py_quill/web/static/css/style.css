@@ -391,20 +391,23 @@ img {
 
 /* --- Lunchbox Landing Page --- */
 
-.lunchbox-lead {
+.lunchbox-lead,
+.notes-signin-section {
   display: flex;
   flex-direction: column;
   gap: 12px;
   align-items: center;
 }
 
-.lunchbox-section-title {
+.lunchbox-section-title,
+.notes-signin-section-title {
   width: 100%;
   text-align: center;
   margin: 0;
 }
 
-.lunchbox-lead-card {
+.lunchbox-lead-card,
+.notes-signin-card {
   width: 100%;
   max-width: 720px;
   margin: 0 auto;
@@ -415,7 +418,8 @@ img {
   padding: 18px 36px;
 }
 
-.lunchbox-form {
+.lunchbox-form,
+.notes-signin-form {
   display: flex;
   flex-direction: column;
   width: 100%;
@@ -424,13 +428,15 @@ img {
   gap: 14px;
 }
 
-.lunchbox-field {
+.lunchbox-field,
+.notes-signin-field {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
-.lunchbox-input {
+.lunchbox-input,
+.notes-signin-input {
   width: 100%;
   box-sizing: border-box;
   padding: 12px 14px;
@@ -445,12 +451,14 @@ img {
   transition: border-color 0.2s, outline 0.2s;
 }
 
-.lunchbox-input::placeholder {
+.lunchbox-input::placeholder,
+.notes-signin-input::placeholder {
   color: var(--color-text-muted);
   opacity: 0.7;
 }
 
-.lunchbox-input:focus-visible {
+.lunchbox-input:focus-visible,
+.notes-signin-input:focus-visible {
   outline: 3px solid var(--color-focus-ring);
   outline-offset: 2px;
 }
@@ -468,12 +476,14 @@ img {
   height: 1.1em;
 }
 
-.lunchbox-submit {
+.lunchbox-submit,
+.notes-signin-submit {
   width: 100%;
   justify-content: center;
 }
 
-.lunchbox-text {
+.lunchbox-text,
+.notes-signin-text {
   text-align: center;
   margin: 0;
 }
@@ -510,7 +520,7 @@ img {
 
 /* --- Notes Download Page --- */
 
-.notes-downloads {
+.notes-sampler-section {
   display: flex;
   flex-direction: column;
   gap: 24px;
@@ -518,26 +528,29 @@ img {
   text-align: center;
 }
 
-.notes-downloads__header {
+.notes-sampler-header,
+.notes-signin-header {
   display: flex;
   flex-direction: column;
   gap: 8px;
   align-items: center;
 }
 
-.notes-downloads__header h2,
-.notes-downloads__header p {
+.notes-sampler-header h2,
+.notes-sampler-header p,
+.notes-signin-header h2,
+.notes-signin-header p {
   margin: 0;
 }
 
-.notes-downloads-grid {
+.notes-sampler-grid {
   width: 100%;
   display: grid;
   gap: 20px;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
 }
 
-.notes-download-card {
+.notes-sampler-card {
   /* The sheet images have print margins, so no need for gap here. */
   width: 100%;
   max-width: 360px;
@@ -552,12 +565,12 @@ img {
   box-shadow: 0 10px 28px var(--color-shadow);
 }
 
-.notes-download-card__title {
+.notes-sampler-card__title {
   margin: 0;
   text-align: center;
 }
 
-.notes-download-card__image {
+.notes-sampler-card__image {
   width: 100%;
   aspect-ratio: 3300 / 2550;
   border-radius: 20px;
@@ -565,22 +578,22 @@ img {
   background: rgba(255, 255, 255, 0.7);
 }
 
-.notes-download-card__image img {
+.notes-sampler-card__image img {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
 
-.notes-download-card__cta {
+.notes-sampler-card__cta {
   width: 100%;
   justify-content: center;
 }
 
-.notes-downloads-empty {
+.notes-sampler-empty {
   margin: 0;
 }
 
-.notes-success-card {
+.notes-signin-success-card {
   width: 100%;
   max-width: 720px;
   margin: 0 auto;
@@ -590,28 +603,28 @@ img {
   box-shadow: 0 10px 28px var(--color-shadow);
 }
 
-.notes-success-card .thankyou-banner__inner {
+.notes-signin-success-card .thankyou-banner__inner {
   flex-wrap: nowrap;
   justify-content: flex-start;
   text-align: left;
 }
 
-.notes-success-card .thankyou-banner__text {
+.notes-signin-success-card .thankyou-banner__text {
   text-align: center;
 }
 
-.notes-success-link {
+.notes-signin-success-link {
   text-decoration: underline;
   text-underline-offset: 3px;
 }
 
 @media (max-width: 640px) {
-  .notes-success-card .thankyou-banner__inner {
+  .notes-signin-success-card .thankyou-banner__inner {
     flex-direction: column;
     text-align: center;
   }
 
-  .notes-success-card .thankyou-banner__text {
+  .notes-signin-success-card .thankyou-banner__text {
     text-align: center;
   }
 }

@@ -70,7 +70,7 @@ def test_notes_page_renders_download_cards(monkeypatch):
   expected_count = (total_sheets // 10) * 10
   assert f"{expected_count}+" in html
   assert html.count(
-    '<a class="nav-cta text-button notes-download-card__cta"') == len(
+    '<a class="nav-cta text-button notes-sampler-card__cta"') == len(
       base_category_ids + extra_category_ids)
   assert html.count(
     'data-analytics-event="web_notes_download_click"') == len(
@@ -78,12 +78,12 @@ def test_notes_page_renders_download_cards(monkeypatch):
   assert html.count(
     'data-analytics-event="web_notes_unlock_download_click"') == len(
       extra_category_ids)
-  assert 'href="#lunchbox-form-title"' in html
+  assert 'href="#notes-signin-form-title"' in html
   assert html.count(
-    '<article class="notes-download-card"') == len(base_category_ids +
+    '<article class="notes-sampler-card"') == len(base_category_ids +
                                                    extra_category_ids)
   assert html.count(
-    '<h3 class="notes-download-card__title') == len(base_category_ids +
+    '<h3 class="notes-sampler-card__title') == len(base_category_ids +
                                                     extra_category_ids)
   assert 'target="_blank"' in html
   assert 'rel="noopener noreferrer"' in html

@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block title %}All Printable Joke Notes | {{ site_name }}{% endblock %}
+{% block meta_description %}Download every printable joke notes pack by category.{% endblock %}
+
+{% block content %}
+<section class="hero" aria-labelledby="notes-all-hero-title">
+  <div>
+    <h1 class="hero-title text-display" id="notes-all-hero-title">Your Full Joke Notes Library</h1>
+    <p class="hero-subtitle text-body">Download every pack by category. Print as many as you'd like.</p>
+  </div>
+
+  <article class="hero-card" aria-label="Lunchbox hero image">
+    <div class="hero-card__image lunchbox-hero-image">
+      <img
+        src="https://images.quillsstorybook.com/cdn-cgi/image/width=480,format=auto,quality=75/_joke_assets/lunchbox/lunchbox_hero.png"
+        alt="Lunchbox hero image" width="480" height="480" loading="lazy" />
+    </div>
+  </article>
+</section>
+
+{% for category in categories %}
+<section class="notes-download-section" aria-labelledby="notes-download-{{ category.category_id }}-title">
+  <header class="notes-download-header">
+    <h2 class="text-section-heading" id="notes-download-{{ category.category_id }}-title">{{ category.label }}</h2>
+    {% if category.sheet_count %}
+    <p class="text-body">{{ category.sheet_count }} packs</p>
+    {% endif %}
+  </header>
+
+  {% if category.sheets %}
+  <div class="notes-download-grid">
+    {% for sheet in category.sheets %}
+    <article class="notes-download-card" aria-label="{{ category.label }} joke notes pack {{ loop.index }}">
+      <h3 class="notes-download-card__title text-button">{{ sheet.title }}</h3>
+      <div class="notes-download-card__image">
+        <img src="{{ sheet.image_url }}" alt="{{ category.label }} joke notes pack {{ loop.index }} sheet"
+          width="{{ notes_image_width }}" height="{{ notes_image_height }}" loading="lazy" />
+      </div>
+      <a class="nav-cta text-button notes-download-card__cta" href="{{ sheet.pdf_url }}" target="_blank"
+        rel="noopener noreferrer" data-analytics-event="web_notes_all_download_click"
+        data-analytics-label="{{ category.category_id }}" data-analytics-params="{{ {
+          'category_id': category.category_id,
+          'sheet_key': sheet.sheet_key,
+          'access': 'unlocked'
+        } | tojson }}">
+        Download PDF
+      </a>
+    </article>
+    {% endfor %}
+  </div>
+  {% else %}
+  <p class="text-body">No printable joke notes yet.</p>
+  {% endif %}
+</section>
+{% endfor %}
+{% endblock %}

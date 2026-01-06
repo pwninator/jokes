@@ -61,9 +61,9 @@
             </a>
           </li>
           <li>
-            <a class="nav-link text-button{% if current_path == '/lunchbox' or current_path == '/lunchbox-thank-you' %} nav-link--active{% endif %}"
-              href="{{ url_for('web.lunchbox') }}"
-              data-analytics-event="web_nav_lunchbox_click"
+            <a class="nav-link text-button{% if current_path == '/notes' or current_path == '/notes-all' %} nav-link--active{% endif %}"
+              href="{{ url_for('web.notes') }}"
+              data-analytics-event="web_nav_notes_click"
               data-analytics-label="printable_joke_notes">
               Printable Joke Notes
             </a>

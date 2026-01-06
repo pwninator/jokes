@@ -139,6 +139,7 @@
 <script type="module">
   const firebaseConfig = {{ firebase_config | tojson }};
   const emailLinkUrl = {{ email_link_url | tojson }};
+  const notesAllUrl = {{ url_for('web.notes_all') | tojson }};
   const form = document.querySelector('[data-notes-signin-auth-form]');
   const formCard = document.querySelector('[data-notes-signin-form-card]');
   const successBanner = document.querySelector('[data-notes-signin-success-banner]');
@@ -319,6 +320,9 @@
       showStatus('Access unlocked! You can download all joke packs below.');
       const cleanUrl = window.location.origin + window.location.pathname + window.location.hash;
       window.history.replaceState({}, document.title, cleanUrl);
+      if (notesAllUrl) {
+        window.location.assign(notesAllUrl);
+      }
     } catch (err) {
       console.error('Email link sign-in failed', err); // eslint-disable-line no-console
       showError(friendlyAuthMessage(

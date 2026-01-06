@@ -7,10 +7,11 @@ import datetime
 import flask
 from firebase_functions import logger
 from common import config
+from functions import auth_helpers
 from services import cloud_storage, firestore
 from web.routes import web_bp
 from web.utils import urls
-from web.utils.responses import html_response
+from web.utils.responses import html_no_store_response, html_response
 
 _NOTES_CATEGORIES: list[tuple[str, str]] = [
   ("dogs", "Funny Dogs Pack"),
@@ -23,23 +24,40 @@ _NOTES_IMAGE_HEIGHT = int(round(_NOTES_IMAGE_MAX_WIDTH * (2550 / 3300)))
 
 
 def _select_best_sheet(sheets):
+  sorted_sheets = _sorted_sheets(sheets)
+  return sorted_sheets[0] if sorted_sheets else None
+
+
+def _sorted_sheets(sheets):
   valid_sheets = [
     sheet for sheet in sheets if sheet.image_gcs_uri and sheet.pdf_gcs_uri
   ]
-  if not valid_sheets:
-    return None
-
   valid_sheets.sort(key=lambda sheet: (
     -(sheet.avg_saved_users_fraction or 0.0),
     sheet.key or "",
     sheet.joke_str or "",
   ))
-  return valid_sheets[0]
+  return valid_sheets
+
+
+def _category_id(category):
+  return category.id or getattr(category, "key", None)
+
+
+def _category_label(category, category_id):
+  display_name = (category.display_name or "").strip()
+  if display_name:
+    return display_name
+  return category_id or ""
 
 
 @web_bp.route('/notes')
 def notes():
   """Render the notes download page."""
+  verification = auth_helpers.verify_session(flask.request)
+  if verification:
+    return flask.redirect(flask.url_for('web.notes_all'))
+
   now_year = datetime.datetime.now(datetime.timezone.utc).year
   canonical_url = urls.canonical_url(flask.url_for('web.notes'))
   error_message = None
@@ -183,3 +201,109 @@ def notes():
     email_link_url=canonical_url,
   )
   return html_response(html, cache_seconds=300, cdn_seconds=1200)
+
+
+@web_bp.route('/notes-all')
+def notes_all():
+  """Render the authenticated notes download page."""
+  verification = auth_helpers.verify_session(flask.request)
+  if not verification:
+    return flask.redirect(flask.url_for('web.notes'))
+
+  now_year = datetime.datetime.now(datetime.timezone.utc).year
+  canonical_url = urls.canonical_url(flask.url_for('web.notes_all'))
+
+  try:
+    all_categories = firestore.get_all_joke_categories()
+  except Exception as exc:  # pylint: disable=broad-except
+    logger.error(
+      f"Failed to fetch joke categories: {exc}",
+      extra={"json_fields": {
+        "event": "notes_all_categories_fetch_failed",
+      }},
+    )
+    all_categories = []
+
+  active_categories = [
+    c for c in all_categories if c.state in ["APPROVED", "SEASONAL"]
+  ]
+  category_entries = []
+  for category in active_categories:
+    category_id = _category_id(category)
+    if not category_id:
+      continue
+    label = _category_label(category, category_id)
+    if not label:
+      continue
+    category_entries.append({
+      "category_id": category_id,
+      "label": label,
+    })
+
+  category_entries.sort(key=lambda entry: entry["label"].casefold())
+
+  categories = []
+  for entry in category_entries:
+    category_id = entry["category_id"]
+    label = entry["label"]
+    try:
+      sheets = firestore.get_joke_sheets_by_category(category_id)
+    except Exception as exc:  # pylint: disable=broad-except
+      logger.error(
+        f"Failed to fetch joke sheets for {category_id}: {exc}",
+        extra={
+          "json_fields": {
+            "event": "notes_sheet_fetch_failed",
+            "category_id": category_id,
+          }
+        },
+      )
+      continue
+
+    sorted_sheets = _sorted_sheets(sheets)
+    sheet_cards = []
+    for index, sheet in enumerate(sorted_sheets, start=1):
+      try:
+        pdf_url = cloud_storage.get_public_cdn_url(sheet.pdf_gcs_uri or "")
+        image_url = cloud_storage.get_public_image_cdn_url(
+          sheet.image_gcs_uri or "",
+          width=_NOTES_IMAGE_MAX_WIDTH,
+        )
+      except ValueError as exc:
+        logger.error(
+          f"Failed to build URLs for {category_id} sheet: {exc}",
+          extra={
+            "json_fields": {
+              "event": "notes_sheet_url_failed",
+              "category_id": category_id,
+            }
+          },
+        )
+        continue
+
+      sheet_cards.append({
+        "title": f"Pack {index}",
+        "image_url": image_url,
+        "pdf_url": pdf_url,
+        "sheet_key": sheet.key or "",
+      })
+
+    categories.append({
+      "category_id": category_id,
+      "label": label,
+      "sheet_count": len(sheet_cards),
+      "sheets": sheet_cards,
+    })
+
+  html = flask.render_template(
+    'notes_all.html',
+    canonical_url=canonical_url,
+    site_name='Snickerdoodle',
+    now_year=now_year,
+    prev_url=None,
+    next_url=None,
+    categories=categories,
+    notes_image_width=_NOTES_IMAGE_MAX_WIDTH,
+    notes_image_height=_NOTES_IMAGE_HEIGHT,
+  )
+  return html_no_store_response(html)

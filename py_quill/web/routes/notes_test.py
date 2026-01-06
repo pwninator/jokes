@@ -42,9 +42,13 @@ def test_notes_page_renders_download_cards(monkeypatch):
 
   assert resp.status_code == 200
   html = resp.get_data(as_text=True)
-  assert 'Turn Lunchtime into Giggle Time!' in html
+  assert 'action="/lunchbox"' in html
+  assert 'method="post"' in html
+  assert 'name="email"' in html
   assert html.count(
     '<a class="nav-cta text-button notes-download-card__cta"') == 3
+  assert html.count('notes-download-card__title') == len(
+    notes_routes._NOTES_CATEGORIES)
   assert 'target="_blank"' in html
   assert 'rel="noopener noreferrer"' in html
   assert f'width="{notes_routes._NOTES_IMAGE_MAX_WIDTH}"' in html

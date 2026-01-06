@@ -12,9 +12,9 @@ from web.routes import web_bp
 from web.utils.responses import html_response
 
 _NOTES_CATEGORIES: list[tuple[str, str]] = [
-  ("dogs", "Dogs"),
-  ("cats", "Cats"),
-  ("reptiles_and_dinosaurs", "Reptiles and Dinosaurs"),
+  ("dogs", "Funny Dogs Pack"),
+  ("cats", "Silly Cats Pack"),
+  ("reptiles_and_dinosaurs", "Dinos & Reptiles Pack"),
 ]
 
 _NOTES_IMAGE_MAX_WIDTH = 360
@@ -26,6 +26,8 @@ def notes():
   """Render the notes download page."""
   now_year = datetime.datetime.now(datetime.timezone.utc).year
   canonical_url = flask.url_for('web.notes', _external=True)
+  error_message = None
+  email_value = ''
 
   download_cards: list[dict[str, str]] = []
   for category_id, category_label in _NOTES_CATEGORIES:
@@ -49,12 +51,11 @@ def notes():
     if not valid_sheets:
       continue
 
-    valid_sheets.sort(
-      key=lambda sheet: (
-        -(sheet.avg_saved_users_fraction or 0.0),
-        sheet.key or "",
-        sheet.joke_str or "",
-      ))
+    valid_sheets.sort(key=lambda sheet: (
+      -(sheet.avg_saved_users_fraction or 0.0),
+      sheet.key or "",
+      sheet.joke_str or "",
+    ))
     sheet = valid_sheets[0]
     try:
       pdf_url = cloud_storage.get_public_cdn_url(sheet.pdf_gcs_uri or "")
@@ -88,6 +89,8 @@ def notes():
     now_year=now_year,
     prev_url=None,
     next_url=None,
+    error_message=error_message,
+    email_value=email_value,
     download_cards=download_cards,
     notes_image_width=_NOTES_IMAGE_MAX_WIDTH,
     notes_image_height=_NOTES_IMAGE_HEIGHT,

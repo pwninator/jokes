@@ -23,24 +23,19 @@
 <section class="notes-downloads" aria-labelledby="notes-downloads-title">
   <header class="notes-downloads__header">
     <h2 class="text-section-heading" id="notes-downloads-title">Download your printable joke notes</h2>
-    <p class="text-body">Pick a sheet, print at home, and add a smile to every lunch.</p>
+    <p class="text-body">Pick a pack, print at home, and add a smile to every lunch.</p>
   </header>
 
   {% if download_cards %}
   <div class="notes-downloads-grid">
     {% for card in download_cards %}
     <article class="notes-download-card" aria-label="{{ card.category_label }} joke notes">
+      <h3 class="notes-download-card__title text-button">{{ card.category_label }}</h3>
       <div class="notes-download-card__image">
-        <img
-          src="{{ card.image_url }}"
-          alt="{{ card.category_label }} joke notes sheet"
-          width="{{ notes_image_width }}"
-          height="{{ notes_image_height }}"
-          loading="lazy" />
+        <img src="{{ card.image_url }}" alt="{{ card.category_label }} joke notes sheet" width="{{ notes_image_width }}"
+          height="{{ notes_image_height }}" loading="lazy" />
       </div>
-      <a class="nav-cta text-button notes-download-card__cta"
-        href="{{ card.pdf_url }}"
-        target="_blank"
+      <a class="nav-cta text-button notes-download-card__cta" href="{{ card.pdf_url }}" target="_blank"
         rel="noopener noreferrer">
         Download PDF
       </a>
@@ -50,5 +45,37 @@
   {% else %}
   <p class="text-body notes-downloads-empty">New printable joke notes are on the way. Check back soon.</p>
   {% endif %}
+</section>
+
+<section class="lunchbox-lead" aria-labelledby="lunchbox-form-title">
+  <header class="notes-downloads__header">
+    <h2 class="text-section-heading" id="lunchbox-lead-title">Want even more jokes?</h2>
+  </header>
+  <div class="lunchbox-lead-card">
+    <form class="lunchbox-form" method="post" action="{{ url_for('web.lunchbox') }}">
+      <h2 class="text-section-heading lunchbox-section-title" id="lunchbox-form-title">Unlock the Snickerdoodle Vault 🔓
+      </h2>
+      <p class="text-body lunchbox-text">Access 80+ themed sheets totally free! Enter your email below and we'll send a
+        magic access link straight to your inbox.</p>
+      <div class="lunchbox-field">
+        <label class="sr-only" for="lunchbox-email">Email address</label>
+        <input class="lunchbox-input" id="lunchbox-email" name="email" type="email" autocomplete="email"
+          placeholder="Your email" required value="{{ email_value or '' }}" aria-label="Your email"
+          aria-describedby="lunchbox-privacy" />
+      </div>
+
+      <button class="nav-cta text-button lunchbox-submit" type="submit" data-analytics-event="web_lunchbox_submit_click"
+        data-analytics-label="lunchbox">
+        Send Me My Access Link!
+      </button>
+
+      {% if error_message %}
+      <p class="text-body lunchbox-text" role="alert">{{ error_message }}</p>
+      {% endif %}
+
+      <p class="text-footer lunchbox-text" id="lunchbox-privacy">You'll receive occasional free printables, book
+        updates, and other Snickerdoodle news.<br>No spam, just wholesome fun. Unsubscribe at any time.</p>
+    </form>
+  </div>
 </section>
 {% endblock %}

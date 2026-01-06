@@ -6,6 +6,7 @@ from common import config, models
 from services import cloud_storage
 from web.app import app
 from web.routes import notes as notes_routes
+from web.utils import urls
 
 
 def test_notes_page_renders_download_cards(monkeypatch):
@@ -88,7 +89,7 @@ def test_notes_page_renders_download_cards(monkeypatch):
   assert 'rel="noopener noreferrer"' in html
   assert 'sendSignInLinkToEmail' in html
   assert config.FIREBASE_WEB_CONFIG['projectId'] in html
-  assert f"http://{config.ADMIN_HOST}/notes" in html
+  assert urls.canonical_url('/notes') in html
   assert f'width="{notes_routes._NOTES_IMAGE_MAX_WIDTH}"' in html
   assert f'height="{notes_routes._NOTES_IMAGE_HEIGHT}"' in html
   for category_id, display_name in extra_categories.items():

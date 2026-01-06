@@ -908,9 +908,11 @@ def get_recent_stories(owner_user_id: str, limit: int) -> list[dict[str, str]]:
 
 
 @transactional
-def _initialize_user_in_transaction(transaction: Transaction,
-                                    user_id_internal: str,
-                                    email: str | None = None) -> bool:
+def _initialize_user_in_transaction(
+  transaction: Transaction,
+  user_id_internal: str,
+  email: str,
+) -> bool:
   """The actual logic to be executed within the transaction.
 
   Returns:
@@ -927,16 +929,12 @@ def _initialize_user_in_transaction(transaction: Transaction,
 
   # Data to set, include email if provided
   user_data = {
+    'email': email,
     'user_type': 'USER',
     'preferences': {},
-    'num_sparks': 1000,
-    'num_premium_sparks': 0,
-    'onboarding_completed': False,
     'created_at': SERVER_TIMESTAMP,
     'last_modified_at': SERVER_TIMESTAMP,
   }
-  if email:
-    user_data['email'] = email
 
   transaction.set(user_ref, user_data)
   logger.info(

@@ -782,6 +782,92 @@ def test_get_joke_sheets_by_category_filters_index(monkeypatch):
   assert getattr(captured_filters[1], "value", None) == 2
 
 
+def test_update_joke_sheets_cache_writes_payload(monkeypatch):
+  from services import firestore as fs
+
+  captured: dict[str, object] = {}
+
+  class DummyDoc:
+
+    def set(self, data, merge: bool = False):
+      captured["data"] = data
+      captured["merge"] = merge
+
+  class DummyCol:
+
+    def document(self, doc_id):
+      assert doc_id == "cache_doc"
+      return DummyDoc()
+
+  class DummyDB:
+
+    def collection(self, name):
+      assert name == "joke_sheets_cache"
+      return DummyCol()
+
+  monkeypatch.setattr(fs, "db", DummyDB)
+  monkeypatch.setattr(fs, "SERVER_TIMESTAMP", "TS")
+
+  categories = [
+    models.JokeCategory(id="cats", display_name="Cats", state="APPROVED"),
+    models.JokeCategory(id="dogs", display_name="Dogs", state="SEASONAL"),
+  ]
+  sheets = [
+    models.JokeSheet(
+      key="sheet-2",
+      category_id="cats",
+      index=1,
+      image_gcs_uri="gs://img2",
+      pdf_gcs_uri="gs://pdf2",
+    ),
+    models.JokeSheet(
+      key="sheet-1",
+      category_id="cats",
+      index=0,
+      image_gcs_uri="gs://img1",
+      pdf_gcs_uri="gs://pdf1",
+    ),
+    models.JokeSheet(
+      key="missing-pdf",
+      category_id="cats",
+      index=2,
+      image_gcs_uri="gs://img3",
+      pdf_gcs_uri=None,
+    ),
+    models.JokeSheet(
+      key="missing-index",
+      category_id="cats",
+      index=None,
+      image_gcs_uri="gs://img4",
+      pdf_gcs_uri="gs://pdf4",
+    ),
+    models.JokeSheet(
+      key="other-category",
+      category_id="other",
+      index=0,
+      image_gcs_uri="gs://img5",
+      pdf_gcs_uri="gs://pdf5",
+    ),
+  ]
+
+  fs.update_joke_sheets_cache(categories, sheets)
+
+  assert captured["merge"] is False
+  payload = captured["data"]
+  assert payload["refresh_timestamp"] == "TS"
+  categories_payload = payload["categories"]
+  assert set(categories_payload.keys()) == {"cats", "dogs"}
+  assert categories_payload["cats"]["category_display_name"] == "Cats"
+  assert categories_payload["dogs"]["category_display_name"] == "Dogs"
+  assert categories_payload["dogs"]["sheets"] == []
+  cat_sheets = categories_payload["cats"]["sheets"]
+  assert [s["sheet_key"] for s in cat_sheets] == ["sheet-1", "sheet-2"]
+  assert cat_sheets[0]["image_gcs_uri"] == "gs://img1"
+  assert cat_sheets[0]["pdf_gcs_uri"] == "gs://pdf1"
+  assert cat_sheets[1]["image_gcs_uri"] == "gs://img2"
+  assert cat_sheets[1]["pdf_gcs_uri"] == "gs://pdf2"
+
+
 def test_delete_joke_sheet_deletes_when_exists(monkeypatch):
   from services import firestore as fs
 

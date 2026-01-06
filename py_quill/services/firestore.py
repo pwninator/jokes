@@ -209,6 +209,50 @@ def delete_joke_sheet(sheet_id: str) -> bool:
   return True
 
 
+def update_joke_sheets_cache(
+  categories: list[models.JokeCategory],
+  sheets: list[models.JokeSheet],
+) -> None:
+  """Update the joke sheets cache document for active categories."""
+
+  sheets_by_category: dict[str, list[models.JokeSheet]] = {}
+  for sheet in sheets:
+    if not sheet.key or not sheet.category_id:
+      continue
+    if not sheet.image_gcs_uri or not sheet.pdf_gcs_uri:
+      continue
+    if not isinstance(sheet.index, int) or sheet.index < 0:
+      continue
+    sheets_by_category.setdefault(sheet.category_id, []).append(sheet)
+
+  categories_payload: dict[str, dict[str, object]] = {}
+  for category in categories:
+    if not category.id or not category.display_name:
+      continue
+
+    ordered_sheets = sheets_by_category.get(category.id, [])
+    # Use key as tiebreaker in case of index conflicts.
+    ordered_sheets.sort(key=lambda s: (s.index, s.key))
+    if not ordered_sheets:
+      continue
+
+    categories_payload[category.id] = {
+      "category_display_name":
+      category.display_name,
+      "sheets": [{
+        "image_gcs_uri": sheet.image_gcs_uri,
+        "pdf_gcs_uri": sheet.pdf_gcs_uri,
+        "sheet_key": sheet.key,
+      } for sheet in ordered_sheets],
+    }
+
+  payload = {
+    "refresh_timestamp": SERVER_TIMESTAMP,
+    "categories": categories_payload,
+  }
+  db().collection("joke_sheets_cache").document("cache_doc").set(payload)
+
+
 def get_all_punny_jokes() -> list[models.PunnyJoke]:
   """Get all punny jokes from the 'jokes' collection."""
   docs = db().collection('jokes').stream()

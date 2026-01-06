@@ -53,12 +53,32 @@ def refresh_category_caches() -> dict[str, int]:
     f"Category caches refreshed: processed={total}, updated={updated}, emptied={emptied}, failed={failed}"
   )
 
+  _refresh_joke_sheets_cache()
+
   return {
     "categories_processed": total,
     "categories_updated": updated,
     "categories_emptied": emptied,
     "categories_failed": failed,
   }
+
+
+def _refresh_joke_sheets_cache() -> None:
+  """Refresh the cached joke sheets document for active categories."""
+  all_categories = firestore.get_all_joke_categories()
+  active_categories = [
+    category for category in all_categories
+    if category.state in ["APPROVED", "SEASONAL"]
+  ]
+  all_sheets: list[models.JokeSheet] = []
+  for category in active_categories:
+    category_id = category.id or category.key
+    if not category_id:
+      continue
+    sheets = firestore.get_joke_sheets_by_category(category_id)
+    all_sheets.extend(sheets)
+
+  firestore.update_joke_sheets_cache(active_categories, all_sheets)
 
 
 def refresh_single_category_cache(
@@ -190,8 +210,10 @@ def _ensure_category_joke_sheets(
       continue
 
     batches.append({
-      "jokes": batch_jokes,
-      "index": sheet.index if isinstance(sheet.index, int) else None,
+      "jokes":
+      batch_jokes,
+      "index":
+      sheet.index if isinstance(sheet.index, int) else None,
       "avg_saved_users_fraction":
       joke_notes_sheet_operations.average_saved_users_fraction(batch_jokes),
     })
@@ -204,8 +226,10 @@ def _ensure_category_joke_sheets(
       batch = uncovered[i * batch_size:(i + 1) * batch_size]
       if len(batch) == batch_size:
         batches.append({
-          "jokes": batch,
-          "index": None,
+          "jokes":
+          batch,
+          "index":
+          None,
           "avg_saved_users_fraction":
           joke_notes_sheet_operations.average_saved_users_fraction(batch),
         })

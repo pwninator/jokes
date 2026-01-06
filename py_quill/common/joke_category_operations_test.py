@@ -177,6 +177,56 @@ def _run_refresh(monkeypatch, fake_db):
   joke_category_operations.refresh_category_caches()
 
 
+def test_refresh_joke_sheets_cache_filters_active_categories(monkeypatch):
+  categories = [
+    models.JokeCategory(id="cats", display_name="Cats", state="APPROVED"),
+    models.JokeCategory(id="seasonal",
+                        display_name="Seasonal",
+                        state="SEASONAL"),
+    models.JokeCategory(id="proposed",
+                        display_name="Proposed",
+                        state="PROPOSED"),
+  ]
+
+  monkeypatch.setattr("services.firestore.get_all_joke_categories",
+                      lambda: categories)
+
+  sheet_calls: list[str] = []
+
+  def fake_get_joke_sheets_by_category(category_id: str):
+    sheet_calls.append(category_id)
+    return [
+      models.JokeSheet(
+        key=f"{category_id}-sheet",
+        category_id=category_id,
+        index=0,
+        image_gcs_uri="gs://img",
+        pdf_gcs_uri="gs://pdf",
+      )
+    ]
+
+  monkeypatch.setattr("services.firestore.get_joke_sheets_by_category",
+                      fake_get_joke_sheets_by_category)
+
+  captured: dict[str, object] = {}
+
+  def fake_update_joke_sheets_cache(categories_arg, sheets_arg):
+    captured["categories"] = categories_arg
+    captured["sheets"] = sheets_arg
+
+  monkeypatch.setattr("services.firestore.update_joke_sheets_cache",
+                      fake_update_joke_sheets_cache)
+
+  joke_category_operations._refresh_joke_sheets_cache(  # pylint: disable=protected-access
+  )
+
+  assert sheet_calls == ["cats", "seasonal"]
+  category_ids = [category.id for category in captured["categories"]]
+  assert category_ids == ["cats", "seasonal"]
+  sheet_category_ids = [sheet.category_id for sheet in captured["sheets"]]
+  assert sheet_category_ids == ["cats", "seasonal"]
+
+
 def test_refresh_updates_cache_for_approved_category(monkeypatch, fake_env):
   # Arrange
   categories = [("animals", {

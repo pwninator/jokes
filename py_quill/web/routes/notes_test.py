@@ -10,6 +10,11 @@ from web.routes import notes as notes_routes
 
 def test_notes_page_renders_download_cards(monkeypatch):
   called_categories: list[str] = []
+  base_category_ids = [
+    category_id for category_id, _ in notes_routes._NOTES_CATEGORIES
+  ]
+  extra_categories = {"space": "Space", "ocean": "Ocean"}
+  extra_category_ids = list(extra_categories.keys())
 
   def _fake_get_joke_sheets_by_category(category_id: str):
     called_categories.append(category_id)
@@ -36,25 +41,43 @@ def test_notes_page_renders_download_cards(monkeypatch):
 
   monkeypatch.setattr(notes_routes.firestore, "get_joke_sheets_by_category",
                       _fake_get_joke_sheets_by_category)
+  monkeypatch.setattr(
+    notes_routes.firestore,
+    "get_all_joke_categories",
+    lambda: [
+      models.JokeCategory(display_name="Dogs", id="dogs"),
+      models.JokeCategory(display_name="Cats", id="cats"),
+      models.JokeCategory(display_name=extra_categories["space"], id="space"),
+      models.JokeCategory(display_name=extra_categories["ocean"], id="ocean"),
+    ],
+  )
 
   with app.test_client() as client:
     resp = client.get('/notes')
 
   assert resp.status_code == 200
   html = resp.get_data(as_text=True)
-  assert 'action="/lunchbox"' in html
-  assert 'method="post"' in html
-  assert 'name="email"' in html
+  total_sheets = (len(base_category_ids) + len(extra_category_ids)) * 2
+  expected_count = (total_sheets // 10) * 10
+  assert f"{expected_count}+" in html
   assert html.count(
-    '<a class="nav-cta text-button notes-download-card__cta"') == 3
-  assert html.count('notes-download-card__title') == len(
-    notes_routes._NOTES_CATEGORIES)
+    '<a class="nav-cta text-button notes-download-card__cta"') == len(
+      base_category_ids + extra_category_ids)
+  assert 'href="#lunchbox-form-title"' in html
+  assert html.count(
+    '<article class="notes-download-card"') == len(base_category_ids +
+                                                   extra_category_ids)
+  assert html.count(
+    '<h3 class="notes-download-card__title') == len(base_category_ids +
+                                                    extra_category_ids)
   assert 'target="_blank"' in html
   assert 'rel="noopener noreferrer"' in html
   assert f'width="{notes_routes._NOTES_IMAGE_MAX_WIDTH}"' in html
   assert f'height="{notes_routes._NOTES_IMAGE_HEIGHT}"' in html
+  for category_id, display_name in extra_categories.items():
+    assert f"{display_name} (2 Packs)" in html
 
-  for category_id in ["dogs", "cats", "reptiles_and_dinosaurs"]:
+  for category_id in base_category_ids + extra_category_ids:
     image_gcs_uri = (
       f"gs://image-bucket/joke_notes_sheets/{category_id}-high.png")
     pdf_gcs_uri = f"gs://pdf-bucket/joke_notes_sheets/{category_id}-high.pdf"
@@ -62,17 +85,21 @@ def test_notes_page_renders_download_cards(monkeypatch):
       image_gcs_uri,
       width=notes_routes._NOTES_IMAGE_MAX_WIDTH,
     )
-    expected_pdf_url = cloud_storage.get_public_cdn_url(pdf_gcs_uri)
     assert expected_image_url in html
-    assert expected_pdf_url in html
+    expected_pdf_url = cloud_storage.get_public_cdn_url(pdf_gcs_uri)
+    if category_id in base_category_ids:
+      assert expected_pdf_url in html
+    else:
+      assert expected_pdf_url not in html
 
     low_image_url = cloud_storage.get_public_image_cdn_url(
       f"gs://image-bucket/joke_notes_sheets/{category_id}-low.png",
       width=notes_routes._NOTES_IMAGE_MAX_WIDTH,
     )
-    low_pdf_url = cloud_storage.get_public_cdn_url(
-      f"gs://pdf-bucket/joke_notes_sheets/{category_id}-low.pdf")
     assert low_image_url not in html
-    assert low_pdf_url not in html
+    if category_id in base_category_ids:
+      low_pdf_url = cloud_storage.get_public_cdn_url(
+        f"gs://pdf-bucket/joke_notes_sheets/{category_id}-low.pdf")
+      assert low_pdf_url not in html
 
-  assert called_categories == ["dogs", "cats", "reptiles_and_dinosaurs"]
+  assert called_categories == base_category_ids + extra_category_ids

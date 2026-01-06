@@ -53,9 +53,9 @@
   </header>
   <div class="lunchbox-lead-card">
     <form class="lunchbox-form" method="post" action="{{ url_for('web.lunchbox') }}">
-      <h2 class="text-section-heading lunchbox-section-title" id="lunchbox-form-title">Unlock the Snickerdoodle Vault 🔓
+      <h2 class="text-section-heading lunchbox-section-title" id="lunchbox-form-title">Unlock the Full Snickerdoodle Collection
       </h2>
-      <p class="text-body lunchbox-text">Access 80+ themed sheets totally free! Enter your email below and we'll send a
+      <p class="text-body lunchbox-text">Access {{ total_sheet_count }}+ themed sheets totally free! Enter your email below and we'll send a
         magic access link straight to your inbox.</p>
       <div class="lunchbox-field">
         <label class="sr-only" for="lunchbox-email">Email address</label>
@@ -78,4 +78,24 @@
     </form>
   </div>
 </section>
+
+{% if extra_download_cards %}
+<section class="notes-downloads" aria-labelledby="extra-notes-downloads-title">
+  <header class="notes-downloads__header">
+    <h2 class="text-section-heading" id="extra-notes-downloads-title">All Joke Packs</h2>
+  </header>
+  <div class="notes-downloads-grid">
+    {% for card in extra_download_cards %}
+    <article class="notes-download-card" aria-label="{{ card.display_name }} joke notes">
+      <h3 class="notes-download-card__title text-button">{{ card.display_name }} ({{ card.sheet_count }} Packs)</h3>
+      <div class="notes-download-card__image">
+        <img src="{{ card.image_url }}" alt="{{ card.display_name }} joke notes sheet" width="{{ notes_image_width }}"
+          height="{{ notes_image_height }}" loading="lazy" />
+      </div>
+      <a class="nav-cta text-button notes-download-card__cta" href="#lunchbox-form-title">Unlock Download</a>
+    </article>
+    {% endfor %}
+  </div>
+</section>
+{% endif %}
 {% endblock %}

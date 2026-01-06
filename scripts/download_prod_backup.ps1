@@ -45,6 +45,9 @@ if ($metadataFiles.Count -gt 0) {
     Write-Host "Moving metadata file to $tempArchiveDir"
     Move-Item -Path $currentMetadata.FullName -Destination $tempArchiveDir -Force
 
+    # Wait a moment for Windows to release file handles after moving files
+    Start-Sleep -Milliseconds 1000
+
     # Ensure archive root exists
     if (-not (Test-Path $archiveDir)) {
         New-Item -ItemType Directory -Path $archiveDir | Out-Null
@@ -61,6 +64,9 @@ if ($metadataFiles.Count -gt 0) {
         $finalDest = Join-Path $archiveDir $newDateName
     }
 
+    # Wait a moment before moving directory to ensure Windows has released file handles
+    Start-Sleep -Milliseconds 1000
+    
     Write-Host "Moving backup folder to archive: $finalDest"
     Move-Item -Path $tempArchiveDir -Destination $archiveDir -Force
 } else {

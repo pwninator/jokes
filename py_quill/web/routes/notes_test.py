@@ -71,7 +71,10 @@ def test_notes_page_renders_download_cards(monkeypatch):
   assert f"{expected_count}+" in html
   assert html.count(
     '<a class="nav-cta text-button notes-sampler-card__cta"') == len(
-      base_category_ids + extra_category_ids)
+      base_category_ids)
+  assert html.count(
+    '<a class="nav-cta text-button notes-download-card__cta"') == len(
+      extra_category_ids)
   assert html.count(
     'data-analytics-event="web_notes_download_click"') == len(
       base_category_ids)
@@ -80,11 +83,13 @@ def test_notes_page_renders_download_cards(monkeypatch):
       extra_category_ids)
   assert 'href="#notes-signin-form-title"' in html
   assert html.count(
-    '<article class="notes-sampler-card"') == len(base_category_ids +
-                                                   extra_category_ids)
+    '<article class="notes-sampler-card"') == len(base_category_ids)
   assert html.count(
-    '<h3 class="notes-sampler-card__title') == len(base_category_ids +
-                                                    extra_category_ids)
+    '<article class="notes-download-card"') == len(extra_category_ids)
+  assert html.count(
+    '<h3 class="notes-sampler-card__title') == len(base_category_ids)
+  assert html.count(
+    '<h3 class="notes-download-card__title') == len(extra_category_ids)
   assert 'target="_blank"' in html
   assert 'rel="noopener noreferrer"' in html
   assert 'sendSignInLinkToEmail' in html

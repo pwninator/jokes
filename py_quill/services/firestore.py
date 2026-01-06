@@ -918,13 +918,14 @@ def _initialize_user_in_transaction(
   Returns:
       bool: True if a new document was created, False otherwise.
   """
+  if not email:
+    # Don't initialize for users with no email
+    return False
+
   user_ref = db().collection('users').document(user_id_internal)
   snapshot = user_ref.get(transaction=transaction)
 
   if snapshot.exists:
-    logger.info(
-      f"User document already exists for {user_id_internal}, skipping creation."
-    )
     return False  # Indicate no creation happened
 
   # Data to set, include email if provided

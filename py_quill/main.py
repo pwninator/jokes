@@ -34,7 +34,7 @@ def initialize():
 dummy_endpoint = dummy_fns.dummy_endpoint
 
 # Export the user functions
-on_user_created = user_fns.on_user_created
+on_user_signin = user_fns.on_user_signin
 initialize_user_http = user_fns.initialize_user_http
 
 # Export the book functions

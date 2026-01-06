@@ -52,7 +52,7 @@
     <h2 class="text-section-heading" id="lunchbox-lead-title">Want even more jokes?</h2>
   </header>
   <div class="lunchbox-lead-card">
-    <form class="lunchbox-form" method="post" action="{{ url_for('web.lunchbox') }}">
+    <form class="lunchbox-form" method="post" action="{{ url_for('web.lunchbox') }}" data-notes-auth-form>
       <h2 class="text-section-heading lunchbox-section-title" id="lunchbox-form-title">Unlock the Full Snickerdoodle Collection
       </h2>
       <p class="text-body lunchbox-text">Access {{ total_sheet_count }}+ themed sheets totally free! Enter your email below and we'll send a
@@ -64,10 +64,13 @@
           aria-describedby="lunchbox-privacy" />
       </div>
 
-      <button class="nav-cta text-button lunchbox-submit" type="submit" data-analytics-event="web_lunchbox_submit_click"
-        data-analytics-label="lunchbox">
+      <button class="nav-cta text-button lunchbox-submit" id="lunchbox-submit" type="submit"
+        data-analytics-event="web_lunchbox_submit_click" data-analytics-label="lunchbox">
         Send Me My Access Link!
       </button>
+
+      <div id="lunchbox-error" class="form-error" role="alert"></div>
+      <p id="lunchbox-status" class="text-body lunchbox-text" role="status" aria-live="polite" style="display:none"></p>
 
       {% if error_message %}
       <p class="text-body lunchbox-text" role="alert">{{ error_message }}</p>
@@ -98,4 +101,209 @@
   </div>
 </section>
 {% endif %}
+{% endblock %}
+
+{% block extra_scripts %}
+<script type="module">
+  const firebaseConfig = {{ firebase_config | tojson }};
+  const emailLinkUrl = {{ email_link_url | tojson }};
+  const form = document.querySelector('[data-notes-auth-form]');
+  const emailInput = document.getElementById('lunchbox-email');
+  const submitButton = document.getElementById('lunchbox-submit');
+  const errorEl = document.getElementById('lunchbox-error');
+  const statusEl = document.getElementById('lunchbox-status');
+  const storageKey = 'snickerdoodle_notes_email';
+  const submitLabel = submitButton ? submitButton.textContent : '';
+  let firebasePromise = null;
+
+  function showError(message) {
+    if (statusEl) {
+      statusEl.style.display = 'none';
+    }
+    if (errorEl) {
+      errorEl.textContent = message;
+      errorEl.style.display = 'block';
+    }
+  }
+
+  function showStatus(message) {
+    if (errorEl) {
+      errorEl.style.display = 'none';
+    }
+    if (statusEl) {
+      statusEl.textContent = message;
+      statusEl.style.display = 'block';
+    }
+  }
+
+  function friendlyAuthMessage(error, fallback) {
+    if (!error) {
+      return fallback;
+    }
+    const code = error.code || '';
+    switch (code) {
+      case 'auth/invalid-email':
+      case 'auth/missing-email':
+        return 'Please enter a valid email address.';
+      case 'auth/too-many-requests':
+        return 'Too many attempts. Please wait a moment and try again.';
+      case 'auth/network-request-failed':
+        return 'Network error. Please check your connection and try again.';
+      case 'auth/user-disabled':
+        return 'This account has been disabled. Please contact support.';
+      default:
+        return fallback;
+    }
+  }
+
+  function clearMessages() {
+    if (errorEl) {
+      errorEl.style.display = 'none';
+    }
+    if (statusEl) {
+      statusEl.style.display = 'none';
+    }
+  }
+
+  function setLoading(isLoading) {
+    if (!submitButton) {
+      return;
+    }
+    submitButton.disabled = isLoading;
+    submitButton.textContent = isLoading ? 'Sending...' : submitLabel;
+  }
+
+  async function loadFirebase() {
+    if (!firebaseConfig || !firebaseConfig.apiKey) {
+      throw new Error('Firebase is not configured.');
+    }
+    if (!firebasePromise) {
+      firebasePromise = (async () => {
+        const appModule = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js');
+        const authModule = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js');
+
+        const initializedApp = appModule.getApps().length
+          ? appModule.getApp()
+          : appModule.initializeApp(firebaseConfig);
+        const auth = authModule.getAuth(initializedApp);
+        auth.languageCode = 'en';
+        return { authModule, auth };
+      })();
+    }
+    return firebasePromise;
+  }
+
+  async function sendAccessLink(email) {
+    const { authModule, auth } = await loadFirebase();
+    const actionCodeSettings = {
+      url: emailLinkUrl,
+      handleCodeInApp: true,
+    };
+    try {
+      window.localStorage.setItem(storageKey, email);
+    } catch (err) {
+      // localStorage may be disabled; continue without it.
+    }
+    await authModule.sendSignInLinkToEmail(auth, email, actionCodeSettings);
+  }
+
+  async function completeSignInFromLink() {
+    const { authModule, auth } = await loadFirebase();
+    const currentUrl = window.location.href;
+    if (!authModule.isSignInWithEmailLink(auth, currentUrl)) {
+      return;
+    }
+
+    let email = null;
+    try {
+      email = window.localStorage.getItem(storageKey);
+    } catch (err) {
+      email = null;
+    }
+    if (!email) {
+      email = window.prompt('Please confirm your email to finish signing in.');
+    }
+    if (!email) {
+      showError('Please enter your email to finish signing in.');
+      return;
+    }
+
+    try {
+      const result = await authModule.signInWithEmailLink(auth, email, currentUrl);
+      try {
+        window.localStorage.removeItem(storageKey);
+      } catch (err) {
+        // Ignore storage cleanup errors.
+      }
+      const idToken = await result.user.getIdToken(true);
+      const response = await fetch('/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ idToken }),
+      });
+      if (!response.ok) {
+        throw new Error('Unable to finish signing in. Please request a new link.');
+      }
+
+      try {
+        await authModule.signOut(auth);
+      } catch (signOutErr) {
+        console.warn('Failed to sign out Firebase Auth session', signOutErr); // eslint-disable-line no-console
+      }
+
+      showStatus('Access unlocked! You can download all joke packs below.');
+      const cleanUrl = window.location.origin + window.location.pathname + window.location.hash;
+      window.history.replaceState({}, document.title, cleanUrl);
+    } catch (err) {
+      console.error('Email link sign-in failed', err); // eslint-disable-line no-console
+      showError(friendlyAuthMessage(
+        err,
+        'Unable to sign you in. Please request a new access link.',
+      ));
+    }
+  }
+
+  if (form) {
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      clearMessages();
+
+      if (!emailInput) {
+        showError('Email input missing. Please refresh and try again.');
+        return;
+      }
+
+      if (!emailInput.checkValidity()) {
+        emailInput.reportValidity();
+        showError('Please enter a valid email address.');
+        return;
+      }
+
+      const email = emailInput.value.trim().toLowerCase();
+      if (!email) {
+        showError('Please enter a valid email address.');
+        return;
+      }
+
+      setLoading(true);
+      try {
+        await sendAccessLink(email);
+        showStatus('Check your inbox for your access link.');
+      } catch (err) {
+        console.error('Failed to send access link', err); // eslint-disable-line no-console
+        showError(friendlyAuthMessage(
+          err,
+          'Unable to send link. Please try again.',
+        ));
+      } finally {
+        setLoading(false);
+      }
+    });
+  }
+
+  completeSignInFromLink().catch((err) => {
+    console.error('Failed to initialize email link sign-in', err); // eslint-disable-line no-console
+  });
+</script>
 {% endblock %}

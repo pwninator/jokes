@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from common import models
+from common import config, models
 from services import cloud_storage
 from web.app import app
 from web.routes import notes as notes_routes
@@ -45,10 +45,18 @@ def test_notes_page_renders_download_cards(monkeypatch):
     notes_routes.firestore,
     "get_all_joke_categories",
     lambda: [
-      models.JokeCategory(display_name="Dogs", id="dogs"),
-      models.JokeCategory(display_name="Cats", id="cats"),
-      models.JokeCategory(display_name=extra_categories["space"], id="space"),
-      models.JokeCategory(display_name=extra_categories["ocean"], id="ocean"),
+      models.JokeCategory(display_name="Dogs", id="dogs", state="APPROVED"),
+      models.JokeCategory(display_name="Cats", id="cats", state="APPROVED"),
+      models.JokeCategory(
+        display_name=extra_categories["space"],
+        id="space",
+        state="APPROVED",
+      ),
+      models.JokeCategory(
+        display_name=extra_categories["ocean"],
+        id="ocean",
+        state="APPROVED",
+      ),
     ],
   )
 
@@ -72,6 +80,9 @@ def test_notes_page_renders_download_cards(monkeypatch):
                                                     extra_category_ids)
   assert 'target="_blank"' in html
   assert 'rel="noopener noreferrer"' in html
+  assert 'sendSignInLinkToEmail' in html
+  assert config.FIREBASE_WEB_CONFIG['projectId'] in html
+  assert f"http://{config.ADMIN_HOST}/notes" in html
   assert f'width="{notes_routes._NOTES_IMAGE_MAX_WIDTH}"' in html
   assert f'height="{notes_routes._NOTES_IMAGE_HEIGHT}"' in html
   for category_id, display_name in extra_categories.items():

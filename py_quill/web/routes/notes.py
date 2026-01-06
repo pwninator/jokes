@@ -6,6 +6,7 @@ import datetime
 
 import flask
 from firebase_functions import logger
+from common import config
 from services import cloud_storage, firestore
 from web.routes import web_bp
 from web.utils.responses import html_response
@@ -163,6 +164,7 @@ def notes():
     })
 
   total_sheet_count = (total_sheet_count // 10) * 10
+  email_link_url = f"http://{config.ADMIN_HOST}/notes"
   html = flask.render_template(
     'notes.html',
     canonical_url=canonical_url,
@@ -177,5 +179,7 @@ def notes():
     total_sheet_count=total_sheet_count,
     notes_image_width=_NOTES_IMAGE_MAX_WIDTH,
     notes_image_height=_NOTES_IMAGE_HEIGHT,
+    firebase_config=config.FIREBASE_WEB_CONFIG,
+    email_link_url=email_link_url,
   )
   return html_response(html, cache_seconds=300, cdn_seconds=1200)

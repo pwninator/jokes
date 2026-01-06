@@ -187,6 +187,21 @@ def get_joke_sheets_by_category(category_id: str) -> list[models.JokeSheet]:
   ]
 
 
+def delete_joke_sheet(sheet_id: str) -> bool:
+  """Delete a joke sheet by Firestore document id."""
+  sheet_id = (sheet_id or "").strip()
+  if not sheet_id:
+    return False
+
+  doc_ref = db().collection("joke_sheets").document(sheet_id)
+  snapshot = doc_ref.get()
+  if not getattr(snapshot, "exists", False):
+    return False
+
+  doc_ref.delete()
+  return True
+
+
 def get_all_punny_jokes() -> list[models.PunnyJoke]:
   """Get all punny jokes from the 'jokes' collection."""
   docs = db().collection('jokes').stream()

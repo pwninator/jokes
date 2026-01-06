@@ -1442,10 +1442,8 @@ class CreateJokeNotesSheetImageTest(unittest.TestCase):
   """Tests for create_joke_notes_sheet_image function."""
 
   @patch('common.joke_notes_sheet_operations.requests.get')
-  @patch('common.joke_notes_sheet_operations.firestore')
   @patch('common.joke_notes_sheet_operations.cloud_storage')
-  def test_create_joke_notes_sheet_image(self, mock_storage, mock_firestore,
-                                         mock_requests_get):
+  def test_create_joke_notes_sheet_image(self, mock_storage, mock_requests_get):
     template_image = Image.new('RGBA', (3300, 2550), (255, 0, 0, 128))
     template_buffer = BytesIO()
     template_image.save(template_buffer, format='PNG')
@@ -1455,10 +1453,22 @@ class CreateJokeNotesSheetImageTest(unittest.TestCase):
     mock_requests_get.return_value = mock_response
 
     # Mock joke data
-    mock_joke = Mock(spec=models.PunnyJoke)
-    mock_joke.setup_image_url = 'http://test/setup.jpg'
-    mock_joke.punchline_image_url = 'http://test/punchline.jpg'
-    mock_firestore.get_punny_joke.return_value = mock_joke
+    jokes = [
+      models.PunnyJoke(
+        key='joke1',
+        setup_text='Setup 1',
+        punchline_text='Punchline 1',
+        setup_image_url='http://test/setup.jpg',
+        punchline_image_url='http://test/punchline.jpg',
+      ),
+      models.PunnyJoke(
+        key='joke2',
+        setup_text='Setup 2',
+        punchline_text='Punchline 2',
+        setup_image_url='http://test/setup.jpg',
+        punchline_image_url='http://test/punchline.jpg',
+      ),
+    ]
 
     # Mock image downloads
     mock_img = Image.new('RGB', (100, 100), 'blue')
@@ -1466,8 +1476,7 @@ class CreateJokeNotesSheetImageTest(unittest.TestCase):
     mock_storage.extract_gcs_uri_from_image_url.return_value = 'gs://test/img.jpg'
 
     # Run function
-    ids = ['joke1', 'joke2']
-    result = joke_notes_sheet_operations._create_joke_notes_sheet_image(ids)
+    result = joke_notes_sheet_operations._create_joke_notes_sheet_image(jokes)
 
     # Verify result is a PIL image
     self.assertIsInstance(result, Image.Image)
@@ -1475,7 +1484,6 @@ class CreateJokeNotesSheetImageTest(unittest.TestCase):
     self.assertEqual(result.mode, 'RGB')
 
     # Verify calls
-    self.assertEqual(mock_firestore.get_punny_joke.call_count, 2)
     # 2 jokes * 2 images = 4 downloads
     self.assertEqual(mock_storage.download_image_from_gcs.call_count, 4)
     mock_requests_get.assert_called_once_with(
@@ -1506,17 +1514,22 @@ class CreateJokeNotesSheetTest(unittest.TestCase):
     mock_create_pdf.return_value = b'pdf-bytes'
     mock_gcs_file_exists.return_value = False
 
-    joke_ids = ['joke1']
+    jokes = [
+      models.PunnyJoke(
+        key='joke1',
+        setup_text='Setup',
+        punchline_text='Punchline',
+        num_saved_users_fraction=0.4,
+      ),
+    ]
 
     def _echo_sheet(sheet):
       sheet.key = "sheet-1"
       return sheet
 
     mock_upsert_joke_sheet.side_effect = _echo_sheet
-    result = joke_notes_sheet_operations.get_joke_notes_sheet(
-      joke_ids,
-      quality=42,
-    )
+    result = joke_notes_sheet_operations.ensure_joke_notes_sheet(jokes,
+                                                                 quality=42)
 
     expected_hash_source = 'joke1|quality=42'
     expected_stem = hashlib.sha256(
@@ -1538,12 +1551,13 @@ class CreateJokeNotesSheetTest(unittest.TestCase):
     # Firestore upsert receives the sheet object.
     self.assertEqual(mock_upsert_joke_sheet.call_count, 1)
     upserted_sheet = mock_upsert_joke_sheet.call_args[0][0]
-    self.assertEqual(upserted_sheet.joke_ids, joke_ids)
+    self.assertEqual(upserted_sheet.joke_ids, ['joke1'])
     self.assertIsNone(upserted_sheet.category_id)
     self.assertEqual(upserted_sheet.pdf_gcs_uri, expected_pdf_gcs_uri)
     self.assertEqual(upserted_sheet.image_gcs_uri, expected_image_gcs_uri)
+    self.assertAlmostEqual(upserted_sheet.avg_saved_users_fraction, 0.4)
 
-    mock_create_image.assert_called_once_with(joke_ids)
+    mock_create_image.assert_called_once_with(jokes)
     mock_create_pdf.assert_called_once_with([notes_image], quality=42)
     # Two uploads: PNG and PDF.
     self.assertEqual(mock_upload_bytes.call_count, 2)
@@ -1577,8 +1591,23 @@ class CreateJokeNotesSheetTest(unittest.TestCase):
 
     mock_upsert_joke_sheet.side_effect = _echo_sheet
 
-    result = joke_notes_sheet_operations.get_joke_notes_sheet(
-      ['b', 'a'],
+    jokes = [
+      models.PunnyJoke(
+        key='b',
+        setup_text='Setup',
+        punchline_text='Punchline',
+        num_saved_users_fraction=0.2,
+      ),
+      models.PunnyJoke(
+        key='a',
+        setup_text='Setup',
+        punchline_text='Punchline',
+        num_saved_users_fraction=0.6,
+      ),
+    ]
+
+    result = joke_notes_sheet_operations.ensure_joke_notes_sheet(
+      jokes,
       quality=42,
     )
 
@@ -1591,6 +1620,7 @@ class CreateJokeNotesSheetTest(unittest.TestCase):
     self.assertEqual(result.pdf_gcs_uri, expected_pdf_gcs_uri)
     self.assertEqual(result.image_gcs_uri, expected_image_gcs_uri)
     self.assertEqual(result.key, "sheet-1")
+    self.assertAlmostEqual(result.avg_saved_users_fraction, 0.4)
 
     self.assertEqual(mock_gcs_file_exists.call_count, 2)
     mock_gcs_file_exists.assert_any_call(expected_pdf_gcs_uri)

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 from firebase_functions import https_fn, options
-from common import joke_notes_sheet_operations
+from common import joke_notes_sheet_operations, models
 from services import cloud_storage, firestore
 from google.cloud.firestore import FieldFilter
 
@@ -25,19 +25,19 @@ def dummy_endpoint(req: https_fn.Request) -> https_fn.Response:
     filter=FieldFilter("setup_image_url", ">", "")).limit(20)
   docs = query.stream()
 
-  joke_ids = []
+  jokes: list[models.PunnyJoke] = []
   for doc in docs:
-    data = doc.to_dict()
+    data = doc.to_dict() or {}
     # Ensure it also has a punchline image
     if data.get('punchline_image_url'):
-      joke_ids.append(doc.id)
-    if len(joke_ids) >= 6:
+      jokes.append(models.PunnyJoke.from_firestore_dict(data, key=doc.id))
+    if len(jokes) >= 6:
       break
 
-  if not joke_ids:
+  if not jokes:
     return https_fn.Response("No valid jokes found", status=404)
 
-  sheet = joke_notes_sheet_operations.get_joke_notes_sheet(joke_ids)
+  sheet = joke_notes_sheet_operations.ensure_joke_notes_sheet(jokes)
 
   if not sheet.pdf_gcs_uri:
     return https_fn.Response("Sheet PDF URI missing", status=500)

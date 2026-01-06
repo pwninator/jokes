@@ -13,12 +13,12 @@ from services import cloud_storage, firestore, pdf_client
 
 _JOKE_NOTES_OVERLAY_URL = "https://images.quillsstorybook.com/cdn-cgi/image/format=png,quality=100/_joke_assets/lunchbox/lunchbox_notes_template.png"
 
-_PDF_DIR_GCS_URI = f"gs://{config.TEMP_FILE_BUCKET_NAME}/joke_notes_sheets"
+_PDF_DIR_GCS_URI = f"gs://{config.PUBLIC_FILE_BUCKET_NAME}/joke_notes_sheets"
 _IMAGE_DIR_GCS_URI = f"gs://{config.IMAGE_BUCKET_NAME}/joke_notes_sheets"
 
 
-def get_joke_notes_sheet(
-  joke_ids: list[str],
+def ensure_joke_notes_sheet(
+  jokes: list[models.PunnyJoke],
   *,
   quality: int = 80,
   category_id: str | None = None,
@@ -29,7 +29,9 @@ def get_joke_notes_sheet(
   - The Firestore doc is unique by joke IDs only (sorted `joke_str`).
   - The asset filenames include `quality`, so subsequent calls with different
     quality will overwrite the stored URIs on the same Firestore doc.
+  - The saved-users fraction is averaged across the supplied jokes.
   """
+  joke_ids = [joke.key for joke in jokes if joke.key]
   filename_base = _generate_file_stem(joke_ids, quality=quality)
   pdf_gcs_uri = f"{_PDF_DIR_GCS_URI}/{filename_base}.pdf"
   image_gcs_uri = f"{_IMAGE_DIR_GCS_URI}/{filename_base}.png"
@@ -38,7 +40,7 @@ def get_joke_notes_sheet(
   image_exists = cloud_storage.gcs_file_exists(image_gcs_uri)
 
   if not (pdf_exists and image_exists):
-    notes_image = _create_joke_notes_sheet_image(joke_ids)
+    notes_image = _create_joke_notes_sheet_image(jokes)
 
     if not image_exists:
       image_bytes = _encode_png(notes_image)
@@ -61,6 +63,7 @@ def get_joke_notes_sheet(
     category_id=category_id,
     image_gcs_uri=image_gcs_uri,
     pdf_gcs_uri=pdf_gcs_uri,
+    avg_saved_users_fraction=_average_saved_users_fraction(jokes),
   )
   return firestore.upsert_joke_sheet(sheet)
 
@@ -83,21 +86,22 @@ def _encode_png(image: Image.Image) -> bytes:
   return buf.getvalue()
 
 
-def _create_joke_notes_sheet_image(joke_ids: list[str]) -> Image.Image:
+def _create_joke_notes_sheet_image(
+  jokes: list[models.PunnyJoke], ) -> Image.Image:
   """Creates a printable sheet of joke notes with setup and punchline images.
 
-  The output is a 3300x2550 image containing up to 6 jokes
+  The output is a 3300x2550 image containing up to 5 jokes
   arranged in a 2x3 grid. Each joke consists of the punchline image on the
   left and the setup image on the right.
 
   Args:
-    joke_ids: List of joke IDs to include (max 6).
+    jokes: List of jokes to include (max 5).
 
   Returns:
     PIL Image for the composed notes sheet.
   """
-  if len(joke_ids) > 5:
-    joke_ids = joke_ids[:5]
+  if len(jokes) > 5:
+    jokes = jokes[:5]
 
   # Canvas dimensions
   canvas_width = 3300
@@ -111,7 +115,7 @@ def _create_joke_notes_sheet_image(joke_ids: list[str]) -> Image.Image:
   # Create blank white canvas
   canvas = Image.new('RGB', (canvas_width, canvas_height), (255, 255, 255))
 
-  for i, joke_id in enumerate(joke_ids):
+  for i, joke in enumerate(jokes):
     # Calculate position
     col = i % 2
     row = i // 2
@@ -119,12 +123,7 @@ def _create_joke_notes_sheet_image(joke_ids: list[str]) -> Image.Image:
     x_offset = margin + (col * joke_width)
     y_offset = margin + (row * joke_height)
 
-    # Fetch joke
-    joke = firestore.get_punny_joke(joke_id)
-    if not joke:
-      logger.warn(f"Joke {joke_id} not found, skipping in notes sheet.")
-      continue
-
+    joke_id = joke.key or f"index-{i}"
     setup_url = joke.setup_image_url
     punchline_url = joke.punchline_image_url
 
@@ -171,3 +170,16 @@ def _create_joke_notes_sheet_image(joke_ids: list[str]) -> Image.Image:
     logger.error(f"Error loading joke notes template: {exc}")
 
   return canvas
+
+
+def _average_saved_users_fraction(jokes: list[models.PunnyJoke]) -> float:
+  """Compute the average saved-users fraction across the provided jokes."""
+  if not jokes:
+    return 0.0
+  total = 0.0
+  for joke in jokes:
+    try:
+      total += float(joke.num_saved_users_fraction or 0.0)
+    except (TypeError, ValueError):
+      total += 0.0
+  return total / len(jokes)

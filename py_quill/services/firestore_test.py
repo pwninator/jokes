@@ -537,6 +537,7 @@ def test_upsert_joke_sheet_returns_existing_doc_id(monkeypatch):
     "category_id": None,
     "image_gcs_uri": None,
     "pdf_gcs_uri": None,
+    "avg_saved_users_fraction": 0.0,
   }
 
 
@@ -587,6 +588,7 @@ def test_upsert_joke_sheet_creates_when_missing(monkeypatch):
     "category_id": None,
     "image_gcs_uri": None,
     "pdf_gcs_uri": None,
+    "avg_saved_users_fraction": 0.0,
   }
 
 
@@ -618,6 +620,7 @@ def test_upsert_joke_sheet_skips_when_unchanged(monkeypatch):
         "category_id": None,
         "image_gcs_uri": None,
         "pdf_gcs_uri": None,
+        "avg_saved_users_fraction": 0.0,
       }
 
   class DummyQuery:
@@ -722,7 +725,78 @@ def test_upsert_joke_sheet_writes_category_id(monkeypatch):
     "category_id": "cats",
     "image_gcs_uri": "gs://tmp/joke_notes_sheets/abc.png",
     "pdf_gcs_uri": "gs://tmp/joke_notes_sheets/abc.pdf",
+    "avg_saved_users_fraction": 0.0,
   }
+
+
+def test_delete_joke_sheet_deletes_when_exists(monkeypatch):
+  from services import firestore as fs
+
+  captured = {"deleted": False}
+
+  class DummyDocRef:
+
+    def get(self):
+
+      class Snapshot:
+        exists = True
+
+      return Snapshot()
+
+    def delete(self):
+      captured["deleted"] = True
+
+  class DummyCol:
+
+    def document(self, _id):
+      return DummyDocRef()
+
+  class DummyDB:
+
+    def collection(self, name):
+      assert name == "joke_sheets"
+      return DummyCol()
+
+  monkeypatch.setattr(fs, "db", DummyDB)
+
+  result = fs.delete_joke_sheet("sheet-1")
+  assert result is True
+  assert captured["deleted"] is True
+
+
+def test_delete_joke_sheet_returns_false_when_missing(monkeypatch):
+  from services import firestore as fs
+
+  captured = {"deleted": False}
+
+  class DummyDocRef:
+
+    def get(self):
+
+      class Snapshot:
+        exists = False
+
+      return Snapshot()
+
+    def delete(self):
+      captured["deleted"] = True
+
+  class DummyCol:
+
+    def document(self, _id):
+      return DummyDocRef()
+
+  class DummyDB:
+
+    def collection(self, name):
+      assert name == "joke_sheets"
+      return DummyCol()
+
+  monkeypatch.setattr(fs, "db", DummyDB)
+
+  result = fs.delete_joke_sheet("sheet-1")
+  assert result is False
+  assert captured["deleted"] is False
 
 
 def test_upsert_joke_user_usage_insert(monkeypatch):

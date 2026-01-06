@@ -50,7 +50,11 @@ def notes():
       continue
 
     valid_sheets.sort(
-      key=lambda sheet: (sheet.key or "", sheet.joke_str or ""))
+      key=lambda sheet: (
+        -(sheet.avg_saved_users_fraction or 0.0),
+        sheet.key or "",
+        sheet.joke_str or "",
+      ))
     sheet = valid_sheets[0]
     try:
       pdf_url = cloud_storage.get_public_cdn_url(sheet.pdf_gcs_uri or "")

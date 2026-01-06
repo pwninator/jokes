@@ -678,17 +678,21 @@ def test_ensure_category_joke_sheets_skips_when_under_5(monkeypatch):
   monkeypatch.setattr("services.firestore.get_joke_sheets_by_category",
                       lambda _category_id: [])
 
-  def fake_get_sheet(joke_ids, *, category_id=None, quality=80):  # pylint: disable=unused-argument
-    calls.append({"joke_ids": list(joke_ids), "category_id": category_id})
+  def fake_get_sheet(jokes, *, category_id=None, quality=80):  # pylint: disable=unused-argument
+    calls.append({
+      "joke_ids": [j.key for j in jokes if j.key],
+      "category_id": category_id
+    })
     return models.JokeSheet(
-      joke_ids=list(joke_ids),
+      joke_ids=[j.key for j in jokes if j.key],
       category_id=category_id,
       image_gcs_uri="gs://bucket/file.png",
       pdf_gcs_uri="gs://bucket/file.pdf",
     )
 
   monkeypatch.setattr(
-    "common.joke_notes_sheet_operations.get_joke_notes_sheet", fake_get_sheet)
+    "common.joke_notes_sheet_operations.ensure_joke_notes_sheet",
+    fake_get_sheet)
 
   joke_category_operations._ensure_category_joke_sheets(  # pylint: disable=protected-access
     "cats",
@@ -703,17 +707,21 @@ def test_ensure_category_joke_sheets_creates_full_batches_only(monkeypatch):
   monkeypatch.setattr("services.firestore.get_joke_sheets_by_category",
                       lambda _category_id: [])
 
-  def fake_get_sheet(joke_ids, *, category_id=None, quality=80):  # pylint: disable=unused-argument
-    calls.append({"joke_ids": list(joke_ids), "category_id": category_id})
+  def fake_get_sheet(jokes, *, category_id=None, quality=80):  # pylint: disable=unused-argument
+    calls.append({
+      "joke_ids": [j.key for j in jokes if j.key],
+      "category_id": category_id
+    })
     return models.JokeSheet(
-      joke_ids=list(joke_ids),
+      joke_ids=[j.key for j in jokes if j.key],
       category_id=category_id,
       image_gcs_uri="gs://bucket/file.png",
       pdf_gcs_uri="gs://bucket/file.pdf",
     )
 
   monkeypatch.setattr(
-    "common.joke_notes_sheet_operations.get_joke_notes_sheet", fake_get_sheet)
+    "common.joke_notes_sheet_operations.ensure_joke_notes_sheet",
+    fake_get_sheet)
 
   joke_category_operations._ensure_category_joke_sheets(  # pylint: disable=protected-access
     "cats",
@@ -741,17 +749,21 @@ def test_ensure_category_joke_sheets_respects_existing_coverage(monkeypatch):
   monkeypatch.setattr("services.firestore.get_joke_sheets_by_category",
                       lambda _category_id: existing)
 
-  def fake_get_sheet(joke_ids, *, category_id=None, quality=80):  # pylint: disable=unused-argument
-    calls.append({"joke_ids": list(joke_ids), "category_id": category_id})
+  def fake_get_sheet(jokes, *, category_id=None, quality=80):  # pylint: disable=unused-argument
+    calls.append({
+      "joke_ids": [j.key for j in jokes if j.key],
+      "category_id": category_id
+    })
     return models.JokeSheet(
-      joke_ids=list(joke_ids),
+      joke_ids=[j.key for j in jokes if j.key],
       category_id=category_id,
       image_gcs_uri="gs://bucket/file.png",
       pdf_gcs_uri="gs://bucket/file.pdf",
     )
 
   monkeypatch.setattr(
-    "common.joke_notes_sheet_operations.get_joke_notes_sheet", fake_get_sheet)
+    "common.joke_notes_sheet_operations.ensure_joke_notes_sheet",
+    fake_get_sheet)
 
   joke_category_operations._ensure_category_joke_sheets(  # pylint: disable=protected-access
     "cats",
@@ -766,6 +778,106 @@ def test_ensure_category_joke_sheets_respects_existing_coverage(monkeypatch):
     },
     {
       "joke_ids": ["j6", "j7", "j8", "j9", "j10"],
+      "category_id": "cats",
+    },
+  ]
+
+
+def test_ensure_category_joke_sheets_deletes_invalid_sheet(monkeypatch):
+  calls: list[dict] = []
+  deleted: list[str] = []
+
+  existing = [
+    models.JokeSheet(
+      key="s1",
+      joke_str="j1,j2,jx",
+      joke_ids=["j1", "j2", "jx"],
+      category_id="cats",
+    )
+  ]
+  monkeypatch.setattr("services.firestore.get_joke_sheets_by_category",
+                      lambda _category_id: existing)
+  monkeypatch.setattr("services.firestore.delete_joke_sheet",
+                      lambda sheet_id: deleted.append(sheet_id) or True)
+
+  def fake_get_sheet(jokes, *, category_id=None, quality=80):  # pylint: disable=unused-argument
+    calls.append({
+      "joke_ids": [j.key for j in jokes if j.key],
+      "category_id": category_id
+    })
+    return models.JokeSheet(
+      joke_ids=[j.key for j in jokes if j.key],
+      category_id=category_id,
+      image_gcs_uri="gs://bucket/file.png",
+      pdf_gcs_uri="gs://bucket/file.pdf",
+    )
+
+  monkeypatch.setattr(
+    "common.joke_notes_sheet_operations.ensure_joke_notes_sheet",
+    fake_get_sheet)
+
+  joke_category_operations._ensure_category_joke_sheets(  # pylint: disable=protected-access
+    "cats",
+    _make_jokes(5),
+  )
+
+  assert deleted == ["s1"]
+  assert calls == [
+    {
+      "joke_ids": ["j1", "j2", "j3", "j4", "j5"],
+      "category_id": "cats",
+    },
+  ]
+
+
+def test_ensure_category_joke_sheets_deletes_non_five_id_sheets(monkeypatch):
+  calls: list[dict] = []
+  deleted: list[str] = []
+
+  existing = [
+    models.JokeSheet(
+      key="s1",
+      joke_str="j1,j2,j3,j4",
+      joke_ids=["j1", "j2", "j3", "j4"],
+      category_id="cats",
+    ),
+    models.JokeSheet(
+      key="s2",
+      joke_str="",
+      joke_ids=[],
+      category_id="cats",
+    ),
+  ]
+  monkeypatch.setattr("services.firestore.get_joke_sheets_by_category",
+                      lambda _category_id: existing)
+  monkeypatch.setattr("services.firestore.delete_joke_sheet",
+                      lambda sheet_id: deleted.append(sheet_id) or True)
+
+  def fake_get_sheet(jokes, *, category_id=None, quality=80):  # pylint: disable=unused-argument
+    calls.append({
+      "joke_ids": [j.key for j in jokes if j.key],
+      "category_id": category_id
+    })
+    return models.JokeSheet(
+      joke_ids=[j.key for j in jokes if j.key],
+      category_id=category_id,
+      image_gcs_uri="gs://bucket/file.png",
+      pdf_gcs_uri="gs://bucket/file.pdf",
+    )
+
+  monkeypatch.setattr(
+    "common.joke_notes_sheet_operations.ensure_joke_notes_sheet",
+    fake_get_sheet)
+
+  joke_category_operations._ensure_category_joke_sheets(  # pylint: disable=protected-access
+    "cats",
+    _make_jokes(5),
+  )
+
+  assert sorted(deleted) == ["s1", "s2"]
+  assert calls == [
+    {
+      "joke_ids": ["j1", "j2", "j3", "j4", "j5"],
       "category_id": "cats",
     },
   ]

@@ -645,6 +645,7 @@ class JokeSheet:
   category_id: str | None = None
   image_gcs_uri: str | None = None
   pdf_gcs_uri: str | None = None
+  avg_saved_users_fraction: float = 0.0
 
   def to_dict(self) -> dict:
     """Serialize sheet fields for Firestore writes."""

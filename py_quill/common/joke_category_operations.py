@@ -174,40 +174,67 @@ def _ensure_category_joke_sheets(
   if not category_id:
     return
 
+  jokes_by_id = {j.key: j for j in jokes if j.key}
   existing_sheets = firestore.get_joke_sheets_by_category(category_id)
-  batches: list[list[str]] = [
-    list(sheet.joke_ids) for sheet in existing_sheets if sheet.joke_ids
-  ]
-  covered_ids = {
-    jid
-    for sheet in existing_sheets
-    for jid in sheet.joke_ids if jid
-  }
 
   batch_size = 5
+  batches: list[list[models.PunnyJoke]] = []
+  covered_ids: set[str] = set()
+  for sheet in existing_sheets:
+    batch_jokes = [
+      jokes_by_id[jid] for jid in sheet.joke_ids if jid in jokes_by_id
+    ] if sheet.joke_ids else []
+    batch_joke_ids = {j.key for j in batch_jokes if j.key}
+    if len(sheet.joke_ids) != batch_size or len(batch_joke_ids) != batch_size:
+      _delete_invalid_sheet(sheet, category_id)
+      continue
+
+    batches.append(batch_jokes)
+    covered_ids.update([j.key for j in batch_jokes])
+
   uncovered = [j for j in jokes if j.key and j.key not in covered_ids]
   if len(uncovered) >= batch_size:
     num_complete_batches = len(uncovered) // batch_size
     for i in range(num_complete_batches):
       batch = uncovered[i * batch_size:(i + 1) * batch_size]
-      batch_ids = [j.key for j in batch if j.key]
-      if len(batch_ids) == batch_size:
-        batches.append(batch_ids)
+      if len(batch) == batch_size:
+        batches.append(batch)
 
-  for batch_ids in batches:
-    if not batch_ids:
+  for batch_jokes in batches:
+    if not batch_jokes:
       continue
+
     try:
-      joke_notes_sheet_operations.get_joke_notes_sheet(
-        batch_ids,
+      joke_notes_sheet_operations.ensure_joke_notes_sheet(
+        batch_jokes,
         category_id=category_id,
       )
       logger.info(
-        f"Ensured joke sheet for category {category_id} with {len(batch_ids)} jokes"
+        f"Ensured joke sheet for category {category_id} with {len(batch_jokes)} jokes"
       )
     except Exception as exc:  # pylint: disable=broad-except
       logger.error(
         f"Failed to ensure joke sheet for category {category_id}: {exc}")
+
+
+def _delete_invalid_sheet(sheet: models.JokeSheet, category_id: str) -> None:
+  """Delete invalid joke sheets that do not match the category joke list."""
+  if not sheet.key:
+    return
+  try:
+    firestore.delete_joke_sheet(sheet.key)
+    logger.info(
+      "Deleted invalid joke sheet for category %s: %s",
+      category_id,
+      sheet.key,
+    )
+  except Exception as exc:  # pylint: disable=broad-except
+    logger.error(
+      "Failed deleting invalid joke sheet %s for category %s: %s",
+      sheet.key,
+      category_id,
+      exc,
+    )
 
 
 def search_category_jokes(

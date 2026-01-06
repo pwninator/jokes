@@ -5,9 +5,9 @@
 
 {% block content %}
 <section class="notes-detail" aria-labelledby="notes-detail-title">
-  <h1 class="notes-detail__title text-display" id="notes-detail-title">{{ page_title }}</h1>
+  <h1 class="notes-detail__title text-display" id="notes-detail-title">{{ display_title }}</h1>
   <div class="notes-detail__image">
-    <img src="{{ image_url }}" alt="{{ category_label }} joke notes pack {{ sheet_index }}"
+    <img src="{{ image_url }}" alt="{{ category_label }} joke notes pack {{ sheet_display_index }}"
       width="{{ notes_detail_image_width }}" height="{{ notes_detail_image_height }}" loading="lazy" />
   </div>
   <a class="nav-cta text-button notes-detail__cta" href="{{ pdf_url }}" target="_blank"

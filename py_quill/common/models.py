@@ -649,13 +649,23 @@ class JokeSheet:
   avg_saved_users_fraction: float = 0.0
 
   @property
+  def display_index(self) -> int | None:
+    """Return the 1-based index for display/URLs."""
+    if self.index is None:
+      return None
+    if self.index < 0:
+      return None
+    return self.index + 1
+
+  @property
   def slug(self) -> str | None:
     """Return the URL slug for the joke sheet details page."""
     category_id = (self.category_id or "").strip()
-    if not category_id or self.index is None:
+    display_index = self.display_index
+    if not category_id or display_index is None:
       return None
     category_slug = category_id.replace("_", "-")
-    return f"free-{category_slug}-jokes-{self.index}"
+    return f"free-{category_slug}-jokes-{display_index}"
 
   @staticmethod
   def parse_slug(slug: str) -> tuple[str | None, int | None]:
@@ -670,13 +680,13 @@ class JokeSheet:
     if not category_slug:
       return None, None
     try:
-      index = int(match.group("index"))
+      display_index = int(match.group("index"))
     except (TypeError, ValueError):
       return None, None
-    if index < 0:
+    if display_index <= 0:
       return None, None
     category_id = category_slug.replace("-", "_")
-    return category_id, index
+    return category_id, display_index - 1
 
   def to_dict(self) -> dict:
     """Serialize sheet fields for Firestore writes."""

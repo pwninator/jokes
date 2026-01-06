@@ -243,7 +243,9 @@ def notes_detail(slug: str):
 
   category_label = _category_label(category, category_id) if category else (
     category_id or "")
-  page_title = f"{category_label} Joke Pack {index} (Free PDF)"
+  display_index = sheet.display_index or (index + 1)
+  display_title = f"{category_label} Joke Pack {display_index}"
+  page_title = f"{display_title} (Free PDF)"
   canonical_url = urls.canonical_url(
     flask.url_for('web.notes_detail', slug=canonical_slug))
   now_year = datetime.datetime.now(datetime.timezone.utc).year
@@ -257,7 +259,9 @@ def notes_detail(slug: str):
     category_id=category_id,
     category_label=category_label,
     sheet_index=index,
+    sheet_display_index=display_index,
     sheet_slug=canonical_slug,
+    display_title=display_title,
     page_title=page_title,
     image_url=image_url,
     pdf_url=pdf_url,

@@ -207,7 +207,14 @@ def test_get_minimal_joke_data_with_partial_image_urls():
 
 def test_jokesheet_slug_builds_from_category_and_index():
   sheet = models.JokeSheet(category_id="reptiles_and_dinosaurs", index=2)
-  assert sheet.slug == "free-reptiles-and-dinosaurs-jokes-2"
+  assert sheet.slug == "free-reptiles-and-dinosaurs-jokes-3"
+
+
+def test_jokesheet_display_index_returns_one_based_value():
+  sheet = models.JokeSheet(category_id="cats", index=0)
+  assert sheet.display_index == 1
+  sheet = models.JokeSheet(category_id="cats", index=None)
+  assert sheet.display_index is None
 
 
 def test_jokesheet_slug_none_when_missing_fields():
@@ -219,12 +226,16 @@ def test_jokesheet_slug_none_when_missing_fields():
 
 def test_jokesheet_parse_slug_returns_category_and_index():
   category_id, index = models.JokeSheet.parse_slug(
-    "free-reptiles-and-dinosaurs-jokes-2")
+    "free-reptiles-and-dinosaurs-jokes-3")
   assert category_id == "reptiles_and_dinosaurs"
   assert index == 2
 
 
 def test_jokesheet_parse_slug_rejects_invalid_slug():
   category_id, index = models.JokeSheet.parse_slug("bad-slug")
+  assert category_id is None
+  assert index is None
+  category_id, index = models.JokeSheet.parse_slug(
+    "free-animals-jokes-0")
   assert category_id is None
   assert index is None

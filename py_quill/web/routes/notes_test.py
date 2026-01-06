@@ -104,7 +104,7 @@ def test_notes_page_renders_download_cards(monkeypatch):
   for category_id in active_category_ids:
     assert f'data-analytics-label="{category_id}"' in html
     category_slug = category_id.replace("_", "-")
-    detail_url = f"/notes/free-{category_slug}-jokes-0"
+    detail_url = f"/notes/free-{category_slug}-jokes-1"
     assert detail_url in html
     image_gcs_uri = (
       f"gs://image-bucket/joke_notes_sheets/{category_id}-low.png")
@@ -169,7 +169,7 @@ def test_notes_detail_renders_sheet(monkeypatch):
     key="a-sheet",
     joke_ids=["j1"],
     category_id=category_id,
-    index=1,
+    index=0,
     image_gcs_uri="gs://image-bucket/joke_notes_sheets/animals-a.png",
     pdf_gcs_uri="gs://pdf-bucket/joke_notes_sheets/animals-a.pdf",
     avg_saved_users_fraction=0.1,
@@ -178,7 +178,7 @@ def test_notes_detail_renders_sheet(monkeypatch):
     key="b-sheet",
     joke_ids=["j2"],
     category_id=category_id,
-    index=1,
+    index=0,
     image_gcs_uri="gs://image-bucket/joke_notes_sheets/animals-b.png",
     pdf_gcs_uri="gs://pdf-bucket/joke_notes_sheets/animals-b.pdf",
     avg_saved_users_fraction=0.9,
@@ -202,7 +202,8 @@ def test_notes_detail_renders_sheet(monkeypatch):
 
   assert resp.status_code == 200
   html = resp.get_data(as_text=True)
-  assert "Animals Joke Pack 1 (Free PDF)" in html
+  assert "Animals Joke Pack 1" in html
+  assert "<title>Animals Joke Pack 1 (Free PDF)" in html
   assert urls.canonical_url(f"/notes/{slug}") in html
   assert "Download Free PDF" in html
   image_url = cloud_storage.get_public_image_cdn_url(

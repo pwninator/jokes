@@ -434,15 +434,12 @@ def test_notes_all_renders_categories_and_sheets(monkeypatch):
   assert zany_pos != -1
   assert animals_pos < breezy_pos < zany_pos
 
-  animals_high_pdf = cloud_storage.get_public_cdn_url(
-    "gs://pdf-bucket/joke_notes_sheets/animals-high.pdf")
-  animals_low_pdf = cloud_storage.get_public_cdn_url(
-    "gs://pdf-bucket/joke_notes_sheets/animals-low.pdf")
-  assert html.find(animals_low_pdf) < html.find(animals_high_pdf)
-  assert "animals-invalid.pdf" not in html
+  animals_low_detail = "/notes/free-animals-jokes-1"
+  animals_high_detail = "/notes/free-animals-jokes-2"
+  assert html.find(animals_low_detail) < html.find(animals_high_detail)
+  assert "/notes/free-animals-jokes-3" not in html
 
-  zany_high_pdf = cloud_storage.get_public_cdn_url(
-    "gs://pdf-bucket/joke_notes_sheets/zany-high.pdf")
-  zany_low_pdf = cloud_storage.get_public_cdn_url(
-    "gs://pdf-bucket/joke_notes_sheets/zany-low.pdf")
-  assert html.find(zany_low_pdf) < html.find(zany_high_pdf)
+  zany_low_detail = "/notes/free-zany-jokes-1"
+  zany_high_detail = "/notes/free-zany-jokes-2"
+  assert html.find(zany_low_detail) < html.find(zany_high_detail)
+  assert html.count("View Pack") == 4

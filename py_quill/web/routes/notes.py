@@ -383,8 +383,10 @@ def notes_all():
     sorted_sheets = _sorted_sheets(sheets)
     sheet_cards = []
     for index, sheet in enumerate(sorted_sheets, start=1):
+      sheet_slug = sheet.slug
+      if not sheet_slug:
+        continue
       try:
-        pdf_url = cloud_storage.get_public_cdn_url(sheet.pdf_gcs_uri or "")
         image_url = cloud_storage.get_public_image_cdn_url(
           sheet.image_gcs_uri or "",
           width=_NOTES_IMAGE_MAX_WIDTH,
@@ -401,10 +403,11 @@ def notes_all():
         )
         continue
 
+      detail_url = flask.url_for('web.notes_detail', slug=sheet_slug)
       sheet_cards.append({
         "title": f"Pack {index}",
         "image_url": image_url,
-        "pdf_url": pdf_url,
+        "detail_url": detail_url,
         "sheet_key": sheet.key or "",
       })
 

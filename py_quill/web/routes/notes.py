@@ -23,10 +23,21 @@ def _select_best_sheet(sheets):
 
 
 def _sorted_sheets(sheets):
+  """Return valid sheets ordered by index (if set), then by quality signals.
+
+  Ordering rules:
+  - Only sheets with both image and PDF URIs are included.
+  - Sheets with an integer index sort first, ascending by index.
+  - Unindexed sheets sort after indexed ones, by avg_saved_users_fraction
+    descending.
+  - Ties fall back to sheet key and joke_str for deterministic ordering.
+  """
   valid_sheets = [
     sheet for sheet in sheets if sheet.image_gcs_uri and sheet.pdf_gcs_uri
   ]
   valid_sheets.sort(key=lambda sheet: (
+    0 if isinstance(sheet.index, int) else 1,
+    sheet.index if isinstance(sheet.index, int) else 0,
     -(sheet.avg_saved_users_fraction or 0.0),
     sheet.key or "",
     sheet.joke_str or "",

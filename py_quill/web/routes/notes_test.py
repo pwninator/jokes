@@ -32,6 +32,7 @@ def test_notes_page_renders_download_cards(monkeypatch):
         key=f"{category_id}-low",
         joke_ids=["j1"],
         category_id=category_id,
+        index=0,
         image_gcs_uri=
         f"gs://image-bucket/joke_notes_sheets/{category_id}-low.png",
         pdf_gcs_uri=f"gs://pdf-bucket/joke_notes_sheets/{category_id}-low.pdf",
@@ -41,6 +42,7 @@ def test_notes_page_renders_download_cards(monkeypatch):
         key=f"{category_id}-high",
         joke_ids=["j2"],
         category_id=category_id,
+        index=1,
         image_gcs_uri=
         f"gs://image-bucket/joke_notes_sheets/{category_id}-high.png",
         pdf_gcs_uri=f"gs://pdf-bucket/joke_notes_sheets/{category_id}-high.pdf",
@@ -101,8 +103,8 @@ def test_notes_page_renders_download_cards(monkeypatch):
   for category_id in active_category_ids:
     assert f'data-analytics-label="{category_id}"' in html
     image_gcs_uri = (
-      f"gs://image-bucket/joke_notes_sheets/{category_id}-high.png")
-    pdf_gcs_uri = f"gs://pdf-bucket/joke_notes_sheets/{category_id}-high.pdf"
+      f"gs://image-bucket/joke_notes_sheets/{category_id}-low.png")
+    pdf_gcs_uri = f"gs://pdf-bucket/joke_notes_sheets/{category_id}-low.pdf"
     expected_image_url = cloud_storage.get_public_image_cdn_url(
       image_gcs_uri,
       width=notes_routes._NOTES_IMAGE_MAX_WIDTH,
@@ -111,14 +113,14 @@ def test_notes_page_renders_download_cards(monkeypatch):
     expected_pdf_url = cloud_storage.get_public_cdn_url(pdf_gcs_uri)
     assert expected_pdf_url in html
 
-    low_image_url = cloud_storage.get_public_image_cdn_url(
-      f"gs://image-bucket/joke_notes_sheets/{category_id}-low.png",
+    high_image_url = cloud_storage.get_public_image_cdn_url(
+      f"gs://image-bucket/joke_notes_sheets/{category_id}-high.png",
       width=notes_routes._NOTES_IMAGE_MAX_WIDTH,
     )
-    assert low_image_url not in html
-    low_pdf_url = cloud_storage.get_public_cdn_url(
-      f"gs://pdf-bucket/joke_notes_sheets/{category_id}-low.pdf")
-    assert low_pdf_url not in html
+    assert high_image_url not in html
+    high_pdf_url = cloud_storage.get_public_cdn_url(
+      f"gs://pdf-bucket/joke_notes_sheets/{category_id}-high.pdf")
+    assert high_pdf_url not in html
 
   assert called_categories == active_category_ids
 
@@ -166,6 +168,7 @@ def test_notes_all_renders_categories_and_sheets(monkeypatch):
         key="animals-low",
         joke_ids=["j1"],
         category_id="animals",
+        index=0,
         image_gcs_uri=
         "gs://image-bucket/joke_notes_sheets/animals-low.png",
         pdf_gcs_uri="gs://pdf-bucket/joke_notes_sheets/animals-low.pdf",
@@ -175,6 +178,7 @@ def test_notes_all_renders_categories_and_sheets(monkeypatch):
         key="animals-high",
         joke_ids=["j2"],
         category_id="animals",
+        index=1,
         image_gcs_uri=
         "gs://image-bucket/joke_notes_sheets/animals-high.png",
         pdf_gcs_uri="gs://pdf-bucket/joke_notes_sheets/animals-high.pdf",
@@ -184,6 +188,7 @@ def test_notes_all_renders_categories_and_sheets(monkeypatch):
         key="animals-invalid",
         joke_ids=["j3"],
         category_id="animals",
+        index=2,
         image_gcs_uri=None,
         pdf_gcs_uri="gs://pdf-bucket/joke_notes_sheets/animals-invalid.pdf",
         avg_saved_users_fraction=0.95,
@@ -195,6 +200,7 @@ def test_notes_all_renders_categories_and_sheets(monkeypatch):
         key="zany-low",
         joke_ids=["j4"],
         category_id="zany",
+        index=0,
         image_gcs_uri="gs://image-bucket/joke_notes_sheets/zany-low.png",
         pdf_gcs_uri="gs://pdf-bucket/joke_notes_sheets/zany-low.pdf",
         avg_saved_users_fraction=0.1,
@@ -203,6 +209,7 @@ def test_notes_all_renders_categories_and_sheets(monkeypatch):
         key="zany-high",
         joke_ids=["j5"],
         category_id="zany",
+        index=1,
         image_gcs_uri="gs://image-bucket/joke_notes_sheets/zany-high.png",
         pdf_gcs_uri="gs://pdf-bucket/joke_notes_sheets/zany-high.pdf",
         avg_saved_users_fraction=0.8,
@@ -234,11 +241,11 @@ def test_notes_all_renders_categories_and_sheets(monkeypatch):
     "gs://pdf-bucket/joke_notes_sheets/animals-high.pdf")
   animals_low_pdf = cloud_storage.get_public_cdn_url(
     "gs://pdf-bucket/joke_notes_sheets/animals-low.pdf")
-  assert html.find(animals_high_pdf) < html.find(animals_low_pdf)
+  assert html.find(animals_low_pdf) < html.find(animals_high_pdf)
   assert "animals-invalid.pdf" not in html
 
   zany_high_pdf = cloud_storage.get_public_cdn_url(
     "gs://pdf-bucket/joke_notes_sheets/zany-high.pdf")
   zany_low_pdf = cloud_storage.get_public_cdn_url(
     "gs://pdf-bucket/joke_notes_sheets/zany-low.pdf")
-  assert html.find(zany_high_pdf) < html.find(zany_low_pdf)
+  assert html.find(zany_low_pdf) < html.find(zany_high_pdf)

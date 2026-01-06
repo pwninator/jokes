@@ -643,6 +643,7 @@ class JokeSheet:
   joke_str: str = ""
   joke_ids: list[str] = field(default_factory=list)
   category_id: str | None = None
+  index: int | None = None
   image_gcs_uri: str | None = None
   pdf_gcs_uri: str | None = None
   avg_saved_users_fraction: float = 0.0

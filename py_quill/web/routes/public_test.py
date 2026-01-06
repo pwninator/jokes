@@ -133,7 +133,7 @@ def test_index_page_renders_top_jokes(monkeypatch):
   html = resp.get_data(as_text=True)
   assert 'href="/"' in html
   assert 'Home' in html
-  assert 'href="/lunchbox"' in html
+  assert 'href="/notes"' in html
   assert 'Printable Joke Notes' in html
   # Nav should mark home link active.
   assert 'nav-link--active' in html

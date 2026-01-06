@@ -23,6 +23,10 @@ def flask_app():
   def lunchbox():
     return ''
 
+  @web_bp.route('/notes')
+  def notes():
+    return ''
+
   @web_bp.route('/session-info')
   def session_info():
     return ''

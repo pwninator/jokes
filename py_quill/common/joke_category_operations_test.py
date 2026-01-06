@@ -672,20 +672,36 @@ def _make_jokes(n: int) -> list[models.PunnyJoke]:
   return jokes
 
 
+def _make_jokes_with_fractions(
+    fractions: list[float]) -> list[models.PunnyJoke]:
+  jokes: list[models.PunnyJoke] = []
+  for i, fraction in enumerate(fractions):
+    jokes.append(
+      models.PunnyJoke(
+        key=f"j{i + 1}",
+        setup_text="S",
+        punchline_text="P",
+        num_saved_users_fraction=fraction,
+      ))
+  return jokes
+
+
 def test_ensure_category_joke_sheets_skips_when_under_5(monkeypatch):
   calls: list[dict] = []
 
   monkeypatch.setattr("services.firestore.get_joke_sheets_by_category",
                       lambda _category_id: [])
 
-  def fake_get_sheet(jokes, *, category_id=None, quality=80):  # pylint: disable=unused-argument
+  def fake_get_sheet(jokes, *, category_id=None, quality=80, index=None):  # pylint: disable=unused-argument
     calls.append({
       "joke_ids": [j.key for j in jokes if j.key],
-      "category_id": category_id
+      "category_id": category_id,
+      "index": index,
     })
     return models.JokeSheet(
       joke_ids=[j.key for j in jokes if j.key],
       category_id=category_id,
+      index=index,
       image_gcs_uri="gs://bucket/file.png",
       pdf_gcs_uri="gs://bucket/file.pdf",
     )
@@ -707,14 +723,16 @@ def test_ensure_category_joke_sheets_creates_full_batches_only(monkeypatch):
   monkeypatch.setattr("services.firestore.get_joke_sheets_by_category",
                       lambda _category_id: [])
 
-  def fake_get_sheet(jokes, *, category_id=None, quality=80):  # pylint: disable=unused-argument
+  def fake_get_sheet(jokes, *, category_id=None, quality=80, index=None):  # pylint: disable=unused-argument
     calls.append({
       "joke_ids": [j.key for j in jokes if j.key],
-      "category_id": category_id
+      "category_id": category_id,
+      "index": index,
     })
     return models.JokeSheet(
       joke_ids=[j.key for j in jokes if j.key],
       category_id=category_id,
+      index=index,
       image_gcs_uri="gs://bucket/file.png",
       pdf_gcs_uri="gs://bucket/file.pdf",
     )
@@ -732,6 +750,7 @@ def test_ensure_category_joke_sheets_creates_full_batches_only(monkeypatch):
   assert calls == [{
     "joke_ids": ["j1", "j2", "j3", "j4", "j5"],
     "category_id": "cats",
+    "index": 0,
   }]
 
 
@@ -749,14 +768,16 @@ def test_ensure_category_joke_sheets_respects_existing_coverage(monkeypatch):
   monkeypatch.setattr("services.firestore.get_joke_sheets_by_category",
                       lambda _category_id: existing)
 
-  def fake_get_sheet(jokes, *, category_id=None, quality=80):  # pylint: disable=unused-argument
+  def fake_get_sheet(jokes, *, category_id=None, quality=80, index=None):  # pylint: disable=unused-argument
     calls.append({
       "joke_ids": [j.key for j in jokes if j.key],
-      "category_id": category_id
+      "category_id": category_id,
+      "index": index,
     })
     return models.JokeSheet(
       joke_ids=[j.key for j in jokes if j.key],
       category_id=category_id,
+      index=index,
       image_gcs_uri="gs://bucket/file.png",
       pdf_gcs_uri="gs://bucket/file.pdf",
     )
@@ -775,10 +796,12 @@ def test_ensure_category_joke_sheets_respects_existing_coverage(monkeypatch):
     {
       "joke_ids": ["j1", "j2", "j3", "j4", "j5"],
       "category_id": "cats",
+      "index": 0,
     },
     {
       "joke_ids": ["j6", "j7", "j8", "j9", "j10"],
       "category_id": "cats",
+      "index": 1,
     },
   ]
 
@@ -800,14 +823,16 @@ def test_ensure_category_joke_sheets_deletes_invalid_sheet(monkeypatch):
   monkeypatch.setattr("services.firestore.delete_joke_sheet",
                       lambda sheet_id: deleted.append(sheet_id) or True)
 
-  def fake_get_sheet(jokes, *, category_id=None, quality=80):  # pylint: disable=unused-argument
+  def fake_get_sheet(jokes, *, category_id=None, quality=80, index=None):  # pylint: disable=unused-argument
     calls.append({
       "joke_ids": [j.key for j in jokes if j.key],
-      "category_id": category_id
+      "category_id": category_id,
+      "index": index,
     })
     return models.JokeSheet(
       joke_ids=[j.key for j in jokes if j.key],
       category_id=category_id,
+      index=index,
       image_gcs_uri="gs://bucket/file.png",
       pdf_gcs_uri="gs://bucket/file.pdf",
     )
@@ -826,6 +851,7 @@ def test_ensure_category_joke_sheets_deletes_invalid_sheet(monkeypatch):
     {
       "joke_ids": ["j1", "j2", "j3", "j4", "j5"],
       "category_id": "cats",
+      "index": 0,
     },
   ]
 
@@ -853,14 +879,16 @@ def test_ensure_category_joke_sheets_deletes_non_five_id_sheets(monkeypatch):
   monkeypatch.setattr("services.firestore.delete_joke_sheet",
                       lambda sheet_id: deleted.append(sheet_id) or True)
 
-  def fake_get_sheet(jokes, *, category_id=None, quality=80):  # pylint: disable=unused-argument
+  def fake_get_sheet(jokes, *, category_id=None, quality=80, index=None):  # pylint: disable=unused-argument
     calls.append({
       "joke_ids": [j.key for j in jokes if j.key],
-      "category_id": category_id
+      "category_id": category_id,
+      "index": index,
     })
     return models.JokeSheet(
       joke_ids=[j.key for j in jokes if j.key],
       category_id=category_id,
+      index=index,
       image_gcs_uri="gs://bucket/file.png",
       pdf_gcs_uri="gs://bucket/file.pdf",
     )
@@ -879,5 +907,84 @@ def test_ensure_category_joke_sheets_deletes_non_five_id_sheets(monkeypatch):
     {
       "joke_ids": ["j1", "j2", "j3", "j4", "j5"],
       "category_id": "cats",
+      "index": 0,
+    },
+  ]
+
+
+def test_ensure_category_joke_sheets_assigns_gap_indexes_by_fraction(
+    monkeypatch):
+  calls: list[dict] = []
+
+  existing = [
+    models.JokeSheet(
+      key="s1",
+      joke_str="j1,j2,j3,j4,j5",
+      joke_ids=["j1", "j2", "j3", "j4", "j5"],
+      category_id="cats",
+      index=0,
+    ),
+    models.JokeSheet(
+      key="s2",
+      joke_str="j6,j7,j8,j9,j10",
+      joke_ids=["j6", "j7", "j8", "j9", "j10"],
+      category_id="cats",
+      index=2,
+    ),
+    models.JokeSheet(
+      key="s3",
+      joke_str="j11,j12,j13,j14,j15",
+      joke_ids=["j11", "j12", "j13", "j14", "j15"],
+      category_id="cats",
+    ),
+  ]
+  monkeypatch.setattr("services.firestore.get_joke_sheets_by_category",
+                      lambda _category_id: existing)
+
+  def fake_get_sheet(jokes, *, category_id=None, quality=80, index=None):  # pylint: disable=unused-argument
+    calls.append({
+      "joke_ids": [j.key for j in jokes if j.key],
+      "category_id": category_id,
+      "index": index,
+    })
+    return models.JokeSheet(
+      joke_ids=[j.key for j in jokes if j.key],
+      category_id=category_id,
+      index=index,
+      image_gcs_uri="gs://bucket/file.png",
+      pdf_gcs_uri="gs://bucket/file.pdf",
+    )
+
+  monkeypatch.setattr(
+    "common.joke_notes_sheet_operations.ensure_joke_notes_sheet",
+    fake_get_sheet)
+
+  jokes = _make_jokes_with_fractions(
+    [0.1] * 5 + [0.2] * 5 + [0.9] * 5 + [0.05] * 5)
+  joke_category_operations._ensure_category_joke_sheets(  # pylint: disable=protected-access
+    "cats",
+    jokes,
+  )
+
+  assert calls == [
+    {
+      "joke_ids": ["j1", "j2", "j3", "j4", "j5"],
+      "category_id": "cats",
+      "index": 0,
+    },
+    {
+      "joke_ids": ["j11", "j12", "j13", "j14", "j15"],
+      "category_id": "cats",
+      "index": 1,
+    },
+    {
+      "joke_ids": ["j6", "j7", "j8", "j9", "j10"],
+      "category_id": "cats",
+      "index": 2,
+    },
+    {
+      "joke_ids": ["j16", "j17", "j18", "j19", "j20"],
+      "category_id": "cats",
+      "index": 3,
     },
   ]

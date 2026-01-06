@@ -42,7 +42,7 @@ def test_generate_file_stem_sorts_joke_ids():
 
 
 def test_average_saved_users_fraction_handles_empty():
-  assert joke_notes_sheet_operations._average_saved_users_fraction([]) == 0.0
+  assert joke_notes_sheet_operations.average_saved_users_fraction([]) == 0.0
 
 
 def test_average_saved_users_fraction_handles_invalid_values():
@@ -53,7 +53,7 @@ def test_average_saved_users_fraction_handles_invalid_values():
   ]
   jokes[2].num_saved_users_fraction = "bad"
 
-  avg = joke_notes_sheet_operations._average_saved_users_fraction(jokes)
+  avg = joke_notes_sheet_operations.average_saved_users_fraction(jokes)
 
   assert avg == pytest.approx(0.2 / 3)
 

@@ -178,7 +178,7 @@ def _ensure_category_joke_sheets(
   existing_sheets = firestore.get_joke_sheets_by_category(category_id)
 
   batch_size = 5
-  batches: list[list[models.PunnyJoke]] = []
+  batches: list[dict[str, object]] = []
   covered_ids: set[str] = set()
   for sheet in existing_sheets:
     batch_jokes = [
@@ -189,7 +189,12 @@ def _ensure_category_joke_sheets(
       _delete_invalid_sheet(sheet, category_id)
       continue
 
-    batches.append(batch_jokes)
+    batches.append({
+      "jokes": batch_jokes,
+      "index": sheet.index if isinstance(sheet.index, int) else None,
+      "avg_saved_users_fraction":
+      joke_notes_sheet_operations.average_saved_users_fraction(batch_jokes),
+    })
     covered_ids.update([j.key for j in batch_jokes])
 
   uncovered = [j for j in jokes if j.key and j.key not in covered_ids]
@@ -198,16 +203,42 @@ def _ensure_category_joke_sheets(
     for i in range(num_complete_batches):
       batch = uncovered[i * batch_size:(i + 1) * batch_size]
       if len(batch) == batch_size:
-        batches.append(batch)
+        batches.append({
+          "jokes": batch,
+          "index": None,
+          "avg_saved_users_fraction":
+          joke_notes_sheet_operations.average_saved_users_fraction(batch),
+        })
 
-  for batch_jokes in batches:
+  unindexed_batches = [b for b in batches if b.get("index") is None]
+  available_indexes = set(range(len(batches)))
+  for batch in batches:
+    index = batch.get("index")
+    if isinstance(index, int):
+      available_indexes.discard(index)
+
+  if unindexed_batches:
+    unindexed_batches.sort(
+      key=lambda b: b["avg_saved_users_fraction"],
+      reverse=True,
+    )
+    available_sorted = sorted(available_indexes)
+    for batch in unindexed_batches:
+      batch["index"] = available_sorted.pop(0)
+
+  batches.sort(key=lambda b: b["index"])
+
+  for batch in batches:
+    batch_jokes = batch["jokes"]
     if not batch_jokes:
       continue
 
+    index = batch["index"]
     try:
       joke_notes_sheet_operations.ensure_joke_notes_sheet(
         batch_jokes,
         category_id=category_id,
+        index=index,
       )
       logger.info(
         f"Ensured joke sheet for category {category_id} with {len(batch_jokes)} jokes"

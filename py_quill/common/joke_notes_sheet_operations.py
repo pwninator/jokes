@@ -22,6 +22,7 @@ def ensure_joke_notes_sheet(
   *,
   quality: int = 80,
   category_id: str | None = None,
+  index: int | None = None,
 ) -> models.JokeSheet:
   """Create a joke notes sheet (PNG + PDF), upload to GCS, upsert Firestore, and return the sheet.
 
@@ -61,9 +62,10 @@ def ensure_joke_notes_sheet(
   sheet = models.JokeSheet(
     joke_ids=list(joke_ids),
     category_id=category_id,
+    index=index,
     image_gcs_uri=image_gcs_uri,
     pdf_gcs_uri=pdf_gcs_uri,
-    avg_saved_users_fraction=_average_saved_users_fraction(jokes),
+    avg_saved_users_fraction=average_saved_users_fraction(jokes),
   )
   return firestore.upsert_joke_sheet(sheet)
 
@@ -172,7 +174,7 @@ def _create_joke_notes_sheet_image(
   return canvas
 
 
-def _average_saved_users_fraction(jokes: list[models.PunnyJoke]) -> float:
+def average_saved_users_fraction(jokes: list[models.PunnyJoke]) -> float:
   """Compute the average saved-users fraction across the provided jokes."""
   if not jokes:
     return 0.0

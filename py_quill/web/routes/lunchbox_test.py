@@ -18,10 +18,9 @@ def test_lunchbox_get_renders_form():
   html = resp.get_data(as_text=True)
   # Header brand should be clickable.
   assert '<a class="brand"' in html
-  # Nav should mark lunchbox link active.
-  assert 'href="/lunchbox"' in html
+  # Nav should include printable notes link.
+  assert 'href="/notes"' in html
   assert 'Printable Joke Notes' in html
-  assert 'nav-link--active' in html
   # Copy may change; assert key hero heading scaffold exists.
   assert 'id="lunchbox-hero-title"' in html
   assert 'name="email"' in html

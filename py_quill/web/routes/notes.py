@@ -6,7 +6,7 @@ import datetime
 
 import flask
 from firebase_functions import logger
-from common import config
+from common import config, models
 from functions import auth_helpers
 from services import cloud_storage, firestore
 from web.routes import web_bp
@@ -15,6 +15,9 @@ from web.utils.responses import html_no_store_response, html_response
 
 _NOTES_IMAGE_MAX_WIDTH = 360
 _NOTES_IMAGE_HEIGHT = int(round(_NOTES_IMAGE_MAX_WIDTH * (2550 / 3300)))
+_NOTES_DETAIL_IMAGE_MAX_WIDTH = 1100
+_NOTES_DETAIL_IMAGE_HEIGHT = int(
+  round(_NOTES_DETAIL_IMAGE_MAX_WIDTH * (2550 / 3300)))
 
 
 def _select_best_sheet(sheets):
@@ -54,6 +57,10 @@ def _category_label(category, category_id):
   if display_name:
     return display_name
   return category_id or ""
+
+
+def _min_id_sheet(sheets):
+  return min(sheets, key=lambda sheet: (sheet.key is None, sheet.key or ""))
 
 
 @web_bp.route('/notes')
@@ -114,15 +121,17 @@ def notes():
       )
       continue
 
+    sheets_with_slugs = [sheet for sheet in sheets if sheet.slug]
     if category_id not in counted_categories:
       total_sheet_count += len(sheets)
       counted_categories.add(category_id)
-    sheet = _select_best_sheet(sheets)
+    sheet = _select_best_sheet(sheets_with_slugs)
     if not sheet:
       continue
 
+    detail_url = flask.url_for('web.notes_detail', slug=sheet.slug)
+
     try:
-      pdf_url = cloud_storage.get_public_cdn_url(sheet.pdf_gcs_uri or "")
       image_url = cloud_storage.get_public_image_cdn_url(
         sheet.image_gcs_uri or "",
         width=_NOTES_IMAGE_MAX_WIDTH,
@@ -143,7 +152,7 @@ def notes():
       "category_id": category_id,
       "category_label": category_label,
       "image_url": image_url,
-      "pdf_url": pdf_url,
+      "detail_url": detail_url,
     })
 
   total_sheet_count = (total_sheet_count // 10) * 10
@@ -162,6 +171,98 @@ def notes():
     notes_image_height=_NOTES_IMAGE_HEIGHT,
     firebase_config=config.FIREBASE_WEB_CONFIG,
     email_link_url=canonical_url,
+  )
+  return html_response(html, cache_seconds=300, cdn_seconds=1200)
+
+
+@web_bp.route('/notes/<slug>')
+def notes_detail(slug: str):
+  """Render a joke sheet details page."""
+  category_id, index = models.JokeSheet.parse_slug(slug)
+  if not category_id or index is None:
+    return flask.redirect(flask.url_for('web.notes'))
+
+  canonical_slug = slug
+  try:
+    sheets = firestore.get_joke_sheets_by_category(category_id, index=index)
+  except Exception as exc:  # pylint: disable=broad-except
+    logger.error(
+      f"Failed to fetch joke sheet for {category_id} index {index}: {exc}",
+      extra={
+        "json_fields": {
+          "event": "notes_detail_sheet_fetch_failed",
+          "category_id": category_id,
+          "index": index,
+        }
+      },
+    )
+    return flask.redirect(flask.url_for('web.notes'))
+
+  valid_sheets = [
+    sheet for sheet in sheets if sheet.image_gcs_uri and sheet.pdf_gcs_uri
+  ]
+  if not valid_sheets:
+    return flask.redirect(flask.url_for('web.notes'))
+
+  sheet = _min_id_sheet(valid_sheets)
+  if sheet.slug:
+    canonical_slug = sheet.slug
+
+  try:
+    pdf_url = cloud_storage.get_public_cdn_url(sheet.pdf_gcs_uri or "")
+    image_url = cloud_storage.get_public_image_cdn_url(
+      sheet.image_gcs_uri or "",
+      width=_NOTES_DETAIL_IMAGE_MAX_WIDTH,
+    )
+  except ValueError as exc:
+    logger.error(
+      f"Failed to build URLs for {category_id} sheet: {exc}",
+      extra={
+        "json_fields": {
+          "event": "notes_detail_sheet_url_failed",
+          "category_id": category_id,
+          "index": index,
+        }
+      },
+    )
+    return flask.redirect(flask.url_for('web.notes'))
+
+  category = None
+  try:
+    category = firestore.get_joke_category(category_id)
+  except Exception as exc:  # pylint: disable=broad-except
+    logger.error(
+      f"Failed to fetch category for {category_id}: {exc}",
+      extra={
+        "json_fields": {
+          "event": "notes_detail_category_fetch_failed",
+          "category_id": category_id,
+        }
+      },
+    )
+
+  category_label = _category_label(category, category_id) if category else (
+    category_id or "")
+  page_title = f"{category_label} Joke Pack {index} (Free PDF)"
+  canonical_url = urls.canonical_url(
+    flask.url_for('web.notes_detail', slug=canonical_slug))
+  now_year = datetime.datetime.now(datetime.timezone.utc).year
+  html = flask.render_template(
+    'notes_detail.html',
+    canonical_url=canonical_url,
+    site_name='Snickerdoodle',
+    now_year=now_year,
+    prev_url=None,
+    next_url=None,
+    category_id=category_id,
+    category_label=category_label,
+    sheet_index=index,
+    sheet_slug=canonical_slug,
+    page_title=page_title,
+    image_url=image_url,
+    pdf_url=pdf_url,
+    notes_detail_image_width=_NOTES_DETAIL_IMAGE_MAX_WIDTH,
+    notes_detail_image_height=_NOTES_DETAIL_IMAGE_HEIGHT,
   )
   return html_response(html, cache_seconds=300, cdn_seconds=1200)
 

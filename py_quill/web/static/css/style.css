@@ -604,6 +604,39 @@ img {
   margin: 0;
 }
 
+.notes-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  align-items: center;
+  text-align: center;
+}
+
+.notes-detail__title {
+  margin: 0;
+}
+
+.notes-detail__image {
+  width: 100%;
+  border-radius: 24px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid var(--color-border);
+  box-shadow: 0 12px 30px var(--color-shadow);
+}
+
+.notes-detail__image img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.notes-detail__cta {
+  width: 100%;
+  max-width: 360px;
+  justify-content: center;
+}
+
 .notes-signin-success-card {
   width: 100%;
   max-width: 720px;

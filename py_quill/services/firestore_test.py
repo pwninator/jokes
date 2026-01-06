@@ -733,6 +733,55 @@ def test_upsert_joke_sheet_writes_category_id(monkeypatch):
   }
 
 
+def test_get_joke_sheets_by_category_filters_index(monkeypatch):
+  from services import firestore as fs
+
+  captured_filters: list = []
+
+  class DummyQuery:
+
+    def __init__(self, filters):
+      self._filters = filters
+
+    def where(self, filter):  # pylint: disable=redefined-builtin
+      self._filters.append(filter)
+      return self
+
+    def stream(self):
+      return []
+
+  class DummyCol:
+
+    def __init__(self, filters):
+      self._filters = filters
+
+    def where(self, filter):  # pylint: disable=redefined-builtin
+      self._filters.append(filter)
+      return DummyQuery(self._filters)
+
+  class DummyDB:
+
+    def __init__(self, filters):
+      self._filters = filters
+
+    def collection(self, name):
+      assert name == "joke_sheets"
+      return DummyCol(self._filters)
+
+  monkeypatch.setattr(fs, "db", lambda: DummyDB(captured_filters))
+
+  results = fs.get_joke_sheets_by_category("animals", index=2)
+
+  assert results == []
+  assert len(captured_filters) == 2
+  assert getattr(captured_filters[0], "field_path", None) == "category_id"
+  assert getattr(captured_filters[0], "op_string", None) == "=="
+  assert getattr(captured_filters[0], "value", None) == "animals"
+  assert getattr(captured_filters[1], "field_path", None) == "index"
+  assert getattr(captured_filters[1], "op_string", None) == "=="
+  assert getattr(captured_filters[1], "value", None) == 2
+
+
 def test_delete_joke_sheet_deletes_when_exists(monkeypatch):
   from services import firestore as fs
 

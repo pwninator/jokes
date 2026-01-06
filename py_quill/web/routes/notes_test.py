@@ -84,6 +84,7 @@ def test_notes_page_renders_download_cards(monkeypatch):
   assert html.count(
     'data-analytics-event="web_notes_download_click"') == len(
       active_category_ids)
+  assert html.count('View Pack') == len(active_category_ids)
   assert html.count(
     '<article class="notes-sampler-card"') == len(active_category_ids)
   assert html.count(
@@ -102,27 +103,124 @@ def test_notes_page_renders_download_cards(monkeypatch):
     assert f"{escaped_name} Pack</h3>" in html
   for category_id in active_category_ids:
     assert f'data-analytics-label="{category_id}"' in html
+    category_slug = category_id.replace("_", "-")
+    detail_url = f"/notes/free-{category_slug}-jokes-0"
+    assert detail_url in html
     image_gcs_uri = (
       f"gs://image-bucket/joke_notes_sheets/{category_id}-low.png")
-    pdf_gcs_uri = f"gs://pdf-bucket/joke_notes_sheets/{category_id}-low.pdf"
     expected_image_url = cloud_storage.get_public_image_cdn_url(
       image_gcs_uri,
       width=notes_routes._NOTES_IMAGE_MAX_WIDTH,
     )
     assert expected_image_url in html
-    expected_pdf_url = cloud_storage.get_public_cdn_url(pdf_gcs_uri)
-    assert expected_pdf_url in html
 
     high_image_url = cloud_storage.get_public_image_cdn_url(
       f"gs://image-bucket/joke_notes_sheets/{category_id}-high.png",
       width=notes_routes._NOTES_IMAGE_MAX_WIDTH,
     )
     assert high_image_url not in html
-    high_pdf_url = cloud_storage.get_public_cdn_url(
-      f"gs://pdf-bucket/joke_notes_sheets/{category_id}-high.pdf")
-    assert high_pdf_url not in html
 
   assert called_categories == active_category_ids
+
+
+def test_notes_page_skips_sheet_without_slug(monkeypatch):
+  monkeypatch.setattr(
+    notes_routes.firestore,
+    "get_all_joke_categories",
+    lambda: [
+      models.JokeCategory(
+        display_name="Cats",
+        id="cats",
+        state="APPROVED",
+      ),
+    ],
+  )
+
+  def _fake_get_joke_sheets_by_category(category_id: str):
+    assert category_id == "cats"
+    return [
+      models.JokeSheet(
+        key="cats-missing-index",
+        joke_ids=["j1"],
+        category_id=category_id,
+        index=None,
+        image_gcs_uri="gs://image-bucket/joke_notes_sheets/cats-low.png",
+        pdf_gcs_uri="gs://pdf-bucket/joke_notes_sheets/cats-low.pdf",
+        avg_saved_users_fraction=0.1,
+      )
+    ]
+
+  monkeypatch.setattr(notes_routes.firestore, "get_joke_sheets_by_category",
+                      _fake_get_joke_sheets_by_category)
+
+  with app.test_client() as client:
+    resp = client.get('/notes')
+
+  assert resp.status_code == 200
+  html = resp.get_data(as_text=True)
+  assert "New printable joke notes are on the way. Check back soon." in html
+  assert '<article class="notes-sampler-card"' not in html
+
+
+def test_notes_detail_renders_sheet(monkeypatch):
+  category_id = "animals"
+  slug = "free-animals-jokes-1"
+  sheet_a = models.JokeSheet(
+    key="a-sheet",
+    joke_ids=["j1"],
+    category_id=category_id,
+    index=1,
+    image_gcs_uri="gs://image-bucket/joke_notes_sheets/animals-a.png",
+    pdf_gcs_uri="gs://pdf-bucket/joke_notes_sheets/animals-a.pdf",
+    avg_saved_users_fraction=0.1,
+  )
+  sheet_b = models.JokeSheet(
+    key="b-sheet",
+    joke_ids=["j2"],
+    category_id=category_id,
+    index=1,
+    image_gcs_uri="gs://image-bucket/joke_notes_sheets/animals-b.png",
+    pdf_gcs_uri="gs://pdf-bucket/joke_notes_sheets/animals-b.pdf",
+    avg_saved_users_fraction=0.9,
+  )
+
+  monkeypatch.setattr(
+    notes_routes.firestore,
+    "get_joke_sheets_by_category",
+    lambda category_id, index=None: [sheet_b, sheet_a],
+  )
+  monkeypatch.setattr(
+    notes_routes.firestore,
+    "get_joke_category",
+    lambda category_id: models.JokeCategory(display_name="Animals",
+                                            id=category_id,
+                                            state="APPROVED"),
+  )
+
+  with app.test_client() as client:
+    resp = client.get(f"/notes/{slug}")
+
+  assert resp.status_code == 200
+  html = resp.get_data(as_text=True)
+  assert "Animals Joke Pack 1 (Free PDF)" in html
+  assert urls.canonical_url(f"/notes/{slug}") in html
+  assert "Download Free PDF" in html
+  image_url = cloud_storage.get_public_image_cdn_url(
+    sheet_a.image_gcs_uri,
+    width=notes_routes._NOTES_DETAIL_IMAGE_MAX_WIDTH,
+  )
+  assert image_url in html
+  pdf_url = cloud_storage.get_public_cdn_url(sheet_a.pdf_gcs_uri)
+  assert pdf_url in html
+  assert cloud_storage.get_public_cdn_url(sheet_b.pdf_gcs_uri) not in html
+
+
+def test_notes_detail_redirects_on_invalid_slug():
+  with app.test_client() as client:
+    resp = client.get('/notes/not-a-slug')
+
+  assert resp.status_code == 302
+  assert resp.headers["Location"].endswith('/notes')
 
 
 def test_notes_redirects_authenticated_user(monkeypatch):

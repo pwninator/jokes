@@ -168,19 +168,26 @@ def upsert_joke_sheet(sheet: models.JokeSheet) -> models.JokeSheet:
   return sheet
 
 
-def get_joke_sheets_by_category(category_id: str) -> list[models.JokeSheet]:
+def get_joke_sheets_by_category(
+  category_id: str,
+  index: int | None = None,
+) -> list[models.JokeSheet]:
   """Fetch all joke sheets associated with a category.
 
   Note: `category_id` is a single string field and may be overwritten if multiple
   categories share a sheet. This helper returns the current set of sheets whose
-  `category_id` matches the provided category id.
+  `category_id` matches the provided category id. If `index` is provided, the
+  query is further filtered to that sheet index.
   """
   category_id = (category_id or "").strip()
   if not category_id:
     return []
 
-  docs = (db().collection("joke_sheets").where(
-    filter=FieldFilter("category_id", "==", category_id)).stream())
+  query = db().collection("joke_sheets").where(
+    filter=FieldFilter("category_id", "==", category_id))
+  if index is not None:
+    query = query.where(filter=FieldFilter("index", "==", index))
+  docs = query.stream()
   return [
     models.JokeSheet.from_firestore_dict(doc.to_dict(), key=doc.id)
     for doc in docs if doc.exists and doc.to_dict() is not None

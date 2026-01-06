@@ -648,6 +648,36 @@ class JokeSheet:
   pdf_gcs_uri: str | None = None
   avg_saved_users_fraction: float = 0.0
 
+  @property
+  def slug(self) -> str | None:
+    """Return the URL slug for the joke sheet details page."""
+    category_id = (self.category_id or "").strip()
+    if not category_id or self.index is None:
+      return None
+    category_slug = category_id.replace("_", "-")
+    return f"free-{category_slug}-jokes-{self.index}"
+
+  @staticmethod
+  def parse_slug(slug: str) -> tuple[str | None, int | None]:
+    """Parse a joke sheet slug into (category_id, index)."""
+    slug = (slug or "").strip()
+    if not slug:
+      return None, None
+    match = re.match(r"^free-(?P<category>.+)-jokes-(?P<index>\d+)$", slug)
+    if not match:
+      return None, None
+    category_slug = match.group("category")
+    if not category_slug:
+      return None, None
+    try:
+      index = int(match.group("index"))
+    except (TypeError, ValueError):
+      return None, None
+    if index < 0:
+      return None, None
+    category_id = category_slug.replace("-", "_")
+    return category_id, index
+
   def to_dict(self) -> dict:
     """Serialize sheet fields for Firestore writes."""
     data = dataclasses.asdict(self)

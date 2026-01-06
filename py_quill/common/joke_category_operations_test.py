@@ -173,6 +173,8 @@ def _run_refresh(monkeypatch, fake_db):
   # Prevent sheet generation from touching Firestore in these cache refresh tests.
   monkeypatch.setattr("services.firestore.get_joke_sheets_by_category",
                       lambda _category_id: [])
+  monkeypatch.setattr("services.firestore.update_joke_sheets_cache",
+                      lambda *_args, **_kwargs: None)
   # Execute
   joke_category_operations.refresh_category_caches()
 

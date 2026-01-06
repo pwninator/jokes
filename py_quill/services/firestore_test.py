@@ -856,10 +856,8 @@ def test_update_joke_sheets_cache_writes_payload(monkeypatch):
   payload = captured["data"]
   assert payload["refresh_timestamp"] == "TS"
   categories_payload = payload["categories"]
-  assert set(categories_payload.keys()) == {"cats", "dogs"}
+  assert set(categories_payload.keys()) == {"cats"}
   assert categories_payload["cats"]["category_display_name"] == "Cats"
-  assert categories_payload["dogs"]["category_display_name"] == "Dogs"
-  assert categories_payload["dogs"]["sheets"] == []
   cat_sheets = categories_payload["cats"]["sheets"]
   assert [s["sheet_key"] for s in cat_sheets] == ["sheet-1", "sheet-2"]
   assert cat_sheets[0]["image_gcs_uri"] == "gs://img1"

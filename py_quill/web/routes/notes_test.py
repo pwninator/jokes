@@ -184,10 +184,23 @@ def test_notes_detail_renders_sheet(monkeypatch):
     avg_saved_users_fraction=0.9,
   )
 
+  def _fake_get_joke_sheets_by_category(category_id: str, index=None):
+    if category_id != "animals":
+      return []
+    if index is not None:
+      return [sheet_b, sheet_a]
+    return [sheet_a, sheet_b]
+
+  monkeypatch.setattr(notes_routes.firestore, "get_joke_sheets_by_category",
+                      _fake_get_joke_sheets_by_category)
   monkeypatch.setattr(
     notes_routes.firestore,
-    "get_joke_sheets_by_category",
-    lambda category_id, index=None: [sheet_b, sheet_a],
+    "get_all_joke_categories",
+    lambda: [
+      models.JokeCategory(display_name="Animals",
+                          id=category_id,
+                          state="APPROVED"),
+    ],
   )
   monkeypatch.setattr(
     notes_routes.firestore,
@@ -205,7 +218,10 @@ def test_notes_detail_renders_sheet(monkeypatch):
   assert "Animals Joke Pack 1" in html
   assert "<title>Animals Joke Pack 1 (Free PDF)" in html
   assert urls.canonical_url(f"/notes/{slug}") in html
+  assert urls.canonical_url("/notes") in html
   assert "Download Free PDF" in html
+  assert "Want More Animals Joke Packs?" in html
+  assert "sendSignInLinkToEmail" in html
   image_url = cloud_storage.get_public_image_cdn_url(
     sheet_a.image_gcs_uri,
     width=notes_routes._NOTES_DETAIL_IMAGE_MAX_WIDTH,

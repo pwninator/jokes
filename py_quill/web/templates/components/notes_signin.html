@@ -1,0 +1,301 @@
+{% macro notes_signin_card(hook_text, continue_url) -%}
+<section class="notes-signin-section" aria-labelledby="notes-signin-form-title">
+  <header class="notes-signin-header" data-notes-signin-lead-header>
+    <h2 class="text-section-heading" id="notes-signin-lead-title">{{ hook_text }}</h2>
+  </header>
+  <div class="notes-signin-card" data-notes-signin-form-card>
+    <form class="notes-signin-form" method="post" action="{{ url_for('web.lunchbox') }}"
+      data-notes-signin-auth-form>
+      <h2 class="text-section-heading notes-signin-section-title" id="notes-signin-form-title">Unlock the Full
+        Snickerdoodle
+        Collection
+      </h2>
+      <p class="text-body notes-signin-text">Access {{ total_sheet_count }}+ themed sheets totally free! Enter your email
+        below and we'll send a
+        magic access link straight to your inbox.</p>
+      <div class="notes-signin-field">
+        <label class="sr-only" for="notes-signin-email">Email address</label>
+        <input class="notes-signin-input" id="notes-signin-email" name="email" type="email" autocomplete="email"
+          placeholder="Your email" required value="{{ email_value or '' }}" aria-label="Your email"
+          aria-describedby="notes-signin-privacy" />
+      </div>
+
+      <button class="nav-cta text-button notes-signin-submit" id="notes-signin-submit" type="submit"
+        data-analytics-event="web_lunchbox_submit_click" data-analytics-label="lunchbox">
+        Send Me My Access Link!
+      </button>
+
+      <div id="notes-signin-error" class="form-error" role="alert"></div>
+      <p id="notes-signin-status" class="text-body notes-signin-text" role="status" aria-live="polite"
+        style="display:none"></p>
+
+      {% if error_message %}
+      <p class="text-body notes-signin-text" role="alert">{{ error_message }}</p>
+      {% endif %}
+
+      <p class="text-footer notes-signin-text" id="notes-signin-privacy">You'll receive occasional free printables, book
+        updates, and other Snickerdoodle news.<br>No spam, just wholesome fun. Unsubscribe at any time.</p>
+    </form>
+  </div>
+  <section class="notes-signin-success-card" aria-label="Success" data-notes-signin-success-banner
+    style="display: none;">
+    <div class="thankyou-banner__inner">
+      <img class="thankyou-banner__icon"
+        src="https://images.quillsstorybook.com/cdn-cgi/image/width=100,format=auto,quality=75/_joke_assets/green_checkmark.png"
+        alt="Success" width="100" height="87" loading="lazy" />
+      <p class="thankyou-banner__text text-section-heading">
+        <strong>High Five!</strong> Your Lunchbox Notes are on their way to your inbox.<br>
+        <span class="muted">(Check your spam folder!)</span><br>
+        <span class="text-footer">Wrong email? <a class="notes-signin-success-link" href="#"
+            data-notes-signin-retry>Try again</a></span>
+      </p>
+    </div>
+  </section>
+</section>
+
+<script type="module">
+  const firebaseConfig = {{ firebase_config | tojson }};
+  const emailLinkUrl = {{ continue_url | tojson }};
+  const notesAllUrl = {{ url_for('web.notes_all') | tojson }};
+  const form = document.querySelector('[data-notes-signin-auth-form]');
+  const formCard = document.querySelector('[data-notes-signin-form-card]');
+  const successBanner = document.querySelector('[data-notes-signin-success-banner]');
+  const leadHeader = document.querySelector('[data-notes-signin-lead-header]');
+  const emailInput = document.getElementById('notes-signin-email');
+  const submitButton = document.getElementById('notes-signin-submit');
+  const errorEl = document.getElementById('notes-signin-error');
+  const statusEl = document.getElementById('notes-signin-status');
+  const retryLink = document.querySelector('[data-notes-signin-retry]');
+  const storageKey = 'snickerdoodle_notes_email';
+  const submitLabel = submitButton ? submitButton.textContent : '';
+  let firebasePromise = null;
+
+  function showError(message) {
+    if (statusEl) {
+      statusEl.style.display = 'none';
+    }
+    if (errorEl) {
+      errorEl.textContent = message;
+      errorEl.style.display = 'block';
+    }
+  }
+
+  function showStatus(message) {
+    if (errorEl) {
+      errorEl.style.display = 'none';
+    }
+    if (statusEl) {
+      statusEl.textContent = message;
+      statusEl.style.display = 'block';
+    }
+  }
+
+  function friendlyAuthMessage(error, fallback) {
+    if (!error) {
+      return fallback;
+    }
+    const code = error.code || '';
+    switch (code) {
+      case 'auth/invalid-email':
+      case 'auth/missing-email':
+        return 'Please enter a valid email address.';
+      case 'auth/too-many-requests':
+        return 'Too many attempts. Please wait a moment and try again.';
+      case 'auth/network-request-failed':
+        return 'Network error. Please check your connection and try again.';
+      case 'auth/user-disabled':
+        return 'This account has been disabled. Please contact support.';
+      default:
+        return fallback;
+    }
+  }
+
+  function clearMessages() {
+    if (errorEl) {
+      errorEl.style.display = 'none';
+    }
+    if (statusEl) {
+      statusEl.style.display = 'none';
+    }
+  }
+
+  function setLoading(isLoading) {
+    if (!submitButton) {
+      return;
+    }
+    submitButton.disabled = isLoading;
+    submitButton.textContent = isLoading ? 'Sending...' : submitLabel;
+  }
+
+  function showSuccessBanner() {
+    if (leadHeader) {
+      leadHeader.style.display = 'none';
+    }
+    if (formCard) {
+      formCard.style.display = 'none';
+    }
+    if (successBanner) {
+      successBanner.style.display = 'block';
+    }
+  }
+
+  function showFormCard() {
+    if (successBanner) {
+      successBanner.style.display = 'none';
+    }
+    if (formCard) {
+      formCard.style.display = '';
+    }
+    if (leadHeader) {
+      leadHeader.style.display = '';
+    }
+    clearMessages();
+    if (emailInput) {
+      emailInput.focus();
+    }
+  }
+
+  async function loadFirebase() {
+    if (!firebaseConfig || !firebaseConfig.apiKey) {
+      throw new Error('Firebase is not configured.');
+    }
+    if (!firebasePromise) {
+      firebasePromise = (async () => {
+        const appModule = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js');
+        const authModule = await import('https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js');
+
+        const initializedApp = appModule.getApps().length
+          ? appModule.getApp()
+          : appModule.initializeApp(firebaseConfig);
+        const auth = authModule.getAuth(initializedApp);
+        auth.languageCode = 'en';
+        return { authModule, auth };
+      })();
+    }
+    return firebasePromise;
+  }
+
+  async function sendAccessLink(email) {
+    const { authModule, auth } = await loadFirebase();
+    const actionCodeSettings = {
+      url: emailLinkUrl,
+      handleCodeInApp: true,
+    };
+    try {
+      window.localStorage.setItem(storageKey, email);
+    } catch (err) {
+      // localStorage may be disabled; continue without it.
+    }
+    await authModule.sendSignInLinkToEmail(auth, email, actionCodeSettings);
+  }
+
+  async function completeSignInFromLink() {
+    const { authModule, auth } = await loadFirebase();
+    const currentUrl = window.location.href;
+    if (!authModule.isSignInWithEmailLink(auth, currentUrl)) {
+      return;
+    }
+
+    let email = null;
+    try {
+      email = window.localStorage.getItem(storageKey);
+    } catch (err) {
+      email = null;
+    }
+    if (!email) {
+      email = window.prompt('Please confirm your email to finish signing in.');
+    }
+    if (!email) {
+      showError('Please enter your email to finish signing in.');
+      return;
+    }
+
+    try {
+      const result = await authModule.signInWithEmailLink(auth, email, currentUrl);
+      try {
+        window.localStorage.removeItem(storageKey);
+      } catch (err) {
+        // Ignore storage cleanup errors.
+      }
+      const idToken = await result.user.getIdToken(true);
+      const response = await fetch('/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ idToken }),
+      });
+      if (!response.ok) {
+        throw new Error('Unable to finish signing in. Please request a new link.');
+      }
+
+      try {
+        await authModule.signOut(auth);
+      } catch (signOutErr) {
+        console.warn('Failed to sign out Firebase Auth session', signOutErr); // eslint-disable-line no-console
+      }
+
+      showStatus('Access unlocked! You can download all joke packs below.');
+      const cleanUrl = window.location.origin + window.location.pathname + window.location.hash;
+      window.history.replaceState({}, document.title, cleanUrl);
+      if (notesAllUrl) {
+        window.location.assign(notesAllUrl);
+      }
+    } catch (err) {
+      console.error('Email link sign-in failed', err); // eslint-disable-line no-console
+      showError(friendlyAuthMessage(
+        err,
+        'Unable to sign you in. Please request a new access link.',
+      ));
+    }
+  }
+
+  if (form) {
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      clearMessages();
+
+      if (!emailInput) {
+        showError('Email input missing. Please refresh and try again.');
+        return;
+      }
+
+      if (!emailInput.checkValidity()) {
+        emailInput.reportValidity();
+        showError('Please enter a valid email address.');
+        return;
+      }
+
+      const email = emailInput.value.trim().toLowerCase();
+      if (!email) {
+        showError('Please enter a valid email address.');
+        return;
+      }
+
+      setLoading(true);
+      try {
+        await sendAccessLink(email);
+        showSuccessBanner();
+      } catch (err) {
+        console.error('Failed to send access link', err); // eslint-disable-line no-console
+        showError(friendlyAuthMessage(
+          err,
+          'Unable to send link. Please try again.',
+        ));
+      } finally {
+        setLoading(false);
+      }
+    });
+  }
+
+  if (retryLink) {
+    retryLink.addEventListener('click', (event) => {
+      event.preventDefault();
+      showFormCard();
+    });
+  }
+
+  completeSignInFromLink().catch((err) => {
+    console.error('Failed to initialize email link sign-in', err); // eslint-disable-line no-console
+  });
+</script>
+{%- endmacro %}

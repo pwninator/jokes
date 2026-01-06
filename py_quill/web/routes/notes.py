@@ -63,6 +63,46 @@ def _min_id_sheet(sheets):
   return min(sheets, key=lambda sheet: (sheet.key is None, sheet.key or ""))
 
 
+def _total_sheet_count():
+  total_sheet_count = 0
+  counted_categories: set[str] = set()
+  try:
+    all_categories = firestore.get_all_joke_categories()
+  except Exception as exc:  # pylint: disable=broad-except
+    logger.error(
+      f"Failed to fetch joke categories: {exc}",
+      extra={"json_fields": {
+        "event": "notes_categories_fetch_failed",
+      }},
+    )
+    return 0
+
+  active_categories = [
+    c for c in all_categories if c.state in ["APPROVED", "SEASONAL"]
+  ]
+  for category in active_categories:
+    category_id = _category_id(category)
+    if not category_id or category_id in counted_categories:
+      continue
+    try:
+      sheets = firestore.get_joke_sheets_by_category(category_id)
+    except Exception as exc:  # pylint: disable=broad-except
+      logger.error(
+        f"Failed to fetch joke sheets for {category_id}: {exc}",
+        extra={
+          "json_fields": {
+            "event": "notes_sheet_fetch_failed",
+            "category_id": category_id,
+          }
+        },
+      )
+      continue
+    total_sheet_count += len(sheets)
+    counted_categories.add(category_id)
+
+  return (total_sheet_count // 10) * 10
+
+
 @web_bp.route('/notes')
 def notes():
   """Render the notes download page."""
@@ -248,7 +288,9 @@ def notes_detail(slug: str):
   page_title = f"{display_title} (Free PDF)"
   canonical_url = urls.canonical_url(
     flask.url_for('web.notes_detail', slug=canonical_slug))
+  notes_continue_url = urls.canonical_url(flask.url_for('web.notes'))
   now_year = datetime.datetime.now(datetime.timezone.utc).year
+  total_sheet_count = _total_sheet_count()
   html = flask.render_template(
     'notes_detail.html',
     canonical_url=canonical_url,
@@ -267,6 +309,12 @@ def notes_detail(slug: str):
     pdf_url=pdf_url,
     notes_detail_image_width=_NOTES_DETAIL_IMAGE_MAX_WIDTH,
     notes_detail_image_height=_NOTES_DETAIL_IMAGE_HEIGHT,
+    email_link_url=notes_continue_url,
+    notes_hook_text=f"Want More {category_label} Joke Packs?",
+    email_value='',
+    error_message=None,
+    total_sheet_count=total_sheet_count,
+    firebase_config=config.FIREBASE_WEB_CONFIG,
   )
   return html_response(html, cache_seconds=300, cdn_seconds=1200)
 

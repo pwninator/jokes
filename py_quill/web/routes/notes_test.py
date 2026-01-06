@@ -232,6 +232,88 @@ def test_notes_detail_renders_sheet(monkeypatch):
   assert cloud_storage.get_public_cdn_url(sheet_b.pdf_gcs_uri) not in html
 
 
+def test_notes_detail_redirects_locked_pack_when_logged_out(monkeypatch):
+  category_id = "animals"
+  slug = "free-animals-jokes-2"
+  sheet = models.JokeSheet(
+    key="a-sheet",
+    joke_ids=["j1"],
+    category_id=category_id,
+    index=1,
+    image_gcs_uri="gs://image-bucket/joke_notes_sheets/animals-a.png",
+    pdf_gcs_uri="gs://pdf-bucket/joke_notes_sheets/animals-a.pdf",
+    avg_saved_users_fraction=0.1,
+  )
+
+  monkeypatch.setattr(
+    notes_routes.firestore,
+    "get_joke_sheets_by_category",
+    lambda category_id, index=None: [sheet],
+  )
+  monkeypatch.setattr(
+    notes_routes.firestore,
+    "get_joke_category",
+    lambda category_id: models.JokeCategory(display_name="Animals",
+                                            id=category_id,
+                                            state="APPROVED"),
+  )
+  monkeypatch.setattr(auth_helpers, "verify_session", lambda _req: None)
+
+  with app.test_client() as client:
+    resp = client.get(f"/notes/{slug}")
+
+  assert resp.status_code == 302
+  assert resp.headers["Location"].endswith('/notes')
+
+
+def test_notes_detail_allows_locked_pack_when_logged_in(monkeypatch):
+  category_id = "animals"
+  slug = "free-animals-jokes-2"
+  sheet = models.JokeSheet(
+    key="a-sheet",
+    joke_ids=["j1"],
+    category_id=category_id,
+    index=1,
+    image_gcs_uri="gs://image-bucket/joke_notes_sheets/animals-a.png",
+    pdf_gcs_uri="gs://pdf-bucket/joke_notes_sheets/animals-a.pdf",
+    avg_saved_users_fraction=0.1,
+  )
+
+  monkeypatch.setattr(
+    notes_routes.firestore,
+    "get_joke_sheets_by_category",
+    lambda category_id, index=None: [sheet],
+  )
+  monkeypatch.setattr(
+    notes_routes.firestore,
+    "get_all_joke_categories",
+    lambda: [
+      models.JokeCategory(display_name="Animals",
+                          id=category_id,
+                          state="APPROVED"),
+    ],
+  )
+  monkeypatch.setattr(
+    notes_routes.firestore,
+    "get_joke_category",
+    lambda category_id: models.JokeCategory(display_name="Animals",
+                                            id=category_id,
+                                            state="APPROVED"),
+  )
+  monkeypatch.setattr(auth_helpers, "verify_session",
+                      lambda _req: ("user-123", {
+                        "uid": "user-123"
+                      }))
+
+  with app.test_client() as client:
+    resp = client.get(f"/notes/{slug}")
+
+  assert resp.status_code == 200
+  html = resp.get_data(as_text=True)
+  assert "Animals Joke Pack 2" in html
+  assert "Download Free PDF" in html
+
+
 def test_notes_detail_redirects_on_invalid_slug():
   with app.test_client() as client:
     resp = client.get('/notes/not-a-slug')

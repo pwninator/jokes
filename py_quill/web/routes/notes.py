@@ -284,6 +284,10 @@ def notes_detail(slug: str):
   category_label = _category_label(category, category_id) if category else (
     category_id or "")
   display_index = sheet.display_index or (index + 1)
+  if display_index > 1:
+    verification = auth_helpers.verify_session(flask.request)
+    if not verification:
+      return flask.redirect(flask.url_for('web.notes'))
   display_title = f"{category_label} Joke Pack {display_index}"
   page_title = f"{display_title} (Free PDF)"
   canonical_url = urls.canonical_url(

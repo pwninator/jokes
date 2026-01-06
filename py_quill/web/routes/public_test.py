@@ -10,6 +10,7 @@ from common import models
 from services import search
 from web.app import app
 from web.routes import public as public_routes
+from web.utils import urls
 
 
 def test_topic_page_uses_batch_fetch(monkeypatch):
@@ -88,6 +89,7 @@ def test_topic_page_renders_with_json_ld_and_reveal(monkeypatch):
   assert resp.status_code == 200
   html = resp.get_data(as_text=True)
   assert '<h1>Dogs jokes</h1>' in html
+  assert f'<link rel="canonical" href="{urls.canonical_url("/jokes/dogs")}">' in html
   assert 'application/ld+json' in html
   assert 'FAQPage' in html
   assert '<details>' in html
@@ -182,6 +184,7 @@ def test_index_page_includes_nonempty_unique_meta_tags(monkeypatch):
   assert resp.status_code == 200
   html = resp.get_data(as_text=True)
 
+  assert f'<link rel="canonical" href="{urls.canonical_url("/")}">' in html
   assert html.count('<meta name="description"') == 1
   assert html.count('<meta property="og:description"') == 1
   assert html.count('<meta name="twitter:description"') == 1

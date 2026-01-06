@@ -9,6 +9,7 @@ from firebase_functions import logger
 from common import config
 from services import cloud_storage, firestore
 from web.routes import web_bp
+from web.utils import urls
 from web.utils.responses import html_response
 
 _NOTES_CATEGORIES: list[tuple[str, str]] = [
@@ -40,7 +41,7 @@ def _select_best_sheet(sheets):
 def notes():
   """Render the notes download page."""
   now_year = datetime.datetime.now(datetime.timezone.utc).year
-  canonical_url = flask.url_for('web.notes', _external=True)
+  canonical_url = urls.canonical_url(flask.url_for('web.notes'))
   error_message = None
   email_value = ''
   total_sheet_count = 0

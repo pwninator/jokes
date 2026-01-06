@@ -7,6 +7,7 @@ from common import amazon_redirect
 from firebase_functions import logger
 from web.routes import web_bp
 from web.utils import analytics
+from web.utils import urls
 
 
 def resolve_request_country_code(req: flask.Request) -> str:
@@ -81,7 +82,8 @@ def _handle_amazon_redirect(redirect_key: str) -> flask.Response:
 
   return analytics.render_ga4_redirect_page(
     target_url=target_url,
-    canonical_url=flask.request.url,
+    canonical_url=urls.canonical_url_for_request(flask.request,
+                                                 include_query=True),
     page_title=config_entry.label,
     heading='Redirecting to Amazon…',
     message='Taking you to Amazon now.',

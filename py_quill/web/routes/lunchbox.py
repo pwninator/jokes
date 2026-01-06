@@ -12,6 +12,7 @@ from common import amazon_redirect, joke_lead_operations
 from web.routes import web_bp
 from web.routes.redirects import resolve_request_country_code
 from web.utils import analytics
+from web.utils import urls
 from web.utils.responses import html_no_store_response, html_response
 
 _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
@@ -21,7 +22,7 @@ _EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 def lunchbox():
   """Render / handle the lunchbox lead capture page."""
   now_year = datetime.datetime.now(datetime.timezone.utc).year
-  canonical_url = flask.url_for('web.lunchbox', _external=True)
+  canonical_url = urls.canonical_url(flask.url_for('web.lunchbox'))
 
   error_message = None
   email_value = ''
@@ -86,7 +87,7 @@ def lunchbox_thank_you():
 
   html = flask.render_template(
     'lunchbox_thank_you.html',
-    canonical_url=flask.url_for('web.lunchbox_thank_you', _external=True),
+    canonical_url=urls.canonical_url(flask.url_for('web.lunchbox_thank_you')),
     site_name='Snickerdoodle',
     now_year=now_year,
     prev_url=None,
@@ -105,7 +106,8 @@ def lunchbox_download_pdf():
   }
   return analytics.render_ga4_redirect_page(
     target_url=download_url,
-    canonical_url=flask.url_for('web.lunchbox_download_pdf', _external=True),
+    canonical_url=urls.canonical_url(
+      flask.url_for('web.lunchbox_download_pdf')),
     page_title='Lunchbox Notes Download',
     heading='Starting your download…',
     message="If it doesn't start automatically, use the button below.",

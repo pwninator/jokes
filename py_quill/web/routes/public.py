@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import datetime
-import os
 import zoneinfo
 
 import flask
@@ -12,11 +11,8 @@ from firebase_functions import logger
 from common import models
 from services import firestore, search
 from web.routes import web_bp
+from web.utils import urls
 from web.utils.responses import html_response
-
-# Canonical public base URL used for sitemaps and absolute links.
-_PUBLIC_BASE_URL = os.environ.get('PUBLIC_BASE_URL',
-                                  'https://snickerdoodlejokes.com').rstrip('/')
 
 # Hard-coded topics list for sitemap generation
 _WEB_TOPICS: list[str] = [
@@ -102,7 +98,7 @@ def index():
     daily_joke=daily_joke,
     favorites=favorites,
     hero_date_label=hero_date_label,
-    canonical_url=flask.url_for('web.index', _external=True),
+    canonical_url=urls.canonical_url(flask.url_for('web.index')),
     site_name='Snickerdoodle',
     now_year=datetime.datetime.now(datetime.timezone.utc).year,
   )
@@ -122,15 +118,15 @@ def topic_page(topic: str):
   page_size = 20
   jokes = _fetch_topic_jokes(topic, limit=page_size)
 
-  base_url = flask.request.url_root.rstrip('/')
-  canonical_url = f"{base_url}/jokes/{topic}"
+  canonical_path = flask.url_for('web.topic_page', topic=topic)
+  canonical_url = urls.canonical_url(canonical_path)
   prev_url = None
   next_url = None
   # We only fetch one page; advertise next if we are full (best-effort UX)
   if page_num > 1:
-    prev_url = f"{canonical_url}?page={page_num - 1}"
+    prev_url = urls.canonical_url(canonical_path, f"page={page_num - 1}")
   if len(jokes) == page_size:
-    next_url = f"{canonical_url}?page={page_num + 1}"
+    next_url = urls.canonical_url(canonical_path, f"page={page_num + 1}")
 
   now_year = datetime.datetime.now(datetime.timezone.utc).year
   html = flask.render_template(
@@ -152,7 +148,7 @@ def about():
   now_year = datetime.datetime.now(datetime.timezone.utc).year
   html = flask.render_template(
     'about.html',
-    canonical_url=flask.url_for('web.about', _external=True),
+    canonical_url=urls.canonical_url(flask.url_for('web.about')),
     site_name='Snickerdoodle',
     now_year=now_year,
     prev_url=None,
@@ -166,7 +162,7 @@ def sitemap():
   """Generate a simple sitemap for topics."""
   topics = _WEB_TOPICS
 
-  base_url = _PUBLIC_BASE_URL
+  base_url = urls.public_base_url()
   urlset_parts = [
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',

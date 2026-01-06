@@ -8,7 +8,7 @@ from firebase_functions.core import init
 from functions import (admin_fns, analytics_fns, dummy_fns, joke_auto_fns,
                        joke_book_fns, joke_creation_fns, joke_fns,
                        joke_image_fns, joke_notification_fns, joke_trigger_fns,
-                       stats_fns, util_fns, web_fns)
+                       stats_fns, user_fns, util_fns, web_fns)
 
 # Configure basic logging for the application (primarily for emulator visibility)
 logging.basicConfig(level=logging.INFO)
@@ -34,8 +34,8 @@ def initialize():
 dummy_endpoint = dummy_fns.dummy_endpoint
 
 # Export the user functions
-# on_user_created = user_fns.on_user_created
-# initialize_user_http = user_fns.initialize_user_http
+on_user_created = user_fns.on_user_created
+initialize_user_http = user_fns.initialize_user_http
 
 # Export the book functions
 # populate_book = book_fns.populate_book

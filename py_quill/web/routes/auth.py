@@ -11,6 +11,7 @@ from firebase_functions import logger
 from common import config
 from functions import auth_helpers
 from web.routes import web_bp
+from web.utils import urls
 from web.utils.responses import html_no_store_response
 
 
@@ -52,7 +53,7 @@ def login():
     'login.html',
     firebase_config=_firebase_web_config(),
     login_next_url=resolved_next,
-    canonical_url=flask.url_for('web.login', _external=True),
+    canonical_url=urls.canonical_url(flask.url_for('web.login')),
     prev_url=None,
     next_url=None,
     site_name='Snickerdoodle',
@@ -133,7 +134,7 @@ def login_test():
     user_email=user_email,
     login_url=flask.url_for('web.login', next='/login-test'),
     logout_url=flask.url_for('web.logout'),
-    canonical_url=flask.url_for('web.login_test', _external=True),
+    canonical_url=urls.canonical_url(flask.url_for('web.login_test')),
     prev_url=None,
     next_url=None,
     site_name='Snickerdoodle',

@@ -1,16 +1,21 @@
 {% extends "base.html" %}
 
 {% block title %}About Snickerdoodle | {{ site_name }}{% endblock %}
-{% block meta_description %}Meet the family behind Snickerdoodle Jokes and our mission to share wholesome, illustrated laughs every day.{% endblock %}
+{% block meta_description %}Meet the family behind Snickerdoodle Jokes and our mission to share wholesome, illustrated
+laughs every day.{% endblock %}
 
 {% block content %}
 <section class="hero" aria-labelledby="about-title">
   <div>
     <h1 class="hero-title text-display" id="about-title">From Our Family to Yours</h1>
     <p class="hero-subtitle text-body"><strong>A Labor of Love (and Laughter)</strong></p>
-    <p class="text-body">Hi there! We're the Snickerdoodle family: a dad, a mom, and a 7-year-old daughter who takes comedy very seriously.</p>
-    <p class="text-body">This whole project started as a way to make our daughter laugh and giggle. We realized that pairing silly jokes with cute, whimsical artwork created a magic little moment of joy. It was too fun not to share, so we built the Snickerdoodle Jokes app to bring that daily laugh to other families.</p>
-    <p class="text-body">But then we wanted to take the giggles beyond the screen. That led to our book, and now, our free lunchbox notes, giving parents a way to share a smile completely screen-free.</p>
+    <p class="text-body">Hi there! We're the Snickerdoodle family: a dad, a mom, and a 7-year-old daughter who takes
+      comedy very seriously.</p>
+    <p class="text-body">This whole project started as a way to make our daughter laugh and giggle. We realized that
+      pairing silly jokes with cute, whimsical artwork created a magic little moment of joy. It was too fun not to
+      share, so we built the Snickerdoodle Jokes app to bring that daily laugh to other families.</p>
+    <p class="text-body">But then we wanted to take the giggles beyond the screen. That led to our book, and now, our
+      free lunchbox notes, giving parents a way to share a smile completely screen-free.</p>
   </div>
   <article class="hero-card" aria-label="Family hero image">
     <div class="hero-card__image">
@@ -27,13 +32,17 @@
   </header>
   <ul class="lunchbox-benefits">
     <li>
-      <p class="text-body"><strong>Dad:</strong> By day, he is a software engineer. By night, he builds the products and creates the pictures. He uses modern AI tools to help illustrate our world, but he obsesses over every pixel to keep the wholesome, cute look we love.</p>
+      <p class="text-body"><strong>Dad:</strong> By day, he is a software engineer. By night, he builds the products and
+        creates the pictures. He uses modern AI tools to help illustrate our world, but he obsesses over every pixel to
+        keep the wholesome, cute look we love.</p>
     </li>
     <li>
-      <p class="text-body"><strong>Mom:</strong> She is the editor. She makes sure the jokes make sense to a kid, fixes Dad's typos, and ensures the humor is sweet.</p>
+      <p class="text-body"><strong>Mom:</strong> She is the editor. She makes sure the jokes make sense to a kid, fixes
+        Dad's typos, and ensures the humor is sweet.</p>
     </li>
     <li>
-      <p class="text-body"><strong>The Boss (Daughter):</strong> The final boss. She reads every single joke. If she does not laugh, it goes in the trash. She has high standards, and she is not afraid to use them.</p>
+      <p class="text-body"><strong>The Boss (Daughter):</strong> The final boss. She reads every single joke. If she
+        does not laugh, it goes in the trash. She has high standards, and she is not afraid to use them.</p>
     </li>
   </ul>
 </section>
@@ -44,17 +53,26 @@
   </header>
   <div class="notes-card-grid">
     <article class="notes-card">
-      <h3 class="notes-card__title text-button">For the Lunchbox</h3>
-      <p class="text-body"><a class="lunchbox-download__link text-button" href="{{ url_for('web.notes') }}"
-        data-analytics-event="web_about_notes_click" data-analytics-label="for_the_lunchbox">Free Printable Notes</a>: Sneak a giggle into their lunch bag. (Warning: May cause eye-rolling from older siblings).</p>
+      <h3 class="notes-card__title text-button"><a class="lunchbox-download__link text-button"
+          href="{{ url_for('web.notes') }}" data-analytics-event="web_about_notes_click"
+          data-analytics-label="free_printable_notes"
+          aria-label="Browse free printable notes">Free Printable Notes</a></h3>
+      <p class="text-body">Sneak a giggle into their lunch bag. (Warning: May cause eye-rolling from older siblings).
+      </p>
     </article>
     <article class="notes-card">
-      <h3 class="notes-card__title text-button">For the Road</h3>
-      <p class="text-body">The Mobile App: Turn the morning commute to school into a daily joke ritual with fresh new jokes every day.</p>
+      <h3 class="notes-card__title text-button"><a class="lunchbox-download__link text-button"
+          href="https://play.google.com/store/apps/details?id=com.builtwithporpoise.jokes"
+          target="_blank" rel="noopener noreferrer"
+          data-analytics-event="web_about_app_click" data-analytics-label="the_mobile_app"
+          aria-label="Get Snickerdoodle on Google Play (opens in new tab)">
+          The Mobile App</a></h3>
+      <p class="text-body">Turn the morning commute to school into a daily joke ritual with fresh new jokes every day.
+      </p>
     </article>
     <article class="notes-card">
-      <h3 class="notes-card__title text-button">For Bedtime</h3>
-      <p class="text-body">The Book: Sit down, snuggle up, and read together. No blue light, just laughs.</p>
+      <h3 class="notes-card__title text-button">The Book</h3>
+      <p class="text-body">Sit down, snuggle up, and read together. No blue light, just laughs.</p>
     </article>
   </div>
   <div class="section-header">

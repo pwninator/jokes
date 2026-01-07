@@ -161,6 +161,22 @@ def about():
 def sitemap():
   """Generate a simple sitemap for topics."""
   topics = _WEB_TOPICS
+  notes_slugs: set[str] = set()
+  try:
+    notes_cache = firestore.get_joke_sheets_cache()
+  except Exception as exc:  # pylint: disable=broad-except
+    logger.error(
+      f"Failed to fetch joke sheets cache for sitemap: {exc}",
+      extra={"json_fields": {
+        "event": "sitemap_notes_cache_fetch_failed"
+      }},
+    )
+    notes_cache = []
+  for _, sheets in notes_cache:
+    for sheet in sheets:
+      slug = sheet.slug
+      if slug:
+        notes_slugs.add(slug)
 
   base_url = urls.public_base_url()
   urlset_parts = [
@@ -171,17 +187,24 @@ def sitemap():
     datetime.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
   # Include key non-topic landing pages.
   urlset_parts.append('<url>')
-  urlset_parts.append(f'<loc>{base_url}/lunchbox</loc>')
+  urlset_parts.append(f'<loc>{base_url}/notes</loc>')
   urlset_parts.append(f'<lastmod>{now}</lastmod>')
   urlset_parts.append('<changefreq>weekly</changefreq>')
-  urlset_parts.append('<priority>0.7</priority>')
+  urlset_parts.append('<priority>0.8</priority>')
   urlset_parts.append('</url>')
+  for slug in sorted(notes_slugs):
+    urlset_parts.append('<url>')
+    urlset_parts.append(f'<loc>{base_url}/notes/{slug}</loc>')
+    urlset_parts.append(f'<lastmod>{now}</lastmod>')
+    urlset_parts.append('<changefreq>weekly</changefreq>')
+    urlset_parts.append('<priority>0.8</priority>')
+    urlset_parts.append('</url>')
   for topic in topics:
     urlset_parts.append('<url>')
     urlset_parts.append(f'<loc>{base_url}/jokes/{topic}</loc>')
     urlset_parts.append(f'<lastmod>{now}</lastmod>')
     urlset_parts.append('<changefreq>daily</changefreq>')
-    urlset_parts.append('<priority>0.8</priority>')
+    urlset_parts.append('<priority>0.3</priority>')
     urlset_parts.append('</url>')
   urlset_parts.append('</urlset>')
   xml = "".join(urlset_parts)

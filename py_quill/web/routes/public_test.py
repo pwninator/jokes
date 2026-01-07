@@ -48,12 +48,32 @@ def test_topic_page_uses_batch_fetch(monkeypatch):
   mock_get_punny_jokes.assert_called_once_with(["joke1"])
 
 
-def test_sitemap_returns_hardcoded_topics():
+def test_sitemap_returns_hardcoded_topics(monkeypatch):
+  monkeypatch.setattr(
+    public_routes.firestore,
+    "get_joke_sheets_cache",
+    lambda: [
+      (
+        models.JokeCategory(id="animals", display_name="Animals"),
+        [
+          models.JokeSheet(category_id="animals", index=0),
+          models.JokeSheet(category_id="animals", index=1),
+        ],
+      ),
+      (
+        models.JokeCategory(id="space", display_name="Space"),
+        [models.JokeSheet(category_id="space", index=0)],
+      ),
+    ],
+  )
   with app.test_client() as client:
     resp = client.get('/sitemap.xml')
   assert resp.status_code == 200
   xml = resp.get_data(as_text=True)
-  assert 'https://snickerdoodlejokes.com/lunchbox' in xml
+  assert 'https://snickerdoodlejokes.com/notes' in xml
+  assert 'https://snickerdoodlejokes.com/notes/free-animals-jokes-1' in xml
+  assert 'https://snickerdoodlejokes.com/notes/free-animals-jokes-2' in xml
+  assert 'https://snickerdoodlejokes.com/notes/free-space-jokes-1' in xml
   assert 'https://snickerdoodlejokes.com/jokes/dogs' in xml
 
 
@@ -111,9 +131,11 @@ def test_index_page_renders_top_jokes(monkeypatch):
   """Verify that the index page '/' renders the top jokes."""
   # Arrange
   mock_get_top_jokes = Mock()
-  monkeypatch.setattr(public_routes.firestore, "get_top_jokes", mock_get_top_jokes)
+  monkeypatch.setattr(public_routes.firestore, "get_top_jokes",
+                      mock_get_top_jokes)
   mock_get_daily_joke = Mock(return_value=None)
-  monkeypatch.setattr(public_routes.firestore, "get_daily_joke", mock_get_daily_joke)
+  monkeypatch.setattr(public_routes.firestore, "get_daily_joke",
+                      mock_get_daily_joke)
 
   joke = models.PunnyJoke(
     key="joke123",
@@ -159,9 +181,11 @@ def test_index_page_renders_top_jokes(monkeypatch):
 def test_index_page_includes_nonempty_unique_meta_tags(monkeypatch):
   """Index page should render a single, non-empty set of SEO meta tags."""
   mock_get_top_jokes = Mock()
-  monkeypatch.setattr(public_routes.firestore, "get_top_jokes", mock_get_top_jokes)
+  monkeypatch.setattr(public_routes.firestore, "get_top_jokes",
+                      mock_get_top_jokes)
   mock_get_daily_joke = Mock()
-  monkeypatch.setattr(public_routes.firestore, "get_daily_joke", mock_get_daily_joke)
+  monkeypatch.setattr(public_routes.firestore, "get_daily_joke",
+                      mock_get_daily_joke)
 
   mock_get_top_jokes.return_value = [
     models.PunnyJoke(
@@ -263,9 +287,11 @@ def test_pages_include_ga4_tag_and_parchment_background(monkeypatch):
                       mock_get_punny_jokes,
                       raising=False)
   mock_get_top_jokes = Mock()
-  monkeypatch.setattr(public_routes.firestore, "get_top_jokes", mock_get_top_jokes)
+  monkeypatch.setattr(public_routes.firestore, "get_top_jokes",
+                      mock_get_top_jokes)
   mock_get_daily_joke = Mock(return_value=None)
-  monkeypatch.setattr(public_routes.firestore, "get_daily_joke", mock_get_daily_joke)
+  monkeypatch.setattr(public_routes.firestore, "get_daily_joke",
+                      mock_get_daily_joke)
 
   search_result = search.JokeSearchResult(joke_id="j3", vector_distance=0.03)
   mock_search_jokes.return_value = [search_result]
@@ -323,5 +349,3 @@ def test_pages_include_ga4_tag_and_parchment_background(monkeypatch):
   assert '<link rel="icon" type="image/png"' in index_html
   assert '<link rel="icon" type="image/png"' in topic_html
   assert '/jokes/dogs' not in index_html
-
-

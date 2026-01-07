@@ -1,39 +1,39 @@
 {% macro notes_signin_card(hook_text, continue_url) -%}
-<section class="notes-signin-section" aria-labelledby="notes-signin-form-title">
-  <header class="notes-signin-header" data-notes-signin-lead-header>
+<section class="section-center" aria-labelledby="notes-signin-form-title">
+  <header class="section-header" data-notes-signin-lead-header>
     <h2 class="text-section-heading" id="notes-signin-lead-title">{{ hook_text }}</h2>
   </header>
-  <div class="notes-signin-card" data-notes-signin-form-card>
-    <form class="notes-signin-form" method="post" action="{{ url_for('web.lunchbox') }}"
+  <div class="signin-form-card" data-notes-signin-form-card>
+    <form class="signin-form" method="post" action="{{ url_for('web.lunchbox') }}"
       data-notes-signin-auth-form>
-      <h2 class="text-section-heading notes-signin-section-title" id="notes-signin-form-title">Unlock the Full
+      <h2 class="text-section-heading signin-form-title" id="notes-signin-form-title">Unlock the Full
         Snickerdoodle
         Collection
       </h2>
-      <p class="text-body notes-signin-text">Access {{ total_sheet_count }}+ themed sheets totally free! Enter your email
+      <p class="text-body signin-form-text">Access {{ total_sheet_count }}+ themed sheets totally free! Enter your email
         below and we'll send a
         magic access link straight to your inbox.</p>
-      <div class="notes-signin-field">
+      <div class="signin-form-field">
         <label class="sr-only" for="notes-signin-email">Email address</label>
-        <input class="notes-signin-input" id="notes-signin-email" name="email" type="email" autocomplete="email"
+        <input class="signin-form-input" id="notes-signin-email" name="email" type="email" autocomplete="email"
           placeholder="Your email" required value="{{ email_value or '' }}" aria-label="Your email"
           aria-describedby="notes-signin-privacy" />
       </div>
 
-      <button class="nav-cta text-button notes-signin-submit" id="notes-signin-submit" type="submit"
+      <button class="nav-cta text-button signin-form-submit" id="notes-signin-submit" type="submit"
         data-analytics-event="web_lunchbox_submit_click" data-analytics-label="lunchbox">
         Send Me My Access Link!
       </button>
 
       <div id="notes-signin-error" class="form-error" role="alert"></div>
-      <p id="notes-signin-status" class="text-body notes-signin-text" role="status" aria-live="polite"
+      <p id="notes-signin-status" class="text-body signin-form-text" role="status" aria-live="polite"
         style="display:none"></p>
 
       {% if error_message %}
-      <p class="text-body notes-signin-text" role="alert">{{ error_message }}</p>
+      <p class="text-body signin-form-text" role="alert">{{ error_message }}</p>
       {% endif %}
 
-      <p class="text-footer notes-signin-text" id="notes-signin-privacy">You'll receive occasional free printables, book
+      <p class="text-footer signin-form-text" id="notes-signin-privacy">You'll receive occasional free printables, book
         updates, and other Snickerdoodle news.<br>No spam, just wholesome fun. Unsubscribe at any time.</p>
     </form>
   </div>

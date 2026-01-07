@@ -389,25 +389,40 @@ img {
   object-fit: cover;
 }
 
-/* --- Lunchbox Landing Page --- */
+/* --- Section Layout --- */
 
-.lunchbox-lead,
-.notes-signin-section {
+.section-center {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 24px;
   align-items: center;
+  text-align: center;
 }
 
-.lunchbox-section-title,
-.notes-signin-section-title {
+.section-header {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  text-align: center;
+}
+
+.section-header h1,
+.section-header h2,
+.section-header p {
+  margin: 0;
+}
+
+/* --- Lunchbox Landing Page --- */
+
+.signin-form-title,
+.lunchbox-section-title {
   width: 100%;
   text-align: center;
   margin: 0;
 }
 
-.lunchbox-lead-card,
-.notes-signin-card {
+.signin-form-card {
   width: 100%;
   max-width: 720px;
   margin: 0 auto;
@@ -418,25 +433,23 @@ img {
   padding: 18px 36px;
 }
 
-.lunchbox-form,
-.notes-signin-form {
+.signin-form {
   display: flex;
   flex-direction: column;
   width: 100%;
   max-width: 600px;
   margin-inline: auto;
   gap: 14px;
+  text-align: left;
 }
 
-.lunchbox-field,
-.notes-signin-field {
+.signin-form-field {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
-.lunchbox-input,
-.notes-signin-input {
+.signin-form-input {
   width: 100%;
   box-sizing: border-box;
   padding: 12px 14px;
@@ -451,14 +464,12 @@ img {
   transition: border-color 0.2s, outline 0.2s;
 }
 
-.lunchbox-input::placeholder,
-.notes-signin-input::placeholder {
+.signin-form-input::placeholder {
   color: var(--color-text-muted);
   opacity: 0.7;
 }
 
-.lunchbox-input:focus-visible,
-.notes-signin-input:focus-visible {
+.signin-form-input:focus-visible {
   outline: 3px solid var(--color-focus-ring);
   outline-offset: 2px;
 }
@@ -476,14 +487,7 @@ img {
   height: 1.1em;
 }
 
-.lunchbox-submit,
-.notes-signin-submit {
-  width: 100%;
-  justify-content: center;
-}
-
-.lunchbox-text,
-.notes-signin-text {
+.signin-form-text {
   text-align: center;
   margin: 0;
 }
@@ -493,6 +497,7 @@ img {
   gap: 18px;
   align-items: start;
   grid-template-columns: 1fr;
+  text-align: left;
 }
 
 .lunchbox-details-card {
@@ -519,37 +524,6 @@ img {
 }
 
 /* --- Notes Download Page --- */
-
-.notes-sampler-section,
-.notes-download-section,
-.notes-related-section {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-  align-items: center;
-  text-align: center;
-}
-
-.notes-sampler-header,
-.notes-download-header,
-.notes-related-header,
-.notes-signin-header {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  align-items: center;
-}
-
-.notes-sampler-header h2,
-.notes-sampler-header p,
-.notes-download-header h2,
-.notes-download-header p,
-.notes-related-header h2,
-.notes-related-header p,
-.notes-signin-header h2,
-.notes-signin-header p {
-  margin: 0;
-}
 
 .notes-card-grid {
   width: 100%;
@@ -593,21 +567,8 @@ img {
   object-fit: cover;
 }
 
-.notes-card__cta {
-  width: 100%;
-  justify-content: center;
-}
-
 .notes-grid-empty {
   margin: 0;
-}
-
-.notes-detail {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-  align-items: center;
-  text-align: center;
 }
 
 .notes-detail__title {
@@ -630,9 +591,7 @@ img {
 }
 
 .notes-detail__cta {
-  width: 100%;
   max-width: 360px;
-  justify-content: center;
 }
 
 .notes-signin-success-card {
@@ -718,14 +677,6 @@ img {
   font-weight: var(--font-weight-body);
   margin: 0;
   line-height: 1.5;
-}
-
-.thankyou-hero {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  align-items: center;
-  text-align: center;
 }
 
 .thankyou-hero h1 {
@@ -1104,21 +1055,8 @@ img {
   margin-top: 12px;
 }
 
-.favorites-section header {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+.favorites-section .section-header {
   margin-bottom: 24px;
-  text-align: center;
-  align-items: center;
-}
-
-.favorites-title {
-  margin: 0;
-}
-
-.favorites-subtitle {
-  margin: 0;
 }
 
 .favorites-grid {
@@ -1415,6 +1353,12 @@ img {
   display: flex;
   flex-direction: column;
   gap: 16px;
+}
+
+.button-full,
+.signin-form-submit {
+  width: 100%;
+  justify-content: center;
 }
 
 .centered-card .nav-cta {

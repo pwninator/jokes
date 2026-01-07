@@ -6,13 +6,13 @@
 {% block meta_description %}Download the {{ category_label }} Joke Pack {{ sheet_index }} printable PDF for free.{% endblock %}
 
 {% block content %}
-<section class="notes-detail" aria-labelledby="notes-detail-title">
+<section class="section-center notes-detail" aria-labelledby="notes-detail-title">
   <h1 class="notes-detail__title text-display" id="notes-detail-title">{{ display_title }}</h1>
   <div class="notes-detail__image">
     <img src="{{ image_url }}" alt="{{ category_label }} joke notes pack {{ sheet_display_index }}"
       width="{{ notes_detail_image_width }}" height="{{ notes_detail_image_height }}" loading="lazy" />
   </div>
-  <a class="nav-cta text-button notes-detail__cta" href="{{ pdf_url }}" target="_blank"
+  <a class="nav-cta text-button notes-detail__cta button-full" href="{{ pdf_url }}" target="_blank"
     rel="noopener noreferrer" data-analytics-event="web_notes_download_click"
     data-analytics-label="{{ category_id }}" data-analytics-params="{{ {
       'category_id': category_id,
@@ -25,8 +25,8 @@
   </a>
 </section>
 
-<section class="notes-related-section" aria-labelledby="notes-related-title">
-  <header class="notes-related-header">
+<section class="section-center" aria-labelledby="notes-related-title">
+  <header class="section-header">
     <h2 class="text-section-heading" id="notes-related-title">You Might Also Like</h2>
   </header>
 
@@ -38,8 +38,8 @@
 </section>
 
 {% if is_signed_in %}
-<section class="notes-related-section notes-related-section--category" aria-labelledby="notes-category-title">
-  <header class="notes-related-header">
+<section class="section-center notes-related-section--category" aria-labelledby="notes-category-title">
+  <header class="section-header">
     <h2 class="text-section-heading" id="notes-category-title">Other {{ category_label }} Joke Packs</h2>
   </header>
 

@@ -21,36 +21,37 @@ the best part of their day.{% endblock %}
   </article>
 </section>
 
-<section class="lunchbox-lead" aria-labelledby="lunchbox-form-title">
+<section class="section-center" aria-labelledby="lunchbox-form-title">
 
-  <div class="lunchbox-lead-card">
-    <form class="lunchbox-form" method="post" action="{{ url_for('web.lunchbox') }}">
-      <h2 class="text-section-heading lunchbox-section-title" id="lunchbox-form-title">Get Your Free Lunchbox
+  <div class="signin-form-card">
+    <form class="signin-form" method="post" action="{{ url_for('web.lunchbox') }}">
+      <h2 class="text-section-heading signin-form-title" id="lunchbox-form-title">Get Your Free Lunchbox
         Joke Set!</h2>
-      <p class="text-body lunchbox-text">Where should we send your free joke cards?</p>
-      <div class="lunchbox-field">
+      <p class="text-body signin-form-text">Where should we send your free joke cards?</p>
+      <div class="signin-form-field">
         <label class="sr-only" for="lunchbox-email">Email address</label>
-        <input class="lunchbox-input" id="lunchbox-email" name="email" type="email" autocomplete="email"
+        <input class="signin-form-input" id="lunchbox-email" name="email" type="email" autocomplete="email"
           placeholder="Your email" required value="{{ email_value or '' }}" aria-label="Your email"
           aria-describedby="lunchbox-privacy" />
       </div>
 
-      <button class="nav-cta text-button lunchbox-submit" type="submit" data-analytics-event="web_lunchbox_submit_click"
+      <button class="nav-cta text-button signin-form-submit" type="submit"
+        data-analytics-event="web_lunchbox_submit_click"
         data-analytics-label="lunchbox">
         Send Me My Joke Set
       </button>
 
       {% if error_message %}
-      <p class="text-body lunchbox-text" role="alert">{{ error_message }}</p>
+      <p class="text-body signin-form-text" role="alert">{{ error_message }}</p>
       {% endif %}
 
-      <p class="text-footer lunchbox-text" id="lunchbox-privacy">You'll receive occasional free printables like this one, book
+      <p class="text-footer signin-form-text" id="lunchbox-privacy">You'll receive occasional free printables like this one, book
         updates, and other Snickerdoodle news.<br>No spam, just wholesome fun.<br>Unsubscribe at any time.</p>
     </form>
   </div>
 </section>
 
-<section class="lunchbox-lead" aria-label="Lunchbox joke set details">
+<section class="section-center" aria-label="Lunchbox joke set details">
   <h2 class="text-section-heading lunchbox-section-title">Print, Cut, Giggle</h2>
   <div class="lunchbox-details">
     <article class="hero-card lunchbox-details-card" aria-label="Lunchbox joke set preview image">

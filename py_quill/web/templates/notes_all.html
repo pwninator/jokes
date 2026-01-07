@@ -21,8 +21,8 @@
 </section>
 
 {% for category in categories %}
-<section class="notes-download-section" aria-labelledby="notes-download-{{ category.category_id }}-title">
-  <header class="notes-download-header">
+<section class="section-center" aria-labelledby="notes-download-{{ category.category_id }}-title">
+  <header class="section-header">
     <h2 class="text-section-heading" id="notes-download-{{ category.category_id }}-title">{{ category.label }}</h2>
     {% if category.sheet_count %}
     <p class="text-body">{{ category.sheet_count }} packs</p>

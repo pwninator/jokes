@@ -84,15 +84,19 @@ _MODIFY_IMAGE_CLIENT_HIGH = image_client.get_client(
 )
 
 # Image prompt constants
-_IMAGE_GENERATION_PROMPT_PREAMBLE = (
-  "Create an unbearably cute, professional-quality children's illustration in soft colored pencil on lightly textured paper. "
-  "Use organic, sketch-like outlines in darker saturated shades of the subject colors (avoid heavy black ink), with visible directional strokes and tight cross-hatching to build rich, vibrant color. "
-  "Keep the palette bright, gentle, and harmonious. "
-  # "Backgrounds should be fully rendered (not blank or vignette). "
-  "Backgrounds should be simple, low contrast, and low detail, with loose sketch-like shading, to allow the main subject to stand out. "
-  "Leave a safe margin around all edges so no important text or main content is near or crossing the edge; keep all text and focal elements comfortably inside the frame. "
-  "Subjects should be chibi/cute (big heads, large expressive eyes with highlights, small bodies), tactile and hand-crafted yet polished for print."
-)
+# Old version, kept for reference.
+# _IMAGE_GENERATION_PROMPT_PREAMBLE = (
+#   "Create an unbearably cute, professional-quality children's illustration in soft colored pencil on lightly textured paper. "
+#   "Use organic, sketch-like outlines in darker saturated shades of the subject colors (avoid heavy black ink), with visible directional strokes and tight cross-hatching to build rich, vibrant color. "
+#   "Keep the palette bright, gentle, and harmonious. "
+#   # "Backgrounds should be fully rendered (not blank or vignette). "
+#   "Backgrounds should be simple, low contrast, and low detail, with loose sketch-like shading, to allow the main subject to stand out. "
+#   "Leave a safe margin around all edges so no important text or main content is near or crossing the edge; keep all text and focal elements comfortably inside the frame. "
+#   "Subjects should be chibi/cute (big heads, large expressive eyes with highlights, small bodies), tactile and hand-crafted yet polished for print."
+# )
+_IMAGE_GENERATION_PROMPT_PREAMBLE = """\
+A whimsical and silly sketch, appearing as if drawn with colored pencils on lightly textured paper to create a naive charm. The artwork is unbearably cute, with soft, sketchy lines and a vibrant, gentle, but bright color palette where colors sometimes stray playfully outside the lines. Backgrounds should be simple, low contrast, and low detail, with loose sketch-like shading, to allow the main subject to stand out. Leave a safe margin around all edges so no important text or main content is near or crossing the edge; keep all text and focal elements comfortably inside the frame. Subjects should be chibi/cute (big heads, large expressive eyes with highlights, small bodies).
+"""
 
 _STYLE_REFERENCE_GUIDANCE = (
   "You are given {num_style_refs} style reference images to help you visualize the desired art style described above. Use them to match the artistic style, color palette, background texture, and overall aesthetic."

@@ -65,7 +65,15 @@
               href="{{ url_for('web.notes') }}"
               data-analytics-event="web_nav_notes_click"
               data-analytics-label="printable_joke_notes">
-              Printable Joke Notes
+              Printables
+            </a>
+          </li>
+          <li>
+            <a class="nav-link text-button{% if current_path == '/about' %} nav-link--active{% endif %}"
+              href="{{ url_for('web.about') }}"
+              data-analytics-event="web_nav_about_click"
+              data-analytics-label="about">
+              About
             </a>
           </li>
         </ul>

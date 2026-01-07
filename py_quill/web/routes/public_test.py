@@ -231,6 +231,28 @@ def test_index_page_includes_nonempty_unique_meta_tags(monkeypatch):
   assert html.count('name="twitter:card"') == 1
 
 
+def test_about_page_renders_family_story():
+  """About page should render the family story and hero image."""
+  with app.test_client() as client:
+    resp = client.get('/about')
+
+  assert resp.status_code == 200
+  html = resp.get_data(as_text=True)
+  assert 'id="about-title"' in html
+  assert 'aria-labelledby="team-title"' in html
+  assert 'aria-labelledby="mission-title"' in html
+  assert 'class="hero-card"' in html
+  assert 'class="notes-card-grid"' in html
+  assert html.count('class="notes-card"') == 3
+  assert 'href="/notes"' in html
+  assert 'family_kneel_meadow.png' in html
+  assert 'width="480"' in html
+  assert 'height="480"' in html
+  assert 'loading="lazy"' in html
+  assert f'<link rel="canonical" href="{urls.canonical_url("/about")}">' in html
+  assert 'Cache-Control' in resp.headers
+
+
 def test_fetch_topic_jokes_sorts_by_popularity_then_distance(monkeypatch):
   """_fetch_topic_jokes orders by popularity desc, then vector distance asc."""
   # Arrange

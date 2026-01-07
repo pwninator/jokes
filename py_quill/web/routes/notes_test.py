@@ -60,7 +60,7 @@ def test_notes_page_renders_download_cards(monkeypatch):
   expected_count = (total_sheets // 10) * 10
   assert f"{expected_count}+" in html
   assert html.count(
-    '<a class="nav-cta text-button notes-card__cta"') == len(
+    '<a class="nav-cta text-button notes-card__cta button-full"') == len(
       active_category_ids)
   assert html.count(
     'data-analytics-event="web_notes_view_pack_click"') == len(

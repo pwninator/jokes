@@ -20,12 +20,43 @@ _NOTES_DETAIL_IMAGE_MAX_WIDTH = 1100
 _NOTES_DETAIL_IMAGE_HEIGHT = int(
   round(_NOTES_DETAIL_IMAGE_MAX_WIDTH * (2550 / 3300)))
 
+# Promo Card Constants
+_PROMO_CARD_LIMIT = 15
+_PROMO_MAX_WIDTH = 350
+_PROMO_MIN_WIDTH = 200
+_PROMO_WIDTH_STEP = 25
+_PROMO_MAX_QUALITY = 50
+_PROMO_MIN_QUALITY = 30
+_PROMO_QUALITY_STEP = 5
+
 
 def _legacy_redirect(target_url: str) -> flask.Response:
   if flask.request.query_string:
     query = flask.request.query_string.decode('utf-8', errors='ignore')
     target_url = f"{target_url}?{query}"
   return flask.redirect(target_url, code=301)
+
+
+def _calculate_promo_params(count: int) -> tuple[int, int]:
+  """Calculate width and quality based on card count."""
+  if count <= 1:
+    return _PROMO_MAX_WIDTH, _PROMO_MAX_QUALITY
+
+  # Interpolation factor (0.0 to 1.0)
+  # Max cards -> t=1.0 -> Min Width/Quality
+  limit = _PROMO_CARD_LIMIT
+  t = min(1.0, (count - 1) / (limit - 1))
+
+  # Linear interpolation
+  raw_width = _PROMO_MAX_WIDTH - t * (_PROMO_MAX_WIDTH - _PROMO_MIN_WIDTH)
+  raw_quality = _PROMO_MAX_QUALITY - t * (_PROMO_MAX_QUALITY -
+                                          _PROMO_MIN_QUALITY)
+
+  # Round to steps
+  width = int(round(raw_width / _PROMO_WIDTH_STEP) * _PROMO_WIDTH_STEP)
+  quality = int(round(raw_quality / _PROMO_QUALITY_STEP) * _PROMO_QUALITY_STEP)
+
+  return width, quality
 
 
 @web_bp.route('/notes')
@@ -221,8 +252,12 @@ def notes_detail(slug: str):
     )
     if card:
       category_cards.append(card)
-      if len(category_cards) >= 20:
+      if len(category_cards) >= _PROMO_CARD_LIMIT:
         break
+
+  promo_image_width, promo_image_quality = _calculate_promo_params(
+    len(category_cards))
+
   display_title = f"{category_label} Joke Pack {display_index}"
   page_title = f"{display_title} (Free PDF)"
   canonical_slug = _cache_sheet_slug(category_id, index)
@@ -251,6 +286,8 @@ def notes_detail(slug: str):
     notes_detail_image_height=_NOTES_DETAIL_IMAGE_HEIGHT,
     notes_image_width=_NOTES_IMAGE_MAX_WIDTH,
     notes_image_height=_NOTES_IMAGE_HEIGHT,
+    promo_image_width=promo_image_width,
+    promo_image_quality=promo_image_quality,
     email_link_url=notes_continue_url,
     notes_hook_text=f"Want More {category_label} Joke Packs?",
     email_value='',

@@ -21,7 +21,32 @@ _NOTES_DETAIL_IMAGE_HEIGHT = int(
   round(_NOTES_DETAIL_IMAGE_MAX_WIDTH * (2550 / 3300)))
 
 
+def _legacy_redirect(target_url: str) -> flask.Response:
+  if flask.request.query_string:
+    query = flask.request.query_string.decode('utf-8', errors='ignore')
+    target_url = f"{target_url}?{query}"
+  return flask.redirect(target_url, code=301)
+
+
 @web_bp.route('/notes')
+def notes_legacy():
+  """Redirect legacy notes landing page."""
+  return _legacy_redirect(flask.url_for('web.notes'))
+
+
+@web_bp.route('/notes/<slug>')
+def notes_detail_legacy(slug: str):
+  """Redirect legacy notes detail pages."""
+  return _legacy_redirect(flask.url_for('web.notes_detail', slug=slug))
+
+
+@web_bp.route('/notes-all')
+def notes_all_legacy():
+  """Redirect legacy notes-all page."""
+  return _legacy_redirect(flask.url_for('web.notes_all'))
+
+
+@web_bp.route('/printables/notes')
 def notes():
   """Render the notes download page."""
   verification = auth_helpers.verify_session(flask.request)
@@ -85,7 +110,7 @@ def notes():
   return html_response(html, cache_seconds=300, cdn_seconds=1200)
 
 
-@web_bp.route('/notes/<slug>')
+@web_bp.route('/printables/notes/<slug>')
 def notes_detail(slug: str):
   """Render a joke sheet details page."""
   category_id, index = models.JokeSheet.parse_slug(slug)
@@ -238,7 +263,7 @@ def notes_detail(slug: str):
   return html_response(html, cache_seconds=300, cdn_seconds=1200)
 
 
-@web_bp.route('/notes-all')
+@web_bp.route('/printables/notes/all')
 def notes_all():
   """Render the authenticated notes download page."""
   verification = auth_helpers.verify_session(flask.request)

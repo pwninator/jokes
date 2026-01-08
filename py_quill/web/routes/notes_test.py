@@ -52,7 +52,7 @@ def test_notes_page_renders_download_cards(monkeypatch):
                       lambda: cache_entries)
 
   with app.test_client() as client:
-    resp = client.get('/notes')
+    resp = client.get('/printables/notes')
 
   assert resp.status_code == 200
   html = resp.get_data(as_text=True)
@@ -76,7 +76,7 @@ def test_notes_page_renders_download_cards(monkeypatch):
   assert 'rel="noopener noreferrer"' in html
   assert 'sendSignInLinkToEmail' in html
   assert config.FIREBASE_WEB_CONFIG['projectId'] in html
-  assert urls.canonical_url('/notes') in html
+  assert urls.canonical_url('/printables/notes') in html
   assert f'width="{notes_routes._NOTES_IMAGE_MAX_WIDTH}"' in html
   assert f'height="{notes_routes._NOTES_IMAGE_HEIGHT}"' in html
   for _, display_name in active_category_entries:
@@ -85,7 +85,7 @@ def test_notes_page_renders_download_cards(monkeypatch):
   for category_id in active_category_ids:
     assert f'data-analytics-label="{category_id}"' in html
     category_slug = category_id.replace("_", "-")
-    detail_url = f"/notes/free-{category_slug}-jokes-1"
+    detail_url = f"/printables/notes/free-{category_slug}-jokes-1"
     assert detail_url in html
     image_gcs_uri = (
       f"gs://image-bucket/joke_notes_sheets/{category_id}-low.png")
@@ -107,12 +107,37 @@ def test_notes_page_skips_sheet_without_slug(monkeypatch):
                       lambda: [])
 
   with app.test_client() as client:
-    resp = client.get('/notes')
+    resp = client.get('/printables/notes')
 
   assert resp.status_code == 200
   html = resp.get_data(as_text=True)
   assert "New printable joke notes are on the way. Check back soon." in html
   assert '<article class="notes-card"' not in html
+
+
+def test_notes_legacy_redirects_to_printables():
+  with app.test_client() as client:
+    resp = client.get('/notes')
+
+  assert resp.status_code == 301
+  assert resp.headers["Location"].endswith('/printables/notes')
+
+
+def test_notes_detail_legacy_redirects_to_printables():
+  slug = "free-animals-jokes-1"
+  with app.test_client() as client:
+    resp = client.get(f"/notes/{slug}")
+
+  assert resp.status_code == 301
+  assert resp.headers["Location"].endswith(f"/printables/notes/{slug}")
+
+
+def test_notes_all_legacy_redirects_to_printables():
+  with app.test_client() as client:
+    resp = client.get('/notes-all')
+
+  assert resp.status_code == 301
+  assert resp.headers["Location"].endswith('/printables/notes/all')
 
 
 def test_notes_detail_renders_sheet(monkeypatch):
@@ -173,14 +198,14 @@ def test_notes_detail_renders_sheet(monkeypatch):
                       lambda population, k: population[:k])
 
   with app.test_client() as client:
-    resp = client.get(f"/notes/{slug}")
+    resp = client.get(f"/printables/notes/{slug}")
 
   assert resp.status_code == 200
   html = resp.get_data(as_text=True)
   assert "Animals Joke Pack 1" in html
   assert "<title>Animals Joke Pack 1 (Free PDF)" in html
-  assert urls.canonical_url(f"/notes/{slug}") in html
-  assert urls.canonical_url("/notes") in html
+  assert urls.canonical_url(f"/printables/notes/{slug}") in html
+  assert urls.canonical_url("/printables/notes") in html
   assert "Download Free PDF" in html
   assert "Want More Animals Joke Packs?" in html
   assert "You Might Also Like" in html
@@ -195,9 +220,9 @@ def test_notes_detail_renders_sheet(monkeypatch):
   pdf_url = cloud_storage.get_public_cdn_url(sheet_a.pdf_gcs_uri)
   assert pdf_url in html
   assert cloud_storage.get_public_cdn_url(sheet_b.pdf_gcs_uri) not in html
-  assert "/notes/free-cats-jokes-1" in html
-  assert "/notes/free-dogs-jokes-1" in html
-  assert "/notes/free-space-jokes-1" in html
+  assert "/printables/notes/free-cats-jokes-1" in html
+  assert "/printables/notes/free-dogs-jokes-1" in html
+  assert "/printables/notes/free-space-jokes-1" in html
 
 
 def test_notes_detail_redirects_locked_pack_when_logged_out(monkeypatch):
@@ -227,10 +252,10 @@ def test_notes_detail_redirects_locked_pack_when_logged_out(monkeypatch):
   monkeypatch.setattr(auth_helpers, "verify_session", lambda _req: None)
 
   with app.test_client() as client:
-    resp = client.get(f"/notes/{slug}")
+    resp = client.get(f"/printables/notes/{slug}")
 
   assert resp.status_code == 302
-  assert resp.headers["Location"].endswith('/notes')
+  assert resp.headers["Location"].endswith('/printables/notes')
 
 
 def test_notes_detail_allows_locked_pack_when_logged_in(monkeypatch):
@@ -263,7 +288,7 @@ def test_notes_detail_allows_locked_pack_when_logged_in(monkeypatch):
                       }))
 
   with app.test_client() as client:
-    resp = client.get(f"/notes/{slug}")
+    resp = client.get(f"/printables/notes/{slug}")
 
   assert resp.status_code == 200
   html = resp.get_data(as_text=True)
@@ -271,16 +296,16 @@ def test_notes_detail_allows_locked_pack_when_logged_in(monkeypatch):
   assert "Download Free PDF" in html
   assert "You Might Also Like" in html
   assert "Other Animals Joke Packs" in html
-  assert "/notes/free-animals-jokes-1" in html
+  assert "/printables/notes/free-animals-jokes-1" in html
   assert "sendSignInLinkToEmail" not in html
 
 
 def test_notes_detail_redirects_on_invalid_slug():
   with app.test_client() as client:
-    resp = client.get('/notes/not-a-slug')
+    resp = client.get('/printables/notes/not-a-slug')
 
   assert resp.status_code == 302
-  assert resp.headers["Location"].endswith('/notes')
+  assert resp.headers["Location"].endswith('/printables/notes')
 
 
 def test_notes_redirects_authenticated_user(monkeypatch):
@@ -290,20 +315,20 @@ def test_notes_redirects_authenticated_user(monkeypatch):
                       }))
 
   with app.test_client() as client:
-    resp = client.get('/notes')
+    resp = client.get('/printables/notes')
 
   assert resp.status_code == 302
-  assert resp.headers["Location"].endswith('/notes-all')
+  assert resp.headers["Location"].endswith('/printables/notes/all')
 
 
 def test_notes_all_redirects_logged_out_user(monkeypatch):
   monkeypatch.setattr(auth_helpers, "verify_session", lambda _req: None)
 
   with app.test_client() as client:
-    resp = client.get('/notes-all')
+    resp = client.get('/printables/notes/all')
 
   assert resp.status_code == 302
-  assert resp.headers["Location"].endswith('/notes')
+  assert resp.headers["Location"].endswith('/printables/notes')
 
 
 def test_notes_all_renders_categories_and_sheets(monkeypatch):
@@ -366,7 +391,7 @@ def test_notes_all_renders_categories_and_sheets(monkeypatch):
                       lambda: cache_entries)
 
   with app.test_client() as client:
-    resp = client.get('/notes-all')
+    resp = client.get('/printables/notes/all')
 
   assert resp.status_code == 200
   html = resp.get_data(as_text=True)
@@ -379,13 +404,13 @@ def test_notes_all_renders_categories_and_sheets(monkeypatch):
   assert zany_pos != -1
   assert animals_pos < breezy_pos < zany_pos
 
-  animals_low_detail = "/notes/free-animals-jokes-1"
-  animals_high_detail = "/notes/free-animals-jokes-2"
+  animals_low_detail = "/printables/notes/free-animals-jokes-1"
+  animals_high_detail = "/printables/notes/free-animals-jokes-2"
   assert html.find(animals_low_detail) < html.find(animals_high_detail)
-  assert "/notes/free-animals-jokes-3" not in html
+  assert "/printables/notes/free-animals-jokes-3" not in html
 
-  zany_low_detail = "/notes/free-zany-jokes-1"
-  zany_high_detail = "/notes/free-zany-jokes-2"
+  zany_low_detail = "/printables/notes/free-zany-jokes-1"
+  zany_high_detail = "/printables/notes/free-zany-jokes-2"
   assert html.find(zany_low_detail) < html.find(zany_high_detail)
   assert html.count("View Pack") == 5
   assert html.count(

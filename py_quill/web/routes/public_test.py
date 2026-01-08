@@ -70,10 +70,10 @@ def test_sitemap_returns_hardcoded_topics(monkeypatch):
     resp = client.get('/sitemap.xml')
   assert resp.status_code == 200
   xml = resp.get_data(as_text=True)
-  assert 'https://snickerdoodlejokes.com/notes' in xml
-  assert 'https://snickerdoodlejokes.com/notes/free-animals-jokes-1' in xml
-  assert 'https://snickerdoodlejokes.com/notes/free-animals-jokes-2' in xml
-  assert 'https://snickerdoodlejokes.com/notes/free-space-jokes-1' in xml
+  assert 'https://snickerdoodlejokes.com/printables/notes' in xml
+  assert 'https://snickerdoodlejokes.com/printables/notes/free-animals-jokes-1' in xml
+  assert 'https://snickerdoodlejokes.com/printables/notes/free-animals-jokes-2' in xml
+  assert 'https://snickerdoodlejokes.com/printables/notes/free-space-jokes-1' in xml
   assert 'https://snickerdoodlejokes.com/jokes/dogs' in xml
 
 
@@ -155,7 +155,7 @@ def test_index_page_renders_top_jokes(monkeypatch):
   html = resp.get_data(as_text=True)
   assert 'href="/"' in html
   assert 'Home' in html
-  assert 'href="/notes"' in html
+  assert 'href="/printables/notes"' in html
   assert 'Printable Joke Notes' in html
   # Nav should mark home link active.
   assert 'nav-link--active' in html
@@ -244,7 +244,7 @@ def test_about_page_renders_family_story():
   assert 'class="hero-card"' in html
   assert 'class="notes-card-grid"' in html
   assert html.count('class="notes-card"') == 3
-  assert 'href="/notes"' in html
+  assert 'href="/printables/notes"' in html
   assert 'family_kneel_meadow.png' in html
   assert 'width="480"' in html
   assert 'height="480"' in html

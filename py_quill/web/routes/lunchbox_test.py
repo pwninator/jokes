@@ -19,7 +19,7 @@ def test_lunchbox_get_renders_form():
   # Header brand should be clickable.
   assert '<a class="brand"' in html
   # Nav should include printable notes link.
-  assert 'href="/notes"' in html
+  assert 'href="/printables/notes"' in html
   assert 'Printable Joke Notes' in html
   # Copy may change; assert key hero heading scaffold exists.
   assert 'id="lunchbox-hero-title"' in html

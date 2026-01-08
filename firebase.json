@@ -84,7 +84,7 @@
       {
         "source": "**",
         "function": {
-          "functionId": "web_search_page",
+          "functionId": "web",
           "region": "us-central1",
           "codebase": "default"
         }

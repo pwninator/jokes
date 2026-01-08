@@ -16,7 +16,7 @@ from web.app import app
   min_instances=1,
   timeout_sec=30,
 )
-def web_search_page(req: https_fn.Request) -> https_fn.Response:
+def web(req: https_fn.Request) -> https_fn.Response:
   """A web page that displays jokes based on a search query."""
   with app.request_context(req.environ):
     return app.full_dispatch_request()

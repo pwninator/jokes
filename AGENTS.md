@@ -380,7 +380,7 @@ Located in `py_quill/agents/`:
 
 ## 8. Flask Web Layer
 
-**Entry Point**: `py_quill/functions/web_fns.py` (exports `web_search_page`)
+**Entry Point**: `py_quill/functions/web_fns.py` (exports `web`)
 
 **Routes**:
 - `GET /jokes/<topic>`: SEO-optimized topic page
@@ -433,7 +433,7 @@ Environment is pre-configured. No setup needed.
 ## 11. Deployment
 
 - Python functions exported in `py_quill/main.py`
-- Flask served via `web_search_page` function
+- Flask served via `web` function
 - Firebase Hosting rewrites:
   - `/jokes/**`, `/sitemap.xml` → Python HTTPS Function
   - Static assets → Hosting/CDN

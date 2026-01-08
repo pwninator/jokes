@@ -80,7 +80,7 @@ set_user_role = admin_fns.set_user_role
 run_firestore_migration = util_fns.run_firestore_migration
 
 # Export the web functions
-web_search_page = web_fns.web_search_page
+web = web_fns.web
 
 # Export analytics functions
 usage = analytics_fns.usage

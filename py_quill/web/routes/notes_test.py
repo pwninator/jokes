@@ -64,7 +64,7 @@ def test_notes_page_renders_download_cards(monkeypatch):
       active_category_ids)
   assert html.count(
     'data-analytics-event="web_notes_view_pack_click"') == len(
-      active_category_ids)
+      active_category_ids) * 2
   assert html.count('View Pack') == len(active_category_ids)
   assert html.count(
     '<article class="notes-card"') == len(active_category_ids)
@@ -211,7 +211,7 @@ def test_notes_detail_renders_sheet(monkeypatch):
   assert "You Might Also Like" in html
   assert "sendSignInLinkToEmail" in html
   assert html.count(
-    'data-analytics-event="web_notes_view_pack_click"') == 3
+    'data-analytics-event="web_notes_view_pack_click"') == 6
   image_url = cloud_storage.get_public_image_cdn_url(
     sheet_a.image_gcs_uri,
     width=notes_routes._NOTES_DETAIL_IMAGE_MAX_WIDTH,
@@ -414,4 +414,4 @@ def test_notes_all_renders_categories_and_sheets(monkeypatch):
   assert html.find(zany_low_detail) < html.find(zany_high_detail)
   assert html.count("View Pack") == 5
   assert html.count(
-    'data-analytics-event="web_notes_view_pack_click"') == 5
+    'data-analytics-event="web_notes_view_pack_click"') == 10

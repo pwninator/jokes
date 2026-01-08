@@ -86,6 +86,7 @@ def admin_create_joke_category():
   search_distance_raw = (form.get('search_distance') or '').strip()
   seasonal_name = (form.get('seasonal_name') or '').strip()
   tags_raw = (form.get('tags') or '').strip()
+  negative_tags_raw = (form.get('negative_tags') or '').strip()
 
   search_distance = None
   if search_distance_raw:
@@ -95,15 +96,21 @@ def admin_create_joke_category():
       return flask.redirect(
         '/admin/joke-categories?error=search_distance_invalid')
 
-  tags: list[str] = []
-  if tags_raw:
+  def _parse_tags(raw: str) -> list[str]:
+    if not raw:
+      return []
     seen = set()
-    for part in tags_raw.split(','):
+    result = []
+    for part in raw.split(','):
       tag = (part or '').strip()
       if not tag or tag in seen:
         continue
       seen.add(tag)
-      tags.append(tag)
+      result.append(tag)
+    return result
+
+  tags = _parse_tags(tags_raw)
+  negative_tags = _parse_tags(negative_tags_raw)
 
   if not display_name:
     return flask.redirect('/admin/joke-categories?error=display_name_required')
@@ -119,6 +126,7 @@ def admin_create_joke_category():
       "joke_description_query": joke_description_query or None,
       "seasonal_name": seasonal_name or None,
       "tags": tags or None,
+      "negative_tags": negative_tags or None,
       "image_description": image_description or None,
     }
     if search_distance is not None:
@@ -132,6 +140,7 @@ def admin_create_joke_category():
       'seasonal_name': seasonal_name,
       'search_distance': search_distance,
       'tags': tags,
+      'negative_tags': negative_tags,
     }
     if image_description:
       category_data['image_description'] = image_description
@@ -159,6 +168,7 @@ def admin_update_joke_category(category_id: str):
   search_distance_raw = (form.get('search_distance') or '').strip()
   seasonal_name = (form.get('seasonal_name') or '').strip()
   tags_raw = (form.get('tags') or '').strip()
+  negative_tags_raw = (form.get('negative_tags') or '').strip()
 
   search_distance = None
   if search_distance_raw:
@@ -168,15 +178,21 @@ def admin_update_joke_category(category_id: str):
       return flask.redirect(
         '/admin/joke-categories?error=search_distance_invalid')
 
-  tags: list[str] = []
-  if tags_raw:
+  def _parse_tags(raw: str) -> list[str]:
+    if not raw:
+      return []
     seen = set()
-    for part in tags_raw.split(','):
+    result = []
+    for part in raw.split(','):
       tag = (part or '').strip()
       if not tag or tag in seen:
         continue
       seen.add(tag)
-      tags.append(tag)
+      result.append(tag)
+    return result
+
+  tags = _parse_tags(tags_raw)
+  negative_tags = _parse_tags(negative_tags_raw)
 
   image_url = (form.get('image_url') or '').strip()
   image_description = (form.get('image_description') or '').strip()
@@ -215,6 +231,8 @@ def admin_update_joke_category(category_id: str):
     search_distance if search_distance is not None else DELETE_FIELD,
     'tags':
     tags if tags else DELETE_FIELD,
+    'negative_tags':
+    negative_tags if negative_tags else DELETE_FIELD,
     'image_description':
     image_description if image_description else DELETE_FIELD,
   }
@@ -239,6 +257,7 @@ def admin_update_joke_category(category_id: str):
         'joke_description_query': joke_description_query,
         'search_distance': search_distance,
         'tags': tags,
+        'negative_tags': negative_tags,
       },
     )
   except Exception as exc:  # pylint: disable=broad-except

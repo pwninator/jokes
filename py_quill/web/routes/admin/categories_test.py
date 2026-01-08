@@ -155,6 +155,39 @@ def test_admin_create_category_allows_tags_only(monkeypatch):
   assert args[1]["tags"] == ["food", "snacks"]
 
 
+def test_admin_create_category_with_negative_tags(monkeypatch):
+  """Creating a category with negative tags should parse and pass them."""
+  _mock_admin_session(monkeypatch)
+
+  mock_create = Mock(return_value="clean_food")
+  monkeypatch.setattr(categories_routes.firestore, "create_joke_category",
+                      mock_create)
+
+  mock_refresh = Mock()
+  monkeypatch.setattr(categories_routes.joke_category_operations,
+                      "refresh_single_category_cache", mock_refresh)
+
+  with app.test_client() as client:
+    resp = client.post(
+      '/admin/joke-categories/create',
+      data={
+        'display_name': 'Clean Food',
+        'tags': 'food, healthy',
+        'negative_tags': 'junk, oily',
+      },
+    )
+
+  assert resp.status_code == 302
+
+  _, kwargs = mock_create.call_args
+  assert kwargs["tags"] == ["food", "healthy"]
+  assert kwargs["negative_tags"] == ["junk", "oily"]
+
+  args, _ = mock_refresh.call_args
+  assert args[1]["tags"] == ["food", "healthy"]
+  assert args[1]["negative_tags"] == ["junk", "oily"]
+
+
 def test_admin_update_category_sets_fields_and_refreshes_cache(monkeypatch):
   """Updating a category writes fields and refreshes the cached jokes."""
   _mock_admin_session(monkeypatch)
@@ -180,6 +213,7 @@ def test_admin_update_category_sets_fields_and_refreshes_cache(monkeypatch):
         'search_distance': '0.30',
         'seasonal_name': '',
         'tags': 'cats, dogs',
+        'negative_tags': 'nsfw, politics',
         'image_url': 'https://cdn/cat.png',
         'image_description': 'Cute animals',
         'all_image_urls': 'https://a.png\nhttps://b.png\n',
@@ -193,7 +227,8 @@ def test_admin_update_category_sets_fields_and_refreshes_cache(monkeypatch):
   mock_db.collection.assert_called_with('joke_categories')
   mock_collection.document.assert_called_with('animals')
   mock_doc.set.assert_called_once()
-  _, kwargs = mock_doc.set.call_args
+  payload, kwargs = mock_doc.set.call_args
+  assert payload[0]["negative_tags"] == ["nsfw", "politics"]
   assert kwargs["merge"] is True
 
   args, _ = mock_refresh.call_args
@@ -203,6 +238,7 @@ def test_admin_update_category_sets_fields_and_refreshes_cache(monkeypatch):
   assert args[1]['seasonal_name'] == ''
   assert args[1]['search_distance'] == 0.30
   assert args[1]['tags'] == ['cats', 'dogs']
+  assert args[1]['negative_tags'] == ['nsfw', 'politics']
 
 
 def test_admin_joke_categories_renders_multiline_tooltip(monkeypatch):

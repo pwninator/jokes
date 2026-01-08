@@ -314,22 +314,30 @@ class Character:
   @classmethod
   def from_dict(cls, data: dict, key: str | None = None) -> Character:
     """Create Character from Firestore dictionary."""
+
     generation_metadata = None
+
     if 'generation_metadata' in data:
+
       generation_metadata = GenerationMetadata.from_dict(
         data['generation_metadata'])
+
+    _parse_int_field(data, 'age', 0)
+
+    _parse_string_list(data, 'all_portrait_image_keys', dedupe=True)
+
     return cls(
       key=key if key else data.get("key"),
-      name=data['name'],
-      age=data['age'],
-      gender=data['gender'],
-      user_description=data['user_description'],
+      name=data.get('name', ''),
+      age=data.get('age', 0),
+      gender=data.get('gender', ''),
+      user_description=data.get('user_description', ''),
       tagline=data.get('tagline', ""),
       sanitized_description=data.get('sanitized_description', ""),
       portrait_description=data.get('portrait_description', ""),
-      portrait_image_key=data['portrait_image_key'],
-      all_portrait_image_keys=data['all_portrait_image_keys'],
-      owner_user_id=data['owner_user_id'],
+      portrait_image_key=data.get('portrait_image_key'),
+      all_portrait_image_keys=data.get('all_portrait_image_keys', []),
+      owner_user_id=data.get('owner_user_id', ''),
       generation_metadata=generation_metadata,
     )
 
@@ -735,6 +743,9 @@ class JokeCategory:
   tags: list[str] = field(default_factory=list)
   """If set, this category also includes jokes that match any of these tags."""
 
+  negative_tags: list[str] = field(default_factory=list)
+  """If set, jokes with any of these tags are excluded from the category."""
+
   state: str = "PROPOSED"
   """Category lifecycle: APPROVED, SEASONAL, PROPOSED, or REJECTED."""
 
@@ -784,43 +795,11 @@ class JokeCategory:
       data['display_name'] = ''
 
     # Ensure list fields have the right types.
-    all_image_urls = data.get('all_image_urls')
-    if isinstance(all_image_urls, list):
-      data['all_image_urls'] = [
-        u for u in all_image_urls if isinstance(u, str)
-      ]
-    else:
-      data['all_image_urls'] = []
+    _parse_string_list(data, 'all_image_urls', dedupe=False)
+    _parse_string_list(data, 'tags', dedupe=True)
+    _parse_string_list(data, 'negative_tags', dedupe=True)
 
-    tags = data.get('tags')
-    if isinstance(tags, list):
-      normalized_tags: list[str] = []
-      seen = set()
-      for t in tags:
-        if not isinstance(t, str):
-          continue
-        tag = t.strip()
-        if not tag or tag in seen:
-          continue
-        seen.add(tag)
-        normalized_tags.append(tag)
-      data['tags'] = normalized_tags
-    else:
-      data['tags'] = []
-
-    search_distance = data.get('search_distance')
-    if isinstance(search_distance, (int, float)):
-      data['search_distance'] = float(search_distance)
-    elif isinstance(search_distance, str):
-      if value := search_distance.strip():
-        try:
-          data['search_distance'] = float(value)
-        except ValueError:
-          data['search_distance'] = None
-      else:
-        data['search_distance'] = None
-    else:
-      data['search_distance'] = None
+    _parse_float_field(data, 'search_distance')
 
     # Default state if missing/empty.
     state_val = data.get('state')
@@ -926,6 +905,19 @@ class PunnyJoke:
       JokeAdminRating,
       JokeAdminRating.UNREVIEWED,
     )
+
+    _parse_string_list(data, 'tags')
+    _parse_string_list(data, 'all_setup_image_urls', dedupe=False)
+    _parse_string_list(data, 'all_punchline_image_urls', dedupe=False)
+
+    _parse_int_field(data, 'num_thumbs_up', 0)
+    _parse_int_field(data, 'num_thumbs_down', 0)
+    _parse_int_field(data, 'num_saved_users', 0)
+    _parse_int_field(data, 'num_shared_users', 0)
+    _parse_int_field(data, 'num_viewed_users', 0)
+    _parse_float_field(data, 'num_saved_users_fraction', 0.0)
+    _parse_float_field(data, 'num_shared_users_fraction', 0.0)
+    _parse_float_field(data, 'popularity_score', 0.0)
 
     data['key'] = key
 
@@ -1119,3 +1111,71 @@ def _parse_enum_field(
     data[field_name] = enum_cls(value) if value else default_value
   except Exception:
     data[field_name] = default_value
+
+
+def _parse_string_list(
+  data: dict,
+  field_name: str,
+  *,
+  trim: bool = True,
+  dedupe: bool = True,
+) -> None:
+  """Coerce a value in `data[field_name]` to a list of strings.
+
+  Trims strings and removes duplicates/empties by default.
+  """
+  raw = data.get(field_name)
+  if not isinstance(raw, list):
+    data[field_name] = []
+    return
+
+  result: list[str] = []
+  seen: set[str] = set()
+  for item in raw:
+    if not isinstance(item, str):
+      continue
+    val = item.strip() if trim else item
+    if not val or (dedupe and val in seen):
+      continue
+    if dedupe:
+      seen.add(val)
+    result.append(val)
+  data[field_name] = result
+
+
+def _parse_float_field(data: dict,
+                       field_name: str,
+                       default: float | None = None) -> None:
+  """Coerce a value in `data[field_name]` to a float or default."""
+  val = data.get(field_name)
+  if isinstance(val, (int, float)):
+    data[field_name] = float(val)
+    return
+  if isinstance(val, str):
+    if stripped := val.strip():
+      try:
+        data[field_name] = float(stripped)
+        return
+      except ValueError:
+        pass
+  data[field_name] = default
+
+
+def _parse_int_field(data: dict,
+                     field_name: str,
+                     default: int | None = None) -> None:
+  """Coerce a value in `data[field_name]` to an int or default."""
+  val = data.get(field_name)
+  if isinstance(val, int):
+    return
+  if isinstance(val, float):
+    data[field_name] = int(val)
+    return
+  if isinstance(val, str):
+    if stripped := val.strip():
+      try:
+        data[field_name] = int(stripped)
+        return
+      except ValueError:
+        pass
+  data[field_name] = default

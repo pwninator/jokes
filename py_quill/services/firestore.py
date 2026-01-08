@@ -396,6 +396,7 @@ def create_joke_category(
   seasonal_name: str | None = None,
   search_distance: float | None = None,
   tags: list[str] | None = None,
+  negative_tags: list[str] | None = None,
   image_description: str | None = None,
 ) -> str:
   """Create a new joke category and return its document ID.
@@ -407,6 +408,8 @@ def create_joke_category(
   joke_description_query = (joke_description_query or '').strip()
   seasonal_name = (seasonal_name or '').strip()
   tags = list(tags) if isinstance(tags, list) else []
+  negative_tags = list(negative_tags) if isinstance(
+    negative_tags, list) else []
   image_description = (image_description or '').strip()
   state = (state or 'PROPOSED').strip()
   search_distance = float(
@@ -415,16 +418,21 @@ def create_joke_category(
   if not display_name:
     raise ValueError("display_name is required")
 
-  normalized_tags: list[str] = []
-  seen = set()
-  for t in tags:
-    if not isinstance(t, str):
-      continue
-    tag = t.strip()
-    if not tag or tag in seen:
-      continue
-    seen.add(tag)
-    normalized_tags.append(tag)
+  def _normalize_tags(raw_tags: list[str]) -> list[str]:
+    normalized: list[str] = []
+    seen = set()
+    for t in raw_tags:
+      if not isinstance(t, str):
+        continue
+      tag = t.strip()
+      if not tag or tag in seen:
+        continue
+      seen.add(tag)
+      normalized.append(tag)
+    return normalized
+
+  normalized_tags = _normalize_tags(tags)
+  normalized_negative_tags = _normalize_tags(negative_tags)
 
   if not joke_description_query and not seasonal_name and not normalized_tags:
     raise ValueError(
@@ -444,6 +452,7 @@ def create_joke_category(
     seasonal_name=seasonal_name or None,
     search_distance=search_distance,
     tags=normalized_tags,
+    negative_tags=normalized_negative_tags,
     state=state,
     image_description=image_description or None,
   )

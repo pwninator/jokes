@@ -110,6 +110,11 @@ def refresh_single_category_cache(
   raw_query = (category.joke_description_query or "").strip()
   seasonal_name = (category.seasonal_name or "").strip()
   tags = [t for t in (category.tags or []) if isinstance(t, str) and t.strip()]
+  negative_tags = {
+    t.lower()
+    for t in (category.negative_tags or [])
+    if isinstance(t, str) and t.strip()
+  }
   search_distance = category.search_distance
 
   client = firestore.db()
@@ -149,6 +154,16 @@ def refresh_single_category_cache(
   # Re-sort the union by num_saved_users_fraction using full joke docs.
   joke_ids = list(jokes_by_id.keys())
   jokes = firestore.get_punny_jokes(joke_ids)
+
+  # Filter out jokes that contain any negative tags
+  if negative_tags:
+    filtered_jokes = []
+    for joke in jokes:
+      joke_tags = {t.lower() for t in joke.tags}
+      if not joke_tags.intersection(negative_tags):
+        filtered_jokes.append(joke)
+    jokes = filtered_jokes
+
   jokes.sort(key=lambda j: j.num_saved_users_fraction or 0.0, reverse=True)
 
   # Cap cache size to 100, even if union exceeds it.

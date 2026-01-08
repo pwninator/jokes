@@ -260,6 +260,55 @@ def test_refresh_updates_cache_for_approved_category(monkeypatch, fake_env):
   assert fake_env.category_updates == {}
 
 
+def test_refresh_updates_cache_filters_negative_tags(monkeypatch, fake_env):
+  # Arrange: Category has negative_tags=["NSFW"]
+  categories = [("animals", {
+    "display_name": "Animals",
+    "joke_description_query": "animals",
+    "state": "APPROVED",
+    "negative_tags": ["NSFW"],
+  })]
+  fake_db = fake_env.make_db(categories)
+
+  # Setup environment manually to avoid _run_refresh overriding our mock
+  monkeypatch.setattr("services.firestore.db", lambda: fake_db)
+
+  # Mock jokes, one with "nsfw" tag, one without
+  def fake_get_punny_jokes(joke_ids):
+    return [
+      models.PunnyJoke(
+        key="j1",
+        setup_text="Safe joke",
+        punchline_text="Haha",
+        tags=["clean"],
+      ),
+      models.PunnyJoke(
+        key="j2",
+        setup_text="Bad joke",
+        punchline_text="Boooo",
+        tags=["NSFW", "dirty"],
+      ),
+    ]
+
+  monkeypatch.setattr("services.firestore.get_punny_jokes",
+                      fake_get_punny_jokes)
+  monkeypatch.setattr("services.firestore.get_joke_sheets_by_category",
+                      lambda _category_id: [])
+  monkeypatch.setattr("services.firestore.update_joke_sheets_cache",
+                      lambda *_args, **_kwargs: None)
+
+  # Act
+  joke_category_operations.refresh_category_caches()
+
+  # Assert
+  cache = fake_env.cache_refs.get("animals")
+  assert cache is not None
+  payload = cache.set_calls[0]
+  # Should only include j1 (safe joke), j2 should be filtered out
+  assert len(payload["jokes"]) == 1
+  assert payload["jokes"][0]["joke_id"] == "j1"
+
+
 def test_refresh_forces_proposed_when_empty_results(monkeypatch, fake_env):
   # Arrange: search returns empty for this test
   monkeypatch.setattr("common.joke_category_operations.search_category_jokes",

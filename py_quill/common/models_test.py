@@ -239,3 +239,12 @@ def test_jokesheet_parse_slug_rejects_invalid_slug():
     "free-animals-jokes-0")
   assert category_id is None
   assert index is None
+
+
+def test_jokecategory_from_firestore_parses_negative_tags():
+  data = {
+    "display_name": "Cats",
+    "negative_tags": ["nsfw", "  politics  ", 123],
+  }
+  category = models.JokeCategory.from_firestore_dict(data, key="cats")
+  assert category.negative_tags == ["nsfw", "politics"]

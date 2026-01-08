@@ -42,6 +42,13 @@
         </label>
 
         <label class="text-body">
+          <div class="text-button">Negative tags (comma-separated)</div>
+          <input name="negative_tags" type="text"
+            placeholder="nsfw, politics"
+            style="width: 100%; padding: 8px 12px; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-surface); font-family: inherit;">
+        </label>
+
+        <label class="text-body">
           <div class="text-button">Image description (optional)</div>
           <input name="image_description" type="text"
             style="width: 100%; padding: 8px 12px; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-surface); font-family: inherit;">
@@ -158,49 +165,40 @@
     padding-top: 12px;
     border-top: 1px dashed var(--color-border);
   }
-  .edit-grid {
+  .edit-flex {
     display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-  .edit-row {
-    display: grid;
-    gap: 10px;
+    flex-wrap: wrap;
+    gap: 16px 12px;
     align-items: start;
   }
-  .edit-row.row-2 {
-    grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
-  }
-  .edit-row.row-3 {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
-  }
-  .edit-row.row-1 {
-    grid-template-columns: 1fr;
-  }
-  .edit-grid input,
-  .edit-grid select,
-  .edit-grid textarea {
-    width: 100%;
+  .edit-flex label {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
     min-width: 0;
+  }
+  .edit-flex .field-small {
+    flex: 1 1 120px;
+  }
+  .edit-flex .field-medium {
+    flex: 2 1 240px;
+  }
+  .edit-flex .field-large {
+    flex: 1 0 100%;
+  }
+  .edit-flex input,
+  .edit-flex select,
+  .edit-flex textarea {
+    width: 100%;
     padding: 8px 12px;
     border: 1px solid var(--color-border);
     border-radius: 10px;
     background: var(--color-surface);
     font-family: inherit;
   }
-  .edit-grid textarea {
+  .edit-flex textarea {
     min-height: 90px;
     resize: vertical;
-  }
-  .edit-grid label {
-    min-width: 0;
-  }
-  .edit-grid .type-choice {
-    display: flex;
-    gap: 12px;
-    flex-wrap: wrap;
-    align-items: center;
-    padding-top: 8px;
   }
   .pill {
     display: inline-flex;
@@ -286,9 +284,11 @@
               {% set has_query = (category.joke_description_query or '').strip() %}
               {% set has_seasonal = (category.seasonal_name or '').strip() %}
               {% set tags_count = (category.tags | length) if category.tags else 0 %}
+              {% set neg_tags_count = (category.negative_tags | length) if category.negative_tags else 0 %}
               {% if has_query %}<span class="pill text-button">search</span>{% endif %}
               {% if has_seasonal %}<span class="pill text-button">seasonal</span>{% endif %}
               {% if tags_count %}<span class="pill text-button">{{ tags_count }} tags</span>{% endif %}
+              {% if neg_tags_count %}<span class="pill text-button" style="background: var(--color-error-surface); color: var(--color-error);">{{ neg_tags_count }} neg</span>{% endif %}
               <span class="muted">{{ joke_count }} jokes</span>
             </div>
           </div>
@@ -304,64 +304,65 @@
       </summary>
       <div class="edit-panel hidden" data-edit-panel="true" data-category-id="{{ category.id }}">
         <form method="post" action="{{ url_for('web.admin_update_joke_category', category_id=category.id) }}">
-          <div class="edit-grid">
-            <div class="edit-row row-2">
-              <label class="text-body">
-                <div class="text-button">Display name</div>
-                <input name="display_name" type="text" value="{{ category.display_name }}" required>
-              </label>
-              <label class="text-body">
-                <div class="text-button">State</div>
-                <select name="state">
-                  {% set st = (category.state or 'PROPOSED') | upper %}
-                  <option value="PROPOSED" {% if st == 'PROPOSED' %}selected{% endif %}>PROPOSED</option>
-                  <option value="APPROVED" {% if st == 'APPROVED' %}selected{% endif %}>APPROVED</option>
-                  <option value="SEASONAL" {% if st == 'SEASONAL' %}selected{% endif %}>SEASONAL</option>
-                  <option value="REJECTED" {% if st == 'REJECTED' %}selected{% endif %}>REJECTED</option>
-                </select>
-              </label>
-            </div>
+          <div class="edit-flex">
+            <label class="text-body field-medium">
+              <div class="text-button">Display name</div>
+              <input name="display_name" type="text" value="{{ category.display_name }}" required>
+            </label>
 
-            <div class="edit-row row-3">
-              <label class="text-body">
-                <div class="text-button">Search</div>
-                <div style="display: flex; gap: 10px; align-items: center;">
-                  <input name="joke_description_query" type="text"
-                    value="{{ category.joke_description_query or '' }}"
-                    style="flex: 1 1 auto; min-width: 0;">
-                  <input name="search_distance" type="text"
-                    inputmode="decimal"
-                    placeholder="{{ joke_search_default_threshold }}"
-                    title="Optional search distance threshold"
-                    value="{{ category.search_distance if category.search_distance is not none else '' }}"
-                    style="width: 90px;">
-                </div>
-              </label>
+            <label class="text-body field-small">
+              <div class="text-button">State</div>
+              <select name="state">
+                {% set st = (category.state or 'PROPOSED') | upper %}
+                <option value="PROPOSED" {% if st == 'PROPOSED' %}selected{% endif %}>PROPOSED</option>
+                <option value="APPROVED" {% if st == 'APPROVED' %}selected{% endif %}>APPROVED</option>
+                <option value="SEASONAL" {% if st == 'SEASONAL' %}selected{% endif %}>SEASONAL</option>
+                <option value="REJECTED" {% if st == 'REJECTED' %}selected{% endif %}>REJECTED</option>
+              </select>
+            </label>
 
-              <label class="text-body">
-                <div class="text-button">Seasonal name</div>
-                <input name="seasonal_name" type="text"
-                  value="{{ category.seasonal_name or '' }}">
-              </label>
+            <label class="text-body field-small">
+              <div class="text-button">Search</div>
+              <div style="display: flex; gap: 10px; align-items: center;">
+                <input name="joke_description_query" type="text"
+                  value="{{ category.joke_description_query or '' }}"
+                  style="flex: 1 1 auto; min-width: 0;">
+                <input name="search_distance" type="text"
+                  inputmode="decimal"
+                  placeholder="{{ joke_search_default_threshold }}"
+                  title="Optional search distance threshold"
+                  value="{{ category.search_distance if category.search_distance is not none else '' }}"
+                  style="width: 70px; padding: 8px 6px;">
+              </div>
+            </label>
 
-              <label class="text-body">
-                <div class="text-button">Tags (comma-separated)</div>
-                <input name="tags" type="text"
-                  value="{{ (category.tags or []) | join(', ') }}">
-              </label>
+            <label class="text-body field-small">
+              <div class="text-button">Seasonal name</div>
+              <input name="seasonal_name" type="text"
+                value="{{ category.seasonal_name or '' }}">
+            </label>
 
-              <label class="text-body">
-                <div class="text-button">Image URL</div>
-                <input name="image_url" type="text" value="{{ category.image_url or '' }}">
-              </label>
-            </div>
+            <label class="text-body field-medium">
+              <div class="text-button">Tags (comma-separated)</div>
+              <input name="tags" type="text"
+                value="{{ (category.tags or []) | join(', ') }}">
+            </label>
 
-            <div class="edit-row row-1">
-              <label class="text-body">
-                <div class="text-button">Image description</div>
-                <textarea name="image_description">{{ category.image_description or '' }}</textarea>
-              </label>
-            </div>
+            <label class="text-body field-medium">
+              <div class="text-button">Negative tags (comma-separated)</div>
+              <input name="negative_tags" type="text"
+                value="{{ (category.negative_tags or []) | join(', ') }}">
+            </label>
+
+            <label class="text-body field-medium">
+              <div class="text-button">Image URL</div>
+              <input name="image_url" type="text" value="{{ category.image_url or '' }}">
+            </label>
+
+            <label class="text-body field-large">
+              <div class="text-button">Image description</div>
+              <textarea name="image_description">{{ category.image_description or '' }}</textarea>
+            </label>
           </div>
           <div style="display: flex; justify-content: flex-end; margin-top: 10px; gap: 10px;">
             <button class="text-button" type="submit">Save</button>

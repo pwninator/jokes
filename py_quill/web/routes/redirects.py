@@ -6,8 +6,7 @@ import flask
 from common import amazon_redirect
 from firebase_functions import logger
 from web.routes import web_bp
-from web.utils import analytics
-from web.utils import urls
+from web.utils import analytics, urls
 
 
 def resolve_request_country_code(req: flask.Request) -> str:
@@ -50,14 +49,17 @@ def _log_amazon_redirect(
   )
 
 
-def _handle_amazon_redirect(redirect_key: str) -> flask.Response:
+def _handle_amazon_redirect(
+  redirect_key: str,
+  source: str | None = None,
+) -> flask.Response:
   """Shared handler for public Amazon redirect endpoints."""
   config_entry = amazon_redirect.AMAZON_REDIRECTS.get(redirect_key)
   if not config_entry:
     return flask.Response('Redirect not found', status=404)
 
   requested_country = resolve_request_country_code(flask.request)
-  source = flask.request.args.get('source') or "aa"
+  source = source or flask.request.args.get('source') or "aa"
 
   target_url, resolved_country, resolved_asin = config_entry.resolve_target_url(
     requested_country,
@@ -138,3 +140,13 @@ def amazon_review_redirect(slug: str):
 def amazon_book_redirect(slug: str):
   """Redirect to an Amazon product page for supported slugs."""
   return _handle_amazon_redirect(f'book-{slug}')
+
+
+@web_bp.route('/printable-qr-code')
+def printable_qr_code_redirect():
+  """Redirect to a printable QR code page for supported slugs."""
+  # Redirect to the animal jokes book page
+  return _handle_amazon_redirect(
+    'book-animal-jokes',
+    source=amazon_redirect.AttributionSource.PRINTABLE_QR_CODE.value,
+  )

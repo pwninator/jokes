@@ -24,14 +24,15 @@ endblock %}
     } | tojson }}">
     Download Free PDF
   </a>
-  <div class="notes-detail__ad" aria-label="Advertisement">
+  {# Commented out for now because Adsense ads are not enabled yet. #}
+  {# <div class="notes-detail__ad" aria-label="Advertisement">
     <!-- printable_notes_details_post_download -->
     <ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-2479966366450616" data-ad-slot="8914785147"
       data-ad-format="auto" data-full-width-responsive="true"></ins>
     <script>
       (adsbygoogle = window.adsbygoogle || []).push({});
     </script>
-  </div>
+  </div> #}
 </section>
 
 {% if not is_signed_in %}
@@ -72,9 +73,7 @@ category_count=category_sheet_count, fan_stack=fan_stack) }}
 
     if (downloadBtn && signinSection) {
       downloadBtn.addEventListener('click', function () {
-        // Move the sign-in section to be right after the download button
-        // but inside the same container.
-        downloadBtn.parentNode.insertBefore(signinSection, downloadBtn.nextSibling);
+        signinSection.scrollIntoView({ behavior: 'smooth' });
       });
     }
   });

@@ -1,6 +1,7 @@
 {% macro notes_signin_card(hook_text, continue_url, category_label=None, promo_cards=[], promo_width=350, promo_quality=50) -%}
-{% set has_fan = promo_cards|length > 0 %}
-{% set count = promo_cards|length %}
+{% set display_cards = promo_cards|reverse|list %}
+{% set has_fan = display_cards|length > 0 %}
+{% set count = display_cards|length %}
 {% set center_index = (count - 1) / 2 %}
 {% set cdn_width = promo_width %}
 {% set cdn_quality = promo_quality %}

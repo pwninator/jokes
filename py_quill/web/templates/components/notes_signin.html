@@ -1,10 +1,10 @@
-{% macro notes_signin_card(hook_text, continue_url, category_label=None, category_count=0, promo_cards=[], promo_width=350, promo_quality=50) -%}
-{% set display_cards = promo_cards|reverse|list %}
-{% set has_fan = display_cards|length > 0 %}
-{% set count = display_cards|length %}
-{% set center_index = (count - 1) / 2 %}
-{% set cdn_width = promo_width %}
-{% set cdn_quality = promo_quality %}
+{% macro notes_signin_card(hook_text, continue_url, category_label=None, category_count=0, fan_stack={}) -%}
+{% set has_fan = fan_stack.get('has_fan', False) %}
+{% set count = fan_stack.get('count', 0) %}
+{% set center_index = fan_stack.get('center_index', 0) %}
+{% set display_cards = fan_stack.get('cards', []) %}
+{% set cdn_width = fan_stack.get('cdn_width', 350) %}
+{% set cdn_quality = fan_stack.get('cdn_quality', 50) %}
 <style>
   .signin-form-card--split {
     max-width: 960px;

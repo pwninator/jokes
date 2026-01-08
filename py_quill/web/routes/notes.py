@@ -59,6 +59,40 @@ def _calculate_promo_params(count: int) -> tuple[int, int]:
   return width, quality
 
 
+def _prepare_fan_stack(
+    cards: list[dict[str, object]]) -> dict[str, object]:
+  """Prepare a list of cards for rendering in the fan stack component.
+  
+  This function limits the card count, reverses the list for top-stacking,
+  and calculates all necessary metadata for rendering.
+
+  Args:
+    cards: The list of card objects to prepare.
+
+  Returns:
+    A dictionary containing the prepared data for the fan stack.
+  """
+  display_cards = cards[:_PROMO_CARD_LIMIT]
+  count = len(display_cards)
+  if not count:
+    return {"has_fan": False}
+
+  cdn_width, cdn_quality = _calculate_promo_params(count)
+
+  # Reverse list so the first items from Python are rendered last in the DOM,
+  # giving them the highest z-index and placing them on top of the stack.
+  display_cards.reverse()
+
+  return {
+    "has_fan": True,
+    "cards": display_cards,
+    "count": count,
+    "center_index": (count - 1) / 2,
+    "cdn_width": cdn_width,
+    "cdn_quality": cdn_quality,
+  }
+
+
 @web_bp.route('/notes')
 def notes_legacy():
   """Redirect legacy notes landing page."""
@@ -152,8 +186,7 @@ def notes():
     if card:
       promo_cards.append(card)
 
-  promo_image_width, promo_image_quality = _calculate_promo_params(
-    len(promo_cards))
+  fan_stack = _prepare_fan_stack(promo_cards)
 
   html = flask.render_template(
     'notes.html',
@@ -165,9 +198,7 @@ def notes():
     error_message=error_message,
     email_value=email_value,
     download_cards=download_cards,
-    promo_cards=promo_cards,
-    promo_image_width=promo_image_width,
-    promo_image_quality=promo_image_quality,
+    fan_stack=fan_stack,
     total_sheet_count=total_sheet_count,
     notes_image_width=_NOTES_IMAGE_MAX_WIDTH,
     notes_image_height=_NOTES_IMAGE_HEIGHT,
@@ -330,9 +361,7 @@ def notes_detail(slug: str):
   # so that the first items (category cards) end up at the top of the stack.
   promo_cards = category_cards + fillers
 
-  promo_image_width, promo_image_quality = _calculate_promo_params(
-    len(promo_cards))
-
+  fan_stack = _prepare_fan_stack(promo_cards)
   category_sheet_count = len(category_cards)
 
   display_title = f"{category_label} Joke Pack {display_index}"
@@ -363,8 +392,7 @@ def notes_detail(slug: str):
     notes_detail_image_height=_NOTES_DETAIL_IMAGE_HEIGHT,
     notes_image_width=_NOTES_IMAGE_MAX_WIDTH,
     notes_image_height=_NOTES_IMAGE_HEIGHT,
-    promo_image_width=promo_image_width,
-    promo_image_quality=promo_image_quality,
+    fan_stack=fan_stack,
     email_link_url=notes_continue_url,
     notes_hook_text=f"Want More {category_label} Joke Packs?",
     email_value='',
@@ -373,7 +401,6 @@ def notes_detail(slug: str):
     related_cards=related_cards,
     category_cards=category_cards,
     category_sheet_count=category_sheet_count,
-    promo_cards=promo_cards,
     total_sheet_count=total_sheet_count,
     firebase_config=config.FIREBASE_WEB_CONFIG,
   )

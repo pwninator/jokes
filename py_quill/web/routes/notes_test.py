@@ -62,14 +62,11 @@ def test_notes_page_renders_download_cards(monkeypatch):
   assert html.count(
     '<a class="nav-cta text-button notes-card__cta button-full"') == len(
       active_category_ids)
-  assert html.count(
-    'data-analytics-event="web_notes_view_pack_click"') == len(
-      active_category_ids) * 2
+  assert html.count('data-analytics-event="web_notes_view_pack_click"'
+                    ) == len(active_category_ids) * 2
   assert html.count('View Pack') == len(active_category_ids)
-  assert html.count(
-    '<article class="notes-card"') == len(active_category_ids)
-  assert html.count(
-    '<h3 class="notes-card__title') == len(active_category_ids)
+  assert html.count('<article class="notes-card"') == len(active_category_ids)
+  assert html.count('<h3 class="notes-card__title') == len(active_category_ids)
   assert 'web_notes_unlock_download_click' not in html
   assert 'extra-notes-download-title' not in html
   assert 'target="_blank"' in html
@@ -187,13 +184,13 @@ def test_notes_detail_renders_sheet(monkeypatch):
     pdf_gcs_uri="gs://pdf-bucket/joke_notes_sheets/space-a.pdf",
   )
 
-  monkeypatch.setattr(notes_routes.firestore, "get_joke_sheets_cache",
-                      lambda: [
-                        (category, [sheet_a, sheet_b]),
-                        (cats, [cats_sheet]),
-                        (dogs, [dogs_sheet]),
-                        (space, [space_sheet]),
-                      ])
+  monkeypatch.setattr(
+    notes_routes.firestore, "get_joke_sheets_cache", lambda: [
+      (category, [sheet_a, sheet_b]),
+      (cats, [cats_sheet]),
+      (dogs, [dogs_sheet]),
+      (space, [space_sheet]),
+    ])
   monkeypatch.setattr(notes_routes.random, "sample",
                       lambda population, k: population[:k])
 
@@ -210,8 +207,7 @@ def test_notes_detail_renders_sheet(monkeypatch):
   assert "Want More Animals Joke Packs?" in html
   assert "You Might Also Like" in html
   assert "sendSignInLinkToEmail" in html
-  assert html.count(
-    'data-analytics-event="web_notes_view_pack_click"') == 6
+  assert html.count('data-analytics-event="web_notes_view_pack_click"') == 6
   image_url = cloud_storage.get_public_image_cdn_url(
     sheet_a.image_gcs_uri,
     width=notes_routes._NOTES_DETAIL_IMAGE_MAX_WIDTH,
@@ -282,8 +278,8 @@ def test_notes_detail_allows_locked_pack_when_logged_in(monkeypatch):
   ]
   monkeypatch.setattr(notes_routes.firestore, "get_joke_sheets_cache",
                       lambda: [(category, sheets)])
-  monkeypatch.setattr(auth_helpers, "verify_session",
-                      lambda _req: ("user-123", {
+  monkeypatch.setattr(auth_helpers, "verify_session", lambda _req:
+                      ("user-123", {
                         "uid": "user-123"
                       }))
 
@@ -309,8 +305,8 @@ def test_notes_detail_redirects_on_invalid_slug():
 
 
 def test_notes_redirects_authenticated_user(monkeypatch):
-  monkeypatch.setattr(auth_helpers, "verify_session",
-                      lambda _req: ("user-123", {
+  monkeypatch.setattr(auth_helpers, "verify_session", lambda _req:
+                      ("user-123", {
                         "uid": "user-123"
                       }))
 
@@ -332,8 +328,8 @@ def test_notes_all_redirects_logged_out_user(monkeypatch):
 
 
 def test_notes_all_renders_categories_and_sheets(monkeypatch):
-  monkeypatch.setattr(auth_helpers, "verify_session",
-                      lambda _req: ("user-123", {
+  monkeypatch.setattr(auth_helpers, "verify_session", lambda _req:
+                      ("user-123", {
                         "uid": "user-123"
                       }))
 
@@ -413,5 +409,114 @@ def test_notes_all_renders_categories_and_sheets(monkeypatch):
   zany_high_detail = "/printables/notes/free-zany-jokes-2"
   assert html.find(zany_low_detail) < html.find(zany_high_detail)
   assert html.count("View Pack") == 5
-  assert html.count(
-    'data-analytics-event="web_notes_view_pack_click"') == 10
+  assert html.count('data-analytics-event="web_notes_view_pack_click"') == 10
+
+
+def test_prepare_fan_stack_limits_and_reverses():
+  """Verify _prepare_fan_stack limits to 15 and reverses the list."""
+  cards = [{"title": f"Card {i}"} for i in range(20)]
+  result = notes_routes._prepare_fan_stack(cards)
+
+  assert result["has_fan"] is True
+  assert result["count"] == 15
+  assert len(result["cards"]) == 15
+  # Check that the list is reversed (original Card 19 is now at index 0)
+  # The logic: cards[:15] -> [0..14]. Reversed -> [14..0].
+  # So index 0 is Card 14.
+  # Wait, the logic: display_cards = cards[:limit].reverse()
+  # cards[:15] = [Card 0, ..., Card 14]
+  # Reversed = [Card 14, ..., Card 0]
+  assert result["cards"][0]["title"] == "Card 14"
+  assert result["cards"][14]["title"] == "Card 0"
+
+
+def test_prepare_fan_stack_calculates_params_correctly():
+  """Verify _prepare_fan_stack calculates CDN and fan params correctly."""
+  # Test with 5 cards
+  cards = [{"title": f"Card {i}"} for i in range(5)]
+  result = notes_routes._prepare_fan_stack(cards)
+
+  assert result["count"] == 5
+  assert result["center_index"] == 2.0
+  # Check if width and quality are interpolated and rounded
+  # With 5 cards, t = (5-1)/(15-1) = 4/14 = ~0.2857
+  # Expected width: 350 - 0.2857 * 150 = 307.14 -> round to nearest 25 -> 300
+  # Expected quality: 50 - 0.2857 * 20 = 44.28 -> round to nearest 5 -> 45
+  assert result["cdn_width"] == 300
+  assert result["cdn_quality"] == 45
+
+
+def test_prepare_fan_stack_single_card():
+  """Verify _prepare_fan_stack handles a single card correctly."""
+  cards = [{"title": "Card 1"}]
+  result = notes_routes._prepare_fan_stack(cards)
+
+  assert result["has_fan"] is True
+  assert result["count"] == 1
+  assert result["center_index"] == 0.0
+  assert result["cards"][0]["title"] == "Card 1"
+  # Single card should use max width/quality
+  assert result["cdn_width"] == 350
+  assert result["cdn_quality"] == 50
+
+
+def test_prepare_fan_stack_no_cards():
+  """Verify _prepare_fan_stack handles an empty list."""
+  result = notes_routes._prepare_fan_stack([])
+  assert result["has_fan"] is False
+
+
+def test_notes_detail_shows_category_cards_when_logged_in(monkeypatch):
+  category_id = "animals"
+  slug = "free-animals-jokes-2"
+  category = models.JokeCategory(display_name="Animals",
+                                 id=category_id,
+                                 state="APPROVED")
+  # Setup 3 sheets so when viewing index 1 (Pack 2), we see Pack 1 and Pack 3 in category cards
+  sheets = [
+    models.JokeSheet(
+      key="sheet-1",
+      category_id=category_id,
+      index=0,
+      image_gcs_uri="gs://image-bucket/joke_notes_sheets/animals-1.png",
+      pdf_gcs_uri="gs://pdf-bucket/joke_notes_sheets/animals-1.pdf",
+    ),
+    models.JokeSheet(
+      key="sheet-2",
+      category_id=category_id,
+      index=1,
+      image_gcs_uri="gs://image-bucket/joke_notes_sheets/animals-2.png",
+      pdf_gcs_uri="gs://pdf-bucket/joke_notes_sheets/animals-2.pdf",
+    ),
+    models.JokeSheet(
+      key="sheet-3",
+      category_id=category_id,
+      index=2,
+      image_gcs_uri="gs://image-bucket/joke_notes_sheets/animals-3.png",
+      pdf_gcs_uri="gs://pdf-bucket/joke_notes_sheets/animals-3.pdf",
+    ),
+  ]
+  monkeypatch.setattr(notes_routes.firestore, "get_joke_sheets_cache",
+                      lambda: [(category, sheets)])
+  monkeypatch.setattr(auth_helpers, "verify_session", lambda _req:
+                      ("user-123", {
+                        "uid": "user-123"
+                      }))
+
+  with app.test_client() as client:
+    resp = client.get(f"/printables/notes/{slug}")
+
+  assert resp.status_code == 200
+  html = resp.get_data(as_text=True)
+
+  # Header should exist
+  assert "Other Animals Joke Packs" in html
+
+  # The empty state message should NOT exist
+  assert "More Animals joke packs are on the way." not in html
+
+  # Links to other packs should exist in the category section
+  # Pack 1 (index 0)
+  assert "/printables/notes/free-animals-jokes-1" in html
+  # Pack 3 (index 2)
+  assert "/printables/notes/free-animals-jokes-3" in html

@@ -34,6 +34,11 @@ endblock %}
   </div>
 </section>
 
+{% if not is_signed_in %}
+{{ notes_signin_card(hook_text=notes_hook_text, continue_url=email_link_url, category_label=category_label,
+category_count=category_sheet_count, fan_stack=fan_stack) }}
+{% endif %}
+
 <section class="section-center" aria-labelledby="notes-related-title">
   <header class="section-header">
     <h2 class="text-section-heading" id="notes-related-title">You Might Also Like</h2>
@@ -59,7 +64,6 @@ endblock %}
   {% endif %}
 </section>
 {% else %}
-{{ notes_signin_card(hook_text=notes_hook_text, continue_url=email_link_url, category_label=category_label, category_count=category_sheet_count, promo_cards=promo_cards, promo_width=promo_image_width, promo_quality=promo_image_quality) }}
 
 <script>
   document.addEventListener('DOMContentLoaded', function () {

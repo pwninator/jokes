@@ -1,7 +1,5 @@
 """Tests for amazon_redirect helpers."""
 
-import pytest
-
 from common import amazon_redirect
 
 
@@ -23,15 +21,19 @@ def test_normalize_source_strips_whitespace_only():
   assert amazon_redirect._normalize_source(None) is None
 
 
-def test_get_attribution_query_requires_exact_match(monkeypatch):
-  monkeypatch.setattr(amazon_redirect, "AMAZON_ATTRIBUTION_TAGS",
-                      {("B0TEST", "aae"): "ref_=aa&tag=tag-20"})
+def test_get_attribution_query_requires_exact_match():
+  variant = amazon_redirect.BookVariant(
+    asin="B0TEST",
+    attribution_tags={
+      amazon_redirect.AttributionSource.AA: "ref_=aa&tag=tag-20",
+    },
+  )
 
   assert amazon_redirect._get_attribution_tag(
-    "B0TEST",
-    "aae",
+    variant,
+    "aa",
   ) == "ref_=aa&tag=tag-20"
-  assert amazon_redirect._get_attribution_tag("B0TEST", "AAE") is None
+  assert amazon_redirect._get_attribution_tag(variant, "AA") is None
 
 
 def test_apply_attribution_query_merges_existing_query():
@@ -60,15 +62,14 @@ def test_apply_attribution_query_adds_query_when_missing():
 
 def test_amazon_redirect_config_base_urls():
   product = amazon_redirect.AmazonRedirectConfig(
-    asin="B0PROD",
+    book_key=amazon_redirect.BookKey.ANIMAL_JOKES,
     page_type=amazon_redirect.AmazonRedirectPageType.PRODUCT,
-    label="Product",
     description="Test product",
   )
   review = amazon_redirect.AmazonRedirectConfig(
-    asin="B0REV",
+    book_key=amazon_redirect.BookKey.ANIMAL_JOKES,
     page_type=amazon_redirect.AmazonRedirectPageType.REVIEW,
-    label="Review",
+    format=amazon_redirect.BookFormat.PAPERBACK,
     description="Test review",
   )
 
@@ -79,39 +80,114 @@ def test_amazon_redirect_config_base_urls():
     "US") == "https://www.amazon.com/review/create-review/?ie=UTF8&asin=B0REV")
 
 
-def test_resolve_country_and_asin_with_supported_list():
+def test_resolve_country_and_asin_with_supported_list(monkeypatch):
+  book = amazon_redirect.Book(
+    title="Test Book",
+    variants={
+      amazon_redirect.BookFormat.PAPERBACK:
+      amazon_redirect.BookVariant(
+        asin="B0ANY",
+        supported_countries=frozenset({"US", "DE"}),
+      ),
+    },
+  )
+  monkeypatch.setattr(amazon_redirect, "BOOKS",
+                      {amazon_redirect.BookKey.ANIMAL_JOKES: book})
   config = amazon_redirect.AmazonRedirectConfig(
-    asin="B0ANY",
+    book_key=amazon_redirect.BookKey.ANIMAL_JOKES,
     page_type=amazon_redirect.AmazonRedirectPageType.PRODUCT,
-    label="Limited",
     description="Limited countries",
-    supported_countries=frozenset({"US", "DE"}),
   )
 
-  assert config._resolve_country_and_asin("de") == ("DE", "B0ANY")
-  assert config._resolve_country_and_asin("BR") == ("US", "B0ANY")
-  assert config._resolve_country_and_asin(None) == ("US", "B0ANY")
+  resolved_country, resolved_variant = config._resolve_country_and_variant("de")
+  assert resolved_country == "DE"
+  assert resolved_variant.asin == "B0ANY"
+
+  resolved_country, resolved_variant = config._resolve_country_and_variant("BR")
+  assert resolved_country == "US"
+  assert resolved_variant.asin == "B0ANY"
+
+  resolved_country, resolved_variant = config._resolve_country_and_variant(None)
+  assert resolved_country == "US"
+  assert resolved_variant.asin == "B0ANY"
 
 
-def test_default_supported_countries_is_all():
+def test_default_supported_countries_is_all(monkeypatch):
+  book = amazon_redirect.Book(
+    title="Test Book",
+    variants={
+      amazon_redirect.BookFormat.PAPERBACK:
+      amazon_redirect.BookVariant(
+        asin="B0GLOBAL",
+      ),
+    },
+  )
+  monkeypatch.setattr(amazon_redirect, "BOOKS",
+                      {amazon_redirect.BookKey.ANIMAL_JOKES: book})
   config = amazon_redirect.AmazonRedirectConfig(
-    asin="B0GLOBAL",
+    book_key=amazon_redirect.BookKey.ANIMAL_JOKES,
     page_type=amazon_redirect.AmazonRedirectPageType.PRODUCT,
-    label="Global",
     description="All countries",
   )
 
   assert config.supported_countries == amazon_redirect.ALL_COUNTRIES
 
 
-def test_resolve_target_url_falls_back_to_ebook_for_unsupported_country():
-  config = amazon_redirect.AmazonRedirectConfig(
-    asin="B0PRINT",
-    fallback_asin="B0EBOOK",
+def test_label_derives_from_book_and_format(monkeypatch):
+  book = amazon_redirect.Book(
+    title="Test Book",
+    variants={
+      amazon_redirect.BookFormat.PAPERBACK:
+      amazon_redirect.BookVariant(
+        asin="B0PRINT",
+      ),
+      amazon_redirect.BookFormat.EBOOK:
+      amazon_redirect.BookVariant(
+        asin="B0EBOOK",
+      ),
+    },
+  )
+  monkeypatch.setattr(amazon_redirect, "BOOKS",
+                      {amazon_redirect.BookKey.ANIMAL_JOKES: book})
+
+  product = amazon_redirect.AmazonRedirectConfig(
+    book_key=amazon_redirect.BookKey.ANIMAL_JOKES,
     page_type=amazon_redirect.AmazonRedirectPageType.PRODUCT,
-    label="Product",
     description="Test product",
-    supported_countries=frozenset({"US", "DE"}),
+  )
+  review = amazon_redirect.AmazonRedirectConfig(
+    book_key=amazon_redirect.BookKey.ANIMAL_JOKES,
+    page_type=amazon_redirect.AmazonRedirectPageType.REVIEW,
+    format=amazon_redirect.BookFormat.EBOOK,
+    description="Test review",
+  )
+
+  assert product.label == "Test Book - Paperback"
+  assert review.label == "Test Book - Ebook Reviews"
+
+
+def test_resolve_target_url_falls_back_to_ebook_for_unsupported_country(
+  monkeypatch):
+  book = amazon_redirect.Book(
+    title="Test Book",
+    variants={
+      amazon_redirect.BookFormat.PAPERBACK:
+      amazon_redirect.BookVariant(
+        asin="B0PRINT",
+        supported_countries=frozenset({"US", "DE"}),
+      ),
+      amazon_redirect.BookFormat.EBOOK:
+      amazon_redirect.BookVariant(
+        asin="B0EBOOK",
+      ),
+    },
+  )
+  monkeypatch.setattr(amazon_redirect, "BOOKS",
+                      {amazon_redirect.BookKey.ANIMAL_JOKES: book})
+  config = amazon_redirect.AmazonRedirectConfig(
+    book_key=amazon_redirect.BookKey.ANIMAL_JOKES,
+    page_type=amazon_redirect.AmazonRedirectPageType.PRODUCT,
+    description="Test product",
   )
 
   target_url, resolved_country, resolved_asin = config.resolve_target_url(

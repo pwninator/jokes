@@ -44,6 +44,33 @@ BOOK_PRINT_COUNTRIES = frozenset({
 })
 
 
+class BookFormat(enum.Enum):
+  """Supported Amazon formats for a book."""
+  PAPERBACK = ("paperback", "Paperback")
+  EBOOK = ("ebook", "Ebook")
+
+  def __new__(cls, value: str, label: str):
+    obj = object.__new__(cls)
+    obj._value_ = value
+    obj._label = label
+    return obj
+
+  @property
+  def label(self) -> str:
+    return self._label
+
+
+class AttributionSource(enum.Enum):
+  """Known attribution sources for Amazon redirects."""
+  AA = "aa"
+  LUNCHBOX_THANK_YOU = "lunchbox_thank_you"
+
+
+class BookKey(enum.Enum):
+  """Identifiers for supported books."""
+  ANIMAL_JOKES = "animal-jokes"
+
+
 class AmazonRedirectPageType(enum.Enum):
   """Type of Amazon page to redirect to."""
   PRODUCT = "product"
@@ -51,51 +78,90 @@ class AmazonRedirectPageType(enum.Enum):
 
 
 @dataclasses.dataclass(frozen=True)
+class BookVariant:
+  """A specific book format and its Amazon data."""
+
+  asin: str
+  supported_countries: frozenset[str] = ALL_COUNTRIES
+  attribution_tags: dict[AttributionSource, str] = dataclasses.field(
+    default_factory=dict)
+
+
+@dataclasses.dataclass(frozen=True)
+class Book:
+  """Metadata for a book and its format variants."""
+
+  title: str
+  variants: dict[BookFormat, BookVariant]
+
+  def variant_for(self, book_format: BookFormat) -> BookVariant:
+    variant = self.variants.get(book_format)
+    if not variant:
+      raise KeyError(f"Missing book variant for format {book_format.value}")
+    return variant
+
+
+@dataclasses.dataclass(frozen=True)
 class AmazonRedirectConfig:
   """Definition for a redirect target."""
 
-  asin: str
+  book_key: BookKey
   page_type: AmazonRedirectPageType
-  label: str
   description: str
-  supported_countries: frozenset[str] = ALL_COUNTRIES
+  format: BookFormat | None = None
 
-  apply_attribution: bool = True
-  """Whether to apply affiliate attribution tags for this redirect."""
+  def __post_init__(self) -> None:
+    if self.page_type == AmazonRedirectPageType.REVIEW:
+      if self.format is None:
+        raise ValueError("Review redirects require a format.")
+    elif self.format is not None:
+      raise ValueError("Product redirects do not support format overrides.")
 
-  fallback_asin: str | None = None
-  """If provided, keep the requested counttry and fall back to this ASIN. Otherwise, fall back to the default country with the main ASIN."""
+  @property
+  def label(self) -> str:
+    book = self._book()
+    format_label = self._primary_format().label
+    if self.page_type == AmazonRedirectPageType.PRODUCT:
+      return f"{book.title} - {format_label}"
+    return f"{book.title} - {format_label} Reviews"
+
+  @property
+  def apply_attribution(self) -> bool:
+    return self.page_type == AmazonRedirectPageType.PRODUCT
+
+  @property
+  def asin(self) -> str:
+    return self._primary_variant().asin
+
+  @property
+  def supported_countries(self) -> frozenset[str]:
+    return self._primary_variant().supported_countries
 
   def resolve_target_url(
     self,
     requested_country_code: str | None,
     source: str | None = None,
   ) -> tuple[str, str, str]:
-    """Return the target URL, resolved country, and product variant.
-    
-    If the requested country code is supported, return the target URL for the country's domain using the main ASIN.
-    If the requested country code is not supported, and a fallback ASIN is provided, return the target URL using the requested country (as long as it's in the all countries set) for the fallback ASIN.
-    If the requested country code is not supported, and no fallback ASIN is provided, return the target URL using the default country and the main ASIN.
-    If attribution is enabled and a source maps to an attribution query, apply it to the target URL.
+    """Return the target URL, resolved country, and ASIN.
 
     Args:
       requested_country_code: ISO 3166-1 alpha-2 country code (case-insensitive).
       source: Source identifier used for attribution tag lookup.
-    
+
     Returns:
       target_url: The target URL for the redirect.
       resolved_country: The resolved country code.
       resolved_asin: The resolved ASIN.
     """
-    resolved_country, resolved_asin = self._resolve_country_and_asin(
+    resolved_country, resolved_variant = self._resolve_country_and_variant(
       requested_country_code)
-    target_url = self._construct_url(resolved_asin, resolved_country)
+    target_url = self._construct_url(resolved_variant.asin, resolved_country)
 
-    attribution_tag = _get_attribution_tag(resolved_asin, source)
+    attribution_tag = _get_attribution_tag(resolved_variant, source)
     if self.apply_attribution and attribution_tag:
       target_url = _apply_attribution_tag(target_url, attribution_tag)
 
-    return target_url, resolved_country, resolved_asin
+    return target_url, resolved_country, resolved_variant.asin
 
   def _product_base_url(self, asin: str, domain: str) -> str:
     return f"https://www.{domain}/dp/{asin}"
@@ -112,80 +178,106 @@ class AmazonRedirectConfig:
       case AmazonRedirectPageType.REVIEW:
         return self._review_base_url(asin, domain)
 
-  def _resolve_country_and_asin(
+  def _book(self) -> Book:
+    return BOOKS[self.book_key]
+
+  def _primary_format(self) -> BookFormat:
+    if self.page_type == AmazonRedirectPageType.REVIEW:
+      if self.format is None:
+        raise ValueError("Review redirects require a format.")
+      return self.format
+    return BookFormat.PAPERBACK
+
+  def _primary_variant(self) -> BookVariant:
+    return self._book().variant_for(self._primary_format())
+
+  def _fallback_variant(self) -> BookVariant | None:
+    if self.page_type != AmazonRedirectPageType.PRODUCT:
+      return None
+    return self._book().variants.get(BookFormat.EBOOK)
+
+  def _resolve_country_and_variant(
     self,
     requested_country_code: str | None,
-  ) -> tuple[str, str]:
-    """Return a supported country code and ASIN for this redirect."""
+  ) -> tuple[str, BookVariant]:
+    """Return a supported country code and variant for this redirect."""
     requested_country_code = normalize_country_code(
       requested_country_code) or DEFAULT_COUNTRY_CODE
 
-    if requested_country_code in self.supported_countries:
-      # The requested country is supported, so use it and the main ASIN
-      resolved_country = requested_country_code
-      resolved_asin = self.asin
-    elif self.fallback_asin:
-      # Country is not supported, but a fallback ASIN is provided, so use it and the requested country if it's in the all countries set.
-      resolved_country = requested_country_code if requested_country_code in ALL_COUNTRIES else DEFAULT_COUNTRY_CODE
-      resolved_asin = self.fallback_asin
-    else:
-      # Country is not supported, and no fallback ASIN is provided, so use the default country and the main ASIN.
-      resolved_country = DEFAULT_COUNTRY_CODE
-      resolved_asin = self.asin
-    return resolved_country, resolved_asin
+    primary_variant = self._primary_variant()
+    if requested_country_code in primary_variant.supported_countries:
+      return requested_country_code, primary_variant
 
+    fallback_variant = self._fallback_variant()
+    if fallback_variant:
+      if requested_country_code in fallback_variant.supported_countries:
+        return requested_country_code, fallback_variant
+      return DEFAULT_COUNTRY_CODE, fallback_variant
+
+    return DEFAULT_COUNTRY_CODE, primary_variant
+
+
+BOOKS: dict[BookKey, Book] = {
+  BookKey.ANIMAL_JOKES:
+  Book(
+    title='Cute & Silly Animal Jokes',
+    variants={
+      BookFormat.PAPERBACK:
+      BookVariant(
+        asin='B0G7F82P65',
+        supported_countries=BOOK_PRINT_COUNTRIES,
+        attribution_tags={
+          AttributionSource.AA:
+          ("maas=maas_adg_283BD8DDB074184DB7B5EBB2ED3EC3E7_afap_abs&ref_=aa_maas&tag=maas"
+           ),
+          AttributionSource.LUNCHBOX_THANK_YOU:
+          ("maas=maas_adg_92547F51E50DB214BCBCD9D297E81344_afap_abs&ref_=aa_maas&tag=maas"
+           ),
+        },
+      ),
+      BookFormat.EBOOK:
+      BookVariant(
+        asin='B0G9765J19',
+        attribution_tags={
+          AttributionSource.AA:
+          ("maas=maas_adg_88E95258EF6D9D50F8DBAADDFA5F7DE4_afap_abs&ref_=aa_maas&tag=maas"
+           ),
+          AttributionSource.LUNCHBOX_THANK_YOU:
+          ("maas=maas_adg_74E52113CF106F9D73EF19BC150AC09F_afap_abs&ref_=aa_maas&tag=maas"
+           ),
+        },
+      ),
+    },
+  ),
+}
 
 AMAZON_REDIRECTS: dict[str, AmazonRedirectConfig] = {
   # Cute & Silly Animal Jokes - Product Page
   'book-animal-jokes':
   AmazonRedirectConfig(
-    asin='B0G7F82P65',
-    fallback_asin='B0G9765J19',
+    book_key=BookKey.ANIMAL_JOKES,
     page_type=AmazonRedirectPageType.PRODUCT,
-    label='Cute & Silly Animal Jokes - Paperback',
     description='Redirects to the product page for the animal joke book.',
-    supported_countries=BOOK_PRINT_COUNTRIES,
   ),
 
   # Cute & Silly Animal Jokes - Review Pages
   'review-animal-jokes':
   AmazonRedirectConfig(
-    asin='B0G7F82P65',
+    book_key=BookKey.ANIMAL_JOKES,
     page_type=AmazonRedirectPageType.REVIEW,
-    label='Cute & Silly Animal Jokes - Paperback Reviews',
+    format=BookFormat.PAPERBACK,
     description=
     'Redirects to the customer review page for the animal joke book.',
-    supported_countries=BOOK_PRINT_COUNTRIES,
-    apply_attribution=False,
   ),
   'review-animal-jokes-ebook':
   AmazonRedirectConfig(
-    asin='B0G9765J19',
+    book_key=BookKey.ANIMAL_JOKES,
     page_type=AmazonRedirectPageType.REVIEW,
-    label='Cute & Silly Animal Jokes - Ebook Reviews',
+    format=BookFormat.EBOOK,
     description=
     'Redirects to the customer review page for the animal joke book.',
-    apply_attribution=False,
   ),
 }
-
-AMAZON_ATTRIBUTION_TAGS: dict[tuple[str, str], str] = {
-  # Cute & Silly Animal Jokes - Ebook
-  ("B0G9765J19", "aa"):
-  ("maas=maas_adg_88E95258EF6D9D50F8DBAADDFA5F7DE4_afap_abs&ref_=aa_maas&tag=maas"
-   ),
-  ("B0G9765J19", "lunchbox_thank_you"):
-  ("maas=maas_adg_74E52113CF106F9D73EF19BC150AC09F_afap_abs&ref_=aa_maas&tag=maas"
-   ),
-  # Cute & Silly Animal Jokes - Paperback
-  ("B0G7F82P65", "aa"):
-  ("maas=maas_adg_283BD8DDB074184DB7B5EBB2ED3EC3E7_afap_abs&ref_=aa_maas&tag=maas"
-   ),
-  ("B0G7F82P65", "lunchbox_thank_you"):
-  ("maas=maas_adg_92547F51E50DB214BCBCD9D297E81344_afap_abs&ref_=aa_maas&tag=maas"
-   ),
-}
-"""Attribution query strings keyed by (ASIN, source) pairs."""
 
 
 def normalize_country_code(country_code: str | None) -> str | None:
@@ -212,15 +304,23 @@ def _normalize_source(source: str | None) -> str | None:
   return stripped or None
 
 
-def _get_attribution_tag(asin: str, source: str | None) -> str | None:
-  """Return the attribution query for a given ASIN/source pair."""
+def _get_attribution_tag(variant: BookVariant,
+                         source: str | None) -> str | None:
+  """Return the attribution query for a given variant/source pair."""
   normalized_source = _normalize_source(source)
   if not normalized_source:
     return None
-  tag = AMAZON_ATTRIBUTION_TAGS.get((asin, normalized_source))
+  try:
+    source_key = AttributionSource(normalized_source)
+  except ValueError:
+    logger.warn(
+      f"Unknown Amazon attribution source '{normalized_source}' for ASIN {variant.asin}"
+    )
+    return None
+  tag = variant.attribution_tags.get(source_key)
   if not tag:
     logger.warn(
-      f"Unknown Amazon attribution source '{normalized_source}' for ASIN {asin}"
+      f"Unknown Amazon attribution source '{normalized_source}' for ASIN {variant.asin}"
     )
   return tag
 

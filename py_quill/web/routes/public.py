@@ -1,4 +1,4 @@
-"""Public SEO routes (index, topics, about, sitemap)."""
+"""Public SEO routes (index, topics, sitemap)."""
 
 from __future__ import annotations
 
@@ -140,21 +140,6 @@ def topic_page(topic: str):
     now_year=now_year,
   )
   return html_response(html, cache_seconds=300, cdn_seconds=1800)
-
-
-@web_bp.route('/about')
-def about():
-  """Render placeholder page for information about Snickerdoodle."""
-  now_year = datetime.datetime.now(datetime.timezone.utc).year
-  html = flask.render_template(
-    'about.html',
-    canonical_url=urls.canonical_url(flask.url_for('web.about')),
-    site_name='Snickerdoodle',
-    now_year=now_year,
-    prev_url=None,
-    next_url=None,
-  )
-  return html_response(html, cache_seconds=600, cdn_seconds=3600)
 
 
 @web_bp.route('/sitemap.xml')

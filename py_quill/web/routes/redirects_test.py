@@ -112,6 +112,20 @@ def test_amazon_redirect_defaults_source_to_aa(monkeypatch):
   assert "ref_=aa" in html
 
 
+def test_amazon_redirect_adds_web_book_page_tag(monkeypatch):
+  """Product redirects should include web_book_page tags when requested."""
+  monkeypatch.setattr(analytics_utils.config, "get_google_analytics_api_key",
+                      lambda: "test-secret")
+
+  with app.test_client() as client:
+    resp = client.get(
+      '/book-animal-jokes?country_override=US&source=web_book_page')
+
+  assert resp.status_code == 200
+  html = resp.get_data(as_text=True)
+  assert "maas_adg_67CA692EED615032D6E3E602791A40E5" in html
+
+
 def test_amazon_redirect_uses_resolved_asin_for_attribution(monkeypatch):
   """Attribution tags should use the resolved ASIN (fallback included)."""
   monkeypatch.setattr(analytics_utils.config, "get_google_analytics_api_key",

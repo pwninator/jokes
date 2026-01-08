@@ -249,6 +249,7 @@ def test_about_page_renders_family_story():
   assert 'width="480"' in html
   assert 'height="480"' in html
   assert 'loading="lazy"' in html
+  assert 'maas_adg_67CA692EED615032D6E3E602791A40E5' in html
   assert f'<link rel="canonical" href="{urls.canonical_url("/about")}">' in html
   assert 'Cache-Control' in resp.headers
 

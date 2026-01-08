@@ -5,12 +5,13 @@ from __future__ import annotations
 import os
 
 import flask
-import web.routes.admin.books as _admin_books  # noqa: E402,F401
-import web.routes.admin.categories as _admin_categories  # noqa: E402,F401
-import web.routes.admin.dashboard as _admin_dashboard  # noqa: E402,F401
 # Import route modules for side-effects (route registration on `web_bp`).
 # These are intentionally unused imports, but must remain at module scope so
 # all routes exist when Cloud Functions dispatches the request.
+import web.routes.about as _about  # noqa: E402,F401
+import web.routes.admin.books as _admin_books  # noqa: E402,F401
+import web.routes.admin.categories as _admin_categories  # noqa: E402,F401
+import web.routes.admin.dashboard as _admin_dashboard  # noqa: E402,F401
 import web.routes.auth as _auth  # noqa: E402,F401
 import web.routes.lunchbox as _lunchbox  # noqa: E402,F401
 import web.routes.notes as _notes  # noqa: E402,F401

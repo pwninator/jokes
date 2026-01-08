@@ -33,6 +33,10 @@ def test_get_attribution_query_requires_exact_match():
     variant,
     "aa",
   ) == "ref_=aa&tag=tag-20"
+  assert (amazon_redirect._get_attribution_tag(
+    variant,
+    amazon_redirect.AttributionSource.AA,
+  ) == "ref_=aa&tag=tag-20")
   assert amazon_redirect._get_attribution_tag(variant, "AA") is None
 
 

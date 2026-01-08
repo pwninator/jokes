@@ -64,6 +64,7 @@ class AttributionSource(enum.Enum):
   """Known attribution sources for Amazon redirects."""
   AA = "aa"
   LUNCHBOX_THANK_YOU = "lunchbox_thank_you"
+  WEB_BOOK_PAGE = "web_book_page"
 
 
 class BookKey(enum.Enum):
@@ -83,8 +84,8 @@ class BookVariant:
 
   asin: str
   supported_countries: frozenset[str] = ALL_COUNTRIES
-  attribution_tags: dict[AttributionSource, str] = dataclasses.field(
-    default_factory=dict)
+  attribution_tags: dict[AttributionSource,
+                         str] = dataclasses.field(default_factory=dict)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -140,7 +141,7 @@ class AmazonRedirectConfig:
   def resolve_target_url(
     self,
     requested_country_code: str | None,
-    source: str | None = None,
+    source: str | AttributionSource | None = None,
   ) -> tuple[str, str, str]:
     """Return the target URL, resolved country, and ASIN.
 
@@ -233,6 +234,9 @@ BOOKS: dict[BookKey, Book] = {
           AttributionSource.LUNCHBOX_THANK_YOU:
           ("maas=maas_adg_92547F51E50DB214BCBCD9D297E81344_afap_abs&ref_=aa_maas&tag=maas"
            ),
+          AttributionSource.WEB_BOOK_PAGE:
+          ("maas=maas_adg_67CA692EED615032D6E3E602791A40E5_afap_abs&ref_=aa_maas&tag=maas"
+           ),
         },
       ),
       BookFormat.EBOOK:
@@ -244,6 +248,9 @@ BOOKS: dict[BookKey, Book] = {
            ),
           AttributionSource.LUNCHBOX_THANK_YOU:
           ("maas=maas_adg_74E52113CF106F9D73EF19BC150AC09F_afap_abs&ref_=aa_maas&tag=maas"
+           ),
+          AttributionSource.WEB_BOOK_PAGE:
+          ("maas=maas_adg_491AB0D3F2B3A7CC4ABF08A4C6238A15_afap_abs&ref_=aa_maas&tag=maas"
            ),
         },
       ),
@@ -298,29 +305,36 @@ def get_amazon_domain(country_code: str | None) -> str:
 
 def _normalize_source(source: str | None) -> str | None:
   """Normalize a source parameter by trimming whitespace only."""
-  if source is None:
+  if not source:
     return None
   stripped = source.strip()
   return stripped or None
 
 
-def _get_attribution_tag(variant: BookVariant,
-                         source: str | None) -> str | None:
+def _get_attribution_tag(
+  variant: BookVariant,
+  source: str | AttributionSource | None,
+) -> str | None:
   """Return the attribution query for a given variant/source pair."""
-  normalized_source = _normalize_source(source)
-  if not normalized_source:
+  if source is None:
     return None
-  try:
-    source_key = AttributionSource(normalized_source)
-  except ValueError:
-    logger.warn(
-      f"Unknown Amazon attribution source '{normalized_source}' for ASIN {variant.asin}"
-    )
-    return None
+  if isinstance(source, AttributionSource):
+    source_key = source
+  else:
+    normalized_source = _normalize_source(source)
+    if not normalized_source:
+      return None
+    try:
+      source_key = AttributionSource(normalized_source)
+    except ValueError:
+      logger.warn(
+        f"Unknown Amazon attribution source '{source}' for ASIN {variant.asin}"
+      )
+      return None
   tag = variant.attribution_tags.get(source_key)
   if not tag:
     logger.warn(
-      f"Unknown Amazon attribution source '{normalized_source}' for ASIN {variant.asin}"
+      f"Unknown Amazon attribution source {source_key} for ASIN {variant.asin}"
     )
   return tag
 

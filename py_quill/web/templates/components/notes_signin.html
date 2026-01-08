@@ -1,7 +1,6 @@
-{% macro notes_signin_card(hook_text, continue_url, category_label=None, category_cards=[], promo_cards=None, promo_width=350, promo_quality=50) -%}
-{% set display_cards = (promo_cards if promo_cards is not none else category_cards)[:15] %}
-{% set has_fan = display_cards|length > 0 %}
-{% set count = display_cards|length %}
+{% macro notes_signin_card(hook_text, continue_url, category_label=None, promo_cards=[], promo_width=350, promo_quality=50) -%}
+{% set has_fan = promo_cards|length > 0 %}
+{% set count = promo_cards|length %}
 {% set center_index = (count - 1) / 2 %}
 {% set cdn_width = promo_width %}
 {% set cdn_quality = promo_quality %}
@@ -122,7 +121,7 @@
   <header class="section-header" data-notes-signin-lead-header>
     <h2 class="text-section-heading" id="notes-signin-lead-title">{{ hook_text }}</h2>
   </header>
-  <div class="signin-form-card {% if category_label %}signin-form-card--split{% endif %}" data-notes-signin-form-card>
+  <div class="signin-form-card {% if has_fan %}signin-form-card--split{% endif %}" data-notes-signin-form-card>
     <div class="signin-form-content">
       <form class="signin-form" method="post" action="{{ url_for('web.lunchbox') }}"
         data-notes-signin-auth-form>
@@ -131,22 +130,8 @@
           Complete Your {{ category_label }} Collection!
         </h2>
         <p class="text-body signin-form-text">
-          Access {{ category_cards|length }} more {{ category_label }} sheets and {{ total_sheet_count }}+ more themed sheets totally free! Enter your email below and we'll send a magic access link straight to your inbox.
+          Access {{ promo_cards|length }} more {{ category_label }} sheets and {{ total_sheet_count }}+ more themed sheets totally free! Enter your email below and we'll send a magic access link straight to your inbox.
         </p>
-        
-        {% if has_fan %}
-        <div class="fan-stack fan-stack--mobile" style="--count: {{ count }}; --center: {{ center_index }}">
-          {% for card in display_cards %}
-            <img 
-              src="{{ format_image_url(card.image_url, width=cdn_width, quality=cdn_quality) }}" 
-              alt="" 
-              loading="lazy"
-              style="--i: {{ loop.index0 }}; z-index: {{ loop.index }};"
-            />
-          {% endfor %}
-        </div>
-        {% endif %}
-
         {% else %}
         <h2 class="text-section-heading signin-form-title" id="notes-signin-form-title">Unlock the Full
           Snickerdoodle
@@ -155,6 +140,19 @@
         <p class="text-body signin-form-text">Access {{ total_sheet_count }}+ themed sheets totally free! Enter your email
           below and we'll send a
           magic access link straight to your inbox.</p>
+        {% endif %}
+
+        {% if has_fan %}
+        <div class="fan-stack fan-stack--mobile" style="--count: {{ count }}; --center: {{ center_index }}">
+          {% for card in promo_cards %}
+            <img 
+              src="{{ format_image_url(card.image_url, width=cdn_width, quality=cdn_quality) }}" 
+              alt="" 
+              loading="lazy"
+              style="--i: {{ loop.index0 }}; z-index: {{ loop.index }};"
+            />
+          {% endfor %}
+        </div>
         {% endif %}
 
         <div class="signin-form-field">
@@ -183,7 +181,7 @@
 
       {% if has_fan %}
       <div class="fan-stack fan-stack--desktop" style="--count: {{ count }}; --center: {{ center_index }}">
-        {% for card in display_cards %}
+        {% for card in promo_cards %}
           <img 
             src="{{ format_image_url(card.image_url, width=cdn_width, quality=cdn_quality) }}" 
             alt="Preview of {{ card.title }}" 

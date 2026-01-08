@@ -122,6 +122,39 @@ def notes():
     )
     if card:
       download_cards.append(card)
+
+  promo_cards: list[dict[str, object]] = []
+  for category, sheets in cache_entries:
+    if len(promo_cards) >= _PROMO_CARD_LIMIT:
+      break
+    if not sheets:
+      continue
+    target_sheet = sheets[1] if len(sheets) > 1 else sheets[0]
+    # Use a dummy index for slug since this card isn't for navigation
+    # but we need a valid URL for the builder.
+    dummy_index = target_sheet.index if target_sheet.index is not None else 0
+    detail_url = flask.url_for(
+      'web.notes_detail',
+      slug=_cache_sheet_slug(category.id, dummy_index),
+    )
+    card = _build_notes_sheet_card(
+      category_id=category.id,
+      title=category.display_name,
+      aria_label=f"{category.display_name} joke notes",
+      image_alt=f"{category.display_name} joke notes sheet",
+      image_gcs_uri=target_sheet.image_gcs_uri,
+      detail_url=detail_url,
+      analytics_params={
+        "category_id": category.id,
+        "access": "promo",
+      },
+    )
+    if card:
+      promo_cards.append(card)
+
+  promo_image_width, promo_image_quality = _calculate_promo_params(
+    len(promo_cards))
+
   html = flask.render_template(
     'notes.html',
     canonical_url=canonical_url,
@@ -132,6 +165,9 @@ def notes():
     error_message=error_message,
     email_value=email_value,
     download_cards=download_cards,
+    promo_cards=promo_cards,
+    promo_image_width=promo_image_width,
+    promo_image_quality=promo_image_quality,
     total_sheet_count=total_sheet_count,
     notes_image_width=_NOTES_IMAGE_MAX_WIDTH,
     notes_image_height=_NOTES_IMAGE_HEIGHT,

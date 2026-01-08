@@ -372,3 +372,38 @@ def test_pages_include_ga4_tag_and_parchment_background(monkeypatch):
   assert '<link rel="icon" type="image/png"' in index_html
   assert '<link rel="icon" type="image/png"' in topic_html
   assert '/jokes/dogs' not in index_html
+
+
+def test_nav_includes_book_and_app_links(monkeypatch):
+  """Navigation should include links to Book and App with analytics."""
+  # Arrange
+  mock_get_top_jokes = Mock(return_value=[
+      models.PunnyJoke(key="j1", setup_text="s", punchline_text="p")
+  ])
+  monkeypatch.setattr(public_routes.firestore, "get_top_jokes",
+                      mock_get_top_jokes)
+  mock_get_daily_joke = Mock(return_value=None)
+  monkeypatch.setattr(public_routes.firestore, "get_daily_joke",
+                      mock_get_daily_joke)
+
+  # Act
+  with app.test_client() as client:
+    resp = client.get('/')
+
+  # Assert
+  assert resp.status_code == 200
+  html = resp.get_data(as_text=True)
+
+  # Book Link
+  assert 'Book' in html
+  assert 'href="https://www.amazon.com/dp/' in html
+  assert 'data-analytics-event="web_nav_book_click"' in html
+  assert 'data-analytics-label="book"' in html
+  # We check target="_blank" generally, but can be specific if needed.
+  # The link structure is verified by the template, here we verify key attributes exist together.
+
+  # App Link
+  assert 'App' in html
+  assert 'href="https://play.google.com/store/apps/details?id=com.builtwithporpoise.jokes"' in html
+  assert 'data-analytics-event="web_nav_app_click"' in html
+  assert 'data-analytics-label="mobile_app"' in html

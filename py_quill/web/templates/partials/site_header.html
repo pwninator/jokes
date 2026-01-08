@@ -1,0 +1,44 @@
+{% macro site_header(brand_url, brand_text, site_name, brand_is_clickable=True) %}
+<header class="site-header">
+  <div class="header-inner">
+    {% if brand_is_clickable %}
+    <a class="brand" href="{{ brand_url }}" aria-label="{{ brand_text }} home">
+      <img class="brand-logo" alt="{{ site_name }} logo"
+        src="https://images.quillsstorybook.com/cdn-cgi/image/width=128,format=auto,quality=60/_joke_assets/icon_cookie_01_transparent_light_128.png" />
+      <span class="brand-text text-brand">{{ brand_text }}</span>
+    </a>
+    {% else %}
+    <div class="brand">
+      <img class="brand-logo" alt="{{ site_name }} logo"
+        src="https://images.quillsstorybook.com/cdn-cgi/image/width=128,format=auto,quality=60/_joke_assets/icon_cookie_01_transparent_light_128.png" />
+      <span class="brand-text text-brand">{{ brand_text }}</span>
+    </div>
+    {% endif %}
+
+    {# Desktop Navigation #}
+    <nav class="primary-nav desktop-only" aria-label="Primary navigation">
+      {{ caller() }}
+    </nav>
+
+    {# Mobile Menu Trigger #}
+    <button class="mobile-menu-trigger mobile-only"
+      type="button"
+      aria-label="Toggle navigation menu"
+      aria-expanded="false"
+      data-mobile-menu-trigger>
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="3" y1="12" x2="21" y2="12"></line>
+        <line x1="3" y1="6" x2="21" y2="6"></line>
+        <line x1="3" y1="18" x2="21" y2="18"></line>
+      </svg>
+    </button>
+  </div>
+  
+  {# Mobile Navigation Panel #}
+  <div class="mobile-menu-panel" data-mobile-menu-panel hidden>
+    <nav class="mobile-nav" aria-label="Mobile navigation">
+       {{ caller() }}
+    </nav>
+  </div>
+</header>
+{% endmacro %}

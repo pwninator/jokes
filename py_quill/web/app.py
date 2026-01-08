@@ -18,6 +18,7 @@ import web.routes.notes as _notes  # noqa: E402,F401
 import web.routes.public as _public  # noqa: E402,F401
 import web.routes.redirects as _redirects  # noqa: E402,F401
 from common import utils
+from common import amazon_redirect
 from firebase_functions import logger
 from web.routes import web_bp
 
@@ -47,9 +48,18 @@ app = flask.Flask(__name__,
 @app.context_processor
 def _inject_template_globals() -> dict[str, str]:
   """Inject shared template variables such as compiled CSS and CF origin."""
+  # Resolve navigation book link
+  country_code = _redirects.resolve_request_country_code(flask.request)
+  redirect_config = amazon_redirect.AMAZON_REDIRECTS['book-animal-jokes']
+  amazon_url, _, _ = redirect_config.resolve_target_url(
+    requested_country_code=country_code,
+    source='web_book_page',
+  )
+
   return {
     'site_css': _SITE_CSS,
     'functions_origin': utils.cloud_functions_base_url(),
+    'nav_amazon_book_url': amazon_url,
   }
 
 

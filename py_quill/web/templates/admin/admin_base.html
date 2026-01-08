@@ -1,4 +1,5 @@
 {% extends "root.html" %}
+{% from "partials/site_header.html" import site_header %}
 
 {% block title %}{% block admin_title %}Admin · {{ site_name }}{% endblock %}{% endblock %}
 
@@ -9,14 +10,7 @@
 {% set joke_books_url = url_for('web.admin_joke_books') %}
 {% set joke_books_prefix = joke_books_url.rstrip('/') %}
 <div class="site-shell admin-site-shell">
-  <header class="site-header">
-    <div class="header-inner">
-      <a class="brand" href="{{ dashboard_url }}" aria-label="{{ site_name }} admin home">
-        <img class="brand-logo" alt="{{ site_name }} logo"
-          src="https://images.quillsstorybook.com/cdn-cgi/image/width=128,format=auto,quality=60/_joke_assets/icon_cookie_01_transparent_light_128.png" />
-        <span class="brand-text text-brand">{{ site_name }} Admin</span>
-      </a>
-      <nav class="primary-nav" aria-label="Admin navigation">
+  {% call site_header(dashboard_url, site_name + " Admin", site_name, True) %}
         <a class="nav-link text-button{% if current_path == dashboard_url %} nav-link--active{% endif %}"
           href="{{ dashboard_url }}">
           Dashboard
@@ -30,9 +24,7 @@
           Joke Books
         </a>
         {% include "partials/user_nav_menu.html" %}
-      </nav>
-    </div>
-  </header>
+  {% endcall %}
   <main class="site-main">
     <div class="main-container">
       {% block content %}{% endblock %}

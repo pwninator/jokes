@@ -1,4 +1,5 @@
 {% extends "root.html" %}
+{% from "partials/site_header.html" import site_header %}
 
 {# NOTE: Keep this outside of `head_meta` so nested blocks can see it. #}
 {% set default_meta_description = "Don't just read jokes, see them! Snickerdoodle Jokes pairs hilarious puns with adorable art. Grab the illustrated Book or download the App today." %}
@@ -35,22 +36,7 @@
 {% set current_path = request.path %}
 {% set brand_is_clickable = brand_is_clickable|default(true) %}
 <div class="site-shell">
-  <header class="site-header">
-    <div class="header-inner">
-      {% if brand_is_clickable %}
-      <a class="brand" href="{{ url_for('web.index') }}" aria-label="{{ site_name }} home">
-        <img class="brand-logo" alt="{{ site_name }} logo"
-          src="https://images.quillsstorybook.com/cdn-cgi/image/width=128,format=auto,quality=60/_joke_assets/icon_cookie_01_transparent_light_128.png" />
-        <span class="brand-text text-brand">{{ site_name }}</span>
-      </a>
-      {% else %}
-      <div class="brand">
-        <img class="brand-logo" alt="{{ site_name }} logo"
-          src="https://images.quillsstorybook.com/cdn-cgi/image/width=128,format=auto,quality=60/_joke_assets/icon_cookie_01_transparent_light_128.png" />
-        <span class="brand-text text-brand">{{ site_name }}</span>
-      </div>
-      {% endif %}
-      <nav class="primary-nav" aria-label="Primary">
+  {% call site_header(url_for('web.index'), site_name, site_name, brand_is_clickable) %}
         <ul class="nav-list">
           <li>
             <a class="nav-link text-button{% if current_path == '/' %} nav-link--active{% endif %}"
@@ -70,6 +56,26 @@
             </a>
           </li>
           <li>
+            <a class="nav-link text-button"
+              href="{{ nav_amazon_book_url }}"
+              target="_blank"
+              rel="noopener noreferrer"
+              data-analytics-event="web_nav_book_click"
+              data-analytics-label="book">
+              Book
+            </a>
+          </li>
+          <li>
+            <a class="nav-link text-button"
+              href="https://play.google.com/store/apps/details?id=com.builtwithporpoise.jokes"
+              target="_blank"
+              rel="noopener noreferrer"
+              data-analytics-event="web_nav_app_click"
+              data-analytics-label="mobile_app">
+              App
+            </a>
+          </li>
+          <li>
             <a class="nav-link text-button{% if current_path == '/about' %} nav-link--active{% endif %}"
               href="{{ url_for('web.about') }}"
               data-analytics-event="web_nav_about_click"
@@ -78,9 +84,7 @@
             </a>
           </li>
         </ul>
-      </nav>
-    </div>
-  </header>
+  {% endcall %}
   <main class="site-main">
     <div class="main-container">
       {% block content %}{% endblock %}

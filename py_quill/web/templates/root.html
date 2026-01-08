@@ -212,6 +212,43 @@
         .catch(function () {});
     })();
   </script>
+  <script>
+    (function () {
+      if (typeof document === 'undefined') { return; }
+      
+      var trigger = document.querySelector('[data-mobile-menu-trigger]');
+      var panel = document.querySelector('[data-mobile-menu-panel]');
+      
+      if (!trigger || !panel) { return; }
+      
+      trigger.addEventListener('click', function(e) {
+        e.stopPropagation();
+        var isHidden = panel.hasAttribute('hidden');
+        if (isHidden) {
+          panel.removeAttribute('hidden');
+          trigger.setAttribute('aria-expanded', 'true');
+        } else {
+          panel.setAttribute('hidden', '');
+          trigger.setAttribute('aria-expanded', 'false');
+        }
+      });
+      
+      document.addEventListener('click', function(e) {
+        if (!panel.hasAttribute('hidden') && !panel.contains(e.target) && !trigger.contains(e.target)) {
+          panel.setAttribute('hidden', '');
+          trigger.setAttribute('aria-expanded', 'false');
+        }
+      });
+      
+       document.addEventListener('keydown', function (event) {
+          if (event.key === 'Escape' && !panel.hasAttribute('hidden')) {
+            panel.setAttribute('hidden', '');
+            trigger.setAttribute('aria-expanded', 'false');
+            trigger.focus();
+          }
+        });
+    })();
+  </script>
   {% block scripts %}{% endblock %}
 </body>
 

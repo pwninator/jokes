@@ -103,15 +103,18 @@ def test_resolve_country_and_asin_with_supported_list(monkeypatch):
     description="Limited countries",
   )
 
-  resolved_country, resolved_variant = config._resolve_country_and_variant("de")
+  resolved_country, resolved_variant = config._resolve_country_and_variant(
+    "de")
   assert resolved_country == "DE"
   assert resolved_variant.asin == "B0ANY"
 
-  resolved_country, resolved_variant = config._resolve_country_and_variant("BR")
+  resolved_country, resolved_variant = config._resolve_country_and_variant(
+    "BR")
   assert resolved_country == "US"
   assert resolved_variant.asin == "B0ANY"
 
-  resolved_country, resolved_variant = config._resolve_country_and_variant(None)
+  resolved_country, resolved_variant = config._resolve_country_and_variant(
+    None)
   assert resolved_country == "US"
   assert resolved_variant.asin == "B0ANY"
 
@@ -121,9 +124,7 @@ def test_default_supported_countries_is_all(monkeypatch):
     title="Test Book",
     variants={
       amazon_redirect.BookFormat.PAPERBACK:
-      amazon_redirect.BookVariant(
-        asin="B0GLOBAL",
-      ),
+      amazon_redirect.BookVariant(asin="B0GLOBAL", ),
     },
   )
   monkeypatch.setattr(amazon_redirect, "BOOKS",
@@ -134,7 +135,7 @@ def test_default_supported_countries_is_all(monkeypatch):
     description="All countries",
   )
 
-  assert config.supported_countries == amazon_redirect.ALL_COUNTRIES
+  assert config.primary_supported_countries == amazon_redirect.ALL_COUNTRIES
 
 
 def test_label_derives_from_book_and_format(monkeypatch):
@@ -142,13 +143,9 @@ def test_label_derives_from_book_and_format(monkeypatch):
     title="Test Book",
     variants={
       amazon_redirect.BookFormat.PAPERBACK:
-      amazon_redirect.BookVariant(
-        asin="B0PRINT",
-      ),
+      amazon_redirect.BookVariant(asin="B0PRINT", ),
       amazon_redirect.BookFormat.EBOOK:
-      amazon_redirect.BookVariant(
-        asin="B0EBOOK",
-      ),
+      amazon_redirect.BookVariant(asin="B0EBOOK", ),
     },
   )
   monkeypatch.setattr(amazon_redirect, "BOOKS",
@@ -171,7 +168,7 @@ def test_label_derives_from_book_and_format(monkeypatch):
 
 
 def test_resolve_target_url_falls_back_to_ebook_for_unsupported_country(
-  monkeypatch):
+    monkeypatch):
   book = amazon_redirect.Book(
     title="Test Book",
     variants={
@@ -181,9 +178,7 @@ def test_resolve_target_url_falls_back_to_ebook_for_unsupported_country(
         supported_countries=frozenset({"US", "DE"}),
       ),
       amazon_redirect.BookFormat.EBOOK:
-      amazon_redirect.BookVariant(
-        asin="B0EBOOK",
-      ),
+      amazon_redirect.BookVariant(asin="B0EBOOK", ),
     },
   )
   monkeypatch.setattr(amazon_redirect, "BOOKS",

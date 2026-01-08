@@ -113,12 +113,13 @@ def amazon_redirect_view_models() -> list[dict[str, str]]:
     if not endpoint or slug is None:
       continue
     path = flask.url_for(endpoint, slug=slug)
-    supported_countries = sorted(list(config_entry.supported_countries))
+    supported_countries = sorted(list(
+      config_entry.primary_supported_countries))
     items.append({
       'key': key,
       'label': config_entry.label,
       'description': config_entry.description,
-      'asin': config_entry.asin,
+      'asin': config_entry.primary_asin,
       'page_type': config_entry.page_type.value,
       'url': path,
       'supported_countries': supported_countries,

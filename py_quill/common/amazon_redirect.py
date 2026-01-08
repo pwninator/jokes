@@ -57,6 +57,7 @@ class BookFormat(enum.Enum):
 
   @property
   def label(self) -> str:
+    """Human-readable label for the format."""
     return self._label
 
 
@@ -65,6 +66,7 @@ class AttributionSource(enum.Enum):
   AA = "aa"
   LUNCHBOX_THANK_YOU = "lunchbox_thank_you"
   WEB_BOOK_PAGE = "web_book_page"
+  PRINTABLE_QR_CODE = "pqc"
 
 
 class BookKey(enum.Enum):
@@ -96,6 +98,7 @@ class Book:
   variants: dict[BookFormat, BookVariant]
 
   def variant_for(self, book_format: BookFormat) -> BookVariant:
+    """Return the variant for the given format."""
     variant = self.variants.get(book_format)
     if not variant:
       raise KeyError(f"Missing book variant for format {book_format.value}")
@@ -120,6 +123,7 @@ class AmazonRedirectConfig:
 
   @property
   def label(self) -> str:
+    """Human-readable label for the redirect."""
     book = self._book()
     format_label = self._primary_format().label
     if self.page_type == AmazonRedirectPageType.PRODUCT:
@@ -128,14 +132,17 @@ class AmazonRedirectConfig:
 
   @property
   def apply_attribution(self) -> bool:
+    """Whether to apply attribution tags to the target URL."""
     return self.page_type == AmazonRedirectPageType.PRODUCT
 
   @property
-  def asin(self) -> str:
+  def primary_asin(self) -> str:
+    """ASIN for the primary variant."""
     return self._primary_variant().asin
 
   @property
-  def supported_countries(self) -> frozenset[str]:
+  def primary_supported_countries(self) -> frozenset[str]:
+    """Countries that the primary variant is supported in."""
     return self._primary_variant().supported_countries
 
   def resolve_target_url(
@@ -237,6 +244,9 @@ BOOKS: dict[BookKey, Book] = {
           AttributionSource.WEB_BOOK_PAGE:
           ("maas=maas_adg_67CA692EED615032D6E3E602791A40E5_afap_abs&ref_=aa_maas&tag=maas"
            ),
+          AttributionSource.PRINTABLE_QR_CODE:
+          ("maas=maas_adg_55BD52E1D36F33FB01C05ECD64C29FD7_afap_abs&ref_=aa_maas&tag=maas"
+           ),
         },
       ),
       BookFormat.EBOOK:
@@ -251,6 +261,9 @@ BOOKS: dict[BookKey, Book] = {
            ),
           AttributionSource.WEB_BOOK_PAGE:
           ("maas=maas_adg_491AB0D3F2B3A7CC4ABF08A4C6238A15_afap_abs&ref_=aa_maas&tag=maas"
+           ),
+          AttributionSource.PRINTABLE_QR_CODE:
+          ("maas=maas_adg_C14294AAE6E358275AB7BFB2F5EE6766_afap_abs&ref_=aa_maas&tag=maas"
            ),
         },
       ),

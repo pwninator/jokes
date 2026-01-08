@@ -291,8 +291,49 @@ def notes_detail(slug: str):
       if len(category_cards) >= _PROMO_CARD_LIMIT:
         break
 
+  fillers: list[dict[str, object]] = []
+  if len(category_cards) < _PROMO_CARD_LIMIT:
+    needed = _PROMO_CARD_LIMIT - len(category_cards)
+    for entry_category, entry_sheets in cache_entries:
+      if len(fillers) >= needed:
+        break
+      if entry_category.id == category_id:
+        continue
+      if not entry_sheets:
+        continue
+      target_sheet = (entry_sheets[1]
+                      if len(entry_sheets) > 1 else entry_sheets[0])
+      
+      # We need a detail URL for the card builder, even if it's not clicked in the fan
+      dummy_index = target_sheet.index if target_sheet.index is not None else 0
+      filler_detail_url = flask.url_for(
+        'web.notes_detail',
+        slug=_cache_sheet_slug(entry_category.id, dummy_index),
+      )
+      
+      card = _build_notes_sheet_card(
+        category_id=entry_category.id,
+        title=f"{entry_category.display_name} Pack",
+        aria_label=f"{entry_category.display_name} joke notes",
+        image_alt=f"{entry_category.display_name} joke notes sheet",
+        image_gcs_uri=target_sheet.image_gcs_uri,
+        detail_url=filler_detail_url,
+        analytics_params={
+          "category_id": entry_category.id,
+          "access": "promo_fill",
+        },
+      )
+      if card:
+        fillers.append(card)
+
+  # Put category cards first, then fillers. The template reverses this list
+  # so that the first items (category cards) end up at the top of the stack.
+  promo_cards = category_cards + fillers
+
   promo_image_width, promo_image_quality = _calculate_promo_params(
-    len(category_cards))
+    len(promo_cards))
+
+  category_sheet_count = len(category_cards)
 
   display_title = f"{category_label} Joke Pack {display_index}"
   page_title = f"{display_title} (Free PDF)"
@@ -331,6 +372,8 @@ def notes_detail(slug: str):
     is_signed_in=is_signed_in,
     related_cards=related_cards,
     category_cards=category_cards,
+    category_sheet_count=category_sheet_count,
+    promo_cards=promo_cards,
     total_sheet_count=total_sheet_count,
     firebase_config=config.FIREBASE_WEB_CONFIG,
   )

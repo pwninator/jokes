@@ -1,4 +1,4 @@
-{% macro notes_signin_card(hook_text, continue_url, category_label=None, promo_cards=[], promo_width=350, promo_quality=50) -%}
+{% macro notes_signin_card(hook_text, continue_url, category_label=None, category_count=0, promo_cards=[], promo_width=350, promo_quality=50) -%}
 {% set display_cards = promo_cards|reverse|list %}
 {% set has_fan = display_cards|length > 0 %}
 {% set count = display_cards|length %}
@@ -131,7 +131,7 @@
           Complete Your {{ category_label }} Collection!
         </h2>
         <p class="text-body signin-form-text">
-          Access {{ promo_cards|length }} more {{ category_label }} sheets and {{ total_sheet_count }}+ more themed sheets totally free! Enter your email below and we'll send a magic access link straight to your inbox.
+          Access {{ category_count }} more {{ category_label }} sheets and {{ total_sheet_count }}+ more themed sheets totally free! Enter your email below and we'll send a magic access link straight to your inbox.
         </p>
         {% else %}
         <h2 class="text-section-heading signin-form-title" id="notes-signin-form-title">Unlock the Full
@@ -145,7 +145,7 @@
 
         {% if has_fan %}
         <div class="fan-stack fan-stack--mobile" style="--count: {{ count }}; --center: {{ center_index }}">
-          {% for card in promo_cards %}
+          {% for card in display_cards %}
             <img 
               src="{{ format_image_url(card.image_url, width=cdn_width, quality=cdn_quality) }}" 
               alt="" 
@@ -182,7 +182,7 @@
 
       {% if has_fan %}
       <div class="fan-stack fan-stack--desktop" style="--count: {{ count }}; --center: {{ center_index }}">
-        {% for card in promo_cards %}
+        {% for card in display_cards %}
           <img 
             src="{{ format_image_url(card.image_url, width=cdn_width, quality=cdn_quality) }}" 
             alt="Preview of {{ card.title }}" 

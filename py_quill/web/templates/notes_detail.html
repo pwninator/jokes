@@ -59,7 +59,7 @@ endblock %}
   {% endif %}
 </section>
 {% else %}
-{{ notes_signin_card(hook_text=notes_hook_text, continue_url=email_link_url, category_label=category_label, promo_cards=category_cards, promo_width=promo_image_width, promo_quality=promo_image_quality) }}
+{{ notes_signin_card(hook_text=notes_hook_text, continue_url=email_link_url, category_label=category_label, category_count=category_sheet_count, promo_cards=promo_cards, promo_width=promo_image_width, promo_quality=promo_image_quality) }}
 
 <script>
   document.addEventListener('DOMContentLoaded', function () {

@@ -3,7 +3,8 @@
 {% from "components/notes_sheet_grid.html" import notes_sheet_grid with context %}
 
 {% block title %}{{ page_title }} | {{ site_name }}{% endblock %}
-{% block meta_description %}Download the {{ category_label }} Joke Pack {{ sheet_index }} printable PDF for free.{% endblock %}
+{% block meta_description %}Download the {{ category_label }} Joke Pack {{ sheet_index }} printable PDF for free.{%
+endblock %}
 
 {% block content %}
 <section class="section-center notes-detail" aria-labelledby="notes-detail-title">
@@ -13,8 +14,8 @@
       width="{{ notes_detail_image_width }}" height="{{ notes_detail_image_height }}" loading="lazy" />
   </div>
   <a class="nav-cta text-button notes-detail__cta button-full" href="{{ pdf_url }}" target="_blank"
-    rel="noopener noreferrer" data-analytics-event="web_notes_download_click"
-    data-analytics-label="{{ category_id }}" data-analytics-params="{{ {
+    rel="noopener noreferrer" data-analytics-event="web_notes_download_click" data-analytics-label="{{ category_id }}"
+    data-analytics-params="{{ {
       'category_id': category_id,
       'category_label': category_label,
       'index': sheet_index,
@@ -23,6 +24,14 @@
     } | tojson }}">
     Download Free PDF
   </a>
+  <div class="notes-detail__ad" aria-label="Advertisement">
+    <!-- printable_notes_details_post_download -->
+    <ins class="adsbygoogle" style="display:block" data-ad-client="ca-pub-2479966366450616" data-ad-slot="8914785147"
+      data-ad-format="auto" data-full-width-responsive="true"></ins>
+    <script>
+      (adsbygoogle = window.adsbygoogle || []).push({});
+    </script>
+  </div>
 </section>
 
 <section class="section-center" aria-labelledby="notes-related-title">

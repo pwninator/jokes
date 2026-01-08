@@ -594,6 +594,12 @@ img {
   max-width: 360px;
 }
 
+.notes-detail__ad {
+  width: 100%;
+  max-width: 360px;
+  margin: 16px auto 0;
+}
+
 .notes-signin-success-card {
   width: 100%;
   max-width: 720px;

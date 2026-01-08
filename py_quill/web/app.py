@@ -60,6 +60,7 @@ def _inject_template_globals() -> dict[str, str]:
     'site_css': _SITE_CSS,
     'functions_origin': utils.cloud_functions_base_url(),
     'nav_amazon_book_url': amazon_url,
+    'format_image_url': utils.format_image_url,
   }
 
 

@@ -196,32 +196,31 @@ def notes_detail(slug: str):
   )
 
   category_cards: list[dict[str, object]] = []
-  if is_signed_in:
-    for fallback_index, other_sheet in enumerate(sheets, start=1):
-      sheet_index = (other_sheet.index
-                     if other_sheet.index is not None else fallback_index - 1)
-      if sheet_index == index:
-        continue
-      detail_url = flask.url_for(
-        'web.notes_detail',
-        slug=_cache_sheet_slug(category_id, sheet_index),
-      )
-      display_sheet_index = other_sheet.display_index or (sheet_index + 1)
-      card = _build_notes_sheet_card(
-        category_id=category_id,
-        title=f"Pack {display_sheet_index}",
-        aria_label=f"{category_label} joke notes pack {display_sheet_index}",
-        image_alt=f"{category_label} joke notes pack {display_sheet_index} sheet",
-        image_gcs_uri=other_sheet.image_gcs_uri,
-        detail_url=detail_url,
-        analytics_params={
-          "category_id": category_id,
-          "sheet_key": other_sheet.key or "",
-          "access": "unlocked",
-        },
-      )
-      if card:
-        category_cards.append(card)
+  for fallback_index, other_sheet in enumerate(sheets, start=1):
+    sheet_index = (other_sheet.index
+                   if other_sheet.index is not None else fallback_index - 1)
+    if sheet_index == index:
+      continue
+    detail_url = flask.url_for(
+      'web.notes_detail',
+      slug=_cache_sheet_slug(category_id, sheet_index),
+    )
+    display_sheet_index = other_sheet.display_index or (sheet_index + 1)
+    card = _build_notes_sheet_card(
+      category_id=category_id,
+      title=f"Pack {display_sheet_index}",
+      aria_label=f"{category_label} joke notes pack {display_sheet_index}",
+      image_alt=f"{category_label} joke notes pack {display_sheet_index} sheet",
+      image_gcs_uri=other_sheet.image_gcs_uri,
+      detail_url=detail_url,
+      analytics_params={
+        "category_id": category_id,
+        "sheet_key": other_sheet.key or "",
+        "access": "unlocked" if is_signed_in else "locked",
+      },
+    )
+    if card:
+      category_cards.append(card)
   display_title = f"{category_label} Joke Pack {display_index}"
   page_title = f"{display_title} (Free PDF)"
   canonical_slug = _cache_sheet_slug(category_id, index)

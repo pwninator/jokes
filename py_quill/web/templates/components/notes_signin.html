@@ -1,41 +1,127 @@
-{% macro notes_signin_card(hook_text, continue_url) -%}
-<section class="section-center" aria-labelledby="notes-signin-form-title">
+{% macro notes_signin_card(hook_text, continue_url, category_label=None, category_cards=[]) -%}
+{% set promo_card = category_cards[0] if category_label and category_cards else None %}
+<style>
+  .signin-form-card--split {
+    max-width: 960px;
+  }
+  .signin-form-content {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 24px;
+    align-items: center;
+  }
+  .signin-promo-image {
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    border-radius: 0;
+    overflow: hidden;
+  }
+  .signin-promo-image img {
+    display: block;
+  }
+
+  /* Mobile: Centered, height constrained, width fits content */
+  .signin-promo-image--mobile {
+    display: block;
+    margin: 8px auto 16px;
+    height: 200px;
+    width: fit-content;
+  }
+  .signin-promo-image--mobile img {
+    height: 100%;
+    width: auto;
+  }
+
+  /* Desktop: Full width of grid column */
+  .signin-promo-image--desktop {
+    display: none;
+    width: 100%;
+  }
+  .signin-promo-image--desktop img {
+    width: 100%;
+    height: auto;
+  }
+
+  @media (min-width: 720px) {
+    .signin-form-card--split .signin-form-content {
+      grid-template-columns: 1.2fr 1fr;
+    }
+    .signin-form-card--split .signin-promo-image--desktop {
+      display: block;
+    }
+    .signin-form-card--split .signin-promo-image--mobile {
+      display: none;
+    }
+    .signin-form-card--split .signin-form {
+      margin: 0;
+      text-align: center;
+    }
+    .signin-form-card--split .signin-form-title,
+    .signin-form-card--split .signin-form-text {
+      text-align: center;
+    }
+  }
+</style>
+
+<section class="section-center" aria-labelledby="notes-signin-form-title" data-notes-signin-section>
   <header class="section-header" data-notes-signin-lead-header>
     <h2 class="text-section-heading" id="notes-signin-lead-title">{{ hook_text }}</h2>
   </header>
-  <div class="signin-form-card" data-notes-signin-form-card>
-    <form class="signin-form" method="post" action="{{ url_for('web.lunchbox') }}"
-      data-notes-signin-auth-form>
-      <h2 class="text-section-heading signin-form-title" id="notes-signin-form-title">Unlock the Full
-        Snickerdoodle
-        Collection
-      </h2>
-      <p class="text-body signin-form-text">Access {{ total_sheet_count }}+ themed sheets totally free! Enter your email
-        below and we'll send a
-        magic access link straight to your inbox.</p>
-      <div class="signin-form-field">
-        <label class="sr-only" for="notes-signin-email">Email address</label>
-        <input class="signin-form-input" id="notes-signin-email" name="email" type="email" autocomplete="email"
-          placeholder="Your email" required value="{{ email_value or '' }}" aria-label="Your email"
-          aria-describedby="notes-signin-privacy" />
+  <div class="signin-form-card {% if category_label %}signin-form-card--split{% endif %}" data-notes-signin-form-card>
+    <div class="signin-form-content">
+      <form class="signin-form" method="post" action="{{ url_for('web.lunchbox') }}"
+        data-notes-signin-auth-form>
+        {% if category_label %}
+        <h2 class="text-section-heading signin-form-title" id="notes-signin-form-title">
+          Complete Your {{ category_label }} Collection!
+        </h2>
+        <p class="text-body signin-form-text">
+          Access {{ category_cards|length }} more {{ category_label }} sheets and {{ total_sheet_count }}+ more themed sheets totally free! Enter your email below and we'll send a magic access link straight to your inbox.
+        </p>
+        {% if promo_card %}
+        <div class="signin-promo-image signin-promo-image--mobile">
+           <img src="{{ format_image_url(promo_card.image_url, width=600) }}" alt="Preview of {{ promo_card.title }}" width="600" loading="lazy" />
+        </div>
+        {% endif %}
+        {% else %}
+        <h2 class="text-section-heading signin-form-title" id="notes-signin-form-title">Unlock the Full
+          Snickerdoodle
+          Collection
+        </h2>
+        <p class="text-body signin-form-text">Access {{ total_sheet_count }}+ themed sheets totally free! Enter your email
+          below and we'll send a
+          magic access link straight to your inbox.</p>
+        {% endif %}
+
+        <div class="signin-form-field">
+          <label class="sr-only" for="notes-signin-email">Email address</label>
+          <input class="signin-form-input" id="notes-signin-email" name="email" type="email" autocomplete="email"
+            placeholder="Your email" required value="{{ email_value or '' }}" aria-label="Your email"
+            aria-describedby="notes-signin-privacy" />
+        </div>
+
+        <button class="nav-cta text-button signin-form-submit" id="notes-signin-submit" type="submit"
+          data-analytics-event="web_lunchbox_submit_click" data-analytics-label="lunchbox">
+          Send Me My Access Link!
+        </button>
+
+        <div id="notes-signin-error" class="form-error" role="alert"></div>
+        <p id="notes-signin-status" class="text-body signin-form-text" role="status" aria-live="polite"
+          style="display:none"></p>
+
+        {% if error_message %}
+        <p class="text-body signin-form-text" role="alert">{{ error_message }}</p>
+        {% endif %}
+
+        <p class="text-footer signin-form-text" id="notes-signin-privacy">You'll receive occasional free printables, book
+          updates, and other Snickerdoodle news.<br>No spam, just wholesome fun. Unsubscribe at any time.</p>
+      </form>
+
+      {% if promo_card %}
+      <div class="signin-promo-image signin-promo-image--desktop">
+          <img src="{{ format_image_url(promo_card.image_url, width=600) }}" alt="Preview of {{ promo_card.title }}" width="600" loading="lazy" />
       </div>
-
-      <button class="nav-cta text-button signin-form-submit" id="notes-signin-submit" type="submit"
-        data-analytics-event="web_lunchbox_submit_click" data-analytics-label="lunchbox">
-        Send Me My Access Link!
-      </button>
-
-      <div id="notes-signin-error" class="form-error" role="alert"></div>
-      <p id="notes-signin-status" class="text-body signin-form-text" role="status" aria-live="polite"
-        style="display:none"></p>
-
-      {% if error_message %}
-      <p class="text-body signin-form-text" role="alert">{{ error_message }}</p>
       {% endif %}
-
-      <p class="text-footer signin-form-text" id="notes-signin-privacy">You'll receive occasional free printables, book
-        updates, and other Snickerdoodle news.<br>No spam, just wholesome fun. Unsubscribe at any time.</p>
-    </form>
+    </div>
   </div>
   <section class="notes-signin-success-card" aria-label="Success" data-notes-signin-success-banner
     style="display: none;">

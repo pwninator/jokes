@@ -59,6 +59,21 @@ endblock %}
   {% endif %}
 </section>
 {% else %}
-{{ notes_signin_card(hook_text=notes_hook_text, continue_url=email_link_url) }}
+{{ notes_signin_card(hook_text=notes_hook_text, continue_url=email_link_url, category_label=category_label, category_cards=category_cards) }}
+
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    const downloadBtn = document.querySelector('.notes-detail__cta');
+    const signinSection = document.querySelector('[data-notes-signin-section]');
+
+    if (downloadBtn && signinSection) {
+      downloadBtn.addEventListener('click', function () {
+        // Move the sign-in section to be right after the download button
+        // but inside the same container.
+        downloadBtn.parentNode.insertBefore(signinSection, downloadBtn.nextSibling);
+      });
+    }
+  });
+</script>
 {% endif %}
 {% endblock %}

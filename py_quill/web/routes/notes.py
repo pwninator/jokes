@@ -221,6 +221,8 @@ def notes_detail(slug: str):
     )
     if card:
       category_cards.append(card)
+      if len(category_cards) >= 20:
+        break
   display_title = f"{category_label} Joke Pack {display_index}"
   page_title = f"{display_title} (Free PDF)"
   canonical_slug = _cache_sheet_slug(category_id, index)

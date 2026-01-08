@@ -1,5 +1,6 @@
 {% macro notes_signin_card(hook_text, continue_url, category_label=None, category_cards=[]) -%}
-{% set promo_card = category_cards[0] if category_label and category_cards else None %}
+{% set promo_cards = category_cards[:20] if category_label and category_cards else [] %}
+{% set center_index = (promo_cards|length - 1) / 2 %}
 <style>
   .signin-form-card--split {
     max-width: 960px;
@@ -10,45 +11,96 @@
     gap: 24px;
     align-items: center;
   }
-  .signin-promo-image {
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
-    border-radius: 0;
-    overflow: hidden;
+  
+  /* Fan Stack Container */
+  .fan-stack {
+    display: grid;
+    place-items: center;
+    position: relative;
+    container-type: size;
+    width: 100%;
+    isolation: isolate;
   }
-  .signin-promo-image img {
+  
+  /* Fan Images */
+  .fan-stack img {
+    grid-area: 1 / 1;
     display: block;
-  }
-
-  /* Mobile: Centered, height constrained, width fits content */
-  .signin-promo-image--mobile {
-    display: block;
-    margin: 8px auto 16px;
-    height: 200px;
-    width: fit-content;
-  }
-  .signin-promo-image--mobile img {
-    height: 100%;
+    
+    /* Reset dimensions to auto to preserve aspect ratio */
     width: auto;
+    height: auto;
+    min-width: 0;
+    min-height: 0;
+    
+    /* Dynamic Sizing with Safety Margins for Large Stacks (up to 20):
+       - Single card: 92%
+       - Reduction per card: 3% (was 8%) to support larger counts
+       - Min size: 30%
+    */
+    --safe-limit: clamp(30%, 92% - (var(--count) - 1) * 3%, 92%);
+    max-width: var(--safe-limit);
+    max-height: var(--safe-limit);
+    
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    background: #fff;
+    
+    /* Dynamic Fanning Calculation */
+    --offset: calc(var(--i) - var(--center));
+    --abs-offset: max(var(--offset), -1 * var(--offset));
+    --norm-offset: calc(var(--offset) / max(1, var(--center)));
+    
+    /* Spread range */
+    --tx-range: calc(50cqw - 50%);
+    --ty-range: calc(50cqh - 50%);
+    
+    /* Default: Fan Horizontally (Landscape) - Arched Downwards
+       - Rotation scales with count: 15deg (low count) -> 35deg (high count)
+       - Arch centered vertically by subtracting half the max drop
+    */
+    --max-rot: clamp(15deg, 15deg + (var(--count) - 3) * 2.5deg, 35deg);
+    --y-drop: 8%;
+    --y-shift: calc(var(--center) * var(--y-drop) * -0.5);
+
+    transform: 
+      translateX(calc(var(--norm-offset) * var(--tx-range))) 
+      translateY(calc(var(--abs-offset) * var(--y-drop) + var(--y-shift))) 
+      rotate(calc(var(--norm-offset) * var(--max-rot)));
+      
+    transition: transform 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
   }
 
-  /* Desktop: Full width of grid column */
-  .signin-promo-image--desktop {
-    display: none;
-    width: 100%;
+  /* Vertical Fan for Portrait Containers - Diagonal */
+  @container (orientation: portrait) {
+    .fan-stack img {
+      transform: 
+        translateX(calc(var(--offset) * 4%)) 
+        translateY(calc(var(--norm-offset) * var(--ty-range)))
+        rotate(calc(var(--norm-offset) * var(--max-rot) * 0.6)); /* Less rotation for vertical fan */
+    }
   }
-  .signin-promo-image--desktop img {
-    width: 100%;
-    height: auto;
+
+  /* Mobile: Explicit height to define container aspect ratio */
+  .fan-stack--mobile {
+    height: 180px;
+    margin: 8px auto 24px;
+  }
+
+  /* Desktop: Fill grid cell height */
+  .fan-stack--desktop {
+    display: none;
+    height: 100%;
+    min-height: 300px; /* Ensure strictly defined height for container query */
   }
 
   @media (min-width: 720px) {
     .signin-form-card--split .signin-form-content {
       grid-template-columns: 1.2fr 1fr;
     }
-    .signin-form-card--split .signin-promo-image--desktop {
-      display: block;
+    .signin-form-card--split .fan-stack--desktop {
+      display: grid;
     }
-    .signin-form-card--split .signin-promo-image--mobile {
+    .signin-form-card--split .fan-stack--mobile {
       display: none;
     }
     .signin-form-card--split .signin-form {
@@ -77,11 +129,20 @@
         <p class="text-body signin-form-text">
           Access {{ category_cards|length }} more {{ category_label }} sheets and {{ total_sheet_count }}+ more themed sheets totally free! Enter your email below and we'll send a magic access link straight to your inbox.
         </p>
-        {% if promo_card %}
-        <div class="signin-promo-image signin-promo-image--mobile">
-           <img src="{{ format_image_url(promo_card.image_url, width=600) }}" alt="Preview of {{ promo_card.title }}" width="600" loading="lazy" />
+        
+        {% if promo_cards %}
+        <div class="fan-stack fan-stack--mobile" style="--count: {{ promo_cards|length }}; --center: {{ (promo_cards|length - 1) / 2 }}">
+          {% for card in promo_cards %}
+            <img 
+              src="{{ format_image_url(card.image_url, width=350, quality=40) }}" 
+              alt="" 
+              loading="lazy"
+              style="--i: {{ loop.index0 }}; z-index: {{ loop.index }};"
+            />
+          {% endfor %}
         </div>
         {% endif %}
+
         {% else %}
         <h2 class="text-section-heading signin-form-title" id="notes-signin-form-title">Unlock the Full
           Snickerdoodle
@@ -116,9 +177,16 @@
           updates, and other Snickerdoodle news.<br>No spam, just wholesome fun. Unsubscribe at any time.</p>
       </form>
 
-      {% if promo_card %}
-      <div class="signin-promo-image signin-promo-image--desktop">
-          <img src="{{ format_image_url(promo_card.image_url, width=600) }}" alt="Preview of {{ promo_card.title }}" width="600" loading="lazy" />
+      {% if promo_cards %}
+      <div class="fan-stack fan-stack--desktop" style="--count: {{ promo_cards|length }}; --center: {{ (promo_cards|length - 1) / 2 }}">
+        {% for card in promo_cards %}
+          <img 
+            src="{{ format_image_url(card.image_url, width=350, quality=40) }}" 
+            alt="Preview of {{ card.title }}" 
+            loading="lazy"
+            style="--i: {{ loop.index0 }}; z-index: {{ loop.index }};"
+          />
+        {% endfor %}
       </div>
       {% endif %}
     </div>

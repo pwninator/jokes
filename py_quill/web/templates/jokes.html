@@ -11,14 +11,7 @@ a hilarious punchline. Scroll to discover more!{% endblock %}
   .jokes-feed {
     display: grid;
     grid-template-columns: 1fr;
-
-    max-width: {
-        {
-        image_size
-      }
-    }
-
-    px;
+    max-width: var(--joke-feed-width);
     margin: 0 auto;
     gap: 2rem;
     padding: 2rem 1rem;
@@ -63,7 +56,7 @@ a hilarious punchline. Scroll to discover more!{% endblock %}
 {% block content %}
 <div class="jokes-feed-container">
   <h1>All Jokes</h1>
-  <section class="jokes-feed" id="jokes-feed" aria-label="Jokes feed">
+  <section class="jokes-feed" id="jokes-feed" aria-label="Jokes feed" style="--joke-feed-width: {{ image_size }}px;">
     {% for joke in jokes %}
     {{ joke_card(joke, reveal_label='Reveal Punchline', image_size=image_size, joke_id=joke.key) }}
     {% endfor %}

@@ -199,12 +199,16 @@ def test_notes_detail_renders_sheet(monkeypatch):
 
   assert resp.status_code == 200
   html = resp.get_data(as_text=True)
+  # Assert on element presence rather than exact text
+  assert 'notes-detail__title' in html
+  assert 'notes-detail-title' in html
+  assert 'Animals' in html  # Category name should be present
   assert urls.canonical_url(f"/printables/notes/{slug}") in html
   assert urls.canonical_url("/printables/notes") in html
-  assert "Download Free PDF" in html
-  assert "Want More Animals Joke Packs?" in html
-  assert "You Might Also Like" in html
-  assert "sendSignInLinkToEmail" in html
+  assert 'notes-detail__cta' in html
+  assert 'data-analytics-event="web_notes_download_click"' in html
+  assert 'notes-related-title' in html
+  assert 'data-notes-signin-section' in html
   assert html.count('data-analytics-event="web_notes_view_pack_click"') == 6
   image_url = cloud_storage.get_public_image_cdn_url(
     sheet_a.image_gcs_uri,

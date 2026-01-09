@@ -1,0 +1,253 @@
+{% extends "base.html" %}
+{% from "components/joke_card.html" import joke_card %}
+
+{% block title %}All Jokes | {{ site_name }}{% endblock %}
+{% block meta_description %}Browse our complete collection of illustrated jokes. Each joke features adorable artwork and
+a hilarious punchline. Scroll to discover more!{% endblock %}
+
+{% block head_extra %}
+<link rel="canonical" href="{{ canonical_url }}">
+<style>
+  .jokes-feed {
+    display: grid;
+    grid-template-columns: 1fr;
+    max-width: 350px;
+    margin: 0 auto;
+    gap: 2rem;
+    padding: 2rem 1rem;
+  }
+
+  .jokes-feed .joke-card {
+    width: 100%;
+  }
+
+  .jokes-feed .joke-slide-media img {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1 / 1;
+    object-fit: cover;
+  }
+
+  .loading-indicator {
+    text-align: center;
+    padding: 2rem;
+    color: #666;
+    min-height: 60px;
+    display: none;
+  }
+
+  .loading-indicator.active {
+    display: block;
+  }
+
+  .end-of-feed {
+    text-align: center;
+    padding: 2rem;
+    color: #666;
+    display: none;
+  }
+
+  .end-of-feed.active {
+    display: block;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="jokes-feed-container">
+  <h1>All Jokes</h1>
+  <section class="jokes-feed" id="jokes-feed" aria-label="Jokes feed">
+    {% for joke in jokes %}
+    {{ joke_card(joke, reveal_label='Reveal Punchline', image_size=350, joke_id=joke.key) }}
+    {% endfor %}
+  </section>
+  <div class="loading-indicator" id="loading-indicator" aria-live="polite">
+    Loading more...
+  </div>
+  <div class="end-of-feed" id="end-of-feed" aria-live="polite">
+    You've reached the end! No more jokes to load.
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  (function () {
+    const feedContainer = document.getElementById('jokes-feed');
+    const loadingIndicator = document.getElementById('loading-indicator');
+    const endOfFeed = document.getElementById('end-of-feed');
+    let nextCursor = {{ next_cursor | tojson if next_cursor else 'null'
+  }};
+  let hasMore = {{ has_more | tojson }};
+  let isLoading = false;
+
+  if (!hasMore || !nextCursor) {
+    endOfFeed.classList.add('active');
+  }
+
+  function createJokeCard(joke) {
+    const article = document.createElement('article');
+    article.className = 'joke-card';
+    article.setAttribute('aria-label', 'Joke ' + (joke.key || 'unknown'));
+
+    const viewer = document.createElement('div');
+    viewer.className = 'joke-viewer';
+    viewer.setAttribute('data-joke-viewer', '');
+
+    const carousel = document.createElement('div');
+    carousel.className = 'joke-carousel';
+
+    const viewport = document.createElement('div');
+    viewport.className = 'joke-carousel-viewport';
+
+    const track = document.createElement('div');
+    track.className = 'joke-carousel-track';
+
+    // Setup slide
+    const setupSlide = document.createElement('div');
+    setupSlide.className = 'joke-slide';
+    setupSlide.setAttribute('aria-hidden', 'false');
+
+    const setupMedia = document.createElement('div');
+    setupMedia.className = 'joke-slide-media';
+
+    if (joke.setup_image_url) {
+      const setupImg = document.createElement('img');
+      setupImg.src = joke.setup_image_url.replace('width=1024', 'width=350');
+      setupImg.alt = joke.setup_text || '';
+      setupImg.width = 350;
+      setupImg.height = 350;
+      setupImg.loading = 'lazy';
+      setupMedia.appendChild(setupImg);
+    } else {
+      const placeholder = document.createElement('div');
+      placeholder.className = 'joke-slide-placeholder text-button';
+      placeholder.textContent = 'Illustration baking…';
+      setupMedia.appendChild(placeholder);
+    }
+    setupSlide.appendChild(setupMedia);
+
+    // Punchline slide
+    const punchlineId = 'joke-' + (joke.key || 'unknown') + '-punchline';
+    const punchlineSlide = document.createElement('div');
+    punchlineSlide.className = 'joke-slide';
+    punchlineSlide.id = punchlineId;
+    punchlineSlide.setAttribute('aria-hidden', 'true');
+
+    const punchlineMedia = document.createElement('div');
+    punchlineMedia.className = 'joke-slide-media';
+
+    if (joke.punchline_image_url) {
+      const punchlineImg = document.createElement('img');
+      punchlineImg.src = joke.punchline_image_url.replace('width=1024', 'width=350');
+      punchlineImg.alt = joke.punchline_text || '';
+      punchlineImg.width = 350;
+      punchlineImg.height = 350;
+      punchlineImg.loading = 'lazy';
+      punchlineMedia.appendChild(punchlineImg);
+    } else {
+      const placeholder = document.createElement('div');
+      placeholder.className = 'joke-slide-placeholder text-button';
+      placeholder.textContent = 'Punchline ready to read!';
+      punchlineMedia.appendChild(placeholder);
+    }
+    punchlineSlide.appendChild(punchlineMedia);
+
+    track.appendChild(setupSlide);
+    track.appendChild(punchlineSlide);
+    viewport.appendChild(track);
+    carousel.appendChild(viewport);
+    viewer.appendChild(carousel);
+
+    // Reveal button
+    const button = document.createElement('button');
+    button.className = 'joke-reveal text-button';
+    button.type = 'button';
+    button.setAttribute('data-role', 'reveal');
+    button.setAttribute('data-label-show', 'Reveal Punchline');
+    button.setAttribute('data-label-hide', 'Back to Setup');
+    button.setAttribute('aria-controls', punchlineId);
+    button.setAttribute('aria-expanded', 'false');
+    button.setAttribute('data-analytics-event', 'web_index_joke_reveal_click');
+    button.setAttribute('data-analytics-label', joke.key || 'unknown');
+    button.textContent = 'Reveal Punchline';
+    viewer.appendChild(button);
+
+    article.appendChild(viewer);
+    return article;
+  }
+
+  function loadMoreJokes() {
+    if (isLoading || !hasMore || !nextCursor) {
+      return;
+    }
+
+    isLoading = true;
+    loadingIndicator.classList.add('active');
+
+    const url = new URL('/jokes/load-more', window.location.origin);
+    url.searchParams.set('cursor', nextCursor);
+
+    fetch(url)
+      .then(response => response.json())
+      .then(data => {
+        if (data.jokes && data.jokes.length > 0) {
+          data.jokes.forEach(joke => {
+            const card = createJokeCard(joke);
+            feedContainer.appendChild(card);
+
+            // Initialize viewer for this newly added card
+            const viewer = card.querySelector('[data-joke-viewer]');
+            if (viewer && window.initJokeViewer) {
+              window.initJokeViewer(viewer);
+            }
+          });
+        }
+
+        nextCursor = data.cursor;
+        hasMore = data.has_more;
+
+        if (!hasMore) {
+          endOfFeed.classList.add('active');
+          observer.unobserve(sentinel);
+        } else if (nextCursor) {
+          // Continue observing if there are more jokes
+          observer.observe(sentinel);
+        }
+      })
+      .catch(error => {
+        console.error('Error loading more jokes:', error);
+      })
+      .finally(() => {
+        isLoading = false;
+        loadingIndicator.classList.remove('active');
+      });
+  }
+
+  // Intersection Observer for infinite scroll
+  // Use a sentinel element that's always visible for reliable intersection detection
+  const sentinel = document.createElement('div');
+  sentinel.id = 'scroll-sentinel';
+  sentinel.style.height = '1px';
+  sentinel.style.width = '100%';
+  sentinel.setAttribute('aria-hidden', 'true');
+  feedContainer.parentNode.insertBefore(sentinel, loadingIndicator);
+
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting && hasMore && !isLoading && nextCursor) {
+        loadMoreJokes();
+      }
+    });
+  }, {
+    rootMargin: '200px',
+    threshold: 0
+  });
+
+  // Observe the sentinel element for reliable scroll detection
+  if (hasMore && nextCursor) {
+    observer.observe(sentinel);
+  }
+}) ();
+</script>
+{% endblock %}

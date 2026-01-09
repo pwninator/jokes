@@ -11,6 +11,7 @@ from firebase_functions import logger
 from google.cloud.firestore import (SERVER_TIMESTAMP, DocumentReference,
                                     FieldFilter, Query, Transaction,
                                     transactional)
+from google.cloud.firestore_v1.field_path import FieldPath
 
 _db = None  # pylint: disable=invalid-name
 _async_db = None  # pylint: disable=invalid-name
@@ -782,6 +783,112 @@ def update_joke_feed(jokes: list[dict[str, Any]]) -> None:
     doc_id = f"{chunk_index:010d}"
     doc_ref = feed_collection.document(doc_id)
     doc_ref.set({"jokes": chunk})
+
+
+def get_joke_feed_page(
+  cursor: str | None = None,
+  limit: int = 10,
+) -> tuple[list[models.PunnyJoke], str | None]:
+  """Get a page of jokes from the joke_feed collection.
+
+  Args:
+    cursor: Optional cursor in format "doc_id:joke_index" (e.g., "0000000000:9").
+      The joke_index is the 0-based index of the next joke to return (the first joke
+      of the next page). When provided, the function will start from this joke index
+      in the specified document.
+      If None, starts from the first document and first joke.
+    limit: Maximum number of jokes to return (default 10).
+
+  Returns:
+    Tuple of (jokes_list, next_cursor):
+      - jokes_list: List of PunnyJoke objects from the feed
+      - next_cursor: Cursor in format "doc_id:joke_index" representing the next joke
+        to return (the first joke of the next page), or None if no more jokes are
+        available. This cursor can be used to fetch the next page starting from this joke.
+  """
+  client = db()
+  feed_collection = client.collection('joke_feed')
+  query = feed_collection.order_by(FieldPath.document_id())
+
+  # Parse cursor if provided (format: "doc_id:joke_index")
+  cursor_doc_id: str | None = None
+  cursor_joke_index: int | None = None
+  if cursor:
+    parts = cursor.split(':', 1)
+    if len(parts) == 2:
+      cursor_doc_id = parts[0]
+      try:
+        cursor_joke_index = int(parts[1])
+      except ValueError:
+        # Invalid cursor format, treat as None
+        cursor_doc_id = None
+        cursor_joke_index = None
+    else:
+      # Invalid cursor format (must be "doc_id:joke_index"), treat as None
+      cursor_doc_id = None
+      cursor_joke_index = None
+
+  if cursor_doc_id:
+    # Start at the cursor document
+    query = query.start_at([cursor_doc_id])
+
+  # Read documents until we have limit + 1 jokes worth of data
+  # We'll return only limit jokes, using the extra to determine if there are more
+  jokes: list[models.PunnyJoke] = []
+  next_cursor_doc_id: str | None = None
+  next_cursor_joke_index: int | None = None
+
+  docs = query.stream()
+  for doc in docs:
+    if not doc.exists:
+      continue
+
+    doc_data = doc.to_dict() or {}
+    doc_jokes = doc_data.get('jokes', [])
+    if not isinstance(doc_jokes, list):
+      continue
+
+    # If this is the cursor document, start from the cursor index
+    start_index = 0
+    if cursor_doc_id and doc.id == cursor_doc_id and cursor_joke_index is not None:
+      # Start from the cursor index (the next joke to return)
+      start_index = cursor_joke_index
+
+    # Process jokes from this document
+    for joke_index, joke_dict in enumerate(
+        doc_jokes[start_index:],
+        start=start_index,
+    ):
+      if not isinstance(joke_dict, dict):
+        continue
+
+      # Try to convert to PunnyJoke
+      try:
+        joke = models.PunnyJoke.from_firestore_dict(
+          joke_dict,
+          key=joke_dict.get('key'),
+        )
+
+        # If we already have limit jokes, this is the next joke - store as cursor and break
+        if len(jokes) == limit:
+          next_cursor_doc_id = doc.id
+          next_cursor_joke_index = joke_index
+          break
+
+        jokes.append(joke)
+      except Exception:  # pylint: disable=broad-except
+        # Skip malformed jokes, but continue reading to check if there are more
+        continue
+
+    # If we've found the next joke (cursor), stop reading documents
+    if next_cursor_doc_id:
+      break
+
+  # Calculate next cursor
+  next_cursor = (f"{next_cursor_doc_id}:{next_cursor_joke_index}"
+                 if next_cursor_doc_id else None)
+
+  return jokes, next_cursor
 
 
 def create_character(character: models.Character) -> models.Character:

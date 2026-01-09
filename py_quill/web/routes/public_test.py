@@ -112,9 +112,10 @@ def test_topic_page_renders_with_json_ld_and_reveal(monkeypatch):
   assert f'<link rel="canonical" href="{urls.canonical_url("/jokes/dogs")}">' in html
   assert 'application/ld+json' in html
   assert 'FAQPage' in html
-  assert '<details>' in html
-  assert 'data-analytics-event="joke_reveal_toggle"' in html
-  assert '<summary data-analytics-event="joke_reveal_toggle"' in html
+  # Topic page uses carousel reveal style (default)
+  assert 'data-joke-viewer' in html
+  assert 'data-role="reveal"' in html
+  assert 'Reveal punchline' in html
   # Layout and image sizing
   assert '.topic-page .grid { grid-template-columns: 1fr;' in html
   assert 'aspect-ratio: 1 / 1' in html

@@ -479,8 +479,8 @@ def test_get_punny_jokes_batch(monkeypatch):
 
 
 def test_upsert_joke_sheet_returns_existing_doc_id(monkeypatch):
-  from services import firestore as fs
   from common import models
+  from services import firestore as fs
 
   captured: dict[str, object] = {}
 
@@ -543,8 +543,8 @@ def test_upsert_joke_sheet_returns_existing_doc_id(monkeypatch):
 
 
 def test_upsert_joke_sheet_creates_when_missing(monkeypatch):
-  from services import firestore as fs
   from common import models
+  from services import firestore as fs
 
   captured: dict[str, object] = {}
 
@@ -595,8 +595,8 @@ def test_upsert_joke_sheet_creates_when_missing(monkeypatch):
 
 
 def test_upsert_joke_sheet_skips_when_unchanged(monkeypatch):
-  from services import firestore as fs
   from common import models
+  from services import firestore as fs
 
   captured = {"set_called": False}
 
@@ -659,8 +659,8 @@ def test_upsert_joke_sheet_skips_when_unchanged(monkeypatch):
 
 
 def test_upsert_joke_sheet_writes_category_id(monkeypatch):
-  from services import firestore as fs
   from common import models
+  from services import firestore as fs
 
   captured: dict[str, object] = {}
 
@@ -885,26 +885,27 @@ def test_get_joke_sheets_cache_returns_doc(monkeypatch):
       return self
 
     def get(self):
-      return DummyDoc(True, {
-        "categories": {
-          "cats": {
-            "category_display_name":
-            "Cats",
-            "sheets": [
-              {
-                "image_gcs_uri": "gs://img1",
-                "pdf_gcs_uri": "gs://pdf1",
-                "sheet_key": "sheet-1",
-              },
-              {
-                "image_gcs_uri": None,
-                "pdf_gcs_uri": "gs://pdf2",
-                "sheet_key": "sheet-2",
-              },
-            ],
-          },
-        }
-      })
+      return DummyDoc(
+        True, {
+          "categories": {
+            "cats": {
+              "category_display_name":
+              "Cats",
+              "sheets": [
+                {
+                  "image_gcs_uri": "gs://img1",
+                  "pdf_gcs_uri": "gs://pdf1",
+                  "sheet_key": "sheet-1",
+                },
+                {
+                  "image_gcs_uri": None,
+                  "pdf_gcs_uri": "gs://pdf2",
+                  "sheet_key": "sheet-2",
+                },
+              ],
+            },
+          }
+        })
 
   class DummyDB:
 
@@ -1576,8 +1577,8 @@ def test_update_joke_feed_one_over_chunk(monkeypatch):
 
 def test_get_top_jokes(monkeypatch):
   """Test that get_top_jokes returns a list of PunnyJoke objects, filtered, sorted, and limited."""
-  from services import firestore as fs
   from google.cloud.firestore import Query
+  from services import firestore as fs
 
   class DummyDoc:
 
@@ -1708,3 +1709,500 @@ def test_get_top_jokes(monkeypatch):
   monkeypatch.setattr(fs, "db", lambda: DummyDB([]))
   top_jokes = fs.get_top_jokes('popularity_score_recent', 5)
   assert len(top_jokes) == 0
+
+
+def test_get_joke_feed_page_no_cursor(monkeypatch):
+  """Test get_joke_feed_page with no cursor returns first page."""
+  from services import firestore as fs
+
+  class DummyDoc:
+
+    def __init__(self, doc_id, jokes_data):
+      self.id = doc_id
+      self._jokes = jokes_data
+
+    def exists(self):
+      return True
+
+    def to_dict(self):
+      return {"jokes": self._jokes}
+
+  class DummyQuery:
+
+    def __init__(self, docs):
+      self._docs = docs
+      self._cursor = None
+      self._limit = None
+
+    def order_by(self, field_path):
+      return self
+
+    def start_after(self, cursor):
+      self._cursor = cursor
+      return self
+
+    def limit(self, n):
+      self._limit = n
+      return self
+
+    def stream(self):
+      return iter(self._docs)
+
+  class DummyCol:
+
+    def __init__(self, docs_by_id):
+      self._docs_by_id = docs_by_id
+      self._all_docs = []
+      for doc_id, jokes in docs_by_id.items():
+        self._all_docs.append(DummyDoc(doc_id, jokes))
+
+    def order_by(self, field_path):
+      return DummyQuery(self._all_docs)
+
+    def document(self, doc_id):
+      return DummyDoc(doc_id, self._docs_by_id.get(doc_id, []))
+
+  class DummyDB:
+
+    def collection(self, collection_name):
+      assert collection_name == "joke_feed"
+      return DummyCol({
+        "0000000000": [
+          {
+            "key": "joke1",
+            "setup_text": "Setup 1",
+            "punchline_text": "Punch 1"
+          },
+          {
+            "key": "joke2",
+            "setup_text": "Setup 2",
+            "punchline_text": "Punch 2"
+          },
+        ],
+        "0000000001": [
+          {
+            "key": "joke3",
+            "setup_text": "Setup 3",
+            "punchline_text": "Punch 3"
+          },
+        ],
+      })
+
+  monkeypatch.setattr(fs, "db", DummyDB)
+
+  jokes, cursor = fs.get_joke_feed_page(cursor=None, limit=2)
+
+  assert len(jokes) == 2
+  assert jokes[0].key == "joke1"
+  assert jokes[1].key == "joke2"
+  # Cursor should be "doc_id:joke_index" where joke_index is the index of the NEXT joke
+  assert cursor == "0000000001:0"
+
+
+def test_get_joke_feed_page_with_cursor(monkeypatch):
+  """Test get_joke_feed_page with cursor starts from that document."""
+  from services import firestore as fs
+
+  class DummyDoc:
+
+    def __init__(self, doc_id, jokes_data):
+      self.id = doc_id
+      self._jokes = jokes_data
+
+    def exists(self):
+      return True
+
+    def to_dict(self):
+      return {"jokes": self._jokes}
+
+  docs_by_id = {
+    "0000000000": [
+      {
+        "key": "joke1",
+        "setup_text": "Setup 1",
+        "punchline_text": "Punch 1"
+      },
+    ],
+    "0000000001": [
+      {
+        "key": "joke2",
+        "setup_text": "Setup 2",
+        "punchline_text": "Punch 2"
+      },
+      {
+        "key": "joke3",
+        "setup_text": "Setup 3",
+        "punchline_text": "Punch 3"
+      },
+    ],
+  }
+
+  class DummyQuery:
+
+    def __init__(self, docs, start_at_doc_id=None):
+      self._docs = docs
+      self._start_at_doc_id = start_at_doc_id
+
+    def order_by(self, field_path):
+      return self
+
+    def start_at(self, cursor):
+      # cursor is a list with one element: [doc_id]
+      if cursor:
+        self._start_at_doc_id = cursor[0]
+      return self
+
+    def start_after(self, cursor):
+      # Legacy support - not used with new cursor format
+      return self
+
+    def limit(self, n):
+      return self
+
+    def stream(self):
+      # Filter docs based on start_at
+      if self._start_at_doc_id:
+        found = False
+        for doc in self._docs:
+          if found:
+            yield doc
+          elif doc.id == self._start_at_doc_id:
+            found = True
+            yield doc
+      else:
+        for doc in self._docs:
+          yield doc
+
+  class DummyCol:
+
+    def __init__(self, docs_by_id):
+      self._docs_by_id = docs_by_id
+      self._all_docs = []
+      for doc_id, jokes in docs_by_id.items():
+        self._all_docs.append(DummyDoc(doc_id, jokes))
+
+    def order_by(self, field_path):
+      return DummyQuery(self._all_docs)
+
+  class DummyDB:
+
+    def collection(self, collection_name):
+      assert collection_name == "joke_feed"
+      return DummyCol(docs_by_id)
+
+  monkeypatch.setattr(fs, "db", DummyDB)
+
+  # Use cursor "0000000001:0" to start from the first joke of doc "0000000001"
+  # (cursor represents the next joke to return)
+  jokes, cursor = fs.get_joke_feed_page(cursor="0000000001:0", limit=2)
+
+  assert len(jokes) == 2
+  assert jokes[0].key == "joke2"
+  assert jokes[1].key == "joke3"
+  # Since we read limit + 1 and got exactly limit, there are no more
+  assert cursor is None
+
+
+def test_get_joke_feed_page_empty_feed(monkeypatch):
+  """Test get_joke_feed_page with empty feed collection."""
+  from services import firestore as fs
+
+  class DummyQuery:
+
+    def order_by(self, field_path):
+      return self
+
+    def start_after(self, cursor):
+      return self
+
+    def limit(self, n):
+      return self
+
+    def stream(self):
+      return iter([])
+
+  class DummyCol:
+
+    def order_by(self, field_path):
+      return DummyQuery()
+
+  class DummyDB:
+
+    def collection(self, collection_name):
+      assert collection_name == "joke_feed"
+      return DummyCol()
+
+  monkeypatch.setattr(fs, "db", DummyDB)
+
+  jokes, cursor = fs.get_joke_feed_page()
+
+  assert len(jokes) == 0
+  assert cursor is None
+
+
+def test_get_joke_feed_page_single_document(monkeypatch):
+  """Test get_joke_feed_page with single document containing fewer than limit."""
+  from services import firestore as fs
+
+  class DummyDoc:
+
+    def __init__(self, doc_id, jokes_data):
+      self.id = doc_id
+      self._jokes = jokes_data
+
+    def exists(self):
+      return True
+
+    def to_dict(self):
+      return {"jokes": self._jokes}
+
+  class DummyQuery:
+
+    def __init__(self, docs, cursor_id=None):
+      self._docs = docs
+      self._cursor_id = cursor_id
+
+    def order_by(self, field_path):
+      return self
+
+    def start_after(self, cursor):
+      # Filter docs after cursor
+      cursor_id = cursor[0] if cursor else None
+      # If starting after "0000000000" (the only doc), there are no more docs
+      # This handles the check query case
+      if cursor_id == "0000000000":
+        return DummyQuery([], cursor_id)
+      filtered = []
+      found_cursor = cursor_id is None
+      for doc in self._docs:
+        if found_cursor:
+          filtered.append(doc)
+        elif doc.id == cursor_id:
+          found_cursor = True
+      return DummyQuery(filtered, cursor_id)
+
+    def limit(self, n):
+      return self
+
+    def stream(self):
+      return iter(self._docs)
+
+  class DummyCol:
+
+    def __init__(self, docs_by_id):
+      self._docs_by_id = docs_by_id
+      self._all_docs = []
+      for doc_id, jokes in docs_by_id.items():
+        self._all_docs.append(DummyDoc(doc_id, jokes))
+
+    def order_by(self, field_path):
+      return DummyQuery(self._all_docs, None)
+
+  class DummyDB:
+
+    def collection(self, collection_name):
+      assert collection_name == "joke_feed"
+      return DummyCol({
+        "0000000000": [
+          {
+            "key": "joke1",
+            "setup_text": "Setup 1",
+            "punchline_text": "Punch 1"
+          },
+        ],
+      })
+
+  monkeypatch.setattr(fs, "db", DummyDB)
+
+  jokes, cursor = fs.get_joke_feed_page(limit=10)
+
+  assert len(jokes) == 1
+  assert jokes[0].key == "joke1"
+  # Since we got fewer than limit jokes, there are no more
+  assert cursor is None
+
+
+def test_get_joke_feed_page_crosses_document_boundary(monkeypatch):
+  """Test get_joke_feed_page when limit requires crossing document boundary."""
+  from services import firestore as fs
+
+  class DummyDoc:
+
+    def __init__(self, doc_id, jokes_data):
+      self.id = doc_id
+      self._jokes = jokes_data
+
+    def exists(self):
+      return True
+
+    def to_dict(self):
+      return {"jokes": self._jokes}
+
+  class DummyQuery:
+
+    def __init__(self, docs):
+      self._docs = docs
+
+    def order_by(self, field_path):
+      return self
+
+    def start_after(self, cursor):
+      return self
+
+    def limit(self, n):
+      return self
+
+    def stream(self):
+      return iter(self._docs)
+
+  class DummyCol:
+
+    def __init__(self, docs_by_id):
+      self._docs_by_id = docs_by_id
+      self._all_docs = []
+      for doc_id, jokes in docs_by_id.items():
+        self._all_docs.append(DummyDoc(doc_id, jokes))
+
+    def order_by(self, field_path):
+      return DummyQuery(self._all_docs)
+
+  class DummyDB:
+
+    def collection(self, collection_name):
+      assert collection_name == "joke_feed"
+      return DummyCol({
+        "0000000000": [
+          {
+            "key": "joke1",
+            "setup_text": "Setup 1",
+            "punchline_text": "Punch 1"
+          },
+          {
+            "key": "joke2",
+            "setup_text": "Setup 2",
+            "punchline_text": "Punch 2"
+          },
+        ],
+        "0000000001": [
+          {
+            "key": "joke3",
+            "setup_text": "Setup 3",
+            "punchline_text": "Punch 3"
+          },
+        ],
+      })
+
+  monkeypatch.setattr(fs, "db", DummyDB)
+
+  jokes, cursor = fs.get_joke_feed_page(limit=3)
+
+  assert len(jokes) == 3
+  assert jokes[0].key == "joke1"
+  assert jokes[1].key == "joke2"
+  assert jokes[2].key == "joke3"
+  # Since we read limit + 1 and got exactly limit, there are no more
+  assert cursor is None
+
+
+def test_get_joke_feed_page_partial_document_consumption(monkeypatch):
+  """Test get_joke_feed_page when a document has more jokes than the limit."""
+  from services import firestore as fs
+
+  class DummyDoc:
+
+    def __init__(self, doc_id, jokes_data):
+      self.id = doc_id
+      self._jokes = jokes_data
+
+    def exists(self):
+      return True
+
+    def to_dict(self):
+      return {"jokes": self._jokes}
+
+  # Track which documents and indices are accessed
+  accessed_docs = []
+  accessed_indices = []
+
+  class DummyQuery:
+
+    def __init__(self, docs, start_at_doc_id=None):
+      self._docs = docs
+      self._start_at_doc_id = start_at_doc_id
+
+    def order_by(self, field_path):
+      return self
+
+    def start_at(self, cursor):
+      # cursor is a list with one element: [doc_id]
+      if cursor:
+        self._start_at_doc_id = cursor[0]
+        accessed_docs.append(cursor[0])
+      return self
+
+    def start_after(self, cursor):
+      # Legacy support - should not be used with new cursor format
+      return self
+
+    def stream(self):
+      # Filter docs based on start_at
+      if self._start_at_doc_id:
+        found = False
+        for doc in self._docs:
+          if found:
+            yield doc
+          elif doc.id == self._start_at_doc_id:
+            found = True
+            yield doc
+      else:
+        for doc in self._docs:
+          yield doc
+
+  class DummyCol:
+
+    def __init__(self, docs_by_id):
+      self._docs_by_id = docs_by_id
+      self._all_docs = []
+      for doc_id, jokes in docs_by_id.items():
+        self._all_docs.append(DummyDoc(doc_id, jokes))
+
+    def order_by(self, field_path):
+      return DummyQuery(self._all_docs)
+
+  class DummyDB:
+
+    def collection(self, collection_name):
+      assert collection_name == "joke_feed"
+      return DummyCol({
+        "doc1": [
+          {
+            "key": f"joke{i}",
+            "setup_text": f"Setup {i}",
+            "punchline_text": f"Punch {i}"
+          } for i in range(1, 21)  # 20 jokes in doc1
+        ],
+      })
+
+  monkeypatch.setattr(fs, "db", DummyDB)
+
+  # First call: get first 10 jokes
+  accessed_docs.clear()
+  jokes1, cursor1 = fs.get_joke_feed_page(cursor=None, limit=10)
+
+  assert len(jokes1) == 10
+  assert jokes1[0].key == "joke1"
+  assert jokes1[9].key == "joke10"
+  # Cursor should be "doc1:10" (doc ID and index of NEXT joke to return)
+  assert cursor1 == "doc1:10"
+
+  # Second call: use cursor to get next 10 jokes from same document
+  accessed_docs.clear()
+  jokes2, cursor2 = fs.get_joke_feed_page(cursor="doc1:10", limit=10)
+
+  assert len(jokes2) == 10
+  assert jokes2[0].key == "joke11"
+  assert jokes2[9].key == "joke20"
+  # No more jokes, so cursor should be None
+  assert cursor2 is None
+  # Should have started at doc1
+  assert "doc1" in accessed_docs

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "components/joke_card.html" import joke_card %}
 {% block title %}Snickerdoodle Jokes | Daily Fun for Everyone{% endblock %}
 
 {% block meta_description %}Don't just read jokes, see them! Snickerdoodle Jokes pairs hilarious puns with adorable art. Grab the illustrated Book or download the App today.{% endblock %}
@@ -19,43 +20,7 @@
   </div>
   <article class="hero-card" id="daily-joke-card" aria-labelledby="hero-card-title">
     {% if daily_joke %}
-    <div class="joke-viewer" data-joke-viewer>
-      <div class="joke-carousel">
-        <div class="joke-carousel-viewport">
-          <div class="joke-carousel-track">
-            <div class="joke-slide" aria-hidden="false">
-              <div class="joke-slide-media">
-                {% if daily_joke.setup_image_url %}
-                <img src="{{ daily_joke.setup_image_url | replace('width=1024', 'width=' ~ 800) }}" alt="{{ daily_joke.setup_text }}" width="800" height="800" loading="lazy">
-                {% else %}
-                <div class="joke-slide-placeholder text-button">Illustration baking…</div>
-                {% endif %}
-              </div>
-            </div>
-            <div class="joke-slide" id="daily-joke-punchline" aria-hidden="true">
-              <div class="joke-slide-media">
-                {% if daily_joke.punchline_image_url %}
-                <img src="{{ daily_joke.punchline_image_url | replace('width=1024', 'width=' ~ 800) }}" alt="{{ daily_joke.punchline_text }}" width="800" height="800" loading="lazy">
-                {% else %}
-                <div class="joke-slide-placeholder text-button">Punchline ready to read!</div>
-                {% endif %}
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <button class="joke-reveal text-button"
-        type="button"
-        data-role="reveal"
-        data-label-show="Reveal Punchline"
-        data-label-hide="Back to Setup"
-        aria-controls="daily-joke-punchline"
-        aria-expanded="false"
-        data-analytics-event="web_index_joke_reveal_click"
-        data-analytics-label="{{ daily_joke.key or 'daily_joke' }}">
-        Reveal Punchline
-      </button>
-    </div>
+    {{ joke_card(daily_joke, reveal_label='Reveal Punchline', image_size=800, joke_id='daily-joke') }}
     {% else %}
     <div class="hero-card__image">
       <div class="app-highlight__placeholder text-button">Illustration baking…</div>
@@ -73,45 +38,7 @@
   {% if favorites %}
   <div class="favorites-grid">
     {% for joke in favorites %}
-    <article class="joke-card" aria-label="Fan favorite joke {{ loop.index }}">
-      <div class="joke-viewer" data-joke-viewer>
-        <div class="joke-carousel">
-          <div class="joke-carousel-viewport">
-            <div class="joke-carousel-track">
-              <div class="joke-slide" aria-hidden="false">
-                <div class="joke-slide-media">
-                  {% if joke.setup_image_url %}
-                  <img src="{{ joke.setup_image_url | replace('width=1024', 'width=' ~ 600) }}" alt="{{ joke.setup_text }}" width="600" height="600" loading="lazy">
-                  {% else %}
-                  <div class="joke-slide-placeholder text-button">Illustration baking…</div>
-                  {% endif %}
-                </div>
-              </div>
-              <div class="joke-slide" id="favorite-{{ loop.index }}-punchline" aria-hidden="true">
-                <div class="joke-slide-media">
-                  {% if joke.punchline_image_url %}
-                  <img src="{{ joke.punchline_image_url | replace('width=1024', 'width=' ~ 600) }}" alt="{{ joke.punchline_text }}" width="600" height="600" loading="lazy">
-                  {% else %}
-                  <div class="joke-slide-placeholder text-button">Punchline ready to read!</div>
-                  {% endif %}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <button class="joke-reveal text-button"
-          type="button"
-          data-role="reveal"
-          data-label-show="Reveal Punchline"
-          data-label-hide="Back to Setup"
-          aria-controls="favorite-{{ loop.index }}-punchline"
-          aria-expanded="false"
-          data-analytics-event="web_index_joke_reveal_click"
-          data-analytics-label="{{ joke.key or 'favorite_joke' }}">
-          Reveal Punchline
-        </button>
-      </div>
-    </article>
+    {{ joke_card(joke, reveal_label='Reveal Punchline', image_size=600, joke_id='favorite-' ~ loop.index) }}
     {% endfor %}
   </div>
   {% else %}
@@ -174,82 +101,51 @@
 </section>
 {% endblock %}
 
-{% block scripts %}
+{% block extra_scripts %}
 <script>
-(function () {
-  function initViewer(root) {
-    const track = root.querySelector('.joke-carousel-track');
-    const slides = root.querySelectorAll('.joke-slide');
-    const toggle = root.querySelector('[data-role="reveal"]');
-    if (!track || slides.length < 2 || !toggle) {
-      return;
-    }
+// Tooltip logic for App Store button
+document.querySelectorAll('.store-badge-wrapper').forEach(function (wrapper) {
+  const btn = wrapper.querySelector('.store-badge-btn');
+  const tooltip = wrapper.querySelector('.store-tooltip');
 
-    const showLabel = toggle.getAttribute('data-label-show') || toggle.textContent || 'Reveal';
-    const hideLabel = toggle.getAttribute('data-label-hide') || showLabel;
-    const setupSlide = slides[0];
-    const punchlineSlide = slides[1];
+  if (!btn || !tooltip) return;
 
-    function setState(isRevealed) {
-      root.classList.toggle('is-revealed', isRevealed);
-      toggle.textContent = isRevealed ? hideLabel : showLabel;
-      toggle.setAttribute('aria-expanded', String(isRevealed));
-      setupSlide.setAttribute('aria-hidden', String(isRevealed));
-      punchlineSlide.setAttribute('aria-hidden', String(!isRevealed));
-    }
-
-    setState(false);
-    toggle.addEventListener('click', function () {
-      setState(!root.classList.contains('is-revealed'));
-    });
+  function show() {
+    tooltip.classList.add('tooltip--visible');
+    tooltip.setAttribute('aria-hidden', 'false');
+    // Analytics are handled by global handler on the button
   }
 
-  document.querySelectorAll('[data-joke-viewer]').forEach(initViewer);
+  function hide() {
+    tooltip.classList.remove('tooltip--visible');
+    tooltip.setAttribute('aria-hidden', 'true');
+  }
 
-  // Tooltip logic for App Store button
-  document.querySelectorAll('.store-badge-wrapper').forEach(function (wrapper) {
-    const btn = wrapper.querySelector('.store-badge-btn');
-    const tooltip = wrapper.querySelector('.store-tooltip');
-
-    if (!btn || !tooltip) return;
-
-    function show() {
-      tooltip.classList.add('tooltip--visible');
-      tooltip.setAttribute('aria-hidden', 'false');
-      // Analytics are handled by global handler on the button
+  function toggle(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (tooltip.classList.contains('tooltip--visible')) {
+      hide();
+    } else {
+      show();
     }
+  }
 
-    function hide() {
-      tooltip.classList.remove('tooltip--visible');
-      tooltip.setAttribute('aria-hidden', 'true');
+  btn.addEventListener('click', toggle);
+
+  // Close on click outside
+  document.addEventListener('click', function (e) {
+    if (!wrapper.contains(e.target)) {
+      hide();
     }
-
-    function toggle(e) {
-      e.preventDefault();
-      e.stopPropagation();
-      if (tooltip.classList.contains('tooltip--visible')) {
-        hide();
-      } else {
-        show();
-      }
-    }
-
-    btn.addEventListener('click', toggle);
-
-    // Close on click outside
-    document.addEventListener('click', function (e) {
-      if (!wrapper.contains(e.target)) {
-        hide();
-      }
-    });
-
-    // Close on Escape
-    document.addEventListener('keydown', function (e) {
-      if (e.key === 'Escape') {
-        hide();
-      }
-    });
   });
-})();
+
+  // Close on Escape
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') {
+      hide();
+    }
+  });
+});
 </script>
 {% endblock %}

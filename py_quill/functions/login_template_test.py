@@ -11,8 +11,10 @@ from flask import Blueprint, Flask, render_template, url_for
 @pytest.fixture(scope='module')
 def flask_app():
   app = Flask(__name__)
-  app.template_folder = str(Path('py_quill/web/templates').resolve())
-  app.static_folder = str(Path('py_quill/web/static').resolve())
+  # Resolve path relative to this test file's location
+  test_file_dir = Path(__file__).parent.parent
+  app.template_folder = str((test_file_dir / 'web' / 'templates').resolve())
+  app.static_folder = str((test_file_dir / 'web' / 'static').resolve())
   web_bp = Blueprint('web', __name__)
 
   @web_bp.route('/')
@@ -25,6 +27,10 @@ def flask_app():
 
   @web_bp.route('/printables/notes')
   def notes():
+    return ''
+
+  @web_bp.route('/jokes')
+  def jokes():
     return ''
 
   @web_bp.route('/about')
@@ -66,8 +72,10 @@ def _ensure_node_installed():
 
 
 def _run_node_syntax_check(js_source: str) -> subprocess.CompletedProcess:
-  tmp_dir = Path('py_quill/.tmp_js_checks')
-  tmp_dir.mkdir(exist_ok=True)
+  # Create temp directory relative to the test file location
+  test_file_dir = Path(__file__).parent.parent
+  tmp_dir = test_file_dir / '.tmp_js_checks'
+  tmp_dir.mkdir(parents=True, exist_ok=True)
   source_path = tmp_dir / 'inline.mjs'
   source_path.write_text(js_source, encoding='utf-8')
 

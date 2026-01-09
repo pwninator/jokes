@@ -756,6 +756,7 @@ class JokeCategory:
   """All known image URLs for the category (used by the app image carousel)."""
 
   image_description: str | None = None
+  joke_id_order: list[str] = field(default_factory=list)
   jokes: list[PunnyJoke] = field(default_factory=list)
 
   @property
@@ -798,6 +799,7 @@ class JokeCategory:
     _parse_string_list(data, 'all_image_urls', dedupe=False)
     _parse_string_list(data, 'tags', dedupe=True)
     _parse_string_list(data, 'negative_tags', dedupe=True)
+    _parse_string_list(data, 'joke_id_order', dedupe=True)
 
     _parse_float_field(data, 'search_distance')
 

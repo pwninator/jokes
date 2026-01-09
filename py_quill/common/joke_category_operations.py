@@ -151,7 +151,6 @@ def refresh_single_category_cache(
       if isinstance(joke_id, str) and joke_id:
         jokes_by_id[joke_id] = item
 
-  # Re-sort the union by num_saved_users_fraction using full joke docs.
   joke_ids = list(jokes_by_id.keys())
   jokes = firestore.get_punny_jokes(joke_ids)
 
@@ -164,7 +163,28 @@ def refresh_single_category_cache(
         filtered_jokes.append(joke)
     jokes = filtered_jokes
 
-  jokes.sort(key=lambda j: j.num_saved_users_fraction or 0.0, reverse=True)
+  # Sort by joke_id_order then by saved fraction
+  joke_id_order = category.joke_id_order or []
+  ordered_jokes = []
+  remaining_jokes = []
+
+  # Create a map for O(1) lookup of priority
+  order_map = {jid: i for i, jid in enumerate(joke_id_order)}
+
+  for joke in jokes:
+    if joke.key and joke.key in order_map:
+      ordered_jokes.append(joke)
+    else:
+      remaining_jokes.append(joke)
+
+  # Sort ordered part by index
+  ordered_jokes.sort(key=lambda j: order_map.get(j.key, float('inf')))
+
+  # Sort remaining part by saved fraction
+  remaining_jokes.sort(key=lambda j: j.num_saved_users_fraction or 0.0,
+                       reverse=True)
+
+  jokes = ordered_jokes + remaining_jokes
 
   # Cap cache size to 100, even if union exceeds it.
   jokes = jokes[:100]
@@ -180,7 +200,10 @@ def refresh_single_category_cache(
   # Write cache document with a sole 'jokes' field
   cache_ref = client.collection("joke_categories").document(
     category_id).collection("category_jokes").document("cache")
-  cache_ref.set({"jokes": jokes_payload})
+  cache_ref.set({
+    "jokes": jokes_payload,
+    "joke_id_order": joke_id_order,
+  })
   logger.info(
     f"Category cache updated for {category_id}, with {len(jokes_payload)} jokes"
   )

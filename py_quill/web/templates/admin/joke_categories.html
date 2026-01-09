@@ -363,15 +363,18 @@
               <div class="text-button">Image description</div>
               <textarea name="image_description">{{ category.image_description or '' }}</textarea>
             </label>
+            
+            <input name="joke_id_order" type="hidden" value="{{ (category.joke_id_order or []) | join(',') }}">
           </div>
           <div style="display: flex; justify-content: flex-end; margin-top: 10px; gap: 10px;">
+            <button class="text-button" type="button" data-action="reset-order">Reset order</button>
             <button class="text-button" type="submit">Save</button>
           </div>
         </form>
       </div>
       <div class="joke-grid" aria-label="Category joke thumbnails">
         {% for joke in category.jokes %}
-        <div class="joke-tile" title="{{ joke_tooltip_title_attr(joke) | safe }}">
+        <div class="joke-tile" title="{{ joke_tooltip_title_attr(joke) | safe }}" data-joke-id="{{ joke.key }}" draggable="false">
           {% if joke.setup_image_url %}
           <img
             class="joke-thumb"
@@ -425,7 +428,7 @@
     </summary>
     <div class="joke-grid" aria-label="Uncategorized joke thumbnails">
       {% for joke in uncategorized_jokes %}
-      <div class="joke-tile" title="{{ joke_tooltip_title_attr(joke) | safe }}">
+      <div class="joke-tile" title="{{ joke_tooltip_title_attr(joke) | safe }}" data-joke-id="{{ joke.key }}">
         {% if joke.setup_image_url %}
         <img
           class="joke-thumb"
@@ -462,6 +465,7 @@
         details.dataset.editMode = 'false';
         const panel = details.querySelector('[data-edit-panel="true"]');
         if (panel) panel.classList.add('hidden');
+        updateDraggableState(details, false);
       });
     });
 
@@ -469,6 +473,16 @@
       const panel = details.querySelector('[data-edit-panel="true"]');
       if (!panel) return;
       panel.classList.toggle('hidden', !show);
+      updateDraggableState(details, show);
+    };
+
+    const updateDraggableState = (details, canDrag) => {
+      const grid = details.querySelector('.joke-grid');
+      if (!grid) return;
+      grid.querySelectorAll('.joke-tile').forEach(tile => {
+        tile.draggable = canDrag;
+        tile.style.cursor = canDrag ? 'move' : 'default';
+      });
     };
 
     document.querySelectorAll('button[data-edit-button="true"]').forEach((btn) => {
@@ -484,6 +498,71 @@
         const nextShow = Boolean(isHidden);
         details.dataset.editMode = nextShow ? 'true' : 'false';
         toggleEditPanel(details, nextShow);
+      });
+    });
+
+    // Reset Order Handler
+    document.querySelectorAll('button[data-action="reset-order"]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const form = btn.closest('form');
+        const input = form.querySelector('input[name="joke_id_order"]');
+        if (input) {
+           input.value = '';
+           alert('Order cleared. Save to apply default sort.');
+        }
+      });
+    });
+
+    // Drag and Drop Logic
+    document.querySelectorAll('.joke-grid').forEach(grid => {
+      let draggedItem = null;
+
+      grid.addEventListener('dragstart', (e) => {
+        const tile = e.target.closest('.joke-tile');
+        if (!tile || !tile.draggable) {
+          e.preventDefault();
+          return;
+        }
+        draggedItem = tile;
+        e.dataTransfer.effectAllowed = 'move';
+        // e.dataTransfer.setData('text/plain', tile.dataset.jokeId); // Not strictly needed for internal move
+        tile.style.opacity = '0.5';
+      });
+
+      grid.addEventListener('dragend', (e) => {
+        const tile = e.target.closest('.joke-tile');
+        if (tile) tile.style.opacity = '1';
+        draggedItem = null;
+        
+        // Update hidden input
+        const details = grid.closest('details.category-details');
+        if (details) {
+          const input = details.querySelector('input[name="joke_id_order"]');
+          if (input) {
+             const ids = Array.from(grid.querySelectorAll('.joke-tile'))
+               .map(t => t.dataset.jokeId)
+               .filter(Boolean);
+             input.value = ids.join(',');
+          }
+        }
+      });
+
+      grid.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        if (!draggedItem) return;
+        
+        const target = e.target.closest('.joke-tile');
+        if (target && target !== draggedItem && grid.contains(target)) {
+          const children = Array.from(grid.children);
+          const draggedIndex = children.indexOf(draggedItem);
+          const targetIndex = children.indexOf(target);
+          
+          if (draggedIndex < targetIndex) {
+            grid.insertBefore(draggedItem, target.nextSibling);
+          } else {
+            grid.insertBefore(draggedItem, target);
+          }
+        }
       });
     });
 

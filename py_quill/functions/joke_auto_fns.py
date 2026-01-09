@@ -20,7 +20,7 @@ _LAST_RECENT_STATS_UPDATE_TIME_FIELD_NAME = "last_recent_stats_update_time"
   schedule="0 * * * *",
   timezone="America/Los_Angeles",
   memory=options.MemoryOption.GB_1,
-  timeout_sec=600,
+  timeout_sec=1800,
 )
 def joke_daily_maintenance_scheduler(
     event: scheduler_fn.ScheduledEvent) -> None:
@@ -35,7 +35,7 @@ def joke_daily_maintenance_scheduler(
 
 @https_fn.on_request(
   memory=options.MemoryOption.GB_1,
-  timeout_sec=600,
+  timeout_sec=1800,
 )
 def joke_daily_maintenance_http(req: https_fn.Request) -> https_fn.Response:
   """HTTP endpoint to trigger daily maintenance tasks for jokes."""

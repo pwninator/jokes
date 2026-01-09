@@ -11,10 +11,12 @@ from firebase_functions import logger
 from PIL import Image
 from services import cloud_storage, firestore, pdf_client
 
-_JOKE_NOTES_OVERLAY_URL = "https://images.quillsstorybook.com/cdn-cgi/image/format=png,quality=100/_joke_assets/lunchbox/lunchbox_notes_template.png"
+_JOKE_NOTES_SHEET_VERSION = 1
 
-_PDF_DIR_GCS_URI = f"gs://{config.PUBLIC_FILE_BUCKET_NAME}/joke_notes_sheets"
-_IMAGE_DIR_GCS_URI = f"gs://{config.IMAGE_BUCKET_NAME}/joke_notes_sheets"
+_JOKE_NOTES_OVERLAY_URL = "https://images.quillsstorybook.com/cdn-cgi/image/format=png,quality=100/_joke_assets/lunchbox/joke_notes_overlay.png"
+
+_PDF_DIR_GCS_URI = f"gs://{config.PUBLIC_FILE_BUCKET_NAME}/joke_notes_sheets{_JOKE_NOTES_SHEET_VERSION}"
+_IMAGE_DIR_GCS_URI = f"gs://{config.IMAGE_BUCKET_NAME}/joke_notes_sheets{_JOKE_NOTES_SHEET_VERSION}"
 
 
 def ensure_joke_notes_sheet(
@@ -76,8 +78,11 @@ def _generate_file_stem(joke_ids: list[str], *, quality: int) -> str:
   Joke IDs are sorted before hashing so different orderings produce the same
   stem.
   """
-  joke_ids_str = ",".join(sorted(joke_ids))
-  hash_source = f"{joke_ids_str}|quality={int(quality)}"
+  hash_components = sorted(joke_ids) + [
+    f"quality={int(quality)}",
+    f"version={_JOKE_NOTES_SHEET_VERSION}",
+  ]
+  hash_source = "|".join(hash_components)
   return hashlib.sha256(hash_source.encode("utf-8")).hexdigest()
 
 

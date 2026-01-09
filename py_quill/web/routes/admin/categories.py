@@ -196,6 +196,8 @@ def admin_update_joke_category(category_id: str):
 
   image_url = (form.get('image_url') or '').strip()
   image_description = (form.get('image_description') or '').strip()
+  joke_id_order_raw = (form.get('joke_id_order') or '').strip()
+
   all_image_urls = None
   if 'all_image_urls' in form:
     all_image_urls_raw = (form.get('all_image_urls') or '').splitlines()
@@ -218,6 +220,12 @@ def admin_update_joke_category(category_id: str):
     return flask.redirect(
       '/admin/joke-categories?error=category_source_required')
 
+  joke_id_order = []
+  if joke_id_order_raw:
+    joke_id_order = [
+      jid.strip() for jid in joke_id_order_raw.split(',') if jid.strip()
+    ]
+
   payload: dict[str, object] = {
     'display_name':
     display_name,
@@ -235,6 +243,8 @@ def admin_update_joke_category(category_id: str):
     negative_tags if negative_tags else DELETE_FIELD,
     'image_description':
     image_description if image_description else DELETE_FIELD,
+    'joke_id_order':
+    joke_id_order if joke_id_order else DELETE_FIELD,
   }
   if 'image_url' in form:
     payload['image_url'] = image_url if image_url else DELETE_FIELD
@@ -258,6 +268,7 @@ def admin_update_joke_category(category_id: str):
         'search_distance': search_distance,
         'tags': tags,
         'negative_tags': negative_tags,
+        'joke_id_order': joke_id_order,
       },
     )
   except Exception as exc:  # pylint: disable=broad-except

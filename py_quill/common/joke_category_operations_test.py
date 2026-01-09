@@ -326,8 +326,70 @@ def test_refresh_forces_proposed_when_empty_results(monkeypatch, fake_env):
 
   # Assert: empty cache written and state set to PROPOSED
   cache = fake_env.cache_refs.get("sports")
-  assert cache is not None and cache.set_calls[0] == {"jokes": []}
+  assert cache is not None and cache.set_calls[0] == {
+    "jokes": [],
+    "joke_id_order": []
+  }
   assert fake_env.category_updates.get("sports") == {"state": "PROPOSED"}
+
+
+def test_refresh_sorts_by_joke_id_order(monkeypatch, fake_env):
+  # Arrange
+  categories = [("animals", {
+    "display_name": "Animals",
+    "joke_description_query": "cats",
+    "state": "APPROVED",
+    "joke_id_order": ["j3", "j1"],
+  })]
+  fake_db = fake_env.make_db(categories)
+
+  monkeypatch.setattr("services.firestore.db", lambda: fake_db)
+
+  # Mock jokes with different saved fractions
+  def fake_get_punny_jokes(joke_ids):
+    jokes = [
+      models.PunnyJoke(key="j1",
+                       setup_text="J1",
+                       punchline_text="P1",
+                       num_saved_users_fraction=0.1),
+      models.PunnyJoke(key="j2",
+                       setup_text="J2",
+                       punchline_text="P2",
+                       num_saved_users_fraction=0.9),
+      models.PunnyJoke(key="j3",
+                       setup_text="J3",
+                       punchline_text="P3",
+                       num_saved_users_fraction=0.2),
+    ]
+    # Filter by requested ids
+    return [j for j in jokes if j.key in joke_ids]
+
+  monkeypatch.setattr("services.firestore.get_punny_jokes",
+                      fake_get_punny_jokes)
+  monkeypatch.setattr("services.firestore.get_joke_sheets_by_category",
+                      lambda _category_id: [])
+  monkeypatch.setattr("services.firestore.update_joke_sheets_cache",
+                      lambda *_args, **_kwargs: None)
+
+  # Mock search to return j1, j2, j3
+  def fake_search(*args, **kwargs):
+    return [{"joke_id": "j1"}, {"joke_id": "j2"}, {"joke_id": "j3"}]
+
+  monkeypatch.setattr("common.joke_category_operations.search_category_jokes",
+                      fake_search)
+
+  # Act
+  joke_category_operations.refresh_category_caches()
+
+  # Assert
+  cache = fake_env.cache_refs.get("animals")
+  assert cache is not None
+  payload = cache.set_calls[0]
+  jokes = payload["jokes"]
+  
+  # j3 (first in order), j1 (second in order), j2 (remaining, sorted by fraction)
+  assert [j["joke_id"] for j in jokes] == ["j3", "j1", "j2"]
+  assert payload["joke_id_order"] == ["j3", "j1"]
 
 
 def test_refresh_uses_seasonal_name_when_present(monkeypatch, fake_env):

@@ -1443,7 +1443,8 @@ class CreateJokeNotesSheetImageTest(unittest.TestCase):
 
   @patch('common.joke_notes_sheet_operations.requests.get')
   @patch('common.joke_notes_sheet_operations.cloud_storage')
-  def test_create_joke_notes_sheet_image(self, mock_storage, mock_requests_get):
+  def test_create_joke_notes_sheet_image(self, mock_storage,
+                                         mock_requests_get):
     template_image = Image.new('RGBA', (3300, 2550), (255, 0, 0, 128))
     template_buffer = BytesIO()
     template_image.save(template_buffer, format='PNG')
@@ -1531,7 +1532,7 @@ class CreateJokeNotesSheetTest(unittest.TestCase):
     result = joke_notes_sheet_operations.ensure_joke_notes_sheet(jokes,
                                                                  quality=42)
 
-    expected_hash_source = 'joke1|quality=42'
+    expected_hash_source = f'joke1|quality=42|version={joke_notes_sheet_operations._JOKE_NOTES_SHEET_VERSION}'
     expected_stem = hashlib.sha256(
       expected_hash_source.encode('utf-8')).hexdigest()
     expected_pdf_gcs_uri = (
@@ -1612,7 +1613,8 @@ class CreateJokeNotesSheetTest(unittest.TestCase):
     )
 
     expected_hash = hashlib.sha256(
-      'a,b|quality=42'.encode('utf-8')).hexdigest()
+      f'a|b|quality=42|version={joke_notes_sheet_operations._JOKE_NOTES_SHEET_VERSION}'
+      .encode('utf-8')).hexdigest()
     expected_pdf_gcs_uri = (
       f"{joke_notes_sheet_operations._PDF_DIR_GCS_URI}/{expected_hash}.pdf")
     expected_image_gcs_uri = (

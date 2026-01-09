@@ -109,6 +109,7 @@ def refresh_single_category_cache(
 
   raw_query = (category.joke_description_query or "").strip()
   seasonal_name = (category.seasonal_name or "").strip()
+  book_id = (category.book_id or "").strip()
   tags = [t for t in (category.tags or []) if isinstance(t, str) and t.strip()]
   negative_tags = {
     t.lower()
@@ -119,7 +120,7 @@ def refresh_single_category_cache(
 
   client = firestore.db()
 
-  if not raw_query and not seasonal_name and not tags:
+  if not raw_query and not seasonal_name and not tags and not book_id:
     if state != "PROPOSED":
       # This category will break when displayed, so force state to PROPOSED
       client.collection("joke_categories").document(category_id).set(
@@ -141,6 +142,12 @@ def refresh_single_category_cache(
 
   if seasonal_name:
     for item in query_seasonal_category_jokes(client, seasonal_name):
+      joke_id = item.get("joke_id")
+      if isinstance(joke_id, str) and joke_id:
+        jokes_by_id[joke_id] = item
+
+  if book_id:
+    for item in query_book_category_jokes(client, book_id):
       joke_id = item.get("joke_id")
       if isinstance(joke_id, str) and joke_id:
         jokes_by_id[joke_id] = item
@@ -343,8 +350,7 @@ def search_category_jokes(
 
   Returns:
     List of joke dictionaries with keys: joke_id, setup, punchline,
-    setup_image_url, punchline_image_url, sorted by num_saved_users_fraction
-    in descending order.
+    setup_image_url, punchline_image_url.
   """
   field_filters: list[tuple[str, str, object]] = [
     ("state", "in",
@@ -367,20 +373,13 @@ def search_category_jokes(
   # Fetch full jokes
   jokes = firestore.get_punny_jokes(joke_ids)
 
-  # Sort by num_saved_users_fraction (descending)
-  sorted_jokes = sorted(
-    jokes,
-    key=lambda j: j.num_saved_users_fraction or 0.0,
-    reverse=True,
-  )
-
   return [{
     "joke_id": j.key,
     "setup": j.setup_text,
     "punchline": j.punchline_text,
     "setup_image_url": j.setup_image_url,
     "punchline_image_url": j.punchline_image_url,
-  } for j in sorted_jokes]
+  } for j in jokes]
 
 
 def query_seasonal_category_jokes(
@@ -393,8 +392,7 @@ def query_seasonal_category_jokes(
 
   Returns:
     List of joke dictionaries with keys: joke_id, setup, punchline,
-    setup_image_url, punchline_image_url, sorted by num_saved_users_fraction
-    in descending order.
+    setup_image_url, punchline_image_url.
   """
   states = [models.JokeState.PUBLISHED.value, models.JokeState.DAILY.value]
   query = client.collection("jokes")
@@ -404,20 +402,66 @@ def query_seasonal_category_jokes(
   query = query.limit(100)
 
   docs = query.stream()
-  docs_list = [(doc.id, doc.to_dict() or {}) for doc in docs]
-  sorted_docs_list = sorted(
-    docs_list,
-    key=lambda item: item[1].get("num_saved_users_fraction", 0.0),
-    reverse=True)
-
   payload = []
-  for doc_id, data in sorted_docs_list:
+  for doc in docs:
+    data = doc.to_dict() or {}
     payload.append({
-      "joke_id": doc_id,
+      "joke_id": doc.id,
       "setup": data.get("setup_text", ""),
       "punchline": data.get("punchline_text", ""),
       "setup_image_url": data.get("setup_image_url"),
       "punchline_image_url": data.get("punchline_image_url"),
+    })
+  return payload
+
+
+def query_book_category_jokes(client, book_id: str) -> list[dict[str, object]]:
+  """Query jokes from a joke book by book ID.
+
+  Args:
+    client: Firestore client instance
+    book_id: The joke book ID to fetch jokes from
+
+  Returns:
+    List of joke dictionaries with keys: joke_id, setup, punchline,
+    setup_image_url, punchline_image_url. Returns empty list if book not found or has no jokes.
+  """
+  book_ref = client.collection("joke_books").document(book_id)
+  book_doc = book_ref.get()
+
+  if not getattr(book_doc, "exists", False):
+    logger.warn(f"Joke book {book_id} not found for category")
+    return []
+
+  book_data = book_doc.to_dict() or {}
+  joke_ids = book_data.get("jokes", [])
+
+  if not isinstance(joke_ids, list) or not joke_ids:
+    logger.warn(f"Joke book {book_id} has no jokes")
+    return []
+
+  # Filter to string joke IDs
+  joke_ids = [str(jid) for jid in joke_ids if jid]
+  if not joke_ids:
+    return []
+
+  # Fetch the jokes
+  jokes = firestore.get_punny_jokes(joke_ids)
+
+  # Filter to only public jokes in valid states
+  states = {models.JokeState.PUBLISHED.value, models.JokeState.DAILY.value}
+  filtered_jokes = [
+    j for j in jokes if j.key and j.is_public and j.state.value in states
+  ]
+
+  payload = []
+  for joke in filtered_jokes:
+    payload.append({
+      "joke_id": joke.key,
+      "setup": joke.setup_text,
+      "punchline": joke.punchline_text,
+      "setup_image_url": joke.setup_image_url,
+      "punchline_image_url": joke.punchline_image_url,
     })
   return payload
 
@@ -434,8 +478,7 @@ def query_tags_category_jokes(
 
   Returns:
     List of joke dictionaries with keys: joke_id, setup, punchline,
-    setup_image_url, punchline_image_url, sorted by num_saved_users_fraction
-    in descending order.
+    setup_image_url, punchline_image_url.
   """
 
   def _normalize_tags(raw_tags: list[str]) -> list[str]:
@@ -477,14 +520,8 @@ def query_tags_category_jokes(
       data = doc.to_dict() or {}
       docs_by_id[doc.id] = data
 
-  sorted_docs_list = sorted(
-    docs_by_id.items(),
-    key=lambda item: item[1].get("num_saved_users_fraction", 0.0),
-    reverse=True,
-  )[:100]
-
   payload: list[dict[str, object]] = []
-  for doc_id, data in sorted_docs_list:
+  for doc_id, data in docs_by_id.items():
     payload.append({
       "joke_id": doc_id,
       "setup": data.get("setup_text", ""),

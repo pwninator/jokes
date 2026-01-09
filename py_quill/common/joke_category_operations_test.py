@@ -386,7 +386,7 @@ def test_refresh_sorts_by_joke_id_order(monkeypatch, fake_env):
   assert cache is not None
   payload = cache.set_calls[0]
   jokes = payload["jokes"]
-  
+
   # j3 (first in order), j1 (second in order), j2 (remaining, sorted by fraction)
   assert [j["joke_id"] for j in jokes] == ["j3", "j1", "j2"]
   assert payload["joke_id_order"] == ["j3", "j1"]
@@ -409,6 +409,102 @@ def test_refresh_uses_seasonal_name_when_present(monkeypatch, fake_env):
   assert cache.set_calls[0]["jokes"][0]["joke_id"] == "Halloween-1"
 
 
+def test_refresh_uses_book_id_when_present(monkeypatch, fake_env):
+  """Category with book_id should fetch jokes from joke_books collection."""
+
+  # Setup mock joke book
+  class _FakeBookDoc:
+
+    def __init__(self):
+      self.exists = True
+
+    def to_dict(self):
+      return {
+        "jokes": ["j1", "j2"],
+        "book_name": "Test Book",
+      }
+
+  class _FakeBookRef:
+
+    def __init__(self, doc):
+      self._doc = doc
+
+    def get(self):
+      return self._doc
+
+  class _FakeBookCollection:
+
+    def __init__(self, book_doc):
+      self._book_doc = book_doc
+
+    def document(self, book_id):
+      assert book_id == "book-123"
+      return _FakeBookRef(self._book_doc)
+
+  # Extend _FakeDb to support joke_books collection
+  original_fake_db_collection = _FakeDb.collection
+
+  def extended_collection(self, name: str):
+    if name == "joke_books":
+      return _FakeBookCollection(extended_collection._book_doc)
+    return original_fake_db_collection(self, name)
+
+  book_doc = _FakeBookDoc()
+  extended_collection._book_doc = book_doc
+
+  categories = [("book_cat", {
+    "display_name": "Book Category",
+    "book_id": "book-123",
+    "state": "APPROVED",
+  })]
+  fake_db = fake_env.make_db(categories)
+
+  # Monkey patch collection method
+  original_collection = fake_db.collection
+  fake_db.collection = lambda name: extended_collection(fake_db, name)
+
+  monkeypatch.setattr("services.firestore.db", lambda: fake_db)
+
+  # Mock jokes returned from book
+  def fake_get_punny_jokes(joke_ids):
+    return [
+      models.PunnyJoke(
+        key=jid,
+        setup_text=f"Setup {jid}",
+        punchline_text=f"Punchline {jid}",
+        setup_image_url=f"https://example.com/{jid}-setup.jpg",
+        punchline_image_url=f"https://example.com/{jid}-punchline.jpg",
+        num_saved_users_fraction=0.5 if jid == "j1" else 0.3,
+        state=models.JokeState.PUBLISHED,
+        is_public=True,
+      ) for jid in joke_ids
+    ]
+
+  monkeypatch.setattr("services.firestore.get_punny_jokes",
+                      fake_get_punny_jokes)
+  monkeypatch.setattr("services.firestore.get_joke_sheets_by_category",
+                      lambda _category_id: [])
+  monkeypatch.setattr("services.firestore.update_joke_sheets_cache",
+                      lambda *_args, **_kwargs: None)
+
+  # Act
+  joke_category_operations.refresh_category_caches()
+
+  # Assert
+  assert fake_env.search_calls == []
+  assert fake_env.seasonal_calls == []
+  cache = fake_env.cache_refs.get("book_cat")
+  assert cache is not None
+  payload = cache.set_calls[0]
+  jokes = payload["jokes"]
+  assert len(jokes) == 2
+  # Should be sorted by num_saved_users_fraction (descending)
+  assert jokes[0]["joke_id"] == "j1"
+  assert jokes[1]["joke_id"] == "j2"
+  assert jokes[0]["setup"] == "Setup j1"
+  assert jokes[0]["punchline"] == "Punchline j1"
+
+
 def test_refresh_sets_proposed_when_no_query_or_seasonal(
     monkeypatch, fake_env):
   categories = [("misc", {
@@ -421,6 +517,124 @@ def test_refresh_sets_proposed_when_no_query_or_seasonal(
 
   assert "misc" not in fake_env.cache_refs
   assert fake_env.category_updates.get("misc") == {"state": "PROPOSED"}
+
+
+def test_refresh_unions_book_id_with_other_sources(monkeypatch, fake_env):
+  """Category with book_id and search should union jokes from both sources."""
+
+  class _FakeBookDoc:
+
+    def __init__(self):
+      self.exists = True
+
+    def to_dict(self):
+      return {"jokes": ["j2", "j3"], "book_name": "Test Book"}
+
+  class _FakeBookRef:
+
+    def __init__(self, doc):
+      self._doc = doc
+
+    def get(self):
+      return self._doc
+
+  class _FakeBookCollection:
+
+    def __init__(self, book_doc):
+      self._book_doc = book_doc
+
+    def document(self, book_id):
+      assert book_id == "book-123"
+      return _FakeBookRef(self._book_doc)
+
+  # Extend _FakeDb to support joke_books collection
+  original_fake_db_collection = _FakeDb.collection
+
+  def extended_collection(self, name: str):
+    if name == "joke_books":
+      return _FakeBookCollection(extended_collection._book_doc)
+    return original_fake_db_collection(self, name)
+
+  book_doc = _FakeBookDoc()
+  extended_collection._book_doc = book_doc
+
+  categories = [("combined", {
+    "display_name": "Combined",
+    "joke_description_query": "cats",
+    "book_id": "book-123",
+    "state": "APPROVED",
+  })]
+  fake_db = fake_env.make_db(categories)
+
+  # Monkey patch collection method
+  original_collection = fake_db.collection
+  fake_db.collection = lambda name: extended_collection(fake_db, name)
+
+  monkeypatch.setattr("services.firestore.db", lambda: fake_db)
+
+  # Mock jokes: search returns j1, j2; book returns j2, j3
+  # Union should have j1, j2, j3 (j2 appears once)
+  def fake_get_punny_jokes(joke_ids):
+    return [
+      models.PunnyJoke(
+        key=jid,
+        setup_text=f"S {jid}",
+        punchline_text=f"P {jid}",
+        num_saved_users_fraction=0.5,
+        state=models.JokeState.PUBLISHED,
+        is_public=True,
+      ) for jid in joke_ids
+    ]
+
+  monkeypatch.setattr("services.firestore.get_punny_jokes",
+                      fake_get_punny_jokes)
+  monkeypatch.setattr("services.firestore.get_joke_sheets_by_category",
+                      lambda _category_id: [])
+  monkeypatch.setattr("services.firestore.update_joke_sheets_cache",
+                      lambda *_args, **_kwargs: None)
+
+  # Mock search to return j1, j2 and track calls
+  original_fake_search = fake_env.search_calls
+
+  def fake_search(*args, **kwargs):
+    original_fake_search.append({
+      "query":
+      args[0] if args else kwargs.get("query"),
+      "category_id":
+      args[1] if len(args) > 1 else kwargs.get("category_id"),
+    })
+    return [
+      {
+        "joke_id": "j1",
+        "setup": "S j1",
+        "punchline": "P j1",
+        "setup_image_url": None,
+        "punchline_image_url": None
+      },
+      {
+        "joke_id": "j2",
+        "setup": "S j2",
+        "punchline": "P j2",
+        "setup_image_url": None,
+        "punchline_image_url": None
+      },
+    ]
+
+  monkeypatch.setattr("common.joke_category_operations.search_category_jokes",
+                      fake_search)
+
+  # Act
+  joke_category_operations.refresh_category_caches()
+
+  # Assert
+  assert len(fake_env.search_calls) == 1
+  cache = fake_env.cache_refs.get("combined")
+  assert cache is not None
+  payload = cache.set_calls[0]
+  joke_ids = [j["joke_id"] for j in payload["jokes"]]
+  # Should have all jokes: j1 (from search), j2 (from both, deduped), j3 (from book)
+  assert set(joke_ids) == {"j1", "j2", "j3"}
+  assert len(joke_ids) == 3
 
 
 def test_refresh_skips_non_target_states_and_blank_queries(
@@ -498,7 +712,7 @@ class TestSearchCategoryJokesSorting:
   """Tests for search_category_jokes sorting behavior."""
 
   def test_sorts_results_by_num_saved_users_fraction(self, monkeypatch):
-    """Test that search results are sorted by num_saved_users_fraction in descending order."""
+    """Test that search results return all jokes correctly."""
 
     # Arrange
     from services.search import JokeSearchResult
@@ -566,24 +780,24 @@ class TestSearchCategoryJokesSorting:
       distance_threshold=0.123,
     )
 
-    # Assert
+    # Assert - verify all jokes are returned (order is not guaranteed)
     assert len(jokes) == 4
-    assert jokes[0]["joke_id"] == "j2"
-    assert jokes[0]["setup"] == "Setup j2"
-    assert jokes[0]["punchline"] == "Punchline j2"
-    assert jokes[1]["joke_id"] == "j4"
-    assert jokes[1]["setup"] == "Setup j4"
-    assert jokes[2]["joke_id"] == "j1"
-    assert jokes[2]["setup"] == "Setup j1"
-    assert jokes[3]["joke_id"] == "j3"
-    assert jokes[3]["setup"] == "Setup j3"
+    joke_ids = {j["joke_id"] for j in jokes}
+    assert joke_ids == {"j1", "j2", "j3", "j4"}
+    # Verify data is correct
+    joke_by_id = {j["joke_id"]: j for j in jokes}
+    assert joke_by_id["j2"]["setup"] == "Setup j2"
+    assert joke_by_id["j2"]["punchline"] == "Punchline j2"
+    assert joke_by_id["j4"]["setup"] == "Setup j4"
+    assert joke_by_id["j1"]["setup"] == "Setup j1"
+    assert joke_by_id["j3"]["setup"] == "Setup j3"
 
 
 class TestQuerySeasonalCategoryJokesSorting:
   """Tests for query_seasonal_category_jokes sorting behavior."""
 
   def test_sorts_docs_by_num_saved_users_fraction(self, monkeypatch):
-    """Test that seasonal jokes are sorted by num_saved_users_fraction in descending order."""
+    """Test that seasonal jokes return all jokes correctly."""
 
     # Arrange
     class _MockDoc:
@@ -638,12 +852,313 @@ class TestQuerySeasonalCategoryJokesSorting:
     jokes = joke_category_operations.query_seasonal_category_jokes(
       mock_client, "Halloween")
 
-    # Assert
+    # Assert - verify all jokes are returned (order is not guaranteed)
     assert len(jokes) == 4
-    assert jokes[0]["joke_id"] == "j2"
-    assert jokes[1]["joke_id"] == "j4"
-    assert jokes[2]["joke_id"] == "j1"
-    assert jokes[3]["joke_id"] == "j3"
+    joke_ids = {j["joke_id"] for j in jokes}
+    assert joke_ids == {"j1", "j2", "j3", "j4"}
+    # Verify data is correct
+    joke_by_id = {j["joke_id"]: j for j in jokes}
+    assert joke_by_id["j1"]["setup"] == "Setup j1"
+    assert joke_by_id["j2"]["setup"] == "Setup j2"
+    assert joke_by_id["j3"]["setup"] == "Setup j3"
+    assert joke_by_id["j4"]["setup"] == "Setup j4"
+
+
+class TestQueryBookCategoryJokes:
+  """Tests for query_book_category_jokes function."""
+
+  def test_fetches_jokes_from_book(self, monkeypatch):
+    """Test that query_book_category_jokes fetches jokes from joke_books collection."""
+
+    class _FakeBookDoc:
+
+      def __init__(self, exists=True, jokes=None):
+        self.exists = exists
+        self._jokes = jokes or []
+
+      def to_dict(self):
+        return {"jokes": self._jokes, "book_name": "Test Book"}
+
+    class _FakeBookRef:
+
+      def __init__(self, doc):
+        self._doc = doc
+
+      def get(self):
+        return self._doc
+
+    class _FakeBookCollection:
+
+      def __init__(self, book_doc):
+        self._book_doc = book_doc
+
+      def document(self, book_id):
+        return _FakeBookRef(self._book_doc)
+
+    class _FakeClient:
+
+      def __init__(self, book_doc):
+        self._book_doc = book_doc
+
+      def collection(self, name):
+        assert name == "joke_books"
+        return _FakeBookCollection(self._book_doc)
+
+    book_doc = _FakeBookDoc(jokes=["j1", "j2"])
+    client = _FakeClient(book_doc)
+
+    # Mock get_punny_jokes
+    def fake_get_punny_jokes(joke_ids):
+      return [
+        models.PunnyJoke(
+          key="j1",
+          setup_text="Setup j1",
+          punchline_text="Punchline j1",
+          setup_image_url="https://example.com/j1-setup.jpg",
+          punchline_image_url="https://example.com/j1-punchline.jpg",
+          num_saved_users_fraction=0.5,
+          state=models.JokeState.PUBLISHED,
+          is_public=True,
+        ),
+        models.PunnyJoke(
+          key="j2",
+          setup_text="Setup j2",
+          punchline_text="Punchline j2",
+          setup_image_url="https://example.com/j2-setup.jpg",
+          punchline_image_url="https://example.com/j2-punchline.jpg",
+          num_saved_users_fraction=0.3,
+          state=models.JokeState.PUBLISHED,
+          is_public=True,
+        ),
+      ]
+
+    monkeypatch.setattr("services.firestore.get_punny_jokes",
+                        fake_get_punny_jokes)
+
+    # Act
+    jokes = joke_category_operations.query_book_category_jokes(
+      client, "book-123")
+
+    # Assert
+    assert len(jokes) == 2
+    assert jokes[0]["joke_id"] == "j1"  # Sorted by fraction (descending)
+    assert jokes[1]["joke_id"] == "j2"
+    assert jokes[0]["setup"] == "Setup j1"
+    assert jokes[0]["punchline"] == "Punchline j1"
+
+  def test_returns_empty_if_book_not_found(self, monkeypatch):
+    """Test that query_book_category_jokes returns empty list if book doesn't exist."""
+
+    class _FakeBookDoc:
+
+      def __init__(self):
+        self.exists = False
+
+    class _FakeBookRef:
+
+      def __init__(self, doc):
+        self._doc = doc
+
+      def get(self):
+        return self._doc
+
+    class _FakeBookCollection:
+
+      def __init__(self, book_doc):
+        self._book_doc = book_doc
+
+      def document(self, book_id):
+        return _FakeBookRef(self._book_doc)
+
+    class _FakeClient:
+
+      def __init__(self, book_doc):
+        self._book_doc = book_doc
+
+      def collection(self, name):
+        assert name == "joke_books"
+        return _FakeBookCollection(self._book_doc)
+
+    book_doc = _FakeBookDoc()
+    client = _FakeClient(book_doc)
+
+    # Act
+    jokes = joke_category_operations.query_book_category_jokes(
+      client, "missing-book")
+
+    # Assert
+    assert jokes == []
+
+  def test_filters_non_public_jokes(self, monkeypatch):
+    """Test that query_book_category_jokes filters out non-public jokes."""
+
+    class _FakeBookDoc:
+
+      def __init__(self):
+        self.exists = True
+
+      def to_dict(self):
+        return {"jokes": ["j1", "j2", "j3"], "book_name": "Test Book"}
+
+    class _FakeBookRef:
+
+      def __init__(self, doc):
+        self._doc = doc
+
+      def get(self):
+        return self._doc
+
+    class _FakeBookCollection:
+
+      def __init__(self, book_doc):
+        self._book_doc = book_doc
+
+      def document(self, book_id):
+        return _FakeBookRef(self._book_doc)
+
+    class _FakeClient:
+
+      def __init__(self, book_doc):
+        self._book_doc = book_doc
+
+      def collection(self, name):
+        assert name == "joke_books"
+        return _FakeBookCollection(self._book_doc)
+
+    book_doc = _FakeBookDoc()
+    client = _FakeClient(book_doc)
+
+    # Mock get_punny_jokes with mixed public/private jokes
+    def fake_get_punny_jokes(joke_ids):
+      return [
+        models.PunnyJoke(
+          key="j1",
+          setup_text="S1",
+          punchline_text="P1",
+          num_saved_users_fraction=0.5,
+          state=models.JokeState.PUBLISHED,
+          is_public=True,  # Public
+        ),
+        models.PunnyJoke(
+          key="j2",
+          setup_text="S2",
+          punchline_text="P2",
+          num_saved_users_fraction=0.3,
+          state=models.JokeState.DAILY,
+          is_public=False,  # Not public
+        ),
+        models.PunnyJoke(
+          key="j3",
+          setup_text="S3",
+          punchline_text="P3",
+          num_saved_users_fraction=0.2,
+          state=models.JokeState.DRAFT,  # Invalid state
+          is_public=True,
+        ),
+      ]
+
+    monkeypatch.setattr("services.firestore.get_punny_jokes",
+                        fake_get_punny_jokes)
+
+    # Act
+    jokes = joke_category_operations.query_book_category_jokes(
+      client, "book-123")
+
+    # Assert: Only j1 should be included (public + PUBLISHED/DAILY)
+    assert len(jokes) == 1
+    assert jokes[0]["joke_id"] == "j1"
+
+  def test_returns_empty_if_book_has_no_jokes(self, monkeypatch):
+    """Test that query_book_category_jokes returns empty list if book has no jokes."""
+
+    class _FakeBookDoc:
+
+      def __init__(self):
+        self.exists = True
+
+      def to_dict(self):
+        return {"jokes": [], "book_name": "Empty Book"}
+
+    class _FakeBookRef:
+
+      def __init__(self, doc):
+        self._doc = doc
+
+      def get(self):
+        return self._doc
+
+    class _FakeBookCollection:
+
+      def __init__(self, book_doc):
+        self._book_doc = book_doc
+
+      def document(self, book_id):
+        return _FakeBookRef(self._book_doc)
+
+    class _FakeClient:
+
+      def __init__(self, book_doc):
+        self._book_doc = book_doc
+
+      def collection(self, name):
+        assert name == "joke_books"
+        return _FakeBookCollection(self._book_doc)
+
+    book_doc = _FakeBookDoc()
+    client = _FakeClient(book_doc)
+
+    # Act
+    jokes = joke_category_operations.query_book_category_jokes(
+      client, "empty-book")
+
+    # Assert
+    assert jokes == []
+
+  def test_handles_empty_jokes_field(self, monkeypatch):
+    """Test that query_book_category_jokes handles missing jokes field gracefully."""
+
+    class _FakeBookDoc:
+
+      def __init__(self):
+        self.exists = True
+
+      def to_dict(self):
+        return {"book_name": "Test Book"}  # No jokes field
+
+    class _FakeBookRef:
+
+      def __init__(self, doc):
+        self._doc = doc
+
+      def get(self):
+        return self._doc
+
+    class _FakeBookCollection:
+
+      def __init__(self, book_doc):
+        self._book_doc = book_doc
+
+      def document(self, book_id):
+        return _FakeBookRef(self._book_doc)
+
+    class _FakeClient:
+
+      def __init__(self, book_doc):
+        self._book_doc = book_doc
+
+      def collection(self, name):
+        assert name == "joke_books"
+        return _FakeBookCollection(self._book_doc)
+
+    book_doc = _FakeBookDoc()
+    client = _FakeClient(book_doc)
+
+    # Act
+    jokes = joke_category_operations.query_book_category_jokes(
+      client, "no-jokes-book")
+
+    # Assert
+    assert jokes == []
 
 
 class TestQueryTagsCategoryJokesBatching:
@@ -759,11 +1274,13 @@ class TestQueryTagsCategoryJokesBatching:
     assert client.seen_tag_chunks[0] == tags[:10]
     assert client.seen_tag_chunks[1] == tags[10:]
 
-    # Union + dedupe: j2 should appear once. Sorted by num_saved_users_fraction.
-    assert [p["joke_id"] for p in payload] == ["j2", "j3", "j1"]
+    # Union + dedupe: j2 should appear once. Order is not guaranteed.
+    joke_ids = {p["joke_id"] for p in payload}
+    assert joke_ids == {"j1", "j2", "j3"}
+    assert len(payload) == 3
 
   def test_handles_missing_fraction_field(self, monkeypatch):
-    """Test that docs without num_saved_users_fraction are sorted last."""
+    """Test that docs without num_saved_users_fraction are still returned."""
 
     # Arrange
     class _MockDoc:
@@ -816,10 +1333,10 @@ class TestQueryTagsCategoryJokesBatching:
     jokes = joke_category_operations.query_seasonal_category_jokes(
       mock_client, "Halloween")
 
-    # Assert
+    # Assert - verify all jokes are returned (order is not guaranteed)
     assert len(jokes) == 2
-    assert jokes[0]["joke_id"] == "j2"
-    assert jokes[1]["joke_id"] == "j1"
+    joke_ids = {j["joke_id"] for j in jokes}
+    assert joke_ids == {"j1", "j2"}
 
 
 def _make_jokes(n: int) -> list[models.PunnyJoke]:
@@ -1075,8 +1592,7 @@ def test_ensure_category_joke_sheets_deletes_non_five_id_sheets(monkeypatch):
   ]
 
 
-def test_ensure_category_joke_sheets_assigns_indexes_by_order(
-    monkeypatch):
+def test_ensure_category_joke_sheets_assigns_indexes_by_order(monkeypatch):
   calls: list[dict] = []
 
   # No existing sheets
@@ -1103,9 +1619,8 @@ def test_ensure_category_joke_sheets_assigns_indexes_by_order(
 
   # Batch 1 (low quality) comes first in input
   # Batch 2 (high quality) comes second in input
-  jokes = _make_jokes_with_fractions(
-    [0.1] * 5 + [0.9] * 5)
-  
+  jokes = _make_jokes_with_fractions([0.1] * 5 + [0.9] * 5)
+
   joke_category_operations._ensure_category_joke_sheets(  # pylint: disable=protected-access
     "cats",
     jokes,

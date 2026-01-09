@@ -36,6 +36,13 @@
         </label>
 
         <label class="text-body">
+          <div class="text-button">Book ID</div>
+          <input name="book_id" type="text"
+            placeholder="book-123"
+            style="width: 100%; padding: 8px 12px; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-surface); font-family: inherit;">
+        </label>
+
+        <label class="text-body">
           <div class="text-button">Tags (comma-separated)</div>
           <input name="tags" type="text"
             style="width: 100%; padding: 8px 12px; border: 1px solid var(--color-border); border-radius: 10px; background: var(--color-surface); font-family: inherit;">
@@ -341,6 +348,13 @@
               <div class="text-button">Seasonal name</div>
               <input name="seasonal_name" type="text"
                 value="{{ category.seasonal_name or '' }}">
+            </label>
+
+            <label class="text-body field-small">
+              <div class="text-button">Book ID</div>
+              <input name="book_id" type="text"
+                placeholder="book-123"
+                value="{{ category.book_id or '' }}">
             </label>
 
             <label class="text-body field-medium">

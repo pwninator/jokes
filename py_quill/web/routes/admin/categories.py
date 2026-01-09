@@ -90,6 +90,7 @@ def admin_create_joke_category():
   joke_description_query = (form.get('joke_description_query') or '').strip()
   search_distance_raw = (form.get('search_distance') or '').strip()
   seasonal_name = (form.get('seasonal_name') or '').strip()
+  book_id = (form.get('book_id') or '').strip()
   tags_raw = (form.get('tags') or '').strip()
   negative_tags_raw = (form.get('negative_tags') or '').strip()
 
@@ -120,7 +121,7 @@ def admin_create_joke_category():
   if not display_name:
     return flask.redirect('/admin/joke-categories?error=display_name_required')
 
-  if not joke_description_query and not seasonal_name and not tags:
+  if not joke_description_query and not seasonal_name and not tags and not book_id:
     return flask.redirect(
       '/admin/joke-categories?error=category_source_required')
 
@@ -130,6 +131,7 @@ def admin_create_joke_category():
       "state": "PROPOSED",
       "joke_description_query": joke_description_query or None,
       "seasonal_name": seasonal_name or None,
+      "book_id": book_id or None,
       "tags": tags or None,
       "negative_tags": negative_tags or None,
       "image_description": image_description or None,
@@ -143,6 +145,7 @@ def admin_create_joke_category():
       'state': 'PROPOSED',
       'joke_description_query': joke_description_query,
       'seasonal_name': seasonal_name,
+      'book_id': book_id,
       'search_distance': search_distance,
       'tags': tags,
       'negative_tags': negative_tags,
@@ -172,6 +175,7 @@ def admin_update_joke_category(category_id: str):
   joke_description_query = (form.get('joke_description_query') or '').strip()
   search_distance_raw = (form.get('search_distance') or '').strip()
   seasonal_name = (form.get('seasonal_name') or '').strip()
+  book_id = (form.get('book_id') or '').strip()
   tags_raw = (form.get('tags') or '').strip()
   negative_tags_raw = (form.get('negative_tags') or '').strip()
 
@@ -221,7 +225,7 @@ def admin_update_joke_category(category_id: str):
   if not display_name:
     return flask.redirect('/admin/joke-categories?error=display_name_required')
 
-  if not joke_description_query and not seasonal_name and not tags:
+  if not joke_description_query and not seasonal_name and not tags and not book_id:
     return flask.redirect(
       '/admin/joke-categories?error=category_source_required')
 
@@ -240,6 +244,8 @@ def admin_update_joke_category(category_id: str):
     seasonal_name if seasonal_name else DELETE_FIELD,
     'joke_description_query':
     joke_description_query if joke_description_query else DELETE_FIELD,
+    'book_id':
+    book_id if book_id else DELETE_FIELD,
     'search_distance':
     search_distance if search_distance is not None else DELETE_FIELD,
     'tags':
@@ -270,6 +276,7 @@ def admin_update_joke_category(category_id: str):
         'state': state,
         'seasonal_name': seasonal_name,
         'joke_description_query': joke_description_query,
+        'book_id': book_id,
         'search_distance': search_distance,
         'tags': tags,
         'negative_tags': negative_tags,

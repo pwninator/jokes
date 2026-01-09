@@ -6,8 +6,8 @@ import datetime
 import random
 
 import flask
-from firebase_functions import logger
 from common import config, models
+from firebase_functions import logger
 from functions import auth_helpers
 from services import cloud_storage, firestore
 from web.routes import web_bp
@@ -59,8 +59,7 @@ def _calculate_promo_params(count: int) -> tuple[int, int]:
   return width, quality
 
 
-def _prepare_fan_stack(
-    cards: list[dict[str, object]]) -> dict[str, object]:
+def _prepare_fan_stack(cards: list[dict[str, object]]) -> dict[str, object]:
   """Prepare a list of cards for rendering in the fan stack component.
   
   This function limits the card count, reverses the list for top-stacking,
@@ -334,14 +333,14 @@ def notes_detail(slug: str):
         continue
       target_sheet = (entry_sheets[1]
                       if len(entry_sheets) > 1 else entry_sheets[0])
-      
+
       # We need a detail URL for the card builder, even if it's not clicked in the fan
       dummy_index = target_sheet.index if target_sheet.index is not None else 0
       filler_detail_url = flask.url_for(
         'web.notes_detail',
         slug=_cache_sheet_slug(entry_category.id, dummy_index),
       )
-      
+
       card = _build_notes_sheet_card(
         category_id=entry_category.id,
         title=f"{entry_category.display_name} Pack",
@@ -364,7 +363,7 @@ def notes_detail(slug: str):
   fan_stack = _prepare_fan_stack(promo_cards)
   category_sheet_count = len(category_cards)
 
-  display_title = f"{category_label} Joke Pack {display_index}"
+  display_title = f"Free {category_label} Joke Lunchbox Notes Printable PDF (#{display_index})"
   page_title = f"{display_title} (Free PDF)"
   canonical_slug = _cache_sheet_slug(category_id, index)
   canonical_url = urls.canonical_url(

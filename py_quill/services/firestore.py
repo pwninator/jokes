@@ -255,8 +255,10 @@ def get_joke_sheets_cache(
     if not sheets:
       continue
 
-    results.append(
-      (models.JokeCategory(id=category_id, display_name=display_name), sheets))
+    results.append((
+      models.JokeCategory(id=category_id, display_name=display_name),
+      sheets,
+    ))
 
   return results
 
@@ -394,6 +396,7 @@ def create_joke_category(
   state: str = "PROPOSED",
   joke_description_query: str | None = None,
   seasonal_name: str | None = None,
+  book_id: str | None = None,
   search_distance: float | None = None,
   tags: list[str] | None = None,
   negative_tags: list[str] | None = None,
@@ -407,9 +410,10 @@ def create_joke_category(
   display_name = (display_name or '').strip()
   joke_description_query = (joke_description_query or '').strip()
   seasonal_name = (seasonal_name or '').strip()
+  book_id = (book_id or '').strip() or None
   tags = list(tags) if isinstance(tags, list) else []
-  negative_tags = list(negative_tags) if isinstance(
-    negative_tags, list) else []
+  negative_tags = list(negative_tags) if isinstance(negative_tags,
+                                                    list) else []
   image_description = (image_description or '').strip()
   state = (state or 'PROPOSED').strip()
   search_distance = float(
@@ -434,9 +438,10 @@ def create_joke_category(
   normalized_tags = _normalize_tags(tags)
   normalized_negative_tags = _normalize_tags(negative_tags)
 
-  if not joke_description_query and not seasonal_name and not normalized_tags:
+  if not joke_description_query and not seasonal_name and not normalized_tags and not book_id:
     raise ValueError(
-      "Provide at least one of joke_description_query, seasonal_name, or tags")
+      "Provide at least one of joke_description_query, seasonal_name, tags, or book_id"
+    )
 
   # Use the same key semantics as the app (display_name-derived).
   category_id = models.JokeCategory(display_name=display_name).key
@@ -450,6 +455,7 @@ def create_joke_category(
     display_name=display_name,
     joke_description_query=joke_description_query or None,
     seasonal_name=seasonal_name or None,
+    book_id=book_id,
     search_distance=search_distance,
     tags=normalized_tags,
     negative_tags=normalized_negative_tags,

@@ -737,6 +737,9 @@ class JokeCategory:
   seasonal_name: str | None = None
   """If set, this category is seasonal and jokes are selected by `seasonal`."""
 
+  book_id: str | None = None
+  """If set, this category includes jokes from the joke_books collection with this ID."""
+
   search_distance: float | None = None
   """Optional search distance threshold override for this category's search query."""
 

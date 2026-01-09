@@ -9,8 +9,8 @@
           <div class="joke-slide" aria-hidden="false">
             <div class="joke-slide-media">
               {% if joke.setup_image_url %}
-              <img src="{{ joke.setup_image_url | replace('width=1024', 'width=' ~ image_size) }}"
-                alt="{{ joke.setup_text }}" width="{{ image_size }}" height="{{ image_size }}" loading="lazy">
+              <img src="{{ joke.setup_image_url | format_image_url(width=image_size) }}" alt="{{ joke.setup_text }}"
+                width="{{ image_size }}" height="{{ image_size }}" loading="lazy">
               {% else %}
               <div class="joke-slide-placeholder text-button">Illustration baking…</div>
               {% endif %}
@@ -19,7 +19,7 @@
           <div class="joke-slide" id="joke-{{ unique_id }}-punchline" aria-hidden="true">
             <div class="joke-slide-media">
               {% if joke.punchline_image_url %}
-              <img src="{{ joke.punchline_image_url | replace('width=1024', 'width=' ~ image_size) }}"
+              <img src="{{ joke.punchline_image_url | format_image_url(width=image_size) }}"
                 alt="{{ joke.punchline_text }}" width="{{ image_size }}" height="{{ image_size }}" loading="lazy">
               {% else %}
               <div class="joke-slide-placeholder text-button">Punchline ready to read!</div>
@@ -48,8 +48,8 @@
         <div class="joke-slide">
           <div class="joke-slide-media">
             {% if joke.setup_image_url %}
-            <img src="{{ joke.setup_image_url | replace('width=1024', 'width=' ~ image_size) }}"
-              alt="{{ joke.setup_text }}" width="{{ image_size }}" height="{{ image_size }}" loading="lazy">
+            <img src="{{ joke.setup_image_url | format_image_url(width=image_size) }}" alt="{{ joke.setup_text }}"
+              width="{{ image_size }}" height="{{ image_size }}" loading="lazy">
             {% endif %}
           </div>
           <p class="joke-text">{{ joke.setup_text }}</p>
@@ -57,7 +57,7 @@
         <div class="joke-slide">
           <div class="joke-slide-media">
             {% if joke.punchline_image_url %}
-            <img src="{{ joke.punchline_image_url | replace('width=1024', 'width=' ~ image_size) }}"
+            <img src="{{ joke.punchline_image_url | format_image_url(width=image_size) }}"
               alt="{{ joke.punchline_text }}" width="{{ image_size }}" height="{{ image_size }}" loading="lazy">
             {% endif %}
           </div>

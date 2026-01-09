@@ -86,7 +86,7 @@ def test_jokes_page_shows_carousel_reveal(monkeypatch):
 
 
 def test_jokes_load_more_returns_json(monkeypatch):
-  """Test that GET /jokes/load-more returns JSON with jokes array."""
+  """Test that GET /jokes/load-more returns JSON with HTML fragments."""
   mock_get_joke_feed_page = Mock()
   monkeypatch.setattr(jokes_routes.firestore, "get_joke_feed_page",
                       mock_get_joke_feed_page)
@@ -104,10 +104,12 @@ def test_jokes_load_more_returns_json(monkeypatch):
   assert resp.status_code == 200
   assert 'application/json' in resp.headers['Content-Type']
   data = resp.get_json()
-  assert 'jokes' in data
-  assert len(data['jokes']) == 1
-  assert data['jokes'][0]['key'] == "joke3"
-  assert data['jokes'][0]['setup_text'] == "Setup 3"
+  assert 'html' in data
+  assert 'cursor' in data
+  assert 'has_more' in data
+  # HTML should contain the joke content
+  assert 'joke3' in data['html']
+  assert 'Setup 3' in data['html']
   assert data['cursor'] == "0000000002"
   assert data['has_more'] is True
   assert 'Cache-Control' in resp.headers
@@ -126,7 +128,7 @@ def test_jokes_load_more_without_cursor(monkeypatch):
 
   assert resp.status_code == 200
   data = resp.get_json()
-  assert data['jokes'] == []
+  assert 'html' in data
   assert data['cursor'] is None
   assert data['has_more'] is False
   mock_get_joke_feed_page.assert_called_once_with(cursor=None, limit=10)
@@ -156,7 +158,7 @@ def test_jokes_load_more_handles_invalid_cursor(monkeypatch):
 
   assert resp.status_code == 200
   data = resp.get_json()
-  assert data['jokes'] == []
+  assert 'html' in data
   assert data['has_more'] is False
   mock_get_joke_feed_page.assert_called_once_with(cursor="invalid", limit=10)
 

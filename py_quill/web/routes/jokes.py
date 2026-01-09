@@ -11,6 +11,7 @@ from web.utils import urls
 from web.utils.responses import html_response
 
 _JOKES_PER_PAGE = 10
+_JOKE_IMAGE_SIZE = 450
 
 
 @web_bp.route('/jokes')
@@ -27,6 +28,7 @@ def jokes():
     jokes=jokes_list,
     next_cursor=next_cursor,
     has_more=next_cursor is not None,
+    image_size=_JOKE_IMAGE_SIZE,
     canonical_url=canonical_url,
     site_name='Snickerdoodle',
     now_year=now_year,
@@ -36,27 +38,22 @@ def jokes():
 
 @web_bp.route('/jokes/load-more')
 def jokes_load_more():
-  """API endpoint to load more jokes for infinite scroll."""
+  """API endpoint to load more jokes for infinite scroll. Returns HTML fragments."""
   cursor = flask.request.args.get('cursor', default=None)
   limit = flask.request.args.get('limit', default=_JOKES_PER_PAGE, type=int)
 
   jokes_list, next_cursor = firestore.get_joke_feed_page(cursor=cursor,
                                                          limit=limit)
 
-  # Convert PunnyJoke objects to simple dicts for JSON response
-  jokes_json = []
-  for joke in jokes_list:
-    joke_json = {
-      'key': joke.key,
-      'setup_text': joke.setup_text,
-      'punchline_text': joke.punchline_text,
-      'setup_image_url': joke.setup_image_url,
-      'punchline_image_url': joke.punchline_image_url,
-    }
-    jokes_json.append(joke_json)
+  # Render joke cards as HTML fragments
+  html_fragments = flask.render_template(
+    'components/joke_feed_fragment.html',
+    jokes=jokes_list,
+    image_size=_JOKE_IMAGE_SIZE,
+  )
 
   response = {
-    'jokes': jokes_json,
+    'html': html_fragments,
     'cursor': next_cursor,
     'has_more': next_cursor is not None,
   }

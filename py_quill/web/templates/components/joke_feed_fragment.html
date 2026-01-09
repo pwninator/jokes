@@ -1,0 +1,4 @@
+{% from "components/joke_card.html" import joke_card %}
+{% for joke in jokes %}
+{{ joke_card(joke, reveal_label='Reveal Punchline', image_size=image_size, joke_id=joke.key) }}
+{% endfor %}

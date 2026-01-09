@@ -47,6 +47,12 @@ app = flask.Flask(__name__,
                   static_folder=_STATIC_DIR)
 
 
+@app.template_filter('format_image_url')
+def _format_image_url_filter(image_url: str, **kwargs) -> str:
+  """Jinja filter for formatting image CDN URLs."""
+  return utils.format_image_url(image_url, **kwargs)
+
+
 @app.context_processor
 def _inject_template_globals() -> dict[str, str]:
   """Inject shared template variables such as compiled CSS and CF origin."""

@@ -11,7 +11,7 @@ a hilarious punchline. Scroll to discover more!{% endblock %}
   .jokes-feed {
     display: grid;
     grid-template-columns: 1fr;
-    max-width: 350px;
+    max-width: {{ image_size }}px;
     margin: 0 auto;
     gap: 2rem;
     padding: 2rem 1rem;
@@ -58,7 +58,7 @@ a hilarious punchline. Scroll to discover more!{% endblock %}
   <h1>All Jokes</h1>
   <section class="jokes-feed" id="jokes-feed" aria-label="Jokes feed">
     {% for joke in jokes %}
-    {{ joke_card(joke, reveal_label='Reveal Punchline', image_size=350, joke_id=joke.key) }}
+    {{ joke_card(joke, reveal_label='Reveal Punchline', image_size=image_size, joke_id=joke.key) }}
     {% endfor %}
   </section>
   <div class="loading-indicator" id="loading-indicator" aria-live="polite">
@@ -85,96 +85,37 @@ a hilarious punchline. Scroll to discover more!{% endblock %}
     endOfFeed.classList.add('active');
   }
 
-  function createJokeCard(joke) {
-    const article = document.createElement('article');
-    article.className = 'joke-card';
-    article.setAttribute('aria-label', 'Joke ' + (joke.key || 'unknown'));
-
-    const viewer = document.createElement('div');
-    viewer.className = 'joke-viewer';
-    viewer.setAttribute('data-joke-viewer', '');
-
-    const carousel = document.createElement('div');
-    carousel.className = 'joke-carousel';
-
-    const viewport = document.createElement('div');
-    viewport.className = 'joke-carousel-viewport';
-
-    const track = document.createElement('div');
-    track.className = 'joke-carousel-track';
-
-    // Setup slide
-    const setupSlide = document.createElement('div');
-    setupSlide.className = 'joke-slide';
-    setupSlide.setAttribute('aria-hidden', 'false');
-
-    const setupMedia = document.createElement('div');
-    setupMedia.className = 'joke-slide-media';
-
-    if (joke.setup_image_url) {
-      const setupImg = document.createElement('img');
-      setupImg.src = joke.setup_image_url.replace('width=1024', 'width=350');
-      setupImg.alt = joke.setup_text || '';
-      setupImg.width = 350;
-      setupImg.height = 350;
-      setupImg.loading = 'lazy';
-      setupMedia.appendChild(setupImg);
-    } else {
-      const placeholder = document.createElement('div');
-      placeholder.className = 'joke-slide-placeholder text-button';
-      placeholder.textContent = 'Illustration baking…';
-      setupMedia.appendChild(placeholder);
+  function initJokeViewer(root) {
+    // Skip if already initialized
+    if (root.dataset.jokeViewerInitialized) {
+      return;
     }
-    setupSlide.appendChild(setupMedia);
+    root.dataset.jokeViewerInitialized = 'true';
 
-    // Punchline slide
-    const punchlineId = 'joke-' + (joke.key || 'unknown') + '-punchline';
-    const punchlineSlide = document.createElement('div');
-    punchlineSlide.className = 'joke-slide';
-    punchlineSlide.id = punchlineId;
-    punchlineSlide.setAttribute('aria-hidden', 'true');
-
-    const punchlineMedia = document.createElement('div');
-    punchlineMedia.className = 'joke-slide-media';
-
-    if (joke.punchline_image_url) {
-      const punchlineImg = document.createElement('img');
-      punchlineImg.src = joke.punchline_image_url.replace('width=1024', 'width=350');
-      punchlineImg.alt = joke.punchline_text || '';
-      punchlineImg.width = 350;
-      punchlineImg.height = 350;
-      punchlineImg.loading = 'lazy';
-      punchlineMedia.appendChild(punchlineImg);
-    } else {
-      const placeholder = document.createElement('div');
-      placeholder.className = 'joke-slide-placeholder text-button';
-      placeholder.textContent = 'Punchline ready to read!';
-      punchlineMedia.appendChild(placeholder);
+    const track = root.querySelector('.joke-carousel-track');
+    const slides = root.querySelectorAll('.joke-slide');
+    const toggle = root.querySelector('[data-role="reveal"]');
+    if (!track || slides.length < 2 || !toggle) {
+      return;
     }
-    punchlineSlide.appendChild(punchlineMedia);
 
-    track.appendChild(setupSlide);
-    track.appendChild(punchlineSlide);
-    viewport.appendChild(track);
-    carousel.appendChild(viewport);
-    viewer.appendChild(carousel);
+    const showLabel = toggle.getAttribute('data-label-show') || toggle.textContent || 'Reveal';
+    const hideLabel = toggle.getAttribute('data-label-hide') || showLabel;
+    const setupSlide = slides[0];
+    const punchlineSlide = slides[1];
 
-    // Reveal button
-    const button = document.createElement('button');
-    button.className = 'joke-reveal text-button';
-    button.type = 'button';
-    button.setAttribute('data-role', 'reveal');
-    button.setAttribute('data-label-show', 'Reveal Punchline');
-    button.setAttribute('data-label-hide', 'Back to Setup');
-    button.setAttribute('aria-controls', punchlineId);
-    button.setAttribute('aria-expanded', 'false');
-    button.setAttribute('data-analytics-event', 'web_index_joke_reveal_click');
-    button.setAttribute('data-analytics-label', joke.key || 'unknown');
-    button.textContent = 'Reveal Punchline';
-    viewer.appendChild(button);
+    function setState(isRevealed) {
+      root.classList.toggle('is-revealed', isRevealed);
+      toggle.textContent = isRevealed ? hideLabel : showLabel;
+      toggle.setAttribute('aria-expanded', String(isRevealed));
+      setupSlide.setAttribute('aria-hidden', String(isRevealed));
+      punchlineSlide.setAttribute('aria-hidden', String(!isRevealed));
+    }
 
-    article.appendChild(viewer);
-    return article;
+    setState(false);
+    toggle.addEventListener('click', function () {
+      setState(!root.classList.contains('is-revealed'));
+    });
   }
 
   function loadMoreJokes() {
@@ -191,15 +132,18 @@ a hilarious punchline. Scroll to discover more!{% endblock %}
     fetch(url)
       .then(response => response.json())
       .then(data => {
-        if (data.jokes && data.jokes.length > 0) {
-          data.jokes.forEach(joke => {
-            const card = createJokeCard(joke);
-            feedContainer.appendChild(card);
+        if (data.html) {
+          // Create a temporary container to parse the HTML
+          const temp = document.createElement('div');
+          temp.innerHTML = data.html;
 
-            // Initialize viewer for this newly added card
+          // Append each joke card and initialize viewers
+          const cards = temp.querySelectorAll('.joke-card');
+          cards.forEach(card => {
+            feedContainer.appendChild(card);
             const viewer = card.querySelector('[data-joke-viewer]');
-            if (viewer && window.initJokeViewer) {
-              window.initJokeViewer(viewer);
+            if (viewer) {
+              initJokeViewer(viewer);
             }
           });
         }

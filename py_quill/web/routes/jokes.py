@@ -12,12 +12,21 @@ from web.utils.responses import html_response
 
 _JOKES_PER_PAGE = 10
 _JOKE_IMAGE_SIZE = 450
+_COOKIE_NAME = 'jokes_feed_cursor'
+_COOKIE_MAX_AGE_DAYS = 30
 
 
 @web_bp.route('/jokes')
 def jokes():
-  """Render the jokes feed page with first page of jokes."""
-  jokes_list, next_cursor = firestore.get_joke_feed_page(cursor=None,
+  """Render the jokes feed page with first page of jokes.
+  
+  If a 'jokes_feed_cursor' cookie is present, resumes from that cursor position.
+  Otherwise, starts from the beginning of the feed.
+  """
+  # Read cursor from cookie if present
+  saved_cursor = flask.request.cookies.get(_COOKIE_NAME)
+
+  jokes_list, next_cursor = firestore.get_joke_feed_page(cursor=saved_cursor,
                                                          limit=_JOKES_PER_PAGE)
 
   canonical_url = urls.canonical_url(flask.url_for('web.jokes'))
@@ -33,7 +42,18 @@ def jokes():
     site_name='Snickerdoodle',
     now_year=now_year,
   )
-  return html_response(html, cache_seconds=300, cdn_seconds=1200)
+
+  resp = html_response(html, cache_seconds=300, cdn_seconds=1200)
+
+  # Set cookie if we have a cursor (for next page load)
+  if saved_cursor:
+    resp.set_cookie(
+      _COOKIE_NAME,
+      saved_cursor,
+      max_age=_COOKIE_MAX_AGE_DAYS * 24 * 60 * 60,
+      path='/',
+    )
+  return resp
 
 
 @web_bp.route('/jokes/load-more')

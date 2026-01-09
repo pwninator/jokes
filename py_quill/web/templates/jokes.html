@@ -11,7 +11,14 @@ a hilarious punchline. Scroll to discover more!{% endblock %}
   .jokes-feed {
     display: grid;
     grid-template-columns: 1fr;
-    max-width: {{ image_size }}px;
+
+    max-width: {
+        {
+        image_size
+      }
+    }
+
+    px;
     margin: 0 auto;
     gap: 2rem;
     padding: 2rem 1rem;
@@ -118,6 +125,12 @@ a hilarious punchline. Scroll to discover more!{% endblock %}
     });
   }
 
+  function setCookie(name, value, days) {
+    const expires = new Date();
+    expires.setTime(expires.getTime() + (days * 24 * 60 * 60 * 1000));
+    document.cookie = `${name}=${value}; expires=${expires.toUTCString()}; path=/`;
+  }
+
   function loadMoreJokes() {
     if (isLoading || !hasMore || !nextCursor) {
       return;
@@ -126,8 +139,11 @@ a hilarious punchline. Scroll to discover more!{% endblock %}
     isLoading = true;
     loadingIndicator.classList.add('active');
 
+    // Store the cursor we're about to use (not the next one)
+    const cursorToUse = nextCursor;
+
     const url = new URL('/jokes/load-more', window.location.origin);
-    url.searchParams.set('cursor', nextCursor);
+    url.searchParams.set('cursor', cursorToUse);
 
     fetch(url)
       .then(response => response.json())
@@ -146,6 +162,12 @@ a hilarious punchline. Scroll to discover more!{% endblock %}
               initJokeViewer(viewer);
             }
           });
+        }
+
+        // Set cookie to the cursor we just used (not the next one)
+        // This ensures if user refreshes, they resume from the current position
+        if (cursorToUse) {
+          setCookie('jokes_feed_cursor', cursorToUse, 7);
         }
 
         nextCursor = data.cursor;

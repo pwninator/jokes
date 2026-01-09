@@ -36,6 +36,7 @@ def admin_joke_categories():
   seasonal: list = []
   proposed: list = []
   rejected: list = []
+  book: list = []
   for category in categories:
     state = _state_key(category)
     if state == "APPROVED":
@@ -44,6 +45,8 @@ def admin_joke_categories():
       seasonal.append(category)
     elif state == "PROPOSED":
       proposed.append(category)
+    elif state == "BOOK":
+      book.append(category)
     else:
       rejected.append(category)
 
@@ -62,11 +65,13 @@ def admin_joke_categories():
     seasonal_unique_joke_count=_unique_joke_count(seasonal),
     proposed_unique_joke_count=_unique_joke_count(proposed),
     rejected_unique_joke_count=_unique_joke_count(rejected),
+    book_unique_joke_count=_unique_joke_count(book),
     uncategorized_unique_joke_count=uncategorized_unique_count,
     approved_categories=approved,
     seasonal_categories=seasonal,
     proposed_categories=proposed,
     rejected_categories=rejected,
+    book_categories=book,
     uncategorized_jokes=uncategorized,
     created=flask.request.args.get('created'),
     updated=flask.request.args.get('updated'),

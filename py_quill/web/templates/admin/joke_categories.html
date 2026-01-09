@@ -317,6 +317,7 @@
                 <option value="PROPOSED" {% if st == 'PROPOSED' %}selected{% endif %}>PROPOSED</option>
                 <option value="APPROVED" {% if st == 'APPROVED' %}selected{% endif %}>APPROVED</option>
                 <option value="SEASONAL" {% if st == 'SEASONAL' %}selected{% endif %}>SEASONAL</option>
+                <option value="BOOK" {% if st == 'BOOK' %}selected{% endif %}>BOOK</option>
                 <option value="REJECTED" {% if st == 'REJECTED' %}selected{% endif %}>REJECTED</option>
               </select>
             </label>
@@ -409,6 +410,11 @@
 <section class="category-section">
   <h3>Proposed <span class="pill text-button">{{ proposed_unique_joke_count }} unique jokes</span></h3>
   {{ render_category_list(proposed_categories) }}
+</section>
+
+<section class="category-section">
+  <h3>Book <span class="pill text-button">{{ book_unique_joke_count }} unique jokes</span></h3>
+  {{ render_category_list(book_categories) }}
 </section>
 
 <section class="category-section">

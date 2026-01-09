@@ -11,7 +11,7 @@ from services import firestore, search
 def refresh_category_caches() -> dict[str, int]:
   """Refresh cached joke lists for Firestore categories.
 
-  - Processes only categories in APPROVED, SEASONAL, or PROPOSED state
+  - Processes only categories in APPROVED, SEASONAL, PROPOSED, or BOOK state
   - Uses the same search semantics as the app ("jokes about {query}") with
     tight threshold and public-only filters equivalent to state and is_public
   - Stores results under: joke_categories/{category_id}/category_jokes/cache
@@ -104,7 +104,7 @@ def refresh_single_category_cache(
 
   # Filter to categories with valid state and query
   state = (category.state or "").upper()
-  if state not in ("APPROVED", "SEASONAL", "PROPOSED"):
+  if state not in ("APPROVED", "SEASONAL", "PROPOSED", "BOOK"):
     return None
 
   raw_query = (category.joke_description_query or "").strip()

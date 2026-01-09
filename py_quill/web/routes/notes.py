@@ -363,7 +363,7 @@ def notes_detail(slug: str):
   fan_stack = _prepare_fan_stack(promo_cards)
   category_sheet_count = len(category_cards)
 
-  display_title = f"Free {category_label} Joke Lunchbox Notes Printable PDF (#{display_index})"
+  display_title = f"{category_label} Joke Lunchbox Notes (#{display_index})"
   page_title = f"{display_title} (Free PDF)"
   canonical_slug = _cache_sheet_slug(category_id, index)
   canonical_url = urls.canonical_url(

@@ -1075,34 +1075,13 @@ def test_ensure_category_joke_sheets_deletes_non_five_id_sheets(monkeypatch):
   ]
 
 
-def test_ensure_category_joke_sheets_assigns_gap_indexes_by_fraction(
+def test_ensure_category_joke_sheets_assigns_indexes_by_order(
     monkeypatch):
   calls: list[dict] = []
 
-  existing = [
-    models.JokeSheet(
-      key="s1",
-      joke_str="j1,j2,j3,j4,j5",
-      joke_ids=["j1", "j2", "j3", "j4", "j5"],
-      category_id="cats",
-      index=0,
-    ),
-    models.JokeSheet(
-      key="s2",
-      joke_str="j6,j7,j8,j9,j10",
-      joke_ids=["j6", "j7", "j8", "j9", "j10"],
-      category_id="cats",
-      index=2,
-    ),
-    models.JokeSheet(
-      key="s3",
-      joke_str="j11,j12,j13,j14,j15",
-      joke_ids=["j11", "j12", "j13", "j14", "j15"],
-      category_id="cats",
-    ),
-  ]
+  # No existing sheets
   monkeypatch.setattr("services.firestore.get_joke_sheets_by_category",
-                      lambda _category_id: existing)
+                      lambda _category_id: [])
 
   def fake_get_sheet(jokes, *, category_id=None, quality=80, index=None):  # pylint: disable=unused-argument
     calls.append({
@@ -1122,13 +1101,17 @@ def test_ensure_category_joke_sheets_assigns_gap_indexes_by_fraction(
     "common.joke_notes_sheet_operations.ensure_joke_notes_sheet",
     fake_get_sheet)
 
+  # Batch 1 (low quality) comes first in input
+  # Batch 2 (high quality) comes second in input
   jokes = _make_jokes_with_fractions(
-    [0.1] * 5 + [0.2] * 5 + [0.9] * 5 + [0.05] * 5)
+    [0.1] * 5 + [0.9] * 5)
+  
   joke_category_operations._ensure_category_joke_sheets(  # pylint: disable=protected-access
     "cats",
     jokes,
   )
 
+  # Should preserve input order: low quality first at index 0
   assert calls == [
     {
       "joke_ids": ["j1", "j2", "j3", "j4", "j5"],
@@ -1136,18 +1119,8 @@ def test_ensure_category_joke_sheets_assigns_gap_indexes_by_fraction(
       "index": 0,
     },
     {
-      "joke_ids": ["j11", "j12", "j13", "j14", "j15"],
-      "category_id": "cats",
-      "index": 1,
-    },
-    {
       "joke_ids": ["j6", "j7", "j8", "j9", "j10"],
       "category_id": "cats",
-      "index": 2,
-    },
-    {
-      "joke_ids": ["j16", "j17", "j18", "j19", "j20"],
-      "category_id": "cats",
-      "index": 3,
+      "index": 1,
     },
   ]

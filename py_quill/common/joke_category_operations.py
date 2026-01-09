@@ -283,10 +283,6 @@ def _ensure_category_joke_sheets(
       available_indexes.discard(index)
 
   if unindexed_batches:
-    unindexed_batches.sort(
-      key=lambda b: b["avg_saved_users_fraction"],
-      reverse=True,
-    )
     available_sorted = sorted(available_indexes)
     for batch in unindexed_batches:
       batch["index"] = available_sorted.pop(0)

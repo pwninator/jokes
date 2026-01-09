@@ -1632,3 +1632,140 @@ class CreateJokeNotesSheetTest(unittest.TestCase):
     mock_create_image.assert_not_called()
     mock_create_pdf.assert_not_called()
     mock_upload_bytes.assert_not_called()
+
+
+class CreatePinterestPinImageTest(unittest.TestCase):
+  """Tests for create_pinterest_pin_image function."""
+
+  @patch('common.image_operations.firestore')
+  @patch('common.image_operations.cloud_storage')
+  def test_create_pinterest_pin_image_single_joke(self, mock_cloud_storage,
+                                                  mock_firestore):
+    """create_pinterest_pin_image should create a pin image for a single joke."""
+    joke_id = "joke1"
+
+    # Create mock joke
+    mock_joke = Mock()
+    mock_joke.key = joke_id
+    mock_joke.setup_image_url = "https://images.quillsstorybook.com/cdn-cgi/image/width=1024/joke1_setup.png"
+    mock_joke.punchline_image_url = "https://images.quillsstorybook.com/cdn-cgi/image/width=1024/joke1_punchline.png"
+
+    mock_firestore.get_punny_jokes.return_value = [mock_joke]
+
+    # Create test images
+    setup_img = Image.new('RGB', (1024, 1024), color='red')
+    punchline_img = Image.new('RGB', (1024, 1024), color='blue')
+    mock_cloud_storage.download_image_from_gcs.side_effect = [
+      setup_img, punchline_img
+    ]
+    mock_cloud_storage.extract_gcs_uri_from_image_url.side_effect = [
+      "gs://bucket/joke1_setup.png",
+      "gs://bucket/joke1_punchline.png",
+    ]
+
+    result = image_operations.create_pinterest_pin_image([joke_id])
+
+    self.assertEqual(result.size, (1000, 500))  # 1 joke = 1000x500
+    self.assertEqual(result.mode, 'RGB')
+
+    # Verify images were downloaded
+    self.assertEqual(mock_cloud_storage.download_image_from_gcs.call_count, 2)
+
+  @patch('common.image_operations.firestore')
+  @patch('common.image_operations.cloud_storage')
+  def test_create_pinterest_pin_image_multiple_jokes(self, mock_cloud_storage,
+                                                     mock_firestore):
+    """create_pinterest_pin_image should create a pin image for multiple jokes."""
+    joke_ids = ["joke1", "joke2", "joke3"]
+
+    # Create mock jokes
+    mock_jokes = []
+    for i, joke_id in enumerate(joke_ids):
+      mock_joke = Mock()
+      mock_joke.key = joke_id
+      mock_joke.setup_image_url = f"https://images.quillsstorybook.com/cdn-cgi/image/width=1024/joke{i+1}_setup.png"
+      mock_joke.punchline_image_url = f"https://images.quillsstorybook.com/cdn-cgi/image/width=1024/joke{i+1}_punchline.png"
+      mock_jokes.append(mock_joke)
+
+    mock_firestore.get_punny_jokes.return_value = mock_jokes
+
+    # Create test images (6 total: 3 setup + 3 punchline)
+    test_images = [
+      Image.new('RGB', (1024, 1024), color='red'),
+      Image.new('RGB', (1024, 1024), color='blue'),
+      Image.new('RGB', (1024, 1024), color='green'),
+      Image.new('RGB', (1024, 1024), color='yellow'),
+      Image.new('RGB', (1024, 1024), color='purple'),
+      Image.new('RGB', (1024, 1024), color='orange'),
+    ]
+    mock_cloud_storage.download_image_from_gcs.side_effect = test_images
+    mock_cloud_storage.extract_gcs_uri_from_image_url.side_effect = [
+      f"gs://bucket/joke{i//2+1}_{'setup' if i%2==0 else 'punchline'}.png"
+      for i in range(6)
+    ]
+
+    result = image_operations.create_pinterest_pin_image(joke_ids)
+
+    self.assertEqual(result.size, (1000, 1500))  # 3 jokes = 1000x(3*500)
+    self.assertEqual(result.mode, 'RGB')
+
+    # Verify all images were downloaded (2 per joke)
+    self.assertEqual(mock_cloud_storage.download_image_from_gcs.call_count, 6)
+
+  @patch('common.image_operations.firestore')
+  def test_create_pinterest_pin_image_empty_list(self, mock_firestore):
+    """create_pinterest_pin_image should raise ValueError for empty joke list."""
+    with self.assertRaises(ValueError) as context:
+      image_operations.create_pinterest_pin_image([])
+
+    self.assertIn("No joke IDs provided", str(context.exception))
+
+  @patch('common.image_operations.firestore')
+  def test_create_pinterest_pin_image_joke_not_found(self, mock_firestore):
+    """create_pinterest_pin_image should raise ValueError if joke not found."""
+    joke_id = "nonexistent"
+    mock_firestore.get_punny_jokes.return_value = []
+
+    with self.assertRaises(ValueError) as context:
+      image_operations.create_pinterest_pin_image([joke_id])
+
+    self.assertIn("Jokes not found", str(context.exception))
+    self.assertIn(joke_id, str(context.exception))
+
+  @patch('common.image_operations.firestore')
+  def test_create_pinterest_pin_image_missing_setup_image(
+      self, mock_firestore):
+    """create_pinterest_pin_image should raise ValueError if joke missing setup image."""
+    joke_id = "joke1"
+
+    mock_joke = Mock()
+    mock_joke.key = joke_id
+    mock_joke.setup_image_url = None
+    mock_joke.punchline_image_url = "https://images.quillsstorybook.com/cdn-cgi/image/width=1024/joke1_punchline.png"
+
+    mock_firestore.get_punny_jokes.return_value = [mock_joke]
+
+    with self.assertRaises(ValueError) as context:
+      image_operations.create_pinterest_pin_image([joke_id])
+
+    self.assertIn("missing setup or punchline image", str(context.exception))
+    self.assertIn(joke_id, str(context.exception))
+
+  @patch('common.image_operations.firestore')
+  def test_create_pinterest_pin_image_missing_punchline_image(
+      self, mock_firestore):
+    """create_pinterest_pin_image should raise ValueError if joke missing punchline image."""
+    joke_id = "joke1"
+
+    mock_joke = Mock()
+    mock_joke.key = joke_id
+    mock_joke.setup_image_url = "https://images.quillsstorybook.com/cdn-cgi/image/width=1024/joke1_setup.png"
+    mock_joke.punchline_image_url = None
+
+    mock_firestore.get_punny_jokes.return_value = [mock_joke]
+
+    with self.assertRaises(ValueError) as context:
+      image_operations.create_pinterest_pin_image([joke_id])
+
+    self.assertIn("missing setup or punchline image", str(context.exception))
+    self.assertIn(joke_id, str(context.exception))

@@ -873,6 +873,65 @@ def _get_page_number_font(font_size: int) -> ImageFont.ImageFont:
   return ImageFont.load_default()
 
 
+def create_pinterest_pin_image(joke_ids: list[str]) -> Image.Image:
+  """Create a Pinterest pin image from multiple jokes.
+  
+  Creates a single large image with all setup and punchline images arranged
+  in rows. Each joke takes one row with setup on the left and punchline on
+  the right. Each image is scaled to 500x500 pixels.
+  
+  Args:
+    joke_ids: List of joke IDs to include in the pin image.
+    
+  Returns:
+    A PIL Image with dimensions 1000x(n*500) where n is the number of jokes.
+    
+  Raises:
+    ValueError: If any joke is missing or missing required images.
+  """
+  if not joke_ids:
+    raise ValueError("No joke IDs provided")
+
+  jokes = firestore.get_punny_jokes(joke_ids)
+  if len(jokes) != len(joke_ids):
+    found_ids = {joke.key for joke in jokes if joke.key}
+    missing = set(joke_ids) - found_ids
+    raise ValueError(f"Jokes not found: {missing}")
+
+  # Verify all jokes have images
+  for joke in jokes:
+    if not joke.setup_image_url or not joke.punchline_image_url:
+      raise ValueError(f"Joke {joke.key} is missing setup or punchline image")
+
+  num_jokes = len(jokes)
+  canvas_width = 1000
+  canvas_height = num_jokes * 500
+
+  # Create blank white canvas
+  canvas = Image.new('RGB', (canvas_width, canvas_height), (255, 255, 255))
+
+  for row_index, joke in enumerate(jokes):
+    y_offset = row_index * 500
+
+    # Download and process setup image
+    setup_gcs_uri = cloud_storage.extract_gcs_uri_from_image_url(
+      joke.setup_image_url)
+    setup_img = cloud_storage.download_image_from_gcs(setup_gcs_uri)
+    setup_img = setup_img.resize((500, 500), Image.Resampling.LANCZOS)
+
+    # Download and process punchline image
+    punchline_gcs_uri = cloud_storage.extract_gcs_uri_from_image_url(
+      joke.punchline_image_url)
+    punchline_img = cloud_storage.download_image_from_gcs(punchline_gcs_uri)
+    punchline_img = punchline_img.resize((500, 500), Image.Resampling.LANCZOS)
+
+    # Paste setup on left (x=0), punchline on right (x=500)
+    canvas.paste(setup_img, (0, y_offset))
+    canvas.paste(punchline_img, (500, y_offset))
+
+  return canvas
+
+
 def _add_page_number_to_image(
   image: Image.Image,
   *,
@@ -950,7 +1009,6 @@ def _compose_landscape_ad_image(
   buffer = BytesIO()
   base.save(buffer, format='PNG')
   return buffer.getvalue(), base.width
-
 
 
 def _compose_square_drawing_ad_image(

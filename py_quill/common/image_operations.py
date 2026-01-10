@@ -938,13 +938,27 @@ def create_pinterest_pin_image(
   if block_last_panel and num_jokes > 0:
     blocker_img = cloud_storage.download_image_from_gcs(
       _PANEL_BLOCKER_OVERLAY_URL)
-    blocker_img = blocker_img.resize((550, 550), Image.Resampling.LANCZOS)
-    # Center the 550x550 overlay over the 500x500 bottom right panel
+    blocker_img = blocker_img.resize((600, 600), Image.Resampling.LANCZOS)
+    # Ensure blocker image is RGBA for alpha transparency
+    if blocker_img.mode != 'RGBA':
+      blocker_img = blocker_img.convert('RGBA')
+    # Position the 600x600 overlay so bottom and right edges align with the previous position
     # Bottom right panel is at x=500, y_offset = (num_jokes - 1) * 500
     last_row_y = (num_jokes - 1) * 500
-    # Center horizontally: 500 + (500/2) - (550/2) = 475
-    # Center vertically: last_row_y + (500/2) - (550/2) = last_row_y - 25
-    canvas.paste(blocker_img, (475, last_row_y - 25))
+    # Previous bottom-right corner was at (1025, last_row_y + 525)
+    # To keep same bottom-right: position at (1025 - 600, (last_row_y + 525) - 600)
+    overlay_x = 425  # 1025 - 600
+    overlay_y = last_row_y - 75  # (last_row_y + 525) - 600
+    # Convert canvas to RGBA for alpha compositing
+    canvas = canvas.convert('RGBA')
+    # Create full-size transparent overlay for proper alpha compositing
+    overlay = Image.new('RGBA', (canvas_width, canvas_height), (0, 0, 0, 0))
+    # Paste RGBA blocker image - alpha channel will be used automatically
+    overlay.paste(blocker_img, (overlay_x, overlay_y))
+    # Alpha composite the overlay onto the canvas
+    canvas = Image.alpha_composite(canvas, overlay)
+    # Convert back to RGB
+    canvas = canvas.convert('RGB')
 
   return canvas
 

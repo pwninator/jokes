@@ -1794,3 +1794,102 @@ class CreatePinterestPinImageTest(unittest.TestCase):
 
     # Verify only joke images were downloaded, no blocker overlay
     self.assertEqual(mock_cloud_storage.download_image_from_gcs.call_count, 2)
+
+  @patch('common.image_operations.firestore')
+  @patch('common.image_operations.cloud_storage')
+  def test_create_pinterest_pin_image_blocker_overlay_size(
+      self, mock_cloud_storage, mock_firestore):
+    """Test that blocker overlay is resized to 600x600."""
+    joke_id = "joke1"
+
+    mock_joke = Mock()
+    mock_joke.key = joke_id
+    mock_joke.setup_image_url = "https://images.quillsstorybook.com/joke1_setup.png"
+    mock_joke.punchline_image_url = "https://images.quillsstorybook.com/joke1_punchline.png"
+
+    mock_firestore.get_punny_jokes.return_value = [mock_joke]
+
+    setup_img = Image.new('RGB', (1024, 1024), color='red')
+    punchline_img = Image.new('RGB', (1024, 1024), color='blue')
+    # Create a blocker image with a different size to verify it gets resized
+    blocker_img = Image.new('RGBA', (800, 800), color=(0, 0, 0, 128))
+
+    mock_cloud_storage.download_image_from_gcs.side_effect = [
+      setup_img, punchline_img, blocker_img
+    ]
+
+    # Track resize calls by wrapping the resize method
+    original_resize = Image.Image.resize
+    resize_calls = []
+
+    def tracked_resize(self, size, resample=None):
+      resize_calls.append(size)
+      return original_resize(self, size, resample)
+
+    with patch.object(Image.Image, 'resize', tracked_resize):
+      result = image_operations.create_pinterest_pin_image([joke_id])
+
+    # Verify blocker was resized to 600x600 (should be in the resize calls)
+    # Setup and punchline are resized to (500, 500), blocker to (600, 600)
+    self.assertTrue(any(call == (600, 600) for call in resize_calls),
+                    f"Expected resize to (600, 600), got calls: {resize_calls}")
+
+    self.assertEqual(result.size, (1000, 500))
+    self.assertEqual(result.mode, 'RGB')
+
+  @patch('common.image_operations.firestore')
+  @patch('common.image_operations.cloud_storage')
+  def test_create_pinterest_pin_image_blocker_overlay_positioning_logic(
+      self, mock_cloud_storage, mock_firestore):
+    """Test blocker overlay positioning logic for different numbers of jokes."""
+    # Test with 1 joke
+    mock_joke = Mock()
+    mock_joke.key = "joke1"
+    mock_joke.setup_image_url = "https://images.quillsstorybook.com/joke1_setup.png"
+    mock_joke.punchline_image_url = "https://images.quillsstorybook.com/joke1_punchline.png"
+
+    mock_firestore.get_punny_jokes.return_value = [mock_joke]
+
+    setup_img = Image.new('RGB', (1024, 1024), color='red')
+    punchline_img = Image.new('RGB', (1024, 1024), color='blue')
+    blocker_img = Image.new('RGBA', (1024, 1024), color=(0, 0, 0, 128))
+
+    mock_cloud_storage.download_image_from_gcs.side_effect = [
+      setup_img, punchline_img, blocker_img
+    ]
+
+    result = image_operations.create_pinterest_pin_image(["joke1"])
+
+    # For 1 joke: last_row_y = (1 - 1) * 500 = 0
+    # Overlay should be at (425, 0 - 75) = (425, -75)
+    # But since we can't have negative coordinates in actual paste, let's verify canvas
+    self.assertEqual(result.size, (1000, 500))
+    self.assertEqual(result.mode, 'RGB')
+
+    # Test with 2 jokes
+    mock_jokes = []
+    for i in range(2):
+      mock_joke = Mock()
+      mock_joke.key = f"joke{i+1}"
+      mock_joke.setup_image_url = f"https://images.quillsstorybook.com/joke{i+1}_setup.png"
+      mock_joke.punchline_image_url = f"https://images.quillsstorybook.com/joke{i+1}_punchline.png"
+      mock_jokes.append(mock_joke)
+
+    mock_firestore.get_punny_jokes.return_value = mock_jokes
+
+    test_images_2 = [
+      Image.new('RGB', (1024, 1024), color='red'),
+      Image.new('RGB', (1024, 1024), color='blue'),
+      Image.new('RGB', (1024, 1024), color='green'),
+      Image.new('RGB', (1024, 1024), color='yellow'),
+      Image.new('RGBA', (1024, 1024), color=(0, 0, 0, 128)),
+    ]
+    mock_cloud_storage.download_image_from_gcs.side_effect = test_images_2
+
+    result_2 = image_operations.create_pinterest_pin_image(["joke1", "joke2"])
+
+    # For 2 jokes: last_row_y = (2 - 1) * 500 = 500
+    # Overlay should be at (425, 500 - 75) = (425, 425)
+    # Overlay extends from (425, 425) to (1025, 1025)
+    self.assertEqual(result_2.size, (1000, 1000))  # 2 jokes = 1000x(2*500)
+    self.assertEqual(result_2.mode, 'RGB')

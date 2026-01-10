@@ -379,7 +379,7 @@ def test_nav_includes_book_and_app_links(monkeypatch):
   """Navigation should include links to Book and App with analytics."""
   # Arrange
   mock_get_top_jokes = Mock(return_value=[
-      models.PunnyJoke(key="j1", setup_text="s", punchline_text="p")
+    models.PunnyJoke(key="j1", setup_text="s", punchline_text="p")
   ])
   monkeypatch.setattr(public_routes.firestore, "get_top_jokes",
                       mock_get_top_jokes)
@@ -408,3 +408,59 @@ def test_nav_includes_book_and_app_links(monkeypatch):
   assert 'href="https://play.google.com/store/apps/details?id=com.builtwithporpoise.jokes"' in html
   assert 'data-analytics-event="web_nav_app_click"' in html
   assert 'data-analytics-label="mobile_app"' in html
+
+
+def test_index_page_includes_sticky_header_script(monkeypatch):
+  """Test that index page includes sticky header scroll script."""
+  # Arrange: Mock dependencies
+  joke = models.PunnyJoke(
+    key="joke1",
+    setup_text="Setup",
+    punchline_text="Punchline",
+    setup_image_url="http://example.com/setup.jpg",
+    punchline_image_url="http://example.com/punch.jpg",
+  )
+  mock_get_top_jokes = Mock(return_value=[joke])
+  mock_get_daily_joke = Mock(return_value=None)
+  monkeypatch.setattr(public_routes.firestore, "get_top_jokes",
+                      mock_get_top_jokes)
+  monkeypatch.setattr(public_routes.firestore, "get_daily_joke",
+                      mock_get_daily_joke)
+
+  # Act
+  with app.test_client() as client:
+    resp = client.get('/')
+
+  # Assert
+  assert resp.status_code == 200
+  html = resp.get_data(as_text=True)
+  assert 'site-header' in html
+  # Verify scroll detection script is present
+  assert 'scroll' in html.lower()
+  assert 'site-header--visible' in html.lower()
+  assert 'addEventListener' in html
+
+
+def test_topic_page_includes_sticky_header_script(monkeypatch):
+  """Test that topic page includes sticky header scroll script."""
+  # Arrange: Mock dependencies
+  mock_search_jokes = Mock(return_value=[])
+  mock_get_punny_jokes = Mock(return_value=[])
+  monkeypatch.setattr(public_routes.search, "search_jokes", mock_search_jokes)
+  monkeypatch.setattr(public_routes.firestore,
+                      "get_punny_jokes",
+                      mock_get_punny_jokes,
+                      raising=False)
+
+  # Act
+  with app.test_client() as client:
+    resp = client.get('/jokes/dogs')
+
+  # Assert
+  assert resp.status_code == 200
+  html = resp.get_data(as_text=True)
+  assert 'site-header' in html
+  # Verify scroll detection script is present
+  assert 'scroll' in html.lower()
+  assert 'site-header--visible' in html.lower()
+  assert 'addEventListener' in html

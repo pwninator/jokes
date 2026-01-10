@@ -210,3 +210,19 @@ def test_admin_stats_rebuckets_and_colors(monkeypatch):
   assert _dataset("150-199 jokes")["data"][2] == pytest.approx(0.0, rel=1e-3)
 
 
+def test_admin_dashboard_includes_sticky_header_script(monkeypatch):
+  """Test that admin dashboard includes sticky header scroll script."""
+  _mock_admin_session(monkeypatch)
+
+  # Act
+  with app.test_client() as client:
+    resp = client.get('/admin')
+
+  # Assert
+  assert resp.status_code == 200
+  html = resp.get_data(as_text=True)
+  assert 'site-header' in html
+  # Verify scroll detection script is present
+  assert 'scroll' in html.lower()
+  assert 'site-header--visible' in html.lower()
+  assert 'addEventListener' in html

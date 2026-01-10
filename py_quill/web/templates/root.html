@@ -249,7 +249,66 @@
         });
     })();
   </script>
-  {% block scripts %}{% endblock %}
+  {% block scripts %}
+  <script>
+(function () {
+  'use strict';
+
+  const header = document.querySelector('.site-header');
+  if (!header) {
+    return;
+  }
+
+  let lastScrollY = window.scrollY || window.pageYOffset;
+  let ticking = false;
+  const SCROLL_THRESHOLD = 10;
+
+  function updateHeader() {
+    const currentScrollY = window.scrollY || window.pageYOffset;
+
+    // Always show header at the top of the page
+    if (currentScrollY === 0) {
+      header.classList.add('site-header--visible');
+      lastScrollY = currentScrollY;
+      ticking = false;
+      return;
+    }
+
+    // Only update if scroll difference exceeds threshold to avoid flickering
+    const scrollDiff = Math.abs(currentScrollY - lastScrollY);
+    if (scrollDiff < SCROLL_THRESHOLD) {
+      ticking = false;
+      return;
+    }
+
+    // Show header when scrolling up, hide when scrolling down
+    if (currentScrollY < lastScrollY) {
+      // Scrolling up
+      header.classList.add('site-header--visible');
+    } else {
+      // Scrolling down
+      header.classList.remove('site-header--visible');
+    }
+
+    lastScrollY = currentScrollY;
+    ticking = false;
+  }
+
+  function onScroll() {
+    if (!ticking) {
+      window.requestAnimationFrame(updateHeader);
+      ticking = true;
+    }
+  }
+
+  // Initialize header as visible on page load
+  header.classList.add('site-header--visible');
+
+  // Listen for scroll events
+  window.addEventListener('scroll', onScroll, { passive: true });
+})();
+  </script>
+  {% endblock %}
 </body>
 
 </html>

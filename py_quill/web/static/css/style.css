@@ -152,9 +152,18 @@ img {
 }
 
 .site-header {
+  position: sticky;
+  top: 0;
+  z-index: 1000;
   background: var(--color-accent-surface);
   border-bottom: 1px solid var(--color-border);
   box-shadow: 0 6px 16px var(--color-shadow);
+  transform: translateY(-100%);
+  transition: transform 0.3s ease-in-out;
+}
+
+.site-header--visible {
+  transform: translateY(0);
 }
 
 .header-inner {
@@ -1549,6 +1558,7 @@ tr:last-child td {
   }
 
   .site-header {
-    position: relative; /* For absolute positioning of panel */
+    position: sticky; /* Sticky header works on mobile too */
+    top: 0;
   }
 }

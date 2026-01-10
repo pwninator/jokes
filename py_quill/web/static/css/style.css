@@ -158,11 +158,22 @@ img {
   background: var(--color-accent-surface);
   border-bottom: 1px solid var(--color-border);
   box-shadow: 0 6px 16px var(--color-shadow);
+  /* No initial transform - starts visible in docked state */
+}
+
+.site-header--docked {
+  /* Override to normal flow at top of page */
+  position: static;
+  transform: none;
+}
+
+.site-header--floating {
+  /* Enable transform-based hiding when floating */
   transform: translateY(-100%);
   transition: transform 0.3s ease-in-out;
 }
 
-.site-header--visible {
+.site-header--floating.site-header--visible {
   transform: translateY(0);
 }
 
@@ -1560,5 +1571,10 @@ tr:last-child td {
   .site-header {
     position: sticky; /* Sticky header works on mobile too */
     top: 0;
+  }
+
+  .site-header--docked {
+    /* Override sticky positioning on mobile when docked */
+    position: static;
   }
 }

@@ -263,5 +263,10 @@ def test_topic_page_includes_sticky_header_script(monkeypatch):
   assert 'site-header' in html
   # Verify scroll detection script is present
   assert 'scroll' in html.lower()
-  assert 'site-header--visible' in html.lower()
   assert 'addEventListener' in html
+  # Verify dock/floating state classes are referenced
+  assert 'site-header--docked' in html.lower()
+  assert 'site-header--floating' in html.lower()
+  assert 'site-header--visible' in html.lower()
+  # Verify 1000px scroll threshold logic
+  assert '1000' in html or 'float_scroll_threshold' in html.lower()

@@ -259,35 +259,64 @@
     return;
   }
 
+  const FLOAT_SCROLL_THRESHOLD = 1000;
+  const SCROLL_THRESHOLD = 10;
   let lastScrollY = window.scrollY || window.pageYOffset;
   let ticking = false;
-  const SCROLL_THRESHOLD = 10;
+  let hasEnteredFloatingZone = false;
+
+  function dockHeader() {
+    header.classList.remove('site-header--floating', 'site-header--visible');
+    header.classList.add('site-header--docked');
+  }
+
+  function floatHeader() {
+    header.classList.remove('site-header--docked');
+    header.classList.add('site-header--floating');
+  }
+
+  function updateFloatingVisibility(currentScrollY) {
+    const scrollDiff = Math.abs(currentScrollY - lastScrollY);
+    if (scrollDiff < SCROLL_THRESHOLD) {
+      return false;
+    }
+
+    if (currentScrollY < lastScrollY) {
+      // Scrolling up: show header
+      header.classList.add('site-header--visible');
+    } else {
+      // Scrolling down: hide header
+      header.classList.remove('site-header--visible');
+    }
+    return true;
+  }
 
   function updateHeader() {
     const currentScrollY = window.scrollY || window.pageYOffset;
+    const shouldBeDocked = currentScrollY === 0;
+    const shouldBeFloating = currentScrollY > FLOAT_SCROLL_THRESHOLD || hasEnteredFloatingZone;
 
-    // Always show header at the top of the page
-    if (currentScrollY === 0) {
-      header.classList.add('site-header--visible');
-      lastScrollY = currentScrollY;
-      ticking = false;
-      return;
-    }
-
-    // Only update if scroll difference exceeds threshold to avoid flickering
-    const scrollDiff = Math.abs(currentScrollY - lastScrollY);
-    if (scrollDiff < SCROLL_THRESHOLD) {
-      ticking = false;
-      return;
-    }
-
-    // Show header when scrolling up, hide when scrolling down
-    if (currentScrollY < lastScrollY) {
-      // Scrolling up
-      header.classList.add('site-header--visible');
+    if (shouldBeDocked) {
+      // At scroll position 0: Always dock and reset floating zone state
+      if (!header.classList.contains('site-header--docked')) {
+        dockHeader();
+      }
+      hasEnteredFloatingZone = false;
+    } else if (shouldBeFloating) {
+      // Float the header (either past threshold or after entering floating zone)
+      if (currentScrollY > FLOAT_SCROLL_THRESHOLD) {
+        hasEnteredFloatingZone = true;
+      }
+      if (!header.classList.contains('site-header--floating')) {
+        floatHeader();
+      }
+      // Update visibility based on scroll direction
+      updateFloatingVisibility(currentScrollY);
     } else {
-      // Scrolling down
-      header.classList.remove('site-header--visible');
+      // Between 1-1000 and haven't entered floating zone: ensure docked
+      if (!header.classList.contains('site-header--docked')) {
+        dockHeader();
+      }
     }
 
     lastScrollY = currentScrollY;
@@ -301,8 +330,9 @@
     }
   }
 
-  // Initialize header as visible on page load
-  header.classList.add('site-header--visible');
+  // Initialize header state based on initial scroll position
+  updateHeader();
+  lastScrollY = window.scrollY || window.pageYOffset;
 
   // Listen for scroll events
   window.addEventListener('scroll', onScroll, { passive: true });

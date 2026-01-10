@@ -36,18 +36,10 @@
 {% set current_path = request.path %}
 {% set brand_is_clickable = brand_is_clickable|default(true) %}
 <div class="site-shell">
-  {% call site_header(url_for('web.index'), site_name, site_name, brand_is_clickable) %}
+  {% call site_header(url_for('web.jokes'), site_name, site_name, brand_is_clickable) %}
         <ul class="nav-list">
           <li>
-            <a class="nav-link text-button{% if current_path == '/' %} nav-link--active{% endif %}"
-              href="{{ url_for('web.index') }}"
-              data-analytics-event="web_nav_home_click"
-              data-analytics-label="home">
-              Home
-            </a>
-          </li>
-          <li>
-            <a class="nav-link text-button{% if current_path == '/jokes' %} nav-link--active{% endif %}"
+            <a class="nav-link text-button{% if current_path == '/jokes' or current_path == '/' %} nav-link--active{% endif %}"
               href="{{ url_for('web.jokes') }}"
               data-analytics-event="web_nav_jokes_click"
               data-analytics-label="jokes">

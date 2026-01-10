@@ -46,65 +46,6 @@ def _fetch_topic_jokes(topic: str, limit: int) -> list[models.PunnyJoke]:
   return jokes
 
 
-@web_bp.route('/')
-def index():
-  """Render the landing page with the daily joke and fan favorites."""
-  now_la = datetime.datetime.now(zoneinfo.ZoneInfo("America/Los_Angeles"))
-  today_la = now_la.date()
-
-  top_jokes = firestore.get_top_jokes('popularity_score_recent', 10)
-
-  favorites: list[models.PunnyJoke] = []
-  seen_keys: set[str] = set()
-
-  for joke in top_jokes:
-    joke_key = joke.key or ''
-    if joke_key and joke_key in seen_keys:
-      continue
-    favorites.append(joke)
-    if joke_key:
-      seen_keys.add(joke_key)
-    if len(favorites) == 3:
-      break
-
-  daily_joke = None
-  try:
-    maybe_daily = firestore.get_daily_joke('daily_jokes', today_la)
-    if maybe_daily:
-      daily_joke = maybe_daily
-      if maybe_daily.key:
-        favorites = [j for j in favorites if j.key != maybe_daily.key]
-        seen_keys.add(maybe_daily.key)
-        for joke in top_jokes:
-          if joke.key and joke.key in seen_keys:
-            continue
-          favorites.append(joke)
-          if len(favorites) == 3:
-            break
-          seen_keys.add(joke.key or '')
-  except Exception as exc:  # pylint: disable=broad-except
-    logger.error(
-      f'Failed to fetch daily joke for {today_la.isoformat()}: {str(exc)}')
-
-  # Ensure we never show more than 3 favorites, even if logic above slipped
-  favorites = favorites[:3]
-
-  if not daily_joke and not favorites:
-    return "Could not find any jokes to display.", 404
-
-  hero_date_label = now_la.strftime('%b %d, %Y')
-  html = flask.render_template(
-    'index.html',
-    daily_joke=daily_joke,
-    favorites=favorites,
-    hero_date_label=hero_date_label,
-    canonical_url=urls.canonical_url(flask.url_for('web.index')),
-    site_name='Snickerdoodle',
-    now_year=datetime.datetime.now(datetime.timezone.utc).year,
-  )
-  return html_response(html, cache_seconds=300, cdn_seconds=1200)
-
-
 @web_bp.route('/jokes/<topic>')
 def topic_page(topic: str):
   """Render a topic page listing jokes with revealable punchlines."""

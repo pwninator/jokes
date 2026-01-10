@@ -269,3 +269,56 @@ def test_jokes_page_handles_invalid_cookie_cursor(monkeypatch):
   # Should still call with the invalid cursor (firestore will handle it)
   mock_get_joke_feed_page.assert_called_once_with(cursor='invalid_cursor',
                                                   limit=10)
+
+
+def test_index_page_renders_jokes_feed(monkeypatch):
+  """Test that GET / renders the jokes feed as the homepage."""
+  mock_get_joke_feed_page = Mock()
+  monkeypatch.setattr(jokes_routes.firestore, "get_joke_feed_page",
+                      mock_get_joke_feed_page)
+
+  joke = models.PunnyJoke(key="joke1",
+                          setup_text="Why did the chicken cross the road?",
+                          punchline_text="To get to the other side!",
+                          setup_image_url="http://example.com/setup1.jpg",
+                          punchline_image_url="http://example.com/punch1.jpg")
+  mock_get_joke_feed_page.return_value = ([joke], None)
+
+  with app.test_client() as client:
+    resp = client.get('/')
+
+  assert resp.status_code == 200
+  html = resp.get_data(as_text=True)
+  assert 'text/html' in resp.headers['Content-Type']
+  assert 'All Jokes' in html
+  assert 'Freshly Baked Jokes' in html
+  assert "Why did the chicken cross the road?" in html
+  assert 'data-joke-viewer' in html
+  assert 'Cache-Control' in resp.headers
+  # Verify canonical URL points to homepage
+  assert f'<link rel="canonical" href="{urls.canonical_url("/")}">' in html
+  mock_get_joke_feed_page.assert_called_once_with(cursor=None, limit=10)
+
+
+def test_index_page_uses_cookie_cursor(monkeypatch):
+  """Test that / page reads cookie and uses it as initial cursor."""
+  mock_get_joke_feed_page = Mock()
+  monkeypatch.setattr(jokes_routes.firestore, "get_joke_feed_page",
+                      mock_get_joke_feed_page)
+
+  joke = models.PunnyJoke(key="joke1",
+                          setup_text="Setup",
+                          punchline_text="Punchline",
+                          setup_image_url="http://example.com/setup.jpg",
+                          punchline_image_url="http://example.com/punch.jpg")
+  mock_get_joke_feed_page.return_value = ([joke], "0000000001:5")
+
+  with app.test_client() as client:
+    # Set cookie with cursor
+    client.set_cookie('jokes_feed_cursor', '0000000000:9')
+    resp = client.get('/')
+
+  assert resp.status_code == 200
+  # Should call with cookie cursor
+  mock_get_joke_feed_page.assert_called_once_with(cursor='0000000000:9',
+                                                  limit=10)

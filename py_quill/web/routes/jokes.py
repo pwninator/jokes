@@ -16,12 +16,11 @@ _COOKIE_NAME = 'jokes_feed_cursor'
 _COOKIE_MAX_AGE_DAYS = 30
 
 
-@web_bp.route('/jokes')
-def jokes():
-  """Render the jokes feed page with first page of jokes.
+def _render_jokes_feed(canonical_path: str):
+  """Shared logic for rendering the jokes feed page.
   
-  If a 'jokes_feed_cursor' cookie is present, resumes from that cursor position.
-  Otherwise, starts from the beginning of the feed.
+  Args:
+    canonical_path: The canonical path to use for SEO (e.g., '/' or '/jokes')
   """
   # Read cursor from cookie if present
   saved_cursor = flask.request.cookies.get(_COOKIE_NAME)
@@ -29,7 +28,7 @@ def jokes():
   jokes_list, next_cursor = firestore.get_joke_feed_page(cursor=saved_cursor,
                                                          limit=_JOKES_PER_PAGE)
 
-  canonical_url = urls.canonical_url(flask.url_for('web.jokes'))
+  canonical_url = urls.canonical_url(canonical_path)
   now_year = datetime.datetime.now(datetime.timezone.utc).year
 
   html = flask.render_template(
@@ -54,6 +53,26 @@ def jokes():
       path='/',
     )
   return resp
+
+
+@web_bp.route('/')
+def index():
+  """Render the jokes feed page as the homepage.
+  
+  If a 'jokes_feed_cursor' cookie is present, resumes from that cursor position.
+  Otherwise, starts from the beginning of the feed.
+  """
+  return _render_jokes_feed('/')
+
+
+@web_bp.route('/jokes')
+def jokes():
+  """Render the jokes feed page with first page of jokes.
+  
+  If a 'jokes_feed_cursor' cookie is present, resumes from that cursor position.
+  Otherwise, starts from the beginning of the feed.
+  """
+  return _render_jokes_feed(flask.url_for('web.jokes'))
 
 
 @web_bp.route('/jokes/load-more')

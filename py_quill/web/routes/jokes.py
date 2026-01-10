@@ -42,7 +42,12 @@ def index():
     now_year=now_year,
   )
 
-  return html_response(html, cache_seconds=300, cdn_seconds=1200)
+  return html_response(
+    html,
+    cache_seconds=300,
+    cdn_seconds=1200,
+    vary_cookie=True,
+  )
 
 
 @web_bp.route('/jokes')

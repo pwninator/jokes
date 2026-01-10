@@ -169,6 +169,152 @@ class TestOnJokeWrite:
     assert update_data["num_saved_users_fraction"] == pytest.approx(0.0)
     assert update_data["num_shared_users_fraction"] == pytest.approx(0.0)
 
+  def test_new_joke_generates_setup_text_slug(self, mock_get_joke_embedding,
+                                              mock_firestore_service):
+    after_joke = models.PunnyJoke(
+      key="joke1",
+      setup_text="Why did the chicken cross the road?",
+      punchline_text="p",
+      num_saved_users=0,
+      num_shared_users=0,
+      num_viewed_users=0,
+      num_saved_users_fraction=0.0,
+      num_shared_users_fraction=0.0,
+    ).to_dict()
+
+    event = self._create_event(before=None, after=after_joke)
+
+    joke_trigger_fns.on_joke_write.__wrapped__(event)
+
+    update_data = mock_firestore_service.update_punny_joke.call_args[0][1]
+    assert update_data["setup_text_slug"] == "whydidthechickencrosstheroad"
+
+  def test_existing_joke_setup_text_change_updates_slug(
+      self, mock_get_joke_embedding, mock_firestore_service):
+    before_joke = models.PunnyJoke(
+      key="joke1",
+      setup_text="Why did the chicken cross?",
+      punchline_text="p",
+      setup_text_slug="whydidthechickencross",
+      num_saved_users=0,
+      num_shared_users=0,
+      num_viewed_users=0,
+      num_saved_users_fraction=0.0,
+      num_shared_users_fraction=0.0,
+    ).to_dict()
+
+    after_joke = models.PunnyJoke(
+      key="joke1",
+      setup_text="Why did the chicken cross the road?",
+      punchline_text="p",
+      setup_text_slug="whydidthechickencross",
+      num_saved_users=0,
+      num_shared_users=0,
+      num_viewed_users=0,
+      num_saved_users_fraction=0.0,
+      num_shared_users_fraction=0.0,
+    ).to_dict()
+
+    event = self._create_event(before=before_joke, after=after_joke)
+
+    joke_trigger_fns.on_joke_write.__wrapped__(event)
+
+    update_data = mock_firestore_service.update_punny_joke.call_args[0][1]
+    assert update_data["setup_text_slug"] == "whydidthechickencrosstheroad"
+
+  def test_existing_joke_setup_text_unchanged_does_not_update_slug(
+      self, mock_get_joke_embedding, mock_firestore_service):
+    before_joke = models.PunnyJoke(
+      key="joke1",
+      setup_text="Why did the chicken cross the road?",
+      punchline_text="p",
+      setup_text_slug="whydidthechickencrosstheroad",
+      num_saved_users=0,
+      num_shared_users=0,
+      num_viewed_users=0,
+      num_saved_users_fraction=0.0,
+      num_shared_users_fraction=0.0,
+    ).to_dict()
+
+    after_joke = models.PunnyJoke(
+      key="joke1",
+      setup_text="Why did the chicken cross the road?",
+      punchline_text="p",
+      setup_text_slug="whydidthechickencrosstheroad",
+      num_saved_users=5,
+      num_shared_users=1,
+      num_viewed_users=10,
+      num_saved_users_fraction=0.0,
+      num_shared_users_fraction=0.0,
+    ).to_dict()
+    after_joke.update({
+      "num_viewed_users_recent": 10.0,
+      "num_saved_users_recent": 5.0,
+      "num_shared_users_recent": 1.0,
+    })
+
+    event = self._create_event(before=before_joke, after=after_joke)
+
+    joke_trigger_fns.on_joke_write.__wrapped__(event)
+
+    update_data = mock_firestore_service.update_punny_joke.call_args[0][1]
+    assert "setup_text_slug" not in update_data
+
+  def test_setup_text_slug_removes_special_characters(self,
+                                                      mock_get_joke_embedding,
+                                                      mock_firestore_service):
+    after_joke = models.PunnyJoke(
+      key="joke1",
+      setup_text="What's 2 + 2? (A math joke!)",
+      punchline_text="p",
+      num_saved_users=0,
+      num_shared_users=0,
+      num_viewed_users=0,
+      num_saved_users_fraction=0.0,
+      num_shared_users_fraction=0.0,
+    ).to_dict()
+
+    event = self._create_event(before=None, after=after_joke)
+
+    joke_trigger_fns.on_joke_write.__wrapped__(event)
+
+    update_data = mock_firestore_service.update_punny_joke.call_args[0][1]
+    assert update_data["setup_text_slug"] == "whats22amathjoke"
+
+  def test_setup_text_slug_handles_empty_string(self, mock_get_joke_embedding,
+                                                mock_firestore_service):
+    after_joke = models.PunnyJoke(
+      key="joke1",
+      setup_text="",
+      punchline_text="p",
+      num_saved_users=0,
+      num_shared_users=0,
+      num_viewed_users=0,
+      num_saved_users_fraction=0.0,
+      num_shared_users_fraction=0.0,
+    ).to_dict()
+
+    event = self._create_event(before=None, after=after_joke)
+
+    joke_trigger_fns.on_joke_write.__wrapped__(event)
+
+    update_data = mock_firestore_service.update_punny_joke.call_args[0][1]
+    assert update_data["setup_text_slug"] == ""
+
+  def test_draft_joke_does_not_update_slug(self, mock_get_joke_embedding,
+                                           mock_firestore_service):
+    draft_joke = models.PunnyJoke(
+      key="joke1",
+      setup_text="Why did the chicken cross the road?",
+      punchline_text="p",
+      state=models.JokeState.DRAFT,
+    ).to_dict()
+    event = self._create_event(before=None, after=draft_joke)
+
+    joke_trigger_fns.on_joke_write.__wrapped__(event)
+
+    mock_firestore_service.update_punny_joke.assert_not_called()
+
 
 class TestOnJokeWriteSearchSync:
   """Tests for syncing jokes to the joke_search collection via on_joke_write."""

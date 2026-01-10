@@ -826,6 +826,7 @@ class PunnyJoke:
 
   setup_text: str
   punchline_text: str
+  setup_text_slug: str | None = None
 
   pun_theme: str | None = None
   phrase_topic: str | None = None

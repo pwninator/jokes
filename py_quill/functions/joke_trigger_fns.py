@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import re
 
 from common import (image_generation, joke_category_operations,
                     joke_operations, models)
@@ -276,6 +277,19 @@ def on_joke_write(event: firestore_fn.Event[firestore_fn.Change]) -> None:
       f"Joke tags changed, updating from {after_joke.tags} to {tags_lowered} for: {after_joke.key}"
     )
 
+  # Update setup_text_slug when setup_text changes
+  setup_text_changed = (not before_joke
+                        or before_joke.setup_text != after_joke.setup_text)
+  if setup_text_changed:
+    expected_slug = _generate_setup_text_slug(after_joke.setup_text)
+    current_slug = after_joke.setup_text_slug
+    if current_slug != expected_slug:
+      update_data["setup_text_slug"] = expected_slug
+      logger.info(
+        f"Joke setup_text changed, updating setup_text_slug from {current_slug} to {expected_slug} for: {after_joke.key}"
+      )
+      after_joke.setup_text_slug = expected_slug
+
   joke_operations.sync_joke_to_search_collection(
     joke=after_joke,
     new_embedding=new_embedding,
@@ -286,6 +300,13 @@ def on_joke_write(event: firestore_fn.Event[firestore_fn.Change]) -> None:
 
     if should_update_embedding:
       logger.info(f"Successfully updated embedding for joke: {after_joke.key}")
+
+
+def _generate_setup_text_slug(setup_text: str) -> str:
+  """Generate a slug from setup_text by lowercasing and removing non-alphanumeric characters."""
+  if not setup_text:
+    return ""
+  return re.sub(r'[^a-z0-9]', '', setup_text.lower())
 
 
 def _coerce_counter_to_float(value: object) -> float | None:

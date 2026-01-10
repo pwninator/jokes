@@ -1,9 +1,10 @@
 """Utility cloud functions for Firestore migrations."""
 
 import json
+import re
 import traceback
 
-from common import joke_operations, models
+from common import models
 from firebase_functions import https_fn, logger, options
 from functions.function_utils import get_bool_param, get_int_param, get_param
 from services import firestore
@@ -17,7 +18,7 @@ def run_firestore_migration(req: https_fn.Request) -> https_fn.Response:
   """Run Firestore migrations.
 
   Currently supported:
-  - Joke metadata backfill: Generate tags/seasonal metadata for jokes missing tags.
+  - Setup text slug backfill: Generate setup_text_slug for jokes missing or with incorrect slugs.
   """
   # Health check
   if req.path == "/__/health":
@@ -38,7 +39,7 @@ def run_firestore_migration(req: https_fn.Request) -> https_fn.Response:
     limit = get_int_param(req, 'limit', 0)
     start_after = get_param(req, 'start_after', "")
 
-    html_response = run_joke_metadata_backfill(
+    html_response = run_setup_text_slug_backfill(
       dry_run=dry_run,
       limit=limit,
       start_after=str(start_after or ""),
@@ -59,11 +60,18 @@ def run_firestore_migration(req: https_fn.Request) -> https_fn.Response:
     )
 
 
-def run_joke_metadata_backfill(*, dry_run: bool, limit: int,
-                               start_after: str) -> str:
-  """Generate metadata for jokes missing tags."""
+def _generate_setup_text_slug(setup_text: str) -> str:
+  """Generate a slug from setup_text by lowercasing and removing non-alphanumeric characters."""
+  if not setup_text:
+    return ""
+  return re.sub(r'[^a-z0-9]', '', setup_text.lower())
+
+
+def run_setup_text_slug_backfill(*, dry_run: bool, limit: int,
+                                 start_after: str) -> str:
+  """Backfill setup_text_slug for jokes missing or with incorrect slugs."""
   logger.info(
-    "Starting joke metadata backfill",
+    "Starting setup_text_slug backfill",
     extra={
       "json_fields": {
         "dry_run": dry_run,
@@ -81,9 +89,10 @@ def run_joke_metadata_backfill(*, dry_run: bool, limit: int,
 
   stats = {
     'jokes_processed': 0,
-    'jokes_missing_tags': 0,
+    'jokes_missing_slug': 0,
+    'jokes_incorrect_slug': 0,
     'jokes_updated': 0,
-    'jokes_skipped_has_tags': 0,
+    'jokes_skipped_correct': 0,
     'errors': [],
     'last_joke_id': None
   }
@@ -96,25 +105,41 @@ def run_joke_metadata_backfill(*, dry_run: bool, limit: int,
       continue
 
     joke_data = joke_doc.to_dict() or {}
-    joke = models.PunnyJoke.from_firestore_dict(joke_data, key=joke_doc.id)
 
-    if joke.tags:
-      stats['jokes_skipped_has_tags'] += 1
+    try:
+      joke = models.PunnyJoke.from_firestore_dict(joke_data, key=joke_doc.id)
+    except Exception as parse_error:
+      logger.warn(
+        f"Failed to parse joke {joke_doc.id}, skipping: {parse_error}")
+      stats['errors'].append(
+        f"Joke {joke_doc.id}: Parse error - {str(parse_error)}")
       continue
 
-    stats['jokes_missing_tags'] += 1
+    if not joke.setup_text:
+      continue
+
+    expected_slug = _generate_setup_text_slug(joke.setup_text)
+    current_slug = joke.setup_text_slug
+
+    if current_slug == expected_slug:
+      stats['jokes_skipped_correct'] += 1
+      continue
+
+    if current_slug is None:
+      stats['jokes_missing_slug'] += 1
+    else:
+      stats['jokes_incorrect_slug'] += 1
 
     if dry_run:
       stats['jokes_updated'] += 1
       continue
 
     try:
-      joke = joke_operations.generate_joke_metadata(joke)
-      firestore.upsert_punny_joke(joke, operation="BACKFILL_METADATA")
+      firestore.update_punny_joke(joke.key, {"setup_text_slug": expected_slug})
       stats['jokes_updated'] += 1
     except Exception as exc:  # pylint: disable=broad-except
       logger.error(
-        "Failed to backfill joke metadata",
+        "Failed to backfill setup_text_slug",
         extra={"json_fields": {
           "joke_id": joke_doc.id,
           "error": str(exc),
@@ -132,15 +157,16 @@ def _build_html_report(
 ) -> str:
   """Build a simple HTML report of migration results."""
   html = "<html><body>"
-  html += "<h1>Joke Metadata Backfill Results</h1>"
+  html += "<h1>Setup Text Slug Backfill Results</h1>"
   html += f"<h2>Dry Run: {dry_run}</h2>"
 
   html += "<h3>Stats</h3>"
   html += "<ul>"
   html += f"<li>Jokes Processed: {stats['jokes_processed']}</li>"
-  html += f"<li>Jokes Missing Tags: {stats['jokes_missing_tags']}</li>"
+  html += f"<li>Jokes Missing Slug: {stats['jokes_missing_slug']}</li>"
+  html += f"<li>Jokes with Incorrect Slug: {stats['jokes_incorrect_slug']}</li>"
   html += f"<li>Jokes Updated (or would update): {stats['jokes_updated']}</li>"
-  html += f"<li>Jokes Skipped (already tagged): {stats['jokes_skipped_has_tags']}</li>"
+  html += f"<li>Jokes Skipped (already correct): {stats['jokes_skipped_correct']}</li>"
   if stats['last_joke_id']:
     html += f"<li>Last Joke ID: {stats['last_joke_id']}</li>"
   html += "</ul>"

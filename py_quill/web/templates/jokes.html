@@ -28,6 +28,7 @@ a hilarious punchline. Scroll to discover more!{% endblock %}
     color: #666;
     flex: 0 0 auto;
     margin: 0;
+    text-decoration: underline;
   }
 
   .jokes-divider {
@@ -42,7 +43,7 @@ a hilarious punchline. Scroll to discover more!{% endblock %}
 <section>
   <header class="jokes-header">
     <h1>Freshly Baked Jokes</h1>
-    <p class="jokes-subtitle">Curated by Mom, Dad, & Daughter | Intentional AI Art</p>
+    <a class="jokes-subtitle" href="{{ url_for('web.about') }}">Curated by Mom, Dad, & Daughter | Intentional AI Art</a>
   </header>
   <hr class="jokes-divider">
 </section>

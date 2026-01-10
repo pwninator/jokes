@@ -1822,17 +1822,18 @@ class CreatePinterestPinImageTest(unittest.TestCase):
     original_resize = Image.Image.resize
     resize_calls = []
 
-    def tracked_resize(self, size, resample=None):
+    def tracked_resize(self, size, resample=None, box=None, reducing_gap=None):
       resize_calls.append(size)
-      return original_resize(self, size, resample)
+      return original_resize(self, size, resample, box, reducing_gap)
 
     with patch.object(Image.Image, 'resize', tracked_resize):
       result = image_operations.create_pinterest_pin_image([joke_id])
 
     # Verify blocker was resized to 600x600 (should be in the resize calls)
     # Setup and punchline are resized to (500, 500), blocker to (600, 600)
-    self.assertTrue(any(call == (600, 600) for call in resize_calls),
-                    f"Expected resize to (600, 600), got calls: {resize_calls}")
+    self.assertTrue(
+      any(call == (600, 600) for call in resize_calls),
+      f"Expected resize to (600, 600), got calls: {resize_calls}")
 
     self.assertEqual(result.size, (1000, 500))
     self.assertEqual(result.mode, 'RGB')

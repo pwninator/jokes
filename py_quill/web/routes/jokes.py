@@ -13,7 +13,6 @@ from web.utils.responses import html_response
 _JOKES_PER_PAGE = 10
 _JOKE_IMAGE_SIZE = 450
 _COOKIE_NAME = 'jokes_feed_cursor'
-_COOKIE_MAX_AGE_DAYS = 30
 
 
 @web_bp.route('/')
@@ -43,17 +42,7 @@ def index():
     now_year=now_year,
   )
 
-  resp = html_response(html, cache_seconds=300, cdn_seconds=1200)
-
-  # Set cookie if we have a cursor (for next page load)
-  if saved_cursor:
-    resp.set_cookie(
-      _COOKIE_NAME,
-      saved_cursor,
-      max_age=_COOKIE_MAX_AGE_DAYS * 24 * 60 * 60,
-      path='/',
-    )
-  return resp
+  return html_response(html, cache_seconds=300, cdn_seconds=1200)
 
 
 @web_bp.route('/jokes')
@@ -62,14 +51,33 @@ def jokes():
   return flask.redirect('/', code=301)
 
 
-@web_bp.route('/jokes/load-more')
-def jokes_load_more():
-  """API endpoint to load more jokes for infinite scroll. Returns HTML fragments."""
+@web_bp.route('/jokes/load-more-<slug>')
+def jokes_load_more(slug: str):
+  """API endpoint to load more jokes for infinite scroll. Returns HTML fragments.
+  
+  Args:
+    slug: Data source identifier (e.g., 'feed'). Determines which function to use
+      for fetching jokes.
+  
+  Returns:
+    JSON response with html, cursor, and has_more fields.
+    
+  Raises:
+    404 if slug is not recognized.
+  """
   cursor = flask.request.args.get('cursor', default=None)
   limit = flask.request.args.get('limit', default=_JOKES_PER_PAGE, type=int)
 
-  jokes_list, next_cursor = firestore.get_joke_feed_page(cursor=cursor,
-                                                         limit=limit)
+  # Switch on slug to determine which data fetching function to use
+  jokes_list: list = []
+  next_cursor: str | None = None
+
+  if slug == 'feed':
+    jokes_list, next_cursor = firestore.get_joke_feed_page(cursor=cursor,
+                                                           limit=limit)
+  # Future slugs can be added here
+  else:
+    flask.abort(404, description=f"Unknown feed slug: {slug}")
 
   # Render joke cards as HTML fragments
   html_fragments = flask.render_template(

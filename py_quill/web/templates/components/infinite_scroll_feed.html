@@ -1,0 +1,265 @@
+{% macro infinite_scroll_feed(slug, initial_jokes=None, initial_cursor=None, initial_has_more=None, image_size=450, feed_id=None, cookie_name=None, end_of_feed_message=None) -%}
+{% from "components/joke_card.html" import joke_card %}
+{% set feed_id = feed_id or ('jokes-feed-' + slug) %}
+{% set loading_id = feed_id + '-loading' %}
+{% set end_of_feed_id = feed_id + '-end' %}
+{% set sentinel_id = feed_id + '-sentinel' %}
+
+<style>
+  .{{ feed_id }} {
+    display: grid;
+    grid-template-columns: 1fr;
+    max-width: var(--joke-feed-width);
+    margin: 0 auto;
+    gap: 2rem;
+    padding: 2rem 1rem;
+  }
+
+  .{{ feed_id }} .joke-card {
+    width: 100%;
+  }
+
+  .{{ feed_id }} .joke-slide-media img {
+    width: 100%;
+    height: auto;
+    aspect-ratio: 1 / 1;
+    object-fit: cover;
+  }
+
+  .loading-indicator {
+    text-align: center;
+    padding: 2rem;
+    color: #666;
+    min-height: 60px;
+    display: none;
+  }
+
+  .loading-indicator.active {
+    display: block;
+  }
+
+  .end-of-feed {
+    text-align: center;
+    padding: 2rem;
+    color: #666;
+    display: none;
+  }
+
+  .end-of-feed.active {
+    display: block;
+  }
+</style>
+
+<section class="{{ feed_id }}" id="{{ feed_id }}" aria-label="Jokes feed" style="--joke-feed-width: {{ image_size }}px;">
+  {% if initial_jokes %}
+    {% for joke in initial_jokes %}
+    {{ joke_card(joke, reveal_label='Reveal Punchline', image_size=image_size, joke_id=joke.key) }}
+    {% endfor %}
+  {% endif %}
+</section>
+<div class="loading-indicator" id="{{ loading_id }}" aria-live="polite">
+  Loading more...
+</div>
+{% if end_of_feed_message %}
+<div class="end-of-feed" id="{{ end_of_feed_id }}" aria-live="polite">
+  {{ end_of_feed_message }}
+</div>
+{% endif %}
+
+<script>
+  (function () {
+    const feedContainer = document.getElementById('{{ feed_id }}');
+    const loadingIndicator = document.getElementById('{{ loading_id }}');
+    const endOfFeed = document.getElementById('{{ end_of_feed_id }}');
+    const cookieName = {{ cookie_name | tojson if cookie_name else 'null' }};
+    const apiEndpoint = '/jokes/load-more-{{ slug }}';
+
+    {% if initial_jokes is none %}
+    // No initial jokes - start empty and load immediately
+    let nextCursor = null;
+    let hasMore = true;
+    let isLoading = false;
+
+    // Load immediately on page load
+    function loadMoreJokes() {
+      if (isLoading || !hasMore) {
+        return;
+      }
+
+      isLoading = true;
+      loadingIndicator.classList.add('active');
+
+      const url = new URL(apiEndpoint, window.location.origin);
+      if (nextCursor) {
+        url.searchParams.set('cursor', nextCursor);
+      }
+
+      fetch(url)
+        .then(response => response.json())
+        .then(data => {
+          if (data.html) {
+            const temp = document.createElement('div');
+            temp.innerHTML = data.html;
+
+            const cards = temp.querySelectorAll('.joke-card');
+            cards.forEach(card => {
+              feedContainer.appendChild(card);
+              const viewer = card.querySelector('[data-joke-viewer]');
+              if (viewer && window.initJokeViewer) {
+                window.initJokeViewer(viewer);
+              }
+            });
+          }
+
+          nextCursor = data.cursor;
+          hasMore = data.has_more;
+
+          if (!hasMore) {
+            if (endOfFeed) {
+              endOfFeed.classList.add('active');
+            }
+            if (observer) {
+              observer.unobserve(sentinel);
+            }
+          } else if (nextCursor) {
+            if (observer) {
+              observer.observe(sentinel);
+            }
+          }
+        })
+        .catch(error => {
+          console.error('Error loading more jokes:', error);
+        })
+        .finally(() => {
+          isLoading = false;
+          loadingIndicator.classList.remove('active');
+        });
+    }
+
+    // Create sentinel for intersection observer
+    const sentinel = document.createElement('div');
+    sentinel.id = '{{ sentinel_id }}';
+    sentinel.style.height = '1px';
+    sentinel.style.width = '100%';
+    sentinel.setAttribute('aria-hidden', 'true');
+    feedContainer.parentNode.insertBefore(sentinel, loadingIndicator);
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting && hasMore && !isLoading && nextCursor) {
+          loadMoreJokes();
+        }
+      });
+    }, {
+      rootMargin: '200px',
+      threshold: 0
+    });
+
+    // Load first page immediately
+    loadMoreJokes();
+
+    // Set up observer for subsequent loads
+    if (nextCursor) {
+      observer.observe(sentinel);
+    }
+    {% else %}
+    // Initial jokes provided - use them
+    // Always use initial_cursor (which points to the NEXT batch after initial_jokes)
+    // Don't read from cookie here - cookie is only for initial page load on server
+    let nextCursor = {{ initial_cursor | tojson if initial_cursor else 'null' }};
+    let hasMore = {{ initial_has_more | tojson if initial_has_more is not none else (initial_cursor is not none) | tojson }};
+    let isLoading = false;
+
+    if ((!hasMore || !nextCursor) && endOfFeed) {
+      endOfFeed.classList.add('active');
+    }
+
+    function setCookie(name, value, days) {
+      const expires = new Date();
+      expires.setTime(expires.getTime() + (days * 24 * 60 * 60 * 1000));
+      document.cookie = `${name}=${value}; expires=${expires.toUTCString()}; path=/`;
+    }
+
+    function loadMoreJokes() {
+      if (isLoading || !hasMore || !nextCursor) {
+        return;
+      }
+
+      isLoading = true;
+      loadingIndicator.classList.add('active');
+
+      const cursorToUse = nextCursor;
+
+      const url = new URL(apiEndpoint, window.location.origin);
+      url.searchParams.set('cursor', cursorToUse);
+
+      fetch(url)
+        .then(response => response.json())
+        .then(data => {
+          if (data.html) {
+            const temp = document.createElement('div');
+            temp.innerHTML = data.html;
+
+            const cards = temp.querySelectorAll('.joke-card');
+            cards.forEach(card => {
+              feedContainer.appendChild(card);
+              const viewer = card.querySelector('[data-joke-viewer]');
+              if (viewer && window.initJokeViewer) {
+                window.initJokeViewer(viewer);
+              }
+            });
+          }
+
+          // Set cookie if cookie_name is provided
+          if (cookieName && cursorToUse) {
+            setCookie(cookieName, cursorToUse, 7);
+          }
+
+          nextCursor = data.cursor;
+          hasMore = data.has_more;
+
+          if (!hasMore) {
+            if (endOfFeed) {
+              endOfFeed.classList.add('active');
+            }
+            observer.unobserve(sentinel);
+          } else if (nextCursor) {
+            observer.observe(sentinel);
+          }
+        })
+        .catch(error => {
+          console.error('Error loading more jokes:', error);
+        })
+        .finally(() => {
+          isLoading = false;
+          loadingIndicator.classList.remove('active');
+        });
+    }
+
+    // Create sentinel for intersection observer
+    const sentinel = document.createElement('div');
+    sentinel.id = '{{ sentinel_id }}';
+    sentinel.style.height = '1px';
+    sentinel.style.width = '100%';
+    sentinel.setAttribute('aria-hidden', 'true');
+    feedContainer.parentNode.insertBefore(sentinel, loadingIndicator);
+
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting && hasMore && !isLoading && nextCursor) {
+          loadMoreJokes();
+        }
+      });
+    }, {
+      rootMargin: '200px',
+      threshold: 0
+    });
+
+    // Observe the sentinel element for reliable scroll detection
+    if (hasMore && nextCursor) {
+      observer.observe(sentinel);
+    }
+    {% endif %}
+  })();
+</script>
+{%- endmacro %}

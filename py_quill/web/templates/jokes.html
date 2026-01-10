@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "components/joke_card.html" import joke_card %}
+{% from "components/infinite_scroll_feed.html" import infinite_scroll_feed %}
 
 {% block title %}All Jokes | {{ site_name }}{% endblock %}
 {% block meta_description %}Browse our complete collection of illustrated jokes. Each joke features adorable artwork and
@@ -8,49 +8,6 @@ a hilarious punchline. Scroll to discover more!{% endblock %}
 {% block head_extra %}
 <link rel="canonical" href="{{ canonical_url }}">
 <style>
-  .jokes-feed {
-    display: grid;
-    grid-template-columns: 1fr;
-    max-width: var(--joke-feed-width);
-    margin: 0 auto;
-    gap: 2rem;
-    padding: 2rem 1rem;
-  }
-
-  .jokes-feed .joke-card {
-    width: 100%;
-  }
-
-  .jokes-feed .joke-slide-media img {
-    width: 100%;
-    height: auto;
-    aspect-ratio: 1 / 1;
-    object-fit: cover;
-  }
-
-  .loading-indicator {
-    text-align: center;
-    padding: 2rem;
-    color: #666;
-    min-height: 60px;
-    display: none;
-  }
-
-  .loading-indicator.active {
-    display: block;
-  }
-
-  .end-of-feed {
-    text-align: center;
-    padding: 2rem;
-    color: #666;
-    display: none;
-  }
-
-  .end-of-feed.active {
-    display: block;
-  }
-
   .jokes-header {
     display: flex;
     justify-content: space-between;
@@ -82,163 +39,25 @@ a hilarious punchline. Scroll to discover more!{% endblock %}
 {% endblock %}
 
 {% block content %}
-<div class="jokes-feed-container">
+<section>
   <header class="jokes-header">
     <h1>Freshly Baked Jokes</h1>
     <p class="jokes-subtitle">Curated by Mom, Dad, & Daughter | Intentional AI Art</p>
   </header>
   <hr class="jokes-divider">
-  <section class="jokes-feed" id="jokes-feed" aria-label="Jokes feed" style="--joke-feed-width: {{ image_size }}px;">
-    {% for joke in jokes %}
-    {{ joke_card(joke, reveal_label='Reveal Punchline', image_size=image_size, joke_id=joke.key) }}
-    {% endfor %}
-  </section>
-  <div class="loading-indicator" id="loading-indicator" aria-live="polite">
-    Loading more...
-  </div>
-  <div class="end-of-feed" id="end-of-feed" aria-live="polite">
-    You've reached the end! No more jokes to load.
-  </div>
-</div>
+</section>
+
+{{ infinite_scroll_feed(
+  slug='feed',
+  initial_jokes=jokes,
+  initial_cursor=next_cursor,
+  initial_has_more=has_more,
+  image_size=image_size,
+  feed_id='jokes-feed',
+  cookie_name='jokes_feed_cursor',
+  end_of_feed_message="You've reached the end! Check back later for more jokes!"
+) }}
 {% endblock %}
 
 {% block extra_scripts %}
-<script>
-  (function () {
-    const feedContainer = document.getElementById('jokes-feed');
-    const loadingIndicator = document.getElementById('loading-indicator');
-    const endOfFeed = document.getElementById('end-of-feed');
-    let nextCursor = {{ next_cursor | tojson if next_cursor else 'null'
-  }};
-  let hasMore = {{ has_more | tojson }};
-  let isLoading = false;
-
-  if (!hasMore || !nextCursor) {
-    endOfFeed.classList.add('active');
-  }
-
-  function initJokeViewer(root) {
-    // Skip if already initialized
-    if (root.dataset.jokeViewerInitialized) {
-      return;
-    }
-    root.dataset.jokeViewerInitialized = 'true';
-
-    const track = root.querySelector('.joke-carousel-track');
-    const slides = root.querySelectorAll('.joke-slide');
-    const toggle = root.querySelector('[data-role="reveal"]');
-    if (!track || slides.length < 2 || !toggle) {
-      return;
-    }
-
-    const showLabel = toggle.getAttribute('data-label-show') || toggle.textContent || 'Reveal';
-    const hideLabel = toggle.getAttribute('data-label-hide') || showLabel;
-    const setupSlide = slides[0];
-    const punchlineSlide = slides[1];
-
-    function setState(isRevealed) {
-      root.classList.toggle('is-revealed', isRevealed);
-      toggle.textContent = isRevealed ? hideLabel : showLabel;
-      toggle.setAttribute('aria-expanded', String(isRevealed));
-      setupSlide.setAttribute('aria-hidden', String(isRevealed));
-      punchlineSlide.setAttribute('aria-hidden', String(!isRevealed));
-    }
-
-    setState(false);
-    toggle.addEventListener('click', function () {
-      setState(!root.classList.contains('is-revealed'));
-    });
-  }
-
-  function setCookie(name, value, days) {
-    const expires = new Date();
-    expires.setTime(expires.getTime() + (days * 24 * 60 * 60 * 1000));
-    document.cookie = `${name}=${value}; expires=${expires.toUTCString()}; path=/`;
-  }
-
-  function loadMoreJokes() {
-    if (isLoading || !hasMore || !nextCursor) {
-      return;
-    }
-
-    isLoading = true;
-    loadingIndicator.classList.add('active');
-
-    // Store the cursor we're about to use (not the next one)
-    const cursorToUse = nextCursor;
-
-    const url = new URL('/jokes/load-more', window.location.origin);
-    url.searchParams.set('cursor', cursorToUse);
-
-    fetch(url)
-      .then(response => response.json())
-      .then(data => {
-        if (data.html) {
-          // Create a temporary container to parse the HTML
-          const temp = document.createElement('div');
-          temp.innerHTML = data.html;
-
-          // Append each joke card and initialize viewers
-          const cards = temp.querySelectorAll('.joke-card');
-          cards.forEach(card => {
-            feedContainer.appendChild(card);
-            const viewer = card.querySelector('[data-joke-viewer]');
-            if (viewer) {
-              initJokeViewer(viewer);
-            }
-          });
-        }
-
-        // Set cookie to the cursor we just used (not the next one)
-        // This ensures if user refreshes, they resume from the current position
-        if (cursorToUse) {
-          setCookie('jokes_feed_cursor', cursorToUse, 7);
-        }
-
-        nextCursor = data.cursor;
-        hasMore = data.has_more;
-
-        if (!hasMore) {
-          endOfFeed.classList.add('active');
-          observer.unobserve(sentinel);
-        } else if (nextCursor) {
-          // Continue observing if there are more jokes
-          observer.observe(sentinel);
-        }
-      })
-      .catch(error => {
-        console.error('Error loading more jokes:', error);
-      })
-      .finally(() => {
-        isLoading = false;
-        loadingIndicator.classList.remove('active');
-      });
-  }
-
-  // Intersection Observer for infinite scroll
-  // Use a sentinel element that's always visible for reliable intersection detection
-  const sentinel = document.createElement('div');
-  sentinel.id = 'scroll-sentinel';
-  sentinel.style.height = '1px';
-  sentinel.style.width = '100%';
-  sentinel.setAttribute('aria-hidden', 'true');
-  feedContainer.parentNode.insertBefore(sentinel, loadingIndicator);
-
-  const observer = new IntersectionObserver((entries) => {
-    entries.forEach(entry => {
-      if (entry.isIntersecting && hasMore && !isLoading && nextCursor) {
-        loadMoreJokes();
-      }
-    });
-  }, {
-    rootMargin: '200px',
-    threshold: 0
-  });
-
-  // Observe the sentinel element for reliable scroll detection
-  if (hasMore && nextCursor) {
-    observer.observe(sentinel);
-  }
-}) ();
-</script>
 {% endblock %}

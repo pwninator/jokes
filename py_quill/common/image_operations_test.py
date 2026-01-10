@@ -1652,15 +1652,12 @@ class CreatePinterestPinImageTest(unittest.TestCase):
 
     mock_firestore.get_punny_jokes.return_value = [mock_joke]
 
-    # Create test images
+    # Create test images (setup, punchline, blocker overlay)
     setup_img = Image.new('RGB', (1024, 1024), color='red')
     punchline_img = Image.new('RGB', (1024, 1024), color='blue')
+    blocker_img = Image.new('RGBA', (1024, 1024), color=(0, 0, 0, 128))
     mock_cloud_storage.download_image_from_gcs.side_effect = [
-      setup_img, punchline_img
-    ]
-    mock_cloud_storage.extract_gcs_uri_from_image_url.side_effect = [
-      "gs://bucket/joke1_setup.png",
-      "gs://bucket/joke1_punchline.png",
+      setup_img, punchline_img, blocker_img
     ]
 
     result = image_operations.create_pinterest_pin_image([joke_id])
@@ -1668,8 +1665,8 @@ class CreatePinterestPinImageTest(unittest.TestCase):
     self.assertEqual(result.size, (1000, 500))  # 1 joke = 1000x500
     self.assertEqual(result.mode, 'RGB')
 
-    # Verify images were downloaded
-    self.assertEqual(mock_cloud_storage.download_image_from_gcs.call_count, 2)
+    # Verify images were downloaded (setup, punchline, blocker overlay)
+    self.assertEqual(mock_cloud_storage.download_image_from_gcs.call_count, 3)
 
   @patch('common.image_operations.firestore')
   @patch('common.image_operations.cloud_storage')
@@ -1689,7 +1686,7 @@ class CreatePinterestPinImageTest(unittest.TestCase):
 
     mock_firestore.get_punny_jokes.return_value = mock_jokes
 
-    # Create test images (6 total: 3 setup + 3 punchline)
+    # Create test images (6 joke images + 1 blocker overlay)
     test_images = [
       Image.new('RGB', (1024, 1024), color='red'),
       Image.new('RGB', (1024, 1024), color='blue'),
@@ -1697,20 +1694,17 @@ class CreatePinterestPinImageTest(unittest.TestCase):
       Image.new('RGB', (1024, 1024), color='yellow'),
       Image.new('RGB', (1024, 1024), color='purple'),
       Image.new('RGB', (1024, 1024), color='orange'),
+      Image.new('RGBA', (1024, 1024), color=(0, 0, 0, 128)),  # Blocker overlay
     ]
     mock_cloud_storage.download_image_from_gcs.side_effect = test_images
-    mock_cloud_storage.extract_gcs_uri_from_image_url.side_effect = [
-      f"gs://bucket/joke{i//2+1}_{'setup' if i%2==0 else 'punchline'}.png"
-      for i in range(6)
-    ]
 
     result = image_operations.create_pinterest_pin_image(joke_ids)
 
     self.assertEqual(result.size, (1000, 1500))  # 3 jokes = 1000x(3*500)
     self.assertEqual(result.mode, 'RGB')
 
-    # Verify all images were downloaded (2 per joke)
-    self.assertEqual(mock_cloud_storage.download_image_from_gcs.call_count, 6)
+    # Verify all images were downloaded (2 per joke + 1 blocker overlay)
+    self.assertEqual(mock_cloud_storage.download_image_from_gcs.call_count, 7)
 
   @patch('common.image_operations.firestore')
   def test_create_pinterest_pin_image_empty_list(self, mock_firestore):
@@ -1769,3 +1763,34 @@ class CreatePinterestPinImageTest(unittest.TestCase):
 
     self.assertIn("missing setup or punchline image", str(context.exception))
     self.assertIn(joke_id, str(context.exception))
+
+  @patch('common.image_operations.firestore')
+  @patch('common.image_operations.cloud_storage')
+  def test_create_pinterest_pin_image_block_last_panel_false(
+      self, mock_cloud_storage, mock_firestore):
+    """create_pinterest_pin_image should not download blocker overlay when block_last_panel=False."""
+    joke_id = "joke1"
+
+    # Create mock joke
+    mock_joke = Mock()
+    mock_joke.key = joke_id
+    mock_joke.setup_image_url = "https://images.quillsstorybook.com/cdn-cgi/image/width=1024/joke1_setup.png"
+    mock_joke.punchline_image_url = "https://images.quillsstorybook.com/cdn-cgi/image/width=1024/joke1_punchline.png"
+
+    mock_firestore.get_punny_jokes.return_value = [mock_joke]
+
+    # Create test images (only setup and punchline, no blocker overlay)
+    setup_img = Image.new('RGB', (1024, 1024), color='red')
+    punchline_img = Image.new('RGB', (1024, 1024), color='blue')
+    mock_cloud_storage.download_image_from_gcs.side_effect = [
+      setup_img, punchline_img
+    ]
+
+    result = image_operations.create_pinterest_pin_image(
+      [joke_id], block_last_panel=False)
+
+    self.assertEqual(result.size, (1000, 500))  # 1 joke = 1000x500
+    self.assertEqual(result.mode, 'RGB')
+
+    # Verify only joke images were downloaded, no blocker overlay
+    self.assertEqual(mock_cloud_storage.download_image_from_gcs.call_count, 2)

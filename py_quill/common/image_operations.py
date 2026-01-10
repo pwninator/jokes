@@ -44,6 +44,8 @@ _PAGE_NUMBER_STROKE_RATIO = 0.14
 _PAGE_NUMBER_TEXT_COLOR = (33, 33, 33)
 _PAGE_NUMBER_STROKE_COLOR = (255, 255, 255)
 
+_PANEL_BLOCKER_OVERLAY_URL = "https://images.quillsstorybook.com/cdn-cgi/image/width=1024,format=auto,quality=75/_joke_assets/panel_blocker_overlay1.png"
+
 
 def create_blank_book_cover(*, color_mode: str) -> bytes:
   """Create a blank JPEG cover image matching book page dimensions.
@@ -873,7 +875,11 @@ def _get_page_number_font(font_size: int) -> ImageFont.ImageFont:
   return ImageFont.load_default()
 
 
-def create_pinterest_pin_image(joke_ids: list[str]) -> Image.Image:
+def create_pinterest_pin_image(
+  joke_ids: list[str],
+  *,
+  block_last_panel: bool = True,
+) -> Image.Image:
   """Create a Pinterest pin image from multiple jokes.
   
   Creates a single large image with all setup and punchline images arranged
@@ -882,6 +888,8 @@ def create_pinterest_pin_image(joke_ids: list[str]) -> Image.Image:
   
   Args:
     joke_ids: List of joke IDs to include in the pin image.
+    block_last_panel: If True, overlay a blocker image over the bottom right
+      punchline panel. Defaults to True.
     
   Returns:
     A PIL Image with dimensions 1000x(n*500) where n is the number of jokes.
@@ -914,20 +922,29 @@ def create_pinterest_pin_image(joke_ids: list[str]) -> Image.Image:
     y_offset = row_index * 500
 
     # Download and process setup image
-    setup_gcs_uri = cloud_storage.extract_gcs_uri_from_image_url(
-      joke.setup_image_url)
-    setup_img = cloud_storage.download_image_from_gcs(setup_gcs_uri)
+    setup_img = cloud_storage.download_image_from_gcs(joke.setup_image_url)
     setup_img = setup_img.resize((500, 500), Image.Resampling.LANCZOS)
 
     # Download and process punchline image
-    punchline_gcs_uri = cloud_storage.extract_gcs_uri_from_image_url(
+    punchline_img = cloud_storage.download_image_from_gcs(
       joke.punchline_image_url)
-    punchline_img = cloud_storage.download_image_from_gcs(punchline_gcs_uri)
     punchline_img = punchline_img.resize((500, 500), Image.Resampling.LANCZOS)
 
     # Paste setup on left (x=0), punchline on right (x=500)
     canvas.paste(setup_img, (0, y_offset))
     canvas.paste(punchline_img, (500, y_offset))
+
+  # Overlay blocker image on bottom right punchline if requested
+  if block_last_panel and num_jokes > 0:
+    blocker_img = cloud_storage.download_image_from_gcs(
+      _PANEL_BLOCKER_OVERLAY_URL)
+    blocker_img = blocker_img.resize((550, 550), Image.Resampling.LANCZOS)
+    # Center the 550x550 overlay over the 500x500 bottom right panel
+    # Bottom right panel is at x=500, y_offset = (num_jokes - 1) * 500
+    last_row_y = (num_jokes - 1) * 500
+    # Center horizontally: 500 + (500/2) - (550/2) = 475
+    # Center vertically: last_row_y + (500/2) - (550/2) = last_row_y - 25
+    canvas.paste(blocker_img, (475, last_row_y - 25))
 
   return canvas
 

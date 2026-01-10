@@ -143,3 +143,10 @@ def format_image_url(
 
   # Reconstruct the URL with new parameters
   return f"https://images.quillsstorybook.com/cdn-cgi/image/{new_params_str}/{object_path}"
+
+
+def get_text_slug(setup_text: str) -> str:
+  """Generate a slug from setup_text by lowercasing and removing non-alphanumeric characters."""
+  if not setup_text:
+    return ""
+  return re.sub(r'[^a-z0-9]', '', setup_text.lower())

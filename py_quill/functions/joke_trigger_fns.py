@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import math
-import re
 
 from common import (image_generation, joke_category_operations,
-                    joke_operations, models)
+                    joke_operations, models, utils)
 from firebase_functions import firestore_fn, logger, options
 from google.cloud.firestore_v1.vector import Vector
 from services import firestore, search
@@ -281,7 +280,7 @@ def on_joke_write(event: firestore_fn.Event[firestore_fn.Change]) -> None:
   setup_text_changed = (not before_joke
                         or before_joke.setup_text != after_joke.setup_text)
   if setup_text_changed:
-    expected_slug = _generate_setup_text_slug(after_joke.setup_text)
+    expected_slug = utils.get_text_slug(after_joke.setup_text)
     current_slug = after_joke.setup_text_slug
     if current_slug != expected_slug:
       update_data["setup_text_slug"] = expected_slug
@@ -300,13 +299,6 @@ def on_joke_write(event: firestore_fn.Event[firestore_fn.Change]) -> None:
 
     if should_update_embedding:
       logger.info(f"Successfully updated embedding for joke: {after_joke.key}")
-
-
-def _generate_setup_text_slug(setup_text: str) -> str:
-  """Generate a slug from setup_text by lowercasing and removing non-alphanumeric characters."""
-  if not setup_text:
-    return ""
-  return re.sub(r'[^a-z0-9]', '', setup_text.lower())
 
 
 def _coerce_counter_to_float(value: object) -> float | None:

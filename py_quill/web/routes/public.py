@@ -7,8 +7,9 @@ import zoneinfo
 
 import flask
 from firebase_functions import logger
+from google.cloud.firestore import FieldFilter, Query
 
-from common import models
+from common import models, utils
 from services import firestore, search
 from web.routes import web_bp
 from web.utils import urls
@@ -22,15 +23,15 @@ _WEB_TOPICS: list[str] = [
 ]
 
 
-def _fetch_topic_jokes(topic: str, limit: int) -> list[models.PunnyJoke]:
+def _fetch_topic_jokes(slug: str, limit: int) -> list[models.PunnyJoke]:
   """Fetch jokes for a given topic using vector search constrained by tags."""
   now_la = datetime.datetime.now(zoneinfo.ZoneInfo("America/Los_Angeles"))
   field_filters = [('public_timestamp', '<=', now_la)]
   logger.info(
-    f"Fetching jokes for topic: {topic} with limit: {limit}, field_filters: {field_filters}"
+    f"Fetching jokes for topic: {slug} with limit: {limit}, field_filters: {field_filters}"
   )
   results = search.search_jokes(
-    query=f"jokes about {topic}",
+    query=f"jokes about {slug}",
     label="web_topic",
     limit=limit,
     distance_threshold=0.31,
@@ -105,8 +106,7 @@ def home2():
   return html_response(html, cache_seconds=300, cdn_seconds=1200)
 
 
-@web_bp.route('/jokes/<topic>')
-def topic_page(topic: str):
+def load_joke_topic_page(slug: str):
   """Render a topic page listing jokes with revealable punchlines."""
   # Basic, heuristic pagination using page size; true offsets require different queries
   page = flask.request.args.get('page', default='1')
@@ -116,9 +116,9 @@ def topic_page(topic: str):
     page_num = 1
 
   page_size = 20
-  jokes = _fetch_topic_jokes(topic, limit=page_size)
+  jokes = _fetch_topic_jokes(slug, limit=page_size)
 
-  canonical_path = flask.url_for('web.topic_page', topic=topic)
+  canonical_path = flask.url_for('web.handle_joke_slug', slug=slug)
   canonical_url = urls.canonical_url(canonical_path)
   prev_url = None
   next_url = None
@@ -131,7 +131,7 @@ def topic_page(topic: str):
   now_year = datetime.datetime.now(datetime.timezone.utc).year
   html = flask.render_template(
     'topic.html',
-    topic=topic,
+    topic=slug,
     jokes=jokes,
     canonical_url=canonical_url,
     prev_url=prev_url,
@@ -140,6 +140,62 @@ def topic_page(topic: str):
     now_year=now_year,
   )
   return html_response(html, cache_seconds=300, cdn_seconds=1800)
+
+
+def load_single_joke_page(slug: str):
+  """Load and render a single joke page by slug."""
+  standardized_slug = utils.get_text_slug(slug)
+  if not standardized_slug:
+    return "Joke not found.", 404
+
+  # Query for exact match first
+  query = firestore.db().collection('jokes').where(
+    filter=FieldFilter('is_public', '==', True)).where(
+      filter=FieldFilter('setup_text_slug', '==', standardized_slug)).limit(1)
+
+  docs = list(query.stream())
+  joke = None
+
+  if docs:
+    doc = docs[0]
+    if doc.exists and doc.to_dict():
+      joke = models.PunnyJoke.from_firestore_dict(doc.to_dict(), key=doc.id)
+  else:
+    # No exact match, try nearest match
+    query_nearest = firestore.db().collection('jokes').where(
+      filter=FieldFilter('is_public', '==', True)).where(filter=FieldFilter(
+        'setup_text_slug', '>', standardized_slug)).order_by(
+          'setup_text_slug', direction=Query.ASCENDING).limit(1)
+
+    docs_nearest = list(query_nearest.stream())
+    if docs_nearest:
+      doc = docs_nearest[0]
+      if doc.exists and doc.to_dict():
+        joke = models.PunnyJoke.from_firestore_dict(doc.to_dict(), key=doc.id)
+
+  if not joke:
+    return "Joke not found.", 404
+
+  canonical_path = flask.url_for('web.handle_joke_slug', slug=slug)
+  canonical_url = urls.canonical_url(canonical_path)
+  now_year = datetime.datetime.now(datetime.timezone.utc).year
+
+  html = flask.render_template(
+    'single_joke.html',
+    joke=joke,
+    canonical_url=canonical_url,
+    site_name='Snickerdoodle',
+    now_year=now_year,
+  )
+  return html_response(html, cache_seconds=300, cdn_seconds=1800)
+
+
+@web_bp.route('/jokes/<slug>')
+def handle_joke_slug(slug: str):
+  """Handle joke slug routes - topic pages for short slugs, single joke pages for long slugs."""
+  if len(slug) <= 15:
+    return load_joke_topic_page(slug)
+  return load_single_joke_page(slug)
 
 
 @web_bp.route('/sitemap.xml')

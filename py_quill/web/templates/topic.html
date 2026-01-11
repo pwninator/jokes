@@ -37,10 +37,9 @@
   <h1>{{ topic|title }} jokes</h1>
   <section class="grid" aria-label="Jokes list">
     {% for joke in jokes %}
-    {{ joke_card(joke, reveal_label='Reveal punchline', image_size=600) }}
+    {{ joke_card(joke, reveal_label='Reveal punchline', width=600) }}
     {% endfor %}
   </section>
   </div>
 {% endblock %}
-
 

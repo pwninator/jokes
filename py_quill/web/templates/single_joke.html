@@ -1,5 +1,6 @@
 {% extends "base.html" %}
 {% from "components/joke_card.html" import joke_card %}
+{% from "components/infinite_scroll_feed.html" import infinite_scroll_feed %}
 
 {% block title %}{{ joke.setup_text | truncate(60) }} | {{ site_name }}{% endblock %}
 {% block meta_description %}{{ joke.setup_text | truncate(155) }}{% endblock %}
@@ -21,19 +22,30 @@
   ]
 }
 </script>
-<style>
-  /* Single joke page: single column, centered, square images up to 600px */
-  .single-joke-page .grid { grid-template-columns: 1fr; max-width: 640px; margin: 0 auto; }
-  .single-joke-page .card { width: min(100%, 600px); margin: 0 auto; }
-  .single-joke-page .media { aspect-ratio: 1 / 1; }
-  .single-joke-page .media img { width: 100%; height: 100%; object-fit: cover; }
-</style>
 {% endblock %}
 
 {% block content %}
-  <div class="single-joke-page">
-  <section class="grid" aria-label="Joke">
-    {{ joke_card(joke, reveal_label='Reveal punchline', image_size=600) }}
-  </section>
+
+<section class="section-center" aria-label="Joke">
+  <header class="section-header">
+    <h1 class="text-display" id="joke-title">{{ joke.setup_text }}</h1>
+  </header>
+  <div class="content-center">
+    {{ joke_card(joke, reveal_label='Reveal punchline', width=600) }}
   </div>
+</section>
+
+<aside aria-label="More jokes" role="complementary">
+  <section class="section-center" aria-labelledby="similar-jokes-title">
+    <header class="section-header">
+      <h2 class="text-section-heading" id="similar-jokes-title">Similar Jokes</h2>
+    </header>
+    {{ infinite_scroll_feed(topic_slug, initial_jokes=related_jokes, width=450, feed_id='related-jokes-feed') }}
+  </section>
+</aside>
+
+<section class="section-center" aria-label="More jokes link">
+  <a class="nav-cta text-button" href="/jokes">Click here for even more jokes</a>
+</section>
+
 {% endblock %}

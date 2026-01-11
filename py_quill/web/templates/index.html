@@ -20,7 +20,7 @@
   </div>
   <article class="hero-card" id="daily-joke-card" aria-labelledby="hero-card-title">
     {% if daily_joke %}
-    {{ joke_card(daily_joke, reveal_label='Reveal Punchline', image_size=800, joke_id='daily-joke') }}
+    {{ joke_card(daily_joke, reveal_label='Reveal Punchline', width=800, joke_id='daily-joke') }}
     {% else %}
     <div class="hero-card__image">
       <div class="app-highlight__placeholder text-button">Illustration baking…</div>
@@ -38,7 +38,7 @@
   {% if favorites %}
   <div class="favorites-grid">
     {% for joke in favorites %}
-    {{ joke_card(joke, reveal_label='Reveal Punchline', image_size=600, joke_id='favorite-' ~ loop.index) }}
+    {{ joke_card(joke, reveal_label='Reveal Punchline', width=600, joke_id='favorite-' ~ loop.index) }}
     {% endfor %}
   </div>
   {% else %}

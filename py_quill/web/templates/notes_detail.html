@@ -8,7 +8,9 @@ endblock %}
 
 {% block content %}
 <section class="section-center notes-detail" aria-labelledby="notes-detail-title">
-  <h1 class="notes-detail__title text-display" id="notes-detail-title">{{ display_title }}</h1>
+  <header class="section-header">
+    <h1 class="text-display" id="notes-detail-title">{{ display_title }}</h1>
+  </header>
   <div class="notes-detail__image">
     <img src="{{ image_url }}" alt="{{ category_label }} joke notes pack {{ sheet_display_index }}"
       width="{{ notes_detail_image_width }}" height="{{ notes_detail_image_height }}" loading="lazy" />

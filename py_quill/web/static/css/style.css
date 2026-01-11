@@ -9,7 +9,8 @@
   --color-text-muted-inverse: #d7c9c2;
   --color-border: rgba(74, 59, 50, 0.12);
   --color-shadow: rgba(196, 171, 140, 0.25);
-  --color-primary: rgba(243, 179, 51, 1.0);  /* #f3b333 */
+  --color-primary: rgba(243, 179, 51, 1.0);
+  /* #f3b333 */
   --color-primary-dark: rgba(198, 109, 0, 1.0);
   --color-form-border-strong: rgba(74, 59, 50, 0.25);
   --color-form-surface: rgba(255, 255, 255, 0.95);
@@ -17,11 +18,9 @@
   --color-pill-bg: #efe1c5;
   --color-pill-text: #735a45;
   --color-app-highlight-card: rgb(240, 213, 159);
-  --color-cta-card-bg: linear-gradient(
-    to bottom right,
-    rgb(130, 71, 0) 0%,
-    rgb(80, 44, 0) 100%
-  );
+  --color-cta-card-bg: linear-gradient(to bottom right,
+      rgb(130, 71, 0) 0%,
+      rgb(80, 44, 0) 100%);
   --layout-max-width: 1100px;
   --admin-layout-max-width: 1600px;
   color-scheme: light;
@@ -433,6 +432,16 @@ img {
   margin: 0;
 }
 
+/* --- Content Layout --- */
+
+.content-center {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
 /* --- Lunchbox Landing Page --- */
 
 .signin-form-title,
@@ -594,10 +603,6 @@ img {
 }
 
 .notes-grid-empty {
-  margin: 0;
-}
-
-.notes-detail__title {
   margin: 0;
 }
 
@@ -949,6 +954,7 @@ img {
 }
 
 @media (min-width: 860px) {
+
   .lunchbox-download__title,
   .lunchbox-download__subtitle,
   .lunchbox-download__howto {
@@ -1026,6 +1032,12 @@ img {
   margin: 0;
   text-align: center;
   color: var(--color-text);
+}
+
+.joke-card,
+.joke-widget {
+  width: 100%;
+  max-width: var(--joke-card-max-width, 600px);
 }
 
 .joke-card {
@@ -1539,10 +1551,12 @@ tr:last-child td {
   width: 100%;
   justify-content: flex-start;
 }
+
 .mobile-nav .user-menu__trigger {
   width: 100%;
   justify-content: space-between;
 }
+
 .mobile-nav .user-menu__panel {
   position: static;
   width: 100%;
@@ -1563,13 +1577,14 @@ tr:last-child td {
   .desktop-only {
     display: none;
   }
-  
+
   .mobile-only {
     display: inline-flex;
   }
 
   .site-header {
-    position: sticky; /* Sticky header works on mobile too */
+    position: sticky;
+    /* Sticky header works on mobile too */
     top: 0;
   }
 

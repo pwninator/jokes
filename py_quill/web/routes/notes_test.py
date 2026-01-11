@@ -200,7 +200,6 @@ def test_notes_detail_renders_sheet(monkeypatch):
   assert resp.status_code == 200
   html = resp.get_data(as_text=True)
   # Assert on element presence rather than exact text
-  assert 'notes-detail__title' in html
   assert 'notes-detail-title' in html
   assert 'Animals' in html  # Category name should be present
   assert urls.canonical_url(f"/printables/notes/{slug}") in html
@@ -291,7 +290,6 @@ def test_notes_detail_allows_locked_pack_when_logged_in(monkeypatch):
   assert resp.status_code == 200
   html = resp.get_data(as_text=True)
   # Assert on element presence rather than exact text
-  assert 'notes-detail__title' in html
   assert 'notes-detail-title' in html
   assert 'Animals' in html  # Category name should be present
   assert 'notes-detail__cta' in html

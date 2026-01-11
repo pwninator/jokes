@@ -1,7 +1,8 @@
-{% macro joke_card(joke, reveal_label='Reveal Punchline', image_size=600, reveal_style='carousel', joke_id=None, feed_cursor=None) -%}
+{% macro joke_card(joke, reveal_label='Reveal Punchline', width=600, reveal_style='carousel', joke_id=None, feed_cursor=None) -%}
 {% set unique_id = joke_id or joke.key|default('joke-unknown') %}
 {% if reveal_style == 'carousel' %}
 <article class="joke-card" aria-label="Joke {{ unique_id }}"
+  style="--joke-card-max-width: {{ width }}px;"
   {% if feed_cursor %}data-feed-cursor="{{ feed_cursor }}"{% endif %}>
   <div class="joke-viewer" data-joke-viewer>
     <div class="joke-carousel">
@@ -10,8 +11,8 @@
           <div class="joke-slide" aria-hidden="false">
             <div class="joke-slide-media">
               {% if joke.setup_image_url %}
-              <img src="{{ joke.setup_image_url | format_image_url(width=image_size) }}" alt="{{ joke.setup_text }}"
-                width="{{ image_size }}" height="{{ image_size }}" loading="lazy">
+              <img src="{{ joke.setup_image_url | format_image_url(width=width) }}" alt="{{ joke.setup_text }}"
+                width="{{ width }}" height="{{ width }}" loading="lazy">
               {% else %}
               <div class="joke-slide-placeholder text-button">Illustration baking…</div>
               {% endif %}
@@ -20,8 +21,8 @@
           <div class="joke-slide" id="joke-{{ unique_id }}-punchline" aria-hidden="true">
             <div class="joke-slide-media">
               {% if joke.punchline_image_url %}
-              <img src="{{ joke.punchline_image_url | format_image_url(width=image_size) }}"
-                alt="{{ joke.punchline_text }}" width="{{ image_size }}" height="{{ image_size }}" loading="lazy">
+              <img src="{{ joke.punchline_image_url | format_image_url(width=width) }}"
+                alt="{{ joke.punchline_text }}" width="{{ width }}" height="{{ width }}" loading="lazy">
               {% else %}
               <div class="joke-slide-placeholder text-button">Punchline ready to read!</div>
               {% endif %}
@@ -38,7 +39,7 @@
   </div>
 </article>
 {% else %}
-<div class="joke-widget">
+<div class="joke-widget" style="--joke-card-max-width: {{ width }}px;">
   <details>
     <summary data-analytics-event="joke_reveal_toggle" data-analytics-label="{{ joke.key|default('unknown')|e }}">{{
       reveal_label }}</summary>
@@ -49,8 +50,8 @@
         <div class="joke-slide">
           <div class="joke-slide-media">
             {% if joke.setup_image_url %}
-            <img src="{{ joke.setup_image_url | format_image_url(width=image_size) }}" alt="{{ joke.setup_text }}"
-              width="{{ image_size }}" height="{{ image_size }}" loading="lazy">
+            <img src="{{ joke.setup_image_url | format_image_url(width=width) }}" alt="{{ joke.setup_text }}"
+              width="{{ width }}" height="{{ width }}" loading="lazy">
             {% endif %}
           </div>
           <p class="joke-text">{{ joke.setup_text }}</p>
@@ -58,8 +59,8 @@
         <div class="joke-slide">
           <div class="joke-slide-media">
             {% if joke.punchline_image_url %}
-            <img src="{{ joke.punchline_image_url | format_image_url(width=image_size) }}"
-              alt="{{ joke.punchline_text }}" width="{{ image_size }}" height="{{ image_size }}" loading="lazy">
+            <img src="{{ joke.punchline_image_url | format_image_url(width=width) }}"
+              alt="{{ joke.punchline_text }}" width="{{ width }}" height="{{ width }}" loading="lazy">
             {% endif %}
           </div>
           <p class="joke-text">{{ joke.punchline_text }}</p>

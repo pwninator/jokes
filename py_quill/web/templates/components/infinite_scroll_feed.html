@@ -1,4 +1,4 @@
-{% macro infinite_scroll_feed(slug, initial_jokes=None, initial_cursor=None, initial_has_more=None, image_size=450, feed_id=None, cookie_name=None, end_of_feed_message=None) -%}
+{% macro infinite_scroll_feed(slug, initial_jokes=None, initial_cursor=None, initial_has_more=None, width=450, feed_id=None, cookie_name=None, end_of_feed_message=None) -%}
 {% from "components/joke_card.html" import joke_card %}
 {% set feed_id = feed_id or ('jokes-feed-' + slug) %}
 {% set loading_id = feed_id + '-loading' %}
@@ -9,10 +9,9 @@
   .{{ feed_id }} {
     display: grid;
     grid-template-columns: 1fr;
-    max-width: var(--joke-feed-width);
     margin: 0 auto;
     gap: 2rem;
-    padding: 2rem 1rem;
+    justify-items: center;
   }
 
   .{{ feed_id }} .joke-card {
@@ -50,10 +49,10 @@
   }
 </style>
 
-<section class="{{ feed_id }}" id="{{ feed_id }}" aria-label="Jokes feed" style="--joke-feed-width: {{ image_size }}px;">
+<section class="{{ feed_id }}" id="{{ feed_id }}" aria-label="Jokes feed">
   {% if initial_jokes %}
     {% for entry in initial_jokes %}
-    {{ joke_card(entry.joke, reveal_label='Reveal Punchline', image_size=image_size, joke_id=entry.joke.key, feed_cursor=entry.cursor) }}
+    {{ joke_card(entry.joke, reveal_label='Reveal Punchline', width=width, joke_id=entry.joke.key, feed_cursor=entry.cursor) }}
     {% endfor %}
   {% endif %}
 </section>

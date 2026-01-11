@@ -386,6 +386,24 @@ def test_handle_joke_slug_long_exact_match(monkeypatch):
   mock_db.collection.return_value = mock_collection
 
   monkeypatch.setattr(jokes_routes.firestore, "db", lambda: mock_db)
+  related_joke = models.PunnyJoke(
+    key="rel-1",
+    setup_text="Related setup",
+    punchline_text="Related punchline",
+    setup_image_url="http://example.com/rel-setup.jpg",
+    punchline_image_url="http://example.com/rel-punch.jpg",
+  )
+  related_joke_same_key = models.PunnyJoke(
+    key="joke123",
+    setup_text="Should not appear",
+    punchline_text="Should not appear punchline",
+    setup_image_url="http://example.com/skip-setup.jpg",
+    punchline_image_url="http://example.com/skip-punch.jpg",
+  )
+  mock_fetch_topic_jokes = Mock(
+    return_value=[related_joke_same_key, related_joke])
+  monkeypatch.setattr(jokes_routes, "_fetch_topic_jokes",
+                      mock_fetch_topic_jokes)
 
   # Act - long slug (>= 16 chars) that matches exactly
   with app.test_client() as client:
@@ -396,12 +414,21 @@ def test_handle_joke_slug_long_exact_match(monkeypatch):
   html = resp.get_data(as_text=True)
   assert 'Why did the chicken cross the road?' in html
   assert 'To get to the other side!' in html
-  assert 'single-joke-page' in html
+  assert 'id="joke-title"' in html
   assert 'application/ld+json' in html
   assert 'FAQPage' in html
   assert 'data-joke-viewer' in html
   assert 'data-role="reveal"' in html
+  assert 'Should not appear' not in html
+  assert 'Similar Jokes' in html
+  assert 'Related setup' in html
+  assert 'id="related-jokes-feed"' in html
   assert 'Cache-Control' in resp.headers
+  mock_fetch_topic_jokes.assert_called_once_with(
+    "whydidthechickencrosstheroad",
+    limit=21,
+    distance_threshold=None,
+  )
 
 
 def test_handle_joke_slug_long_nearest_match(monkeypatch):
@@ -461,6 +488,16 @@ def test_handle_joke_slug_long_nearest_match(monkeypatch):
   mock_db.collection.side_effect = collection_side_effect
 
   monkeypatch.setattr(jokes_routes.firestore, "db", lambda: mock_db)
+  related_joke = models.PunnyJoke(
+    key="rel-2",
+    setup_text="Related setup 2",
+    punchline_text="Related punchline 2",
+    setup_image_url="http://example.com/rel2-setup.jpg",
+    punchline_image_url="http://example.com/rel2-punch.jpg",
+  )
+  mock_fetch_topic_jokes = Mock(return_value=[related_joke])
+  monkeypatch.setattr(jokes_routes, "_fetch_topic_jokes",
+                      mock_fetch_topic_jokes)
 
   # Act - long slug (>= 16 chars) that doesn't match exactly
   with app.test_client() as client:
@@ -470,7 +507,7 @@ def test_handle_joke_slug_long_nearest_match(monkeypatch):
   assert resp.status_code == 200
   html = resp.get_data(as_text=True)
   assert 'Why did the duck cross the road?' in html
-  assert 'single-joke-page' in html
+  assert 'id="joke-title"' in html
   assert 'application/ld+json' in html
   assert 'FAQPage' in html
   # Verify the joke card is rendered (should have punchline image with alt attribute)
@@ -479,6 +516,14 @@ def test_handle_joke_slug_long_nearest_match(monkeypatch):
   # The punchline text should be in the JSON-LD or in an alt attribute
   # Since we can't easily check the exact JSON structure, verify the joke card is present
   assert 'joke-card' in html or 'joke-viewer' in html
+  assert 'Similar Jokes' in html
+  assert 'Related setup 2' in html
+  assert 'id="related-jokes-feed"' in html
+  mock_fetch_topic_jokes.assert_called_once_with(
+    "whydidthechickencrosstheroad",
+    limit=21,
+    distance_threshold=None,
+  )
 
 
 def test_handle_joke_slug_long_not_found(monkeypatch):
@@ -497,6 +542,9 @@ def test_handle_joke_slug_long_not_found(monkeypatch):
   mock_db.collection.return_value = mock_collection
 
   monkeypatch.setattr(jokes_routes.firestore, "db", lambda: mock_db)
+  mock_fetch_topic_jokes = Mock()
+  monkeypatch.setattr(jokes_routes, "_fetch_topic_jokes",
+                      mock_fetch_topic_jokes)
 
   # Act - long slug (>= 16 chars) with no matching joke
   with app.test_client() as client:
@@ -505,6 +553,7 @@ def test_handle_joke_slug_long_not_found(monkeypatch):
   # Assert
   assert resp.status_code == 404
   assert b"Joke not found" in resp.data
+  mock_fetch_topic_jokes.assert_not_called()
 
 
 def test_handle_joke_slug_standardizes_slug(monkeypatch):
@@ -536,6 +585,16 @@ def test_handle_joke_slug_standardizes_slug(monkeypatch):
   mock_db.collection.return_value = mock_collection
 
   monkeypatch.setattr(jokes_routes.firestore, "db", lambda: mock_db)
+  related_joke = models.PunnyJoke(
+    key="rel-3",
+    setup_text="Related setup 3",
+    punchline_text="Related punchline 3",
+    setup_image_url="http://example.com/rel3-setup.jpg",
+    punchline_image_url="http://example.com/rel3-punch.jpg",
+  )
+  mock_fetch_topic_jokes = Mock(return_value=[related_joke])
+  monkeypatch.setattr(jokes_routes, "_fetch_topic_jokes",
+                      mock_fetch_topic_jokes)
 
   # Act - slug with spaces and uppercase (should be standardized to lowercase, no spaces)
   with app.test_client() as client:
@@ -545,6 +604,11 @@ def test_handle_joke_slug_standardizes_slug(monkeypatch):
   assert resp.status_code == 200
   html = resp.get_data(as_text=True)
   assert 'Why did the test pass?' in html
+  assert 'Similar Jokes' in html
+  assert 'Related setup 3' in html
+  assert 'id="related-jokes-feed"' in html
+  assert mock_fetch_topic_jokes.call_args.kwargs['limit'] == 21
+  assert mock_fetch_topic_jokes.call_args.kwargs['distance_threshold'] is None
   # Verify the query was made with standardized slug
   # The standardized slug should be "whydidthetestpass" (no spaces, lowercase, no punctuation)
 

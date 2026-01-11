@@ -17,10 +17,11 @@ from web.utils.responses import html_response
 _JOKES_PER_PAGE = 10
 _JOKE_IMAGE_SIZE = 450
 _COOKIE_NAME = 'jokes_feed_cursor'
+_RELATED_JOKES_LIMIT = 20
 
 
 @web_bp.route('/')
-def index():
+def index_route():
   """Render the jokes feed page as the homepage.
   
   If a 'jokes_feed_cursor' cookie is present, resumes from that cursor position.
@@ -58,13 +59,13 @@ def index():
 
 
 @web_bp.route('/jokes')
-def jokes():
+def jokes_route():
   """Redirect /jokes to the homepage."""
   return flask.redirect('/', code=301)
 
 
-@web_bp.route('/jokes/<slug>')
-def handle_joke_slug(slug: str):
+@web_bp.route('/jokes/<slug>', endpoint='handle_joke_slug')
+def joke_slug_route(slug: str):
   """Handle joke slug routes - topic pages for short slugs, single joke pages for long slugs."""
   if len(slug) <= 15:
     return load_joke_topic_page(slug)
@@ -72,7 +73,7 @@ def handle_joke_slug(slug: str):
 
 
 @web_bp.route('/jokes/feed/load-more-<slug>')
-def jokes_load_more(slug: str):
+def jokes_load_more_route(slug: str):
   """API endpoint to load more jokes for infinite scroll. Returns HTML fragments.
   
   Args:
@@ -124,7 +125,11 @@ def jokes_load_more(slug: str):
   return resp
 
 
-def _fetch_topic_jokes(slug: str, limit: int) -> list[models.PunnyJoke]:
+def _fetch_topic_jokes(
+  slug: str,
+  limit: int,
+  distance_threshold: float | None = 0.31,
+) -> list[models.PunnyJoke]:
   """Fetch jokes for a given topic using vector search constrained by tags."""
   now_la = datetime.datetime.now(zoneinfo.ZoneInfo("America/Los_Angeles"))
   field_filters = [('public_timestamp', '<=', now_la)]
@@ -135,7 +140,7 @@ def _fetch_topic_jokes(slug: str, limit: int) -> list[models.PunnyJoke]:
     query=f"jokes about {slug}",
     label="web_topic",
     limit=limit,
-    distance_threshold=0.31,
+    distance_threshold=distance_threshold,
     field_filters=field_filters,
   )
   # Fetch full jokes by IDs and sort by popularity desc, then vector distance asc
@@ -218,6 +223,22 @@ def load_single_joke_page(slug: str):
   if not joke:
     return "Joke not found.", 404
 
+  related_jokes = _fetch_topic_jokes(
+    slug,
+    limit=_RELATED_JOKES_LIMIT + 1,
+    distance_threshold=None,
+  )
+  if joke.key:
+    related_jokes = [
+      related_joke for related_joke in related_jokes
+      if related_joke.key != joke.key
+    ]
+  related_jokes = related_jokes[:_RELATED_JOKES_LIMIT]
+  related_joke_entries = [{
+    'joke': related_joke,
+    'cursor': None,
+  } for related_joke in related_jokes]
+
   canonical_path = flask.url_for('web.handle_joke_slug', slug=slug)
   canonical_url = urls.canonical_url(canonical_path)
   now_year = datetime.datetime.now(datetime.timezone.utc).year
@@ -225,6 +246,8 @@ def load_single_joke_page(slug: str):
   html = flask.render_template(
     'single_joke.html',
     joke=joke,
+    related_jokes=related_joke_entries,
+    topic_slug=slug,
     canonical_url=canonical_url,
     site_name='Snickerdoodle',
     now_year=now_year,

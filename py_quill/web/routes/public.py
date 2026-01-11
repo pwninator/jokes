@@ -7,10 +7,9 @@ import zoneinfo
 
 import flask
 from firebase_functions import logger
-from google.cloud.firestore import FieldFilter, Query
 
-from common import models, utils
-from services import firestore, search
+from common import models
+from services import firestore
 from web.routes import web_bp
 from web.utils import urls
 from web.utils.responses import html_response
@@ -21,30 +20,6 @@ _WEB_TOPICS: list[str] = [
   'cats',
   'pandas',
 ]
-
-
-def _fetch_topic_jokes(slug: str, limit: int) -> list[models.PunnyJoke]:
-  """Fetch jokes for a given topic using vector search constrained by tags."""
-  now_la = datetime.datetime.now(zoneinfo.ZoneInfo("America/Los_Angeles"))
-  field_filters = [('public_timestamp', '<=', now_la)]
-  logger.info(
-    f"Fetching jokes for topic: {slug} with limit: {limit}, field_filters: {field_filters}"
-  )
-  results = search.search_jokes(
-    query=f"jokes about {slug}",
-    label="web_topic",
-    limit=limit,
-    distance_threshold=0.31,
-    field_filters=field_filters,
-  )
-  # Fetch full jokes by IDs and sort by popularity desc, then vector distance asc
-  id_to_distance = {r.joke_id: r.vector_distance for r in results}
-  jokes = firestore.get_punny_jokes(list(id_to_distance.keys()))
-  jokes.sort(key=lambda j: (
-    -1 * (getattr(j, 'num_saved_users_fraction', 0) or 0),
-    id_to_distance.get(j.key, float('inf')),
-  ))
-  return jokes
 
 
 @web_bp.route('/home2')
@@ -104,98 +79,6 @@ def home2():
     now_year=datetime.datetime.now(datetime.timezone.utc).year,
   )
   return html_response(html, cache_seconds=300, cdn_seconds=1200)
-
-
-def load_joke_topic_page(slug: str):
-  """Render a topic page listing jokes with revealable punchlines."""
-  # Basic, heuristic pagination using page size; true offsets require different queries
-  page = flask.request.args.get('page', default='1')
-  try:
-    page_num = max(1, int(page))
-  except Exception:
-    page_num = 1
-
-  page_size = 20
-  jokes = _fetch_topic_jokes(slug, limit=page_size)
-
-  canonical_path = flask.url_for('web.handle_joke_slug', slug=slug)
-  canonical_url = urls.canonical_url(canonical_path)
-  prev_url = None
-  next_url = None
-  # We only fetch one page; advertise next if we are full (best-effort UX)
-  if page_num > 1:
-    prev_url = urls.canonical_url(canonical_path, f"page={page_num - 1}")
-  if len(jokes) == page_size:
-    next_url = urls.canonical_url(canonical_path, f"page={page_num + 1}")
-
-  now_year = datetime.datetime.now(datetime.timezone.utc).year
-  html = flask.render_template(
-    'topic.html',
-    topic=slug,
-    jokes=jokes,
-    canonical_url=canonical_url,
-    prev_url=prev_url,
-    next_url=next_url,
-    site_name='Snickerdoodle',
-    now_year=now_year,
-  )
-  return html_response(html, cache_seconds=300, cdn_seconds=1800)
-
-
-def load_single_joke_page(slug: str):
-  """Load and render a single joke page by slug."""
-  standardized_slug = utils.get_text_slug(slug)
-  if not standardized_slug:
-    return "Joke not found.", 404
-
-  # Query for exact match first
-  query = firestore.db().collection('jokes').where(
-    filter=FieldFilter('is_public', '==', True)).where(
-      filter=FieldFilter('setup_text_slug', '==', standardized_slug)).limit(1)
-
-  docs = list(query.stream())
-  joke = None
-
-  if docs:
-    doc = docs[0]
-    if doc.exists and doc.to_dict():
-      joke = models.PunnyJoke.from_firestore_dict(doc.to_dict(), key=doc.id)
-  else:
-    # No exact match, try nearest match
-    query_nearest = firestore.db().collection('jokes').where(
-      filter=FieldFilter('is_public', '==', True)).where(filter=FieldFilter(
-        'setup_text_slug', '>', standardized_slug)).order_by(
-          'setup_text_slug', direction=Query.ASCENDING).limit(1)
-
-    docs_nearest = list(query_nearest.stream())
-    if docs_nearest:
-      doc = docs_nearest[0]
-      if doc.exists and doc.to_dict():
-        joke = models.PunnyJoke.from_firestore_dict(doc.to_dict(), key=doc.id)
-
-  if not joke:
-    return "Joke not found.", 404
-
-  canonical_path = flask.url_for('web.handle_joke_slug', slug=slug)
-  canonical_url = urls.canonical_url(canonical_path)
-  now_year = datetime.datetime.now(datetime.timezone.utc).year
-
-  html = flask.render_template(
-    'single_joke.html',
-    joke=joke,
-    canonical_url=canonical_url,
-    site_name='Snickerdoodle',
-    now_year=now_year,
-  )
-  return html_response(html, cache_seconds=300, cdn_seconds=1800)
-
-
-@web_bp.route('/jokes/<slug>')
-def handle_joke_slug(slug: str):
-  """Handle joke slug routes - topic pages for short slugs, single joke pages for long slugs."""
-  if len(slug) <= 15:
-    return load_joke_topic_page(slug)
-  return load_single_joke_page(slug)
 
 
 @web_bp.route('/sitemap.xml')

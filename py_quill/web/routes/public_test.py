@@ -9,6 +9,7 @@ import pytest
 from common import models
 from services import search
 from web.app import app
+from web.routes import jokes as jokes_routes
 from web.routes import public as public_routes
 from web.utils import urls
 
@@ -16,10 +17,10 @@ from web.utils import urls
 def test_topic_page_uses_batch_fetch(monkeypatch):
   """Topic page uses batched get_punny_jokes and renders content."""
   mock_search_jokes = Mock()
-  monkeypatch.setattr(public_routes.search, "search_jokes", mock_search_jokes)
+  monkeypatch.setattr(jokes_routes.search, "search_jokes", mock_search_jokes)
 
   mock_get_punny_jokes = Mock()
-  monkeypatch.setattr(public_routes.firestore,
+  monkeypatch.setattr(jokes_routes.firestore,
                       "get_punny_jokes",
                       mock_get_punny_jokes,
                       raising=False)
@@ -178,10 +179,10 @@ def test_handle_joke_slug_short_renders_topic_page(monkeypatch):
   """Verify /jokes/<slug> with short slug (<=15) renders topic page with cards, details, and JSON-LD."""
   # Arrange: mock search and firestore
   mock_search_jokes = Mock()
-  monkeypatch.setattr(public_routes.search, "search_jokes", mock_search_jokes)
+  monkeypatch.setattr(jokes_routes.search, "search_jokes", mock_search_jokes)
 
   mock_get_punny_jokes = Mock()
-  monkeypatch.setattr(public_routes.firestore,
+  monkeypatch.setattr(jokes_routes.firestore,
                       "get_punny_jokes",
                       mock_get_punny_jokes,
                       raising=False)
@@ -316,10 +317,10 @@ def test_fetch_topic_jokes_sorts_by_popularity_then_distance(monkeypatch):
   """_fetch_topic_jokes orders by popularity desc, then vector distance asc."""
   # Arrange
   mock_search_jokes = Mock()
-  monkeypatch.setattr(public_routes.search, "search_jokes", mock_search_jokes)
+  monkeypatch.setattr(jokes_routes.search, "search_jokes", mock_search_jokes)
 
   mock_get_punny_jokes = Mock()
-  monkeypatch.setattr(public_routes.firestore,
+  monkeypatch.setattr(jokes_routes.firestore,
                       "get_punny_jokes",
                       mock_get_punny_jokes,
                       raising=False)
@@ -348,7 +349,7 @@ def test_fetch_topic_jokes_sorts_by_popularity_then_distance(monkeypatch):
   mock_get_punny_jokes.return_value = [jA_fs, jB_fs, jC_fs]
 
   # Act
-  ordered = public_routes._fetch_topic_jokes("dogs", limit=3)  # pylint: disable=protected-access
+  ordered = jokes_routes._fetch_topic_jokes("dogs", limit=3)  # pylint: disable=protected-access
 
   # Assert
   keys = [j.key for j in ordered]
@@ -384,7 +385,7 @@ def test_handle_joke_slug_long_exact_match(monkeypatch):
   mock_db = Mock()
   mock_db.collection.return_value = mock_collection
 
-  monkeypatch.setattr(public_routes.firestore, "db", lambda: mock_db)
+  monkeypatch.setattr(jokes_routes.firestore, "db", lambda: mock_db)
 
   # Act - long slug (>= 16 chars) that matches exactly
   with app.test_client() as client:
@@ -459,7 +460,7 @@ def test_handle_joke_slug_long_nearest_match(monkeypatch):
   mock_db = Mock()
   mock_db.collection.side_effect = collection_side_effect
 
-  monkeypatch.setattr(public_routes.firestore, "db", lambda: mock_db)
+  monkeypatch.setattr(jokes_routes.firestore, "db", lambda: mock_db)
 
   # Act - long slug (>= 16 chars) that doesn't match exactly
   with app.test_client() as client:
@@ -495,7 +496,7 @@ def test_handle_joke_slug_long_not_found(monkeypatch):
   mock_db = Mock()
   mock_db.collection.return_value = mock_collection
 
-  monkeypatch.setattr(public_routes.firestore, "db", lambda: mock_db)
+  monkeypatch.setattr(jokes_routes.firestore, "db", lambda: mock_db)
 
   # Act - long slug (>= 16 chars) with no matching joke
   with app.test_client() as client:
@@ -534,7 +535,7 @@ def test_handle_joke_slug_standardizes_slug(monkeypatch):
   mock_db = Mock()
   mock_db.collection.return_value = mock_collection
 
-  monkeypatch.setattr(public_routes.firestore, "db", lambda: mock_db)
+  monkeypatch.setattr(jokes_routes.firestore, "db", lambda: mock_db)
 
   # Act - slug with spaces and uppercase (should be standardized to lowercase, no spaces)
   with app.test_client() as client:
@@ -552,10 +553,10 @@ def test_pages_include_ga4_tag_and_parchment_background(monkeypatch):
   """All pages should include GA4 and use the parchment background color."""
   # Arrange
   mock_search_jokes = Mock()
-  monkeypatch.setattr(public_routes.search, "search_jokes", mock_search_jokes)
+  monkeypatch.setattr(jokes_routes.search, "search_jokes", mock_search_jokes)
 
   mock_get_punny_jokes = Mock()
-  monkeypatch.setattr(public_routes.firestore,
+  monkeypatch.setattr(jokes_routes.firestore,
                       "get_punny_jokes",
                       mock_get_punny_jokes,
                       raising=False)
@@ -628,8 +629,8 @@ def test_topic_page_includes_sticky_header_script(monkeypatch):
   # Arrange: Mock dependencies
   mock_search_jokes = Mock(return_value=[])
   mock_get_punny_jokes = Mock(return_value=[])
-  monkeypatch.setattr(public_routes.search, "search_jokes", mock_search_jokes)
-  monkeypatch.setattr(public_routes.firestore,
+  monkeypatch.setattr(jokes_routes.search, "search_jokes", mock_search_jokes)
+  monkeypatch.setattr(jokes_routes.firestore,
                       "get_punny_jokes",
                       mock_get_punny_jokes,
                       raising=False)

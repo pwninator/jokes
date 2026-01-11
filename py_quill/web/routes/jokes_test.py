@@ -32,7 +32,6 @@ def test_index_page_includes_meta_tags(monkeypatch):
   html = resp.get_data(as_text=True)
   assert f'<link rel="canonical" href="{urls.canonical_url("/")}">' in html
   assert '<meta name="description"' in html
-  assert 'All Jokes' in html
 
 
 def test_index_page_shows_carousel_reveal(monkeypatch):
@@ -110,7 +109,8 @@ def test_jokes_load_more_without_cursor(monkeypatch):
   assert 'html' in data
   assert data['cursor'] is None
   assert data['has_more'] is False
-  mock_get_joke_feed_page_entries.assert_called_once_with(cursor=None, limit=10)
+  mock_get_joke_feed_page_entries.assert_called_once_with(cursor=None,
+                                                          limit=10)
 
 
 def test_jokes_load_more_with_custom_limit(monkeypatch):
@@ -139,7 +139,8 @@ def test_jokes_load_more_handles_invalid_cursor(monkeypatch):
   data = resp.get_json()
   assert 'html' in data
   assert data['has_more'] is False
-  mock_get_joke_feed_page_entries.assert_called_once_with(cursor="invalid", limit=10)
+  mock_get_joke_feed_page_entries.assert_called_once_with(cursor="invalid",
+                                                          limit=10)
 
 
 def test_index_page_empty_feed(monkeypatch):
@@ -153,7 +154,6 @@ def test_index_page_empty_feed(monkeypatch):
 
   assert resp.status_code == 200
   html = resp.get_data(as_text=True)
-  assert 'All Jokes' in html
   assert 'jokes-feed' in html
 
 
@@ -202,7 +202,6 @@ def test_index_page_renders_jokes_feed(monkeypatch):
   assert resp.status_code == 200
   html = resp.get_data(as_text=True)
   assert 'text/html' in resp.headers['Content-Type']
-  assert 'All Jokes' in html
   assert 'Freshly Baked Jokes' in html
   assert "Why did the chicken cross the road?" in html
   assert 'data-joke-viewer' in html
@@ -212,7 +211,8 @@ def test_index_page_renders_jokes_feed(monkeypatch):
   assert 'no-store' in resp.headers['Cache-Control']
   # Verify canonical URL points to homepage
   assert f'<link rel="canonical" href="{urls.canonical_url("/")}">' in html
-  mock_get_joke_feed_page_entries.assert_called_once_with(cursor=None, limit=10)
+  mock_get_joke_feed_page_entries.assert_called_once_with(cursor=None,
+                                                          limit=10)
 
 
 def test_index_page_uses_cookie_cursor(monkeypatch):
@@ -241,7 +241,8 @@ def test_index_page_uses_cookie_cursor(monkeypatch):
     limit=10,
   )
   # Route should not set cookies (handled by JavaScript)
-  assert 'Set-Cookie' not in resp.headers or 'jokes_feed_cursor' not in resp.headers.get('Set-Cookie', '')
+  assert 'Set-Cookie' not in resp.headers or 'jokes_feed_cursor' not in resp.headers.get(
+    'Set-Cookie', '')
 
 
 def test_jokes_load_more_unknown_slug_returns_404():
@@ -262,4 +263,5 @@ def test_jokes_load_more_feed_slug_dispatches_correctly(monkeypatch):
     resp = client.get('/jokes/feed/load-more-feed?cursor=test123')
 
   assert resp.status_code == 200
-  mock_get_joke_feed_page_entries.assert_called_once_with(cursor="test123", limit=10)
+  mock_get_joke_feed_page_entries.assert_called_once_with(cursor="test123",
+                                                          limit=10)

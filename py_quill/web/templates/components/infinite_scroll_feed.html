@@ -52,8 +52,8 @@
 
 <section class="{{ feed_id }}" id="{{ feed_id }}" aria-label="Jokes feed" style="--joke-feed-width: {{ image_size }}px;">
   {% if initial_jokes %}
-    {% for joke in initial_jokes %}
-    {{ joke_card(joke, reveal_label='Reveal Punchline', image_size=image_size, joke_id=joke.key) }}
+    {% for entry in initial_jokes %}
+    {{ joke_card(entry.joke, reveal_label='Reveal Punchline', image_size=image_size, joke_id=entry.joke.key, feed_cursor=entry.cursor) }}
     {% endfor %}
   {% endif %}
 </section>
@@ -73,6 +73,85 @@
     const endOfFeed = document.getElementById('{{ end_of_feed_id }}');
     const cookieName = {{ cookie_name | tojson if cookie_name else 'null' }};
     const apiEndpoint = '/jokes/load-more-{{ slug }}';
+
+    function setCookie(name, value, days) {
+      const expires = new Date();
+      expires.setTime(expires.getTime() + (days * 24 * 60 * 60 * 1000));
+      document.cookie = `${name}=${value}; expires=${expires.toUTCString()}; path=/`;
+    }
+
+    function getCookie(name) {
+      if (!name) {
+        return null;
+      }
+      const prefix = `${name}=`;
+      const cookies = document.cookie ? document.cookie.split('; ') : [];
+      for (const cookie of cookies) {
+        if (cookie.startsWith(prefix)) {
+          return cookie.substring(prefix.length);
+        }
+      }
+      return null;
+    }
+
+    function parseCursor(value) {
+      if (!value || typeof value !== 'string') {
+        return null;
+      }
+      const parts = value.split(':', 2);
+      if (parts.length !== 2) {
+        return null;
+      }
+      const docId = parts[0];
+      const index = Number.parseInt(parts[1], 10);
+      if (!docId || Number.isNaN(index)) {
+        return null;
+      }
+      return { docId, index };
+    }
+
+    function isCursorBefore(current, target) {
+      const targetCursor = parseCursor(target);
+      if (!targetCursor) {
+        return false;
+      }
+      const currentCursor = parseCursor(current);
+      if (!currentCursor) {
+        return true;
+      }
+      if (currentCursor.docId === targetCursor.docId) {
+        return currentCursor.index < targetCursor.index;
+      }
+      return currentCursor.docId < targetCursor.docId;
+    }
+
+    function maybeAdvanceCursor(eventTarget) {
+      if (!cookieName) {
+        return;
+      }
+      const card = eventTarget.closest('[data-feed-cursor]');
+      if (!card) {
+        return;
+      }
+      const targetCursor = card.dataset.feedCursor;
+      if (!targetCursor) {
+        return;
+      }
+      const currentCursor = getCookie(cookieName);
+      if (isCursorBefore(currentCursor, targetCursor)) {
+        setCookie(cookieName, targetCursor, 7);
+      }
+    }
+
+    if (feedContainer) {
+      feedContainer.addEventListener('click', (event) => {
+        const revealButton = event.target.closest('[data-role="reveal"]');
+        if (!revealButton) {
+          return;
+        }
+        maybeAdvanceCursor(revealButton);
+      });
+    }
 
     {% if initial_jokes is none %}
     // No initial jokes - start empty and load immediately
@@ -174,12 +253,6 @@
       endOfFeed.classList.add('active');
     }
 
-    function setCookie(name, value, days) {
-      const expires = new Date();
-      expires.setTime(expires.getTime() + (days * 24 * 60 * 60 * 1000));
-      document.cookie = `${name}=${value}; expires=${expires.toUTCString()}; path=/`;
-    }
-
     function loadMoreJokes() {
       if (isLoading || !hasMore || !nextCursor) {
         return;
@@ -188,10 +261,8 @@
       isLoading = true;
       loadingIndicator.classList.add('active');
 
-      const cursorToUse = nextCursor;
-
       const url = new URL(apiEndpoint, window.location.origin);
-      url.searchParams.set('cursor', cursorToUse);
+      url.searchParams.set('cursor', nextCursor);
 
       fetch(url)
         .then(response => response.json())
@@ -208,11 +279,6 @@
                 window.initJokeViewer(viewer);
               }
             });
-          }
-
-          // Set cookie if cookie_name is provided
-          if (cookieName && cursorToUse) {
-            setCookie(cookieName, cursorToUse, 7);
           }
 
           nextCursor = data.cursor;

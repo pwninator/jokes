@@ -785,11 +785,11 @@ def update_joke_feed(jokes: list[dict[str, Any]]) -> None:
     doc_ref.set({"jokes": chunk})
 
 
-def get_joke_feed_page(
+def get_joke_feed_page_entries(
   cursor: str | None = None,
   limit: int = 10,
-) -> tuple[list[models.PunnyJoke], str | None]:
-  """Get a page of jokes from the joke_feed collection.
+) -> tuple[list[tuple[models.PunnyJoke, str]], str | None]:
+  """Get a page of jokes from the joke_feed collection with per-joke cursors.
 
   Args:
     cursor: Optional cursor in format "doc_id:joke_index" (e.g., "0000000000:9").
@@ -800,8 +800,9 @@ def get_joke_feed_page(
     limit: Maximum number of jokes to return (default 10).
 
   Returns:
-    Tuple of (jokes_list, next_cursor):
-      - jokes_list: List of PunnyJoke objects from the feed
+    Tuple of (entries, next_cursor):
+      - entries: List of (PunnyJoke, cursor) pairs, where cursor is the position of
+        that joke in format "doc_id:joke_index".
       - next_cursor: Cursor in format "doc_id:joke_index" representing the next joke
         to return (the first joke of the next page), or None if no more jokes are
         available. This cursor can be used to fetch the next page starting from this joke.
@@ -834,7 +835,7 @@ def get_joke_feed_page(
 
   # Read documents until we have limit + 1 jokes worth of data
   # We'll return only limit jokes, using the extra to determine if there are more
-  jokes: list[models.PunnyJoke] = []
+  entries: list[tuple[models.PunnyJoke, str]] = []
   next_cursor_doc_id: str | None = None
   next_cursor_joke_index: int | None = None
 
@@ -870,12 +871,12 @@ def get_joke_feed_page(
         )
 
         # If we already have limit jokes, this is the next joke - store as cursor and break
-        if len(jokes) == limit:
+        if len(entries) == limit:
           next_cursor_doc_id = doc.id
           next_cursor_joke_index = joke_index
           break
 
-        jokes.append(joke)
+        entries.append((joke, f"{doc.id}:{joke_index}"))
       except Exception:  # pylint: disable=broad-except
         # Skip malformed jokes, but continue reading to check if there are more
         continue
@@ -888,7 +889,32 @@ def get_joke_feed_page(
   next_cursor = (f"{next_cursor_doc_id}:{next_cursor_joke_index}"
                  if next_cursor_doc_id else None)
 
-  return jokes, next_cursor
+  return entries, next_cursor
+
+
+def get_joke_feed_page(
+  cursor: str | None = None,
+  limit: int = 10,
+) -> tuple[list[models.PunnyJoke], str | None]:
+  """Get a page of jokes from the joke_feed collection.
+
+  Args:
+    cursor: Optional cursor in format "doc_id:joke_index" (e.g., "0000000000:9").
+      The joke_index is the 0-based index of the next joke to return (the first joke
+      of the next page). When provided, the function will start from this joke index
+      in the specified document.
+      If None, starts from the first document and first joke.
+    limit: Maximum number of jokes to return (default 10).
+
+  Returns:
+    Tuple of (jokes_list, next_cursor):
+      - jokes_list: List of PunnyJoke objects from the feed
+      - next_cursor: Cursor in format "doc_id:joke_index" representing the next joke
+        to return (the first joke of the next page), or None if no more jokes are
+        available. This cursor can be used to fetch the next page starting from this joke.
+  """
+  entries, next_cursor = get_joke_feed_page_entries(cursor=cursor, limit=limit)
+  return [entry[0] for entry in entries], next_cursor
 
 
 def create_character(character: models.Character) -> models.Character:

@@ -5,6 +5,7 @@ from __future__ import annotations
 import datetime
 
 import flask
+from firebase_functions import logger
 from services import firestore
 from web.routes import web_bp
 from web.utils import urls
@@ -23,10 +24,18 @@ def index():
   Otherwise, starts from the beginning of the feed.
   """
   # Read cursor from cookie if present
-  saved_cursor = flask.request.cookies.get(_COOKIE_NAME)
+  cookie_cursor = flask.request.cookies.get(_COOKIE_NAME)
 
-  jokes_list, next_cursor = firestore.get_joke_feed_page(cursor=saved_cursor,
-                                                         limit=_JOKES_PER_PAGE)
+  logger.info(f"Serving jokes feed page from cursor: {cookie_cursor}")
+
+  joke_entries, next_cursor = firestore.get_joke_feed_page_entries(
+    cursor=cookie_cursor,
+    limit=_JOKES_PER_PAGE,
+  )
+  jokes_list = [{
+    'joke': joke,
+    'cursor': cursor,
+  } for joke, cursor in joke_entries]
 
   canonical_url = urls.canonical_url('/')
   now_year = datetime.datetime.now(datetime.timezone.utc).year
@@ -73,8 +82,14 @@ def jokes_load_more(slug: str):
   next_cursor: str | None = None
 
   if slug == 'feed':
-    jokes_list, next_cursor = firestore.get_joke_feed_page(cursor=cursor,
-                                                           limit=limit)
+    joke_entries, next_cursor = firestore.get_joke_feed_page_entries(
+      cursor=cursor,
+      limit=limit,
+    )
+    jokes_list = [{
+      'joke': joke,
+      'cursor': cursor,
+    } for joke, cursor in joke_entries]
   # Future slugs can be added here
   else:
     flask.abort(404, description=f"Unknown feed slug: {slug}")

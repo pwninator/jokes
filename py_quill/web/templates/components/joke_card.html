@@ -1,7 +1,8 @@
-{% macro joke_card(joke, reveal_label='Reveal Punchline', image_size=600, reveal_style='carousel', joke_id=None) -%}
+{% macro joke_card(joke, reveal_label='Reveal Punchline', image_size=600, reveal_style='carousel', joke_id=None, feed_cursor=None) -%}
 {% set unique_id = joke_id or joke.key|default('joke-unknown') %}
 {% if reveal_style == 'carousel' %}
-<article class="joke-card" aria-label="Joke {{ unique_id }}">
+<article class="joke-card" aria-label="Joke {{ unique_id }}"
+  {% if feed_cursor %}data-feed-cursor="{{ feed_cursor }}"{% endif %}>
   <div class="joke-viewer" data-joke-viewer>
     <div class="joke-carousel">
       <div class="joke-carousel-viewport">

@@ -21,9 +21,9 @@ def test_jokes_route_redirects_to_homepage():
 
 def test_index_page_includes_meta_tags(monkeypatch):
   """Test that homepage includes proper meta tags and canonical URL."""
-  mock_get_joke_feed_page = Mock(return_value=([], None))
-  monkeypatch.setattr(jokes_routes.firestore, "get_joke_feed_page",
-                      mock_get_joke_feed_page)
+  mock_get_joke_feed_page_entries = Mock(return_value=([], None))
+  monkeypatch.setattr(jokes_routes.firestore, "get_joke_feed_page_entries",
+                      mock_get_joke_feed_page_entries)
 
   with app.test_client() as client:
     resp = client.get('/')
@@ -37,16 +37,17 @@ def test_index_page_includes_meta_tags(monkeypatch):
 
 def test_index_page_shows_carousel_reveal(monkeypatch):
   """Test that homepage shows joke cards with carousel reveal."""
-  mock_get_joke_feed_page = Mock()
-  monkeypatch.setattr(jokes_routes.firestore, "get_joke_feed_page",
-                      mock_get_joke_feed_page)
+  mock_get_joke_feed_page_entries = Mock()
+  monkeypatch.setattr(jokes_routes.firestore, "get_joke_feed_page_entries",
+                      mock_get_joke_feed_page_entries)
 
   joke = models.PunnyJoke(key="joke1",
                           setup_text="Setup",
                           punchline_text="Punchline",
                           setup_image_url="http://example.com/setup.jpg",
                           punchline_image_url="http://example.com/punch.jpg")
-  mock_get_joke_feed_page.return_value = ([joke], None)
+  mock_get_joke_feed_page_entries.return_value = ([(joke, "0000000000:0")],
+                                                  None)
 
   with app.test_client() as client:
     resp = client.get('/')
@@ -61,16 +62,17 @@ def test_index_page_shows_carousel_reveal(monkeypatch):
 
 def test_jokes_load_more_returns_json(monkeypatch):
   """Test that GET /jokes/load-more-feed returns JSON with HTML fragments."""
-  mock_get_joke_feed_page = Mock()
-  monkeypatch.setattr(jokes_routes.firestore, "get_joke_feed_page",
-                      mock_get_joke_feed_page)
+  mock_get_joke_feed_page_entries = Mock()
+  monkeypatch.setattr(jokes_routes.firestore, "get_joke_feed_page_entries",
+                      mock_get_joke_feed_page_entries)
 
   joke = models.PunnyJoke(key="joke3",
                           setup_text="Setup 3",
                           punchline_text="Punchline 3",
                           setup_image_url="http://example.com/setup3.jpg",
                           punchline_image_url="http://example.com/punch3.jpg")
-  mock_get_joke_feed_page.return_value = ([joke], "0000000002")
+  mock_get_joke_feed_page_entries.return_value = ([(joke, "0000000001:0")],
+                                                  "0000000002")
 
   with app.test_client() as client:
     resp = client.get('/jokes/load-more-feed?cursor=0000000001')
@@ -84,18 +86,21 @@ def test_jokes_load_more_returns_json(monkeypatch):
   # HTML should contain the joke content
   assert 'joke3' in data['html']
   assert 'Setup 3' in data['html']
+  assert 'data-feed-cursor="0000000001:0"' in data['html']
   assert data['cursor'] == "0000000002"
   assert data['has_more'] is True
   assert 'Cache-Control' in resp.headers
-  mock_get_joke_feed_page.assert_called_once_with(cursor="0000000001",
-                                                  limit=10)
+  mock_get_joke_feed_page_entries.assert_called_once_with(
+    cursor="0000000001",
+    limit=10,
+  )
 
 
 def test_jokes_load_more_without_cursor(monkeypatch):
   """Test that GET /jokes/load-more-feed handles missing cursor."""
-  mock_get_joke_feed_page = Mock(return_value=([], None))
-  monkeypatch.setattr(jokes_routes.firestore, "get_joke_feed_page",
-                      mock_get_joke_feed_page)
+  mock_get_joke_feed_page_entries = Mock(return_value=([], None))
+  monkeypatch.setattr(jokes_routes.firestore, "get_joke_feed_page_entries",
+                      mock_get_joke_feed_page_entries)
 
   with app.test_client() as client:
     resp = client.get('/jokes/load-more-feed')
@@ -105,27 +110,27 @@ def test_jokes_load_more_without_cursor(monkeypatch):
   assert 'html' in data
   assert data['cursor'] is None
   assert data['has_more'] is False
-  mock_get_joke_feed_page.assert_called_once_with(cursor=None, limit=10)
+  mock_get_joke_feed_page_entries.assert_called_once_with(cursor=None, limit=10)
 
 
 def test_jokes_load_more_with_custom_limit(monkeypatch):
   """Test that GET /jokes/load-more-feed accepts custom limit parameter."""
-  mock_get_joke_feed_page = Mock(return_value=([], None))
-  monkeypatch.setattr(jokes_routes.firestore, "get_joke_feed_page",
-                      mock_get_joke_feed_page)
+  mock_get_joke_feed_page_entries = Mock(return_value=([], None))
+  monkeypatch.setattr(jokes_routes.firestore, "get_joke_feed_page_entries",
+                      mock_get_joke_feed_page_entries)
 
   with app.test_client() as client:
     resp = client.get('/jokes/load-more-feed?limit=5')
 
   assert resp.status_code == 200
-  mock_get_joke_feed_page.assert_called_once_with(cursor=None, limit=5)
+  mock_get_joke_feed_page_entries.assert_called_once_with(cursor=None, limit=5)
 
 
 def test_jokes_load_more_handles_invalid_cursor(monkeypatch):
   """Test that GET /jokes/load-more-feed handles invalid cursor gracefully."""
-  mock_get_joke_feed_page = Mock(return_value=([], None))
-  monkeypatch.setattr(jokes_routes.firestore, "get_joke_feed_page",
-                      mock_get_joke_feed_page)
+  mock_get_joke_feed_page_entries = Mock(return_value=([], None))
+  monkeypatch.setattr(jokes_routes.firestore, "get_joke_feed_page_entries",
+                      mock_get_joke_feed_page_entries)
 
   with app.test_client() as client:
     resp = client.get('/jokes/load-more-feed?cursor=invalid')
@@ -134,14 +139,14 @@ def test_jokes_load_more_handles_invalid_cursor(monkeypatch):
   data = resp.get_json()
   assert 'html' in data
   assert data['has_more'] is False
-  mock_get_joke_feed_page.assert_called_once_with(cursor="invalid", limit=10)
+  mock_get_joke_feed_page_entries.assert_called_once_with(cursor="invalid", limit=10)
 
 
 def test_index_page_empty_feed(monkeypatch):
   """Test that homepage handles empty feed gracefully."""
-  mock_get_joke_feed_page = Mock(return_value=([], None))
-  monkeypatch.setattr(jokes_routes.firestore, "get_joke_feed_page",
-                      mock_get_joke_feed_page)
+  mock_get_joke_feed_page_entries = Mock(return_value=([], None))
+  monkeypatch.setattr(jokes_routes.firestore, "get_joke_feed_page_entries",
+                      mock_get_joke_feed_page_entries)
 
   with app.test_client() as client:
     resp = client.get('/')
@@ -154,9 +159,9 @@ def test_index_page_empty_feed(monkeypatch):
 
 def test_index_page_skips_malformed_jokes(monkeypatch):
   """Test that homepage skips malformed jokes in feed."""
-  mock_get_joke_feed_page = Mock()
-  monkeypatch.setattr(jokes_routes.firestore, "get_joke_feed_page",
-                      mock_get_joke_feed_page)
+  mock_get_joke_feed_page_entries = Mock()
+  monkeypatch.setattr(jokes_routes.firestore, "get_joke_feed_page_entries",
+                      mock_get_joke_feed_page_entries)
 
   # The function now returns PunnyJoke objects, so malformed jokes are already filtered
   joke = models.PunnyJoke(key="joke1",
@@ -164,7 +169,8 @@ def test_index_page_skips_malformed_jokes(monkeypatch):
                           punchline_text="Punchline 1",
                           setup_image_url="http://example.com/setup1.jpg",
                           punchline_image_url="http://example.com/punch1.jpg")
-  mock_get_joke_feed_page.return_value = ([joke], None)
+  mock_get_joke_feed_page_entries.return_value = ([(joke, "0000000000:0")],
+                                                  None)
 
   with app.test_client() as client:
     resp = client.get('/')
@@ -178,16 +184,17 @@ def test_index_page_skips_malformed_jokes(monkeypatch):
 
 def test_index_page_renders_jokes_feed(monkeypatch):
   """Test that GET / renders the jokes feed as the homepage."""
-  mock_get_joke_feed_page = Mock()
-  monkeypatch.setattr(jokes_routes.firestore, "get_joke_feed_page",
-                      mock_get_joke_feed_page)
+  mock_get_joke_feed_page_entries = Mock()
+  monkeypatch.setattr(jokes_routes.firestore, "get_joke_feed_page_entries",
+                      mock_get_joke_feed_page_entries)
 
   joke = models.PunnyJoke(key="joke1",
                           setup_text="Why did the chicken cross the road?",
                           punchline_text="To get to the other side!",
                           setup_image_url="http://example.com/setup1.jpg",
                           punchline_image_url="http://example.com/punch1.jpg")
-  mock_get_joke_feed_page.return_value = ([joke], None)
+  mock_get_joke_feed_page_entries.return_value = ([(joke, "0000000000:0")],
+                                                  None)
 
   with app.test_client() as client:
     resp = client.get('/')
@@ -199,26 +206,28 @@ def test_index_page_renders_jokes_feed(monkeypatch):
   assert 'Freshly Baked Jokes' in html
   assert "Why did the chicken cross the road?" in html
   assert 'data-joke-viewer' in html
+  assert 'data-feed-cursor="0000000000:0"' in html
   assert 'Cache-Control' in resp.headers
   assert 'private' in resp.headers['Cache-Control']
   assert 'no-store' in resp.headers['Cache-Control']
   # Verify canonical URL points to homepage
   assert f'<link rel="canonical" href="{urls.canonical_url("/")}">' in html
-  mock_get_joke_feed_page.assert_called_once_with(cursor=None, limit=10)
+  mock_get_joke_feed_page_entries.assert_called_once_with(cursor=None, limit=10)
 
 
 def test_index_page_uses_cookie_cursor(monkeypatch):
   """Test that homepage reads cookie and uses it as initial cursor."""
-  mock_get_joke_feed_page = Mock()
-  monkeypatch.setattr(jokes_routes.firestore, "get_joke_feed_page",
-                      mock_get_joke_feed_page)
+  mock_get_joke_feed_page_entries = Mock()
+  monkeypatch.setattr(jokes_routes.firestore, "get_joke_feed_page_entries",
+                      mock_get_joke_feed_page_entries)
 
   joke = models.PunnyJoke(key="joke1",
                           setup_text="Setup",
                           punchline_text="Punchline",
                           setup_image_url="http://example.com/setup.jpg",
                           punchline_image_url="http://example.com/punch.jpg")
-  mock_get_joke_feed_page.return_value = ([joke], "0000000001:5")
+  mock_get_joke_feed_page_entries.return_value = ([(joke, "0000000000:9")],
+                                                  "0000000001:5")
 
   with app.test_client() as client:
     # Set cookie with cursor
@@ -227,8 +236,10 @@ def test_index_page_uses_cookie_cursor(monkeypatch):
 
   assert resp.status_code == 200
   # Should call with cookie cursor
-  mock_get_joke_feed_page.assert_called_once_with(cursor='0000000000:9',
-                                                  limit=10)
+  mock_get_joke_feed_page_entries.assert_called_once_with(
+    cursor='0000000000:9',
+    limit=10,
+  )
   # Route should not set cookies (handled by JavaScript)
   assert 'Set-Cookie' not in resp.headers or 'jokes_feed_cursor' not in resp.headers.get('Set-Cookie', '')
 
@@ -242,13 +253,13 @@ def test_jokes_load_more_unknown_slug_returns_404():
 
 
 def test_jokes_load_more_feed_slug_dispatches_correctly(monkeypatch):
-  """Test that 'feed' slug correctly calls get_joke_feed_page."""
-  mock_get_joke_feed_page = Mock(return_value=([], None))
-  monkeypatch.setattr(jokes_routes.firestore, "get_joke_feed_page",
-                      mock_get_joke_feed_page)
+  """Test that 'feed' slug correctly calls get_joke_feed_page_entries."""
+  mock_get_joke_feed_page_entries = Mock(return_value=([], None))
+  monkeypatch.setattr(jokes_routes.firestore, "get_joke_feed_page_entries",
+                      mock_get_joke_feed_page_entries)
 
   with app.test_client() as client:
     resp = client.get('/jokes/load-more-feed?cursor=test123')
 
   assert resp.status_code == 200
-  mock_get_joke_feed_page.assert_called_once_with(cursor="test123", limit=10)
+  mock_get_joke_feed_page_entries.assert_called_once_with(cursor="test123", limit=10)

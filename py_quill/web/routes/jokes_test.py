@@ -200,7 +200,8 @@ def test_index_page_renders_jokes_feed(monkeypatch):
   assert "Why did the chicken cross the road?" in html
   assert 'data-joke-viewer' in html
   assert 'Cache-Control' in resp.headers
-  assert 'Cookie' in resp.headers.get('Vary', '')
+  assert 'private' in resp.headers['Cache-Control']
+  assert 'no-store' in resp.headers['Cache-Control']
   # Verify canonical URL points to homepage
   assert f'<link rel="canonical" href="{urls.canonical_url("/")}">' in html
   mock_get_joke_feed_page.assert_called_once_with(cursor=None, limit=10)

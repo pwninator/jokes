@@ -61,7 +61,7 @@ def test_index_page_shows_carousel_reveal(monkeypatch):
 
 
 def test_jokes_load_more_returns_json(monkeypatch):
-  """Test that GET /jokes/load-more-feed returns JSON with HTML fragments."""
+  """Test that GET /jokes/feed/load-more-feed returns JSON with HTML fragments."""
   mock_get_joke_feed_page_entries = Mock()
   monkeypatch.setattr(jokes_routes.firestore, "get_joke_feed_page_entries",
                       mock_get_joke_feed_page_entries)
@@ -75,7 +75,7 @@ def test_jokes_load_more_returns_json(monkeypatch):
                                                   "0000000002")
 
   with app.test_client() as client:
-    resp = client.get('/jokes/load-more-feed?cursor=0000000001')
+    resp = client.get('/jokes/feed/load-more-feed?cursor=0000000001')
 
   assert resp.status_code == 200
   assert 'application/json' in resp.headers['Content-Type']
@@ -97,13 +97,13 @@ def test_jokes_load_more_returns_json(monkeypatch):
 
 
 def test_jokes_load_more_without_cursor(monkeypatch):
-  """Test that GET /jokes/load-more-feed handles missing cursor."""
+  """Test that GET /jokes/feed/load-more-feed handles missing cursor."""
   mock_get_joke_feed_page_entries = Mock(return_value=([], None))
   monkeypatch.setattr(jokes_routes.firestore, "get_joke_feed_page_entries",
                       mock_get_joke_feed_page_entries)
 
   with app.test_client() as client:
-    resp = client.get('/jokes/load-more-feed')
+    resp = client.get('/jokes/feed/load-more-feed')
 
   assert resp.status_code == 200
   data = resp.get_json()
@@ -114,26 +114,26 @@ def test_jokes_load_more_without_cursor(monkeypatch):
 
 
 def test_jokes_load_more_with_custom_limit(monkeypatch):
-  """Test that GET /jokes/load-more-feed accepts custom limit parameter."""
+  """Test that GET /jokes/feed/load-more-feed accepts custom limit parameter."""
   mock_get_joke_feed_page_entries = Mock(return_value=([], None))
   monkeypatch.setattr(jokes_routes.firestore, "get_joke_feed_page_entries",
                       mock_get_joke_feed_page_entries)
 
   with app.test_client() as client:
-    resp = client.get('/jokes/load-more-feed?limit=5')
+    resp = client.get('/jokes/feed/load-more-feed?limit=5')
 
   assert resp.status_code == 200
   mock_get_joke_feed_page_entries.assert_called_once_with(cursor=None, limit=5)
 
 
 def test_jokes_load_more_handles_invalid_cursor(monkeypatch):
-  """Test that GET /jokes/load-more-feed handles invalid cursor gracefully."""
+  """Test that GET /jokes/feed/load-more-feed handles invalid cursor gracefully."""
   mock_get_joke_feed_page_entries = Mock(return_value=([], None))
   monkeypatch.setattr(jokes_routes.firestore, "get_joke_feed_page_entries",
                       mock_get_joke_feed_page_entries)
 
   with app.test_client() as client:
-    resp = client.get('/jokes/load-more-feed?cursor=invalid')
+    resp = client.get('/jokes/feed/load-more-feed?cursor=invalid')
 
   assert resp.status_code == 200
   data = resp.get_json()
@@ -245,9 +245,9 @@ def test_index_page_uses_cookie_cursor(monkeypatch):
 
 
 def test_jokes_load_more_unknown_slug_returns_404():
-  """Test that GET /jokes/load-more-<unknown> returns 404 for unknown slugs."""
+  """Test that GET /jokes/feed/load-more-<unknown> returns 404 for unknown slugs."""
   with app.test_client() as client:
-    resp = client.get('/jokes/load-more-unknown-slug')
+    resp = client.get('/jokes/feed/load-more-unknown-slug')
 
   assert resp.status_code == 404
 
@@ -259,7 +259,7 @@ def test_jokes_load_more_feed_slug_dispatches_correctly(monkeypatch):
                       mock_get_joke_feed_page_entries)
 
   with app.test_client() as client:
-    resp = client.get('/jokes/load-more-feed?cursor=test123')
+    resp = client.get('/jokes/feed/load-more-feed?cursor=test123')
 
   assert resp.status_code == 200
   mock_get_joke_feed_page_entries.assert_called_once_with(cursor="test123", limit=10)

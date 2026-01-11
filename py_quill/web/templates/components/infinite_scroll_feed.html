@@ -72,7 +72,7 @@
     const loadingIndicator = document.getElementById('{{ loading_id }}');
     const endOfFeed = document.getElementById('{{ end_of_feed_id }}');
     const cookieName = {{ cookie_name | tojson if cookie_name else 'null' }};
-    const apiEndpoint = '/jokes/load-more-{{ slug }}';
+    const apiEndpoint = '/jokes/feed/load-more-{{ slug }}';
 
     function setCookie(name, value, days) {
       const expires = new Date();

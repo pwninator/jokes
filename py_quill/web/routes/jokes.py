@@ -60,7 +60,7 @@ def jokes():
   return flask.redirect('/', code=301)
 
 
-@web_bp.route('/jokes/load-more-<slug>')
+@web_bp.route('/jokes/feed/load-more-<slug>')
 def jokes_load_more(slug: str):
   """API endpoint to load more jokes for infinite scroll. Returns HTML fragments.
   
